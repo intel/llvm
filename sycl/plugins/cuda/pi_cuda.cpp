@@ -2393,7 +2393,7 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    command_queue->for_each_stream([&result](CUstream s) {
+    command_queue->sync_streams([&result](CUstream s) {
       result = PI_CHECK_ERROR(cuStreamSynchronize(s));
     });
 
