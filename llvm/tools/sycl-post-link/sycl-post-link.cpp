@@ -204,7 +204,7 @@ struct GlobalBinImageProps {
   bool EmitDeviceGlobalPropSet;
 };
 
-struct IrPropSymFilenameTripple {
+struct IrPropSymFilenameTriple {
   std::string Ir;
   std::string Prop;
   std::string Sym;
@@ -306,7 +306,7 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 }
 
 // Creates a filename based on current output filename, given extension,
-// sequential ID and suffix. If the sequential ID I is negative, it is
+// sequential ID and suffix.
 std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
   const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
                              ? OutputDir
@@ -423,7 +423,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
     }
   }
-  if (MD.Props.HasEsimd == module_split::ESIMDStatus::ESIMD_ONLY) {
+  if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
   {
@@ -442,6 +442,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);
   raw_fd_ostream SCOut(SCFile, EC);
+  checkError(EC, "error opening file '" + SCFile + "'");
   PropSet.write(SCOut);
 
   return SCFile;
@@ -513,17 +514,15 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 }
 
 // @param MD Module descriptor to save
-// @param IRFilename filename of already avaialble IR component. If not empty,
-//   IR component saving is skipped, and this file name as recorded as such in
+// @param IRFilename filename of already available IR component. If not empty,
+//   IR component saving is skipped, and this file name is recorded as such in
 //   the result.
 // @return a triple of files where IR, Property and Symbols components of the
 //   Module descriptor are written respectively.
-IrPropSymFilenameTripple saveModule(module_split::ModuleDesc &MD, int I,
-                                    StringRef IRFilename = "") {
-  IrPropSymFilenameTripple Res;
-  StringRef Suffix = MD.Props.HasEsimd == module_split::ESIMDStatus::ESIMD_ONLY
-                         ? "_esimd"
-                         : "";
+IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
+                                   StringRef IRFilename = "") {
+  IrPropSymFilenameTriple Res;
+  StringRef Suffix = MD.isESIMD() ? "_esimd" : "";
 
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
@@ -556,7 +555,7 @@ module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
   module_split::ModuleDesc Res(MD1.releaseModulePtr(), std::move(Names));
   Res.Props.HasEsimd = MD1.Props.HasEsimd == MD2.Props.HasEsimd
                            ? MD1.Props.HasEsimd
-                           : module_split::ESIMDStatus::SYCL_AND_ESIMD;
+                           : module_split::SyclEsimdSplitStatus::SYCL_AND_ESIMD;
   Res.Props.SpecConstsMet = MD1.Props.SpecConstsMet || MD2.Props.SpecConstsMet;
   Res.Name = "linked[" + MD1.Name + "," + MD1.Name + "]";
   return Res;
@@ -603,7 +602,7 @@ bool processCompileTimeProperties(module_split::ModuleDesc &MD) {
 constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
 
 void addTableRow(util::SimpleTable &Table,
-                 const IrPropSymFilenameTripple &RowData) {
+                 const IrPropSymFilenameTriple &RowData) {
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> Row;
 
   for (const std::string *S : {&RowData.Ir, &RowData.Prop, &RowData.Sym}) {
@@ -737,10 +736,8 @@ processInputModule(std::unique_ptr<Module> M) {
       Modified |= processSpecConstants(MDesc1);
       Modified |= processCompileTimeProperties(MDesc1);
 
-      if ((MDesc1.Props.HasEsimd != module_split::ESIMDStatus::SYCL_ONLY) &&
-          LowerEsimd) {
-        assert(MDesc1.Props.HasEsimd == module_split::ESIMDStatus::ESIMD_ONLY &&
-               "NYI");
+      if (!MDesc1.isSYCL() && LowerEsimd) {
+        assert(MDesc1.isESIMD() && "NYI");
         Modified |= lowerEsimdConstructs(MDesc1);
       }
       MMs.emplace_back(std::move(MDesc1));
@@ -779,7 +776,7 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
-      IrPropSymFilenameTripple T = saveModule(IrMD, ID, OutIRFileName);
+      IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
       addTableRow(*Table, T);
     }
     ++ID;

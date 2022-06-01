@@ -427,13 +427,13 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
 
 #ifndef _NDEBUG
 
-const char *toString(ESIMDStatus S) {
+const char *toString(SyclEsimdSplitStatus S) {
   switch (S) {
-  case ESIMDStatus::ESIMD_ONLY:
+  case SyclEsimdSplitStatus::ESIMD_ONLY:
     return "ESIMD_ONLY";
-  case ESIMDStatus::SYCL_ONLY:
+  case SyclEsimdSplitStatus::SYCL_ONLY:
     return "SYCL_ONLY";
-  case ESIMDStatus::SYCL_AND_ESIMD:
+  case SyclEsimdSplitStatus::SYCL_AND_ESIMD:
     return "SYCL_AND_ESIMD";
   }
   return "<UNKNOWN_STATUS>";
@@ -508,11 +508,11 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
 
 void ModuleDesc::assignESIMDProperty() {
   if (EntryPoints.isEsimd()) {
-    Props.HasEsimd = ESIMDStatus::ESIMD_ONLY;
+    Props.HasEsimd = SyclEsimdSplitStatus::ESIMD_ONLY;
   } else if (EntryPoints.isSycl()) {
-    Props.HasEsimd = ESIMDStatus::SYCL_ONLY;
+    Props.HasEsimd = SyclEsimdSplitStatus::SYCL_ONLY;
   } else {
-    Props.HasEsimd = ESIMDStatus::SYCL_AND_ESIMD;
+    Props.HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
   }
 #ifndef _NDEBUG
   verifyESIMDProperty();
@@ -521,7 +521,7 @@ void ModuleDesc::assignESIMDProperty() {
 
 #ifndef _NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
-  if (Props.HasEsimd == ESIMDStatus::SYCL_AND_ESIMD) {
+  if (Props.HasEsimd == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     return; // nothing to verify
   }
   // Verify entry points:
@@ -529,10 +529,10 @@ void ModuleDesc::verifyESIMDProperty() const {
     const bool IsESIMDFunction = isESIMDFunction(*F);
 
     switch (Props.HasEsimd) {
-    case ESIMDStatus::ESIMD_ONLY:
+    case SyclEsimdSplitStatus::ESIMD_ONLY:
       assert(IsESIMDFunction);
       break;
-    case ESIMDStatus::SYCL_ONLY:
+    case SyclEsimdSplitStatus::SYCL_ONLY:
       assert(!IsESIMDFunction);
       break;
     default:
@@ -544,7 +544,7 @@ void ModuleDesc::verifyESIMDProperty() const {
   // created to wrap (call) an ESIMD kernel definition, it is not marked with
   // "sycl_explicit_simd" attribute in the API headers. Thus it leads to extra
   // "SYCL only" module during split. This existed before and needs to be fixed.
-  // if (Props.HasEsimd == ESIMDStatus::SYCL_ONLY) {
+  // if (Props.HasEsimd == SyclEsimdSplitStatus::SYCL_ONLY) {
   //  for (const auto &F : getModule()) {
   //    assert(!isESIMDFunction(F));
   //  }

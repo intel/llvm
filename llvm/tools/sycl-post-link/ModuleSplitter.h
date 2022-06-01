@@ -36,6 +36,10 @@ enum IRSplitMode {
 // A vector that contains all entry point functions in a split module.
 using EntryPointVec = std::vector<const Function *>;
 
+// Represents a named group of device code entry points - kernels and
+// SYCL_EXTERNAL functions. There are special group names - "<SYCL>" and
+// "<ESIMD>" - which have effect on group processing.
+
 struct EntryPointGroup {
   StringRef GroupId;
 
@@ -47,7 +51,9 @@ public:
       : GroupId(GroupId), Functions(std::move(Functions)) {}
 
   const StringRef getId() const { return GroupId; }
+  // Tells if this group has only ESIMD entry points (based on GroupId).
   bool isEsimd() const;
+  // Tells if this group has only SYCL entry points (based on GroupId).
   bool isSycl() const;
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
@@ -56,7 +62,7 @@ public:
 
 using EntryPointGroupVec = std::vector<EntryPointGroup>;
 
-enum class ESIMDStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
+enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
 
 class ModuleDesc {
   std::unique_ptr<Module> M;
@@ -64,7 +70,7 @@ class ModuleDesc {
 
 public:
   struct Properties {
-    ESIMDStatus HasEsimd = ESIMDStatus::SYCL_AND_ESIMD;
+    SyclEsimdSplitStatus HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
     bool SpecConstsMet = true;
   };
   std::string Name = "";
@@ -80,8 +86,12 @@ public:
     rebuildEntryPoints(Names);
   }
 
-  bool isESIMD() const { return Props.HasEsimd == ESIMDStatus::ESIMD_ONLY; }
-  bool isSYCL() const { return Props.HasEsimd == ESIMDStatus::SYCL_ONLY; }
+  bool isESIMD() const {
+    return Props.HasEsimd == SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
+  bool isSYCL() const {
+    return Props.HasEsimd == SyclEsimdSplitStatus::SYCL_ONLY;
+  }
   const EntryPointVec &entries() const { return EntryPoints.Functions; }
   EntryPointVec &entries() { return EntryPoints.Functions; }
   Module &getModule() { return *M; }
@@ -105,9 +115,9 @@ public:
 
   void renameDuplicatesOf(const Module &M, StringRef Suff);
 
-  // Updates Props.HasEsimd to ESIMDStatus::ESIMD_ONLY/SYCL_ONLY if this module
-  // descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split. Otherwise
-  // assumes the module has both SYCL and ESIMD.
+  // Updates Props.HasEsimd to SyclEsimdSplitStatus::ESIMD_ONLY/SYCL_ONLY if
+  // this module descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split.
+  // Otherwise assumes the module has both SYCL and ESIMD.
   void assignESIMDProperty();
 #ifndef _NDEBUG
   void verifyESIMDProperty() const;
