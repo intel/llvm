@@ -2131,6 +2131,19 @@ pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
 /// \return PI_SUCCESS
 pi_result hip_piextMemGetNativeHandle(pi_mem mem,
                                       pi_native_handle *nativeHandle) {
+  if (sizeof(_pi_mem::mem_::buffer_mem_::native_type) >
+      sizeof(pi_native_handle)) {
+    // Check that all the upper bits that cannot be represented by
+    // pi_native_handle are empty.
+    // NOTE: The following shift might trigger a warning, but the check in the
+    // if above makes sure that this does not underflow.
+    _pi_mem::mem_::buffer_mem_::native_type upperBits =
+        mem->mem_.buffer_mem_.get() >> (sizeof(pi_native_handle) * CHAR_BIT);
+    if (upperBits) {
+      // Return an error if any of the remaining bits is non-zero.
+      return PI_INVALID_MEM_OBJECT;
+    }
+  }
   *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
   return PI_SUCCESS;
 }
