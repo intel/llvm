@@ -113,7 +113,8 @@ device device_selector::select_device() const {
 /// 3. Host
 /// 4. Accelerator
 int default_selector::operator()(const device &dev) const {
-  int Score = REJECT_DEVICE_SCORE;
+  // The default selector doesn't reject any devices.
+  int Score = 0;
 
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
     Score += 2000;
@@ -133,9 +134,8 @@ int default_selector::operator()(const device &dev) const {
   if (dev.is_accelerator())
     Score += 75;
 
-  // If the device wasn't rejected, add preference score.
-  if (Score > REJECT_DEVICE_SCORE)
-    Score += getDevicePreference(dev);
+  // Add preference score.
+  Score += getDevicePreference(dev);
 
   return Score;
 }
