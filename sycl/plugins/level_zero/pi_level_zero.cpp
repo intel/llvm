@@ -1123,8 +1123,10 @@ static pi_result CleanupCompletedEvent(pi_event);
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists. A caller must not lock the queue mutex.
 pi_result resetCommandLists(pi_queue Queue) {
-  // We need events to be cleaned up out of scope where queue is locked to avoid nested locks, because event cleanup requires event to be locked.
-  // Nested locks are hard to control and can cause deadlocks if mutexes are locked in different order.
+  // We need events to be cleaned up out of scope where queue is locked to avoid
+  // nested locks, because event cleanup requires event to be locked. Nested
+  // locks are hard to control and can cause deadlocks if mutexes are locked in
+  // different order.
   std::vector<pi_event> EventListToCleanup;
   {
     // We check for command lists that have been already signalled, but have not
