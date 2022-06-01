@@ -77,7 +77,7 @@ supports.
 
 == Examples
 
-.Device Allocation example
+.Device allocation example
 [source,c++]
 ----
 using namespace sycl;
