@@ -116,7 +116,7 @@ int default_selector::operator()(const device &dev) const {
   int Score = REJECT_DEVICE_SCORE;
 
   if (dev.get_info<info::device::device_type>() == detail::get_forced_type())
-    Score += 1000;
+    Score += 2000;
 
   if (dev.is_gpu())
     Score += 500;
