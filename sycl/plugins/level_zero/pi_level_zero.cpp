@@ -3374,7 +3374,6 @@ pi_result piQueueRelease(pi_queue Queue) {
     // synchronized above already does that.
     Event->Completed = true;
     PI_CALL(CleanupCompletedEvent(Event));
-    PI_CALL(piEventRelease(Event));
   }
   PI_CALL(piQueueReleaseInternal(Queue));
   return PI_SUCCESS;
