@@ -426,7 +426,7 @@ void __esimd_emu_lsc_offset_write(
 
 /// Generic helper function of 2D Block Read supporting both 2d-load
 /// and raw_send
-template <typename Ty, uint N>
+template <typename Ty, int N>
 __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_emu_read_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr,
                     unsigned SurfaceWidth, unsigned SurfaceHeight,
@@ -535,7 +535,7 @@ __esimd_emu_read_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr,
 
 /// Generic helper function of 2D Block Write supporting both
 /// 2d-write and raw_send
-template <typename Ty, uint N>
+template <typename Ty, int N>
 void __esimd_emu_write_2d(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
                           uintptr_t Ptr, unsigned SurfaceWidth,
                           unsigned SurfaceHeight, unsigned SurfacePitch, int X,
