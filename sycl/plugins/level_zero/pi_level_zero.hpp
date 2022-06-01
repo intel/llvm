@@ -695,7 +695,7 @@ struct _pi_context : _pi_object {
   // once for each SYCL Queue and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
-                                    bool UseCopyEngine = false,
+                                    bool UseCopyEngine,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no available
@@ -927,13 +927,11 @@ struct _pi_queue : _pi_object {
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
-  // fence have been signalled.
+  // fence have been signalled. The EventListToCleanup contains a list of events
+  // from the command list which need to be cleaned up.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable);
-
-  // Reset signalled command lists in the queue and put them to the cache of
-  // command lists. A caller must not lock the queue mutex.
-  pi_result resetCommandLists();
+                             bool MakeAvailable,
+                             std::vector<_pi_event *> &EventListToCleanup);
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
@@ -965,8 +963,8 @@ struct _pi_queue : _pi_object {
   // executed.
   pi_result executeOpenCommandList(bool IsCopy);
 
-  // Execute the open command containing the event.
-  pi_result executeOpenCommandListWithEvent(pi_event Event);
+  // Gets the open command containing the event, or CommandListMap.end()
+  pi_command_list_ptr_t eventOpenCommandList(pi_event Event);
 
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
@@ -1212,9 +1210,13 @@ struct _pi_ze_event_list_t {
   // CurQueue is the pi_queue that the command with this event wait
   // list is going to be added to.  That is needed to flush command
   // batches for wait events that are in other queues.
+  // UseCopyEngine indicates if the next command (the one that this
+  // event wait-list is for) is going to go to copy or compute
+  // queue. This is used to properly submit the dependent open
+  // command-lists.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
-                                         pi_queue CurQueue);
+                                         pi_queue CurQueue, bool UseCopyEngine);
 
   // Add all the events in this object's PiEventList to the end
   // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
@@ -1237,8 +1239,7 @@ struct _pi_event : _pi_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
             pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
       : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
-        ZeCommandList{nullptr}, CommandType{CommandType}, Context{Context},
-        CommandData{nullptr} {}
+        CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
 
   // Level Zero event handle.
   ze_event_handle_t ZeEvent;
@@ -1272,11 +1273,6 @@ struct _pi_event : _pi_object {
            (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
   }
 
-  // Level Zero command list where the command signaling this event was appended
-  // to. This is currently used to remember/destroy the command list after all
-  // commands in it are completed, i.e. this event signaled.
-  ze_command_list_handle_t ZeCommandList;
-
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.
   pi_queue Queue = {nullptr};
@@ -1295,8 +1291,6 @@ struct _pi_event : _pi_object {
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
 
-  // Performs the cleanup of a completed event.
-  pi_result cleanup(pi_queue LockedQueue = nullptr);
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
