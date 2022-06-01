@@ -885,11 +885,6 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   std::move(std::begin(EventList), std::end(EventList),
             std::back_inserter(EventListToCleanup));
   EventList.clear();
-  for (auto &Event : EventListToCleanup) {
-    // These events were removed from the command list, so decrement ref count
-    // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
-  }
 
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
@@ -1155,6 +1150,9 @@ pi_result resetCommandLists(pi_queue Queue) {
     // synchronized above already does that.
     Event->Completed = true;
     PI_CALL(CleanupCompletedEvent(Event));
+    // This event was removed from the command list, so decrement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
   }
   return PI_SUCCESS;
 }
@@ -3374,6 +3372,9 @@ pi_result piQueueRelease(pi_queue Queue) {
     // synchronized above already does that.
     Event->Completed = true;
     PI_CALL(CleanupCompletedEvent(Event));
+    // This event was removed from the command list, so decrement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
   }
   PI_CALL(piQueueReleaseInternal(Queue));
   return PI_SUCCESS;
