@@ -1201,6 +1201,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                 "Assertion `%s` failed.\n",
                 File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
                 AH->LID1, AH->LID2, Expr);
+        fflush(stderr);
         abort(); // no need to release memory as it's abort anyway
       }
     });
