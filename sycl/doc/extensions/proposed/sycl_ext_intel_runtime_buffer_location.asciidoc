@@ -108,7 +108,7 @@ q.copy(device_array, host_array, kN).wait();
 ... = host_array[index];
 ----
 
-.Shared Allocation example
+.Shared allocation example
 [source,c++]
 ----
 using namespace sycl;
