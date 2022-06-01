@@ -7435,7 +7435,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   // See if the memory is going to be read-only on the device.
   bool DeviceReadOnly = false;
   // Check that incorrect bits are not set in the properties.
-  if (Properties) {
+  if (Properties && *Properties != 0) {
     PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
               PI_INVALID_VALUE);
     DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
