@@ -31,7 +31,7 @@
 extern "C" {
 // Forward declarartions.
 static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
-static pi_result piQueueReleaseInternal(pi_queue Queue, pi_queue LockedQueue);
+static pi_result piQueueReleaseInternal(pi_queue Queue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
@@ -3327,11 +3327,11 @@ pi_result piQueueRelease(pi_queue Queue) {
     Queue->CommandListMap.clear();
   }
 
-  PI_CALL(piQueueReleaseInternal(Queue, nullptr));
+  PI_CALL(piQueueReleaseInternal(Queue));
   return PI_SUCCESS;
 }
 
-static pi_result piQueueReleaseInternal(pi_queue Queue, pi_queue LockedQueue) {
+static pi_result piQueueReleaseInternal(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
   if (!Queue->RefCount.decrementAndTest())
@@ -5595,7 +5595,7 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
   // pi_event is released. Here we have to decrement it so pi_queue
   // can be released successfully.
   if (Event->Queue) {
-    PI_CALL(piQueueReleaseInternal(Event->Queue, LockedQueue));
+    PI_CALL(piQueueReleaseInternal(Event->Queue));
   }
   delete Event;
 
