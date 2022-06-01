@@ -1700,6 +1700,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           // The caller of createAndRetainPiZeEventList must already hold
           // a lock of the CurQueue. Additionally lock the Queue if it
           // is different from CurQueue.
+          // TODO: rework this to avoid deadlock when another thread is
+          //       locking the same queues but in a different order.
           auto Lock = ((Queue == CurQueue) ? std::unique_lock<pi_shared_mutex>()
                                            : std::unique_lock(Queue->Mutex));
 
