@@ -401,7 +401,8 @@ struct _pi_queue {
             _pi_device *device, pi_queue_properties properties,
             unsigned int flags)
       : compute_streams_{std::move(compute_streams)},
-        transfer_streams_{std::move(transfer_streams)}, delay_compute_(compute_streams_.size(), 0), context_{context},
+        transfer_streams_{std::move(transfer_streams)},
+        delay_compute_(compute_streams_.size(), 0), context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
         num_compute_streams_{0}, num_transfer_streams_{0}, flags_(flags) {
@@ -416,18 +417,18 @@ struct _pi_queue {
 
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
-  native_type get_next_compute_stream(pi_uint32* stream_token = nullptr);
+  native_type get_next_compute_stream(pi_uint32 *stream_token = nullptr);
   native_type get_next_transfer_stream();
   native_type get() { return get_next_compute_stream(); };
 
-  bool is_last_command(pi_uint32 stream_token){
-    if(stream_token == std::numeric_limits<pi_uint32>::max()){
+  bool is_last_command(pi_uint32 stream_token) {
+    if (stream_token == std::numeric_limits<pi_uint32>::max()) {
       return true;
     }
     return (compute_stream_idx_ - stream_token) <= compute_streams_.size();
   }
 
-  void delay_stream(pi_uint32 stream_token){
+  void delay_stream(pi_uint32 stream_token) {
     delay_compute_[stream_token % delay_compute_.size()] = 1;
   }
 
@@ -530,9 +531,11 @@ public:
   pi_uint64 get_end_time() const;
 
   // construct a native CUDA. This maps closely to the underlying CUDA event.
-  static pi_event make_native(pi_command_type type, pi_queue queue,
-                              CUstream stream, pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
-    return new _pi_event(type, queue->get_context(), queue, stream, stream_token);
+  static pi_event
+  make_native(pi_command_type type, pi_queue queue, CUstream stream,
+              pi_uint32 stream_token = std::numeric_limits<pi_uint32>::max()) {
+    return new _pi_event(type, queue->get_context(), queue, stream,
+                         stream_token);
   }
 
   pi_result release();

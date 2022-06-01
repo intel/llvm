@@ -300,9 +300,9 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
     auto result = forLatestEvents(
         event_wait_list, num_events_in_wait_list,
         [stream](pi_event event) -> pi_result {
-          if(event->get_stream() == stream){
+          if (event->get_stream() == stream) {
             return PI_SUCCESS;
-          } else{
+          } else {
             return PI_CHECK_ERROR(cuStreamWaitEvent(stream, event->get(), 0));
           }
         });
@@ -371,9 +371,9 @@ pi_result cuda_piEventRetain(pi_event event);
 
 /// \endcond
 
-CUstream _pi_queue::get_next_compute_stream(pi_uint32* stream_token) {
- pi_uint32 stream_i;
-  while(true) {
+CUstream _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
+  pi_uint32 stream_i;
+  while (true) {
     if (num_compute_streams_ < compute_streams_.size()) {
       // the check above is for performance - so as not to lock mutex every time
       std::lock_guard<std::mutex> guard(compute_stream_mutex_);
@@ -385,25 +385,27 @@ CUstream _pi_queue::get_next_compute_stream(pi_uint32* stream_token) {
       }
     }
     stream_i = compute_stream_idx_++;
-    if(delay_compute_[stream_i% compute_streams_.size()]){
-      delay_compute_[stream_i% compute_streams_.size()] = 0;
-    } else{
+    if (delay_compute_[stream_i % compute_streams_.size()]) {
+      delay_compute_[stream_i % compute_streams_.size()] = 0;
+    } else {
       break;
     }
   }
-  if(stream_token){
+  if (stream_token) {
     *stream_token = stream_i;
   }
   return compute_streams_[stream_i % compute_streams_.size()];
 }
 
-CUstream getComputeStream(pi_queue queue, pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list, pi_uint32* stream_token = nullptr){
-  for(pi_uint32 i = 0;i<num_events_in_wait_list; i++){
+CUstream getComputeStream(pi_queue queue, pi_uint32 num_events_in_wait_list,
+                          const pi_event *event_wait_list,
+                          pi_uint32 *stream_token = nullptr) {
+  for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
     pi_uint32 token = event_wait_list[i]->get_stream_token();
-    if(event_wait_list[i]->get_queue() == queue && 
-          queue->is_last_command(token)){
+    if (event_wait_list[i]->get_queue() == queue &&
+        queue->is_last_command(token)) {
       queue->delay_stream(token);
-      if(stream_token){
+      if (stream_token) {
         *stream_token = token;
       }
       return event_wait_list[i]->get_stream();
@@ -432,7 +434,8 @@ CUstream _pi_queue::get_next_transfer_stream() {
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      CUstream stream, pi_uint32 stream_token)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false}, streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
+      isRecorded_{false}, isStarted_{false},
+      streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
 
   bool profilingEnabled = queue_->properties_ & PI_QUEUE_PROFILING_ENABLE;
@@ -2869,7 +2872,8 @@ pi_result cuda_piEnqueueKernelLaunch(
     std::unique_ptr<_pi_event> retImplEv{nullptr};
 
     pi_uint32 stream_token;
-    CUstream cuStream = getComputeStream(command_queue, num_events_in_wait_list, event_wait_list, &stream_token);
+    CUstream cuStream = getComputeStream(command_queue, num_events_in_wait_list,
+                                         event_wait_list, &stream_token);
     CUfunction cuFunc = kernel->get();
 
     retError = enqueueEventsWait(command_queue, cuStream,
@@ -2894,8 +2898,9 @@ pi_result cuda_piEnqueueKernelLaunch(
     auto &argIndices = kernel->get_arg_indices();
 
     if (event) {
-      retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-          PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue, cuStream, stream_token));
+      retImplEv = std::unique_ptr<_pi_event>(
+          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
+                                 cuStream, stream_token));
       retImplEv->start();
     }
 
@@ -3740,7 +3745,9 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
 
     if (event) {
       pi_uint32 stream_token;
-      CUstream cuStream = getComputeStream(command_queue, num_events_in_wait_list, event_wait_list, &stream_token);
+      CUstream cuStream =
+          getComputeStream(command_queue, num_events_in_wait_list,
+                           event_wait_list, &stream_token);
       *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
                                       cuStream, stream_token);
       (*event)->start();
@@ -4801,7 +4808,8 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   try {
     ScopedContext active(queue->get_context());
     pi_uint32 stream_token;
-    CUstream cuStream = getComputeStream(queue, num_events_in_waitlist, events_waitlist, &stream_token);
+    CUstream cuStream = getComputeStream(queue, num_events_in_waitlist,
+                                         events_waitlist, &stream_token);
     result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
