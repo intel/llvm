@@ -2771,9 +2771,9 @@ def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsyc
   AliasArgs<["auto"]>, Flags<[CC1Option, CoreOption]>,
   HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
 def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">,
-  Flags<[CoreOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets.">;
+  Flags<[CoreOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets. (experimental)">;
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
-  Flags<[CoreOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets.">;
+  Flags<[CoreOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
 defm sycl_instrument_device_code : BoolFOption<"sycl-instrument-device-code",
   CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
   PosFlag<SetTrue, [], "Add">, NegFlag<SetFalse, [], "Do not add">,
