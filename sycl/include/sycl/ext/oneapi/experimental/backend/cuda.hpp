@@ -30,6 +30,14 @@ inline __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
   return sycl::detail::make_platform(NativeHandle, backend::cuda);
 }
 
+// Implementation of cuda::has_native_event
+inline __SYCL_EXPORT bool has_native_event(event sycl_event) {
+  if (sycl_event.get_backend() == backend::ext_oneapi_cuda)
+    return get_native<backend::ext_oneapi_cuda>(sycl_event) != nullptr;
+
+  return false;
+}
+
 } // namespace cuda
 } // namespace oneapi
 } // namespace ext
