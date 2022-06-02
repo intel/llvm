@@ -3065,7 +3065,7 @@ Compiling to bitcode can be done as follows:
 This will produce a file `test.bc` that can be used in vendor toolchains
 to perform machine code generation.
 
-Note that if compiled to bitcode for generic targets such as SPIR,
+Note that if compiled to bitcode for generic targets such as SPIR/SPIR-V,
 portable IR is produced that can be used with various vendor
 tools as well as open source tools such as `SPIRV-LLVM Translator
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator>`_
@@ -3073,15 +3073,18 @@ to produce SPIR-V binary. More details are provided in `the offline
 compilation from OpenCL kernel sources into SPIR-V using open source
 tools
 <https://github.com/KhronosGroup/OpenCL-Guide/blob/main/chapters/os_tooling.md>`_.
+From clang 14 onwards SPIR-V can be generated directly as detailed in
+:ref:`the SPIR-V support section <spir-v>`.
 
 Clang currently supports OpenCL C language standards up to v2.0. Clang mainly
 supports full profile. There is only very limited support of the embedded
 profile.
-Starting from clang 9 a C++ mode is available for OpenCL (see
+From clang 9 a C++ mode is available for OpenCL (see
 :ref:`C++ for OpenCL <cxx_for_opencl>`).
 
 OpenCL v3.0 support is complete but it remains in experimental state, see more
-details about the experimental features in :doc:`OpenCLSupport` page.
+details about the experimental features and limitations in :doc:`OpenCLSupport`
+page.
 
 OpenCL Specific Options
 -----------------------
@@ -3137,7 +3140,7 @@ Example disabling double support for the 64-bit SPIR-V target:
 
    .. code-block:: console
 
-     $ clang -target spirv64 -cl-ext=-cl_khr_fp64 test.cl
+     $ clang -c -target spirv64 -cl-ext=-cl_khr_fp64 test.cl
 
 Enabling all extensions except double support in R600 AMD GPU can be done using:
 
@@ -3213,8 +3216,6 @@ Generic Targets
   All known OpenCL extensions and features are set to supported in the generic targets,
   however :option:`-cl-ext` flag can be used to toggle individual extensions and
   features.
-
-
 
 .. _opencl_header:
 
@@ -3427,6 +3428,7 @@ Example of use:
    .. code-block:: console
 
      clang -cl-std=clc++1.0 test.clcpp
+     clang -cl-std=clc++ -c -target spirv64 test.cl
 
 
 By default, files with ``.clcpp`` extension are compiled with the C++ for
@@ -3624,6 +3626,23 @@ Clang expects the GCC executable "gcc.exe" compiled for
 `Some tests might fail <https://bugs.llvm.org/show_bug.cgi?id=9072>`_ on
 ``x86_64-w64-mingw32``.
 
+AIX
+^^^
+
+The ``-mdefault-visibility-export-mapping=`` option can be used to control
+mapping of default visibility to an explicit shared object export
+(i.e. XCOFF exported visibility). Three values are provided for the option:
+
+* ``-mdefault-visibility-export-mapping=none``: no additional export
+  information is created for entities with default visibility.
+* ``-mdefault-visibility-export-mapping=explicit``: mark entities for export
+  if they have explict (e.g. via an attribute) default visibility from the
+  source, including RTTI.
+* ``-mdefault-visibility-export-mapping=all``: set XCOFF exported visibility
+  for all entities with default visibility from any source. This gives a
+  export behavior similar to ELF platforms where all entities with default
+  visibility are exported.
+
 .. _spir-v:
 
 SPIR-V support
@@ -3640,7 +3659,7 @@ To generate SPIR-V binaries, Clang uses the external ``llvm-spirv`` tool from th
 Prior to the generation of SPIR-V binary with Clang, ``llvm-spirv``
 should be built or installed. Please refer to `the following instructions
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator#build-instructions>`_
-for more details. Clang will expects the ``llvm-spirv`` executable to
+for more details. Clang will expect the ``llvm-spirv`` executable to
 be present in the ``PATH`` environment variable. Clang uses ``llvm-spirv``
 with `the widely adopted assembly syntax package
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator/#build-with-spirv-tools>`_.
@@ -3691,6 +3710,10 @@ installation instructions
    .. code-block:: console
 
      $ clang -target spirv64 test1.cl test2.cl
+
+More information about the SPIR-V target settings and supported versions of SPIR-V
+format can be found in `the SPIR-V target guide
+<https://llvm.org/docs/SPIRVUsage.html>`__.
 
 .. _clang-cl:
 

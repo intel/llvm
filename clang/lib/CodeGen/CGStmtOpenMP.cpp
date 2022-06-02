@@ -6188,11 +6188,13 @@ static void emitOMPAtomicCompareExpr(CodeGenFunction &CGF,
 
   llvm::OpenMPIRBuilder::AtomicOpValue XOpVal{
       XAddr.getPointer(), XAddr.getElementType(),
-      X->getType().isVolatileQualified(),
-      X->getType()->hasSignedIntegerRepresentation()};
+      X->getType()->hasSignedIntegerRepresentation(),
+      X->getType().isVolatileQualified()};
+  llvm::OpenMPIRBuilder::AtomicOpValue VOpVal, ROpVal;
 
   CGF.Builder.restoreIP(OMPBuilder.createAtomicCompare(
-      CGF.Builder, XOpVal, EVal, DVal, AO, Op, IsXBinopExpr));
+      CGF.Builder, XOpVal, VOpVal, ROpVal, EVal, DVal, AO, Op, IsXBinopExpr,
+      /* IsPostfixUpdate */ false, /* IsFailOnly */ false));
 }
 
 static void emitOMPAtomicExpr(CodeGenFunction &CGF, OpenMPClauseKind Kind,

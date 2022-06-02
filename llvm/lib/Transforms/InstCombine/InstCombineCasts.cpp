@@ -2377,13 +2377,20 @@ static Instruction *canonicalizeBitCastExtElt(BitCastInst &BitCast,
   // The bitcast must be to a vectorizable type, otherwise we can't make a new
   // type to extract from.
   Type *DestType = BitCast.getType();
-  if (!VectorType::isValidElementType(DestType))
-    return nullptr;
+  VectorType *VecType = cast<VectorType>(VecOp->getType());
+  if (VectorType::isValidElementType(DestType)) {
+    auto *NewVecType = VectorType::get(DestType, VecType);
+    auto *NewBC = IC.Builder.CreateBitCast(VecOp, NewVecType, "bc");
+    return ExtractElementInst::Create(NewBC, Index);
+  }
 
-  auto *NewVecType =
-      VectorType::get(DestType, cast<VectorType>(VecOp->getType()));
-  auto *NewBC = IC.Builder.CreateBitCast(VecOp, NewVecType, "bc");
-  return ExtractElementInst::Create(NewBC, Index);
+  // Only solve DestType is vector to avoid inverse transform in visitBitCast.
+  // bitcast (extractelement <1 x elt>, dest) -> bitcast(<1 x elt>, dest)
+  auto *FixedVType = dyn_cast<FixedVectorType>(VecType);
+  if (DestType->isVectorTy() && FixedVType && FixedVType->getNumElements() == 1)
+    return CastInst::Create(Instruction::BitCast, VecOp, DestType);
+
+  return nullptr;
 }
 
 /// Change the type of a bitwise logic operation if we can eliminate a bitcast.
@@ -2391,8 +2398,8 @@ static Instruction *foldBitCastBitwiseLogic(BitCastInst &BitCast,
                                             InstCombiner::BuilderTy &Builder) {
   Type *DestTy = BitCast.getType();
   BinaryOperator *BO;
-  if (!DestTy->isIntOrIntVectorTy() ||
-      !match(BitCast.getOperand(0), m_OneUse(m_BinOp(BO))) ||
+
+  if (!match(BitCast.getOperand(0), m_OneUse(m_BinOp(BO))) ||
       !BO->isBitwiseLogicOp())
     return nullptr;
 
@@ -2400,6 +2407,32 @@ static Instruction *foldBitCastBitwiseLogic(BitCastInst &BitCast,
   // problems caused by creating potentially illegal operations. If a fix-up is
   // added to handle that situation, we can remove this check.
   if (!DestTy->isVectorTy() || !BO->getType()->isVectorTy())
+    return nullptr;
+
+  if (DestTy->isFPOrFPVectorTy()) {
+    Value *X, *Y;
+    // bitcast(logic(bitcast(X), bitcast(Y))) -> bitcast'(logic(bitcast'(X), Y))
+    if (match(BO->getOperand(0), m_OneUse(m_BitCast(m_Value(X)))) &&
+        match(BO->getOperand(1), m_OneUse(m_BitCast(m_Value(Y))))) {
+      if (X->getType()->isFPOrFPVectorTy() &&
+          Y->getType()->isIntOrIntVectorTy()) {
+        Value *CastedOp =
+            Builder.CreateBitCast(BO->getOperand(0), Y->getType());
+        Value *NewBO = Builder.CreateBinOp(BO->getOpcode(), CastedOp, Y);
+        return CastInst::CreateBitOrPointerCast(NewBO, DestTy);
+      }
+      if (X->getType()->isIntOrIntVectorTy() &&
+          Y->getType()->isFPOrFPVectorTy()) {
+        Value *CastedOp =
+            Builder.CreateBitCast(BO->getOperand(1), X->getType());
+        Value *NewBO = Builder.CreateBinOp(BO->getOpcode(), CastedOp, X);
+        return CastInst::CreateBitOrPointerCast(NewBO, DestTy);
+      }
+    }
+    return nullptr;
+  }
+
+  if (!DestTy->isIntOrIntVectorTy())
     return nullptr;
 
   Value *X;

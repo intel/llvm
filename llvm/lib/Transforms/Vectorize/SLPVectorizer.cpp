@@ -3473,6 +3473,72 @@ BoUpSLP::findReusedOrderedScalars(const BoUpSLP::TreeEntry &TE) {
   return None;
 }
 
+namespace {
+/// Tracks the state we can represent the loads in the given sequence.
+enum class LoadsState { Gather, Vectorize, ScatterVectorize };
+} // anonymous namespace
+
+/// Checks if the given array of loads can be represented as a vectorized,
+/// scatter or just simple gather.
+static LoadsState canVectorizeLoads(ArrayRef<Value *> VL, const Value *VL0,
+                                    const TargetTransformInfo &TTI,
+                                    const DataLayout &DL, ScalarEvolution &SE,
+                                    SmallVectorImpl<unsigned> &Order,
+                                    SmallVectorImpl<Value *> &PointerOps) {
+  // Check that a vectorized load would load the same memory as a scalar
+  // load. For example, we don't want to vectorize loads that are smaller
+  // than 8-bit. Even though we have a packed struct {<i2, i2, i2, i2>} LLVM
+  // treats loading/storing it as an i8 struct. If we vectorize loads/stores
+  // from such a struct, we read/write packed bits disagreeing with the
+  // unvectorized version.
+  Type *ScalarTy = VL0->getType();
+
+  if (DL.getTypeSizeInBits(ScalarTy) != DL.getTypeAllocSizeInBits(ScalarTy))
+    return LoadsState::Gather;
+
+  // Make sure all loads in the bundle are simple - we can't vectorize
+  // atomic or volatile loads.
+  PointerOps.clear();
+  PointerOps.resize(VL.size());
+  auto *POIter = PointerOps.begin();
+  for (Value *V : VL) {
+    auto *L = cast<LoadInst>(V);
+    if (!L->isSimple())
+      return LoadsState::Gather;
+    *POIter = L->getPointerOperand();
+    ++POIter;
+  }
+
+  Order.clear();
+  // Check the order of pointer operands.
+  if (llvm::sortPtrAccesses(PointerOps, ScalarTy, DL, SE, Order)) {
+    Value *Ptr0;
+    Value *PtrN;
+    if (Order.empty()) {
+      Ptr0 = PointerOps.front();
+      PtrN = PointerOps.back();
+    } else {
+      Ptr0 = PointerOps[Order.front()];
+      PtrN = PointerOps[Order.back()];
+    }
+    Optional<int> Diff =
+        getPointersDiff(ScalarTy, Ptr0, ScalarTy, PtrN, DL, SE);
+    // Check that the sorted loads are consecutive.
+    if (static_cast<unsigned>(*Diff) == VL.size() - 1)
+      return LoadsState::Vectorize;
+    Align CommonAlignment = cast<LoadInst>(VL0)->getAlign();
+    for (Value *V : VL)
+      CommonAlignment =
+          commonAlignment(CommonAlignment, cast<LoadInst>(V)->getAlign());
+    auto *VecTy = FixedVectorType::get(ScalarTy, VL.size());
+    if (TTI.isLegalMaskedGather(VecTy, CommonAlignment) &&
+        !TTI.forceScalarizeMaskedGather(VecTy, CommonAlignment))
+      return LoadsState::ScatterVectorize;
+  }
+
+  return LoadsState::Gather;
+}
+
 bool clusterSortPtrAccesses(ArrayRef<Value *> VL, Type *ElemTy,
                             const DataLayout &DL, ScalarEvolution &SE,
                             SmallVectorImpl<unsigned> &SortedIndices) {
@@ -3810,6 +3876,11 @@ bool BoUpSLP::canReorderOperands(
       // Add the node to the list of the ordered nodes with the identity
       // order.
       Edges.emplace_back(I, TE);
+      // Add ScatterVectorize nodes to the list of operands, where just
+      // reordering of the scalars is required. Similar to the gathers, so
+      // simply add to the list of gathered ops.
+      if (TE->State != TreeEntry::Vectorize)
+        GatherOps.push_back(TE);
       continue;
     }
     ArrayRef<Value *> VL = UserTE->getOperand(I);
@@ -4301,71 +4372,6 @@ void BoUpSLP::buildTree(ArrayRef<Value *> Roots) {
   buildTree_rec(Roots, 0, EdgeInfo());
 }
 
-namespace {
-/// Tracks the state we can represent the loads in the given sequence.
-enum class LoadsState { Gather, Vectorize, ScatterVectorize };
-} // anonymous namespace
-
-/// Checks if the given array of loads can be represented as a vectorized,
-/// scatter or just simple gather.
-static LoadsState canVectorizeLoads(ArrayRef<Value *> VL, const Value *VL0,
-                                    const TargetTransformInfo &TTI,
-                                    const DataLayout &DL, ScalarEvolution &SE,
-                                    SmallVectorImpl<unsigned> &Order,
-                                    SmallVectorImpl<Value *> &PointerOps) {
-  // Check that a vectorized load would load the same memory as a scalar
-  // load. For example, we don't want to vectorize loads that are smaller
-  // than 8-bit. Even though we have a packed struct {<i2, i2, i2, i2>} LLVM
-  // treats loading/storing it as an i8 struct. If we vectorize loads/stores
-  // from such a struct, we read/write packed bits disagreeing with the
-  // unvectorized version.
-  Type *ScalarTy = VL0->getType();
-
-  if (DL.getTypeSizeInBits(ScalarTy) != DL.getTypeAllocSizeInBits(ScalarTy))
-    return LoadsState::Gather;
-
-  // Make sure all loads in the bundle are simple - we can't vectorize
-  // atomic or volatile loads.
-  PointerOps.clear();
-  PointerOps.resize(VL.size());
-  auto *POIter = PointerOps.begin();
-  for (Value *V : VL) {
-    auto *L = cast<LoadInst>(V);
-    if (!L->isSimple())
-      return LoadsState::Gather;
-    *POIter = L->getPointerOperand();
-    ++POIter;
-  }
-
-  Order.clear();
-  // Check the order of pointer operands.
-  if (llvm::sortPtrAccesses(PointerOps, ScalarTy, DL, SE, Order)) {
-    Value *Ptr0;
-    Value *PtrN;
-    if (Order.empty()) {
-      Ptr0 = PointerOps.front();
-      PtrN = PointerOps.back();
-    } else {
-      Ptr0 = PointerOps[Order.front()];
-      PtrN = PointerOps[Order.back()];
-    }
-    Optional<int> Diff =
-        getPointersDiff(ScalarTy, Ptr0, ScalarTy, PtrN, DL, SE);
-    // Check that the sorted loads are consecutive.
-    if (static_cast<unsigned>(*Diff) == VL.size() - 1)
-      return LoadsState::Vectorize;
-    Align CommonAlignment = cast<LoadInst>(VL0)->getAlign();
-    for (Value *V : VL)
-      CommonAlignment =
-          commonAlignment(CommonAlignment, cast<LoadInst>(V)->getAlign());
-    if (TTI.isLegalMaskedGather(FixedVectorType::get(ScalarTy, VL.size()),
-                                CommonAlignment))
-      return LoadsState::ScatterVectorize;
-  }
-
-  return LoadsState::Gather;
-}
-
 /// \return true if the specified list of values has only one instruction that
 /// requires scheduling, false otherwise.
 #ifndef NDEBUG
@@ -4424,6 +4430,14 @@ static std::pair<size_t, size_t> generateKeySubkey(
           hash_value(isa<BinaryOperator>(I)
                          ? I->getType()
                          : cast<CastInst>(I)->getOperand(0)->getType()));
+      // For casts, look through the only operand to improve compile time.
+      if (isa<CastInst>(I)) {
+        std::pair<size_t, size_t> OpVals =
+            generateKeySubkey(I->getOperand(0), TLI, LoadsSubkeyGenerator,
+                              /*=AllowAlternate*/ true);
+        Key = hash_combine(OpVals.first, Key);
+        SubKey = hash_combine(OpVals.first, SubKey);
+      }
     } else if (auto *CI = dyn_cast<CmpInst>(I)) {
       CmpInst::Predicate Pred = CI->getPredicate();
       if (CI->isCommutative())
@@ -4434,13 +4448,15 @@ static std::pair<size_t, size_t> generateKeySubkey(
                             hash_value(CI->getOperand(0)->getType()));
     } else if (auto *Call = dyn_cast<CallInst>(I)) {
       Intrinsic::ID ID = getVectorIntrinsicIDForCall(Call, TLI);
-      if (isTriviallyVectorizable(ID))
+      if (isTriviallyVectorizable(ID)) {
         SubKey = hash_combine(hash_value(I->getOpcode()), hash_value(ID));
-      else if (!VFDatabase(*Call).getMappings(*Call).empty())
+      } else if (!VFDatabase(*Call).getMappings(*Call).empty()) {
         SubKey = hash_combine(hash_value(I->getOpcode()),
                               hash_value(Call->getCalledFunction()));
-      else
+      } else {
+        Key = hash_combine(hash_value(Call), Key);
         SubKey = hash_combine(hash_value(I->getOpcode()), hash_value(Call));
+      }
       for (const CallBase::BundleOpInfo &Op : Call->bundle_op_infos())
         SubKey = hash_combine(hash_value(Op.Begin), hash_value(Op.End),
                               hash_value(Op.Tag), SubKey);
@@ -7216,23 +7232,47 @@ void BoUpSLP::reorderInputsAccordingToOpcode(ArrayRef<Value *> VL,
 
 void BoUpSLP::setInsertPointAfterBundle(const TreeEntry *E) {
   // Get the basic block this bundle is in. All instructions in the bundle
-  // should be in this block.
+  // should be in this block (except for extractelement-like instructions with
+  // constant indeces).
   auto *Front = E->getMainOp();
   auto *BB = Front->getParent();
   assert(llvm::all_of(E->Scalars, [=](Value *V) -> bool {
     auto *I = cast<Instruction>(V);
-    return !E->isOpcodeOrAlt(I) || I->getParent() == BB;
+    return !E->isOpcodeOrAlt(I) || I->getParent() == BB ||
+           isVectorLikeInstWithConstOps(I);
   }));
 
-  auto &&FindLastInst = [E, Front]() {
+  auto &&FindLastInst = [E, Front, this, &BB]() {
     Instruction *LastInst = Front;
     for (Value *V : E->Scalars) {
       auto *I = dyn_cast<Instruction>(V);
       if (!I)
         continue;
-      if (LastInst->comesBefore(I))
+      if (LastInst->getParent() == I->getParent()) {
+        if (LastInst->comesBefore(I))
+          LastInst = I;
+        continue;
+      }
+      assert(isVectorLikeInstWithConstOps(LastInst) &&
+             isVectorLikeInstWithConstOps(I) &&
+             "Expected vector-like insts only.");
+      if (!DT->isReachableFromEntry(LastInst->getParent())) {
+        LastInst = I;
+        continue;
+      }
+      if (!DT->isReachableFromEntry(I->getParent()))
+        continue;
+      auto *NodeA = DT->getNode(LastInst->getParent());
+      auto *NodeB = DT->getNode(I->getParent());
+      assert(NodeA && "Should only process reachable instructions");
+      assert(NodeB && "Should only process reachable instructions");
+      assert((NodeA == NodeB) ==
+                 (NodeA->getDFSNumIn() == NodeB->getDFSNumIn()) &&
+             "Different nodes should have different DFS numbers");
+      if (NodeA->getDFSNumIn() < NodeB->getDFSNumIn())
         LastInst = I;
     }
+    BB = LastInst->getParent();
     return LastInst;
   };
 
@@ -7537,6 +7577,10 @@ Value *BoUpSLP::createBuildVector(ArrayRef<Value *> VL) {
       ReuseShuffleIndicies.append(VF - ReuseShuffleIndicies.size(),
                                   UndefMaskElem);
     } else if (UniqueValues.size() >= VF - 1 || UniqueValues.size() <= 1) {
+      if (UniqueValues.empty()) {
+        assert(all_of(VL, UndefValue::classof) && "Expected list of undefs.");
+        NumValues = VF;
+      }
       ReuseShuffleIndicies.clear();
       UniqueValues.clear();
       UniqueValues.append(VL.begin(), std::next(VL.begin(), NumValues));
@@ -10327,7 +10371,7 @@ class HorizontalReduction {
   }
 
   /// Creates reduction operation with the current opcode with the IR flags
-  /// from \p ReductionOps.
+  /// from \p ReductionOps, dropping nuw/nsw flags.
   static Value *createOp(IRBuilder<> &Builder, RecurKind RdxKind, Value *LHS,
                          Value *RHS, const Twine &Name,
                          const ReductionOpsListType &ReductionOps) {
@@ -10341,26 +10385,14 @@ class HorizontalReduction {
     Value *Op = createOp(Builder, RdxKind, LHS, RHS, Name, UseSelect);
     if (RecurrenceDescriptor::isIntMinMaxRecurrenceKind(RdxKind)) {
       if (auto *Sel = dyn_cast<SelectInst>(Op)) {
-        propagateIRFlags(Sel->getCondition(), ReductionOps[0]);
-        propagateIRFlags(Op, ReductionOps[1]);
+        propagateIRFlags(Sel->getCondition(), ReductionOps[0], nullptr,
+                         /*IncludeWrapFlags=*/false);
+        propagateIRFlags(Op, ReductionOps[1], nullptr,
+                         /*IncludeWrapFlags=*/false);
         return Op;
       }
     }
-    propagateIRFlags(Op, ReductionOps[0]);
-    return Op;
-  }
-
-  /// Creates reduction operation with the current opcode with the IR flags
-  /// from \p I.
-  static Value *createOp(IRBuilder<> &Builder, RecurKind RdxKind, Value *LHS,
-                         Value *RHS, const Twine &Name, Value *I) {
-    auto *SelI = dyn_cast<SelectInst>(I);
-    Value *Op = createOp(Builder, RdxKind, LHS, RHS, Name, SelI != nullptr);
-    if (SelI && RecurrenceDescriptor::isIntMinMaxRecurrenceKind(RdxKind)) {
-      if (auto *Sel = dyn_cast<SelectInst>(Op))
-        propagateIRFlags(Sel->getCondition(), SelI->getCondition());
-    }
-    propagateIRFlags(Op, I);
+    propagateIRFlags(Op, ReductionOps[0], nullptr, /*IncludeWrapFlags=*/false);
     return Op;
   }
 
@@ -10642,12 +10674,16 @@ public:
           std::tie(Key, Idx) = generateKeySubkey(
               V, &TLI,
               [&PossibleReducedVals, &DL, &SE](size_t Key, LoadInst *LI) {
-                for (const auto &LoadData : PossibleReducedVals[Key]) {
-                  auto *RLI = cast<LoadInst>(LoadData.second.front().first);
-                  if (getPointersDiff(RLI->getType(), RLI->getPointerOperand(),
-                                      LI->getType(), LI->getPointerOperand(),
-                                      DL, SE, /*StrictCheck=*/true))
-                    return hash_value(RLI->getPointerOperand());
+                auto It = PossibleReducedVals.find(Key);
+                if (It != PossibleReducedVals.end()) {
+                  for (const auto &LoadData : It->second) {
+                    auto *RLI = cast<LoadInst>(LoadData.second.front().first);
+                    if (getPointersDiff(RLI->getType(),
+                                        RLI->getPointerOperand(), LI->getType(),
+                                        LI->getPointerOperand(), DL, SE,
+                                        /*StrictCheck=*/true))
+                      return hash_value(RLI->getPointerOperand());
+                  }
                 }
                 return hash_value(LI->getPointerOperand());
               },
@@ -10663,12 +10699,15 @@ public:
         std::tie(Key, Idx) = generateKeySubkey(
             TreeN, &TLI,
             [&PossibleReducedVals, &DL, &SE](size_t Key, LoadInst *LI) {
-              for (const auto &LoadData : PossibleReducedVals[Key]) {
-                auto *RLI = cast<LoadInst>(LoadData.second.front().first);
-                if (getPointersDiff(RLI->getType(), RLI->getPointerOperand(),
-                                    LI->getType(), LI->getPointerOperand(), DL,
-                                    SE, /*StrictCheck=*/true))
-                  return hash_value(RLI->getPointerOperand());
+              auto It = PossibleReducedVals.find(Key);
+              if (It != PossibleReducedVals.end()) {
+                for (const auto &LoadData : It->second) {
+                  auto *RLI = cast<LoadInst>(LoadData.second.front().first);
+                  if (getPointersDiff(RLI->getType(), RLI->getPointerOperand(),
+                                      LI->getType(), LI->getPointerOperand(),
+                                      DL, SE, /*StrictCheck=*/true))
+                    return hash_value(RLI->getPointerOperand());
+                }
               }
               return hash_value(LI->getPointerOperand());
             },
@@ -11031,10 +11070,6 @@ public:
             for (unsigned I = 0, E = (Sz / 2) * 2; I < E; I += 2) {
               Instruction *RedOp = InstVals[I + 1].first;
               Builder.SetCurrentDebugLocation(RedOp->getDebugLoc());
-              ReductionOpsListType Ops;
-              if (auto *Sel = dyn_cast<SelectInst>(RedOp))
-                Ops.emplace_back().push_back(Sel->getCondition());
-              Ops.emplace_back().push_back(RedOp);
               Value *RdxVal1 = InstVals[I].second;
               Value *StableRdxVal1 = RdxVal1;
               auto It1 = TrackedVals.find(RdxVal1);
@@ -11046,7 +11081,7 @@ public:
               if (It2 != TrackedVals.end())
                 StableRdxVal2 = It2->second;
               Value *ExtraRed = createOp(Builder, RdxKind, StableRdxVal1,
-                                         StableRdxVal2, "op.rdx", Ops);
+                                         StableRdxVal2, "op.rdx", ReductionOps);
               ExtraReds[I / 2] = std::make_pair(InstVals[I].first, ExtraRed);
             }
             if (Sz % 2 == 1)
@@ -11081,17 +11116,13 @@ public:
       if (ExtraReductions.size() == 1) {
         Instruction *RedOp = ExtraReductions.back().first;
         Builder.SetCurrentDebugLocation(RedOp->getDebugLoc());
-        ReductionOpsListType Ops;
-        if (auto *Sel = dyn_cast<SelectInst>(RedOp))
-          Ops.emplace_back().push_back(Sel->getCondition());
-        Ops.emplace_back().push_back(RedOp);
         Value *RdxVal = ExtraReductions.back().second;
         Value *StableRdxVal = RdxVal;
         auto It = TrackedVals.find(RdxVal);
         if (It != TrackedVals.end())
           StableRdxVal = It->second;
         VectorizedTree = createOp(Builder, RdxKind, VectorizedTree,
-                                  StableRdxVal, "op.rdx", Ops);
+                                  StableRdxVal, "op.rdx", ReductionOps);
       }
 
       ReductionRoot->replaceAllUsesWith(VectorizedTree);

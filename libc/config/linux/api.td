@@ -147,6 +147,10 @@ def StringAPI : PublicAPI<"string.h"> {
 }
 
 def StdIOAPI : PublicAPI<"stdio.h"> {
+  let Macros = [
+    SimpleMacroDef<"stderr", "stderr">,
+    SimpleMacroDef<"stdout", "stdout">,
+  ];
   let Types = ["size_t", "FILE", "cookie_io_functions_t"];
 }
 
@@ -240,9 +244,11 @@ def ThreadsAPI : PublicAPI<"threads.h"> {
 
 def PThreadAPI : PublicAPI<"pthread.h"> {
   let Types = [
+      "__pthread_start_t",
       "pthread_attr_t",
       "pthread_mutex_t",
-      "pthread_mutexattr_t"
+      "pthread_mutexattr_t",
+      "pthread_t",
   ];
 }
 

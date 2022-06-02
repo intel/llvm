@@ -1275,12 +1275,22 @@ void CodeGenModule::setDLLImportDLLExport(llvm::GlobalValue *GV,
   setDLLImportDLLExport(GV, D);
 }
 
+bool CodeGenModule::shouldMapVisibilityToDLLExport(const NamedDecl *D) const {
+  return D &&
+         (D->getLinkageAndVisibility().getVisibility() == DefaultVisibility) &&
+         ((D->getLinkageAndVisibility().isVisibilityExplicit() &&
+           getLangOpts().isExplicitDefaultVisibilityExportMapping()) ||
+          getLangOpts().isAllDefaultVisibilityExportMapping());
+}
+
 void CodeGenModule::setDLLImportDLLExport(llvm::GlobalValue *GV,
                                           const NamedDecl *D) const {
   if (D && D->isExternallyVisible()) {
     if (D->hasAttr<DLLImportAttr>())
       GV->setDLLStorageClass(llvm::GlobalVariable::DLLImportStorageClass);
-    else if (D->hasAttr<DLLExportAttr>() && !GV->isDeclarationForLinker())
+    else if ((D->hasAttr<DLLExportAttr>() ||
+              shouldMapVisibilityToDLLExport(D)) &&
+             !GV->isDeclarationForLinker())
       GV->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
   }
 }
@@ -1479,8 +1489,9 @@ static std::string getMangledNameImpl(CodeGenModule &CGM, GlobalDecl GD,
   // Make unique name for device side static file-scope variable for HIP.
   if (CGM.getContext().shouldExternalize(ND) &&
       CGM.getLangOpts().GPURelocatableDeviceCode &&
-      CGM.getLangOpts().CUDAIsDevice && !CGM.getLangOpts().CUID.empty())
+      CGM.getLangOpts().CUDAIsDevice)
     CGM.printPostfixForExternalizedDecl(Out, ND);
+
   return std::string(Out.str());
 }
 
@@ -4059,7 +4070,8 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     }
 
     // Handle dropped DLL attributes.
-    if (D && !D->hasAttr<DLLImportAttr>() && !D->hasAttr<DLLExportAttr>()) {
+    if (D && !D->hasAttr<DLLImportAttr>() && !D->hasAttr<DLLExportAttr>() &&
+        !shouldMapVisibilityToDLLExport(cast_or_null<NamedDecl>(D))) {
       Entry->setDLLStorageClass(llvm::GlobalValue::DefaultStorageClass);
       setDSOLocal(Entry);
     }
@@ -4394,7 +4406,8 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty,
     }
 
     // Handle dropped DLL attributes.
-    if (D && !D->hasAttr<DLLImportAttr>() && !D->hasAttr<DLLExportAttr>())
+    if (D && !D->hasAttr<DLLImportAttr>() && !D->hasAttr<DLLExportAttr>() &&
+        !shouldMapVisibilityToDLLExport(D))
       Entry->setDLLStorageClass(llvm::GlobalValue::DefaultStorageClass);
 
     if (LangOpts.OpenMP && !LangOpts.OpenMPSimd && D)
@@ -5170,7 +5183,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       GV->setConstant(true);
   }
 
-  GV->setAlignment(getContext().getDeclAlign(D).getAsAlign());
+  CharUnits AlignVal = getContext().getDeclAlign(D);
+  // Check for alignment specifed in an 'omp allocate' directive.
+  if (llvm::Optional<CharUnits> AlignValFromAllocate =
+          getOMPAllocateAlignment(D))
+    AlignVal = AlignValFromAllocate.getValue();
+  GV->setAlignment(AlignVal.getAsAlign());
 
   // On Darwin, unlike other Itanium C++ ABI platforms, the thread-wrapper
   // function is only defined alongside the variable, not also alongside
@@ -7268,12 +7286,38 @@ bool CodeGenModule::stopAutoInit() {
 
 void CodeGenModule::printPostfixForExternalizedDecl(llvm::raw_ostream &OS,
                                                     const Decl *D) const {
-  StringRef Tag;
   // ptxas does not allow '.' in symbol names. On the other hand, HIP prefers
   // postfix beginning with '.' since the symbol name can be demangled.
   if (LangOpts.HIP)
-    Tag = (isa<VarDecl>(D) ? ".static." : ".intern.");
+    OS << (isa<VarDecl>(D) ? ".static." : ".intern.");
   else
-    Tag = (isa<VarDecl>(D) ? "__static__" : "__intern__");
-  OS << Tag << getContext().getCUIDHash();
+    OS << (isa<VarDecl>(D) ? "__static__" : "__intern__");
+
+  // If the CUID is not specified we try to generate a unique postfix.
+  if (getLangOpts().CUID.empty()) {
+    SourceManager &SM = getContext().getSourceManager();
+    PresumedLoc PLoc = SM.getPresumedLoc(D->getLocation());
+    assert(PLoc.isValid() && "Source location is expected to be valid.");
+
+    // Get the hash of the user defined macros.
+    llvm::MD5 Hash;
+    llvm::MD5::MD5Result Result;
+    for (const auto &Arg : PreprocessorOpts.Macros)
+      Hash.update(Arg.first);
+    Hash.final(Result);
+
+    // Get the UniqueID for the file containing the decl.
+    llvm::sys::fs::UniqueID ID;
+    if (auto EC = llvm::sys::fs::getUniqueID(PLoc.getFilename(), ID)) {
+      PLoc = SM.getPresumedLoc(D->getLocation(), /*UseLineDirectives=*/false);
+      assert(PLoc.isValid() && "Source location is expected to be valid.");
+      if (auto EC = llvm::sys::fs::getUniqueID(PLoc.getFilename(), ID))
+        SM.getDiagnostics().Report(diag::err_cannot_open_file)
+            << PLoc.getFilename() << EC.message();
+    }
+    OS << llvm::format("%x", ID.getFile()) << llvm::format("%x", ID.getDevice())
+       << "_" << llvm::utohexstr(Result.low(), /*LowerCase=*/true, /*Width=*/8);
+  } else {
+    OS << getContext().getCUIDHash();
+  }
 }

@@ -27,14 +27,14 @@ public:
                          std::unique_ptr<MCObjectWriter> OW)
       : MCWinCOFFStreamer(C, std::move(AB), std::move(CE), std::move(OW)) {}
 
-  void EmitWinEHHandlerData(SMLoc Loc) override;
-  void EmitWindowsUnwindTables() override;
-  void EmitWindowsUnwindTables(WinEH::FrameInfo *Frame) override;
+  void emitWinEHHandlerData(SMLoc Loc) override;
+  void emitWindowsUnwindTables() override;
+  void emitWindowsUnwindTables(WinEH::FrameInfo *Frame) override;
   void finishImpl() override;
 };
 
-void AArch64WinCOFFStreamer::EmitWinEHHandlerData(SMLoc Loc) {
-  MCStreamer::EmitWinEHHandlerData(Loc);
+void AArch64WinCOFFStreamer::emitWinEHHandlerData(SMLoc Loc) {
+  MCStreamer::emitWinEHHandlerData(Loc);
 
   // We have to emit the unwind info now, because this directive
   // actually switches to the .xdata section!
@@ -42,11 +42,11 @@ void AArch64WinCOFFStreamer::EmitWinEHHandlerData(SMLoc Loc) {
                             /* HandlerData = */ true);
 }
 
-void AArch64WinCOFFStreamer::EmitWindowsUnwindTables(WinEH::FrameInfo *Frame) {
+void AArch64WinCOFFStreamer::emitWindowsUnwindTables(WinEH::FrameInfo *Frame) {
   EHStreamer.EmitUnwindInfo(*this, Frame, /* HandlerData = */ false);
 }
 
-void AArch64WinCOFFStreamer::EmitWindowsUnwindTables() {
+void AArch64WinCOFFStreamer::emitWindowsUnwindTables() {
   if (!getNumWinFrameInfos())
     return;
   EHStreamer.Emit(*this);
@@ -54,7 +54,7 @@ void AArch64WinCOFFStreamer::EmitWindowsUnwindTables() {
 
 void AArch64WinCOFFStreamer::finishImpl() {
   emitFrames(nullptr);
-  EmitWindowsUnwindTables();
+  emitWindowsUnwindTables();
 
   MCWinCOFFStreamer::finishImpl();
 }
@@ -74,7 +74,7 @@ void AArch64TargetWinCOFFStreamer::emitARM64WinUnwindCode(unsigned UnwindCode,
     return;
   auto Inst = WinEH::Instruction(UnwindCode, /*Label=*/nullptr, Reg, Offset);
   if (InEpilogCFI)
-    CurFrame->EpilogMap[CurrentEpilog].push_back(Inst);
+    CurFrame->EpilogMap[CurrentEpilog].Instructions.push_back(Inst);
   else
     CurFrame->Instructions.push_back(Inst);
 }
@@ -201,7 +201,7 @@ void AArch64TargetWinCOFFStreamer::emitARM64WinCFIEpilogEnd() {
   InEpilogCFI = false;
   WinEH::Instruction Inst =
       WinEH::Instruction(Win64EH::UOP_End, /*Label=*/nullptr, -1, 0);
-  CurFrame->EpilogMap[CurrentEpilog].push_back(Inst);
+  CurFrame->EpilogMap[CurrentEpilog].Instructions.push_back(Inst);
   CurrentEpilog = nullptr;
 }
 

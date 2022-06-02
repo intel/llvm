@@ -1038,6 +1038,7 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FTRUNC:
   case ISD::SINT_TO_FP:
   case ISD::TRUNCATE:
+  case ISD::VP_TRUNCATE:
   case ISD::UINT_TO_FP:
   case ISD::FCANONICALIZE:
     SplitVecRes_UnaryOp(N, Lo, Hi);
@@ -1046,6 +1047,8 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::ANY_EXTEND:
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
+  case ISD::VP_SIGN_EXTEND:
+  case ISD::VP_ZERO_EXTEND:
     SplitVecRes_ExtendOp(N, Lo, Hi);
     break;
 
@@ -2200,14 +2203,34 @@ void DAGTypeLegalizer::SplitVecRes_ExtendOp(SDNode *N, SDValue &Lo,
         TLI.isTypeLegal(NewSrcVT) && TLI.isTypeLegal(SplitLoVT)) {
       LLVM_DEBUG(dbgs() << "Split vector extend via incremental extend:";
                  N->dump(&DAG); dbgs() << "\n");
+      if (!N->isVPOpcode()) {
+        // Extend the source vector by one step.
+        SDValue NewSrc =
+            DAG.getNode(N->getOpcode(), dl, NewSrcVT, N->getOperand(0));
+        // Get the low and high halves of the new, extended one step, vector.
+        std::tie(Lo, Hi) = DAG.SplitVector(NewSrc, dl);
+        // Extend those vector halves the rest of the way.
+        Lo = DAG.getNode(N->getOpcode(), dl, LoVT, Lo);
+        Hi = DAG.getNode(N->getOpcode(), dl, HiVT, Hi);
+        return;
+      }
+
       // Extend the source vector by one step.
       SDValue NewSrc =
-          DAG.getNode(N->getOpcode(), dl, NewSrcVT, N->getOperand(0));
+          DAG.getNode(N->getOpcode(), dl, NewSrcVT, N->getOperand(0),
+                      N->getOperand(1), N->getOperand(2));
       // Get the low and high halves of the new, extended one step, vector.
       std::tie(Lo, Hi) = DAG.SplitVector(NewSrc, dl);
+
+      SDValue MaskLo, MaskHi;
+      std::tie(MaskLo, MaskHi) = SplitMask(N->getOperand(1));
+
+      SDValue EVLLo, EVLHi;
+      std::tie(EVLLo, EVLHi) =
+          DAG.SplitEVL(N->getOperand(2), N->getValueType(0), dl);
       // Extend those vector halves the rest of the way.
-      Lo = DAG.getNode(N->getOpcode(), dl, LoVT, Lo);
-      Hi = DAG.getNode(N->getOpcode(), dl, HiVT, Hi);
+      Lo = DAG.getNode(N->getOpcode(), dl, LoVT, {Lo, MaskLo, EVLLo});
+      Hi = DAG.getNode(N->getOpcode(), dl, HiVT, {Hi, MaskHi, EVLHi});
       return;
     }
   }
@@ -2664,6 +2687,7 @@ bool DAGTypeLegalizer::SplitVectorOperand(SDNode *N, unsigned OpNo) {
   case ISD::INSERT_SUBVECTOR:  Res = SplitVecOp_INSERT_SUBVECTOR(N, OpNo); break;
   case ISD::EXTRACT_VECTOR_ELT:Res = SplitVecOp_EXTRACT_VECTOR_ELT(N); break;
   case ISD::CONCAT_VECTORS:    Res = SplitVecOp_CONCAT_VECTORS(N); break;
+  case ISD::VP_TRUNCATE:
   case ISD::TRUNCATE:
     Res = SplitVecOp_TruncateHelper(N);
     break;
@@ -2907,6 +2931,14 @@ SDValue DAGTypeLegalizer::SplitVecOp_UnaryOp(SDNode *N) {
     // Legalize the chain result - switch anything that used the old chain to
     // use the new one.
     ReplaceValueWith(SDValue(N, 1), Ch);
+  } else if (N->getNumOperands() == 3) {
+    assert(N->isVPOpcode() && "Expected VP opcode");
+    SDValue MaskLo, MaskHi, EVLLo, EVLHi;
+    std::tie(MaskLo, MaskHi) = SplitMask(N->getOperand(1));
+    std::tie(EVLLo, EVLHi) =
+        DAG.SplitEVL(N->getOperand(2), N->getValueType(0), dl);
+    Lo = DAG.getNode(N->getOpcode(), dl, OutVT, Lo, MaskLo, EVLLo);
+    Hi = DAG.getNode(N->getOpcode(), dl, OutVT, Hi, MaskHi, EVLHi);
   } else {
     Lo = DAG.getNode(N->getOpcode(), dl, OutVT, Lo);
     Hi = DAG.getNode(N->getOpcode(), dl, OutVT, Hi);
@@ -3763,10 +3795,13 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:
   case ISD::SIGN_EXTEND:
+  case ISD::VP_SIGN_EXTEND:
   case ISD::SINT_TO_FP:
+  case ISD::VP_TRUNCATE:
   case ISD::TRUNCATE:
   case ISD::UINT_TO_FP:
   case ISD::ZERO_EXTEND:
+  case ISD::VP_ZERO_EXTEND:
     Res = WidenVecRes_Convert(N);
     break;
 
@@ -4234,6 +4269,12 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
     if (InVTEC == WidenEC) {
       if (N->getNumOperands() == 1)
         return DAG.getNode(Opcode, DL, WidenVT, InOp);
+      if (N->getNumOperands() == 3) {
+        assert(N->isVPOpcode() && "Expected VP opcode");
+        SDValue Mask =
+            GetWidenedMask(N->getOperand(1), WidenVT.getVectorElementCount());
+        return DAG.getNode(Opcode, DL, WidenVT, InOp, Mask, N->getOperand(2));
+      }
       return DAG.getNode(Opcode, DL, WidenVT, InOp, N->getOperand(1), Flags);
     }
     if (WidenVT.getSizeInBits() == InVT.getSizeInBits()) {

@@ -567,6 +567,9 @@ void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
     CmdArgs.push_back(
         Args.MakeArgString("-plugin-opt=jobs=" + Twine(Parallelism)));
 
+  if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
+    CmdArgs.push_back(Args.MakeArgString("-plugin-opt=no-opaque-pointers"));
+
   // If an explicit debugger tuning argument appeared, pass it along.
   if (Arg *A = Args.getLastArg(options::OPT_gTune_Group,
                                options::OPT_ggdbN_Group)) {
@@ -1790,8 +1793,13 @@ bool tools::GetSDLFromOffloadArchive(
   for (auto LPath : LibraryPaths) {
     ArchiveOfBundles.clear();
 
-    AOBFileNames.push_back(Twine(LPath + "/libdevice/lib" + Lib + ".a").str());
-    AOBFileNames.push_back(Twine(LPath + "/lib" + Lib + ".a").str());
+    llvm::Triple Triple(D.getTargetTriple());
+    bool IsMSVC = Triple.isWindowsMSVCEnvironment();
+    for (auto Prefix : {"/libdevice/", "/"}) {
+      if (IsMSVC)
+        AOBFileNames.push_back(Twine(LPath + Prefix + Lib + ".lib").str());
+      AOBFileNames.push_back(Twine(LPath + Prefix + "lib" + Lib + ".a").str());
+    }
 
     for (auto AOB : AOBFileNames) {
       if (llvm::sys::fs::exists(AOB)) {
