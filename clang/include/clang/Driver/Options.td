@@ -2774,10 +2774,14 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
   Flags<[CoreOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets. (experimental)">;
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Flags<[CoreOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
-defm sycl_instrument_device_code : BoolFOption<"sycl-instrument-device-code",
-  CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
-  PosFlag<SetTrue, [], "Add">, NegFlag<SetFalse, [], "Do not add">,
-  BothFlags<[CC1Option, CoreOption], " ITT instrumentation intrinsics calls">>;
+defm sycl_instrument_device_code
+    : BoolFOption<"sycl-instrument-device-code",
+          CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
+          PosFlag<SetTrue, [], "Add">,
+          NegFlag<SetFalse, [], "Do not add">,
+          BothFlags<[CC1Option, CoreOption], " Instrumentation and Tracing "
+                    "Technology (ITT) instrumentation intrinsics calls "
+                    "(experimental)">>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], "Assume">, NegFlag<SetFalse, [], "Do not assume">,

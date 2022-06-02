@@ -17,11 +17,11 @@ $_ZTSZ7kernel2RN2cl4sycl5queueEEUlvE_ = comdat any
 $_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_ = comdat any
 
 @dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 4 #0
-; CHECK-MOD0: @dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 4
-; CHECK-MOD1-NOT: @dg_int2
+; CHECK-MOD1: @dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 4
+; CHECK-MOD0-NOT: @dg_int2
 @dg_int3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 4 #1
-; CHECK-MOD1: @dg_int3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 4
-; CHECK-MOD0-NOT: @dg_int3
+; CHECK-MOD0: @dg_int3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global" zeroinitializer, align 4
+; CHECK-MOD1-NOT: @dg_int3
 
 ; Third kernel that uses no device-global variables
 define weak_odr dso_local spir_kernel void @_ZTSZ7kernel3RN2cl4sycl5queueEEUlvE_() #5 comdat !kernel_arg_buffer_location !6 {
