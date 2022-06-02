@@ -209,6 +209,13 @@ and not recommended to use in production environment.
     otherwise the link will happen in build time, online link is disabled by
     default currently. This option is ignored in AOT compilation.
 
+**`-f[no-]sycl-instrument-device-code`** [EXPERIMENTAL]
+
+    Enables/disables linking of the Instrumentation and Tracing Technology (ITT)
+    device libraries for VTune(R). This provides annotations to intercept
+    various events inside JIT generated kernels. These device libraries are
+    linked in by default.
+
 ## Intel FPGA specific options
 
 **`-fintelfpga`**
