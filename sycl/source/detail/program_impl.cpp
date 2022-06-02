@@ -164,8 +164,8 @@ program_impl::program_impl(ContextImplPtr Context,
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-      MProgram, Device, CL_PROGRAM_BINARY_TYPE, sizeof(cl_program_binary_type),
-      &BinaryType, nullptr);
+      MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
+      sizeof(cl_program_binary_type), &BinaryType, nullptr);
   if (BinaryType == CL_PROGRAM_BINARY_TYPE_NONE) {
     throw invalid_object_error(
         "The native program passed to the program constructor has to be either "
@@ -174,11 +174,11 @@ program_impl::program_impl(ContextImplPtr Context,
   }
   size_t Size = 0;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
-      MProgram, Device, CL_PROGRAM_BUILD_OPTIONS, 0, nullptr, &Size);
+      MProgram, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &Size);
   std::vector<char> OptionsVector(Size);
-  Plugin.call<PiApiKind::piProgramGetBuildInfo>(MProgram, Device,
-                                                CL_PROGRAM_BUILD_OPTIONS, Size,
-                                                OptionsVector.data(), nullptr);
+  Plugin.call<PiApiKind::piProgramGetBuildInfo>(
+      MProgram, Device, PI_PROGRAM_BUILD_INFO_OPTIONS, Size,
+      OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
   case CL_PROGRAM_BINARY_TYPE_NONE:

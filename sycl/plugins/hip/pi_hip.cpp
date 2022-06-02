@@ -888,10 +888,10 @@ pi_result hip_piextContextSetExtendedDeleter(
 
 /// Not applicable to HIP, devices cannot be partitioned.
 ///
-pi_result hip_piDevicePartition(
-    pi_device device,
-    const cl_device_partition_property *properties, // TODO: untie from OpenCL
-    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
+pi_result hip_piDevicePartition(pi_device device,
+                                const pi_device_partition_property *properties,
+                                pi_uint32 num_devices, pi_device *out_devices,
+                                pi_uint32 *out_num_devices) {
   (void)device;
   (void)properties;
   (void)num_devices;
@@ -1339,7 +1339,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   CL_READ_WRITE_CACHE);
+                   PI_DEVICE_MEM_CACHE_TYPE_READ_WRITE_CACHE);
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE: {
     // The value is dohipmented for all existing GPUs in the HIP programming
@@ -1450,20 +1450,20 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_TRUE);
   }
   case PI_DEVICE_INFO_EXECUTION_CAPABILITIES: {
-    auto capability = CL_EXEC_KERNEL;
+    auto capability = PI_DEVICE_EXEC_CAPABILITIES_KERNEL;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
   case PI_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
     auto capability =
-        CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+        PI_QUEUE_PROFILING_ENABLE | PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
   case PI_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    auto capability = CL_QUEUE_PROFILING_ENABLE;
+    auto capability = PI_QUEUE_PROFILING_ENABLE;
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    capability);
   }
@@ -1549,15 +1549,14 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<cl_device_partition_property>(0u));
+                   static_cast<pi_device_partition_property>(0u));
   }
   case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return getInfo(param_value_size, param_value, param_value_size_ret, 0u);
   }
   case PI_DEVICE_INFO_PARTITION_TYPE: {
-    // TODO: uncouple from OpenCL
     return getInfo(param_value_size, param_value, param_value_size_ret,
-                   static_cast<cl_device_partition_property>(0u));
+                   static_cast<pi_device_partition_property>(0u));
   }
 
     // Intel USM extensions
@@ -3107,7 +3106,7 @@ pi_result hip_piProgramCompile(
 }
 
 pi_result hip_piProgramGetBuildInfo(pi_program program, pi_device device,
-                                    cl_program_build_info param_name,
+                                    pi_program_build_info param_name,
                                     size_t param_value_size, void *param_value,
                                     size_t *param_value_size_ret) {
   (void)device;
@@ -3461,7 +3460,7 @@ pi_result hip_piEventGetInfo(pi_event event, pi_event_info param_name,
 }
 
 /// Obtain profiling information from PI HIP events
-/// \TODO Untie from OpenCL, timings from HIP are only elapsed time.
+/// Timings from HIP are only elapsed time.
 pi_result hip_piEventGetProfilingInfo(pi_event event,
                                       pi_profiling_info param_name,
                                       size_t param_value_size,
@@ -3685,11 +3684,13 @@ pi_result hip_piSamplerCreate(pi_context context,
   }
 
   if (!propSeen[0]) {
-    retImplSampl->props_ |= CL_TRUE;
+    retImplSampl->props_ |= PI_TRUE;
   }
   // Default filter mode to CL_FILTER_NEAREST
   if (!propSeen[2]) {
-    retImplSampl->props_ |= (CL_ADDRESS_CLAMP % CL_ADDRESS_NONE) << 2;
+    retImplSampl->props_ |=
+        (PI_SAMPLER_ADDRESSING_MODE_CLAMP % PI_SAMPLER_ADDRESSING_MODE_NONE)
+        << 2;
   }
 
   *result_sampler = retImplSampl.release();
@@ -3705,7 +3706,7 @@ pi_result hip_piSamplerCreate(pi_context context,
 /// \param[out] param_value_size_ret Set to the size of the information value.
 ///
 /// \return PI_SUCCESS on success.
-pi_result hip_piSamplerGetInfo(pi_sampler sampler, cl_sampler_info param_name,
+pi_result hip_piSamplerGetInfo(pi_sampler sampler, pi_sampler_info param_name,
                                size_t param_value_size, void *param_value,
                                size_t *param_value_size_ret) {
   assert(sampler != nullptr);
@@ -4444,7 +4445,7 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
   return retErr;
 }
 
-/// \TODO Not implemented in HIP, requires untie from OpenCL
+/// \TODO Not implemented in HIP.
 pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
                                     const void *fill_color,
                                     const size_t *origin, const size_t *region,
@@ -4468,7 +4469,6 @@ pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
 /// Mapped pointers are stored in the pi_mem object.
 /// If the buffer uses pinned host memory a pointer to that memory is returned
 /// and no read operation is done.
-/// \TODO Untie types from OpenCL
 ///
 pi_result hip_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                     pi_bool blocking_map,

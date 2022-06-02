@@ -371,10 +371,11 @@ static pi_result redefinedProgramGetInfo(pi_program P,
   return PI_ERROR_UNKNOWN;
 }
 
-static pi_result redefinedProgramGetBuildInfo(
-    pi_program P, pi_device D,
-    cl_program_build_info ParamName, // TODO: untie from OpenCL
-    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
+static pi_result redefinedProgramGetBuildInfo(pi_program P, pi_device D,
+                                              pi_program_build_info ParamName,
+                                              size_t ParamValueSize,
+                                              void *ParamValue,
+                                              size_t *ParamValueSizeRet) {
   if (CL_PROGRAM_BINARY_TYPE == ParamName) {
     static const cl_program_binary_type T = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
     if (ParamValue)

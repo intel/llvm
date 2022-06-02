@@ -1328,7 +1328,7 @@ pi_result piProgramBuild(pi_program, pi_uint32, const pi_device *, const char *,
   DIE_NO_IMPLEMENTATION;
 }
 
-pi_result piProgramGetBuildInfo(pi_program, pi_device, cl_program_build_info,
+pi_result piProgramGetBuildInfo(pi_program, pi_device, pi_program_build_info,
                                 size_t, void *, size_t *) {
   DIE_NO_IMPLEMENTATION;
 }

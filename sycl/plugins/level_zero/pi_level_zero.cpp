@@ -3794,51 +3794,51 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ze_image_format_type_t ZeImageFormatType;
   size_t ZeImageFormatTypeSize;
   switch (ImageFormat->image_channel_data_type) {
-  case CL_FLOAT:
+  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
     ZeImageFormatTypeSize = 32;
     break;
-  case CL_HALF_FLOAT:
+  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
     ZeImageFormatTypeSize = 16;
     break;
-  case CL_UNSIGNED_INT32:
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
     ZeImageFormatTypeSize = 32;
     break;
-  case CL_UNSIGNED_INT16:
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
     ZeImageFormatTypeSize = 16;
     break;
-  case CL_UNSIGNED_INT8:
+  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
     ZeImageFormatTypeSize = 8;
     break;
-  case CL_UNORM_INT16:
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
     ZeImageFormatTypeSize = 16;
     break;
-  case CL_UNORM_INT8:
+  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
     ZeImageFormatTypeSize = 8;
     break;
-  case CL_SIGNED_INT32:
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
     ZeImageFormatTypeSize = 32;
     break;
-  case CL_SIGNED_INT16:
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
     ZeImageFormatTypeSize = 16;
     break;
-  case CL_SIGNED_INT8:
+  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
     ZeImageFormatTypeSize = 8;
     break;
-  case CL_SNORM_INT16:
+  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT16:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
     ZeImageFormatTypeSize = 16;
     break;
-  case CL_SNORM_INT8:
+  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
     ZeImageFormatTypeSize = 8;
     break;
@@ -3851,7 +3851,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
   switch (ImageFormat->image_channel_order) {
-  case CL_RGBA:
+  case PI_IMAGE_CHANNEL_ORDER_RGBA:
     switch (ZeImageFormatTypeSize) {
     case 8:
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8;
@@ -4531,30 +4531,30 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
 }
 
 pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
-                                cl_program_build_info ParamName,
+                                pi_program_build_info ParamName,
                                 size_t ParamValueSize, void *ParamValue,
                                 size_t *ParamValueSizeRet) {
   (void)Device;
 
   std::shared_lock Guard(Program->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
-  if (ParamName == CL_PROGRAM_BINARY_TYPE) {
-    cl_program_binary_type Type = CL_PROGRAM_BINARY_TYPE_NONE;
+  if (ParamName == PI_PROGRAM_BUILD_INFO_BINARY_TYPE) {
+    pi_program_binary_type Type = PI_PROGRAM_BINARY_TYPE_NONE;
     if (Program->State == _pi_program::Object) {
-      Type = CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+      Type = PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
     } else if (Program->State == _pi_program::Exe) {
-      Type = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
+      Type = PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
     }
-    return ReturnValue(cl_program_binary_type{Type});
+    return ReturnValue(pi_program_binary_type{Type});
   }
-  if (ParamName == CL_PROGRAM_BUILD_OPTIONS) {
+  if (ParamName == PI_PROGRAM_BUILD_INFO_OPTIONS) {
     // TODO: how to get module build options out of Level Zero?
     // For the programs that we compiled we can remember the options
     // passed with piProgramCompile/piProgramBuild, but what can we
     // return for programs that were built outside and registered
     // with piProgramRegister?
     return ReturnValue("");
-  } else if (ParamName == CL_PROGRAM_BUILD_LOG) {
+  } else if (ParamName == PI_PROGRAM_BUILD_INFO_LOG) {
     // Check first to see if the plugin code recorded an error message.
     if (!Program->ErrorMessage.empty()) {
       return ReturnValue(Program->ErrorMessage.c_str());
@@ -5341,8 +5341,8 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
     // Level Zero has a much more explicit notion of command submission than
     // OpenCL. It doesn't happen unless the user submits a command list. We've
-    // done it just above so the status is at least CL_RUNNING.
-    pi_int32 Result = CL_RUNNING;
+    // done it just above so the status is at least PI_EVENT_RUNNING.
+    pi_int32 Result = PI_EVENT_RUNNING;
 
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
@@ -5350,13 +5350,13 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     std::shared_lock EventLock(Event->Mutex);
     auto HostVisibleEvent = Event->HostVisibleEvent;
     if (Event->Completed) {
-      Result = CL_COMPLETE;
+      Result = PI_EVENT_COMPLETE;
     } else if (HostVisibleEvent) {
       ze_result_t ZeResult;
       ZeResult =
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
       if (ZeResult == ZE_RESULT_SUCCESS) {
-        Result = CL_COMPLETE;
+        Result = PI_EVENT_COMPLETE;
       }
     }
     return ReturnValue(pi_cast<pi_int32>(Result));
