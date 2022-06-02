@@ -2076,7 +2076,8 @@ pi_result cuda_piMemBufferCreate(pi_context context, pi_mem_flags flags,
                                  const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
-  assert(properties == nullptr && "no mem properties goes to cuda RT yet");
+  assert((properties == nullptr || *properties == 0) &&
+         "no mem properties goes to cuda RT yet");
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -2427,7 +2428,7 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
            nullptr); // need PI_ERROR_INVALID_EXTERNAL_HANDLE error code
     ScopedContext active(command_queue->get_context());
 
-    command_queue->for_each_stream([&result](CUstream s) {
+    command_queue->sync_streams([&result](CUstream s) {
       result = PI_CHECK_ERROR(cuStreamSynchronize(s));
     });
 
@@ -4702,7 +4703,7 @@ pi_result cuda_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                  pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4726,7 +4727,7 @@ pi_result cuda_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4750,7 +4751,7 @@ pi_result cuda_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
