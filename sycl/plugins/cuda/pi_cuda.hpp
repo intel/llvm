@@ -28,7 +28,6 @@
 #include <limits>
 #include <mutex>
 #include <numeric>
-#include <mutex>
 #include <stdint.h>
 #include <string>
 #include <unordered_map>
@@ -426,13 +425,17 @@ struct _pi_queue {
   // get_next_compute/transfer_stream() functions return streams from
   // appropriate pools in round-robin fashion
   native_type get_next_compute_stream(pi_uint32 *stream_token = nullptr);
-  // this overload tries select a stream that was used by one of dependancies. If that is not possible returns a new stream. If a stream is reused it returns a lock that needs to remain locked as long as the stream is in use
+  // this overload tries select a stream that was used by one of dependancies.
+  // If that is not possible returns a new stream. If a stream is reused it
+  // returns a lock that needs to remain locked as long as the stream is in use
   _pi_stream_guard get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                          const pi_event *event_wait_list, native_type& res, pi_uint32 *stream_token = nullptr);
+                                           const pi_event *event_wait_list,
+                                           native_type &res,
+                                           pi_uint32 *stream_token = nullptr);
   native_type get_next_transfer_stream();
   native_type get() { return get_next_compute_stream(); };
 
-  bool has_been_synchronized(pi_uint32 stream_token){
+  bool has_been_synchronized(pi_uint32 stream_token) {
     // stream token not associated with one of the compute streams
     if (stream_token == std::numeric_limits<pi_uint32>::max()) {
       return false;
@@ -445,10 +448,20 @@ struct _pi_queue {
     if (stream_token == std::numeric_limits<pi_uint32>::max()) {
       return true;
     }
-    // If the command represented by the stream token was not the last command enqueued to the stream we can not reuse the stream - we need to allow for commands enqueued after it and the one we are about to enqueue to run concurrently
-    bool is_last_command = (compute_stream_idx_ - stream_token) <= compute_streams_.size();
-    // If there was a barrier enqueued to the queue after the command represented by the stream token we should not reuse the stream, as we can not take that stream into account for the bookkeeping for the next barrier - such a stream would not be synchronized with. 
-    // Performance-wise it does not matter that we do not reuse the stream, as the work represented by the stream token is guaranteed to be complete by the barrier before any work we are about to enqueue to the stream will start, so the event does not need to be synchronized with.
+    // If the command represented by the stream token was not the last command
+    // enqueued to the stream we can not reuse the stream - we need to allow for
+    // commands enqueued after it and the one we are about to enqueue to run
+    // concurrently
+    bool is_last_command =
+        (compute_stream_idx_ - stream_token) <= compute_streams_.size();
+    // If there was a barrier enqueued to the queue after the command
+    // represented by the stream token we should not reuse the stream, as we can
+    // not take that stream into account for the bookkeeping for the next
+    // barrier - such a stream would not be synchronized with. Performance-wise
+    // it does not matter that we do not reuse the stream, as the work
+    // represented by the stream token is guaranteed to be complete by the
+    // barrier before any work we are about to enqueue to the stream will start,
+    // so the event does not need to be synchronized with.
     return is_last_command && !has_been_synchronized(stream_token);
   }
 
