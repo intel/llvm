@@ -980,7 +980,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_VENDOR_ID: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 4318u);
+#if defined(__HIP_PLATFORM_AMD__)
+    pi_uint32 vendor_id = 4098u;
+#elif defined(__HIP_PLATFORM_NVIDIA__)
+    pi_uint32 vendor_id = 4318u;
+#else
+    pi_uint32 vendor_id = 0u;
+#endif
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   vendor_id);
   }
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int compute_units = 0;
@@ -1899,7 +1908,8 @@ pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
                                 const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
-  assert(properties == nullptr && "no mem properties goes to HIP RT yet");
+  assert((properties == nullptr || *properties == 0) &&
+         "no mem properties goes to HIP RT yet");
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -4559,7 +4569,7 @@ pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                 pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4583,7 +4593,7 @@ pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4607,7 +4617,7 @@ pi_result hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);

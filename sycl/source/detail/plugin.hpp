@@ -114,8 +114,8 @@ public:
   /// \throw Exception if pi_result is not a PI_SUCCESS.
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
+    char *message = nullptr;
     if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
-      char *message = nullptr;
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
@@ -126,7 +126,7 @@ public:
       if (pi_result == PI_SUCCESS)
         return;
     }
-    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception);
+    __SYCL_CHECK_OCL_CODE_THROW(pi_result, Exception, message);
   }
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS

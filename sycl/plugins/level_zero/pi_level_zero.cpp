@@ -30,8 +30,7 @@
 
 extern "C" {
 // Forward declarartions.
-static pi_result EventRelease(pi_event Event, pi_queue LockedQueue);
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
+static pi_result piQueueReleaseInternal(pi_queue Queue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent);
 }
@@ -275,9 +274,6 @@ template <> ze_result_t zeHostSynchronize(ze_event_handle_t Handle) {
 }
 template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
   return zeHostSynchronizeImpl(zeCommandQueueSynchronize, Handle);
-}
-template <> ze_result_t zeHostSynchronize(ze_fence_handle_t Handle) {
-  return zeHostSynchronizeImpl(zeFenceHostSynchronize, Handle);
 }
 
 template <typename T, typename Assign>
@@ -628,12 +624,6 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
-// This helper function increments the reference counter of the Queue
-// without guarding with a lock.
-// It is the caller's responsibility to make sure the lock is acquired
-// on the Queue that is passed in.
-inline static void piQueueRetainNoLock(pi_queue Queue) { Queue->RefCount++; }
-
 // This helper function creates a pi_event and associate a pi_queue.
 // Note that the caller of this function must have acquired lock on the Queue
 // that is passed in.
@@ -656,11 +646,8 @@ inline static pi_result createEventAndAssociateQueue(
 
   // Append this Event to the CommandList, if any
   if (CommandList != Queue->CommandListMap.end()) {
-    (*Event)->ZeCommandList = CommandList->first;
     CommandList->second.append(*Event);
     PI_CALL(piEventRetain(*Event));
-  } else {
-    (*Event)->ZeCommandList = nullptr;
   }
 
   // We need to increment the reference counter here to avoid pi_queue
@@ -668,13 +655,13 @@ inline static pi_result createEventAndAssociateQueue(
   // piEventRelease requires access to the associated pi_queue.
   // In piEventRelease, the reference counter of the Queue is decremented
   // to release it.
-  piQueueRetainNoLock(Queue);
+  Queue->RefCount.increment();
 
   // SYCL RT does not track completion of the events, so it could
   // release a PI event as soon as that's not being waited in the app.
   // But we have to ensure that the event is not destroyed before
   // it is really signalled, so retain it explicitly here and
-  // release in Event->cleanup().
+  // release in CleanupCompletedEvent(Event).
   //
   PI_CALL(piEventRetain(*Event));
 
@@ -872,8 +859,10 @@ bool _pi_queue::isInOrderQueue() const {
   return ((this->Properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) == 0);
 }
 
-pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
-                                      bool MakeAvailable) {
+pi_result
+_pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
+                            bool MakeAvailable,
+                            std::vector<pi_event> &EventListToCleanup) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
   auto &ZeCommandListCache =
       UseCopyEngine
@@ -890,21 +879,11 @@ pi_result _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     CommandList->second.InUse = false;
   }
 
-  // Finally release/cleanup all the events in this command list.
-  // Note, we don't need to synchronize the events since the fence
-  // synchronized above already does that.
   auto &EventList = CommandList->second.EventList;
-  for (auto &Event : EventList) {
-    Event->Completed = true;
-    // All events in this loop are in the same command list which has been just
-    // reset above. We don't want cleanup() to reset same command list again for
-    // all events in the loop so set it to nullptr.
-    Event->ZeCommandList = nullptr;
-    if (!Event->CleanedUp) {
-      Event->cleanup(this);
-    }
-    PI_CALL(EventRelease(Event, this));
-  }
+  // Remember all the events in this command list which needs to be
+  // released/cleaned up and clear event list associated with command list.
+  std::move(std::begin(EventList), std::end(EventList),
+            std::back_inserter(EventListToCleanup));
   EventList.clear();
 
   // Standard commandlists move in and out of the cache as they are recycled.
@@ -1134,27 +1113,46 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
+static pi_result CleanupCompletedEvent(pi_event);
+
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists. A caller must not lock the queue mutex.
-pi_result _pi_queue::resetCommandLists() {
-  // We check for command lists that have been already signalled, but have not
-  // been added to the available list yet. Each command list has a fence
-  // associated which tracks if a command list has completed dispatch of its
-  // commands and is ready for reuse. If a command list is found to have been
-  // signalled, then the command list & fence are reset and command list is
-  // returned to the command list cache. All events associated with command list
-  // are cleaned up if command list was reset.
-  std::scoped_lock Lock(this->Mutex);
-  for (auto &&it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
-    // It is possible that the fence was already noted as signalled and
-    // reset. In that case the InUse flag will be false.
-    if (it->second.InUse) {
-      ze_result_t ZeResult =
-          ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
-        PI_CALL(resetCommandList(it, true));
+pi_result resetCommandLists(pi_queue Queue) {
+  // We need events to be cleaned up out of scope where queue is locked to avoid
+  // nested locks, because event cleanup requires event to be locked. Nested
+  // locks are hard to control and can cause deadlocks if mutexes are locked in
+  // different order.
+  std::vector<pi_event> EventListToCleanup;
+  {
+    // We check for command lists that have been already signalled, but have not
+    // been added to the available list yet. Each command list has a fence
+    // associated which tracks if a command list has completed dispatch of its
+    // commands and is ready for reuse. If a command list is found to have been
+    // signalled, then the command list & fence are reset and command list is
+    // returned to the command list cache. All events associated with command
+    // list are cleaned up if command list was reset.
+    std::scoped_lock Lock(Queue->Mutex);
+    for (auto &&it = Queue->CommandListMap.begin();
+         it != Queue->CommandListMap.end(); ++it) {
+      // It is possible that the fence was already noted as signalled and
+      // reset. In that case the InUse flag will be false.
+      if (it->second.InUse) {
+        ze_result_t ZeResult =
+            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+        if (ZeResult == ZE_RESULT_SUCCESS) {
+          PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
+        }
       }
     }
+  }
+  for (auto Event : EventListToCleanup) {
+    // We don't need to synchronize the events since the fence
+    // synchronized above already does that.
+    Event->Completed = true;
+    PI_CALL(CleanupCompletedEvent(Event));
+    // This event was removed from the command list, so decrement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
   }
   return PI_SUCCESS;
 }
@@ -1340,7 +1338,7 @@ void _pi_queue::CaptureIndirectAccesses() {
         // SubmissionsCount turns to 0. We don't want to know how many times
         // allocation was retained by each submission.
         if (Pair.second)
-          Elem.second.RefCount++;
+          Elem.second.RefCount.increment();
       }
     }
     Kernel->SubmissionsCount++;
@@ -1430,8 +1428,12 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     // and we want the last command in the batch to signal a host-visible
     // event that anybody waiting for any event in the batch will
     // really be using.
-    //
-    if (EventsScope == LastCommandInBatchHostVisible) {
+    // We need to create a proxy host-visible event only if the list of events
+    // in the command list is not empty, otherwise we are going to just create
+    // and remove proxy event right away and dereference deleted object
+    // afterwards.
+    if (EventsScope == LastCommandInBatchHostVisible &&
+        !CommandList->second.EventList.empty()) {
       // Create a "proxy" host-visible event.
       //
       pi_event HostVisibleEvent;
@@ -1454,6 +1456,10 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       // command-list itself. This host-visible event will not be
       // waited/released by SYCL RT, so it must be destroyed after all events in
       // the batch are gone.
+      // We know that refcount is more than 2 because we check that EventList of
+      // the command list is not empty above, i.e. after
+      // createEventAndAssociateQueue ref count is 2 and then +1 for each event
+      // in the EventList.
       PI_CALL(piEventRelease(HostVisibleEvent));
       PI_CALL(piEventRelease(HostVisibleEvent));
 
@@ -1609,7 +1615,7 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
               ZeCommandList, {nullptr, true, nullptr, QueueOrdinal}})
           .first;
   // Add this commandlist to the cache so it can be destroyed as part of
-  // QueueRelease
+  // piQueueReleaseInternal
   auto QueueType = Type;
   auto &ZeCommandListCache =
       QueueType == queue_type::Compute
@@ -1621,30 +1627,29 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   return ImmCmdLists[Index];
 }
 
-pi_result _pi_queue::executeOpenCommandListWithEvent(pi_event Event) {
-  // TODO: see if we can reliably tell if the event is copy or compute.
-  // Meanwhile check both open command-lists.
+pi_command_list_ptr_t _pi_queue::eventOpenCommandList(pi_event Event) {
   using IsCopy = bool;
 
   if (UseImmediateCommandLists) {
-    // When using immediate commandlists there should be no open commandlists.
-    PI_ASSERT(!(hasOpenCommandList(IsCopy{true}) ||
-                hasOpenCommandList(IsCopy{false})),
-              PI_INVALID_QUEUE);
-    return PI_SUCCESS;
+    // When using immediate commandlists there are no open command lists.
+    return CommandListMap.end();
   }
 
+  const auto &ComputeEventList =
+      ComputeCommandBatch.OpenCommandList->second.EventList;
   if (hasOpenCommandList(IsCopy{false}) &&
-      ComputeCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
-    if (auto Res = executeOpenCommandList(IsCopy{false}))
-      return Res;
+      std::find(ComputeEventList.begin(), ComputeEventList.end(), Event) !=
+          ComputeEventList.end()) {
+    return ComputeCommandBatch.OpenCommandList;
   }
+  const auto &CopyEventList =
+      CopyCommandBatch.OpenCommandList->second.EventList;
   if (hasOpenCommandList(IsCopy{true}) &&
-      CopyCommandBatch.OpenCommandList->first == Event->ZeCommandList) {
-    if (auto Res = executeOpenCommandList(IsCopy{true}))
-      return Res;
+      std::find(CopyEventList.begin(), CopyEventList.end(), Event) !=
+          CopyEventList.end()) {
+    return CopyCommandBatch.OpenCommandList;
   }
-  return PI_SUCCESS;
+  return CommandListMap.end();
 }
 
 pi_result _pi_queue::executeOpenCommandList(bool IsCopy) {
@@ -1668,7 +1673,8 @@ static const bool FilterEventWaitList = [] {
 }();
 
 pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
-    pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue) {
+    pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
+    bool UseCopyEngine) {
   this->Length = 0;
   this->ZeEventList = nullptr;
   this->PiEventList = nullptr;
@@ -1702,20 +1708,35 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         }
 
         auto Queue = EventList[I]->Queue;
+        if (Queue) {
+          // The caller of createAndRetainPiZeEventList must already hold
+          // a lock of the CurQueue. Additionally lock the Queue if it
+          // is different from CurQueue.
+          // TODO: rework this to avoid deadlock when another thread is
+          //       locking the same queues but in a different order.
+          auto Lock = ((Queue == CurQueue) ? std::unique_lock<pi_shared_mutex>()
+                                           : std::unique_lock(Queue->Mutex));
 
-        if (Queue && Queue != CurQueue) {
-          // If the event that is going to be waited on is in a
-          // different queue, then any open command list in
-          // that queue must be closed and executed because
-          // the event being waited on could be for a command
-          // in the queue's batch.
+          // If the event that is going to be waited is in an open batch
+          // different from where this next command is going to be added,
+          // then we have to force execute of that open command-list
+          // to avoid deadlocks.
+          //
+          const auto &OpenCommandList =
+              Queue->eventOpenCommandList(EventList[I]);
+          if (OpenCommandList != Queue->CommandListMap.end()) {
 
-          // Lock automatically releases when this goes out of scope.
-          std::scoped_lock lock(Queue->Mutex);
-
-          if (auto Res = Queue->executeAllOpenCommandLists())
-            return Res;
-        } else if (!Queue) {
+            if (Queue == CurQueue &&
+                OpenCommandList->second.isCopy(Queue) == UseCopyEngine) {
+              // Don't force execute the batch yet since the new command
+              // is going to the same open batch as the dependent event.
+            } else {
+              if (auto Res = Queue->executeOpenCommandList(
+                      OpenCommandList->second.isCopy(Queue)))
+                return Res;
+            }
+          }
+        } else {
           // There is a dependency on an interop-event.
           // Similarily to the above to avoid dead locks ensure that
           // execution of all prior commands in the current command-
@@ -1747,6 +1768,18 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     // previous command has finished. The event associated with the last
     // enqueued command is added into the waitlist to ensure in-order semantics.
     if (CurQueue->isInOrderQueue() && CurQueue->LastCommandEvent != nullptr) {
+
+      // Ensure LastCommandEvent's batch is submitted if it is differrent
+      // from the one this command is going to.
+      const auto &OpenCommandList =
+          CurQueue->eventOpenCommandList(CurQueue->LastCommandEvent);
+      if (OpenCommandList != CurQueue->CommandListMap.end() &&
+          OpenCommandList->second.isCopy(CurQueue) != UseCopyEngine) {
+
+        if (auto Res = CurQueue->executeOpenCommandList(
+                OpenCommandList->second.isCopy(CurQueue)))
+          return Res;
+      }
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
       TmpListLength += 1;
@@ -2360,7 +2393,7 @@ pi_result piDeviceRetain(pi_device Device) {
 
   // The root-device ref-count remains unchanged (always 1).
   if (Device->isSubDevice()) {
-    ++(Device->RefCount);
+    Device->RefCount.increment();
   }
   return PI_SUCCESS;
 }
@@ -2368,13 +2401,9 @@ pi_result piDeviceRetain(pi_device Device) {
 pi_result piDeviceRelease(pi_device Device) {
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  // Check if the device is already released
-  if (Device->RefCount <= 0)
-    die("piDeviceRelease: the device has been already released");
-
   // Root devices are destroyed during the piTearDown process.
   if (Device->isSubDevice()) {
-    if (--(Device->RefCount) == 0) {
+    if (Device->RefCount.decrementAndTest()) {
       delete Device;
     }
   }
@@ -2552,7 +2581,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint32{(unsigned int)(Device->SubDevices.size())});
   }
   case PI_DEVICE_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Device->RefCount});
+    return ReturnValue(pi_uint32{Device->RefCount.load()});
   case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
     // SYCL spec says: if this SYCL device cannot be partitioned into at least
     // two sub devices then the returned vector must be empty.
@@ -3091,7 +3120,7 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
   case PI_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(pi_uint32(Context->Devices.size()));
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Context->RefCount});
+    return ReturnValue(pi_uint32{Context->RefCount.load()});
   case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     // TODO: implement other parameters
@@ -3150,7 +3179,7 @@ pi_result piContextRetain(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  ++(Context->RefCount);
+  Context->RefCount.increment();
   return PI_SUCCESS;
 }
 
@@ -3161,35 +3190,35 @@ pi_result ContextReleaseHelper(pi_context Context) {
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
-  if (--(Context->RefCount) == 0) {
-    if (IndirectAccessTrackingEnabled) {
-      pi_platform Plt = Context->getPlatform();
-      auto &Contexts = Plt->Contexts;
-      auto It = std::find(Contexts.begin(), Contexts.end(), Context);
-      if (It != Contexts.end())
-        Contexts.erase(It);
-    }
-    ze_context_handle_t DestoryZeContext =
-        Context->OwnZeContext ? Context->ZeContext : nullptr;
+  if (!Context->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-    // Clean up any live memory associated with Context
-    pi_result Result = Context->finalize();
-
-    // We must delete Context first and then destroy zeContext because
-    // Context deallocation requires ZeContext in some member deallocation of
-    // pi_context.
-    delete Context;
-
-    // Destruction of some members of pi_context uses L0 context
-    // and therefore it must be valid at that point.
-    // Technically it should be placed to the destructor of pi_context
-    // but this makes API error handling more complex.
-    if (DestoryZeContext)
-      ZE_CALL(zeContextDestroy, (DestoryZeContext));
-
-    return Result;
+  if (IndirectAccessTrackingEnabled) {
+    pi_platform Plt = Context->getPlatform();
+    auto &Contexts = Plt->Contexts;
+    auto It = std::find(Contexts.begin(), Contexts.end(), Context);
+    if (It != Contexts.end())
+      Contexts.erase(It);
   }
-  return PI_SUCCESS;
+  ze_context_handle_t DestoryZeContext =
+      Context->OwnZeContext ? Context->ZeContext : nullptr;
+
+  // Clean up any live memory associated with Context
+  pi_result Result = Context->finalize();
+
+  // We must delete Context first and then destroy zeContext because
+  // Context deallocation requires ZeContext in some member deallocation of
+  // pi_context.
+  delete Context;
+
+  // Destruction of some members of pi_context uses L0 context
+  // and therefore it must be valid at that point.
+  // Technically it should be placed to the destructor of pi_context
+  // but this makes API error handling more complex.
+  if (DestoryZeContext)
+    ZE_CALL(zeContextDestroy, (DestoryZeContext));
+
+  return Result;
 }
 
 pi_result piContextRelease(pi_context Context) {
@@ -3266,7 +3295,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
   case PI_QUEUE_INFO_DEVICE:
     return ReturnValue(Queue->Device);
   case PI_QUEUE_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Queue->RefCount});
+    return ReturnValue(pi_uint32{Queue->RefCount.load()});
   case PI_QUEUE_INFO_PROPERTIES:
     die("PI_QUEUE_INFO_PROPERTIES in piQueueGetInfo not implemented\n");
     break;
@@ -3286,101 +3315,98 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 }
 
 pi_result piQueueRetain(pi_queue Queue) {
-  // Lock automatically releases when this goes out of scope.
-  std::scoped_lock lock(Queue->Mutex);
-  Queue->RefCountExternal++;
-  piQueueRetainNoLock(Queue);
+  {
+    std::scoped_lock Lock(Queue->Mutex);
+    Queue->RefCountExternal++;
+  }
+  Queue->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piQueueRelease(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
+  std::vector<pi_event> EventListToCleanup;
+
   {
-    // Have this scope such that the lock is released before the
-    // queue is potentially deleted in QueueRelease.
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock lock(Queue->Mutex);
+    std::scoped_lock Lock(Queue->Mutex);
 
-    Queue->RefCountExternal--;
-    if (Queue->RefCountExternal == 0) {
-      // When external reference count goes to zero it is still possible
-      // that internal references still exists, e.g. command-lists that
-      // are not yet completed. So do full queue synchronization here
-      // and perform proper cleanup.
-      //
-      // It is possible to get to here and still have an open command list
-      // if no wait or finish ever occurred for this queue.
-      if (auto Res = Queue->executeAllOpenCommandLists())
-        return Res;
+    if ((--Queue->RefCountExternal) != 0)
+      return PI_SUCCESS;
 
-      // Make sure all commands get executed.
-      Queue->synchronize();
+    // When external reference count goes to zero it is still possible
+    // that internal references still exists, e.g. command-lists that
+    // are not yet completed. So do full queue synchronization here
+    // and perform proper cleanup.
+    //
+    // It is possible to get to here and still have an open command list
+    // if no wait or finish ever occurred for this queue.
+    if (auto Res = Queue->executeAllOpenCommandLists())
+      return Res;
 
-      // Destroy all the fences created associated with this queue.
-      for (auto it = Queue->CommandListMap.begin();
-           it != Queue->CommandListMap.end(); ++it) {
-        // This fence wasn't yet signalled when we polled it for recycling
-        // the command-list, so need to release the command-list too.
-        // For immediate commandlists we don't need to do an L0 reset of the
-        // commandlist but do need to do event cleanup which is also in the
-        // resetCommandList function.
-        if (it->second.InUse) {
-          Queue->resetCommandList(it, true);
-        }
-        // TODO: remove "if" when the problem is fixed in the level zero
-        // runtime. Destroy only if a queue is healthy. Destroying a fence may
-        // cause a hang otherwise.
-        // If the fence is a nullptr we are using immediate commandlists.
-        if (Queue->Healthy && it->second.ZeFence != nullptr)
-          ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
+    // Make sure all commands get executed.
+    Queue->synchronize();
+
+    // Destroy all the fences created associated with this queue.
+    for (auto it = Queue->CommandListMap.begin();
+         it != Queue->CommandListMap.end(); ++it) {
+      // This fence wasn't yet signalled when we polled it for recycling
+      // the command-list, so need to release the command-list too.
+      // For immediate commandlists we don't need to do an L0 reset of the
+      // commandlist but do need to do event cleanup which is also in the
+      // resetCommandList function.
+      if (it->second.InUse) {
+        Queue->resetCommandList(it, true, EventListToCleanup);
       }
-      Queue->CommandListMap.clear();
+      // TODO: remove "if" when the problem is fixed in the level zero
+      // runtime. Destroy only if a queue is healthy. Destroying a fence may
+      // cause a hang otherwise.
+      // If the fence is a nullptr we are using immediate commandlists.
+      if (Queue->Healthy && it->second.ZeFence != nullptr)
+        ZE_CALL(zeFenceDestroy, (it->second.ZeFence));
     }
+    Queue->CommandListMap.clear();
   }
-  PI_CALL(QueueRelease(Queue, nullptr));
+
+  for (auto Event : EventListToCleanup) {
+    // We don't need to synchronize the events since the queue
+    // synchronized above already does that.
+    Event->Completed = true;
+    PI_CALL(CleanupCompletedEvent(Event));
+    // This event was removed from the command list, so decrement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
+  }
+  PI_CALL(piQueueReleaseInternal(Queue));
   return PI_SUCCESS;
 }
 
-static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
+static pi_result piQueueReleaseInternal(pi_queue Queue) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
-  PI_ASSERT(Queue->RefCount, PI_INVALID_QUEUE);
 
-  // We need to use a bool variable here to check the condition that
-  // RefCount becomes zero atomically with Queue->Mutex lock.
-  // Then, we can release the lock before we remove the Queue below.
-  bool RefCountZero = false;
-  {
-    // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
-                                        : std::unique_lock(Queue->Mutex));
+  if (!Queue->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-    Queue->RefCount--;
-    if (Queue->RefCount == 0) {
-      RefCountZero = true;
-
-      if (Queue->OwnZeCommandQueue) {
-        for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
-          if (ZeQueue)
-            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-        }
-        for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
-          if (ZeQueue)
-            ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
-        }
-      }
-
-      zePrint("piQueueRelease(compute) NumTimesClosedFull %d, "
-              "NumTimesClosedEarly %d\n",
-              Queue->ComputeCommandBatch.NumTimesClosedFull,
-              Queue->ComputeCommandBatch.NumTimesClosedEarly);
-      zePrint("piQueueRelease(copy) NumTimesClosedFull %d, NumTimesClosedEarly "
-              "%d\n",
-              Queue->CopyCommandBatch.NumTimesClosedFull,
-              Queue->CopyCommandBatch.NumTimesClosedEarly);
+  if (Queue->OwnZeCommandQueue) {
+    for (auto &ZeQueue : Queue->ComputeQueueGroup.ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
+    }
+    for (auto &ZeQueue : Queue->CopyQueueGroup.ZeQueues) {
+      if (ZeQueue)
+        ZE_CALL(zeCommandQueueDestroy, (ZeQueue));
     }
   }
-  if (RefCountZero)
-    delete Queue;
+
+  zePrint("piQueueRelease(compute) NumTimesClosedFull %d, "
+          "NumTimesClosedEarly %d\n",
+          Queue->ComputeCommandBatch.NumTimesClosedFull,
+          Queue->ComputeCommandBatch.NumTimesClosedEarly);
+  zePrint("piQueueRelease(copy) NumTimesClosedFull %d, NumTimesClosedEarly "
+          "%d\n",
+          Queue->CopyCommandBatch.NumTimesClosedFull,
+          Queue->CopyCommandBatch.NumTimesClosedEarly);
+
+  delete Queue;
 
   return PI_SUCCESS;
 }
@@ -3442,7 +3468,7 @@ pi_result piQueueFinish(pi_queue Queue) {
   }
   // Reset signalled command lists and return them back to the cache of
   // available command lists.
-  Queue->resetCommandLists();
+  resetCommandLists(Queue);
   return PI_SUCCESS;
 }
 
@@ -3679,8 +3705,7 @@ pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
 pi_result piMemRetain(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
 
-  std::scoped_lock Guard(Mem->Mutex);
-  ++(Mem->RefCount);
+  Mem->RefCount.increment();
   return PI_SUCCESS;
 }
 
@@ -3698,7 +3723,7 @@ static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (--(It->second.RefCount) != 0) {
+    if (!It->second.RefCount.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }
@@ -3722,24 +3747,19 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 
 pi_result piMemRelease(pi_mem Mem) {
   PI_ASSERT(Mem, PI_INVALID_MEM_OBJECT);
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Mem->Mutex);
-    if (--(Mem->RefCount) == 0) {
-      RefCountZero = true;
-      if (Mem->isImage()) {
-        char *ZeHandleImage;
-        PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
-        ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
-      } else {
-        auto Buffer = static_cast<pi_buffer>(Mem);
-        Buffer->free();
-      }
-    }
-  }
 
-  if (RefCountZero)
-    delete Mem;
+  if (!Mem->RefCount.decrementAndTest())
+    return PI_SUCCESS;
+
+  if (Mem->isImage()) {
+    char *ZeHandleImage;
+    PI_CALL(Mem->getZeHandle(ZeHandleImage, _pi_mem::write_only));
+    ZE_CALL(zeImageDestroy, (pi_cast<ze_image_handle_t>(ZeHandleImage)));
+  } else {
+    auto Buffer = static_cast<pi_buffer>(Mem);
+    Buffer->free();
+  }
+  delete Mem;
 
   return PI_SUCCESS;
 }
@@ -4103,7 +4123,7 @@ pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_PROGRAM_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Program->RefCount});
+    return ReturnValue(pi_uint32{Program->RefCount.load()});
   case PI_PROGRAM_INFO_NUM_DEVICES:
     // TODO: return true number of devices this program exists for.
     return ReturnValue(pi_uint32{1});
@@ -4551,23 +4571,17 @@ pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
 
 pi_result piProgramRetain(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-  ++(Program->RefCount);
+  Program->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piProgramRelease(pi_program Program) {
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Program->Mutex);
-    // Check if the program is already released
-    PI_ASSERT(Program->RefCount > 0, PI_INVALID_VALUE);
-    if (--(Program->RefCount) == 0) {
-      RefCountZero = true;
-    }
-  }
-  if (RefCountZero)
-    delete Program;
+
+  if (!Program->RefCount.decrementAndTest())
+    return PI_SUCCESS;
+
+  delete Program;
 
   return PI_SUCCESS;
 }
@@ -4812,7 +4826,7 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
   case PI_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(pi_uint32{Kernel->ZeKernelProperties->numKernelArgs});
   case PI_KERNEL_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Kernel->RefCount});
+    return ReturnValue(pi_uint32{Kernel->RefCount.load()});
   case PI_KERNEL_INFO_ATTRIBUTES:
     try {
       uint32_t Size;
@@ -4922,58 +4936,46 @@ pi_result piKernelRetain(pi_kernel Kernel) {
 
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
 
-  // When retaining a kernel, you are also retaining the program it is part
-  // of.
-  std::scoped_lock Lock(Kernel->Mutex, Kernel->Program->Mutex);
-  Kernel->retain();
+  Kernel->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piKernelRelease(pi_kernel Kernel) {
-
   PI_ASSERT(Kernel, PI_INVALID_KERNEL);
-  pi_program KernelProgram = nullptr;
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Kernel->Mutex);
-    KernelProgram = Kernel->Program;
-    if (IndirectAccessTrackingEnabled) {
-      // piKernelRelease is called by Event->cleanup() as soon as kernel
-      // execution has finished. This is the place where we need to release
-      // memory allocations. If kernel is not in use (not submitted by some
-      // other thread) then release referenced memory allocations. As a result,
-      // memory can be deallocated and context can be removed from container in
-      // the platform. That's why we need to lock a mutex here.
-      pi_platform Plt = KernelProgram->Context->getPlatform();
-      std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
 
-      if (--Kernel->SubmissionsCount == 0) {
-        // Kernel is not submitted for execution, release referenced memory
-        // allocations.
-        for (auto &MemAlloc : Kernel->MemAllocs) {
-          USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
-                        MemAlloc->second.OwnZeMemHandle);
-        }
-        Kernel->MemAllocs.clear();
-      }
-    }
+  if (IndirectAccessTrackingEnabled) {
+    // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
+    // kernel execution has finished. This is the place where we need to release
+    // memory allocations. If kernel is not in use (not submitted by some
+    // other thread) then release referenced memory allocations. As a result,
+    // memory can be deallocated and context can be removed from container in
+    // the platform. That's why we need to lock a mutex here.
+    pi_platform Plt = Kernel->Program->Context->getPlatform();
+    std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
 
-    if (--(Kernel->RefCount) == 0) {
-      if (Kernel->OwnZeKernel)
-        ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
-      if (IndirectAccessTrackingEnabled) {
-        PI_CALL(piContextRelease(KernelProgram->Context));
+    if (--Kernel->SubmissionsCount == 0) {
+      // Kernel is not submitted for execution, release referenced memory
+      // allocations.
+      for (auto &MemAlloc : Kernel->MemAllocs) {
+        USMFreeHelper(MemAlloc->second.Context, MemAlloc->first,
+                      MemAlloc->second.OwnZeMemHandle);
       }
-      RefCountZero = true;
+      Kernel->MemAllocs.clear();
     }
   }
 
-  if (RefCountZero)
-    delete Kernel;
+  if (!Kernel->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-  if (KernelProgram)
-    // do a release on the program this kernel was part of
-    PI_CALL(piProgramRelease(KernelProgram));
+  auto KernelProgram = Kernel->Program;
+  if (Kernel->OwnZeKernel)
+    ZE_CALL(zeKernelDestroy, (Kernel->ZeKernel));
+  if (IndirectAccessTrackingEnabled) {
+    PI_CALL(piContextRelease(KernelProgram->Context));
+  }
+  // do a release on the program this kernel was part of
+  PI_CALL(piProgramRelease(KernelProgram));
+  delete Kernel;
 
   return PI_SUCCESS;
 }
@@ -5076,17 +5078,16 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   ZE_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
 
+  bool UseCopyEngine = false;
   _pi_ze_event_list_t TmpWaitList;
-
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* UseCopyEngine */,
-          true /* AllowBatching */))
+          Queue, CommandList, UseCopyEngine, true /* AllowBatching */))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -5102,10 +5103,10 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   (*Event)->CommandData = (void *)Kernel;
 
   // Increment the reference count of the Kernel and indicate that the Kernel is
-  // in use. Once the event has been signalled, the code in Event.cleanup() will
-  // do a piReleaseKernel to update the reference count on the kernel, using the
-  // kernel saved in CommandData.
-  Kernel->retain();
+  // in use. Once the event has been signalled, the code in
+  // CleanupCompletedEvent(Event) will do a piReleaseKernel to update the
+  // reference count on the kernel, using the kernel saved in CommandData.
+  PI_CALL(piKernelRetain(Kernel));
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -5308,10 +5309,16 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     // possible that this is trying to query some event's status that
     // is part of the batch.  This isn't strictly required, but it seems
     // like a reasonable thing to do.
-    if (Event->Queue) {
+    auto Queue = Event->Queue;
+    if (Queue) {
       // Lock automatically releases when this goes out of scope.
-      std::scoped_lock lock(Event->Queue->Mutex);
-      Event->Queue->executeOpenCommandListWithEvent(Event);
+      std::scoped_lock lock(Queue->Mutex);
+      const auto &OpenCommandList = Queue->eventOpenCommandList(Event);
+      if (OpenCommandList != Queue->CommandListMap.end()) {
+        if (auto Res = Queue->executeOpenCommandList(
+                OpenCommandList->second.isCopy(Queue)))
+          return Res;
+      }
     }
 
     // TODO: We don't know if the status is queued, submitted or running.
@@ -5336,7 +5343,7 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     return ReturnValue(pi_cast<pi_int32>(Result));
   }
   case PI_EVENT_INFO_REFERENCE_COUNT:
-    return ReturnValue(pi_uint32{Event->RefCount});
+    return ReturnValue(pi_uint32{Event->RefCount.load()});
   default:
     zePrint("Unsupported ParamName in piEventGetInfo: ParamName=%d(%x)\n",
             ParamName, ParamName);
@@ -5413,126 +5420,104 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   return PI_SUCCESS;
 }
 
+} // extern "C"
+
 // Perform any necessary cleanup after an event has been signalled.
-// This currently recycles the associate command list, and also makes
-// sure to release any kernel that may have been used by the event.
-pi_result _pi_event::cleanup(pi_queue LockedQueue) {
-  // The implementation of this is slightly tricky.  The same event
-  // can be referred to by multiple threads, so it is possible to
-  // have a race condition between the read of fields of the event,
-  // and reseting those fields in some other thread.
-  // But, since the event is uniquely associated with the queue
-  // for the event, we use the locking that we already have to do on the
-  // queue to also serve as the thread safety mechanism for the
-  // any of the Event's data members that need to be read/reset as
-  // part of the cleanup operations.
-  if (Queue) {
-    // Lock automatically releases when this goes out of scope.
-    auto Lock = ((Queue == LockedQueue) ? std::unique_lock<pi_shared_mutex>()
-                                        : std::unique_lock(Queue->Mutex));
-    // Immediate commandlists do not have a fence, so skip this step
-    if (!UseImmediateCommandLists && ZeCommandList) {
-      // Event has been signalled: If the fence for the associated command list
-      // is signalled, then reset the fence and command list and add them to the
-      // available list for reuse in PI calls.
-      if (Queue->RefCount > 0) {
-        auto it = Queue->CommandListMap.find(ZeCommandList);
-        if (it == Queue->CommandListMap.end()) {
-          die("Missing command-list completition fence");
-        }
+// This currently makes sure to release any kernel that may have been used by
+// the event, updates the last command event in the queue and cleans up all dep
+// events of the event.
+// The caller must not lock any mutexes.
+static pi_result CleanupCompletedEvent(pi_event Event) {
+  pi_kernel AssociatedKernel = nullptr;
+  // List of dependent events.
+  std::list<pi_event> EventsToBeReleased;
+  pi_queue AssociatedQueue = nullptr;
+  {
+    std::scoped_lock EventLock(Event->Mutex);
+    // Exit early of event was already cleanedup.
+    if (Event->CleanedUp)
+      return PI_SUCCESS;
 
-        // It is possible that the fence was already noted as signalled and
-        // reset.  In that case the InUse flag will be false, and
-        // we shouldn't query it, synchronize on it, or try to reset it.
-        if (it->second.InUse) {
-          // Workaround for VM_BIND mode.
-          // Make sure that the command-list doing memcpy is reset before
-          // non-USM host memory potentially involved in the memcpy is freed.
-          //
-          // NOTE: it is valid to wait for the fence here as long as we aren't
-          // doing batching on the involved command-list. Today memcpy goes by
-          // itself in a command list.
-          //
-          // TODO: this will unnecessarily(?) wait for non-USM memory buffers
-          // too, so we might need to add a new command type to differentiate.
-          //
-          ze_result_t ZeResult =
-              (CommandType == PI_COMMAND_TYPE_MEM_BUFFER_COPY)
-                  ? ZE_CALL_NOCHECK(zeHostSynchronize, (it->second.ZeFence))
-                  : ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+    AssociatedQueue = Event->Queue;
 
-          if (ZeResult == ZE_RESULT_SUCCESS) {
-            Queue->resetCommandList(it, true);
-            ZeCommandList = nullptr;
-          }
-        }
+    // Remember the kernel associated with this event if there is one. We are
+    // going to release it later.
+    if (Event->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+        Event->CommandData) {
+      AssociatedKernel = pi_cast<pi_kernel>(Event->CommandData);
+      Event->CommandData = nullptr;
+    }
+
+    // Make a list of all the dependent events that must have signalled
+    // because this event was dependent on them.
+    Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+        EventsToBeReleased);
+
+    Event->CleanedUp = true;
+  }
+
+  // We've reset event data members above, now cleanup resources.
+  if (AssociatedKernel)
+    PI_CALL(piKernelRelease(AssociatedKernel));
+
+  if (AssociatedQueue) {
+    {
+      // Lock automatically releases when this goes out of scope.
+      std::scoped_lock Lock(AssociatedQueue->Mutex);
+
+      // If this event was the LastCommandEvent in the queue, being used
+      // to make sure that commands were executed in-order, remove this.
+      // If we don't do this, the event can get released and freed leaving
+      // a dangling pointer to this event.  It could also cause unneeded
+      // already finished events to show up in the wait list.
+      if (AssociatedQueue->LastCommandEvent == Event) {
+        AssociatedQueue->LastCommandEvent = nullptr;
       }
     }
 
-    // Release the kernel associated with this event if there is one.
-    if (CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL && CommandData) {
-      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(CommandData)));
-      CommandData = nullptr;
-    }
-
-    // If this event was the LastCommandEvent in the queue, being used
-    // to make sure that commands were executed in-order, remove this.
-    // If we don't do this, the event can get released and freed leaving
-    // a dangling pointer to this event.  It could also cause unneeded
-    // already finished events to show up in the wait list.
-    if (Queue->LastCommandEvent == this) {
-      Queue->LastCommandEvent = nullptr;
-    }
+    // Release this event since we explicitly retained it on creation and
+    // association with queue. Events which don't have associated queue doesn't
+    // require this release because it means that they are not created using
+    // createEventAndAssociateQueue, i.e. additional retain was not made.
+    PI_CALL(piEventRelease(Event));
   }
 
-  if (!CleanedUp) {
-    CleanedUp = true;
-    // Release this event since we explicitly retained it on creation.
-    // NOTE: that this needs to be done only once for an event so
-    // this is guarded with the CleanedUp flag.
-    //
-    PI_CALL(EventRelease(this, LockedQueue));
-  }
-
-  // Make a list of all the dependent events that must have signalled
-  // because this event was dependent on them.  This list will be appended
-  // to as we walk it so that this algorithm doesn't go recursive
-  // due to dependent events themselves being dependent on other events
-  // forming a potentially very deep tree, and deep recursion.  That
-  // turned out to be a significant problem with the recursive code
-  // that preceded this implementation.
-
-  std::list<pi_event> EventsToBeReleased;
-
-  WaitList.collectEventsForReleaseAndDestroyPiZeEventList(EventsToBeReleased);
-
+  // The list of dependent events will be appended to as we walk it so that this
+  // algorithm doesn't go recursive due to dependent events themselves being
+  // dependent on other events forming a potentially very deep tree, and deep
+  // recursion.  That turned out to be a significant problem with the recursive
+  // code that preceded this implementation.
   while (!EventsToBeReleased.empty()) {
     pi_event DepEvent = EventsToBeReleased.front();
     EventsToBeReleased.pop_front();
 
-    DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
-        EventsToBeReleased);
-    if (IndirectAccessTrackingEnabled && DepEvent->Queue) {
-      // DepEvent has finished, we can release the associated kernel if there is
-      // one. This is the earliest place we can do this and it can't be done
-      // twice, so it is safe. Lock automatically releases when this goes out of
-      // scope.
-      // TODO: this code needs to be moved out of the guard.
-      auto Lock = ((DepEvent->Queue == LockedQueue)
-                       ? std::unique_lock<pi_shared_mutex>()
-                       : std::unique_lock(DepEvent->Queue->Mutex));
-
-      if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
-          DepEvent->CommandData) {
-        PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
-        DepEvent->CommandData = nullptr;
+    pi_kernel DepEventKernel = nullptr;
+    {
+      std::scoped_lock DepEventLock(DepEvent->Mutex);
+      DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+          EventsToBeReleased);
+      if (IndirectAccessTrackingEnabled) {
+        // DepEvent has finished, we can release the associated kernel if there
+        // is one. This is the earliest place we can do this and it can't be
+        // done twice, so it is safe. Lock automatically releases when this goes
+        // out of scope.
+        // TODO: this code needs to be moved out of the guard.
+        if (DepEvent->CommandType == PI_COMMAND_TYPE_NDRANGE_KERNEL &&
+            DepEvent->CommandData) {
+          DepEventKernel = pi_cast<pi_kernel>(DepEvent->CommandData);
+          DepEvent->CommandData = nullptr;
+        }
       }
     }
-    PI_CALL(EventRelease(DepEvent, LockedQueue));
+    if (DepEventKernel)
+      PI_CALL(piKernelRelease(pi_cast<pi_kernel>(DepEvent->CommandData)));
+    PI_CALL(piEventRelease(DepEvent));
   }
 
   return PI_SUCCESS;
 }
+
+extern "C" {
 
 pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
 
@@ -5558,12 +5543,11 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock lock(Queue->Mutex);
 
-      if (Queue->RefCount > 0) {
-        if (auto Res = Queue->executeAllOpenCommandLists())
-          return Res;
-      }
+      if (auto Res = Queue->executeAllOpenCommandLists())
+        return Res;
     }
   }
+  std::unordered_set<pi_queue> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
     if (!EventList[I]->Completed) {
       auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
@@ -5574,10 +5558,19 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
       zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
       ZE_CALL(zeHostSynchronize, (ZeEvent));
     }
+    if (auto Q = EventList[I]->Queue)
+      Queues.insert(Q);
+
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
-    EventList[I]->cleanup();
+    CleanupCompletedEvent(EventList[I]);
   }
+
+  // We waited some events above, check queue for signaled command lists and
+  // reset them.
+  for (auto Q : Queues)
+    resetCommandLists(Q);
+
   return PI_SUCCESS;
 }
 
@@ -5602,55 +5595,47 @@ pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 }
 
 pi_result piEventRetain(pi_event Event) {
-  ++(Event->RefCount);
+  Event->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piEventRelease(pi_event Event) {
-  return EventRelease(Event, nullptr);
-}
-
-static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
   PI_ASSERT(Event, PI_INVALID_EVENT);
-  if (!Event->RefCount) {
-    die("piEventRelease: called on a destroyed event");
-  }
 
-  if (--(Event->RefCount) == 0) {
-    if (!Event->CleanedUp)
-      Event->cleanup(LockedQueue);
+  if (!Event->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-    if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
-        Event->CommandData) {
-      // Free the memory allocated in the piEnqueueMemBufferMap.
-      if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
-        return Res;
-      Event->CommandData = nullptr;
-    }
-    if (Event->OwnZeEvent) {
-      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
-    }
-    // It is possible that host-visible event was never created.
-    // In case it was check if that's different from this same event
-    // and release a reference to it.
-    if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
-      // Decrement ref-count of the host-visible proxy event.
-      PI_CALL(EventRelease(Event->HostVisibleEvent, LockedQueue));
-    }
-
-    auto Context = Event->Context;
-    if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+  if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
+      Event->CommandData) {
+    // Free the memory allocated in the piEnqueueMemBufferMap.
+    if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
       return Res;
-
-    // We intentionally incremented the reference counter when an event is
-    // created so that we can avoid pi_queue is released before the associated
-    // pi_event is released. Here we have to decrement it so pi_queue
-    // can be released successfully.
-    if (Event->Queue) {
-      PI_CALL(QueueRelease(Event->Queue, LockedQueue));
-    }
-    delete Event;
+    Event->CommandData = nullptr;
   }
+  if (Event->OwnZeEvent) {
+    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+  }
+  // It is possible that host-visible event was never created.
+  // In case it was check if that's different from this same event
+  // and release a reference to it.
+  if (Event->HostVisibleEvent && Event->HostVisibleEvent != Event) {
+    // Decrement ref-count of the host-visible proxy event.
+    PI_CALL(piEventRelease(Event->HostVisibleEvent));
+  }
+
+  auto Context = Event->Context;
+  if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+    return Res;
+
+  // We intentionally incremented the reference counter when an event is
+  // created so that we can avoid pi_queue is released before the associated
+  // pi_event is released. Here we have to decrement it so pi_queue
+  // can be released successfully.
+  if (Event->Queue) {
+    PI_CALL(piQueueReleaseInternal(Event->Queue));
+  }
+  delete Event;
+
   return PI_SUCCESS;
 }
 
@@ -5665,9 +5650,15 @@ pi_result piextEventGetNativeHandle(pi_event Event,
   // Event can potentially be in an open command-list, make sure that
   // it is submitted for execution to avoid potential deadlock if
   // interop app is going to wait for it.
-  if (Event->Queue) {
-    std::scoped_lock lock(Event->Queue->Mutex);
-    Event->Queue->executeOpenCommandListWithEvent(Event);
+  auto Queue = Event->Queue;
+  if (Queue) {
+    std::scoped_lock lock(Queue->Mutex);
+    const auto &OpenCommandList = Queue->eventOpenCommandList(Event);
+    if (OpenCommandList != Queue->CommandListMap.end()) {
+      if (auto Res = Queue->executeOpenCommandList(
+              OpenCommandList->second.isCopy(Queue)))
+        return Res;
+    }
   }
   return PI_SUCCESS;
 }
@@ -5687,6 +5678,13 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   // Assume native event is host-visible, or otherwise we'd
   // need to create a host-visible proxy for it.
   (*Event)->HostVisibleEvent = *Event;
+
+  // Unlike regular events managed by SYCL RT we don't have to wait for interop
+  // events completion, and not need to do the their `cleanup()`. This in
+  // particular guarantees that the extra `piEventRelease` is not called on
+  // them. That release is needed to match the `piEventRetain` of regular events
+  // made for waiting for event completion, but not this interop event.
+  (*Event)->CleanedUp = true;
 
   return PI_SUCCESS;
 }
@@ -5839,25 +5837,18 @@ pi_result piSamplerGetInfo(pi_sampler Sampler, pi_sampler_info ParamName,
 pi_result piSamplerRetain(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  std::scoped_lock Guard(Sampler->Mutex);
-  ++(Sampler->RefCount);
+  Sampler->RefCount.increment();
   return PI_SUCCESS;
 }
 
 pi_result piSamplerRelease(pi_sampler Sampler) {
   PI_ASSERT(Sampler, PI_INVALID_SAMPLER);
 
-  bool RefCountZero = false;
-  {
-    std::scoped_lock Guard(Sampler->Mutex);
-    if (--(Sampler->RefCount) == 0) {
-      ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
-      RefCountZero = true;
-    }
-  }
+  if (!Sampler->RefCount.decrementAndTest())
+    return PI_SUCCESS;
 
-  if (RefCountZero)
-    delete Sampler;
+  ZE_CALL(zeSamplerDestroy, (Sampler->ZeSampler));
+  delete Sampler;
 
   return PI_SUCCESS;
 }
@@ -5874,17 +5865,20 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
   if (EventWaitList) {
     PI_ASSERT(NumEventsInWaitList > 0, PI_INVALID_VALUE);
 
+    bool UseCopyEngine = false;
+
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock lock(Queue->Mutex);
 
     _pi_ze_event_list_t TmpWaitList = {};
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue))
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
     // Get a new command list to be used on this call
     pi_command_list_ptr_t CommandList{};
-    if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+    if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                           UseCopyEngine))
       return Res;
 
     ze_event_handle_t ZeEvent = nullptr;
@@ -5929,7 +5923,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     (*Event)->Completed = true;
   }
 
-  Queue->resetCommandLists();
+  resetCommandLists(Queue);
 
   return PI_SUCCESS;
 }
@@ -5944,16 +5938,18 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
 
+  bool UseCopyEngine = false;
+
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
   bool OkToBatch = true;
   pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /*copy*/, OkToBatch))
+          Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
 
   ze_event_handle_t ZeEvent = nullptr;
@@ -6046,8 +6042,7 @@ pi_result _pi_queue::synchronize() {
             (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    Event->ZeCommandList = nullptr;
-    PI_CALL(Event->cleanup(Queue));
+    PI_CALL(piEventRelease(Event));
     return PI_SUCCESS;
   };
 
@@ -6080,17 +6075,18 @@ static pi_result enqueueMemCopyHelper(pi_command_type CommandType,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
-  _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
-    return Res;
-
-  // Get a new command list to be used on this call
-  pi_command_list_ptr_t CommandList{};
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
+  _pi_ze_event_list_t TmpWaitList;
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
+    return Res;
 
   // We want to batch these commands to avoid extra submissions (costly)
   bool OkToBatch = true;
+
+  // Get a new command list to be used on this call
+  pi_command_list_ptr_t CommandList{};
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
@@ -6140,16 +6136,18 @@ static pi_result enqueueMemCopyRectHelper(
   PI_ASSERT(Region && SrcOrigin && DstOrigin && Queue, PI_INVALID_VALUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
+
+  // We want to batch these commands to avoid extra submissions (costly)
+  bool OkToBatch = true;
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-  // We want to batch these commands to avoid extra submissions (costly)
-  bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
@@ -6356,11 +6354,6 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
   PI_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
             PI_INVALID_VALUE);
 
-  _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
-    return Res;
-
   auto &Device = Queue->Device;
 
   // Performance analysis on a simple SYCL data "fill" test shows copy engine
@@ -6392,6 +6385,11 @@ enqueueMemFillHelper(pi_command_type CommandType, pi_queue Queue, void *Ptr,
                       .ZeProperties.maxMemoryFillPatternSize,
               PI_INVALID_VALUE);
   }
+
+  _pi_ze_event_list_t TmpWaitList;
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
+    return Res;
 
   pi_command_list_ptr_t CommandList{};
   // We want to batch these commands to avoid extra submissions (costly)
@@ -6476,13 +6474,14 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
 
   ze_event_handle_t ZeEvent = nullptr;
 
+  bool UseCopyEngine = false;
   {
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock lock(Queue->Mutex);
 
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue))
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
     auto Res = createEventAndAssociateQueue(Queue, Event,
@@ -6588,12 +6587,12 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
   } else {
     // For discrete devices we need a command list
     pi_command_list_ptr_t CommandList{};
-    if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+    if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                           UseCopyEngine))
       return Res;
 
-    // Set the commandlist in the event
+    // Add the event to the command list.
     if (Event) {
-      (*Event)->ZeCommandList = CommandList->first;
       CommandList->second.append(*Event);
       PI_CALL(piEventRetain(*Event));
     }
@@ -6632,6 +6631,8 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
   PI_ASSERT(!Mem->isImage(), PI_INVALID_MEM_OBJECT);
   auto Buffer = pi_cast<pi_buffer>(Mem);
 
+  bool UseCopyEngine = false;
+
   ze_event_handle_t ZeEvent = nullptr;
   {
     // Lock automatically releases when this goes out of scope.
@@ -6639,7 +6640,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
 
     _pi_ze_event_list_t TmpWaitList;
     if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue))
+            NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
       return Res;
 
     auto Res = createEventAndAssociateQueue(Queue, Event,
@@ -6712,11 +6713,10 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
   std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
 
   pi_command_list_ptr_t CommandList{};
-  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
 
-  // Set the commandlist in the event
-  (*Event)->ZeCommandList = CommandList->first;
   CommandList->second.append(*Event);
   PI_CALL(piEventRetain(*Event));
 
@@ -6814,16 +6814,18 @@ static pi_result enqueueMemImageCommandHelper(
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
+  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
+
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
+
+  // We want to batch these commands to avoid extra submissions (costly)
+  bool OkToBatch = true;
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
-  bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
-  // We want to batch these commands to avoid extra submissions (costly)
-  bool OkToBatch = true;
   if (auto Res = Queue->Context->getAvailableCommandList(
           Queue, CommandList, UseCopyEngine, OkToBatch))
     return Res;
@@ -7433,7 +7435,7 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   // See if the memory is going to be read-only on the device.
   bool DeviceReadOnly = false;
   // Check that incorrect bits are not set in the properties.
-  if (Properties) {
+  if (Properties && *Properties != 0) {
     PI_ASSERT(*(Properties) == PI_MEM_ALLOC_FLAGS && *(Properties + 2) == 0,
               PI_INVALID_VALUE);
     DeviceReadOnly = *(Properties + 1) & PI_MEM_ALLOC_DEVICE_READ_ONLY;
@@ -7574,7 +7576,7 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
     if (It == std::end(Context->MemAllocs)) {
       die("All memory allocations must be tracked!");
     }
-    if (--(It->second.RefCount) != 0) {
+    if (!It->second.RefCount.decrementAndTest()) {
       // Memory can't be deallocated yet.
       return PI_SUCCESS;
     }
@@ -7790,22 +7792,25 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
 
-  /**
-   * @brief Please note that the following code should be run before the
-   * subsequent getAvailableCommandList() call so that there is no
-   * dead-lock from waiting unsubmitted events in an open batch.
-   */
+  bool UseCopyEngine = false;
+
+  // Please note that the following code should be run before the
+  // subsequent getAvailableCommandList() call so that there is no
+  // dead-lock from waiting unsubmitted events in an open batch.
+  // The createAndRetainPiZeEventList() has the proper side-effect
+  // of submitting batches with dependent events.
+  //
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(NumEventsInWaitList,
-                                                          EventWaitList, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+          NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
   pi_command_list_ptr_t CommandList{};
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
-  if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* UseCopyEngine */))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
 
   // TODO: do we need to create a unique command type for this?
@@ -7855,8 +7860,11 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   auto ZeAdvice = pi_cast<ze_memory_advice_t>(Advice);
 
+  bool UseCopyEngine = false;
+
   _pi_ze_event_list_t TmpWaitList;
-  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(0, nullptr, Queue))
+  if (auto Res = TmpWaitList.createAndRetainPiZeEventList(0, nullptr, Queue,
+                                                          UseCopyEngine))
     return Res;
 
   // Get a new command list to be used on this call
@@ -7864,8 +7872,8 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   // UseCopyEngine is set to 'false' here.
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
-  if (auto Res = Queue->Context->getAvailableCommandList(
-          Queue, CommandList, false /* UseCopyEngine */))
+  if (auto Res = Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                         UseCopyEngine))
     return Res;
 
   // TODO: do we need to create a unique command type for this?

@@ -130,8 +130,12 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
-  return detail::createSyclObjFromImpl<event>(
+  event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));
+
+  if (Backend == backend::opencl)
+    Plugin.call<PiApiKind::piEventRetain>(PiEvent);
+  return Event;
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>

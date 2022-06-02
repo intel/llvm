@@ -99,10 +99,9 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  sycl::queue Queue{Dev};
-
-  sycl::context Ctx = Queue.get_context();
   auto ContextImpl = getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
   ContextImpl->getKernelProgramCache().reset();
@@ -133,10 +132,9 @@ TEST(BuildLog, OutputLogOnLevel2) {
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
   auto ContextImpl = getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
   ContextImpl->getKernelProgramCache().reset();
