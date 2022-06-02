@@ -29,7 +29,7 @@ jobs:
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Linux CI" || exit 0   # exit if commit is empty
         git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
-        gh pr create --head $BRANCH --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION" --assignee intel/dpcpp-devops-reviewers
+        gh pr create --head $BRANCH --title "[GHA] Uplift GPU RT version for Linux CI" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION"
 
   update_driver_linux_staging:
     runs-on: ubuntu-latest
@@ -54,5 +54,5 @@ jobs:
         git add -u
         git commit -m "[GHA] Uplift GPU RT version for Nightly Builds" || exit 0   # exit if commit is empty
         git push https://$LLVMBOT_TOKEN@github.com/${{ github.repository }} ${BRANCH}
-        gh pr create --head $BRANCH --title "[GHA] Uplift GPU RT version for Nightly Builds" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION" --assignee intel/dpcpp-devops-reviewers
+        gh pr create --head $BRANCH --title "[GHA] Uplift GPU RT version for Nightly Builds" --body "Uplift GPU RT version for Linux to $NEW_DRIVER_VERSION"
 
