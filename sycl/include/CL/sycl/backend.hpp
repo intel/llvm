@@ -256,15 +256,14 @@ typename std::enable_if<
     detail::InteropFeatureSupportMap<Backend>::MakeDevice == true, device>::type
 make_device(const typename backend_traits<Backend>::template input_type<device>
                 &BackendObject) {
-auto plts = platform::get_platforms();
-for (const auto &plt : plts) {
-  if (plt.get_backend() == Backend)
-
-  {
-    auto devs = plt.get_devices(info::device_type::all);
-    for (auto &dev : devs) {
-      if (BackendObject == get_native<Backend>(dev)) {
-        return dev;
+  auto plts = platform::get_platforms();
+  for (const auto &plt : plts) {
+    if (plt.get_backend() == Backend) {
+      auto devs = plt.get_devices(info::device_type::all);
+      for (auto &dev : devs) {
+        if (BackendObject == get_native<Backend>(dev)) {
+          return dev;
+        }
       }
     }
   }
