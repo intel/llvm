@@ -176,6 +176,16 @@ and not recommended to use in production environment.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
+**`-f[no-]sycl-device-code-split-esimd`** [EXPERIMENTAL]
+
+     Controls SYCL/ESIMD device code splitting. When enabled (this is the
+     default), SYCL and ESIMD entry points along with their call graphs are
+     put into separate device binary images. Otherwise, SYCL and ESIMD parts
+     of the device code are kept in the same device binary image and get
+     compiled by the Intel GPU compiler back end as a single module. This
+     option has effect only for SPIR-based targets and apps containing ESIMD
+     kernels.
+
 **`-fsycl-max-parallel-link-jobs=<N>`**
 
     Experimental feature. When specified, it informs the compiler
