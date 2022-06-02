@@ -115,42 +115,6 @@ inline __SYCL_ALWAYS_INLINE
 
 } // namespace native
 
-namespace detail {
-
-template <typename T> struct is_bf16_storage_type {
-  static constexpr int value = false;
-};
-
-template <> struct is_bf16_storage_type<uint16_t> {
-  static constexpr int value = true;
-};
-
-template <> struct is_bf16_storage_type<uint32_t> {
-  static constexpr int value = true;
-};
-
-template <int N> struct is_bf16_storage_type<vec<uint16_t, N>> {
-  static constexpr int value = true;
-};
-
-template <int N> struct is_bf16_storage_type<vec<uint32_t, N>> {
-  static constexpr int value = true;
-};
-
-} // namespace detail
-
-template <typename T>
-std::enable_if_t<experimental::detail::is_bf16_storage_type<T>::value, T>
-fabs(T x) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return __clc_fabs(x);
-#else
-  (void)x;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
 template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -162,9 +126,8 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fabs(T x) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename T, size_t N>
-std::enable_if_t<std::is_same<T, bfloat16>::value, sycl::marray<T, N>>
-fabs(sycl::marray<T, N> x) {
+template <size_t N>
+sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
   auto x_storage = reinterpret_cast<uint32_t const *>(&x);
@@ -185,19 +148,6 @@ fabs(sycl::marray<T, N> x) {
 }
 
 template <typename T>
-std::enable_if_t<experimental::detail::is_bf16_storage_type<T>::value, T>
-fmin(T x, T y) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return __clc_fmin(x, y);
-#else
-  (void)x;
-  (void)y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
@@ -209,9 +159,9 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename T, size_t N>
-std::enable_if_t<std::is_same<T, bfloat16>::value, sycl::marray<T, N>>
-fmin(sycl::marray<T, N> x, sycl::marray<T, N> y) {
+template <size_t N>
+sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
+                               sycl::marray<bfloat16, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
   auto x_storage = reinterpret_cast<uint32_t const *>(&x);
@@ -236,19 +186,6 @@ fmin(sycl::marray<T, N> x, sycl::marray<T, N> y) {
 }
 
 template <typename T>
-std::enable_if_t<experimental::detail::is_bf16_storage_type<T>::value, T>
-fmax(T x, T y) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return __clc_fmax(x, y);
-#else
-  (void)x;
-  (void)y;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
@@ -260,9 +197,9 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename T, size_t N>
-std::enable_if_t<std::is_same<T, bfloat16>::value, sycl::marray<T, N>>
-fmax(sycl::marray<T, N> x, sycl::marray<T, N> y) {
+template <size_t N>
+sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
+                               sycl::marray<bfloat16, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
   auto x_storage = reinterpret_cast<uint32_t const *>(&x);
@@ -286,20 +223,6 @@ fmax(sycl::marray<T, N> x, sycl::marray<T, N> y) {
 }
 
 template <typename T>
-std::enable_if_t<experimental::detail::is_bf16_storage_type<T>::value, T>
-fma(T x, T y, T z) {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  return __clc_fma(x, y, z);
-#else
-  (void)x;
-  (void)y;
-  (void)z;
-  throw runtime_error("bfloat16 is not currently supported on the host device.",
-                      PI_INVALID_DEVICE);
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-}
-
-template <typename T>
 std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
@@ -312,9 +235,10 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-template <typename T, size_t N>
-std::enable_if_t<std::is_same<T, bfloat16>::value, sycl::marray<T, N>>
-fma(sycl::marray<T, N> x, sycl::marray<T, N> y, sycl::marray<T, N> z) {
+template <size_t N>
+sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
+                              sycl::marray<bfloat16, N> y,
+                              sycl::marray<bfloat16, N> z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
   auto x_storage = reinterpret_cast<uint32_t const *>(&x);
