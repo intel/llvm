@@ -1867,44 +1867,47 @@ pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                  pi_device *piDevice) {
   assert(piDevice != nullptr);
 
+  CUdevice cu_device = static_cast<CUdevice>(nativeHandle);
+
+  auto is_device = [=](std::unique_ptr<_pi_device> &dev) {
+    return dev->get() == cu_device;
+  };
+
   // If a platform is provided just check if the device is in it
   if (platform) {
-    bool found_match = false;
-    for (auto &dev : platform->devices_) {
-      if (dev->get() == static_cast<CUdevice>(nativeHandle)) {
-        *piDevice = dev.get();
-        found_match = true;
-      }
+    auto search_res = std::find_if(begin(platform->devices_),
+                                   end(platform->devices_), is_device);
+    if (search_res != end(platform->devices_)) {
+      *piDevice = (*search_res).get();
+      return PI_SUCCESS;
     }
-    if (!found_match)
-      return PI_INVALID_VALUE;
-    return PI_SUCCESS;
   }
 
   // Get list of platforms
   pi_uint32 num_platforms;
   pi_result result = cuda_piPlatformsGet(0, nullptr, &num_platforms);
+  if (result != PI_SUCCESS)
+    return result;
 
   pi_platform *plat =
       static_cast<pi_platform *>(malloc(num_platforms * sizeof(pi_platform)));
   result = cuda_piPlatformsGet(num_platforms, plat, nullptr);
+  if (result != PI_SUCCESS)
+    return result;
 
   // Iterate through platforms to find device that matches nativeHandle
-  bool found_match = false;
   for (pi_uint32 j = 0; j < num_platforms; ++j) {
-    for (auto &dev : plat[j]->devices_) {
-      if (dev->get() == static_cast<CUdevice>(nativeHandle)) {
-        *piDevice = dev.get();
-        found_match = true;
-      }
+    auto search_res = std::find_if(begin(plat[j]->devices_),
+                                   end(plat[j]->devices_), is_device);
+    if (search_res != end(plat[j]->devices_)) {
+      *piDevice = (*search_res).get();
+      return PI_SUCCESS;
     }
   }
 
   // If the provided nativeHandle cannot be matched to an
   // existing device return error
-  if (!found_match)
-    return PI_INVALID_VALUE;
-  return result;
+  return PI_INVALID_VALUE;
 }
 
 /* Context APIs */
@@ -2020,34 +2023,35 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
 
   assert(ctxt != nullptr);
 
-  if (ctxt->backend_has_ownership()) {
-    if (ctxt->decrement_reference_count() > 0) {
-      return PI_SUCCESS;
-    }
-    ctxt->invoke_extended_deleters();
+  if (ctxt->decrement_reference_count() > 0) {
+    return PI_SUCCESS;
+  }
+  ctxt->invoke_extended_deleters();
 
-    std::unique_ptr<_pi_context> context{ctxt};
+  std::unique_ptr<_pi_context> context{ctxt};
 
-    if (!ctxt->is_primary()) {
-      CUcontext cuCtxt = ctxt->get();
-      CUcontext current = nullptr;
-      cuCtxGetCurrent(&current);
-      if (cuCtxt != current) {
-        PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
-      }
-      PI_CHECK_ERROR(cuCtxSynchronize());
-      cuCtxGetCurrent(&current);
-      if (cuCtxt == current) {
-        PI_CHECK_ERROR(cuCtxPopCurrent(&current));
-      }
-      return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
-    } else {
-      // Primary context is not destroyed, but released
-      CUdevice cuDev = ctxt->get_device()->get();
-      CUcontext current;
-      cuCtxPopCurrent(&current);
-      return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
+  if (!ctxt->backend_has_ownership())
+    return PI_SUCCESS;
+
+  if (!ctxt->is_primary()) {
+    CUcontext cuCtxt = ctxt->get();
+    CUcontext current = nullptr;
+    cuCtxGetCurrent(&current);
+    if (cuCtxt != current) {
+      PI_CHECK_ERROR(cuCtxPushCurrent(cuCtxt));
     }
+    PI_CHECK_ERROR(cuCtxSynchronize());
+    cuCtxGetCurrent(&current);
+    if (cuCtxt == current) {
+      PI_CHECK_ERROR(cuCtxPopCurrent(&current));
+    }
+    return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
+  } else {
+    // Primary context is not destroyed, but released
+    CUdevice cuDev = ctxt->get_device()->get();
+    CUcontext current;
+    cuCtxPopCurrent(&current);
+    return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
   }
 
   return PI_SUCCESS;
@@ -2099,8 +2103,6 @@ pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   // Create sycl context
   *piContext = new _pi_context{_pi_context::kind::user_defined, newContext,
                                device, /*backend_owns*/ false};
-
-  cuda_piContextRetain(*piContext);
 
   return retErr;
 }
