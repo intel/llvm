@@ -385,8 +385,9 @@ CUstream _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
       }
     }
     stream_i = compute_stream_idx_++;
+    // if a stream has been reused before it was next selected round-robin fashion, we want to delay its next use and instead select another one that is more likely to have completed all the enqueued work.
     if (delay_compute_[stream_i % compute_streams_.size()]) {
-      delay_compute_[stream_i % compute_streams_.size()] = 0;
+      delay_compute_[stream_i % compute_streams_.size()] = false;
     } else {
       break;
     }
@@ -397,21 +398,27 @@ CUstream _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
   return compute_streams_[stream_i % compute_streams_.size()];
 }
 
-CUstream getComputeStream(pi_queue queue, pi_uint32 num_events_in_wait_list,
-                          const pi_event *event_wait_list,
-                          pi_uint32 *stream_token = nullptr) {
+_pi_stream_guard _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
+                          const pi_event *event_wait_list, CUstream& res,
+                          pi_uint32 *stream_token) {
   for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
     pi_uint32 token = event_wait_list[i]->get_stream_token();
-    if (event_wait_list[i]->get_queue() == queue &&
-        queue->is_last_command(token)) {
-      queue->delay_stream(token);
-      if (stream_token) {
-        *stream_token = token;
+    if (event_wait_list[i]->get_queue() == this &&
+        can_reuse_stream(token)) {
+      std::unique_lock<std::mutex> compute_sync_guard(compute_stream_sync_mutex_);
+      // redo the check after lock to avoid data races on last_sync_compute_streams_
+      if(can_reuse_stream(token)){
+        delay_compute_[token % delay_compute_.size()] = true;
+        if (stream_token) {
+          *stream_token = token;
+        }
+        res = event_wait_list[i]->get_stream();
+        return _pi_stream_guard{std::move(compute_sync_guard)};
       }
-      return event_wait_list[i]->get_stream();
     }
   }
-  return queue->get_next_compute_stream(stream_token);
+  res = get_next_compute_stream(stream_token);
+  return {};
 }
 
 CUstream _pi_queue::get_next_transfer_stream() {
@@ -2873,8 +2880,9 @@ pi_result cuda_piEnqueueKernelLaunch(
     std::unique_ptr<_pi_event> retImplEv{nullptr};
 
     pi_uint32 stream_token;
-    CUstream cuStream = getComputeStream(command_queue, num_events_in_wait_list,
-                                         event_wait_list, &stream_token);
+    CUstream cuStream;
+    _pi_stream_guard guard = command_queue->get_next_compute_stream(num_events_in_wait_list,
+                                         event_wait_list, cuStream, &stream_token);
     CUfunction cuFunc = kernel->get();
 
     retError = enqueueEventsWait(command_queue, cuStream,
@@ -3736,7 +3744,11 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
       auto result =
           forLatestEvents(event_wait_list, num_events_in_wait_list,
                           [command_queue](pi_event event) -> pi_result {
-                            return enqueueEventWait(command_queue, event);
+                            if(event->get_queue()->has_been_synchronized(event->get_stream_token())){
+                              return PI_SUCCESS;
+                            } else{
+                              return enqueueEventWait(command_queue, event);
+                            }
                           });
 
       if (result != PI_SUCCESS) {
@@ -3746,9 +3758,9 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
 
     if (event) {
       pi_uint32 stream_token;
-      CUstream cuStream =
-          getComputeStream(command_queue, num_events_in_wait_list,
-                           event_wait_list, &stream_token);
+      CUstream cuStream;
+      _pi_stream_guard guard = command_queue->get_next_compute_stream(num_events_in_wait_list,
+                           event_wait_list, cuStream, &stream_token);
       *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
                                       cuStream, stream_token);
       (*event)->start();
@@ -4809,8 +4821,9 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   try {
     ScopedContext active(queue->get_context());
     pi_uint32 stream_token;
-    CUstream cuStream = getComputeStream(queue, num_events_in_waitlist,
-                                         events_waitlist, &stream_token);
+    CUstream cuStream;
+    _pi_stream_guard guard = queue->get_next_compute_stream(num_events_in_waitlist,
+                                         events_waitlist, cuStream, &stream_token);
     result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
