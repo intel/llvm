@@ -474,8 +474,9 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
     zePrint("ze_event_pool_desc_t flags set to: %d\n", ZeEventPoolDesc.flags);
 
     std::vector<ze_device_handle_t> ZeDevices;
-    std::for_each(Devices.begin(), Devices.end(),
-                  [&](pi_device &D) { ZeDevices.push_back(D->ZeDevice); });
+    std::for_each(Devices.begin(), Devices.end(), [&](const pi_device &D) {
+      ZeDevices.push_back(D->ZeDevice);
+    });
 
     ZE_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc, ZeDevices.size(),
                                 &ZeDevices[0], ZePool));
@@ -864,10 +865,6 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
                             bool MakeAvailable,
                             std::vector<pi_event> &EventListToCleanup) {
   bool UseCopyEngine = CommandList->second.isCopy(this);
-  auto &ZeCommandListCache =
-      UseCopyEngine
-          ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
-          : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
 
   // Immediate commandlists do not have an associated fence.
   if (CommandList->second.ZeFence != nullptr) {
@@ -889,7 +886,11 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
   // Standard commandlists move in and out of the cache as they are recycled.
   // Immediate commandlists are always available.
   if (CommandList->second.ZeFence != nullptr && MakeAvailable) {
-    std::lock_guard<std::mutex> lock(this->Context->ZeCommandListCacheMutex);
+    std::scoped_lock Lock(this->Context->ZeCommandListCacheMutex);
+    auto &ZeCommandListCache =
+        UseCopyEngine
+            ? this->Context->ZeCopyCommandListCache[this->Device->ZeDevice]
+            : this->Context->ZeComputeCommandListCache[this->Device->ZeDevice];
     ZeCommandListCache.push_back(CommandList->first);
   }
 
@@ -1198,7 +1199,7 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   {
     // Make sure to acquire the lock before checking the size, or there
     // will be a race condition.
-    std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
+    std::scoped_lock Lock(Queue->Context->ZeCommandListCacheMutex);
     // Under mutex since operator[] does insertion on the first usage for every
     // unique ZeDevice.
     auto &ZeCommandListCache =
@@ -1241,30 +1242,41 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   // command lists we can create.
   // Once created, this command list & fence are added to the command list fence
   // map.
-  if (Queue->Device->Platform->ZeGlobalCommandListCount <
-      ZeMaxCommandListCacheSize) {
-    ze_command_list_handle_t ZeCommandList;
-    ze_fence_handle_t ZeFence;
 
-    uint32_t QueueGroupOrdinal;
-    auto &ZeCommandQueue =
-        Queue->getQueueGroup(UseCopyEngine).getZeQueue(&QueueGroupOrdinal);
+  // Atomically increment global count of command lists and check that we don't
+  // exceed maximum.
+  int ExpectedValue = Queue->Device->Platform->ZeGlobalCommandListCount.load();
+  int DesiredValue = 0;
+  do {
+    if (ExpectedValue >= ZeMaxCommandListCacheSize)
+      die("Exceeded the maximum amount of command lists we can create.");
 
-    ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
-    ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
+    DesiredValue = ExpectedValue + 1;
+  } while (!Queue->Device->Platform->ZeGlobalCommandListCount
+                .compare_exchange_strong(ExpectedValue, DesiredValue));
 
-    ZE_CALL(zeCommandListCreate,
-            (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-             &ZeCommandListDesc, &ZeCommandList));
-    // Increments the total number of command lists created on this platform.
-    Queue->Device->Platform->ZeGlobalCommandListCount++;
+  // We atomiccaly incremented global number of command lists and checked that
+  // we don't exceed maximum number of command lists. So we can create command
+  // list now.
+  ze_command_list_handle_t ZeCommandList;
+  ze_fence_handle_t ZeFence;
 
-    ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-    std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
-        std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-            ZeCommandList, {ZeFence, true, ZeCommandQueue, QueueGroupOrdinal}));
-    pi_result = PI_SUCCESS;
-  }
+  uint32_t QueueGroupOrdinal;
+  auto &ZeCommandQueue =
+      Queue->getQueueGroup(UseCopyEngine).getZeQueue(&QueueGroupOrdinal);
+
+  ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
+  ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
+
+  ZE_CALL(zeCommandListCreate,
+          (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+           &ZeCommandListDesc, &ZeCommandList));
+
+  ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
+  std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
+      std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
+          ZeCommandList, {ZeFence, true, ZeCommandQueue, QueueGroupOrdinal}));
+  pi_result = PI_SUCCESS;
 
   return pi_result;
 }
@@ -1409,8 +1421,8 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   // unique_lock destructor at the end of the function will unlock the mutex
   // if it was locked (which happens only if IndirectAccessTrackingEnabled is
   // true).
-  std::unique_lock<std::mutex> ContextsLock(Device->Platform->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<pi_shared_mutex> ContextsLock(
+      Device->Platform->ContextsMutex, std::defer_lock);
 
   if (IndirectAccessTrackingEnabled) {
     // We are going to submit kernels for execution. If indirect access flag is
@@ -1617,11 +1629,11 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
   // Add this commandlist to the cache so it can be destroyed as part of
   // piQueueReleaseInternal
   auto QueueType = Type;
+  std::scoped_lock Lock(Queue->Context->ZeCommandListCacheMutex);
   auto &ZeCommandListCache =
       QueueType == queue_type::Compute
           ? Queue->Context->ZeComputeCommandListCache[Queue->Device->ZeDevice]
           : Queue->Context->ZeCopyCommandListCache[Queue->Device->ZeDevice];
-  std::lock_guard<std::mutex> lock(Queue->Context->ZeCommandListCacheMutex);
   ZeCommandListCache.push_back(ZeCommandList);
 
   return ImmCmdLists[Index];
@@ -2202,6 +2214,7 @@ pi_device _pi_platform::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
+  std::shared_lock Lock(PiDevicesCacheMutex);
   auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
                          [&](std::unique_ptr<_pi_device> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
@@ -2227,6 +2240,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
   // Filter available devices based on input DeviceType.
   std::vector<pi_device> MatchedDevices;
+  std::shared_lock Lock(Platform->PiDevicesCacheMutex);
   for (auto &D : Platform->PiDevicesCache) {
     // Only ever return root-devices from piDevicesGet, but the
     // devices cache also keeps sub-devices.
@@ -2280,7 +2294,7 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
 // Check the device cache and load it if necessary.
 pi_result _pi_platform::populateDeviceCacheIfNeeded() {
-  std::lock_guard<std::mutex> Lock(PiDevicesCacheMutex);
+  std::scoped_lock Lock(PiDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return PI_SUCCESS;
@@ -2417,6 +2431,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
+  std::shared_lock Lock(Device->Mutex);
   ze_device_handle_t ZeDevice = Device->ZeDevice;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
@@ -2949,6 +2964,8 @@ pi_result piDevicePartition(pi_device Device,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
+  std::shared_lock Lock(Device->Mutex);
+
   // Devices cache is normally created in piDevicesGet but still make
   // sure that cache is populated.
   //
@@ -3029,6 +3046,7 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
+  std::shared_lock Lock(Device->Mutex);
   auto ZeDevice = pi_cast<ze_device_handle_t *>(NativeHandle);
   // Extract the Level Zero module handle from the given PI device
   *ZeDevice = Device->ZeDevice;
@@ -3094,7 +3112,7 @@ pi_result piContextCreate(const pi_context_properties *Properties,
     *RetContext = new _pi_context(ZeContext, NumDevices, Devices, true);
     (*RetContext)->initialize();
     if (IndirectAccessTrackingEnabled) {
-      std::lock_guard<std::mutex> Lock(Platform->ContextsMutex);
+      std::scoped_lock Lock(Platform->ContextsMutex);
       Platform->Contexts.push_back(*RetContext);
     }
   } catch (const std::bad_alloc &) {
@@ -3112,6 +3130,7 @@ pi_result piContextGetInfo(pi_context Context, pi_context_info ParamName,
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
 
+  std::shared_lock Lock(Context->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
   case PI_CONTEXT_INFO_DEVICES:
@@ -3223,8 +3242,8 @@ pi_result ContextReleaseHelper(pi_context Context) {
 
 pi_result piContextRelease(pi_context Context) {
   pi_platform Plt = Context->getPlatform();
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
+                                                 std::defer_lock);
   if (IndirectAccessTrackingEnabled)
     ContextsLock.lock();
 
@@ -3244,6 +3263,9 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
+  std::shared_lock ContextLock(Context->Mutex, std::defer_lock);
+  std::shared_lock DeviceLock(Device->Mutex, std::defer_lock);
+  std::scoped_lock Lock(ContextLock, DeviceLock);
   if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
       Context->Devices.end()) {
     return PI_INVALID_DEVICE;
@@ -3287,6 +3309,7 @@ pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
 
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::shared_lock Lock(Queue->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   // TODO: consider support for queue properties and size
   switch (ParamName) {
@@ -3485,7 +3508,7 @@ pi_result piextQueueGetNativeHandle(pi_queue Queue,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
   // Lock automatically releases when this goes out of scope.
-  std::scoped_lock lock(Queue->Mutex);
+  std::shared_lock lock(Queue->Mutex);
 
   auto ZeQueue = pi_cast<ze_command_queue_handle_t *>(NativeHandle);
   // Extract the Level Zero compute queue handle from the given PI queue
@@ -3501,6 +3524,9 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
+  std::shared_lock ContextLock(Context->Mutex, std::defer_lock);
+  std::shared_lock DeviceLock(Device->Mutex, std::defer_lock);
+  std::scoped_lock Lock(ContextLock, DeviceLock);
   auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
   // Assume this is the "0" index queue in the compute command-group.
   std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
@@ -3524,8 +3550,8 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
 static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
                                         pi_device Device, size_t Size) {
   pi_platform Plt = Device->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
+                                                 std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while
@@ -3559,8 +3585,8 @@ static pi_result ZeDeviceMemAllocHelper(void **ResultPtr, pi_context Context,
 static pi_result ZeHostMemAllocHelper(void **ResultPtr, pi_context Context,
                                       size_t Size) {
   pi_platform Plt = Context->getPlatform();
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
+                                                 std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     // Lock the mutex which is guarding contexts container in the platform.
     // This prevents new kernels from being submitted in any context while
@@ -3664,6 +3690,9 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
           memcpy(ZeHandleDst, HostPtr, Size);
       } else {
         // Initialize the buffer synchronously with immediate offload
+        // zeCommandListAppendMemoryCopy must not be called from simultaneous
+        // threads with the same command list handle, so we need exclusive lock.
+        std::scoped_lock Lock(Context->ImmediateCommandListMutex);
         ZE_CALL(zeCommandListAppendMemoryCopy,
                 (Context->ZeCommandListInit, ZeHandleDst, HostPtr, Size,
                  nullptr, 0, nullptr));
@@ -3685,6 +3714,7 @@ pi_result piMemGetInfo(pi_mem Mem, pi_mem_info ParamName, size_t ParamValueSize,
   // piMemImageGetInfo must be used for images
   PI_ASSERT(!Mem->isImage(), PI_INVALID_VALUE);
 
+  std::shared_lock Lock(Mem->Mutex);
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
   switch (ParamName) {
@@ -3715,8 +3745,8 @@ pi_result piMemRetain(pi_mem Mem) {
 static pi_result ZeMemFreeHelper(pi_context Context, void *Ptr,
                                  bool OwnZeMemHandle = true) {
   pi_platform Plt = Context->getPlatform();
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
+                                                 std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
     ContextsLock.lock();
     auto It = Context->MemAllocs.find(Ptr);
@@ -3898,6 +3928,8 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   ZeImageDesc.arraylevels = pi_cast<uint32_t>(ImageDesc->image_array_size);
   ZeImageDesc.miplevels = ImageDesc->num_mip_levels;
 
+  std::shared_lock Lock(Context->Mutex);
+
   // Currently we have the "0" device in context with mutliple root devices to
   // own the image.
   // TODO: Implement explicit copying for acessing the image from other devices
@@ -3917,7 +3949,11 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
 
     if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
         (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
-      // Initialize image synchronously with immediate offload
+      // Initialize image synchronously with immediate offload.
+      // zeCommandListAppendImageCopyFromMemory must not be called from
+      // simultaneous threads with the same command list handle, so we need
+      // exclusive lock.
+      std::scoped_lock Lock(Context->ImmediateCommandListMutex);
       ZE_CALL(zeCommandListAppendImageCopyFromMemory,
               (Context->ZeCommandListInit, ZeHImage, HostPtr, nullptr, nullptr,
                0, nullptr));
@@ -3947,6 +3983,8 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Mem, PI_INVALID_VALUE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
+
+  std::shared_lock Lock(Context->Mutex);
 
   // Get base of the allocation
   void *Base;
@@ -3988,8 +4026,8 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
                           ownNativeHandle);
 
     pi_platform Plt = Context->getPlatform();
-    std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                              std::defer_lock);
+    std::unique_lock<pi_shared_mutex> ContextsLock(Plt->ContextsMutex,
+                                                   std::defer_lock);
     if (IndirectAccessTrackingEnabled) {
       // We need to keep track of all memory allocations in the context
       ContextsLock.lock();
@@ -4021,6 +4059,10 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
     // created device allocation.
     char *ZeHandleDst;
     PI_CALL(Buffer->getZeHandle(ZeHandleDst, _pi_mem::write_only));
+
+    // zeCommandListAppendMemoryCopy must not be called from simultaneous
+    // threads with the same command list handle, so we need exclusive lock.
+    std::scoped_lock Lock(Context->ImmediateCommandListMutex);
     ZE_CALL(zeCommandListAppendMemoryCopy,
             (Context->ZeCommandListInit, ZeHandleDst, Ptr, Size, nullptr, 0,
              nullptr));
@@ -4951,7 +4993,7 @@ pi_result piKernelRelease(pi_kernel Kernel) {
     // memory can be deallocated and context can be removed from container in
     // the platform. That's why we need to lock a mutex here.
     pi_platform Plt = Kernel->Program->Context->getPlatform();
-    std::lock_guard<std::mutex> ContextsLock(Plt->ContextsMutex);
+    std::scoped_lock ContextsLock(Plt->ContextsMutex);
 
     if (--Kernel->SubmissionsCount == 0) {
       // Kernel is not submitted for execution, release referenced memory
@@ -5116,7 +5158,7 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     // If using immediate commandlists then gathering of indirect
     // references and appending to the queue (which means submission)
     // must be done together.
-    std::unique_lock<std::mutex> ContextsLock(
+    std::unique_lock<pi_shared_mutex> ContextsLock(
         Queue->Device->Platform->ContextsMutex, std::defer_lock);
     // We are going to submit kernels for execution. If indirect access flag is
     // set for a kernel then we need to make a snapshot of existing memory
@@ -5364,19 +5406,15 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     return PI_PROFILING_INFO_NOT_AVAILABLE;
   }
 
-  uint64_t ZeTimerResolution =
-      Event->Queue
-          ? Event->Queue->Device->ZeDeviceProperties->timerResolution
-          : Event->Context->Devices[0]->ZeDeviceProperties->timerResolution;
+  auto Device =
+      Event->Queue ? Event->Queue->Device : Event->Context->Devices[0];
+
+  std::shared_lock Lock(Device->Mutex);
+
+  uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
 
   const uint64_t TimestampMaxValue =
-      Event->Queue
-          ? ((1ULL << Event->Queue->Device->ZeDeviceProperties
-                          ->kernelTimestampValidBits) -
-             1ULL)
-          : ((1ULL << Event->Context->Devices[0]
-                          ->ZeDeviceProperties->kernelTimestampValidBits) -
-             1ULL);
+      (1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
@@ -5698,6 +5736,8 @@ pi_result piSamplerCreate(pi_context Context,
 
   PI_ASSERT(Context, PI_INVALID_CONTEXT);
   PI_ASSERT(RetSampler, PI_INVALID_VALUE);
+
+  std::shared_lock Lock(Context->Mutex);
 
   // Have the "0" device in context to own the sampler. Rely on Level-Zero
   // drivers to perform migration as necessary for sharing it across multiple
@@ -7375,14 +7415,19 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
     return PI_INVALID_VALUE;
 
   pi_platform Plt = Device->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+
+  // If indirect access tracking is enabled then lock the mutex which is
+  // guarding contexts container in the platform. This prevents new kernels from
+  // being submitted in any context while we are in the process of allocating a
+  // memory, this is needed to properly capture allocations by kernels with
+  // indirect access. This lock also protects access to the context's data
+  // structures. If indirect access tracking is not enabled then lock context
+  // mutex to protect access to context's data structures.
+  auto Lock = IndirectAccessTrackingEnabled
+                  ? std::scoped_lock(Plt->ContextsMutex)
+                  : std::scoped_lock(Context->Mutex);
+
   if (IndirectAccessTrackingEnabled) {
-    // Lock the mutex which is guarding contexts container in the platform.
-    // This prevents new kernels from being submitted in any context while we
-    // are in the process of allocating a memory, this is needed to properly
-    // capture allocations by kernels with indirect access.
-    ContextsLock.lock();
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
@@ -7447,14 +7492,19 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
     return PI_INVALID_VALUE;
 
   pi_platform Plt = Device->Platform;
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+
+  // If indirect access tracking is enabled then lock the mutex which is
+  // guarding contexts container in the platform. This prevents new kernels from
+  // being submitted in any context while we are in the process of allocating a
+  // memory, this is needed to properly capture allocations by kernels with
+  // indirect access. This lock also protects access to the context's data
+  // structures. If indirect access tracking is not enabled then lock context
+  // mutex to protect access to context's data structures.
+  auto Lock = IndirectAccessTrackingEnabled
+                  ? std::scoped_lock(Plt->ContextsMutex)
+                  : std::scoped_lock(Context->Mutex);
+
   if (IndirectAccessTrackingEnabled) {
-    // Lock the mutex which is guarding contexts container in the platform.
-    // This prevents new kernels from being submitted in any context while we
-    // are in the process of allocating a memory, this is needed to properly
-    // capture allocations by kernels with indirect access.
-    ContextsLock.lock();
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
@@ -7513,14 +7563,18 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
     return PI_INVALID_VALUE;
 
   pi_platform Plt = Context->getPlatform();
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
+  // If indirect access tracking is enabled then lock the mutex which is
+  // guarding contexts container in the platform. This prevents new kernels from
+  // being submitted in any context while we are in the process of allocating a
+  // memory, this is needed to properly capture allocations by kernels with
+  // indirect access. This lock also protects access to the context's data
+  // structures. If indirect access tracking is not enabled then lock context
+  // mutex to protect access to context's data structures.
+  auto Lock = IndirectAccessTrackingEnabled
+                  ? std::scoped_lock(Plt->ContextsMutex)
+                  : std::scoped_lock(Context->Mutex);
+
   if (IndirectAccessTrackingEnabled) {
-    // Lock the mutex which is guarding contexts container in the platform.
-    // This prevents new kernels from being submitted in any context while we
-    // are in the process of allocating a memory, this is needed to properly
-    // capture allocations by kernels with indirect access.
-    ContextsLock.lock();
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
@@ -7569,6 +7623,8 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
 // container with contexts because deallocating the memory can turn RefCount of
 // a context to 0 and as a result the context being removed from the list of
 // tracked contexts.
+// If indirect access tracking is not enabled then caller must lock Context
+// mutex.
 static pi_result USMFreeHelper(pi_context Context, void *Ptr,
                                bool OwnZeMemHandle) {
   if (IndirectAccessTrackingEnabled) {
@@ -7684,10 +7740,11 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->getPlatform();
-  std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                            std::defer_lock);
-  if (IndirectAccessTrackingEnabled)
-    ContextsLock.lock();
+
+  auto Lock = IndirectAccessTrackingEnabled
+                  ? std::scoped_lock(Plt->ContextsMutex)
+                  : std::scoped_lock(Context->Mutex);
+
   return USMFreeHelper(Context, Ptr, true /* OwnZeMemHandle */);
 }
 
@@ -8275,6 +8332,9 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       //       instead of maintaining a separate allocation and performing this
       //       explciit copy.
       //
+      // zeCommandListAppendMemoryCopy must not be called from simultaneous
+      // threads with the same command list handle, so we need exclusive lock.
+      std::scoped_lock Lock(Context->ImmediateCommandListMutex);
       ZE_CALL(zeCommandListAppendMemoryCopy,
               (Context->ZeCommandListInit, ZeHandle /* Dst */, ZeHandleSrc,
                Size, nullptr, 0, nullptr));
@@ -8309,10 +8369,9 @@ pi_result _pi_buffer::free() {
       break;
     case allocation_t::free: {
       pi_platform Plt = Context->getPlatform();
-      std::unique_lock<std::mutex> ContextsLock(Plt->ContextsMutex,
-                                                std::defer_lock);
-      if (IndirectAccessTrackingEnabled)
-        ContextsLock.lock();
+      auto Lock = IndirectAccessTrackingEnabled
+                      ? std::scoped_lock(Plt->ContextsMutex)
+                      : std::scoped_lock(Context->Mutex);
 
       PI_CALL(USMFreeHelper(Context, ZeHandle, true));
       break;

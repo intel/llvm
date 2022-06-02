@@ -342,7 +342,7 @@ struct _pi_platform {
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
-  std::mutex PiDevicesCacheMutex;
+  pi_shared_mutex PiDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.
@@ -362,7 +362,7 @@ struct _pi_platform {
   // TODO: should be deleted when memory isolation in the context is implemented
   // in the driver.
   std::list<pi_context> Contexts;
-  std::mutex ContextsMutex;
+  pi_shared_mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -492,7 +492,9 @@ struct _pi_device : _pi_object {
                        int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
-  ze_device_handle_t ZeDevice;
+  // This field is only set at _pi_device creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_device.
+  const ze_device_handle_t ZeDevice;
 
   // Keep the subdevices that are partitioned from this pi_device for reuse
   // The order of sub-devices in this vector is repeated from the
@@ -501,7 +503,9 @@ struct _pi_device : _pi_object {
   std::vector<pi_device> SubDevices;
 
   // PI platform to which this device belongs.
-  pi_platform Platform;
+  // This field is only set at _pi_device creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_device.
+  const pi_platform Platform;
 
   // Root-device of a sub-device, null if this is not a sub-device.
   pi_device RootDevice;
@@ -560,8 +564,9 @@ typedef pi_command_list_map_t::iterator pi_command_list_ptr_t;
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
-        Devices{Devs, Devs + NumDevices}, ZeCommandListInit{nullptr} {
+      : ZeContext{ZeContext},
+        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
+        SingleRootDevice(getRootDevice()), ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
 
@@ -586,31 +591,6 @@ struct _pi_context : _pi_object {
     // we don't need a map with device as key.
     HostMemAllocContext = std::make_unique<USMAllocContext>(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
-
-    if (NumDevices == 1) {
-      SingleRootDevice = Devices[0];
-    } else {
-
-      // Check if we have context with subdevices of the same device (context
-      // may include root device itself as well)
-      SingleRootDevice =
-          Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
-
-      // For context with sub subdevices, the SingleRootDevice might still
-      // not be the root device.
-      // Check whether the SingleRootDevice is the subdevice or root device.
-      if (SingleRootDevice->isSubDevice()) {
-        SingleRootDevice = SingleRootDevice->RootDevice;
-      }
-
-      for (auto &Device : Devices) {
-        if ((!Device->RootDevice && Device != SingleRootDevice) ||
-            (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
-          SingleRootDevice = nullptr;
-          break;
-        }
-      }
-    }
 
     // We may allocate memory to this root device so create allocators.
     if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
@@ -637,18 +617,24 @@ struct _pi_context : _pi_object {
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
-  ze_context_handle_t ZeContext;
+  // This field is only set at _pi_context creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_context.
+  const ze_context_handle_t ZeContext;
 
   // Indicates if we own the ZeContext or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeContext;
 
   // Keep the PI devices this PI context was created for.
-  std::vector<pi_device> Devices;
+  // This field is only set at _pi_context creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_context.
+  const std::vector<pi_device> Devices;
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
-  pi_device SingleRootDevice = nullptr;
+  // This field is only set at _pi_context creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_context.
+  const pi_device SingleRootDevice = nullptr;
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
@@ -659,6 +645,11 @@ struct _pi_context : _pi_object {
   // There will be a list of immediate command lists (for each device) when
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
+
+  // Mutex for the immediate command list. Per the Level Zero spec memory copy
+  // operations submitted to an immediate command list are not allowed to be
+  // called from simultaneous threads.
+  std::mutex ImmediateCommandListMutex;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
@@ -733,6 +724,33 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
+  // Calculate root device.
+  pi_device getRootDevice() const {
+    if (Devices.size() == 1)
+      return Devices[0];
+
+    // Check if we have context with subdevices of the same device (context
+    // may include root device itself as well)
+    pi_device ContextRootDevice =
+        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+
+    // For context with sub subdevices, the ContextRootDevice might still
+    // not be the root device.
+    // Check whether the ContextRootDevice is the subdevice or root device.
+    if (ContextRootDevice->isSubDevice()) {
+      ContextRootDevice = ContextRootDevice->RootDevice;
+    }
+
+    for (auto &Device : Devices) {
+      if ((!Device->RootDevice && Device != ContextRootDevice) ||
+          (Device->RootDevice && Device->RootDevice != ContextRootDevice)) {
+        ContextRootDevice = nullptr;
+        break;
+      }
+    }
+    return ContextRootDevice;
+  }
+
   // Following member variables are used to manage assignment of events
   // to event pools.
   //
