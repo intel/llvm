@@ -244,6 +244,11 @@ template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                                    Flags = {}) {
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
+  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
+  auto Ptr = reinterpret_cast<Tx *>(BytePtr);
+  return block_load<Tx, N>(Ptr);
+#else
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -263,6 +268,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
   } else {
     return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
   }
+#endif
 }
 
 /// Stores elements of a vector to a contiguous block of memory at given
@@ -304,6 +310,11 @@ template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                              simd<Tx, N> vals) {
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
+  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
+  auto Ptr = reinterpret_cast<Tx *>(BytePtr);
+  block_store<Tx, N>(Ptr, vals);
+#else
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -317,6 +328,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
+#endif
 }
 
 /// @} sycl_esimd_memory
@@ -426,8 +438,13 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              simd<T, N>>
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> mask = 1) {
-
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
+  auto BytePtr = reinterpret_cast<char*>(acc.get_pointer().get()) + glob_offset;
+  auto Ptr = reinterpret_cast<T *>(BytePtr);
+  return gather<T, N>(Ptr, offsets, mask);
+#else
   return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
+#endif
 }
 
 /// @anchor accessor_scatter
@@ -455,8 +472,13 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              !std::is_pointer<AccessorTy>::value>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
-
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
+  auto BytePtr = reinterpret_cast<char*>(acc.get_pointer().get()) + glob_offset;
+  auto Ptr = reinterpret_cast<T *>(BytePtr);
+  scatter<T, N>(Ptr, vals, offsets, mask);
+#else
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
+#endif
 }
 
 /// Load a scalar value from an accessor.
@@ -623,12 +645,18 @@ __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
+  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
+  auto Ptr = reinterpret_cast<T *>(BytePtr);
+  return gather_rgba<RGBAMask>(Ptr, offsets, mask);
+#else
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
   const auto SI = get_surface_index(acc);
   return __esimd_gather4_masked_scaled2<detail::__raw_t<T>, N, RGBAMask,
                                         decltype(SI), Scale>(
       SI, global_offset, offsets.data(), mask.data());
+#endif
 }
 
 /// Gather data from the memory addressed by accessor \c acc, offset common
@@ -654,11 +682,17 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
+  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
+  auto Ptr = reinterpret_cast<T *>(BytePtr);
+  scatter_rgba<RGBAMask>(Ptr, offsets, vals, mask);
+#else
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
   const auto SI = get_surface_index(acc);
   __esimd_scatter4_scaled<T, N, decltype(SI), RGBAMask, Scale>(
       mask.data(), SI, global_offset, offsets.data(), vals.data());
+#endif
 }
 
 /// @} sycl_esimd_memory
@@ -918,7 +952,7 @@ template <typename T, int N>
 __ESIMD_API
     std::enable_if_t<(N == 1 || N == 8 || N == 16 || N == 32), simd<T, N>>
     slm_gather(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
-  detail::LocalAccessorMarker acc;
+  detail::LocalAccessorMarker acc; // !!!! TODO: does get_pointer() method works for local accessors?
   return detail::gather_impl<T, N>(acc, offsets, 0, mask);
 }
 
@@ -1107,6 +1141,9 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(m <= 64u, "valid block height is in range [1, 64]");
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
 
+#ifdef ESIMD_FORCE_STATELESS_MEM_ACCESSX
+  static_assert(0, "media_block_load() does not support stateless memory access mode");
+#else
   const auto si = __ESIMD_GET_SURF_HANDLE(acc);
   using SurfIndTy = decltype(si);
   constexpr unsigned int RoundedWidth =
@@ -1124,6 +1161,7 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
     return __esimd_media_ld<T, m, N, Mod, SurfIndTy, (int)plane, BlockWidth>(
         si, x, y);
   }
+#endif
 }
 
 /// Media block store.

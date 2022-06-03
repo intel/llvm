@@ -4912,6 +4912,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
+    if (Args.hasFlag(options::OPT_fsycl_esimd_stateless,
+                     options::OPT_fno_sycl_esimd_stateless, false))
+      CmdArgs.push_back("-fsycl-esimd-stateless-access");
+
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR-V-based targets.
     if (Triple.isSPIR())
@@ -9446,6 +9450,11 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
+
+  // Make ESIMD accessors use stateless memory accesses.
+  if (TCArgs.hasFlag(options::OPT_fsycl_esimd_stateless,
+                     options::OPT_fno_sycl_esimd_stateless, false))
+    addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless"});
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
