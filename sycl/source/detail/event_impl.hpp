@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <condition_variable>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -70,7 +71,7 @@ public:
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -112,7 +113,7 @@ public:
   ~event_impl();
 
   /// Waits for the event with respect to device type.
-  void waitInternal() const;
+  void waitInternal();
 
   /// Marks this event as completed.
   void setComplete();
@@ -248,6 +249,7 @@ private:
   bool MNeedsCleanupAfterWait = false;
 
   std::mutex MMutex;
+  std::condition_variable cv;
 };
 
 } // namespace detail

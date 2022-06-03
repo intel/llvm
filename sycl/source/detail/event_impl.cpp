@@ -50,7 +50,7 @@ event_impl::~event_impl() {
     getPlugin().call<PiApiKind::piEventRelease>(MEvent);
 }
 
-void event_impl::waitInternal() const {
+void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
@@ -61,8 +61,11 @@ void event_impl::waitInternal() const {
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
 
-  while (MState != HES_Complete)
-    ;
+  if (MState == HES_Complete)
+    return;
+
+  std::unique_lock lock(MMutex);
+  cv.wait(lock, [this]{return MState == HES_Complete;});
 }
 
 void event_impl::setComplete() {
@@ -77,6 +80,7 @@ void event_impl::setComplete() {
 #else
     MState.store(static_cast<int>(HES_Complete));
 #endif
+    cv.notify_all();
     return;
   }
 
@@ -190,8 +194,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
-void event_impl::wait(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+void event_impl::wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
