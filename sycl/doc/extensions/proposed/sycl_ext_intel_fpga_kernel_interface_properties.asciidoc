@@ -96,10 +96,9 @@ enum class register_map_interface_options_enum {
   do_not_wait_for_done_write
 };
 
-struct initiation_interval_key {
-  template <int initiation_interval_value>
-  using value_t = property_value<initiation_interval_key,
-    std::integral_constant<int, initiation_interval_value>>;
+template <int N>
+struct initiation_interval {
+  int initiation_interval_value = N;
 };
 
 struct streaming_interface_key {
@@ -141,10 +140,6 @@ inline constexpr register_map_interface_key::value_t<
 
 inline constexpr register_map_interface_key::value_t<option>
   register_map_interface;
-
-template<int initiation_interval_value>
-inline constexpr initiation_interval_key::value_t<initiation_interval_value>
-  initiation_interval;
 
 template<bool pipeline_directive, typename initiation_interval>
 inline constexpr pipelined_key::value_t<pipeline_directive,
@@ -199,22 +194,21 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
 
 |`pipelined`
 |Two sets of values are accepted as property parameters - a boolean, and another
- property `initiation_interval`.
+ argument `initiation_interval`.
 
  When the boolean parameter is set to `true`, the property directs the compiler
  to pipeline calls to the kernel such that multiple invocations of the kernel
  can be in flight simultaneously. When the boolean parameter is set to `false`,
  the compiler will not pipeline kernel invocations.
 
- The second property argument specifies how many cycles can exist between
- successive invocations of the kernel. The `initiation_interval` property should
- be used to specify this:
+ The second argument specifies how many cycles can exist between successive
+ invocations of the kernel:
 
  * `true, initiation_interval<N>`: The compiler will pipeline multiple kernel
    invocations such that an invocation is launched every N cycles.
  
- If the `initiation_interval` property argument is not specified, the compiler
- will attempt to launch the kernel invocations as fast as it can.
+ If the `initiation_interval` argument is not specified, the compiler will
+ attempt to launch the kernel invocations as fast as it can.
  
  If the `pipelined` property is not specified, the default behavior is
  equivalent to a combination of the property parameter values listed above, but
