@@ -2772,25 +2772,15 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     return ReturnValue(pi_uint64{DoubleFPValue});
   }
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
-    // Until Level Zero provides needed info, hardcode default minimum values
-    // required by the SYCL specification.
-    return ReturnValue(size_t{8192});
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims2D);
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
-    // Until Level Zero provides needed info, hardcode default minimum values
-    // required by the SYCL specification.
-    return ReturnValue(size_t{8192});
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims2D);
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH:
-    // Until Level Zero provides needed info, hardcode default minimum values
-    // required by the SYCL specification.
-    return ReturnValue(size_t{2048});
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims3D);
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT:
-    // Until Level Zero provides needed info, hardcode default minimum values
-    // required by the SYCL specification.
-    return ReturnValue(size_t{2048});
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims3D);
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
-    // Until Level Zero provides needed info, hardcode default minimum values
-    // required by the SYCL specification.
-    return ReturnValue(size_t{2048});
+    return ReturnValue(Device->ZeDeviceImageProperties->maxImageDims3D);
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
     return ReturnValue(
         size_t{Device->ZeDeviceImageProperties->maxImageBufferSize});
