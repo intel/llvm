@@ -5,7 +5,7 @@
 [[intel::max_work_group_size(12, 12, 12, 12)]] void f0(); // expected-error {{'max_work_group_size' attribute requires exactly 3 arguments}}
 [[intel::max_work_group_size("derp", 1, 2)]] void f1();   // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
 [[intel::max_work_group_size(1, 1, 1)]] int i;            // expected-error {{'max_work_group_size' attribute only applies to functions}}
-[[intel::max_work_group_size(-8, 8, -8)]] void neg(); // expected-error 2{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
+[[intel::max_work_group_size(-8, 8, -8)]] void neg();     // expected-error 2{{'max_work_group_size' attribute requires a positive integral compile time constant expression}}
 
 // Tests for Intel FPGA 'max_work_group_size' attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
@@ -116,7 +116,7 @@ template <typename Ty, typename Ty1, typename Ty2>
 
 struct S {};
 void var() {
-  //expected-note@+1 {{in instantiation of function template specialization 'f20<S, S, S>' requested here}}
+  // expected-note@+1 {{in instantiation of function template specialization 'f20<S, S, S>' requested here}}
   f20<S, S, S>();
 }
 

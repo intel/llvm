@@ -19,14 +19,13 @@ void foo() {
   });
 }
 
-#else // __SYCL_DEVICE_ONLY__
+#else  // __SYCL_DEVICE_ONLY__
 
 [[intel::max_work_group_size(2, 2, 2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
   [[intel::max_work_group_size(4, 4, 4)]] void operator()() const {}
 };
-
 
 // Test that checks template parameter support on member function of class template.
 template <int SIZE, int SIZE1, int SIZE2>
@@ -58,7 +57,7 @@ int check() {
   // CHECK-NEXT: value: Int 4
   // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}}
   // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
-  // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}	
+  // CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
   KernelFunctor<4, 4, 4>();
 
   // CHECK: FunctionTemplateDecl {{.*}} {{.*}} func
@@ -110,7 +109,7 @@ int main() {
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     h.single_task<class test_kernel2>(
-        []() [[intel::max_work_group_size(8, 8, 8)]]{});
+        []() [[intel::max_work_group_size(8, 8, 8)]] {});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxWorkGroupSizeAttr
