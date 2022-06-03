@@ -32,7 +32,7 @@ public:
 // CHECK: FunctionTemplateDecl {{.*}} func
 // CHECK: FunctionDecl {{.*}} func 'void ()'
 // CHECK-NEXT: CompoundStmt
-// CHECK_NEXT: IntelReqdSubGroupSizeAttr {{.*}} loop_fuse_independent
+// CHECK_NEXT: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
 // CHECK_NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func 'void ()'
 // CHECK-NEXT: TemplateArgument integral 12
