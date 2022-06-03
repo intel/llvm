@@ -6,21 +6,6 @@
 using namespace cl::sycl;
 queue q;
 
-#ifndef __SYCL_DEVICE_ONLY__
-struct FuncObj {
-  [[intel::max_work_group_size(1, 1, 1)]] // expected-no-diagnostics
-  void
-  operator()() const {}
-};
-
-void foo() {
-  q.submit([&](handler &h) {
-    h.single_task<class test_kernel1>(FuncObj());
-  });
-}
-
-#else  // __SYCL_DEVICE_ONLY__
-
 [[intel::max_work_group_size(2, 2, 2)]] void func_do_not_ignore() {}
 
 struct FuncObj {
@@ -144,4 +129,3 @@ int main() {
   });
   return 0;
 }
-#endif // __SYCL_DEVICE_ONLY__
