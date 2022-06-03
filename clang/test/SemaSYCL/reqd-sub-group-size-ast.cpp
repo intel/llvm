@@ -25,7 +25,7 @@ public:
 template <int SIZE>
 class KernelFunctor {
 public:
-  [[intel::reqd_sub_group_size(SIZE)]] void operator()() const{}
+  [[intel::reqd_sub_group_size(SIZE)]] void operator()() const {}
 };
 
 // Test that checks template parameter support on function.
