@@ -7,6 +7,7 @@
 string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 
 include(CheckCompilerVersion)
+include(CheckProblematicConfigurations)
 include(HandleLLVMStdlib)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
@@ -974,16 +975,6 @@ if(LLVM_ENABLE_EH AND NOT LLVM_ENABLE_RTTI)
   message(FATAL_ERROR "Exception handling requires RTTI. You must set LLVM_ENABLE_RTTI to ON")
 endif()
 
-option(LLVM_USE_NEWPM "Build LLVM using the experimental new pass manager" Off)
-mark_as_advanced(LLVM_USE_NEWPM)
-if (LLVM_USE_NEWPM)
-  append("-fexperimental-new-pass-manager"
-    CMAKE_CXX_FLAGS
-    CMAKE_C_FLAGS
-    CMAKE_EXE_LINKER_FLAGS
-    CMAKE_SHARED_LINKER_FLAGS)
-endif()
-
 option(LLVM_ENABLE_IR_PGO "Build LLVM and tools with IR PGO instrumentation (deprecated)" Off)
 mark_as_advanced(LLVM_ENABLE_IR_PGO)
 
@@ -1082,6 +1073,8 @@ if (LLVM_BUILD_INSTRUMENTED AND LLVM_BUILD_INSTRUMENTED_COVERAGE)
   message(FATAL_ERROR "LLVM_BUILD_INSTRUMENTED and LLVM_BUILD_INSTRUMENTED_COVERAGE cannot both be specified")
 endif()
 
+set(LLVM_THINLTO_CACHE_PATH "${PROJECT_BINARY_DIR}/lto.cache" CACHE STRING "Set ThinLTO cache path. This can be used when building LLVM from several different directiories.")
+
 if(LLVM_ENABLE_LTO AND LLVM_ON_WIN32 AND NOT LINKER_IS_LLD_LINK AND NOT MINGW)
   message(FATAL_ERROR "When compiling for Windows, LLVM_ENABLE_LTO requires using lld as the linker (point CMAKE_LINKER at lld-link.exe)")
 endif()
@@ -1095,16 +1088,16 @@ if(uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
   # improves incremental build time.
   # FIXME: We should move all this logic into the clang driver.
   if(APPLE)
-    append("-Wl,-cache_path_lto,${PROJECT_BINARY_DIR}/lto.cache"
+    append("-Wl,-cache_path_lto,${LLVM_THINLTO_CACHE_PATH}"
            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif((UNIX OR MINGW) AND LLVM_USE_LINKER STREQUAL "lld")
-    append("-Wl,--thinlto-cache-dir=${PROJECT_BINARY_DIR}/lto.cache"
+    append("-Wl,--thinlto-cache-dir=${LLVM_THINLTO_CACHE_PATH}"
            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif(LLVM_USE_LINKER STREQUAL "gold")
-    append("-Wl,--plugin-opt,cache-dir=${PROJECT_BINARY_DIR}/lto.cache"
+    append("-Wl,--plugin-opt,cache-dir=${LLVM_THINLTO_CACHE_PATH}"
            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   elseif(LINKER_IS_LLD_LINK)
-    append("/lldltocache:${PROJECT_BINARY_DIR}/lto.cache"
+    append("/lldltocache:${LLVM_THINLTO_CACHE_PATH}"
            CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 elseif(uppercase_LLVM_ENABLE_LTO STREQUAL "FULL")

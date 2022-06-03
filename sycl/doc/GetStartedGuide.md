@@ -116,14 +116,15 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
-* `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
-* `--no-werror` -> Don't treat warnings as errors when compiling llvm
+* `--werror` -> treat warnings as errors when compiling LLVM
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* '--enable-esimd-emulator' -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
+  supported targets
 * `--shared-libs` -> Build shared libraries
-* `-t` -> Build type (debug or release)
+* `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
@@ -168,25 +169,36 @@ There is experimental support for DPC++ for CUDA devices.
 
 To enable support for CUDA devices, follow the instructions for the Linux or
 Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
-the CUDA backend has experimental Windows support, windows subsystem for 
+the CUDA backend has Windows support; windows subsystem for
 linux (WSL) is not needed to build and run the CUDA backend.
 
-Enabling this flag requires an installation of
+Enabling this flag requires an installation of at least
 [CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+
+Errors may occur if DPC++ is built with a toolkit version which is higher than
+the CUDA driver version. In order to check that the CUDA driver and toolkits
+match, use the CUDA executable `deviceQuery` which is usually found in 
+`$CUDA_INSTALL_DIR/cuda/extras/demo_suite/deviceQuery`.
+
+**_NOTE:_** An installation of at least
+[CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
+there is a known issue with some math builtins when using -O1/O2/O3
+Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
+earlier versions of the CUDA toolkit: see
+[this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
+
 An installation of at least
 [CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
-is required for fully utilize Turing (SM 75) devices.
+is required to fully utilize Turing (SM 75) devices and to enable Ampere (SM 80)
+core features.
 
-Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
-a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 
-operating systems with any GPU compatible with SM 50 or above. The default 
-SM for the NVIDIA CUDA backend is 5.0. Users can specify lower values, 
-but some features may not be supported. Windows CUDA support is experimental
-as it is not currently tested on the CI.
+The CUDA backend should work on Windows or Linux operating systems with any
+GPU compatible with SM 50 or above. The default SM for the NVIDIA CUDA backend
+is 5.0. Users can specify lower values, but some features may not be supported.
 
 **Non-standard CUDA location**
 
@@ -237,6 +249,16 @@ for the HIP installation:
   `/opt/rocm/hsa/include`).
 * `SYCL_BUILD_PI_HIP_AMD_LIBRARY`: Path to HIP runtime library (default
   `/opt/rocm/hip/lib/libamdhip64.so`).
+
+These variables can be passed to `configure.py` using `--cmake-opt`, for example
+with a ROCm installation in `/usr/local`:
+
+```
+python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_INCLUDE_DIR=/usr/local/rocm/hip/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR=/usr/local/rocm/hsa/include \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_AMD_LIBRARY=/usr/local/rocm/hip/lib/libamdhip64.so
+```
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
@@ -689,7 +711,7 @@ The SYCL host device executes the SYCL application directly in the host,
 without using any low-level API.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_BUILD_PI_CUDA=ON`.
+if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
 
 **Linux & Windows (64-bit)**:
 
@@ -825,6 +847,18 @@ which contains all the symbols required.
   significantly slower but matches the default precision used by `nvcc`, and
   this `clang++` flag is equivalent to the `nvcc` `-prec-sqrt` flag, except that
   it defaults to `false`.
+* No Opt (O0) uses the IPSCCP compiler pass by default, although the IPSCCP pass
+  can be switched off at O0 using the `-mllvm -use-ipsccp-nvptx-O0=false` flag at
+  the user's discretion.
+  The reason that the IPSCCP pass is used by default even at O0 is that there is
+  currently an unresolved issue with the nvvm-reflect compiler pass: This pass is
+  used to pick the correct branches depending on the SM version which can be
+  optionally specified by the `--cuda-gpu-arch` flag.
+  If the arch flag is not specified by the user, the default value, SM 50, is used.
+  Without the execution of the IPSCCP pass at -O0 when using a low SM version,
+  dead instructions which require a higher SM version can remain. Since
+  corresponding issues occur in other backends future work will aim for a
+  universal solution to these issues.
 
 ### HIP back-end limitations
 
@@ -841,11 +875,8 @@ which contains all the symbols required.
 
 ## Find More
 
-* DPC++ specification:
-[https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html](https://spec.oneapi.com/versions/latest/elements/dpcpp/source/index.html)
-* SYCL\* 2020 specification:
-[https://www.khronos.org/registry/SYCL/](https://www.khronos.org/registry/SYCL/)
-* oneAPI Level Zero specification:
-[https://spec.oneapi.com/versions/latest/oneL0/index.html](https://spec.oneapi.com/versions/latest/oneL0/index.html)
+* [DPC++ specification](https://spec.oneapi.io/versions/latest/elements/dpcpp/source/index.html)
+* [SYCL\* specification](https://www.khronos.org/registry/SYCL)
+* [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 
-\*Other names and brands may be claimed as the property of others.
+<sub>\*Other names and brands may be claimed as the property of others.</sub>

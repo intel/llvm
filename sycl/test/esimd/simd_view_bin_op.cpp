@@ -3,9 +3,9 @@
 // This test checks that arithmetic or compare operation on simd_view and
 // scalar does not truncate scalar to the view's element type.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 simd<short, 4> test1(int X, simd<short, 16> Y) __attribute__((sycl_device)) {
   // CHECK-LABEL: test1

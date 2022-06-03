@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fdeclare-opencl-builtins -finclude-default-header -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc
+// RUN: %clang_cc1 -triple spir64 -fdeclare-opencl-builtins -finclude-default-header -O0 -cl-std=CL2.0 -emit-llvm-bc %s -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV

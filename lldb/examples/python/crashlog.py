@@ -28,8 +28,10 @@
 
 from __future__ import print_function
 import cmd
+import contextlib
 import datetime
 import glob
+import json
 import optparse
 import os
 import platform
@@ -41,7 +43,6 @@ import subprocess
 import sys
 import time
 import uuid
-import json
 
 try:
     # First try for LLDB in case PYTHONPATH is already correctly setup.
@@ -75,10 +76,12 @@ class CrashLog(symbolication.Symbolicator):
 
         def __init__(self, index, app_specific_backtrace):
             self.index = index
+            self.id = index
             self.frames = list()
             self.idents = list()
             self.registers = dict()
             self.reason = None
+            self.name = None
             self.queue = None
             self.crashed = False
             self.app_specific_backtrace = app_specific_backtrace
@@ -266,7 +269,7 @@ class CrashLog(symbolication.Symbolicator):
             self.resolved = True
             uuid_str = self.get_normalized_uuid_string()
             if self.show_symbol_progress():
-                print('Getting symbols for %s %s...' % (uuid_str, self.path), end=' ')
+                print('Getting symbols for %s %s...\n' % (uuid_str, self.path), end=' ')
             if os.path.exists(self.dsymForUUIDBinary):
                 dsym_for_uuid_command = '%s %s' % (
                     self.dsymForUUIDBinary, uuid_str)
@@ -316,7 +319,7 @@ class CrashLog(symbolication.Symbolicator):
                     pass
             if (self.resolved_path and os.path.exists(self.resolved_path)) or (
                     self.path and os.path.exists(self.path)):
-                print('ok')
+                print('Resolved symbols for %s %s...\n' % (uuid_str, self.path), end=' ')
                 return True
             else:
                 self.unavailable = True
@@ -520,14 +523,18 @@ class JSONCrashLogParser:
         for json_thread in json_threads:
             thread = self.crashlog.Thread(idx, False)
             if 'name' in json_thread:
+                thread.name = json_thread['name']
                 thread.reason = json_thread['name']
+            if 'id' in json_thread:
+                thread.id = int(json_thread['id'])
             if json_thread.get('triggered', False):
                 self.crashlog.crashed_thread_idx = idx
                 thread.crashed = True
                 if 'threadState' in json_thread:
                     thread.registers = self.parse_thread_registers(
                         json_thread['threadState'])
-            thread.queue = json_thread.get('queue')
+            if 'queue' in json_thread:
+                thread.queue = json_thread.get('queue')
             self.parse_frames(thread, json_thread.get('frames', []))
             self.crashlog.threads.append(thread)
             idx += 1
@@ -976,7 +983,7 @@ def SymbolicateCrashLog(crash_log, options):
         for error in crash_log.errors:
             print(error)
 
-def load_crashlog_in_scripted_process(debugger, crash_log_file):
+def load_crashlog_in_scripted_process(debugger, crash_log_file, options):
     result = lldb.SBCommandReturnObject()
 
     crashlog_path = os.path.expanduser(crash_log_file)
@@ -989,7 +996,10 @@ def load_crashlog_in_scripted_process(debugger, crash_log_file):
         result.PutCString("error: python exception: %s" % e)
         return
 
-    target = crashlog.create_target()
+    if debugger.GetNumTargets() > 0:
+        target = debugger.GetTargetAtIndex(0)
+    else:
+        target = crashlog.create_target()
     if not target:
         result.PutCString("error: couldn't create target")
         return
@@ -1006,13 +1016,39 @@ def load_crashlog_in_scripted_process(debugger, crash_log_file):
         return
 
     structured_data = lldb.SBStructuredData()
-    structured_data.SetFromJSON(json.dumps({ "crashlog_path" : crashlog_path }))
+    structured_data.SetFromJSON(json.dumps({ "crashlog_path" : crashlog_path,
+                                             "load_all_images": options.load_all_images }))
     launch_info = lldb.SBLaunchInfo(None)
     launch_info.SetProcessPluginName("ScriptedProcess")
     launch_info.SetScriptedProcessClassName("crashlog_scripted_process.CrashLogScriptedProcess")
     launch_info.SetScriptedProcessDictionary(structured_data)
     error = lldb.SBError()
     process = target.Launch(launch_info, error)
+
+    if not process or error.Fail():
+        return
+
+    @contextlib.contextmanager
+    def synchronous(debugger):
+        async_state = debugger.GetAsync()
+        debugger.SetAsync(False)
+        try:
+            yield
+        finally:
+            debugger.SetAsync(async_state)
+
+    with synchronous(debugger):
+        run_options = lldb.SBCommandInterpreterRunOptions()
+        run_options.SetStopOnError(True)
+        run_options.SetStopOnCrash(True)
+        run_options.SetEchoCommands(True)
+
+        commands_stream = lldb.SBStream()
+        commands_stream.Print("process status\n")
+        commands_stream.Print("thread backtrace\n")
+        error = debugger.SetInputString(commands_stream.GetData())
+        if error.Success():
+            debugger.RunCommandInterpreter(True, False, run_options, 0, False, True)
 
 def CreateSymbolicateCrashLogOptions(
         command_name,
@@ -1040,7 +1076,9 @@ def CreateSymbolicateCrashLogOptions(
         '-a',
         action='store_true',
         dest='load_all_images',
-        help='load all executable images, not just the images found in the crashed stack frames',
+        help='load all executable images, not just the images found in the '
+        'crashed stack frames, loads stackframes for all the threads in '
+        'interactive mode.',
         default=False)
     option_parser.add_option(
         '--images',
@@ -1170,7 +1208,8 @@ def SymbolicateCrashLogs(debugger, command_args):
     if args:
         for crash_log_file in args:
             if should_run_in_interactive_mode(options, ci):
-                load_crashlog_in_scripted_process(debugger, crash_log_file)
+                load_crashlog_in_scripted_process(debugger, crash_log_file,
+                                                  options)
             else:
                 crash_log = CrashLogParser().parse(debugger, crash_log_file, options.verbose)
                 SymbolicateCrashLog(crash_log, options)

@@ -204,6 +204,9 @@ class BinaryContext {
   using DWOIdToCUMapType = std::unordered_map<uint64_t, DWARFUnit *>;
   DWOIdToCUMapType DWOCUs;
 
+  bool ContainsDwarf5{false};
+  bool ContainsDwarfLegacy{false};
+
   /// Preprocess DWO debug information.
   void preprocessDWODebugInfo();
 
@@ -234,7 +237,13 @@ public:
   /// Get Number of DWOCUs in a map.
   uint32_t getNumDWOCUs() { return DWOCUs.size(); }
 
-  const std::map<unsigned, DwarfLineTable> &getDwarfLineTables() const {
+  /// Returns true if DWARF5 is used.
+  bool isDWARF5Used() const { return ContainsDwarf5; }
+
+  /// Returns true if DWARF4 or lower is used.
+  bool isDWARFLegacyUsed() const { return ContainsDwarfLegacy; }
+
+  std::map<unsigned, DwarfLineTable> &getDwarfLineTables() {
     return DwarfLineTablesCUMap;
   }
 
@@ -245,7 +254,8 @@ public:
   Expected<unsigned> getDwarfFile(StringRef Directory, StringRef FileName,
                                   unsigned FileNumber,
                                   Optional<MD5::MD5Result> Checksum,
-                                  Optional<StringRef> Source, unsigned CUID);
+                                  Optional<StringRef> Source, unsigned CUID,
+                                  unsigned DWARFVersion);
 
   /// [start memory address] -> [segment info] mapping.
   std::map<uint64_t, SegmentInfo> SegmentMapInfo;
@@ -489,7 +499,9 @@ public:
   void adjustCodePadding();
 
   /// Regular page size.
-  static constexpr unsigned RegularPageSize = 0x1000;
+  unsigned RegularPageSize{0x1000};
+  static constexpr unsigned RegularPageSizeX86 = 0x1000;
+  static constexpr unsigned RegularPageSizeAArch64 = 0x10000;
 
   /// Huge page size to use.
   static constexpr unsigned HugePageSize = 0x200000;
@@ -772,6 +784,22 @@ public:
     return Itr != GlobalSymbols.end() ? Itr->second : nullptr;
   }
 
+  /// Return registered PLT entry BinaryData with the given \p Name
+  /// or nullptr if no global PLT symbol with that name exists.
+  const BinaryData *getPLTBinaryDataByName(StringRef Name) const {
+    if (const BinaryData *Data = getBinaryDataByName(Name.str() + "@PLT"))
+      return Data;
+
+    // The symbol name might contain versioning information e.g
+    // memcpy@@GLIBC_2.17. Remove it and try to locate binary data
+    // without it.
+    size_t At = Name.find("@");
+    if (At != std::string::npos)
+      return getBinaryDataByName(Name.str().substr(0, At) + "@PLT");
+
+    return nullptr;
+  }
+
   /// Return true if \p SymbolName was generated internally and was not present
   /// in the input binary.
   bool isInternalSymbolName(const StringRef Name) {
@@ -951,6 +979,15 @@ public:
                       FilteredSectionIterator(isAllocatableRela, Sections.end(),
                                               Sections.end()));
   }
+
+  /// Return base address for the shared object or PIE based on the segment
+  /// mapping information. \p MMapAddress is an address where one of the
+  /// segments was mapped. \p FileOffset is the offset in the file of the
+  /// mapping. Note that \p FileOffset should be page-aligned and could be
+  /// different from the file offset of the segment which could be unaligned.
+  /// If no segment is found that matches \p FileOffset, return NoneType().
+  Optional<uint64_t> getBaseAddressForMapping(uint64_t MMapAddress,
+                                              uint64_t FileOffset) const;
 
   /// Check if the address belongs to this binary's static allocation space.
   bool containsAddress(uint64_t Address) const {

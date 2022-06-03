@@ -68,8 +68,7 @@ void OutputSection::writeHeaderTo(typename ELFT::Shdr *shdr) {
 }
 
 OutputSection::OutputSection(StringRef name, uint32_t type, uint64_t flags)
-    : SectionCommand(OutputSectionKind),
-      SectionBase(Output, name, flags, /*Entsize*/ 0, /*Alignment*/ 1, type,
+    : SectionBase(Output, name, flags, /*Entsize*/ 0, /*Alignment*/ 1, type,
                   /*Info*/ 0, /*Link*/ 0) {}
 
 // We allow sections of types listed below to merged into a
@@ -251,10 +250,6 @@ uint64_t elf::getHeaderSize() {
   return Out::elfHeader->size + Out::programHeaders->size;
 }
 
-bool OutputSection::classof(const SectionCommand *c) {
-  return c->kind == OutputSectionKind;
-}
-
 void OutputSection::sort(llvm::function_ref<int(InputSectionBase *s)> order) {
   assert(isLive());
   for (SectionCommand *b : commands)
@@ -431,7 +426,10 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
 
   parallelForEachN(0, sections.size(), [&](size_t i) {
     InputSection *isec = sections[i];
-    isec->writeTo<ELFT>(buf + isec->outSecOff);
+    if (auto *s = dyn_cast<SyntheticSection>(isec))
+      s->writeTo(buf + isec->outSecOff);
+    else
+      isec->writeTo<ELFT>(buf + isec->outSecOff);
 
     // Fill gaps between sections.
     if (nonZeroFiller) {

@@ -1,0 +1,135 @@
+= sycl_ext_intel_runtime_buffer_location
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 4 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This document propose a new buffer_location runtime property that can be 
+passed to `malloc_device`.
+
+On targets that provide more than one type of global memory, this provide 
+users the flexibility of choosing which memory the device usm should be 
+allocated to.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_RUNTIME_BUFFER_LOCATION` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+== Examples
+
+[source,c++]
+----
+array = (int *)sycl::malloc_device<int>(
+        N, q,
+        sycl::property_list{sycl::ext::intel::experimental::property::usm::buffer_location(2)});
+
+sycl::queue q;
+q.parallel_for(sycl::range<1>(N), [=] (sycl::id<1> i){
+  data[i] *= 2;
+}).wait();
+----
+
+
+=== Changes to runtime properties
+
+This extension adds the new property 
+`sycl::ext::intel::experimental::property::usm::buffer_location` which 
+applications can pass in the property_list parameter to all overloads of the 
+`sycl::malloc_device()`, `sycl::malloc_shared()`, and `sycl::malloc_host()` 
+functions. However, this property has no effect when passed to 
+`sycl::malloc_shared()` or `sycl::malloc_host()`. Following is a synopsis of
+ this property.
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental::property::usm {
+
+class buffer_location {
+ public:
+  buffer_location(int location);
+  int get_buffer_location() const;
+};
+
+} // namespace sycl::ext::intel::experimental::property::usm
+----
+
+On targets that provide more than one type of global memory, `buffer_location` 
+allows user to specify which of the global memory to allocate memory to. This 
+provide user the flexibility to choose the global memory that satisfy 
+requirements for bandwidth and throughput.
+
+This property is ignored for non-FPGA devices. Attempting to use this 
+extension on other devices or backends will result in no effect.
+
+
+== Issues
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2022-03-01|Sherry Yuan|*Initial public draft*
+|========================================

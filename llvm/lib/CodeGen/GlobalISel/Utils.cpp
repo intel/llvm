@@ -16,14 +16,15 @@
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
+#include "llvm/CodeGen/GlobalISel/LostDebugLocObserver.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
-#include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
-#include "llvm/CodeGen/MachineSizeOpts.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/MachineSizeOpts.h"
+#include "llvm/CodeGen/RegisterBankInfo.h"
 #include "llvm/CodeGen/StackProtector.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -31,6 +32,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Transforms/Utils/SizeOpts.h"
 
 #define DEBUG_TYPE "globalisel-utils"
 
@@ -56,6 +58,11 @@ Register llvm::constrainOperandRegClass(
   // Assume physical registers are properly constrained.
   assert(Register::isVirtualRegister(Reg) && "PhysReg not implemented");
 
+  // Save the old register class to check whether
+  // the change notifications will be required.
+  // TODO: A better approach would be to pass
+  // the observers to constrainRegToClass().
+  auto *OldRegClass = MRI.getRegClassOrNull(Reg);
   Register ConstrainedReg = constrainRegToClass(MRI, TII, RBI, Reg, RegClass);
   // If we created a new virtual register because the class is not compatible
   // then create a copy between the new and the old register.
@@ -81,7 +88,7 @@ Register llvm::constrainOperandRegClass(
     if (GISelChangeObserver *Observer = MF.getObserver()) {
       Observer->changedInstr(*RegMO.getParent());
     }
-  } else {
+  } else if (OldRegClass != MRI.getRegClassOrNull(Reg)) {
     if (GISelChangeObserver *Observer = MF.getObserver()) {
       if (!RegMO.isDef()) {
         MachineInstr *RegDef = MRI.getVRegDef(Reg);

@@ -45,8 +45,7 @@ void Parser::MaybeSkipAttributes(tok::ObjCKeywordKind Kind) {
 /// [OBJC]  objc-protocol-definition
 /// [OBJC]  objc-method-definition
 /// [OBJC]  '@' 'end'
-Parser::DeclGroupPtrTy
-Parser::ParseObjCAtDirectives(ParsedAttributesWithRange &Attrs) {
+Parser::DeclGroupPtrTy Parser::ParseObjCAtDirectives(ParsedAttributes &Attrs) {
   SourceLocation AtLoc = ConsumeToken(); // the "@"
 
   if (Tok.is(tok::code_completion)) {
@@ -651,7 +650,7 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
       if (Tok.is(tok::r_brace))
         break;
 
-      ParsedAttributesWithRange attrs(AttrFactory);
+      ParsedAttributes attrs(AttrFactory);
 
       // Since we call ParseDeclarationOrFunctionDefinition() instead of
       // ParseExternalDeclaration() below (so that this doesn't parse nested
@@ -1872,9 +1871,9 @@ void Parser::HelperActionsForIvarDeclarations(Decl *interfaceDecl, SourceLocatio
   if (!RBraceMissing)
     T.consumeClose();
 
-  Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
+  assert(getObjCDeclContext() == interfaceDecl &&
+         "Ivars should have interfaceDecl as their decl context");
   Actions.ActOnLastBitfield(T.getCloseLocation(), AllIvarDecls);
-  Actions.ActOnObjCContainerFinishDefinition();
   // Call ActOnFields() even if we don't have any decls. This is useful
   // for code rewriting tools that need to be aware of the empty list.
   Actions.ActOnFields(getCurScope(), atLoc, interfaceDecl, AllIvarDecls,
@@ -1909,8 +1908,7 @@ void Parser::ParseObjCClassInstanceVariables(Decl *interfaceDecl,
   assert(Tok.is(tok::l_brace) && "expected {");
   SmallVector<Decl *, 32> AllIvarDecls;
 
-  ParseScope ClassScope(this, Scope::DeclScope|Scope::ClassScope);
-  ObjCDeclContextSwitch ObjCDC(*this);
+  ParseScope ClassScope(this, Scope::DeclScope | Scope::ClassScope);
 
   BalancedDelimiterTracker T(*this, tok::l_brace);
   T.consumeOpen();
@@ -1974,13 +1972,13 @@ void Parser::ParseObjCClassInstanceVariables(Decl *interfaceDecl,
     }
 
     auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD) {
-      Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
+      assert(getObjCDeclContext() == interfaceDecl &&
+             "Ivar should have interfaceDecl as its decl context");
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);
       Decl *Field = Actions.ActOnIvar(
           getCurScope(), FD.D.getDeclSpec().getSourceRange().getBegin(), FD.D,
           FD.BitfieldSize, visibility);
-      Actions.ActOnObjCContainerFinishDefinition();
       if (Field)
         AllIvarDecls.push_back(Field);
       FD.complete(Field);
@@ -2217,7 +2215,7 @@ Parser::ParseObjCAtImplementationDeclaration(SourceLocation AtLoc,
   {
     ObjCImplParsingDataRAII ObjCImplParsing(*this, ObjCImpDecl);
     while (!ObjCImplParsing.isFinished() && !isEofOrEom()) {
-      ParsedAttributesWithRange attrs(AttrFactory);
+      ParsedAttributes attrs(AttrFactory);
       MaybeParseCXX11Attributes(attrs);
       if (DeclGroupPtrTy DGP = ParseExternalDeclaration(attrs)) {
         DeclGroupRef DG = DGP.get();

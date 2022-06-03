@@ -60,7 +60,10 @@
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
+#include <sycl/ext/oneapi/bf16_storage_builtins.hpp>
+#include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>

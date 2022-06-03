@@ -30,8 +30,18 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
+#include "clang/Basic/DiagnosticFrontend.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Target/TargetMachine.h"
 #include <clang/Basic/Diagnostic.h>
 #include <memory>
 
@@ -40,6 +50,7 @@ using namespace Fortran::frontend;
 //===----------------------------------------------------------------------===//
 // Custom BeginSourceFileAction
 //===----------------------------------------------------------------------===//
+
 bool PrescanAction::BeginSourceFileAction() { return RunPrescan(); }
 
 bool PrescanAndParseAction::BeginSourceFileAction() {
@@ -62,6 +73,19 @@ bool PrescanAndSemaDebugAction::BeginSourceFileAction() {
 }
 
 bool CodeGenAction::BeginSourceFileAction() {
+  llvmCtx = std::make_unique<llvm::LLVMContext>();
+
+  // If the input is an LLVM file, just parse it and return.
+  if (this->currentInput().kind().GetLanguage() == Language::LLVM_IR) {
+    llvm::SMDiagnostic err;
+    llvmModule = llvm::parseIRFile(currentInput().file(), err, *llvmCtx);
+
+    return (nullptr != llvmModule);
+  }
+
+  // Otherwise, generate an MLIR module from the input Fortran source
+  assert(currentInput().kind().GetLanguage() == Language::Fortran &&
+         "Invalid input type - expecting a Fortran file");
   bool res = RunPrescan() && RunParse() && RunSemanticChecks();
   if (!res)
     return res;
@@ -81,7 +105,7 @@ bool CodeGenAction::BeginSourceFileAction() {
       llvm::ArrayRef<fir::KindTy>{fir::fromDefaultKinds(defKinds)});
   lower::LoweringBridge lb = Fortran::lower::LoweringBridge::create(*mlirCtx,
       defKinds, ci.invocation().semanticsContext().intrinsics(),
-      ci.parsing().allCooked(), /*triple=*/"native", kindMap);
+      ci.parsing().allCooked(), ci.invocation().targetOpts().triple, kindMap);
 
   // Create a parse tree and lower it to FIR
   Fortran::parser::Program &parseTree{*ci.parsing().parseTree()};
@@ -401,6 +425,12 @@ void GetSymbolsSourcesAction::ExecuteAction() {
   ci.semantics().DumpSymbolsSources(llvm::outs());
 }
 
+//===----------------------------------------------------------------------===//
+// CodeGenActions
+//===----------------------------------------------------------------------===//
+
+CodeGenAction::~CodeGenAction() = default;
+
 #include "flang/Tools/CLOptions.inc"
 
 // Lower the previously generated MLIR module into an LLVM IR module
@@ -417,10 +447,10 @@ void CodeGenAction::GenerateLLVMIR() {
 
   pm.addPass(std::make_unique<Fortran::lower::VerifierPass>());
   pm.enableVerifier(/*verifyPasses=*/true);
-  mlir::PassPipelineCLParser passPipeline("", "Compiler passes to run");
 
   // Create the pass pipeline
   fir::createMLIRToLLVMPassPipeline(pm);
+  mlir::applyPassManagerCLOptions(pm);
 
   // Run the pass manager
   if (!mlir::succeeded(pm.run(*mlirModule))) {
@@ -431,7 +461,6 @@ void CodeGenAction::GenerateLLVMIR() {
 
   // Translate to LLVM IR
   llvm::Optional<llvm::StringRef> moduleName = mlirModule->getName();
-  llvmCtx = std::make_unique<llvm::LLVMContext>();
   llvmModule = mlir::translateModuleToLLVMIR(
       *mlirModule, *llvmCtx, moduleName ? *moduleName : "FIRModule");
 
@@ -443,58 +472,174 @@ void CodeGenAction::GenerateLLVMIR() {
   }
 }
 
-void EmitLLVMAction::ExecuteAction() {
+void CodeGenAction::SetUpTargetMachine() {
   CompilerInstance &ci = this->instance();
-  GenerateLLVMIR();
 
-  // If set, use the predefined outupt stream to print the generated module.
-  if (!ci.IsOutputStreamNull()) {
-    llvmModule->print(
-        ci.GetOutputStream(), /*AssemblyAnnotationWriter=*/nullptr);
-    return;
+  // Set the triple based on the CompilerInvocation set-up
+  const std::string &theTriple = ci.invocation().targetOpts().triple;
+  if (llvmModule->getTargetTriple() != theTriple) {
+    ci.diagnostics().Report(clang::diag::warn_fe_override_module) << theTriple;
+    llvmModule->setTargetTriple(theTriple);
   }
 
-  // No predefined output stream was set. Create an output file and dump the
-  // generated module there.
-  std::unique_ptr<llvm::raw_ostream> os = ci.CreateDefaultOutputFile(
-      /*Binary=*/false, /*InFile=*/GetCurrentFileOrBufferName(), "ll");
-  if (!os) {
-    unsigned diagID = ci.diagnostics().getCustomDiagID(
-        clang::DiagnosticsEngine::Error, "failed to create the output file");
-    ci.diagnostics().Report(diagID);
-    return;
-  }
-  llvmModule->print(*os, /*AssemblyAnnotationWriter=*/nullptr);
+  // Create `Target`
+  std::string error;
+  const llvm::Target *theTarget =
+      llvm::TargetRegistry::lookupTarget(theTriple, error);
+  assert(theTarget && "Failed to create Target");
+
+  // Create `TargetMachine`
+  TM.reset(theTarget->createTargetMachine(theTriple, /*CPU=*/"",
+                                          /*Features=*/"",
+                                          llvm::TargetOptions(), llvm::None));
+  assert(TM && "Failed to create TargetMachine");
+  llvmModule->setDataLayout(TM->createDataLayout());
 }
 
-void EmitMLIRAction::ExecuteAction() {
-  CompilerInstance &ci = this->instance();
-
-  // Print the output. If a pre-defined output stream exists, dump the MLIR
-  // content there.
-  if (!ci.IsOutputStreamNull()) {
-    mlirModule->print(ci.GetOutputStream());
-    return;
+static std::unique_ptr<llvm::raw_pwrite_stream>
+GetOutputStream(CompilerInstance &ci, llvm::StringRef inFile,
+                BackendActionTy action) {
+  switch (action) {
+  case BackendActionTy::Backend_EmitAssembly:
+    return ci.CreateDefaultOutputFile(
+        /*Binary=*/false, inFile, /*extension=*/"s");
+  case BackendActionTy::Backend_EmitLL:
+    return ci.CreateDefaultOutputFile(
+        /*Binary=*/false, inFile, /*extension=*/"ll");
+  case BackendActionTy::Backend_EmitMLIR:
+    return ci.CreateDefaultOutputFile(
+        /*Binary=*/false, inFile, /*extension=*/"mlir");
+  case BackendActionTy::Backend_EmitBC:
+    return ci.CreateDefaultOutputFile(
+        /*Binary=*/true, inFile, /*extension=*/"bc");
+  case BackendActionTy::Backend_EmitObj:
+    return ci.CreateDefaultOutputFile(
+        /*Binary=*/true, inFile, /*extension=*/"o");
   }
 
-  // ... otherwise, print to a file.
-  std::unique_ptr<llvm::raw_pwrite_stream> os{ci.CreateDefaultOutputFile(
-      /*Binary=*/true, /*InFile=*/GetCurrentFileOrBufferName(), "mlir")};
-  if (!os) {
-    unsigned diagID = ci.diagnostics().getCustomDiagID(
-        clang::DiagnosticsEngine::Error, "failed to create the output file");
-    ci.diagnostics().Report(diagID);
-    return;
-  }
-
-  mlirModule->print(*os);
+  llvm_unreachable("Invalid action!");
 }
 
-void EmitObjAction::ExecuteAction() {
+/// Generate target-specific machine-code or assembly file from the input LLVM
+/// module.
+///
+/// \param [in] diags Diagnostics engine for reporting errors
+/// \param [in] TM Target machine to aid the code-gen pipeline set-up
+/// \param [in] act Backend act to run (assembly vs machine-code generation)
+/// \param [in] llvmModule LLVM module to lower to assembly/machine-code
+/// \param [out] os Output stream to emit the generated code to
+static void GenerateMachineCodeOrAssemblyImpl(clang::DiagnosticsEngine &diags,
+                                              llvm::TargetMachine &TM,
+                                              BackendActionTy act,
+                                              llvm::Module &llvmModule,
+                                              llvm::raw_pwrite_stream &os) {
+  assert(((act == BackendActionTy::Backend_EmitObj) ||
+          (act == BackendActionTy::Backend_EmitAssembly)) &&
+         "Unsupported action");
+
+  // Set-up the pass manager, i.e create an LLVM code-gen pass pipeline.
+  // Currently only the legacy pass manager is supported.
+  // TODO: Switch to the new PM once it's available in the backend.
+  llvm::legacy::PassManager CodeGenPasses;
+  CodeGenPasses.add(
+      createTargetTransformInfoWrapperPass(TM.getTargetIRAnalysis()));
+
+  llvm::Triple triple(llvmModule.getTargetTriple());
+  std::unique_ptr<llvm::TargetLibraryInfoImpl> TLII =
+      std::make_unique<llvm::TargetLibraryInfoImpl>(triple);
+  assert(TLII && "Failed to create TargetLibraryInfo");
+  CodeGenPasses.add(new llvm::TargetLibraryInfoWrapperPass(*TLII));
+
+  llvm::CodeGenFileType cgft = (act == BackendActionTy::Backend_EmitAssembly)
+                                   ? llvm::CodeGenFileType::CGFT_AssemblyFile
+                                   : llvm::CodeGenFileType::CGFT_ObjectFile;
+  if (TM.addPassesToEmitFile(CodeGenPasses, os, nullptr, cgft)) {
+    unsigned diagID =
+        diags.getCustomDiagID(clang::DiagnosticsEngine::Error,
+                              "emission of this file type is not supported");
+    diags.Report(diagID);
+    return;
+  }
+
+  // Run the passes
+  CodeGenPasses.run(llvmModule);
+}
+
+/// Generate LLVM byte code file from the input LLVM module.
+///
+/// \param [in] TM Target machine to aid the code-gen pipeline set-up
+/// \param [in] llvmModule LLVM module to lower to assembly/machine-code
+/// \param [out] os Output stream to emit the generated code to
+static void GenerateLLVMBCImpl(llvm::TargetMachine &TM,
+                               llvm::Module &llvmModule,
+                               llvm::raw_pwrite_stream &os) {
+  // Set-up the pass manager
+  llvm::ModulePassManager MPM;
+  llvm::ModuleAnalysisManager MAM;
+  llvm::PassBuilder PB(&TM);
+  PB.registerModuleAnalyses(MAM);
+  MPM.addPass(llvm::BitcodeWriterPass(os));
+
+  // Run the passes
+  MPM.run(llvmModule, MAM);
+}
+
+void CodeGenAction::ExecuteAction() {
   CompilerInstance &ci = this->instance();
-  unsigned DiagID = ci.diagnostics().getCustomDiagID(
-      clang::DiagnosticsEngine::Error, "code-generation is not available yet");
-  ci.diagnostics().Report(DiagID);
+
+  // If the output stream is a file, generate it and define the corresponding
+  // output stream. If a pre-defined output stream is available, we will use
+  // that instead.
+  //
+  // NOTE: `os` is a smart pointer that will be destroyed at the end of this
+  // method. However, it won't be written to until `CodeGenPasses` is
+  // destroyed. By defining `os` before `CodeGenPasses`, we make sure that the
+  // output stream won't be destroyed before it is written to. This only
+  // applies when an output file is used (i.e. there is no pre-defined output
+  // stream).
+  // TODO: Revisit once the new PM is ready (i.e. when `CodeGenPasses` is
+  // updated to use it).
+  std::unique_ptr<llvm::raw_pwrite_stream> os;
+  if (ci.IsOutputStreamNull()) {
+    os = GetOutputStream(ci, GetCurrentFileOrBufferName(), action);
+
+    if (!os) {
+      unsigned diagID = ci.diagnostics().getCustomDiagID(
+          clang::DiagnosticsEngine::Error, "failed to create the output file");
+      ci.diagnostics().Report(diagID);
+      return;
+    }
+  }
+
+  if (action == BackendActionTy::Backend_EmitMLIR) {
+    mlirModule->print(ci.IsOutputStreamNull() ? *os : ci.GetOutputStream());
+    return;
+  }
+
+  // Generate an LLVM module if it's not already present (it will already be
+  // present if the input file is an LLVM IR/BC file).
+  if (!llvmModule)
+    GenerateLLVMIR();
+
+  if (action == BackendActionTy::Backend_EmitLL) {
+    llvmModule->print(ci.IsOutputStreamNull() ? *os : ci.GetOutputStream(),
+                      /*AssemblyAnnotationWriter=*/nullptr);
+    return;
+  }
+
+  SetUpTargetMachine();
+  if (action == BackendActionTy::Backend_EmitBC) {
+    GenerateLLVMBCImpl(*TM, *llvmModule, *os);
+    return;
+  }
+
+  if (action == BackendActionTy::Backend_EmitAssembly ||
+      action == BackendActionTy::Backend_EmitObj) {
+    GenerateMachineCodeOrAssemblyImpl(
+        ci.diagnostics(), *TM, action, *llvmModule,
+        ci.IsOutputStreamNull() ? *os : ci.GetOutputStream());
+    return;
+  }
 }
 
 void InitOnlyAction::ExecuteAction() {
@@ -506,3 +651,31 @@ void InitOnlyAction::ExecuteAction() {
 }
 
 void PluginParseTreeAction::ExecuteAction() {}
+
+void DebugDumpPFTAction::ExecuteAction() {
+  CompilerInstance &ci = this->instance();
+
+  if (auto ast = Fortran::lower::createPFT(
+          *ci.parsing().parseTree(), ci.semantics().context())) {
+    Fortran::lower::dumpPFT(llvm::outs(), *ast);
+    return;
+  }
+
+  unsigned DiagID = ci.diagnostics().getCustomDiagID(
+      clang::DiagnosticsEngine::Error, "Pre FIR Tree is NULL.");
+  ci.diagnostics().Report(DiagID);
+}
+
+Fortran::parser::Parsing &PluginParseTreeAction::getParsing() {
+  return instance().parsing();
+}
+
+std::unique_ptr<llvm::raw_pwrite_stream>
+PluginParseTreeAction::createOutputFile(llvm::StringRef extension = "") {
+
+  std::unique_ptr<llvm::raw_pwrite_stream> OS{
+      instance().CreateDefaultOutputFile(
+          /*Binary=*/false, /*InFile=*/GetCurrentFileOrBufferName(),
+          extension)};
+  return OS;
+}

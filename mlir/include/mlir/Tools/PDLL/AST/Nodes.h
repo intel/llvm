@@ -131,6 +131,18 @@ public:
   /// Print this node to the given stream.
   void print(raw_ostream &os) const;
 
+  /// Walk all of the nodes including, and nested under, this node in pre-order.
+  void walk(function_ref<void(const Node *)> walkFn) const;
+  template <typename WalkFnT, typename ArgT = typename llvm::function_traits<
+                                  WalkFnT>::template arg_t<0>>
+  std::enable_if_t<!std::is_convertible<const Node *, ArgT>::value>
+  walk(WalkFnT &&walkFn) const {
+    walk([&](const Node *node) {
+      if (const ArgT *derivedNode = dyn_cast<ArgT>(node))
+        walkFn(derivedNode);
+    });
+  }
+
 protected:
   Node(TypeID typeID, SMRange loc) : typeID(typeID), loc(loc) {}
 
@@ -786,7 +798,7 @@ class ValueRangeConstraintDecl
     : public Node::NodeBase<ValueRangeConstraintDecl, CoreConstraintDecl> {
 public:
   static ValueRangeConstraintDecl *create(Context &ctx, SMRange loc,
-                                          Expr *typeExpr);
+                                          Expr *typeExpr = nullptr);
 
   /// Return the optional type the value range is constrained to.
   Expr *getTypeExpr() { return typeExpr; }
@@ -1239,8 +1251,8 @@ inline bool CoreConstraintDecl::classof(const Node *node) {
 }
 
 inline bool Expr::classof(const Node *node) {
-  return isa<AttributeExpr, DeclRefExpr, MemberAccessExpr, OperationExpr,
-             TupleExpr, TypeExpr>(node);
+  return isa<AttributeExpr, CallExpr, DeclRefExpr, MemberAccessExpr,
+             OperationExpr, TupleExpr, TypeExpr>(node);
 }
 
 inline bool OpRewriteStmt::classof(const Node *node) {

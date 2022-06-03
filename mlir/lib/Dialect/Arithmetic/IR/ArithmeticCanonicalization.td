@@ -9,6 +9,7 @@
 #ifndef ARITHMETIC_PATTERNS
 #define ARITHMETIC_PATTERNS
 
+include "mlir/IR/PatternBase.td"
 include "mlir/Dialect/Arithmetic/IR/ArithmeticOps.td"
 
 // Add two integer attributes and create a new one with the result.
@@ -105,6 +106,28 @@ def XOrINotCmpI :
           (Arith_CmpIOp $pred, $a, $b),
           (Arith_ConstantOp ConstantAttr<I1Attr, "1">)),
         (Arith_CmpIOp (InvertPredicate $pred), $a, $b)>;
+
+//===----------------------------------------------------------------------===//
+// CmpIOp
+//===----------------------------------------------------------------------===//
+
+// cmpi(== or !=, a ext iNN, b ext iNN) == cmpi(== or !=, a, b)
+def CmpIExtSI :
+    Pat<(Arith_CmpIOp $pred,
+          (Arith_ExtSIOp $a),
+          (Arith_ExtSIOp $b)),
+        (Arith_CmpIOp $pred, $a, $b),
+        [(Constraint<CPred<"$0.getType() == $1.getType()">> $a, $b),
+         (Constraint<CPred<"$0.getValue() == arith::CmpIPredicate::eq || $0.getValue() == arith::CmpIPredicate::ne">> $pred)]>;
+
+// cmpi(== or !=, a ext iNN, b ext iNN) == cmpi(== or !=, a, b)
+def CmpIExtUI :
+    Pat<(Arith_CmpIOp $pred,
+          (Arith_ExtUIOp $a),
+          (Arith_ExtUIOp $b)),
+        (Arith_CmpIOp $pred, $a, $b),
+        [(Constraint<CPred<"$0.getType() == $1.getType()">> $a, $b),
+         (Constraint<CPred<"$0.getValue() == arith::CmpIPredicate::eq || $0.getValue() == arith::CmpIPredicate::ne">> $pred)]>;
 
 //===----------------------------------------------------------------------===//
 // IndexCastOp

@@ -27,7 +27,7 @@ foreach(target, symlinks) {
 
 # //:clang depends on this symlink target, see comment in //BUILD.gn.
 group("symlinks") {
-  deps = []
+  deps = [ ":clang" ]
   foreach(target, symlinks) {
     deps += [ ":${target[0]}" ]
   }
@@ -56,6 +56,7 @@ executable("clang") {
     "//clang/lib/Frontend",
     "//clang/lib/FrontendTool",
     "//clang/lib/Headers",
+    "//clang/tools/clang-linker-wrapper",
     "//clang/tools/clang-offload-bundler",
     "//clang/tools/clang-offload-wrapper",
     "//llvm/include/llvm/Config:llvm-config",

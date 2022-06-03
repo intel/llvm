@@ -24,8 +24,10 @@
   }
 
 #define __CLC_NVVM_ATOMIC_SUB(TYPE, TYPE_MANGLED, OP_MANGLED)                  \
+  __attribute__((always_inline))                                               \
   __CLC_NVVM_ATOMIC_SUB_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, __global, AS1)    \
-  __CLC_NVVM_ATOMIC_SUB_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, __local, AS3)
+      __attribute__((always_inline))                                           \
+      __CLC_NVVM_ATOMIC_SUB_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, __local, AS3)
 
 __CLC_NVVM_ATOMIC_SUB(int, i, ISub)
 __CLC_NVVM_ATOMIC_SUB(unsigned int, j, ISub)

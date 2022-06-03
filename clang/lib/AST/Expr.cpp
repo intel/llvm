@@ -1014,40 +1014,10 @@ void CharacterLiteral::print(unsigned Val, CharacterKind Kind,
     break;
   }
 
-  switch (Val) {
-  case '\\':
-    OS << "'\\\\'";
-    break;
-  case '\'':
-    OS << "'\\''";
-    break;
-  case '\a':
-    // TODO: K&R: the meaning of '\\a' is different in traditional C
-    OS << "'\\a'";
-    break;
-  case '\b':
-    OS << "'\\b'";
-    break;
-  // Nonstandard escape sequence.
-  /*case '\e':
-    OS << "'\\e'";
-    break;*/
-  case '\f':
-    OS << "'\\f'";
-    break;
-  case '\n':
-    OS << "'\\n'";
-    break;
-  case '\r':
-    OS << "'\\r'";
-    break;
-  case '\t':
-    OS << "'\\t'";
-    break;
-  case '\v':
-    OS << "'\\v'";
-    break;
-  default:
+  StringRef Escaped = escapeCStyle<EscapeChar::Single>(Val);
+  if (!Escaped.empty()) {
+    OS << "'" << Escaped << "'";
+  } else {
     // A character literal might be sign-extended, which
     // would result in an invalid \U escape sequence.
     // FIXME: multicharacter literals such as '\xFF\xFF\xFF\xFF'
@@ -1217,8 +1187,9 @@ void StringLiteral::outputString(raw_ostream &OS) const {
 
   unsigned LastSlashX = getLength();
   for (unsigned I = 0, N = getLength(); I != N; ++I) {
-    switch (uint32_t Char = getCodeUnit(I)) {
-    default:
+    uint32_t Char = getCodeUnit(I);
+    StringRef Escaped = escapeCStyle<EscapeChar::Double>(Char);
+    if (Escaped.empty()) {
       // FIXME: Convert UTF-8 back to codepoints before rendering.
 
       // Convert UTF-16 surrogate pairs back to codepoints before rendering.
@@ -1246,7 +1217,7 @@ void StringLiteral::outputString(raw_ostream &OS) const {
           for (/**/; Shift >= 0; Shift -= 4)
             OS << Hex[(Char >> Shift) & 15];
           LastSlashX = I;
-          break;
+          continue;
         }
 
         if (Char > 0xffff)
@@ -1259,7 +1230,7 @@ void StringLiteral::outputString(raw_ostream &OS) const {
            << Hex[(Char >>  8) & 15]
            << Hex[(Char >>  4) & 15]
            << Hex[(Char >>  0) & 15];
-        break;
+        continue;
       }
 
       // If we used \x... for the previous character, and this character is a
@@ -1284,17 +1255,9 @@ void StringLiteral::outputString(raw_ostream &OS) const {
            << (char)('0' + ((Char >> 6) & 7))
            << (char)('0' + ((Char >> 3) & 7))
            << (char)('0' + ((Char >> 0) & 7));
-      break;
-    // Handle some common non-printable cases to make dumps prettier.
-    case '\\': OS << "\\\\"; break;
-    case '"': OS << "\\\""; break;
-    case '\a': OS << "\\a"; break;
-    case '\b': OS << "\\b"; break;
-    case '\f': OS << "\\f"; break;
-    case '\n': OS << "\\n"; break;
-    case '\r': OS << "\\r"; break;
-    case '\t': OS << "\\t"; break;
-    case '\v': OS << "\\v"; break;
+    } else {
+      // Handle some common non-printable cases to make dumps prettier.
+      OS << Escaped;
     }
   }
   OS << '"';
@@ -1569,8 +1532,7 @@ Decl *Expr::getReferencedDeclOfCallee() {
 
 /// If this is a call to a builtin, return the builtin ID. If not, return 0.
 unsigned CallExpr::getBuiltinCallee() const {
-  auto *FDecl =
-      dyn_cast_or_null<FunctionDecl>(getCallee()->getReferencedDeclOfCallee());
+  auto *FDecl = getDirectCallee();
   return FDecl ? FDecl->getBuiltinID() : 0;
 }
 
@@ -1953,51 +1915,49 @@ const char *CastExpr::getCastKindName(CastKind CK) {
 }
 
 namespace {
-  const Expr *skipImplicitTemporary(const Expr *E) {
-    // Skip through reference binding to temporary.
-    if (auto *Materialize = dyn_cast<MaterializeTemporaryExpr>(E))
-      E = Materialize->getSubExpr();
+// Skip over implicit nodes produced as part of semantic analysis.
+// Designed for use with IgnoreExprNodes.
+Expr *ignoreImplicitSemaNodes(Expr *E) {
+  if (auto *Materialize = dyn_cast<MaterializeTemporaryExpr>(E))
+    return Materialize->getSubExpr();
 
-    // Skip any temporary bindings; they're implicit.
-    if (auto *Binder = dyn_cast<CXXBindTemporaryExpr>(E))
-      E = Binder->getSubExpr();
+  if (auto *Binder = dyn_cast<CXXBindTemporaryExpr>(E))
+    return Binder->getSubExpr();
 
-    return E;
-  }
+  if (auto *Full = dyn_cast<FullExpr>(E))
+    return Full->getSubExpr();
+
+  return E;
 }
+} // namespace
 
 Expr *CastExpr::getSubExprAsWritten() {
   const Expr *SubExpr = nullptr;
-  const CastExpr *E = this;
-  do {
-    SubExpr = skipImplicitTemporary(E->getSubExpr());
+
+  for (const CastExpr *E = this; E; E = dyn_cast<ImplicitCastExpr>(SubExpr)) {
+    SubExpr = IgnoreExprNodes(E->getSubExpr(), ignoreImplicitSemaNodes);
 
     // Conversions by constructor and conversion functions have a
     // subexpression describing the call; strip it off.
-    if (E->getCastKind() == CK_ConstructorConversion)
-      SubExpr =
-        skipImplicitTemporary(cast<CXXConstructExpr>(SubExpr->IgnoreImplicit())->getArg(0));
-    else if (E->getCastKind() == CK_UserDefinedConversion) {
-      SubExpr = SubExpr->IgnoreImplicit();
-      assert((isa<CXXMemberCallExpr>(SubExpr) ||
-              isa<BlockExpr>(SubExpr)) &&
+    if (E->getCastKind() == CK_ConstructorConversion) {
+      SubExpr = IgnoreExprNodes(cast<CXXConstructExpr>(SubExpr)->getArg(0),
+                                ignoreImplicitSemaNodes);
+    } else if (E->getCastKind() == CK_UserDefinedConversion) {
+      assert((isa<CXXMemberCallExpr>(SubExpr) || isa<BlockExpr>(SubExpr)) &&
              "Unexpected SubExpr for CK_UserDefinedConversion.");
       if (auto *MCE = dyn_cast<CXXMemberCallExpr>(SubExpr))
         SubExpr = MCE->getImplicitObjectArgument();
     }
+  }
 
-    // If the subexpression we're left with is an implicit cast, look
-    // through that, too.
-  } while ((E = dyn_cast<ImplicitCastExpr>(SubExpr)));
-
-  return const_cast<Expr*>(SubExpr);
+  return const_cast<Expr *>(SubExpr);
 }
 
 NamedDecl *CastExpr::getConversionFunction() const {
   const Expr *SubExpr = nullptr;
 
   for (const CastExpr *E = this; E; E = dyn_cast<ImplicitCastExpr>(SubExpr)) {
-    SubExpr = skipImplicitTemporary(E->getSubExpr());
+    SubExpr = IgnoreExprNodes(E->getSubExpr(), ignoreImplicitSemaNodes);
 
     if (E->getCastKind() == CK_ConstructorConversion)
       return cast<CXXConstructExpr>(SubExpr)->getConstructor();
@@ -2229,26 +2189,11 @@ bool BinaryOperator::isNullPointerArithmeticExtension(ASTContext &Ctx,
   return true;
 }
 
-static QualType getDecayedSourceLocExprType(const ASTContext &Ctx,
-                                            SourceLocExpr::IdentKind Kind) {
-  switch (Kind) {
-  case SourceLocExpr::File:
-  case SourceLocExpr::Function: {
-    QualType ArrTy = Ctx.getStringLiteralArrayType(Ctx.CharTy, 0);
-    return Ctx.getPointerType(ArrTy->getAsArrayTypeUnsafe()->getElementType());
-  }
-  case SourceLocExpr::Line:
-  case SourceLocExpr::Column:
-    return Ctx.UnsignedIntTy;
-  }
-  llvm_unreachable("unhandled case");
-}
-
 SourceLocExpr::SourceLocExpr(const ASTContext &Ctx, IdentKind Kind,
-                             SourceLocation BLoc, SourceLocation RParenLoc,
+                             QualType ResultTy, SourceLocation BLoc,
+                             SourceLocation RParenLoc,
                              DeclContext *ParentContext)
-    : Expr(SourceLocExprClass, getDecayedSourceLocExprType(Ctx, Kind),
-           VK_PRValue, OK_Ordinary),
+    : Expr(SourceLocExprClass, ResultTy, VK_PRValue, OK_Ordinary),
       BuiltinLoc(BLoc), RParenLoc(RParenLoc), ParentContext(ParentContext) {
   SourceLocExprBits.Kind = Kind;
   setDependence(ExprDependence::None);
@@ -2264,6 +2209,8 @@ StringRef SourceLocExpr::getBuiltinStr() const {
     return "__builtin_LINE";
   case Column:
     return "__builtin_COLUMN";
+  case SourceLocStruct:
+    return "__builtin_source_location";
   }
   llvm_unreachable("unexpected IdentKind!");
 }
@@ -2300,7 +2247,7 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
     return MakeStringLiteral(Path);
   }
   case SourceLocExpr::Function: {
-    const Decl *CurDecl = dyn_cast_or_null<Decl>(Context);
+    const auto *CurDecl = dyn_cast<Decl>(Context);
     return MakeStringLiteral(
         CurDecl ? PredefinedExpr::ComputeName(PredefinedExpr::Function, CurDecl)
                 : std::string(""));
@@ -2312,6 +2259,54 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
     IntVal = getIdentKind() == SourceLocExpr::Line ? PLoc.getLine()
                                                    : PLoc.getColumn();
     return APValue(IntVal);
+  }
+  case SourceLocExpr::SourceLocStruct: {
+    // Fill in a std::source_location::__impl structure, by creating an
+    // artificial file-scoped CompoundLiteralExpr, and returning a pointer to
+    // that.
+    const CXXRecordDecl *ImplDecl = getType()->getPointeeCXXRecordDecl();
+    assert(ImplDecl);
+
+    // Construct an APValue for the __impl struct, and get or create a Decl
+    // corresponding to that. Note that we've already verified that the shape of
+    // the ImplDecl type is as expected.
+
+    APValue Value(APValue::UninitStruct(), 0, 4);
+    for (FieldDecl *F : ImplDecl->fields()) {
+      StringRef Name = F->getName();
+      if (Name == "_M_file_name") {
+        SmallString<256> Path(PLoc.getFilename());
+        Ctx.getLangOpts().remapPathPrefix(Path);
+        Value.getStructField(F->getFieldIndex()) = MakeStringLiteral(Path);
+      } else if (Name == "_M_function_name") {
+        // Note: this emits the PrettyFunction name -- different than what
+        // __builtin_FUNCTION() above returns!
+        const auto *CurDecl = dyn_cast<Decl>(Context);
+        Value.getStructField(F->getFieldIndex()) = MakeStringLiteral(
+            CurDecl && !isa<TranslationUnitDecl>(CurDecl)
+                ? StringRef(PredefinedExpr::ComputeName(
+                      PredefinedExpr::PrettyFunction, CurDecl))
+                : "");
+      } else if (Name == "_M_line") {
+        QualType Ty = F->getType();
+        llvm::APSInt IntVal(Ctx.getIntWidth(Ty),
+                            Ty->hasUnsignedIntegerRepresentation());
+        IntVal = PLoc.getLine();
+        Value.getStructField(F->getFieldIndex()) = APValue(IntVal);
+      } else if (Name == "_M_column") {
+        QualType Ty = F->getType();
+        llvm::APSInt IntVal(Ctx.getIntWidth(Ty),
+                            Ty->hasUnsignedIntegerRepresentation());
+        IntVal = PLoc.getColumn();
+        Value.getStructField(F->getFieldIndex()) = APValue(IntVal);
+      }
+    }
+
+    UnnamedGlobalConstantDecl *GV =
+        Ctx.getUnnamedGlobalConstantDecl(getType()->getPointeeType(), Value);
+
+    return APValue(GV, CharUnits::Zero(), ArrayRef<APValue::LValuePathEntry>{},
+                   false);
   }
   }
   llvm_unreachable("unhandled case");
@@ -2516,8 +2511,12 @@ bool Expr::isReadIfDiscardedInCPlusPlus11() const {
   }
 
   // Objective-C++ extensions to the rule.
-  if (isa<PseudoObjectExpr>(E) || isa<ObjCIvarRefExpr>(E))
+  if (isa<ObjCIvarRefExpr>(E))
     return true;
+  if (const auto *POE = dyn_cast<PseudoObjectExpr>(E)) {
+    if (isa<ObjCPropertyRefExpr, ObjCSubscriptRefExpr>(POE->getSyntacticForm()))
+      return true;
+  }
 
   return false;
 }
@@ -2767,23 +2766,35 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
   }
 
   case ObjCPropertyRefExprClass:
+  case ObjCSubscriptRefExprClass:
     WarnE = this;
     Loc = getExprLoc();
     R1 = getSourceRange();
     return true;
 
   case PseudoObjectExprClass: {
-    const PseudoObjectExpr *PO = cast<PseudoObjectExpr>(this);
+    const auto *POE = cast<PseudoObjectExpr>(this);
 
-    // Only complain about things that have the form of a getter.
-    if (isa<UnaryOperator>(PO->getSyntacticForm()) ||
-        isa<BinaryOperator>(PO->getSyntacticForm()))
-      return false;
+    // For some syntactic forms, we should always warn.
+    if (isa<ObjCPropertyRefExpr, ObjCSubscriptRefExpr>(
+            POE->getSyntacticForm())) {
+      WarnE = this;
+      Loc = getExprLoc();
+      R1 = getSourceRange();
+      return true;
+    }
 
-    WarnE = this;
-    Loc = getExprLoc();
-    R1 = getSourceRange();
-    return true;
+    // For others, we should never warn.
+    if (auto *BO = dyn_cast<BinaryOperator>(POE->getSyntacticForm()))
+      if (BO->isAssignmentOp())
+        return false;
+    if (auto *UO = dyn_cast<UnaryOperator>(POE->getSyntacticForm()))
+      if (UO->isIncrementDecrementOp())
+        return false;
+
+    // Otherwise, warn if the result expression would warn.
+    const Expr *Result = POE->getResultExpr();
+    return Result && Result->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
   }
 
   case StmtExprClass: {
@@ -3395,15 +3406,19 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
 }
 
 bool CallExpr::isBuiltinAssumeFalse(const ASTContext &Ctx) const {
-  const FunctionDecl* FD = getDirectCallee();
-  if (!FD || (FD->getBuiltinID() != Builtin::BI__assume &&
-              FD->getBuiltinID() != Builtin::BI__builtin_assume))
+  unsigned BuiltinID = getBuiltinCallee();
+  if (BuiltinID != Builtin::BI__assume &&
+      BuiltinID != Builtin::BI__builtin_assume)
     return false;
 
   const Expr* Arg = getArg(0);
   bool ArgVal;
   return !Arg->isValueDependent() &&
          Arg->EvaluateAsBooleanCondition(ArgVal, Ctx) && !ArgVal;
+}
+
+bool CallExpr::isCallToStdMove() const {
+  return getBuiltinCallee() == Builtin::BImove;
 }
 
 namespace {

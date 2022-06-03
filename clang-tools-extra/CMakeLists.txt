@@ -14,7 +14,9 @@ add_subdirectory(clang-doc)
 add_subdirectory(clang-include-fixer)
 add_subdirectory(clang-move)
 add_subdirectory(clang-query)
+add_subdirectory(include-cleaner)
 add_subdirectory(pp-trace)
+add_subdirectory(pseudo)
 add_subdirectory(tool-template)
 
 # Add the common testsuite after all the tools.

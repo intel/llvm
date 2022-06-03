@@ -48,8 +48,10 @@ add_entrypoint_object(
     fmaf.h
   DEPENDS
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fma
   COMPILE_OPTIONS
-    -O2
+    -O3
+    -mfma
 )
 
 add_entrypoint_object(
@@ -60,8 +62,10 @@ add_entrypoint_object(
     fma.h
   DEPENDS
     libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.fma
   COMPILE_OPTIONS
-    -O2
+    -O3
+    -mfma
 )
 
 add_math_entrypoint_object(ceil)

@@ -6,10 +6,11 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 // TODO FMT Evaluate gcc-11 status
 // UNSUPPORTED: gcc-11
+// TODO FMT Investigate AppleClang ICE
+// UNSUPPORTED: apple-clang-13
 
 // <format>
 
@@ -24,10 +25,11 @@
 
 #include "test_macros.h"
 #include "format_tests.h"
+#include "string_literal.h"
 
-auto test = []<class CharT, class... Args>(std::basic_string_view<CharT> expected, std::basic_string_view<CharT> fmt,
-                                           const Args&... args) {
-  size_t size = std::formatted_size(fmt, args...);
+auto test = []<string_literal fmt, class CharT, class... Args>(std::basic_string_view<CharT> expected,
+                                                               const Args&... args) constexpr {
+  size_t size = std::formatted_size(fmt.template sv<CharT>(), args...);
   assert(size == expected.size());
 };
 

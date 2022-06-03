@@ -4759,7 +4759,7 @@ bool MasmParser::emitAlignTo(int64_t Alignment) {
     // directive.
     const MCSection *Section = getStreamer().getCurrentSectionOnly();
     assert(Section && "must have section to emit alignment");
-    if (Section->UseCodeAlign()) {
+    if (Section->useCodeAlign()) {
       getStreamer().emitCodeAlignment(Alignment, &getTargetParser().getSTI(),
                                       /*MaxBytesToEmit=*/0);
     } else {
@@ -4907,8 +4907,8 @@ bool MasmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
     if (HasMD5) {
       MD5::MD5Result Sum;
       for (unsigned i = 0; i != 8; ++i) {
-        Sum.Bytes[i] = uint8_t(MD5Hi >> ((7 - i) * 8));
-        Sum.Bytes[i + 8] = uint8_t(MD5Lo >> ((7 - i) * 8));
+        Sum[i] = uint8_t(MD5Hi >> ((7 - i) * 8));
+        Sum[i + 8] = uint8_t(MD5Lo >> ((7 - i) * 8));
       }
       CKMem = Sum;
     }

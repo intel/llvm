@@ -855,6 +855,17 @@ let TargetPrefix = "nvvm" in {
       DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
 
 //
+// Tanh
+//
+
+   def int_nvvm_tanh_approx_f : GCCBuiltin<"__nvvm_tanh_approx_f">,
+        DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+   def int_nvvm_tanh_approx_f16 : GCCBuiltin<"__nvvm_tanh_approx_f16">,
+       DefaultAttrsIntrinsic<[llvm_half_ty], [llvm_half_ty], [IntrNoMem]>;
+   def int_nvvm_tanh_approx_f16x2 : GCCBuiltin<"__nvvm_tanh_approx_f16x2">,
+       DefaultAttrsIntrinsic<[llvm_v2f16_ty], [llvm_v2f16_ty], [IntrNoMem]>;
+
+//
 // Fma
 //
 
@@ -922,6 +933,11 @@ let TargetPrefix = "nvvm" in {
   def int_nvvm_rcp_rp_ftz_f : GCCBuiltin<"__nvvm_rcp_rp_ftz_f">,
       DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
   def int_nvvm_rcp_rp_f : GCCBuiltin<"__nvvm_rcp_rp_f">,
+      DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+
+  def int_nvvm_rcp_approx_f : GCCBuiltin<"__nvvm_rcp_approx_f">,
+      DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+  def int_nvvm_rcp_approx_ftz_f : GCCBuiltin<"__nvvm_rcp_approx_ftz_f">,
       DefaultAttrsIntrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
 
   def int_nvvm_rcp_rn_d : GCCBuiltin<"__nvvm_rcp_rn_d">,
@@ -1364,12 +1380,16 @@ let TargetPrefix = "nvvm" in {
     defm _f: PTXAtomicWithScope2_sem<llvm_anyfloat_ty>;
     defm _i: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   }
+  multiclass PTXAtomicWithScope3_fi {
+    defm _f: PTXAtomicWithScope3_sem<llvm_anyfloat_ty>;
+    defm _i: PTXAtomicWithScope3_sem<llvm_anyint_ty>;
+  }
   defm int_nvvm_ld_gen   : PTXLdWithScope_fi;
   defm int_nvvm_st_gen   : PTXStWithScope_fi;
   defm int_nvvm_atomic_add_gen   : PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_inc_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_dec_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
-  defm int_nvvm_atomic_exch_gen_i: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
+  defm int_nvvm_atomic_exch_gen: PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_xor_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_gen_ui: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
@@ -1377,14 +1397,14 @@ let TargetPrefix = "nvvm" in {
   defm int_nvvm_atomic_min_gen_ui: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_or_gen_i  : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_and_gen_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
-  defm int_nvvm_atomic_cas_gen_i : PTXAtomicWithScope3_sem<llvm_anyint_ty>;
+  defm int_nvvm_atomic_cas_gen : PTXAtomicWithScope3_fi;
 
   defm int_nvvm_ld_shared   : PTXLdWithScope_fi;
   defm int_nvvm_st_shared   : PTXStWithScope_fi;
   defm int_nvvm_atomic_add_shared   : PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_inc_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_dec_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
-  defm int_nvvm_atomic_exch_shared_i: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
+  defm int_nvvm_atomic_exch_shared: PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_xor_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_shared_ui: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
@@ -1392,14 +1412,14 @@ let TargetPrefix = "nvvm" in {
   defm int_nvvm_atomic_min_shared_ui: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_or_shared_i  : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_and_shared_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
-  defm int_nvvm_atomic_cas_shared_i : PTXAtomicWithScope3_sem<llvm_anyint_ty>;
+  defm int_nvvm_atomic_cas_shared : PTXAtomicWithScope3_fi;
   
   defm int_nvvm_ld_global   : PTXLdWithScope_fi;
   defm int_nvvm_st_global   : PTXStWithScope_fi;
   defm int_nvvm_atomic_add_global   : PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_inc_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_dec_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
-  defm int_nvvm_atomic_exch_global_i: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
+  defm int_nvvm_atomic_exch_global: PTXAtomicWithScope2_fi;
   defm int_nvvm_atomic_xor_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_global_ui: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
@@ -1407,7 +1427,7 @@ let TargetPrefix = "nvvm" in {
   defm int_nvvm_atomic_min_global_ui: PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_or_global_i  : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
   defm int_nvvm_atomic_and_global_i : PTXAtomicWithScope2_sem<llvm_anyint_ty>;
-  defm int_nvvm_atomic_cas_global_i : PTXAtomicWithScope3_sem<llvm_anyint_ty>;
+  defm int_nvvm_atomic_cas_global : PTXAtomicWithScope3_fi;
 
 // Bar.Sync
 
@@ -4583,7 +4603,7 @@ def int_nvvm_match_any_sync_i32 :
   GCCBuiltin<"__nvvm_match_any_sync_i32">;
 // match.any.sync.b64 mask, value
 def int_nvvm_match_any_sync_i64 :
-  Intrinsic<[llvm_i64_ty], [llvm_i32_ty, llvm_i64_ty],
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i64_ty],
             [IntrInaccessibleMemOnly, IntrConvergent], "llvm.nvvm.match.any.sync.i64">,
   GCCBuiltin<"__nvvm_match_any_sync_i64">;
 
@@ -4597,7 +4617,7 @@ def int_nvvm_match_all_sync_i32p :
             [IntrInaccessibleMemOnly, IntrConvergent], "llvm.nvvm.match.all.sync.i32p">;
 // match.all.sync.b64p mask, value
 def int_nvvm_match_all_sync_i64p :
-  Intrinsic<[llvm_i64_ty, llvm_i1_ty], [llvm_i32_ty, llvm_i64_ty],
+  Intrinsic<[llvm_i32_ty, llvm_i1_ty], [llvm_i32_ty, llvm_i64_ty],
             [IntrInaccessibleMemOnly, IntrConvergent], "llvm.nvvm.match.all.sync.i64p">;
 
 //

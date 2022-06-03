@@ -129,6 +129,14 @@ int64_t mlirIntegerAttrGetValueInt(MlirAttribute attr) {
   return unwrap(attr).cast<IntegerAttr>().getInt();
 }
 
+int64_t mlirIntegerAttrGetValueSInt(MlirAttribute attr) {
+  return unwrap(attr).cast<IntegerAttr>().getSInt();
+}
+
+uint64_t mlirIntegerAttrGetValueUInt(MlirAttribute attr) {
+  return unwrap(attr).cast<IntegerAttr>().getUInt();
+}
+
 //===----------------------------------------------------------------------===//
 // Bool attribute.
 //===----------------------------------------------------------------------===//
@@ -465,6 +473,13 @@ MlirAttribute mlirDenseElementsAttrDoubleGet(MlirType shapedType,
                                              intptr_t numElements,
                                              const double *elements) {
   return getDenseAttribute(shapedType, numElements, elements);
+}
+MlirAttribute mlirDenseElementsAttrBFloat16Get(MlirType shapedType,
+                                               intptr_t numElements,
+                                               const uint16_t *elements) {
+  size_t bufferSize = numElements * 2;
+  const void *buffer = static_cast<const void *>(elements);
+  return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);
 }
 
 MlirAttribute mlirDenseElementsAttrStringGet(MlirType shapedType,

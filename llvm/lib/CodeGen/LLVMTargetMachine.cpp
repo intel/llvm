@@ -28,9 +28,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 using namespace llvm;
@@ -100,7 +98,7 @@ LLVMTargetMachine::LLVMTargetMachine(const Target &T,
 }
 
 TargetTransformInfo
-LLVMTargetMachine::getTargetTransformInfo(const Function &F) {
+LLVMTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(BasicTTIImpl(this, F));
 }
 
@@ -167,13 +165,26 @@ Expected<std::unique_ptr<MCStreamer>> LLVMTargetMachine::createMCStreamer(
     if (Options.MCOptions.ShowMCEncoding)
       MCE.reset(getTarget().createMCCodeEmitter(MII, Context));
 
+    bool UseDwarfDirectory = false;
+    switch (Options.MCOptions.MCUseDwarfDirectory) {
+    case MCTargetOptions::DisableDwarfDirectory:
+      UseDwarfDirectory = false;
+      break;
+    case MCTargetOptions::EnableDwarfDirectory:
+      UseDwarfDirectory = true;
+      break;
+    case MCTargetOptions::DefaultDwarfDirectory:
+      UseDwarfDirectory = MAI.enableDwarfFileDirectoryDefault();
+      break;
+    }
+
     std::unique_ptr<MCAsmBackend> MAB(
         getTarget().createMCAsmBackend(STI, MRI, Options.MCOptions));
     auto FOut = std::make_unique<formatted_raw_ostream>(Out);
     MCStreamer *S = getTarget().createAsmStreamer(
         Context, std::move(FOut), Options.MCOptions.AsmVerbose,
-        Options.MCOptions.MCUseDwarfDirectory, InstPrinter, std::move(MCE),
-        std::move(MAB), Options.MCOptions.ShowMCInst);
+        UseDwarfDirectory, InstPrinter, std::move(MCE), std::move(MAB),
+        Options.MCOptions.ShowMCInst);
     AsmStreamer.reset(S);
     break;
   }

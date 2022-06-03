@@ -218,6 +218,8 @@ const char *stringifyErrorCode(cl_int error) {
         */
   case PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
     return "Function exists but address is not available";
+  case PI_PLUGIN_SPECIFIC_ERROR:
+    return "The plugin has emitted a backend specific error";
   case PI_COMMAND_EXECUTION_FAILURE:
     return "Command failed to enqueue/execute";
   default:

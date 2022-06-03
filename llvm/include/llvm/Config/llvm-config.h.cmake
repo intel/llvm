@@ -97,9 +97,6 @@
 /* Define to 1 if you have the <sysexits.h> header file. */
 #cmakedefine HAVE_SYSEXITS_H ${HAVE_SYSEXITS_H}
 
-/* Define to 1 to enable the experimental new pass manager by default */
-#cmakedefine01 LLVM_ENABLE_NEW_PASS_MANAGER
-
 /* Define if the xar_open() function is supported on this platform. */
 #cmakedefine LLVM_HAVE_LIBXAR ${LLVM_HAVE_LIBXAR}
 
@@ -111,5 +108,12 @@
 
 /* Define if building LLVM with LLVM_FORCE_USE_OLD_TOOLCHAIN_LIBS */
 #cmakedefine LLVM_FORCE_USE_OLD_TOOLCHAIN ${LLVM_FORCE_USE_OLD_TOOLCHAIN}
+
+/* Define if llvm_unreachable should be optimized with undefined behavior
+ * in non assert builds */
+#cmakedefine01 LLVM_UNREACHABLE_OPTIMIZE
+
+/* Define to 1 if you have the DIA SDK installed, and to 0 if you don't. */
+#cmakedefine01 LLVM_ENABLE_DIA_SDK
 
 #endif

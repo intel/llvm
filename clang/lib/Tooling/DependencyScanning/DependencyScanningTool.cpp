@@ -14,16 +14,11 @@ namespace tooling {
 namespace dependencies {
 
 std::vector<std::string> FullDependencies::getCommandLine(
-    std::function<StringRef(ModuleID)> LookupPCMPath,
-    std::function<const ModuleDeps &(ModuleID)> LookupModuleDeps) const {
+    std::function<StringRef(ModuleID)> LookupPCMPath) const {
   std::vector<std::string> Ret = getCommandLineWithoutModulePaths();
 
-  std::vector<std::string> PCMPaths;
-  std::vector<std::string> ModMapPaths;
-  dependencies::detail::collectPCMAndModuleMapPaths(
-      ClangModuleDeps, LookupPCMPath, LookupModuleDeps, PCMPaths, ModMapPaths);
-  for (const std::string &PCMPath : PCMPaths)
-    Ret.push_back("-fmodule-file=" + PCMPath);
+  for (ModuleID MID : ClangModuleDeps)
+    Ret.push_back(("-fmodule-file=" + LookupPCMPath(MID)).str());
 
   return Ret;
 }
@@ -32,24 +27,18 @@ std::vector<std::string>
 FullDependencies::getCommandLineWithoutModulePaths() const {
   std::vector<std::string> Args = OriginalCommandLine;
 
-  std::vector<std::string> AdditionalArgs =
-      getAdditionalArgsWithoutModulePaths();
-  Args.insert(Args.end(), AdditionalArgs.begin(), AdditionalArgs.end());
-
-  // TODO: Filter out implicit modules leftovers (e.g. "-fmodules-cache-path=").
-
-  return Args;
-}
-
-std::vector<std::string>
-FullDependencies::getAdditionalArgsWithoutModulePaths() const {
-  std::vector<std::string> Args{
-      "-fno-implicit-modules",
-      "-fno-implicit-module-maps",
-  };
-
+  Args.push_back("-fno-implicit-modules");
+  Args.push_back("-fno-implicit-module-maps");
   for (const PrebuiltModuleDep &PMD : PrebuiltModuleDeps)
     Args.push_back("-fmodule-file=" + PMD.PCMFile);
+
+  // This argument is unused in explicit compiles.
+  llvm::erase_if(Args, [](const std::string &Arg) {
+    return Arg.find("-fmodules-cache-path=") == 0;
+  });
+
+  // TODO: Filter out the remaining implicit modules leftovers
+  // (e.g. "-fmodules-prune-interval=" or "-fmodules-prune-after=").
 
   return Args;
 }

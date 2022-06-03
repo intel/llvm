@@ -50,8 +50,14 @@ def CharType : NamedType<"char">;
 
 // Common types
 def VoidPtr : PtrType<VoidType>;
+def VoidPtrPtr : PtrType<VoidPtr>;
+def RestrictedVoidPtrPtr : RestrictedPtrType<VoidPtr>;
 def ConstVoidPtr : ConstType<VoidPtr>;
+
 def SizeTType : NamedType<"size_t">;
+def SizeTPtr : PtrType<SizeTType>;
+def RestrictedSizeTPtr : RestrictedPtrType<SizeTType>;
+
 def LongDoublePtr : PtrType<LongDoubleType>;
 
 def IntMaxTType : NamedType<"intmax_t">;
@@ -84,6 +90,7 @@ def ThrdTType : NamedType<"thrd_t">;
 def ThrdTTypePtr : PtrType<ThrdTType>;
 
 def IntPtr : PtrType<IntType>;
+def RestrictedIntPtr : RestrictedPtrType<IntType>;
 def FloatPtr : PtrType<FloatType>;
 def DoublePtr : PtrType<DoubleType>;
 
@@ -96,9 +103,12 @@ def QSortCompareT : NamedType<"__qsortcompare_t">;
 
 def AtexitHandlerT : NamedType<"__atexithandler_t">;
 
+def FILE : NamedType<"FILE">;
+def FILEPtr : PtrType<FILE>;
+def FILERestrictedPtr : RestrictedPtrType<FILE>;
+
 //added because __assert_fail needs it.
 def UnsignedType : NamedType<"unsigned">;
-
 
 class Macro<string name> {
   string Name = name;

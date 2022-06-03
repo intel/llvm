@@ -1,5 +1,5 @@
 // REQUIRES: amdgpu-registered-target
-// RUN: %clang_cc1 -cl-std=CL2.0 -triple amdgcn-unknown-unknown -S -emit-llvm -o - %s | FileCheck -enable-var-scope %s
+// RUN: %clang_cc1 -no-opaque-pointers -cl-std=CL2.0 -triple amdgcn-unknown-unknown -S -emit-llvm -o - %s | FileCheck -enable-var-scope %s
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
@@ -421,6 +421,15 @@ void test_s_decperflevel()
 {
   __builtin_amdgcn_s_decperflevel(1);
   __builtin_amdgcn_s_decperflevel(15);
+}
+
+// CHECK-LABEL: @test_s_setprio
+// CHECK: call void @llvm.amdgcn.s.setprio(i16 0)
+// CHECK: call void @llvm.amdgcn.s.setprio(i16 3)
+void test_s_setprio()
+{
+  __builtin_amdgcn_s_setprio(0);
+  __builtin_amdgcn_s_setprio(3);
 }
 
 // CHECK-LABEL: @test_cubeid(

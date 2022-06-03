@@ -185,6 +185,10 @@ file_magic llvm::identify_magic(StringRef Magic) {
   case 0x84: // Alpha 64-bit
   case 0x66: // MPS R4000 Windows
   case 0x50: // mc68K
+    if (startswith(Magic, "\x50\xed\x55\xba"))
+      return file_magic::cuda_fatbinary;
+    LLVM_FALLTHROUGH;
+
   case 0x4c: // 80386 Windows
   case 0xc4: // ARMNT Windows
     if (Magic[1] == 0x01)
@@ -220,6 +224,11 @@ file_magic llvm::identify_magic(StringRef Magic) {
   case 0x2d: // YAML '-'
     if (startswith(Magic, "--- !tapi") || startswith(Magic, "---\narchs:"))
       return file_magic::tapi_file;
+    break;
+  
+  case 'D': // DirectX container file - DXBC
+    if (startswith(Magic, "DXBC"))
+      return file_magic::dxcontainer_object;
     break;
 
   default:

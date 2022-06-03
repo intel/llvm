@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 // REQUIRES: stdlib=libc++
 
@@ -54,7 +53,7 @@ constexpr bool test(CPO& o, Args&&...) {
 
 int *p;
 int a[10];
-//auto odd = [](int x) { return x % 2 != 0; };
+auto odd = [](int x) { return x % 2 != 0; };
 //auto triple = [](int x) { return 3*x; };
 //auto plus = [](int x, int y) { return x == y; };
 //std::mt19937 g;
@@ -70,18 +69,18 @@ int a[10];
 //static_assert(test(std::ranges::copy_backward, a, a));
 //static_assert(test(std::ranges::copy_if, a, a, odd));
 //static_assert(test(std::ranges::copy_n, a, 10, a));
-//static_assert(test(std::ranges::count, a, 42));
-//static_assert(test(std::ranges::count_if, a, odd));
+static_assert(test(std::ranges::count, a, 42));
+static_assert(test(std::ranges::count_if, a, odd));
 //static_assert(test(std::ranges::ends_with, a, a));
 //static_assert(test(std::ranges::equal, a, a));
 //static_assert(test(std::ranges::equal_range, a, 42));
 //static_assert(test(std::ranges::fill, a, 42));
 //static_assert(test(std::ranges::fill_n, a, 10, 42));
-//static_assert(test(std::ranges::find, a, 42));
+static_assert(test(std::ranges::find, a, 42));
 //static_assert(test(std::ranges::find_end, a, a));
 //static_assert(test(std::ranges::find_first_of, a, a));
-//static_assert(test(std::ranges::find_if, a, odd));
-//static_assert(test(std::ranges::find_if_not, a, odd));
+static_assert(test(std::ranges::find_if, a, odd));
+static_assert(test(std::ranges::find_if_not, a, odd));
 //static_assert(test(std::ranges::for_each, a, odd));
 //static_assert(test(std::ranges::for_each_n, a, 10, odd));
 //static_assert(test(std::ranges::generate, a, 42));
@@ -98,13 +97,13 @@ int a[10];
 //static_assert(test(std::ranges::lower_bound, a, 42));
 //static_assert(test(std::ranges::make_heap, a));
 //static_assert(test(std::ranges::max, a));
-//static_assert(test(std::ranges::max_element, a));
+static_assert(test(std::ranges::max_element, a));
 //static_assert(test(std::ranges::merge, a, a, a));
-//static_assert(test(std::ranges::min, a));
+static_assert(test(std::ranges::min, a));
 static_assert(test(std::ranges::min_element, a));
-//static_assert(test(std::ranges::minmax, a));
-//static_assert(test(std::ranges::minmax_element, a));
-//static_assert(test(std::ranges::mismatch, a, a));
+static_assert(test(std::ranges::minmax, a));
+static_assert(test(std::ranges::minmax_element, a));
+static_assert(test(std::ranges::mismatch, a, a));
 //static_assert(test(std::ranges::move, a, a));
 //static_assert(test(std::ranges::move_backward, a, a));
 //static_assert(test(std::ranges::next_permutation, a));

@@ -10,11 +10,15 @@ on:
     paths:
       - 'devops/containers/**'
       - 'devops/dependencies.json'
+      - 'devops/scripts/install_drivers.sh'
+      - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl_containers.yaml'
   pull_request:
     paths:
       - 'devops/containers/**'
       - 'devops/dependencies.json'
+      - 'devops/scripts/install_drivers.sh'
+      - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl_containers.yaml'
 
 jobs:

@@ -99,7 +99,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
 }
 
 event_impl::event_impl(HostEventState State)
-    : MIsFlushed(true), MState(State) {}
+    : MIsInitialized(false), MIsFlushed(true), MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
@@ -123,11 +123,11 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
         "clEvent.",
         PI_INVALID_CONTEXT);
   }
-
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
+event_impl::event_impl(const QueueImplPtr &Queue)
+    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
+                                         Queue->MIsProfilingEnabled} {
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
@@ -136,10 +136,8 @@ event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
       if (!MHostProfilingInfo)
         throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
     }
-
     return;
   }
-
   MState.store(HES_Complete);
 }
 
@@ -250,16 +248,23 @@ void event_impl::cleanupCommand(
     detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
+void event_impl::checkProfilingPreconditions() const {
+  if (!MIsProfilingEnabled) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "get_profiling_info() can't be used without set "
+                          "'enable_profiling' queue property");
+  }
+}
+
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
+  checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<
           info::event_profiling::command_submit>::get(this->getHandleRef(),
                                                       this->getPlugin());
-    // TODO this should throw an exception if the queue the dummy event is
-    // bound to does not support profiling info.
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -271,13 +276,12 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_start>() const {
+  checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<
           info::event_profiling::command_start>::get(this->getHandleRef(),
                                                      this->getPlugin());
-    // TODO this should throw an exception if the queue the dummy event is
-    // bound to does not support profiling info.
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -289,12 +293,11 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
 template <>
 cl_ulong
 event_impl::get_profiling_info<info::event_profiling::command_end>() const {
+  checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
       return get_event_profiling_info<info::event_profiling::command_end>::get(
           this->getHandleRef(), this->getPlugin());
-    // TODO this should throw an exception if the queue the dummy event is
-    // bound to does not support profiling info.
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -337,7 +340,18 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() const {
+  if (!MContext) {
+    static context SyclContext;
+    MContext = getSyclObjImpl(SyclContext);
+    MHostEvent = MContext->is_host();
+    MOpenCLInterop = !MHostEvent;
+  }
   auto Plugin = getPlugin();
+  if (!MIsInitialized) {
+    MIsInitialized = true;
+    auto TempContext = MContext.get()->getHandleRef();
+    Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+  }
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
@@ -393,6 +407,16 @@ void event_impl::cleanupDependencyEvents() {
   std::lock_guard<std::mutex> Lock(MMutex);
   MPreparedDepsEvents.clear();
   MPreparedHostDepsEvents.clear();
+}
+
+void event_impl::cleanDepEventsThroughOneLevel() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  for (auto &Event : MPreparedDepsEvents) {
+    Event->cleanupDependencyEvents();
+  }
+  for (auto &Event : MPreparedHostDepsEvents) {
+    Event->cleanupDependencyEvents();
+  }
 }
 
 } // namespace detail

@@ -51,19 +51,11 @@ struct FullDependencies {
   ///                      arguments and the "-o" argument. It needs to return
   ///                      a path for where the PCM for the given module is to
   ///                      be located.
-  /// \param LookupModuleDeps This function is called to collect the full
-  ///                         transitive set of dependencies for this
-  ///                         compilation.
-  std::vector<std::string> getCommandLine(
-      std::function<StringRef(ModuleID)> LookupPCMPath,
-      std::function<const ModuleDeps &(ModuleID)> LookupModuleDeps) const;
+  std::vector<std::string>
+  getCommandLine(std::function<StringRef(ModuleID)> LookupPCMPath) const;
 
   /// Get the full command line, excluding -fmodule-file=" arguments.
   std::vector<std::string> getCommandLineWithoutModulePaths() const;
-
-  /// Get additional arguments suitable for appending to the original Clang
-  /// command line, excluding "-fmodule-file=" arguments.
-  std::vector<std::string> getAdditionalArgsWithoutModulePaths() const;
 };
 
 struct FullDependenciesResult {

@@ -47,7 +47,7 @@ objects and `copy_to` intrinsics are used which are avaiable only in the ESIMD e
 Full runnable code sample can be found on the
 [github repo](https://github.com/intel/llvm-test-suite/blob/intel/SYCL/ESIMD/vadd_usm.cpp).
 
-#### Compiling and running ESIMD code.
+#### Compiling and running ESIMD code
 
 Code that uses the ESIMD extension can be compiled and run using the same commands
 as standard SYCL:
@@ -69,6 +69,12 @@ and Windows platforms are supported, including OpenCL and Level Zero backends.
 Regular SYCL and ESIMD kernels can co-exist in the same translation unit and in
 the same application, however interoperability (e.g. invocation of ESIMD
 functions from a standard SYCL code) between them is not yet supported.
+
+#### ESIMD_EMULATOR backend
+
+Under Linux environment, the same resulting executable file can be run
+on CPU under emulation mode without Intel GPU. For details, check
+[ESIMD_EMULATOR bakend] (esimd_emulator.md)
 
 #### Restrictions
 
@@ -95,6 +101,7 @@ done via explicit APIs; e.g. `sycl::ext::intel::experimental::esimd::block_store
 - `sycl::sampler` and `sycl::stream` classes
 
 ##### Other restrictions:
-- Only Intel GPU device is supported
+
+- Only Intel GPU device is supported.
 - Interoperability between regular SYCL and ESIMD kernels is not yet supported.
   I.e., it's not possible to invoke an ESIMD kernel from SYCL kernel and vice-versa.

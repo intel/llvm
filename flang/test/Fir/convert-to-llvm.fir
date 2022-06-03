@@ -1288,7 +1288,8 @@ func @select_case_logical(%arg0: !fir.ref<!fir.logical<4>>) {
 // CHECK-LABEL: llvm.func @select_case_logical(
 // CHECK-SAME:                                 %[[ARG0:.*]]: !llvm.ptr<i32>
 // CHECK:         %[[LOAD_ARG0:.*]] = llvm.load %[[ARG0]] : !llvm.ptr<i32>
-// CHECK:         %[[SELECT_VALUE:.*]] = llvm.trunc %[[LOAD_ARG0]] : i32 to i1
+// CHECK:         %[[CST_ZERO:.*]] = llvm.mlir.constant(0 : i64) : i32
+// CHECK:         %[[SELECT_VALUE:.*]] = llvm.icmp "ne" %[[LOAD_ARG0]], %[[CST_ZERO]] : i32
 // CHECK:         %[[CST_FALSE:.*]] = llvm.mlir.constant(false) : i1
 // CHECK:         %[[CST_TRUE:.*]] = llvm.mlir.constant(true) : i1
 // CHECK:         %[[CMPEQ:.*]] = llvm.icmp "eq" %[[SELECT_VALUE]], %[[CST_FALSE]] : i1
@@ -1618,12 +1619,14 @@ func @embox_typecode4(%arg0: !fir.ref<!fir.logical<1>>) {
 // to 1 meaning the addendum is present (true) and the addendum values are
 // inserted.
 
+fir.global linkonce @_QMtest_dinitE.dt.tseq constant : i8
+
 func @embox1(%arg0: !fir.ref<!fir.type<_QMtest_dinitTtseq{i:i32}>>) {
   %0 = fir.embox %arg0() : (!fir.ref<!fir.type<_QMtest_dinitTtseq{i:i32}>>) -> !fir.box<!fir.type<_QMtest_dinitTtseq{i:i32}>>
   return
 }
 
-// CHECK: llvm.mlir.global available_externally constant @_QMtest_dinitE.dt.tseq() : i8
+// CHECK: llvm.mlir.global linkonce constant @_QMtest_dinitE.dt.tseq() : i8
 // CHECK-LABEL: llvm.func @embox1
 // CHECK:         %[[TYPE_CODE:.*]] = llvm.mlir.constant(42 : i32) : i32
 // CHECK:         %[[TYPE_CODE_I8:.*]] = llvm.trunc %[[TYPE_CODE]] : i32 to i8
@@ -1735,12 +1738,12 @@ func @xembox0(%arg0: !fir.ref<!fir.array<?xi32>>) {
 // CHECK:         %[[ADJUSTED_OFFSET:.*]] = llvm.sub %[[C0]], %[[C0]]  : i64
 // CHECK:         %[[DIM_OFFSET:.*]] = llvm.mul %[[ADJUSTED_OFFSET]], %[[ONE]]  : i64
 // CHECK:         %[[PTR_OFFSET:.*]] = llvm.add %[[DIM_OFFSET]], %[[ZERO]]  : i64
-// CHECK:         %[[BOX7:.*]] = llvm.insertvalue %[[ZERO]], %[[BOX6]][7 : i32, 0 : i32, 0 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
 // CHECK:         %[[EXTENT0:.*]] = llvm.sub %[[C0]], %[[C0]]  : i64
 // CHECK:         %[[EXTENT1:.*]] = llvm.add %[[EXTENT0]], %[[C0]]  : i64
 // CHECK:         %[[EXTENT2:.*]] = llvm.sdiv %[[EXTENT1]], %[[C0]]  : i64
 // CHECK:         %[[EXTENT_CMP:.*]] = llvm.icmp "sgt" %[[EXTENT2]], %[[ZERO]] : i64
 // CHECK:         %[[EXTENT:.*]] = llvm.select %[[EXTENT_CMP]], %[[EXTENT2]], %[[ZERO]] : i1, i64
+// CHECK:         %[[BOX7:.*]] = llvm.insertvalue %[[ONE]], %[[BOX6]][7 : i32, 0 : i32, 0 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
 // CHECK:         %[[BOX8:.*]] = llvm.insertvalue %[[EXTENT]], %[[BOX7]][7 : i32, 0 : i32, 1 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
 // CHECK:         %[[STRIDE:.*]] = llvm.mul %[[ELEM_LEN_I64]], %[[C0]]  : i64
 // CHECK:         %[[BOX9:.*]] = llvm.insertvalue %[[STRIDE]], %[[BOX8]][7 : i32, 0 : i32, 2 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
@@ -1834,12 +1837,12 @@ func private @_QPxb(!fir.box<!fir.array<?x?xf64>>)
 // CHECK:         %[[ADJUSTED_OFFSET:.*]] = llvm.sub %[[C2]], %[[SH1]] : i64
 // CHECK:         %[[DIM_OFFSET:.*]] = llvm.mul %[[ADJUSTED_OFFSET]], %[[ONE]]  : i64
 // CHECK:         %[[PTR_OFFSET:.*]] = llvm.add %[[DIM_OFFSET]], %[[ZERO]]  : i64
-// CHECK:         %[[BOX7:.*]] = llvm.insertvalue %[[ZERO]], %[[BOX6]][7 : i32, 0 : i32, 0 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
 // CHECK:         %[[EXTENT0:.*]] = llvm.sub %[[ARG0]], %[[C2]]  : i64
 // CHECK:         %[[EXTENT1:.*]] = llvm.add %[[EXTENT0]], %[[C1]]  : i64
 // CHECK:         %[[EXTENT2:.*]] = llvm.sdiv %[[EXTENT1]], %[[C1]]  : i64
 // CHECK:         %[[EXTENT_CMP:.*]] = llvm.icmp "sgt" %[[EXTENT2]], %[[ZERO]] : i64
 // CHECK:         %[[EXTENT:.*]] = llvm.select %[[EXTENT_CMP]], %[[EXTENT2]], %[[ZERO]] : i1, i64
+// CHECK:         %[[BOX7:.*]] = llvm.insertvalue %[[ONE]], %[[BOX6]][7 : i32, 0 : i32, 0 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
 // CHECK:         %[[BOX8:.*]] = llvm.insertvalue %[[EXTENT]], %[[BOX7]][7 : i32, 0 : i32, 1 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
 // CHECK:         %[[STRIDE:.*]] = llvm.mul %[[ELEM_LEN_I64]], %[[C1]]  : i64
 // CHECK:         %[[BOX9:.*]] = llvm.insertvalue %[[STRIDE]], %[[BOX8]][7 : i32, 0 : i32, 2 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
@@ -1848,12 +1851,12 @@ func private @_QPxb(!fir.box<!fir.array<?x?xf64>>)
 // CHECK:         %[[ADJUSTED_OFFSET:.*]] = llvm.sub %[[C4]], %[[SH2]]  : i64
 // CHECK:         %[[DIM_OFFSET:.*]] = llvm.mul %[[ADJUSTED_OFFSET]], %[[PREV_PTROFF]]  : i64
 // CHECK:         %[[PTR_OFFSET0:.*]] = llvm.add %[[DIM_OFFSET]], %[[PTR_OFFSET]]  : i64
-// CHECK:         %[[BOX10:.*]] = llvm.insertvalue %[[ZERO]], %[[BOX9]][7 : i32, 1 : i32, 0 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
 // CHECK:         %[[EXT_SUB:.*]] = llvm.sub %[[N]], %[[C4]]  : i64
 // CHECK:         %[[EXT_ADD:.*]] = llvm.add %[[EXT_SUB]], %[[C1]]  : i64
 // CHECK:         %[[EXT_SDIV:.*]] = llvm.sdiv %[[EXT_ADD]], %[[C1]]  : i64
 // CHECK:         %[[EXT_ICMP:.*]] = llvm.icmp "sgt" %[[EXT_SDIV]], %[[ZERO]] : i64
 // CHECK:         %[[EXT_SELECT:.*]] = llvm.select %[[EXT_ICMP]], %[[EXT_SDIV]], %[[ZERO]] : i1, i64
+// CHECK:         %[[BOX10:.*]] = llvm.insertvalue %[[ONE]], %[[BOX9]][7 : i32, 1 : i32, 0 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
 // CHECK:         %[[BOX11:.*]] = llvm.insertvalue %[[EXT_SELECT]], %[[BOX10]][7 : i32, 1 : i32, 1 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
 // CHECK:         %[[STRIDE_MUL:.*]] = llvm.mul %[[PREV_DIM]], %[[C1]]  : i64
 // CHECK:         %[[BOX12:.*]] = llvm.insertvalue %[[STRIDE_MUL]], %[[BOX11]][7 : i32, 1 : i32, 2 : i32] : !llvm.struct<(ptr<f64>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<2 x array<3 x i64>>)>
@@ -1915,12 +1918,12 @@ func private @_QPtest_dt_callee(%arg0: !fir.box<!fir.array<?xi32>>)
 // CHECK:         %[[GEP_DTYPE_SIZE:.*]] = llvm.getelementptr %[[ELE_TYPE]][%[[C1_0]]] : (!llvm.ptr<struct<"_QFtest_dt_sliceTt", (i32, i32)>>, i64) -> !llvm.ptr<struct<"_QFtest_dt_sliceTt", (i32, i32)>>
 // CHECK:         %[[PTRTOINT_DTYPE_SIZE:.*]] = llvm.ptrtoint %[[GEP_DTYPE_SIZE]] : !llvm.ptr<struct<"_QFtest_dt_sliceTt", (i32, i32)>> to i64
 // CHECK:         %[[ADJUSTED_OFFSET:.*]] = llvm.sub %3, %30  : i64
-// CHECK:         %[[BOX7:.*]] = llvm.insertvalue %[[ZERO]], %[[BOX6]][7 : i32, 0 : i32, 0 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
 // CHECK:         %[[EXT_SUB:.*]] = llvm.sub %[[C10]], %[[C1]]  : i64
 // CHECK:         %[[EXT_ADD:.*]] = llvm.add %[[EXT_SUB]], %[[C2]]  : i64
 // CHECK:         %[[EXT_SDIV:.*]] = llvm.sdiv %[[EXT_ADD]], %[[C2]]  : i64
 // CHECK:         %[[EXT_ICMP:.*]] = llvm.icmp "sgt" %[[EXT_SDIV]], %[[ZERO]] : i64
 // CHECK:         %[[EXT_SELECT:.*]] = llvm.select %[[EXT_ICMP]], %[[EXT_SDIV]], %[[ZERO]] : i1, i64
+// CHECK:         %[[BOX7:.*]] = llvm.insertvalue %[[ONE]], %[[BOX6]][7 : i32, 0 : i32, 0 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
 // CHECK:         %[[BOX8:.*]] = llvm.insertvalue %[[EXT_SELECT]], %[[BOX7]][7 : i32, 0 : i32, 1 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>
 // CHECK:         %[[STRIDE_MUL:.*]] = llvm.mul %[[PTRTOINT_DTYPE_SIZE]], %[[C2]]  : i64
 // CHECK:         %[[BOX9:.*]] = llvm.insertvalue %[[STRIDE_MUL]], %[[BOX8]][7 : i32, 0 : i32, 2 : i32] : !llvm.struct<(ptr<i32>, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, i{{.*}}, array<1 x array<3 x i64>>)>

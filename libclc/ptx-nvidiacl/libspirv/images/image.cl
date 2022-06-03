@@ -58,74 +58,74 @@ int __clc__sampled_image3d_unpack_sampler(__ocl_sampled_image3d_ro_t) __asm(
 
 // NVVM helpers
 struct out_16
-__nvvm_suld_1d_v4i16_trap_s(long, int) __asm("llvm.nvvm.suld.1d.v4i16.trap");
+__nvvm_suld_1d_v4i16_trap_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_trap_s");
 struct out_16
 __nvvm_suld_2d_v4i16_trap_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i16.trap");
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_trap");
 struct out_16
 __nvvm_suld_3d_v4i16_trap_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i16.trap");
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_trap");
 struct out_32
-__nvvm_suld_1d_v4i32_trap_s(long, int) __asm("llvm.nvvm.suld.1d.v4i32.trap");
+__nvvm_suld_1d_v4i32_trap_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_trap");
 struct out_32
 __nvvm_suld_2d_v4i32_trap_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i32.trap");
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_trap");
 struct out_32
 __nvvm_suld_3d_v4i32_trap_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i32.trap");
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_trap");
 
 struct out_16
-__nvvm_suld_1d_v4i16_clamp_s(long, int) __asm("llvm.nvvm.suld.1d.v4i16.clamp");
+__nvvm_suld_1d_v4i16_clamp_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_clamp");
 struct out_16
 __nvvm_suld_2d_v4i16_clamp_s(long, int,
-                             int) __asm("llvm.nvvm.suld.2d.v4i16.clamp");
+                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_clamp");
 struct out_16
 __nvvm_suld_3d_v4i16_clamp_s(long, int, int,
-                             int) __asm("llvm.nvvm.suld.3d.v4i16.clamp");
+                             int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_clamp");
 struct out_32
-__nvvm_suld_1d_v4i32_clamp_s(long, int) __asm("llvm.nvvm.suld.1d.v4i32.clamp");
+__nvvm_suld_1d_v4i32_clamp_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_clamp");
 struct out_32
 __nvvm_suld_2d_v4i32_clamp_s(long, int,
-                             int) __asm("llvm.nvvm.suld.2d.v4i32.clamp");
+                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_clamp");
 struct out_32
 __nvvm_suld_3d_v4i32_clamp_s(long, int, int,
-                             int) __asm("llvm.nvvm.suld.3d.v4i32.clamp");
+                             int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_clamp");
 
 struct out_16
-__nvvm_suld_1d_v4i16_zero_s(long, int) __asm("llvm.nvvm.suld.1d.v4i16.zero");
+__nvvm_suld_1d_v4i16_zero_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_zero");
 struct out_16
 __nvvm_suld_2d_v4i16_zero_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i16.zero");
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_zero");
 struct out_16
 __nvvm_suld_3d_v4i16_zero_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i16.zero");
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_zero");
 struct out_32
-__nvvm_suld_1d_v4i32_zero_s(long, int) __asm("llvm.nvvm.suld.1d.v4i32.zero");
+__nvvm_suld_1d_v4i32_zero_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_zero");
 struct out_32
 __nvvm_suld_2d_v4i32_zero_s(long, int,
-                            int) __asm("llvm.nvvm.suld.2d.v4i32.zero");
+                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_zero");
 struct out_32
 __nvvm_suld_3d_v4i32_zero_s(long, int, int,
-                            int) __asm("llvm.nvvm.suld.3d.v4i32.zero");
+                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_zero");
 
 struct out_16
 __nvvm_suld_1d_v4i16_clamp(read_only image1d_t,
-                           int) __asm("llvm.nvvm.suld.1d.v4i16.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_clamp");
 struct out_16
 __nvvm_suld_2d_v4i16_clamp(read_only image2d_t, int,
-                           int) __asm("llvm.nvvm.suld.2d.v4i16.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_clamp");
 struct out_16
 __nvvm_suld_3d_v4i16_clamp(read_only image3d_t, int, int,
-                           int) __asm("llvm.nvvm.suld.3d.v4i16.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_clamp");
 struct out_32
 __nvvm_suld_1d_v4i32_clamp(read_only image1d_t,
-                           int) __asm("llvm.nvvm.suld.1d.v4i32.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_clamp");
 struct out_32
 __nvvm_suld_2d_v4i32_clamp(read_only image2d_t, int,
-                           int) __asm("llvm.nvvm.suld.2d.v4i32.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_clamp");
 struct out_32
 __nvvm_suld_3d_v4i32_clamp(read_only image3d_t, int, int,
-                           int) __asm("llvm.nvvm.suld.3d.v4i32.clamp");
+                           int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_clamp");
 
 void __nvvm_sust_1d_v4i16_clamp(write_only image1d_t, int, short, short, short,
                                 short) __asm("llvm.nvvm.sust.b.1d.v4i16.clamp");

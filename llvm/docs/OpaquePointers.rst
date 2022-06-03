@@ -18,7 +18,8 @@ Address spaces are still used to distinguish between different kinds of pointers
 where the distinction is relevant for lowering (e.g. data vs function pointers
 have different sizes on some architectures). Opaque pointers are not changing
 anything related to address spaces and lowering. For more information, see
-`DataLayout <LangRef.html#langref-datalayout>`_.
+`DataLayout <LangRef.html#langref-datalayout>`_. Opaque pointers in non-default
+address space are spelled ``ptr addrspace(N)``.
 
 Issues with explicit pointee types
 ==================================
@@ -64,7 +65,9 @@ During the transition phase, LLVM can be used in two modes: In typed pointer
 mode (currently still the default) all pointer types have a pointee type and
 opaque pointers cannot be used. In opaque pointers mode, all pointers are
 opaque. The opaque pointer mode can be enabled using ``-opaque-pointers`` in
-LLVM tools like ``opt``, or ``-mllvm -opaque-pointers`` in clang.
+LLVM tools like ``opt``, or ``-Xclang -opaque-pointers`` in clang. Additionally,
+opaque pointer mode is automatically enabled for IR and bitcode files that use
+the ``ptr`` type.
 
 In opaque pointer mode, all typed pointers used in IR, bitcode, or created
 using ``PointerType::get()`` and similar APIs are automatically converted into
@@ -191,24 +194,11 @@ on a pointer type.
 Transition State
 ================
 
-As of Febuary 2022 large parts of LLVM support opaque pointers. It is possible
-to build a lot of C and C++ code in opaque pointer mode, both with and without
-optimization, and produce working binaries. However, thes are still some major
-open problems:
+As of April 2022 both LLVM and Clang have complete support for opaque pointers,
+and opaque pointers are enabled by default in Clang. It is possible to
+temporarily restore the old default using the
+``-DCLANG_ENABLE_OPAQUE_POINTERS=OFF`` cmake option. Opaque pointers can be
+disabled for a single Clang invocation using ``-Xclang -no-opaque-pointers``.
 
-* Bitcode already fully supports opaque pointers, and reading up-to-date
-  typed pointer bitcode in opaque pointers mode also works. However, we
-  currently do not fully support pointee type based auto-upgrade of old bitcode
-  in opaque pointer mode.
-
-* While clang has limited support for opaque pointers (sufficient to compile
-  most C/C++ code on Linux), a major effort will be needed to systematically
-  remove all uses of ``getPointerElementType()`` and the deprecated
-  ``Address::deprecated()`` constructor.
-
-* We do not yet have a testing strategy for how we can test both typed and
-  opaque pointers during the migration. Currently, individual tests for
-  opaque pointers are being added, but the bulk of tests still uses typed
-  pointers.
-
-* Miscellanous uses of pointer element types remain everywhere.
+The MLIR and Polly monorepo projects are not fully compatible with opaque
+pointers yet.

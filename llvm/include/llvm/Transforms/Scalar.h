@@ -171,13 +171,6 @@ Pass *createLoopStrengthReducePass();
 
 //===----------------------------------------------------------------------===//
 //
-// LoopUnswitch - This pass is a simple loop unswitching pass.
-//
-Pass *createLoopUnswitchPass(bool OptimizeForSize = false,
-                             bool hasBranchDivergence = false);
-
-//===----------------------------------------------------------------------===//
-//
 // LoopInstSimplify - This pass simplifies instructions in a loop's body.
 //
 Pass *createLoopInstSimplifyPass();
@@ -426,6 +419,12 @@ extern char &InferAddressSpacesID;
 // LowerExpectIntrinsics - Removes llvm.expect intrinsics and creates
 // "block_weights" metadata.
 FunctionPass *createLowerExpectIntrinsicPass();
+
+//===----------------------------------------------------------------------===//
+//
+// TLSVariableHoist - This pass reduce duplicated TLS address call.
+//
+FunctionPass *createTLSVariableHoistPass();
 
 //===----------------------------------------------------------------------===//
 //

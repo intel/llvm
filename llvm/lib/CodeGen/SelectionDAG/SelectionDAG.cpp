@@ -24,9 +24,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
-#include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/MemoryLocation.h"
-#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
@@ -55,7 +53,6 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Compiler.h"
@@ -714,6 +711,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(LD->getMemoryVT().getRawBits());
     ID.AddInteger(LD->getRawSubclassData());
     ID.AddInteger(LD->getPointerInfo().getAddrSpace());
+    ID.AddInteger(LD->getMemOperand()->getFlags());
     break;
   }
   case ISD::STORE: {
@@ -721,6 +719,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(ST->getMemoryVT().getRawBits());
     ID.AddInteger(ST->getRawSubclassData());
     ID.AddInteger(ST->getPointerInfo().getAddrSpace());
+    ID.AddInteger(ST->getMemOperand()->getFlags());
     break;
   }
   case ISD::VP_LOAD: {
@@ -728,6 +727,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(ELD->getMemoryVT().getRawBits());
     ID.AddInteger(ELD->getRawSubclassData());
     ID.AddInteger(ELD->getPointerInfo().getAddrSpace());
+    ID.AddInteger(ELD->getMemOperand()->getFlags());
     break;
   }
   case ISD::VP_STORE: {
@@ -735,6 +735,21 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(EST->getMemoryVT().getRawBits());
     ID.AddInteger(EST->getRawSubclassData());
     ID.AddInteger(EST->getPointerInfo().getAddrSpace());
+    ID.AddInteger(EST->getMemOperand()->getFlags());
+    break;
+  }
+  case ISD::EXPERIMENTAL_VP_STRIDED_LOAD: {
+    const VPStridedLoadSDNode *SLD = cast<VPStridedLoadSDNode>(N);
+    ID.AddInteger(SLD->getMemoryVT().getRawBits());
+    ID.AddInteger(SLD->getRawSubclassData());
+    ID.AddInteger(SLD->getPointerInfo().getAddrSpace());
+    break;
+  }
+  case ISD::EXPERIMENTAL_VP_STRIDED_STORE: {
+    const VPStridedStoreSDNode *SST = cast<VPStridedStoreSDNode>(N);
+    ID.AddInteger(SST->getMemoryVT().getRawBits());
+    ID.AddInteger(SST->getRawSubclassData());
+    ID.AddInteger(SST->getPointerInfo().getAddrSpace());
     break;
   }
   case ISD::VP_GATHER: {
@@ -742,6 +757,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(EG->getMemoryVT().getRawBits());
     ID.AddInteger(EG->getRawSubclassData());
     ID.AddInteger(EG->getPointerInfo().getAddrSpace());
+    ID.AddInteger(EG->getMemOperand()->getFlags());
     break;
   }
   case ISD::VP_SCATTER: {
@@ -749,6 +765,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(ES->getMemoryVT().getRawBits());
     ID.AddInteger(ES->getRawSubclassData());
     ID.AddInteger(ES->getPointerInfo().getAddrSpace());
+    ID.AddInteger(ES->getMemOperand()->getFlags());
     break;
   }
   case ISD::MLOAD: {
@@ -756,6 +773,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(MLD->getMemoryVT().getRawBits());
     ID.AddInteger(MLD->getRawSubclassData());
     ID.AddInteger(MLD->getPointerInfo().getAddrSpace());
+    ID.AddInteger(MLD->getMemOperand()->getFlags());
     break;
   }
   case ISD::MSTORE: {
@@ -763,6 +781,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(MST->getMemoryVT().getRawBits());
     ID.AddInteger(MST->getRawSubclassData());
     ID.AddInteger(MST->getPointerInfo().getAddrSpace());
+    ID.AddInteger(MST->getMemOperand()->getFlags());
     break;
   }
   case ISD::MGATHER: {
@@ -770,6 +789,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(MG->getMemoryVT().getRawBits());
     ID.AddInteger(MG->getRawSubclassData());
     ID.AddInteger(MG->getPointerInfo().getAddrSpace());
+    ID.AddInteger(MG->getMemOperand()->getFlags());
     break;
   }
   case ISD::MSCATTER: {
@@ -777,6 +797,7 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(MS->getMemoryVT().getRawBits());
     ID.AddInteger(MS->getRawSubclassData());
     ID.AddInteger(MS->getPointerInfo().getAddrSpace());
+    ID.AddInteger(MS->getMemOperand()->getFlags());
     break;
   }
   case ISD::ATOMIC_CMP_SWAP:
@@ -799,11 +820,13 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(AT->getMemoryVT().getRawBits());
     ID.AddInteger(AT->getRawSubclassData());
     ID.AddInteger(AT->getPointerInfo().getAddrSpace());
+    ID.AddInteger(AT->getMemOperand()->getFlags());
     break;
   }
   case ISD::PREFETCH: {
     const MemSDNode *PF = cast<MemSDNode>(N);
     ID.AddInteger(PF->getPointerInfo().getAddrSpace());
+    ID.AddInteger(PF->getMemOperand()->getFlags());
     break;
   }
   case ISD::VECTOR_SHUFFLE: {
@@ -821,11 +844,18 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     ID.AddInteger(BA->getTargetFlags());
     break;
   }
+  case ISD::AssertAlign:
+    ID.AddInteger(cast<AssertAlignSDNode>(N)->getAlign().value());
+    break;
   } // end switch (N->getOpcode())
 
-  // Target specific memory nodes could also have address spaces to check.
-  if (N->isTargetMemoryOpcode())
-    ID.AddInteger(cast<MemSDNode>(N)->getPointerInfo().getAddrSpace());
+  // Target specific memory nodes could also have address spaces and flags
+  // to check.
+  if (N->isTargetMemoryOpcode()) {
+    const MemSDNode *MN = cast<MemSDNode>(N);
+    ID.AddInteger(MN->getPointerInfo().getAddrSpace());
+    ID.AddInteger(MN->getMemOperand()->getFlags());
+  }
 }
 
 /// AddNodeIDNode - Generic routine for adding a nodes info to the NodeID
@@ -1393,6 +1423,12 @@ SDValue SelectionDAG::getNOT(const SDLoc &DL, SDValue Val, EVT VT) {
 SDValue SelectionDAG::getLogicalNOT(const SDLoc &DL, SDValue Val, EVT VT) {
   SDValue TrueValue = getBoolConstant(true, DL, VT, VT);
   return getNode(ISD::XOR, DL, VT, Val, TrueValue);
+}
+
+SDValue SelectionDAG::getVPLogicalNOT(const SDLoc &DL, SDValue Val,
+                                      SDValue Mask, SDValue EVL, EVT VT) {
+  SDValue TrueValue = getBoolConstant(true, DL, VT, VT);
+  return getNode(ISD::VP_XOR, DL, VT, Val, TrueValue, Mask, EVL);
 }
 
 SDValue SelectionDAG::getBoolConstant(bool V, const SDLoc &DL, EVT VT,
@@ -2587,9 +2623,9 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
     return true;
   }
   case ISD::VECTOR_SHUFFLE: {
-    // Check if this is a shuffle node doing a splat.
-    // TODO: Do we need to handle shuffle(splat, undef, mask)?
-    int SplatIndex = -1;
+    // Check if this is a shuffle node doing a splat or a shuffle of a splat.
+    APInt DemandedLHS = APInt::getNullValue(NumElts);
+    APInt DemandedRHS = APInt::getNullValue(NumElts);
     ArrayRef<int> Mask = cast<ShuffleVectorSDNode>(V)->getMask();
     for (int i = 0; i != (int)NumElts; ++i) {
       int M = Mask[i];
@@ -2599,11 +2635,30 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
       }
       if (!DemandedElts[i])
         continue;
-      if (0 <= SplatIndex && SplatIndex != M)
-        return false;
-      SplatIndex = M;
+      if (M < (int)NumElts)
+        DemandedLHS.setBit(M);
+      else
+        DemandedRHS.setBit(M - NumElts);
     }
-    return true;
+
+    // If we aren't demanding either op, assume there's no splat.
+    // If we are demanding both ops, assume there's no splat.
+    if ((DemandedLHS.isZero() && DemandedRHS.isZero()) ||
+        (!DemandedLHS.isZero() && !DemandedRHS.isZero()))
+      return false;
+
+    // See if the demanded elts of the source op is a splat or we only demand
+    // one element, which should always be a splat.
+    // TODO: Handle source ops splats with undefs.
+    auto CheckSplatSrc = [&](SDValue Src, const APInt &SrcElts) {
+      APInt SrcUndefs;
+      return (SrcElts.countPopulation() == 1) ||
+             (isSplatValue(Src, SrcElts, SrcUndefs, Depth + 1) &&
+              (SrcElts & SrcUndefs).isZero());
+    };
+    if (!DemandedLHS.isZero())
+      return CheckSplatSrc(V.getOperand(0), DemandedLHS);
+    return CheckSplatSrc(V.getOperand(1), DemandedRHS);
   }
   case ISD::EXTRACT_SUBVECTOR: {
     // Offset the demanded elts by the subvector index.
@@ -2634,6 +2689,39 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
     APInt DemandedSrcElts = DemandedElts.zextOrSelf(NumSrcElts);
     if (isSplatValue(Src, DemandedSrcElts, UndefSrcElts, Depth + 1)) {
       UndefElts = UndefSrcElts.truncOrSelf(NumElts);
+      return true;
+    }
+    break;
+  }
+  case ISD::BITCAST: {
+    SDValue Src = V.getOperand(0);
+    EVT SrcVT = Src.getValueType();
+    unsigned SrcBitWidth = SrcVT.getScalarSizeInBits();
+    unsigned BitWidth = VT.getScalarSizeInBits();
+
+    // Ignore bitcasts from unsupported types.
+    // TODO: Add fp support?
+    if (!SrcVT.isVector() || !SrcVT.isInteger() || !VT.isInteger())
+      break;
+
+    // Bitcast 'small element' vector to 'large element' vector.
+    if ((BitWidth % SrcBitWidth) == 0) {
+      // See if each sub element is a splat.
+      unsigned Scale = BitWidth / SrcBitWidth;
+      unsigned NumSrcElts = SrcVT.getVectorNumElements();
+      APInt ScaledDemandedElts =
+          APIntOps::ScaleBitMask(DemandedElts, NumSrcElts);
+      for (unsigned I = 0; I != Scale; ++I) {
+        APInt SubUndefElts;
+        APInt SubDemandedElt = APInt::getOneBitSet(Scale, I);
+        APInt SubDemandedElts = APInt::getSplat(NumSrcElts, SubDemandedElt);
+        SubDemandedElts &= ScaledDemandedElts;
+        if (!isSplatValue(Src, SubDemandedElts, SubUndefElts, Depth + 1))
+          return false;
+        // TODO: Add support for merging sub undef elements.
+        if (SubDemandedElts.isSubsetOf(SubUndefElts))
+          return false;
+      }
       return true;
     }
     break;
@@ -4596,26 +4684,54 @@ bool SelectionDAG::isEqualTo(SDValue A, SDValue B) const {
   return false;
 }
 
+// Only bits set in Mask must be negated, other bits may be arbitrary.
+SDValue llvm::getBitwiseNotOperand(SDValue V, SDValue Mask, bool AllowUndefs) {
+  if (isBitwiseNot(V, AllowUndefs))
+    return V.getOperand(0);
+
+  // Handle any_extend (not (truncate X)) pattern, where Mask only sets
+  // bits in the non-extended part.
+  ConstantSDNode *MaskC = isConstOrConstSplat(Mask);
+  if (!MaskC || V.getOpcode() != ISD::ANY_EXTEND)
+    return SDValue();
+  SDValue ExtArg = V.getOperand(0);
+  if (ExtArg.getScalarValueSizeInBits() >=
+          MaskC->getAPIntValue().getActiveBits() &&
+      isBitwiseNot(ExtArg, AllowUndefs) &&
+      ExtArg.getOperand(0).getOpcode() == ISD::TRUNCATE &&
+      ExtArg.getOperand(0).getOperand(0).getValueType() == V.getValueType())
+    return ExtArg.getOperand(0).getOperand(0);
+  return SDValue();
+}
+
+static bool haveNoCommonBitsSetCommutative(SDValue A, SDValue B) {
+  // Match masked merge pattern (X & ~M) op (Y & M)
+  // Including degenerate case (X & ~M) op M
+  auto MatchNoCommonBitsPattern = [&](SDValue Not, SDValue Mask,
+                                      SDValue Other) {
+    if (SDValue NotOperand =
+            getBitwiseNotOperand(Not, Mask, /* AllowUndefs */ true)) {
+      if (Other == NotOperand)
+        return true;
+      if (Other->getOpcode() == ISD::AND)
+        return NotOperand == Other->getOperand(0) ||
+               NotOperand == Other->getOperand(1);
+    }
+    return false;
+  };
+  if (A->getOpcode() == ISD::AND)
+    return MatchNoCommonBitsPattern(A->getOperand(0), A->getOperand(1), B) ||
+           MatchNoCommonBitsPattern(A->getOperand(1), A->getOperand(0), B);
+  return false;
+}
+
 // FIXME: unify with llvm::haveNoCommonBitsSet.
 bool SelectionDAG::haveNoCommonBitsSet(SDValue A, SDValue B) const {
   assert(A.getValueType() == B.getValueType() &&
          "Values must have the same type");
-  // Match masked merge pattern (X & ~M) op (Y & M)
-  if (A->getOpcode() == ISD::AND && B->getOpcode() == ISD::AND) {
-    auto MatchNoCommonBitsPattern = [&](SDValue NotM, SDValue And) {
-      if (isBitwiseNot(NotM, true)) {
-        SDValue NotOperand = NotM->getOperand(0);
-        return NotOperand == And->getOperand(0) ||
-               NotOperand == And->getOperand(1);
-      }
-      return false;
-    };
-    if (MatchNoCommonBitsPattern(A->getOperand(0), B) ||
-        MatchNoCommonBitsPattern(A->getOperand(1), B) ||
-        MatchNoCommonBitsPattern(B->getOperand(0), A) ||
-        MatchNoCommonBitsPattern(B->getOperand(1), A))
-      return true;
-  }
+  if (haveNoCommonBitsSetCommutative(A, B) ||
+      haveNoCommonBitsSetCommutative(B, A))
+    return true;
   return KnownBits::haveNoCommonBitsSet(computeKnownBits(A),
                                         computeKnownBits(B));
 }
@@ -4976,6 +5092,8 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     break;
   case ISD::FREEZE:
     assert(VT == Operand.getValueType() && "Unexpected VT!");
+    if (isGuaranteedNotToBeUndefOrPoison(Operand))
+      return Operand;
     break;
   case ISD::TokenFactor:
   case ISD::MERGE_VALUES:
@@ -5490,9 +5608,14 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
       !llvm::all_of(Ops, IsScalarOrSameVectorSize))
     return SDValue();
 
-  // If we are comparing vectors, then the result needs to be a i1 boolean
-  // that is then sign-extended back to the legal result type.
+  // If we are comparing vectors, then the result needs to be a i1 boolean that
+  // is then extended back to the legal result type depending on how booleans
+  // are represented.
   EVT SVT = (Opcode == ISD::SETCC ? MVT::i1 : VT.getScalarType());
+  ISD::NodeType ExtendCode =
+      (Opcode == ISD::SETCC && SVT != VT.getScalarType())
+          ? TargetLowering::getExtendForContent(TLI->getBooleanContents(VT))
+          : ISD::SIGN_EXTEND;
 
   // Find legal integer scalar type for constant promotion and
   // ensure that its scalar size is at least as large as source.
@@ -5529,8 +5652,18 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
 
       // Build vector (integer) scalar operands may need implicit
       // truncation - do this before constant folding.
-      if (ScalarVT.isInteger() && ScalarVT.bitsGT(InSVT))
+      if (ScalarVT.isInteger() && ScalarVT.bitsGT(InSVT)) {
+        // Don't create illegally-typed nodes unless they're constants or undef
+        // - if we fail to constant fold we can't guarantee the (dead) nodes
+        // we're creating will be cleaned up before being visited for
+        // legalization.
+        if (NewNodesMustHaveLegalTypes && !ScalarOp.isUndef() &&
+            !isa<ConstantSDNode>(ScalarOp) &&
+            TLI->getTypeAction(*getContext(), InSVT) !=
+                TargetLowering::TypeLegal)
+          return SDValue();
         ScalarOp = getNode(ISD::TRUNCATE, DL, InSVT, ScalarOp);
+      }
 
       ScalarOps.push_back(ScalarOp);
     }
@@ -5540,7 +5673,7 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
 
     // Legalize the (integer) scalar constant if necessary.
     if (LegalSVT != SVT)
-      ScalarResult = getNode(ISD::SIGN_EXTEND, DL, LegalSVT, ScalarResult);
+      ScalarResult = getNode(ExtendCode, DL, LegalSVT, ScalarResult);
 
     // Scalar folding only succeeded if the result is a constant or UNDEF.
     if (!ScalarResult.isUndef() && ScalarResult.getOpcode() != ISD::Constant &&
@@ -6092,9 +6225,9 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
       std::swap(N1, N2);
     } else {
       switch (Opcode) {
-      case ISD::SIGN_EXTEND_INREG:
       case ISD::SUB:
         return getUNDEF(VT);     // fold op(undef, arg2) -> undef
+      case ISD::SIGN_EXTEND_INREG:
       case ISD::UDIV:
       case ISD::SDIV:
       case ISD::UREM:
@@ -7263,6 +7396,7 @@ SDValue SelectionDAG::getAtomic(unsigned Opcode, const SDLoc &dl, EVT MemVT,
   ID.AddInteger(MemVT.getRawBits());
   AddNodeIDNode(ID, Opcode, VTList, Ops);
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void* IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<AtomicSDNode>(E)->refineAlignment(MMO);
@@ -7375,6 +7509,7 @@ SDValue SelectionDAG::getMemIntrinsicNode(unsigned Opcode, const SDLoc &dl,
     ID.AddInteger(getSyntheticNodeSubclassData<MemIntrinsicSDNode>(
         Opcode, dl.getIROrder(), VTList, MemVT, MMO));
     ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+    ID.AddInteger(MMO->getFlags());
     void *IP = nullptr;
     if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
       cast<MemIntrinsicSDNode>(E)->refineAlignment(MMO);
@@ -7547,6 +7682,7 @@ SDValue SelectionDAG::getLoad(ISD::MemIndexedMode AM, ISD::LoadExtType ExtType,
   ID.AddInteger(getSyntheticNodeSubclassData<LoadSDNode>(
       dl.getIROrder(), VTs, AM, ExtType, MemVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<LoadSDNode>(E)->refineAlignment(MMO);
@@ -7648,6 +7784,7 @@ SDValue SelectionDAG::getStore(SDValue Chain, const SDLoc &dl, SDValue Val,
   ID.AddInteger(getSyntheticNodeSubclassData<StoreSDNode>(
       dl.getIROrder(), VTs, ISD::UNINDEXED, false, VT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<StoreSDNode>(E)->refineAlignment(MMO);
@@ -7714,6 +7851,7 @@ SDValue SelectionDAG::getTruncStore(SDValue Chain, const SDLoc &dl, SDValue Val,
   ID.AddInteger(getSyntheticNodeSubclassData<StoreSDNode>(
       dl.getIROrder(), VTs, ISD::UNINDEXED, true, SVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<StoreSDNode>(E)->refineAlignment(MMO);
@@ -7742,6 +7880,7 @@ SDValue SelectionDAG::getIndexedStore(SDValue OrigStore, const SDLoc &dl,
   ID.AddInteger(ST->getMemoryVT().getRawBits());
   ID.AddInteger(ST->getRawSubclassData());
   ID.AddInteger(ST->getPointerInfo().getAddrSpace());
+  ID.AddInteger(ST->getMemOperand()->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP))
     return SDValue(E, 0);
@@ -7799,6 +7938,7 @@ SDValue SelectionDAG::getLoadVP(ISD::MemIndexedMode AM,
   ID.AddInteger(getSyntheticNodeSubclassData<VPLoadSDNode>(
       dl.getIROrder(), VTs, AM, ExtType, IsExpanding, MemVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<VPLoadSDNode>(E)->refineAlignment(MMO);
@@ -7891,6 +8031,7 @@ SDValue SelectionDAG::getStoreVP(SDValue Chain, const SDLoc &dl, SDValue Val,
   ID.AddInteger(getSyntheticNodeSubclassData<VPStoreSDNode>(
       dl.getIROrder(), VTs, AM, IsTruncating, IsCompressing, MemVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<VPStoreSDNode>(E)->refineAlignment(MMO);
@@ -7961,6 +8102,7 @@ SDValue SelectionDAG::getTruncStoreVP(SDValue Chain, const SDLoc &dl,
   ID.AddInteger(getSyntheticNodeSubclassData<VPStoreSDNode>(
       dl.getIROrder(), VTs, ISD::UNINDEXED, true, IsCompressing, SVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<VPStoreSDNode>(E)->refineAlignment(MMO);
@@ -7991,6 +8133,7 @@ SDValue SelectionDAG::getIndexedStoreVP(SDValue OrigStore, const SDLoc &dl,
   ID.AddInteger(ST->getMemoryVT().getRawBits());
   ID.AddInteger(ST->getRawSubclassData());
   ID.AddInteger(ST->getPointerInfo().getAddrSpace());
+  ID.AddInteger(ST->getMemOperand()->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP))
     return SDValue(E, 0);
@@ -7998,6 +8141,259 @@ SDValue SelectionDAG::getIndexedStoreVP(SDValue OrigStore, const SDLoc &dl,
   auto *N = newSDNode<VPStoreSDNode>(
       dl.getIROrder(), dl.getDebugLoc(), VTs, AM, ST->isTruncatingStore(),
       ST->isCompressingStore(), ST->getMemoryVT(), ST->getMemOperand());
+  createOperands(N, Ops);
+
+  CSEMap.InsertNode(N, IP);
+  InsertNode(N);
+  SDValue V(N, 0);
+  NewSDValueDbgMsg(V, "Creating new node: ", this);
+  return V;
+}
+
+SDValue SelectionDAG::getStridedLoadVP(
+    ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT, const SDLoc &DL,
+    SDValue Chain, SDValue Ptr, SDValue Offset, SDValue Stride, SDValue Mask,
+    SDValue EVL, MachinePointerInfo PtrInfo, EVT MemVT, Align Alignment,
+    MachineMemOperand::Flags MMOFlags, const AAMDNodes &AAInfo,
+    const MDNode *Ranges, bool IsExpanding) {
+  assert(Chain.getValueType() == MVT::Other && "Invalid chain type");
+
+  MMOFlags |= MachineMemOperand::MOLoad;
+  assert((MMOFlags & MachineMemOperand::MOStore) == 0);
+  // If we don't have a PtrInfo, infer the trivial frame index case to simplify
+  // clients.
+  if (PtrInfo.V.isNull())
+    PtrInfo = InferPointerInfo(PtrInfo, *this, Ptr, Offset);
+
+  uint64_t Size = MemoryLocation::UnknownSize;
+  MachineFunction &MF = getMachineFunction();
+  MachineMemOperand *MMO = MF.getMachineMemOperand(PtrInfo, MMOFlags, Size,
+                                                   Alignment, AAInfo, Ranges);
+  return getStridedLoadVP(AM, ExtType, VT, DL, Chain, Ptr, Offset, Stride, Mask,
+                          EVL, MemVT, MMO, IsExpanding);
+}
+
+SDValue SelectionDAG::getStridedLoadVP(
+    ISD::MemIndexedMode AM, ISD::LoadExtType ExtType, EVT VT, const SDLoc &DL,
+    SDValue Chain, SDValue Ptr, SDValue Offset, SDValue Stride, SDValue Mask,
+    SDValue EVL, EVT MemVT, MachineMemOperand *MMO, bool IsExpanding) {
+  bool Indexed = AM != ISD::UNINDEXED;
+  assert((Indexed || Offset.isUndef()) && "Unindexed load with an offset!");
+
+  SDValue Ops[] = {Chain, Ptr, Offset, Stride, Mask, EVL};
+  SDVTList VTs = Indexed ? getVTList(VT, Ptr.getValueType(), MVT::Other)
+                         : getVTList(VT, MVT::Other);
+  FoldingSetNodeID ID;
+  AddNodeIDNode(ID, ISD::EXPERIMENTAL_VP_STRIDED_LOAD, VTs, Ops);
+  ID.AddInteger(VT.getRawBits());
+  ID.AddInteger(getSyntheticNodeSubclassData<VPStridedLoadSDNode>(
+      DL.getIROrder(), VTs, AM, ExtType, IsExpanding, MemVT, MMO));
+  ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+
+  void *IP = nullptr;
+  if (SDNode *E = FindNodeOrInsertPos(ID, DL, IP)) {
+    cast<VPStridedLoadSDNode>(E)->refineAlignment(MMO);
+    return SDValue(E, 0);
+  }
+
+  auto *N =
+      newSDNode<VPStridedLoadSDNode>(DL.getIROrder(), DL.getDebugLoc(), VTs, AM,
+                                     ExtType, IsExpanding, MemVT, MMO);
+  createOperands(N, Ops);
+  CSEMap.InsertNode(N, IP);
+  InsertNode(N);
+  SDValue V(N, 0);
+  NewSDValueDbgMsg(V, "Creating new node: ", this);
+  return V;
+}
+
+SDValue SelectionDAG::getStridedLoadVP(
+    EVT VT, const SDLoc &DL, SDValue Chain, SDValue Ptr, SDValue Stride,
+    SDValue Mask, SDValue EVL, MachinePointerInfo PtrInfo, MaybeAlign Alignment,
+    MachineMemOperand::Flags MMOFlags, const AAMDNodes &AAInfo,
+    const MDNode *Ranges, bool IsExpanding) {
+  SDValue Undef = getUNDEF(Ptr.getValueType());
+  return getStridedLoadVP(ISD::UNINDEXED, ISD::NON_EXTLOAD, VT, DL, Chain, Ptr,
+                          Undef, Stride, Mask, EVL, PtrInfo, VT, Alignment,
+                          MMOFlags, AAInfo, Ranges, IsExpanding);
+}
+
+SDValue SelectionDAG::getStridedLoadVP(EVT VT, const SDLoc &DL, SDValue Chain,
+                                       SDValue Ptr, SDValue Stride,
+                                       SDValue Mask, SDValue EVL,
+                                       MachineMemOperand *MMO,
+                                       bool IsExpanding) {
+  SDValue Undef = getUNDEF(Ptr.getValueType());
+  return getStridedLoadVP(ISD::UNINDEXED, ISD::NON_EXTLOAD, VT, DL, Chain, Ptr,
+                          Undef, Stride, Mask, EVL, VT, MMO, IsExpanding);
+}
+
+SDValue SelectionDAG::getExtStridedLoadVP(
+    ISD::LoadExtType ExtType, const SDLoc &DL, EVT VT, SDValue Chain,
+    SDValue Ptr, SDValue Stride, SDValue Mask, SDValue EVL,
+    MachinePointerInfo PtrInfo, EVT MemVT, MaybeAlign Alignment,
+    MachineMemOperand::Flags MMOFlags, const AAMDNodes &AAInfo,
+    bool IsExpanding) {
+  SDValue Undef = getUNDEF(Ptr.getValueType());
+  return getStridedLoadVP(ISD::UNINDEXED, ExtType, VT, DL, Chain, Ptr, Undef,
+                          Stride, Mask, EVL, PtrInfo, MemVT, Alignment,
+                          MMOFlags, AAInfo, nullptr, IsExpanding);
+}
+
+SDValue SelectionDAG::getExtStridedLoadVP(
+    ISD::LoadExtType ExtType, const SDLoc &DL, EVT VT, SDValue Chain,
+    SDValue Ptr, SDValue Stride, SDValue Mask, SDValue EVL, EVT MemVT,
+    MachineMemOperand *MMO, bool IsExpanding) {
+  SDValue Undef = getUNDEF(Ptr.getValueType());
+  return getStridedLoadVP(ISD::UNINDEXED, ExtType, VT, DL, Chain, Ptr, Undef,
+                          Stride, Mask, EVL, MemVT, MMO, IsExpanding);
+}
+
+SDValue SelectionDAG::getIndexedStridedLoadVP(SDValue OrigLoad, const SDLoc &DL,
+                                              SDValue Base, SDValue Offset,
+                                              ISD::MemIndexedMode AM) {
+  auto *SLD = cast<VPStridedLoadSDNode>(OrigLoad);
+  assert(SLD->getOffset().isUndef() &&
+         "Strided load is already a indexed load!");
+  // Don't propagate the invariant or dereferenceable flags.
+  auto MMOFlags =
+      SLD->getMemOperand()->getFlags() &
+      ~(MachineMemOperand::MOInvariant | MachineMemOperand::MODereferenceable);
+  return getStridedLoadVP(
+      AM, SLD->getExtensionType(), OrigLoad.getValueType(), DL, SLD->getChain(),
+      Base, Offset, SLD->getStride(), SLD->getMask(), SLD->getVectorLength(),
+      SLD->getPointerInfo(), SLD->getMemoryVT(), SLD->getAlign(), MMOFlags,
+      SLD->getAAInfo(), nullptr, SLD->isExpandingLoad());
+}
+
+SDValue SelectionDAG::getStridedStoreVP(SDValue Chain, const SDLoc &DL,
+                                        SDValue Val, SDValue Ptr,
+                                        SDValue Offset, SDValue Stride,
+                                        SDValue Mask, SDValue EVL, EVT MemVT,
+                                        MachineMemOperand *MMO,
+                                        ISD::MemIndexedMode AM,
+                                        bool IsTruncating, bool IsCompressing) {
+  assert(Chain.getValueType() == MVT::Other && "Invalid chain type");
+  bool Indexed = AM != ISD::UNINDEXED;
+  assert((Indexed || Offset.isUndef()) && "Unindexed vp_store with an offset!");
+  SDVTList VTs = Indexed ? getVTList(Ptr.getValueType(), MVT::Other)
+                         : getVTList(MVT::Other);
+  SDValue Ops[] = {Chain, Val, Ptr, Offset, Stride, Mask, EVL};
+  FoldingSetNodeID ID;
+  AddNodeIDNode(ID, ISD::EXPERIMENTAL_VP_STRIDED_STORE, VTs, Ops);
+  ID.AddInteger(MemVT.getRawBits());
+  ID.AddInteger(getSyntheticNodeSubclassData<VPStridedStoreSDNode>(
+      DL.getIROrder(), VTs, AM, IsTruncating, IsCompressing, MemVT, MMO));
+  ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  void *IP = nullptr;
+  if (SDNode *E = FindNodeOrInsertPos(ID, DL, IP)) {
+    cast<VPStridedStoreSDNode>(E)->refineAlignment(MMO);
+    return SDValue(E, 0);
+  }
+  auto *N = newSDNode<VPStridedStoreSDNode>(DL.getIROrder(), DL.getDebugLoc(),
+                                            VTs, AM, IsTruncating,
+                                            IsCompressing, MemVT, MMO);
+  createOperands(N, Ops);
+
+  CSEMap.InsertNode(N, IP);
+  InsertNode(N);
+  SDValue V(N, 0);
+  NewSDValueDbgMsg(V, "Creating new node: ", this);
+  return V;
+}
+
+SDValue SelectionDAG::getTruncStridedStoreVP(
+    SDValue Chain, const SDLoc &DL, SDValue Val, SDValue Ptr, SDValue Stride,
+    SDValue Mask, SDValue EVL, MachinePointerInfo PtrInfo, EVT SVT,
+    Align Alignment, MachineMemOperand::Flags MMOFlags, const AAMDNodes &AAInfo,
+    bool IsCompressing) {
+  assert(Chain.getValueType() == MVT::Other && "Invalid chain type");
+
+  MMOFlags |= MachineMemOperand::MOStore;
+  assert((MMOFlags & MachineMemOperand::MOLoad) == 0);
+
+  if (PtrInfo.V.isNull())
+    PtrInfo = InferPointerInfo(PtrInfo, *this, Ptr);
+
+  MachineFunction &MF = getMachineFunction();
+  MachineMemOperand *MMO = MF.getMachineMemOperand(
+      PtrInfo, MMOFlags, MemoryLocation::UnknownSize, Alignment, AAInfo);
+  return getTruncStridedStoreVP(Chain, DL, Val, Ptr, Stride, Mask, EVL, SVT,
+                                MMO, IsCompressing);
+}
+
+SDValue SelectionDAG::getTruncStridedStoreVP(SDValue Chain, const SDLoc &DL,
+                                             SDValue Val, SDValue Ptr,
+                                             SDValue Stride, SDValue Mask,
+                                             SDValue EVL, EVT SVT,
+                                             MachineMemOperand *MMO,
+                                             bool IsCompressing) {
+  EVT VT = Val.getValueType();
+
+  assert(Chain.getValueType() == MVT::Other && "Invalid chain type");
+  if (VT == SVT)
+    return getStridedStoreVP(Chain, DL, Val, Ptr, getUNDEF(Ptr.getValueType()),
+                             Stride, Mask, EVL, VT, MMO, ISD::UNINDEXED,
+                             /*IsTruncating*/ false, IsCompressing);
+
+  assert(SVT.getScalarType().bitsLT(VT.getScalarType()) &&
+         "Should only be a truncating store, not extending!");
+  assert(VT.isInteger() == SVT.isInteger() && "Can't do FP-INT conversion!");
+  assert(VT.isVector() == SVT.isVector() &&
+         "Cannot use trunc store to convert to or from a vector!");
+  assert((!VT.isVector() ||
+          VT.getVectorElementCount() == SVT.getVectorElementCount()) &&
+         "Cannot use trunc store to change the number of vector elements!");
+
+  SDVTList VTs = getVTList(MVT::Other);
+  SDValue Undef = getUNDEF(Ptr.getValueType());
+  SDValue Ops[] = {Chain, Val, Ptr, Undef, Stride, Mask, EVL};
+  FoldingSetNodeID ID;
+  AddNodeIDNode(ID, ISD::EXPERIMENTAL_VP_STRIDED_STORE, VTs, Ops);
+  ID.AddInteger(SVT.getRawBits());
+  ID.AddInteger(getSyntheticNodeSubclassData<VPStridedStoreSDNode>(
+      DL.getIROrder(), VTs, ISD::UNINDEXED, true, IsCompressing, SVT, MMO));
+  ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  void *IP = nullptr;
+  if (SDNode *E = FindNodeOrInsertPos(ID, DL, IP)) {
+    cast<VPStridedStoreSDNode>(E)->refineAlignment(MMO);
+    return SDValue(E, 0);
+  }
+  auto *N = newSDNode<VPStridedStoreSDNode>(DL.getIROrder(), DL.getDebugLoc(),
+                                            VTs, ISD::UNINDEXED, true,
+                                            IsCompressing, SVT, MMO);
+  createOperands(N, Ops);
+
+  CSEMap.InsertNode(N, IP);
+  InsertNode(N);
+  SDValue V(N, 0);
+  NewSDValueDbgMsg(V, "Creating new node: ", this);
+  return V;
+}
+
+SDValue SelectionDAG::getIndexedStridedStoreVP(SDValue OrigStore,
+                                               const SDLoc &DL, SDValue Base,
+                                               SDValue Offset,
+                                               ISD::MemIndexedMode AM) {
+  auto *SST = cast<VPStridedStoreSDNode>(OrigStore);
+  assert(SST->getOffset().isUndef() &&
+         "Strided store is already an indexed store!");
+  SDVTList VTs = getVTList(Base.getValueType(), MVT::Other);
+  SDValue Ops[] = {
+      SST->getChain(), SST->getValue(),       Base, Offset, SST->getStride(),
+      SST->getMask(),  SST->getVectorLength()};
+  FoldingSetNodeID ID;
+  AddNodeIDNode(ID, ISD::EXPERIMENTAL_VP_STRIDED_STORE, VTs, Ops);
+  ID.AddInteger(SST->getMemoryVT().getRawBits());
+  ID.AddInteger(SST->getRawSubclassData());
+  ID.AddInteger(SST->getPointerInfo().getAddrSpace());
+  void *IP = nullptr;
+  if (SDNode *E = FindNodeOrInsertPos(ID, DL, IP))
+    return SDValue(E, 0);
+
+  auto *N = newSDNode<VPStridedStoreSDNode>(
+      DL.getIROrder(), DL.getDebugLoc(), VTs, AM, SST->isTruncatingStore(),
+      SST->isCompressingStore(), SST->getMemoryVT(), SST->getMemOperand());
   createOperands(N, Ops);
 
   CSEMap.InsertNode(N, IP);
@@ -8018,6 +8414,7 @@ SDValue SelectionDAG::getGatherVP(SDVTList VTs, EVT VT, const SDLoc &dl,
   ID.AddInteger(getSyntheticNodeSubclassData<VPGatherSDNode>(
       dl.getIROrder(), VTs, VT, MMO, IndexType));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<VPGatherSDNode>(E)->refineAlignment(MMO);
@@ -8061,6 +8458,7 @@ SDValue SelectionDAG::getScatterVP(SDVTList VTs, EVT VT, const SDLoc &dl,
   ID.AddInteger(getSyntheticNodeSubclassData<VPScatterSDNode>(
       dl.getIROrder(), VTs, VT, MMO, IndexType));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<VPScatterSDNode>(E)->refineAlignment(MMO);
@@ -8110,6 +8508,7 @@ SDValue SelectionDAG::getMaskedLoad(EVT VT, const SDLoc &dl, SDValue Chain,
   ID.AddInteger(getSyntheticNodeSubclassData<MaskedLoadSDNode>(
       dl.getIROrder(), VTs, AM, ExtTy, isExpanding, MemVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<MaskedLoadSDNode>(E)->refineAlignment(MMO);
@@ -8157,6 +8556,7 @@ SDValue SelectionDAG::getMaskedStore(SDValue Chain, const SDLoc &dl,
   ID.AddInteger(getSyntheticNodeSubclassData<MaskedStoreSDNode>(
       dl.getIROrder(), VTs, AM, IsTruncating, IsCompressing, MemVT, MMO));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<MaskedStoreSDNode>(E)->refineAlignment(MMO);
@@ -8198,6 +8598,7 @@ SDValue SelectionDAG::getMaskedGather(SDVTList VTs, EVT MemVT, const SDLoc &dl,
   ID.AddInteger(getSyntheticNodeSubclassData<MaskedGatherSDNode>(
       dl.getIROrder(), VTs, MemVT, MMO, IndexType, ExtTy));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<MaskedGatherSDNode>(E)->refineAlignment(MMO);
@@ -8245,6 +8646,7 @@ SDValue SelectionDAG::getMaskedScatter(SDVTList VTs, EVT MemVT, const SDLoc &dl,
   ID.AddInteger(getSyntheticNodeSubclassData<MaskedScatterSDNode>(
       dl.getIROrder(), VTs, MemVT, MMO, IndexType, IsTrunc));
   ID.AddInteger(MMO->getPointerInfo().getAddrSpace());
+  ID.AddInteger(MMO->getFlags());
   void *IP = nullptr;
   if (SDNode *E = FindNodeOrInsertPos(ID, dl, IP)) {
     cast<MaskedScatterSDNode>(E)->refineAlignment(MMO);
@@ -8448,6 +8850,17 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     assert(NumOps == 5 && "BR_CC takes 5 operands!");
     assert(Ops[2].getValueType() == Ops[3].getValueType() &&
            "LHS/RHS of comparison should match types!");
+    break;
+  case ISD::VP_ADD:
+  case ISD::VP_SUB:
+    // If it is VP_ADD/VP_SUB mask operation then turn it to VP_XOR
+    if (VT.isVector() && VT.getVectorElementType() == MVT::i1)
+      Opcode = ISD::VP_XOR;
+    break;
+  case ISD::VP_MUL:
+    // If it is VP_MUL mask operation then turn it to VP_AND
+    if (VT.isVector() && VT.getVectorElementType() == MVT::i1)
+      Opcode = ISD::VP_AND;
     break;
   }
 
@@ -10036,6 +10449,11 @@ bool llvm::isAllOnesConstant(SDValue V) {
 bool llvm::isOneConstant(SDValue V) {
   ConstantSDNode *Const = dyn_cast<ConstantSDNode>(V);
   return Const != nullptr && Const->isOne();
+}
+
+bool llvm::isMinSignedConstant(SDValue V) {
+  ConstantSDNode *Const = dyn_cast<ConstantSDNode>(V);
+  return Const != nullptr && Const->isMinSignedValue();
 }
 
 SDValue llvm::peekThroughBitcasts(SDValue V) {

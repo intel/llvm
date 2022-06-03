@@ -6,8 +6,6 @@ add_object_library(
     exhaustive_test.h
   SRCS
     exhaustive_test.cpp
-  DEPENDS
-    libc.src.__support.CPP.standalone_cpp
 )
 
 add_fp_unittest(
@@ -50,16 +48,55 @@ add_fp_unittest(
 )
 
 add_fp_unittest(
-  expm1f_test
+  expf_test
+  NO_RUN_POSTBUILD
   NEED_MPFR
   SUITE
     libc_math_exhaustive_tests
   SRCS
-  expm1f_test.cpp
+    expf_test.cpp
   DEPENDS
+    .exhaustive_test
     libc.include.math
+    libc.src.math.expf
+    libc.src.__support.FPUtil.fputil
+  LINK_OPTIONS
+    -lpthread
+)
+
+add_fp_unittest(
+  exp2f_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    exp2f_test.cpp
+  DEPENDS
+    .exhaustive_test
+    libc.include.math
+    libc.src.math.exp2f
+    libc.src.__support.FPUtil.fputil
+  LINK_OPTIONS
+    -lpthread
+)
+
+add_fp_unittest(
+  expm1f_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    expm1f_test.cpp
+  DEPENDS
+    .exhaustive_test
+    libc.include.math
+    libc.src.math.expf
     libc.src.math.expm1f
     libc.src.__support.FPUtil.fputil
+  LINK_OPTIONS
+    -lpthread
 )
 
 add_fp_unittest(

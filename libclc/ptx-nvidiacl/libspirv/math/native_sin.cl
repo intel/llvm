@@ -12,6 +12,7 @@
 #include <clcmacro.h>
 
 #define __CLC_FUNCTION __spirv_ocl_native_sin
-#define __CLC_BUILTIN __nv_sin
+#define __CLC_BUILTIN __nv_fast_sin
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, f)
+#define __FLOAT_ONLY
 #include <math/unary_builtin.inc>

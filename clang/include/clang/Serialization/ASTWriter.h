@@ -18,6 +18,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConsumer.h"
@@ -476,7 +477,6 @@ private:
                                      bool isModule);
 
   unsigned TypeExtQualAbbrev = 0;
-  unsigned TypeFunctionProtoAbbrev = 0;
   void WriteTypeAbbrevs();
   void WriteType(QualType T);
 
@@ -679,10 +679,6 @@ public:
 
   unsigned getTypeExtQualAbbrev() const {
     return TypeExtQualAbbrev;
-  }
-
-  unsigned getTypeFunctionProtoAbbrev() const {
-    return TypeFunctionProtoAbbrev;
   }
 
   unsigned getDeclParmVarAbbrev() const { return DeclParmVarAbbrev; }

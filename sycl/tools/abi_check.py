@@ -102,6 +102,10 @@ def check_symbols(ref_path, target_path):
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
                                            readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
+    # Presence of _dl_relocate_static_pie depends on whether ld.gold or ld.lld
+    # is used. Ignore it for the purpose of the library ABI check.
+    ignore_symbols = ["_dl_relocate_static_pie"]
+    symbols = [s for s in symbols if s not in ignore_symbols]
 
     missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
 

@@ -17,6 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TypeSupport.h"
@@ -71,6 +72,8 @@ struct LLVMDialectImpl;
 ///// Ops /////
 #define GET_OP_CLASSES
 #include "mlir/Dialect/LLVMIR/LLVMOps.h.inc"
+#define GET_OP_CLASSES
+#include "mlir/Dialect/LLVMIR/LLVMIntrinsicOps.h.inc"
 
 #include "mlir/Dialect/LLVMIR/LLVMOpsDialect.h.inc"
 

@@ -1679,7 +1679,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if ((ICEArguments & (1 << ArgNo)) == 0) continue;
 
     llvm::APSInt Result;
-    if (SemaBuiltinConstantArg(TheCall, ArgNo, Result))
+    // If we don't have enough arguments, continue so we can issue better
+    // diagnostic in checkArgCount(...)
+    if (ArgNo < TheCall->getNumArgs() &&
+        SemaBuiltinConstantArg(TheCall, ArgNo, Result))
       return true;
     ICEArguments &= ~(1 << ArgNo);
   }
@@ -1943,6 +1946,19 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BI__builtin_nontemporal_store:
     return SemaBuiltinNontemporalOverloaded(TheCallResult);
   case Builtin::BI__builtin_memcpy_inline: {
+    if (checkArgCount(*this, TheCall, 3))
+      return ExprError();
+    auto ArgArrayConversionFailed = [&](unsigned Arg) {
+      ExprResult ArgExpr =
+          DefaultFunctionArrayLvalueConversion(TheCall->getArg(Arg));
+      if (ArgExpr.isInvalid())
+        return true;
+      TheCall->setArg(Arg, ArgExpr.get());
+      return false;
+    };
+
+    if (ArgArrayConversionFailed(0) || ArgArrayConversionFailed(1))
+      return true;
     clang::Expr *SizeOp = TheCall->getArg(2);
     // We warn about copying to or from `nullptr` pointers when `size` is
     // greater than 0. When `size` is value dependent we cannot evaluate its
@@ -2114,6 +2130,32 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     TheCall->setType(Context.VoidPtrTy);
     break;
+  case Builtin::BIaddressof:
+  case Builtin::BI__addressof:
+  case Builtin::BIforward:
+  case Builtin::BImove:
+  case Builtin::BImove_if_noexcept:
+  case Builtin::BIas_const: {
+    // These are all expected to be of the form
+    //   T &/&&/* f(U &/&&)
+    // where T and U only differ in qualification.
+    if (checkArgCount(*this, TheCall, 1))
+      return ExprError();
+    QualType Param = FDecl->getParamDecl(0)->getType();
+    QualType Result = FDecl->getReturnType();
+    bool ReturnsPointer = BuiltinID == Builtin::BIaddressof ||
+                          BuiltinID == Builtin::BI__addressof;
+    if (!(Param->isReferenceType() &&
+          (ReturnsPointer ? Result->isPointerType()
+                          : Result->isReferenceType()) &&
+          Context.hasSameUnqualifiedType(Param->getPointeeType(),
+                                         Result->getPointeeType()))) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_move_forward_unsupported)
+          << FDecl;
+      return ExprError();
+    }
+    break;
+  }
   // OpenCL v2.0, s6.13.16 - Pipe functions
   case Builtin::BIread_pipe:
   case Builtin::BIwrite_pipe:
@@ -2309,6 +2351,8 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   }
 
   // These builtins support vectors of integers only.
+  // TODO: ADD should support floating-point types.
+  case Builtin::BI__builtin_reduce_add:
   case Builtin::BI__builtin_reduce_xor:
   case Builtin::BI__builtin_reduce_or:
   case Builtin::BI__builtin_reduce_and: {
@@ -2930,6 +2974,9 @@ bool Sema::CheckAArch64BuiltinFunctionCall(const TargetInfo &TI,
 
   if (BuiltinID == AArch64::BI__getReg)
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31);
+
+  if (BuiltinID == AArch64::BI__break)
+    return SemaBuiltinConstantArgRange(TheCall, 0, 0, 0xffff);
 
   if (CheckNeonBuiltinFunctionCall(TI, BuiltinID, TheCall))
     return true;
@@ -3913,6 +3960,33 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
                             diag::err_ppc_builtin_requires_vsx) ||
            SemaBuiltinConstantArgRange(TheCall, 1, 0, 127);
   }
+  case PPC::BI__builtin_ppc_maxfe:
+  case PPC::BI__builtin_ppc_minfe:
+  case PPC::BI__builtin_ppc_maxfl:
+  case PPC::BI__builtin_ppc_minfl:
+  case PPC::BI__builtin_ppc_maxfs:
+  case PPC::BI__builtin_ppc_minfs: {
+    if (Context.getTargetInfo().getTriple().isOSAIX() &&
+        (BuiltinID == PPC::BI__builtin_ppc_maxfe ||
+         BuiltinID == PPC::BI__builtin_ppc_minfe))
+      return Diag(TheCall->getBeginLoc(), diag::err_target_unsupported_type)
+             << "builtin" << true << 128 << QualType(Context.LongDoubleTy)
+             << false << Context.getTargetInfo().getTriple().str();
+    // Argument type should be exact.
+    QualType ArgType = QualType(Context.LongDoubleTy);
+    if (BuiltinID == PPC::BI__builtin_ppc_maxfl ||
+        BuiltinID == PPC::BI__builtin_ppc_minfl)
+      ArgType = QualType(Context.DoubleTy);
+    else if (BuiltinID == PPC::BI__builtin_ppc_maxfs ||
+             BuiltinID == PPC::BI__builtin_ppc_minfs)
+      ArgType = QualType(Context.FloatTy);
+    for (unsigned I = 0, E = TheCall->getNumArgs(); I < E; ++I)
+      if (TheCall->getArg(I)->getType() != ArgType)
+        return Diag(TheCall->getBeginLoc(),
+                    diag::err_typecheck_convert_incompatible)
+               << TheCall->getArg(I)->getType() << ArgType << 1 << 0 << 0;
+    return false;
+  }
   case PPC::BI__builtin_ppc_load8r:
   case PPC::BI__builtin_ppc_store8r:
     return SemaFeatureCheck(*this, TheCall, "isa-v206-instructions",
@@ -4023,6 +4097,27 @@ bool Sema::CheckRISCVLMUL(CallExpr *TheCall, unsigned ArgNum) {
          << Arg->getSourceRange();
 }
 
+static bool isRISCV32Builtin(unsigned BuiltinID) {
+  // These builtins only work on riscv32 targets.
+  switch (BuiltinID) {
+  case RISCV::BI__builtin_riscv_zip_32:
+  case RISCV::BI__builtin_riscv_unzip_32:
+  case RISCV::BI__builtin_riscv_aes32dsi_32:
+  case RISCV::BI__builtin_riscv_aes32dsmi_32:
+  case RISCV::BI__builtin_riscv_aes32esi_32:
+  case RISCV::BI__builtin_riscv_aes32esmi_32:
+  case RISCV::BI__builtin_riscv_sha512sig0h_32:
+  case RISCV::BI__builtin_riscv_sha512sig0l_32:
+  case RISCV::BI__builtin_riscv_sha512sig1h_32:
+  case RISCV::BI__builtin_riscv_sha512sig1l_32:
+  case RISCV::BI__builtin_riscv_sha512sum0r_32:
+  case RISCV::BI__builtin_riscv_sha512sum1r_32:
+    return true;
+  }
+
+  return false;
+}
+
 bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
                                          unsigned BuiltinID,
                                          CallExpr *TheCall) {
@@ -4032,6 +4127,12 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
   SmallVector<StringRef> ReqFeatures;
   StringRef Features = Context.BuiltinInfo.getRequiredFeatures(BuiltinID);
   Features.split(ReqFeatures, ',');
+
+  // Check for 32-bit only builtins on a 64-bit target.
+  const llvm::Triple &TT = TI.getTriple();
+  if (TT.getArch() != llvm::Triple::riscv32 && isRISCV32Builtin(BuiltinID))
+    return Diag(TheCall->getCallee()->getBeginLoc(),
+                diag::err_32_bit_builtin_64_bit_tgt);
 
   // Check if each required feature is included
   for (StringRef F : ReqFeatures) {
@@ -4080,6 +4181,41 @@ bool Sema::CheckRISCVBuiltinFunctionCall(const TargetInfo &TI,
   case RISCVVector::BI__builtin_rvv_vsetvlimax:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 3) ||
            CheckRISCVLMUL(TheCall, 1);
+  case RISCVVector::BI__builtin_rvv_vget_v: {
+    ASTContext::BuiltinVectorTypeInfo ResVecInfo =
+        Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(
+            TheCall->getType().getCanonicalType().getTypePtr()));
+    ASTContext::BuiltinVectorTypeInfo VecInfo =
+        Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(
+            TheCall->getArg(0)->getType().getCanonicalType().getTypePtr()));
+    unsigned MaxIndex =
+        (VecInfo.EC.getKnownMinValue() * VecInfo.NumVectors) /
+        (ResVecInfo.EC.getKnownMinValue() * ResVecInfo.NumVectors);
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, MaxIndex - 1);
+  }
+  case RISCVVector::BI__builtin_rvv_vset_v: {
+    ASTContext::BuiltinVectorTypeInfo ResVecInfo =
+        Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(
+            TheCall->getType().getCanonicalType().getTypePtr()));
+    ASTContext::BuiltinVectorTypeInfo VecInfo =
+        Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(
+            TheCall->getArg(2)->getType().getCanonicalType().getTypePtr()));
+    unsigned MaxIndex =
+        (ResVecInfo.EC.getKnownMinValue() * ResVecInfo.NumVectors) /
+        (VecInfo.EC.getKnownMinValue() * VecInfo.NumVectors);
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, MaxIndex - 1);
+  }
+  // Check if byteselect is in [0, 3]
+  case RISCV::BI__builtin_riscv_aes32dsi_32:
+  case RISCV::BI__builtin_riscv_aes32dsmi_32:
+  case RISCV::BI__builtin_riscv_aes32esi_32:
+  case RISCV::BI__builtin_riscv_aes32esmi_32:
+  case RISCV::BI__builtin_riscv_sm4ks:
+  case RISCV::BI__builtin_riscv_sm4ed:
+    return SemaBuiltinConstantArgRange(TheCall, 2, 0, 3);
+  // Check if rnum is in [0, 10]
+  case RISCV::BI__builtin_riscv_aes64ks1i_64:
+    return SemaBuiltinConstantArgRange(TheCall, 1, 0, 10);
   }
 
   return false;
@@ -5582,7 +5718,9 @@ bool Sema::CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
   if (!FnInfo)
     return false;
 
-  CheckTCBEnforcement(TheCall, FDecl);
+  // Enforce TCB except for builtin calls, which are always allowed.
+  if (FDecl->getBuiltinID() == 0)
+    CheckTCBEnforcement(TheCall->getExprLoc(), FDecl);
 
   CheckAbsoluteValueFunction(TheCall, FDecl);
   CheckMaxUnsignedZero(TheCall, FDecl);
@@ -5621,6 +5759,8 @@ bool Sema::CheckObjCMethodCall(ObjCMethodDecl *Method, SourceLocation lbrac,
   checkCall(Method, nullptr, /*ThisArg=*/nullptr, Args,
             /*IsMemberFunction=*/false, lbrac, Method->getSourceRange(),
             CallType);
+
+  CheckTCBEnforcement(lbrac, Method);
 
   return false;
 }
@@ -6226,7 +6366,7 @@ static bool checkBuiltinArgument(Sema &S, CallExpr *E, unsigned ArgIndex) {
   InitializedEntity Entity =
     InitializedEntity::InitializeParameter(S.Context, Param);
 
-  ExprResult Arg = E->getArg(0);
+  ExprResult Arg = E->getArg(ArgIndex);
   Arg = S.PerformCopyInitialization(Entity, SourceLocation(), Arg);
   if (Arg.isInvalid())
     return true;
@@ -11526,12 +11666,40 @@ Sema::CheckReturnValExpr(Expr *RetValExp, QualType lhsType,
     CheckPPCMMAType(RetValExp->getType(), ReturnLoc);
 }
 
-//===--- CHECK: Floating-Point comparisons (-Wfloat-equal) ---------------===//
+/// Check for comparisons of floating-point values using == and !=. Issue a
+/// warning if the comparison is not likely to do what the programmer intended.
+void Sema::CheckFloatComparison(SourceLocation Loc, Expr *LHS, Expr *RHS,
+                                BinaryOperatorKind Opcode) {
+  // Match and capture subexpressions such as "(float) X == 0.1".
+  FloatingLiteral *FPLiteral;
+  CastExpr *FPCast;
+  auto getCastAndLiteral = [&FPLiteral, &FPCast](Expr *L, Expr *R) {
+    FPLiteral = dyn_cast<FloatingLiteral>(L->IgnoreParens());
+    FPCast = dyn_cast<CastExpr>(R->IgnoreParens());
+    return FPLiteral && FPCast;
+  };
 
-/// Check for comparisons of floating point operands using != and ==.
-/// Issue a warning if these are no self-comparisons, as they are not likely
-/// to do what the programmer intended.
-void Sema::CheckFloatComparison(SourceLocation Loc, Expr* LHS, Expr *RHS) {
+  if (getCastAndLiteral(LHS, RHS) || getCastAndLiteral(RHS, LHS)) {
+    auto *SourceTy = FPCast->getSubExpr()->getType()->getAs<BuiltinType>();
+    auto *TargetTy = FPLiteral->getType()->getAs<BuiltinType>();
+    if (SourceTy && TargetTy && SourceTy->isFloatingPoint() &&
+        TargetTy->isFloatingPoint()) {
+      bool Lossy;
+      llvm::APFloat TargetC = FPLiteral->getValue();
+      TargetC.convert(Context.getFloatTypeSemantics(QualType(SourceTy, 0)),
+                      llvm::APFloat::rmNearestTiesToEven, &Lossy);
+      if (Lossy) {
+        // If the literal cannot be represented in the source type, then a
+        // check for == is always false and check for != is always true.
+        Diag(Loc, diag::warn_float_compare_literal)
+            << (Opcode == BO_EQ) << QualType(SourceTy, 0)
+            << LHS->getSourceRange() << RHS->getSourceRange();
+        return;
+      }
+    }
+  }
+
+  // Match a more general floating-point equality comparison (-Wfloat-equal).
   Expr* LeftExprSansParen = LHS->IgnoreParenImpCasts();
   Expr* RightExprSansParen = RHS->IgnoreParenImpCasts();
 
@@ -15497,6 +15665,8 @@ void Sema::CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
     ND = ME->getMemberDecl();
 
   if (IsUnboundedArray) {
+    if (EffectiveType->isFunctionType())
+      return;
     if (index.isUnsigned() || !index.isNegative()) {
       const auto &ASTC = getASTContext();
       unsigned AddrBits =
@@ -17416,13 +17586,11 @@ ExprResult Sema::SemaBuiltinMatrixColumnMajorStore(CallExpr *TheCall,
 /// CheckTCBEnforcement - Enforces that every function in a named TCB only
 /// directly calls other functions in the same TCB as marked by the enforce_tcb
 /// and enforce_tcb_leaf attributes.
-void Sema::CheckTCBEnforcement(const CallExpr *TheCall,
-                               const FunctionDecl *Callee) {
-  const FunctionDecl *Caller = getCurFunctionDecl();
+void Sema::CheckTCBEnforcement(const SourceLocation CallExprLoc,
+                               const NamedDecl *Callee) {
+  const NamedDecl *Caller = getCurFunctionOrMethodDecl();
 
-  // Calls to builtins are not enforced.
-  if (!Caller || !Caller->hasAttr<EnforceTCBAttr>() ||
-      Callee->getBuiltinID() != 0)
+  if (!Caller || !Caller->hasAttr<EnforceTCBAttr>())
     return;
 
   // Search through the enforce_tcb and enforce_tcb_leaf attributes to find
@@ -17440,9 +17608,8 @@ void Sema::CheckTCBEnforcement(const CallExpr *TheCall,
       [&](const auto *A) {
         StringRef CallerTCB = A->getTCBName();
         if (CalleeTCBs.count(CallerTCB) == 0) {
-          this->Diag(TheCall->getExprLoc(),
-                     diag::warn_tcb_enforcement_violation) << Callee
-                                                           << CallerTCB;
+          this->Diag(CallExprLoc, diag::warn_tcb_enforcement_violation)
+              << Callee << CallerTCB;
         }
       });
 }

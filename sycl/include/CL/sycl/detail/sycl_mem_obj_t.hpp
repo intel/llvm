@@ -90,6 +90,10 @@ public:
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
 
+  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+              bool OwmNativeHandle, event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator);
+
   virtual ~SYCLMemObjT() = default;
 
   const plugin &getPlugin() const;
@@ -109,6 +113,15 @@ public:
   template <typename propertyT>
   __SYCL_DLL_LOCAL propertyT get_property() const {
     return MProps.get_property<propertyT>();
+  }
+
+  __SYCL_DLL_LOCAL void
+  addOrReplaceAccessorProperties(const property_list &PropertyList) {
+    MProps.add_or_replace_accessor_properties(PropertyList);
+  }
+
+  __SYCL_DLL_LOCAL void deleteAccessorProperty(const PropWithDataKind &Kind) {
+    MProps.delete_accessor_property(Kind);
   }
 
   template <typename AllocatorT>
@@ -327,10 +340,9 @@ protected:
   EventImplPtr MInteropEvent;
   // Context passed by user to interoperability constructor.
   ContextImplPtr MInteropContext;
-  // OpenCL's memory object handle passed by user to interoperability
+  // Native backend memory object handle passed by user to interoperability
   // constructor.
-  // TODO update this member to support other backends.
-  cl_mem MInteropMemObject;
+  RT::PiMem MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

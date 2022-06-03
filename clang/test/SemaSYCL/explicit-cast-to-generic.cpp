@@ -15,7 +15,7 @@ void __attribute__((sycl_device)) onDeviceUsages(multi_ptr<int, access::address_
   // expected-warning@+1 {{explicit cast from 'int *' to '__local int *' potentially leads to an invalid address space cast in the resulting code}}
   __attribute__((opencl_local)) int *LL = (__attribute((opencl_local)) int *)NoAS;
 
-  // expected-warning@Inputs/sycl.hpp:356 {{explicit cast from 'int *' to 'sycl::multi_ptr<int, sycl::access::address_space::private_space>::pointer_t' (aka '__private int *') potentially leads to an invalid address space cast in the resulting code}}
+  // expected-warning@#MultiPtrConstructor {{explicit cast from 'int *' to 'sycl::multi_ptr<int, sycl::access::address_space::private_space>::pointer_t' (aka '__private int *') potentially leads to an invalid address space cast in the resulting code}}
   // expected-note@+1 {{called by 'onDeviceUsages'}}
   auto P = multi_ptr<int, access::address_space::private_space>{F.get()};
 

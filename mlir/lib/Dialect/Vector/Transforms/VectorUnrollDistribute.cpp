@@ -70,8 +70,8 @@ static Operation *cloneOpWithOperandsAndTypes(OpBuilder &builder, Location loc,
                                               Operation *op,
                                               ArrayRef<Value> operands,
                                               ArrayRef<Type> resultTypes) {
-  OperationState res(loc, op->getName(), operands, resultTypes, op->getAttrs());
-  return builder.createOperation(res);
+  return builder.create(loc, op->getName().getIdentifier(), operands,
+                        resultTypes, op->getAttrs());
 }
 
 /// Return the target shape for unrolling for the given `op`. Return llvm::None
@@ -112,7 +112,7 @@ struct UnrollTransferReadPattern
     // TODO: support 0-d corner case.
     if (readOp.getTransferRank() == 0)
       return failure();
-    if (readOp.mask())
+    if (readOp.getMask())
       return failure();
     auto targetShape = getTargetShape(options, readOp);
     if (!targetShape)
@@ -129,16 +129,16 @@ struct UnrollTransferReadPattern
         loc, sourceVectorType, rewriter.getZeroAttr(sourceVectorType));
     auto targetType =
         VectorType::get(*targetShape, sourceVectorType.getElementType());
-    SmallVector<Value, 4> originalIndices(readOp.indices().begin(),
-                                          readOp.indices().end());
+    SmallVector<Value, 4> originalIndices(readOp.getIndices().begin(),
+                                          readOp.getIndices().end());
     for (int64_t i = 0; i < sliceCount; i++) {
       SmallVector<Value, 4> indices =
           sliceTransferIndices(i, originalSize, *targetShape, originalIndices,
-                               readOp.permutation_map(), loc, rewriter);
+                               readOp.getPermutationMap(), loc, rewriter);
       auto slicedRead = rewriter.create<vector::TransferReadOp>(
-          loc, targetType, readOp.source(), indices,
-          readOp.permutation_mapAttr(), readOp.padding(), readOp.mask(),
-          readOp.in_boundsAttr());
+          loc, targetType, readOp.getSource(), indices,
+          readOp.getPermutationMapAttr(), readOp.getPadding(), readOp.getMask(),
+          readOp.getInBoundsAttr());
 
       SmallVector<int64_t, 4> elementOffsets =
           getVectorOffset(originalSize, *targetShape, i);
@@ -165,7 +165,7 @@ struct UnrollTransferWritePattern
     if (writeOp.getTransferRank() == 0)
       return failure();
 
-    if (writeOp.mask())
+    if (writeOp.getMask())
       return failure();
     auto targetShape = getTargetShape(options, writeOp);
     if (!targetShape)
@@ -177,21 +177,21 @@ struct UnrollTransferWritePattern
     SmallVector<int64_t, 4> ratio = *shapeRatio(originalSize, *targetShape);
     // Compute shape ratio of 'shape' and 'sizes'.
     int64_t sliceCount = computeMaxLinearIndex(ratio);
-    SmallVector<Value, 4> originalIndices(writeOp.indices().begin(),
-                                          writeOp.indices().end());
+    SmallVector<Value, 4> originalIndices(writeOp.getIndices().begin(),
+                                          writeOp.getIndices().end());
     Value resultTensor;
     for (int64_t i = 0; i < sliceCount; i++) {
       SmallVector<int64_t, 4> elementOffsets =
           getVectorOffset(originalSize, *targetShape, i);
       Value slicedVector = rewriter.create<vector::ExtractStridedSliceOp>(
-          loc, writeOp.vector(), elementOffsets, *targetShape, strides);
+          loc, writeOp.getVector(), elementOffsets, *targetShape, strides);
 
       SmallVector<Value, 4> indices =
           sliceTransferIndices(i, originalSize, *targetShape, originalIndices,
-                               writeOp.permutation_map(), loc, rewriter);
+                               writeOp.getPermutationMap(), loc, rewriter);
       Operation *slicedWrite = rewriter.create<vector::TransferWriteOp>(
-          loc, slicedVector, resultTensor ? resultTensor : writeOp.source(),
-          indices, writeOp.permutation_mapAttr(), writeOp.in_boundsAttr());
+          loc, slicedVector, resultTensor ? resultTensor : writeOp.getSource(),
+          indices, writeOp.getPermutationMapAttr(), writeOp.getInBoundsAttr());
       // For the tensor case update the destination for the next transfer write.
       if (!slicedWrite->getResults().empty())
         resultTensor = slicedWrite->getResult(0);
@@ -207,23 +207,23 @@ private:
   vector::UnrollVectorOptions options;
 };
 
+struct OffsetMapInfo {
+  static SmallVector<int64_t> getEmptyKey() { return {int64_t(-1)}; }
+
+  static SmallVector<int64_t> getTombstoneKey() { return {int64_t(-2)}; }
+
+  static unsigned getHashValue(const SmallVector<int64_t> &v) {
+    return static_cast<unsigned>(llvm::hash_combine_range(v.begin(), v.end()));
+  }
+
+  static bool isEqual(const SmallVector<int64_t> &lhs,
+                      const SmallVector<int64_t> &rhs) {
+    return lhs == rhs;
+  }
+};
+
 struct UnrollContractionPattern
     : public OpRewritePattern<vector::ContractionOp> {
-  struct OffsetMapInfo {
-    static SmallVector<int64_t> getEmptyKey() { return {int64_t(-1)}; }
-
-    static SmallVector<int64_t> getTombstoneKey() { return {int64_t(-2)}; }
-
-    static unsigned getHashValue(const SmallVector<int64_t> &v) {
-      return static_cast<unsigned>(
-          llvm::hash_combine_range(v.begin(), v.end()));
-    }
-
-    static bool isEqual(const SmallVector<int64_t> &lhs,
-                        const SmallVector<int64_t> &rhs) {
-      return lhs == rhs;
-    }
-  };
   UnrollContractionPattern(MLIRContext *context,
                            const vector::UnrollVectorOptions &options)
       : OpRewritePattern<vector::ContractionOp>(context, /*benefit=*/1),
@@ -267,19 +267,21 @@ struct UnrollContractionPattern
       AffineMap lhsPermutationMap = contractOp.getIndexingMaps()[0];
       SmallVector<int64_t> lhsOffets =
           applyPermutationMap(lhsPermutationMap, ArrayRef<int64_t>(offsets));
-      extractOperand(0, contractOp.lhs(), lhsPermutationMap, lhsOffets);
+      extractOperand(0, contractOp.getLhs(), lhsPermutationMap, lhsOffets);
       // If there is a mask associated to lhs, extract it as well.
       if (slicesOperands.size() > 3)
-        extractOperand(3, contractOp.masks()[0], lhsPermutationMap, lhsOffets);
+        extractOperand(3, contractOp.getMasks()[0], lhsPermutationMap,
+                       lhsOffets);
 
       // Extract the new rhs operand.
       AffineMap rhsPermutationMap = contractOp.getIndexingMaps()[1];
       SmallVector<int64_t> rhsOffets =
           applyPermutationMap(rhsPermutationMap, ArrayRef<int64_t>(offsets));
-      extractOperand(1, contractOp.rhs(), rhsPermutationMap, rhsOffets);
+      extractOperand(1, contractOp.getRhs(), rhsPermutationMap, rhsOffets);
       // If there is a mask associated to rhs, extract it as well.
       if (slicesOperands.size() > 4)
-        extractOperand(4, contractOp.masks()[1], rhsPermutationMap, rhsOffets);
+        extractOperand(4, contractOp.getMasks()[1], rhsPermutationMap,
+                       rhsOffets);
 
       AffineMap accPermutationMap = contractOp.getIndexingMaps()[2];
       SmallVector<int64_t> accOffets =
@@ -290,7 +292,7 @@ struct UnrollContractionPattern
       if (accIt != accCache.end())
         slicesOperands[2] = accIt->second;
       else
-        extractOperand(2, contractOp.acc(), accPermutationMap, accOffets);
+        extractOperand(2, contractOp.getAcc(), accPermutationMap, accOffets);
 
       SmallVector<int64_t> dstShape =
           applyPermutationMap(dstAffineMap, ArrayRef<int64_t>(*targetShape));
@@ -313,6 +315,74 @@ struct UnrollContractionPattern
           loc, it.second, result, it.first, dstStrides);
     }
     rewriter.replaceOp(contractOp, result);
+    return success();
+  }
+
+private:
+  vector::UnrollVectorOptions options;
+};
+
+struct UnrollMultiReductionPattern
+    : public OpRewritePattern<vector::MultiDimReductionOp> {
+  UnrollMultiReductionPattern(MLIRContext *context,
+                              const vector::UnrollVectorOptions &options)
+      : OpRewritePattern<vector::MultiDimReductionOp>(context, /*benefit=*/1),
+        options(options) {}
+
+  LogicalResult matchAndRewrite(vector::MultiDimReductionOp reductionOp,
+                                PatternRewriter &rewriter) const override {
+    Optional<SmallVector<int64_t, 4>> targetShape =
+        getTargetShape(options, reductionOp);
+    if (!targetShape)
+      return failure();
+    SmallVector<int64_t, 4> originalSize = *reductionOp.getShapeForUnroll();
+    SmallVector<int64_t, 4> ratio = *shapeRatio(originalSize, *targetShape);
+    llvm::MapVector<
+        SmallVector<int64_t>, Value,
+        llvm::DenseMap<SmallVector<int64_t>, unsigned, OffsetMapInfo>>
+        accCache;
+    // Compute shape ratio of 'shape' and 'sizes'.
+    int64_t sliceCount = computeMaxLinearIndex(ratio);
+    Location loc = reductionOp.getLoc();
+    for (int64_t i = 0; i < sliceCount; i++) {
+      SmallVector<int64_t, 4> offsets =
+          getVectorOffset(originalSize, *targetShape, i);
+
+      SmallVector<int64_t, 4> operandStrides(offsets.size(), 1);
+      Value slicedOperand = rewriter.create<vector::ExtractStridedSliceOp>(
+          loc, reductionOp.getOperand(), offsets, *targetShape, operandStrides);
+
+      SmallVector<int64_t> dstShape;
+      SmallVector<int64_t> destOffset;
+      for (size_t i : llvm::seq(size_t(0), targetShape->size())) {
+        if (!reductionOp.isReducedDim(i)) {
+          destOffset.push_back(offsets[i]);
+          dstShape.push_back((*targetShape)[i]);
+        }
+      }
+      auto targetType = VectorType::get(
+          dstShape, reductionOp.getSourceVectorType().getElementType());
+      Operation *newOp = cloneOpWithOperandsAndTypes(rewriter, loc, reductionOp,
+                                                     slicedOperand, targetType);
+      Value result = newOp->getResult(0);
+      // Save the accumulated value until all the loops are unrolled since
+      // reduction loop keeps updating the accumulator.
+      auto accIt = accCache.find(destOffset);
+      if (accIt != accCache.end())
+        result = makeArithReduction(rewriter, loc, reductionOp.getKind(),
+                                    result, accIt->second);
+      accCache[destOffset] = result;
+    }
+    // Assemble back the accumulator into a single vector.
+    Value result = rewriter.create<arith::ConstantOp>(
+        loc, reductionOp.getDestType(),
+        rewriter.getZeroAttr(reductionOp.getDestType()));
+    for (const auto &it : accCache) {
+      SmallVector<int64_t> dstStrides(it.first.size(), 1);
+      result = rewriter.create<vector::InsertStridedSliceOp>(
+          loc, it.second, result, it.first, dstStrides);
+    }
+    rewriter.replaceOp(reductionOp, result);
     return success();
   }
 
@@ -383,7 +453,7 @@ struct PointwiseExtractPattern : public OpRewritePattern<vector::ExtractMapOp> {
   using OpRewritePattern<vector::ExtractMapOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(vector::ExtractMapOp extract,
                                 PatternRewriter &rewriter) const override {
-    Operation *definedOp = extract.vector().getDefiningOp();
+    Operation *definedOp = extract.getVector().getDefiningOp();
     if (!definedOp || !OpTrait::hasElementwiseMappableTraits(definedOp) ||
         definedOp->getNumResults() != 1)
       return failure();
@@ -399,7 +469,7 @@ struct PointwiseExtractPattern : public OpRewritePattern<vector::ExtractMapOp> {
           loc,
           VectorType::get(extract.getResultType().getShape(),
                           vecType.getElementType()),
-          operand.get(), extract.ids()));
+          operand.get(), extract.getIds()));
     }
     Operation *newOp = cloneOpWithOperandsAndTypes(
         rewriter, loc, definedOp, extractOperands, extract.getResultType());
@@ -414,7 +484,7 @@ struct ContractExtractPattern : public OpRewritePattern<vector::ExtractMapOp> {
   using OpRewritePattern<vector::ExtractMapOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(vector::ExtractMapOp extract,
                                 PatternRewriter &rewriter) const override {
-    Operation *definedOp = extract.vector().getDefiningOp();
+    Operation *definedOp = extract.getVector().getDefiningOp();
     auto contract = dyn_cast_or_null<vector::ContractionOp>(definedOp);
     if (!contract)
       return failure();
@@ -446,7 +516,7 @@ struct ContractExtractPattern : public OpRewritePattern<vector::ExtractMapOp> {
       VectorType newVecType =
           VectorType::get(operandShape, vecType.getElementType());
       extractOperands.push_back(rewriter.create<vector::ExtractMapOp>(
-          loc, newVecType, operand, extract.ids()));
+          loc, newVecType, operand, extract.getIds()));
     }
     Operation *newOp =
         cloneOpWithOperandsAndTypes(rewriter, loc, definedOp, extractOperands,
@@ -486,11 +556,12 @@ struct TransferReadExtractPattern
         dyn_cast<vector::ExtractMapOp>(*read.getResult().getUsers().begin());
     if (!extract)
       return failure();
-    if (read.mask())
+    if (read.getMask())
       return failure();
 
-    SmallVector<Value, 4> indices(read.indices().begin(), read.indices().end());
-    AffineMap indexMap = extract.map().compose(read.permutation_map());
+    SmallVector<Value, 4> indices(read.getIndices().begin(),
+                                  read.getIndices().end());
+    AffineMap indexMap = extract.map().compose(read.getPermutationMap());
     unsigned idCount = 0;
     ImplicitLocOpBuilder lb(read.getLoc(), rewriter);
     for (auto it :
@@ -506,14 +577,15 @@ struct TransferReadExtractPattern
           extract.getResultType().getDimSize(vectorPos), read.getContext());
       indices[indexPos] = makeComposedAffineApply(
           rewriter, read.getLoc(), d0 + scale * d1,
-          {indices[indexPos], extract.ids()[idCount++]});
+          {indices[indexPos], extract.getIds()[idCount++]});
     }
     Value newRead = lb.create<vector::TransferReadOp>(
-        extract.getType(), read.source(), indices, read.permutation_mapAttr(),
-        read.padding(), read.mask(), read.in_boundsAttr());
+        extract.getType(), read.getSource(), indices,
+        read.getPermutationMapAttr(), read.getPadding(), read.getMask(),
+        read.getInBoundsAttr());
     Value dest = lb.create<arith::ConstantOp>(
         read.getType(), rewriter.getZeroAttr(read.getType()));
-    newRead = lb.create<vector::InsertMapOp>(newRead, dest, extract.ids());
+    newRead = lb.create<vector::InsertMapOp>(newRead, dest, extract.getIds());
     rewriter.replaceOp(read, newRead);
     return success();
   }
@@ -529,14 +601,14 @@ struct TransferWriteInsertPattern
     if (write.getTransferRank() == 0)
       return failure();
 
-    auto insert = write.vector().getDefiningOp<vector::InsertMapOp>();
+    auto insert = write.getVector().getDefiningOp<vector::InsertMapOp>();
     if (!insert)
       return failure();
-    if (write.mask())
+    if (write.getMask())
       return failure();
-    SmallVector<Value, 4> indices(write.indices().begin(),
-                                  write.indices().end());
-    AffineMap indexMap = insert.map().compose(write.permutation_map());
+    SmallVector<Value, 4> indices(write.getIndices().begin(),
+                                  write.getIndices().end());
+    AffineMap indexMap = insert.map().compose(write.getPermutationMap());
     unsigned idCount = 0;
     Location loc = write.getLoc();
     for (auto it :
@@ -551,16 +623,110 @@ struct TransferWriteInsertPattern
       auto scale = getAffineConstantExpr(
           insert.getSourceVectorType().getDimSize(vectorPos),
           write.getContext());
-      indices[indexPos] =
-          makeComposedAffineApply(rewriter, loc, d0 + scale * d1,
-                                  {indices[indexPos], insert.ids()[idCount++]});
+      indices[indexPos] = makeComposedAffineApply(
+          rewriter, loc, d0 + scale * d1,
+          {indices[indexPos], insert.getIds()[idCount++]});
     }
     rewriter.create<vector::TransferWriteOp>(
-        loc, insert.vector(), write.source(), indices,
-        write.permutation_mapAttr(), write.in_boundsAttr());
+        loc, insert.getVector(), write.getSource(), indices,
+        write.getPermutationMapAttr(), write.getInBoundsAttr());
     rewriter.eraseOp(write);
     return success();
   }
+};
+
+struct UnrollReductionPattern : public OpRewritePattern<vector::ReductionOp> {
+  UnrollReductionPattern(MLIRContext *context,
+                         const vector::UnrollVectorOptions &options)
+      : OpRewritePattern<vector::ReductionOp>(context, /*benefit=*/1),
+        options(options) {}
+
+  LogicalResult matchAndRewrite(vector::ReductionOp reductionOp,
+                                PatternRewriter &rewriter) const override {
+    Optional<SmallVector<int64_t, 4>> targetShape =
+        getTargetShape(options, reductionOp);
+    if (!targetShape)
+      return failure();
+    SmallVector<int64_t> originalSize = *reductionOp.getShapeForUnroll();
+    int64_t ratio = (*shapeRatio(originalSize, *targetShape))[0];
+
+    // Create unrolled vector reduction.
+    Location loc = reductionOp.getLoc();
+    Value accumulator = nullptr;
+    for (int64_t i = 0; i < ratio; ++i) {
+      SmallVector<int64_t> offsets =
+          getVectorOffset(originalSize, *targetShape, i);
+      SmallVector<int64_t> strides(offsets.size(), 1);
+      Value slicedOperand = rewriter.create<vector::ExtractStridedSliceOp>(
+          loc, reductionOp.getVector(), offsets, *targetShape, strides);
+      Operation *newOp = cloneOpWithOperandsAndTypes(
+          rewriter, loc, reductionOp, slicedOperand, reductionOp.getType());
+      Value result = newOp->getResult(0);
+
+      if (!accumulator) {
+        // This is the first reduction.
+        accumulator = result;
+      } else {
+        // On subsequent reduction, combine with the accumulator.
+        accumulator = makeArithReduction(rewriter, loc, reductionOp.getKind(),
+                                         accumulator, result);
+      }
+    }
+
+    rewriter.replaceOp(reductionOp, accumulator);
+    return success();
+  }
+
+private:
+  const vector::UnrollVectorOptions options;
+};
+
+struct UnrollTranposePattern : public OpRewritePattern<vector::TransposeOp> {
+  UnrollTranposePattern(MLIRContext *context,
+                        const vector::UnrollVectorOptions &options)
+      : OpRewritePattern<vector::TransposeOp>(context, /*benefit=*/1),
+        options(options) {}
+  LogicalResult matchAndRewrite(vector::TransposeOp tranposeOp,
+                                PatternRewriter &rewriter) const override {
+    if (tranposeOp.getResultType().getRank() == 0)
+      return failure();
+    auto targetShape = getTargetShape(options, tranposeOp);
+    if (!targetShape)
+      return failure();
+    auto originalVectorType = tranposeOp.getResultType();
+    SmallVector<int64_t, 4> strides(targetShape->size(), 1);
+    Location loc = tranposeOp.getLoc();
+    ArrayRef<int64_t> originalSize = originalVectorType.getShape();
+    SmallVector<int64_t, 4> ratio = *shapeRatio(originalSize, *targetShape);
+    int64_t sliceCount = computeMaxLinearIndex(ratio);
+    // Prepare the result vector;
+    Value result = rewriter.create<arith::ConstantOp>(
+        loc, originalVectorType, rewriter.getZeroAttr(originalVectorType));
+    SmallVector<int64_t> permutation;
+    tranposeOp.getTransp(permutation);
+    for (int64_t i = 0; i < sliceCount; i++) {
+      SmallVector<int64_t, 4> elementOffsets =
+          getVectorOffset(originalSize, *targetShape, i);
+      SmallVector<int64_t, 4> permutedOffsets(elementOffsets.size());
+      SmallVector<int64_t, 4> permutedShape(elementOffsets.size());
+      // Compute the source offsets and shape.
+      for (auto &indices : llvm::enumerate(permutation)) {
+        permutedOffsets[indices.value()] = elementOffsets[indices.index()];
+        permutedShape[indices.value()] = (*targetShape)[indices.index()];
+      }
+      Value slicedOperand = rewriter.create<vector::ExtractStridedSliceOp>(
+          loc, tranposeOp.getVector(), permutedOffsets, permutedShape, strides);
+      Value tranposedSlice =
+          rewriter.create<vector::TransposeOp>(loc, slicedOperand, permutation);
+      result = rewriter.create<vector::InsertStridedSliceOp>(
+          loc, tranposedSlice, result, elementOffsets, strides);
+    }
+    rewriter.replaceOp(tranposeOp, result);
+    return success();
+  }
+
+private:
+  vector::UnrollVectorOptions options;
 };
 
 } // namespace
@@ -568,8 +734,9 @@ struct TransferWriteInsertPattern
 void mlir::vector::populateVectorUnrollPatterns(
     RewritePatternSet &patterns, const UnrollVectorOptions &options) {
   patterns.add<UnrollTransferReadPattern, UnrollTransferWritePattern,
-               UnrollContractionPattern, UnrollElementwisePattern>(
-      patterns.getContext(), options);
+               UnrollContractionPattern, UnrollElementwisePattern,
+               UnrollReductionPattern, UnrollMultiReductionPattern,
+               UnrollTranposePattern>(patterns.getContext(), options);
 }
 
 void mlir::vector::populatePropagateVectorDistributionPatterns(

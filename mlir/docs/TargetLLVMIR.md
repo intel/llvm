@@ -301,10 +301,10 @@ defines and uses of the values being returned.
 Example:
 
 ```mlir
-func @foo(%arg0: i32, %arg1: i64) -> (i32, i64) {
+func.func @foo(%arg0: i32, %arg1: i64) -> (i32, i64) {
   return %arg0, %arg1 : i32, i64
 }
-func @bar() {
+func.func @bar() {
   %0 = arith.constant 42 : i32
   %1 = arith.constant 17 : i64
   %2:2 = call @foo(%0, %1) : (i32, i64) -> (i32, i64)
@@ -348,7 +348,7 @@ individual scalar arguments.
 
 Examples:
 
-This convention is implemented in the conversion of `std.func` and `std.call` to
+This convention is implemented in the conversion of `func.func` and `func.call` to
 the LLVM dialect, with the former unpacking the descriptor into a set of
 individual values and the latter packing those values back into a descriptor so
 as to make it transparently usable by other operations. Conversions from other
@@ -360,7 +360,7 @@ aliasing attributes on the raw pointers underpinning the memref.
 Examples:
 
 ```mlir
-func @foo(%arg0: memref<?xf32>) -> () {
+func.func @foo(%arg0: memref<?xf32>) -> () {
   "use"(%arg0) : (memref<?xf32>) -> ()
   return
 }
@@ -390,7 +390,7 @@ llvm.func @foo(%arg0: !llvm.ptr<f32>,  // Allocated pointer.
 ```
 
 ```mlir
-func @bar() {
+func.func @bar() {
   %0 = "get"() : () -> (memref<?xf32>)
   call @foo(%0) : (memref<?xf32>) -> ()
   return
@@ -481,7 +481,7 @@ be returned from a function, the ranked descriptor it points to is copied into
 dynamically allocated memory, and the pointer in the unranked descriptor is
 updated accordingly. The allocation happens immediately before returning. It is
 the responsibility of the caller to free the dynamically allocated memory. The
-default conversion of `std.call` and `std.call_indirect` copies the ranked
+default conversion of `func.call` and `func.call_indirect` copies the ranked
 descriptor to newly allocated memory on the caller's stack. Thus, the convention
 of the ranked memref descriptor pointed to by an unranked memref descriptor
 being stored on stack is respected.
@@ -503,9 +503,9 @@ to the following.
 Examples:
 
 ```
-func @callee(memref<2x4xf32>) {
+func.func @callee(memref<2x4xf32>) {
 
-func @caller(%0 : memref<2x4xf32>) {
+func.func @caller(%0 : memref<2x4xf32>) {
   call @callee(%0) : (memref<2x4xf32>) -> ()
 }
 
@@ -615,7 +615,7 @@ Examples:
 
 ```mlir
 
-func @qux(%arg0: memref<?x?xf32>)
+func.func @qux(%arg0: memref<?x?xf32>)
 
 // Gets converted into the following
 // (using type alias for brevity):
@@ -659,7 +659,7 @@ llvm.func @_mlir_ciface_qux(!llvm.ptr<struct<(ptr<f32>, ptr<f32>, i64,
 ```
 
 ```mlir
-func @foo(%arg0: memref<?x?xf32>) {
+func.func @foo(%arg0: memref<?x?xf32>) {
   return
 }
 
@@ -698,7 +698,7 @@ llvm.func @_mlir_ciface_foo(%arg0: !llvm.memref_2d_ptr) {
 ```
 
 ```mlir
-func @foo(%arg0: memref<?x?xf32>) -> memref<?x?xf32> {
+func.func @foo(%arg0: memref<?x?xf32>) -> memref<?x?xf32> {
   return %arg0 : memref<?x?xf32>
 }
 

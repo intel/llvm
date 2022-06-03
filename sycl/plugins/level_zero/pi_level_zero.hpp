@@ -29,6 +29,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -184,7 +185,7 @@ template <class T> struct ZeCache : private T {
   // order to disallow access other than through "->".
   //
   typedef std::function<void(T &)> InitFunctionType;
-  InitFunctionType Compute;
+  InitFunctionType Compute{nullptr};
   bool Computed{false};
 
   ZeCache() : T{} {}
@@ -199,6 +200,45 @@ template <class T> struct ZeCache : private T {
   }
 };
 
+// A single-threaded app has an opportunity to enable this mode to avoid
+// overhead from mutex locking. Default value is 0 which means that single
+// thread mode is disabled.
+static const bool SingleThreadMode = [] {
+  const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_SINGLE_THREAD_MODE");
+  const bool RetVal = Ret ? std::stoi(Ret) : 0;
+  return RetVal;
+}();
+
+// Class which acts like shared_mutex if SingleThreadMode variable is not set.
+// If SingleThreadMode variable is set then mutex operations are turned into
+// nop.
+class pi_shared_mutex : public std::shared_mutex {
+public:
+  void lock() {
+    if (!SingleThreadMode)
+      std::shared_mutex::lock();
+  }
+  bool try_lock() {
+    return SingleThreadMode ? true : std::shared_mutex::try_lock();
+  }
+  void unlock() {
+    if (!SingleThreadMode)
+      std::shared_mutex::unlock();
+  }
+
+  void lock_shared() {
+    if (!SingleThreadMode)
+      std::shared_mutex::lock_shared();
+  }
+  bool try_lock_shared() {
+    return SingleThreadMode ? true : std::shared_mutex::try_lock_shared();
+  }
+  void unlock_shared() {
+    if (!SingleThreadMode)
+      std::shared_mutex::unlock_shared();
+  }
+};
+
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{1} {}
@@ -206,18 +246,40 @@ struct _pi_object {
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
   std::atomic<pi_uint32> RefCount;
+
+  // This mutex protects accesses to all the non-const member variables.
+  // Exclusive access is required to modify any of these members.
+  //
+  // To get shared access to the object in a scope use std::shared_lock:
+  //    std::shared_lock Lock(Obj->Mutex);
+  // To get exclusive access to the object in a scope use std::scoped_lock:
+  //    std::scoped_lock Lock(Obj->Mutex);
+  //
+  // If several pi objects are accessed in a scope then each object's mutex must
+  // be locked. For example, to get write access to Obj1 and Obj2 and read
+  // access to Obj3 in a scope use the following approach:
+  //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
+  //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
+  pi_shared_mutex Mutex;
+
+  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
 // for each memory allocation.
 struct MemAllocRecord : _pi_object {
-  MemAllocRecord(pi_context Context) : Context(Context) {}
+  MemAllocRecord(pi_context Context, bool OwnZeMemHandle = true)
+      : Context(Context), OwnZeMemHandle(OwnZeMemHandle) {}
   // Currently kernel can reference memory allocations from different contexts
   // and we need to know the context of a memory allocation when we release it
   // in piKernelRelease.
   // TODO: this should go away when memory isolation issue is fixed in the Level
   // Zero runtime.
   pi_context Context;
+
+  // Indicates if we own the native memory handle or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeMemHandle;
 };
 
 // Define the types that are opaque in pi.h in a manner suitabale for Level Zero
@@ -281,7 +343,7 @@ public:
       : Context{Ctx}, Device{Dev} {}
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
-  void deallocate(void *Ptr) override final;
+  void deallocate(void *Ptr, bool OwnZeMemHandle) override final;
   MemType getMemType() override final;
 };
 
@@ -294,6 +356,18 @@ protected:
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
+      : USMMemoryAllocBase(Ctx, Dev) {}
+};
+
+// Allocation routines for shared memory type that is only modified from host.
+class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
+protected:
+  pi_result allocateImpl(void **ResultPtr, size_t Size,
+                         pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override { return SystemMemory::SharedReadOnly; }
+
+public:
+  USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
       : USMMemoryAllocBase(Ctx, Dev) {}
 };
 
@@ -412,6 +486,8 @@ struct _pi_device : _pi_object {
 // in the same context.
 struct pi_command_list_info_t {
   // The Level-Zero fence that will be signalled at completion.
+  // Immediate commandlists do not have an associated fence.
+  // A nullptr for the fence indicates that this is an immediate commandlist.
   ze_fence_handle_t ZeFence{nullptr};
   // Record if the fence is in use.
   // This is needed to avoid leak of the tracked command-list if the fence
@@ -458,6 +534,10 @@ struct _pi_context : _pi_object {
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
               new USMSharedMemoryAlloc(this, Device))));
+      SharedReadOnlyMemAllocContexts.emplace(
+          std::piecewise_construct, std::make_tuple(Device),
+          std::make_tuple(std::unique_ptr<SystemMemory>(
+              new USMSharedReadOnlyMemoryAlloc(this, Device))));
       DeviceMemAllocContexts.emplace(
           std::piecewise_construct, std::make_tuple(Device),
           std::make_tuple(std::unique_ptr<SystemMemory>(
@@ -514,6 +594,9 @@ struct _pi_context : _pi_object {
   // Finalize the PI context
   pi_result finalize();
 
+  // Return the Platform, which is the same for all devices in the context
+  pi_platform getPlatform() const { return Devices[0]->Platform; }
+
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
   ze_context_handle_t ZeContext;
@@ -569,6 +652,9 @@ struct _pi_context : _pi_object {
   // If AllowBatching is true, then the command list returned may already have
   // command in it, if AllowBatching is false, any open command lists that
   // already exist in Queue will be closed and executed.
+  // When using immediate commandlists, retrieves an immediate command list
+  // for executing on this device. Immediate commandlists are created only
+  // once for each SYCL Queue and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
                                     bool UseCopyEngine = false,
@@ -589,8 +675,15 @@ struct _pi_context : _pi_object {
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
   // per each pair of (context, device) per each memory type.
-  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
   std::unordered_map<pi_device, USMAllocContext> DeviceMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedMemAllocContexts;
+  std::unordered_map<pi_device, USMAllocContext> SharedReadOnlyMemAllocContexts;
+
+  // Since L0 native runtime does not distinguisg "shared device_read_only"
+  // vs regular "shared" allocations, we have keep track of it to use
+  // proper USMAllocContext when freeing allocations.
+  std::unordered_set<void *> SharedReadOnlyAllocs;
+
   // Store the host allocator context. It does not depend on any device.
   std::unique_ptr<USMAllocContext> HostMemAllocContext;
 
@@ -668,10 +761,21 @@ struct _pi_queue : _pi_object {
     // Level Zero command queue handles.
     std::vector<ze_command_queue_handle_t> ZeQueues;
 
+    // Immediate commandlist handles, one per Level Zero command queue handle.
+    // These are created only once, along with the L0 queues (see above)
+    // and reused thereafter.
+    std::vector<pi_command_list_ptr_t> ImmCmdLists;
+
+    // Return the index of the next queue to use based on a
+    // round robin strategy and the queue group ordinal.
+    uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
+
     // This function will return one of possibly multiple available native
-    // queues. Currently, a round robin strategy is used. This function also
-    // sends back the value of the queue group ordinal.
+    // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
+
+    // This function returns the next immediate commandlist to use.
+    pi_command_list_ptr_t &getImmCmdList();
 
     // These indices are to filter specific range of the queues to use,
     // and to organize round-robin across them.
@@ -686,6 +790,9 @@ struct _pi_queue : _pi_object {
   // In this vector, main copy engine, if available, come first followed by
   // link copy engines, if available.
   pi_queue_group_t CopyQueueGroup{this, queue_type::MainCopy};
+
+  // Wait for all commandlists associated with this Queue to finish operations.
+  pi_result synchronize();
 
   pi_queue_group_t &getQueueGroup(bool UseCopyEngine) {
     return UseCopyEngine ? CopyQueueGroup : ComputeQueueGroup;
@@ -706,13 +813,6 @@ struct _pi_queue : _pi_object {
   // Therefore it can be accessed without holding a lock on this _pi_queue.
   const pi_device Device;
 
-  // Mutex to be locked on entry to a _pi_queue API call, and unlocked
-  // prior to exit.  Access to all state of a queue is done only after
-  // this lock has been acquired, and this must be released upon exit
-  // from a pi_queue API call.  No other mutexes/locking should be
-  // needed/used for the queue data structures.
-  std::mutex PiQueueMutex;
-
   // Keeps track of the event associated with the last enqueued command into
   // this queue. this is used to add dependency with the last command to add
   // in-order semantics and updated with the latest event each time a new
@@ -726,6 +826,9 @@ struct _pi_queue : _pi_object {
   // indirect access in the list at the moment when kernel is really submitted
   // for execution.
   std::vector<pi_kernel> KernelsToBeSubmitted;
+
+  // Update map of memory references made by the kernels about to be submitted
+  void CaptureIndirectAccesses();
 
   // Indicates if we own the ZeCommandQueue or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
@@ -790,6 +893,10 @@ struct _pi_queue : _pi_object {
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
                              bool MakeAvailable);
 
+  // Reset signalled command lists in the queue and put them to the cache of
+  // command lists. A caller must not lock the queue mutex.
+  pi_result resetCommandLists();
+
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
   // checked. Otherwise, the OpenCommandList containing compute commands is
@@ -798,7 +905,8 @@ struct _pi_queue : _pi_object {
     auto CommandBatch = (IsCopy) ? CopyCommandBatch : ComputeCommandBatch;
     return CommandBatch.OpenCommandList != CommandListMap.end();
   }
-  // Attach a command list to this queue, close, and execute it.
+  // Attach a command list to this queue.
+  // For non-immediate commandlist also close and execute it.
   // Note that this command list cannot be appended to after this.
   // The "IsBlocking" tells if the wait for completion is required.
   // If OKToBatchCommand is true, then this command list may be executed
@@ -806,6 +914,8 @@ struct _pi_queue : _pi_object {
   // batched into.
   // If IsBlocking is true, then batching will not be allowed regardless
   // of the value of OKToBatchCommand
+  //
+  // For immediate commandlists, no close and execute is necessary.
   pi_result executeCommandList(pi_command_list_ptr_t CommandList,
                                bool IsBlocking = false,
                                bool OKToBatchCommand = false);
@@ -847,19 +957,145 @@ struct _pi_mem : _pi_object {
   // Keeps the PI context of this memory handle.
   pi_context Context;
 
-  // Keeps the host pointer where the buffer will be mapped to,
-  // if created with PI_MEM_FLAGS_HOST_PTR_USE (see
-  // piEnqueueMemBufferMap for details).
-  char *MapHostPtr;
+  // Enumerates all possible types of accesses.
+  enum access_mode_t { unknown, read_write, read_only, write_only };
 
-  // Flag to indicate that this memory is allocated in host memory
-  bool OnHost;
+  // Interface of the _pi_mem object
 
-  // Flag to indicate that the host ptr has been imported into USM
-  bool HostPtrImported;
+  // Get the Level Zero handle of the current memory object
+  virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
+                                pi_device Device = nullptr) = 0;
 
-  // Supplementary data to keep track of the mappings of this memory
-  // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
+  // Get a pointer to the Level Zero handle of the current memory object
+  virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   pi_device Device = nullptr) = 0;
+
+  // Method to get type of the derived object (image or buffer)
+  virtual bool isImage() const = 0;
+
+  virtual ~_pi_mem() = default;
+
+protected:
+  _pi_mem(pi_context Ctx) : Context{Ctx} {}
+};
+
+struct _pi_buffer;
+using pi_buffer = _pi_buffer *;
+
+struct _pi_buffer final : _pi_mem {
+  // Buffer constructor
+  _pi_buffer(pi_context Context, size_t Size, char *HostPtr,
+             bool ImportedHostPtr = false)
+      : _pi_mem(Context), Size(Size), SubBuffer{nullptr, 0} {
+
+    // We treat integrated devices (physical memory shared with the CPU)
+    // differently from discrete devices (those with distinct memories).
+    // For integrated devices, allocating the buffer in the host memory
+    // enables automatic access from the device, and makes copying
+    // unnecessary in the map/unmap operations. This improves performance.
+    OnHost = Context->Devices.size() == 1 &&
+             Context->Devices[0]->ZeDeviceProperties->flags &
+                 ZE_DEVICE_PROPERTY_FLAG_INTEGRATED;
+
+    // Fill the host allocation data.
+    if (HostPtr) {
+      MapHostPtr = HostPtr;
+      // If this host ptr is imported to USM then use this as a host
+      // allocation for this buffer.
+      if (ImportedHostPtr) {
+        Allocations[nullptr].ZeHandle = HostPtr;
+        Allocations[nullptr].Valid = true;
+        Allocations[nullptr].ReleaseAction = _pi_buffer::allocation_t::unimport;
+      }
+    }
+
+    // Make first device in the context be the master. Mark that
+    // allocation (yet to be made) having "valid" data. And real
+    // allocation and initialization should follow the buffer
+    // construction with a "write_only" access copy.
+    LastDeviceWithValidAllocation = Context->Devices[0];
+    Allocations[LastDeviceWithValidAllocation].Valid = true;
+  }
+
+  // Sub-buffer constructor
+  _pi_buffer(pi_buffer Parent, size_t Origin, size_t Size)
+      : _pi_mem(Parent->Context), Size(Size), SubBuffer{Parent, Origin} {}
+
+  // Interop-buffer constructor
+  _pi_buffer(pi_context Context, size_t Size, pi_device Device,
+             char *ZeMemHandle, bool OwnZeMemHandle)
+      : _pi_mem(Context), Size(Size), SubBuffer{nullptr, 0} {
+
+    // Device == nullptr means host allocation
+    Allocations[Device].ZeHandle = ZeMemHandle;
+    Allocations[Device].Valid = true;
+    Allocations[Device].ReleaseAction =
+        OwnZeMemHandle ? allocation_t::free_native : allocation_t::keep;
+
+    // Check if this buffer can always stay on host
+    OnHost = false;
+    if (!Device) { // Host allocation
+      if (Context->Devices.size() == 1 &&
+          Context->Devices[0]->ZeDeviceProperties->flags &
+              ZE_DEVICE_PROPERTY_FLAG_INTEGRATED) {
+        OnHost = true;
+        MapHostPtr = ZeMemHandle; // map to this allocation
+      }
+    }
+    LastDeviceWithValidAllocation = Device;
+  }
+
+  // Returns a pointer to the USM allocation representing this PI buffer
+  // on the specified Device. If Device is nullptr then the returned
+  // USM allocation is on the device where this buffer was used the latest.
+  // The returned allocation is always valid, i.e. its contents is
+  // up-to-date and any data copies needed for that are performed under
+  // the hood.
+  //
+  virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
+                                pi_device Device = nullptr) override;
+  virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   pi_device Device = nullptr) override;
+
+  bool isImage() const override { return false; }
+
+  bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
+
+  // Frees all allocations made for the buffer.
+  pi_result free();
+
+  // Information about a single allocation representing this buffer.
+  struct allocation_t {
+    // Level Zero memory handle is really just a naked pointer.
+    // It is just convenient to have it char * to simplify offset arithmetics.
+    char *ZeHandle{nullptr};
+    // Indicates if this allocation's data is valid.
+    bool Valid{false};
+    // Specifies the action that needs to be taken for this
+    // allocation at buffer destruction.
+    enum {
+      keep,       // do nothing, the allocation is not owned by us
+      unimport,   // release of the imported allocation
+      free,       // free from the pooling context (default)
+      free_native // free with a native call
+    } ReleaseAction{free};
+  };
+
+  // We maintain multiple allocations on possibly all devices in the context.
+  // The "nullptr" device identifies a host allocation representing buffer.
+  // Sub-buffers don't maintain own allocations but rely on parent buffer.
+  std::unordered_map<pi_device, allocation_t> Allocations;
+  pi_device LastDeviceWithValidAllocation{nullptr};
+
+  // Flag to indicate that this memory is allocated in host memory.
+  // Integrated device accesses this memory.
+  bool OnHost{false};
+
+  // Tells the host allocation to use for buffer map operations.
+  char *MapHostPtr{nullptr};
+
+  // Supplementary data to keep track of the mappings of this buffer
+  // created with piEnqueueMemBufferMap.
   struct Mapping {
     // The offset in the buffer giving the start of the mapped region.
     size_t Offset;
@@ -867,75 +1103,36 @@ struct _pi_mem : _pi_object {
     size_t Size;
   };
 
-  // Interface of the _pi_mem object
-
-  // Get the Level Zero handle of the current memory object
-  virtual void *getZeHandle() = 0;
-
-  // Get a pointer to the Level Zero handle of the current memory object
-  virtual void *getZeHandlePtr() = 0;
-
-  // Method to get type of the derived object (image or buffer)
-  virtual bool isImage() const = 0;
-
-  virtual ~_pi_mem() = default;
-
-  // Thread-safe methods to work with memory mappings
-  pi_result addMapping(void *MappedTo, size_t Size, size_t Offset);
-  pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
-
-protected:
-  _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false,
-          bool ImportedHostPtr = false)
-      : Context{Ctx}, MapHostPtr{HostPtr}, OnHost{MemOnHost},
-        HostPtrImported{ImportedHostPtr}, Mappings{} {}
-
-private:
   // The key is the host pointer representing an active mapping.
   // The value is the information needed to maintain/undo the mapping.
   std::unordered_map<void *, Mapping> Mappings;
 
-  // TODO: we'd like to create a thread safe map class instead of mutex + map,
-  // that must be carefully used together.
-  // The mutex that is used for thread-safe work with Mappings.
-  std::mutex MappingsMutex;
-};
-
-struct _pi_buffer final : _pi_mem {
-  // Buffer/Sub-buffer constructor
-  _pi_buffer(pi_context Ctx, char *Mem, char *HostPtr,
-             _pi_mem *Parent = nullptr, size_t Origin = 0, size_t Size = 0,
-             bool MemOnHost = false, bool ImportedHostPtr = false)
-      : _pi_mem(Ctx, HostPtr, MemOnHost, ImportedHostPtr), ZeMem{Mem},
-        SubBuffer{Parent, Origin, Size} {}
-
-  void *getZeHandle() override { return ZeMem; }
-
-  void *getZeHandlePtr() override { return &ZeMem; }
-
-  bool isImage() const override { return false; }
-
-  bool isSubBuffer() const { return SubBuffer.Parent != nullptr; }
-
-  // Level Zero memory handle is really just a naked pointer.
-  // It is just convenient to have it char * to simplify offset arithmetics.
-  char *ZeMem;
+  // The size and alignment of the buffer
+  size_t Size;
+  size_t getAlignment() const;
 
   struct {
     _pi_mem *Parent;
     size_t Origin; // only valid if Parent != nullptr
-    size_t Size;   // only valid if Parent != nullptr
   } SubBuffer;
 };
 
+// TODO: add proper support for images on context with multiple devices.
 struct _pi_image final : _pi_mem {
   // Image constructor
-  _pi_image(pi_context Ctx, ze_image_handle_t Image, char *HostPtr)
-      : _pi_mem(Ctx, HostPtr), ZeImage{Image} {}
+  _pi_image(pi_context Ctx, ze_image_handle_t Image)
+      : _pi_mem(Ctx), ZeImage{Image} {}
 
-  void *getZeHandle() override { return ZeImage; }
-
-  void *getZeHandlePtr() override { return &ZeImage; }
+  virtual pi_result getZeHandle(char *&ZeHandle, access_mode_t,
+                                pi_device = nullptr) override {
+    ZeHandle = pi_cast<char *>(ZeImage);
+    return PI_SUCCESS;
+  }
+  virtual pi_result getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                   pi_device = nullptr) override {
+    ZeHandlePtr = pi_cast<char **>(&ZeImage);
+    return PI_SUCCESS;
+  }
 
   bool isImage() const override { return true; }
 
@@ -1062,6 +1259,12 @@ struct _pi_event : _pi_object {
   // actions are performed only once.
   //
   bool CleanedUp = {false};
+
+  // Indicates that this PI event had already completed in the sense
+  // that no other synchromization is needed. Note that the underlying
+  // L0 event (if any) is not guranteed to have been signalled, or
+  // being visible to the host at all.
+  bool Completed = {false};
 };
 
 struct _pi_program : _pi_object {
@@ -1153,10 +1356,6 @@ struct _pi_program : _pi_object {
   // message from a call to piProgramLink.
   const std::string ErrorMessage;
 
-  // Protects accesses to all the non-const member variables.  Exclusive access
-  // is required to modify any of these members.
-  std::shared_mutex Mutex;
-
   state State;
 
   // In IL and Object states, this contains the SPIR-V representation of the
@@ -1186,6 +1385,9 @@ struct _pi_kernel : _pi_object {
       : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
         MemAllocs{}, SubmissionsCount{0} {}
 
+  // Completed initialization of PI kernel. Must be called after construction.
+  pi_result initialize();
+
   // Returns true if kernel has indirect access, false otherwise.
   bool hasIndirectAccess() {
     // Currently indirect access flag is set for all kernels and there is no API
@@ -1193,6 +1395,13 @@ struct _pi_kernel : _pi_object {
     return true;
   }
 
+  // The caller must lock access to the kernel and program.
+  void retain() {
+    ++RefCount;
+    // When retaining a kernel, you are also retaining the program it is part
+    // of.
+    Program->retain();
+  }
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 
@@ -1238,8 +1447,21 @@ struct _pi_kernel : _pi_object {
   // submissions.
   std::atomic<pi_uint32> SubmissionsCount;
 
+  // Keeps info about an argument to the kernel enough to set it with
+  // zeKernelSetArgumentValue.
+  struct ArgumentInfo {
+    uint32_t Index;
+    size_t Size;
+    const pi_mem Value;
+    _pi_mem::access_mode_t AccessMode{_pi_mem::unknown};
+  };
+  // Arguments that still need to be set (with zeKernelSetArgumentValue)
+  // before kernel is enqueued.
+  std::vector<ArgumentInfo> PendingArguments;
+
   // Cache of the kernel properties.
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
+  ZeCache<std::string> ZeKernelName;
 };
 
 struct _pi_sampler : _pi_object {

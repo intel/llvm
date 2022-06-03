@@ -29,7 +29,7 @@ int main() {
 
 // Check test_kernel_handler parameters
 // NONATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *)'
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
@@ -38,7 +38,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: VarDecl {{.*}} cinit
 // NONATIVESUPPORT-NEXT: InitListExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt
@@ -65,7 +65,7 @@ int main() {
 
 // Check test_pfwg_kernel_handler parameters
 // NONATIVESUPPORT: FunctionDecl {{.*}}test_pfwg_kernel_handler{{.*}} 'void (int, __global char *)'
-// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
 // NONATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
@@ -74,7 +74,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: VarDecl {{.*}} cinit
 // NONATIVESUPPORT-NEXT: InitListExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt
@@ -108,7 +108,7 @@ int main() {
 
 // Check test_kernel_handler parameters
 // NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *)'
-// NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_a 'int'
 // NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
@@ -117,7 +117,7 @@ int main() {
 // NATIVESUPPORT-NEXT: VarDecl {{.*}} cinit
 // NATIVESUPPORT-NEXT: InitListExpr
 // NATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_' 'int'
+// NATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NATIVESUPPORT-NEXT: DeclStmt

@@ -10,6 +10,7 @@
 #include "ProfiledBinary.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include <cstdint>
 #include <queue>
 
@@ -280,6 +281,8 @@ void CSPreInliner::run() {
 
   // Make sure ProfileMap's key is consistent with FunctionSamples' name.
   SampleContextTrimmer(ProfileMap).canonicalizeContextProfiles();
+
+  FunctionSamples::ProfileIsPreInlined = true;
 
   LLVM_DEBUG(printProfileNames(ProfileMap, false));
 }

@@ -48,8 +48,8 @@ attributes #1 = { "sycl-module-id"="b.cpp" }
 !3 = !{}
 
 ; CHECK: [Code|Properties|Symbols]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
+; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
+; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
 
 ; CHECK-SYCL-SYM: SYCL_kernel1
 ; CHECK-SYCL-SYM: SYCL_kernel2

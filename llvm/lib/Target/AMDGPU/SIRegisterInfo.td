@@ -189,7 +189,7 @@ def PC_REG : SIReg<"pc", 0>, DwarfRegNum<[16, 16]> {
 def VCC : RegisterWithSubRegs<"vcc", [VCC_LO, VCC_HI]> {
   let Namespace = "AMDGPU";
   let SubRegIndices = [sub0, sub1];
-  let HWEncoding = 106;
+  let HWEncoding = VCC_LO.HWEncoding;
 }
 
 defm EXEC_LO : SIRegLoHi16<"exec_lo", 126>, DwarfRegNum<[1, 1]>;
@@ -198,7 +198,7 @@ defm EXEC_HI : SIRegLoHi16<"exec_hi", 127>;
 def EXEC : RegisterWithSubRegs<"exec", [EXEC_LO, EXEC_HI]>, DwarfRegNum<[17, 1]> {
   let Namespace = "AMDGPU";
   let SubRegIndices = [sub0, sub1];
-  let HWEncoding = 126;
+  let HWEncoding = EXEC_LO.HWEncoding;
 }
 
 // 32-bit real registers, for MC only.
@@ -237,7 +237,7 @@ def XNACK_MASK :
     RegisterWithSubRegs<"xnack_mask", [XNACK_MASK_LO, XNACK_MASK_HI]> {
   let Namespace = "AMDGPU";
   let SubRegIndices = [sub0, sub1];
-  let HWEncoding = 104;
+  let HWEncoding = XNACK_MASK_LO.HWEncoding;
 }
 
 // Trap handler registers
@@ -247,7 +247,7 @@ defm TBA_HI : SIRegLoHi16<"tba_hi", 109>;
 def TBA : RegisterWithSubRegs<"tba", [TBA_LO, TBA_HI]> {
   let Namespace = "AMDGPU";
   let SubRegIndices = [sub0, sub1];
-  let HWEncoding = 108;
+  let HWEncoding = TBA_LO.HWEncoding;
 }
 
 defm TMA_LO : SIRegLoHi16<"tma_lo", 110>;
@@ -256,7 +256,7 @@ defm TMA_HI : SIRegLoHi16<"tma_hi", 111>;
 def TMA : RegisterWithSubRegs<"tma", [TMA_LO, TMA_HI]> {
   let Namespace = "AMDGPU";
   let SubRegIndices = [sub0, sub1];
-  let HWEncoding = 110;
+  let HWEncoding = TMA_LO.HWEncoding;
 }
 
 foreach Index = 0...15 in {
@@ -701,23 +701,6 @@ def SGPR_64 : SIRegisterClass<"AMDGPU", [v2i32, i64, v2f32, f64, v4i16, v4f16], 
   let HasSGPR = 1;
 }
 
-// CCR (call clobbered registers) SGPR 64-bit registers
-def CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32,
-                                (add (trunc SGPR_64, 16))> {
-  let CopyCost = SGPR_64.CopyCost;
-  let AllocationPriority = SGPR_64.AllocationPriority;
-  let HasSGPR = 1;
-}
-
-// Call clobbered 64-bit SGPRs for AMDGPU_Gfx CC
-def Gfx_CCR_SGPR_64 : SIRegisterClass<"AMDGPU", SGPR_64.RegTypes, 32,
-                                (add (trunc (shl SGPR_64, 15), 1), // s[30:31]
-                                     (trunc (shl SGPR_64, 18), 14))> { // s[36:37]-s[s62:63]
-  let CopyCost = SGPR_64.CopyCost;
-  let AllocationPriority = SGPR_64.AllocationPriority;
-  let HasSGPR = 1;
-}
-
 def TTMP_64 : SIRegisterClass<"AMDGPU", [v2i32, i64, f64, v4i16, v4f16], 32,
                             (add TTMP_64Regs)> {
   let isAllocatable = 0;
@@ -904,11 +887,11 @@ defm AV_64 : AVRegClass<2, VReg_64.RegTypes, (add VGPR_64), (add AGPR_64)>;
 defm AV_96 : AVRegClass<3, VReg_96.RegTypes, (add VGPR_96), (add AGPR_96)>;
 defm AV_128 : AVRegClass<4, VReg_128.RegTypes, (add VGPR_128), (add AGPR_128)>;
 defm AV_160 : AVRegClass<5, VReg_160.RegTypes, (add VGPR_160), (add AGPR_160)>;
-defm AV_192 : AVRegClass<6, VReg_160.RegTypes, (add VGPR_192), (add AGPR_192)>;
-defm AV_224 : AVRegClass<7, VReg_160.RegTypes, (add VGPR_224), (add AGPR_224)>;
-defm AV_256 : AVRegClass<8, VReg_160.RegTypes, (add VGPR_256), (add AGPR_256)>;
-defm AV_512 : AVRegClass<16, VReg_160.RegTypes, (add VGPR_512), (add AGPR_512)>;
-defm AV_1024 : AVRegClass<32, VReg_160.RegTypes, (add VGPR_1024), (add AGPR_1024)>;
+defm AV_192 : AVRegClass<6, VReg_192.RegTypes, (add VGPR_192), (add AGPR_192)>;
+defm AV_224 : AVRegClass<7, VReg_224.RegTypes, (add VGPR_224), (add AGPR_224)>;
+defm AV_256 : AVRegClass<8, VReg_256.RegTypes, (add VGPR_256), (add AGPR_256)>;
+defm AV_512 : AVRegClass<16, VReg_512.RegTypes, (add VGPR_512), (add AGPR_512)>;
+defm AV_1024 : AVRegClass<32, VReg_1024.RegTypes, (add VGPR_1024), (add AGPR_1024)>;
 
 //===----------------------------------------------------------------------===//
 //  Register operands
@@ -1117,6 +1100,16 @@ def AVSrc_32 : RegisterOperand<AV_32> {
 
 def AVSrc_64 : RegisterOperand<AV_64> {
   let DecoderMethod = "DecodeAV_64RegisterClass";
+  let EncoderMethod = "getAVOperandEncoding";
+}
+
+def AVSrc_128 : RegisterOperand<AV_128> {
+  let DecoderMethod = "DecodeAV_128RegisterClass";
+  let EncoderMethod = "getAVOperandEncoding";
+}
+
+def AVSrc_512 : RegisterOperand<AV_512> {
+  let DecoderMethod = "DecodeAV_512RegisterClass";
   let EncoderMethod = "getAVOperandEncoding";
 }
 

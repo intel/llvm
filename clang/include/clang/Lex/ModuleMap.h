@@ -456,8 +456,11 @@ public:
   /// is effectively internal, but is exposed so HeaderSearch can call it.
   void resolveHeaderDirectives(const FileEntry *File) const;
 
-  /// Resolve all lazy header directives for the specified module.
-  void resolveHeaderDirectives(Module *Mod) const;
+  /// Resolve lazy header directives for the specified module. If File is
+  /// provided, only headers with same size and modtime are resolved. If File
+  /// is not set, all headers are resolved.
+  void resolveHeaderDirectives(Module *Mod,
+                               llvm::Optional<const FileEntry *> File) const;
 
   /// Reports errors if a module must not include a specific file.
   ///
@@ -476,7 +479,7 @@ public:
   void diagnoseHeaderInclusion(Module *RequestingModule,
                                bool RequestingModuleIsModuleInterface,
                                SourceLocation FilenameLoc, StringRef Filename,
-                               const FileEntry *File);
+                               FileEntryRef File);
 
   /// Determine whether the given header is part of a module
   /// marked 'unavailable'.
@@ -560,6 +563,10 @@ public:
 
   /// Create a header module from the specified list of headers.
   Module *createHeaderModule(StringRef Name, ArrayRef<Module::Header> Headers);
+
+  /// Create a C++20 header unit.
+  Module *createHeaderUnit(SourceLocation Loc, StringRef Name,
+                           Module::Header H);
 
   /// Infer the contents of a framework module map from the given
   /// framework directory.

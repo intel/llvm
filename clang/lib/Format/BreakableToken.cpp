@@ -410,11 +410,13 @@ BreakableBlockComment::BreakableBlockComment(
   }
   for (size_t i = 1, e = Content.size(); i < e && !Decoration.empty(); ++i) {
     const StringRef &Text = Content[i];
-    // If the last line is empty, the closing "*/" will have a star.
-    if (i + 1 == e && Text.empty())
-      break;
-    if (!Text.empty() && i + 1 != e && Decoration.startswith(Text))
+    if (i + 1 == e) {
+      // If the last line is empty, the closing "*/" will have a star.
+      if (Text.empty())
+        break;
+    } else if (!Text.empty() && Decoration.startswith(Text)) {
       continue;
+    }
     while (!Text.startswith(Decoration))
       Decoration = Decoration.drop_back(1);
   }
@@ -779,11 +781,23 @@ BreakableLineCommentSection::BreakableLineCommentSection(
         const char FirstCommentChar = Lines[i][IndentPrefix.size()];
         const unsigned FirstCharByteSize =
             encoding::getCodePointNumBytes(FirstCommentChar, Encoding);
-        return encoding::columnWidth(
-                   Lines[i].substr(IndentPrefix.size(), FirstCharByteSize),
-                   Encoding) == 1 &&
-               (FirstCommentChar == '\\' || isPunctuation(FirstCommentChar) ||
-                isHorizontalWhitespace(FirstCommentChar));
+        if (encoding::columnWidth(
+                Lines[i].substr(IndentPrefix.size(), FirstCharByteSize),
+                Encoding) != 1)
+          return false;
+        // In C-like comments, add a space before #. For example this is useful
+        // to preserve the relative indentation when commenting out code with
+        // #includes.
+        //
+        // In languages using # as the comment leader such as proto, don't
+        // add a space to support patterns like:
+        // #########
+        // # section
+        // #########
+        if (FirstCommentChar == '#' && !TokenText.startswith("#"))
+          return false;
+        return FirstCommentChar == '\\' || isPunctuation(FirstCommentChar) ||
+               isHorizontalWhitespace(FirstCommentChar);
       };
 
       // On the first line of the comment section we calculate how many spaces

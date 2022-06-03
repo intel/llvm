@@ -792,11 +792,18 @@ AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
   case MCContext::IsGOFF:
     PlatformParser.reset(createGOFFAsmParser());
     break;
+  case MCContext::IsSPIRV:
+    report_fatal_error(
+        "Need to implement createSPIRVAsmParser for SPIRV format.");
+    break;
   case MCContext::IsWasm:
     PlatformParser.reset(createWasmAsmParser());
     break;
   case MCContext::IsXCOFF:
     PlatformParser.reset(createXCOFFAsmParser());
+    break;
+  case MCContext::IsDXContainer:
+    llvm_unreachable("DXContainer is not supported yet");
     break;
   }
 
@@ -3470,9 +3477,9 @@ bool AsmParser::parseDirectiveAlign(bool IsPow2, unsigned ValueSize) {
   // directive.
   const MCSection *Section = getStreamer().getCurrentSectionOnly();
   assert(Section && "must have section to emit alignment");
-  bool UseCodeAlign = Section->UseCodeAlign();
+  bool useCodeAlign = Section->useCodeAlign();
   if ((!HasFillExpr || Lexer.getMAI().getTextAlignFillValue() == FillExpr) &&
-      ValueSize == 1 && UseCodeAlign) {
+      ValueSize == 1 && useCodeAlign) {
     getStreamer().emitCodeAlignment(Alignment, &getTargetParser().getSTI(),
                                     MaxBytesToFill);
   } else {
@@ -3570,8 +3577,8 @@ bool AsmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
     if (HasMD5) {
       MD5::MD5Result Sum;
       for (unsigned i = 0; i != 8; ++i) {
-        Sum.Bytes[i] = uint8_t(MD5Hi >> ((7 - i) * 8));
-        Sum.Bytes[i + 8] = uint8_t(MD5Lo >> ((7 - i) * 8));
+        Sum[i] = uint8_t(MD5Hi >> ((7 - i) * 8));
+        Sum[i + 8] = uint8_t(MD5Lo >> ((7 - i) * 8));
       }
       CKMem = Sum;
     }
@@ -6021,22 +6028,25 @@ bool AsmParser::parseMSInlineAsm(
       }
 
       bool isOutput = (i == 1) && Desc.mayStore();
+      bool Restricted = Operand.isMemUseUpRegs();
       SMLoc Start = SMLoc::getFromPointer(SymName.data());
-      int64_t Size = Operand.isMemPlaceholder(Desc) ? 0 : SymName.size();
       if (isOutput) {
         ++InputIdx;
         OutputDecls.push_back(OpDecl);
         OutputDeclsAddressOf.push_back(Operand.needAddressOf());
         OutputConstraints.push_back(("=" + Constraint).str());
-        AsmStrRewrites.emplace_back(AOK_Output, Start, Size);
+        AsmStrRewrites.emplace_back(AOK_Output, Start, SymName.size(), 0,
+                                    Restricted);
       } else {
         InputDecls.push_back(OpDecl);
         InputDeclsAddressOf.push_back(Operand.needAddressOf());
         InputConstraints.push_back(Constraint.str());
         if (Desc.OpInfo[i - 1].isBranchTarget())
-          AsmStrRewrites.emplace_back(AOK_CallInput, Start, SymName.size());
+          AsmStrRewrites.emplace_back(AOK_CallInput, Start, SymName.size(), 0,
+                                      Restricted);
         else
-          AsmStrRewrites.emplace_back(AOK_Input, Start, Size);
+          AsmStrRewrites.emplace_back(AOK_Input, Start, SymName.size(), 0,
+                                      Restricted);
       }
     }
 
@@ -6151,17 +6161,19 @@ bool AsmParser::parseMSInlineAsm(
       OS << Ctx.getAsmInfo()->getPrivateLabelPrefix() << AR.Label;
       break;
     case AOK_Input:
-      if (AR.Len)
-        OS << '$' << InputIdx;
-      ++InputIdx;
+      if (AR.IntelExpRestricted)
+        OS << "${" << InputIdx++ << ":P}";
+      else
+        OS << '$' << InputIdx++;
       break;
     case AOK_CallInput:
       OS << "${" << InputIdx++ << ":P}";
       break;
     case AOK_Output:
-      if (AR.Len)
-        OS << '$' << OutputIdx;
-      ++OutputIdx;
+      if (AR.IntelExpRestricted)
+        OS << "${" << OutputIdx++ << ":P}";
+      else
+        OS << '$' << OutputIdx++;
       break;
     case AOK_SizeDirective:
       switch (AR.Val) {

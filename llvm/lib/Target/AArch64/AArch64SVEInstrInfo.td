@@ -292,6 +292,11 @@ def AArch64mul_p_oneuse : PatFrag<(ops node:$pred, node:$src1, node:$src2),
 def AArch64fabd_p : PatFrag<(ops node:$pg, node:$op1, node:$op2),
                             (AArch64fabs_mt node:$pg, (AArch64fsub_p node:$pg, node:$op1, node:$op2), undef)>;
 
+// FMAs with a negated multiplication operand can be commuted.
+def AArch64fmls_p : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
+                          [(AArch64fma_p node:$pred, (AArch64fneg_mt node:$pred, node:$op1, (undef)), node:$op2, node:$op3),
+                           (AArch64fma_p node:$pred, node:$op2, (AArch64fneg_mt node:$pred, node:$op1, (undef)), node:$op3)]>;
+
 def AArch64fneg_mt_nsz : PatFrag<(ops node:$pred, node:$op, node:$pt),
                                  (AArch64fneg_mt node:$pred, node:$op, node:$pt), [{
   return N->getFlags().hasNoSignedZeros();
@@ -334,20 +339,25 @@ let Predicates = [HasSVEorStreamingSVE] in {
   defm ADD_ZPmZ  : sve_int_bin_pred_arit_0<0b000, "add",  "ADD_ZPZZ", int_aarch64_sve_add, DestructiveBinaryComm>;
   defm SUB_ZPmZ  : sve_int_bin_pred_arit_0<0b001, "sub",  "SUB_ZPZZ", int_aarch64_sve_sub, DestructiveBinaryCommWithRev, "SUBR_ZPmZ">;
   defm SUBR_ZPmZ : sve_int_bin_pred_arit_0<0b011, "subr", "SUBR_ZPZZ", int_aarch64_sve_subr, DestructiveBinaryCommWithRev, "SUB_ZPmZ", /*isReverseInstr*/ 1>;
+
+  defm ORR_ZPmZ : sve_int_bin_pred_log<0b000, "orr", "ORR_ZPZZ", int_aarch64_sve_orr, DestructiveBinaryComm>;
+  defm EOR_ZPmZ : sve_int_bin_pred_log<0b001, "eor", "EOR_ZPZZ", int_aarch64_sve_eor, DestructiveBinaryComm>;
+  defm AND_ZPmZ : sve_int_bin_pred_log<0b010, "and", "AND_ZPZZ", int_aarch64_sve_and, DestructiveBinaryComm>;
+  defm BIC_ZPmZ : sve_int_bin_pred_log<0b011, "bic", "BIC_ZPZZ", int_aarch64_sve_bic, DestructiveBinary>;
 } // End HasSVEorStreamingSVE
 
 let Predicates = [HasSVEorStreamingSVE, UseExperimentalZeroingPseudos] in {
   defm ADD_ZPZZ  : sve_int_bin_pred_zeroing_bhsd<int_aarch64_sve_add>;
   defm SUB_ZPZZ  : sve_int_bin_pred_zeroing_bhsd<int_aarch64_sve_sub>;
   defm SUBR_ZPZZ : sve_int_bin_pred_zeroing_bhsd<int_aarch64_sve_subr>;
+
+  defm ORR_ZPZZ  : sve_int_bin_pred_zeroing_bhsd<int_aarch64_sve_orr>;
+  defm EOR_ZPZZ  : sve_int_bin_pred_zeroing_bhsd<int_aarch64_sve_eor>;
+  defm AND_ZPZZ  : sve_int_bin_pred_zeroing_bhsd<int_aarch64_sve_and>;
+  defm BIC_ZPZZ  : sve_int_bin_pred_zeroing_bhsd<null_frag>;
 } // End HasSVEorStreamingSVE, UseExperimentalZeroingPseudos
 
 let Predicates = [HasSVEorStreamingSVE] in {
-  defm ORR_ZPmZ : sve_int_bin_pred_log<0b000, "orr", int_aarch64_sve_orr>;
-  defm EOR_ZPmZ : sve_int_bin_pred_log<0b001, "eor", int_aarch64_sve_eor>;
-  defm AND_ZPmZ : sve_int_bin_pred_log<0b010, "and", int_aarch64_sve_and>;
-  defm BIC_ZPmZ : sve_int_bin_pred_log<0b011, "bic", int_aarch64_sve_bic>;
-
   defm ADD_ZI   : sve_int_arith_imm0<0b000, "add", add>;
   defm SUB_ZI   : sve_int_arith_imm0<0b001, "sub", sub>;
   defm SUBR_ZI  : sve_int_arith_imm0_subr<0b011, "subr", sub>;
@@ -552,7 +562,7 @@ let Predicates = [HasSVEorStreamingSVE] in {
               (!cast<Instruction>("FMLA_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
 
     // Zd = Za + -Zn * Zm
-    def : Pat<(Ty (AArch64fma_p PredTy:$P, (AArch64fneg_mt PredTy:$P, Ty:$Zn, (Ty (undef))), Ty:$Zm, Ty:$Za)),
+    def : Pat<(Ty (AArch64fmls_p PredTy:$P, Ty:$Zn, Ty:$Zm, Ty:$Za)),
               (!cast<Instruction>("FMLS_ZPZZZ_UNDEF_"#Suffix) $P, ZPR:$Za, ZPR:$Zn, ZPR:$Zm)>;
 
     // Zd = -Za + Zn * Zm
@@ -642,6 +652,10 @@ let Predicates = [HasSVEorStreamingSVE] in {
             (DUP_ZZI_D (INSERT_SUBREG (IMPLICIT_DEF), FPR64:$src, dsub), 0)>;
   def : Pat<(nxv8bf16 (AArch64dup (bf16 FPR16:$src))),
             (DUP_ZZI_H (INSERT_SUBREG (IMPLICIT_DEF), FPR16:$src, hsub), 0)>;
+  def : Pat<(nxv4bf16 (AArch64dup (bf16 FPR16:$src))),
+            (DUP_ZZI_H (INSERT_SUBREG (IMPLICIT_DEF), FPR16:$src, hsub), 0)>;
+  def : Pat<(nxv2bf16 (AArch64dup (bf16 FPR16:$src))),
+            (DUP_ZZI_H (INSERT_SUBREG (IMPLICIT_DEF), FPR16:$src, hsub), 0)>;
 
   // Duplicate +0.0 into all vector elements
   def : Pat<(nxv8f16 (AArch64dup (f16 fpimm0))), (DUP_ZI_H 0, 0)>;
@@ -651,15 +665,17 @@ let Predicates = [HasSVEorStreamingSVE] in {
   def : Pat<(nxv2f32 (AArch64dup (f32 fpimm0))), (DUP_ZI_S 0, 0)>;
   def : Pat<(nxv2f64 (AArch64dup (f64 fpimm0))), (DUP_ZI_D 0, 0)>;
   def : Pat<(nxv8bf16 (AArch64dup (bf16 fpimm0))), (DUP_ZI_H 0, 0)>;
+  def : Pat<(nxv4bf16 (AArch64dup (bf16 fpimm0))), (DUP_ZI_H 0, 0)>;
+  def : Pat<(nxv2bf16 (AArch64dup (bf16 fpimm0))), (DUP_ZI_H 0, 0)>;
 
   // Duplicate Int immediate into all vector elements
-  def : Pat<(nxv16i8 (AArch64dup (i32 (SVE8BitLslImm32 i32:$a, i32:$b)))),
+  def : Pat<(nxv16i8 (AArch64dup (i32 (SVECpyDupImm8Pat i32:$a, i32:$b)))),
             (DUP_ZI_B $a, $b)>;
-  def : Pat<(nxv8i16 (AArch64dup (i32 (SVE8BitLslImm32 i32:$a, i32:$b)))),
+  def : Pat<(nxv8i16 (AArch64dup (i32 (SVECpyDupImm16Pat i32:$a, i32:$b)))),
             (DUP_ZI_H $a, $b)>;
-  def : Pat<(nxv4i32 (AArch64dup (i32 (SVE8BitLslImm32 i32:$a, i32:$b)))),
+  def : Pat<(nxv4i32 (AArch64dup (i32 (SVECpyDupImm32Pat i32:$a, i32:$b)))),
             (DUP_ZI_S $a, $b)>;
-  def : Pat<(nxv2i64 (AArch64dup (i64 (SVE8BitLslImm64 i32:$a, i32:$b)))),
+  def : Pat<(nxv2i64 (AArch64dup (i64 (SVECpyDupImm64Pat i32:$a, i32:$b)))),
             (DUP_ZI_D $a, $b)>;
 
   // Duplicate immediate FP into all vector elements.
@@ -1482,7 +1498,7 @@ let Predicates = [HasSVEorStreamingSVE] in {
   defm FCMGE_PPzZZ : sve_fp_3op_p_pd_cc<0b000, "fcmge", SETOGE, SETGE, SETOLE, SETLE>;
   defm FCMGT_PPzZZ : sve_fp_3op_p_pd_cc<0b001, "fcmgt", SETOGT, SETGT, SETOLT, SETLT>;
   defm FCMEQ_PPzZZ : sve_fp_3op_p_pd_cc<0b010, "fcmeq", SETOEQ, SETEQ, SETOEQ, SETEQ>;
-  defm FCMNE_PPzZZ : sve_fp_3op_p_pd_cc<0b011, "fcmne", SETONE, SETNE, SETONE, SETNE>;
+  defm FCMNE_PPzZZ : sve_fp_3op_p_pd_cc<0b011, "fcmne", SETUNE, SETNE, SETUNE, SETNE>;
   defm FCMUO_PPzZZ : sve_fp_3op_p_pd_cc<0b100, "fcmuo", SETUO, SETUO, SETUO, SETUO>;
   defm FACGE_PPzZZ : sve_fp_3op_p_pd<0b101, "facge", int_aarch64_sve_facge>;
   defm FACGT_PPzZZ : sve_fp_3op_p_pd<0b111, "facgt", int_aarch64_sve_facgt>;
@@ -1492,7 +1508,7 @@ let Predicates = [HasSVEorStreamingSVE] in {
   defm FCMLT_PPzZ0 : sve_fp_2op_p_pd<0b010, "fcmlt", SETOLT, SETLT, SETOGT, SETGT>;
   defm FCMLE_PPzZ0 : sve_fp_2op_p_pd<0b011, "fcmle", SETOLE, SETLE, SETOGE, SETGE>;
   defm FCMEQ_PPzZ0 : sve_fp_2op_p_pd<0b100, "fcmeq", SETOEQ, SETEQ, SETOEQ, SETEQ>;
-  defm FCMNE_PPzZ0 : sve_fp_2op_p_pd<0b110, "fcmne", SETONE, SETNE, SETONE, SETNE>;
+  defm FCMNE_PPzZ0 : sve_fp_2op_p_pd<0b110, "fcmne", SETUNE, SETNE, SETUNE, SETNE>;
 
   defm WHILELT_PWW : sve_int_while4_rr<0b010, "whilelt", int_aarch64_sve_whilelt>;
   defm WHILELE_PWW : sve_int_while4_rr<0b011, "whilele", int_aarch64_sve_whilele>;

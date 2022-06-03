@@ -52,6 +52,7 @@ class MCSectionCOFF;
 class MCSectionELF;
 class MCSectionGOFF;
 class MCSectionMachO;
+class MCSectionSPIRV;
 class MCSectionWasm;
 class MCSectionXCOFF;
 class MCStreamer;
@@ -76,7 +77,16 @@ public:
   using DiagHandlerTy =
       std::function<void(const SMDiagnostic &, bool, const SourceMgr &,
                          std::vector<const MDNode *> &)>;
-  enum Environment { IsMachO, IsELF, IsGOFF, IsCOFF, IsWasm, IsXCOFF };
+  enum Environment {
+    IsMachO,
+    IsELF,
+    IsGOFF,
+    IsCOFF,
+    IsSPIRV,
+    IsWasm,
+    IsXCOFF,
+    IsDXContainer
+  };
 
 private:
   Environment Env;
@@ -121,6 +131,7 @@ private:
   SpecificBumpPtrAllocator<MCSectionELF> ELFAllocator;
   SpecificBumpPtrAllocator<MCSectionMachO> MachOAllocator;
   SpecificBumpPtrAllocator<MCSectionGOFF> GOFFAllocator;
+  SpecificBumpPtrAllocator<MCSectionSPIRV> SPIRVAllocator;
   SpecificBumpPtrAllocator<MCSectionWasm> WasmAllocator;
   SpecificBumpPtrAllocator<MCSectionXCOFF> XCOFFAllocator;
   SpecificBumpPtrAllocator<MCInst> MCInstAllocator;
@@ -621,6 +632,8 @@ public:
   MCSectionCOFF *
   getAssociativeCOFFSection(MCSectionCOFF *Sec, const MCSymbol *KeySym,
                             unsigned UniqueID = GenericSectionID);
+
+  MCSectionSPIRV *getSPIRVSection();
 
   MCSectionWasm *getWasmSection(const Twine &Section, SectionKind K,
                                 unsigned Flags = 0) {

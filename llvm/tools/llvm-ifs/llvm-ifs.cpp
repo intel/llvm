@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/InterfaceStub/ELFObjHandler.h"
 #include "llvm/InterfaceStub/IFSHandler.h"
 #include "llvm/InterfaceStub/IFSStub.h"
@@ -428,6 +429,9 @@ int main(int argc, char *argv[]) {
   if (StripNeededLibs)
     Stub.NeededLibs.clear();
 
+  if (Error E = filterIFSSyms(Stub, StripUndefined, ExcludeSyms))
+    fatalError(std::move(E));
+
   if (OutputELFFilePath.getNumOccurrences() == 0 &&
       OutputIFSFilePath.getNumOccurrences() == 0 &&
       OutputTBDFilePath.getNumOccurrences() == 0) {
@@ -484,8 +488,6 @@ int main(int argc, char *argv[]) {
         stripIFSTarget(Stub, StripIFSTarget, StripIFSArch,
                        StripIFSEndiannessWidth, StripIFSBitWidth);
       }
-      if (Error E = filterIFSSyms(Stub, StripUndefined, ExcludeSyms))
-        fatalError(std::move(E));
       Error IFSWriteError = writeIFS(OutputFilePath.getValue(), Stub);
       if (IFSWriteError)
         fatalError(std::move(IFSWriteError));
@@ -536,8 +538,6 @@ int main(int argc, char *argv[]) {
         stripIFSTarget(Stub, StripIFSTarget, StripIFSArch,
                        StripIFSEndiannessWidth, StripIFSBitWidth);
       }
-      if (Error E = filterIFSSyms(Stub, StripUndefined, ExcludeSyms))
-        fatalError(std::move(E));
       Error IFSWriteError = writeIFS(OutputIFSFilePath.getValue(), Stub);
       if (IFSWriteError)
         fatalError(std::move(IFSWriteError));

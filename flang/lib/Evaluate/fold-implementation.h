@@ -303,7 +303,7 @@ std::optional<Constant<T>> Folder<T>::ApplyComponent(
 template <typename T>
 std::optional<Constant<T>> Folder<T>::GetConstantComponent(Component &component,
     const std::vector<Constant<SubscriptInteger>> *subscripts) {
-  if (std::optional<Constant<SomeDerived>> structures{std::visit(
+  if (std::optional<Constant<SomeDerived>> structures{common::visit(
           common::visitors{
               [&](const Symbol &symbol) {
                 return Folder<SomeDerived>{context_}.GetNamedConstant(symbol);
@@ -342,7 +342,7 @@ template <typename T> Expr<T> Folder<T>::Folding(Designator<T> &&designator) {
       }
     }
   }
-  return std::visit(
+  return common::visit(
       common::visitors{
           [&](SymbolRef &&symbol) {
             if (auto constant{GetNamedConstant(*symbol)}) {
@@ -523,7 +523,7 @@ template <typename A, typename B>
 std::optional<std::vector<A>> GetIntegerVector(const B &x) {
   static_assert(std::is_integral_v<A>);
   if (const auto *someInteger{UnwrapExpr<Expr<SomeInteger>>(x)}) {
-    return std::visit(
+    return common::visit(
         [](const auto &typedExpr) -> std::optional<std::vector<A>> {
           using T = ResultType<decltype(typedExpr)>;
           if (const auto *constant{UnwrapConstantValue<T>(typedExpr)}) {
@@ -612,7 +612,7 @@ template <typename T> Expr<T> Folder<T>::CSHIFT(FunctionRef<T> &&funcRef) {
             zbDimIndex = 0;
           }
         }
-        arrayAt[zbDim] = dimLB + dimExtent - 1;
+        arrayAt[zbDim] = dimLB + std::max<ConstantSubscript>(dimExtent, 1) - 1;
         array->IncrementSubscripts(arrayAt);
         shift->IncrementSubscripts(shiftAt);
       }
@@ -726,7 +726,7 @@ template <typename T> Expr<T> Folder<T>::EOSHIFT(FunctionRef<T> &&funcRef) {
             DIE("no derived type boundary");
           }
         }
-        arrayAt[zbDim] = dimLB + dimExtent - 1;
+        arrayAt[zbDim] = dimLB + std::max<ConstantSubscript>(dimExtent, 1) - 1;
         array->IncrementSubscripts(arrayAt);
         shift->IncrementSubscripts(shiftAt);
         if (boundary) {
@@ -1039,10 +1039,10 @@ Expr<T> RewriteSpecificMINorMAX(
     return Fold(context, ConvertToType<T>(AsCategoryExpr(std::move(maxRef))));
   }};
   if (auto *sx{UnwrapExpr<Expr<SomeReal>>(*resultTypeArg)}) {
-    return std::visit(insertConversion, sx->u);
+    return common::visit(insertConversion, sx->u);
   }
   auto &sx{DEREF(UnwrapExpr<Expr<SomeInteger>>(*resultTypeArg))};
-  return std::visit(insertConversion, sx.u);
+  return common::visit(insertConversion, sx.u);
 }
 
 template <typename T>
@@ -1164,7 +1164,7 @@ private:
     }
   }
   bool FoldArray(const ArrayConstructorValue<T> &x) {
-    return std::visit([&](const auto &y) { return FoldArray(y); }, x.u);
+    return common::visit([&](const auto &y) { return FoldArray(y); }, x.u);
   }
   bool FoldArray(const ArrayConstructorValues<T> &xs) {
     for (const auto &x : xs) {
@@ -1227,7 +1227,7 @@ template <TypeCategory CAT>
 std::enable_if_t<CAT != TypeCategory::Derived,
     std::optional<Expr<SomeKind<CAT>>>>
 AsFlatArrayConstructor(const Expr<SomeKind<CAT>> &expr) {
-  return std::visit(
+  return common::visit(
       [&](const auto &kindExpr) -> std::optional<Expr<SomeKind<CAT>>> {
         if (auto flattened{AsFlatArrayConstructor(kindExpr)}) {
           return Expr<SomeKind<CAT>>{std::move(*flattened)};
@@ -1268,7 +1268,7 @@ Expr<RESULT> MapOperation(FoldingContext &context,
     Expr<OPERAND> &&values) {
   ArrayConstructor<RESULT> result{values};
   if constexpr (common::HasMember<OPERAND, AllIntrinsicCategoryTypes>) {
-    std::visit(
+    common::visit(
         [&](auto &&kindExpr) {
           using kindType = ResultType<decltype(kindExpr)>;
           auto &aConst{std::get<ArrayConstructor<kindType>>(kindExpr.u)};
@@ -1309,7 +1309,7 @@ Expr<RESULT> MapOperation(FoldingContext &context,
   auto result{ArrayConstructorFromMold<RESULT>(leftValues, std::move(length))};
   auto &leftArrConst{std::get<ArrayConstructor<LEFT>>(leftValues.u)};
   if constexpr (common::HasMember<RIGHT, AllIntrinsicCategoryTypes>) {
-    std::visit(
+    common::visit(
         [&](auto &&kindExpr) {
           using kindType = ResultType<decltype(kindExpr)>;
 
@@ -1366,7 +1366,7 @@ Expr<RESULT> MapOperation(FoldingContext &context,
     const Expr<LEFT> &leftScalar, Expr<RIGHT> &&rightValues) {
   auto result{ArrayConstructorFromMold<RESULT>(leftScalar, std::move(length))};
   if constexpr (common::HasMember<RIGHT, AllIntrinsicCategoryTypes>) {
-    std::visit(
+    common::visit(
         [&](auto &&kindExpr) {
           using kindType = ResultType<decltype(kindExpr)>;
           auto &rightArrConst{std::get<ArrayConstructor<kindType>>(kindExpr.u)};
@@ -1518,7 +1518,7 @@ Expr<TO> FoldOperation(
     FoldingContext &context;
     Convert<TO, FROMCAT> &convert;
   } msvcWorkaround{context, convert};
-  return std::visit(
+  return common::visit(
       [&msvcWorkaround](auto &kindExpr) -> Expr<TO> {
         using Operand = ResultType<decltype(kindExpr)>;
         // This variable is a workaround for msvc which emits an error when
@@ -1534,7 +1534,7 @@ Expr<TO> FoldOperation(
               auto converted{Scalar<TO>::ConvertSigned(*value)};
               if (converted.overflow) {
                 ctx.messages().Say(
-                    "INTEGER(%d) to INTEGER(%d) conversion overflowed"_en_US,
+                    "INTEGER(%d) to INTEGER(%d) conversion overflowed"_warn_en_US,
                     Operand::kind, TO::kind);
               }
               return ScalarConstantToExpr(std::move(converted.value));
@@ -1542,11 +1542,11 @@ Expr<TO> FoldOperation(
               auto converted{value->template ToInteger<Scalar<TO>>()};
               if (converted.flags.test(RealFlag::InvalidArgument)) {
                 ctx.messages().Say(
-                    "REAL(%d) to INTEGER(%d) conversion: invalid argument"_en_US,
+                    "REAL(%d) to INTEGER(%d) conversion: invalid argument"_warn_en_US,
                     Operand::kind, TO::kind);
               } else if (converted.flags.test(RealFlag::Overflow)) {
                 ctx.messages().Say(
-                    "REAL(%d) to INTEGER(%d) conversion overflowed"_en_US,
+                    "REAL(%d) to INTEGER(%d) conversion overflowed"_warn_en_US,
                     Operand::kind, TO::kind);
               }
               return ScalarConstantToExpr(std::move(converted.value));
@@ -1651,7 +1651,7 @@ Expr<T> FoldOperation(FoldingContext &context, Negate<T> &&x) {
       auto negated{value->Negate()};
       if (negated.overflow) {
         context.messages().Say(
-            "INTEGER(%d) negation overflowed"_en_US, T::kind);
+            "INTEGER(%d) negation overflowed"_warn_en_US, T::kind);
       }
       return Expr<T>{Constant<T>{std::move(negated.value)}};
     } else {
@@ -1691,7 +1691,7 @@ Expr<T> FoldOperation(FoldingContext &context, Add<T> &&x) {
       auto sum{folded->first.AddSigned(folded->second)};
       if (sum.overflow) {
         context.messages().Say(
-            "INTEGER(%d) addition overflowed"_en_US, T::kind);
+            "INTEGER(%d) addition overflowed"_warn_en_US, T::kind);
       }
       return Expr<T>{Constant<T>{sum.value}};
     } else {
@@ -1716,7 +1716,7 @@ Expr<T> FoldOperation(FoldingContext &context, Subtract<T> &&x) {
       auto difference{folded->first.SubtractSigned(folded->second)};
       if (difference.overflow) {
         context.messages().Say(
-            "INTEGER(%d) subtraction overflowed"_en_US, T::kind);
+            "INTEGER(%d) subtraction overflowed"_warn_en_US, T::kind);
       }
       return Expr<T>{Constant<T>{difference.value}};
     } else {
@@ -1742,7 +1742,7 @@ Expr<T> FoldOperation(FoldingContext &context, Multiply<T> &&x) {
       auto product{folded->first.MultiplySigned(folded->second)};
       if (product.SignedMultiplicationOverflowed()) {
         context.messages().Say(
-            "INTEGER(%d) multiplication overflowed"_en_US, T::kind);
+            "INTEGER(%d) multiplication overflowed"_warn_en_US, T::kind);
       }
       return Expr<T>{Constant<T>{product.lower}};
     } else {
@@ -1780,12 +1780,13 @@ Expr<T> FoldOperation(FoldingContext &context, Divide<T> &&x) {
     if constexpr (T::category == TypeCategory::Integer) {
       auto quotAndRem{folded->first.DivideSigned(folded->second)};
       if (quotAndRem.divisionByZero) {
-        context.messages().Say("INTEGER(%d) division by zero"_en_US, T::kind);
+        context.messages().Say(
+            "INTEGER(%d) division by zero"_warn_en_US, T::kind);
         return Expr<T>{std::move(x)};
       }
       if (quotAndRem.overflow) {
         context.messages().Say(
-            "INTEGER(%d) division overflowed"_en_US, T::kind);
+            "INTEGER(%d) division overflowed"_warn_en_US, T::kind);
       }
       return Expr<T>{Constant<T>{quotAndRem.quotient}};
     } else {
@@ -1810,12 +1811,13 @@ Expr<T> FoldOperation(FoldingContext &context, Power<T> &&x) {
       auto power{folded->first.Power(folded->second)};
       if (power.divisionByZero) {
         context.messages().Say(
-            "INTEGER(%d) zero to negative power"_en_US, T::kind);
+            "INTEGER(%d) zero to negative power"_warn_en_US, T::kind);
       } else if (power.overflow) {
-        context.messages().Say("INTEGER(%d) power overflowed"_en_US, T::kind);
+        context.messages().Say(
+            "INTEGER(%d) power overflowed"_warn_en_US, T::kind);
       } else if (power.zeroToZero) {
         context.messages().Say(
-            "INTEGER(%d) 0**0 is not defined"_en_US, T::kind);
+            "INTEGER(%d) 0**0 is not defined"_warn_en_US, T::kind);
       }
       return Expr<T>{Constant<T>{power.power}};
     } else {
@@ -1824,7 +1826,8 @@ Expr<T> FoldOperation(FoldingContext &context, Power<T> &&x) {
             Constant<T>{(*callable)(context, folded->first, folded->second)}};
       } else {
         context.messages().Say(
-            "Power for %s cannot be folded on host"_en_US, T{}.AsFortran());
+            "Power for %s cannot be folded on host"_warn_en_US,
+            T{}.AsFortran());
       }
     }
   }
@@ -1836,7 +1839,7 @@ Expr<T> FoldOperation(FoldingContext &context, RealToIntPower<T> &&x) {
   if (auto array{ApplyElementwise(context, x)}) {
     return *array;
   }
-  return std::visit(
+  return common::visit(
       [&](auto &y) -> Expr<T> {
         if (auto folded{OperandsAreConstants(x.left(), y)}) {
           auto power{evaluate::IntPower(folded->first, folded->second)};
@@ -1894,7 +1897,7 @@ Expr<Type<TypeCategory::Real, KIND>> ToReal(
     FoldingContext &context, Expr<SomeType> &&expr) {
   using Result = Type<TypeCategory::Real, KIND>;
   std::optional<Expr<Result>> result;
-  std::visit(
+  common::visit(
       [&](auto &&x) {
         using From = std::decay_t<decltype(x)>;
         if constexpr (std::is_same_v<From, BOZLiteralConstant>) {
@@ -1907,7 +1910,7 @@ Expr<Type<TypeCategory::Real, KIND>> ToReal(
           From converted{From::ConvertUnsigned(real.RawBits()).value};
           if (original != converted) { // C1601
             context.messages().Say(
-                "Nonzero bits truncated from BOZ literal constant in REAL intrinsic"_en_US);
+                "Nonzero bits truncated from BOZ literal constant in REAL intrinsic"_warn_en_US);
           }
         } else if constexpr (IsNumericCategoryExpr<From>()) {
           result = Fold(context, ConvertToType<Result>(std::move(x)));
@@ -1921,7 +1924,7 @@ Expr<Type<TypeCategory::Real, KIND>> ToReal(
 
 template <typename T>
 Expr<T> ExpressionBase<T>::Rewrite(FoldingContext &context, Expr<T> &&expr) {
-  return std::visit(
+  return common::visit(
       [&](auto &&x) -> Expr<T> {
         if constexpr (IsSpecificIntrinsicType<T>) {
           return FoldOperation(context, std::move(x));

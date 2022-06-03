@@ -83,10 +83,17 @@ struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
 };
 
+#ifdef SYCL2020_CONFORMANT_APIS
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+  using type = std::vector<cl_mem>;
+};
+#else
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
 };
+#endif
 
 template <> struct BackendInput<backend::opencl, context> {
   using type = cl_context;

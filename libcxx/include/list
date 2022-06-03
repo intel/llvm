@@ -184,10 +184,13 @@ template <class T, class Allocator, class Predicate>
 #include <__algorithm/equal.h>
 #include <__algorithm/lexicographical_compare.h>
 #include <__algorithm/min.h>
-#include <__assert>
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__debug>
+#include <__format/enable_insertable.h>
 #include <__utility/forward.h>
+#include <__utility/move.h>
+#include <__utility/swap.h>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -881,7 +884,7 @@ public:
              typename enable_if<__is_cpp17_input_iterator<_InpIter>::value>::type* = 0);
 
     list(const list& __c);
-    list(const list& __c, const __identity_t<allocator_type>& __a);
+    list(const list& __c, const __type_identity_t<allocator_type>& __a);
     _LIBCPP_INLINE_VISIBILITY
     list& operator=(const list& __c);
 #ifndef _LIBCPP_CXX03_LANG
@@ -892,7 +895,7 @@ public:
     list(list&& __c)
         _NOEXCEPT_(is_nothrow_move_constructible<__node_allocator>::value);
     _LIBCPP_INLINE_VISIBILITY
-    list(list&& __c, const __identity_t<allocator_type>& __a);
+    list(list&& __c, const __type_identity_t<allocator_type>& __a);
     _LIBCPP_INLINE_VISIBILITY
     list& operator=(list&& __c)
         _NOEXCEPT_(
@@ -1253,7 +1256,7 @@ list<_Tp, _Alloc>::list(const list& __c)
 }
 
 template <class _Tp, class _Alloc>
-list<_Tp, _Alloc>::list(const list& __c, const __identity_t<allocator_type>& __a)
+list<_Tp, _Alloc>::list(const list& __c, const __type_identity_t<allocator_type>& __a)
     : base(__a)
 {
     _VSTD::__debug_db_insert_c(this);
@@ -1292,7 +1295,7 @@ inline list<_Tp, _Alloc>::list(list&& __c)
 
 template <class _Tp, class _Alloc>
 inline
-list<_Tp, _Alloc>::list(list&& __c, const __identity_t<allocator_type>& __a)
+list<_Tp, _Alloc>::list(list&& __c, const __type_identity_t<allocator_type>& __a)
     : base(__a)
 {
     _VSTD::__debug_db_insert_c(this);
@@ -2018,6 +2021,17 @@ list<_Tp, _Alloc>::splice(const_iterator __p, list& __c, const_iterator __i)
     }
 }
 
+template <class _Iterator>
+_LIBCPP_HIDE_FROM_ABI
+bool __iterator_in_range(_Iterator __first, _Iterator __last, _Iterator __it) {
+    for (_Iterator __p = __first; __p != __last; ++__p) {
+        if (__p == __it) {
+            return true;
+        }
+    }
+    return false;
+}
+
 template <class _Tp, class _Alloc>
 void
 list<_Tp, _Alloc>::splice(const_iterator __p, list& __c, const_iterator __f, const_iterator __l)
@@ -2028,16 +2042,10 @@ list<_Tp, _Alloc>::splice(const_iterator __p, list& __c, const_iterator __f, con
         "list::splice(iterator, list, iterator, iterator) called with second iterator not referring to the list argument");
     _LIBCPP_DEBUG_ASSERT(__get_const_db()->__find_c_from_i(_VSTD::addressof(__l)) == _VSTD::addressof(__c),
         "list::splice(iterator, list, iterator, iterator) called with third iterator not referring to the list argument");
+    _LIBCPP_DEBUG_ASSERT(this != std::addressof(__c) || !std::__iterator_in_range(__f, __l, __p),
+        "list::splice(iterator, list, iterator, iterator)"
+        " called with the first iterator within the range of the second and third iterators");
 
-#if _LIBCPP_DEBUG_LEVEL == 2
-    if (this == _VSTD::addressof(__c))
-    {
-        for (const_iterator __i = __f; __i != __l; ++__i)
-            _LIBCPP_DEBUG_ASSERT(__i != __p,
-                "list::splice(iterator, list, iterator, iterator)"
-                " called with the first iterator within the range of the second and third iterators");
-    }
-#endif
     if (__f != __l)
     {
         __link_pointer __first = __f.__ptr_;
@@ -2413,7 +2421,15 @@ inline _LIBCPP_INLINE_VISIBILITY typename list<_Tp, _Allocator>::size_type
 erase(list<_Tp, _Allocator>& __c, const _Up& __v) {
   return _VSTD::erase_if(__c, [&](auto& __elem) { return __elem == __v; });
 }
+
+template <>
+inline constexpr bool __format::__enable_insertable<std::list<char>> = true;
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+template <>
+inline constexpr bool __format::__enable_insertable<std::list<wchar_t>> = true;
 #endif
+
+#endif // _LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
 

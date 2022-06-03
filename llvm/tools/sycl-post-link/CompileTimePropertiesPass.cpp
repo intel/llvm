@@ -14,13 +14,16 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 
 using namespace llvm;
 
 namespace {
 
-constexpr StringRef SYCL_HOST_ACCESS_ATTR = "host_access";
+constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 // The corresponding SPIR-V OpCode for the host_access property is documented
@@ -90,6 +93,15 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   return MDNode::get(Ctx, MD);
 }
 
+Optional<StringRef> getGlobalVariableString(const Value *StringV) {
+  if (const auto *StringGV = dyn_cast<GlobalVariable>(StringV))
+    if (const auto *StringData =
+            dyn_cast<ConstantDataSequential>(StringGV->getInitializer()))
+      if (StringData->isCString())
+        return StringData->getAsCString();
+  return {};
+}
+
 } // anonymous namespace
 
 PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
@@ -142,9 +154,128 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
     }
   }
 
+  // Check pointer annotations.
+  SmallVector<IntrinsicInst *, 4> RemovableAnnots;
+  for (Function &F : M)
+    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I)
+      if (auto *IntrInst = dyn_cast<IntrinsicInst>(&*I))
+        if (IntrInst->getIntrinsicID() == Intrinsic::ptr_annotation &&
+            transformSYCLPropertiesAnnotation(M, IntrInst, RemovableAnnots))
+          CompileTimePropertiesMet = true;
+
+  // Remove irrelevant "sycl-properties" annotations after the transformations.
+  for (IntrinsicInst *IntrInst : RemovableAnnots) {
+    assert(IntrInst->getNumUses() == 0);
+    IntrInst->eraseFromParent();
+  }
+
   // The pass just adds some metadata to the module, it should not ruin
   // any analysis, but we need return PreservedAnalyses::none() to inform
   // the caller that at least one compile-time property was met.
   return CompileTimePropertiesMet ? PreservedAnalyses::none()
                                   : PreservedAnalyses::all();
+}
+
+// Returns true if the transformation changed IntrInst.
+bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
+    Module &M, IntrinsicInst *IntrInst,
+    SmallVectorImpl<IntrinsicInst *> &RemovableAnnotations) {
+  assert(IntrInst->getIntrinsicID() == Intrinsic::ptr_annotation &&
+         "Intrinsic is not a pointer annotation.");
+  assert(IntrInst->arg_size() == 5 &&
+         "Unexpected number of arguments in annotation intrinsic.");
+
+  // Get the global variable with the annotation string.
+  const GlobalVariable *AnnotStrArgGV = nullptr;
+  const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
+  if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
+    if (auto *C = dyn_cast<Constant>(GEP->getOperand(0)))
+      AnnotStrArgGV = dyn_cast<GlobalVariable>(C);
+  if (!AnnotStrArgGV)
+    return false;
+
+  // We only need to consider annotations with "sycl-properties" annotation
+  // string.
+  Optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
+  if (!AnnotStr || AnnotStr->str() != "sycl-properties")
+    return false;
+
+  // Read the annotation values and create the new annotation string.
+  std::string NewAnnotString = "";
+  if (const auto *Cast =
+          dyn_cast<BitCastOperator>(IntrInst->getArgOperand(4))) {
+    if (const auto *AnnotValsGV =
+            dyn_cast<GlobalVariable>(Cast->getOperand(0))) {
+      if (const auto *AnnotValsAggr =
+              dyn_cast<ConstantAggregate>(AnnotValsGV->getInitializer())) {
+        assert(
+            (AnnotValsAggr->getNumOperands() & 1) == 0 &&
+            "sycl-properties annotation must have an even number of annotation "
+            "values.");
+
+        // Iterate over the pairs of property meta-names and meta-values.
+        for (size_t I = 0; I < AnnotValsAggr->getNumOperands(); I += 2) {
+          Optional<StringRef> PropMetaName =
+              getGlobalVariableString(AnnotValsAggr->getOperand(I));
+          Optional<StringRef> PropMetaValue =
+              getGlobalVariableString(AnnotValsAggr->getOperand(I + 1));
+
+          assert(PropMetaName &&
+                 "Unexpected format for property name in annotation.");
+
+          auto DecorIt = SpirvDecorMap.find(*PropMetaName);
+          if (DecorIt == SpirvDecorMap.end())
+            continue;
+          uint32_t DecorCode = DecorIt->second.Code;
+
+          // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
+          // Y is the value if present. It encloses Y in " to ensure that
+          // string values are handled correctly. Note that " around values are
+          // always valid, even if the decoration parameters are not strings.
+          NewAnnotString += "{" + std::to_string(DecorCode);
+          if (PropMetaValue)
+            NewAnnotString += ":\"" + PropMetaValue->str() + "\"";
+          NewAnnotString += "}";
+        }
+      }
+    }
+  }
+
+  // If the new annotation string is empty there is no reason to keep it, so
+  // replace it with the first operand and mark it for removal.
+  if (NewAnnotString.empty()) {
+    IntrInst->replaceAllUsesWith(IntrInst->getOperand(0));
+    RemovableAnnotations.push_back(IntrInst);
+    return true;
+  }
+
+  // Either reuse a previously generated one or create a new global variable
+  // with the new annotation string.
+  GlobalVariable *NewAnnotStringGV = nullptr;
+  auto ExistingNewAnnotStringIt = ReusableAnnotStrings.find(NewAnnotString);
+  if (ExistingNewAnnotStringIt != ReusableAnnotStrings.end()) {
+    NewAnnotStringGV = ExistingNewAnnotStringIt->second;
+  } else {
+    Constant *NewAnnotStringData =
+        ConstantDataArray::getString(M.getContext(), NewAnnotString);
+    NewAnnotStringGV = new GlobalVariable(M, NewAnnotStringData->getType(),
+                                          true, GlobalValue::PrivateLinkage,
+                                          NewAnnotStringData, ".str");
+    NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
+    NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
+  }
+
+  // Replace the annotation string with a bitcast of the new global variable.
+  IntrInst->setArgOperand(
+      1, ConstantExpr::getBitCast(NewAnnotStringGV,
+                                  IntrAnnotStringArg->getType()));
+
+  // The values are not in the annotation string, so we can remove the original
+  // annotation value.
+  unsigned DefaultAS = M.getDataLayout().getDefaultGlobalsAddressSpace();
+  Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
+  PointerType *Int8DefaultASPtrTy = Int8Ty->getPointerTo(DefaultAS);
+  IntrInst->setArgOperand(4, ConstantPointerNull::get(Int8DefaultASPtrTy));
+  return true;
 }

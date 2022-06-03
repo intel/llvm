@@ -19,14 +19,15 @@
 #include "llvm/Option/Option.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/Pass/PassManager.h"
 
 namespace Fortran::frontend {
 
-static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
+static std::unique_ptr<FrontendAction> CreateFrontendAction(
     CompilerInstance &ci) {
 
-  ActionKind ak = ci.frontendOpts().programAction;
-  switch (ak) {
+  switch (ci.frontendOpts().programAction) {
   case InputOutputTest:
     return std::make_unique<InputOutputTestAction>();
   case PrintPreprocessedInput:
@@ -37,8 +38,12 @@ static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
     return std::make_unique<EmitMLIRAction>();
   case EmitLLVM:
     return std::make_unique<EmitLLVMAction>();
+  case EmitLLVMBitcode:
+    return std::make_unique<EmitLLVMBitcodeAction>();
   case EmitObj:
     return std::make_unique<EmitObjAction>();
+  case EmitAssembly:
+    return std::make_unique<EmitAssemblyAction>();
   case DebugUnparse:
     return std::make_unique<DebugUnparseAction>();
   case DebugUnparseNoSema:
@@ -49,6 +54,8 @@ static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
     return std::make_unique<DebugDumpSymbolsAction>();
   case DebugDumpParseTree:
     return std::make_unique<DebugDumpParseTreeAction>();
+  case DebugDumpPFT:
+    return std::make_unique<DebugDumpPFTAction>();
   case DebugDumpParseTreeNoSema:
     return std::make_unique<DebugDumpParseTreeNoSemaAction>();
   case DebugDumpAll:
@@ -80,25 +87,9 @@ static std::unique_ptr<FrontendAction> CreateFrontendBaseAction(
     ci.diagnostics().Report(diagID) << ci.frontendOpts().ActionName;
     return nullptr;
   }
-  default:
-    break;
-    // TODO:
-    // case ParserSyntaxOnly:
-    // case EmitLLVM:
-    // case EmitLLVMOnly:
-    // case EmitCodeGenOnly:
-    // (...)
   }
-  return 0;
-}
 
-std::unique_ptr<FrontendAction> CreateFrontendAction(CompilerInstance &ci) {
-  // Create the underlying action.
-  std::unique_ptr<FrontendAction> act = CreateFrontendBaseAction(ci);
-  if (!act)
-    return nullptr;
-
-  return act;
+  llvm_unreachable("Invalid program action!");
 }
 
 bool ExecuteCompilerInvocation(CompilerInstance *flang) {
@@ -127,6 +118,34 @@ bool ExecuteCompilerInvocation(CompilerInstance *flang) {
           clang::DiagnosticsEngine::Error, "unable to load plugin '%0': '%1'");
       flang->diagnostics().Report(diagID) << Path << Error;
     }
+  }
+
+  // Honor -mllvm. This should happen AFTER plugins have been loaded!
+  if (!flang->frontendOpts().llvmArgs.empty()) {
+    unsigned numArgs = flang->frontendOpts().llvmArgs.size();
+    auto args = std::make_unique<const char *[]>(numArgs + 2);
+    args[0] = "flang (LLVM option parsing)";
+
+    for (unsigned i = 0; i != numArgs; ++i)
+      args[i + 1] = flang->frontendOpts().llvmArgs[i].c_str();
+
+    args[numArgs + 1] = nullptr;
+    llvm::cl::ParseCommandLineOptions(numArgs + 1, args.get());
+  }
+
+  // Honor -mmlir. This should happen AFTER plugins have been loaded!
+  if (!flang->frontendOpts().mlirArgs.empty()) {
+    mlir::registerMLIRContextCLOptions();
+    mlir::registerPassManagerCLOptions();
+    unsigned numArgs = flang->frontendOpts().mlirArgs.size();
+    auto args = std::make_unique<const char *[]>(numArgs + 2);
+    args[0] = "flang (MLIR option parsing)";
+
+    for (unsigned i = 0; i != numArgs; ++i)
+      args[i + 1] = flang->frontendOpts().mlirArgs[i].c_str();
+
+    args[numArgs + 1] = nullptr;
+    llvm::cl::ParseCommandLineOptions(numArgs + 1, args.get());
   }
 
   // If there were errors in processing arguments, don't do anything else.

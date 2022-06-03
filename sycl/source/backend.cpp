@@ -77,24 +77,42 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
       std::make_shared<context_impl>(PiContext, Handler, Plugin));
 }
 
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context,
-                               const async_handler &Handler, backend Backend) {
-  return make_queue(NativeHandle, Context, false, Handler, Backend);
-}
-
-__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
-                               const context &Context, bool KeepOwnership,
-                               const async_handler &Handler, backend Backend) {
+queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
+                      RT::PiDevice Device, bool KeepOwnership,
+                      const async_handler &Handler, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiQueue, !KeepOwnership);
+      NativeHandle, ContextImpl->getHandleRef(), Device, !KeepOwnership,
+      &PiQueue);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context,
+                               const async_handler &Handler, backend Backend) {
+  return make_queue_impl(NativeHandle, Context, nullptr, false, Handler,
+                         Backend);
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend) {
+  return make_queue_impl(NativeHandle, Context, nullptr, KeepOwnership, Handler,
+                         Backend);
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, const device &Device,
+                               bool KeepOwnership, const async_handler &Handler,
+                               backend Backend) {
+  const auto &DeviceImpl = getSyclObjImpl(Device);
+  return make_queue_impl(NativeHandle, Context, DeviceImpl->getHandleRef(),
+                         KeepOwnership, Handler, Backend);
 }
 
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
@@ -112,8 +130,12 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
   Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
       NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
-  return detail::createSyclObjFromImpl<event>(
+  event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));
+
+  if (Backend == backend::opencl)
+    Plugin.call<PiApiKind::piEventRetain>(PiEvent);
+  return Event;
 }
 
 std::shared_ptr<detail::kernel_bundle_impl>
@@ -145,27 +167,29 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
     switch (BinaryType) {
     case (PI_PROGRAM_BINARY_TYPE_NONE):
       if (State == bundle_state::object)
-        Plugin.call<PiApiKind::piProgramCompile>(
+        Plugin.call<errc::build, PiApiKind::piProgramCompile>(
             PiProgram, 1, &Dev, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
       else if (State == bundle_state::executable)
-        Plugin.call<PiApiKind::piProgramBuild>(PiProgram, 1, &Dev, nullptr,
-                                               nullptr, nullptr);
+        Plugin.call<errc::build, PiApiKind::piProgramBuild>(
+            PiProgram, 1, &Dev, nullptr, nullptr, nullptr);
       break;
     case (PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT):
     case (PI_PROGRAM_BINARY_TYPE_LIBRARY):
       if (State == bundle_state::input)
         // TODO SYCL2020 exception
-        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
+        throw sycl::runtime_error(errc::invalid,
+                                  "Program and kernel_bundle state mismatch",
                                   PI_INVALID_VALUE);
       if (State == bundle_state::executable)
-        Plugin.call<PiApiKind::piProgramLink>(ContextImpl->getHandleRef(), 1,
-                                              &Dev, nullptr, 1, &PiProgram,
-                                              nullptr, nullptr, &PiProgram);
+        Plugin.call<errc::build, PiApiKind::piProgramLink>(
+            ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
+            nullptr, nullptr, &PiProgram);
       break;
     case (PI_PROGRAM_BINARY_TYPE_EXECUTABLE):
       if (State == bundle_state::input || State == bundle_state::object)
         // TODO SYCL2020 exception
-        throw sycl::runtime_error("Program and kernel_bundle state mismatch",
+        throw sycl::runtime_error(errc::invalid,
+                                  "Program and kernel_bundle state mismatch",
                                   PI_INVALID_VALUE);
       break;
     }

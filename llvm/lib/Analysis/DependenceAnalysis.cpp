@@ -50,7 +50,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/DependenceAnalysis.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/Delinearization.h"
@@ -58,10 +57,8 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/Config/llvm-config.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -3352,12 +3349,8 @@ bool DependenceInfo::tryDelinearizeFixedSize(
     return false;
   }
 
-  Value *SrcBasePtr = SrcGEP->getOperand(0);
-  Value *DstBasePtr = DstGEP->getOperand(0);
-  while (auto *PCast = dyn_cast<BitCastInst>(SrcBasePtr))
-    SrcBasePtr = PCast->getOperand(0);
-  while (auto *PCast = dyn_cast<BitCastInst>(DstBasePtr))
-    DstBasePtr = PCast->getOperand(0);
+  Value *SrcBasePtr = SrcGEP->getOperand(0)->stripPointerCasts();
+  Value *DstBasePtr = DstGEP->getOperand(0)->stripPointerCasts();
 
   // Check that for identical base pointers we do not miss index offsets
   // that have been added before this GEP is applied.

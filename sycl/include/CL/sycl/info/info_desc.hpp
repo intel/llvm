@@ -142,6 +142,7 @@ enum class device : cl_device_info {
   partition_type_property,
   kernel_kernel_pipe_support,
   built_in_kernel_ids,
+  backend_version = PI_DEVICE_INFO_BACKEND_VERSION,
   // USM
   usm_device_allocations = PI_USM_DEVICE_SUPPORT,
   usm_host_allocations = PI_USM_HOST_SUPPORT,

@@ -30,7 +30,7 @@ using namespace lld::macho;
 // can differ based on STL debug levels (e.g. iterator debugging on MSVC's STL),
 // so account for that.
 static_assert(sizeof(void *) != 8 ||
-                  sizeof(ConcatInputSection) == sizeof(std::vector<Reloc>) + 96,
+                  sizeof(ConcatInputSection) == sizeof(std::vector<Reloc>) + 88,
               "Try to minimize ConcatInputSection's size, we create many "
               "instances of it");
 
@@ -82,6 +82,8 @@ void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
   copy->live = false;
   copy->wasCoalesced = true;
   copy->replacement = this;
+  for (auto &copySym : copy->symbols)
+    copySym->wasIdenticalCodeFolded = true;
 
   // Merge the sorted vectors of symbols together.
   auto it = symbols.begin();
@@ -258,6 +260,11 @@ bool macho::isCodeSection(const InputSection *isec) {
 
 bool macho::isCfStringSection(const InputSection *isec) {
   return isec->getName() == section_names::cfString &&
+         isec->getSegName() == segment_names::data;
+}
+
+bool macho::isClassRefsSection(const InputSection *isec) {
+  return isec->getName() == section_names::objcClassRefs &&
          isec->getSegName() == segment_names::data;
 }
 

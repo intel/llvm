@@ -8,6 +8,7 @@
 
 #include "PlatformPOSIX.h"
 
+#include "Plugins/Platform/gdb-server/PlatformRemoteGDBServer.h"
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
@@ -229,7 +230,7 @@ lldb_private::Status PlatformPOSIX::GetFile(
     }
 
     if (error.Success()) {
-      lldb::DataBufferSP buffer_sp(new DataBufferHeap(1024, 0));
+      lldb::WritableDataBufferSP buffer_sp(new DataBufferHeap(1024, 0));
       uint64_t offset = 0;
       error.Clear();
       while (error.Success()) {
@@ -307,7 +308,8 @@ Status PlatformPOSIX::ConnectRemote(Args &args) {
   } else {
     if (!m_remote_platform_sp)
       m_remote_platform_sp =
-          Platform::Create(ConstString("remote-gdb-server"), error);
+          platform_gdb_server::PlatformRemoteGDBServer::CreateInstance(
+              /*force=*/true, nullptr);
 
     if (m_remote_platform_sp && error.Success())
       error = m_remote_platform_sp->ConnectRemote(args);
@@ -560,8 +562,8 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
     const char *error_str;
   };
   
-  extern void *memcpy(void *, const void *, size_t size);
-  extern size_t strlen(const char *);
+  extern "C" void *memcpy(void *, const void *, size_t size);
+  extern "C" size_t strlen(const char *);
   
 
   void * __lldb_dlopen_wrapper (const char *name, 
@@ -608,7 +610,7 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
   DiagnosticManager diagnostics;
 
   auto utility_fn_or_error = process->GetTarget().CreateUtilityFunction(
-      std::move(expr), dlopen_wrapper_name, eLanguageTypeObjC, exe_ctx);
+      std::move(expr), dlopen_wrapper_name, eLanguageTypeC_plus_plus, exe_ctx);
   if (!utility_fn_or_error) {
     std::string error_str = llvm::toString(utility_fn_or_error.takeError());
     error.SetErrorStringWithFormat("dlopen error: could not create utility"

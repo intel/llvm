@@ -791,6 +791,7 @@ class CastExpressionIdValidator final : public CorrectionCandidateCallback {
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
+/// [GNU]   '__builtin_source_location' '(' ')'
 /// [GNU]   '__builtin_types_compatible_p' '(' type-name ',' type-name ')'
 /// [GNU]   '__null'
 /// [OBJC]  '[' objc-message-expr ']'
@@ -1303,6 +1304,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___builtin_FILE:
   case tok::kw___builtin_FUNCTION:
   case tok::kw___builtin_LINE:
+  case tok::kw___builtin_source_location:
     if (NotPrimaryExpression)
       *NotPrimaryExpression = true;
     // This parses the complete suffix; we can return early.
@@ -1527,6 +1529,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
   case tok::kw___float128:
   case tok::kw___ibm128:
   case tok::kw_void:
+  case tok::kw_auto:
   case tok::kw_typename:
   case tok::kw_typeof:
   case tok::kw___vector:
@@ -2607,6 +2610,7 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
 /// [GNU]   '__builtin_FUNCTION' '(' ')'
 /// [GNU]   '__builtin_LINE' '(' ')'
 /// [CLANG] '__builtin_COLUMN' '(' ')'
+/// [GNU]   '__builtin_source_location' '(' ')'
 /// [OCL]   '__builtin_astype' '(' assignment-expression ',' type-name ')'
 ///
 /// [GNU] offsetof-member-designator:
@@ -2829,7 +2833,8 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
   case tok::kw___builtin_COLUMN:
   case tok::kw___builtin_FILE:
   case tok::kw___builtin_FUNCTION:
-  case tok::kw___builtin_LINE: {
+  case tok::kw___builtin_LINE:
+  case tok::kw___builtin_source_location: {
     // Attempt to consume the r-paren.
     if (Tok.isNot(tok::r_paren)) {
       Diag(Tok, diag::err_expected) << tok::r_paren;
@@ -2846,6 +2851,8 @@ ExprResult Parser::ParseBuiltinPrimaryExpression() {
         return SourceLocExpr::Line;
       case tok::kw___builtin_COLUMN:
         return SourceLocExpr::Column;
+      case tok::kw___builtin_source_location:
+        return SourceLocExpr::SourceLocStruct;
       default:
         llvm_unreachable("invalid keyword");
       }

@@ -289,14 +289,12 @@ void IRInstructionMapper::convertToUnsignedVec(
     }
   }
 
-  if (HaveLegalRange) {
-    if (AddedIllegalLastTime)
-      mapToIllegalUnsigned(It, IntegerMappingForBB, InstrListForBB, true);
-    for (IRInstructionData *ID : InstrListForBB)
-      this->IDL->push_back(*ID);
-    llvm::append_range(InstrList, InstrListForBB);
-    llvm::append_range(IntegerMapping, IntegerMappingForBB);
-  }
+  if (AddedIllegalLastTime)
+    mapToIllegalUnsigned(It, IntegerMappingForBB, InstrListForBB, true);
+  for (IRInstructionData *ID : InstrListForBB)
+    this->IDL->push_back(*ID);
+  llvm::append_range(InstrList, InstrListForBB);
+  llvm::append_range(IntegerMapping, IntegerMappingForBB);
 }
 
 // TODO: This is the same as the MachineOutliner, and should be consolidated
@@ -461,6 +459,18 @@ IRSimilarityCandidate::IRSimilarityCandidate(unsigned StartIdx, unsigned Len,
   // that both of these instructions are not nullptrs.
   FirstInst = FirstInstIt;
   LastInst = LastInstIt;
+
+  // Add the basic blocks contained in the set into the global value numbering.
+  DenseSet<BasicBlock *> BBSet;
+  getBasicBlocks(BBSet);
+  for (BasicBlock *BB : BBSet) {
+    if (ValueToNumber.find(BB) != ValueToNumber.end())
+      continue;
+    
+    ValueToNumber.try_emplace(BB, LocalValNumber);
+    NumberToValue.try_emplace(LocalValNumber, BB);
+    LocalValNumber++;
+  }
 }
 
 bool IRSimilarityCandidate::isSimilar(const IRSimilarityCandidate &A,
@@ -1009,6 +1019,40 @@ void IRSimilarityCandidate::createCanonicalRelationFrom(
     CanonNumToNumber.insert(std::make_pair(CanonNum, SourceGVN));
     NumberToCanonNum.insert(std::make_pair(SourceGVN, CanonNum));
   }
+
+  DenseSet<BasicBlock *> BBSet;
+  getBasicBlocks(BBSet);
+  // Find canonical numbers for the BasicBlocks in the current candidate.
+  // This is done by finding the corresponding value for the first instruction
+  // in the block in the current candidate, finding the matching value in the
+  // source candidate.  Then by finding the parent of this value, use the
+  // canonical number of the block in the source candidate for the canonical
+  // number in the current candidate.
+  for (BasicBlock *BB : BBSet) {
+    unsigned BBGVNForCurrCand = ValueToNumber.find(BB)->second;
+
+    // We can skip the BasicBlock if the canonical numbering has already been
+    // found in a separate instruction.
+    if (NumberToCanonNum.find(BBGVNForCurrCand) != NumberToCanonNum.end())
+      continue;
+
+    // If the basic block is the starting block, then the shared instruction may
+    // not be the first instruction in the block, it will be the first
+    // instruction in the similarity region.
+    Value *FirstOutlineInst = BB == getStartBB()
+                                  ? frontInstruction()
+                                  : &*BB->instructionsWithoutDebug().begin();
+
+    unsigned FirstInstGVN = *getGVN(FirstOutlineInst);
+    unsigned FirstInstCanonNum = *getCanonicalNum(FirstInstGVN);
+    unsigned SourceGVN = *SourceCand.fromCanonicalNum(FirstInstCanonNum);
+    Value *SourceV = *SourceCand.fromGVN(SourceGVN);
+    BasicBlock *SourceBB = cast<Instruction>(SourceV)->getParent();
+    unsigned SourceBBGVN = *SourceCand.getGVN(SourceBB);
+    unsigned SourceCanonBBGVN = *SourceCand.getCanonicalNum(SourceBBGVN);
+    CanonNumToNumber.insert(std::make_pair(SourceCanonBBGVN, BBGVNForCurrCand));
+    NumberToCanonNum.insert(std::make_pair(BBGVNForCurrCand, SourceCanonBBGVN));
+  }
 }
 
 void IRSimilarityCandidate::createCanonicalMappingFor(
@@ -1163,6 +1207,7 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(
   Mapper.InstClassifier.EnableIndirectCalls = EnableIndirectCalls;
   Mapper.EnableMatchCallsByName = EnableMatchingCallsByName;
   Mapper.InstClassifier.EnableIntrinsics = EnableIntrinsics;
+  Mapper.InstClassifier.EnableMustTailCalls = EnableMustTailCalls;
 
   populateMapper(Modules, InstrList, IntegerMapping);
   findCandidates(InstrList, IntegerMapping);
@@ -1176,6 +1221,7 @@ SimilarityGroupList &IRSimilarityIdentifier::findSimilarity(Module &M) {
   Mapper.InstClassifier.EnableIndirectCalls = EnableIndirectCalls;
   Mapper.EnableMatchCallsByName = EnableMatchingCallsByName;
   Mapper.InstClassifier.EnableIntrinsics = EnableIntrinsics;
+  Mapper.InstClassifier.EnableMustTailCalls = EnableMustTailCalls;
 
   std::vector<IRInstructionData *> InstrList;
   std::vector<unsigned> IntegerMapping;
@@ -1197,7 +1243,8 @@ IRSimilarityIdentifierWrapperPass::IRSimilarityIdentifierWrapperPass()
 
 bool IRSimilarityIdentifierWrapperPass::doInitialization(Module &M) {
   IRSI.reset(new IRSimilarityIdentifier(!DisableBranches, !DisableIndirectCalls,
-                                        MatchCallsByName, !DisableIntrinsics));
+                                        MatchCallsByName, !DisableIntrinsics,
+                                        false));
   return false;
 }
 
@@ -1215,7 +1262,8 @@ AnalysisKey IRSimilarityAnalysis::Key;
 IRSimilarityIdentifier IRSimilarityAnalysis::run(Module &M,
                                                  ModuleAnalysisManager &) {
   auto IRSI = IRSimilarityIdentifier(!DisableBranches, !DisableIndirectCalls,
-                                     MatchCallsByName, !DisableIntrinsics);
+                                     MatchCallsByName, !DisableIntrinsics,
+                                     false);
   IRSI.findSimilarity(M);
   return IRSI;
 }

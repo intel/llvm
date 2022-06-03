@@ -119,7 +119,9 @@ class SBDebugger
 public:
     enum
     {
-        eBroadcastBitProgress = (1 << 0)
+        eBroadcastBitProgress = (1 << 0),
+        eBroadcastBitWarning = (1 << 1),
+        eBroadcastBitError = (1 << 2),
     };
 
 
@@ -129,6 +131,8 @@ public:
                                         uint64_t &OUTPUT,
                                         bool &OUTPUT);
 
+    static lldb::SBStructuredData GetDiagnosticFromEvent(const lldb::SBEvent &event);
+
     SBBroadcaster GetBroadcaster();
 
     static void
@@ -136,6 +140,8 @@ public:
 
     static SBError
     InitializeWithErrorHandling();
+
+    static void PrintStackTraceOnError();
 
     static void
     Terminate();

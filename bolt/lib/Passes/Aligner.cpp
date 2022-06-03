@@ -23,6 +23,7 @@ extern cl::OptionCategory BoltOptCategory;
 
 extern cl::opt<bool> AlignBlocks;
 extern cl::opt<bool> PreserveBlocksAlignment;
+extern cl::opt<unsigned> AlignFunctions;
 
 cl::opt<unsigned>
 AlignBlocksMinSize("align-blocks-min-size",
@@ -41,13 +42,6 @@ AlignBlocksThreshold("align-blocks-threshold",
   cl::init(800),
   cl::ZeroOrMore,
   cl::Hidden,
-  cl::cat(BoltOptCategory));
-
-cl::opt<unsigned>
-AlignFunctions("align-functions",
-  cl::desc("align functions at a given value (relocation mode)"),
-  cl::init(64),
-  cl::ZeroOrMore,
   cl::cat(BoltOptCategory));
 
 cl::opt<unsigned>
@@ -177,6 +171,20 @@ void AlignerPass::runOnFunctions(BinaryContext &BC) {
       alignCompact(BF, Emitter.MCE.get());
     else
       alignMaxBytes(BF);
+
+    // Align objects that contains constant islands and no code
+    // to at least 8 bytes.
+    if (!BF.size() && BF.hasIslandsInfo()) {
+      const uint16_t Alignment = BF.getConstantIslandAlignment();
+      if (BF.getAlignment() < Alignment)
+        BF.setAlignment(Alignment);
+
+      if (BF.getMaxAlignmentBytes() < Alignment)
+        BF.setMaxAlignmentBytes(Alignment);
+
+      if (BF.getMaxColdAlignmentBytes() < Alignment)
+        BF.setMaxColdAlignmentBytes(Alignment);
+    }
 
     if (opts::AlignBlocks && !opts::PreserveBlocksAlignment)
       alignBlocks(BF, Emitter.MCE.get());

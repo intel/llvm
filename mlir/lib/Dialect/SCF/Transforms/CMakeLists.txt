@@ -29,7 +29,6 @@ add_mlir_dialect_library(MLIRSCFTransforms
   MLIRPass
   MLIRSCF
   MLIRSCFUtils
-  MLIRStandard
   MLIRSupport
   MLIRTensor
   MLIRTransforms

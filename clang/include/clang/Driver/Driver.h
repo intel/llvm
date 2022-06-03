@@ -56,6 +56,16 @@ enum LTOKind {
   LTOK_Unknown
 };
 
+/// Whether headers used to construct C++20 module units should be looked
+/// up by the path supplied on the command line, or in the user or system
+/// search paths.
+enum ModuleHeaderMode {
+  HeaderMode_None,
+  HeaderMode_Default,
+  HeaderMode_User,
+  HeaderMode_System
+};
+
 /// Driver - Encapsulate logic for constructing compilation processes
 /// from a set of gcc-driver-like command line arguments.
 class Driver {
@@ -68,7 +78,8 @@ class Driver {
     GXXMode,
     CPPMode,
     CLMode,
-    FlangMode
+    FlangMode,
+    DXCMode
   } Mode;
 
   enum SaveTempsMode {
@@ -82,6 +93,13 @@ class Driver {
     EmbedMarker,
     EmbedBitcode
   } BitcodeEmbed;
+
+  /// Header unit mode set by -fmodule-header={user,system}.
+  ModuleHeaderMode CXX20HeaderType;
+
+  /// Set if we should process inputs and jobs with C++20 module
+  /// interpretation.
+  bool ModulesModeCXX20;
 
   /// LTO mode selected via -f(no-)?lto(=.*)? options.
   LTOKind LTOMode;
@@ -195,6 +213,9 @@ public:
   /// Other modes fall back to calling gcc which in turn calls gfortran.
   bool IsFlangMode() const { return Mode == FlangMode; }
 
+  /// Whether the driver should follow dxc.exe like behavior.
+  bool IsDXCMode() const { return Mode == DXCMode; }
+
   /// Only print tool bindings, don't build any jobs.
   unsigned CCCPrintBindings : 1;
 
@@ -250,6 +271,9 @@ private:
   /// Whether to check that input files exist when constructing compilation
   /// jobs.
   unsigned CheckInputsExist : 1;
+  /// Whether to probe for PCH files on disk, in order to upgrade
+  /// -include foo.h to -include-pch foo.h.pch.
+  unsigned ProbePrecompiled : 1;
 
 public:
   /// Force clang to emit reproducer for driver invocation. This is enabled
@@ -335,6 +359,9 @@ public:
   bool getCheckInputsExist() const { return CheckInputsExist; }
 
   void setCheckInputsExist(bool Value) { CheckInputsExist = Value; }
+
+  bool getProbePrecompiled() const { return ProbePrecompiled; }
+  void setProbePrecompiled(bool Value) { ProbePrecompiled = Value; }
 
   void setTargetAndMode(const ParsedClangName &TM) { ClangNameParts = TM; }
 
@@ -581,6 +608,12 @@ public:
 
   /// ShouldEmitStaticLibrary - Should the linker emit a static library.
   bool ShouldEmitStaticLibrary(const llvm::opt::ArgList &Args) const;
+
+  /// Returns true if the user has indicated a C++20 header unit mode.
+  bool hasHeaderMode() const { return CXX20HeaderType != HeaderMode_None; }
+
+  /// Get the mode for handling headers as set by fmodule-header{=}.
+  ModuleHeaderMode getModuleHeaderMode() const { return CXX20HeaderType; }
 
   /// Returns true if we are performing any kind of LTO.
   bool isUsingLTO(bool IsOffload = false) const {

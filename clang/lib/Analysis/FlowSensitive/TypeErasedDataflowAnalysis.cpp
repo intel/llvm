@@ -17,6 +17,8 @@
 #include <vector>
 
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/OperationKinds.h"
+#include "clang/AST/StmtVisitor.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
@@ -28,7 +30,9 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
 
 namespace clang {
 namespace dataflow {
@@ -42,7 +46,7 @@ public:
       : CFCtx(CFCtx), BlockToState(BlockToState) {}
 
   const Environment *getEnvironment(const Stmt &S) const override {
-    auto BlockIT = CFCtx.getStmtToBlock().find(&S);
+    auto BlockIT = CFCtx.getStmtToBlock().find(&ignoreCFGOmittedNodes(S));
     assert(BlockIT != CFCtx.getStmtToBlock().end());
     const auto &State = BlockToState[BlockIT->getSecond()->getBlockID()];
     assert(State.hasValue());
@@ -52,6 +56,87 @@ public:
 private:
   const ControlFlowContext &CFCtx;
   llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockToState;
+};
+
+/// Returns the index of `Block` in the successors of `Pred`.
+static int blockIndexInPredecessor(const CFGBlock &Pred,
+                                   const CFGBlock &Block) {
+  auto BlockPos = llvm::find_if(
+      Pred.succs(), [&Block](const CFGBlock::AdjacentBlock &Succ) {
+        return Succ && Succ->getBlockID() == Block.getBlockID();
+      });
+  return BlockPos - Pred.succ_begin();
+}
+
+/// Extends the flow condition of an environment based on a terminator
+/// statement.
+class TerminatorVisitor : public ConstStmtVisitor<TerminatorVisitor> {
+public:
+  TerminatorVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
+                    int BlockSuccIdx)
+      : StmtToEnv(StmtToEnv), Env(Env), BlockSuccIdx(BlockSuccIdx) {}
+
+  void VisitIfStmt(const IfStmt *S) {
+    auto *Cond = S->getCond();
+    assert(Cond != nullptr);
+    extendFlowCondition(*Cond);
+  }
+
+  void VisitWhileStmt(const WhileStmt *S) {
+    auto *Cond = S->getCond();
+    assert(Cond != nullptr);
+    extendFlowCondition(*Cond);
+  }
+
+  void VisitBinaryOperator(const BinaryOperator *S) {
+    assert(S->getOpcode() == BO_LAnd || S->getOpcode() == BO_LOr);
+    auto *LHS = S->getLHS();
+    assert(LHS != nullptr);
+    extendFlowCondition(*LHS);
+  }
+
+  void VisitConditionalOperator(const ConditionalOperator *S) {
+    auto *Cond = S->getCond();
+    assert(Cond != nullptr);
+    extendFlowCondition(*Cond);
+  }
+
+private:
+  void extendFlowCondition(const Expr &Cond) {
+    // The terminator sub-expression might not be evaluated.
+    if (Env.getValue(Cond, SkipPast::None) == nullptr)
+      transfer(StmtToEnv, Cond, Env);
+
+    // FIXME: The flow condition must be an r-value, so `SkipPast::None` should
+    // suffice.
+    auto *Val =
+        cast_or_null<BoolValue>(Env.getValue(Cond, SkipPast::Reference));
+    // Value merging depends on flow conditions from different environments
+    // being mutually exclusive -- that is, they cannot both be true in their
+    // entirety (even if they may share some clauses). So, we need *some* value
+    // for the condition expression, even if just an atom.
+    if (Val == nullptr) {
+      // FIXME: Consider introducing a helper for this get-or-create pattern.
+      auto *Loc = Env.getStorageLocation(Cond, SkipPast::None);
+      if (Loc == nullptr) {
+        Loc = &Env.createStorageLocation(Cond);
+        Env.setStorageLocation(Cond, *Loc);
+      }
+      Val = &Env.makeAtomicBoolValue();
+      Env.setValue(*Loc, *Val);
+    }
+
+    // The condition must be inverted for the successor that encompasses the
+    // "else" branch, if such exists.
+    if (BlockSuccIdx == 1)
+      Val = &Env.makeNot(*Val);
+
+    Env.addToFlowCondition(*Val);
+  }
+
+  const StmtToEnvMap &StmtToEnv;
+  Environment &Env;
+  int BlockSuccIdx;
 };
 
 /// Computes the input state for a given basic block by joining the output
@@ -64,7 +149,7 @@ private:
 ///   `llvm::None` represent basic blocks that are not evaluated yet.
 static TypeErasedDataflowAnalysisState computeBlockInputState(
     const ControlFlowContext &CFCtx,
-    llvm::ArrayRef<llvm::Optional<TypeErasedDataflowAnalysisState>> BlockStates,
+    std::vector<llvm::Optional<TypeErasedDataflowAnalysisState>> &BlockStates,
     const CFGBlock &Block, const Environment &InitEnv,
     TypeErasedDataflowAnalysis &Analysis) {
   llvm::DenseSet<const CFGBlock *> Preds;
@@ -100,6 +185,8 @@ static TypeErasedDataflowAnalysisState computeBlockInputState(
   }
 
   llvm::Optional<TypeErasedDataflowAnalysisState> MaybeState;
+  bool ApplyBuiltinTransfer = Analysis.applyBuiltinTransfer();
+
   for (const CFGBlock *Pred : Preds) {
     // Skip if the `Block` is unreachable or control flow cannot get past it.
     if (!Pred || Pred->hasNoReturnElement())
@@ -112,13 +199,21 @@ static TypeErasedDataflowAnalysisState computeBlockInputState(
     if (!MaybePredState.hasValue())
       continue;
 
-    const TypeErasedDataflowAnalysisState &PredState =
-        MaybePredState.getValue();
+    TypeErasedDataflowAnalysisState PredState = MaybePredState.getValue();
+    if (ApplyBuiltinTransfer) {
+      if (const Stmt *PredTerminatorStmt = Pred->getTerminatorStmt()) {
+        const StmtToEnvMapImpl StmtToEnv(CFCtx, BlockStates);
+        TerminatorVisitor(StmtToEnv, PredState.Env,
+                          blockIndexInPredecessor(*Pred, Block))
+            .Visit(PredTerminatorStmt);
+      }
+    }
+
     if (MaybeState.hasValue()) {
       Analysis.joinTypeErased(MaybeState->Lattice, PredState.Lattice);
       MaybeState->Env.join(PredState.Env, Analysis);
     } else {
-      MaybeState = PredState;
+      MaybeState = std::move(PredState);
     }
   }
   if (!MaybeState.hasValue()) {

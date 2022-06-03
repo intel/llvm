@@ -1911,8 +1911,7 @@ void CodeGenFunction::EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S){
 
   // Fetch the value at the current index from the buffer.
   llvm::Value *CurrentItemPtr = Builder.CreateGEP(
-      EnumStateItems->getType()->getPointerElementType(), EnumStateItems, index,
-      "currentitem.ptr");
+      ObjCIdType, EnumStateItems, index, "currentitem.ptr");
   llvm::Value *CurrentItem =
     Builder.CreateAlignedLoad(ObjCIdType, CurrentItemPtr, getPointerAlign());
 
@@ -3849,7 +3848,7 @@ CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
       getContext().getTypeAlignInChars(TheCXXConstructExpr->getType());
   EmitAggExpr(TheCXXConstructExpr,
               AggValueSlot::forAddr(
-                  Address::deprecated(DV.getScalarVal(), Alignment),
+                  Address(DV.getScalarVal(), ConvertTypeForMem(Ty), Alignment),
                   Qualifiers(), AggValueSlot::IsDestructed,
                   AggValueSlot::DoesNotNeedGCBarriers,
                   AggValueSlot::IsNotAliased, AggValueSlot::DoesNotOverlap));

@@ -70,7 +70,7 @@ and not recommended to use in production environment.
     Enables (or disables) LLVM IR dead argument elimination pass to remove
     unused arguments for the kernel functions before translation to SPIR-V.
     Currently has effect only on spir64\* targets.
-    Disabled by default.
+    Enabled by default.
 
 **`-f[no-]sycl-id-queries-fit-in-int`**
 
@@ -190,6 +190,14 @@ and not recommended to use in production environment.
     Enables/disables linking of the device libraries. Supported libraries:
     libm-fp32, libm-fp64, libc, all. Use of 'all' will enable/disable all of
     the device libraries.
+
+**`-f[no-]sycl-device-lib-online-link`** [EXPERIMENTAL]
+
+    Enables/disables online link mechanism for SYCL device library in JIT
+    compilation. If online link is enabled, all required device libraries will
+    be linked with user's device image by SYCL runtime during execution time,
+    otherwise the link will happen in build time, online link is disabled by
+    default currently. This option is ignored in AOT compilation.
 
 ## Intel FPGA specific options
 

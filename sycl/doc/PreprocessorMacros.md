@@ -61,6 +61,10 @@ This file describes macros that have effect on SYCL compiler and run-time.
   will change the behavior of `sycl::get_native()` function and using types for 
   next structs: `interop<backend::opencl, event>`, `BackendInput<backend::opencl, event>`, 
   `BackendReturn<backend::opencl, event>` to be in line with the spec.
+  2) According to spec, `backend_return_t` for opencl buffer 
+  should be `std::vector<cl_mem>` instead of `cl_mem`. Defining this macro 
+  will change the behavior of `interop_handle::get_native_mem()` and `sycl::get_native()` functions
+  and using type for `BackendReturn<backend::opencl, buffer>` to be in line with the spec.
 
 ## Version macros
 

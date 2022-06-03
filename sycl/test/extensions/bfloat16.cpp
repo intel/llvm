@@ -2,10 +2,10 @@
 
 // UNSUPPORTED: cuda || hip_amd
 
-#include <sycl/ext/intel/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 
-using sycl::ext::intel::experimental::bfloat16;
+using sycl::ext::oneapi::experimental::bfloat16;
 
 SYCL_EXTERNAL uint16_t some_bf16_intrinsic(uint16_t x, uint16_t y);
 SYCL_EXTERNAL void foo(long x, sycl::half y);

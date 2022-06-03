@@ -14,11 +14,14 @@
 #ifndef LLVM_FUZZMUTATE_FUZZERCLI_H
 #define LLVM_FUZZMUTATE_FUZZERCLI_H
 
-#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/DataTypes.h"
+#include <stddef.h>
+#include <memory>
 
 namespace llvm {
 
+class LLVMContext;
+class Module;
 class StringRef;
 
 /// Parse cl::opts from a fuzz target commandline.

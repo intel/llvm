@@ -43,6 +43,7 @@ namespace format {
   TYPE(ConflictAlternative)                                                    \
   TYPE(ConflictEnd)                                                            \
   TYPE(ConflictStart)                                                          \
+  TYPE(CppCastLParen)                                                          \
   TYPE(CtorInitializerColon)                                                   \
   TYPE(CtorInitializerComma)                                                   \
   TYPE(DesignatedInitializerLSquare)                                           \
@@ -132,34 +133,6 @@ namespace format {
   TYPE(CSharpGenericTypeConstraintColon)                                       \
   TYPE(CSharpGenericTypeConstraintComma)                                       \
   TYPE(Unknown)
-
-/// Sorted operators that can follow a C variable.
-static const std::vector<clang::tok::TokenKind> COperatorsFollowingVar = [] {
-  std::vector<clang::tok::TokenKind> ReturnVal = {
-      tok::l_square,     tok::r_square,
-      tok::l_paren,      tok::r_paren,
-      tok::r_brace,      tok::period,
-      tok::ellipsis,     tok::ampamp,
-      tok::ampequal,     tok::star,
-      tok::starequal,    tok::plus,
-      tok::plusplus,     tok::plusequal,
-      tok::minus,        tok::arrow,
-      tok::minusminus,   tok::minusequal,
-      tok::exclaim,      tok::exclaimequal,
-      tok::slash,        tok::slashequal,
-      tok::percent,      tok::percentequal,
-      tok::less,         tok::lessless,
-      tok::lessequal,    tok::lesslessequal,
-      tok::greater,      tok::greatergreater,
-      tok::greaterequal, tok::greatergreaterequal,
-      tok::caret,        tok::caretequal,
-      tok::pipe,         tok::pipepipe,
-      tok::pipeequal,    tok::question,
-      tok::semi,         tok::equal,
-      tok::equalequal,   tok::comma};
-  assert(std::is_sorted(ReturnVal.begin(), ReturnVal.end()));
-  return ReturnVal;
-}();
 
 /// Determines the semantic type of a syntactic token, e.g. whether "<" is a
 /// template opener or binary operator.
@@ -257,7 +230,7 @@ struct FormatToken {
         PartOfMultiVariableDeclStmt(false), ContinuesLineCommentSection(false),
         Finalized(false), ClosesRequiresClause(false), BlockKind(BK_Unknown),
         Decision(FD_Unformatted), PackingKind(PPK_Inconclusive),
-        Type(TT_Unknown) {}
+        TypeIsFinalized(false), Type(TT_Unknown) {}
 
   /// The \c Token.
   Token Tok;
@@ -366,13 +339,31 @@ public:
   }
 
 private:
+  unsigned TypeIsFinalized : 1;
   TokenType Type;
 
 public:
   /// Returns the token's type, e.g. whether "<" is a template opener or
   /// binary operator.
   TokenType getType() const { return Type; }
-  void setType(TokenType T) { Type = T; }
+  void setType(TokenType T) {
+    assert((!TypeIsFinalized || T == Type) &&
+           "Please use overwriteFixedType to change a fixed type.");
+    Type = T;
+  }
+  /// Sets the type and also the finalized flag. This prevents the type to be
+  /// reset in TokenAnnotator::resetTokenMetadata(). If the type needs to be set
+  /// to another one please use overwriteFixedType, or even better remove the
+  /// need to reassign the type.
+  void setFinalizedType(TokenType T) {
+    Type = T;
+    TypeIsFinalized = true;
+  }
+  void overwriteFixedType(TokenType T) {
+    TypeIsFinalized = false;
+    setType(T);
+  }
+  bool isTypeFinalized() const { return TypeIsFinalized; }
 
   /// The number of newlines immediately before the \c Token.
   ///
@@ -963,6 +954,7 @@ struct AdditionalKeywords {
     kw_event = &IdentTable.get("event");
     kw_fixed = &IdentTable.get("fixed");
     kw_foreach = &IdentTable.get("foreach");
+    kw_init = &IdentTable.get("init");
     kw_implicit = &IdentTable.get("implicit");
     kw_internal = &IdentTable.get("internal");
     kw_lock = &IdentTable.get("lock");
@@ -995,11 +987,11 @@ struct AdditionalKeywords {
 
     CSharpExtraKeywords = std::unordered_set<IdentifierInfo *>(
         {kw_base, kw_byte, kw_checked, kw_decimal, kw_delegate, kw_event,
-         kw_fixed, kw_foreach, kw_implicit, kw_in, kw_interface, kw_internal,
-         kw_is, kw_lock, kw_null, kw_object, kw_out, kw_override, kw_params,
-         kw_readonly, kw_ref, kw_string, kw_stackalloc, kw_sbyte, kw_sealed,
-         kw_uint, kw_ulong, kw_unchecked, kw_unsafe, kw_ushort, kw_when,
-         kw_where,
+         kw_fixed, kw_foreach, kw_implicit, kw_in, kw_init, kw_interface,
+         kw_internal, kw_is, kw_lock, kw_null, kw_object, kw_out, kw_override,
+         kw_params, kw_readonly, kw_ref, kw_string, kw_stackalloc, kw_sbyte,
+         kw_sealed, kw_uint, kw_ulong, kw_unchecked, kw_unsafe, kw_ushort,
+         kw_when, kw_where,
          // Keywords from the JavaScript section.
          kw_as, kw_async, kw_await, kw_declare, kw_finally, kw_from,
          kw_function, kw_get, kw_import, kw_is, kw_let, kw_module, kw_readonly,
@@ -1087,6 +1079,7 @@ struct AdditionalKeywords {
   IdentifierInfo *kw_fixed;
   IdentifierInfo *kw_foreach;
   IdentifierInfo *kw_implicit;
+  IdentifierInfo *kw_init;
   IdentifierInfo *kw_internal;
 
   IdentifierInfo *kw_lock;

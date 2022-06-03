@@ -42,11 +42,12 @@ RUN echo 6
 RUN apt-get update && apt-get install -y bash curl
 
 # Install various tools used by the build or the test suite
-RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils git gdb
+RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils python3-psutil git gdb
 
 # Locales for gdb and localization tests
 RUN apt-get update && apt-get install -y language-pack-en language-pack-fr \
-                                         language-pack-ru language-pack-zh-hans
+                                         language-pack-ja language-pack-ru \
+                                         language-pack-zh-hans
 # These two are not enabled by default so generate them
 RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /etc/locale.gen
 RUN mkdir /usr/local/share/i1en/

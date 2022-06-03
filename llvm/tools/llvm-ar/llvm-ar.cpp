@@ -22,6 +22,7 @@
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
+#include "llvm/Object/XCOFFObjectFile.h"
 #include "llvm/Support/Chrono.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ConvertUTF.h"
@@ -61,25 +62,21 @@ static StringRef ToolName;
 // The basename of this program.
 static StringRef Stem;
 
-const char RanlibHelp[] = R"(OVERVIEW: LLVM Ranlib (llvm-ranlib)
+static void printRanLibHelp(StringRef ToolName) {
+  outs() << "OVERVIEW: LLVM Ranlib\n\n"
+         << "This program generates an index to speed access to archives\n\n"
+         << "USAGE: " + ToolName + " <archive-file>\n\n"
+         << "OPTIONS:\n"
+         << "  -h --help             - Display available options\n"
+         << "  -v --version          - Display the version of this program\n"
+         << "  -D                    - Use zero for timestamps and uids/gids "
+            "(default)\n"
+         << "  -U                    - Use actual timestamps and uids/gids\n";
+}
 
-  This program generates an index to speed access to archives
-
-USAGE: llvm-ranlib <archive-file>
-
-OPTIONS:
-  -h --help             - Display available options
-  -v --version          - Display the version of this program
-  -D                    - Use zero for timestamps and uids/gids (default)
-  -U                    - Use actual timestamps and uids/gids
-)";
-
-const char ArHelp[] = R"(OVERVIEW: LLVM Archiver
-
-USAGE: llvm-ar [options] [-]<operation>[modifiers] [relpos] [count] <archive> [files]
-       llvm-ar -M [<mri-script]
-
-OPTIONS:
+static void printArHelp(StringRef ToolName) {
+  const char ArOptions[] =
+      R"(OPTIONS:
   --format              - archive format to create
     =default            -   default
     =gnu                -   gnu
@@ -126,11 +123,20 @@ MODIFIERS:
   [V] - display the version and exit
 )";
 
+  outs() << "OVERVIEW: LLVM Archiver\n\n"
+         << "USAGE: " + ToolName +
+                " [options] [-]<operation>[modifiers] [relpos] "
+                "[count] <archive> [files]\n"
+         << "       " + ToolName + " -M [<mri-script]\n\n";
+
+  outs() << ArOptions;
+}
+
 static void printHelpMessage() {
   if (Stem.contains_insensitive("ranlib"))
-    outs() << RanlibHelp;
+    printRanLibHelp(Stem);
   else if (Stem.contains_insensitive("ar"))
-    outs() << ArHelp;
+    printArHelp(Stem);
 }
 
 static unsigned MRILineNumber;
@@ -652,13 +658,6 @@ static void performReadOperation(ArchiveOperation Operation,
 static void addChildMember(std::vector<NewArchiveMember> &Members,
                            const object::Archive::Child &M,
                            bool FlattenArchive = false) {
-  if (Thin && !M.getParent()->isThin())
-    fail("cannot convert a regular archive to a thin one");
-
-  // Avoid converting an existing thin archive to a regular one.
-  if (!AddLibrary && M.getParent()->isThin())
-    Thin = true;
-
   Expected<NewArchiveMember> NMOrErr =
       NewArchiveMember::getOldMember(M, Deterministic);
   failIfError(NMOrErr.takeError());
@@ -881,9 +880,11 @@ computeNewArchiveMembers(ArchiveOperation Operation,
 }
 
 static object::Archive::Kind getDefaultForHost() {
-  return Triple(sys::getProcessTriple()).isOSDarwin()
+  Triple HostTriple(sys::getProcessTriple());
+  return HostTriple.isOSDarwin()
              ? object::Archive::K_DARWIN
-             : object::Archive::K_GNU;
+             : (HostTriple.isOSAIX() ? object::Archive::K_AIXBIG
+                                     : object::Archive::K_GNU);
 }
 
 static object::Archive::Kind getKindFromMember(const NewArchiveMember &Member) {
@@ -894,7 +895,9 @@ static object::Archive::Kind getKindFromMember(const NewArchiveMember &Member) {
   if (OptionalObject)
     return isa<object::MachOObjectFile>(**OptionalObject)
                ? object::Archive::K_DARWIN
-               : object::Archive::K_GNU;
+               : (isa<object::XCOFFObjectFile>(**OptionalObject)
+                      ? object::Archive::K_AIXBIG
+                      : object::Archive::K_GNU);
 
   // squelch the error in case we had a non-object file
   consumeError(OptionalObject.takeError());
@@ -922,6 +925,14 @@ static void performWriteOperation(ArchiveOperation Operation,
                                   object::Archive *OldArchive,
                                   std::unique_ptr<MemoryBuffer> OldArchiveBuf,
                                   std::vector<NewArchiveMember> *NewMembersP) {
+  if (OldArchive) {
+    if (Thin && !OldArchive->isThin())
+      fail("cannot convert a regular archive to a thin one");
+
+    if (OldArchive->isThin())
+      Thin = true;
+  }
+
   std::vector<NewArchiveMember> NewMembers;
   if (!NewMembersP)
     NewMembers = computeNewArchiveMembers(Operation, OldArchive);
@@ -939,6 +950,8 @@ static void performWriteOperation(ArchiveOperation Operation,
     else
       Kind = !NewMembers.empty() ? getKindFromMember(NewMembers.front())
                                  : getDefaultForHost();
+    if (Kind == object::Archive::K_AIXBIG)
+      fail("big archive writer operation on AIX not yet supported");
     break;
   case GNU:
     Kind = object::Archive::K_GNU;

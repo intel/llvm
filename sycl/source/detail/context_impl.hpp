@@ -140,6 +140,9 @@ public:
   /// reference.
   const std::vector<device> &getDevices() const { return MDevices; }
 
+  using CachedLibProgramsT =
+      std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>;
+
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
   /// corresponding extension:
@@ -151,10 +154,10 @@ public:
   /// See `doc/design/DeviceLibExtensions.rst' for
   /// more details.
   ///
-  /// \returns a map with device library programs.
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram> &
-  getCachedLibPrograms() {
-    return MCachedLibPrograms;
+  /// \returns an instance of sycl::detail::Locked which wraps a map with device
+  /// library programs and the corresponding lock for synchronized access.
+  Locked<CachedLibProgramsT> acquireCachedLibPrograms() {
+    return {MCachedLibPrograms, MCachedLibProgramsMutex};
   }
 
   KernelProgramCache &getKernelProgramCache() const;
@@ -167,6 +170,11 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
+  // Returns true if buffer_location property is supported by devices
+  bool isBufferLocationSupported() const;
+
+  enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
+
 private:
   async_handler MAsyncHandler;
   std::vector<device> MDevices;
@@ -174,9 +182,10 @@ private:
   PlatformImplPtr MPlatform;
   property_list MPropList;
   bool MHostContext;
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-      MCachedLibPrograms;
+  CachedLibProgramsT MCachedLibPrograms;
+  std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
+  mutable PropertySupport MSupportBufferLocationByDevices;
 };
 
 } // namespace detail

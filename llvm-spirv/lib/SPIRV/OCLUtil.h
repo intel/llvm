@@ -305,6 +305,26 @@ const static char SubgroupBlockWriteINTELPrefix[] =
 const static char SubgroupImageMediaBlockINTELPrefix[] =
     "intel_sub_group_media_block";
 const static char LDEXP[] = "ldexp";
+#define _SPIRV_OP(x)                                                           \
+  const static char ConvertBFloat16##x##AsUShort##x[] =                        \
+      "intel_convert_bfloat16" #x "_as_ushort" #x;
+_SPIRV_OP()
+_SPIRV_OP(2)
+_SPIRV_OP(3)
+_SPIRV_OP(4)
+_SPIRV_OP(8)
+_SPIRV_OP(16)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x)                                                           \
+  const static char ConvertAsBFloat16##x##Float##x[] =                         \
+      "intel_convert_as_bfloat16" #x "_float" #x;
+_SPIRV_OP()
+_SPIRV_OP(2)
+_SPIRV_OP(3)
+_SPIRV_OP(4)
+_SPIRV_OP(8)
+_SPIRV_OP(16)
+#undef _SPIRV_OP
 } // namespace kOCLBuiltinName
 
 /// Offset for OpenCL image channel order enumeration values.

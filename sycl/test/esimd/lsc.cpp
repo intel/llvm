@@ -7,8 +7,9 @@
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void foo();

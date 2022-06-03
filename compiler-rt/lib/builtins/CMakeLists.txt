@@ -567,6 +567,14 @@ set(armv7em_SOURCES ${arm_SOURCES})
 set(armv8m.main_SOURCES ${arm_SOURCES})
 set(armv8.1m.main_SOURCES ${arm_SOURCES})
 
+# 8-bit AVR MCU
+set(avr_SOURCES
+  avr/mulqi3.S
+  avr/mulhi3.S
+  avr/exit.S
+  ${GENERIC_SOURCES}
+)
+
 # hexagon arch
 set(hexagon_SOURCES
   hexagon/common_entry_exit_abi1.S
@@ -803,7 +811,7 @@ if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
   # archive, i.e., libatomic.a. Once cmake adds support of such usage for AIX,
   # this ad-hoc part can be removed.
   if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-    archive_aix_libatomic(clang_rt.atomic
+    archive_aix_libatomic(clang_rt.atomic libatomic
                           ARCHS ${BUILTIN_SUPPORTED_ARCH}
                           PARENT_TARGET builtins-standalone-atomic)
   endif()

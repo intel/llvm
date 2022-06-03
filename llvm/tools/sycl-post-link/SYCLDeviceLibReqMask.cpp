@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass goes through input module's function list to detect all SYCL
+// This function goes through input module's function list to detect all SYCL
 // devicelib functions invoked. Each devicelib function invoked is included in
 // one 'fallback' SPIR-V library loaded by SYCL runtime. After scanning all
 // functions in input module, a mask telling which SPIR-V libraries are needed
@@ -169,6 +169,8 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_memcpy", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memset", DeviceLibExt::cl_intel_devicelib_cstring},
     {"__devicelib_memcmp", DeviceLibExt::cl_intel_devicelib_cstring},
+    {"__devicelib_assert_read", DeviceLibExt::cl_intel_devicelib_assert},
+    {"__devicelib_assert_fail", DeviceLibExt::cl_intel_devicelib_assert},
 };
 
 // Each fallback device library corresponds to one bit in "require mask" which
@@ -190,19 +192,17 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
                             DeviceLibExt::cl_intel_devicelib_assert)));
 }
 
+} // namespace
+
 // For each device image module, we go through all functions which meets
 // 1. The function name has prefix "__devicelib_"
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
-uint32_t getModuleDeviceLibReqMask(const Module &M) {
+uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
-  if (!llvm::Triple(M.getTargetTriple()).isSPIR())
+  if (!Triple(M.getTargetTriple()).isSPIR())
     return 0;
-  // 0x1 means sycl runtime will link and load libsycl-fallback-assert.spv as
-  // default. In fact, default link assert spv is not necessary but dramatic
-  // perf regression is observed if we don't link any device library. The perf
-  // regression is caused by a clang issue.
-  uint32_t ReqMask = 0x1;
+  uint32_t ReqMask = 0;
   for (const Function &SF : M) {
     if (SF.getName().startswith(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
       assert(SF.getCallingConv() == CallingConv::SPIR_FUNC);
@@ -211,11 +211,4 @@ uint32_t getModuleDeviceLibReqMask(const Module &M) {
     }
   }
   return ReqMask;
-}
-} // namespace
-
-char SYCLDeviceLibReqMaskPass::ID = 0;
-bool SYCLDeviceLibReqMaskPass::runOnModule(Module &M) {
-  MReqMask = getModuleDeviceLibReqMask(M);
-  return false;
 }

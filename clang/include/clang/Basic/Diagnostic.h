@@ -40,7 +40,8 @@
 
 namespace llvm {
 class Error;
-}
+class raw_ostream;
+} // namespace llvm
 
 namespace clang {
 
@@ -1722,6 +1723,9 @@ public:
     return llvm::makeArrayRef(FixIts);
   }
 };
+
+// Simple debug printing of StoredDiagnostic.
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const StoredDiagnostic &);
 
 /// Abstract interface, implemented by clients of the front-end, which
 /// formats and prints fully processed diagnostics.

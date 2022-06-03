@@ -2,7 +2,9 @@
 ; RUN: llc -mtriple=riscv64 -mattr=+m -verify-machineinstrs < %s \
 ; RUN:   | FileCheck %s -check-prefix=RV64I
 ; RUN: llc -mtriple=riscv64 -mattr=+m,+zba -verify-machineinstrs < %s \
-; RUN:   | FileCheck %s -check-prefix=RV64ZBA
+; RUN:   | FileCheck %s -check-prefixes=RV64ZBA,RV64ZBANOZBB
+; RUN: llc -mtriple=riscv64 -mattr=+m,+zba,+zbb -verify-machineinstrs < %s \
+; RUN:   | FileCheck %s -check-prefixes=RV64ZBA,RV64ZBAZBB
 
 define i64 @slliuw(i64 %a) nounwind {
 ; RV64I-LABEL: slliuw:
@@ -715,24 +717,6 @@ define i64 @imm_zextw() nounwind {
   ret i64 4294967294 ; -2 in 32 bits.
 }
 
-define i64 @imm_zextw2() nounwind {
-; RV64I-LABEL: imm_zextw2:
-; RV64I:       # %bb.0:
-; RV64I-NEXT:    lui a0, 171
-; RV64I-NEXT:    addiw a0, a0, -1365
-; RV64I-NEXT:    slli a0, a0, 12
-; RV64I-NEXT:    addi a0, a0, -1366
-; RV64I-NEXT:    ret
-;
-; RV64ZBA-LABEL: imm_zextw2:
-; RV64ZBA:       # %bb.0:
-; RV64ZBA-NEXT:    lui a0, 699051
-; RV64ZBA-NEXT:    addiw a0, a0, -1366
-; RV64ZBA-NEXT:    zext.w a0, a0
-; RV64ZBA-NEXT:    ret
-  ret i64 2863311530 ; 0xAAAAAAAA
-}
-
 define i64 @mul11(i64 %a) {
 ; RV64I-LABEL: mul11:
 ; RV64I:       # %bb.0:
@@ -1154,4 +1138,64 @@ define i64 @addshl64_5_8(i64 %a, i64 %b) {
   %d = shl i64 %b, 8
   %e = add i64 %c, %d
   ret i64 %e
+}
+
+; Make sure we use sext.h+slli+srli for Zba+Zbb.
+; FIXME: The RV64I and Zba only cases can be done with only 3 shifts.
+define zeroext i32 @sext_ashr_zext_i8(i8 %a) nounwind {
+; RV64I-LABEL: sext_ashr_zext_i8:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    slli a0, a0, 56
+; RV64I-NEXT:    srai a0, a0, 56
+; RV64I-NEXT:    slli a0, a0, 23
+; RV64I-NEXT:    srli a0, a0, 32
+; RV64I-NEXT:    ret
+;
+; RV64ZBANOZBB-LABEL: sext_ashr_zext_i8:
+; RV64ZBANOZBB:       # %bb.0:
+; RV64ZBANOZBB-NEXT:    slli a0, a0, 56
+; RV64ZBANOZBB-NEXT:    srai a0, a0, 56
+; RV64ZBANOZBB-NEXT:    slli a0, a0, 23
+; RV64ZBANOZBB-NEXT:    srli a0, a0, 32
+; RV64ZBANOZBB-NEXT:    ret
+;
+; RV64ZBAZBB-LABEL: sext_ashr_zext_i8:
+; RV64ZBAZBB:       # %bb.0:
+; RV64ZBAZBB-NEXT:    sext.b a0, a0
+; RV64ZBAZBB-NEXT:    slli a0, a0, 23
+; RV64ZBAZBB-NEXT:    srli a0, a0, 32
+; RV64ZBAZBB-NEXT:    ret
+  %ext = sext i8 %a to i32
+  %1 = ashr i32 %ext, 9
+  ret i32 %1
+}
+
+; Make sure we use sext.h+slli+srli for Zba+Zbb.
+; FIXME: The RV64I and Zba only cases can be done with only 3 shifts.
+define zeroext i32 @sext_ashr_zext_i16(i16 %a) nounwind {
+; RV64I-LABEL: sext_ashr_zext_i16:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    slli a0, a0, 48
+; RV64I-NEXT:    srai a0, a0, 48
+; RV64I-NEXT:    slli a0, a0, 23
+; RV64I-NEXT:    srli a0, a0, 32
+; RV64I-NEXT:    ret
+;
+; RV64ZBANOZBB-LABEL: sext_ashr_zext_i16:
+; RV64ZBANOZBB:       # %bb.0:
+; RV64ZBANOZBB-NEXT:    slli a0, a0, 48
+; RV64ZBANOZBB-NEXT:    srai a0, a0, 48
+; RV64ZBANOZBB-NEXT:    slli a0, a0, 23
+; RV64ZBANOZBB-NEXT:    srli a0, a0, 32
+; RV64ZBANOZBB-NEXT:    ret
+;
+; RV64ZBAZBB-LABEL: sext_ashr_zext_i16:
+; RV64ZBAZBB:       # %bb.0:
+; RV64ZBAZBB-NEXT:    sext.h a0, a0
+; RV64ZBAZBB-NEXT:    slli a0, a0, 23
+; RV64ZBAZBB-NEXT:    srli a0, a0, 32
+; RV64ZBAZBB-NEXT:    ret
+  %ext = sext i16 %a to i32
+  %1 = ashr i32 %ext, 9
+  ret i32 %1
 }

@@ -1442,6 +1442,8 @@ bool CursorVisitor::VisitTemplateParameters(
 bool CursorVisitor::VisitTemplateName(TemplateName Name, SourceLocation Loc) {
   switch (Name.getKind()) {
   case TemplateName::Template:
+  case TemplateName::UsingTemplate:
+  case TemplateName::QualifiedTemplate: // FIXME: Visit nested-name-specifier.
     return Visit(MakeCursorTemplateRef(Name.getAsTemplateDecl(), Loc, TU));
 
   case TemplateName::OverloadedTemplate:
@@ -1458,11 +1460,6 @@ bool CursorVisitor::VisitTemplateName(TemplateName Name, SourceLocation Loc) {
   case TemplateName::DependentTemplate:
     // FIXME: Visit nested-name-specifier.
     return false;
-
-  case TemplateName::QualifiedTemplate:
-    // FIXME: Visit nested-name-specifier.
-    return Visit(MakeCursorTemplateRef(
-        Name.getAsQualifiedTemplateName()->getDecl(), Loc, TU));
 
   case TemplateName::SubstTemplateTemplateParm:
     return Visit(MakeCursorTemplateRef(
@@ -1675,6 +1672,10 @@ bool CursorVisitor::VisitUsingTypeLoc(UsingTypeLoc TL) { return false; }
 
 bool CursorVisitor::VisitAttributedTypeLoc(AttributedTypeLoc TL) {
   return Visit(TL.getModifiedLoc());
+}
+
+bool CursorVisitor::VisitBTFTagAttributedTypeLoc(BTFTagAttributedTypeLoc TL) {
+  return Visit(TL.getWrappedLoc());
 }
 
 bool CursorVisitor::VisitFunctionTypeLoc(FunctionTypeLoc TL,
@@ -2572,6 +2573,10 @@ void OMPClauseEnqueue::VisitOMPUseDeviceAddrClause(
 }
 void OMPClauseEnqueue::VisitOMPIsDevicePtrClause(
     const OMPIsDevicePtrClause *C) {
+  VisitOMPClauseList(C);
+}
+void OMPClauseEnqueue::VisitOMPHasDeviceAddrClause(
+    const OMPHasDeviceAddrClause *C) {
   VisitOMPClauseList(C);
 }
 void OMPClauseEnqueue::VisitOMPNontemporalClause(
@@ -5727,6 +5732,14 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPMaskedDirective");
   case CXCursor_OMPGenericLoopDirective:
     return cxstring::createRef("OMPGenericLoopDirective");
+  case CXCursor_OMPTeamsGenericLoopDirective:
+    return cxstring::createRef("OMPTeamsGenericLoopDirective");
+  case CXCursor_OMPTargetTeamsGenericLoopDirective:
+    return cxstring::createRef("OMPTargetTeamsGenericLoopDirective");
+  case CXCursor_OMPParallelGenericLoopDirective:
+    return cxstring::createRef("OMPParallelGenericLoopDirective");
+  case CXCursor_OMPTargetParallelGenericLoopDirective:
+    return cxstring::createRef("OMPTargetParallelGenericLoopDirective");
   case CXCursor_OverloadCandidate:
     return cxstring::createRef("OverloadCandidate");
   case CXCursor_TypeAliasTemplateDecl:
@@ -6471,6 +6484,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::Binding:
   case Decl::MSProperty:
   case Decl::MSGuid:
+  case Decl::UnnamedGlobalConstant:
   case Decl::TemplateParamObject:
   case Decl::IndirectField:
   case Decl::ObjCIvar:
@@ -8286,7 +8300,8 @@ CXFile clang_getIncludedFile(CXCursor cursor) {
     return nullptr;
 
   const InclusionDirective *ID = getCursorInclusionDirective(cursor);
-  return const_cast<FileEntry *>(ID->getFile());
+  Optional<FileEntryRef> File = ID->getFile();
+  return const_cast<FileEntry *>(File ? &File->getFileEntry() : nullptr);
 }
 
 unsigned clang_Cursor_getObjCPropertyAttributes(CXCursor C, unsigned reserved) {

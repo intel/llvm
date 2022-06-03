@@ -69,9 +69,14 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     case OpenCLLIB::Vstorea_halfn_r:
       visitCallSPIRVVStore(&CI, ExtOp);
       break;
-    case OpenCLLIB::Printf:
-      visitCallSPIRVPrintf(&CI, ExtOp);
+    case OpenCLLIB::Printf: {
+      // TODO: Lower the printf instruction with the non-constant address space
+      // format string to suitable for OpenCL representation
+      if (dyn_cast<PointerType>(CI.getOperand(0)->getType())
+              ->getAddressSpace() == SPIR::TypeAttributeEnum::ATTR_CONST)
+        visitCallSPIRVPrintf(&CI, ExtOp);
       break;
+    }
     default:
       visitCallSPIRVOCLExt(&CI, ExtOp);
       break;
@@ -198,6 +203,11 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
       visitCallSPIRVAnyAll(&CI, OC);
     else
       visitCallSPIRVRelational(&CI, OC);
+    return;
+  }
+  if (OC == internal::OpConvertFToBF16INTEL ||
+      OC == internal::OpConvertBF16ToFINTEL) {
+    visitCallSPIRVBFloat16Conversions(&CI, OC);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
@@ -539,6 +549,12 @@ void SPIRVToOCLBase::visitCallSPIRVGroupBuiltin(CallInst *CI, Op OC) {
 
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  SmallVector<AttributeSet, 2> ArgAttrs;
+  for (int I = (hasGroupOperation(OC) ? 2 : 1);
+       I < (int)Attrs.getNumAttrSets() - 2; I++)
+    ArgAttrs.push_back(Attrs.getParamAttrs(I));
+  Attrs = AttributeList::get(*Ctx, Attrs.getFnAttrs(), Attrs.getRetAttrs(),
+                             ArgAttrs);
   mutateCallInstOCL(M, CI, ModifyArguments, ModifyRetTy, &Attrs);
 }
 
@@ -564,10 +580,8 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
         auto &P = Args[Args.size() - 3];
         auto T = P->getType();
         assert(isa<PointerType>(T));
-        auto ET = T->getPointerElementType();
-        if (!ET->isIntegerTy(8) ||
-            T->getPointerAddressSpace() != SPIRAS_Generic) {
-          auto NewTy = PointerType::getInt8PtrTy(*Ctx, SPIRAS_Generic);
+        auto *NewTy = PointerType::getInt8PtrTy(*Ctx, SPIRAS_Generic);
+        if (T != NewTy) {
           P = CastInst::CreatePointerBitCastOrAddrSpaceCast(P, NewTy, "", CI);
         }
         return DemangledName;
@@ -910,15 +924,17 @@ void SPIRVToOCLBase::visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI,
         // reference image
         // 3. With single reference image - uses one OpVmeImageINTEL opcode for
         // reference image
-        int NumImages = std::count_if(Args.begin(), Args.end(), [](Value *Arg) {
-          if (auto *PT = dyn_cast<PointerType>(Arg->getType())) {
-            if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType())) {
-              if (ST->getName().startswith("spirv.VmeImageINTEL"))
-                return true;
-            }
-          }
-          return false;
-        });
+        StringRef FnName = CI->getCalledFunction()->getName();
+        int NumImages = 0;
+        if (FnName.contains("SingleReference"))
+          NumImages = 2;
+        else if (FnName.contains("DualReference"))
+          NumImages = 3;
+        else if (FnName.contains("MultiReference"))
+          NumImages = 1;
+        else if (FnName.contains("EvaluateIpe"))
+          NumImages = 1;
+
         auto EraseVmeImageCall = [](CallInst *CI) {
           if (CI->hasOneUse()) {
             CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
@@ -977,6 +993,32 @@ void SPIRVToOCLBase::visitCallSPIRVGenericPtrMemSemantics(CallInst *CI) {
         auto *Shl = BinaryOperator::CreateShl(CI, getInt32(M, 8), "");
         Shl->insertAfter(CI);
         return Shl;
+      },
+      &Attrs);
+}
+
+void SPIRVToOCLBase::visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        Type *ArgTy = CI->getOperand(0)->getType();
+        std::string N =
+            ArgTy->isVectorTy()
+                ? std::to_string(cast<FixedVectorType>(ArgTy)->getNumElements())
+                : "";
+        std::string Name;
+        switch (static_cast<uint32_t>(OC)) {
+        case internal::OpConvertFToBF16INTEL:
+          Name = "intel_convert_bfloat16" + N + "_as_ushort" + N;
+          break;
+        case internal::OpConvertBF16ToFINTEL:
+          Name = "intel_convert_as_bfloat16" + N + "_float" + N;
+          break;
+        default:
+          break; // do nothing
+        }
+        return Name;
       },
       &Attrs);
 }
@@ -1225,6 +1267,21 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
       continue;
 
     S->setName(OCLOpaqueName);
+  }
+}
+
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep) {
+  switch (BIsRep) {
+  case SPIRV::BIsRepresentation::OpenCL12:
+    PassMgr.addPass(SPIRVToOCL12Pass());
+    break;
+  case SPIRV::BIsRepresentation::OpenCL20:
+    PassMgr.addPass(SPIRVToOCL20Pass());
+    break;
+  case SPIRV::BIsRepresentation::SPIRVFriendlyIR:
+    // nothing to do, already done
+    break;
   }
 }
 

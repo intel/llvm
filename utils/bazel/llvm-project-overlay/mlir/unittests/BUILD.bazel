@@ -37,10 +37,10 @@ cc_test(
         "//mlir:ControlFlowInterfaces",
         "//mlir:DLTIDialect",
         "//mlir:DataLayoutInterfaces",
+        "//mlir:FuncDialect",
         "//mlir:IR",
         "//mlir:InferTypeOpInterface",
         "//mlir:Parser",
-        "//mlir:StandardOps",
     ],
 )
 
@@ -70,6 +70,7 @@ cc_test(
         "//llvm:TestingSupport",
         "//llvm:gtest_main",
         "//mlir:Analysis",
+        "//mlir:FuncDialect",
         "//mlir:IR",
         "//mlir:Pass",
     ],
@@ -127,9 +128,9 @@ cc_test(
     ]),
     deps = [
         "//llvm:gtest_main",
+        "//mlir:FuncDialect",
         "//mlir:Parser",
         "//mlir:SCFDialect",
-        "//mlir:StandardOps",
     ],
 )
 

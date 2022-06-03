@@ -42,10 +42,13 @@
 //   piextEventCreateWithNativeHandle
 // 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
 // piQueueFlush function.
+// 7.9 Added new context and ownership arguments to
+// piextMemCreateWithNativeHandle.
+// 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 6
-#define _PI_H_VERSION_MINOR 8
+#define _PI_H_VERSION_MAJOR 8
+#define _PI_H_VERSION_MINOR 10
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -115,6 +118,9 @@ typedef enum {
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
   PI_LINK_PROGRAM_FAILURE = CL_LINK_PROGRAM_FAILURE,
+  PI_PLUGIN_SPECIFIC_ERROR = -996, ///< PI_PLUGIN_SPECIFIC_ERROR indicates
+                                   ///< that an backend spcific error or
+                                   ///< warning has been emitted by the plugin.
   PI_COMMAND_EXECUTION_FAILURE =
       -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
             ///< during command enqueue or execution.
@@ -311,10 +317,12 @@ typedef enum {
   PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
   PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 0x11000,
   PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 0x10112,
+  PI_DEVICE_INFO_BACKEND_VERSION = 0x10113,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
   PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
-  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER = 0x20004,
 } _pi_device_info;
 
 typedef enum {
@@ -591,6 +599,24 @@ constexpr pi_map_flags PI_MAP_WRITE_INVALIDATE_REGION =
 // make the translation to OpenCL transparent.
 using pi_mem_properties = pi_bitfield;
 constexpr pi_mem_properties PI_MEM_PROPERTIES_CHANNEL = CL_MEM_CHANNEL_INTEL;
+constexpr pi_mem_properties PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
+
+// NOTE: this is made 64-bit to match the size of cl_mem_properties_intel to
+// make the translation to OpenCL transparent.
+using pi_usm_mem_properties = pi_bitfield;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_WRTITE_COMBINED =
+    CL_MEM_ALLOC_WRITE_COMBINED_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE =
+    CL_MEM_ALLOC_INITIAL_PLACEMENT_DEVICE_INTEL;
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_INITIAL_PLACEMENT_HOST =
+    CL_MEM_ALLOC_INITIAL_PLACEMENT_HOST_INTEL;
+// Hints that the device/shared allocation will not be written on device.
+constexpr pi_usm_mem_properties PI_MEM_ALLOC_DEVICE_READ_ONLY = (1 << 3);
+
+constexpr pi_usm_mem_properties PI_MEM_USM_ALLOC_BUFFER_LOCATION =
+    CL_MEM_ALLOC_BUFFER_LOCATION_INTEL;
 
 // NOTE: queue properties are implemented this way to better support bit
 // manipulations
@@ -922,6 +948,14 @@ typedef struct {
 
 using pi_image_format = _pi_image_format;
 using pi_image_desc = _pi_image_desc;
+
+typedef enum {
+  PI_MEM_CONTEXT = CL_MEM_CONTEXT,
+  PI_MEM_SIZE = CL_MEM_SIZE
+} _pi_mem_info;
+
+using pi_mem_info = _pi_mem_info;
+
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
 // They are 3 distinct categories:
@@ -1125,12 +1159,15 @@ piextQueueGetNativeHandle(pi_queue queue, pi_native_handle *nativeHandle);
 ///
 /// \param nativeHandle is the native handle to create PI queue from.
 /// \param context is the PI context of the queue.
-/// \param queue is the PI queue created from the native handle.
+/// \param device is the PI device associated with the native device used when
+///   creating the native queue. This parameter is optional but some backends
+///   may fail to create the right PI queue if omitted.
 /// \param pluginOwnsNativeHandle Indicates whether the created PI object
 ///        should take ownership of the native handle.
+/// \param queue is the PI queue created from the native handle.
 __SYCL_EXPORT pi_result piextQueueCreateWithNativeHandle(
-    pi_native_handle nativeHandle, pi_context context, pi_queue *queue,
-    bool pluginOwnsNativeHandle);
+    pi_native_handle nativeHandle, pi_context context, pi_device device,
+    bool pluginOwnsNativeHandle, pi_queue *queue);
 
 //
 // Memory
@@ -1144,10 +1181,9 @@ __SYCL_EXPORT pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                                          const pi_image_desc *image_desc,
                                          void *host_ptr, pi_mem *ret_mem);
 
-__SYCL_EXPORT pi_result piMemGetInfo(
-    pi_mem mem,
-    cl_mem_info param_name, // TODO: untie from OpenCL
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret);
+__SYCL_EXPORT pi_result piMemGetInfo(pi_mem mem, pi_mem_info param_name,
+                                     size_t param_value_size, void *param_value,
+                                     size_t *param_value_size_ret);
 
 __SYCL_EXPORT pi_result piMemImageGetInfo(pi_mem image,
                                           pi_image_info param_name,
@@ -1174,9 +1210,13 @@ __SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param nativeHandle is the native handle to create PI mem from.
+/// \param context The PI context of the memory allocation.
+/// \param ownNativeHandle Indicates if we own the native memory handle or it
+/// came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param mem is the PI mem created from the native handle.
-__SYCL_EXPORT pi_result
-piextMemCreateWithNativeHandle(pi_native_handle nativeHandle, pi_mem *mem);
+__SYCL_EXPORT pi_result piextMemCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context, bool ownNativeHandle,
+    pi_mem *mem);
 
 //
 // Program
@@ -1247,6 +1287,9 @@ __SYCL_EXPORT pi_result piProgramRetain(pi_program program);
 __SYCL_EXPORT pi_result piProgramRelease(pi_program program);
 
 /// Sets a specialization constant to a specific value.
+///
+/// Note: Only used when specialization constants are natively supported (SPIR-V
+/// binaries), and not when they are emulated (AOT binaries).
 ///
 /// \param prog the program object which will use the value
 /// \param spec_id integer ID of the constant
@@ -1600,7 +1643,7 @@ typedef enum {
   PI_MEM_ALLOC_BASE_PTR = CL_MEM_ALLOC_BASE_PTR_INTEL,
   PI_MEM_ALLOC_SIZE = CL_MEM_ALLOC_SIZE_INTEL,
   PI_MEM_ALLOC_DEVICE = CL_MEM_ALLOC_DEVICE_INTEL,
-} _pi_mem_info;
+} _pi_mem_alloc_info;
 
 typedef enum {
   PI_MEM_TYPE_UNKNOWN = CL_MEM_TYPE_UNKNOWN_INTEL,
@@ -1608,10 +1651,6 @@ typedef enum {
   PI_MEM_TYPE_DEVICE = CL_MEM_TYPE_DEVICE_INTEL,
   PI_MEM_TYPE_SHARED = CL_MEM_TYPE_SHARED_INTEL
 } _pi_usm_type;
-
-typedef enum : pi_bitfield {
-  PI_MEM_ALLOC_FLAGS = CL_MEM_ALLOC_FLAGS_INTEL
-} _pi_usm_mem_properties;
 
 // Flag is used for piProgramUSMEnqueuePrefetch. PI_USM_MIGRATION_TBD0 is a
 // placeholder for future developments and should not change the behaviour of
@@ -1622,9 +1661,8 @@ typedef enum : pi_bitfield {
 
 using pi_usm_capability_query = _pi_usm_capability_query;
 using pi_usm_capabilities = _pi_usm_capabilities;
-using pi_mem_info = _pi_mem_info;
+using pi_mem_alloc_info = _pi_mem_alloc_info;
 using pi_usm_type = _pi_usm_type;
-using pi_usm_mem_properties = _pi_usm_mem_properties;
 using pi_usm_migration_flags = _pi_usm_migration_flags;
 
 /// Allocates host memory accessible by the device.
@@ -1752,7 +1790,7 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemAdvise(pi_queue queue,
 /// \param param_value is the result
 /// \param param_value_size_ret is how many bytes were written
 __SYCL_EXPORT pi_result piextUSMGetMemAllocInfo(
-    pi_context context, const void *ptr, pi_mem_info param_name,
+    pi_context context, const void *ptr, pi_mem_alloc_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 /// API to get Plugin internal data, opaque to SYCL RT. Some devices whose
@@ -1769,6 +1807,18 @@ __SYCL_EXPORT pi_result piextPluginGetOpaqueData(void *opaque_data_param,
 /// \param PluginParameter placeholder for future use, currenly not used.
 __SYCL_EXPORT pi_result piTearDown(void *PluginParameter);
 
+/// API to get Plugin specific warning and error messages.
+/// \param message is a returned address to the first element in the message the
+/// plugin owns the error message string. The string is thread-local. As a
+/// result, different threads may return different errors. A message is
+/// overwritten by the following error or warning that is produced within the
+/// given thread. The memory is cleaned up at the end of the thread's lifetime.
+///
+/// \return PI_SUCCESS if plugin is indicating non-fatal warning. Any other
+/// error code indicates that plugin considers this to be a fatal error and the
+/// runtime must handle it or end the application.
+__SYCL_EXPORT pi_result piPluginGetLastError(char **message);
+
 struct _pi_plugin {
   // PI version supported by host passed to the plugin. The Plugin
   // checks and writes the appropriate Function Pointers in
@@ -1777,9 +1827,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  char PiVersion[4];
+  char PiVersion[10];
   // Plugin edits this.
-  char PluginVersion[4];
+  char PluginVersion[10];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

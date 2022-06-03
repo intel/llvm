@@ -27,7 +27,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
@@ -46,7 +45,6 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cassert>
-#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -599,7 +597,8 @@ void DeadArgumentEliminationPass::SurveyFunction(const Function &F) {
     // If the function is PASSED IN as an argument, its address has been
     // taken.
     const auto *CB = dyn_cast<CallBase>(U.getUser());
-    if (!CB || !CB->isCallee(&U)) {
+    if (!CB || !CB->isCallee(&U) ||
+        CB->getFunctionType() != F.getFunctionType()) {
       MarkLive(F);
       return;
     }

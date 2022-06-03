@@ -49,6 +49,7 @@ enum class aspect {
   ext_oneapi_native_assert = 31,
   host_debuggable = 32,
   ext_intel_gpu_hw_threads_per_eu = 33,
+  ext_oneapi_cuda_async_barrier = 34,
 };
 
 } // namespace sycl

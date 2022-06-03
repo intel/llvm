@@ -10,6 +10,7 @@
 
 #include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
+#include "lldb/Core/Progress.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -129,7 +130,8 @@ static bool LookForDsymNextToExecutablePath(const ModuleSpec &mod_spec,
 
   if (FileSystem::Instance().Exists(dsym_yaa_fspec)) {
     ModuleSpec mutable_mod_spec = mod_spec;
-    if (Symbols::DownloadObjectAndSymbolFile(mutable_mod_spec, true) &&
+    Status error;
+    if (Symbols::DownloadObjectAndSymbolFile(mutable_mod_spec, error, true) &&
         FileSystem::Instance().Exists(mutable_mod_spec.GetSymbolFileSpec())) {
       dsym_fspec = mutable_mod_spec.GetSymbolFileSpec();
       return true;
@@ -262,6 +264,10 @@ Symbols::LocateExecutableSymbolFile(const ModuleSpec &module_spec,
       FileSystem::Instance().Exists(symbol_file_spec))
     return symbol_file_spec;
 
+  Progress progress(llvm::formatv(
+      "Locating external symbol file for {0}",
+      module_spec.GetFileSpec().GetFilename().AsCString("<Unknown>")));
+
   FileSpecList debug_file_search_paths = default_search_paths;
 
   // Add module directory.
@@ -385,7 +391,7 @@ FileSpec Symbols::FindSymbolFileInBundle(const FileSpec &symfile_bundle,
 }
 
 bool Symbols::DownloadObjectAndSymbolFile(ModuleSpec &module_spec,
-                                          bool force_lookup) {
+                                          Status &error, bool force_lookup) {
   // Fill in the module_spec.GetFileSpec() for the object file and/or the
   // module_spec.GetSymbolFileSpec() for the debug symbols file.
   return false;

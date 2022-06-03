@@ -33,7 +33,6 @@
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/Args.h"
 #include "lldb/Utility/DataBufferHeap.h"
-#include "lldb/Utility/DataBufferLLVM.h"
 #include "lldb/Utility/StreamString.h"
 #include "llvm/Support/MathExtras.h"
 #include <cinttypes>
@@ -295,7 +294,6 @@ public:
             eCommandRequiresTarget | eCommandProcessMustBePaused),
         m_format_options(eFormatBytesWithASCII, 1, 8),
 
-        m_next_addr(LLDB_INVALID_ADDRESS), m_prev_byte_size(0),
         m_prev_format_options(eFormatBytesWithASCII, 1, 8) {
     CommandArgumentEntry arg1;
     CommandArgumentEntry arg2;
@@ -641,7 +639,7 @@ protected:
       return false;
     }
 
-    DataBufferSP data_sp;
+    WritableDataBufferSP data_sp;
     size_t bytes_read = 0;
     if (compiler_type.GetOpaqueQualType()) {
       // Make sure we don't display our type as ASCII bytes like the default
@@ -877,8 +875,8 @@ protected:
   OptionGroupReadMemory m_memory_options;
   OptionGroupOutputFile m_outfile_options;
   OptionGroupValueObjectDisplay m_varobj_options;
-  lldb::addr_t m_next_addr;
-  lldb::addr_t m_prev_byte_size;
+  lldb::addr_t m_next_addr = LLDB_INVALID_ADDRESS;
+  lldb::addr_t m_prev_byte_size = 0;
   OptionGroupFormat m_prev_format_options;
   OptionGroupReadMemory m_prev_memory_options;
   OptionGroupOutputFile m_prev_outfile_options;
@@ -986,7 +984,7 @@ protected:
   class ProcessMemoryIterator {
   public:
     ProcessMemoryIterator(ProcessSP process_sp, lldb::addr_t base)
-        : m_process_sp(process_sp), m_base_addr(base), m_is_valid(true) {
+        : m_process_sp(process_sp), m_base_addr(base) {
       lldbassert(process_sp.get() != nullptr);
     }
 
@@ -1010,7 +1008,7 @@ protected:
   private:
     ProcessSP m_process_sp;
     lldb::addr_t m_base_addr;
-    bool m_is_valid;
+    bool m_is_valid = true;
   };
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     // No need to check "process" for validity as eCommandRequiresProcess
@@ -1054,9 +1052,14 @@ protected:
 
     DataBufferHeap buffer;
 
-    if (m_memory_options.m_string.OptionWasSet())
-      buffer.CopyData(m_memory_options.m_string.GetStringValue());
-    else if (m_memory_options.m_expr.OptionWasSet()) {
+    if (m_memory_options.m_string.OptionWasSet()) {
+      llvm::StringRef str = m_memory_options.m_string.GetStringValue();
+      if (str.empty()) {
+        result.AppendError("search string must have non-zero length.");
+        return false;
+      }
+      buffer.CopyData(str);
+    } else if (m_memory_options.m_expr.OptionWasSet()) {
       StackFrame *frame = m_exe_ctx.GetFramePtr();
       ValueObjectSP result_sp;
       if ((eExpressionCompleted ==
@@ -1187,7 +1190,7 @@ class CommandObjectMemoryWrite : public CommandObjectParsed {
 public:
   class OptionGroupWriteMemory : public OptionGroup {
   public:
-    OptionGroupWriteMemory() {}
+    OptionGroupWriteMemory() = default;
 
     ~OptionGroupWriteMemory() override = default;
 
@@ -1646,8 +1649,7 @@ public:
                             "an address in the current target process.",
                             "memory region ADDR",
                             eCommandRequiresProcess | eCommandTryTargetAPILock |
-                                eCommandProcessMustBeLaunched),
-        m_prev_end_addr(LLDB_INVALID_ADDRESS) {}
+                                eCommandProcessMustBeLaunched) {}
 
   ~CommandObjectMemoryRegion() override = default;
 
@@ -1686,7 +1688,7 @@ protected:
                // address size, etc.), the end of mappable memory will be lower
                // than that. So if we find any non-address bit set, we must be
                // at the end of the mappable range.
-               (abi && (abi->FixDataAddress(load_addr) != load_addr))) {
+               (abi && (abi->FixAnyAddress(load_addr) != load_addr))) {
       result.AppendErrorWithFormat("'%s' takes one argument:\nUsage: %s\n",
                                    m_cmd_name.c_str(), m_cmd_syntax.c_str());
       return false;
@@ -1757,7 +1759,7 @@ protected:
     return m_cmd_name;
   }
 
-  lldb::addr_t m_prev_end_addr;
+  lldb::addr_t m_prev_end_addr = LLDB_INVALID_ADDRESS;
 };
 
 // CommandObjectMemory

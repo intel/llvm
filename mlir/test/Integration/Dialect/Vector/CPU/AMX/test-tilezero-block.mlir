@@ -1,11 +1,11 @@
-// RUN: mlir-opt %s -convert-vector-to-scf -lower-affine -convert-scf-to-cf -convert-vector-to-llvm="enable-amx" -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-opt %s -convert-vector-to-scf -lower-affine -convert-scf-to-cf -convert-vector-to-llvm="enable-amx" -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-translate -mlir-to-llvmir | \
 // RUN: %lli --entry-function=entry --mattr="+amx-tile,+amx-int8,+amx-bf16" --dlopen=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
 // Note: To run this test, your CPU must support AMX.
 
-func @print(%arg0: memref<4x32xf32>) {
+func.func @print(%arg0: memref<4x32xf32>) {
   %fu = arith.constant -1.0: f32
   %c0 = arith.constant 0: index
   %c1 = arith.constant 1: index
@@ -17,7 +17,7 @@ func @print(%arg0: memref<4x32xf32>) {
   return
 }
 
-func @kernel(%arg0: memref<4x32xf32>) {
+func.func @kernel(%arg0: memref<4x32xf32>) {
   %c0  = arith.constant 0: index
   %c2  = arith.constant 2 : index
   %c4  = arith.constant 4 : index
@@ -33,7 +33,7 @@ func @kernel(%arg0: memref<4x32xf32>) {
   return
 }
 
-func @entry() -> i32 {
+func.func @entry() -> i32 {
   %f1  = arith.constant 1.0: f32
   %c0  = arith.constant 0: index
   %c1  = arith.constant 1: index

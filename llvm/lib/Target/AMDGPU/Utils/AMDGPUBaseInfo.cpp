@@ -136,6 +136,25 @@ bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI) {
          isHsaAbiVersion5(STI);
 }
 
+unsigned getAmdhsaCodeObjectVersion() {
+  return AmdhsaCodeObjectVersion;
+}
+
+unsigned getMultigridSyncArgImplicitArgPosition() {
+  switch (AmdhsaCodeObjectVersion) {
+  case 2:
+  case 3:
+  case 4:
+    return 48;
+  case 5:
+    return AMDGPU::ImplicitArg::MULTIGRID_SYNC_ARG_OFFSET;
+  default:
+    llvm_unreachable("Unexpected code object version");
+    return 0;
+  }
+}
+
+
 // FIXME: All such magic numbers about the ABI should be in a
 // central TD file.
 unsigned getHostcallImplicitArgPosition() {
@@ -145,7 +164,7 @@ unsigned getHostcallImplicitArgPosition() {
   case 4:
     return 24;
   case 5:
-    return 80;
+    return AMDGPU::ImplicitArg::HOSTCALL_PTR_OFFSET;
   default:
     llvm_unreachable("Unexpected code object version");
     return 0;
@@ -160,6 +179,7 @@ unsigned getHostcallImplicitArgPosition() {
 #define GET_MIMGBiasMappingTable_IMPL
 #define GET_MIMGOffsetMappingTable_IMPL
 #define GET_MIMGG16MappingTable_IMPL
+#define GET_MAIInstInfoTable_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 int getMIMGOpcode(unsigned BaseOpcode, unsigned MIMGEncoding,
@@ -336,6 +356,16 @@ bool getVOP2IsSingle(unsigned Opc) {
 bool getVOP3IsSingle(unsigned Opc) {
   const VOPInfo *Info = getVOP3OpcodeHelper(Opc);
   return Info ? Info->IsSingle : false;
+}
+
+bool getMAIIsDGEMM(unsigned Opc) {
+  const MAIInstInfo *Info = getMAIInstInfoHelper(Opc);
+  return Info ? Info->is_dgemm : false;
+}
+
+bool getMAIIsGFX940XDL(unsigned Opc) {
+  const MAIInstInfo *Info = getMAIInstInfoHelper(Opc);
+  return Info ? Info->is_gfx940_xdl : false;
 }
 
 // Wrapper for Tablegen'd function.  enum Subtarget is not defined in any
@@ -1021,45 +1051,184 @@ unsigned encodeWaitcnt(const IsaVersion &Version, const Waitcnt &Decoded) {
 }
 
 //===----------------------------------------------------------------------===//
+// Custom Operands.
+//
+// A table of custom operands shall describe "primary" operand names
+// first followed by aliases if any. It is not required but recommended
+// to arrange operands so that operand encoding match operand position
+// in the table. This will make disassembly a bit more efficient.
+// Unused slots in the table shall have an empty name.
+//
+//===----------------------------------------------------------------------===//
+
+template <class T>
+static bool isValidOpr(int Idx, const CustomOperand<T> OpInfo[], int OpInfoSize,
+                       T Context) {
+  return 0 <= Idx && Idx < OpInfoSize && !OpInfo[Idx].Name.empty() &&
+         (!OpInfo[Idx].Cond || OpInfo[Idx].Cond(Context));
+}
+
+template <class T>
+static int getOprIdx(std::function<bool(const CustomOperand<T> &)> Test,
+                     const CustomOperand<T> OpInfo[], int OpInfoSize,
+                     T Context) {
+  int InvalidIdx = OPR_ID_UNKNOWN;
+  for (int Idx = 0; Idx < OpInfoSize; ++Idx) {
+    if (Test(OpInfo[Idx])) {
+      if (!OpInfo[Idx].Cond || OpInfo[Idx].Cond(Context))
+        return Idx;
+      InvalidIdx = OPR_ID_UNSUPPORTED;
+    }
+  }
+  return InvalidIdx;
+}
+
+template <class T>
+static int getOprIdx(const StringRef Name, const CustomOperand<T> OpInfo[],
+                     int OpInfoSize, T Context) {
+  auto Test = [=](const CustomOperand<T> &Op) { return Op.Name == Name; };
+  return getOprIdx<T>(Test, OpInfo, OpInfoSize, Context);
+}
+
+template <class T>
+static int getOprIdx(int Id, const CustomOperand<T> OpInfo[], int OpInfoSize,
+                     T Context, bool QuickCheck = true) {
+  auto Test = [=](const CustomOperand<T> &Op) {
+    return Op.Encoding == Id && !Op.Name.empty();
+  };
+  // This is an optimization that should work in most cases.
+  // As a side effect, it may cause selection of an alias
+  // instead of a primary operand name in case of sparse tables.
+  if (QuickCheck && isValidOpr<T>(Id, OpInfo, OpInfoSize, Context) &&
+      OpInfo[Id].Encoding == Id) {
+    return Id;
+  }
+  return getOprIdx<T>(Test, OpInfo, OpInfoSize, Context);
+}
+
+//===----------------------------------------------------------------------===//
+// Custom Operand Values
+//===----------------------------------------------------------------------===//
+
+static unsigned getDefaultCustomOperandEncoding(const CustomOperandVal *Opr,
+                                                int Size,
+                                                const MCSubtargetInfo &STI) {
+  unsigned Enc = 0;
+  for (int Idx = 0; Idx < Size; ++Idx) {
+    const auto &Op = Opr[Idx];
+    if (Op.isSupported(STI))
+      Enc |= Op.encode(Op.Default);
+  }
+  return Enc;
+}
+
+static bool isSymbolicCustomOperandEncoding(const CustomOperandVal *Opr,
+                                            int Size, unsigned Code,
+                                            bool &HasNonDefaultVal,
+                                            const MCSubtargetInfo &STI) {
+  unsigned UsedOprMask = 0;
+  HasNonDefaultVal = false;
+  for (int Idx = 0; Idx < Size; ++Idx) {
+    const auto &Op = Opr[Idx];
+    if (!Op.isSupported(STI))
+      continue;
+    UsedOprMask |= Op.getMask();
+    unsigned Val = Op.decode(Code);
+    if (!Op.isValid(Val))
+      return false;
+    HasNonDefaultVal |= (Val != Op.Default);
+  }
+  return (Code & ~UsedOprMask) == 0;
+}
+
+static bool decodeCustomOperand(const CustomOperandVal *Opr, int Size,
+                                unsigned Code, int &Idx, StringRef &Name,
+                                unsigned &Val, bool &IsDefault,
+                                const MCSubtargetInfo &STI) {
+  while (Idx < Size) {
+    const auto &Op = Opr[Idx++];
+    if (Op.isSupported(STI)) {
+      Name = Op.Name;
+      Val = Op.decode(Code);
+      IsDefault = (Val == Op.Default);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int encodeCustomOperandVal(const CustomOperandVal &Op,
+                                  int64_t InputVal) {
+  if (InputVal < 0 || InputVal > Op.Max)
+    return OPR_VAL_INVALID;
+  return Op.encode(InputVal);
+}
+
+static int encodeCustomOperand(const CustomOperandVal *Opr, int Size,
+                               const StringRef Name, int64_t InputVal,
+                               unsigned &UsedOprMask,
+                               const MCSubtargetInfo &STI) {
+  int InvalidId = OPR_ID_UNKNOWN;
+  for (int Idx = 0; Idx < Size; ++Idx) {
+    const auto &Op = Opr[Idx];
+    if (Op.Name == Name) {
+      if (!Op.isSupported(STI)) {
+        InvalidId = OPR_ID_UNSUPPORTED;
+        continue;
+      }
+      auto OprMask = Op.getMask();
+      if (OprMask & UsedOprMask)
+        return OPR_ID_DUPLICATE;
+      UsedOprMask |= OprMask;
+      return encodeCustomOperandVal(Op, InputVal);
+    }
+  }
+  return InvalidId;
+}
+
+//===----------------------------------------------------------------------===//
+// DepCtr
+//===----------------------------------------------------------------------===//
+
+namespace DepCtr {
+
+int getDefaultDepCtrEncoding(const MCSubtargetInfo &STI) {
+  static int Default = -1;
+  if (Default == -1)
+    Default = getDefaultCustomOperandEncoding(DepCtrInfo, DEP_CTR_SIZE, STI);
+  return Default;
+}
+
+bool isSymbolicDepCtrEncoding(unsigned Code, bool &HasNonDefaultVal,
+                              const MCSubtargetInfo &STI) {
+  return isSymbolicCustomOperandEncoding(DepCtrInfo, DEP_CTR_SIZE, Code,
+                                         HasNonDefaultVal, STI);
+}
+
+bool decodeDepCtr(unsigned Code, int &Id, StringRef &Name, unsigned &Val,
+                  bool &IsDefault, const MCSubtargetInfo &STI) {
+  return decodeCustomOperand(DepCtrInfo, DEP_CTR_SIZE, Code, Id, Name, Val,
+                             IsDefault, STI);
+}
+
+int encodeDepCtr(const StringRef Name, int64_t Val, unsigned &UsedOprMask,
+                 const MCSubtargetInfo &STI) {
+  return encodeCustomOperand(DepCtrInfo, DEP_CTR_SIZE, Name, Val, UsedOprMask,
+                             STI);
+}
+
+} // namespace DepCtr
+
+//===----------------------------------------------------------------------===//
 // hwreg
 //===----------------------------------------------------------------------===//
 
 namespace Hwreg {
 
 int64_t getHwregId(const StringRef Name, const MCSubtargetInfo &STI) {
-  if (isGFX10(STI) && Name == "HW_REG_HW_ID") // An alias
-    return ID_HW_ID1;
-  for (int Id = ID_SYMBOLIC_FIRST_; Id < ID_SYMBOLIC_LAST_; ++Id) {
-    if (IdSymbolic[Id] && Name == IdSymbolic[Id])
-      return Id;
-  }
-  return ID_UNKNOWN_;
-}
-
-static unsigned getLastSymbolicHwreg(const MCSubtargetInfo &STI) {
-  if (isSI(STI) || isCI(STI) || isVI(STI))
-    return ID_SYMBOLIC_FIRST_GFX9_;
-  else if (isGFX9(STI))
-    return ID_SYMBOLIC_FIRST_GFX10_;
-  else if (isGFX10(STI) && !isGFX10_BEncoding(STI))
-    return ID_SYMBOLIC_FIRST_GFX1030_;
-  else
-    return ID_SYMBOLIC_LAST_;
-}
-
-bool isValidHwreg(int64_t Id, const MCSubtargetInfo &STI) {
-  switch (Id) {
-  case ID_HW_ID:
-    return isSI(STI) || isCI(STI) || isVI(STI) || isGFX9(STI);
-  case ID_HW_ID1:
-  case ID_HW_ID2:
-    return isGFX10Plus(STI);
-  case ID_XNACK_MASK:
-    return isGFX10(STI) && !AMDGPU::isGFX10_BEncoding(STI);
-  default:
-    return ID_SYMBOLIC_FIRST_ <= Id && Id < getLastSymbolicHwreg(STI) &&
-           IdSymbolic[Id];
-  }
+  int Idx = getOprIdx<const MCSubtargetInfo &>(Name, Opr, OPR_SIZE, STI);
+  return (Idx < 0) ? Idx : Opr[Idx].Encoding;
 }
 
 bool isValidHwreg(int64_t Id) {
@@ -1081,7 +1250,8 @@ uint64_t encodeHwreg(uint64_t Id, uint64_t Offset, uint64_t Width) {
 }
 
 StringRef getHwreg(unsigned Id, const MCSubtargetInfo &STI) {
-  return isValidHwreg(Id, STI) ? IdSymbolic[Id] : "";
+  int Idx = getOprIdx<const MCSubtargetInfo &>(Id, Opr, OPR_SIZE, STI);
+  return (Idx < 0) ? "" : Opr[Idx].Name;
 }
 
 void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width) {
@@ -1257,40 +1427,18 @@ unsigned getDefaultFormatEncoding(const MCSubtargetInfo &STI) {
 
 namespace SendMsg {
 
-int64_t getMsgId(const StringRef Name) {
-  for (int i = ID_GAPS_FIRST_; i < ID_GAPS_LAST_; ++i) {
-    if (IdSymbolic[i] && Name == IdSymbolic[i])
-      return i;
-  }
-  return ID_UNKNOWN_;
+int64_t getMsgId(const StringRef Name, const MCSubtargetInfo &STI) {
+  int Idx = getOprIdx<const MCSubtargetInfo &>(Name, Msg, MSG_SIZE, STI);
+  return (Idx < 0) ? Idx : Msg[Idx].Encoding;
 }
 
-bool isValidMsgId(int64_t MsgId, const MCSubtargetInfo &STI, bool Strict) {
-  if (Strict) {
-    switch (MsgId) {
-    case ID_SAVEWAVE:
-      return isVI(STI) || isGFX9Plus(STI);
-    case ID_STALL_WAVE_GEN:
-    case ID_HALT_WAVES:
-    case ID_ORDERED_PS_DONE:
-    case ID_GS_ALLOC_REQ:
-    case ID_GET_DOORBELL:
-      return isGFX9Plus(STI);
-    case ID_EARLY_PRIM_DEALLOC:
-      return isGFX9(STI);
-    case ID_GET_DDID:
-      return isGFX10Plus(STI);
-    default:
-      return 0 <= MsgId && MsgId < ID_GAPS_LAST_ && IdSymbolic[MsgId];
-    }
-  } else {
-    return 0 <= MsgId && isUInt<ID_WIDTH_>(MsgId);
-  }
+bool isValidMsgId(int64_t MsgId) {
+  return 0 <= MsgId && isUInt<ID_WIDTH_>(MsgId);
 }
 
-StringRef getMsgName(int64_t MsgId) {
-  assert(0 <= MsgId && MsgId < ID_GAPS_LAST_);
-  return IdSymbolic[MsgId];
+StringRef getMsgName(int64_t MsgId, const MCSubtargetInfo &STI) {
+  int Idx = getOprIdx<const MCSubtargetInfo &>(MsgId, Msg, MSG_SIZE, STI);
+  return (Idx < 0) ? "" : Msg[Idx].Name;
 }
 
 int64_t getMsgOpId(int64_t MsgId, const StringRef Name) {
@@ -1307,7 +1455,7 @@ int64_t getMsgOpId(int64_t MsgId, const StringRef Name) {
 
 bool isValidMsgOp(int64_t MsgId, int64_t OpId, const MCSubtargetInfo &STI,
                   bool Strict) {
-  assert(isValidMsgId(MsgId, STI, Strict));
+  assert(isValidMsgId(MsgId));
 
   if (!Strict)
     return 0 <= OpId && isUInt<OP_WIDTH_>(OpId);
@@ -1470,7 +1618,8 @@ bool hasG16(const MCSubtargetInfo &STI) {
 }
 
 bool hasPackedD16(const MCSubtargetInfo &STI) {
-  return !STI.getFeatureBits()[AMDGPU::FeatureUnpackedD16VMem];
+  return !STI.getFeatureBits()[AMDGPU::FeatureUnpackedD16VMem] && !isCI(STI) &&
+         !isSI(STI);
 }
 
 bool isSI(const MCSubtargetInfo &STI) {
@@ -1489,6 +1638,14 @@ bool isGFX9(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGFX9];
 }
 
+bool isGFX9_GFX10(const MCSubtargetInfo &STI) {
+  return isGFX9(STI) || isGFX10(STI);
+}
+
+bool isGFX8Plus(const MCSubtargetInfo &STI) {
+  return isVI(STI) || isGFX9Plus(STI);
+}
+
 bool isGFX9Plus(const MCSubtargetInfo &STI) {
   return isGFX9(STI) || isGFX10Plus(STI);
 }
@@ -1498,6 +1655,14 @@ bool isGFX10(const MCSubtargetInfo &STI) {
 }
 
 bool isGFX10Plus(const MCSubtargetInfo &STI) { return isGFX10(STI); }
+
+bool isNotGFX10Plus(const MCSubtargetInfo &STI) {
+  return isSI(STI) || isCI(STI) || isVI(STI) || isGFX9(STI);
+}
+
+bool isGFX10Before1030(const MCSubtargetInfo &STI) {
+  return isGFX10(STI) && !AMDGPU::isGFX10_BEncoding(STI);
+}
 
 bool isGCN3Encoding(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGCN3Encoding];
@@ -1517,6 +1682,10 @@ bool hasGFX10_3Insts(const MCSubtargetInfo &STI) {
 
 bool isGFX90A(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureGFX90AInsts];
+}
+
+bool isGFX940(const MCSubtargetInfo &STI) {
+  return STI.getFeatureBits()[AMDGPU::FeatureGFX940Insts];
 }
 
 bool hasArchitectedFlatScratch(const MCSubtargetInfo &STI) {

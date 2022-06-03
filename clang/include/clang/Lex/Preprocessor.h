@@ -23,6 +23,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
+#include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/MacroInfo.h"
 #include "clang/Lex/ModuleLoader.h"
@@ -190,6 +191,11 @@ class Preprocessor {
   // not specified on the command line. The target is queried to set the
   // default evaluation method.
   LangOptions::FPEvalMethodKind CurrentFPEvalMethod =
+      LangOptions::FPEvalMethodKind::FEM_UnsetOnCommandLine;
+
+  // Keeps the value of the last evaluation method before a
+  // `pragma float_control (precise,off) is applied.
+  LangOptions::FPEvalMethodKind LastFPEvalMethod =
       LangOptions::FPEvalMethodKind::FEM_UnsetOnCommandLine;
 
   // The most recent pragma location where the floating point evaluation
@@ -403,6 +409,14 @@ private:
   /// The source location of the currently-active
   /// \#pragma clang assume_nonnull begin.
   SourceLocation PragmaAssumeNonNullLoc;
+
+  /// Set only for preambles which end with an active
+  /// \#pragma clang assume_nonnull begin.
+  ///
+  /// When the preamble is loaded into the main file,
+  /// `PragmaAssumeNonNullLoc` will be set to this to
+  /// replay the unterminated assume_nonnull.
+  SourceLocation PreambleRecordedPragmaAssumeNonNullLoc;
 
   /// True if we hit the code-completion point.
   bool CodeCompletionReached = false;
@@ -1757,6 +1771,21 @@ public:
     PragmaAssumeNonNullLoc = Loc;
   }
 
+  /// Get the location of the recorded unterminated \#pragma clang
+  /// assume_nonnull begin in the preamble, if one exists.
+  ///
+  /// Returns an invalid location if the premable did not end with
+  /// such a pragma active or if there is no recorded preamble.
+  SourceLocation getPreambleRecordedPragmaAssumeNonNullLoc() const {
+    return PreambleRecordedPragmaAssumeNonNullLoc;
+  }
+
+  /// Record the location of the unterminated \#pragma clang
+  /// assume_nonnull begin in the preamble.
+  void setPreambleRecordedPragmaAssumeNonNullLoc(SourceLocation Loc) {
+    PreambleRecordedPragmaAssumeNonNullLoc = Loc;
+  }
+
   /// Set the directory in which the main file should be considered
   /// to have been found, if it is not a real file.
   void setMainFileDir(const DirectoryEntry *Dir) {
@@ -2026,8 +2055,7 @@ public:
   /// This either returns the EOF token and returns true, or
   /// pops a level off the include stack and returns false, at which point the
   /// client should call lex again.
-  bool HandleEndOfFile(Token &Result, SourceLocation Loc,
-                       bool isEndOfMacro = false);
+  bool HandleEndOfFile(Token &Result, bool isEndOfMacro = false);
 
   /// Callback invoked when the current TokenLexer hits the end of its
   /// token stream.
@@ -2076,6 +2104,14 @@ public:
 
   SourceLocation getLastFPEvalPragmaLocation() const {
     return LastFPEvalPragmaLocation;
+  }
+
+  LangOptions::FPEvalMethodKind getLastFPEvalMethod() const {
+    return LastFPEvalMethod;
+  }
+
+  void setLastFPEvalMethod(LangOptions::FPEvalMethodKind Val) {
+    LastFPEvalMethod = Val;
   }
 
   void setCurrentFPEvalMethod(SourceLocation PragmaLoc,
@@ -2476,14 +2512,12 @@ private:
 
   // Pragmas.
   void HandlePragmaDirective(PragmaIntroducer Introducer);
-  void ResolvePragmaIncludeInstead(SourceLocation Location) const;
 
 public:
   void HandlePragmaOnce(Token &OnceTok);
   void HandlePragmaMark(Token &MarkTok);
   void HandlePragmaPoison();
   void HandlePragmaSystemHeader(Token &SysHeaderTok);
-  void HandlePragmaIncludeInstead(Token &Tok);
   void HandlePragmaDependency(Token &DependencyTok);
   void HandlePragmaPushMacro(Token &Tok);
   void HandlePragmaPopMacro(Token &Tok);

@@ -42,7 +42,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
@@ -60,6 +59,7 @@
 #include "llvm/Analysis/TargetFolder.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/Utils/Local.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/BasicBlock.h"
@@ -90,8 +90,6 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/CBindingWrapping.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
@@ -139,6 +137,10 @@ static constexpr unsigned InstCombineDefaultInfiniteLoopThreshold = 1000;
 static cl::opt<bool>
 EnableCodeSinking("instcombine-code-sinking", cl::desc("Enable code sinking"),
                                               cl::init(true));
+
+static cl::opt<unsigned> MaxSinkNumUsers(
+    "instcombine-max-sink-users", cl::init(32),
+    cl::desc("Maximum number of undroppable users for instruction sinking"));
 
 static cl::opt<unsigned> LimitMaxIterations(
     "instcombine-max-iterations",
@@ -1035,10 +1037,10 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
   return NewBO;
 }
 
-Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op,
-                                                SelectInst *SI) {
-  // Don't modify shared select instructions.
-  if (!SI->hasOneUse())
+Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
+                                                bool FoldWithMultiUse) {
+  // Don't modify shared select instructions unless set FoldWithMultiUse
+  if (!SI->hasOneUse() && !FoldWithMultiUse)
     return nullptr;
 
   Value *TV = SI->getTrueValue();
@@ -1953,13 +1955,11 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
   // Combine Indices - If the source pointer to this getelementptr instruction
   // is a getelementptr instruction with matching element type, combine the
   // indices of the two getelementptr instructions into a single instruction.
-  if (Src->getResultElementType() != GEP.getSourceElementType())
-    return nullptr;
-
   if (!shouldMergeGEPs(*cast<GEPOperator>(&GEP), *Src))
     return nullptr;
 
-  if (Src->getNumOperands() == 2 && GEP.getNumOperands() == 2 &&
+  if (Src->getResultElementType() == GEP.getSourceElementType() &&
+      Src->getNumOperands() == 2 && GEP.getNumOperands() == 2 &&
       Src->hasOneUse()) {
     Value *GO1 = GEP.getOperand(1);
     Value *SO1 = Src->getOperand(1);
@@ -2021,6 +2021,68 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
   if (auto *SrcGEP = dyn_cast<GEPOperator>(Src->getOperand(0)))
     if (SrcGEP->getNumOperands() == 2 && shouldMergeGEPs(*Src, *SrcGEP))
       return nullptr;   // Wait until our source is folded to completion.
+
+  // For constant GEPs, use a more general offset-based folding approach.
+  // Only do this for opaque pointers, as the result element type may change.
+  Type *PtrTy = Src->getType()->getScalarType();
+  if (PtrTy->isOpaquePointerTy() && GEP.hasAllConstantIndices() &&
+      (Src->hasOneUse() || Src->hasAllConstantIndices())) {
+    // Split Src into a variable part and a constant suffix.
+    gep_type_iterator GTI = gep_type_begin(*Src);
+    Type *BaseType = GTI.getIndexedType();
+    bool IsFirstType = true;
+    unsigned NumVarIndices = 0;
+    for (auto Pair : enumerate(Src->indices())) {
+      if (!isa<ConstantInt>(Pair.value())) {
+        BaseType = GTI.getIndexedType();
+        IsFirstType = false;
+        NumVarIndices = Pair.index() + 1;
+      }
+      ++GTI;
+    }
+
+    // Determine the offset for the constant suffix of Src.
+    APInt Offset(DL.getIndexTypeSizeInBits(PtrTy), 0);
+    if (NumVarIndices != Src->getNumIndices()) {
+      // FIXME: getIndexedOffsetInType() does not handled scalable vectors.
+      if (isa<ScalableVectorType>(BaseType))
+        return nullptr;
+
+      SmallVector<Value *> ConstantIndices;
+      if (!IsFirstType)
+        ConstantIndices.push_back(
+            Constant::getNullValue(Type::getInt32Ty(GEP.getContext())));
+      append_range(ConstantIndices, drop_begin(Src->indices(), NumVarIndices));
+      Offset += DL.getIndexedOffsetInType(BaseType, ConstantIndices);
+    }
+
+    // Add the offset for GEP (which is fully constant).
+    if (!GEP.accumulateConstantOffset(DL, Offset))
+      return nullptr;
+
+    // Convert the total offset back into indices.
+    SmallVector<APInt> ConstIndices =
+        DL.getGEPIndicesForOffset(BaseType, Offset);
+    if (!Offset.isZero() || (!IsFirstType && !ConstIndices[0].isZero()))
+      return nullptr;
+
+    SmallVector<Value *> Indices;
+    append_range(Indices, drop_end(Src->indices(),
+                                   Src->getNumIndices() - NumVarIndices));
+    for (const APInt &Idx : drop_begin(ConstIndices, !IsFirstType))
+      Indices.push_back(ConstantInt::get(GEP.getContext(), Idx));
+
+    return isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))
+               ? GetElementPtrInst::CreateInBounds(Src->getSourceElementType(),
+                                                   Src->getOperand(0), Indices,
+                                                   GEP.getName())
+               : GetElementPtrInst::Create(Src->getSourceElementType(),
+                                           Src->getOperand(0), Indices,
+                                           GEP.getName());
+  }
+
+  if (Src->getResultElementType() != GEP.getSourceElementType())
+    return nullptr;
 
   SmallVector<Value*, 8> Indices;
 
@@ -2673,6 +2735,7 @@ static bool isAllocSiteRemovable(Instruction *AI,
                                  SmallVectorImpl<WeakTrackingVH> &Users,
                                  const TargetLibraryInfo &TLI) {
   SmallVector<Instruction*, 4> Worklist;
+  const Optional<StringRef> Family = getAllocationFamily(AI, &TLI);
   Worklist.push_back(AI);
 
   do {
@@ -2741,12 +2804,15 @@ static bool isAllocSiteRemovable(Instruction *AI,
           continue;
         }
 
-        if (isFreeCall(I, &TLI)) {
+        if (isFreeCall(I, &TLI) && getAllocationFamily(I, &TLI) == Family) {
+          assert(Family);
           Users.emplace_back(I);
           continue;
         }
 
-        if (isReallocLikeFn(I, &TLI)) {
+        if (isReallocLikeFn(I, &TLI) &&
+            getAllocationFamily(I, &TLI) == Family) {
+          assert(Family);
           Users.emplace_back(I);
           Worklist.push_back(I);
           continue;
@@ -2804,7 +2870,7 @@ Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
       if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
         if (II->getIntrinsicID() == Intrinsic::objectsize) {
           Value *Result =
-              lowerObjectSizeCall(II, DL, &TLI, /*MustSucceed=*/true);
+              lowerObjectSizeCall(II, DL, &TLI, AA, /*MustSucceed=*/true);
           replaceInstUsesWith(*I, Result);
           eraseInstFromFunction(*I);
           Users[i] = nullptr; // Skip examining in the next loop.
@@ -3249,6 +3315,15 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
                                       makeArrayRef(exti, exte));
   }
   if (WithOverflowInst *WO = dyn_cast<WithOverflowInst>(Agg)) {
+    // extractvalue (any_mul_with_overflow X, -1), 0 --> -X
+    Intrinsic::ID OvID = WO->getIntrinsicID();
+    if (*EV.idx_begin() == 0 &&
+        (OvID == Intrinsic::smul_with_overflow ||
+         OvID == Intrinsic::umul_with_overflow) &&
+        match(WO->getArgOperand(1), m_AllOnes())) {
+      return BinaryOperator::CreateNeg(WO->getArgOperand(0));
+    }
+
     // We're extracting from an overflow intrinsic, see if we're the only user,
     // which allows us to simplify multiple result intrinsics to simpler
     // things that just get one value.
@@ -3763,32 +3838,45 @@ Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
   if (Value *NI = pushFreezeToPreventPoisonFromPropagating(I))
     return replaceInstUsesWith(I, NI);
 
-  if (match(Op0, m_Undef())) {
-    // If I is freeze(undef), see its uses and fold it to the best constant.
-    // - or: pick -1
-    // - select's condition: pick the value that leads to choosing a constant
-    // - other ops: pick 0
+  // If I is freeze(undef), check its uses and fold it to a fixed constant.
+  // - or: pick -1
+  // - select's condition: if the true value is constant, choose it by making
+  //                       the condition true.
+  // - default: pick 0
+  //
+  // Note that this transform is intentionally done here rather than
+  // via an analysis in InstSimplify or at individual user sites. That is
+  // because we must produce the same value for all uses of the freeze -
+  // it's the reason "freeze" exists!
+  //
+  // TODO: This could use getBinopAbsorber() / getBinopIdentity() to avoid
+  //       duplicating logic for binops at least.
+  auto getUndefReplacement = [&I](Type *Ty) {
     Constant *BestValue = nullptr;
-    Constant *NullValue = Constant::getNullValue(I.getType());
+    Constant *NullValue = Constant::getNullValue(Ty);
     for (const auto *U : I.users()) {
       Constant *C = NullValue;
-
       if (match(U, m_Or(m_Value(), m_Value())))
-        C = Constant::getAllOnesValue(I.getType());
-      else if (const auto *SI = dyn_cast<SelectInst>(U)) {
-        if (SI->getCondition() == &I) {
-          APInt CondVal(1, isa<Constant>(SI->getFalseValue()) ? 0 : 1);
-          C = Constant::getIntegerValue(I.getType(), CondVal);
-        }
-      }
+        C = ConstantInt::getAllOnesValue(Ty);
+      else if (match(U, m_Select(m_Specific(&I), m_Constant(), m_Value())))
+        C = ConstantInt::getTrue(Ty);
 
       if (!BestValue)
         BestValue = C;
       else if (BestValue != C)
         BestValue = NullValue;
     }
+    assert(BestValue && "Must have at least one use");
+    return BestValue;
+  };
 
-    return replaceInstUsesWith(I, BestValue);
+  if (match(Op0, m_Undef()))
+    return replaceInstUsesWith(I, getUndefReplacement(I.getType()));
+
+  Constant *C;
+  if (match(Op0, m_Constant(C)) && C->containsUndefOrPoisonElement()) {
+    Constant *ReplaceC = getUndefReplacement(I.getType()->getScalarType());
+    return replaceInstUsesWith(I, Constant::replaceUndefsWith(C, ReplaceC));
   }
 
   // Replace all dominated uses of Op to freeze(Op).
@@ -3848,7 +3936,6 @@ static bool SoleWriteToDeadLocal(Instruction *I, TargetLibraryInfo &TLI) {
 /// block.
 static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock,
                                  TargetLibraryInfo &TLI) {
-  assert(I->getUniqueUndroppableUser() && "Invariants didn't hold!");
   BasicBlock *SrcBlock = I->getParent();
 
   // Cannot move control-flow-involving, volatile loads, vaarg, etc.
@@ -4015,48 +4102,68 @@ bool InstCombinerImpl::run() {
         [this](Instruction *I) -> Optional<BasicBlock *> {
       if (!EnableCodeSinking)
         return None;
-      auto *UserInst = cast_or_null<Instruction>(I->getUniqueUndroppableUser());
-      if (!UserInst)
-        return None;
 
       BasicBlock *BB = I->getParent();
       BasicBlock *UserParent = nullptr;
+      unsigned NumUsers = 0;
 
-      // Special handling for Phi nodes - get the block the use occurs in.
-      if (PHINode *PN = dyn_cast<PHINode>(UserInst)) {
-        for (unsigned i = 0; i < PN->getNumIncomingValues(); i++) {
-          if (PN->getIncomingValue(i) == I) {
-            // Bail out if we have uses in different blocks. We don't do any
-            // sophisticated analysis (i.e finding NearestCommonDominator of these
-            // use blocks).
-            if (UserParent && UserParent != PN->getIncomingBlock(i))
-              return None;
-            UserParent = PN->getIncomingBlock(i);
+      for (auto *U : I->users()) {
+        if (U->isDroppable())
+          continue;
+        if (NumUsers > MaxSinkNumUsers)
+          return None;
+
+        Instruction *UserInst = cast<Instruction>(U);
+        // Special handling for Phi nodes - get the block the use occurs in.
+        if (PHINode *PN = dyn_cast<PHINode>(UserInst)) {
+          for (unsigned i = 0; i < PN->getNumIncomingValues(); i++) {
+            if (PN->getIncomingValue(i) == I) {
+              // Bail out if we have uses in different blocks. We don't do any
+              // sophisticated analysis (i.e finding NearestCommonDominator of
+              // these use blocks).
+              if (UserParent && UserParent != PN->getIncomingBlock(i))
+                return None;
+              UserParent = PN->getIncomingBlock(i);
+            }
           }
+          assert(UserParent && "expected to find user block!");
+        } else {
+          if (UserParent && UserParent != UserInst->getParent())
+            return None;
+          UserParent = UserInst->getParent();
         }
-        assert(UserParent && "expected to find user block!");
-      } else
-        UserParent = UserInst->getParent();
 
-      // Try sinking to another block. If that block is unreachable, then do
-      // not bother. SimplifyCFG should handle it.
-      if (UserParent == BB || !DT.isReachableFromEntry(UserParent))
+        // Make sure these checks are done only once, naturally we do the checks
+        // the first time we get the userparent, this will save compile time.
+        if (NumUsers == 0) {
+          // Try sinking to another block. If that block is unreachable, then do
+          // not bother. SimplifyCFG should handle it.
+          if (UserParent == BB || !DT.isReachableFromEntry(UserParent))
+            return None;
+
+          auto *Term = UserParent->getTerminator();
+          // See if the user is one of our successors that has only one
+          // predecessor, so that we don't have to split the critical edge.
+          // Another option where we can sink is a block that ends with a
+          // terminator that does not pass control to other block (such as
+          // return or unreachable or resume). In this case:
+          //   - I dominates the User (by SSA form);
+          //   - the User will be executed at most once.
+          // So sinking I down to User is always profitable or neutral.
+          if (UserParent->getUniquePredecessor() != BB && !succ_empty(Term))
+            return None;
+
+          assert(DT.dominates(BB, UserParent) && "Dominance relation broken?");
+        }
+
+        NumUsers++;
+      }
+
+      // No user or only has droppable users.
+      if (!UserParent)
         return None;
 
-      auto *Term = UserParent->getTerminator();
-      // See if the user is one of our successors that has only one
-      // predecessor, so that we don't have to split the critical edge.
-      // Another option where we can sink is a block that ends with a
-      // terminator that does not pass control to other block (such as
-      // return or unreachable or resume). In this case:
-      //   - I dominates the User (by SSA form);
-      //   - the User will be executed at most once.
-      // So sinking I down to User is always profitable or neutral.
-      if (UserParent->getUniquePredecessor() == BB || succ_empty(Term)) {
-        assert(DT.dominates(BB, UserParent) && "Dominance relation broken?");
-        return UserParent;
-      }
-      return None;
+      return UserParent;
     };
 
     auto OptBB = getOptionalSinkBlockForInst(I);

@@ -1,4 +1,3 @@
-// REQUIRES: clang-driver
 // REQUIRES: nvptx-registered-target
 
 // RUN: %clang -### \

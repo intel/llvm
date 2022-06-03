@@ -1011,10 +1011,11 @@ uint64_t ShortenInstructions::shortenInstructions(BinaryFunction &Function) {
       if (opts::Verbosity > 2)
         OriginalInst = Inst;
 
-      if (!BC.MIB->shortenInstruction(Inst))
+      if (!BC.MIB->shortenInstruction(Inst, *BC.STI))
         continue;
 
       if (opts::Verbosity > 2) {
+        BC.scopeLock();
         outs() << "BOLT-INFO: shortening:\nBOLT-INFO:    ";
         BC.printInstruction(outs(), OriginalInst, 0, &Function);
         outs() << "BOLT-INFO: to:";

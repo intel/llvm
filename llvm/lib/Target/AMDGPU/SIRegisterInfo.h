@@ -306,15 +306,11 @@ public:
   MCRegister getReturnAddressReg(const MachineFunction &MF) const;
 
   const TargetRegisterClass *
-  getRegClassForSizeOnBank(unsigned Size,
-                           const RegisterBank &Bank,
-                           const MachineRegisterInfo &MRI) const;
+  getRegClassForSizeOnBank(unsigned Size, const RegisterBank &Bank) const;
 
   const TargetRegisterClass *
-  getRegClassForTypeOnBank(LLT Ty,
-                           const RegisterBank &Bank,
-                           const MachineRegisterInfo &MRI) const {
-    return getRegClassForSizeOnBank(Ty.getSizeInBits(), Bank, MRI);
+  getRegClassForTypeOnBank(LLT Ty, const RegisterBank &Bank) const {
+    return getRegClassForSizeOnBank(Ty.getSizeInBits(), Bank);
   }
 
   const TargetRegisterClass *
@@ -378,6 +374,11 @@ public:
   // Returns true if a given register class is properly aligned for
   // the subtarget.
   bool isProperlyAlignedRC(const TargetRegisterClass &RC) const;
+
+  // Given \p RC returns corresponding aligned register class if required
+  // by the subtarget.
+  const TargetRegisterClass *
+  getProperlyAlignedRC(const TargetRegisterClass *RC) const;
 
   /// Return all SGPR128 which satisfy the waves per execution unit requirement
   /// of the subtarget.

@@ -226,8 +226,12 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   const bool IsMips = Triple.isMIPS();
   const bool IsHexagon = Arch == llvm::Triple::hexagon;
   const bool IsRISCV = Triple.isRISCV();
+  const bool IsCSKY = Triple.isCSKY();
 
-  if (IsMips && !SysRoot.empty())
+  if (IsCSKY)
+    SysRoot = SysRoot + SelectedMultilib.osSuffix();
+
+  if ((IsMips || IsCSKY) && !SysRoot.empty())
     ExtraOpts.push_back("--sysroot=" + SysRoot);
 
   // Do not use 'gnu' hash style for Mips targets because .gnu.hash
@@ -306,18 +310,13 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
 
   Generic_GCC::AddMultiarchPaths(D, SysRoot, OSLibDir, Paths);
 
-  // Similar to the logic for GCC above, if we are currently running Clang
-  // inside of the requested system root, add its parent library path to those
-  // searched.
-  // FIXME: It's not clear whether we should use the driver's installed
-  // directory ('Dir' below) or the ResourceDir.
-  if (StringRef(D.Dir).startswith(SysRoot)) {
-    // Even if OSLibDir != "lib", this is needed for Clang in the build
-    // directory (not installed) to find libc++.
+  // The deprecated -DLLVM_ENABLE_PROJECTS=libcxx configuration installs
+  // libc++.so in D.Dir+"/../lib/". Detect this path.
+  // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
+  if (StringRef(D.Dir).startswith(SysRoot) &&
+      (D.getVFS().exists(D.Dir + "/../lib/libc++.so") ||
+       Args.hasArg(options::OPT_fsycl)))
     addPathIfExists(D, D.Dir + "/../lib", Paths);
-    if (OSLibDir != "lib")
-      addPathIfExists(D, D.Dir + "/../" + OSLibDir, Paths);
-  }
 
   addPathIfExists(D, SysRoot + "/lib", Paths);
   addPathIfExists(D, SysRoot + "/usr/lib", Paths);
@@ -364,6 +363,21 @@ std::string Linux::computeSysRoot() const {
     std::string AndroidSysRootPath = (ClangDir + "/../sysroot").str();
     if (getVFS().exists(AndroidSysRootPath))
       return AndroidSysRootPath;
+  }
+
+  if (getTriple().isCSKY()) {
+    // CSKY toolchains use different names for sysroot folder.
+    if (!GCCInstallation.isValid())
+      return std::string();
+    // GCCInstallation.getInstallPath() =
+    //   $GCCToolchainPath/lib/gcc/csky-linux-gnuabiv2/6.3.0
+    // Path = $GCCToolchainPath/csky-linux-gnuabiv2/libc
+    std::string Path = (GCCInstallation.getInstallPath() + "/../../../../" +
+                        GCCInstallation.getTriple().str() + "/libc")
+                           .str();
+    if (getVFS().exists(Path))
+      return Path;
+    return std::string();
   }
 
   if (!GCCInstallation.isValid() || !getTriple().isMIPS())
@@ -542,6 +556,11 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
   }
   case llvm::Triple::ve:
     return "/opt/nec/ve/lib/ld-linux-ve.so.1";
+  case llvm::Triple::csky: {
+    LibDir = "lib";
+    Loader = "ld.so.1";
+    break;
+  }
   }
 
   if (Distro == Distro::Exherbo &&
@@ -661,6 +680,15 @@ void Linux::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void Linux::AddHIPIncludeArgs(const ArgList &DriverArgs,
                               ArgStringList &CC1Args) const {
   RocmInstallation.AddHIPIncludeArgs(DriverArgs, CC1Args);
+}
+
+void Linux::AddHIPRuntimeLibArgs(const ArgList &Args,
+                                 ArgStringList &CmdArgs) const {
+  CmdArgs.append(
+      {Args.MakeArgString(StringRef("-L") + RocmInstallation.getLibPath()),
+       "-rpath", Args.MakeArgString(RocmInstallation.getLibPath())});
+
+  CmdArgs.push_back("-lamdhip64");
 }
 
 void Linux::AddIAMCUIncludeArgs(const ArgList &DriverArgs,

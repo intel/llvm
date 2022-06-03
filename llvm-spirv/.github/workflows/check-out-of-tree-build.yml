@@ -75,7 +75,7 @@ jobs:
           mkdir build && cd build
           cmake ${{ github.workspace }}/SPIRV-LLVM-Translator \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-            -DCMAKE_CXX_FLAGS="-Werror" \
+            -DCMAKE_CXX_FLAGS="-Werror -Wno-error=deprecated-declarations" \
             -DLLVM_INCLUDE_TESTS=ON \
             -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/build/utils/lit/lit.py" \
             -DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers" \

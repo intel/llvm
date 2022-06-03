@@ -23,7 +23,7 @@ namespace {
 
 constexpr StringRef SYCL_DEVICE_GLOBAL_SIZE_ATTR = "sycl-device-global-size";
 constexpr StringRef SYCL_UNIQUE_ID_ATTR = "sycl-unique-id";
-constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "device_image_scope";
+constexpr StringRef SYCL_DEVICE_IMAGE_SCOPE_ATTR = "sycl-device-image-scope";
 
 /// Returns the size (in bytes) of the underlying type \c T of the device
 /// global variable.

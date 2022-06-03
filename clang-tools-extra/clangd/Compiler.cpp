@@ -13,8 +13,6 @@
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/PCHContainerOperations.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/FormatVariadic.h"
 
 namespace clang {
 namespace clangd {
@@ -93,12 +91,14 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   for (const auto &S : Inputs.CompileCommand.CommandLine)
     ArgStrs.push_back(S.c_str());
 
-  auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
-  llvm::IntrusiveRefCntPtr<DiagnosticsEngine> CommandLineDiagsEngine =
+  CreateInvocationOptions CIOpts;
+  CIOpts.VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
+  CIOpts.CC1Args = CC1Args;
+  CIOpts.RecoverOnError = true;
+  CIOpts.Diags =
       CompilerInstance::createDiagnostics(new DiagnosticOptions, &D, false);
-  std::unique_ptr<CompilerInvocation> CI = createInvocationFromCommandLine(
-      ArgStrs, CommandLineDiagsEngine, std::move(VFS),
-      /*ShouldRecoverOnErrors=*/true, CC1Args);
+  CIOpts.ProbePrecompiled = false;
+  std::unique_ptr<CompilerInvocation> CI = createInvocation(ArgStrs, CIOpts);
   if (!CI)
     return nullptr;
   // createInvocationFromCommandLine sets DisableFree.
