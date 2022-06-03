@@ -46,6 +46,7 @@ TEST(ValueTest, UsedInBasicBlock) {
 
 TEST(GlobalTest, CreateAddressSpace) {
   LLVMContext Ctx;
+  Ctx.setOpaquePointers(true);
   std::unique_ptr<Module> M(new Module("TestModule", Ctx));
   Type *Int8Ty = Type::getInt8Ty(Ctx);
   Type *Int32Ty = Type::getInt32Ty(Ctx);
@@ -85,6 +86,7 @@ TEST(GlobalTest, CreateAddressSpace) {
 
   // Make sure the address space isn't dropped when returning this.
   Constant *DummyCast1 = M->getOrInsertGlobal("dummy_cast", Int8Ty);
+  EXPECT_EQ(DummyCast0, DummyCast1);
   EXPECT_EQ(1u, DummyCast1->getType()->getPointerAddressSpace());
 }
 
