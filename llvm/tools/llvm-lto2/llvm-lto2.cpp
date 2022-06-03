@@ -145,7 +145,7 @@ static cl::opt<bool>
 
 static cl::opt<bool> LtoOpaquePointers("lto-opaque-pointers",
                                        cl::desc("Enable opaque pointer types"),
-                                       cl::init(true), cl::Hidden);
+                                       cl::init(false), cl::Hidden);
 
 static cl::opt<bool>
     DebugPassManager("debug-pass-manager", cl::init(false), cl::Hidden,

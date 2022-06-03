@@ -179,7 +179,7 @@ struct Config {
 
   /// Use opaque pointer types. Used to call LLVMContext::setOpaquePointers
   /// unless already set by the `-opaque-pointers` commandline option.
-  bool OpaquePointers = true;
+  bool OpaquePointers = false;
 
   /// If this field is set, LTO will write input file paths and symbol
   /// resolutions here in llvm-lto2 command line flag format. This can be

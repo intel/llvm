@@ -3,15 +3,16 @@
 
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/deadstrip.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -o %t.index.bc %t1.bc %t2.bc
+; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t.index.bc %t1.bc %t2.bc
 
-; RUN: llvm-lto -exported-symbol=_main -thinlto-action=internalize %t1.bc -thinlto-index=%t.index.bc -o - | llvm-dis -o - | FileCheck %s
-; RUN: llvm-lto -exported-symbol=_main -thinlto-action=internalize %t2.bc -thinlto-index=%t.index.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK2
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=internalize %t1.bc -thinlto-index=%t.index.bc -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=internalize %t2.bc -thinlto-index=%t.index.bc -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK2
 
-; RUN: llvm-lto -exported-symbol=_main -thinlto-action=run -stats %t1.bc %t2.bc 2>&1 | FileCheck %s --check-prefix=STATS
+; RUN: llvm-lto -opaque-pointers -exported-symbol=_main -thinlto-action=run -stats %t1.bc %t2.bc 2>&1 | FileCheck %s --check-prefix=STATS
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck %s --check-prefix=CHECK-NM
 
 ; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.out -save-temps -stats \
+; RUN:   -opaque-pointers \
 ; RUN:   -r %t1.bc,_main,plx \
 ; RUN:   -r %t1.bc,_bar,pl \
 ; RUN:   -r %t1.bc,_dead_func,pl \
@@ -109,6 +110,7 @@
 ; and it shouldn't be internalized.
 ; RUN: opt %p/Inputs/deadstrip.ll -o %t3.bc
 ; RUN: llvm-lto2 run %t1.bc %t3.bc -o %t4.out -save-temps \
+; RUN:   -opaque-pointers \
 ; RUN:   -r %t1.bc,_main,plx \
 ; RUN:   -r %t1.bc,_bar,pl \
 ; RUN:   -r %t1.bc,_dead_func,pl \

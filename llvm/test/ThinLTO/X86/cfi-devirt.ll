@@ -6,6 +6,7 @@
 
 ; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
+; RUN:   -opaque-pointers \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZN1A1nEi,p \
@@ -30,6 +31,7 @@
 ; RUN: opt -thinlto-bc -o %t2.o %S/Inputs/empty.ll
 ; RUN: not llvm-lto2 run %t.o %t2.o -thinlto-distributed-indexes \
 ; RUN:   -whole-program-visibility \
+; RUN:   -opaque-pointers \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t.o,test,px \
 ; RUN:   -r=%t.o,_ZN1A1nEi,p \

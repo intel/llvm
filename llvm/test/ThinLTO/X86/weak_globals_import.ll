@@ -4,6 +4,7 @@
 ; RUN: opt -module-summary %t.dir/2.ll -o %t2.bc
 
 ; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t.out \
+; RUN:               -opaque-pointers \
 ; RUN:               -r=%t1.bc,main,plx \
 ; RUN:               -r=%t1.bc,G \
 ; RUN:               -r=%t2.bc,G,pl
