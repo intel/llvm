@@ -1,4 +1,4 @@
-; INTEL RUN: opt -opaque-pointers -S %s -lowertypetests -lowertypetests-summary-action=export -lowertypetests-read-summary=%S/Inputs/exported-funcs.yaml | FileCheck %s
+; RUN: opt -opaque-pointers -S %s -lowertypetests -lowertypetests-summary-action=export -lowertypetests-read-summary=%S/Inputs/exported-funcs.yaml | FileCheck %s
 ;
 ; CHECK: @alias1 = weak alias void (), ptr @external_addrtaken
 ; CHECK: @alias2 = hidden alias void (), ptr @external_addrtaken

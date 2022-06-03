@@ -1,8 +1,8 @@
-// INTEL RUN: %clang_cc1 -opaque-pointers -emit-llvm -o - -fopenmp \
+// RUN: %clang_cc1 -opaque-pointers -emit-llvm -o - -fopenmp \
 // RUN:  -triple i386-unknown-unknown -fopenmp-version=51 %s \
 // RUN:  | FileCheck %s --check-prefixes=CHECK,CHECK-32
 
-// INTEL RUN: %clang_cc1 -opaque-pointers -emit-llvm -o - -fopenmp \
+// RUN: %clang_cc1 -opaque-pointers -emit-llvm -o - -fopenmp \
 // RUN:  -triple x86_64-unknown-linux-gnu -fopenmp-version=51 %s \
 // RUN:  | FileCheck %s --check-prefixes=CHECK,CHECK-64
 

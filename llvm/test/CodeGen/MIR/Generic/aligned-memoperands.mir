@@ -1,4 +1,4 @@
-# INTEL RUN: llc -opaque-pointers -run-pass none -o - %s | FileCheck %s
+# RUN: llc -opaque-pointers -run-pass none -o - %s | FileCheck %s
 
 ---
 name: aligned_memoperands

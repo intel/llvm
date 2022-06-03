@@ -6,7 +6,7 @@
 ; RUN: echo '!14 = !{!"%/t/function-numbering.ll", !0}' > %t/1
 ; RUN: cat %s %t/1 > %t/2
 
-; INTEL RUN: opt -opaque-pointers -passes=insert-gcov-profiling -S < %t/2 | FileCheck --check-prefix GCDA %s
+; RUN: opt -opaque-pointers -passes=insert-gcov-profiling -S < %t/2 | FileCheck --check-prefix GCDA %s
 ; RUN: llvm-cov gcov -n -dump %t/function-numbering.gcno 2>&1 | FileCheck --check-prefix GCNO %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"

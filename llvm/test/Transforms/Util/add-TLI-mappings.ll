@@ -1,11 +1,11 @@
-; INTEL RUN: opt -opaque-pointers -vector-library=SVML       -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
-; INTEL RUN: opt -opaque-pointers -vector-library=SVML       -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
-; INTEL RUN: opt -opaque-pointers -vector-library=MASSV      -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
-; INTEL RUN: opt -opaque-pointers -vector-library=MASSV      -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
-; INTEL RUN: opt -opaque-pointers -vector-library=Accelerate -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,ACCELERATE
-; INTEL RUN: opt -opaque-pointers -vector-library=LIBMVEC-X86 -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,LIBMVEC-X86
-; INTEL RUN: opt -opaque-pointers -vector-library=LIBMVEC-X86 -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,LIBMVEC-X86
-; INTEL RUN: opt -opaque-pointers -vector-library=Accelerate -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,ACCELERATE
+; RUN: opt -opaque-pointers -vector-library=SVML       -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
+; RUN: opt -opaque-pointers -vector-library=SVML       -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,SVML
+; RUN: opt -opaque-pointers -vector-library=MASSV      -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
+; RUN: opt -opaque-pointers -vector-library=MASSV      -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,MASSV
+; RUN: opt -opaque-pointers -vector-library=Accelerate -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,ACCELERATE
+; RUN: opt -opaque-pointers -vector-library=LIBMVEC-X86 -inject-tli-mappings        -S < %s | FileCheck %s  --check-prefixes=COMMON,LIBMVEC-X86
+; RUN: opt -opaque-pointers -vector-library=LIBMVEC-X86 -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,LIBMVEC-X86
+; RUN: opt -opaque-pointers -vector-library=Accelerate -passes=inject-tli-mappings -S < %s | FileCheck %s  --check-prefixes=COMMON,ACCELERATE
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

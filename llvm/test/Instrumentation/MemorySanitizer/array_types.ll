@@ -1,6 +1,6 @@
-; INTEL RUN: opt -opaque-pointers < %s -msan-check-access-address=0 -S -passes=msan 2>&1 | FileCheck  \
+; RUN: opt -opaque-pointers < %s -msan-check-access-address=0 -S -passes=msan 2>&1 | FileCheck  \
 ; RUN: %s
-; INTEL RUN: opt -opaque-pointers < %s -msan-check-access-address=0 -msan-track-origins=1 -S          \
+; RUN: opt -opaque-pointers < %s -msan-check-access-address=0 -msan-track-origins=1 -S          \
 ; RUN: -passes=msan 2>&1 | FileCheck -check-prefix=CHECK                       \
 ; RUN: %s --allow-empty
 

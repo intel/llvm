@@ -1,9 +1,9 @@
 ; RUN: rm -rf %t && split-file %s %t
-; INTEL RUN: llvm-link -opaque-pointers -S %t/1.ll %t/1-aux.ll -o - | FileCheck %s
-; INTEL RUN: llvm-link -opaque-pointers -S %t/2.ll %t/2-aux.ll -o - | FileCheck %s --check-prefix=CHECK2
+; RUN: llvm-link -opaque-pointers -S %t/1.ll %t/1-aux.ll -o - | FileCheck %s
+; RUN: llvm-link -opaque-pointers -S %t/2.ll %t/2-aux.ll -o - | FileCheck %s --check-prefix=CHECK2
 
 ;; A private linkage variable can be copied.
-; INTEL RUN: llvm-link -opaque-pointers -S %t/3.ll %t/3-aux.ll -o - | FileCheck %s --check-prefix=CHECK3
+; RUN: llvm-link -opaque-pointers -S %t/3.ll %t/3-aux.ll -o - | FileCheck %s --check-prefix=CHECK3
 
 ;--- 1.ll
 ; CHECK: @foo = global i8 0, comdat

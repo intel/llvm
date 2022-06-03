@@ -1,4 +1,4 @@
-; INTEL RUN: opt -opaque-pointers < %s -msan-check-access-address=0 -S -passes=msan 2>&1 | FileCheck  \
+; RUN: opt -opaque-pointers < %s -msan-check-access-address=0 -S -passes=msan 2>&1 | FileCheck  \
 ; RUN: %s
 ; REQUIRES: x86-registered-target
 

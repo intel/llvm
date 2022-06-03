@@ -1,4 +1,4 @@
-; INTEL RUN: llvm-link -opaque-pointers %s %p/Inputs/alias-threadlocal-defs.ll -S -o - | FileCheck %s
+; RUN: llvm-link -opaque-pointers %s %p/Inputs/alias-threadlocal-defs.ll -S -o - | FileCheck %s
 
 ; PR46297
 ; Verify that linking GlobalAliases preserves the thread_local attribute

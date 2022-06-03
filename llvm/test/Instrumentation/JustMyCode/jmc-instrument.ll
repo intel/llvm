@@ -1,6 +1,6 @@
-; INTEL RUN: opt -opaque-pointers -jmc-instrument -mtriple=x86_64-pc-windows-msvc  -S < %s | FileCheck %s
-; INTEL RUN: opt -opaque-pointers -jmc-instrument -mtriple=aarch64-pc-windows-msvc -S < %s | FileCheck %s
-; INTEL RUN: opt -opaque-pointers -jmc-instrument -mtriple=arm-pc-windows-msvc     -S < %s | FileCheck %s
+; RUN: opt -opaque-pointers -jmc-instrument -mtriple=x86_64-pc-windows-msvc  -S < %s | FileCheck %s
+; RUN: opt -opaque-pointers -jmc-instrument -mtriple=aarch64-pc-windows-msvc -S < %s | FileCheck %s
+; RUN: opt -opaque-pointers -jmc-instrument -mtriple=arm-pc-windows-msvc     -S < %s | FileCheck %s
 
 ; CHECK: $__JustMyCode_Default = comdat any
 

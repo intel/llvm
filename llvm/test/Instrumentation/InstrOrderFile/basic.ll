@@ -1,5 +1,5 @@
-; INTEL RUN: opt -opaque-pointers -instrorderfile -S < %s | FileCheck %s
-; INTEL RUN: opt -opaque-pointers -passes=instrorderfile -S < %s | FileCheck %s
+; RUN: opt -opaque-pointers -instrorderfile -S < %s | FileCheck %s
+; RUN: opt -opaque-pointers -passes=instrorderfile -S < %s | FileCheck %s
 
 target triple = "x86_64-apple-macosx10.10.0"
 

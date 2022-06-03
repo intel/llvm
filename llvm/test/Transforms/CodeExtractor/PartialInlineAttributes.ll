@@ -1,4 +1,4 @@
-; INTEL RUN: opt -opaque-pointers < %s -S -partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
+; RUN: opt -opaque-pointers < %s -S -partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
 
 
 define i32 @callee_most(i32 %v) unnamed_addr  #0 #1 {
