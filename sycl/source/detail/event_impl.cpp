@@ -65,7 +65,7 @@ void event_impl::waitInternal() {
     return;
 
   std::unique_lock lock(MMutex);
-  cv.wait(lock, [this]{return MState == HES_Complete;});
+  cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
 void event_impl::setComplete() {
