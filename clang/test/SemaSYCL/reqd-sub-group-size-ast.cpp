@@ -97,11 +97,11 @@ int main() {
     // Ignore duplicate attribute.
     h.single_task<class kernel_name_7>(
         // CHECK: FunctionDecl {{.*}}kernel_name_7
-        // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_siz
+        // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
         // CHECK-NEXT: ConstantExpr {{.*}} 'int'
         // CHECK-NEXT: value: Int 8
         // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-        // CHECK-NOT: IntelReqdSubGroupSizeAtt
+        // CHECK-NOT: IntelReqdSubGroupSizeAttr
         []() [[intel::reqd_sub_group_size(8),
                intel::reqd_sub_group_size(8)]] {});
   });
