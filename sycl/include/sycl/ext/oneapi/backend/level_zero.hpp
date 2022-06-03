@@ -193,7 +193,7 @@ inline kernel make_kernel<backend::ext_oneapi_level_zero>(
 
 // Specialization of sycl::make_buffer with event for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = buffer_allocator>
+          typename AllocatorT = detail::default_buffer_allocator<T>>
 typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
@@ -208,7 +208,7 @@ make_buffer(
 
 // Specialization of sycl::make_buffer for Level-Zero backend.
 template <backend Backend, typename T, int Dimensions = 1,
-          typename AllocatorT = buffer_allocator>
+          typename AllocatorT = detail::default_buffer_allocator<T>>
 typename std::enable_if<Backend == backend::ext_oneapi_level_zero,
                         buffer<T, Dimensions, AllocatorT>>::type
 make_buffer(
