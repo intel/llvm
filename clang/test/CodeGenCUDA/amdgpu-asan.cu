@@ -6,17 +6,17 @@
 // Check sanitizer runtime library functions survive
 // optimizations without being removed or parameters altered.
 
-// RUN: %clang_cc1 %s -emit-llvm -o - -triple=amdgcn-amd-amdhsa \
+// RUN: %clang_cc1 %s -opaque-pointers -emit-llvm -o - -triple=amdgcn-amd-amdhsa \
 // RUN:   -fcuda-is-device -target-cpu gfx906 -fsanitize=address \
 // RUN:   -mlink-bitcode-file %t.asanrtl.bc -x hip \
 // RUN:   | FileCheck -check-prefixes=ASAN %s
 
-// RUN: %clang_cc1 %s -emit-llvm -o - -triple=amdgcn-amd-amdhsa \
+// RUN: %clang_cc1 %s -opaque-pointers -emit-llvm -o - -triple=amdgcn-amd-amdhsa \
 // RUN:   -fcuda-is-device -target-cpu gfx906 -fsanitize=address \
 // RUN:   -O3 -mlink-bitcode-file %t.asanrtl.bc -x hip \
 // RUN:   | FileCheck -check-prefixes=ASAN %s
 
-// RUN: %clang_cc1 %s -emit-llvm -o - -triple=amdgcn-amd-amdhsa \
+// RUN: %clang_cc1 %s -opaque-pointers -emit-llvm -o - -triple=amdgcn-amd-amdhsa \
 // RUN:   -fcuda-is-device -target-cpu gfx906 -x hip \
 // RUN:   | FileCheck %s
 

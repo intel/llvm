@@ -3,9 +3,9 @@
 // REQUIRES: amdgpu-registered-target
 
 // RUN: clang-offload-packager -o %t.out --image=file=%S/Inputs/dummy-elf.o,kind=openmp,triple=nvptx64-nvidia-cuda,arch=sm_70
-// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -opaque-pointers -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.out
-// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple x86_64-unknown-linux-gnu \
+// RUN: clang-linker-wrapper --print-wrapped-module -opaque-pointers --dry-run --host-triple x86_64-unknown-linux-gnu \
 // RUN:   -linker-path /usr/bin/ld -- %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=OPENMP
 
 // OPENMP: @__start_omp_offloading_entries = external hidden constant %__tgt_offload_entry
@@ -30,9 +30,9 @@
 // OPENMP-NEXT: }
 
 // RUN: clang-offload-packager -o %t.out --image=file=%S/Inputs/dummy-elf.o,kind=cuda,triple=nvptx64-nvidia-cuda,arch=sm_70
-// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -emit-obj -o %t.o \
+// RUN: %clang -cc1 %s -triple x86_64-unknown-linux-gnu -opaque-pointers -emit-obj -o %t.o \
 // RUN:   -fembed-offload-object=%t.out
-// RUN: clang-linker-wrapper --print-wrapped-module --dry-run --host-triple x86_64-unknown-linux-gnu \
+// RUN: clang-linker-wrapper --print-wrapped-module -opaque-pointers --dry-run --host-triple x86_64-unknown-linux-gnu \
 // RUN:   -linker-path /usr/bin/ld -- %t.o -o a.out 2>&1 | FileCheck %s --check-prefix=CUDA
 
 // CUDA: @.fatbin_image = internal constant [0 x i8] zeroinitializer, section ".nv_fatbin"
