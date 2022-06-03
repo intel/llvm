@@ -69,7 +69,7 @@ int main() {
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 2
     // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class kernel_name3>([]() [[intel::reqd_sub_group_size(2)]]{});
+    h.single_task<class kernel_name3>([]() [[intel::reqd_sub_group_size(2)]] {});
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name4
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
@@ -82,7 +82,7 @@ int main() {
     // CHECK-NEXT: ConstantExpr {{.*}} 'int'
     // CHECK-NEXT: value: Int 6
     // CHECK-NEXT: IntegerLiteral{{.*}}6{{$}}
-    h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(6)]]{});
+    h.single_task<class kernel_name5>([]() [[intel::reqd_sub_group_size(6)]] {});
 
     // CHECK: FunctionDecl {{.*}}kernel_name_6
     // CHECK: IntelReqdSubGroupSizeAttr {{.*}} reqd_sub_group_size
@@ -103,7 +103,7 @@ int main() {
         // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
         // CHECK-NOT: IntelReqdSubGroupSizeAtt
         []() [[intel::reqd_sub_group_size(8),
-               intel::reqd_sub_group_size(8)]]{});
+               intel::reqd_sub_group_size(8)]] {});
   });
   func<12>();
   return 0;

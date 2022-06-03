@@ -3,16 +3,16 @@
 // Test that checks support and functionality of reqd_sub_group_size attribute support on function.
 
 // Tests for incorrect argument values for Intel reqd_sub_group_size attribute.
-[[intel::reqd_sub_group_size]] void one() {} // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
-[[intel::reqd_sub_group_size(5)]] int a; // expected-error{{'reqd_sub_group_size' attribute only applies to functions}}
+[[intel::reqd_sub_group_size]] void one() {}         // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
+[[intel::reqd_sub_group_size(5)]] int a;             // expected-error{{'reqd_sub_group_size' attribute only applies to functions}}
 [[intel::reqd_sub_group_size("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
-[[intel::reqd_sub_group_size(-1)]] void func1() {} // expected-error{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
-[[intel::reqd_sub_group_size(0, 1)]] void arg() {} // expected-error{{'reqd_sub_group_size' attribute takes one argument}}
+[[intel::reqd_sub_group_size(-1)]] void func1() {}   // expected-error{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+[[intel::reqd_sub_group_size(0, 1)]] void arg() {}   // expected-error{{'reqd_sub_group_size' attribute takes one argument}}
 
 // Diagnostic is emitted because the arguments mismatch.
-[[intel::reqd_sub_group_size(12)]] void quux(); // expected-note {{previous attribute is here}}
+[[intel::reqd_sub_group_size(12)]] void quux();  // expected-note {{previous attribute is here}}
 [[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[sycl::reqd_sub_group_size(200)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+[[sycl::reqd_sub_group_size(200)]] void quux();  // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
 // Make sure there's at least one argument passed.
 [[sycl::reqd_sub_group_size]] void quibble(); // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
@@ -34,11 +34,11 @@ template <typename Ty>
 
 struct S {};
 void test() {
-  //expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
   func<S>();
-  //expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
   func<float>();
-  //expected-note@+1{{in instantiation of function template specialization 'func<int>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<int>' requested here}}
   func<int>();
 }
 
@@ -62,7 +62,7 @@ public:
 };
 
 int check() {
-  //expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
+  // expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
   KernelFunctor<-1>();
   return 0;
 }
@@ -81,8 +81,8 @@ template <int N>
 int check1() {
   // no error expected
   func3<12>();
-  //expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func3<-1>' requested here}}
   func3<-1>();
-  func4<6>(); //expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
+  func4<6>(); // expected-note {{in instantiation of function template specialization 'func4<6>' requested here}}
   return 0;
 }
