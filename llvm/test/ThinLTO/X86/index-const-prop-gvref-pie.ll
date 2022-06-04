@@ -1,12 +1,12 @@
 ;; The same as index-const-prop-gvref.ll, except for PIE.
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop-gvref.ll -o %t2.bc
-; RUN: llvm-lto2 run -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
+; RUN: llvm-lto2 run -opaque-pointers -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
 ; RUN:   %t1.bc -r=%t1.bc,main,plx -r=%t1.bc,a, -r=%t1.bc,b, -o %t3
 ; RUN: llvm-dis %t3.2.3.import.bc -o - | FileCheck %s --check-prefix=DEST
 
 ;; For PIE, keep dso_local for declarations to enable direct access.
-; DEST:      @b = external dso_local global i32*
+; DEST:      @b = external dso_local global ptr
 ; DEST-NEXT: @a = available_externally dso_local global i32 42, align 4
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

@@ -11,6 +11,47 @@
 
 #endif
 
+// Macros expanding to expressions involving only literals are converted.
+#define EXPR1 1 - 1
+#define EXPR2 1 + 1
+#define EXPR3 1 * 1
+#define EXPR4 1 / 1
+#define EXPR5 1 | 1
+#define EXPR6 1 & 1
+#define EXPR7 1 << 1
+#define EXPR8 1 >> 1
+#define EXPR9 1 % 2
+#define EXPR10 1 ^ 1
+#define EXPR11 (1 + (2))
+#define EXPR12 ((1) + (2 + 0) + (1 * 1) + (1 / 1) + (1 | 1 ) + (1 & 1) + (1 << 1) + (1 >> 1) + (1 % 2) + (1 ^ 1))
+// CHECK-MESSAGES: :[[@LINE-12]]:1: warning: replace macro with enum [modernize-macro-to-enum]
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR1' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR2' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR3' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR4' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR5' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR6' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR7' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR8' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR9' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR10' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR11' defines an integral constant; prefer an enum instead
+// CHECK-MESSAGES: :[[@LINE-13]]:9: warning: macro 'EXPR12' defines an integral constant; prefer an enum instead
+// CHECK-FIXES: enum {
+// CHECK-FIXES-NEXT: EXPR1 = 1 - 1,
+// CHECK-FIXES-NEXT: EXPR2 = 1 + 1,
+// CHECK-FIXES-NEXT: EXPR3 = 1 * 1,
+// CHECK-FIXES-NEXT: EXPR4 = 1 / 1,
+// CHECK-FIXES-NEXT: EXPR5 = 1 | 1,
+// CHECK-FIXES-NEXT: EXPR6 = 1 & 1,
+// CHECK-FIXES-NEXT: EXPR7 = 1 << 1,
+// CHECK-FIXES-NEXT: EXPR8 = 1 >> 1,
+// CHECK-FIXES-NEXT: EXPR9 = 1 % 2,
+// CHECK-FIXES-NEXT: EXPR10 = 1 ^ 1,
+// CHECK-FIXES-NEXT: EXPR11 = (1 + (2)),
+// CHECK-FIXES-NEXT: EXPR12 = ((1) + (2 + 0) + (1 * 1) + (1 / 1) + (1 | 1 ) + (1 & 1) + (1 << 1) + (1 >> 1) + (1 % 2) + (1 ^ 1))
+// CHECK-FIXES-NEXT: };
+
 #define RED 0xFF0000
 #define GREEN 0x00FF00
 #define BLUE 0x0000FF
@@ -172,6 +213,13 @@
 // CHECK-FIXES-NEXT: COMPLEX_PAREN6 = ((+1))
 // CHECK-FIXES-NEXT: };
 
+#define GOOD_COMMA (1, 2)
+// CHECK-MESSAGES: :[[@LINE-1]]:1: warning: replace macro with enum
+// CHECK-MESSAGES: :[[@LINE-2]]:9: warning: macro 'GOOD_COMMA' defines an integral constant; prefer an enum instead
+// CHECK-FIXES: enum {
+// CHECK-FIXES-NEXT: GOOD_COMMA = (1, 2)
+// CHECK-FIXES-NEXT: };
+
 // Macros appearing in conditional expressions can't be replaced
 // by enums.
 #define USE_FOO 1
@@ -281,6 +329,9 @@ inline void used_ifndef() {}
 #define EPS2 1e5
 #define EPS3 1.
 
+// Ignore macros invoking comma operator unless they are inside parens.
+#define BAD_COMMA 1, 2
+
 extern void draw(unsigned int Color);
 
 void f()
@@ -329,7 +380,7 @@ template <int N>
 #define INSIDE9 9
 bool fn()
 {
-  #define INSIDE10 10
+#define INSIDE10 10
   return INSIDE9 > 1 || INSIDE10 < N;
 }
 

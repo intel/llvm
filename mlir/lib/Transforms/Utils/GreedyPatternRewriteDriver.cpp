@@ -133,6 +133,16 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions) {
   };
 #endif
 
+  auto insertKnownConstant = [&](Operation *op) {
+    // Check for existing constants when populating the worklist. This avoids
+    // accidentally reversing the constant order during processing.
+    Attribute constValue;
+    if (matchPattern(op, m_Constant(&constValue)))
+      if (!folder.insertKnownConstant(op, constValue))
+        return true;
+    return false;
+  };
+
   bool changed = false;
   unsigned iteration = 0;
   do {
@@ -142,22 +152,22 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions) {
     if (!config.useTopDownTraversal) {
       // Add operations to the worklist in postorder.
       for (auto &region : regions) {
-        region.walk([this](Operation *op) {
-          // If we aren't processing top-down, check for existing constants when
-          // populating the worklist. This avoids accidentally reversing the
-          // constant order during processing.
-          Attribute constValue;
-          if (matchPattern(op, m_Constant(&constValue)))
-            if (!folder.insertKnownConstant(op, constValue))
-              return;
-          addToWorklist(op);
+        region.walk([&](Operation *op) {
+          if (!insertKnownConstant(op))
+            addToWorklist(op);
         });
       }
     } else {
       // Add all nested operations to the worklist in preorder.
-      for (auto &region : regions)
-        region.walk<WalkOrder::PreOrder>(
-            [this](Operation *op) { worklist.push_back(op); });
+      for (auto &region : regions) {
+        region.walk<WalkOrder::PreOrder>([&](Operation *op) {
+          if (!insertKnownConstant(op)) {
+            worklist.push_back(op);
+            return WalkResult::advance();
+          }
+          return WalkResult::skip();
+        });
+      }
 
       // Reverse the list so our pop-back loop processes them in-order.
       std::reverse(worklist.begin(), worklist.end());
@@ -529,10 +539,25 @@ private:
     }
   }
 
+  void notifyOperationInserted(Operation *op) override {
+    GreedyPatternRewriteDriver::notifyOperationInserted(op);
+    if (strictMode)
+      strictModeFilteredOps.insert(op);
+  }
+
   void notifyOperationRemoved(Operation *op) override {
     GreedyPatternRewriteDriver::notifyOperationRemoved(op);
     if (strictMode)
       strictModeFilteredOps.erase(op);
+  }
+
+  void notifyRootReplaced(Operation *op) override {
+    for (auto result : op->getResults()) {
+      for (auto *user : result.getUsers()) {
+        if (!strictMode || strictModeFilteredOps.contains(user))
+          addToWorklist(user);
+      }
+    }
   }
 
   /// If `strictMode` is true, any pre-existing ops outside of
@@ -587,6 +612,9 @@ bool MultiOpPatternRewriteDriver::simplifyLocally(ArrayRef<Operation *> ops) {
     // them.
     if (op == nullptr)
       continue;
+
+    assert((!strictMode || strictModeFilteredOps.contains(op)) &&
+           "unexpected op was inserted under strict mode");
 
     // If the operation is trivially dead - remove it.
     if (isOpTriviallyDead(op)) {
