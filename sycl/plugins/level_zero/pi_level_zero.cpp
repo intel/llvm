@@ -1793,8 +1793,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           // Poll of the host-visible events.
           auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
           if (FilterEventWaitList && HostVisibleEvent) {
-          ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
-          if (ZeErrorCode == ZE_RESULT_SUCCESS) {
+            ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
+            if (ZeErrorCode == ZE_RESULT_SUCCESS) {
               // Event has already completed, don't put it into the list
               continue;
             }
