@@ -592,6 +592,8 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
 }
 
 pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
+  std::shared_lock EventLock(Event->Mutex, std::defer_lock);
+  std::scoped_lock LockAll(ZeEventPoolCacheMutex, EventLock);
   if (!Event->ZeEventPool) {
     // This must be an interop event created on a users's pool.
     // Do nothing.
@@ -602,7 +604,6 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
       getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
 
   // Put the empty pool to the cache of the pools.
-  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
     die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
@@ -1235,7 +1236,10 @@ pi_result resetCommandLists(pi_queue Queue) {
   for (auto Event : EventListToCleanup) {
     // We don't need to synchronize the events since the fence
     // synchronized above already does that.
-    Event->Completed = true;
+    {
+      std::scoped_lock EventLock(Event->Mutex);
+      Event->Completed = true;
+    }
     PI_CALL(CleanupCompletedEvent(Event));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
@@ -1532,6 +1536,7 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
       // Update each command's event in the command-list to "see" this
       // proxy event as a host-visible counterpart.
       for (auto &Event : CommandList->second.EventList) {
+        std::scoped_lock EventLock(Event->Mutex);
         if (!Event->HostVisibleEvent) {
           Event->HostVisibleEvent = HostVisibleEvent;
           PI_CALL(piEventRetain(HostVisibleEvent));
@@ -1780,16 +1785,19 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
     if (EventListLength > 0) {
       for (pi_uint32 I = 0; I < EventListLength; I++) {
         PI_ASSERT(EventList[I] != nullptr, PI_INVALID_VALUE);
-        if (EventList[I]->Completed)
-          continue;
+        {
+          std::shared_lock Lock(EventList[I]->Mutex);
+          if (EventList[I]->Completed)
+            continue;
 
-        // Poll of the host-visible events.
-        auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
-        if (FilterEventWaitList && HostVisibleEvent) {
+          // Poll of the host-visible events.
+          auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+          if (FilterEventWaitList && HostVisibleEvent) {
           ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
           if (ZeErrorCode == ZE_RESULT_SUCCESS) {
-            // Event has already completed, don't put it into the list
-            continue;
+              // Event has already completed, don't put it into the list
+              continue;
+            }
           }
         }
 
@@ -1844,6 +1852,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           }
         }
 
+        std::shared_lock Lock(EventList[I]->Mutex);
         this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
         this->PiEventList[TmpListLength] = EventList[I];
         TmpListLength += 1;
@@ -1866,6 +1875,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
                 OpenCommandList->second.isCopy(CurQueue)))
           return Res;
       }
+      std::shared_lock Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[TmpListLength] = CurQueue->LastCommandEvent->ZeEvent;
       this->PiEventList[TmpListLength] = CurQueue->LastCommandEvent;
       TmpListLength += 1;
@@ -3458,7 +3468,10 @@ pi_result piQueueRelease(pi_queue Queue) {
   for (auto Event : EventListToCleanup) {
     // We don't need to synchronize the events since the queue
     // synchronized above already does that.
-    Event->Completed = true;
+    {
+      std::scoped_lock EventLock(Event->Mutex);
+      Event->Completed = true;
+    }
     PI_CALL(CleanupCompletedEvent(Event));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
@@ -5274,6 +5287,9 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
 //
 pi_result
 _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
+  PI_ASSERT(Queue, PI_INVALID_EVENT);
+
+  std::scoped_lock Lock(Queue->Mutex, this->Mutex);
 
   if (!HostVisibleEvent) {
     if (EventsScope != OnDemandHostVisibleProxy)
@@ -5284,32 +5300,28 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
     // proxy is created.
     //
     // Get a new command list to be used on this call
-    {
-      std::scoped_lock Lock(Queue->Mutex);
 
-      // We want to batch these commands to avoid extra submissions (costly)
-      bool OkToBatch = true;
+    // We want to batch these commands to avoid extra submissions (costly)
+    bool OkToBatch = true;
 
-      pi_command_list_ptr_t CommandList{};
-      if (auto Res = Queue->Context->getAvailableCommandList(
-              Queue, CommandList, false /* UseCopyEngine */, OkToBatch))
-        return Res;
+    pi_command_list_ptr_t CommandList{};
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CommandList, false /* UseCopyEngine */, OkToBatch))
+      return Res;
 
-      // Create a "proxy" host-visible event.
-      auto Res = createEventAndAssociateQueue(
-          Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
-      // HostVisibleEvent->CleanedUp = true;
-      if (Res != PI_SUCCESS)
-        return Res;
+    // Create a "proxy" host-visible event.
+    auto Res = createEventAndAssociateQueue(
+        Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList, true);
+    // HostVisibleEvent->CleanedUp = true;
+    if (Res != PI_SUCCESS)
+      return Res;
 
-      ZE_CALL(zeCommandListAppendWaitOnEvents,
-              (CommandList->first, 1, &ZeEvent));
-      ZE_CALL(zeCommandListAppendSignalEvent,
-              (CommandList->first, HostVisibleEvent->ZeEvent));
+    ZE_CALL(zeCommandListAppendWaitOnEvents, (CommandList->first, 1, &ZeEvent));
+    ZE_CALL(zeCommandListAppendSignalEvent,
+            (CommandList->first, HostVisibleEvent->ZeEvent));
 
-      if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
-        return Res;
-    }
+    if (auto Res = Queue->executeCommandList(CommandList, false, OkToBatch))
+      return Res;
   }
 
   ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
@@ -5384,12 +5396,18 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
   switch (ParamName) {
-  case PI_EVENT_INFO_COMMAND_QUEUE:
+  case PI_EVENT_INFO_COMMAND_QUEUE: {
+    std::shared_lock EventLock(Event->Mutex);
     return ReturnValue(pi_queue{Event->Queue});
-  case PI_EVENT_INFO_CONTEXT:
+  }
+  case PI_EVENT_INFO_CONTEXT: {
+    std::shared_lock EventLock(Event->Mutex);
     return ReturnValue(pi_context{Event->Context});
-  case PI_EVENT_INFO_COMMAND_TYPE:
+  }
+  case PI_EVENT_INFO_COMMAND_TYPE: {
+    std::shared_lock EventLock(Event->Mutex);
     return ReturnValue(pi_cast<pi_uint64>(Event->CommandType));
+  }
   case PI_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
     // Check to see if the event's Queue has an open command list due to
     // batching. If so, go ahead and close and submit it, because it is
@@ -5408,14 +5426,15 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
       }
     }
 
-    // TODO: We don't know if the status is queued, submitted or running.
-    //       For now return "running", as others are unlikely to be of
-    //       interest.
+    // Level Zero has a much more explicit notion of command submission than
+    // OpenCL. It doesn't happen unless the user submits a command list. We've
+    // done it just above so the status is at least CL_RUNNING.
     pi_int32 Result = CL_RUNNING;
 
     // Make sure that we query a host-visible event only.
     // If one wasn't yet created then don't create it here as well, and
     // just conservatively return that event is not yet completed.
+    std::shared_lock EventLock(Event->Mutex);
     auto HostVisibleEvent = Event->HostVisibleEvent;
     if (Event->Completed) {
       Result = CL_COMPLETE;
@@ -5444,6 +5463,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 
   PI_ASSERT(Event, PI_INVALID_EVENT);
 
+  std::shared_lock EventLock(Event->Mutex);
   if (Event->Queue &&
       (Event->Queue->Properties & PI_QUEUE_PROFILING_ENABLE) == 0) {
     return PI_PROFILING_INFO_NOT_AVAILABLE;
@@ -5634,18 +5654,20 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   }
   std::unordered_set<pi_queue> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
-    if (!EventList[I]->Completed) {
-      auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
-      if (!HostVisibleEvent)
-        die("The host-visible proxy event missing");
+    {
+      std::shared_lock EventLock(EventList[I]->Mutex);
+      if (!EventList[I]->Completed) {
+        auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
+        if (!HostVisibleEvent)
+          die("The host-visible proxy event missing");
 
-      ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
-      zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
-      ZE_CALL(zeHostSynchronize, (ZeEvent));
+        ze_event_handle_t ZeEvent = HostVisibleEvent->ZeEvent;
+        zePrint("ZeEvent = %#lx\n", pi_cast<std::uintptr_t>(ZeEvent));
+        ZE_CALL(zeHostSynchronize, (ZeEvent));
+      }
+      if (auto Q = EventList[I]->Queue)
+        Queues.insert(Q);
     }
-    if (auto Q = EventList[I]->Queue)
-      Queues.insert(Q);
-
     // NOTE: we are cleaning up after the event here to free resources
     // sooner in case run-time is not calling piEventRelease soon enough.
     CleanupCompletedEvent(EventList[I]);
@@ -5729,9 +5751,11 @@ pi_result piextEventGetNativeHandle(pi_event Event,
   PI_ASSERT(Event, PI_INVALID_EVENT);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
-  auto *ZeEvent = pi_cast<ze_event_handle_t *>(NativeHandle);
-  *ZeEvent = Event->ZeEvent;
-
+  {
+    std::shared_lock Lock(Event->Mutex);
+    auto *ZeEvent = pi_cast<ze_event_handle_t *>(NativeHandle);
+    *ZeEvent = Event->ZeEvent;
+  }
   // Event can potentially be in an open command-list, make sure that
   // it is submitted for execution to avoid potential deadlock if
   // interop app is going to wait for it.

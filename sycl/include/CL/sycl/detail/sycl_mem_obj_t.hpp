@@ -35,10 +35,6 @@ class plugin;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
-template <typename T>
-class aligned_allocator;
-using sycl_memory_object_allocator = aligned_allocator<char>;
-
 // The class serves as a base for all SYCL memory objects.
 class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
 
@@ -53,14 +49,6 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   template <typename T>
   using EnableIfOutputIteratorT = enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
-
-  template <typename T>
-  using EnableIfDefaultAllocator =
-      enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
-
-  template <typename T>
-  using EnableIfNonDefaultAllocator =
-      enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,

@@ -176,6 +176,16 @@ and not recommended to use in production environment.
     * auto - the compiler will use a heuristic to select the best way of
       splitting device code. This is default mode.
 
+**`-f[no-]sycl-device-code-split-esimd`** [EXPERIMENTAL]
+
+     Controls SYCL/ESIMD device code splitting. When enabled (this is the
+     default), SYCL and ESIMD entry points along with their call graphs are
+     put into separate device binary images. Otherwise, SYCL and ESIMD parts
+     of the device code are kept in the same device binary image and get
+     compiled by the Intel GPU compiler back end as a single module. This
+     option has effect only for SPIR-based targets and apps containing ESIMD
+     kernels.
+
 **`-fsycl-max-parallel-link-jobs=<N>`**
 
     Experimental feature. When specified, it informs the compiler
@@ -198,6 +208,13 @@ and not recommended to use in production environment.
     be linked with user's device image by SYCL runtime during execution time,
     otherwise the link will happen in build time, online link is disabled by
     default currently. This option is ignored in AOT compilation.
+
+**`-f[no-]sycl-instrument-device-code`** [EXPERIMENTAL]
+
+    Enables/disables linking of the Instrumentation and Tracing Technology (ITT)
+    device libraries for VTune(R). This provides annotations to intercept
+    various events inside JIT generated kernels. These device libraries are
+    linked in by default.
 
 ## Intel FPGA specific options
 
