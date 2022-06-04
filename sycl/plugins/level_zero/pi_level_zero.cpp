@@ -122,6 +122,83 @@ static const bool IndirectAccessTrackingEnabled = [] {
          nullptr;
 }();
 
+static std::unordered_map<ze_result_t, const char *> ZeErrorMessage = {
+    {ZE_RESULT_SUCCESS, "ZE_RESULT_SUCCESS: success"},
+    {ZE_RESULT_NOT_READY,
+     "ZE_RESULT_NOT_READY: synchronization primitive not signaled"},
+    {ZE_RESULT_ERROR_DEVICE_LOST,
+     "ZE_RESULT_ERROR_DEVICE_LOST: device hung, reset, was removed, or driver "
+     "update occurred"},
+    {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY,
+     "insufficient host memory to satisfy call"},
+    {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
+     "insufficient device memory to satisfy call"},
+    {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE,
+     "error occurred when building module, see build log for details"},
+    {ZE_RESULT_ERROR_MODULE_LINK_FAILURE,
+     "error occurred when linking modules, see build log for details"},
+    {ZE_RESULT_ERROR_DEVICE_REQUIRES_RESET, "device requires a reset"},
+    {ZE_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE,
+     "device currently in low power state"},
+    {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS,
+     "access denied due to permission level"},
+    {ZE_RESULT_ERROR_NOT_AVAILABLE,
+     "resource already in use and simultaneous access not allowed or resource "
+     "was removed"},
+    {ZE_RESULT_ERROR_DEPENDENCY_UNAVAILABLE,
+     "external required dependency is unavailable or missing"},
+    {ZE_RESULT_ERROR_UNINITIALIZED, "driver is not initialized"},
+    {ZE_RESULT_ERROR_UNSUPPORTED_VERSION,
+     "generic error code for unsupported versions"},
+    {ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
+     "generic error code for unsupported features"},
+    {ZE_RESULT_ERROR_INVALID_ARGUMENT,
+     "generic error code for invalid arguments"},
+    {ZE_RESULT_ERROR_INVALID_NULL_HANDLE, "handle argument is not valid"},
+    {ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE,
+     "object pointed to by handle still in-use by device"},
+    {ZE_RESULT_ERROR_INVALID_NULL_POINTER,
+     "pointer argument may not be nullptr"},
+    {ZE_RESULT_ERROR_INVALID_SIZE,
+     "size argument is invalid (e.g., must not be zero)"},
+    {ZE_RESULT_ERROR_UNSUPPORTED_SIZE,
+     "size argument is not supported by the device (e.g., too large)"},
+    {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT,
+     "alignment argument is not supported by the device (e.g. too small"},
+    {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT,
+     "synchronization object in invalid state"},
+    {ZE_RESULT_ERROR_INVALID_ENUMERATION, "enumerator argument is not valid"},
+    {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION,
+     "enumerator argument is not supported by the device"},
+    {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT,
+     "image format is not supported by the device"},
+    {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY,
+     "native binary is not supported by the device"},
+    {ZE_RESULT_ERROR_INVALID_GLOBAL_NAME,
+     "global variable is not found in the module"},
+    {ZE_RESULT_ERROR_INVALID_KERNEL_NAME,
+     "kernel name is not found in the module"},
+    {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME,
+     "function name is not found in the module"},
+    {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
+     "group size dimension is not valid for the kernel or device"},
+    {ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION,
+     "global width dimension is not valid for the kernel or device"},
+    {ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+     "kernel argument index is not valid for kernel"},
+    {ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
+     "kernel argument size does not match kernel"},
+    {ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE,
+     "value of kernel attribute is not valid for the kernel or device"},
+    {ZE_RESULT_ERROR_INVALID_MODULE_UNLINKED,
+     "module with imports needs to be linked before kernels can be created "
+     "from it."},
+    {ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE,
+     "command list type does not match command queue type"},
+    {ZE_RESULT_ERROR_OVERLAPPING_REGIONS,
+     "copy operations do not support overlapping regions of memory"},
+    {ZE_RESULT_ERROR_UNKNOWN, "unknown or internal error"}};
+
 // Map Level Zero runtime error code to PI error code.
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
@@ -161,16 +238,40 @@ static pi_result mapError(ze_result_t ZeResult) {
 // This will count the calls to Level-Zero
 static std::map<const char *, int> *ZeCallCount = nullptr;
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local ze_result_t ZeErrorCode = ZE_RESULT_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code,
+                                             ze_result_t ze_error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+  ZeErrorCode = ze_error_code;
+}
+
 // Trace a call to Level-Zero RT
 #define ZE_CALL(ZeName, ZeArgs)                                                \
   {                                                                            \
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
-    if (auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true))       \
-      return mapError(Result);                                                 \
+    auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true);           \
+    auto PiResult = mapError(Result);                                          \
+    setErrorMessage(ZeErrorMessage[ZeResult], PiResult, Result);               \
+    if (PiResult)                                                              \
+      return PiResult;                                                         \
   }
 
 #define ZE_CALL_NOCHECK(ZeName, ZeArgs)                                        \
-  ZeCall().doCall(ZeName ZeArgs, #ZeName, #ZeArgs, false)
+  {                                                                            \
+    ze_result_t ZeResult = ZeName ZeArgs;                                      \
+    auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, false);          \
+    auto PiResult = mapError(Result);                                          \
+    setErrorMessage(ZeErrorMessage[ZeResult], PiResult, Result);               \
+  }
 
 // Trace an internal PI call; returns in case of an error.
 #define PI_CALL(Call)                                                          \
@@ -583,19 +684,6 @@ inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   default:
     assert(false && "Unexpected Error code");
   } // switch
-}
-
-// Global variables for PI_PLUGIN_SPECIFIC_ERROR
-constexpr size_t MaxMessageSize = 256;
-thread_local pi_result ErrorMessageCode = PI_SUCCESS;
-thread_local char ErrorMessage[MaxMessageSize];
-
-// Utility function for setting a message and warning
-[[maybe_unused]] static void setErrorMessage(const char *message,
-                                             pi_result error_code) {
-  assert(strlen(message) <= MaxMessageSize);
-  strcpy(ErrorMessage, message);
-  ErrorMessageCode = error_code;
 }
 
 // Returns plugin specific error and warning messages
@@ -1137,9 +1225,8 @@ pi_result resetCommandLists(pi_queue Queue) {
       // It is possible that the fence was already noted as signalled and
       // reset. In that case the InUse flag will be false.
       if (it->second.InUse) {
-        ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
+        ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+        if (ZeErrorCode == ZE_RESULT_SUCCESS) {
           PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
         }
       }
@@ -1478,16 +1565,16 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     ZE_CALL(zeCommandListClose, (CommandList->first));
     // Offload command list to the GPU for asynchronous execution
     auto ZeCommandList = CommandList->first;
-    auto ZeResult = ZE_CALL_NOCHECK(
+    ZE_CALL_NOCHECK(
         zeCommandQueueExecuteCommandLists,
         (ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence));
-    if (ZeResult != ZE_RESULT_SUCCESS) {
+    if (ZeErrorCode != ZE_RESULT_SUCCESS) {
       this->Healthy = false;
-      if (ZeResult == ZE_RESULT_ERROR_UNKNOWN) {
+      if (ZeErrorCode == ZE_RESULT_ERROR_UNKNOWN) {
         // Turn into a more informative end-user error.
         return PI_COMMAND_EXECUTION_FAILURE;
       }
-      return mapError(ZeResult);
+      return ErrorMessageCode;
     }
   }
 
@@ -1570,10 +1657,10 @@ _pi_queue::pi_queue_group_t::getZeQueue(uint32_t *QueueGroupOrdinal) {
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index, LowerIndex,
           UpperIndex);
 
-  auto ZeResult = ZE_CALL_NOCHECK(
-      zeCommandQueueCreate, (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-                             &ZeCommandQueueDesc, &ZeQueue));
-  if (ZeResult) {
+  ZE_CALL_NOCHECK(zeCommandQueueCreate,
+                  (Queue->Context->ZeContext, Queue->Device->ZeDevice,
+                   &ZeCommandQueueDesc, &ZeQueue));
+  if (ZeErrorCode) {
     die("[L0] getZeQueue: failed to create queue");
   }
 
@@ -1699,9 +1786,8 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
         // Poll of the host-visible events.
         auto HostVisibleEvent = EventList[I]->HostVisibleEvent;
         if (FilterEventWaitList && HostVisibleEvent) {
-          auto Res =
-              ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
-          if (Res == ZE_RESULT_SUCCESS) {
+          ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
+          if (ZeErrorCode == ZE_RESULT_SUCCESS) {
             // Event has already completed, don't put it into the list
             continue;
           }
@@ -1897,10 +1983,11 @@ public:
 
     // Check if USM hostptr import feature is available.
     ze_driver_handle_t driverHandle = Platform->ZeDriver;
-    if (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                        (driverHandle, "zexDriverImportExternalPointer",
-                         reinterpret_cast<void **>(
-                             &zexDriverImportExternalPointer))) == 0) {
+    ZE_CALL_NOCHECK(
+        zeDriverGetExtensionFunctionAddress,
+        (driverHandle, "zexDriverImportExternalPointer",
+         reinterpret_cast<void **>(&zexDriverImportExternalPointer)));
+    if (ZeErrorCode == 0) {
       ZE_CALL_NOCHECK(
           zeDriverGetExtensionFunctionAddress,
           (driverHandle, "zexDriverReleaseImportedPointer",
@@ -2024,18 +2111,18 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   // We must only initialize the driver once, even if piPlatformsGet() is called
   // multiple times.  Declaring the return value as "static" ensures it's only
   // called once.
-  static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
+  ZE_CALL_NOCHECK(zeInit, (0));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
-  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
+  if (ZeErrorCode == ZE_RESULT_ERROR_UNINITIALIZED) {
     PI_ASSERT(NumPlatforms != 0, PI_INVALID_VALUE);
     *NumPlatforms = 0;
     return PI_SUCCESS;
   }
 
-  if (ZeResult != ZE_RESULT_SUCCESS) {
+  if (ZeErrorCode != ZE_RESULT_SUCCESS) {
     zePrint("zeInit: Level Zero initialization failure\n");
-    return mapError(ZeResult);
+    return ErrorMessageCode;
   }
 
   // Cache pi_platforms for reuse in the future
@@ -2087,10 +2174,11 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   zePrint("Using events scope: %s\n",
-          EventsScope == AllHostVisible ? "all host-visible"
-          : EventsScope == OnDemandHostVisibleProxy
-              ? "on demand host-visible proxy"
-              : "only last command in a batch is host-visible");
+          EventsScope == AllHostVisible
+              ? "all host-visible"
+              : EventsScope == OnDemandHostVisibleProxy
+                    ? "on demand host-visible proxy"
+                    : "only last command in a batch is host-visible");
   return PI_SUCCESS;
 }
 
@@ -4353,16 +4441,15 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     ze_context_handle_t ZeContext = Context->ZeContext;
     ze_module_handle_t ZeModule = nullptr;
     ze_module_build_log_handle_t ZeBuildLog = nullptr;
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                         &ZeModule, &ZeBuildLog));
+    ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                     &ZeModule, &ZeBuildLog));
 
     // We still create a _pi_program object even if there is a BUILD_FAILURE
     // because we need the object to hold the ZeBuildLog.  There is no build
     // log created for other errors, so we don't create an object.
-    PiResult = mapError(ZeResult);
-    if (ZeResult != ZE_RESULT_SUCCESS &&
-        ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
+    PiResult = ErrorMessageCode;
+    if (ZeErrorCode != ZE_RESULT_SUCCESS &&
+        ZeErrorCode != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
       return PiResult;
     }
 
@@ -4373,8 +4460,8 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
     // check now for unresolved symbols.  Note that we still create a
     // _pi_program if there are unresolved symbols because the ZeBuildLog tells
     // which symbols are unresolved.
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
+    if (ZeErrorCode == ZE_RESULT_SUCCESS) {
+      ze_result_t ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
       if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
         PiResult = PI_LINK_PROGRAM_FAILURE;
       } else if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -4487,22 +4574,22 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
 
   pi_result Result = PI_SUCCESS;
   Program->State = _pi_program::Exe;
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                       &ZeModule, &Program->ZeBuildLog));
-  if (ZeResult != ZE_RESULT_SUCCESS) {
+  ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                   &ZeModule, &Program->ZeBuildLog));
+  if (ZeErrorCode != ZE_RESULT_SUCCESS) {
     // We adjust pi_program below to avoid attempting to release zeModule when
     // RT calls piProgramRelease().
     ZeModule = nullptr;
     Program->State = _pi_program::Invalid;
-    Result = mapError(ZeResult);
+    Result = ErrorMessageCode;
   } else {
     // The call to zeModuleCreate does not report an error if there are
     // unresolved symbols because it thinks these could be resolved later via a
     // call to zeModuleDynamicLink.  However, modules created with
     // piProgramBuild are supposed to be fully linked and ready to use.
     // Therefore, do an extra check now for unresolved symbols.
-    ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+    ze_result_t ZeResult =
+        checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
     if (ZeResult != ZE_RESULT_SUCCESS) {
       Program->State = _pi_program::Invalid;
       Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
@@ -4665,16 +4752,16 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
   // do this check first because we assume it's faster than the call to
   // zeModuleDynamicLink below.
   ZeStruct<ze_module_properties_t> ZeModuleProps;
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps));
-  if (ZeResult != ZE_RESULT_SUCCESS)
-    return ZeResult;
+  ZE_CALL_NOCHECK(zeModuleGetProperties, (ZeModule, &ZeModuleProps));
+  if (ZeErrorCode != ZE_RESULT_SUCCESS)
+    return ZeErrorCode;
 
   // If there are imported symbols, attempt to "link" the module with itself.
   // As a side effect, this will return the error
   // ZE_RESULT_ERROR_MODULE_LINK_FAILURE if there are any unresolved symbols.
   if (ZeModuleProps.flags & ZE_MODULE_PROPERTY_FLAG_IMPORTS) {
-    return ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog));
+    ZE_CALL_NOCHECK(zeModuleDynamicLink, (1, &ZeModule, ZeBuildLog));
+    return ZeErrorCode;
   }
   return ZE_RESULT_SUCCESS;
 }
@@ -5333,10 +5420,8 @@ pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     if (Event->Completed) {
       Result = CL_COMPLETE;
     } else if (HostVisibleEvent) {
-      ze_result_t ZeResult;
-      ZeResult =
-          ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
-      if (ZeResult == ZE_RESULT_SUCCESS) {
+      ZE_CALL_NOCHECK(zeEventQueryStatus, (HostVisibleEvent->ZeEvent));
+      if (ZeErrorCode == ZE_RESULT_SUCCESS) {
         Result = CL_COMPLETE;
       }
     }
@@ -7143,10 +7228,9 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
     return PI_INVALID_PROGRAM_EXECUTABLE;
   }
 
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleGetFunctionPointer,
-                      (Program->ZeModule, FunctionName,
-                       reinterpret_cast<void **>(FunctionPointerRet)));
+  ZE_CALL_NOCHECK(zeModuleGetFunctionPointer,
+                  (Program->ZeModule, FunctionName,
+                   reinterpret_cast<void **>(FunctionPointerRet)));
 
   // zeModuleGetFunctionPointer currently fails for all
   // kernels regardless of if the kernel exist or not
@@ -7157,7 +7241,7 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
   // PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE if the function exists
   // or PI_INVALID_KERNEL_NAME if the function does not exist.
   // FunctionPointerRet should always be 0
-  if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+  if (ZeErrorCode == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
     size_t Size;
     *FunctionPointerRet = 0;
     PI_CALL(piProgramGetInfo(Program, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr,
@@ -7177,12 +7261,12 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
     return PI_INVALID_KERNEL_NAME;
   }
 
-  if (ZeResult == ZE_RESULT_ERROR_INVALID_FUNCTION_NAME) {
+  if (ZeErrorCode == ZE_RESULT_ERROR_INVALID_FUNCTION_NAME) {
     *FunctionPointerRet = 0;
     return PI_INVALID_KERNEL_NAME;
   }
 
-  return mapError(ZeResult);
+  return ErrorMessageCode;
 }
 
 static bool ShouldUseUSMAllocator() {
