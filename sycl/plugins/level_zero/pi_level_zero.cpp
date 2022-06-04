@@ -2184,11 +2184,10 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   }
 
   zePrint("Using events scope: %s\n",
-          EventsScope == AllHostVisible
-              ? "all host-visible"
-              : EventsScope == OnDemandHostVisibleProxy
-                    ? "on demand host-visible proxy"
-                    : "only last command in a batch is host-visible");
+          EventsScope == AllHostVisible ? "all host-visible"
+          : EventsScope == OnDemandHostVisibleProxy
+              ? "on demand host-visible proxy"
+              : "only last command in a batch is host-visible");
   return PI_SUCCESS;
 }
 
