@@ -125,8 +125,7 @@ add_fallback_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp D
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(bc_binary_dir ${obj_binary_dir}/libdevice)
 
-set(fallback-imf-src imf_utils/saturatef.cpp
-                     imf_utils/float_convert.cpp
+set(fallback-imf-src imf_utils/float_convert.cpp
                      imf_utils/half_convert.cpp
                      imf_utils/integer_misc.cpp
                      imf/imf_inline_fp32.cpp)

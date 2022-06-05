@@ -86,6 +86,9 @@ __devicelib_imf_copysignf16(_iml_half_internal a, _iml_half_internal b) {
   return __copysign(ha, hb).get_internal();
 }
 
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_saturatef(float x) { return __fclamp(x, .0f, 1.f); }
+
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_fmaf(float a, float b, float c) {
   return __fma(a, b, c);
 }
