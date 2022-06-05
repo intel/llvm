@@ -246,8 +246,8 @@ void validate(uint32_t *result, uint32_t *expect, size_t n) {
 }
 
 int main(int argc, char *argv[]) {
-  size_t M = 65536;
-  size_t N = 512 / 4;
+  size_t M = 16;
+  size_t N = 4;
   size_t AL = M * N * sizeof(uint32_t);
 
   sycl::queue q(sycl::default_selector{});
