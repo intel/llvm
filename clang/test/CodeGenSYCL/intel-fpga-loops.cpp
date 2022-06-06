@@ -161,19 +161,19 @@ void fpga_pipeline() {
   // CHECK: ![[MD_FP]] = distinct !{![[MD_FP]], ![[MP]], ![[MD_fpga_pipeline:[0-9]+]]}
   // CHECK-NEXT: ![[MD_fpga_pipeline]] = !{!"llvm.loop.intel.pipelining.enable", i32 1}
   [[intel::fpga_pipeline(A)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // CHECK: ![[MD_FP_1]] = distinct !{![[MD_FP_1]], ![[MP]], ![[MD_fpga_pipeline]]}
   [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // CHECK: ![[MD_FP_2]] = distinct !{![[MD_FP_2]], ![[MP]], ![[MD_fpga_pipeline]]}
   [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // CHECK: ![[MD_FP_3]] = distinct !{![[MD_FP_3]], ![[MP]], ![[MD_dlp]]}
   [[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 }
 
 template <typename name, typename Func>
