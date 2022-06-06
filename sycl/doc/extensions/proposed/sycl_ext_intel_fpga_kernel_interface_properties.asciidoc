@@ -54,7 +54,7 @@ rely on APIs defined in this specification.*
 == Overview
 
 This extension introduces kernel properties to specify how or when control and
-data signals can be passed in to or out of an FPGA kernel. These properties are
+data signals can be passed into or out of an FPGA kernel. These properties are
 meaningless on non-FPGA devices and can be ignored on such devices.
 
 == Specification
