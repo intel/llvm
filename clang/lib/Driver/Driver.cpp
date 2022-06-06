@@ -1244,7 +1244,7 @@ bool Driver::loadConfigFile() {
         if (llvm::sys::fs::make_absolute(CfgDir).value() != 0)
           SystemConfigDir.clear();
         else
-          SystemConfigDir = std::string(CfgDir.begin(), CfgDir.end());
+          SystemConfigDir = static_cast<std::string>(CfgDir);
       }
     }
     if (CLOptions->hasArg(options::OPT_config_user_dir_EQ)) {
@@ -1255,7 +1255,7 @@ bool Driver::loadConfigFile() {
         if (llvm::sys::fs::make_absolute(CfgDir).value() != 0)
           UserConfigDir.clear();
         else
-          UserConfigDir = std::string(CfgDir.begin(), CfgDir.end());
+          UserConfigDir = static_cast<std::string>(CfgDir);
       }
     }
   }
