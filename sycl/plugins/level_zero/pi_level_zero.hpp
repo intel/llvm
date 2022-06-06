@@ -727,8 +727,8 @@ private:
   // If context contains one device then return this device.
   // If context contains sub-devices of the same device, then return this parent
   // device. Return nullptr if context consists of several devices which are not
-  // sub-devices of the same device. We call returned device the root device of a
-  // context.
+  // sub-devices of the same device. We call returned device the root device of
+  // a context.
   // TODO: get rid of this when contexts with multiple devices are supported for
   // images.
   pi_device getRootDevice() const;
