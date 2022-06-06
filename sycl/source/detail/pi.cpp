@@ -698,17 +698,14 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
 
 RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                             size_t ImgSize) {
+  // Top-level magic numbers for the recognized binary image formats.
   struct {
     RT::PiDeviceBinaryType Fmt;
     const uint32_t Magic;
   } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
               {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342},
-              {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}}; // INTC native
-
-  struct {
-    RT::PiDeviceBinaryType Fmt;
-    const uint16_t Magic;
-  } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04}}; // OpenCL executable
+              // 'I', 'N', 'T', 'C' ; Intel native
+              {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
     detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
@@ -720,11 +717,16 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
         return Fmt.Fmt;
     }
 
-    // ELF files we need to be parsed separately. The header type ends at 18
+    // ELF e_type for recognized binary image formats.
+    struct {
+      RT::PiDeviceBinaryType Fmt;
+      const uint16_t Magic;
+    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04}}; // OpenCL executable
+
+    // ELF files need to be parsed separately. The header type ends after 18
     // bytes.
     if (Hdr == 0x464c457F && ImgSize >= 18) {
-      detail::remove_const_t<decltype(ELFFmts[0].Magic)> HdrType =
-          getELFHeaderType(ImgData, ImgSize);
+      uint16_t HdrType = getELFHeaderType(ImgData, ImgSize);
       for (const auto &ELFFmt : ELFFmts) {
         if (HdrType == ELFFmt.Magic)
           return ELFFmt.Fmt;
