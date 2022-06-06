@@ -178,7 +178,7 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
  * `wait_for_done_write`: Directs the compiler to generate logic that
     back-pressures the kernel until the kernel is notified that its completion
     has been detected. The kernel will be notified when the register it writes
-    its completion signal to, is set to 1.
+    its completion signal to is set to 1.
 
  * `do_not_wait_for_done_write`: Directs the compiler to not generate logic that
     would back-pressure the kernel until the kernel is notified of its
@@ -201,11 +201,11 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
  can be in flight simultaneously. When the boolean parameter is set to `false`,
  the compiler will not pipeline kernel invocations.
 
- The second argument specifies how many cycles can exist between successive
+ The second argument specifies the minimum number of cycles between successive
  invocations of the kernel:
 
  * `true, initiation_interval<N>`: The compiler will pipeline multiple kernel
-   invocations such that an invocation is launched every N cycles.
+   invocations such that an invocation can be launched every N cycles if one is available.
  
  If the `initiation_interval` argument is not specified, the compiler will
  attempt to launch the kernel invocations as fast as it can.
