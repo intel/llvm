@@ -127,7 +127,7 @@ void boo() {
 
   // expected-error@+1 {{'fpga_pipeline' attribute takes no more than 1 argument}}
   [[intel::fpga_pipeline(1, 2)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -135,7 +135,7 @@ void goo() {
   int a[10];
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i) // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                                                    // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
-      a[i] = 0;
+    a[i] = 0;
   // no diagnostics are expected
   [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -224,17 +224,17 @@ void goo() {
       a[i] = 0;
 
   // no diagnostics are expected
-   [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   // no diagnostics are expected
   [[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
   // no diagnostics are expected
   [[intel::fpga_pipeline(-1)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
   [[intel::fpga_pipeline("abc")]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -277,7 +277,7 @@ void zoo() {
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'disable_loop_pipelining'}}
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i) // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                                                    // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
-      a[i] = 0;
+    a[i] = 0;
   [[intel::loop_coalesce(2)]]
   // expected-error@+2 {{duplicate Intel FPGA loop attribute 'loop_coalesce'}}
   [[intel::max_interleaving(1)]]
@@ -359,7 +359,7 @@ void zoo() {
   [[intel::fpga_pipeline(1)]]
   // expected-error@+1{{duplicate Intel FPGA loop attribute 'fpga_pipeline'}}
   [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+    a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes compatibility
@@ -368,69 +368,61 @@ void loop_attrs_compatibility() {
   [[intel::disable_loop_pipelining]] // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
   [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
   // expected-error@+4 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]] // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
   [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
   // expected-error@+3 {{'disable_loop_pipelining' and 'speculated_iterations' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::speculated_iterations(0)]]
-  [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i) // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
-                                                                   // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
-      a[i] = 0;
+  [[intel::speculated_iterations(0)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i) // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
+                                                                                                       // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
+    a[i] = 0;
   // expected-error@+4 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]] // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
   [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
   // expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::initiation_interval(10)]]
-  [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i) // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
-                                                                   // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
-      a[i] = 0;
+  [[intel::initiation_interval(10)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i) // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
+                                                                                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
+    a[i] = 0;
   // expected-error@+4 {{'ivdep' and 'disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::disable_loop_pipelining]] // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
   [[intel::ivdep]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   [[intel::disable_loop_pipelining]] // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
   [[intel::nofusion]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   [[intel::disable_loop_pipelining]] // expected-warning {{attribute 'intel::disable_loop_pipelining' is deprecated}} \
                                      // expected-note {{did you mean to use 'intel::fpga_pipeline' instead?}}
-  [[intel::loop_count_avg(8)]]
-  for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  [[intel::loop_count_min(8)]]
-  for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  [[intel::loop_count_max(8)]]
-  for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::loop_count_avg(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  [[intel::loop_count_min(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  [[intel::loop_count_max(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 
   // no diagnostics are expected
-  [[intel::fpga_pipeline]]
-  [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::fpga_pipeline]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 
   // no diagnostics are expected
-  [[intel::fpga_pipeline]]
-  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::fpga_pipeline]] [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   // no diagnostics are expected
-  [[intel::fpga_pipeline]]
-  [[intel::loop_count_avg(8)]]
+  [[intel::fpga_pipeline]] [[intel::loop_count_avg(8)]]
   for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+       a[i] = 0;
   [[intel::loop_count_min(8)]]
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -442,33 +434,28 @@ void loop_attrs_compatibility() {
 
   // expected-error@+3 {{'fpga_pipeline' and 'max_concurrency' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::max_concurrency(2)]]
-  [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+  [[intel::max_concurrency(2)]] [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 
   // expected-error@+3 {{'fpga_pipeline' and 'initiation_interval' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::initiation_interval(2)]]
-  [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+  [[intel::initiation_interval(2)]] [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 
   // expected-error@+3 {{'fpga_pipeline' and 'max_interleaving' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::max_interleaving(2)]]
-  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::max_interleaving(2)]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 
   // expected-error@+3 {{'fpga_pipeline' and 'speculated_iterations' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::speculated_iterations(0)]]
-  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::speculated_iterations(0)]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 
   // expected-error@+3 {{'fpga_pipeline' and 'ivdep' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::ivdep]]
-  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::ivdep]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 template<int A, int B, int C>
@@ -632,12 +619,11 @@ template <int A, int B, int C>
 void fpga_pipeline_dependent() {
   int a[10];
   [[intel::fpga_pipeline(C)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // expected-error@+2 {{duplicate Intel FPGA loop attribute 'fpga_pipeline'}}
-  [[intel::fpga_pipeline(A)]]
-  [[intel::fpga_pipeline(B)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::fpga_pipeline(A)]] [[intel::fpga_pipeline(B)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 void check_max_concurrency_expression() {
@@ -744,12 +730,12 @@ void check_loop_fpga_pipeline_expression() {
   // expected-error@+2{{expression is not an integral constant expression}}
   // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
   [[intel::fpga_pipeline(foo + 1)]] for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+    a[i] = 0;
 
   // Test that checks expression is a constant expression.
   constexpr int bar = 0;
   [[intel::fpga_pipeline(bar + 1)]] for (int i = 0; i != 10; ++i) // OK
-      a[i] = 0;
+    a[i] = 0;
 }
 
 // Test that checks wrong template instantiation and ensures that the type
@@ -797,7 +783,7 @@ void check_loop_attr_template_instantiation() {
   // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::fpga_pipeline(Ty{})]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 }
 
 int main() {
