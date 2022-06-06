@@ -201,12 +201,12 @@ and not recommended to use in production environment.
     libm-fp32, libm-fp64, libc, all. Use of 'all' will enable/disable all of
     the device libraries.
 
-**`-f[no-]sycl-device-lib-online-link`** [EXPERIMENTAL]
+**`-f[no-]sycl-device-lib-jit-link`** [EXPERIMENTAL]
 
-    Enables/disables online link mechanism for SYCL device library in JIT
-    compilation. If online link is enabled, all required device libraries will
+    Enables/disables jit link mechanism for SYCL device library in JIT
+    compilation. If jit link is enabled, all required device libraries will
     be linked with user's device image by SYCL runtime during execution time,
-    otherwise the link will happen in build time, online link is disabled by
+    otherwise the link will happen in build time, jit link is disabled by
     default currently. This option is ignored in AOT compilation.
 
 **`-f[no-]sycl-instrument-device-code`** [EXPERIMENTAL]
