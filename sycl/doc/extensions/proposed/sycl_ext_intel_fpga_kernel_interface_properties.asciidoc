@@ -98,7 +98,7 @@ enum class register_map_interface_options_enum {
 
 template <int N>
 struct initiation_interval {
-  int initiation_interval_value = N;
+  static constexpr int value = N;
 };
 
 struct streaming_interface_key {
