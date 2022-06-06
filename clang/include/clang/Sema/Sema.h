@@ -2277,6 +2277,13 @@ public:
   SYCLIntelFPGALoopCoalesceAttr *
   BuildSYCLIntelFPGALoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
 
+  SYCLIntelFpgaPipelineAttr *
+  BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &CI, Expr *E);
+
+  bool checkPipelineAttrArgument(Expr *E,
+                                 const SYCLIntelFpgaPipelineAttr *TmpAttr,
+                                 ExprResult &Result);
+
   bool CheckQualifiedFunctionForTypeId(QualType T, SourceLocation Loc);
 
   bool CheckFunctionReturnType(QualType T, SourceLocation Loc);

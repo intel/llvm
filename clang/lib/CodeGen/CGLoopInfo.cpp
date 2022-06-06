@@ -611,6 +611,14 @@ MDNode *LoopInfo::createMetadata(
                             llvm::Type::getInt32Ty(Ctx), VC.second))};
     LoopProperties.push_back(MDNode::get(Ctx, Vals));
   }
+
+  for (auto &FP : Attrs.SYCLIntelFPGANPipelines) {
+    Metadata *Vals[] = {MDString::get(Ctx, FP.first),
+                        ConstantAsMetadata::get(ConstantInt::get(
+                            llvm::Type::getInt32Ty(Ctx), FP.second))};
+    LoopProperties.push_back(MDNode::get(Ctx, Vals));
+  }
+
   LoopProperties.insert(LoopProperties.end(), AdditionalLoopProperties.begin(),
                         AdditionalLoopProperties.end());
   return createFullUnrollMetadata(Attrs, LoopProperties, HasUserTransforms);
@@ -654,6 +662,7 @@ void LoopAttributes::clear() {
   PipelineDisabled = false;
   PipelineInitiationInterval = 0;
   SYCLNofusionEnable = false;
+  SYCLIntelFPGANPipelines.clear();
   MustProgress = false;
 }
 
@@ -687,7 +696,8 @@ LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      Attrs.SYCLNofusionEnable == false && !EndLoc && !Attrs.MustProgress)
+      Attrs.SYCLNofusionEnable == false &&
+      Attrs.SYCLIntelFPGANPipelines.empty() && !EndLoc && !Attrs.MustProgress)
     return;
 
   TempLoopID = MDNode::getTemporary(Header->getContext(), None);
@@ -1011,6 +1021,8 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
   // emitted
   // For attribute nofusion:
   // 'llvm.loop.fusion.disable' metadata will be emitted
+  // For attribute fpga_pipeline:
+  // n - 'llvm.loop.intel.pipelining.enable, i32 n' metadata will be emitted
   for (const auto *A : Attrs) {
     if (const auto *IntelFPGAIVDep = dyn_cast<SYCLIntelFPGAIVDepAttr>(A))
       addSYCLIVDepInfo(Header->getContext(), IntelFPGAIVDep->getSafelenValue(),
@@ -1075,6 +1087,15 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (isa<SYCLIntelFPGANofusionAttr>(A))
       setSYCLNofusionEnable();
+
+    if (const auto *IntelFpgaPipeline =
+            dyn_cast<SYCLIntelFpgaPipelineAttr>(A)) {
+      const auto *CE = cast<ConstantExpr>(IntelFpgaPipeline->getValue());
+      Optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+      unsigned int Value = ArgVal->getBoolValue() ? 1 : 0;
+      const char *Var = "llvm.loop.intel.pipelining.enable";
+      setSYCLIntelFPGANPipelines(Var, Value);
+    }
   }
 
   setMustProgress(MustProgress);
