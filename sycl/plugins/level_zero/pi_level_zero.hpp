@@ -649,7 +649,7 @@ struct _pi_context : _pi_object {
   // Mutex for the immediate command list. Per the Level Zero spec memory copy
   // operations submitted to an immediate command list are not allowed to be
   // called from simultaneous threads.
-  std::mutex ImmediateCommandListMutex;
+  pi_shared_mutex ImmediateCommandListMutex;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
@@ -725,31 +725,7 @@ struct _pi_context : _pi_object {
 
 private:
   // Calculate root device.
-  pi_device getRootDevice() const {
-    if (Devices.size() == 1)
-      return Devices[0];
-
-    // Check if we have context with subdevices of the same device (context
-    // may include root device itself as well)
-    pi_device ContextRootDevice =
-        Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
-
-    // For context with sub subdevices, the ContextRootDevice might still
-    // not be the root device.
-    // Check whether the ContextRootDevice is the subdevice or root device.
-    if (ContextRootDevice->isSubDevice()) {
-      ContextRootDevice = ContextRootDevice->RootDevice;
-    }
-
-    for (auto &Device : Devices) {
-      if ((!Device->RootDevice && Device != ContextRootDevice) ||
-          (Device->RootDevice && Device->RootDevice != ContextRootDevice)) {
-        ContextRootDevice = nullptr;
-        break;
-      }
-    }
-    return ContextRootDevice;
-  }
+  pi_device getRootDevice() const;
 
   // Following member variables are used to manage assignment of events
   // to event pools.

@@ -789,6 +789,41 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   return PI_SUCCESS;
 }
 
+// If context contains one device then return this device.
+// If context contains sub-devices of the same device, then return this parent
+// device. Return nullptr if context consists of several devices which are not
+// sub-devices of the same device. We call returned device the root device of a
+// context.
+// TODO: get rid of this when contexts with multiple devices are supported for
+// images.
+pi_device _pi_context::getRootDevice() const {
+  assert(Devices.size() > 0);
+
+  if (Devices.size() == 1)
+    return Devices[0];
+
+  // Check if we have context with subdevices of the same device (context
+  // may include root device itself as well)
+  pi_device ContextRootDevice =
+      Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
+
+  // For context with sub subdevices, the ContextRootDevice might still
+  // not be the root device.
+  // Check whether the ContextRootDevice is the subdevice or root device.
+  if (ContextRootDevice->isSubDevice()) {
+    ContextRootDevice = ContextRootDevice->RootDevice;
+  }
+
+  for (auto &Device : Devices) {
+    if ((!Device->RootDevice && Device != ContextRootDevice) ||
+        (Device->RootDevice && Device->RootDevice != ContextRootDevice)) {
+      ContextRootDevice = nullptr;
+      break;
+    }
+  }
+  return ContextRootDevice;
+}
+
 pi_result _pi_context::initialize() {
   // Create the immediate command list to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
