@@ -420,9 +420,8 @@ void loop_attrs_compatibility() {
   [[intel::fpga_pipeline]] [[intel::nofusion]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // no diagnostics are expected
-  [[intel::fpga_pipeline]] [[intel::loop_count_avg(8)]]
-  for (int i = 0; i != 10; ++i)
-       a[i] = 0;
+  [[intel::fpga_pipeline]] [[intel::loop_count_avg(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   [[intel::loop_count_min(8)]]
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
