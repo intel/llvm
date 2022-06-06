@@ -1,7 +1,7 @@
 ; Check that translator generates atomic instructions for atomic builtins
 ; FP-typed atomic_fetch_sub and atomic_fetch_sub_explicit should be translated
 ; to FunctionCall
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
