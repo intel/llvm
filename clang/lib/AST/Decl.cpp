@@ -1855,7 +1855,7 @@ bool NamedDecl::hasLinkage() const {
 
 NamedDecl *NamedDecl::getUnderlyingDeclImpl() {
   NamedDecl *ND = this;
-  while (auto *UD = dyn_cast<UsingShadowDecl>(ND))
+  if (auto *UD = dyn_cast<UsingShadowDecl>(ND))
     ND = UD->getTargetDecl();
 
   if (auto *AD = dyn_cast<ObjCCompatibleAliasDecl>(ND))

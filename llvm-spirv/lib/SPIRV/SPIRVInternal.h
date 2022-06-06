@@ -716,10 +716,6 @@ bool isVoidFuncTy(FunctionType *FT);
 /// \returns true if \p T is a function pointer type.
 bool isFunctionPointerType(Type *T);
 
-/// \returns true if function \p F has function pointer type argument.
-/// \param AI points to the function pointer type argument if returns true.
-bool hasFunctionPointerArg(Function *F, Function::arg_iterator &AI);
-
 /// \returns true if function \p F has array type argument.
 bool hasArrayArg(Function *F);
 
@@ -1017,9 +1013,6 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
                                            spv::Op OC, ArrayRef<Type *> ArgTys);
-
-/// Remove cast from a value.
-Value *removeCast(Value *V);
 
 /// Cast a function to a void(void) funtion pointer.
 Constant *castToVoidFuncPtr(Function *F);

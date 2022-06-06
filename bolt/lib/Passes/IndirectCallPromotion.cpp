@@ -13,6 +13,7 @@
 #include "bolt/Passes/IndirectCallPromotion.h"
 #include "bolt/Passes/BinaryFunctionCallGraph.h"
 #include "bolt/Passes/DataflowInfoManager.h"
+#include "bolt/Passes/Inliner.h"
 #include "llvm/Support/CommandLine.h"
 
 #define DEBUG_TYPE "ICP"
@@ -120,14 +121,13 @@ static cl::opt<bool> ICPJumpTablesByTarget(
         "for jump tables, optimize indirect jmp targets instead of indices"),
     cl::init(false), cl::ZeroOrMore, cl::Hidden, cl::cat(BoltOptCategory));
 
+static cl::opt<bool> ICPPeelForInline(
+    "icp-inline", cl::desc("only promote call targets eligible for inlining"),
+    cl::init(false), cl::ZeroOrMore, cl::Hidden, cl::cat(BoltOptCategory));
+
 } // namespace opts
 
-namespace llvm {
-namespace bolt {
-
-namespace {
-
-bool verifyProfile(std::map<uint64_t, BinaryFunction> &BFs) {
+static bool verifyProfile(std::map<uint64_t, BinaryFunction> &BFs) {
   bool IsValid = true;
   for (auto &BFI : BFs) {
     BinaryFunction &BF = BFI.second;
@@ -152,7 +152,8 @@ bool verifyProfile(std::map<uint64_t, BinaryFunction> &BFs) {
   return IsValid;
 }
 
-} // namespace
+namespace llvm {
+namespace bolt {
 
 IndirectCallPromotion::Callsite::Callsite(BinaryFunction &BF,
                                           const IndirectCallProfile &ICP)
@@ -1034,6 +1035,20 @@ size_t IndirectCallPromotion::canPromoteCallsite(
                  << opts::ICPMispredictThreshold << "%\n";
         }
         return 0;
+      }
+    }
+  }
+
+  // Filter by inline-ability of target functions, stop at first target that
+  // can't be inlined.
+  if (opts::ICPPeelForInline) {
+    for (size_t I = 0; I < N; ++I) {
+      const MCSymbol *TargetSym = Targets[I].To.Sym;
+      const BinaryFunction *TargetBF = BC.getFunctionForSymbol(TargetSym);
+      if (!BinaryFunctionPass::shouldOptimize(*TargetBF) ||
+          getInliningInfo(*TargetBF).Type == InliningType::INL_NONE) {
+        N = I;
+        break;
       }
     }
   }

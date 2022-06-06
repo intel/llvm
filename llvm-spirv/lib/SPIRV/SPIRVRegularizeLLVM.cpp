@@ -72,11 +72,6 @@ public:
   // Lower functions
   bool regularize();
 
-  /// Erase cast inst of function and replace with the function.
-  /// Assuming F is a SPIR-V builtin function with op code \param OC.
-  void lowerFuncPtr(Function *F, Op OC);
-  void lowerFuncPtr(Module *M);
-
   /// Some LLVM intrinsics that have no SPIR-V counterpart may be wrapped in
   /// @spirv.llvm_intrinsic_* function. During reverse translation from SPIR-V
   /// to LLVM IR we can detect this @spirv.llvm_intrinsic_* function and
@@ -567,7 +562,6 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
-  lowerFuncPtr(M);
   expandSYCLTypeUsing(M);
 
   for (auto I = M->begin(), E = M->end(); I != E;) {
@@ -639,12 +633,11 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         // Add an additional bitcast in case address space cast also changes
         // pointer element type.
         if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (DestTy->getPointerElementType() !=
-              SrcTy->getPointerElementType()) {
+          PointerType *DestTy = cast<PointerType>(ASCast->getDestTy());
+          PointerType *SrcTy = cast<PointerType>(ASCast->getSrcTy());
+          if (!DestTy->hasSameElementTypeAs(SrcTy)) {
             PointerType *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy), SrcTy->getPointerAddressSpace());
+                DestTy, SrcTy->getPointerAddressSpace());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =
@@ -720,43 +713,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
   if (SPIRVDbgSaveRegularizedModule)
     saveLLVMModule(M, RegularizedModuleTmpFile);
   return true;
-}
-
-// Assume F is a SPIR-V builtin function with a function pointer argument which
-// is a bitcast instruction casting a function to a void(void) function pointer.
-void SPIRVRegularizeLLVMBase::lowerFuncPtr(Function *F, Op OC) {
-  LLVM_DEBUG(dbgs() << "[lowerFuncPtr] " << *F << '\n');
-  auto Name = decorateSPIRVFunction(getName(OC));
-  std::set<Value *> InvokeFuncPtrs;
-  auto Attrs = F->getAttributes();
-  mutateFunction(
-      F,
-      [=, &InvokeFuncPtrs](CallInst *CI, std::vector<Value *> &Args) {
-        for (auto &I : Args) {
-          if (isFunctionPointerType(I->getType())) {
-            InvokeFuncPtrs.insert(I);
-            I = removeCast(I);
-          }
-        }
-        return Name;
-      },
-      nullptr, &Attrs, false);
-  for (auto &I : InvokeFuncPtrs)
-    eraseIfNoUse(I);
-}
-
-void SPIRVRegularizeLLVMBase::lowerFuncPtr(Module *M) {
-  std::vector<std::pair<Function *, Op>> Work;
-  for (auto &F : *M) {
-    auto AI = F.arg_begin();
-    if (hasFunctionPointerArg(&F, AI)) {
-      auto OC = getSPIRVFuncOC(F.getName());
-      if (OC != OpNop) // builtin with a function pointer argument
-        Work.push_back(std::make_pair(&F, OC));
-    }
-  }
-  for (auto &I : Work)
-    lowerFuncPtr(I.first, I.second);
 }
 
 } // namespace SPIRV

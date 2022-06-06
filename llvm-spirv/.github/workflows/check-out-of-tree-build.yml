@@ -9,7 +9,7 @@ name: Out-of-tree build & tests
 on:
   push:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
@@ -18,7 +18,7 @@ on:
       - '**/check-in-tree-build.yml' # check-in-tree-build workflow
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check build for:
       - 'docs/**' # documentation
@@ -52,6 +52,7 @@ jobs:
             llvm-${{ env.LLVM_VERSION }}-dev \
             libomp-${{ env.LLVM_VERSION }}-dev \
             llvm-${{ env.LLVM_VERSION }}-tools \
+            mlir-${{ env.LLVM_VERSION }}-tools \
             spirv-tools
           # Linux systems in GitHub Actions already have older versions of clang
           # pre-installed. Make sure to override these with the relevant version.
