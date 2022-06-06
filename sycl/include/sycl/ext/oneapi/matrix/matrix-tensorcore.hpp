@@ -17,11 +17,20 @@ enum class matrix_use { a, b, accumulator };
 
 enum class matrix_layout { row_major, col_major, packed_a, packed_b };
 
+template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
+          size_t Cols = sycl::dynamic_extent,
+          matrix_layout Layout = matrix_layout::row_major,
+          typename Group = sycl::sub_group, typename Cond = void>
+struct joint_matrix;
+
 template <typename type, size_t size> class wi_data {
   marray<type, size> &data;
+  wi_data(marray<type, size> &wi_data) : data(wi_data){};
+  template <typename T, matrix_use Use, size_t Rows, size_t Cols,
+            matrix_layout Layout, typename Group, typename Cond>
+  friend struct joint_matrix;
 
 public:
-  wi_data(marray<type, size> &wi_data) : data(wi_data){};
   size_t length() {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     return data.size();
@@ -40,12 +49,6 @@ public:
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   };
 };
-
-template <typename T, matrix_use Use, size_t Rows = sycl::dynamic_extent,
-          size_t Cols = sycl::dynamic_extent,
-          matrix_layout Layout = matrix_layout::row_major,
-          typename Group = sycl::sub_group, typename Cond = void>
-struct joint_matrix;
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(type, use, M, N, size)                \
   template <matrix_layout Layout>                                              \
