@@ -724,7 +724,13 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
-  // Calculate root device.
+  // If context contains one device then return this device.
+  // If context contains sub-devices of the same device, then return this parent
+  // device. Return nullptr if context consists of several devices which are not
+  // sub-devices of the same device. We call returned device the root device of a
+  // context.
+  // TODO: get rid of this when contexts with multiple devices are supported for
+  // images.
   pi_device getRootDevice() const;
 
   // Following member variables are used to manage assignment of events
