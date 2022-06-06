@@ -117,7 +117,8 @@ public:
 
 private:
   constexpr size_t getAlignment() const {
-    return std::max(alignof(T), Alignment);
+    using std::max; // Cause of MS Windows' macro...
+    return max(alignof(T), Alignment);
   }
 
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
