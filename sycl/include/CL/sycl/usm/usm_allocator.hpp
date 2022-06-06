@@ -116,9 +116,7 @@ public:
   }
 
 private:
-  constexpr size_t getAlignment() const {
-    return max(alignof(T), Alignment);
-  }
+  constexpr size_t getAlignment() const { return max(alignof(T), Alignment); }
 
   template <class U, usm::alloc AllocKindU, size_t AlignmentU>
   friend class usm_allocator;
