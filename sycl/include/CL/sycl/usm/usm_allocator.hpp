@@ -117,7 +117,6 @@ public:
 
 private:
   constexpr size_t getAlignment() const {
-    using std::max; // Cause of MS Windows' macro...
     return max(alignof(T), Alignment);
   }
 
