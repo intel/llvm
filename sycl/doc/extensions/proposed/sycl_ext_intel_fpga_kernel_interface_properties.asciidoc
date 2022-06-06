@@ -207,8 +207,8 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
  * `true, initiation_interval<N>`: The compiler will pipeline multiple kernel
    invocations such that an invocation can be launched every N cycles if one is available.
  
- If the `initiation_interval` argument is not specified, the compiler will
- attempt to launch the kernel invocations as fast as it can.
+ If the `initiation_interval` argument is not specified, the behavior is
+ implementation defined.
  
  If the `pipelined` property is not specified, the default behavior is
  equivalent to a combination of the property parameter values listed above, but
