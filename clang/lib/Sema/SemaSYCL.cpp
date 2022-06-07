@@ -2771,8 +2771,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     Type->getAsRecordDecl()->setAnonymousStructOrUnion(true);
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
-        KernelObj->getIdentifier(), Type,
-        TSInfo, SC_None);
+        KernelObj->getIdentifier(), Type, TSInfo, SC_None);
     if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup)
       VD->addAttr(
           SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkGroup));
