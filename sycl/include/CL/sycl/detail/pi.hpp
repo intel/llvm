@@ -423,6 +423,14 @@ template <class To, class From> inline To cast(From value) {
   return (To)(value);
 }
 
+template <class To, class From> inline To cast(std::vector<From> value) {
+  RT::assertion(false,
+                "Compatibility specialization, not expected to be used. "
+                "The only allowed cast using a vector of From values is "
+                "implemented in the OpenCL backend (see cl_event case).");
+  return {};
+}
+
 #ifdef PI_OPENCL_AVAILABLE
 
 // Cast for std::vector<cl_event>, according to the spec, make_event
