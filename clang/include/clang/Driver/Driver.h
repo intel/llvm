@@ -12,6 +12,7 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Driver/Action.h"
+#include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/Phases.h"
@@ -276,11 +277,6 @@ private:
   unsigned ProbePrecompiled : 1;
 
 public:
-  /// Force clang to emit reproducer for driver invocation. This is enabled
-  /// indirectly by setting FORCE_CLANG_DIAGNOSTICS_CRASH environment variable
-  /// or when using the -gen-reproducer driver flag.
-  unsigned GenReproducer : 1;
-
   // getFinalPhase - Determine which compilation mode we are in and record
   // which option we used to determine the final phase.
   // TODO: Much of what getFinalPhase returns are not actually true compiler
@@ -299,6 +295,11 @@ private:
   /// created targeting that triple. The driver owns all the ToolChain objects
   /// stored in it, and will clean them up when torn down.
   mutable llvm::StringMap<std::unique_ptr<ToolChain>> ToolChains;
+
+  /// Cache of known offloading architectures for the ToolChain already derived.
+  /// This should only be modified when we first initialize the offloading
+  /// toolchains.
+  llvm::DenseMap<const ToolChain *, llvm::DenseSet<llvm::StringRef>> KnownArchs;
 
 private:
   /// TranslateInputArgs - Create a new derived argument list from the input
@@ -456,6 +457,13 @@ public:
                                  const InputTy &Input,
                                  Action *HostAction) const;
 
+  /// Returns the set of bound architectures active for this offload kind.
+  /// If there are no bound architctures we return a set containing only the
+  /// empty string.
+  llvm::DenseSet<StringRef>
+  getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
+                  Action::OffloadKind Kind, const ToolChain *TC) const;
+
   /// Check that the file referenced by Value exists. If it doesn't,
   /// issue a diagnostic and return false.
   /// If TypoCorrect is true and the file does not exist, see if it looks
@@ -492,6 +500,35 @@ public:
       Compilation &C, const Command &FailingCommand,
       StringRef AdditionalInformation = "",
       CompilationDiagnosticReport *GeneratedReport = nullptr);
+
+  enum class CommandStatus {
+    Crash = 1,
+    Error,
+    Ok,
+  };
+
+  enum class ReproLevel {
+    Off = 0,
+    OnCrash = static_cast<int>(CommandStatus::Crash),
+    OnError = static_cast<int>(CommandStatus::Error),
+    Always = static_cast<int>(CommandStatus::Ok),
+  };
+
+  bool maybeGenerateCompilationDiagnostics(
+      CommandStatus CS, ReproLevel Level, Compilation &C,
+      const Command &FailingCommand, StringRef AdditionalInformation = "",
+      CompilationDiagnosticReport *GeneratedReport = nullptr) {
+    if (static_cast<int>(CS) > static_cast<int>(Level))
+      return false;
+    if (CS != CommandStatus::Crash)
+      Diags.Report(diag::err_drv_force_crash)
+          << !::getenv("FORCE_CLANG_DIAGNOSTICS_CRASH");
+    // Hack to ensure that diagnostic notes get emitted.
+    Diags.setLastDiagnosticIgnored(false);
+    generateCompilationDiagnostics(C, FailingCommand, AdditionalInformation,
+                                   GeneratedReport);
+    return true;
+  }
 
   /// @}
   /// @name Helper Methods

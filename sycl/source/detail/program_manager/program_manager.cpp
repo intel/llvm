@@ -1460,6 +1460,16 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
   return KernelID->second;
 }
 
+bool ProgramManager::hasCompatibleImage(const device &Dev) {
+  std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
+
+  return std::any_of(
+      m_BinImg2KernelIDs.cbegin(), m_BinImg2KernelIDs.cend(),
+      [&](std::pair<RTDeviceBinaryImage *,
+                    std::shared_ptr<std::vector<kernel_id>>>
+              Elem) { return compatibleWithDevice(Elem.first, Dev); });
+}
+
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
