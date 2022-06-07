@@ -45,18 +45,21 @@
 // 7.9 Added new context and ownership arguments to
 // piextMemCreateWithNativeHandle.
 // 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
+// 9.11 Use values of OpenCL enums directly, rather than including `<CL/cl.h>`;
+// NOTE that this results in a changed API for `piProgramGetBuildInfo`.
 
-#define _PI_H_VERSION_MAJOR 8
-#define _PI_H_VERSION_MINOR 10
+#define _PI_H_VERSION_MAJOR 9
+#define _PI_H_VERSION_MINOR 11
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
 
-// TODO: we need a mapping of PI to OpenCL somewhere, and this can be done
-// elsewhere, e.g. in the pi_opencl, but constants/enums mapping is now
-// done here, for efficiency and simplicity.
+// NOTE: This file presents a maping of OpenCL to PI enums, constants and
+// typedefs. The general approach taken was to replace `CL_` prefix with `PI_`.
+// Please consider this when adding or modifying values, as the strinct value
+// match is required.
 #include <CL/sycl/detail/export.hpp>
 
 #include <cstddef>

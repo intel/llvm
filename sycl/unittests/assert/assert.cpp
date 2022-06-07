@@ -376,8 +376,8 @@ static pi_result redefinedProgramGetBuildInfo(pi_program P, pi_device D,
                                               size_t ParamValueSize,
                                               void *ParamValue,
                                               size_t *ParamValueSizeRet) {
-  if (CL_PROGRAM_BINARY_TYPE == ParamName) {
-    static const cl_program_binary_type T = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
+  if (PI_PROGRAM_BUILD_INFO_BINARY_TYPE == ParamName) {
+    static const pi_program_binary_type T = PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
     if (ParamValue)
       memcpy(ParamValue, &T, sizeof(T));
     if (ParamValueSizeRet)
@@ -385,7 +385,7 @@ static pi_result redefinedProgramGetBuildInfo(pi_program P, pi_device D,
     return PI_SUCCESS;
   }
 
-  if (CL_PROGRAM_BUILD_OPTIONS == ParamName) {
+  if (PI_PROGRAM_BUILD_INFO_OPTIONS == ParamName) {
     if (ParamValueSizeRet)
       *ParamValueSizeRet = 0;
     return PI_SUCCESS;
