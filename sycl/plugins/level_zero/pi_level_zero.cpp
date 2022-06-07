@@ -444,7 +444,7 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
                                             size_t &Index, bool HostVisible,
                                             bool ProfilingEnabled) {
   // Lock while updating event pool machinery.
-  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+  std::scoped_lock Lock(ZeEventPoolCacheMutex);
 
   std::list<ze_event_pool_handle_t> *ZePoolCache =
       getZeEventPoolCache(HostVisible, ProfilingEnabled);
@@ -502,7 +502,7 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
       getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
 
   // Put the empty pool to the cache of the pools.
-  std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+  std::scoped_lock Lock(ZeEventPoolCacheMutex);
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
     die("Invalid event release: event pool doesn't have unreleased events");
   if (--NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0) {
@@ -844,7 +844,7 @@ pi_result _pi_context::finalize() {
   // There could be some memory that may have not been deallocated.
   // For example, event pool caches would be still alive.
   {
-    std::lock_guard<std::mutex> Lock(ZeEventPoolCacheMutex);
+    std::scoped_lock Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
       for (auto &ZePool : ZePoolCache)
         ZE_CALL(zeEventPoolDestroy, (ZePool));
@@ -855,23 +855,18 @@ pi_result _pi_context::finalize() {
   // Destroy the command list used for initializations
   ZE_CALL(zeCommandListDestroy, (ZeCommandListInit));
 
-  // Adjust the number of command lists created on this platform.
-  auto Platform = Devices[0]->Platform;
-
-  std::lock_guard<std::mutex> Lock(ZeCommandListCacheMutex);
+  std::scoped_lock Lock(ZeCommandListCacheMutex);
   for (auto &List : ZeComputeCommandListCache) {
     for (ze_command_list_handle_t &ZeCommandList : List.second) {
       if (ZeCommandList)
         ZE_CALL(zeCommandListDestroy, (ZeCommandList));
     }
-    Platform->ZeGlobalCommandListCount -= List.second.size();
   }
   for (auto &List : ZeCopyCommandListCache) {
     for (ze_command_list_handle_t &ZeCommandList : List.second) {
       if (ZeCommandList)
         ZE_CALL(zeCommandListDestroy, (ZeCommandList));
     }
-    Platform->ZeGlobalCommandListCount -= List.second.size();
   }
   return PI_SUCCESS;
 }
@@ -924,26 +919,6 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
 
   return PI_SUCCESS;
 }
-
-// Maximum Number of Command Lists that can be created.
-// This Value is initialized to 20000, but can be changed by the user
-// thru the environment variable SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE
-// ie SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE =10000.
-static const int ZeMaxCommandListCacheSize = [] {
-  const char *CommandListCacheSize =
-      std::getenv("SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE");
-  pi_uint32 CommandListCacheSizeValue;
-  try {
-    CommandListCacheSizeValue =
-        CommandListCacheSize ? std::stoi(CommandListCacheSize) : 20000;
-  } catch (std::exception const &) {
-    zePrint(
-        "SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE: invalid value provided, "
-        "default set.\n");
-    CommandListCacheSizeValue = 20000;
-  }
-  return CommandListCacheSizeValue;
-}();
 
 // Configuration of the command-list batching.
 typedef struct CommandListBatchConfig {
@@ -1266,26 +1241,9 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
   }
 
   // If there are no available command lists nor signalled command lists, then
-  // we must create another command list if we have not exceed the maximum
-  // command lists we can create.
+  // we must create another command list.
   // Once created, this command list & fence are added to the command list fence
   // map.
-
-  // Atomically increment global count of command lists and check that we don't
-  // exceed maximum.
-  int ExpectedValue = Queue->Device->Platform->ZeGlobalCommandListCount.load();
-  int DesiredValue = 0;
-  do {
-    if (ExpectedValue >= ZeMaxCommandListCacheSize)
-      die("Exceeded the maximum amount of command lists we can create.");
-
-    DesiredValue = ExpectedValue + 1;
-  } while (!Queue->Device->Platform->ZeGlobalCommandListCount
-                .compare_exchange_strong(ExpectedValue, DesiredValue));
-
-  // We atomiccaly incremented global number of command lists and checked that
-  // we don't exceed maximum number of command lists. So we can create command
-  // list now.
   ze_command_list_handle_t ZeCommandList;
   ze_fence_handle_t ZeFence;
 
@@ -1862,7 +1820,7 @@ pi_result _pi_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
   {
     // acquire the lock and copy fields locally
     // Lock automatically releases when this goes out of scope.
-    std::lock_guard<std::mutex> lock(this->PiZeEventListMutex);
+    std::scoped_lock lock(this->PiZeEventListMutex);
 
     LocLength = Length;
     LocZeEventList = ZeEventList;
@@ -2459,7 +2417,6 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  std::shared_lock Lock(Device->Mutex);
   ze_device_handle_t ZeDevice = Device->ZeDevice;
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
@@ -2992,8 +2949,6 @@ pi_result piDevicePartition(pi_device Device,
 
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  std::shared_lock Lock(Device->Mutex);
-
   // Devices cache is normally created in piDevicesGet but still make
   // sure that cache is populated.
   //
@@ -3074,7 +3029,6 @@ pi_result piextDeviceGetNativeHandle(pi_device Device,
   PI_ASSERT(Device, PI_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
 
-  std::shared_lock Lock(Device->Mutex);
   auto ZeDevice = pi_cast<ze_device_handle_t *>(NativeHandle);
   // Extract the Level Zero module handle from the given PI device
   *ZeDevice = Device->ZeDevice;
@@ -3291,9 +3245,6 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
   PI_ASSERT(Device, PI_INVALID_DEVICE);
 
-  std::shared_lock ContextLock(Context->Mutex, std::defer_lock);
-  std::shared_lock DeviceLock(Device->Mutex, std::defer_lock);
-  std::scoped_lock Lock(ContextLock, DeviceLock);
   if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
       Context->Devices.end()) {
     return PI_INVALID_DEVICE;
@@ -3552,9 +3503,6 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(NativeHandle, PI_INVALID_VALUE);
   PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  std::shared_lock ContextLock(Context->Mutex, std::defer_lock);
-  std::shared_lock DeviceLock(Device->Mutex, std::defer_lock);
-  std::scoped_lock Lock(ContextLock, DeviceLock);
   auto ZeQueue = pi_cast<ze_command_queue_handle_t>(NativeHandle);
   // Assume this is the "0" index queue in the compute command-group.
   std::vector<ze_command_queue_handle_t> ZeQueues{ZeQueue};
@@ -5436,8 +5384,6 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 
   auto Device =
       Event->Queue ? Event->Queue->Device : Event->Context->Devices[0];
-
-  std::shared_lock Lock(Device->Mutex);
 
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
 
@@ -7451,15 +7397,17 @@ pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
   // indirect access. This lock also protects access to the context's data
   // structures. If indirect access tracking is not enabled then lock context
   // mutex to protect access to context's data structures.
-  auto Lock = IndirectAccessTrackingEnabled
-                  ? std::scoped_lock(Plt->ContextsMutex)
-                  : std::scoped_lock(Context->Mutex);
-
+  std::shared_lock ContextLock(Context->Mutex, std::defer_lock);
+  std::unique_lock IndirectAccessTrackingLock(Plt->ContextsMutex,
+                                              std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
+    IndirectAccessTrackingLock.lock();
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
     PI_CALL(piContextRetain(Context));
+  } else {
+    ContextLock.lock();
   }
 
   if (!UseUSMAllocator ||
@@ -7598,15 +7546,17 @@ pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
   // indirect access. This lock also protects access to the context's data
   // structures. If indirect access tracking is not enabled then lock context
   // mutex to protect access to context's data structures.
-  auto Lock = IndirectAccessTrackingEnabled
-                  ? std::scoped_lock(Plt->ContextsMutex)
-                  : std::scoped_lock(Context->Mutex);
-
+  std::shared_lock ContextLock(Context->Mutex, std::defer_lock);
+  std::unique_lock IndirectAccessTrackingLock(Plt->ContextsMutex,
+                                              std::defer_lock);
   if (IndirectAccessTrackingEnabled) {
+    IndirectAccessTrackingLock.lock();
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
     PI_CALL(piContextRetain(Context));
+  } else {
+    ContextLock.lock();
   }
 
   if (!UseUSMAllocator ||

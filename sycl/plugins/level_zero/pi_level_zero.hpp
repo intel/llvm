@@ -174,32 +174,6 @@ template <class T> struct ZesStruct : public T {
   }
 };
 
-// The wrapper for immutable Level-Zero data.
-// The data is initialized only once at first access (via ->) with the
-// initialization function provided in Init. All subsequent access to
-// the data just returns the already stored data.
-//
-template <class T> struct ZeCache : private T {
-  // The initialization function takes a reference to the data
-  // it is going to initialize, since it is private here in
-  // order to disallow access other than through "->".
-  //
-  typedef std::function<void(T &)> InitFunctionType;
-  InitFunctionType Compute{nullptr};
-  bool Computed{false};
-
-  ZeCache() : T{} {}
-
-  // Access to the fields of the original T data structure.
-  T *operator->() {
-    if (!Computed) {
-      Compute(*this);
-      Computed = true;
-    }
-    return this;
-  }
-};
-
 // A single-threaded app has an opportunity to enable this mode to avoid
 // overhead from mutex locking. Default value is 0 which means that single
 // thread mode is disabled.
@@ -236,6 +210,50 @@ public:
   void unlock_shared() {
     if (!SingleThreadMode)
       std::shared_mutex::unlock_shared();
+  }
+};
+
+// Class which acts like std::mutex if SingleThreadMode variable is not set.
+// If SingleThreadMode variable is set then mutex operations are turned into
+// nop.
+class pi_mutex : public std::mutex {
+public:
+  void lock() {
+    if (!SingleThreadMode)
+      std::mutex::lock();
+  }
+  bool try_lock() { return SingleThreadMode ? true : std::mutex::try_lock(); }
+  void unlock() {
+    if (!SingleThreadMode)
+      std::mutex::unlock();
+  }
+};
+
+// The wrapper for immutable Level-Zero data.
+// The data is initialized only once at first access (via ->) with the
+// initialization function provided in Init. All subsequent access to
+// the data just returns the already stored data.
+//
+template <class T> struct ZeCache : private T {
+  // The initialization function takes a reference to the data
+  // it is going to initialize, since it is private here in
+  // order to disallow access other than through "->".
+  //
+  typedef std::function<void(T &)> InitFunctionType;
+  InitFunctionType Compute{nullptr};
+  bool Computed{false};
+  pi_mutex ZeCacheMutex;
+
+  ZeCache() : T{} {}
+
+  // Access to the fields of the original T data structure.
+  T *operator->() {
+    std::unique_lock<pi_mutex> Lock(ZeCacheMutex);
+    if (!Computed) {
+      Compute(*this);
+      Computed = true;
+    }
+    return this;
   }
 };
 
@@ -351,10 +369,6 @@ struct _pi_platform {
   // Return the PI device from cache that represents given native device.
   // If not found, then nullptr is returned.
   pi_device getDeviceFromNativeHandle(ze_device_handle_t);
-
-  // Current number of L0 Command Lists created on this platform.
-  // this number must not exceed ZeMaxCommandListCache.
-  std::atomic<int> ZeGlobalCommandListCount{0};
 
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
@@ -508,7 +522,10 @@ struct _pi_device : _pi_object {
   const pi_platform Platform;
 
   // Root-device of a sub-device, null if this is not a sub-device.
-  pi_device RootDevice;
+  // This field is only set at _pi_device creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_device.
+  const pi_device RootDevice;
+
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
@@ -649,11 +666,11 @@ struct _pi_context : _pi_object {
   // Mutex for the immediate command list. Per the Level Zero spec memory copy
   // operations submitted to an immediate command list are not allowed to be
   // called from simultaneous threads.
-  pi_shared_mutex ImmediateCommandListMutex;
+  pi_mutex ImmediateCommandListMutex;
 
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
-  std::mutex ZeCommandListCacheMutex;
+  pi_mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -770,7 +787,7 @@ private:
 
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
-  std::mutex ZeEventPoolCacheMutex;
+  pi_mutex ZeEventPoolCacheMutex;
 };
 
 struct _pi_queue : _pi_object {
@@ -1203,7 +1220,7 @@ struct _pi_ze_event_list_t {
   // when an event is initially created.  However, it might be
   // possible to have multiple threads racing to destroy the list,
   // so this will be used to make list destruction thread-safe.
-  std::mutex PiZeEventListMutex;
+  pi_mutex PiZeEventListMutex;
 
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.
