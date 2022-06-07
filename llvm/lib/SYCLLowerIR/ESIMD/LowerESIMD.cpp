@@ -13,6 +13,7 @@
 // values of integer template parameters they were instantiated with.
 //===----------------------------------------------------------------------===//
 
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -69,11 +70,9 @@ private:
 };
 } // namespace
 
-constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
-
 char SYCLLowerESIMDLegacyPass::ID = 0;
 INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
-                "Lower constructs specific to Close To Metal", false, false)
+                "Lower constructs specific to the 'explicit SIMD' extension", false, false)
 
 // Public interface to the SYCLLowerESIMDPass.
 ModulePass *llvm::createSYCLLowerESIMDPass() {
@@ -901,38 +900,6 @@ static inline llvm::Metadata *getMD(llvm::Value *V) {
   return llvm::ValueAsMetadata::get(V);
 }
 
-static bool isESIMDKernel(const Function &F) {
-  return (F.getCallingConv() == CallingConv::SPIR_KERNEL) &&
-         (F.getMetadata("sycl_explicit_simd") != nullptr);
-}
-
-template <class CallGraphNodeF>
-static void traverseCallgraphUp(llvm::Function *F, CallGraphNodeF ApplyF) {
-  SmallPtrSet<Function *, 32> FunctionsVisited;
-  SmallVector<Function *, 32> Worklist{F};
-
-  while (!Worklist.empty()) {
-    Function *CurF = Worklist.pop_back_val();
-    FunctionsVisited.insert(CurF);
-    // Apply the action function.
-    ApplyF(CurF);
-
-    // Update all callers as well.
-    for (auto It = CurF->use_begin(); It != CurF->use_end(); It++) {
-      auto FCall = It->getUser();
-      if (!isa<CallInst>(FCall))
-        llvm::report_fatal_error(
-            llvm::Twine(__FILE__ " ") +
-            "Function use other than call detected while traversing call\n"
-            "graph starting from kernel property mark-up intrinsic.");
-
-      auto FCaller = cast<CallInst>(FCall)->getFunction();
-      if (!FunctionsVisited.count(FCaller))
-        Worklist.push_back(FCaller);
-    }
-  }
-}
-
 // A functor which updates ESIMD kernel's uint64_t metadata in case it is less
 // than the given one. Used in callgraph traversal to update nbarriers or SLM
 // size metadata. Update is performed by the '()' operator and happens only
@@ -1004,7 +971,7 @@ static void translateSLMInit(CallInst &CI) {
   assert(NewVal != 0 && "zero slm bytes being requested");
   UpdateUint64MetaDataToMaxValue SetMaxSLMSize{
       *F->getParent(), genx::KernelMDOp::SLMSize, NewVal};
-  traverseCallgraphUp(F, SetMaxSLMSize);
+  esimd::traverseCallgraphUp(F, SetMaxSLMSize);
 }
 
 // This function sets/updates VCNamedBarrierCount attribute to the kernels
@@ -1021,7 +988,7 @@ static void translateNbarrierInit(CallInst &CI) {
   assert(NewVal != 0 && "zero named barrier count being requested");
   UpdateUint64MetaDataToMaxValue SetMaxNBarrierCnt{
       *F->getParent(), genx::KernelMDOp::NBarrierCnt, NewVal};
-  traverseCallgraphUp(F, SetMaxNBarrierCnt);
+  esimd::traverseCallgraphUp(F, SetMaxNBarrierCnt);
 }
 
 static void translatePackMask(CallInst &CI) {
@@ -1139,32 +1106,6 @@ static void translateGetSurfaceIndex(CallInst &CI) {
   auto *SI = cast<CastInst>(SV);
   SI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(SI);
-}
-
-// Kernel property identifiers. Should match ones in
-// sycl/include/sycl/ext/intel/experimental/esimd/kernel_properties.hpp
-enum property_ids { use_double_grf = 0 };
-
-static void translateSetKernelProperties(CallInst &CI) {
-  auto F = CI.getFunction();
-  auto *ArgV = CI.getArgOperand(0);
-  if (!isa<ConstantInt>(ArgV))
-    llvm::report_fatal_error(
-        llvm::Twine(__FILE__ " ") +
-        "integral constant is expected for set_kernel_properties");
-  uint64_t PropID = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
-
-  switch (PropID) {
-  case property_ids::use_double_grf:
-    traverseCallgraphUp(F, [](Function *GraphNode) {
-      if (isESIMDKernel(*GraphNode)) {
-        GraphNode->addFnAttr(ATTR_DOUBLE_GRF);
-      }
-    });
-    break;
-  default:
-    assert(false && "Invalid property id");
-  }
 }
 
 // Newly created GenX intrinsic might have different return type than expected.
@@ -1582,7 +1523,7 @@ void generateKernelMetadata(Module &M) {
 
   for (auto &F : M.functions()) {
     // Skip non-SIMD kernels.
-    if (!isESIMDKernel(F))
+    if (!esimd::isESIMDKernel(F))
       continue;
 
     // Metadata node containing N i32s, where N is the number of kernel
@@ -1819,11 +1760,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_set_kernel_properties")) {
-        translateSetKernelProperties(*CI);
-        ToErase.push_back(CI);
-        continue;
-      }
+      assert(!Name.startswith("__esimd_set_kernel_properties") && "__esimd_set_kernel_properties must have been lowered");
 
       if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
         continue;

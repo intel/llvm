@@ -36,25 +36,53 @@ enum IRSplitMode {
 // A vector that contains all entry point functions in a split module.
 using EntryPointVec = std::vector<const Function *>;
 
+enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
+
+// Describes scope covered by each entry in the module-entry points map
+// populated by the groupEntryPointsByScope function.
+enum EntryPointsGroupScope {
+  Scope_PerKernel, // one entry per kernel
+  Scope_PerModule, // one entry per module
+  Scope_Global     // single entry in the map for all kernels
+};
+
 // Represents a named group of device code entry points - kernels and
 // SYCL_EXTERNAL functions. There are special group names - "<SYCL>" and
 // "<ESIMD>" - which have effect on group processing.
-
 struct EntryPointGroup {
-  StringRef GroupId;
+  // Properties an entry point (EP) group
+  struct Properties {
+    // Whether all EPs are ESIMD, SYCL or there are both kinds.
+    SyclEsimdSplitStatus HasESIMD = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+    // Whether any of the EPs use double GRF mode.
+    bool UsesDoubleGRF = false;
+    // Scope represented by EPs in a group
+    EntryPointsGroupScope Scope = Scope_Global;
 
-public:
+    Properties merge(const Properties& Other) const {
+      Properties Res;
+      Res.HasESIMD = HasESIMD == Other.HasESIMD ? HasESIMD : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+      Res.UsesDoubleGRF = UsesDoubleGRF || Other.UsesDoubleGRF;
+      // Scope remains global
+      return Res;
+    }
+  };
+
+  StringRef GroupId;
   EntryPointVec Functions;
+  Properties Props;
 
   EntryPointGroup(StringRef GroupId = "") : GroupId(GroupId) {}
   EntryPointGroup(StringRef GroupId, EntryPointVec &&Functions)
       : GroupId(GroupId), Functions(std::move(Functions)) {}
 
-  const StringRef getId() const { return GroupId; }
   // Tells if this group has only ESIMD entry points (based on GroupId).
-  bool isEsimd() const;
+  bool isEsimd() const { return Props.HasESIMD == SyclEsimdSplitStatus::ESIMD_ONLY; }
   // Tells if this group has only SYCL entry points (based on GroupId).
-  bool isSycl() const;
+  bool isSycl() const { return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY; }
+  // Tells if some entry points use double GRF mode.
+  bool isDoubleGRF() const { return Props.UsesDoubleGRF; }
+
   void saveNames(std::vector<std::string> &Dest) const;
   void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
   void rebuild(const Module &M);
@@ -62,15 +90,12 @@ public:
 
 using EntryPointGroupVec = std::vector<EntryPointGroup>;
 
-enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
-
 class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
 
 public:
   struct Properties {
-    SyclEsimdSplitStatus HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
     bool SpecConstsMet = true;
   };
   std::string Name = "";
@@ -78,7 +103,7 @@ public:
 
   ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints)
       : M(std::move(M)), EntryPoints(std::move(EntryPoints)) {
-    Name = this->EntryPoints.getId().str();
+    Name = this->EntryPoints.GroupId.str();
   }
 
   ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names)
@@ -86,13 +111,12 @@ public:
     rebuildEntryPoints(Names);
   }
 
-  bool isESIMD() const {
-    return Props.HasEsimd == SyclEsimdSplitStatus::ESIMD_ONLY;
-  }
-  bool isSYCL() const {
-    return Props.HasEsimd == SyclEsimdSplitStatus::SYCL_ONLY;
-  }
-  bool isDoubleGRF();
+  void assignMergedProperties(const ModuleDesc& MD1, const ModuleDesc& MD2);
+
+  bool isESIMD() const { return EntryPoints.isEsimd(); }
+  bool isSYCL() const { return EntryPoints.isSycl(); }
+  bool isDoubleGRF() const { return EntryPoints.isDoubleGRF(); }
+
   const EntryPointVec &entries() const { return EntryPoints.Functions; }
   EntryPointVec &entries() { return EntryPoints.Functions; }
   Module &getModule() { return *M; }
@@ -116,10 +140,6 @@ public:
 
   void renameDuplicatesOf(const Module &M, StringRef Suff);
 
-  // Updates Props.HasEsimd to SyclEsimdSplitStatus::ESIMD_ONLY/SYCL_ONLY if
-  // this module descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split.
-  // Otherwise assumes the module has both SYCL and ESIMD.
-  void assignESIMDProperty();
 #ifndef _NDEBUG
   void verifyESIMDProperty() const;
 #endif // _NDEBUG

@@ -42,14 +42,6 @@ constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
 
-// Describes scope covered by each entry in the module-entry points map
-// populated by the groupEntryPointsByScope function.
-enum EntryPointsGroupScope {
-  Scope_PerKernel, // one entry per kernel
-  Scope_PerModule, // one entry per module
-  Scope_Global     // single entry in the map for all kernels
-};
-
 bool hasIndirectFunctionsOrCalls(const Module &M) {
   for (const auto &F : M.functions()) {
     // There are functions marked with [[intel::device_indirectly_callable]]
@@ -168,8 +160,17 @@ groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
   }
 
   if (!EntryPointMap.empty()) {
-    for (auto &EPG : EntryPointMap)
-      EntryPointGroups.push_back({EPG.first, std::move(EPG.second)});
+    for (auto& EPG : EntryPointMap) {
+      EntryPointGroups.push_back({ EPG.first, std::move(EPG.second) });
+      EntryPointGroup& G = EntryPointGroups.back();
+
+      if (G.GroupId == ESIMD_SCOPE_NAME) {
+        G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
+      } else {
+        assert(G.GroupId == SYCL_SCOPE_NAME);
+        G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+      }
+    }
   } else {
     // No entry points met, record this.
     EntryPointGroups.push_back({SYCL_SCOPE_NAME, {}});
@@ -225,8 +226,11 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
 
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto &EPG : EntryPointMap)
-      EntryPointGroups.push_back({EPG.first, std::move(EPG.second)});
+    for (auto& EPG : EntryPointMap) {
+      EntryPointGroups.push_back({ EPG.first, std::move(EPG.second) });
+      EntryPointGroup& G = EntryPointGroups.back();
+      G.Props.Scope = EntryScope;
+    }
   } else {
     // No entry points met, record this.
     EntryPointGroups.push_back({GLOBAL_SCOPE_NAME, {}});
@@ -234,9 +238,11 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
   return EntryPointGroups;
 }
 
+template <class EntryPoinGroupFunc>
 EntryPointGroupVec
 groupEntryPointsByAttribute(const Module &M, StringRef AttrName,
-                            bool EmitOnlyKernelsAsEntryPoints) {
+                            bool EmitOnlyKernelsAsEntryPoints,
+                            EntryPoinGroupFunc F) {
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointVec> EntryPointMap;
 
@@ -253,29 +259,66 @@ groupEntryPointsByAttribute(const Module &M, StringRef AttrName,
   }
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto &EPG : EntryPointMap)
-      EntryPointGroups.push_back({EPG.first, std::move(EPG.second)});
+    for (auto& EPG : EntryPointMap) {
+      EntryPointGroups.push_back({ EPG.first, std::move(EPG.second) });
+      F(EntryPointGroups.back());
+    }
   } else {
     // No entry points met, record this.
     EntryPointGroups.push_back({GLOBAL_SCOPE_NAME, {}});
+    F(EntryPointGroups.back());
   }
   return EntryPointGroups;
 }
+
+// Records a use graph between functions in a module. Nodes are functions, edges
+// are "uses" relation. One function "uses" another if any of its instructions
+// use the other function. Typical use is a call, another example of use is
+// storing
+class FunctionUseGraph {
+public:
+  using FunctionSet = SmallPtrSet<const Function*, 16>;
+
+private:
+  std::unordered_map<const Function*, FunctionSet> Graph;
+  SmallPtrSet<const Function*, 1> EmptySet;
+
+public:
+  FunctionUseGraph(const Module& M, bool AllUsesAreGraphEdges = false) {
+    for (const auto& F : M) {
+      for (const Value* U : F.users()) {
+        if (const Instruction* I = dyn_cast<Instruction>(U)) {
+          if (AllUsesAreGraphEdges || dyn_cast<const CallInst>(I)) {
+            const Function* F1 = I->getFunction();
+            Graph[F1].insert(&F);
+          }
+        }
+      }
+    }
+  }
+
+  iterator_range<FunctionSet::const_iterator> successors(const Function* F) const {
+    auto It = Graph.find(F);
+    return (It == Graph.end()) ? make_range(EmptySet.begin(), EmptySet.end()) : make_range(It->second.begin(), It->second.end());
+  }
+};
+
 void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
-                               const EntryPointGroup &ModuleEntryPoints) {
+                               const EntryPointGroup &ModuleEntryPoints,
+                               const FunctionUseGraph &Deps) {
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
 
   // GVs has SetVector type. This type inserts a value only if it is not yet
   // present there. So, recursion is not expected here.
   decltype(GVs.size()) Idx = 0;
-  while (Idx != GVs.size()) {
+  while (Idx < GVs.size()) {
     const auto *F = cast<Function>(GVs[Idx++]);
-    for (const auto &I : instructions(F))
-      if (const auto *CB = dyn_cast<CallBase>(&I))
-        if (const Function *CF = CB->getCalledFunction())
-          if (!CF->isDeclaration())
-            GVs.insert(CF);
+
+    for (const Function* F1 : Deps.successors(F)) {
+      if (!F1->isDeclaration())
+        GVs.insert(F1);
+    }
   }
 }
 
@@ -329,9 +372,10 @@ void cleanupSplitModule(Module &SplitM) {
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
 ModuleDesc extractCallGraph(const Module &M,
-                            EntryPointGroup &&ModuleEntryPoints) {
+                            EntryPointGroup &&ModuleEntryPoints,
+                            bool AllUsesAreCallGraphEdges = false) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsToExtract(GVs, ModuleEntryPoints);
+  collectFunctionsToExtract(GVs, ModuleEntryPoints, FunctionUseGraph{M, AllUsesAreCallGraphEdges});
   collectGlobalVarsToExtract(GVs, M);
 
   ModuleDesc SplitM = extractSubModule(M, GVs, std::move(ModuleEntryPoints));
@@ -350,11 +394,14 @@ public:
 };
 
 class ModuleSplitter : public ModuleSplitterBase {
+  bool AllUsesAreCallGraphEdges;
+
 public:
-  using ModuleSplitterBase::ModuleSplitterBase; // to inherit base constructors
+
+  ModuleSplitter(std::unique_ptr<Module> M, EntryPointGroupVec&& GroupVec, bool AllUsesAreCallGraphEdges = false) : ModuleSplitterBase(std::move(M), std::move(GroupVec)), AllUsesAreCallGraphEdges(AllUsesAreCallGraphEdges) {}
 
   ModuleDesc nextSplit() override {
-    return extractCallGraph(getInputModule(), nextGroup());
+    return extractCallGraph(getInputModule(), nextGroup(), AllUsesAreCallGraphEdges);
   }
 };
 
@@ -500,6 +547,11 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
   llvm::errs() << "}\n";
 }
 
+void ModuleDesc::assignMergedProperties(const ModuleDesc& MD1, const ModuleDesc& MD2) {
+  EntryPoints.Props = MD1.EntryPoints.Props.merge(MD2.EntryPoints.Props);
+  Props.SpecConstsMet = MD1.Props.SpecConstsMet || MD2.Props.SpecConstsMet;
+}
+
 void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
   Module &MB = getModule();
 #ifndef _NDEBUG
@@ -534,29 +586,16 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
   }
 }
 
-void ModuleDesc::assignESIMDProperty() {
-  if (EntryPoints.isEsimd()) {
-    Props.HasEsimd = SyclEsimdSplitStatus::ESIMD_ONLY;
-  } else if (EntryPoints.isSycl()) {
-    Props.HasEsimd = SyclEsimdSplitStatus::SYCL_ONLY;
-  } else {
-    Props.HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
-  }
-#ifndef _NDEBUG
-  verifyESIMDProperty();
-#endif // _NDEBUG
-}
-
 #ifndef _NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
-  if (Props.HasEsimd == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
+  if (EntryPoints.Props.HasESIMD == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     return; // nothing to verify
   }
   // Verify entry points:
   for (const auto *F : entries()) {
     const bool IsESIMDFunction = isESIMDFunction(*F);
 
-    switch (Props.HasEsimd) {
+    switch (EntryPoints.Props.HasESIMD) {
     case SyclEsimdSplitStatus::ESIMD_ONLY:
       assert(IsESIMDFunction);
       break;
@@ -582,21 +621,14 @@ void ModuleDesc::verifyESIMDProperty() const {
 
 void ModuleDesc::dump() {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
-  llvm::errs() << "  ESIMD:" << toString(Props.HasEsimd)
+  llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
+               << ", DoubleGRF:" << (EntryPoints.Props.UsesDoubleGRF ? "YES" : "NO")
                << "\n";
-  dumpEntryPoints(entries(), EntryPoints.getId().str().c_str(), 1);
+  dumpEntryPoints(entries(), EntryPoints.GroupId.str().c_str(), 1);
   llvm::errs() << "}\n";
 }
 #endif // _NDEBUG
-
-bool module_split::ModuleDesc::isDoubleGRF() {
-  return (EntryPoints.GroupId == ATTR_DOUBLE_GRF);
-}
-
-bool EntryPointGroup::isEsimd() const { return GroupId == ESIMD_SCOPE_NAME; }
-
-bool EntryPointGroup::isSycl() const { return GroupId == SYCL_SCOPE_NAME; }
 
 void EntryPointGroup::saveNames(std::vector<std::string> &Dest) const {
   Dest.reserve(Dest.size() + Functions.size());
@@ -640,7 +672,11 @@ std::unique_ptr<ModuleSplitterBase>
 getESIMDDoubleGRFSplitter(std::unique_ptr<Module> M,
                                         bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-      *M, ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints);
+    *M, ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints, [](EntryPointGroup& G) {
+      if (G.GroupId == ATTR_DOUBLE_GRF) {
+        G.Props.UsesDoubleGRF = true;
+      }
+    });
   assert(!Groups.empty() && "At least one group is expected");
   assert(Groups.size() <= 2 && "At most 2 groups are expected");
 

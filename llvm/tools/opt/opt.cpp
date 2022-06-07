@@ -570,6 +570,7 @@ int main(int argc, char **argv) {
   initializeReplaceWithVeclibLegacyPass(Registry);
   initializeJMCInstrumenterPass(Registry);
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
+  initializeSYCLLowerESIMDKernelPropsLegacyPassPass(Registry);
   initializeSYCLLowerESIMDLegacyPassPass(Registry);
   initializeSYCLLowerInvokeSimdLegacyPassPass(Registry);
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
