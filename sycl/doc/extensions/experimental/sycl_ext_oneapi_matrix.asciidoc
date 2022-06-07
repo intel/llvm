@@ -181,7 +181,7 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 ##### Background
 Besides matrix multiply and add, this extension aims to make it possible to perform piece-wise operations on matrices in a SPMD manner. The mechanisms that are recommended to perform such piece-wise operations depend upon which of the following classes the operation falls into:
 
-Class 1- Element-wise operations where the same operation is performed on every element of the matrix. Activation functions are an example of element-wise operations.
+Class 1- Element-wise operations where the same operation is performed on every element of the matrix, such that the operation can be performed without knowledge of the position of the element within the matrix. Activation functions or adding a constant value to every element of the matrix are two examples.
 
 Class 2- Piece-wise operations where the operation depends on the element index of the matrix or the operation takes multiple elements as operands (such as a sum of all elements in a row for example). Quantization that is needed for conversion between low precision types like `int8_t` and `fp32` uses piece-wise operations.
 
