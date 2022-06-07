@@ -16,9 +16,9 @@
 ; RUN: FileCheck %s -input-file=%t_esimd_x2grf_0.sym --check-prefixes CHECK-ESIMD-2xGRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
-; CHECK: {{.*}}esimd_0.ll|{{.*}}esimd_0.prop|{{.*}}esimd_0.sym
 ; CHECK: {{.*}}esimd_x2grf_0.ll|{{.*}}esimd_x2grf_0.prop|{{.*}}esimd_x2grf_0.sym
 ; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
+; CHECK: {{.*}}esimd_0.ll|{{.*}}esimd_0.prop|{{.*}}esimd_0.sym
 
 ; CHECK-ESIMD-2xGRF-PROP: isEsimdImage=1|1
 ; CHECK-ESIMD-2xGRF-PROP: isDoubleGRFEsimdImage=1|1

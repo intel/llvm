@@ -529,7 +529,8 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
 IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
                                    StringRef IRFilename = "") {
   IrPropSymFilenameTriple Res;
-  StringRef Suffix = MD.isDoubleGRF() ? "esimd_x2grf_" : (MD.isESIMD() ? "_esimd" : "");
+  StringRef Suffix =
+      MD.isDoubleGRF() ? "_esimd_x2grf" : (MD.isESIMD() ? "_esimd" : "");
 
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
@@ -701,7 +702,8 @@ processInputModule(std::unique_ptr<Module> M) {
   // Top-level per-kernel/per-source splitter. SYCL/ESIMD splitting is applied
   // to modules resulting from all other kinds of splitting.
   std::unique_ptr<module_split::ModuleSplitterBase> ScopedSplitter =
-      module_split::getSplitterByMode(std::move(M), SplitMode, IROutputOnly,
+      module_split::getSplitterByMode(module_split::ModuleDesc{std::move(M)},
+                                      SplitMode, IROutputOnly,
                                       EmitOnlyKernelsAsEntryPoints);
   const bool SplitByScope = ScopedSplitter->totalSplits() > 1;
   Modified |= SplitByScope;
@@ -709,7 +711,7 @@ processInputModule(std::unique_ptr<Module> M) {
   if (DeviceGlobals)
     ScopedSplitter->verifyNoCrossModuleDeviceGlobalUsage();
 
-  // TODO this nested splitting scheme does not scale well when other split
+  // TODO this nested splitting scheme will not scale well when other split
   // "dimensions" will be added. Some infra/"split manager" needs to be
   // implemented in this case - e.g. all needed splitters are registered, then
   // split manager applies them in the order added and runs needed tforms on the
@@ -722,8 +724,8 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     std::unique_ptr<module_split::ModuleSplitterBase> DoubleGRFSplitter =
-      module_split::getESIMDDoubleGRFSplitter(std::move(MDesc.releaseModulePtr()),
-        EmitOnlyKernelsAsEntryPoints);
+        module_split::getESIMDDoubleGRFSplitter(std::move(MDesc),
+                                                EmitOnlyKernelsAsEntryPoints);
     const bool SplitByDoubleGRF = DoubleGRFSplitter->totalSplits() > 1;
     Modified |= SplitByDoubleGRF;
 
@@ -738,9 +740,9 @@ processInputModule(std::unique_ptr<Module> M) {
       // linked back because functions shared between graphs are cloned and
       // renamed.
       std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
-        module_split::getSplitterByKernelType(
-          std::move(MDesc1.releaseModulePtr()), EmitOnlyKernelsAsEntryPoints,
-          &MDesc1.entries());
+          module_split::getSplitterByKernelType(std::move(MDesc1),
+                                                EmitOnlyKernelsAsEntryPoints,
+                                                &MDesc1.entries());
       const bool SplitByESIMD = ESIMDSplitter->totalSplits() > 1;
       Modified |= SplitByESIMD;
 
@@ -805,8 +807,8 @@ processInputModule(std::unique_ptr<Module> M) {
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
         addTableRow(*Table, T);
       }
-      ++ID;
     }
+    ++ID;
   }
   return Table;
 }

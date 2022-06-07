@@ -136,7 +136,8 @@ bool isESIMDFunction(const Function &F) {
 // This function makes one or two groups depending on kernel types (SYCL, ESIMD)
 EntryPointGroupVec
 groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
-                             EntryPointVec *AllowedEntriesVec) {
+                             EntryPointVec *AllowedEntriesVec,
+                             EntryPointGroup::Properties BlueprintProps) {
   SmallPtrSet<const Function *, 32> AllowedEntries;
 
   if (AllowedEntriesVec) {
@@ -161,7 +162,8 @@ groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
 
   if (!EntryPointMap.empty()) {
     for (auto& EPG : EntryPointMap) {
-      EntryPointGroups.push_back({ EPG.first, std::move(EPG.second) });
+      EntryPointGroups.emplace_back(
+          EntryPointGroup{EPG.first, std::move(EPG.second), BlueprintProps});
       EntryPointGroup& G = EntryPointGroups.back();
 
       if (G.GroupId == ESIMD_SCOPE_NAME) {
@@ -185,9 +187,10 @@ groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
 // which contains pairs of group id and entry points for that group. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-EntryPointGroupVec groupEntryPointsByScope(const Module &M,
-                                           EntryPointsGroupScope EntryScope,
-                                           bool EmitOnlyKernelsAsEntryPoints) {
+EntryPointGroupVec
+groupEntryPointsByScope(const Module &M, EntryPointsGroupScope EntryScope,
+                        bool EmitOnlyKernelsAsEntryPoints,
+                        EntryPointGroup::Properties BlueprintProps) {
   EntryPointGroupVec EntryPointGroups{};
   // Use MapVector for deterministic order of traversal (helps tests).
   MapVector<StringRef, EntryPointVec> EntryPointMap;
@@ -227,7 +230,8 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
     for (auto& EPG : EntryPointMap) {
-      EntryPointGroups.push_back({ EPG.first, std::move(EPG.second) });
+      EntryPointGroups.emplace_back(
+          EntryPointGroup{EPG.first, std::move(EPG.second), BlueprintProps});
       EntryPointGroup& G = EntryPointGroups.back();
       G.Props.Scope = EntryScope;
     }
@@ -239,10 +243,9 @@ EntryPointGroupVec groupEntryPointsByScope(const Module &M,
 }
 
 template <class EntryPoinGroupFunc>
-EntryPointGroupVec
-groupEntryPointsByAttribute(const Module &M, StringRef AttrName,
-                            bool EmitOnlyKernelsAsEntryPoints,
-                            EntryPoinGroupFunc F) {
+EntryPointGroupVec groupEntryPointsByAttribute(
+    const Module &M, StringRef AttrName, bool EmitOnlyKernelsAsEntryPoints,
+    EntryPoinGroupFunc F, EntryPointGroup::Properties BlueprintProps) {
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointVec> EntryPointMap;
 
@@ -260,7 +263,8 @@ groupEntryPointsByAttribute(const Module &M, StringRef AttrName,
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
     for (auto& EPG : EntryPointMap) {
-      EntryPointGroups.push_back({ EPG.first, std::move(EPG.second) });
+      EntryPointGroups.emplace_back(
+          EntryPointGroup{EPG.first, std::move(EPG.second), BlueprintProps});
       F(EntryPointGroups.back());
     }
   } else {
@@ -271,11 +275,9 @@ groupEntryPointsByAttribute(const Module &M, StringRef AttrName,
   return EntryPointGroups;
 }
 
-// Records a use graph between functions in a module. Nodes are functions, edges
-// are "uses" relation. One function "uses" another if any of its instructions
-// use the other function. Typical use is a call, another example of use is
-// storing
-class FunctionUseGraph {
+// Represents a call graph between functions in a module. Nodes are functions,
+// edges are "calls" relation.
+class CallGraph {
 public:
   using FunctionSet = SmallPtrSet<const Function*, 16>;
 
@@ -284,11 +286,11 @@ private:
   SmallPtrSet<const Function*, 1> EmptySet;
 
 public:
-  FunctionUseGraph(const Module& M, bool AllUsesAreGraphEdges = false) {
+  CallGraph(const Module &M) {
     for (const auto& F : M) {
       for (const Value* U : F.users()) {
-        if (const Instruction* I = dyn_cast<Instruction>(U)) {
-          if (AllUsesAreGraphEdges || dyn_cast<const CallInst>(I)) {
+        if (const auto *I = dyn_cast<CallInst>(U)) {
+          if (I->getCalledFunction() == &F) {
             const Function* F1 = I->getFunction();
             Graph[F1].insert(&F);
           }
@@ -305,7 +307,7 @@ public:
 
 void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
                                const EntryPointGroup &ModuleEntryPoints,
-                               const FunctionUseGraph &Deps) {
+                               const CallGraph &Deps) {
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
 
@@ -336,9 +338,10 @@ void collectGlobalVarsToExtract(SetVector<const GlobalValue *> &GVs,
     GVs.insert(&G);
 }
 
-ModuleDesc extractSubModule(const Module &M,
+ModuleDesc extractSubModule(const ModuleDesc &MD,
                             const SetVector<const GlobalValue *> GVs,
                             EntryPointGroup &&ModuleEntryPoints) {
+  const Module &M = MD.getModule();
   // For each group of entry points collect all dependencies.
   ValueToValueMapTy VMap;
   // Clone definitions only for needed globals. Others will be added as
@@ -353,7 +356,7 @@ ModuleDesc extractSubModule(const Module &M,
       EPs.cbegin(), EPs.cend(), std::inserter(NewEPs, NewEPs.end()),
       [&VMap](const Function *F) { return cast<Function>(VMap[F]); });
   ModuleEntryPoints.Functions = std::move(NewEPs);
-  return ModuleDesc{std::move(SubM), std::move(ModuleEntryPoints)};
+  return ModuleDesc{std::move(SubM), std::move(ModuleEntryPoints), MD.Props};
 }
 
 // TODO: try to move including all passes (cleanup, spec consts, compile time
@@ -371,14 +374,13 @@ void cleanupSplitModule(Module &SplitM) {
 
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
-ModuleDesc extractCallGraph(const Module &M,
-                            EntryPointGroup &&ModuleEntryPoints,
-                            bool AllUsesAreCallGraphEdges = false) {
+ModuleDesc extractCallGraph(const ModuleDesc &MD,
+                            EntryPointGroup &&ModuleEntryPoints) {
   SetVector<const GlobalValue *> GVs;
-  collectFunctionsToExtract(GVs, ModuleEntryPoints, FunctionUseGraph{M, AllUsesAreCallGraphEdges});
-  collectGlobalVarsToExtract(GVs, M);
+  collectFunctionsToExtract(GVs, ModuleEntryPoints, CallGraph{MD.getModule()});
+  collectGlobalVarsToExtract(GVs, MD.getModule());
 
-  ModuleDesc SplitM = extractSubModule(M, GVs, std::move(ModuleEntryPoints));
+  ModuleDesc SplitM = extractSubModule(MD, GVs, std::move(ModuleEntryPoints));
   cleanupSplitModule(SplitM.getModule());
 
   return SplitM;
@@ -389,19 +391,17 @@ public:
   using ModuleSplitterBase::ModuleSplitterBase; // to inherit base constructors
 
   ModuleDesc nextSplit() override {
-    return {releaseInputModule(), nextGroup()};
+    return ModuleDesc{releaseInputModule(), nextGroup(), Input.Props};
   }
 };
 
 class ModuleSplitter : public ModuleSplitterBase {
-  bool AllUsesAreCallGraphEdges;
-
 public:
-
-  ModuleSplitter(std::unique_ptr<Module> M, EntryPointGroupVec&& GroupVec, bool AllUsesAreCallGraphEdges = false) : ModuleSplitterBase(std::move(M), std::move(GroupVec)), AllUsesAreCallGraphEdges(AllUsesAreCallGraphEdges) {}
+  ModuleSplitter(ModuleDesc &&MD, EntryPointGroupVec &&GroupVec)
+      : ModuleSplitterBase(std::move(MD), std::move(GroupVec)) {}
 
   ModuleDesc nextSplit() override {
-    return extractCallGraph(getInputModule(), nextGroup(), AllUsesAreCallGraphEdges);
+    return extractCallGraph(Input, nextGroup());
   }
 };
 
@@ -411,39 +411,40 @@ namespace llvm {
 namespace module_split {
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(std::unique_ptr<Module> M,
-                        bool EmitOnlyKernelsAsEntryPoints,
+getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints,
                         EntryPointVec *AllowedEntries) {
   EntryPointGroupVec Groups = groupEntryPointsByKernelType(
-      *M, EmitOnlyKernelsAsEntryPoints, AllowedEntries);
+      MD.getModule(), EmitOnlyKernelsAsEntryPoints, AllowedEntries,
+      MD.getEntryPointGroup().Props);
   bool DoSplit = (Groups.size() > 1);
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
   else
-    return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
+getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
                   bool AutoSplitIsGlobalScope,
                   bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointsGroupScope Scope =
-      selectDeviceCodeGroupScope(*M, Mode, AutoSplitIsGlobalScope);
-  EntryPointGroupVec Groups =
-      groupEntryPointsByScope(*M, Scope, EmitOnlyKernelsAsEntryPoints);
+      selectDeviceCodeGroupScope(MD.getModule(), Mode, AutoSplitIsGlobalScope);
+  EntryPointGroupVec Groups = groupEntryPointsByScope(
+      MD.getModule(), Scope, EmitOnlyKernelsAsEntryPoints,
+      MD.getEntryPointGroup().Props);
   assert(!Groups.empty() && "At least one group is expected");
   bool DoSplit = (Mode != SPLIT_NONE &&
                   (Groups.size() > 1 || !Groups.cbegin()->Functions.empty()));
 
   if (DoSplit)
-    return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
   else
-    return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
-  const Module &M = *InputModule;
+  const Module &M = getInputModule();
   // Early exit if there is only one group
   if (Groups.size() < 2)
     return;
@@ -669,21 +670,22 @@ void EntryPointGroup::rebuild(const Module &M) {
 }
 
 std::unique_ptr<ModuleSplitterBase>
-getESIMDDoubleGRFSplitter(std::unique_ptr<Module> M,
-                                        bool EmitOnlyKernelsAsEntryPoints) {
+getESIMDDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec Groups = groupEntryPointsByAttribute(
-    *M, ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints, [](EntryPointGroup& G) {
-      if (G.GroupId == ATTR_DOUBLE_GRF) {
-        G.Props.UsesDoubleGRF = true;
-      }
-    });
+      MD.getModule(), ATTR_DOUBLE_GRF, EmitOnlyKernelsAsEntryPoints,
+      [](EntryPointGroup &G) {
+        if (G.GroupId == ATTR_DOUBLE_GRF) {
+          G.Props.UsesDoubleGRF = true;
+        }
+      },
+      MD.getEntryPointGroup().Props);
   assert(!Groups.empty() && "At least one group is expected");
   assert(Groups.size() <= 2 && "At most 2 groups are expected");
 
   if (Groups.size() > 1)
-    return std::make_unique<ModuleSplitter>(std::move(M), std::move(Groups));
+    return std::make_unique<ModuleSplitter>(std::move(MD), std::move(Groups));
   else
-    return std::make_unique<ModuleCopier>(std::move(M), std::move(Groups));
+    return std::make_unique<ModuleCopier>(std::move(MD), std::move(Groups));
 }
 
 } // namespace module_split
