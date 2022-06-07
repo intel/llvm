@@ -175,7 +175,9 @@ groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
     }
   } else {
     // No entry points met, record this.
-    EntryPointGroups.push_back({SYCL_SCOPE_NAME, {}});
+    EntryPointGroups.emplace_back(EntryPointGroup{SYCL_SCOPE_NAME, {}});
+    EntryPointGroup& G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
   }
 
   return EntryPointGroups;

@@ -99,7 +99,7 @@ class ModuleDesc {
 
 public:
   struct Properties {
-    bool SpecConstsMet = true;
+    bool SpecConstsMet = false;
   };
   std::string Name = "";
   Properties Props;
