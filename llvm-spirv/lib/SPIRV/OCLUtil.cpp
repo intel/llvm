@@ -1361,12 +1361,7 @@ bool isSpecialTypeInitializer(Instruction *Inst) {
   return isSamplerInitializer(Inst) || isPipeStorageInitializer(Inst);
 }
 
-bool isSamplerTy(Type *Ty) {
-  auto PTy = dyn_cast<PointerType>(Ty);
-  if (!PTy)
-    return false;
-
-  auto *STy = dyn_cast<StructType>(PTy->getPointerElementType());
+bool isSamplerStructTy(StructType *STy) {
   return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
 }
 

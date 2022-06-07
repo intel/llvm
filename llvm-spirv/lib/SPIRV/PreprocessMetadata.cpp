@@ -272,7 +272,7 @@ void PreprocessMetadataBase::visit(Module *M) {
       // !ip_interface !N
       // !N = !{!"streaming", !"stall_free_return"}
       for (size_t I = 0; I != Interface->getNumOperands(); ++I)
-        InterfaceStrSet.insert(getMDOperandAsString(Interface, I));
+        InterfaceStrSet.insert(getMDOperandAsString(Interface, I).str());
       if (InterfaceStrSet.find("streaming") != InterfaceStrSet.end()) {
         int32_t InterfaceMode = 0;
         if (InterfaceStrSet.find("stall_free_return") != InterfaceStrSet.end())

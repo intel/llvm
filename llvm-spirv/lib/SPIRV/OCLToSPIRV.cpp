@@ -1200,9 +1200,9 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
   mutateCallInstSPIRV(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
-        auto ImageTy = OCLTypeToSPIRVPtr->getAdaptedType(Args[0]);
-        if (isOCLImageType(ImageTy))
-          ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
+        auto *ImageTy =
+            OCLTypeToSPIRVPtr->getAdaptedType(Args[0])->getPointerElementType();
+        ImageTy = adaptSPIRVImageType(M, ImageTy);
         auto SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
             M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
         Value *SampledImgArgs[] = {Args[0], Args[1]};
@@ -1251,7 +1251,9 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   StringRef TyName;
   SmallVector<StringRef, 4> SubStrs;
-  auto IsImg = isOCLImageType(CI->getArgOperand(0)->getType(), &TyName);
+  SmallVector<StructType *, 4> ParamTys;
+  getParameterTypes(CI, ParamTys);
+  auto IsImg = isOCLImageStructType(ParamTys[0], &TyName);
   (void)IsImg;
   assert(IsImg);
   std::string ImageTyName = getImageBaseTypeName(TyName);
@@ -1696,7 +1698,9 @@ static void processSubgroupBlockReadWriteINTEL(CallInst *CI,
 // reads and vector block reads.
 void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  if (isOCLImageType(CI->getArgOperand(0)->getType()))
+  SmallVector<StructType *, 2> ParamTys;
+  getParameterTypes(CI, ParamTys);
+  if (isOCLImageStructType(ParamTys[0]))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockReadINTEL);
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockReadINTEL);
@@ -1709,7 +1713,9 @@ void OCLToSPIRVBase::visitSubgroupBlockReadINTEL(CallInst *CI) {
 // instructions.
 void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
   OCLBuiltinTransInfo Info;
-  if (isOCLImageType(CI->getArgOperand(0)->getType()))
+  SmallVector<StructType *, 3> ParamTys;
+  getParameterTypes(CI, ParamTys);
+  if (isOCLImageStructType(ParamTys[0]))
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupImageBlockWriteINTEL);
   else
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockWriteINTEL);
@@ -1894,21 +1900,24 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   mutateCallInstSPIRV(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        auto SamplerIt = std::find_if(Args.begin(), Args.end(), [](Value *V) {
-          return OCLUtil::isSamplerTy(V->getType());
-        });
-        assert(SamplerIt != Args.end() &&
+        SmallVector<StructType *, 4> ParamTys;
+        getParameterTypes(CI, ParamTys);
+        auto *TyIt =
+            std::find_if(ParamTys.begin(), ParamTys.end(), isSamplerStructTy);
+        assert(TyIt != ParamTys.end() &&
                "Invalid Subgroup AVC Intel built-in call");
+        auto SamplerIt = Args.begin() + (TyIt - ParamTys.begin());
         auto *SamplerVal = *SamplerIt;
         Args.erase(SamplerIt);
+        ParamTys.erase(TyIt);
 
         for (unsigned I = 0, E = Args.size(); I < E; ++I) {
-          if (!isOCLImageType(Args[I]->getType()))
+          if (!isOCLImageStructType(ParamTys[I]))
             continue;
 
-          auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedType(Args[I]);
-          if (isOCLImageType(ImageTy))
-            ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
+          auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedType(Args[I])
+                              ->getPointerElementType();
+          ImageTy = adaptSPIRVImageType(M, ImageTy);
           auto *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
               M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::VmeImageINTEL);
 
