@@ -686,6 +686,9 @@ DeviceBinaryImage::getProperty(const char *PropName) const {
 
 // Returns the e_type field from an ELF image.
 static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
+  (void)ImgSize;
+  assert(ImgSize >= 18 && "Not enough bytes to have an ELF header type.");
+
   bool IsBigEndian = ImgData[5] == 2;
   if (IsBigEndian)
     return (static_cast<uint16_t>(ImgData[16]) << 8) |
