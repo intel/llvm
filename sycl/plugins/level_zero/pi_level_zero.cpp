@@ -5374,19 +5374,12 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
     return PI_PROFILING_INFO_NOT_AVAILABLE;
   }
 
-  uint64_t ZeTimerResolution =
-      Event->Queue
-          ? Event->Queue->Device->ZeDeviceProperties->timerResolution
-          : Event->Context->Devices[0]->ZeDeviceProperties->timerResolution;
+  pi_device Device =
+      Event->Queue ? Event->Queue->Device : Event->Context->Devices[0];
 
+  uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxValue =
-      Event->Queue
-          ? ((1ULL << Event->Queue->Device->ZeDeviceProperties
-                          ->kernelTimestampValidBits) -
-             1ULL)
-          : ((1ULL << Event->Context->Devices[0]
-                          ->ZeDeviceProperties->kernelTimestampValidBits) -
-             1ULL);
+      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
 
   ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
 
