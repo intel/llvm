@@ -210,7 +210,17 @@ namespace oneapi {
 
     // operator<<
     template<typename T>
-    bool operator<<(sycl::stream&, const complex<T>&);
+    const sycl::stream& operator<<(sycl::stream&, const complex<T>&);
+
+    // Note: The below << and >> operator with basic_ostream and basic_istream
+    // are host-only.
+    template<class T, class charT, class traits>
+    std::basic_ostream<charT, traits>&
+    operator<<(std::basic_ostream<charT, traits>&, const complex<T>&);
+
+    template<class T, class charT, class traits>
+    std::basic_istream<charT, traits>&
+    operator>>(std::basic_istream<charT, traits>&, const complex<T>&);
 
 } // namespace oneapi
 } // namespace ext
@@ -300,8 +310,12 @@ the decimal and an imaginary component equal to 0.
 |Compares complex number x and decimal y and returns true if they are different, otherwise false.
 |`gencomplex operator!=(const genfloat& x, const gencomplex& y);`
 |Compares decimal x and complex number y and returns true if they are different, otherwise false.
-|`const stream& operator<<(sycl::stream& x, const gencomplex y);`
-|Streams the complex number x in the format "(real,imaginary)" into `sycl::stream` x and return the result.
+|`const sycl::stream& operator<<(sycl::stream& x, const gencomplex& y);`
+|Streams the complex number y in the format "(real,imaginary)" into `sycl::stream` x and return the result.
+|`std::basic_ostream& operator<<(std::basic_ostream& x, const gencomplex& y);`
+|Streams the complex number y in the format "(real,imaginary)" into `std::basic_ostream` x and return the result. This is only available for the host.
+|`std::basic_istream& operator>>(std::basic_istream&, const gencomplex& y);`
+|Streams the string given in the format "(real,imaginary)" into complex number y. This is only available for the host.
 |===
 
 
