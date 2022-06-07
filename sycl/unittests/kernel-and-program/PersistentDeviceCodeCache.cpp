@@ -120,15 +120,13 @@ public:
     SYCLCachePersistentChanged = true;
   }
 
-  virtual void SetUp() {
+  void SetUp() override {
     EXPECT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
         << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
            "location.";
-    // Set binary format from parameter.
-    BinStruct.Format = GetParam();
   }
 
-  virtual void TearDown() {
+  void TearDown() override {
     // If we changed the cache, set it back to the old value.
     if (SYCLCachePersistentChanged)
       SetSYCLCachePersistentEnv(SYCLCachePersistentBefore
@@ -202,10 +200,9 @@ protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   platform Plt;
   device Dev;
-  // NOTE: Format is a parameter of the test so use none and set in SetUp.
   pi_device_binary_struct BinStruct{/*Version*/ 1,
                                     /*Kind*/ 4,
-                                    /*Format*/ PI_DEVICE_BINARY_TYPE_NONE,
+                                    /*Format*/ GetParam(),
                                     /*DeviceTargetSpec*/ nullptr,
                                     /*CompileOptions*/ nullptr,
                                     /*LinkOptions*/ nullptr,
