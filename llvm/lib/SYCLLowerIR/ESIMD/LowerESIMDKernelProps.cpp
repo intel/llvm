@@ -9,8 +9,8 @@
 // function attributes and adds those attributes to all kernels which can
 // potentially call this intrinsic.
 
-#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
@@ -24,7 +24,8 @@ using namespace llvm;
 
 namespace {
 
-constexpr char SET_KERNEL_PROPS_FUNC_NAME[] = "_Z29__esimd_set_kernel_propertiesi";
+constexpr char SET_KERNEL_PROPS_FUNC_NAME[] =
+    "_Z29__esimd_set_kernel_propertiesi";
 
 // Kernel property identifiers. Should match ones in
 // sycl/include/sycl/ext/intel/experimental/esimd/kernel_properties.hpp
@@ -36,8 +37,8 @@ void processSetKernelPropertiesCall(CallInst &CI) {
 
   if (!isa<ConstantInt>(ArgV)) {
     llvm::report_fatal_error(
-      llvm::Twine(__FILE__ " ") +
-      "integral constant is expected for set_kernel_properties");
+        llvm::Twine(__FILE__ " ") +
+        "integral constant is expected for set_kernel_properties");
   }
   uint64_t PropID = cast<llvm::ConstantInt>(ArgV)->getZExtValue();
 
@@ -57,9 +58,9 @@ void processSetKernelPropertiesCall(CallInst &CI) {
 } // namespace
 
 namespace llvm {
-PreservedAnalyses SYCLLowerESIMDKernelPropsPass::run(Module &M,
-                                               ModuleAnalysisManager &MAM) {
-  Function* F = M.getFunction(SET_KERNEL_PROPS_FUNC_NAME);
+PreservedAnalyses
+SYCLLowerESIMDKernelPropsPass::run(Module &M, ModuleAnalysisManager &MAM) {
+  Function *F = M.getFunction(SET_KERNEL_PROPS_FUNC_NAME);
 
   if (!F) {
     return PreservedAnalyses::all();

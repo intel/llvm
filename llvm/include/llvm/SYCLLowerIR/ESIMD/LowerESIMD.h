@@ -70,9 +70,10 @@ ModulePass *createESIMDLowerVecArgPass();
 void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
 
 // Lowers calls to __esimd_set_kernel_properties
-class SYCLLowerESIMDKernelPropsPass : public PassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
+class SYCLLowerESIMDKernelPropsPass
+    : public PassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
 public:
-  PreservedAnalyses run(Module& M, ModuleAnalysisManager&);
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };
 
 } // namespace llvm

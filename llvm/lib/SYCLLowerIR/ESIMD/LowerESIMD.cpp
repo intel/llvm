@@ -13,8 +13,8 @@
 // values of integer template parameters they were instantiated with.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
+#include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -72,7 +72,8 @@ private:
 
 char SYCLLowerESIMDLegacyPass::ID = 0;
 INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
-                "Lower constructs specific to the 'explicit SIMD' extension", false, false)
+                "Lower constructs specific to the 'explicit SIMD' extension",
+                false, false)
 
 // Public interface to the SYCLLowerESIMDPass.
 ModulePass *llvm::createSYCLLowerESIMDPass() {
@@ -1760,7 +1761,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         ToErase.push_back(CI);
         continue;
       }
-      assert(!Name.startswith("__esimd_set_kernel_properties") && "__esimd_set_kernel_properties must have been lowered");
+      assert(!Name.startswith("__esimd_set_kernel_properties") &&
+             "__esimd_set_kernel_properties must have been lowered");
 
       if (Name.empty() || !Name.startswith(ESIMD_INTRIN_PREF1))
         continue;

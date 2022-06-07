@@ -161,10 +161,10 @@ groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
   }
 
   if (!EntryPointMap.empty()) {
-    for (auto& EPG : EntryPointMap) {
+    for (auto &EPG : EntryPointMap) {
       EntryPointGroups.emplace_back(
           EntryPointGroup{EPG.first, std::move(EPG.second), BlueprintProps});
-      EntryPointGroup& G = EntryPointGroups.back();
+      EntryPointGroup &G = EntryPointGroups.back();
 
       if (G.GroupId == ESIMD_SCOPE_NAME) {
         G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
@@ -176,7 +176,7 @@ groupEntryPointsByKernelType(const Module &M, bool EmitOnlyKernelsAsEntryPoints,
   } else {
     // No entry points met, record this.
     EntryPointGroups.emplace_back(EntryPointGroup{SYCL_SCOPE_NAME, {}});
-    EntryPointGroup& G = EntryPointGroups.back();
+    EntryPointGroup &G = EntryPointGroups.back();
     G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
   }
 
@@ -231,10 +231,10 @@ groupEntryPointsByScope(const Module &M, EntryPointsGroupScope EntryScope,
 
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto& EPG : EntryPointMap) {
+    for (auto &EPG : EntryPointMap) {
       EntryPointGroups.emplace_back(
           EntryPointGroup{EPG.first, std::move(EPG.second), BlueprintProps});
-      EntryPointGroup& G = EntryPointGroups.back();
+      EntryPointGroup &G = EntryPointGroups.back();
       G.Props.Scope = EntryScope;
     }
   } else {
@@ -264,7 +264,7 @@ EntryPointGroupVec groupEntryPointsByAttribute(
   }
   if (!EntryPointMap.empty()) {
     EntryPointGroups.reserve(EntryPointMap.size());
-    for (auto& EPG : EntryPointMap) {
+    for (auto &EPG : EntryPointMap) {
       EntryPointGroups.emplace_back(
           EntryPointGroup{EPG.first, std::move(EPG.second), BlueprintProps});
       F(EntryPointGroups.back());
@@ -281,19 +281,19 @@ EntryPointGroupVec groupEntryPointsByAttribute(
 // edges are "calls" relation.
 class CallGraph {
 public:
-  using FunctionSet = SmallPtrSet<const Function*, 16>;
+  using FunctionSet = SmallPtrSet<const Function *, 16>;
 
 private:
-  std::unordered_map<const Function*, FunctionSet> Graph;
-  SmallPtrSet<const Function*, 1> EmptySet;
+  std::unordered_map<const Function *, FunctionSet> Graph;
+  SmallPtrSet<const Function *, 1> EmptySet;
 
 public:
   CallGraph(const Module &M) {
-    for (const auto& F : M) {
-      for (const Value* U : F.users()) {
+    for (const auto &F : M) {
+      for (const Value *U : F.users()) {
         if (const auto *I = dyn_cast<CallInst>(U)) {
           if (I->getCalledFunction() == &F) {
-            const Function* F1 = I->getFunction();
+            const Function *F1 = I->getFunction();
             Graph[F1].insert(&F);
           }
         }
@@ -301,9 +301,12 @@ public:
     }
   }
 
-  iterator_range<FunctionSet::const_iterator> successors(const Function* F) const {
+  iterator_range<FunctionSet::const_iterator>
+  successors(const Function *F) const {
     auto It = Graph.find(F);
-    return (It == Graph.end()) ? make_range(EmptySet.begin(), EmptySet.end()) : make_range(It->second.begin(), It->second.end());
+    return (It == Graph.end())
+               ? make_range(EmptySet.begin(), EmptySet.end())
+               : make_range(It->second.begin(), It->second.end());
   }
 };
 
@@ -319,7 +322,7 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   while (Idx < GVs.size()) {
     const auto *F = cast<Function>(GVs[Idx++]);
 
-    for (const Function* F1 : Deps.successors(F)) {
+    for (const Function *F1 : Deps.successors(F)) {
       if (!F1->isDeclaration())
         GVs.insert(F1);
     }
@@ -550,7 +553,8 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
   llvm::errs() << "}\n";
 }
 
-void ModuleDesc::assignMergedProperties(const ModuleDesc& MD1, const ModuleDesc& MD2) {
+void ModuleDesc::assignMergedProperties(const ModuleDesc &MD1,
+                                        const ModuleDesc &MD2) {
   EntryPoints.Props = MD1.EntryPoints.Props.merge(MD2.EntryPoints.Props);
   Props.SpecConstsMet = MD1.Props.SpecConstsMet || MD2.Props.SpecConstsMet;
 }
@@ -626,8 +630,8 @@ void ModuleDesc::dump() {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
-               << ", DoubleGRF:" << (EntryPoints.Props.UsesDoubleGRF ? "YES" : "NO")
-               << "\n";
+               << ", DoubleGRF:"
+               << (EntryPoints.Props.UsesDoubleGRF ? "YES" : "NO") << "\n";
   dumpEntryPoints(entries(), EntryPoints.GroupId.str().c_str(), 1);
   llvm::errs() << "}\n";
 }

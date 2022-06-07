@@ -59,9 +59,11 @@ struct EntryPointGroup {
     // Scope represented by EPs in a group
     EntryPointsGroupScope Scope = Scope_Global;
 
-    Properties merge(const Properties& Other) const {
+    Properties merge(const Properties &Other) const {
       Properties Res;
-      Res.HasESIMD = HasESIMD == Other.HasESIMD ? HasESIMD : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+      Res.HasESIMD = HasESIMD == Other.HasESIMD
+                         ? HasESIMD
+                         : SyclEsimdSplitStatus::SYCL_AND_ESIMD;
       Res.UsesDoubleGRF = UsesDoubleGRF || Other.UsesDoubleGRF;
       // Scope remains global
       return Res;
@@ -80,9 +82,13 @@ struct EntryPointGroup {
       : GroupId(GroupId), Functions(std::move(Functions)), Props(Props) {}
 
   // Tells if this group has only ESIMD entry points (based on GroupId).
-  bool isEsimd() const { return Props.HasESIMD == SyclEsimdSplitStatus::ESIMD_ONLY; }
+  bool isEsimd() const {
+    return Props.HasESIMD == SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
   // Tells if this group has only SYCL entry points (based on GroupId).
-  bool isSycl() const { return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY; }
+  bool isSycl() const {
+    return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY;
+  }
   // Tells if some entry points use double GRF mode.
   bool isDoubleGRF() const { return Props.UsesDoubleGRF; }
 
@@ -121,7 +127,7 @@ public:
     rebuildEntryPoints(Names);
   }
 
-  void assignMergedProperties(const ModuleDesc& MD1, const ModuleDesc& MD2);
+  void assignMergedProperties(const ModuleDesc &MD1, const ModuleDesc &MD2);
 
   bool isESIMD() const { return EntryPoints.isEsimd(); }
   bool isSYCL() const { return EntryPoints.isSycl(); }

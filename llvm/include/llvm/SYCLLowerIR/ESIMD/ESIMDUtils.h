@@ -17,20 +17,23 @@ namespace esimd {
 
 constexpr char ATTR_DOUBLE_GRF[] = "esimd-double-grf";
 
-using CallGraphNodeAction = std::function<void(Function*)>;
-void traverseCallgraphUp(llvm::Function* F, CallGraphNodeAction NodeF, bool ErrorOnNonCallUse);
+using CallGraphNodeAction = std::function<void(Function *)>;
+void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction NodeF,
+                         bool ErrorOnNonCallUse);
 
-// Traverses call graph starting from given function up the call chain applying given action
-// to each function met on the way. If \c ErrorOnNonCallUse parameter is true, then no
-// functions' uses are allowed except calls. Otherwise, any function where use of the
-// current one happened is added to the call graph as if the use was a call.
+// Traverses call graph starting from given function up the call chain applying
+// given action to each function met on the way. If \c ErrorOnNonCallUse
+// parameter is true, then no functions' uses are allowed except calls.
+// Otherwise, any function where use of the current one happened is added to the
+// call graph as if the use was a call.
 template <class CallGraphNodeActionF>
-void traverseCallgraphUp(Function* F, CallGraphNodeActionF ActionF, bool ErrorOnNonCallUse = true) {
-  traverseCallgraphUp(F, CallGraphNodeAction{ ActionF }, ErrorOnNonCallUse);
+void traverseCallgraphUp(Function *F, CallGraphNodeActionF ActionF,
+                         bool ErrorOnNonCallUse = true) {
+  traverseCallgraphUp(F, CallGraphNodeAction{ActionF}, ErrorOnNonCallUse);
 }
 
 // Tells whether given function is a ESIMD kernel.
-bool isESIMDKernel(const Function& F);
+bool isESIMDKernel(const Function &F);
 
 } // namespace esimd
 } // namespace llvm

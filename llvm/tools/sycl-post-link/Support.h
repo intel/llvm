@@ -37,7 +37,7 @@ inline void error(const Twine &Msg) {
   exit(1);
 }
 
-inline void warning(const Twine& Msg) {
+inline void warning(const Twine &Msg) {
   errs() << "sycl-post-link WARNING: " << Msg << '\n';
 }
 
