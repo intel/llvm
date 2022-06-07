@@ -2763,14 +2763,19 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
-                                       const CXXRecordDecl *KernelObj) {
+                                       const CXXRecordDecl *KernelObj,
+                                       FunctionDecl *KernelCallerFunc) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
+    auto Type = QualType(KernelObj->getTypeForDecl(), 0);
+    Type->getAsRecordDecl()->setAnonymousStructOrUnion(true);
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
-        KernelObj->getIdentifier(), QualType(KernelObj->getTypeForDecl(), 0),
+        KernelObj->getIdentifier(), Type,
         TSInfo, SC_None);
-
+    if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup)
+      VD->addAttr(
+          SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkGroup));
     return VD;
   }
 
@@ -2846,7 +2851,8 @@ public:
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
-                                            DC.getKernelDecl(), KernelObj)),
+                                            DC.getKernelDecl(), KernelObj,
+                                            KernelCallerFunc)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
