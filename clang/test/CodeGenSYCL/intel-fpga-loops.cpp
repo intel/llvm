@@ -24,6 +24,9 @@
 // CHECK: br label %for.cond2, !llvm.loop ![[MD_FP_1:[0-9]+]]
 // CHECK: br label %for.cond13, !llvm.loop ![[MD_FP_2:[0-9]+]]
 // CHECK: br label %for.cond24, !llvm.loop ![[MD_FP_3:[0-9]+]]
+// CHECK: br label %while.cond, !llvm.loop ![[MD_FP_4:[0-9]+]]
+// CHECK: br i1 %cmp38, label %do.body, label %do.end, !llvm.loop ![[MD_FP_5:[0-9]+]]
+// CHECK: br label %for.cond40, !llvm.loop ![[MD_FP_6:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -155,6 +158,7 @@ void loop_count_control() {
       a[i] = 0;
 }
 
+// Add CodeGen tests for Loop attribute: [[intel::fpga_pipeline()]].
 template <int A>
 void fpga_pipeline() {
   int a[10];
@@ -174,6 +178,23 @@ void fpga_pipeline() {
   // CHECK: ![[MD_FP_3]] = distinct !{![[MD_FP_3]], ![[MP]], ![[MD_dlp]]}
   [[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
+
+  // CHECK: ![[MD_FP_4]] = distinct !{![[MD_FP_4]], ![[MP]], ![[MD_fpga_pipeline]]}
+  int j = 0;
+  [[intel::fpga_pipeline]] while (j < 10) {
+    a[j] += 3;
+  }
+
+  // CHECK: ![[MD_FP_5]] = distinct !{![[MD_FP_5]], ![[MP]], ![[MD_fpga_pipeline]]}
+  int b = 10;
+   [[intel::fpga_pipeline(1)]]
+    do {
+        b = b + 1;
+    }while( b < 20 );
+
+   // CHECK: ![[MD_FP_6]] = distinct !{![[MD_FP_6]], ![[MD_fpga_pipeline]]}
+   int c[] = {0, 1, 2, 3, 4, 5};
+   [[intel::fpga_pipeline(A)]] for (int n : c) { n *= 2; }
 }
 
 template <typename name, typename Func>

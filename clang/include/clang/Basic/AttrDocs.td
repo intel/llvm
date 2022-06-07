@@ -3306,7 +3306,7 @@ synonym for ``[[[intel::fpga_pipeline]]`` and will be removed in the future.
   }];
 }
 
-def SYCLIntelFpgaPipelineAttrDocs : Documentation {
+def SYCLIntelFPGAPipelineAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::fpga_pipeline";
   let Content = [{
@@ -3332,8 +3332,23 @@ loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
     [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
   }
 
-  void count(int *array, size_t n) {
-    [[intel::fpga_pipeline(1)]] for (int i = 0; i < n; ++i) array[i] = 0;
+  void Array(int *array, size_t n) {
+    // identical to [[intel::fpga_pipeline(1)]]
+    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+  int a1[10], int i = 0;
+  [[intel::fpga_pipeline(1)]] while (i < 10) {
+    a1[i] += 3;
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::fpga_pipeline(1)]]
+    do {
+        a = a + 1;
+    }while( a < 20 );
   }
 
   template<int A>

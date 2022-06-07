@@ -154,7 +154,7 @@ struct LoopAttributes {
 
   /// Value for fpga_pipeline variant and metadata.
   llvm::SmallVector<std::pair<const char *, unsigned int>, 2>
-      SYCLIntelFPGANPipelines;
+      SYCLIntelFPGAPipeline;
 
   /// Value for whether the loop is required to make progress.
   bool MustProgress;
@@ -412,8 +412,8 @@ public:
   void setSYCLNofusionEnable() { StagedAttrs.SYCLNofusionEnable = true; }
 
   /// Set variant and value of fpga_pipeline for the next loop pushed.
-  void setSYCLIntelFPGANPipelines(const char *Var, unsigned int Value) {
-    StagedAttrs.SYCLIntelFPGANPipelines.push_back({Var, Value});
+  void setSYCLIntelFPGAPipeline(const char *Var, unsigned int Value) {
+    StagedAttrs.SYCLIntelFPGAPipeline.push_back({Var, Value});
   }
 
   /// Set no progress for the next loop pushed.

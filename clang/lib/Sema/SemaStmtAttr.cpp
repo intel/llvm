@@ -220,17 +220,6 @@ static Attr *handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Stmt *,
 }
 
 // Handle [[intel:fpga_pipeline]] attribute.
-bool Sema::checkPipelineAttrArgument(Expr *E,
-                                     const SYCLIntelFpgaPipelineAttr *TmpAttr,
-                                     ExprResult &Result) {
-  llvm::APSInt Value;
-  // Validate that we have an integer constant expression.
-  Result = VerifyIntegerConstantExpression(E, &Value);
-  if (Result.isInvalid())
-    return true;
-  return false;
-}
-
 static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
                                              const ParsedAttr &A) {
   // If no attribute argument is specified, set to default value '1'.
@@ -242,19 +231,19 @@ static Attr *handleSYCLIntelFPGAPipelineAttr(Sema &S, Stmt *,
   return S.BuildSYCLIntelFPGAPipelineAttr(A, E);
 }
 
-SYCLIntelFpgaPipelineAttr *
+SYCLIntelFPGAPipelineAttr *
 Sema::BuildSYCLIntelFPGAPipelineAttr(const AttributeCommonInfo &A, Expr *E) {
-  SYCLIntelFpgaPipelineAttr TmpAttr(Context, A, E);
 
   if (!E->isValueDependent()) {
     // Check if the expression is not value dependent.
-    ExprResult Res;
-    if (checkPipelineAttrArgument(E, &TmpAttr, Res))
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
       return nullptr;
     E = Res.get();
   }
 
-  return new (Context) SYCLIntelFpgaPipelineAttr(Context, A, E);
+  return new (Context) SYCLIntelFPGAPipelineAttr(Context, A, E);
 }
 
 static bool checkSYCLIntelFPGAIVDepSafeLen(Sema &S, llvm::APSInt &Value,
@@ -859,7 +848,7 @@ static void CheckForIncompatibleSYCLLoopAttributes(
   CheckForDuplicationSYCLLoopAttribute<LoopUnrollHintAttr>(S, Attrs, false);
   CheckRedundantSYCLIntelFPGAIVDepAttrs(S, Attrs);
   CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGANofusionAttr>(S, Attrs);
-  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFpgaPipelineAttr>(S, Attrs);
+  CheckForDuplicationSYCLLoopAttribute<SYCLIntelFPGAPipelineAttr>(S, Attrs);
 }
 
 void CheckForIncompatibleUnrollHintAttributes(
@@ -1005,7 +994,7 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     return handleUnlikely(S, St, A, Range);
   case ParsedAttr::AT_SYCLIntelFPGANofusion:
     return handleIntelFPGANofusionAttr(S, St, A);
-  case ParsedAttr::AT_SYCLIntelFpgaPipeline:
+  case ParsedAttr::AT_SYCLIntelFPGAPipeline:
     return handleSYCLIntelFPGAPipelineAttr(S, St, A);
   default:
     // N.B., ClangAttrEmitter.cpp emits a diagnostic helper that ensures a
