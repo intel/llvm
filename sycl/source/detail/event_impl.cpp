@@ -33,6 +33,7 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
 // if we do not yet have a context, use the default one.
+// and be thankful
 void event_impl::ensureContextInitialized() {
   if (!MIsContextInitialized) {
     const device &SyclDevice = default_selector().select_device();
