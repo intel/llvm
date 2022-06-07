@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -16,14 +17,17 @@ static const StringLiteral kOrderMarker = "__test_sort_original_idx__";
 namespace {
 
 struct TestTopologicalSortPass
-    : public PassWrapper<TestTopologicalSortPass, FunctionPass> {
+    : public PassWrapper<TestTopologicalSortPass,
+                         InterfacePass<SymbolOpInterface>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestTopologicalSortPass)
+
   StringRef getArgument() const final { return "test-print-topological-sort"; }
   StringRef getDescription() const final {
     return "Print operations in topological order";
   }
-  void runOnFunction() override {
+  void runOnOperation() override {
     std::map<int, Operation *> ops;
-    getFunction().walk([&ops](Operation *op) {
+    getOperation().walk([&ops](Operation *op) {
       if (auto originalOrderAttr = op->getAttrOfType<IntegerAttr>(kOrderMarker))
         ops[originalOrderAttr.getInt()] = op;
     });
@@ -31,7 +35,7 @@ struct TestTopologicalSortPass
     for (auto op : ops)
       sortedOp.insert(op.second);
     sortedOp = topologicalSort(sortedOp);
-    llvm::errs() << "Testing : " << getFunction().getName() << "\n";
+    llvm::errs() << "Testing : " << getOperation().getName() << "\n";
     for (Operation *op : sortedOp) {
       op->print(llvm::errs());
       llvm::errs() << "\n";

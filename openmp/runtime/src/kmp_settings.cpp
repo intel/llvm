@@ -812,6 +812,7 @@ static void __kmp_stg_parse_wait_policy(char const *name, char const *value,
       }
     } else if (__kmp_str_match("PASSIVE", 1, value)) {
       __kmp_library = library_throughput;
+      __kmp_wpolicy_passive = true; /* allow sleep while active tasking */
       if (blocktime_str == NULL) {
         // KMP_BLOCKTIME not specified, so set default to 0.
         __kmp_dflt_blocktime = 0;
@@ -1245,13 +1246,25 @@ static void __kmp_stg_parse_num_hidden_helper_threads(char const *name,
   // task
   if (__kmp_hidden_helper_threads_num == 0) {
     __kmp_enable_hidden_helper = FALSE;
+  } else {
+    // Since the main thread of hidden helper team dooes not participate
+    // in tasks execution let's increment the number of threads by one
+    // so that requested number of threads do actual job.
+    __kmp_hidden_helper_threads_num++;
   }
 } // __kmp_stg_parse_num_hidden_helper_threads
 
 static void __kmp_stg_print_num_hidden_helper_threads(kmp_str_buf_t *buffer,
                                                       char const *name,
                                                       void *data) {
-  __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num);
+  if (__kmp_hidden_helper_threads_num == 0) {
+    __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num);
+  } else {
+    KMP_DEBUG_ASSERT(__kmp_hidden_helper_threads_num > 1);
+    // Let's exclude the main thread of hidden helper team and print
+    // number of worker threads those do actual job.
+    __kmp_stg_print_int(buffer, name, __kmp_hidden_helper_threads_num - 1);
+  }
 } // __kmp_stg_print_num_hidden_helper_threads
 
 static void __kmp_stg_parse_use_hidden_helper(char const *name,
@@ -5009,7 +5022,7 @@ static void __kmp_stg_parse_hw_subset(char const *name, char const *value,
           attr.set_core_type(KMP_HW_CORE_TYPE_CORE);
         } else if (__kmp_str_match("intel_atom", -1, attr_ptr + 1)) {
           attr.set_core_type(KMP_HW_CORE_TYPE_ATOM);
-        }
+        } else
 #endif
         if (__kmp_str_match("eff", 3, attr_ptr + 1)) {
           const char *number = attr_ptr + 1;
@@ -5170,6 +5183,27 @@ static void __kmp_stg_print_mwait_hints(kmp_str_buf_t *buffer, char const *name,
 } // __kmp_stg_print_mwait_hints
 
 #endif // KMP_HAVE_MWAIT || KMP_HAVE_UMWAIT
+
+#if KMP_HAVE_UMWAIT
+// -----------------------------------------------------------------------------
+// KMP_TPAUSE
+// 0 = don't use TPAUSE, 1 = use C0.1 state, 2 = use C0.2 state
+
+static void __kmp_stg_parse_tpause(char const *name, char const *value,
+                                   void *data) {
+  __kmp_stg_parse_int(name, value, 0, INT_MAX, &__kmp_tpause_state);
+  if (__kmp_tpause_state != 0) {
+    // The actual hint passed to tpause is: 0 for C0.2 and 1 for C0.1
+    if (__kmp_tpause_state == 2) // use C0.2
+      __kmp_tpause_hint = 0; // default was set to 1 for C0.1
+  }
+} // __kmp_stg_parse_tpause
+
+static void __kmp_stg_print_tpause(kmp_str_buf_t *buffer, char const *name,
+                                   void *data) {
+  __kmp_stg_print_int(buffer, name, __kmp_tpause_state);
+} // __kmp_stg_print_tpause
+#endif // KMP_HAVE_UMWAIT
 
 // -----------------------------------------------------------------------------
 // OMP_DISPLAY_ENV
@@ -5535,6 +5569,10 @@ static kmp_setting_t __kmp_stg_table[] = {
      __kmp_stg_print_user_level_mwait, NULL, 0, 0},
     {"KMP_MWAIT_HINTS", __kmp_stg_parse_mwait_hints,
      __kmp_stg_print_mwait_hints, NULL, 0, 0},
+#endif
+
+#if KMP_HAVE_UMWAIT
+    {"KMP_TPAUSE", __kmp_stg_parse_tpause, __kmp_stg_print_tpause, NULL, 0, 0},
 #endif
     {"", NULL, NULL, NULL, 0, 0}}; // settings
 

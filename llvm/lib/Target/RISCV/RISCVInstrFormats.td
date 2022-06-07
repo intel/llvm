@@ -196,7 +196,10 @@ class RVInst<dag outs, dag ins, string opcodestr, string argstr,
   let TSFlags{16} = HasVecPolicyOp;
 
   bit IsRVVWideningReduction = 0;
-  let TSFlags{17} =  IsRVVWideningReduction;
+  let TSFlags{17} = IsRVVWideningReduction;
+
+  bit UsesMaskPolicy = 0;
+  let TSFlags{18} = UsesMaskPolicy;
 }
 
 // Pseudo instructions
@@ -204,6 +207,13 @@ class Pseudo<dag outs, dag ins, list<dag> pattern, string opcodestr = "", string
     : RVInst<outs, ins, opcodestr, argstr, pattern, InstFormatPseudo> {
   let isPseudo = 1;
   let isCodeGenOnly = 1;
+}
+
+class PseudoQuietFCMP<RegisterClass Ty>
+    : Pseudo<(outs GPR:$rd), (ins Ty:$rs1, Ty:$rs2), []> {
+  let hasSideEffects = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
 }
 
 // Pseudo load instructions.

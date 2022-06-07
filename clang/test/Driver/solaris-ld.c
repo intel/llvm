@@ -17,6 +17,7 @@
 // CHECK-LD-SPARC32-SAME: "-L[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2"
 // CHECK-LD-SPARC32-SAME: "-L[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2/../../.."
 // CHECK-LD-SPARC32-SAME: "-L[[SYSROOT]]/usr/lib"
+// CHECK-LD-SPARC32-SAME: "-zignore" "-latomic" "-zrecord"
 // CHECK-LD-SPARC32-SAME: "-lgcc_s"
 // CHECK-LD-SPARC32-SAME: "-lc"
 // CHECK-LD-SPARC32-SAME: "-lgcc"
@@ -40,6 +41,7 @@
 // CHECK-LD-SPARC64-SAME: "-L[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2/sparcv9"
 // CHECK-LD-SPARC64-SAME: "-L[[SYSROOT]]/usr/gcc/4.8/lib/gcc/sparc-sun-solaris2.11/4.8.2/../../../sparcv9"
 // CHECK-LD-SPARC64-SAME: "-L[[SYSROOT]]/usr/lib/sparcv9"
+// CHECK-LD-SPARC64-NOT:  "-latomic"
 // CHECK-LD-SPARC64-SAME: "-lgcc_s"
 // CHECK-LD-SPARC64-SAME: "-lc"
 // CHECK-LD-SPARC64-SAME: "-lgcc"
@@ -63,6 +65,7 @@
 // CHECK-LD-X32-SAME: "-L[[SYSROOT]]/usr/gcc/4.9/lib/gcc/i386-pc-solaris2.11/4.9.4"
 // CHECK-LD-X32-SAME: "-L[[SYSROOT]]/usr/gcc/4.9/lib/gcc/i386-pc-solaris2.11/4.9.4/../../.."
 // CHECK-LD-X32-SAME: "-L[[SYSROOT]]/usr/lib"
+// CHECK-LD-X32-NOT:  "-latomic"
 // CHECK-LD-X32-SAME: "-lgcc_s"
 // CHECK-LD-X32-SAME: "-lc"
 // CHECK-LD-X32-SAME: "-lgcc"
@@ -86,6 +89,7 @@
 // CHECK-LD-X64-SAME: "-L[[SYSROOT]]/usr/gcc/4.9/lib/gcc/i386-pc-solaris2.11/4.9.4/amd64"
 // CHECK-LD-X64-SAME: "-L[[SYSROOT]]/usr/gcc/4.9/lib/gcc/i386-pc-solaris2.11/4.9.4/../../../amd64"
 // CHECK-LD-X64-SAME: "-L[[SYSROOT]]/usr/lib/amd64"
+// CHECK-LD-X64-NOT:  "-latomic"
 // CHECK-LD-X64-SAME: "-lgcc_s"
 // CHECK-LD-X64-SAME: "-lc"
 // CHECK-LD-X64-SAME: "-lgcc"
@@ -104,3 +108,13 @@
 // CHECK-SPARC32-SHARED-SAME: "-lc"
 // CHECK-SPARC32-SHARED-NOT: "-lgcc"
 // CHECK-SPARC32-SHARED-NOT: "-lm"
+
+// -r suppresses default -l and crt*.o, values-*.o like -nostdlib.
+// RUN: %clang -no-canonical-prefixes %s -### -o %t.o \
+// RUN:     --target=sparc-sun-solaris2.11 -r 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-RELOCATABLE
+// CHECK-RELOCATABLE:     "-L
+// CHECK-RELOCATABLE:     "-r"
+// CHECK-RELOCATABLE-NOT: "-l
+// CHECK-RELOCATABLE-NOT: {{.*}}crt{{[^.]+}}.o
+// CHECK-RELOCATABLE-NOT: {{.*}}values-{{[^.]+}}.o

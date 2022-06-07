@@ -1964,9 +1964,22 @@ int __kmp_dispatch_next_algorithm(int gtid,
           &(task_info->task_data), 0, codeptr);                                \
     }                                                                          \
   }
+#define OMPT_LOOP_DISPATCH(lb, ub, st, status)                                 \
+  if (ompt_enabled.ompt_callback_dispatch && status) {                         \
+    ompt_team_info_t *team_info = __ompt_get_teaminfo(0, NULL);                \
+    ompt_task_info_t *task_info = __ompt_get_task_info_object(0);              \
+    ompt_dispatch_chunk_t chunk;                                               \
+    ompt_data_t instance = ompt_data_none;                                     \
+    OMPT_GET_DISPATCH_CHUNK(chunk, lb, ub, st);                                \
+    instance.ptr = &chunk;                                                     \
+    ompt_callbacks.ompt_callback(ompt_callback_dispatch)(                      \
+        &(team_info->parallel_data), &(task_info->task_data),                  \
+        ompt_dispatch_ws_loop_chunk, instance);                                \
+  }
 // TODO: implement count
 #else
 #define OMPT_LOOP_END // no-op
+#define OMPT_LOOP_DISPATCH // no-op
 #endif
 
 #if KMP_STATS_ENABLED
@@ -2142,6 +2155,7 @@ static int __kmp_dispatch_next(ident_t *loc, int gtid, kmp_int32 *p_last,
 #if INCLUDE_SSC_MARKS
     SSC_MARK_DISPATCH_NEXT();
 #endif
+    OMPT_LOOP_DISPATCH(*p_lb, *p_ub, pr->u.p.st, status);
     OMPT_LOOP_END;
     KMP_STATS_LOOP_END;
     return status;
@@ -2265,6 +2279,7 @@ static int __kmp_dispatch_next(ident_t *loc, int gtid, kmp_int32 *p_last,
 #if INCLUDE_SSC_MARKS
   SSC_MARK_DISPATCH_NEXT();
 #endif
+  OMPT_LOOP_DISPATCH(*p_lb, *p_ub, pr->u.p.st, status);
   OMPT_LOOP_END;
   KMP_STATS_LOOP_END;
   return status;
@@ -2655,9 +2670,11 @@ __kmp_wait_4(volatile kmp_uint32 *spinner, kmp_uint32 checker,
   kmp_uint32 spins;
   kmp_uint32 (*f)(kmp_uint32, kmp_uint32) = pred;
   kmp_uint32 r;
+  kmp_uint64 time;
 
   KMP_FSYNC_SPIN_INIT(obj, CCAST(kmp_uint32 *, spin));
   KMP_INIT_YIELD(spins);
+  KMP_INIT_BACKOFF(time);
   // main wait spin loop
   while (!f(r = TCR_4(*spin), check)) {
     KMP_FSYNC_SPIN_PREPARE(obj);
@@ -2665,7 +2682,7 @@ __kmp_wait_4(volatile kmp_uint32 *spinner, kmp_uint32 checker,
        split. It causes problems with infinite recursion because of exit lock */
     /* if ( TCR_4(__kmp_global.g.g_done) && __kmp_global.g.g_abort)
         __kmp_abort_thread(); */
-    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
+    KMP_YIELD_OVERSUB_ELSE_SPIN(spins, time);
   }
   KMP_FSYNC_SPIN_ACQUIRED(obj);
   return r;
@@ -2680,15 +2697,17 @@ void __kmp_wait_4_ptr(void *spinner, kmp_uint32 checker,
   kmp_uint32 check = checker;
   kmp_uint32 spins;
   kmp_uint32 (*f)(void *, kmp_uint32) = pred;
+  kmp_uint64 time;
 
   KMP_FSYNC_SPIN_INIT(obj, spin);
   KMP_INIT_YIELD(spins);
+  KMP_INIT_BACKOFF(time);
   // main wait spin loop
   while (!f(spin, check)) {
     KMP_FSYNC_SPIN_PREPARE(obj);
     /* if we have waited a bit, or are noversubscribed, yield */
     /* pause is in the following code */
-    KMP_YIELD_OVERSUB_ELSE_SPIN(spins);
+    KMP_YIELD_OVERSUB_ELSE_SPIN(spins, time);
   }
   KMP_FSYNC_SPIN_ACQUIRED(obj);
 }

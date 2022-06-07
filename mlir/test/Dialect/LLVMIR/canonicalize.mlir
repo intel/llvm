@@ -37,6 +37,18 @@ llvm.func @no_fold_extractvalue(%arr: !llvm.array<4xf32>) -> f32 {
   %3 = llvm.extractvalue %2[0, 0] : !llvm.array<4 x !llvm.array<4xf32>>
 
   llvm.return %3 : f32
+
+}
+// -----
+
+// CHECK-LABEL: fold_unrelated_extractvalue
+llvm.func @fold_unrelated_extractvalue(%arr: !llvm.array<4xf32>) -> f32 {
+  %f0 = arith.constant 0.0 : f32
+  // CHECK-NOT: insertvalue
+  // CHECK: extractvalue
+  %2 = llvm.insertvalue %f0, %arr[0] : !llvm.array<4xf32>
+  %3 = llvm.extractvalue %2[1] : !llvm.array<4xf32>
+  llvm.return %3 : f32
 }
 
 // -----
@@ -94,7 +106,7 @@ llvm.func @fold_gep(%x : !llvm.ptr<i8>) -> !llvm.ptr<i8> {
 // resulting constant is created in the arith dialect because the last folded
 // operation belongs to it.
 // CHECK-LABEL: llvm_constant
-func @llvm_constant() -> i32 {
+func.func @llvm_constant() -> i32 {
   // CHECK-NOT: llvm.mlir.constant
   %0 = llvm.mlir.constant(40 : i32) : i32
   %1 = llvm.mlir.constant(42 : i32) : i32
@@ -103,4 +115,30 @@ func @llvm_constant() -> i32 {
   %2 = arith.addi %0, %1 : i32
   // CHECK: return %[[RES]]
   return %2 : i32
+}
+
+// -----
+
+// CHECK-LABEL: load_dce
+// CHECK-NEXT: llvm.return
+llvm.func @load_dce(%x : !llvm.ptr<i8>) {
+  %0 = llvm.load %x : !llvm.ptr<i8>
+  llvm.return 
+}
+
+llvm.mlir.global external @fp() : !llvm.ptr<i8>
+
+// CHECK-LABEL: addr_dce
+// CHECK-NEXT: llvm.return
+llvm.func @addr_dce(%x : !llvm.ptr<i8>) {
+  %0 = llvm.mlir.addressof @fp : !llvm.ptr<ptr<i8>>
+  llvm.return 
+}
+
+// CHECK-LABEL: alloca_dce
+// CHECK-NEXT: llvm.return
+llvm.func @alloca_dce() {
+  %c1_i64 = arith.constant 1 : i64
+  %0 = llvm.alloca %c1_i64 x i32 : (i64) -> !llvm.ptr<i32>
+  llvm.return 
 }

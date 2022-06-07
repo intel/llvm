@@ -24,6 +24,7 @@
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/queue.hpp>
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_context_handle_t *ze_context_handle_t;
@@ -37,6 +38,9 @@ typedef struct _ze_module_handle_t *ze_module_handle_t;
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+// Forward declarations
+class device_impl;
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
@@ -130,12 +134,78 @@ template <> struct BackendReturn<backend::ext_oneapi_level_zero, event> {
   using type = ze_event_handle_t;
 };
 
+struct OptionalDevice {
+  OptionalDevice() : DeviceImpl(nullptr) {}
+  OptionalDevice(device dev) : DeviceImpl(getSyclObjImpl(dev)) {}
+
+  operator device() const {
+    if (!DeviceImpl)
+      throw runtime_error("No device has been set.", PI_INVALID_DEVICE);
+    return createSyclObjFromImpl<device>(DeviceImpl);
+  }
+
+  OptionalDevice &operator=(OptionalDevice &Other) {
+    DeviceImpl = Other.DeviceImpl;
+    return *this;
+  }
+  OptionalDevice &operator=(device &Other) {
+    DeviceImpl = getSyclObjImpl(Other);
+    return *this;
+  }
+
+private:
+  std::shared_ptr<device_impl> DeviceImpl;
+
+  friend bool OptionalDeviceHasDevice(const OptionalDevice &Dev);
+};
+
+// Inspector function in the detail namespace to avoid exposing
+// OptionalDevice::hasDevice to user-space.
+inline bool OptionalDeviceHasDevice(const OptionalDevice &Dev) {
+  return Dev.DeviceImpl != nullptr;
+}
+
 template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
   struct type {
     interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership;
+
+    // TODO: Change this to be device when the deprecated constructor is
+    // removed.
+    OptionalDevice Device;
+
+    type()
+        : Ownership(ext::oneapi::level_zero::ownership::transfer), Device() {}
+
+    __SYCL_DEPRECATED("Use backend_input_t<backend::ext_oneapi_level_zero, "
+                      "queue> constructor with device parameter")
+    type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
+         ext::oneapi::level_zero::ownership ownership =
+             ext::oneapi::level_zero::ownership::transfer)
+        : NativeHandle(nativeHandle), Ownership(ownership), Device() {}
+
+    type(interop<backend::ext_oneapi_level_zero, queue>::type nativeHandle,
+         device dev,
+         ext::oneapi::level_zero::ownership ownership =
+             ext::oneapi::level_zero::ownership::transfer)
+        : NativeHandle(nativeHandle), Ownership(ownership), Device(dev) {}
+  };
+};
+
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct BackendInput<backend::ext_oneapi_level_zero,
+                    buffer<DataT, Dimensions, AllocatorT>> {
+  struct type {
+    void *NativeHandle;
     ext::oneapi::level_zero::ownership Ownership{
         ext::oneapi::level_zero::ownership::transfer};
   };
+};
+
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct BackendReturn<backend::ext_oneapi_level_zero,
+                     buffer<DataT, Dimensions, AllocatorT>> {
+  using type = void *;
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_level_zero, queue> {
@@ -195,7 +265,7 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeKernelBundle = true;
   static constexpr bool MakeKernel = true;
-  static constexpr bool MakeBuffer = false;
+  static constexpr bool MakeBuffer = true;
 };
 
 } // namespace detail

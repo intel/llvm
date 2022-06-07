@@ -1,4 +1,4 @@
-; Check that translator generate atomic instructions for atomic builtins
+; Check that translator generates atomic instructions for atomic builtins
 ; FP-typed atomic_fetch_sub and atomic_fetch_sub_explicit should be translated
 ; to FunctionCall
 ; RUN: llvm-as %s -o %t.bc

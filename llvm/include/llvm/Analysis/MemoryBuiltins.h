@@ -28,6 +28,7 @@
 namespace llvm {
 
 class AllocaInst;
+class AAResults;
 class Argument;
 class CallInst;
 class ConstantPointerNull;
@@ -44,7 +45,6 @@ class IntToPtrInst;
 class LLVMContext;
 class LoadInst;
 class PHINode;
-class PointerType;
 class SelectInst;
 class Type;
 class UndefValue;
@@ -56,26 +56,6 @@ class Value;
 bool isAllocationFn(const Value *V, const TargetLibraryInfo *TLI);
 bool isAllocationFn(const Value *V,
                     function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
-
-/// Tests if a value is a call or invoke to a function that returns a
-/// NoAlias pointer (including malloc/calloc/realloc/strdup-like functions).
-bool isNoAliasFn(const Value *V, const TargetLibraryInfo *TLI);
-
-/// Tests if a value is a call or invoke to a library function that
-/// allocates uninitialized memory (such as malloc).
-bool isMallocLikeFn(const Value *V, const TargetLibraryInfo *TLI);
-bool isMallocLikeFn(const Value *V,
-                    function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
-
-/// Tests if a value is a call or invoke to a library function that
-/// allocates uninitialized memory with alignment (such as aligned_alloc).
-bool isAlignedAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI);
-bool isAlignedAllocLikeFn(
-    const Value *V, function_ref<const TargetLibraryInfo &(Function &)> GetTLI);
-
-/// Tests if a value is a call or invoke to a library function that
-/// allocates zero-filled memory (such as calloc).
-bool isCallocLikeFn(const Value *V, const TargetLibraryInfo *TLI);
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates memory similar to malloc or calloc.
@@ -92,14 +72,6 @@ bool isReallocLikeFn(const Value *V, const TargetLibraryInfo *TLI);
 /// Tests if a function is a call or invoke to a library function that
 /// reallocates memory (e.g., realloc).
 bool isReallocLikeFn(const Function *F, const TargetLibraryInfo *TLI);
-
-/// Tests if a value is a call or invoke to a library function that
-/// allocates memory and throws if an allocation failed (e.g., new).
-bool isOpNewLikeFn(const Value *V, const TargetLibraryInfo *TLI);
-
-/// Tests if a value is a call or invoke to a library function that
-/// allocates memory (strdup, strndup).
-bool isStrdupLikeFn(const Value *V, const TargetLibraryInfo *TLI);
 
 //===----------------------------------------------------------------------===//
 //  free Call Utility Functions.
@@ -119,11 +91,41 @@ inline CallInst *isFreeCall(Value *I, const TargetLibraryInfo *TLI) {
 //  Properties of allocation functions
 //
 
+/// Return false if the allocation can have side effects on the program state
+/// we are required to preserve beyond the effect of allocating a new object.
+/// Ex: If our allocation routine has a counter for the number of objects
+/// allocated, and the program prints it on exit, can the value change due
+/// to optimization? Answer is highly language dependent.
+/// Note: *Removable* really does mean removable; it does not mean observable.
+/// A language (e.g. C++) can allow removing allocations without allowing
+/// insertion or speculative execution of allocation routines.
+bool isAllocRemovable(const CallBase *V, const TargetLibraryInfo *TLI);
+
+/// Gets the alignment argument for an aligned_alloc-like function, using either
+/// built-in knowledge based on fuction names/signatures or allocalign
+/// attributes. Note: the Value returned may not indicate a valid alignment, per
+/// the definition of the allocalign attribute.
+Value *getAllocAlignment(const CallBase *V, const TargetLibraryInfo *TLI);
+
+/// Return the size of the requested allocation.  With a trivial mapper, this is
+/// identical to calling getObjectSize(..., Exact).  A mapper function can be
+/// used to replace one Value* (operand to the allocation) with another.  This
+/// is useful when doing abstract interpretation.
+Optional<APInt> getAllocSize(const CallBase *CB,
+                             const TargetLibraryInfo *TLI,
+                             std::function<const Value*(const Value*)> Mapper);
+
 /// If this allocation function initializes memory to a fixed value, return
 /// said value in the requested type.  Otherwise, return nullptr.
 Constant *getInitialValueOfAllocation(const CallBase *Alloc,
                                       const TargetLibraryInfo *TLI,
                                       Type *Ty);
+
+/// If a function is part of an allocation family (e.g.
+/// malloc/realloc/calloc/free), return the identifier for its family
+/// of functions.
+Optional<StringRef> getAllocationFamily(const Value *I,
+                                        const TargetLibraryInfo *TLI);
 
 //===----------------------------------------------------------------------===//
 //  Utility functions to compute size of objects.
@@ -151,6 +153,8 @@ struct ObjectSizeOpts {
   /// though they can't be evaluated. Otherwise, null is always considered to
   /// point to a 0 byte region of memory.
   bool NullIsUnknownSize = false;
+  /// If set, used for more accurate evaluation
+  AAResults *AA = nullptr;
 };
 
 /// Compute the size of the object pointed by Ptr. Returns true and the
@@ -170,8 +174,9 @@ bool getObjectSize(const Value *Ptr, uint64_t &Size, const DataLayout &DL,
 /// argument of the call to objectsize.
 Value *lowerObjectSizeCall(IntrinsicInst *ObjectSize, const DataLayout &DL,
                            const TargetLibraryInfo *TLI, bool MustSucceed);
-
-
+Value *lowerObjectSizeCall(IntrinsicInst *ObjectSize, const DataLayout &DL,
+                           const TargetLibraryInfo *TLI, AAResults *AA,
+                           bool MustSucceed);
 
 using SizeOffsetType = std::pair<APInt, APInt>;
 
@@ -218,7 +223,6 @@ public:
   SizeOffsetType visitConstantPointerNull(ConstantPointerNull&);
   SizeOffsetType visitExtractElementInst(ExtractElementInst &I);
   SizeOffsetType visitExtractValueInst(ExtractValueInst &I);
-  SizeOffsetType visitGEPOperator(GEPOperator &GEP);
   SizeOffsetType visitGlobalAlias(GlobalAlias &GA);
   SizeOffsetType visitGlobalVariable(GlobalVariable &GV);
   SizeOffsetType visitIntToPtrInst(IntToPtrInst&);
@@ -229,6 +233,12 @@ public:
   SizeOffsetType visitInstruction(Instruction &I);
 
 private:
+  SizeOffsetType findLoadSizeOffset(
+      LoadInst &LoadFrom, BasicBlock &BB, BasicBlock::iterator From,
+      SmallDenseMap<BasicBlock *, SizeOffsetType, 8> &VisitedBlocks,
+      unsigned &ScannedInstCount);
+  SizeOffsetType combineSizeOffset(SizeOffsetType LHS, SizeOffsetType RHS);
+  SizeOffsetType computeImpl(Value *V);
   bool CheckedZextOrTrunc(APInt &I);
 };
 

@@ -9,6 +9,7 @@
 #ifndef MLIR_BINDINGS_PYTHON_IRMODULES_H
 #define MLIR_BINDINGS_PYTHON_IRMODULES_H
 
+#include <utility>
 #include <vector>
 
 #include "PybindUtils.h"
@@ -56,7 +57,7 @@ public:
   }
   PyObjectRef(const PyObjectRef &other)
       : referrent(other.referrent), object(other.object /* copies */) {}
-  ~PyObjectRef() {}
+  ~PyObjectRef() = default;
 
   int getRefCount() {
     if (!object)
@@ -200,6 +201,12 @@ public:
   /// Used for testing.
   size_t getLiveOperationCount();
 
+  /// Clears the live operations map, returning the number of entries which were
+  /// invalidated. To be used as a safety mechanism so that API end-users can't
+  /// corrupt by holding references they shouldn't have accessed in the first
+  /// place.
+  size_t clearLiveOperations();
+
   /// Gets the count of live modules associated with this context.
   /// Used for testing.
   size_t getLiveModuleCount();
@@ -330,8 +337,9 @@ public:
   void detach();
 
   pybind11::object contextEnter() { return pybind11::cast(this); }
-  void contextExit(pybind11::object excType, pybind11::object excVal,
-                   pybind11::object excTb) {
+  void contextExit(const pybind11::object &excType,
+                   const pybind11::object &excVal,
+                   const pybind11::object &excTb) {
     detach();
   }
 
@@ -496,7 +504,7 @@ class PyOperation;
 using PyOperationRef = PyObjectRef<PyOperation>;
 class PyOperation : public PyOperationBase, public BaseContextObject {
 public:
-  ~PyOperation();
+  ~PyOperation() override;
   PyOperation &getOperation() override { return *this; }
 
   /// Returns a PyOperation for the given MlirOperation, optionally associating
@@ -532,7 +540,7 @@ public:
   }
 
   bool isAttached() { return attached; }
-  void setAttached(pybind11::object parent = pybind11::object()) {
+  void setAttached(const pybind11::object &parent = pybind11::object()) {
     assert(!attached && "operation already attached");
     attached = true;
   }
@@ -572,6 +580,12 @@ public:
   /// Erases the underlying MlirOperation, removes its pointer from the
   /// parent context's live operations map, and sets the valid bit false.
   void erase();
+
+  /// Invalidate the operation.
+  void setInvalid() { valid = false; }
+
+  /// Clones this operation.
+  pybind11::object clone(const pybind11::object &ip);
 
 private:
   PyOperation(PyMlirContextRef contextRef, MlirOperation operation);
@@ -876,7 +890,7 @@ public:
 class PyValue {
 public:
   PyValue(PyOperationRef parentOperation, MlirValue value)
-      : parentOperation(parentOperation), value(value) {}
+      : parentOperation(std::move(parentOperation)), value(value) {}
   operator MlirValue() const { return value; }
 
   MlirValue get() { return value; }

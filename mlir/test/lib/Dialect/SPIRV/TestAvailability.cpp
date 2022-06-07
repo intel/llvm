@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
@@ -21,8 +22,10 @@ using namespace mlir;
 namespace {
 /// A pass for testing SPIR-V op availability.
 struct PrintOpAvailability
-    : public PassWrapper<PrintOpAvailability, FunctionPass> {
-  void runOnFunction() override;
+    : public PassWrapper<PrintOpAvailability, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PrintOpAvailability)
+
+  void runOnOperation() override;
   StringRef getArgument() const final { return "test-spirv-op-availability"; }
   StringRef getDescription() const final {
     return "Test SPIR-V op availability";
@@ -30,8 +33,8 @@ struct PrintOpAvailability
 };
 } // namespace
 
-void PrintOpAvailability::runOnFunction() {
-  auto f = getFunction();
+void PrintOpAvailability::runOnOperation() {
+  auto f = getOperation();
   llvm::outs() << f.getName() << "\n";
 
   Dialect *spvDialect = getContext().getLoadedDialect("spv");
@@ -103,12 +106,14 @@ void registerPrintSpirvAvailabilityPass() {
 namespace {
 /// A pass for testing SPIR-V op availability.
 struct ConvertToTargetEnv
-    : public PassWrapper<ConvertToTargetEnv, FunctionPass> {
+    : public PassWrapper<ConvertToTargetEnv, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvertToTargetEnv)
+
   StringRef getArgument() const override { return "test-spirv-target-env"; }
   StringRef getDescription() const override {
     return "Test SPIR-V target environment";
   }
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
 struct ConvertToAtomCmpExchangeWeak : public RewritePattern {
@@ -142,9 +147,9 @@ struct ConvertToSubgroupBallot : public RewritePattern {
 };
 } // namespace
 
-void ConvertToTargetEnv::runOnFunction() {
+void ConvertToTargetEnv::runOnOperation() {
   MLIRContext *context = &getContext();
-  FuncOp fn = getFunction();
+  func::FuncOp fn = getOperation();
 
   auto targetEnv = fn.getOperation()
                        ->getAttr(spirv::getTargetEnvAttrName())

@@ -42,8 +42,8 @@ __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
   _CLC_DECL TYPE _Z28__spirv_SubgroupShuffleINTELI##TYPE_MANGLED##ET_S0_j(     \
       TYPE, int);                                                              \
   _CLC_DECL TYPE                                                               \
-      _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(TYPE,      \
-                                                                    int);
+      _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(           \
+          TYPE, TYPE, unsigned int);
 
 __CLC_DECLARE_SHUFFLES(char, a);
 __CLC_DECLARE_SHUFFLES(unsigned char, h);
@@ -72,7 +72,8 @@ __CLC_DECLARE_SHUFFLES(double, d);
   /* Can't use XOR/butterfly shuffles; some lanes may be inactive */           \
   for (int o = 1; o < __spirv_SubgroupMaxSize(); o *= 2) {                     \
     TYPE contribution =                                                        \
-        _Z28__spirv_SubgroupShuffleINTELI##TYPE_MANGLED##ET_S0_j(x, o);        \
+        _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(x, x,    \
+                                                                      o);      \
     bool inactive = (sg_lid < o);                                              \
     contribution = (inactive) ? IDENTITY : contribution;                       \
     x = OP(x, contribution);                                                   \
@@ -90,8 +91,8 @@ __CLC_DECLARE_SHUFFLES(double, d);
   } /* For ExclusiveScan, shift and prepend identity */                        \
   else if (op == ExclusiveScan) {                                              \
     *carry = x;                                                                \
-    result =                                                                   \
-        _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(x, 1);   \
+    result = _Z30__spirv_SubgroupShuffleUpINTELI##TYPE_MANGLED##ET_S0_S0_j(    \
+        x, x, 1);                                                              \
     if (sg_lid == 0) {                                                         \
       result = IDENTITY;                                                       \
     }                                                                          \

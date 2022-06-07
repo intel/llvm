@@ -237,7 +237,7 @@ struct OptimizerAdditionalInfoTy {
   bool Prevect;
 };
 
-class ScheduleTreeOptimizer {
+class ScheduleTreeOptimizer final {
 public:
   /// Apply schedule tree transformations.
   ///
@@ -384,7 +384,7 @@ ScheduleTreeOptimizer::isolateFullPartialTiles(isl::schedule_node Node,
   return Result;
 }
 
-struct InsertSimdMarkers : public ScheduleNodeRewriter<InsertSimdMarkers> {
+struct InsertSimdMarkers final : ScheduleNodeRewriter<InsertSimdMarkers> {
   isl::schedule_node visitBand(isl::schedule_node_band Band) {
     isl::schedule_node Node = visitChildren(Band);
 
@@ -588,7 +588,7 @@ bool ScheduleTreeOptimizer::isProfitableSchedule(Scop &S,
   return changed;
 }
 
-class IslScheduleOptimizerWrapperPass : public ScopPass {
+class IslScheduleOptimizerWrapperPass final : public ScopPass {
 public:
   static char ID;
 
@@ -1008,3 +1008,53 @@ IslScheduleOptimizerPrinterPass::run(Scop &S, ScopAnalysisManager &SAM,
                                      SPMUpdater &U) {
   return runIslScheduleOptimizerUsingNPM(S, SAM, SAR, U, &OS);
 }
+
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Print result from IslScheduleOptimizerWrapperPass.
+class IslScheduleOptimizerPrinterLegacyPass final : public ScopPass {
+public:
+  static char ID;
+
+  IslScheduleOptimizerPrinterLegacyPass()
+      : IslScheduleOptimizerPrinterLegacyPass(outs()) {}
+  explicit IslScheduleOptimizerPrinterLegacyPass(llvm::raw_ostream &OS)
+      : ScopPass(ID), OS(OS) {}
+
+  bool runOnScop(Scop &S) override {
+    IslScheduleOptimizerWrapperPass &P =
+        getAnalysis<IslScheduleOptimizerWrapperPass>();
+
+    OS << "Printing analysis '" << P.getPassName() << "' for region: '"
+       << S.getRegion().getNameStr() << "' in function '"
+       << S.getFunction().getName() << "':\n";
+    P.printScop(OS, S);
+
+    return false;
+  }
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    ScopPass::getAnalysisUsage(AU);
+    AU.addRequired<IslScheduleOptimizerWrapperPass>();
+    AU.setPreservesAll();
+  }
+
+private:
+  llvm::raw_ostream &OS;
+};
+
+char IslScheduleOptimizerPrinterLegacyPass::ID = 0;
+} // namespace
+
+Pass *polly::createIslScheduleOptimizerPrinterLegacyPass(raw_ostream &OS) {
+  return new IslScheduleOptimizerPrinterLegacyPass(OS);
+}
+
+INITIALIZE_PASS_BEGIN(IslScheduleOptimizerPrinterLegacyPass,
+                      "polly-print-opt-isl",
+                      "Polly - Print optimizer schedule of SCoP", false, false);
+INITIALIZE_PASS_DEPENDENCY(IslScheduleOptimizerWrapperPass)
+INITIALIZE_PASS_END(IslScheduleOptimizerPrinterLegacyPass,
+                    "polly-print-opt-isl",
+                    "Polly - Print optimizer schedule of SCoP", false, false)

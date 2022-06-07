@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++11 -triple x86_64-apple-darwin %s -emit-llvm -o - | FileCheck -check-prefixes=X64,CHECK %s
-// RUN: %clang_cc1 -std=c++11 -triple amdgcn %s -emit-llvm -o - | FileCheck -check-prefixes=AMDGCN,CHECK %s
+// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -triple x86_64-apple-darwin %s -emit-llvm -o - | FileCheck -check-prefixes=X64,CHECK %s
+// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -triple amdgcn %s -emit-llvm -o - | FileCheck -check-prefixes=AMDGCN,CHECK %s
 
 template<typename T>
 struct S {
@@ -66,7 +66,7 @@ void test0(void *array, int n) {
 
 
 void test2(int b) {
-  // CHECK-LABEL: define{{.*}} void {{.*}}test2{{.*}}(i32 %b)
+  // CHECK-LABEL: define{{.*}} void {{.*}}test2{{.*}}(i32 noundef %b)
   int varr[b];
   // AMDGCN: %__end1 = alloca i32*, align 8, addrspace(5)
   // AMDGCN: [[END:%.*]] = addrspacecast i32* addrspace(5)* %__end1 to i32**
@@ -92,7 +92,7 @@ void test2(int b) {
 }
 
 void test3(int b, int c) {
-  // CHECK-LABEL: define{{.*}} void {{.*}}test3{{.*}}(i32 %b, i32 %c)
+  // CHECK-LABEL: define{{.*}} void {{.*}}test3{{.*}}(i32 noundef %b, i32 noundef %c)
   int varr[b][c];
   // AMDGCN: %__end1 = alloca i32*, align 8, addrspace(5)
   // AMDGCN: [[END:%.*]] = addrspacecast i32* addrspace(5)* %__end1 to i32**

@@ -41,8 +41,6 @@ template <> struct interop<backend::opencl, device> {
   using type = cl_device_id;
 };
 
-template <> struct interop<backend::opencl, event> { using type = cl_event; };
-
 template <> struct interop<backend::opencl, queue> {
   using type = cl_command_queue;
 };
@@ -85,10 +83,17 @@ struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
 };
 
+#ifdef SYCL2020_CONFORMANT_APIS
+template <typename DataT, int Dimensions, typename AllocatorT>
+struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+  using type = std::vector<cl_mem>;
+};
+#else
 template <typename DataT, int Dimensions, typename AllocatorT>
 struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
   using type = cl_mem;
 };
+#endif
 
 template <> struct BackendInput<backend::opencl, context> {
   using type = cl_context;
@@ -106,13 +111,28 @@ template <> struct BackendReturn<backend::opencl, device> {
   using type = cl_device_id;
 };
 
+#ifdef SYCL2020_CONFORMANT_APIS
+template <> struct interop<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+template <> struct BackendInput<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+template <> struct BackendReturn<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+#else
+template <> struct interop<backend::opencl, event> { using type = cl_event; };
 template <> struct BackendInput<backend::opencl, event> {
   using type = cl_event;
 };
-
 template <> struct BackendReturn<backend::opencl, event> {
   using type = cl_event;
 };
+#endif
 
 template <> struct BackendInput<backend::opencl, queue> {
   using type = cl_command_queue;

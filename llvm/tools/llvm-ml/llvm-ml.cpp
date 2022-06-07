@@ -24,6 +24,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Option/Arg.h"
@@ -207,7 +208,9 @@ int main(int Argc, char **Argv) {
   std::string InputFilename;
   for (auto *Arg : InputArgs.filtered(OPT_INPUT)) {
     std::string ArgString = Arg->getAsString(InputArgs);
-    if (ArgString == "-" || StringRef(ArgString).endswith(".asm")) {
+    StringRef ArgStringRef(ArgString);
+    if (ArgString == "-" || ArgStringRef.endswith(".asm") ||
+        ArgStringRef.endswith(".S")) {
       if (!InputFilename.empty()) {
         WithColor::warning(errs(), ProgName)
             << "does not support multiple assembly files in one command; "
@@ -233,13 +236,20 @@ int main(int Argc, char **Argv) {
           << "does not support multiple assembly files in one command; "
           << "ignoring '" << InputFilename << "'\n";
     }
-    InputFilename = Arg->getAsString(InputArgs);
+    InputFilename = Arg->getValue();
   }
 
   for (auto *Arg : InputArgs.filtered(OPT_unsupported_Group)) {
     WithColor::warning(errs(), ProgName)
         << "ignoring unsupported '" << Arg->getOption().getName()
         << "' option\n";
+  }
+
+  if (InputArgs.hasArg(OPT_debug)) {
+    DebugFlag = true;
+  }
+  for (auto *Arg : InputArgs.filtered(OPT_debug_only)) {
+    setCurrentDebugTypes(Arg->getValues().data(), Arg->getNumValues());
   }
 
   if (InputArgs.hasArg(OPT_help)) {
@@ -376,7 +386,7 @@ int main(int Argc, char **Argv) {
     // Set up the AsmStreamer.
     std::unique_ptr<MCCodeEmitter> CE;
     if (InputArgs.hasArg(OPT_show_encoding))
-      CE.reset(TheTarget->createMCCodeEmitter(*MCII, *MRI, Ctx));
+      CE.reset(TheTarget->createMCCodeEmitter(*MCII, Ctx));
 
     std::unique_ptr<MCAsmBackend> MAB(
         TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
@@ -394,7 +404,7 @@ int main(int Argc, char **Argv) {
       OS = BOS.get();
     }
 
-    MCCodeEmitter *CE = TheTarget->createMCCodeEmitter(*MCII, *MRI, Ctx);
+    MCCodeEmitter *CE = TheTarget->createMCCodeEmitter(*MCII, Ctx);
     MCAsmBackend *MAB = TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions);
     Str.reset(TheTarget->createMCObjectStreamer(
         TheTriple, Ctx, std::unique_ptr<MCAsmBackend>(MAB),

@@ -236,6 +236,14 @@ int Compilation::ExecuteCommand(const Command &C,
     getDriver().Diag(diag::err_drv_command_failure) << Error;
   }
 
+  // When performing preprocessing, we need to be able to produce the
+  // preprocessed output even if the compilation is not valid.  If
+  // the device compilation fails for SYCL allow the failure to pass
+  // through so we can still generate the expected preprocessed files.
+  if (Res && C.getSource().isDeviceOffloading(Action::OFK_SYCL) &&
+      getArgs().hasArg(options::OPT_E))
+    return 0;
+
   if (Res)
     FailingCommand = &C;
 

@@ -64,5 +64,4 @@
 ; CHECK-LLVM-SPV-IR: call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 784) [[attr]]
 ; CHECK-LLVM-SPV-IR: call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 2320) [[attr]]
 ; CHECK-LLVM-SPV-IR: call spir_func void @_Z22__spirv_ControlBarrieriii(i32 2, i32 2, i32 2832) [[attr]]
-; FIXME: shall we apply convergent attribute to SPIR-V friendly IR representaiton as well?
 ; CHECK-LLVM-SPV-IR: attributes [[attr]] = { convergent nounwind }

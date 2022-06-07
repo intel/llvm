@@ -112,6 +112,25 @@ pi_result map_error(hipError_t result) {
   }
 }
 
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
+
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
+
+// Returns plugin specific error and warning messages
+pi_result hip_piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
+
 // Iterates over the event wait list, returns correct pi_result error codes.
 // Invokes the callback for the latest event of each queue in the wait list.
 // The callback must take a single pi_event argument and return a pi_result.
@@ -845,6 +864,7 @@ pi_result hip_piContextGetInfo(pi_context context, pi_context_info param_name,
   case PI_CONTEXT_INFO_REFERENCE_COUNT:
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    context->get_reference_count());
+  case PI_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
@@ -960,7 +980,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
                    PI_DEVICE_TYPE_GPU);
   }
   case PI_DEVICE_INFO_VENDOR_ID: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, 4318u);
+#if defined(__HIP_PLATFORM_AMD__)
+    pi_uint32 vendor_id = 4098u;
+#elif defined(__HIP_PLATFORM_NVIDIA__)
+    pi_uint32 vendor_id = 4318u;
+#else
+    pi_uint32 vendor_id = 0u;
+#endif
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   vendor_id);
   }
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int compute_units = 0;
@@ -1408,6 +1437,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   PI_TRUE);
+  }
   case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    PI_TRUE);
@@ -1449,6 +1482,17 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     cl::sycl::detail::pi::assertion(
         hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH, device->get()) ==
         hipSuccess);
+
+    // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
+    // name instead, this is also what AMD OpenCL devices return.
+    if (strlen(name) == 0) {
+      hipDeviceProp_t props;
+      cl::sycl::detail::pi::assertion(
+          hipGetDeviceProperties(&props, device->get()) == hipSuccess);
+
+      return getInfoArray(strlen(props.gcnArchName) + 1, param_value_size,
+                          param_value, param_value_size_ret, props.gcnArchName);
+    }
     return getInfoArray(strlen(name) + 1, param_value_size, param_value,
                         param_value_size_ret, name);
   }
@@ -1625,6 +1669,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   // TODO: Investigate if this information is available on HIP.
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -1863,7 +1908,8 @@ pi_result hip_piMemBufferCreate(pi_context context, pi_mem_flags flags,
                                 const pi_mem_properties *properties) {
   // Need input memory object
   assert(ret_mem != nullptr);
-  assert(properties == nullptr && "no mem properties goes to HIP RT yet");
+  assert((properties == nullptr || *properties == 0) &&
+         "no mem properties goes to HIP RT yet");
   // Currently, USE_HOST_PTR is not implemented using host register
   // since this triggers a weird segfault after program ends.
   // Setting this constant to true enables testing that behavior.
@@ -2066,7 +2112,7 @@ pi_result hip_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
   return PI_SUCCESS;
 }
 
-pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
+pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
                            size_t expectedQuerySize, void *queryOutput,
                            size_t *writtenQuerySize) {
   (void)memObj;
@@ -2084,18 +2130,50 @@ pi_result hip_piMemGetInfo(pi_mem memObj, cl_mem_info queriedInfo,
 /// \param[out] nativeHandle Set to the native handle of the PI mem object.
 ///
 /// \return PI_SUCCESS
+pi_result hip_piextMemGetNativeHandle(pi_mem mem,
+                                      pi_native_handle *nativeHandle) {
+#if defined(__HIP_PLATFORM_NVIDIA__)
+  if (sizeof(_pi_mem::mem_::buffer_mem_::native_type) >
+      sizeof(pi_native_handle)) {
+    // Check that all the upper bits that cannot be represented by
+    // pi_native_handle are empty.
+    // NOTE: The following shift might trigger a warning, but the check in the
+    // if above makes sure that this does not underflow.
+    _pi_mem::mem_::buffer_mem_::native_type upperBits =
+        mem->mem_.buffer_mem_.get() >> (sizeof(pi_native_handle) * CHAR_BIT);
+    if (upperBits) {
+      // Return an error if any of the remaining bits is non-zero.
+      return PI_INVALID_MEM_OBJECT;
+    }
+  }
+  *nativeHandle = static_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
+#elif defined(__HIP_PLATFORM_AMD__)
+  *nativeHandle =
+      reinterpret_cast<pi_native_handle>(mem->mem_.buffer_mem_.get());
+#else
+#error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
+#endif
+  return PI_SUCCESS;
+}
 
 /// Created a PI mem object from a HIP mem handle.
 /// TODO: Implement this.
 /// NOTE: The created PI object takes ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI mem object from.
+/// \param[in] context The PI context of the memory allocation.
+/// \param[in] ownNativeHandle Indicates if we own the native memory handle or
+/// it came from interop that asked to not transfer the ownership to SYCL RT.
 /// \param[out] mem Set to the PI mem object created from native handle.
 ///
 /// \return TBD
 pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context context,
+                                             bool ownNativeHandle,
                                              pi_mem *mem) {
   (void)nativeHandle;
+  (void)context;
+  (void)ownNativeHandle;
   (void)mem;
 
   cl::sycl::detail::pi::die(
@@ -2261,10 +2339,12 @@ pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
 /// \return TBD
 pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                pi_context context,
-                                               pi_queue *queue,
-                                               bool ownNativeHandle) {
+                                               pi_device device,
+                                               bool ownNativeHandle,
+                                               pi_queue *queue) {
   (void)nativeHandle;
   (void)context;
+  (void)device;
   (void)queue;
   (void)ownNativeHandle;
   cl::sycl::detail::pi::die(
@@ -2601,8 +2681,7 @@ pi_result hip_piEnqueueKernelLaunch(
           hip_implicit_offset[i] =
               static_cast<std::uint32_t>(global_work_offset[i]);
           if (global_work_offset[i] != 0) {
-            cl::sycl::detail::pi::die("Global offsets different from 0 are not "
-                                      "implemented in the HIP backend.");
+            hipFunc = kernel->get_with_offset_parameter();
           }
         }
       }
@@ -3325,6 +3404,15 @@ pi_result hip_piKernelSetExecInfo(pi_kernel kernel,
   (void)param_value;
 
   return PI_SUCCESS;
+}
+
+pi_result hip_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
+                                                    size_t, const void *) {
+  // This entry point is only used for native specialization constants (SPIR-V),
+  // and the HIP plugin is AOT only so this entry point is not supported.
+  cl::sycl::detail::pi::die(
+      "Native specialization constants are not supported");
+  return {};
 }
 
 pi_result hip_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
@@ -4500,7 +4588,7 @@ pi_result hip_piextUSMHostAlloc(void **result_ptr, pi_context context,
                                 pi_uint32 alignment) {
   assert(result_ptr != nullptr);
   assert(context != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4524,7 +4612,7 @@ pi_result hip_piextUSMDeviceAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4548,7 +4636,7 @@ pi_result hip_piextUSMSharedAlloc(void **result_ptr, pi_context context,
   assert(result_ptr != nullptr);
   assert(context != nullptr);
   assert(device != nullptr);
-  assert(properties == nullptr);
+  assert(properties == nullptr || *properties == 0);
   pi_result result = PI_SUCCESS;
   try {
     ScopedContext active(context);
@@ -4736,7 +4824,7 @@ pi_result hip_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
 pi_result hip_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                      pi_mem_info param_name,
+                                      pi_mem_alloc_info param_name,
                                       size_t param_value_size,
                                       void *param_value,
                                       size_t *param_value_size_ret) {
@@ -4835,7 +4923,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   // PI interface supports higher version or the same version.
-  strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
+  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
+  if (strlen(SupportedVersion) >= PluginVersionSize)
+    return PI_INVALID_VALUE;
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   // Set whole function table to zero to make it easier to detect if
   // functions are not set up below.
@@ -4886,7 +4977,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piMemRetain, hip_piMemRetain)
   _PI_CL(piMemRelease, hip_piMemRelease)
   _PI_CL(piMemBufferPartition, hip_piMemBufferPartition)
-  //_PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
+  _PI_CL(piextMemGetNativeHandle, hip_piextMemGetNativeHandle)
   _PI_CL(piextMemCreateWithNativeHandle, hip_piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, hip_piProgramCreate)
@@ -4911,6 +5002,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelRetain, hip_piKernelRetain)
   _PI_CL(piKernelRelease, hip_piKernelRelease)
   _PI_CL(piKernelSetExecInfo, hip_piKernelSetExecInfo)
+  _PI_CL(piextProgramSetSpecializationConstant,
+         hip_piextProgramSetSpecializationConstant)
   _PI_CL(piextKernelSetArgPointer, hip_piextKernelSetArgPointer)
   // Event
   _PI_CL(piEventCreate, hip_piEventCreate)
@@ -4959,6 +5052,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, hip_piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, hip_piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, hip_piPluginGetLastError)
   _PI_CL(piTearDown, hip_piTearDown)
 
 #undef _PI_CL

@@ -77,13 +77,10 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return ""; }
   static constexpr bool isESIMD() { return 0; }
-#ifndef NDEBUG
   static constexpr const char *getFileName() { return ""; }
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
-#endif
-
 };
 #else
 template <char...> struct KernelInfoData {
@@ -94,12 +91,10 @@ template <char...> struct KernelInfoData {
   }
   static constexpr const char *getName() { return ""; }
   static constexpr bool isESIMD() { return 0; }
-#ifndef NDEBUG
   static constexpr const char *getFileName() { return ""; }
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
-#endif
 };
 
 // C++14 like index_sequence and make_index_sequence
@@ -138,12 +133,10 @@ template <class KernelNameType> struct KernelInfo {
   }
   static constexpr const char *getName() { return SubKernelInfo::getName(); }
   static constexpr bool isESIMD() { return SubKernelInfo::isESIMD(); }
-#ifndef NDEBUG
   static constexpr const char *getFileName() { return ""; }
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
-#endif
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 

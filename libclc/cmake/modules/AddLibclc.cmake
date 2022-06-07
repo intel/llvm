@@ -91,7 +91,7 @@ macro(add_libclc_builtin_set arch_suffix)
     COMMAND prepare_builtins -o
     "${builtins_obj_path}"
     "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
-    DEPENDS "${builtins_opt_path}"
+    DEPENDS "${builtins_opt_path}" "opt.${obj_suffix}"
             prepare_builtins )
   add_custom_target( "prepare-${obj_suffix}" ALL
     DEPENDS "${builtins_obj_path}" )
@@ -122,7 +122,7 @@ macro(add_libclc_builtin_set arch_suffix)
           --long-width=${long_width}
           --char-signedness=${signedness}
           "$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
-          DEPENDS "${builtins_obj_path}" libclc-remangler )
+          DEPENDS "${builtins_obj_path}" "prepare-${obj_suffix}" libclc-remangler )
         add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix}" ALL
           DEPENDS "${builtins_remangle_path}" )
         set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix}"

@@ -30,9 +30,10 @@ public:
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
 
 private:
+  const bool IsStringviewNullptrCheckEnabled;
   const bool WarnOnLargeLength;
   const unsigned int LargeLengthThreshold;
-  std::vector<std::string> StringNames;
+  std::vector<StringRef> StringNames;
 };
 
 } // namespace bugprone

@@ -18,7 +18,7 @@
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -43,10 +43,7 @@ public:
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11 __wrap_iter() _NOEXCEPT
                 : __i()
     {
-#if _LIBCPP_DEBUG_LEVEL == 2
-      if (!__libcpp_is_constant_evaluated())
-        __get_db()->__insert_i(this);
-#endif
+        _VSTD::__debug_db_insert_i(this);
     }
     template <class _Up> _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
         __wrap_iter(const __wrap_iter<_Up>& __u,
@@ -139,13 +136,15 @@ public:
 
 private:
 #if _LIBCPP_DEBUG_LEVEL == 2
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11 __wrap_iter(const void* __p, iterator_type __x) : __i(__x)
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
+    explicit __wrap_iter(const void* __p, iterator_type __x) : __i(__x)
     {
       if (!__libcpp_is_constant_evaluated())
         __get_db()->__insert_ic(this, __p);
     }
 #else
-    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11 __wrap_iter(iterator_type __x) _NOEXCEPT : __i(__x) {}
+    _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
+    explicit __wrap_iter(iterator_type __x) _NOEXCEPT : __i(__x) {}
 #endif
 
     template <class _Up> friend class __wrap_iter;

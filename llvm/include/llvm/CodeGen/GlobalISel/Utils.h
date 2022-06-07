@@ -15,18 +15,20 @@
 #define LLVM_CODEGEN_GLOBALISEL_UTILS_H
 
 #include "GISelWorkList.h"
-#include "LostDebugLocObserver.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/Register.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/Alignment.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/LowLevelTypeImpl.h"
 #include <cstdint>
 
 namespace llvm {
 
 class AnalysisUsage;
+class LostDebugLocObserver;
+class MachineBasicBlock;
 class BlockFrequencyInfo;
 class GISelKnownBits;
 class MachineFunction;
@@ -267,12 +269,10 @@ Optional<APFloat> ConstantFoldFPBinOp(unsigned Opcode, const Register Op1,
                                       const MachineRegisterInfo &MRI);
 
 /// Tries to constant fold a vector binop with sources \p Op1 and \p Op2.
-/// If successful, returns the G_BUILD_VECTOR representing the folded vector
-/// constant. \p MIB should have an insertion point already set to create new
-/// G_CONSTANT instructions as needed.
-Optional<MachineInstr *>
-ConstantFoldVectorBinop(unsigned Opcode, const Register Op1, const Register Op2,
-                        const MachineRegisterInfo &MRI, MachineIRBuilder &MIB);
+/// Returns an empty vector on failure.
+SmallVector<APInt> ConstantFoldVectorBinop(unsigned Opcode, const Register Op1,
+                                           const Register Op2,
+                                           const MachineRegisterInfo &MRI);
 
 Optional<APInt> ConstantFoldExtOp(unsigned Opcode, const Register Op1,
                                   uint64_t Imm, const MachineRegisterInfo &MRI);
@@ -310,10 +310,11 @@ Align inferAlignFromPtrInfo(MachineFunction &MF, const MachinePointerInfo &MPO);
 ///
 /// If there is an existing live-in argument register, it will be returned.
 /// This will also ensure there is a valid copy
-Register getFunctionLiveInPhysReg(MachineFunction &MF, const TargetInstrInfo &TII,
+Register getFunctionLiveInPhysReg(MachineFunction &MF,
+                                  const TargetInstrInfo &TII,
                                   MCRegister PhysReg,
                                   const TargetRegisterClass &RC,
-                                  LLT RegTy = LLT());
+                                  const DebugLoc &DL, LLT RegTy = LLT());
 
 /// Return the least common multiple type of \p OrigTy and \p TargetTy, by changing the
 /// number of vector elements or scalar bitwidth. The intent is a
@@ -372,9 +373,23 @@ public:
 /// If \p MI is not a splat, returns None.
 Optional<int> getSplatIndex(MachineInstr &MI);
 
-/// Returns a scalar constant of a G_BUILD_VECTOR splat if it exists.
-Optional<int64_t> getBuildVectorConstantSplat(const MachineInstr &MI,
-                                              const MachineRegisterInfo &MRI);
+/// \returns the scalar integral splat value of \p Reg if possible.
+Optional<APInt> getIConstantSplatVal(const Register Reg,
+                                     const MachineRegisterInfo &MRI);
+
+/// \returns the scalar integral splat value defined by \p MI if possible.
+Optional<APInt> getIConstantSplatVal(const MachineInstr &MI,
+                                     const MachineRegisterInfo &MRI);
+
+/// \returns the scalar sign extended integral splat value of \p Reg if
+/// possible.
+Optional<int64_t> getIConstantSplatSExtVal(const Register Reg,
+                                           const MachineRegisterInfo &MRI);
+
+/// \returns the scalar sign extended integral splat value defined by \p MI if
+/// possible.
+Optional<int64_t> getIConstantSplatSExtVal(const MachineInstr &MI,
+                                           const MachineRegisterInfo &MRI);
 
 /// Returns a floating point scalar constant of a build vector splat if it
 /// exists. When \p AllowUndef == true some elements can be undef but not all.
@@ -405,6 +420,30 @@ bool isBuildVectorAllZeros(const MachineInstr &MI,
 bool isBuildVectorAllOnes(const MachineInstr &MI,
                           const MachineRegisterInfo &MRI,
                           bool AllowUndef = false);
+
+/// Return true if the specified instruction is known to be a constant, or a
+/// vector of constants.
+///
+/// If \p AllowFP is true, this will consider G_FCONSTANT in addition to
+/// G_CONSTANT. If \p AllowOpaqueConstants is true, constant-like instructions
+/// such as G_GLOBAL_VALUE will also be considered.
+bool isConstantOrConstantVector(const MachineInstr &MI,
+                                const MachineRegisterInfo &MRI,
+                                bool AllowFP = true,
+                                bool AllowOpaqueConstants = true);
+
+/// Return true if the value is a constant 0 integer or a splatted vector of a
+/// constant 0 integer (with no undefs if \p AllowUndefs is false). This will
+/// handle G_BUILD_VECTOR and G_BUILD_VECTOR_TRUNC as truncation is not an issue
+/// for null values.
+bool isNullOrNullSplat(const MachineInstr &MI, const MachineRegisterInfo &MRI,
+                       bool AllowUndefs = false);
+
+/// Return true if the value is a constant -1 integer or a splatted vector of a
+/// constant -1 integer (with no undefs if \p AllowUndefs is false).
+bool isAllOnesOrAllOnesSplat(const MachineInstr &MI,
+                             const MachineRegisterInfo &MRI,
+                             bool AllowUndefs = false);
 
 /// \returns a value when \p MI is a vector splat. The splat can be either a
 /// Register or a constant.

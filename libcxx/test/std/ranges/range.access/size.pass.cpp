@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // std::ranges::size
 
@@ -318,6 +316,7 @@ constexpr bool testRanges() {
 struct Incomplete;
 template<class T> struct Holder { T t; };
 static_assert(!std::is_invocable_v<RangeSizeT, Holder<Incomplete>*>);
+static_assert(!std::is_invocable_v<RangeSizeT, Holder<Incomplete>*&>);
 
 int main(int, char**) {
   testArrayType();

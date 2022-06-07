@@ -43,11 +43,20 @@ public:
 
   /// Cast this ExecutorAddr to a pointer of the given type.
   /// Warning: This should only be used when JITing in-process.
-  template <typename T> T toPtr() const {
-    static_assert(std::is_pointer<T>::value, "T must be a pointer type");
+  template <typename T>
+  std::enable_if_t<std::is_pointer<T>::value, T> toPtr() const {
     uintptr_t IntPtr = static_cast<uintptr_t>(Addr);
     assert(IntPtr == Addr && "ExecutorAddr value out of range for uintptr_t");
     return reinterpret_cast<T>(IntPtr);
+  }
+
+  /// Cast this ExecutorAddr to a pointer of the given function type.
+  /// Warning: This should only be used when JITing in-process.
+  template <typename T>
+  std::enable_if_t<std::is_function<T>::value, T *> toPtr() const {
+    uintptr_t IntPtr = static_cast<uintptr_t>(Addr);
+    assert(IntPtr == Addr && "ExecutorAddr value out of range for uintptr_t");
+    return reinterpret_cast<T *>(IntPtr);
   }
 
   uint64_t getValue() const { return Addr; }
@@ -165,6 +174,10 @@ struct ExecutorAddrRange {
 
 inline raw_ostream &operator<<(raw_ostream &OS, const ExecutorAddr &A) {
   return OS << formatv("{0:x}", A.getValue());
+}
+
+inline raw_ostream &operator<<(raw_ostream &OS, const ExecutorAddrRange &R) {
+  return OS << formatv("{0:x} -- {1:x}", R.Start.getValue(), R.End.getValue());
 }
 
 namespace shared {

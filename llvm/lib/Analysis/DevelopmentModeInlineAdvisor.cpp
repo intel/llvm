@@ -11,9 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/Config/config.h"
-#include "llvm/Support/Casting.h"
 #if defined(LLVM_HAVE_TF_API)
 
+#include "llvm/ADT/BitVector.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/InlineSizeEstimatorAnalysis.h"
 #include "llvm/Analysis/MLInlineAdvisor.h"
@@ -112,7 +112,7 @@ private:
   StringRef LogFileName;
   const ModelUnderTrainingRunner *const MUTR;
   std::unique_ptr<Logger> L;
-  std::vector<bool> Effects;
+  BitVector Effects;
   /// There's at least one output. We'll set this to a different value if MUTR
   /// is avaliable.
   size_t OutputCount = 1;
@@ -272,8 +272,8 @@ static const std::vector<TensorSpec> TrainingOnlyFeatures{
 static const std::vector<TensorSpec> getInputFeatures() {
   std::vector<TensorSpec> InputSpecs;
   for (size_t I = 0; I < NumberOfFeatures; ++I)
-    InputSpecs.push_back(
-        TensorSpec::createSpec<int64_t>(TFFeedPrefix + FeatureNameMap[I], {1}));
+    InputSpecs.push_back(TensorSpec::createSpec<int64_t>(
+        TFFeedPrefix + FeatureMap[I].name(), FeatureMap[I].shape()));
   append_range(InputSpecs, TrainingOnlyFeatures);
   return InputSpecs;
 }
@@ -289,8 +289,7 @@ TrainingLogger::TrainingLogger(StringRef LogFileName,
   std::vector<LoggedFeatureSpec> FT;
 
   for (size_t I = 0; I < NumberOfFeatures; ++I)
-    FT.push_back(
-        {TensorSpec::createSpec<int64_t>(FeatureNameMap.at(I), {1}), None});
+    FT.push_back({FeatureMap.at(I), None});
   if (MUTR && MUTR->outputLoggedFeatureSpecs().size() > 1)
     append_range(FT, drop_begin(MUTR->outputLoggedFeatureSpecs()));
 
@@ -411,8 +410,6 @@ size_t DevelopmentModeMLInlineAdvisor::getTotalSizeEstimate() {
   size_t Ret = 0;
   for (auto &F : M) {
     if (F.isDeclaration())
-      continue;
-    if (isFunctionDeleted(&F))
       continue;
     Ret += *getNativeSizeEstimate(F);
   }

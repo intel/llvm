@@ -45,14 +45,12 @@ void basicUsage() {
 
 template <typename T> void templatedContext() {
 
-  // FIXME: this is likely not diagnosed because of a common problem among
-  // deferred diagnostics. They don't work from templated context if the
-  // problematic code doesn't depend on a template parameter. See
-  // https://github.com/intel/llvm/pull/5114 for an explanation of the problem
-  // and possible solution.
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   int (*p)(int) = &badFoo;
+  // expected-error@+1 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   auto p1 = &ForMembers::badMember;
 
+  // expected-error@+2 {{taking address of a function not marked with 'intel::device_indirectly_callable' attribute is not allowed in SYCL device code}}
   // expected-note@+1 {{called by 'templatedContext<int>'}}
   templateCaller1<badFoo>(1);
 }

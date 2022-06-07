@@ -1,8 +1,5 @@
 def StdC : StandardSpec<"stdc"> {
 
-  NamedType FILE = NamedType<"FILE">;
-  PtrType FILEPtr = PtrType<FILE>;
-  RestrictedPtrType FILERestrictedPtr = RestrictedPtrType<FILE>;
   NamedType StructTmType = NamedType<"struct tm">;
   PtrType StructTmPtr = PtrType<StructTmType>;
   PtrType TimeTTypePtr = PtrType<TimeTType>;
@@ -396,6 +393,12 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"ldexpf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<IntType>]>,
           FunctionSpec<"ldexpl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<IntType>]>,
 
+          FunctionSpec<"log10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"log1pf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
+          FunctionSpec<"log2f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+
           FunctionSpec<"logf", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
 
           FunctionSpec<"logb", RetValSpec<DoubleType>, [ArgSpec<DoubleType>]>,
@@ -468,7 +471,10 @@ def StdC : StandardSpec<"stdc"> {
 
   HeaderSpec StdIO = HeaderSpec<
       "stdio.h",
-      [], // Macros
+      [
+          Macro<"stderr">,
+          Macro<"stdout">,
+      ], // Macros
       [ // Types
           SizeTType,
           FILE,
@@ -476,12 +482,96 @@ def StdC : StandardSpec<"stdc"> {
       [], // Enumerations
       [
           FunctionSpec<
+              "clearerr",
+              RetValSpec<VoidType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fclose",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "feof",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "ferror",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fflush",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>]
+          >,
+          FunctionSpec<
+              "fopen",
+              RetValSpec<FILEPtr>,
+              [ArgSpec<ConstCharPtr>,
+               ArgSpec<ConstCharPtr>]
+          >,
+          FunctionSpec<
+              "fread",
+              RetValSpec<SizeTType>,
+              [ArgSpec<VoidRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<SizeTType>,
+               ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "fseek",
+              RetValSpec<IntType>,
+              [ArgSpec<FILEPtr>,
+               ArgSpec<LongType>,
+               ArgSpec<IntType>]
+          >,
+          FunctionSpec<
               "fwrite",
               RetValSpec<SizeTType>,
               [ArgSpec<ConstVoidRestrictedPtr>,
-              ArgSpec<SizeTType>,
-              ArgSpec<SizeTType>,
-              ArgSpec<FILERestrictedPtr>]
+               ArgSpec<SizeTType>,
+               ArgSpec<SizeTType>,
+               ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "sprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "snprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "printf",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "fprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<FILERestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+      ],
+      [
+          ObjectSpec<
+              "stdout",
+              "FILE *"
+          >,
+          ObjectSpec<
+              "stderr",
+              "FILE *"
           >,
       ]
   >;
@@ -496,6 +586,7 @@ def StdC : StandardSpec<"stdc"> {
           SizeTType,
           BSearchCompareT,
           QSortCompareT,
+          AtexitHandlerT,
       ], // Types
       [], // Enumerations
       [
@@ -529,9 +620,12 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"malloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>]>,
           FunctionSpec<"calloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>, ArgSpec<SizeTType>]>,
           FunctionSpec<"realloc", RetValSpec<VoidPtr>, [ArgSpec<VoidPtr>, ArgSpec<SizeTType>]>,
+          FunctionSpec<"aligned_alloc", RetValSpec<VoidPtr>, [ArgSpec<SizeTType>, ArgSpec<SizeTType>]>,
           FunctionSpec<"free", RetValSpec<VoidType>, [ArgSpec<VoidPtr>]>,
 
           FunctionSpec<"_Exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+          FunctionSpec<"exit", RetValSpec<NoReturn>, [ArgSpec<IntType>]>,
+          FunctionSpec<"atexit", RetValSpec<IntType>, [ArgSpec<AtexitHandlerT>]>,
       ]
   >;
 

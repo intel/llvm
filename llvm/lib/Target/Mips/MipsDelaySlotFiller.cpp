@@ -309,12 +309,12 @@ INITIALIZE_PASS(MipsDelaySlotFiller, DEBUG_TYPE,
 static void insertDelayFiller(Iter Filler, const BB2BrMap &BrMap) {
   MachineFunction *MF = Filler->getParent()->getParent();
 
-  for (BB2BrMap::const_iterator I = BrMap.begin(); I != BrMap.end(); ++I) {
-    if (I->second) {
-      MIBundleBuilder(I->second).append(MF->CloneMachineInstr(&*Filler));
+  for (const auto &I : BrMap) {
+    if (I.second) {
+      MIBundleBuilder(I.second).append(MF->CloneMachineInstr(&*Filler));
       ++UsefulSlots;
     } else {
-      I->first->insert(I->first->end(), MF->CloneMachineInstr(&*Filler));
+      I.first->push_back(MF->CloneMachineInstr(&*Filler));
     }
   }
 }
@@ -677,7 +677,7 @@ bool MipsDelaySlotFiller::runOnMachineBasicBlock(MachineBasicBlock &MBB) {
     // Bundle the NOP to the instruction with the delay slot.
     LLVM_DEBUG(dbgs() << DEBUG_TYPE << ": could not fill delay slot for ";
                I->dump());
-    BuildMI(MBB, std::next(I), I->getDebugLoc(), TII->get(Mips::NOP));
+    TII->insertNop(MBB, std::next(I), I->getDebugLoc());
     MIBundleBuilder(MBB, I, std::next(I, 2));
     ++FilledSlots;
     Changed = true;

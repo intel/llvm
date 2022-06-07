@@ -47,8 +47,7 @@ static cl::opt<int> HighLatencyCycles(
            "instructions take for targets with no itinerary"));
 
 ScheduleDAGSDNodes::ScheduleDAGSDNodes(MachineFunction &mf)
-    : ScheduleDAG(mf), BB(nullptr), DAG(nullptr),
-      InstrItins(mf.getSubtarget().getInstrItineraryData()) {}
+    : ScheduleDAG(mf), InstrItins(mf.getSubtarget().getInstrItineraryData()) {}
 
 /// Run - perform scheduling.
 ///
@@ -577,7 +576,7 @@ void ScheduleDAGSDNodes::RegDefIter::InitNodeNumDefs() {
 // Construct a RegDefIter for this SUnit and find the first valid value.
 ScheduleDAGSDNodes::RegDefIter::RegDefIter(const SUnit *SU,
                                            const ScheduleDAGSDNodes *SD)
-  : SchedDAG(SD), Node(SU->getNode()), DefIdx(0), NodeNumDefs(0) {
+    : SchedDAG(SD), Node(SU->getNode()) {
   InitNodeNumDefs();
   Advance();
 }
@@ -844,7 +843,8 @@ EmitPhysRegCopy(SUnit *SU, DenseMap<SUnit*, Register> &VRBaseMap,
 /// not necessarily refer to returned BB. The emitter may split blocks.
 MachineBasicBlock *ScheduleDAGSDNodes::
 EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
-  InstrEmitter Emitter(DAG->getTarget(), BB, InsertPos);
+  InstrEmitter Emitter(DAG->getTarget(), BB, InsertPos,
+                       DAG->getUseInstrRefDebugInfo());
   DenseMap<SDValue, Register> VRBaseMap;
   DenseMap<SUnit*, Register> CopyVRBaseMap;
   SmallVector<std::pair<unsigned, MachineInstr*>, 32> Orders;
@@ -884,7 +884,7 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
 
     if (MI->isCandidateForCallSiteEntry() &&
         DAG->getTarget().Options.EmitCallSiteInfo)
-      MF.addCallArgsForwardingRegs(MI, DAG->getSDCallSiteInfo(Node));
+      MF.addCallArgsForwardingRegs(MI, DAG->getCallSiteInfo(Node));
 
     if (DAG->getNoMergeSiteInfo(Node)) {
       MI->setFlag(MachineInstr::MIFlag::NoMerge);
@@ -1057,11 +1057,12 @@ EmitSchedule(MachineBasicBlock::iterator &InsertPos) {
            "first terminator cannot be a debug value");
     for (MachineInstr &MI : make_early_inc_range(
              make_range(std::next(FirstTerm), InsertBB->end()))) {
+      // Only scan up to insertion point.
+      if (&MI == InsertPos)
+        break;
+
       if (!MI.isDebugValue())
         continue;
-
-      if (&MI == InsertPos)
-        InsertPos = std::prev(InsertPos->getIterator());
 
       // The DBG_VALUE was referencing a value produced by a terminator. By
       // moving the DBG_VALUE, the referenced value also needs invalidating.

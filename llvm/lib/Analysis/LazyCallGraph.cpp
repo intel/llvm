@@ -9,14 +9,13 @@
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/Analysis/VectorUtils.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/InstIterator.h"
@@ -30,11 +29,14 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
-#include <cstddef>
 #include <iterator>
 #include <string>
 #include <tuple>
 #include <utility>
+
+#ifdef EXPENSIVE_CHECKS
+#include "llvm/ADT/ScopeExit.h"
+#endif
 
 using namespace llvm;
 
@@ -1503,7 +1505,7 @@ void LazyCallGraph::removeEdge(Node &SourceN, Node &TargetN) {
 void LazyCallGraph::removeDeadFunction(Function &F) {
   // FIXME: This is unnecessarily restrictive. We should be able to remove
   // functions which recursively call themselves.
-  assert(F.use_empty() &&
+  assert(F.hasZeroLiveUses() &&
          "This routine should only be called on trivially dead functions!");
 
   // We shouldn't remove library functions as they are never really dead while
@@ -1521,13 +1523,6 @@ void LazyCallGraph::removeDeadFunction(Function &F) {
 
   // Remove this from the entry edges if present.
   EntryEdges.removeEdgeInternal(N);
-
-  if (SCCMap.empty()) {
-    // No SCCs have been formed, so removing this is fine and there is nothing
-    // else necessary at this point but clearing out the node.
-    N.clear();
-    return;
-  }
 
   // Cannot remove a function which has yet to be visited in the DFS walk, so
   // if we have a node at all then we must have an SCC and RefSCC.

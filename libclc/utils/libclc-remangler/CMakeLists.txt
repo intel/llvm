@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
   Core
   Demangle
   Support
+  TransformUtils
   )
 
 add_clang_tool(libclc-remangler LibclcRemangler.cpp)

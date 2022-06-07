@@ -6,11 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdio>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+
+#include <cstdio>
+#include <optional>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <unistd.h>
@@ -45,11 +47,17 @@ LockCacheItem::~LockCacheItem() {
                                      FileName);
 }
 
+// Returns true if the specified format is either SPIRV or a native binary.
+static bool IsSupportedImageFormat(RT::PiDeviceBinaryType Format) {
+  return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
+         Format == PI_DEVICE_BINARY_TYPE_NATIVE;
+}
+
 /* Returns true if specified image should be cached on disk. It checks if
- * cache is enabled, image has SPIRV type and matches thresholds. */
+ * cache is enabled, image has supported format and matches thresholds. */
 bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
-  // Cache shoould be enabled and image type should be SPIR-V
-  if (!isEnabled() || Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
+  // Cache should be enabled and image type is one of the supported formats.
+  if (!isEnabled() || !IsSupportedImageFormat(Img.getFormat()))
     return false;
 
   // Disable cache for ITT-profiled images.
@@ -78,10 +86,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const RT::PiProgram &NativePrg) {
 
+  if (!isImageCached(Img))
+    return;
+
   std::string DirName =
       getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
-  if (!isImageCached(Img) || DirName.empty())
+  if (DirName.empty())
     return;
 
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
@@ -137,10 +148,13 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
 
+  if (!isImageCached(Img))
+    return {};
+
   std::string Path =
       getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
 
-  if (!isImageCached(Img) || Path.empty() || !OSUtil::isPathPresent(Path))
+  if (Path.empty() || !OSUtil::isPathPresent(Path))
     return {};
 
   int i = 0;
@@ -373,11 +387,28 @@ static bool parsePersistentCacheConfig() {
   return Ret;
 }
 
+/* Cached static variable signalling if the persistent cache is enabled.
+ * The variable can have three values:
+ *  - None  : The configuration has not been parsed.
+ *  - true  : The persistent cache is enabled.
+ *  - false : The persistent cache is disabled.
+ */
+static std::optional<bool> CacheIsEnabled;
+
+/* Forces a reparsing of the information used to determine if the persistent
+ * cache is enabled. This is primarily used for unit-testing where the
+ * corresponding configuration variable is set by the individual tests.
+ */
+void PersistentDeviceCodeCache::reparseConfig() {
+  CacheIsEnabled = parsePersistentCacheConfig();
+}
+
 /* Returns true if persistent cache is enabled.
  */
 bool PersistentDeviceCodeCache::isEnabled() {
-  static bool Val = parsePersistentCacheConfig();
-  return Val;
+  if (!CacheIsEnabled)
+    reparseConfig();
+  return *CacheIsEnabled;
 }
 
 /* Returns path for device code cache root directory

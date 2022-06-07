@@ -204,7 +204,7 @@ public:
 
   void SetCurrentThreadID(lldb::tid_t tid) { m_current_thread_id = tid; }
 
-  lldb::tid_t GetCurrentThreadID() { return m_current_thread_id; }
+  lldb::tid_t GetCurrentThreadID() const { return m_current_thread_id; }
 
   NativeThreadProtocol *GetCurrentThread() {
     return GetThreadByID(m_current_thread_id);
@@ -251,8 +251,9 @@ public:
     libraries_svr4 = (1u << 5),
     memory_tagging = (1u << 6),
     savecore = (1u << 7),
+    siginfo_read = (1u << 8),
 
-    LLVM_MARK_AS_BITMASK_ENUM(savecore)
+    LLVM_MARK_AS_BITMASK_ENUM(siginfo_read)
   };
 
   class Factory {
@@ -459,6 +460,9 @@ protected:
   void NotifyDidExec();
 
   NativeThreadProtocol *GetThreadByIDUnlocked(lldb::tid_t tid);
+
+  /// Notify tracers that the state of the target process has changed.
+  virtual void NotifyTracersProcessStateChanged(lldb::StateType state) {}
 
 private:
   void SynchronouslyNotifyProcessStateChanged(lldb::StateType state);

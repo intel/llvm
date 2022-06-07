@@ -69,13 +69,14 @@ declare i37 @llvm.fshl.i37(i37, i37, i37)
 define i37 @fshl_i37(i37 %x, i37 %y, i37 %z) {
 ; CHECK-LABEL: fshl_i37:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mov x8, #31883
-; CHECK-NEXT:    mov w9, #37
-; CHECK-NEXT:    movk x8, #3542, lsl #16
+; CHECK-NEXT:    mov x9, #31883
+; CHECK-NEXT:    and x8, x2, #0x1fffffffff
+; CHECK-NEXT:    movk x9, #3542, lsl #16
 ; CHECK-NEXT:    ubfiz x10, x1, #26, #37
-; CHECK-NEXT:    movk x8, #51366, lsl #32
-; CHECK-NEXT:    movk x8, #56679, lsl #48
-; CHECK-NEXT:    umulh x8, x2, x8
+; CHECK-NEXT:    movk x9, #51366, lsl #32
+; CHECK-NEXT:    movk x9, #56679, lsl #48
+; CHECK-NEXT:    umulh x8, x8, x9
+; CHECK-NEXT:    mov w9, #37
 ; CHECK-NEXT:    ubfx x8, x8, #5, #27
 ; CHECK-NEXT:    msub w8, w8, w9, w2
 ; CHECK-NEXT:    mvn w9, w8
@@ -206,14 +207,15 @@ declare i37 @llvm.fshr.i37(i37, i37, i37)
 define i37 @fshr_i37(i37 %x, i37 %y, i37 %z) {
 ; CHECK-LABEL: fshr_i37:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    mov x8, #31883
-; CHECK-NEXT:    mov w9, #37
-; CHECK-NEXT:    movk x8, #3542, lsl #16
+; CHECK-NEXT:    mov x9, #31883
+; CHECK-NEXT:    and x8, x2, #0x1fffffffff
+; CHECK-NEXT:    movk x9, #3542, lsl #16
 ; CHECK-NEXT:    lsl x10, x1, #27
-; CHECK-NEXT:    movk x8, #51366, lsl #32
+; CHECK-NEXT:    movk x9, #51366, lsl #32
 ; CHECK-NEXT:    lsl x11, x0, #1
-; CHECK-NEXT:    movk x8, #56679, lsl #48
-; CHECK-NEXT:    umulh x8, x2, x8
+; CHECK-NEXT:    movk x9, #56679, lsl #48
+; CHECK-NEXT:    umulh x8, x8, x9
+; CHECK-NEXT:    mov w9, #37
 ; CHECK-NEXT:    lsr x8, x8, #5
 ; CHECK-NEXT:    msub w8, w8, w9, w2
 ; CHECK-NEXT:    add w8, w8, #27
@@ -343,3 +345,160 @@ define <4 x i32> @fshr_v4i32_shift_by_bitwidth(<4 x i32> %x, <4 x i32> %y) {
   ret <4 x i32> %f
 }
 
+define i32 @or_shl_fshl(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_shl_fshl:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, w2
+; CHECK-NEXT:    mvn w9, w2
+; CHECK-NEXT:    lsr w10, w1, #1
+; CHECK-NEXT:    lsr w9, w10, w9
+; CHECK-NEXT:    lsl w8, w0, w8
+; CHECK-NEXT:    lsl w10, w1, w2
+; CHECK-NEXT:    orr w8, w8, w9
+; CHECK-NEXT:    orr w0, w8, w10
+; CHECK-NEXT:    ret
+  %shy = shl i32 %y, %s
+  %fun = call i32 @llvm.fshl.i32(i32 %x, i32 %y, i32 %s)
+  %or = or i32 %fun, %shy
+  ret i32 %or
+}
+
+define i32 @or_shl_rotl(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_shl_rotl:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    neg w8, w2
+; CHECK-NEXT:    lsl w9, w0, w2
+; CHECK-NEXT:    ror w8, w1, w8
+; CHECK-NEXT:    orr w0, w8, w9
+; CHECK-NEXT:    ret
+  %shx = shl i32 %x, %s
+  %rot = call i32 @llvm.fshl.i32(i32 %y, i32 %y, i32 %s)
+  %or = or i32 %rot, %shx
+  ret i32 %or
+}
+
+define i32 @or_shl_fshl_commute(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_shl_fshl_commute:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, w2
+; CHECK-NEXT:    mvn w9, w2
+; CHECK-NEXT:    lsr w10, w1, #1
+; CHECK-NEXT:    lsr w9, w10, w9
+; CHECK-NEXT:    lsl w8, w0, w8
+; CHECK-NEXT:    lsl w10, w1, w2
+; CHECK-NEXT:    orr w8, w8, w9
+; CHECK-NEXT:    orr w0, w10, w8
+; CHECK-NEXT:    ret
+  %shy = shl i32 %y, %s
+  %fun = call i32 @llvm.fshl.i32(i32 %x, i32 %y, i32 %s)
+  %or = or i32 %shy, %fun
+  ret i32 %or
+}
+
+define i32 @or_shl_rotl_commute(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_shl_rotl_commute:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    neg w8, w2
+; CHECK-NEXT:    lsl w9, w0, w2
+; CHECK-NEXT:    ror w8, w1, w8
+; CHECK-NEXT:    orr w0, w9, w8
+; CHECK-NEXT:    ret
+  %shx = shl i32 %x, %s
+  %rot = call i32 @llvm.fshl.i32(i32 %y, i32 %y, i32 %s)
+  %or = or i32 %shx, %rot
+  ret i32 %or
+}
+
+define i32 @or_lshr_fshr(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_lshr_fshr:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, w2
+; CHECK-NEXT:    mvn w9, w2
+; CHECK-NEXT:    lsl w10, w1, #1
+; CHECK-NEXT:    lsr w8, w0, w8
+; CHECK-NEXT:    lsl w9, w10, w9
+; CHECK-NEXT:    lsr w10, w1, w2
+; CHECK-NEXT:    orr w8, w9, w8
+; CHECK-NEXT:    orr w0, w8, w10
+; CHECK-NEXT:    ret
+  %shy = lshr i32 %y, %s
+  %fun = call i32 @llvm.fshr.i32(i32 %y, i32 %x, i32 %s)
+  %or = or i32 %fun, %shy
+  ret i32 %or
+}
+
+define i32 @or_lshr_rotr(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_lshr_rotr:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    lsr w8, w0, w2
+; CHECK-NEXT:    ror w9, w1, w2
+; CHECK-NEXT:    orr w0, w9, w8
+; CHECK-NEXT:    ret
+  %shx = lshr i32 %x, %s
+  %rot = call i32 @llvm.fshr.i32(i32 %y, i32 %y, i32 %s)
+  %or = or i32 %rot, %shx
+  ret i32 %or
+}
+
+define i32 @or_lshr_fshr_commute(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_lshr_fshr_commute:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, w2
+; CHECK-NEXT:    mvn w9, w2
+; CHECK-NEXT:    lsl w10, w1, #1
+; CHECK-NEXT:    lsr w8, w0, w8
+; CHECK-NEXT:    lsl w9, w10, w9
+; CHECK-NEXT:    lsr w10, w1, w2
+; CHECK-NEXT:    orr w8, w9, w8
+; CHECK-NEXT:    orr w0, w10, w8
+; CHECK-NEXT:    ret
+  %shy = lshr i32 %y, %s
+  %fun = call i32 @llvm.fshr.i32(i32 %y, i32 %x, i32 %s)
+  %or = or i32 %shy, %fun
+  ret i32 %or
+}
+
+define i32 @or_lshr_rotr_commute(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_lshr_rotr_commute:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    lsr w8, w0, w2
+; CHECK-NEXT:    ror w9, w1, w2
+; CHECK-NEXT:    orr w0, w8, w9
+; CHECK-NEXT:    ret
+  %shx = lshr i32 %x, %s
+  %rot = call i32 @llvm.fshr.i32(i32 %y, i32 %y, i32 %s)
+  %or = or i32 %shx, %rot
+  ret i32 %or
+}
+
+define i32 @or_shl_fshl_simplify(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_shl_fshl_simplify:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $w2 killed $w2 def $x2
+; CHECK-NEXT:    mvn w8, w2
+; CHECK-NEXT:    lsr w9, w0, #1
+; CHECK-NEXT:    lsl w10, w1, w2
+; CHECK-NEXT:    lsr w8, w9, w8
+; CHECK-NEXT:    orr w0, w10, w8
+; CHECK-NEXT:    ret
+  %shy = shl i32 %y, %s
+  %fun = call i32 @llvm.fshl.i32(i32 %y, i32 %x, i32 %s)
+  %or = or i32 %fun, %shy
+  ret i32 %or
+}
+
+define i32 @or_lshr_fshr_simplify(i32 %x, i32 %y, i32 %s) {
+; CHECK-LABEL: or_lshr_fshr_simplify:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    // kill: def $w2 killed $w2 def $x2
+; CHECK-NEXT:    mvn w8, w2
+; CHECK-NEXT:    lsl w9, w0, #1
+; CHECK-NEXT:    lsr w10, w1, w2
+; CHECK-NEXT:    lsl w8, w9, w8
+; CHECK-NEXT:    orr w0, w8, w10
+; CHECK-NEXT:    ret
+  %shy = lshr i32 %y, %s
+  %fun = call i32 @llvm.fshr.i32(i32 %x, i32 %y, i32 %s)
+  %or = or i32 %shy, %fun
+  ret i32 %or
+}

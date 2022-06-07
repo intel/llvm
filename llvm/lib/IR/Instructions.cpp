@@ -325,13 +325,13 @@ bool CallBase::isReturnNonNull() const {
   return false;
 }
 
-Value *CallBase::getReturnedArgOperand() const {
+Value *CallBase::getArgOperandWithAttribute(Attribute::AttrKind Kind) const {
   unsigned Index;
 
-  if (Attrs.hasAttrSomewhere(Attribute::Returned, &Index))
+  if (Attrs.hasAttrSomewhere(Kind, &Index))
     return getArgOperand(Index - AttributeList::FirstArgIndex);
   if (const Function *F = getCalledFunction())
-    if (F->getAttributes().hasAttrSomewhere(Attribute::Returned, &Index))
+    if (F->getAttributes().hasAttrSomewhere(Kind, &Index))
       return getArgOperand(Index - AttributeList::FirstArgIndex);
 
   return nullptr;
@@ -371,6 +371,27 @@ bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
 
   return false;
 }
+
+template <typename AK>
+Attribute CallBase::getFnAttrOnCalledFunction(AK Kind) const {
+  // Operand bundles override attributes on the called function, but don't
+  // override attributes directly present on the call instruction.
+  if (isFnAttrDisallowedByOpBundle(Kind))
+    return Attribute();
+  Value *V = getCalledOperand();
+  if (auto *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->getOpcode() == BitCast)
+      V = CE->getOperand(0);
+
+  if (auto *F = dyn_cast<Function>(V))
+    return F->getAttributes().getFnAttr(Kind);
+
+  return Attribute();
+}
+
+template Attribute
+CallBase::getFnAttrOnCalledFunction(Attribute::AttrKind Kind) const;
+template Attribute CallBase::getFnAttrOnCalledFunction(StringRef Kind) const;
 
 void CallBase::getOperandBundlesAsDefs(
     SmallVectorImpl<OperandBundleDef> &Defs) const {
@@ -482,9 +503,10 @@ CallBase *CallBase::removeOperandBundle(CallBase *CB, uint32_t ID,
 
 bool CallBase::hasReadingOperandBundles() const {
   // Implementation note: this is a conservative implementation of operand
-  // bundle semantics, where *any* non-assume operand bundle forces a callsite
-  // to be at least readonly.
-  return hasOperandBundles() && getIntrinsicID() != Intrinsic::assume;
+  // bundle semantics, where *any* non-assume operand bundle (other than
+  // ptrauth) forces a callsite to be at least readonly.
+  return hasOperandBundlesOtherThan(LLVMContext::OB_ptrauth) &&
+         getIntrinsicID() != Intrinsic::assume;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2194,7 +2216,13 @@ bool ShuffleVectorInst::isIdentityMask(ArrayRef<int> Mask) {
 bool ShuffleVectorInst::isReverseMask(ArrayRef<int> Mask) {
   if (!isSingleSourceMask(Mask))
     return false;
-  for (int i = 0, NumElts = Mask.size(); i < NumElts; ++i) {
+
+  // The number of elements in the mask must be at least 2.
+  int NumElts = Mask.size();
+  if (NumElts < 2)
+    return false;
+
+  for (int i = 0; i < NumElts; ++i) {
     if (Mask[i] == -1)
       continue;
     if (Mask[i] != (NumElts - 1 - i) && Mask[i] != (NumElts + NumElts - 1 - i))

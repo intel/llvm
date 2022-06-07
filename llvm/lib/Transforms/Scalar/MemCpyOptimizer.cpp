@@ -28,14 +28,12 @@
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
-#include "llvm/IR/Argument.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
@@ -45,7 +43,6 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/User.h"
@@ -61,7 +58,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
-#include <utility>
 
 using namespace llvm;
 
@@ -313,15 +309,21 @@ INITIALIZE_PASS_END(MemCpyOptLegacyPass, "memcpyopt", "MemCpy Optimization",
 static bool mayBeVisibleThroughUnwinding(Value *V, Instruction *Start,
                                          Instruction *End) {
   assert(Start->getParent() == End->getParent() && "Must be in same block");
-  if (!Start->getFunction()->doesNotThrow() &&
-      !isa<AllocaInst>(getUnderlyingObject(V))) {
-    for (const Instruction &I :
-         make_range(Start->getIterator(), End->getIterator())) {
-      if (I.mayThrow())
-        return true;
-    }
-  }
-  return false;
+  // Function can't unwind, so it also can't be visible through unwinding.
+  if (Start->getFunction()->doesNotThrow())
+    return false;
+
+  // Object is not visible on unwind.
+  // TODO: Support RequiresNoCaptureBeforeUnwind case.
+  bool RequiresNoCaptureBeforeUnwind;
+  if (isNotVisibleOnUnwind(getUnderlyingObject(V),
+                           RequiresNoCaptureBeforeUnwind) &&
+      !RequiresNoCaptureBeforeUnwind)
+    return false;
+
+  // Check whether there are any unwinding instructions in the range.
+  return any_of(make_range(Start->getIterator(), End->getIterator()),
+                [](const Instruction &I) { return I.mayThrow(); });
 }
 
 void MemCpyOptPass::eraseInstruction(Instruction *I) {
@@ -346,9 +348,25 @@ static bool accessedBetween(AliasAnalysis &AA, MemoryLocation Loc,
 
 // Check for mod of Loc between Start and End, excluding both boundaries.
 // Start and End can be in different blocks.
-static bool writtenBetween(MemorySSA *MSSA, MemoryLocation Loc,
-                           const MemoryUseOrDef *Start,
+static bool writtenBetween(MemorySSA *MSSA, AliasAnalysis &AA,
+                           MemoryLocation Loc, const MemoryUseOrDef *Start,
                            const MemoryUseOrDef *End) {
+  if (isa<MemoryUse>(End)) {
+    // For MemoryUses, getClobberingMemoryAccess may skip non-clobbering writes.
+    // Manually check read accesses between Start and End, if they are in the
+    // same block, for clobbers. Otherwise assume Loc is clobbered.
+    return Start->getBlock() != End->getBlock() ||
+           any_of(
+               make_range(std::next(Start->getIterator()), End->getIterator()),
+               [&AA, Loc](const MemoryAccess &Acc) {
+                 if (isa<MemoryUse>(&Acc))
+                   return false;
+                 Instruction *AccInst =
+                     cast<MemoryUseOrDef>(&Acc)->getMemoryInst();
+                 return isModSet(AA.getModRefInfo(AccInst, Loc));
+               });
+  }
+
   // TODO: Only walk until we hit Start.
   MemoryAccess *Clobber = MSSA->getWalker()->getClobberingMemoryAccess(
       End->getDefiningAccess(), Loc);
@@ -743,36 +761,25 @@ bool MemCpyOptPass::processStore(StoreInst *SI, BasicBlock::iterator &BBI) {
       // Detect cases where we're performing call slot forwarding, but
       // happen to be using a load-store pair to implement it, rather than
       // a memcpy.
-      CallInst *C = nullptr;
-      if (auto *LoadClobber = dyn_cast<MemoryUseOrDef>(
-              MSSA->getWalker()->getClobberingMemoryAccess(LI))) {
-        // The load most post-dom the call. Limit to the same block for now.
-        // TODO: Support non-local call-slot optimization?
-        if (LoadClobber->getBlock() == SI->getParent())
-          C = dyn_cast_or_null<CallInst>(LoadClobber->getMemoryInst());
-      }
+      auto GetCall = [&]() -> CallInst * {
+        // We defer this expensive clobber walk until the cheap checks
+        // have been done on the source inside performCallSlotOptzn.
+        if (auto *LoadClobber = dyn_cast<MemoryUseOrDef>(
+              MSSA->getWalker()->getClobberingMemoryAccess(LI)))
+          return dyn_cast_or_null<CallInst>(LoadClobber->getMemoryInst());
+        return nullptr;
+      };
 
-      if (C) {
-        // Check that nothing touches the dest of the "copy" between
-        // the call and the store.
-        MemoryLocation StoreLoc = MemoryLocation::get(SI);
-        if (accessedBetween(*AA, StoreLoc, MSSA->getMemoryAccess(C),
-                            MSSA->getMemoryAccess(SI)))
-          C = nullptr;
-      }
-
-      if (C) {
-        bool changed = performCallSlotOptzn(
-            LI, SI, SI->getPointerOperand()->stripPointerCasts(),
-            LI->getPointerOperand()->stripPointerCasts(),
-            DL.getTypeStoreSize(SI->getOperand(0)->getType()),
-            commonAlignment(SI->getAlign(), LI->getAlign()), C);
-        if (changed) {
-          eraseInstruction(SI);
-          eraseInstruction(LI);
-          ++NumMemCpyInstr;
-          return true;
-        }
+      bool changed = performCallSlotOptzn(
+          LI, SI, SI->getPointerOperand()->stripPointerCasts(),
+          LI->getPointerOperand()->stripPointerCasts(),
+          DL.getTypeStoreSize(SI->getOperand(0)->getType()),
+          commonAlignment(SI->getAlign(), LI->getAlign()), GetCall);
+      if (changed) {
+        eraseInstruction(SI);
+        eraseInstruction(LI);
+        ++NumMemCpyInstr;
+        return true;
       }
     }
   }
@@ -847,7 +854,8 @@ bool MemCpyOptPass::processMemSet(MemSetInst *MSI, BasicBlock::iterator &BBI) {
 bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
                                          Instruction *cpyStore, Value *cpyDest,
                                          Value *cpySrc, TypeSize cpySize,
-                                         Align cpyAlign, CallInst *C) {
+                                         Align cpyAlign,
+                                         std::function<CallInst *()> GetC) {
   // The general transformation to keep in mind is
   //
   //   call @func(..., src, ...)
@@ -866,11 +874,6 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
   if (cpySize.isScalable())
     return false;
 
-  // Lifetime marks shouldn't be operated on.
-  if (Function *F = C->getCalledFunction())
-    if (F->isIntrinsic() && F->getIntrinsicID() == Intrinsic::lifetime_start)
-      return false;
-
   // Require that src be an alloca.  This simplifies the reasoning considerably.
   auto *srcAlloca = dyn_cast<AllocaInst>(cpySrc);
   if (!srcAlloca)
@@ -887,12 +890,42 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
   if (cpySize < srcSize)
     return false;
 
+  CallInst *C = GetC();
+  if (!C)
+    return false;
+
+  // Lifetime marks shouldn't be operated on.
+  if (Function *F = C->getCalledFunction())
+    if (F->isIntrinsic() && F->getIntrinsicID() == Intrinsic::lifetime_start)
+      return false;
+
+
+  if (C->getParent() != cpyStore->getParent()) {
+    LLVM_DEBUG(dbgs() << "Call Slot: block local restriction\n");
+    return false;
+  }
+
+  MemoryLocation DestLoc = isa<StoreInst>(cpyStore) ?
+    MemoryLocation::get(cpyStore) :
+    MemoryLocation::getForDest(cast<MemCpyInst>(cpyStore));
+
+  // Check that nothing touches the dest of the copy between
+  // the call and the store/memcpy.
+  if (accessedBetween(*AA, DestLoc, MSSA->getMemoryAccess(C),
+                      MSSA->getMemoryAccess(cpyStore))) {
+    LLVM_DEBUG(dbgs() << "Call Slot: Dest pointer modified after call\n");
+    return false;
+  }
+
   // Check that accessing the first srcSize bytes of dest will not cause a
   // trap.  Otherwise the transform is invalid since it might cause a trap
   // to occur earlier than it otherwise would.
   if (!isDereferenceableAndAlignedPointer(cpyDest, Align(1), APInt(64, cpySize),
-                                          DL, C, DT))
+                                          DL, C, DT)) {
+    LLVM_DEBUG(dbgs() << "Call Slot: Dest pointer not dereferenceable\n");
     return false;
+  }
+
 
   // Make sure that nothing can observe cpyDest being written early. There are
   // a number of cases to consider:
@@ -908,8 +941,10 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
   //     guaranteed to be executed if C is. As it is a non-atomic access, it
   //     renders accesses from other threads undefined.
   //     TODO: This is currently not checked.
-  if (mayBeVisibleThroughUnwinding(cpyDest, C, cpyStore))
+  if (mayBeVisibleThroughUnwinding(cpyDest, C, cpyStore)) {
+    LLVM_DEBUG(dbgs() << "Call Slot: Dest may be visible through unwinding");
     return false;
+  }
 
   // Check that dest points to memory that is at least as aligned as src.
   Align srcAlign = srcAlloca->getAlign();
@@ -1064,6 +1099,8 @@ bool MemCpyOptPass::performCallSlotOptzn(Instruction *cpyLoad,
                          LLVMContext::MD_invariant_group,
                          LLVMContext::MD_access_group};
   combineMetadata(C, cpyLoad, KnownIDs, true);
+  if (cpyLoad != cpyStore)
+    combineMetadata(C, cpyStore, KnownIDs, true);
 
   ++NumCallSlot;
   return true;
@@ -1106,7 +1143,7 @@ bool MemCpyOptPass::processMemCpyMemCpyDependence(MemCpyInst *M,
   // then we could still perform the xform by moving M up to the first memcpy.
   // TODO: It would be sufficient to check the MDep source up to the memcpy
   // size of M, rather than MDep.
-  if (writtenBetween(MSSA, MemoryLocation::getForSource(MDep),
+  if (writtenBetween(MSSA, *AA, MemoryLocation::getForSource(MDep),
                      MSSA->getMemoryAccess(MDep), MSSA->getMemoryAccess(M)))
     return false;
 
@@ -1390,7 +1427,8 @@ bool MemCpyOptPass::processMemCpy(MemCpyInst *M, BasicBlock::iterator &BBI) {
       }
 
   MemoryUseOrDef *MA = MSSA->getMemoryAccess(M);
-  MemoryAccess *AnyClobber = MSSA->getWalker()->getClobberingMemoryAccess(MA);
+  // FIXME: Not using getClobberingMemoryAccess() here due to PR54682.
+  MemoryAccess *AnyClobber = MA->getDefiningAccess();
   MemoryLocation DestLoc = MemoryLocation::getForDest(M);
   const MemoryAccess *DestClobber =
       MSSA->getWalker()->getClobberingMemoryAccess(AnyClobber, DestLoc);
@@ -1419,28 +1457,20 @@ bool MemCpyOptPass::processMemCpy(MemCpyInst *M, BasicBlock::iterator &BBI) {
     if (Instruction *MI = MD->getMemoryInst()) {
       if (auto *CopySize = dyn_cast<ConstantInt>(M->getLength())) {
         if (auto *C = dyn_cast<CallInst>(MI)) {
-          // The memcpy must post-dom the call. Limit to the same block for
-          // now. Additionally, we need to ensure that there are no accesses
-          // to dest between the call and the memcpy. Accesses to src will be
-          // checked by performCallSlotOptzn().
-          // TODO: Support non-local call-slot optimization?
-          if (C->getParent() == M->getParent() &&
-              !accessedBetween(*AA, DestLoc, MD, MA)) {
-            // FIXME: Can we pass in either of dest/src alignment here instead
-            // of conservatively taking the minimum?
-            Align Alignment = std::min(M->getDestAlign().valueOrOne(),
-                                       M->getSourceAlign().valueOrOne());
-            if (performCallSlotOptzn(
-                    M, M, M->getDest(), M->getSource(),
-                    TypeSize::getFixed(CopySize->getZExtValue()), Alignment,
-                    C)) {
-              LLVM_DEBUG(dbgs() << "Performed call slot optimization:\n"
-                                << "    call: " << *C << "\n"
-                                << "    memcpy: " << *M << "\n");
-              eraseInstruction(M);
-              ++NumMemCpyInstr;
-              return true;
-            }
+          // FIXME: Can we pass in either of dest/src alignment here instead
+          // of conservatively taking the minimum?
+          Align Alignment = std::min(M->getDestAlign().valueOrOne(),
+                                     M->getSourceAlign().valueOrOne());
+          if (performCallSlotOptzn(
+                  M, M, M->getDest(), M->getSource(),
+                  TypeSize::getFixed(CopySize->getZExtValue()), Alignment,
+                  [C]() -> CallInst * { return C; })) {
+            LLVM_DEBUG(dbgs() << "Performed call slot optimization:\n"
+                              << "    call: " << *C << "\n"
+                              << "    memcpy: " << *M << "\n");
+            eraseInstruction(M);
+            ++NumMemCpyInstr;
+            return true;
           }
         }
       }
@@ -1545,7 +1575,7 @@ bool MemCpyOptPass::processByValArgument(CallBase &CB, unsigned ArgNo) {
   //    *b = 42;
   //    foo(*a)
   // It would be invalid to transform the second memcpy into foo(*b).
-  if (writtenBetween(MSSA, MemoryLocation::getForSource(MDep),
+  if (writtenBetween(MSSA, *AA, MemoryLocation::getForSource(MDep),
                      MSSA->getMemoryAccess(MDep), MSSA->getMemoryAccess(&CB)))
     return false;
 

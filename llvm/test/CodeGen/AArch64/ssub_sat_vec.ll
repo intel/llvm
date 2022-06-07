@@ -98,9 +98,9 @@ define <32 x i16> @v32i16(<32 x i16> %x, <32 x i16> %y) nounwind {
 define void @v8i8(<8 x i8>* %px, <8 x i8>* %py, <8 x i8>* %pz) nounwind {
 ; CHECK-LABEL: v8i8:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ldr d0, [x0]
-; CHECK-NEXT:    ldr d1, [x1]
-; CHECK-NEXT:    sqsub v0.8b, v0.8b, v1.8b
+; CHECK-NEXT:    ldr d0, [x1]
+; CHECK-NEXT:    ldr d1, [x0]
+; CHECK-NEXT:    sqsub v0.8b, v1.8b, v0.8b
 ; CHECK-NEXT:    str d0, [x2]
 ; CHECK-NEXT:    ret
   %x = load <8 x i8>, <8 x i8>* %px
@@ -159,9 +159,9 @@ define void @v2i8(<2 x i8>* %px, <2 x i8>* %py, <2 x i8>* %pz) nounwind {
 define void @v4i16(<4 x i16>* %px, <4 x i16>* %py, <4 x i16>* %pz) nounwind {
 ; CHECK-LABEL: v4i16:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ldr d0, [x0]
-; CHECK-NEXT:    ldr d1, [x1]
-; CHECK-NEXT:    sqsub v0.4h, v0.4h, v1.4h
+; CHECK-NEXT:    ldr d0, [x1]
+; CHECK-NEXT:    ldr d1, [x0]
+; CHECK-NEXT:    sqsub v0.4h, v1.4h, v0.4h
 ; CHECK-NEXT:    str d0, [x2]
 ; CHECK-NEXT:    ret
   %x = load <4 x i16>, <4 x i16>* %px
@@ -225,9 +225,9 @@ define void @v12i16(<12 x i16>* %px, <12 x i16>* %py, <12 x i16>* %pz) nounwind 
 define void @v1i8(<1 x i8>* %px, <1 x i8>* %py, <1 x i8>* %pz) nounwind {
 ; CHECK-LABEL: v1i8:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ldr b0, [x0]
-; CHECK-NEXT:    ldr b1, [x1]
-; CHECK-NEXT:    sqsub v0.8b, v0.8b, v1.8b
+; CHECK-NEXT:    ldr b0, [x1]
+; CHECK-NEXT:    ldr b1, [x0]
+; CHECK-NEXT:    sqsub v0.8b, v1.8b, v0.8b
 ; CHECK-NEXT:    st1 { v0.b }[0], [x2]
 ; CHECK-NEXT:    ret
   %x = load <1 x i8>, <1 x i8>* %px
@@ -240,9 +240,9 @@ define void @v1i8(<1 x i8>* %px, <1 x i8>* %py, <1 x i8>* %pz) nounwind {
 define void @v1i16(<1 x i16>* %px, <1 x i16>* %py, <1 x i16>* %pz) nounwind {
 ; CHECK-LABEL: v1i16:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    ldr h0, [x0]
-; CHECK-NEXT:    ldr h1, [x1]
-; CHECK-NEXT:    sqsub v0.4h, v0.4h, v1.4h
+; CHECK-NEXT:    ldr h0, [x1]
+; CHECK-NEXT:    ldr h1, [x0]
+; CHECK-NEXT:    sqsub v0.4h, v1.4h, v0.4h
 ; CHECK-NEXT:    str h0, [x2]
 ; CHECK-NEXT:    ret
   %x = load <1 x i16>, <1 x i16>* %px
@@ -255,10 +255,10 @@ define void @v1i16(<1 x i16>* %px, <1 x i16>* %py, <1 x i16>* %pz) nounwind {
 define <16 x i4> @v16i4(<16 x i4> %x, <16 x i4> %y) nounwind {
 ; CHECK-LABEL: v16i4:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    shl v1.16b, v1.16b, #4
 ; CHECK-NEXT:    shl v0.16b, v0.16b, #4
-; CHECK-NEXT:    sshr v1.16b, v1.16b, #4
+; CHECK-NEXT:    shl v1.16b, v1.16b, #4
 ; CHECK-NEXT:    sshr v0.16b, v0.16b, #4
+; CHECK-NEXT:    sshr v1.16b, v1.16b, #4
 ; CHECK-NEXT:    shl v1.16b, v1.16b, #4
 ; CHECK-NEXT:    shl v0.16b, v0.16b, #4
 ; CHECK-NEXT:    sqsub v0.16b, v0.16b, v1.16b
@@ -354,23 +354,21 @@ define <2 x i128> @v2i128(<2 x i128> %x, <2 x i128> %y) nounwind {
 ; CHECK-LABEL: v2i128:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    subs x8, x2, x6
-; CHECK-NEXT:    eor x10, x3, x7
 ; CHECK-NEXT:    sbcs x9, x3, x7
-; CHECK-NEXT:    eor x11, x3, x9
-; CHECK-NEXT:    asr x12, x9, #63
-; CHECK-NEXT:    tst x10, x11
-; CHECK-NEXT:    eor x10, x1, x5
-; CHECK-NEXT:    csel x2, x12, x8, lt
-; CHECK-NEXT:    eor x8, x12, #0x8000000000000000
-; CHECK-NEXT:    csel x3, x8, x9, lt
+; CHECK-NEXT:    cset w10, vs
+; CHECK-NEXT:    asr x11, x9, #63
+; CHECK-NEXT:    cmp w10, #0
+; CHECK-NEXT:    csel x2, x11, x8, ne
+; CHECK-NEXT:    eor x8, x11, #0x8000000000000000
+; CHECK-NEXT:    csel x3, x8, x9, ne
 ; CHECK-NEXT:    subs x8, x0, x4
 ; CHECK-NEXT:    sbcs x9, x1, x5
-; CHECK-NEXT:    eor x11, x1, x9
-; CHECK-NEXT:    asr x12, x9, #63
-; CHECK-NEXT:    tst x10, x11
-; CHECK-NEXT:    eor x10, x12, #0x8000000000000000
-; CHECK-NEXT:    csel x8, x12, x8, lt
-; CHECK-NEXT:    csel x1, x10, x9, lt
+; CHECK-NEXT:    cset w10, vs
+; CHECK-NEXT:    asr x11, x9, #63
+; CHECK-NEXT:    cmp w10, #0
+; CHECK-NEXT:    eor x10, x11, #0x8000000000000000
+; CHECK-NEXT:    csel x8, x11, x8, ne
+; CHECK-NEXT:    csel x1, x10, x9, ne
 ; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    mov v0.d[1], x1
 ; CHECK-NEXT:    fmov x0, d0

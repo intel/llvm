@@ -27,7 +27,6 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <iterator>
@@ -56,7 +55,6 @@ class MCTargetAsmParser;
 class MCTargetOptions;
 class MCTargetStreamer;
 class raw_ostream;
-class raw_pwrite_stream;
 class TargetMachine;
 class TargetOptions;
 namespace mca {
@@ -107,6 +105,11 @@ MCStreamer *createWasmStreamer(MCContext &Ctx,
                                std::unique_ptr<MCCodeEmitter> &&CE,
                                bool RelaxAll);
 MCStreamer *createXCOFFStreamer(MCContext &Ctx,
+                                std::unique_ptr<MCAsmBackend> &&TAB,
+                                std::unique_ptr<MCObjectWriter> &&OW,
+                                std::unique_ptr<MCCodeEmitter> &&CE,
+                                bool RelaxAll);
+MCStreamer *createSPIRVStreamer(MCContext &Ctx,
                                 std::unique_ptr<MCAsmBackend> &&TAB,
                                 std::unique_ptr<MCObjectWriter> &&OW,
                                 std::unique_ptr<MCCodeEmitter> &&CE,
@@ -177,7 +180,6 @@ public:
                                                  const MCInstrInfo &MII,
                                                  const MCRegisterInfo &MRI);
   using MCCodeEmitterCtorTy = MCCodeEmitter *(*)(const MCInstrInfo &II,
-                                                 const MCRegisterInfo &MRI,
                                                  MCContext &Ctx);
   using ELFStreamerCtorTy =
       MCStreamer *(*)(const Triple &T, MCContext &Ctx,
@@ -200,6 +202,11 @@ public:
                       std::unique_ptr<MCObjectWriter> &&OW,
                       std::unique_ptr<MCCodeEmitter> &&Emitter, bool RelaxAll);
   using XCOFFStreamerCtorTy =
+      MCStreamer *(*)(const Triple &T, MCContext &Ctx,
+                      std::unique_ptr<MCAsmBackend> &&TAB,
+                      std::unique_ptr<MCObjectWriter> &&OW,
+                      std::unique_ptr<MCCodeEmitter> &&Emitter, bool RelaxAll);
+  using SPIRVStreamerCtorTy =
       MCStreamer *(*)(const Triple &T, MCContext &Ctx,
                       std::unique_ptr<MCAsmBackend> &&TAB,
                       std::unique_ptr<MCObjectWriter> &&OW,
@@ -305,6 +312,7 @@ private:
   ELFStreamerCtorTy ELFStreamerCtorFn = nullptr;
   WasmStreamerCtorTy WasmStreamerCtorFn = nullptr;
   XCOFFStreamerCtorTy XCOFFStreamerCtorFn = nullptr;
+  SPIRVStreamerCtorTy SPIRVStreamerCtorFn = nullptr;
 
   /// Construction function for this target's null TargetStreamer, if
   /// registered (default = nullptr).
@@ -508,11 +516,10 @@ public:
 
   /// createMCCodeEmitter - Create a target specific code emitter.
   MCCodeEmitter *createMCCodeEmitter(const MCInstrInfo &II,
-                                     const MCRegisterInfo &MRI,
                                      MCContext &Ctx) const {
     if (!MCCodeEmitterCtorFn)
       return nullptr;
-    return MCCodeEmitterCtorFn(II, MRI, Ctx);
+    return MCCodeEmitterCtorFn(II, Ctx);
   }
 
   /// Create a target specific MCStreamer.
@@ -534,6 +541,8 @@ public:
     switch (T.getObjectFormat()) {
     case Triple::UnknownObjectFormat:
       llvm_unreachable("Unknown object format");
+    case Triple::DXContainer:
+      llvm_unreachable("DXContainer is unsupported through MC");
     case Triple::COFF:
       assert(T.isOSWindows() && "only Windows COFF is supported");
       S = COFFStreamerCtorFn(Ctx, std::move(TAB), std::move(OW),
@@ -574,6 +583,14 @@ public:
                                 std::move(Emitter), RelaxAll);
       else
         S = createXCOFFStreamer(Ctx, std::move(TAB), std::move(OW),
+                                std::move(Emitter), RelaxAll);
+      break;
+    case Triple::SPIRV:
+      if (SPIRVStreamerCtorFn)
+        S = SPIRVStreamerCtorFn(T, Ctx, std::move(TAB), std::move(OW),
+                                std::move(Emitter), RelaxAll);
+      else
+        S = createSPIRVStreamer(Ctx, std::move(TAB), std::move(OW),
                                 std::move(Emitter), RelaxAll);
       break;
     }
@@ -954,6 +971,10 @@ struct TargetRegistry {
 
   static void RegisterELFStreamer(Target &T, Target::ELFStreamerCtorTy Fn) {
     T.ELFStreamerCtorFn = Fn;
+  }
+
+  static void RegisterSPIRVStreamer(Target &T, Target::SPIRVStreamerCtorTy Fn) {
+    T.SPIRVStreamerCtorFn = Fn;
   }
 
   static void RegisterWasmStreamer(Target &T, Target::WasmStreamerCtorTy Fn) {
@@ -1362,7 +1383,6 @@ template <class MCCodeEmitterImpl> struct RegisterMCCodeEmitter {
 
 private:
   static MCCodeEmitter *Allocator(const MCInstrInfo & /*II*/,
-                                  const MCRegisterInfo & /*MRI*/,
                                   MCContext & /*Ctx*/) {
     return new MCCodeEmitterImpl();
   }

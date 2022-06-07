@@ -46,9 +46,6 @@ include_directories(
   ${LIBOMP_INC_DIR}
   ${LIBOMP_SRC_DIR}/thirdparty/ittnotify
 )
-if(${LIBOMP_USE_HWLOC})
-  include_directories(${LIBOMP_HWLOC_INSTALL_DIR}/include)
-endif()
 
 # Building with time profiling support requires LLVM directory includes.
 if(LIBOMP_PROFILING_SUPPORT)
@@ -156,6 +153,13 @@ else()
     )
   # libomp must be a C++ library such that it can link libLLVMSupport
   set(LIBOMP_LINKER_LANGUAGE CXX)
+endif()
+if(${LIBOMP_USE_HWLOC})
+  target_include_directories(omp
+                             PUBLIC
+			     "$<BUILD_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
+			     "$<INSTALL_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
+  )
 endif()
 
 if(OPENMP_MSVC_NAME_SCHEME)
@@ -346,19 +350,19 @@ add_dependencies(libomp-micro-tests libomp-test-deps)
 # We want to install libomp in DESTDIR/CMAKE_INSTALL_PREFIX/lib
 # We want to install headers in DESTDIR/CMAKE_INSTALL_PREFIX/include
 if(${OPENMP_STANDALONE_BUILD})
-  set(LIBOMP_HEADERS_INSTALL_PATH include)
+  set(LIBOMP_HEADERS_INSTALL_PATH "${CMAKE_INSTALL_INCLUDEDIR}")
 else()
   string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION ${PACKAGE_VERSION})
   set(LIBOMP_HEADERS_INSTALL_PATH "${OPENMP_INSTALL_LIBDIR}/clang/${CLANG_VERSION}/include")
 endif()
 if(WIN32)
-  install(TARGETS omp RUNTIME DESTINATION bin)
+  install(TARGETS omp RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
   install(TARGETS ${LIBOMP_IMP_LIB_TARGET} ARCHIVE DESTINATION "${OPENMP_INSTALL_LIBDIR}")
   # Create aliases (regular copies) of the library for backwards compatibility
   set(LIBOMP_ALIASES "libiomp5md")
   foreach(alias IN LISTS LIBOMP_ALIASES)
     install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy \"${LIBOMP_LIB_FILE}\"
-      \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/bin\")")
+      \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")")
     install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy \"${LIBOMP_IMP_LIB_FILE}\"
       \"${alias}${CMAKE_STATIC_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/${OPENMP_INSTALL_LIBDIR}\")")
   endforeach()

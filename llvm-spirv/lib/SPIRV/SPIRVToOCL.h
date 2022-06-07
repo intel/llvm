@@ -161,6 +161,13 @@ public:
   ///  %1 = shl i31 %0, 8
   void visitCallSPIRVGenericPtrMemSemantics(CallInst *CI);
 
+  /// Transform __spirv_ConvertFToBF16INTELDv(N)_f to:
+  /// intel_convert_bfloat16(N)_as_ushort(N)Dv(N)_f;
+  /// and transform __spirv_ConvertBF16ToFINTELDv(N)_s to:
+  /// intel_convert_as_bfloat16(N)_float(N)Dv(N)_t;
+  /// where N is vector size
+  void visitCallSPIRVBFloat16Conversions(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
@@ -217,6 +224,12 @@ public:
 
   /// Transform __spirv_EnqueueKernel to __enqueue_kernel
   virtual void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) = 0;
+
+  /// Transform __spirv_Any and __spirv_All to OpenCL builtin.
+  void visitCallSPIRVAnyAll(CallInst *CI, Op OC);
+
+  /// Transform relational builtin, e.g. __spirv_IsNan, to OpenCL builtin.
+  void visitCallSPIRVRelational(CallInst *CI, Op OC);
 
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
@@ -412,6 +425,11 @@ public:
   bool runOnModule(Module &M) override;
   static char ID;
 };
+
+/// Add passes for translating SPIR-V Instructions to the desired
+/// representation in LLVM IR (such as OpenCL builtins or SPIR-V Friendly IR).
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep);
 
 } // namespace SPIRV
 

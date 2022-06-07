@@ -22,7 +22,7 @@
 #include "llvm-c/Support.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
@@ -45,7 +45,6 @@
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
-#include <map>
 #include <string>
 using namespace llvm;
 using namespace cl;
@@ -919,21 +918,34 @@ static size_t parseBackslash(StringRef Src, size_t I, SmallString<128> &Token) {
   return I - 1;
 }
 
-// Windows treats whitespace, double quotes, and backslashes specially.
+// Windows treats whitespace, double quotes, and backslashes specially, except
+// when parsing the first token of a full command line, in which case
+// backslashes are not special.
 static bool isWindowsSpecialChar(char C) {
   return isWhitespaceOrNull(C) || C == '\\' || C == '\"';
+}
+static bool isWindowsSpecialCharInCommandName(char C) {
+  return isWhitespaceOrNull(C) || C == '\"';
 }
 
 // Windows tokenization implementation. The implementation is designed to be
 // inlined and specialized for the two user entry points.
-static inline void
-tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
-                               function_ref<void(StringRef)> AddToken,
-                               bool AlwaysCopy, function_ref<void()> MarkEOL) {
+static inline void tokenizeWindowsCommandLineImpl(
+    StringRef Src, StringSaver &Saver, function_ref<void(StringRef)> AddToken,
+    bool AlwaysCopy, function_ref<void()> MarkEOL, bool InitialCommandName) {
   SmallString<128> Token;
+
+  // Sometimes, this function will be handling a full command line including an
+  // executable pathname at the start. In that situation, the initial pathname
+  // needs different handling from the following arguments, because when
+  // CreateProcess or cmd.exe scans the pathname, it doesn't treat \ as
+  // escaping the quote character, whereas when libc scans the rest of the
+  // command line, it does.
+  bool CommandName = InitialCommandName;
 
   // Try to do as much work inside the state machine as possible.
   enum { INIT, UNQUOTED, QUOTED } State = INIT;
+
   for (size_t I = 0, E = Src.size(); I < E; ++I) {
     switch (State) {
     case INIT: {
@@ -948,19 +960,29 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
       if (I >= E)
         break;
       size_t Start = I;
-      while (I < E && !isWindowsSpecialChar(Src[I]))
-        ++I;
+      if (CommandName) {
+        while (I < E && !isWindowsSpecialCharInCommandName(Src[I]))
+          ++I;
+      } else {
+        while (I < E && !isWindowsSpecialChar(Src[I]))
+          ++I;
+      }
       StringRef NormalChars = Src.slice(Start, I);
       if (I >= E || isWhitespaceOrNull(Src[I])) {
         // No special characters: slice out the substring and start the next
         // token. Copy the string if the caller asks us to.
         AddToken(AlwaysCopy ? Saver.save(NormalChars) : NormalChars);
-        if (I < E && Src[I] == '\n')
+        if (I < E && Src[I] == '\n') {
           MarkEOL();
+          CommandName = InitialCommandName;
+        } else {
+          CommandName = false;
+        }
       } else if (Src[I] == '\"') {
         Token += NormalChars;
         State = QUOTED;
       } else if (Src[I] == '\\') {
+        assert(!CommandName && "or else we'd have treated it as a normal char");
         Token += NormalChars;
         I = parseBackslash(Src, I, Token);
         State = UNQUOTED;
@@ -977,12 +999,16 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
         // token.
         AddToken(Saver.save(Token.str()));
         Token.clear();
-        if (Src[I] == '\n')
+        if (Src[I] == '\n') {
+          CommandName = InitialCommandName;
           MarkEOL();
+        } else {
+          CommandName = false;
+        }
         State = INIT;
       } else if (Src[I] == '\"') {
         State = QUOTED;
-      } else if (Src[I] == '\\') {
+      } else if (Src[I] == '\\' && !CommandName) {
         I = parseBackslash(Src, I, Token);
       } else {
         Token.push_back(Src[I]);
@@ -1000,7 +1026,7 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
           // Otherwise, end the quoted portion and return to the unquoted state.
           State = UNQUOTED;
         }
-      } else if (Src[I] == '\\') {
+      } else if (Src[I] == '\\' && !CommandName) {
         I = parseBackslash(Src, I, Token);
       } else {
         Token.push_back(Src[I]);
@@ -1009,7 +1035,7 @@ tokenizeWindowsCommandLineImpl(StringRef Src, StringSaver &Saver,
     }
   }
 
-  if (State == UNQUOTED)
+  if (State != INIT)
     AddToken(Saver.save(Token.str()));
 }
 
@@ -1022,7 +1048,7 @@ void cl::TokenizeWindowsCommandLine(StringRef Src, StringSaver &Saver,
       NewArgv.push_back(nullptr);
   };
   tokenizeWindowsCommandLineImpl(Src, Saver, AddToken,
-                                 /*AlwaysCopy=*/true, OnEOL);
+                                 /*AlwaysCopy=*/true, OnEOL, false);
 }
 
 void cl::TokenizeWindowsCommandLineNoCopy(StringRef Src, StringSaver &Saver,
@@ -1030,7 +1056,19 @@ void cl::TokenizeWindowsCommandLineNoCopy(StringRef Src, StringSaver &Saver,
   auto AddToken = [&](StringRef Tok) { NewArgv.push_back(Tok); };
   auto OnEOL = []() {};
   tokenizeWindowsCommandLineImpl(Src, Saver, AddToken, /*AlwaysCopy=*/false,
-                                 OnEOL);
+                                 OnEOL, false);
+}
+
+void cl::TokenizeWindowsCommandLineFull(StringRef Src, StringSaver &Saver,
+                                        SmallVectorImpl<const char *> &NewArgv,
+                                        bool MarkEOLs) {
+  auto AddToken = [&](StringRef Tok) { NewArgv.push_back(Tok.data()); };
+  auto OnEOL = [&]() {
+    if (MarkEOLs)
+      NewArgv.push_back(nullptr);
+  };
+  tokenizeWindowsCommandLineImpl(Src, Saver, AddToken,
+                                 /*AlwaysCopy=*/true, OnEOL, true);
 }
 
 void cl::tokenizeConfigFile(StringRef Source, StringSaver &Saver,
@@ -1738,21 +1776,6 @@ bool Option::addOccurrence(unsigned pos, StringRef ArgName, StringRef Value,
   if (!MultiArg)
     NumOccurrences++; // Increment the number of times we have been seen
 
-  switch (getNumOccurrencesFlag()) {
-  case Optional:
-    if (NumOccurrences > 1)
-      return error("may only occur zero or one times!", ArgName);
-    break;
-  case Required:
-    if (NumOccurrences > 1)
-      return error("must occur exactly one time!", ArgName);
-    LLVM_FALLTHROUGH;
-  case OneOrMore:
-  case ZeroOrMore:
-  case ConsumeAfter:
-    break;
-  }
-
   return handleOccurrence(pos, ArgName, Value);
 }
 
@@ -2237,7 +2260,7 @@ protected:
 
 public:
   explicit HelpPrinter(bool showHidden) : ShowHidden(showHidden) {}
-  virtual ~HelpPrinter() {}
+  virtual ~HelpPrinter() = default;
 
   // Invoke the printer.
   void operator=(bool Value) {
@@ -2339,7 +2362,7 @@ public:
 protected:
   void printOptions(StrOptionPairVector &Opts, size_t MaxArgLen) override {
     std::vector<OptionCategory *> SortedCategories;
-    std::map<OptionCategory *, std::vector<Option *>> CategorizedOptions;
+    DenseMap<OptionCategory *, std::vector<Option *>> CategorizedOptions;
 
     // Collect registered option categories into vector in preparation for
     // sorting.
@@ -2351,17 +2374,13 @@ protected:
     array_pod_sort(SortedCategories.begin(), SortedCategories.end(),
                    OptionCategoryCompare);
 
-    // Create map to empty vectors.
-    for (OptionCategory *Category : SortedCategories)
-      CategorizedOptions[Category] = std::vector<Option *>();
-
     // Walk through pre-sorted options and assign into categories.
     // Because the options are already alphabetically sorted the
     // options within categories will also be alphabetically sorted.
     for (size_t I = 0, E = Opts.size(); I != E; ++I) {
       Option *Opt = Opts[I].second;
       for (auto &Cat : Opt->Categories) {
-        assert(CategorizedOptions.count(Cat) > 0 &&
+        assert(find(SortedCategories, Cat) != SortedCategories.end() &&
                "Option has an unregistered category");
         CategorizedOptions[Cat].push_back(Opt);
       }

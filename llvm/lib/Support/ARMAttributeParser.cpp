@@ -7,10 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Support/ARMAttributeParser.h"
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLArrayExtras.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/Support/Errc.h"
-#include "llvm/Support/LEB128.h"
 #include "llvm/Support/ScopedPrinter.h"
 
 using namespace llvm;
@@ -70,7 +68,7 @@ const ARMAttributeParser::DisplayHandler ARMAttributeParser::displayRoutines[] =
 
 Error ARMAttributeParser::stringAttribute(AttrType tag) {
   StringRef tagName =
-      ELFAttrs::attrTypeAsString(tag, tagToStringMap, /*TagPrefix=*/false);
+      ELFAttrs::attrTypeAsString(tag, tagToStringMap, /*hasTagPrefix=*/false);
   StringRef desc = de.getCStrRef(cursor);
 
   if (sw) {
@@ -89,7 +87,7 @@ Error ARMAttributeParser::CPU_arch(AttrType tag) {
     "ARM v6KZ", "ARM v6T2", "ARM v6K", "ARM v7", "ARM v6-M", "ARM v6S-M",
     "ARM v7E-M", "ARM v8", nullptr,
     "ARM v8-M Baseline", "ARM v8-M Mainline", nullptr, nullptr, nullptr,
-    "ARM v8.1-M Mainline"
+    "ARM v8.1-M Mainline", "ARM v9-A"
   };
   return parseStringAttribute("CPU_arch", tag, makeArrayRef(strings));
 }

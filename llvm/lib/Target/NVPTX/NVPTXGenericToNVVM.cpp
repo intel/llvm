@@ -96,20 +96,18 @@ bool GenericToNVVM::runOnModule(Module &M) {
   // Walk through the instructions in function defitinions, and replace any use
   // of original global variables in GVMap with a use of the corresponding
   // copies in GVMap.  If necessary, promote constants to instructions.
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    if (I->isDeclaration()) {
+  for (Function &F : M) {
+    if (F.isDeclaration()) {
       continue;
     }
-    IRBuilder<> Builder(I->getEntryBlock().getFirstNonPHIOrDbg());
-    for (Function::iterator BBI = I->begin(), BBE = I->end(); BBI != BBE;
-         ++BBI) {
-      for (BasicBlock::iterator II = BBI->begin(), IE = BBI->end(); II != IE;
-           ++II) {
-        for (unsigned i = 0, e = II->getNumOperands(); i < e; ++i) {
-          Value *Operand = II->getOperand(i);
+    IRBuilder<> Builder(F.getEntryBlock().getFirstNonPHIOrDbg());
+    for (BasicBlock &BB : F) {
+      for (Instruction &II : BB) {
+        for (unsigned i = 0, e = II.getNumOperands(); i < e; ++i) {
+          Value *Operand = II.getOperand(i);
           if (isa<Constant>(Operand)) {
-            II->setOperand(
-                i, remapConstant(&M, &*I, cast<Constant>(Operand), Builder));
+            II.setOperand(
+                i, remapConstant(&M, &F, cast<Constant>(Operand), Builder));
           }
         }
       }
@@ -280,15 +278,10 @@ Value *GenericToNVVM::remapConstantExpr(Module *M, Function *F, ConstantExpr *C,
                                      C->getIndices());
   case Instruction::GetElementPtr:
     // GetElementPtrConstantExpr
-    return cast<GEPOperator>(C)->isInBounds()
-               ? Builder.CreateGEP(
-                     cast<GEPOperator>(C)->getSourceElementType(),
-                     NewOperands[0],
-                     makeArrayRef(&NewOperands[1], NumOperands - 1))
-               : Builder.CreateInBoundsGEP(
-                     cast<GEPOperator>(C)->getSourceElementType(),
-                     NewOperands[0],
-                     makeArrayRef(&NewOperands[1], NumOperands - 1));
+    return Builder.CreateGEP(cast<GEPOperator>(C)->getSourceElementType(),
+                             NewOperands[0],
+                             makeArrayRef(&NewOperands[1], NumOperands - 1), "",
+                             cast<GEPOperator>(C)->isInBounds());
   case Instruction::Select:
     // SelectConstantExpr
     return Builder.CreateSelect(NewOperands[0], NewOperands[1], NewOperands[2]);

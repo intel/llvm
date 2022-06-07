@@ -19,6 +19,7 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
+#include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/Support/TimeProfiler.h"
 using namespace clang;
 
@@ -199,12 +200,15 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
 
   if (Context == DeclaratorContext::Member) {
     // We are parsing a member template.
-    ParseCXXClassMemberDeclaration(AS, AccessAttrs, TemplateInfo,
-                                   &DiagsFromTParams);
-    return nullptr;
+    DeclGroupPtrTy D = ParseCXXClassMemberDeclaration(
+        AS, AccessAttrs, TemplateInfo, &DiagsFromTParams);
+
+    if (!D || !D.get().isSingleDecl())
+      return nullptr;
+    return D.get().getSingleDecl();
   }
 
-  ParsedAttributesWithRange prefixAttrs(AttrFactory);
+  ParsedAttributes prefixAttrs(AttrFactory);
   MaybeParseCXX11Attributes(prefixAttrs);
 
   if (Tok.is(tok::kw_using)) {
@@ -391,7 +395,7 @@ Parser::ParseConceptDefinition(const ParsedTemplateInfo &TemplateInfo,
   CXXScopeSpec SS;
   if (ParseOptionalCXXScopeSpecifier(
           SS, /*ObjectType=*/nullptr,
-          /*ObjectHadErrors=*/false, /*EnteringContext=*/false,
+          /*ObjectHasErrors=*/false, /*EnteringContext=*/false,
           /*MayBePseudoDestructor=*/nullptr,
           /*IsTypename=*/false, /*LastII=*/nullptr, /*OnlyNamespace=*/true) ||
       SS.isInvalid()) {
@@ -500,7 +504,7 @@ bool Parser::ParseTemplateParameters(
 bool
 Parser::ParseTemplateParameterList(const unsigned Depth,
                              SmallVectorImpl<NamedDecl*> &TemplateParams) {
-  while (1) {
+  while (true) {
 
     if (NamedDecl *TmpParam
           = ParseTemplateParameter(Depth, TemplateParams.size())) {
@@ -715,7 +719,7 @@ bool Parser::TryAnnotateTypeConstraint() {
   CXXScopeSpec SS;
   bool WasScopeAnnotation = Tok.is(tok::annot_cxxscope);
   if (ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
-                                     /*ObjectHadErrors=*/false,
+                                     /*ObjectHasErrors=*/false,
                                      /*EnteringContext=*/false,
                                      /*MayBePseudoDestructor=*/nullptr,
                                      // If this is not a type-constraint, then
@@ -787,7 +791,7 @@ NamedDecl *Parser::ParseTypeParameter(unsigned Depth, unsigned Position) {
   bool TypenameKeyword = false;
   SourceLocation KeyLoc;
   ParseOptionalCXXScopeSpecifier(TypeConstraintSS, /*ObjectType=*/nullptr,
-                                 /*ObjectHadErrors=*/false,
+                                 /*ObjectHasErrors=*/false,
                                  /*EnteringContext*/ false);
   if (Tok.is(tok::annot_template_id)) {
     // Consume the 'type-constraint'.
@@ -1007,18 +1011,23 @@ Parser::ParseNonTypeTemplateParameter(unsigned Depth, unsigned Position) {
   SourceLocation EqualLoc;
   ExprResult DefaultArg;
   if (TryConsumeToken(tok::equal, EqualLoc)) {
-    // C++ [temp.param]p15:
-    //   When parsing a default template-argument for a non-type
-    //   template-parameter, the first non-nested > is taken as the
-    //   end of the template-parameter-list rather than a greater-than
-    //   operator.
-    GreaterThanIsOperatorScope G(GreaterThanIsOperator, false);
-    EnterExpressionEvaluationContext ConstantEvaluated(
-        Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-
-    DefaultArg = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
-    if (DefaultArg.isInvalid())
+    if (Tok.is(tok::l_paren) && NextToken().is(tok::l_brace)) {
+      Diag(Tok.getLocation(), diag::err_stmt_expr_in_default_arg) << 1;
       SkipUntil(tok::comma, tok::greater, StopAtSemi | StopBeforeMatch);
+    } else {
+      // C++ [temp.param]p15:
+      //   When parsing a default template-argument for a non-type
+      //   template-parameter, the first non-nested > is taken as the
+      //   end of the template-parameter-list rather than a greater-than
+      //   operator.
+      GreaterThanIsOperatorScope G(GreaterThanIsOperator, false);
+      EnterExpressionEvaluationContext ConstantEvaluated(
+          Actions, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+      DefaultArg =
+          Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+      if (DefaultArg.isInvalid())
+        SkipUntil(tok::comma, tok::greater, StopAtSemi | StopBeforeMatch);
+    }
   }
 
   // Create the parameter.
@@ -1233,8 +1242,6 @@ bool Parser::ParseGreaterThanInTemplateList(SourceLocation LAngleLoc,
 /// token that forms the template-id. Otherwise, we will leave the
 /// last token in the stream (e.g., so that it can be replaced with an
 /// annotation token).
-///
-/// \param NameHint is not required, and merely affects code completion.
 bool Parser::ParseTemplateIdAfterTemplateName(bool ConsumeLastToken,
                                               SourceLocation &LAngleLoc,
                                               TemplateArgList &TemplateArgs,
@@ -1468,7 +1475,7 @@ ParsedTemplateArgument Parser::ParseTemplateTemplateArgument() {
   // '>', or (in some cases) '>>'.
   CXXScopeSpec SS; // nested-name-specifier, if present
   ParseOptionalCXXScopeSpecifier(SS, /*ObjectType=*/nullptr,
-                                 /*ObjectHadErrors=*/false,
+                                 /*ObjectHasErrors=*/false,
                                  /*EnteringContext=*/false);
 
   ParsedTemplateArgument Result;

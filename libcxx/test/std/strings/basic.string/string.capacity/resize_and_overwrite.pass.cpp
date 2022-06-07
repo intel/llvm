@@ -13,6 +13,7 @@
 // template<class Operation>
 // void resize_and_overwrite(size_type n, Operation op)
 
+#include <algorithm>
 #include <cassert>
 #include <string>
 
@@ -75,7 +76,8 @@ constexpr bool test() {
 
 void test_value_categories() {
   std::string s;
-  s.resize_and_overwrite(10, [](char*&, size_t&) { return 0; });
+  s.resize_and_overwrite(10, [](char*&&, size_t&&) { return 0; });
+  s.resize_and_overwrite(10, [](char* const&, const size_t&) { return 0; });
   struct RefQualified {
     int operator()(char*, size_t) && { return 0; }
   };
@@ -88,18 +90,14 @@ int main(int, char**) {
   test<char16_t>();
   test<char32_t>();
 
-#if defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
   static_assert(test<char>());
   static_assert(test<char8_t>());
   static_assert(test<char16_t>());
   static_assert(test<char32_t>());
-#endif
 
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<wchar_t>();
-#if defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
   static_assert(test<wchar_t>());
-#endif
 #endif
   return 0;
 }

@@ -1,0 +1,219 @@
+= sycl_ext_oneapi_local_memory
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+// This is necessary for asciidoc, but not for asciidoctor
+:cpp: C++
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This document describes an extension enabling the declaration of local memory
+objects at the kernel functor scope.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Revision: 1
+
+== Contact
+
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com) +
+Roland Schulz, Intel (roland 'dot' schulz 'at' intel 'dot' com) +
+
+== Contributors
+
+Felipe de Azevedo Piovezan, Intel +
+Michael Kinsner, Intel +
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_LOCAL_MEMORY` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+== Overview
+
+OpenCL provides two ways for local memory to be used in a kernel:
+
+* The kernel accepts a pointer in the `local` address space as an argument,
+and the host passes the size of the allocation to the OpenCL runtime when
+the kernel is launched.
+* The kernel declares `local` variables in the kernel function
+scope.
+
+In SYCL, programmers have two choices:
+
+* Local accessors created by the host, analogous to the OpenCL kernel argument
+mechanism.
+* Variables declared at the kernel functor scope, in hierarchical parallelism
+kernels.
+
+Note that SYCL currently lags behind OpenCL when it comes to local memory
+allocations; in particular, work-group data parallel SYCL kernels are limited
+to the accessor method. This is undesirable for some architectures, where
+allocating local memory with a compile-time known size is required for
+performance.
+
+This limitation is also undesirable from a usability point of view, since
+programmers have to declare an accessor *outside* a kernel and capture it
+inside the kernel functor.
+
+This extension introduces a concept of group-local memory, with semantics
+similar to OpenCL kernel-scope `local` variables and C++ `thread_local`
+variables.
+
+== Allocating Local Memory
+
+The `sycl::ext::oneapi::group_local_memory` and
+`sycl::ext::oneapi::group_local_memory_for_overwrite` functions can be used to
+allocate group-local memory at the kernel functor scope of a work-group data
+parallel kernel.
+
+NOTE: The restriction that group-local variables must be defined at kernel
+functor scope may be lifted in a future version of this extension.
+
+Group-local memory is allocated in an address space accessible by all
+work-items in the group, and is shared by all work-items of the group.
+
+[source,c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+template <typename T, typename Group, typename... Args>
+multi_ptr<T, Group::address_space> group_local_memory(Group g, Args&&... args);
+
+template <typename T, typename Group>
+multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g);
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+[frame="topbot",options="header,footer"]
+|======================
+|Functions |Description
+
+|`template <typename T, typename Group, typename ... Args>
+ multi_ptr<T, Group::address_space> group_local_memory(Group g, Args&&... args)` |
+Constructs an object of type `T` in an address space accessible by all
+work-items in group _g_, forwarding _args_ to the constructor's parameter list.
+If _args_ is empty, the object is value initialized.
+The constructor is called once per group, upon or before the first call to
+`group_local_memory`.  The storage for the object is allocated upon or before
+the first call to `group_local_memory`, and deallocated when all work-items in
+the group have completed execution of the kernel.
+
+All arguments in _args_ must be the same for all work-items in the group.
+
+`Group` must be `sycl::group`, and `T` must be trivially destructible.
+
+|`template <typename T, typename Group>
+ multi_ptr<T, Group::address_space> group_local_memory_for_overwrite(Group g)` |
+Constructs an object of type `T` in an address space accessible by all
+work-items in group _g_, using default initialization.  The object is
+initialized upon or before the first call to `group_local_memory`.  The storage
+for the object is allocated upon or before the first call to
+`group_local_memory`, and deallocated when all work-items in the group have
+completed execution of the kernel.
+
+`Group` must be `sycl::group`, and `T` must be trivially destructible.
+
+|======================
+
+NOTE: The restrictions on supported types for `Group` and `T` may be lifted
+in a future version of this extension.
+
+== Example Usage
+
+This non-normative section shows some example usages of the extension.
+
+[source,c++]
+----
+myQueue.submit([&](handler &h) {
+  h.parallel_for(
+    nd_range<1>(range<1>(128), range<1>(32)), [=](nd_item<1> item) {
+      multi_ptr<int[64], access::address_space::local_space> ptr = group_local_memory<int[64]>(item.get_group());
+      auto& ref = *ptr;
+      ref[2 * item.get_local_linear_id()] = 42;
+    });
+});
+----
+
+The example above creates a kernel with four work-groups, each containing 32
+work-items. An `int[64]` object is defined in group-local memory, and
+each work-item in the work-group obtains a `multi_ptr` to the same allocation.
+
+== Issues
+
+None.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-12|John Pennycook|*Initial public working draft*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

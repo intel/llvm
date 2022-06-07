@@ -184,6 +184,12 @@ public:
                             const std::string &BuildOptionsString,
                             const RT::PiProgram &NativePrg);
 
+  /* Forces a reparsing of the information used to determine if the persistent
+   * cache is enabled. This is primarily used for unit-testing where the
+   * corresponding configuration variable is set by the individual tests.
+   */
+  static void reparseConfig();
+
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
     static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();

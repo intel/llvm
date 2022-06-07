@@ -13,15 +13,22 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/AllocLikeConversion.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "llvm/ADT/SmallBitVector.h"
 
 using namespace mlir;
 
 namespace {
+
+bool isStaticStrideOrOffset(int64_t strideOrOffset) {
+  return !ShapedType::isDynamicStrideOrOffset(strideOrOffset);
+}
 
 struct AllocOpLowering : public AllocLikeOpLLVMLowering {
   AllocOpLowering(LLVMTypeConverter &converter)
@@ -106,7 +113,7 @@ struct AlignedAllocOpLowering : public AllocLikeOpLLVMLowering {
                               Operation *op) const {
     uint64_t sizeDivisor = getMemRefEltSizeInBytes(type, op);
     for (unsigned i = 0, e = type.getRank(); i < e; i++) {
-      if (type.isDynamic(type.getDimSize(i)))
+      if (ShapedType::isDynamic(type.getDimSize(i)))
         continue;
       sizeDivisor = sizeDivisor * type.getDimSize(i);
     }
@@ -208,8 +215,10 @@ struct AllocaScopeOpLowering
     if (allocaScopeOp.getNumResults() == 0) {
       continueBlock = remainingOpsBlock;
     } else {
-      continueBlock = rewriter.createBlock(remainingOpsBlock,
-                                           allocaScopeOp.getResultTypes());
+      continueBlock = rewriter.createBlock(
+          remainingOpsBlock, allocaScopeOp.getResultTypes(),
+          SmallVector<Location>(allocaScopeOp->getNumResults(),
+                                allocaScopeOp.getLoc()));
       rewriter.create<LLVM::BrOp>(loc, ValueRange(), remainingOpsBlock);
     }
 
@@ -410,6 +419,139 @@ private:
   }
 };
 
+/// Common base for load and store operations on MemRefs. Restricts the match
+/// to supported MemRef types. Provides functionality to emit code accessing a
+/// specific element of the underlying data buffer.
+template <typename Derived>
+struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
+  using ConvertOpToLLVMPattern<Derived>::ConvertOpToLLVMPattern;
+  using ConvertOpToLLVMPattern<Derived>::isConvertibleAndHasIdentityMaps;
+  using Base = LoadStoreOpLowering<Derived>;
+
+  LogicalResult match(Derived op) const override {
+    MemRefType type = op.getMemRefType();
+    return isConvertibleAndHasIdentityMaps(type) ? success() : failure();
+  }
+};
+
+/// Wrap a llvm.cmpxchg operation in a while loop so that the operation can be
+/// retried until it succeeds in atomically storing a new value into memory.
+///
+///      +---------------------------------+
+///      |   <code before the AtomicRMWOp> |
+///      |   <compute initial %loaded>     |
+///      |   cf.br loop(%loaded)              |
+///      +---------------------------------+
+///             |
+///  -------|   |
+///  |      v   v
+///  |   +--------------------------------+
+///  |   | loop(%loaded):                 |
+///  |   |   <body contents>              |
+///  |   |   %pair = cmpxchg              |
+///  |   |   %ok = %pair[0]               |
+///  |   |   %new = %pair[1]              |
+///  |   |   cf.cond_br %ok, end, loop(%new) |
+///  |   +--------------------------------+
+///  |          |        |
+///  |-----------        |
+///                      v
+///      +--------------------------------+
+///      | end:                           |
+///      |   <code after the AtomicRMWOp> |
+///      +--------------------------------+
+///
+struct GenericAtomicRMWOpLowering
+    : public LoadStoreOpLowering<memref::GenericAtomicRMWOp> {
+  using Base::Base;
+
+  LogicalResult
+  matchAndRewrite(memref::GenericAtomicRMWOp atomicOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = atomicOp.getLoc();
+    Type valueType = typeConverter->convertType(atomicOp.getResult().getType());
+
+    // Split the block into initial, loop, and ending parts.
+    auto *initBlock = rewriter.getInsertionBlock();
+    auto *loopBlock = rewriter.createBlock(
+        initBlock->getParent(), std::next(Region::iterator(initBlock)),
+        valueType, loc);
+    auto *endBlock = rewriter.createBlock(
+        loopBlock->getParent(), std::next(Region::iterator(loopBlock)));
+
+    // Operations range to be moved to `endBlock`.
+    auto opsToMoveStart = atomicOp->getIterator();
+    auto opsToMoveEnd = initBlock->back().getIterator();
+
+    // Compute the loaded value and branch to the loop block.
+    rewriter.setInsertionPointToEnd(initBlock);
+    auto memRefType = atomicOp.memref().getType().cast<MemRefType>();
+    auto dataPtr = getStridedElementPtr(loc, memRefType, adaptor.memref(),
+                                        adaptor.indices(), rewriter);
+    Value init = rewriter.create<LLVM::LoadOp>(loc, dataPtr);
+    rewriter.create<LLVM::BrOp>(loc, init, loopBlock);
+
+    // Prepare the body of the loop block.
+    rewriter.setInsertionPointToStart(loopBlock);
+
+    // Clone the GenericAtomicRMWOp region and extract the result.
+    auto loopArgument = loopBlock->getArgument(0);
+    BlockAndValueMapping mapping;
+    mapping.map(atomicOp.getCurrentValue(), loopArgument);
+    Block &entryBlock = atomicOp.body().front();
+    for (auto &nestedOp : entryBlock.without_terminator()) {
+      Operation *clone = rewriter.clone(nestedOp, mapping);
+      mapping.map(nestedOp.getResults(), clone->getResults());
+    }
+    Value result = mapping.lookup(entryBlock.getTerminator()->getOperand(0));
+
+    // Prepare the epilog of the loop block.
+    // Append the cmpxchg op to the end of the loop block.
+    auto successOrdering = LLVM::AtomicOrdering::acq_rel;
+    auto failureOrdering = LLVM::AtomicOrdering::monotonic;
+    auto boolType = IntegerType::get(rewriter.getContext(), 1);
+    auto pairType = LLVM::LLVMStructType::getLiteral(rewriter.getContext(),
+                                                     {valueType, boolType});
+    auto cmpxchg = rewriter.create<LLVM::AtomicCmpXchgOp>(
+        loc, pairType, dataPtr, loopArgument, result, successOrdering,
+        failureOrdering);
+    // Extract the %new_loaded and %ok values from the pair.
+    Value newLoaded = rewriter.create<LLVM::ExtractValueOp>(
+        loc, valueType, cmpxchg, rewriter.getI64ArrayAttr({0}));
+    Value ok = rewriter.create<LLVM::ExtractValueOp>(
+        loc, boolType, cmpxchg, rewriter.getI64ArrayAttr({1}));
+
+    // Conditionally branch to the end or back to the loop depending on %ok.
+    rewriter.create<LLVM::CondBrOp>(loc, ok, endBlock, ArrayRef<Value>(),
+                                    loopBlock, newLoaded);
+
+    rewriter.setInsertionPointToEnd(endBlock);
+    moveOpsRange(atomicOp.getResult(), newLoaded, std::next(opsToMoveStart),
+                 std::next(opsToMoveEnd), rewriter);
+
+    // The 'result' of the atomic_rmw op is the newly loaded value.
+    rewriter.replaceOp(atomicOp, {newLoaded});
+
+    return success();
+  }
+
+private:
+  // Clones a segment of ops [start, end) and erases the original.
+  void moveOpsRange(ValueRange oldResult, ValueRange newResult,
+                    Block::iterator start, Block::iterator end,
+                    ConversionPatternRewriter &rewriter) const {
+    BlockAndValueMapping mapping;
+    mapping.map(oldResult, newResult);
+    SmallVector<Operation *, 2> opsToErase;
+    for (auto it = start; it != end; ++it) {
+      rewriter.clone(*it, mapping);
+      opsToErase.push_back(&*it);
+    }
+    for (auto *it : opsToErase)
+      rewriter.eraseOp(it);
+  }
+};
+
 /// Returns the LLVM type of the global variable given the memref type `type`.
 static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
                                           LLVMTypeConverter &typeConverter) {
@@ -515,21 +657,6 @@ struct GetGlobalMemrefOpLowering : public AllocLikeOpLLVMLowering {
     // Both allocated and aligned pointers are same. We could potentially stash
     // a nullptr for the allocated pointer since we do not expect any dealloc.
     return std::make_tuple(deadBeefPtr, gep);
-  }
-};
-
-// Common base for load and store operations on MemRefs. Restricts the match
-// to supported MemRef types. Provides functionality to emit code accessing a
-// specific element of the underlying data buffer.
-template <typename Derived>
-struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<Derived> {
-  using ConvertOpToLLVMPattern<Derived>::ConvertOpToLLVMPattern;
-  using ConvertOpToLLVMPattern<Derived>::isConvertibleAndHasIdentityMaps;
-  using Base = LoadStoreOpLowering<Derived>;
-
-  LogicalResult match(Derived op) const override {
-    MemRefType type = op.getMemRefType();
-    return isConvertibleAndHasIdentityMaps(type) ? success() : failure();
   }
 };
 
@@ -673,8 +800,7 @@ struct MemRefCastOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
               .getResult();
       // rank = ConstantOp srcRank
       auto rankVal = rewriter.create<LLVM::ConstantOp>(
-          loc, typeConverter->convertType(rewriter.getIntegerType(64)),
-          rewriter.getI64IntegerAttr(rank));
+          loc, getIndexType(), rewriter.getIndexAttr(rank));
       // undef = UndefOp
       UnrankedMemRefDescriptor memRefDesc =
           UnrankedMemRefDescriptor::undef(rewriter, loc, targetStructType);
@@ -706,12 +832,58 @@ struct MemRefCastOpLowering : public ConvertOpToLLVMPattern<memref::CastOp> {
   }
 };
 
+/// Pattern to lower a `memref.copy` to llvm.
+///
+/// For memrefs with identity layouts, the copy is lowered to the llvm
+/// `memcpy` intrinsic. For non-identity layouts, the copy is lowered to a call
+/// to the generic `MemrefCopyFn`.
 struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
   using ConvertOpToLLVMPattern<memref::CopyOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(memref::CopyOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  lowerToMemCopyIntrinsic(memref::CopyOp op, OpAdaptor adaptor,
+                          ConversionPatternRewriter &rewriter) const {
+    auto loc = op.getLoc();
+    auto srcType = op.source().getType().dyn_cast<MemRefType>();
+
+    MemRefDescriptor srcDesc(adaptor.source());
+
+    // Compute number of elements.
+    Value numElements = rewriter.create<LLVM::ConstantOp>(
+        loc, getIndexType(), rewriter.getIndexAttr(1));
+    for (int pos = 0; pos < srcType.getRank(); ++pos) {
+      auto size = srcDesc.size(rewriter, loc, pos);
+      numElements = rewriter.create<LLVM::MulOp>(loc, numElements, size);
+    }
+
+    // Get element size.
+    auto sizeInBytes = getSizeInBytes(loc, srcType.getElementType(), rewriter);
+    // Compute total.
+    Value totalSize =
+        rewriter.create<LLVM::MulOp>(loc, numElements, sizeInBytes);
+
+    Value srcBasePtr = srcDesc.alignedPtr(rewriter, loc);
+    Value srcOffset = srcDesc.offset(rewriter, loc);
+    Value srcPtr = rewriter.create<LLVM::GEPOp>(loc, srcBasePtr.getType(),
+                                                srcBasePtr, srcOffset);
+    MemRefDescriptor targetDesc(adaptor.target());
+    Value targetBasePtr = targetDesc.alignedPtr(rewriter, loc);
+    Value targetOffset = targetDesc.offset(rewriter, loc);
+    Value targetPtr = rewriter.create<LLVM::GEPOp>(loc, targetBasePtr.getType(),
+                                                   targetBasePtr, targetOffset);
+    Value isVolatile = rewriter.create<LLVM::ConstantOp>(
+        loc, typeConverter->convertType(rewriter.getI1Type()),
+        rewriter.getBoolAttr(false));
+    rewriter.create<LLVM::MemcpyOp>(loc, targetPtr, srcPtr, totalSize,
+                                    isVolatile);
+    rewriter.eraseOp(op);
+
+    return success();
+  }
+
+  LogicalResult
+  lowerToMemCopyFunctionCall(memref::CopyOp op, OpAdaptor adaptor,
+                             ConversionPatternRewriter &rewriter) const {
     auto loc = op.getLoc();
     auto srcType = op.source().getType().cast<BaseMemRefType>();
     auto targetType = op.target().getType().cast<BaseMemRefType>();
@@ -754,9 +926,10 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
     auto sourcePtr = promote(unrankedSource);
     auto targetPtr = promote(unrankedTarget);
 
+    unsigned typeSize =
+        mlir::DataLayout::closest(op).getTypeSize(srcType.getElementType());
     auto elemSize = rewriter.create<LLVM::ConstantOp>(
-        loc, getIndexType(),
-        rewriter.getIndexAttr(srcType.getElementTypeBitWidth() / 8));
+        loc, getIndexType(), rewriter.getIndexAttr(typeSize));
     auto copyFn = LLVM::lookupOrCreateMemRefCopyFn(
         op->getParentOfType<ModuleOp>(), getIndexType(), sourcePtr.getType());
     rewriter.create<LLVM::CallOp>(loc, copyFn,
@@ -764,6 +937,29 @@ struct MemRefCopyOpLowering : public ConvertOpToLLVMPattern<memref::CopyOp> {
     rewriter.eraseOp(op);
 
     return success();
+  }
+
+  LogicalResult
+  matchAndRewrite(memref::CopyOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto srcType = op.source().getType().cast<BaseMemRefType>();
+    auto targetType = op.target().getType().cast<BaseMemRefType>();
+
+    auto isContiguousMemrefType = [](BaseMemRefType type) {
+      auto memrefType = type.dyn_cast<mlir::MemRefType>();
+      // We can use memcpy for memrefs if they have an identity layout or are
+      // contiguous with an arbitrary offset. Ignore empty memrefs, which is a
+      // special case handled by memrefCopy.
+      return memrefType &&
+             (memrefType.getLayout().isIdentity() ||
+              (memrefType.hasStaticShape() && memrefType.getNumElements() > 0 &&
+               isStaticShapeAndContiguousRowMajor(memrefType)));
+    };
+
+    if (isContiguousMemrefType(srcType) && isContiguousMemrefType(targetType))
+      return lowerToMemCopyIntrinsic(op, adaptor, rewriter);
+
+    return lowerToMemCopyFunctionCall(op, adaptor, rewriter);
   }
 };
 
@@ -899,11 +1095,81 @@ private:
                                   Type srcType, memref::ReshapeOp reshapeOp,
                                   memref::ReshapeOp::Adaptor adaptor,
                                   Value *descriptor) const {
-    // Conversion for statically-known shape args is performed via
-    // `memref_reinterpret_cast`.
     auto shapeMemRefType = reshapeOp.shape().getType().cast<MemRefType>();
-    if (shapeMemRefType.hasStaticShape())
-      return failure();
+    if (shapeMemRefType.hasStaticShape()) {
+      MemRefType targetMemRefType =
+          reshapeOp.getResult().getType().cast<MemRefType>();
+      auto llvmTargetDescriptorTy =
+          typeConverter->convertType(targetMemRefType)
+              .dyn_cast_or_null<LLVM::LLVMStructType>();
+      if (!llvmTargetDescriptorTy)
+        return failure();
+
+      // Create descriptor.
+      Location loc = reshapeOp.getLoc();
+      auto desc =
+          MemRefDescriptor::undef(rewriter, loc, llvmTargetDescriptorTy);
+
+      // Set allocated and aligned pointers.
+      Value allocatedPtr, alignedPtr;
+      extractPointersAndOffset(loc, rewriter, *getTypeConverter(),
+                               reshapeOp.source(), adaptor.source(),
+                               &allocatedPtr, &alignedPtr);
+      desc.setAllocatedPtr(rewriter, loc, allocatedPtr);
+      desc.setAlignedPtr(rewriter, loc, alignedPtr);
+
+      // Extract the offset and strides from the type.
+      int64_t offset;
+      SmallVector<int64_t> strides;
+      if (failed(getStridesAndOffset(targetMemRefType, strides, offset)))
+        return rewriter.notifyMatchFailure(
+            reshapeOp, "failed to get stride and offset exprs");
+
+      if (!isStaticStrideOrOffset(offset))
+        return rewriter.notifyMatchFailure(reshapeOp,
+                                           "dynamic offset is unsupported");
+
+      desc.setConstantOffset(rewriter, loc, offset);
+
+      assert(targetMemRefType.getLayout().isIdentity() &&
+             "Identity layout map is a precondition of a valid reshape op");
+
+      Value stride = nullptr;
+      int64_t targetRank = targetMemRefType.getRank();
+      for (auto i : llvm::reverse(llvm::seq<int64_t>(0, targetRank))) {
+        if (!ShapedType::isDynamicStrideOrOffset(strides[i])) {
+          // If the stride for this dimension is dynamic, then use the product
+          // of the sizes of the inner dimensions.
+          stride = createIndexConstant(rewriter, loc, strides[i]);
+        } else if (!stride) {
+          // `stride` is null only in the first iteration of the loop.  However,
+          // since the target memref has an identity layout, we can safely set
+          // the innermost stride to 1.
+          stride = createIndexConstant(rewriter, loc, 1);
+        }
+
+        Value dimSize;
+        int64_t size = targetMemRefType.getDimSize(i);
+        // If the size of this dimension is dynamic, then load it at runtime
+        // from the shape operand.
+        if (!ShapedType::isDynamic(size)) {
+          dimSize = createIndexConstant(rewriter, loc, size);
+        } else {
+          Value shapeOp = reshapeOp.shape();
+          Value index = createIndexConstant(rewriter, loc, i);
+          dimSize = rewriter.create<memref::LoadOp>(loc, shapeOp, index);
+        }
+
+        desc.setSize(rewriter, loc, i, dimSize);
+        desc.setStride(rewriter, loc, i, stride);
+
+        // Prepare the stride value for the next dimension.
+        stride = rewriter.create<LLVM::MulOp>(loc, stride, dimSize);
+      }
+
+      *descriptor = desc;
+      return success();
+    }
 
     // The shape is a rank-1 tensor with unknown length.
     Location loc = reshapeOp.getLoc();
@@ -964,7 +1230,7 @@ private:
     Block::iterator remainingOpsIt = std::next(rewriter.getInsertionPoint());
 
     Block *condBlock = rewriter.createBlock(initBlock->getParent(), {},
-                                            {indexType, indexType});
+                                            {indexType, indexType}, {loc, loc});
 
     // Move the remaining initBlock ops to condBlock.
     Block *remainingBlock = rewriter.splitBlock(initBlock, remainingOpsIt);
@@ -1109,7 +1375,7 @@ static OpFoldResult getCollapsedOutputDimSize(
 
 static SmallVector<OpFoldResult, 4>
 getCollapsedOutputShape(OpBuilder &b, Location loc, Type &llvmIndexType,
-                        ArrayRef<ReassociationIndices> reassocation,
+                        ArrayRef<ReassociationIndices> reassociation,
                         ArrayRef<int64_t> inStaticShape,
                         MemRefDescriptor &inDesc,
                         ArrayRef<int64_t> outStaticShape) {
@@ -1117,40 +1383,153 @@ getCollapsedOutputShape(OpBuilder &b, Location loc, Type &llvmIndexType,
       llvm::seq<int64_t>(0, outStaticShape.size()), [&](int64_t outDimIndex) {
         return getCollapsedOutputDimSize(b, loc, llvmIndexType, outDimIndex,
                                          outStaticShape[outDimIndex],
-                                         inStaticShape, inDesc, reassocation);
+                                         inStaticShape, inDesc, reassociation);
       }));
 }
 
 static SmallVector<OpFoldResult, 4>
 getExpandedOutputShape(OpBuilder &b, Location loc, Type &llvmIndexType,
-                       ArrayRef<ReassociationIndices> reassocation,
+                       ArrayRef<ReassociationIndices> reassociation,
                        ArrayRef<int64_t> inStaticShape,
                        MemRefDescriptor &inDesc,
                        ArrayRef<int64_t> outStaticShape) {
   DenseMap<int64_t, int64_t> outDimToInDimMap =
-      getExpandedDimToCollapsedDimMap(reassocation);
+      getExpandedDimToCollapsedDimMap(reassociation);
   return llvm::to_vector<4>(llvm::map_range(
       llvm::seq<int64_t>(0, outStaticShape.size()), [&](int64_t outDimIndex) {
         return getExpandedOutputDimSize(b, loc, llvmIndexType, outDimIndex,
                                         outStaticShape, inDesc, inStaticShape,
-                                        reassocation, outDimToInDimMap);
+                                        reassociation, outDimToInDimMap);
       }));
 }
 
 static SmallVector<Value>
 getDynamicOutputShape(OpBuilder &b, Location loc, Type &llvmIndexType,
-                      ArrayRef<ReassociationIndices> reassocation,
+                      ArrayRef<ReassociationIndices> reassociation,
                       ArrayRef<int64_t> inStaticShape, MemRefDescriptor &inDesc,
                       ArrayRef<int64_t> outStaticShape) {
   return outStaticShape.size() < inStaticShape.size()
              ? getAsValues(b, loc, llvmIndexType,
                            getCollapsedOutputShape(b, loc, llvmIndexType,
-                                                   reassocation, inStaticShape,
+                                                   reassociation, inStaticShape,
                                                    inDesc, outStaticShape))
              : getAsValues(b, loc, llvmIndexType,
                            getExpandedOutputShape(b, loc, llvmIndexType,
-                                                  reassocation, inStaticShape,
+                                                  reassociation, inStaticShape,
                                                   inDesc, outStaticShape));
+}
+
+static void fillInStridesForExpandedMemDescriptor(
+    OpBuilder &b, Location loc, MemRefType srcType, MemRefDescriptor &srcDesc,
+    MemRefDescriptor &dstDesc, ArrayRef<ReassociationIndices> reassociation) {
+  // See comments for computeExpandedLayoutMap for details on how the strides
+  // are calculated.
+  for (auto &en : llvm::enumerate(reassociation)) {
+    auto currentStrideToExpand = srcDesc.stride(b, loc, en.index());
+    for (auto dstIndex : llvm::reverse(en.value())) {
+      dstDesc.setStride(b, loc, dstIndex, currentStrideToExpand);
+      Value size = dstDesc.size(b, loc, dstIndex);
+      currentStrideToExpand =
+          b.create<LLVM::MulOp>(loc, size, currentStrideToExpand);
+    }
+  }
+}
+
+static void fillInStridesForCollapsedMemDescriptor(
+    ConversionPatternRewriter &rewriter, Location loc, Operation *op,
+    TypeConverter *typeConverter, MemRefType srcType, MemRefDescriptor &srcDesc,
+    MemRefDescriptor &dstDesc, ArrayRef<ReassociationIndices> reassociation) {
+  // See comments for computeCollapsedLayoutMap for details on how the strides
+  // are calculated.
+  auto srcShape = srcType.getShape();
+  for (auto &en : llvm::enumerate(reassociation)) {
+    rewriter.setInsertionPoint(op);
+    auto dstIndex = en.index();
+    ArrayRef<int64_t> ref = llvm::makeArrayRef(en.value());
+    while (srcShape[ref.back()] == 1 && ref.size() > 1)
+      ref = ref.drop_back();
+    if (!ShapedType::isDynamic(srcShape[ref.back()]) || ref.size() == 1) {
+      dstDesc.setStride(rewriter, loc, dstIndex,
+                        srcDesc.stride(rewriter, loc, ref.back()));
+    } else {
+      // Iterate over the source strides in reverse order. Skip over the
+      // dimensions whose size is 1.
+      // TODO: we should take the minimum stride in the reassociation group
+      // instead of just the first where the dimension is not 1.
+      //
+      // +------------------------------------------------------+
+      // | curEntry:                                            |
+      // |   %srcStride = strides[srcIndex]                     |
+      // |   %neOne = cmp sizes[srcIndex],1                     +--+
+      // |   cf.cond_br %neOne, continue(%srcStride), nextEntry |  |
+      // +-------------------------+----------------------------+  |
+      //                           |                               |
+      //                           v                               |
+      //            +-----------------------------+                |
+      //            | nextEntry:                  |                |
+      //            |   ...                       +---+            |
+      //            +--------------+--------------+   |            |
+      //                           |                  |            |
+      //                           v                  |            |
+      //            +-----------------------------+   |            |
+      //            | nextEntry:                  |   |            |
+      //            |   ...                       |   |            |
+      //            +--------------+--------------+   |   +--------+
+      //                           |                  |   |
+      //                           v                  v   v
+      //   +--------------------------------------------------+
+      //   | continue(%newStride):                            |
+      //   |   %newMemRefDes = setStride(%newStride,dstIndex) |
+      //   +--------------------------------------------------+
+      OpBuilder::InsertionGuard guard(rewriter);
+      Block *initBlock = rewriter.getInsertionBlock();
+      Block *continueBlock =
+          rewriter.splitBlock(initBlock, rewriter.getInsertionPoint());
+      continueBlock->insertArgument(unsigned(0), srcDesc.getIndexType(), loc);
+      rewriter.setInsertionPointToStart(continueBlock);
+      dstDesc.setStride(rewriter, loc, dstIndex, continueBlock->getArgument(0));
+
+      Block *curEntryBlock = initBlock;
+      Block *nextEntryBlock;
+      for (auto srcIndex : llvm::reverse(ref)) {
+        if (srcShape[srcIndex] == 1 && srcIndex != ref.front())
+          continue;
+        rewriter.setInsertionPointToEnd(curEntryBlock);
+        Value srcStride = srcDesc.stride(rewriter, loc, srcIndex);
+        if (srcIndex == ref.front()) {
+          rewriter.create<LLVM::BrOp>(loc, srcStride, continueBlock);
+          break;
+        }
+        Value one = rewriter.create<LLVM::ConstantOp>(
+            loc, typeConverter->convertType(rewriter.getI64Type()),
+            rewriter.getI32IntegerAttr(1));
+        Value predNeOne = rewriter.create<LLVM::ICmpOp>(
+            loc, LLVM::ICmpPredicate::ne, srcDesc.size(rewriter, loc, srcIndex),
+            one);
+        {
+          OpBuilder::InsertionGuard guard(rewriter);
+          nextEntryBlock = rewriter.createBlock(
+              initBlock->getParent(), Region::iterator(continueBlock), {});
+        }
+        rewriter.create<LLVM::CondBrOp>(loc, predNeOne, continueBlock,
+                                        srcStride, nextEntryBlock, llvm::None);
+        curEntryBlock = nextEntryBlock;
+      }
+    }
+  }
+}
+
+static void fillInDynamicStridesForMemDescriptor(
+    ConversionPatternRewriter &b, Location loc, Operation *op,
+    TypeConverter *typeConverter, MemRefType srcType, MemRefType dstType,
+    MemRefDescriptor &srcDesc, MemRefDescriptor &dstDesc,
+    ArrayRef<ReassociationIndices> reassociation) {
+  if (srcType.getRank() > dstType.getRank())
+    fillInStridesForCollapsedMemDescriptor(b, loc, op, typeConverter, srcType,
+                                           srcDesc, dstDesc, reassociation);
+  else
+    fillInStridesForExpandedMemDescriptor(b, loc, srcType, srcDesc, dstDesc,
+                                          reassociation);
 }
 
 // ReshapeOp creates a new view descriptor of the proper rank.
@@ -1168,11 +1547,6 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     MemRefType dstType = reshapeOp.getResultType();
     MemRefType srcType = reshapeOp.getSrcType();
-    if (!srcType.getLayout().isIdentity() ||
-        !dstType.getLayout().isIdentity()) {
-      return rewriter.notifyMatchFailure(reshapeOp,
-                                         "only empty layout map is supported");
-    }
 
     int64_t offset;
     SmallVector<int64_t, 4> strides;
@@ -1199,13 +1573,11 @@ public:
     for (auto &en : llvm::enumerate(dstShape))
       dstDesc.setSize(rewriter, loc, en.index(), en.value());
 
-    auto isStaticStride = [](int64_t stride) {
-      return !ShapedType::isDynamicStrideOrOffset(stride);
-    };
-    if (llvm::all_of(strides, isStaticStride)) {
+    if (llvm::all_of(strides, isStaticStrideOrOffset)) {
       for (auto &en : llvm::enumerate(strides))
         dstDesc.setConstantStride(rewriter, loc, en.index(), en.value());
-    } else {
+    } else if (srcType.getLayout().isIdentity() &&
+               dstType.getLayout().isIdentity()) {
       Value c1 = rewriter.create<LLVM::ConstantOp>(loc, llvmIndexType,
                                                    rewriter.getIndexAttr(1));
       Value stride = c1;
@@ -1214,6 +1586,12 @@ public:
         dstDesc.setStride(rewriter, loc, dimIndex, stride);
         stride = rewriter.create<LLVM::MulOp>(loc, dstShape[dimIndex], stride);
       }
+    } else {
+      // There could be mixed static/dynamic strides. For simplicity, we
+      // recompute all strides if there is at least one dynamic stride.
+      fillInDynamicStridesForMemDescriptor(
+          rewriter, loc, reshapeOp, this->typeConverter, srcType, dstType,
+          srcDesc, dstDesc, reshapeOp.getReassociationIndices());
     }
     rewriter.replaceOp(reshapeOp, {dstDesc});
     return success();
@@ -1323,10 +1701,10 @@ struct SubViewOpLowering : public ConvertOpToLLVMPattern<memref::SubViewOp> {
     SmallVector<OpFoldResult> mixedStrides = subViewOp.getMixedStrides();
     assert(mixedSizes.size() == mixedStrides.size() &&
            "expected sizes and strides of equal length");
-    llvm::SmallDenseSet<unsigned> unusedDims = subViewOp.getDroppedDims();
+    llvm::SmallBitVector unusedDims = subViewOp.getDroppedDims();
     for (int i = inferredShapeRank - 1, j = resultShapeRank - 1;
          i >= 0 && j >= 0; --i) {
-      if (unusedDims.contains(i))
+      if (unusedDims.test(i))
         continue;
 
       // `i` may overflow subViewOp.getMixedSizes because of trailing semantics.
@@ -1467,7 +1845,7 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
                   ArrayRef<int64_t> strides, Value nextSize,
                   Value runningStride, unsigned idx) const {
     assert(idx < strides.size());
-    if (!MemRefType::isDynamicStrideOrOffset(strides[idx]))
+    if (!ShapedType::isDynamicStrideOrOffset(strides[idx]))
       return createIndexConstant(rewriter, loc, strides[idx]);
     if (nextSize)
       return runningStride
@@ -1498,6 +1876,12 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
     if (failed(successStrides))
       return viewOp.emitWarning("cannot cast to non-strided shape"), failure();
     assert(offset == 0 && "expected offset to be 0");
+
+    // Target memref must be contiguous in memory (innermost stride is 1), or
+    // empty (special case when at least one of the memref dimensions is 0).
+    if (!strides.empty() && (strides.back() != 1 && strides.back() != 0))
+      return viewOp.emitWarning("cannot cast to non-contiguous shape"),
+             failure();
 
     // Create the descriptor.
     MemRefDescriptor sourceMemRef(adaptor.source());
@@ -1535,9 +1919,6 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
       return rewriter.replaceOp(viewOp, {targetMemRef}), success();
 
     // Fields 4 and 5: Update sizes and strides.
-    if (strides.back() != 1)
-      return viewOp.emitWarning("cannot cast to non-contiguous shape"),
-             failure();
     Value stride = nullptr, nextSize = nullptr;
     for (int i = viewMemRefType.getRank() - 1; i >= 0; --i) {
       // Update size.
@@ -1559,7 +1940,7 @@ struct ViewOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
 // AtomicRMWOpLowering
 //===----------------------------------------------------------------------===//
 
-/// Try to match the kind of a std.atomic_rmw to determine whether to use a
+/// Try to match the kind of a memref.atomic_rmw to determine whether to use a
 /// lowering to llvm.atomicrmw or fallback to llvm.cmpxchg.
 static Optional<LLVM::AtomicBinOp>
 matchSimpleAtomicOp(memref::AtomicRMWOp atomicOp) {
@@ -1622,6 +2003,7 @@ void mlir::populateMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
       AtomicRMWOpLowering,
       AssumeAlignmentOpLowering,
       DimOpLowering,
+      GenericAtomicRMWOpLowering,
       GlobalMemrefOpLowering,
       GetGlobalMemrefOpLowering,
       LoadOpLowering,
@@ -1665,7 +2047,7 @@ struct MemRefToLLVMPass : public ConvertMemRefToLLVMBase<MemRefToLLVMPass> {
     RewritePatternSet patterns(&getContext());
     populateMemRefToLLVMConversionPatterns(typeConverter, patterns);
     LLVMConversionTarget target(getContext());
-    target.addLegalOp<FuncOp>();
+    target.addLegalOp<func::FuncOp>();
     if (failed(applyPartialConversion(op, target, std::move(patterns))))
       signalPassFailure();
   }

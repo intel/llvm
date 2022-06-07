@@ -267,6 +267,7 @@ static Optional<const char *> GetCodeName(unsigned CodeID, unsigned BlockID,
       STRINGIFY_CODE(FUNC_CODE, INST_STOREATOMIC)
       STRINGIFY_CODE(FUNC_CODE, INST_CMPXCHG)
       STRINGIFY_CODE(FUNC_CODE, INST_CALLBR)
+      STRINGIFY_CODE(FUNC_CODE, BLOCKADDR_USERS)
     }
   case bitc::VALUE_SYMTAB_BLOCK_ID:
     switch (CodeID) {
@@ -864,7 +865,10 @@ Error BitcodeAnalyzer::parseBlock(unsigned BlockID, unsigned IndentLevel,
         O->OS << " codeid=" << Code;
       const BitCodeAbbrev *Abbv = nullptr;
       if (Entry.ID != bitc::UNABBREV_RECORD) {
-        Abbv = Stream.getAbbrev(Entry.ID);
+        Expected<const BitCodeAbbrev *> MaybeAbbv = Stream.getAbbrev(Entry.ID);
+        if (!MaybeAbbv)
+          return MaybeAbbv.takeError();
+        Abbv = MaybeAbbv.get();
         O->OS << " abbrevid=" << Entry.ID;
       }
 
@@ -900,7 +904,7 @@ Error BitcodeAnalyzer::parseBlock(unsigned BlockID, unsigned IndentLevel,
         else {
           // Recompute the hash and compare it to the one in the bitcode
           SHA1 Hasher;
-          StringRef Hash;
+          std::array<uint8_t, 20> Hash;
           Hasher.update(*CheckHash);
           {
             int BlockSize = (CurrentRecordPos / 8) - BlockEntryPos;
@@ -908,14 +912,14 @@ Error BitcodeAnalyzer::parseBlock(unsigned BlockID, unsigned IndentLevel,
             Hasher.update(ArrayRef<uint8_t>(Ptr, BlockSize));
             Hash = Hasher.result();
           }
-          std::array<char, 20> RecordedHash;
+          std::array<uint8_t, 20> RecordedHash;
           int Pos = 0;
           for (auto &Val : Record) {
             assert(!(Val >> 32) && "Unexpected high bits set");
             support::endian::write32be(&RecordedHash[Pos], Val);
             Pos += 4;
           }
-          if (Hash == StringRef(RecordedHash.data(), RecordedHash.size()))
+          if (Hash == RecordedHash)
             O->OS << " (match)";
           else
             O->OS << " (!mismatch!)";

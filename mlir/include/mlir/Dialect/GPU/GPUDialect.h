@@ -14,12 +14,11 @@
 #ifndef MLIR_DIALECT_GPU_GPUDIALECT_H
 #define MLIR_DIALECT_GPU_GPUDIALECT_H
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/Traits.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/FunctionSupport.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/SymbolTable.h"
@@ -27,8 +26,6 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
 namespace mlir {
-class FuncOp;
-
 namespace gpu {
 
 /// Utility class for the GPU dialect to represent triples of `Value`s
@@ -172,6 +169,9 @@ void addAsyncDependency(Operation *op, Value token);
 #include "mlir/Dialect/GPU/GPUOpsDialect.h.inc"
 
 #include "mlir/Dialect/GPU/GPUOpInterfaces.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/GPU/GPUOpsAttributes.h.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/GPU/GPUOps.h.inc"

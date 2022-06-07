@@ -29,7 +29,6 @@
 #include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/EHPersonalities.h"
 #include "llvm/Analysis/InstructionSimplify.h"
-#include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -45,6 +44,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -62,9 +62,7 @@
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/IR/PseudoProbe.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
@@ -79,7 +77,6 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <algorithm>
 #include <cassert>
-#include <climits>
 #include <cstdint>
 #include <iterator>
 #include <map>
@@ -492,7 +489,7 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     }
   }
 
-  if (isAllocLikeFn(I, TLI))
+  if (isAllocationFn(I, TLI) && isAllocRemovable(cast<CallBase>(I), TLI))
     return true;
 
   if (CallInst *CI = isFreeCall(I, TLI))
@@ -503,15 +500,12 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     if (isMathLibCallNoop(Call, TLI))
       return true;
 
-  // To express possible interaction with floating point environment constrained
-  // intrinsics are described as if they access memory. So they look like having
-  // side effect but actually do not have it unless they raise floating point
-  // exception. If FP exceptions are ignored, the intrinsic may be deleted.
-  if (auto *CI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
-    Optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
-    if (!EB || *EB == fp::ExceptionBehavior::ebIgnore)
-      return true;
-  }
+  // Non-volatile atomic loads from constants can be removed.
+  if (auto *LI = dyn_cast<LoadInst>(I))
+    if (auto *GV = dyn_cast<GlobalVariable>(
+            LI->getPointerOperand()->stripPointerCasts()))
+      if (!LI->isVolatile() && GV->isConstant())
+        return true;
 
   return false;
 }
@@ -1392,7 +1386,7 @@ Align llvm::getOrEnforceKnownAlignment(Value *V, MaybeAlign PrefAlign,
 static bool PhiHasDebugValue(DILocalVariable *DIVar,
                              DIExpression *DIExpr,
                              PHINode *APN) {
-  // Since we can't guarantee that the original dbg.declare instrinsic
+  // Since we can't guarantee that the original dbg.declare intrinsic
   // is removed by LowerDbgDeclare(), we need to make sure that we are
   // not inserting the same dbg.value intrinsic over and over.
   SmallVector<DbgValueInst *, 1> DbgValues;
@@ -1471,7 +1465,7 @@ void llvm::ConvertDebugDeclareToDebugValue(DbgVariableIntrinsic *DII,
     LLVM_DEBUG(dbgs() << "Failed to convert dbg.declare to dbg.value: "
                       << *DII << '\n');
     // For now, when there is a store to parts of the variable (but we do not
-    // know which part) we insert an dbg.value instrinsic to indicate that we
+    // know which part) we insert an dbg.value intrinsic to indicate that we
     // know nothing about the variable's content.
     DV = UndefValue::get(DV->getType());
     Builder.insertDbgValueIntrinsic(DV, DIVar, DIExpr, NewLoc, SI);
@@ -2189,8 +2183,8 @@ CallInst *llvm::createCallMatchingInvoke(InvokeInst *II) {
   return NewCall;
 }
 
-/// changeToCall - Convert the specified invoke into a normal call.
-void llvm::changeToCall(InvokeInst *II, DomTreeUpdater *DTU) {
+// changeToCall - Convert the specified invoke into a normal call.
+CallInst *llvm::changeToCall(InvokeInst *II, DomTreeUpdater *DTU) {
   CallInst *NewCall = createCallMatchingInvoke(II);
   NewCall->takeName(II);
   NewCall->insertBefore(II);
@@ -2207,6 +2201,7 @@ void llvm::changeToCall(InvokeInst *II, DomTreeUpdater *DTU) {
   II->eraseFromParent();
   if (DTU)
     DTU->applyUpdates({{DominatorTree::Delete, BB, UnwindDestBB}});
+  return NewCall;
 }
 
 BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
@@ -2238,6 +2233,7 @@ BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
   II->setDebugLoc(CI->getDebugLoc());
   II->setCallingConv(CI->getCallingConv());
   II->setAttributes(CI->getAttributes());
+  II->setMetadata(LLVMContext::MD_prof, CI->getMetadata(LLVMContext::MD_prof));
 
   if (DTU)
     DTU->applyUpdates({{DominatorTree::Insert, BB, UnwindEdge}});
@@ -2347,19 +2343,42 @@ static bool markAliveBlocks(Function &F,
           isa<UndefValue>(Callee)) {
         changeToUnreachable(II, false, DTU);
         Changed = true;
-      } else if (II->doesNotThrow() && canSimplifyInvokeNoUnwind(&F)) {
-        if (II->use_empty() && II->onlyReadsMemory()) {
-          // jump to the normal destination branch.
-          BasicBlock *NormalDestBB = II->getNormalDest();
-          BasicBlock *UnwindDestBB = II->getUnwindDest();
-          BranchInst::Create(NormalDestBB, II);
-          UnwindDestBB->removePredecessor(II->getParent());
-          II->eraseFromParent();
+      } else {
+        if (II->doesNotReturn() &&
+            !isa<UnreachableInst>(II->getNormalDest()->front())) {
+          // If we found an invoke of a no-return function,
+          // create a new empty basic block with an `unreachable` terminator,
+          // and set it as the normal destination for the invoke,
+          // unless that is already the case.
+          // Note that the original normal destination could have other uses.
+          BasicBlock *OrigNormalDest = II->getNormalDest();
+          OrigNormalDest->removePredecessor(II->getParent());
+          LLVMContext &Ctx = II->getContext();
+          BasicBlock *UnreachableNormalDest = BasicBlock::Create(
+              Ctx, OrigNormalDest->getName() + ".unreachable",
+              II->getFunction(), OrigNormalDest);
+          new UnreachableInst(Ctx, UnreachableNormalDest);
+          II->setNormalDest(UnreachableNormalDest);
           if (DTU)
-            DTU->applyUpdates({{DominatorTree::Delete, BB, UnwindDestBB}});
-        } else
-          changeToCall(II, DTU);
-        Changed = true;
+            DTU->applyUpdates(
+                {{DominatorTree::Delete, BB, OrigNormalDest},
+                 {DominatorTree::Insert, BB, UnreachableNormalDest}});
+          Changed = true;
+        }
+        if (II->doesNotThrow() && canSimplifyInvokeNoUnwind(&F)) {
+          if (II->use_empty() && !II->mayHaveSideEffects()) {
+            // jump to the normal destination branch.
+            BasicBlock *NormalDestBB = II->getNormalDest();
+            BasicBlock *UnwindDestBB = II->getUnwindDest();
+            BranchInst::Create(NormalDestBB, II);
+            UnwindDestBB->removePredecessor(II->getParent());
+            II->eraseFromParent();
+            if (DTU)
+              DTU->applyUpdates({{DominatorTree::Delete, BB, UnwindDestBB}});
+          } else
+            changeToCall(II, DTU);
+          Changed = true;
+        }
       }
     } else if (auto *CatchSwitch = dyn_cast<CatchSwitchInst>(Terminator)) {
       // Remove catchpads which cannot be reached.

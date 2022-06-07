@@ -1,5 +1,5 @@
-; RUN: opt -S < %s -mtriple=unknown -instcombine -instcombine-infinite-loop-threshold=2 | FileCheck -check-prefixes=CHECK,CHECK32 %s
-; RUN: opt -S < %s -mtriple=msp430 -instcombine -instcombine-infinite-loop-threshold=2 | FileCheck -check-prefixes=CHECK,CHECK16 %s
+; RUN: opt -S < %s -mtriple=unknown -passes=instcombine -instcombine-infinite-loop-threshold=2 | FileCheck -check-prefixes=CHECK,CHECK32 %s
+; RUN: opt -S < %s -mtriple=msp430 -passes=instcombine -instcombine-infinite-loop-threshold=2 | FileCheck -check-prefixes=CHECK,CHECK16 %s
 target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-f80:128:128-v64:64:64-v128:128:128-a0:0:64-f80:32:32-n8:16:32-S32"
 
 @G = constant [3 x i8] c"%s\00"		; <[3 x i8]*> [#uses=1]
@@ -240,6 +240,19 @@ define i4 @strlen(i8* %s) {
 ;
   %r = call i4 @strlen(i8* %s)
   ret i4 0
+}
+
+; Test emission of stpncpy.
+@a = dso_local global [4 x i8] c"123\00"
+@b = dso_local global [5 x i8] zeroinitializer
+declare i8* @__stpncpy_chk(i8* noundef, i8* noundef, i32 noundef, i32 noundef)
+define signext i32 @emit_stpncpy() {
+; CHECK-LABEL: @emit_stpncpy(
+; CHECK-NEXT: call i8* @stpncpy({{.*}} @b, {{.*}} @a, {{.*}} i32 2)
+  %call = call i8* @__stpncpy_chk(i8* noundef getelementptr inbounds ([5 x i8], [5 x i8]* @b, i32 0, i32 0),
+                                  i8* noundef getelementptr inbounds ([4 x i8], [4 x i8]* @a, i32 0, i32 0),
+                                  i32 noundef 2, i32 noundef 5)
+  ret i32 0
 }
 
 attributes #0 = { nobuiltin }

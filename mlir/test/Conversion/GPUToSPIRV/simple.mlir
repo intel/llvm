@@ -14,7 +14,7 @@ module attributes {gpu.container_module} {
     }
   }
 
-  func @main() {
+  func.func @main() {
     %0 = "op"() : () -> (f32)
     %1 = "op"() : () -> (memref<12xf32>)
     %cst = arith.constant 1 : index
@@ -60,7 +60,7 @@ module attributes {gpu.container_module} {
     }
   }
 
-  func @main() {
+  func.func @main() {
     %0 = "op"() : () -> (f32)
     %1 = "op"() : () -> (memref<12xf32>)
     %cst = arith.constant 1 : index
@@ -102,5 +102,29 @@ module attributes {gpu.container_module} {
       {spv.entry_point_abi = {local_size = dense<[32, 4, 1]>: vector<3xi32>}} {
       gpu.return
     }
+  }
+}
+
+// -----
+
+module attributes {gpu.container_module} {
+  gpu.module @kernels {
+    // CHECK-LABEL: spv.func @barrier
+    gpu.func @barrier(%arg0 : f32, %arg1 : memref<12xf32>) kernel
+      attributes {spv.entry_point_abi = {local_size = dense<[32, 4, 1]>: vector<3xi32>}} {
+      // CHECK: spv.ControlBarrier Workgroup, Workgroup, "AcquireRelease|WorkgroupMemory"
+      gpu.barrier
+      gpu.return
+    }
+  }
+
+  func.func @main() {
+    %0 = "op"() : () -> (f32)
+    %1 = "op"() : () -> (memref<12xf32>)
+    %cst = arith.constant 1 : index
+    gpu.launch_func @kernels::@barrier
+        blocks in (%cst, %cst, %cst) threads in (%cst, %cst, %cst)
+        args(%0 : f32, %1 : memref<12xf32>)
+    return
   }
 }

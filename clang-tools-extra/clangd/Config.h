@@ -17,7 +17,7 @@
 //
 // Because this structure is shared throughout clangd, it's a potential source
 // of layering problems. Config should be expressed in terms of simple
-// vocubulary types where possible.
+// vocabulary types where possible.
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,6 +29,8 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/Regex.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -79,11 +81,12 @@ struct Config {
     /// forward-slashes.
     std::string MountPoint;
   };
-  /// Controls background-index behavior.
+  /// Controls index behavior.
   struct {
-    /// Whether this TU should be indexed.
+    /// Whether this TU should be background-indexed.
     BackgroundPolicy Background = BackgroundPolicy::Build;
     ExternalIndexSpec External;
+    bool StandardLibrary = false;
   } Index;
 
   enum UnusedIncludesPolicy { Strict, None };
@@ -100,6 +103,12 @@ struct Config {
     } ClangTidy;
 
     UnusedIncludesPolicy UnusedIncludes = None;
+
+    /// IncludeCleaner will not diagnose usages of these headers matched by
+    /// these regexes.
+    struct {
+      std::vector<std::function<bool(llvm::StringRef)>> IgnoreHeader;
+    } Includes;
   } Diagnostics;
 
   /// Style of the codebase.
@@ -122,6 +131,16 @@ struct Config {
     /// Whether hover show a.k.a type.
     bool ShowAKA = false;
   } Hover;
+
+  struct {
+    /// If false, inlay hints are completely disabled.
+    bool Enabled = true;
+
+    // Whether specific categories of hints are enabled.
+    bool Parameters = true;
+    bool DeducedTypes = true;
+    bool Designators = false;
+  } InlayHints;
 };
 
 } // namespace clangd

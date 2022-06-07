@@ -1,4 +1,4 @@
-//===-- flang/unittests/RuntimeGTest/NumericalFormatTest.cpp ----*- C++ -*-===//
+//===-- flang/unittests/Runtime/NumericalFormatTest.cpp ---------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -118,6 +118,9 @@ TEST(IOApiTests, MultilineOutputTest) {
   auto cookie{IONAME(BeginInternalArrayFormattedOutput)(
       section, format, std::strlen(format))};
 
+  // Fill last line with periods
+  std::memset(buffer[numLines - 1], '.', lineLength);
+
   // Write data to buffer
   IONAME(OutputAscii)(cookie, "WORLD", 5);
   IONAME(OutputAscii)(cookie, "HELLO", 5);
@@ -135,7 +138,7 @@ TEST(IOApiTests, MultilineOutputTest) {
                                   "                                "
                                   "789                 abcd 666 777"
                                   " 888 999                        "
-                                  "                                "};
+                                  "................................"};
   // Ensure formatted string matches expected output
   EXPECT_TRUE(
       CompareFormattedStrings(expect, std::string{buffer[0], sizeof buffer}))
@@ -330,6 +333,7 @@ TEST(IOApiTests, FormatDoubleValues) {
           {
               {"(E9.1,';')", " -0.0E+00;"},
               {"(F4.0,';')", " -0.;"},
+              {"(F0.1,';')", "-.0;"},
               {"(G8.0,';')", "-0.0E+00;"},
               {"(G8.1,';')", " -0.    ;"},
               {"(G0,';')", "-0.;"},
@@ -646,6 +650,7 @@ TEST(IOApiTests, FormatDoubleValues) {
       {"(F5.3,';')", -0.0005, "-.001;"},
       {"(F5.3,';')", -0.00049999, "-.000;"},
       {"(F5.3,';')", -0.000099999, "-.000;"},
+      {"(F0.1,';')", 0.0, ".0;"},
   };
 
   for (auto const &[format, value, expect] : individualTestCases) {
@@ -683,6 +688,8 @@ TEST(IOApiTests, FormatDoubleInputValues) {
       {"(1P,F18.0)", "               125", 0x4029000000000000}, // 12.5
       {"(BZ,F18.0)", "              125 ", 0x4093880000000000}, // 1250
       {"(BZ,F18.0)", "       125 . e +1 ", 0x42a6bcc41e900000}, // 1.25e13
+      {"(BZ,F18.0)", "           .      ", 0x0},
+      {"(BZ,F18.0)", "           . e +1 ", 0x0},
       {"(DC,F18.0)", "              12,5", 0x4029000000000000},
   };
   for (auto const &[format, data, want] : testCases) {

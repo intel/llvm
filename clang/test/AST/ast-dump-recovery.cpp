@@ -121,6 +121,16 @@ void test(int x) {
   foo->func(x);
 }
 
+void AccessIncompleteClass() {
+  struct Forward;
+  Forward* ptr;
+  // CHECK:      CallExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT: `-CXXDependentScopeMemberExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT:   `-RecoveryExpr {{.*}} '<dependent type>' contains-errors
+  // CHECK-NEXT:     `-DeclRefExpr {{.*}} 'Forward *'
+  ptr->method();
+}
+
 struct Foo2 {
   double func();
   class ForwardClass;
@@ -390,4 +400,14 @@ void returnInitListFromVoid() {
   // CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>'
   // CHECK-NEXT:   |-IntegerLiteral {{.*}} 'int' 7
   // CHECK-NEXT:   `-IntegerLiteral {{.*}} 'int' 8
+}
+
+void RecoveryExprForInvalidDecls(Unknown InvalidDecl) {
+  InvalidDecl + 1;
+  // CHECK:      BinaryOperator {{.*}}
+  // CHECK-NEXT: |-RecoveryExpr {{.*}} '<dependent type>'
+  // CHECK-NEXT: `-IntegerLiteral {{.*}} 'int' 1
+  InvalidDecl();
+  // CHECK:      CallExpr {{.*}}
+  // CHECK-NEXT: `-RecoveryExpr {{.*}} '<dependent type>'
 }

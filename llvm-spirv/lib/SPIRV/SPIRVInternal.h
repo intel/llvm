@@ -289,6 +289,9 @@ typedef SPIRVMap<spv::Scope, std::string> SPIRVMatrixScopeMap;
 #define SPIR_MD_KERNEL_ARG_TYPE_QUAL "kernel_arg_type_qual"
 #define SPIR_MD_KERNEL_ARG_NAME "kernel_arg_name"
 
+#define SPIRV_MD_PARAMETER_DECORATIONS "spirv.ParameterDecorations"
+#define SPIRV_MD_DECORATIONS "spirv.Decorations"
+
 #define OCL_TYPE_NAME_SAMPLER_T "sampler_t"
 #define SPIR_TYPE_NAME_EVENT_T "opencl.event_t"
 #define SPIR_TYPE_NAME_CLK_EVENT_T "opencl.clk_event_t"
@@ -658,6 +661,10 @@ bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);
 ///   type name as spirv.BaseTyName.Postfixes.
 bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix = 0);
 
+bool isSYCLHalfType(llvm::Type *Ty);
+
+bool isSYCLBfloat16Type(llvm::Type *Ty);
+
 /// Decorate a function name as __spirv_{Name}_
 std::string decorateSPIRVFunction(const std::string &S);
 
@@ -709,10 +716,6 @@ bool isVoidFuncTy(FunctionType *FT);
 /// \returns true if \p T is a function pointer type.
 bool isFunctionPointerType(Type *T);
 
-/// \returns true if function \p F has function pointer type argument.
-/// \param AI points to the function pointer type argument if returns true.
-bool hasFunctionPointerArg(Function *F, Function::arg_iterator &AI);
-
 /// \returns true if function \p F has array type argument.
 bool hasArrayArg(Function *F);
 
@@ -759,6 +762,19 @@ Instruction *mutateCallInstSPIRV(
 void mutateFunction(
     Function *F,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
+    BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
+    bool TakeName = true);
+
+/// Mutate function by change the arguments & the return type.
+/// \param ArgMutate mutates the function arguments.
+/// \param RetMutate mutates the function return value.
+/// \param TakeName Take the original function's name if a new function with
+///   different type needs to be created.
+void mutateFunction(
+    Function *F,
+    std::function<std::string(CallInst *, std::vector<Value *> &, Type *&RetTy)>
+        ArgMutate,
+    std::function<Instruction *(CallInst *)> RetMutate,
     BuiltinFuncMangleInfo *Mangle = nullptr, AttributeList *Attrs = nullptr,
     bool TakeName = true);
 
@@ -997,9 +1013,6 @@ std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
 /// \return IA64 mangled name.
 std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
                                            spv::Op OC, ArrayRef<Type *> ArgTys);
-
-/// Remove cast from a value.
-Value *removeCast(Value *V);
 
 /// Cast a function to a void(void) funtion pointer.
 Constant *castToVoidFuncPtr(Function *F);

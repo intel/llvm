@@ -49,7 +49,6 @@ from subprocess import *
 import sys
 import time
 import traceback
-import distutils.spawn
 
 # Third-party modules
 import unittest2
@@ -231,6 +230,11 @@ def pointer_size():
 
 def is_exe(fpath):
     """Returns true if fpath is an executable."""
+    if fpath == None:
+        return False
+    if sys.platform == 'win32':
+        if not fpath.endswith(".exe"):
+            fpath += ".exe"
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
 
@@ -1563,7 +1567,7 @@ class Base(unittest2.TestCase):
 
         # Tries to find clang at the same folder as the lldb
         lldb_dir = os.path.dirname(lldbtest_config.lldbExec)
-        path = distutils.spawn.find_executable("clang", lldb_dir)
+        path = shutil.which("clang", path=lldb_dir)
         if path is not None:
             return path
 
@@ -2536,6 +2540,8 @@ FileCheck output:
         err.write(type.GetName() + ":\n")
         err.write('\t' + "ByteSize        -> " +
                   str(type.GetByteSize()) + '\n')
+        err.write('\t' + "IsAggregateType   -> " +
+                  str(type.IsAggregateType()) + '\n')
         err.write('\t' + "IsPointerType   -> " +
                   str(type.IsPointerType()) + '\n')
         err.write('\t' + "IsReferenceType -> " +

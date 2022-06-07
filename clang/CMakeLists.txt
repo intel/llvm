@@ -4,7 +4,13 @@ cmake_minimum_required(VERSION 3.13.4)
 # standalone project, using LLVM as an external library:
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(Clang)
+  set(CLANG_BUILT_STANDALONE TRUE)
+endif()
 
+# Must go below project(..)
+include(GNUInstallDirs)
+
+if(CLANG_BUILT_STANDALONE)
   set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
   set(CMAKE_CXX_STANDARD_REQUIRED YES)
   set(CMAKE_CXX_EXTENSIONS NO)
@@ -65,24 +71,26 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   endif()
 
   find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_DIR}")
-  list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_DIR}")
 
   # We can't check LLVM_CONFIG here, because find_package(LLVM ...) also sets
   # LLVM_CONFIG.
   if (NOT LLVM_CONFIG_FOUND)
     # Pull values from LLVMConfig.cmake.  We can drop this once the llvm-config
     # path is removed.
-    set(MAIN_INCLUDE_DIR ${LLVM_INCLUDE_DIR})
-    set(LLVM_OBJ_DIR ${LLVM_BINARY_DIR})
-    set(TOOLS_BINARY_DIR ${LLVM_TOOLS_BINARY_DIR})
-    set(LIBRARY_DIR ${LLVM_LIBRARY_DIR})
+    set(MAIN_INCLUDE_DIR "${LLVM_INCLUDE_DIR}")
+    set(LLVM_OBJ_DIR "${LLVM_BINARY_DIR}")
+    # N.B. this is just a default value, the CACHE PATHs below can be overriden.
+    set(MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../llvm")
+    set(TOOLS_BINARY_DIR "${LLVM_TOOLS_BINARY_DIR}")
+    set(LIBRARY_DIR "${LLVM_LIBRARY_DIR}")
   endif()
 
-  set(LLVM_MAIN_INCLUDE_DIR ${MAIN_INCLUDE_DIR} CACHE PATH "Path to llvm/include")
-  set(LLVM_BINARY_DIR ${LLVM_OBJ_ROOT} CACHE PATH "Path to LLVM build tree")
-  set(LLVM_MAIN_SRC_DIR ${MAIN_SRC_DIR} CACHE PATH "Path to LLVM source tree")
-  set(LLVM_TOOLS_BINARY_DIR ${TOOLS_BINARY_DIR} CACHE PATH "Path to llvm/bin")
-  set(LLVM_LIBRARY_DIR ${LIBRARY_DIR} CACHE PATH "Path to llvm/lib")
+  set(LLVM_MAIN_INCLUDE_DIR "${MAIN_INCLUDE_DIR}" CACHE PATH "Path to llvm/include")
+  set(LLVM_BINARY_DIR "${LLVM_OBJ_ROOT}" CACHE PATH "Path to LLVM build tree")
+  set(LLVM_MAIN_SRC_DIR "${MAIN_SRC_DIR}" CACHE PATH "Path to LLVM source tree")
+  set(LLVM_TOOLS_BINARY_DIR "${TOOLS_BINARY_DIR}" CACHE PATH "Path to llvm/bin")
+  set(LLVM_LIBRARY_DIR "${LIBRARY_DIR}" CACHE PATH "Path to llvm/lib")
 
   find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
     NO_DEFAULT_PATH)
@@ -183,9 +191,9 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     else()
       set(LLVM_INCLUDE_TESTS OFF)
     endif()
-  endif()
 
-  set(CLANG_BUILT_STANDALONE TRUE)
+    umbrella_lit_testsuite_begin(check-all)
+  endif() # LLVM_INCLUDE_TESTS
 
   set(BACKEND_PACKAGE_STRING "LLVM ${LLVM_PACKAGE_VERSION}")
 else()
@@ -233,10 +241,26 @@ set(ENABLE_LINKER_BUILD_ID OFF CACHE BOOL "pass --build-id to ld")
 set(ENABLE_X86_RELAX_RELOCATIONS ON CACHE BOOL
     "enable x86 relax relocations by default")
 
+set(PPC_LINUX_DEFAULT_IEEELONGDOUBLE OFF CACHE BOOL
+    "Enable IEEE binary128 as default long double format on PowerPC Linux.")
+
 set(CLANG_SPAWN_CC1 OFF CACHE BOOL
     "Whether clang should use a new process for the CC1 invocation")
 
-option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on Linux" OFF)
+# Turn this OFF downstream for compatibility reasons. GCC default is no-pie
+# and many distros, e.g. RedHat has no-pie by default for GCC.
+option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on linux-gnu" OFF)
+
+# Manually handle default so we can change the meaning of a cached default.
+set(CLANG_ENABLE_OPAQUE_POINTERS "DEFAULT" CACHE STRING
+    "Enable opaque pointers by default")
+if(CLANG_ENABLE_OPAQUE_POINTERS STREQUAL "DEFAULT")
+  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
+elseif(CLANG_ENABLE_OPAQUE_POINTERS)
+  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
+else()
+  set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL OFF)
+endif()
 
 # TODO: verify the values against LangStandards.def?
 set(CLANG_DEFAULT_STD_C "" CACHE STRING
@@ -394,7 +418,7 @@ endif ()
 
 # Determine HOST_LINK_VERSION on Darwin.
 set(HOST_LINK_VERSION)
-if (APPLE)
+if (APPLE AND NOT CMAKE_LINKER MATCHES ".*lld.*")
   set(LD_V_OUTPUT)
   execute_process(
     COMMAND sh -c "${CMAKE_LINKER} -v 2>&1 | head -1"
@@ -427,7 +451,7 @@ include_directories(BEFORE
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   install(DIRECTORY include/clang include/clang-c
-    DESTINATION include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT clang-headers
     FILES_MATCHING
     PATTERN "*.def"
@@ -436,7 +460,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     )
 
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include/clang
-    DESTINATION include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT clang-headers
     FILES_MATCHING
     PATTERN "CMakeFiles" EXCLUDE
@@ -456,7 +480,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
 
   add_custom_target(bash-autocomplete DEPENDS utils/bash-autocomplete.sh)
   install(PROGRAMS utils/bash-autocomplete.sh
-          DESTINATION share/clang
+          DESTINATION "${CMAKE_INSTALL_DATADIR}/clang"
           COMPONENT bash-autocomplete)
   if(NOT LLVM_ENABLE_IDE)
     add_llvm_install_targets(install-bash-autocomplete
@@ -469,6 +493,15 @@ add_definitions( -D_GNU_SOURCE )
 
 option(CLANG_BUILD_TOOLS
   "Build the Clang tools. If OFF, just generate build targets." ON)
+
+if(LLVM_ENABLE_PLUGINS OR LLVM_EXPORT_SYMBOLS_FOR_PLUGINS)
+  set(HAVE_CLANG_PLUGIN_SUPPORT ON)
+else()
+  set(HAVE_CLANG_PLUGIN_SUPPORT OFF)
+endif()
+CMAKE_DEPENDENT_OPTION(CLANG_PLUGIN_SUPPORT
+  "Build clang with plugin support" ON
+  "HAVE_CLANG_PLUGIN_SUPPORT" OFF)
 
 option(CLANG_ENABLE_ARCMT "Build ARCMT." ON)
 option(CLANG_ENABLE_STATIC_ANALYZER
@@ -559,21 +592,7 @@ if( CLANG_INCLUDE_TESTS )
   add_subdirectory(bindings/python/tests)
 
   if(CLANG_BUILT_STANDALONE)
-    # Add a global check rule now that all subdirectories have been traversed
-    # and we know the total set of lit testsuites.
-    get_property(LLVM_LIT_TESTSUITES GLOBAL PROPERTY LLVM_LIT_TESTSUITES)
-    get_property(LLVM_LIT_PARAMS GLOBAL PROPERTY LLVM_LIT_PARAMS)
-    get_property(LLVM_LIT_DEPENDS GLOBAL PROPERTY LLVM_LIT_DEPENDS)
-    get_property(LLVM_LIT_EXTRA_ARGS GLOBAL PROPERTY LLVM_LIT_EXTRA_ARGS)
-    get_property(LLVM_ADDITIONAL_TEST_TARGETS
-                 GLOBAL PROPERTY LLVM_ADDITIONAL_TEST_TARGETS)
-    add_lit_target(check-all
-      "Running all regression tests"
-      ${LLVM_LIT_TESTSUITES}
-      PARAMS ${LLVM_LIT_PARAMS}
-      DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_TARGETS}
-      ARGS ${LLVM_LIT_EXTRA_ARGS}
-      )
+    umbrella_lit_testsuite_end(check-all)
   endif()
   add_subdirectory(utils/perf-training)
 endif()

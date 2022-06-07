@@ -21,6 +21,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
@@ -58,7 +59,7 @@ void PlatformRemoteAppleTV::Terminate() {
 
 PlatformSP PlatformRemoteAppleTV::CreateInstance(bool force,
                                                  const ArchSpec *arch) {
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_PLATFORM));
+  Log *log = GetLog(LLDBLog::Platform);
   if (log) {
     const char *arch_name;
     if (arch && arch->GetArchitectureName())
@@ -132,7 +133,8 @@ llvm::StringRef PlatformRemoteAppleTV::GetDescriptionStatic() {
   return "Remote Apple TV platform plug-in.";
 }
 
-std::vector<ArchSpec> PlatformRemoteAppleTV::GetSupportedArchitectures() {
+std::vector<ArchSpec> PlatformRemoteAppleTV::GetSupportedArchitectures(
+    const ArchSpec &process_host_arch) {
   ArchSpec system_arch(GetSystemArchitecture());
 
   const ArchSpec::Core system_core = system_arch.GetCore();

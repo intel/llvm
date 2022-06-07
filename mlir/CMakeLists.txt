@@ -3,6 +3,13 @@
 # Check if MLIR is built as a standalone project.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(mlir)
+  set(MLIR_STANDALONE_BUILD TRUE)
+endif()
+
+# Must go below project(..)
+include(GNUInstallDirs)
+
+if(MLIR_STANDALONE_BUILD)
   cmake_minimum_required(VERSION 3.13.4)
 
   find_package(LLVM CONFIG REQUIRED)
@@ -123,10 +130,16 @@ set(MLIR_BUILD_MLIR_C_DYLIB 0 CACHE BOOL "Builds libMLIR-C shared library.")
 
 set(MLIR_ENABLE_BINDINGS_PYTHON 0 CACHE BOOL
        "Enables building of Python bindings.")
+set(MLIR_DETECT_PYTHON_ENV_PRIME_SEARCH 1 CACHE BOOL
+       "Prime the python detection by searching for a full 'Development' \
+       component first (temporary while diagnosing environment specific Python \
+       detection issues)")
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   include(MLIRDetectPythonEnv)
   mlir_configure_python_dev_packages()
 endif()
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
@@ -136,6 +149,7 @@ include_directories( ${MLIR_INCLUDE_DIR})
 # from another directory like tools
 add_subdirectory(tools/mlir-tblgen)
 add_subdirectory(tools/mlir-linalg-ods-gen)
+add_subdirectory(tools/mlir-pdll)
 
 add_subdirectory(include/mlir)
 add_subdirectory(lib)
@@ -173,7 +187,7 @@ endif()
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   install(DIRECTORY include/mlir include/mlir-c
-    DESTINATION include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT mlir-headers
     FILES_MATCHING
     PATTERN "*.def"
@@ -184,7 +198,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     )
 
   install(DIRECTORY ${MLIR_INCLUDE_DIR}/mlir ${MLIR_INCLUDE_DIR}/mlir-c
-    DESTINATION include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT mlir-headers
     FILES_MATCHING
     PATTERN "*.def"
@@ -204,3 +218,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
 endif()
 
 add_subdirectory(cmake/modules)
+
+if (MLIR_ENABLE_PYTHON_BENCHMARKS)
+  add_subdirectory(utils/mbr)
+endif()

@@ -932,12 +932,13 @@ define void @shuffle_ext_invalid(<4 x double>* %a, <4 x double>* %b) #0 {
 ; CHECK-LABEL: shuffle_ext_invalid:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    stp x29, x30, [sp, #-16]! // 16-byte Folded Spill
-; CHECK-NEXT:    sub x9, sp, #48
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK-NEXT:    mov x29, sp
-; CHECK-NEXT:    and sp, x9, #0xffffffffffffffe0
 ; CHECK-NEXT:    .cfi_def_cfa w29, 16
 ; CHECK-NEXT:    .cfi_offset w30, -8
 ; CHECK-NEXT:    .cfi_offset w29, -16
+; CHECK-NEXT:    sub x9, sp, #48
+; CHECK-NEXT:    and sp, x9, #0xffffffffffffffe0
 ; CHECK-NEXT:    ptrue p0.d, vl4
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [x0]
 ; CHECK-NEXT:    ld1d { z1.d }, p0/z, [x1]
@@ -949,7 +950,11 @@ define void @shuffle_ext_invalid(<4 x double>* %a, <4 x double>* %b) #0 {
 ; CHECK-NEXT:    ld1d { z0.d }, p0/z, [sp]
 ; CHECK-NEXT:    st1d { z0.d }, p0, [x0]
 ; CHECK-NEXT:    mov sp, x29
+; CHECK-NEXT:    .cfi_def_cfa wsp, 16
 ; CHECK-NEXT:    ldp x29, x30, [sp], #16 // 16-byte Folded Reload
+; CHECK-NEXT:    .cfi_def_cfa_offset 0
+; CHECK-NEXT:    .cfi_restore w30
+; CHECK-NEXT:    .cfi_restore w29
 ; CHECK-NEXT:    ret
   %op1 = load <4 x double>, <4 x double>* %a
   %op2 = load <4 x double>, <4 x double>* %b
@@ -958,4 +963,4 @@ define void @shuffle_ext_invalid(<4 x double>* %a, <4 x double>* %b) #0 {
   ret void
 }
 
-attributes #0 = { "target-features"="+sve" }
+attributes #0 = { "target-features"="+sve" uwtable }

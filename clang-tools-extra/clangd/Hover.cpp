@@ -16,7 +16,6 @@
 #include "Selection.h"
 #include "SourceCode.h"
 #include "index/SymbolCollector.h"
-#include "support/Logger.h"
 #include "support/Markup.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
@@ -32,7 +31,6 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/AST/RecordLayout.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
@@ -46,7 +44,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
@@ -86,7 +83,7 @@ std::string getLocalScope(const Decl *D) {
       Policy.SuppressScope = true;
       return declaredType(D).getAsString(Policy);
     }
-    if (auto RD = dyn_cast<RecordDecl>(D))
+    if (auto *RD = dyn_cast<RecordDecl>(D))
       return ("(anonymous " + RD->getKindName() + ")").str();
     return std::string("");
   };
@@ -126,7 +123,17 @@ std::string getNamespaceScope(const Decl *D) {
   return "";
 }
 
-std::string printDefinition(const Decl *D, const PrintingPolicy &PP) {
+std::string printDefinition(const Decl *D, PrintingPolicy PP,
+                            const syntax::TokenBuffer &TB) {
+  if (auto *VD = llvm::dyn_cast<VarDecl>(D)) {
+    if (auto *IE = VD->getInit()) {
+      // Initializers might be huge and result in lots of memory allocations in
+      // some catostrophic cases. Such long lists are not useful in hover cards
+      // anyway.
+      if (200 < TB.expandedTokens(IE->getSourceRange()).size())
+        PP.SuppressInitializers = true;
+    }
+  }
   std::string Definition;
   llvm::raw_string_ostream OS(Definition);
   D->print(OS, PP);
@@ -147,7 +154,7 @@ HoverInfo::PrintedType printType(QualType QT, ASTContext &ASTCtx,
   // FIXME: This doesn't handle composite types that contain a decltype in them.
   // We should rather have a printing policy for that.
   while (!QT.isNull() && QT->isDecltypeType())
-    QT = QT->getAs<DecltypeType>()->getUnderlyingType();
+    QT = QT->castAs<DecltypeType>()->getUnderlyingType();
   HoverInfo::PrintedType Result;
   llvm::raw_string_ostream OS(Result.Type);
   // Special case: if the outer type is a tag type without qualifiers, then
@@ -568,7 +575,8 @@ std::string synthesizeDocumentation(const NamedDecl *ND) {
 
 /// Generate a \p Hover object given the declaration \p D.
 HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
-                           const SymbolIndex *Index) {
+                           const SymbolIndex *Index,
+                           const syntax::TokenBuffer &TB) {
   HoverInfo HI;
   const ASTContext &Ctx = D->getASTContext();
 
@@ -630,7 +638,7 @@ HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
       HI.Value = toString(ECD->getInitVal(), 10);
   }
 
-  HI.Definition = printDefinition(D, PP);
+  HI.Definition = printDefinition(D, PP, TB);
   return HI;
 }
 
@@ -725,7 +733,7 @@ HoverInfo getDeducedTypeHoverContents(QualType QT, const syntax::Token &Tok,
 bool isLiteral(const Expr *E) {
   // Unfortunately there's no common base Literal classes inherits from
   // (apart from Expr), therefore these exclusions.
-  return llvm::isa<CharacterLiteral>(E) || llvm::isa<CompoundLiteralExpr>(E) ||
+  return llvm::isa<CompoundLiteralExpr>(E) ||
          llvm::isa<CXXBoolLiteralExpr>(E) ||
          llvm::isa<CXXNullPtrLiteralExpr>(E) ||
          llvm::isa<FixedPointLiteral>(E) || llvm::isa<FloatingLiteral>(E) ||
@@ -952,7 +960,7 @@ void maybeAddCalleeArgInfo(const SelectionTree::Node *N, HoverInfo &HI,
 } // namespace
 
 llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
-                                   format::FormatStyle Style,
+                                   const format::FormatStyle &Style,
                                    const SymbolIndex *Index) {
   PrintingPolicy PP =
       getPrintingPolicy(AST.getASTContext().getPrintingPolicy());
@@ -1023,13 +1031,12 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
     // So our selection tree should be biased right. (Tested with VSCode).
     SelectionTree ST =
         SelectionTree::createRight(AST.getASTContext(), TB, Offset, Offset);
-    std::vector<const Decl *> Result;
     if (const SelectionTree::Node *N = ST.commonAncestor()) {
       // FIXME: Fill in HighlightRange with range coming from N->ASTNode.
       auto Decls = explicitReferenceTargets(N->ASTNode, DeclRelation::Alias,
                                             AST.getHeuristicResolver());
       if (!Decls.empty()) {
-        HI = getHoverContents(Decls.front(), PP, Index);
+        HI = getHoverContents(Decls.front(), PP, Index, TB);
         // Layout info only shown when hovering on the field/class itself.
         if (Decls.front() == N->ASTNode.get<Decl>())
           addLayoutInfo(*Decls.front(), *HI);

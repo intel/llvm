@@ -11,6 +11,8 @@
 
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {

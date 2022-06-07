@@ -13,6 +13,8 @@
 #ifndef ASAN_MAPPING_H
 #define ASAN_MAPPING_H
 
+#include "sanitizer_common/sanitizer_platform.h"
+
 // The full explanation of the memory mapping could be found here:
 // https://github.com/google/sanitizers/wiki/AddressSanitizerAlgorithm
 //
@@ -172,7 +174,7 @@
 #else
 #  if SANITIZER_IOS
 #    define ASAN_SHADOW_OFFSET_DYNAMIC
-#  elif SANITIZER_MAC && defined(__aarch64__)
+#  elif SANITIZER_APPLE && defined(__aarch64__)
 #    define ASAN_SHADOW_OFFSET_DYNAMIC
 #  elif SANITIZER_RISCV64
 #    define ASAN_SHADOW_OFFSET_CONST 0x0000000d55550000
@@ -186,7 +188,7 @@
 #    define ASAN_SHADOW_OFFSET_CONST 0x0000400000000000
 #  elif SANITIZER_NETBSD
 #    define ASAN_SHADOW_OFFSET_CONST 0x0000400000000000
-#  elif SANITIZER_MAC
+#  elif SANITIZER_APPLE
 #    define ASAN_SHADOW_OFFSET_CONST 0x0000100000000000
 #  elif defined(__mips64)
 #    define ASAN_SHADOW_OFFSET_CONST 0x0000002000000000

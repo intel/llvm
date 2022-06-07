@@ -12,9 +12,6 @@
 #include "../utils/RenamerClangTidyCheck.h"
 #include "llvm/ADT/Optional.h"
 namespace clang {
-
-class MacroInfo;
-
 namespace tidy {
 namespace readability {
 
@@ -201,7 +198,7 @@ private:
   mutable llvm::StringMap<FileStyle> NamingStylesCache;
   FileStyle *MainFileStyle;
   ClangTidyContext *Context;
-  const std::string CheckName;
+  const StringRef CheckName;
   const bool GetConfigPerFile;
   const bool IgnoreFailedSplit;
   HungarianNotation HungarianNotation;

@@ -2,16 +2,16 @@
 
 float acos(float val) {
   // CHECK: @_Z4acosf
-  // CHECK: call float @_Z16__spirv_ocl_acosf
+  // CHECK: call noundef float @_Z16__spirv_ocl_acosf
   return __spirv_ocl_acos(val);
 }
 
-// CHECK: declare float @_Z16__spirv_ocl_acosf(float)
+// CHECK: declare noundef float @_Z16__spirv_ocl_acosf(float noundef)
 
 double acos(double val) {
   // CHECK: @_Z4acosd
-  // CHECK: call double @_Z16__spirv_ocl_acosd
+  // CHECK: call noundef double @_Z16__spirv_ocl_acosd
   return __spirv_ocl_acos(val);
 }
 
-// CHECK: declare double @_Z16__spirv_ocl_acosd(double)
+// CHECK: declare noundef double @_Z16__spirv_ocl_acosd(double noundef)

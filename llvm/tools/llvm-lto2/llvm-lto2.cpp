@@ -143,10 +143,9 @@ static cl::opt<bool>
                  cl::desc("Run PGO context sensitive IR instrumentation"),
                  cl::init(false), cl::Hidden);
 
-static cl::opt<bool>
-    UseNewPM("use-new-pm",
-             cl::desc("Run LTO passes using the new pass manager"),
-             cl::init(LLVM_ENABLE_NEW_PASS_MANAGER), cl::Hidden);
+static cl::opt<bool> LtoOpaquePointers("lto-opaque-pointers",
+                                       cl::desc("Enable opaque pointer types"),
+                                       cl::init(false), cl::Hidden);
 
 static cl::opt<bool>
     DebugPassManager("debug-pass-manager", cl::init(false), cl::Hidden,
@@ -267,7 +266,6 @@ static int run(int argc, char **argv) {
   Conf.AAPipeline = AAPipeline;
 
   Conf.OptLevel = OptLevel - '0';
-  Conf.UseNewPM = UseNewPM;
   Conf.Freestanding = EnableFreestanding;
   for (auto &PluginFN : PassPlugins)
     Conf.PassPlugins.push_back(PluginFN);
@@ -297,6 +295,7 @@ static int run(int argc, char **argv) {
   Conf.StatsFile = StatsFile;
   Conf.PTO.LoopVectorization = Conf.OptLevel > 1;
   Conf.PTO.SLPVectorization = Conf.OptLevel > 1;
+  Conf.OpaquePointers = LtoOpaquePointers;
 
   ThinBackend Backend;
   if (ThinLTODistributedIndexes)

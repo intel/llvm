@@ -38,6 +38,7 @@ LLVM and API reference documentation.
    ScudoHardenedAllocator
    MemTagSanitizer
    Security
+   SecurityTransparencyReports
    SegmentedStacks
    StackMaps
    SpeculativeLoadHardening
@@ -59,8 +60,6 @@ API Reference
 
 :doc:`HowToUseAttributes`
   Answers some questions about the new Attributes infrastructure.
-
-`Documentation for Go bindings <http://godoc.org/llvm.org/llvm/bindings/go/llvm>`_
 
 LLVM Reference
 --------------

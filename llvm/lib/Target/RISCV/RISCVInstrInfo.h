@@ -135,6 +135,8 @@ public:
   virtual bool isMBBSafeToOutlineFrom(MachineBasicBlock &MBB,
                                       unsigned &Flags) const override;
 
+  bool shouldOutlineFromFunctionByDefault(MachineFunction &MF) const override;
+
   // Calculate target-specific information for a set of outlining candidates.
   outliner::OutlinedFunction getOutliningCandidateInfo(
       std::vector<outliner::Candidate> &RepeatedSequenceLocs) const override;
@@ -153,7 +155,7 @@ public:
   virtual MachineBasicBlock::iterator
   insertOutlinedCall(Module &M, MachineBasicBlock &MBB,
                      MachineBasicBlock::iterator &It, MachineFunction &MF,
-                     const outliner::Candidate &C) const override;
+                     outliner::Candidate &C) const override;
 
   bool findCommutedOpIndices(const MachineInstr &MI, unsigned &SrcOpIdx1,
                              unsigned &SrcOpIdx2) const override;
@@ -163,6 +165,12 @@ public:
 
   MachineInstr *convertToThreeAddress(MachineInstr &MI, LiveVariables *LV,
                                       LiveIntervals *LIS) const override;
+
+  // MIR printer helper function to annotate Operands with a comment.
+  std::string
+  createMIROperandComment(const MachineInstr &MI, const MachineOperand &Op,
+                          unsigned OpIdx,
+                          const TargetRegisterInfo *TRI) const override;
 
   Register getVLENFactoredAmount(
       MachineFunction &MF, MachineBasicBlock &MBB,

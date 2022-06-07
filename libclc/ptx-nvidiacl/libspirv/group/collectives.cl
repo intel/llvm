@@ -151,6 +151,7 @@ __clc__SubgroupBitwiseAny(uint op, bool predicate, bool *carry) {
 #define __CLC_MIN(x, y) ((x < y) ? (x) : (y))
 #define __CLC_MAX(x, y) ((x > y) ? (x) : (y))
 #define __CLC_OR(x, y) (x | y)
+#define __CLC_XOR(x, y) (x ^ y)
 #define __CLC_AND(x, y) (x & y)
 #define __CLC_MUL(x, y) (x * y)
 
@@ -247,6 +248,13 @@ __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
+
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseAnd, __CLC_AND, and, uint, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseOr, __CLC_OR, or, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseXor, __CLC_XOR, xor, uint, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseAnd, __CLC_AND, and, int, ~0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseOr, __CLC_OR, or, int, 0)
+__CLC_SUBGROUP_COLLECTIVE_REDUX(NonUniformBitwiseXor, __CLC_XOR, xor, int, 0)
 
 #undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
@@ -368,6 +376,13 @@ __CLC_GROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, half, -HALF_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
+
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseAnd, __CLC_AND, uint, ~0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseOr, __CLC_OR, uint, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseXor, __CLC_XOR, uint, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseAnd, __CLC_AND, int, ~0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseOr, __CLC_OR, int, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformBitwiseXor, __CLC_XOR, int, 0)
 
 // half requires additional mangled entry points
 _CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,

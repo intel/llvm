@@ -1,8 +1,55 @@
-// RUN: %clang_analyze_cc1 -std=c++14 \
+// RUN: %clang_analyze_cc1 -std=c++14 -triple amdgcn-unknown-unknown \
+// RUN: -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN: -analyzer-output=text -verify -DX86 -DSUPPRESSED %s 2>&1 | FileCheck %s -check-prefix=X86-CHECK
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple amdgcn-unknown-unknown \
+// RUN: -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN:  -analyzer-config core.NullDereference:SuppressAddressSpaces=false\
+// RUN:  -analyzer-output=text -verify -DX86 -DNOT_SUPPRESSED %s 2>&1 | FileCheck %s -check-prefix=X86-CHECK
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple amdgcn-unknown-unknown \
+// RUN: -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN:  -analyzer-config core.NullDereference:SuppressAddressSpaces=true\
+// RUN:  -analyzer-output=text -verify -DX86 -DSUPPRESSED %s 2>&1 | FileCheck %s -check-prefix=X86-CHECK
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple x86_64-unknown-unknown \
 // RUN:  -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
-// RUN:  -analyzer-output=text -verify %s
+// RUN:  -analyzer-output=text -verify -DX86 -DSUPPRESSED %s 2>&1 | FileCheck %s --check-prefix=X86-CHECK
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple x86_64-unknown-unknown \
+// RUN:  -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN:  -analyzer-config core.NullDereference:SuppressAddressSpaces=true\
+// RUN:  -analyzer-output=text -verify -DX86 -DSUPPRESSED %s 2>&1 | FileCheck %s --check-prefix=X86-CHECK-SUPPRESSED
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple x86_64-unknown-unknown \
+// RUN:  -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN:  -analyzer-config core.NullDereference:SuppressAddressSpaces=false\
+// RUN:  -analyzer-output=text -verify -DX86 -DNOT_SUPPRESSED %s 2>&1 | FileCheck %s --check-prefix=X86-CHECK
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple mips-unknown-unknown \
+// RUN: -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN: -analyzer-output=text -verify -DMIPS %s 2>&1
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple mips-unknown-unknown \
+// RUN: -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN: -analyzer-config core.NullDereference:SuppressAddressSpaces=false\
+// RUN: -analyzer-output=text -verify -DMIPS %s 2>&1
+//
+// RUN: %clang_analyze_cc1 -std=c++14 -triple mips-unknown-unknown \
+// RUN: -analyzer-checker=core,apiModeling.llvm.CastValue,debug.ExprInspection\
+// RUN: -analyzer-config core.NullDereference:SuppressAddressSpaces=true\
+// RUN: -analyzer-output=text -verify -DMIPS_SUPPRESSED %s
 
 #include "Inputs/llvm.h"
+
+// The amggcn triple case uses an intentionally different address space.
+// The core.NullDereference checker intentionally ignores checks
+// that use address spaces, so the case is differentiated here.
+//
+// From https://llvm.org/docs/AMDGPUUsage.html#address-spaces,
+// select address space 3 (local), since the pointer size is
+// different than Generic.
+#define DEVICE __attribute__((address_space(3)))
 
 namespace clang {
 struct Shape {
@@ -21,12 +68,54 @@ class Circle : public Shape {};
 using namespace llvm;
 using namespace clang;
 
+void clang_analyzer_printState();
+
+#if defined(X86)
+void evalReferences(const Shape &S) {
+  const auto &C = dyn_cast<Circle>(S);
+  // expected-note@-1 {{Assuming 'S' is not a 'Circle'}}
+  // expected-note@-2 {{Dereference of null pointer}}
+  // expected-warning@-3 {{Dereference of null pointer}}
+  clang_analyzer_printState();
+  // XX86-CHECK:      "dynamic_types": [
+  // XX86-CHECK-NEXT:   { "region": "SymRegion{reg_$0<const struct clang::Shape & S>}", "dyn_type": "const class clang::Circle &", "sub_classable": true }
+  (void)C;
+}
+#if defined(SUPPRESSED)
+void evalReferences_addrspace(const Shape &S) {
+  const auto &C = dyn_cast<DEVICE Circle>(S);
+  clang_analyzer_printState();
+  // X86-CHECK-SUPPRESSED: "dynamic_types": [
+  // X86-CHECK-SUPPRESSED-NEXT: { "region": "SymRegion{reg_$0<const struct clang::Shape & S>}", "dyn_type": "const __attribute__((address_space(3))) class clang::Circle &", "sub_classable": true }
+  (void)C;
+}
+#endif
+#if defined(NOT_SUPPRESSED)
+void evalReferences_addrspace(const Shape &S) {
+  const auto &C = dyn_cast<DEVICE Circle>(S);
+  // expected-note@-1 {{Assuming 'S' is not a 'Circle'}}
+  // expected-note@-2 {{Dereference of null pointer}}
+  // expected-warning@-3 {{Dereference of null pointer}}
+  clang_analyzer_printState();
+  // X86-CHECK: "dynamic_types": [
+  // X86-CHECK-NEXT: { "region": "SymRegion{reg_$0<const struct clang::Shape & S>}", "dyn_type": "const __attribute__((address_space(3))) class clang::Circle &", "sub_classable": true }
+  (void)C;
+}
+#endif
+#elif defined(MIPS)
 void evalReferences(const Shape &S) {
   const auto &C = dyn_cast<Circle>(S);
   // expected-note@-1 {{Assuming 'S' is not a 'Circle'}}
   // expected-note@-2 {{Dereference of null pointer}}
   // expected-warning@-3 {{Dereference of null pointer}}
 }
+#if defined(MIPS_SUPPRESSED)
+void evalReferences_addrspace(const Shape &S) {
+  const auto &C = dyn_cast<DEVICE Circle>(S);
+  (void)C;
+}
+#endif
+#endif
 
 void evalNonNullParamNonNullReturnReference(const Shape &S) {
   const auto *C = dyn_cast_or_null<Circle>(S);

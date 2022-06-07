@@ -29,6 +29,7 @@
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -60,8 +61,7 @@ bool X86AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
 
   SMShadowTracker.startFunction(MF);
   CodeEmitter.reset(TM.getTarget().createMCCodeEmitter(
-      *Subtarget->getInstrInfo(), *Subtarget->getRegisterInfo(),
-      MF.getContext()));
+      *Subtarget->getInstrInfo(), MF.getContext()));
 
   EmitFPOData =
       Subtarget->isTargetWin32() && MF.getMMI().getModule()->getCodeViewFlag();
@@ -71,10 +71,10 @@ bool X86AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
   if (Subtarget->isTargetCOFF()) {
     bool Local = MF.getFunction().hasLocalLinkage();
     OutStreamer->BeginCOFFSymbolDef(CurrentFnSym);
-    OutStreamer->EmitCOFFSymbolStorageClass(
+    OutStreamer->emitCOFFSymbolStorageClass(
         Local ? COFF::IMAGE_SYM_CLASS_STATIC : COFF::IMAGE_SYM_CLASS_EXTERNAL);
-    OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
-                                               << COFF::SCT_COMPLEX_TYPE_SHIFT);
+    OutStreamer->emitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
+                                    << COFF::SCT_COMPLEX_TYPE_SHIFT);
     OutStreamer->EndCOFFSymbolDef();
   }
 
@@ -336,6 +336,37 @@ void X86AsmPrinter::PrintLeaMemReference(const MachineInstr *MI, unsigned OpNo,
   }
 }
 
+static bool isSimpleReturn(const MachineInstr &MI) {
+  // We exclude all tail calls here which set both isReturn and isCall.
+  return MI.getDesc().isReturn() && !MI.getDesc().isCall();
+}
+
+static bool isIndirectBranchOrTailCall(const MachineInstr &MI) {
+  unsigned Opc = MI.getOpcode();
+  return MI.getDesc().isIndirectBranch() /*Make below code in a good shape*/ ||
+         Opc == X86::TAILJMPr || Opc == X86::TAILJMPm ||
+         Opc == X86::TAILJMPr64 || Opc == X86::TAILJMPm64 ||
+         Opc == X86::TCRETURNri || Opc == X86::TCRETURNmi ||
+         Opc == X86::TCRETURNri64 || Opc == X86::TCRETURNmi64 ||
+         Opc == X86::TAILJMPr64_REX || Opc == X86::TAILJMPm64_REX;
+}
+
+void X86AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {
+  if (Subtarget->hardenSlsRet() || Subtarget->hardenSlsIJmp()) {
+    auto I = MBB.getLastNonDebugInstr();
+    if (I != MBB.end()) {
+      if ((Subtarget->hardenSlsRet() && isSimpleReturn(*I)) ||
+          (Subtarget->hardenSlsIJmp() && isIndirectBranchOrTailCall(*I))) {
+        MCInst TmpInst;
+        TmpInst.setOpcode(X86::INT3);
+        EmitToStreamer(*OutStreamer, TmpInst);
+      }
+    }
+  }
+  AsmPrinter::emitBasicBlockEnd(MBB);
+  SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
+}
+
 void X86AsmPrinter::PrintMemReference(const MachineInstr *MI, unsigned OpNo,
                                       raw_ostream &O, const char *Modifier) {
   assert(isMem(*MI, OpNo) && "Invalid memory reference!");
@@ -362,6 +393,12 @@ void X86AsmPrinter::PrintIntelMemReference(const MachineInstr *MI,
   if (HasBaseReg && Modifier && !strcmp(Modifier, "no-rip") &&
       BaseReg.getReg() == X86::RIP)
     HasBaseReg = false;
+
+  // If we really just want to print out displacement.
+  if (Modifier && (DispSpec.isGlobal() || DispSpec.isSymbol()) &&
+      !strcmp(Modifier, "disp-only")) {
+    HasBaseReg = false;
+  }
 
   // If this has a segment register, print it.
   if (SegReg.getReg()) {
@@ -606,11 +643,14 @@ bool X86AsmPrinter::PrintAsmMemoryOperand(const MachineInstr *MI, unsigned OpNo,
         PrintMemReference(MI, OpNo, O, "H");
       }
       return false;
-    case 'P': // Don't print @PLT, but do print as memory.
+   // Print memory only with displacement. The Modifer 'P' is used in inline
+   // asm to present a call symbol or a global symbol which can not use base
+   // reg or index reg.
+    case 'P':
       if (MI->getInlineAsmDialect() == InlineAsm::AD_Intel) {
-        PrintIntelMemReference(MI, OpNo, O, "no-rip");
+        PrintIntelMemReference(MI, OpNo, O, "disp-only");
       } else {
-        PrintMemReference(MI, OpNo, O, "no-rip");
+        PrintMemReference(MI, OpNo, O, "disp-only");
       }
       return false;
     }
@@ -670,8 +710,8 @@ void X86AsmPrinter::emitStartOfAsmFile(Module &M) {
     // compiler features bitfield read by link.exe.
     MCSymbol *S = MMI->getContext().getOrCreateSymbol(StringRef("@feat.00"));
     OutStreamer->BeginCOFFSymbolDef(S);
-    OutStreamer->EmitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_STATIC);
-    OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
+    OutStreamer->emitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_STATIC);
+    OutStreamer->emitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
     OutStreamer->EndCOFFSymbolDef();
     int64_t Feat00Flags = 0;
 
@@ -794,6 +834,22 @@ void X86AsmPrinter::emitEndOfAsmFile(Module &M) {
   } else if (TT.isOSBinFormatELF()) {
     emitStackMaps(SM);
     FM.serializeToFaultMapSection();
+  }
+
+  // Emit __morestack address if needed for indirect calls.
+  if (TT.getArch() == Triple::x86_64 && TM.getCodeModel() == CodeModel::Large) {
+    if (MCSymbol *AddrSymbol = OutContext.lookupSymbol("__morestack_addr")) {
+      Align Alignment(1);
+      MCSection *ReadOnlySection = getObjFileLowering().getSectionForConstant(
+          getDataLayout(), SectionKind::getReadOnly(),
+          /*C=*/nullptr, Alignment);
+      OutStreamer->SwitchSection(ReadOnlySection);
+      OutStreamer->emitLabel(AddrSymbol);
+
+      unsigned PtrSize = MAI->getCodePointerSize();
+      OutStreamer->emitSymbolValue(GetExternalSymbolSymbol("__morestack"),
+                                   PtrSize);
+    }
   }
 }
 

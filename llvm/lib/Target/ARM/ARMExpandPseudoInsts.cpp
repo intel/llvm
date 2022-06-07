@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;
@@ -1144,7 +1145,7 @@ static bool determineFPRegsToClear(const MachineInstr &MI,
     if (!Op.isReg())
       continue;
 
-    unsigned Reg = Op.getReg();
+    Register Reg = Op.getReg();
     if (Op.isDef()) {
       if ((Reg >= ARM::Q0 && Reg <= ARM::Q7) ||
           (Reg >= ARM::D0 && Reg <= ARM::D15) ||
@@ -1356,7 +1357,7 @@ void ARMExpandPseudo::CMSESaveClearFPRegsV8(
   std::vector<unsigned> NonclearedFPRegs;
   for (const MachineOperand &Op : MBBI->operands()) {
     if (Op.isReg() && Op.isUse()) {
-      unsigned Reg = Op.getReg();
+      Register Reg = Op.getReg();
       assert(!ARM::DPRRegClass.contains(Reg) ||
              ARM::DPR_VFP2RegClass.contains(Reg));
       assert(!ARM::QPRRegClass.contains(Reg));
@@ -1543,7 +1544,7 @@ void ARMExpandPseudo::CMSERestoreFPRegsV8(
   std::vector<unsigned> NonclearedFPRegs;
   for (const MachineOperand &Op : MBBI->operands()) {
     if (Op.isReg() && Op.isDef()) {
-      unsigned Reg = Op.getReg();
+      Register Reg = Op.getReg();
       assert(!ARM::DPRRegClass.contains(Reg) ||
              ARM::DPR_VFP2RegClass.contains(Reg));
       assert(!ARM::QPRRegClass.contains(Reg));
@@ -1663,7 +1664,7 @@ static bool definesOrUsesFPReg(const MachineInstr &MI) {
   for (const MachineOperand &Op : MI.operands()) {
     if (!Op.isReg())
       continue;
-    unsigned Reg = Op.getReg();
+    Register Reg = Op.getReg();
     if ((Reg >= ARM::Q0 && Reg <= ARM::Q7) ||
         (Reg >= ARM::D0 && Reg <= ARM::D15) ||
         (Reg >= ARM::S0 && Reg <= ARM::S31))
@@ -2107,6 +2108,10 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     case ARM::TCRETURNdi:
     case ARM::TCRETURNri: {
       MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
+      if (MBBI->getOpcode() == ARM::SEH_EpilogEnd)
+        MBBI--;
+      if (MBBI->getOpcode() == ARM::SEH_Nop_Ret)
+        MBBI--;
       assert(MBBI->isReturn() &&
              "Can only insert epilog into returning blocks");
       unsigned RetOpcode = MBBI->getOpcode();
@@ -2116,13 +2121,21 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
 
       // Tail call return: adjust the stack pointer and jump to callee.
       MBBI = MBB.getLastNonDebugInstr();
+      if (MBBI->getOpcode() == ARM::SEH_EpilogEnd)
+        MBBI--;
+      if (MBBI->getOpcode() == ARM::SEH_Nop_Ret)
+        MBBI--;
       MachineOperand &JumpTarget = MBBI->getOperand(0);
 
       // Jump to label or value in register.
       if (RetOpcode == ARM::TCRETURNdi) {
+        MachineFunction *MF = MBB.getParent();
+        bool NeedsWinCFI = MF->getTarget().getMCAsmInfo()->usesWindowsCFI() &&
+                           MF->getFunction().needsUnwindTableEntry();
         unsigned TCOpcode =
             STI->isThumb()
-                ? (STI->isTargetMachO() ? ARM::tTAILJMPd : ARM::tTAILJMPdND)
+                ? ((STI->isTargetMachO() || NeedsWinCFI) ? ARM::tTAILJMPd
+                                                         : ARM::tTAILJMPdND)
                 : ARM::TAILJMPd;
         MachineInstrBuilder MIB = BuildMI(MBB, MBBI, dl, TII.get(TCOpcode));
         if (JumpTarget.isGlobal())
@@ -2201,7 +2214,7 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     }
     case ARM::tBLXNS_CALL: {
       DebugLoc DL = MBBI->getDebugLoc();
-      unsigned JumpReg = MBBI->getOperand(0).getReg();
+      Register JumpReg = MBBI->getOperand(0).getReg();
 
       // Figure out which registers are live at the point immediately before the
       // call. When we indiscriminately push a set of registers, the live
@@ -3132,7 +3145,7 @@ bool ARMExpandPseudo::ExpandMBB(MachineBasicBlock &MBB) {
 }
 
 bool ARMExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
-  STI = &static_cast<const ARMSubtarget &>(MF.getSubtarget());
+  STI = &MF.getSubtarget<ARMSubtarget>();
   TII = STI->getInstrInfo();
   TRI = STI->getRegisterInfo();
   AFI = MF.getInfo<ARMFunctionInfo>();

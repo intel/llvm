@@ -31,10 +31,8 @@ static IntegerType parseStorageType(DialectAsmParser &parser, bool &isSigned) {
   unsigned storageTypeWidth = 0;
   OptionalParseResult result = parser.parseOptionalType(type);
   if (result.hasValue()) {
-    if (!succeeded(*result)) {
-      parser.parseType(type);
+    if (!succeeded(*result))
       return nullptr;
-    }
     isSigned = !type.isUnsigned();
     storageTypeWidth = type.getWidth();
   } else if (succeeded(parser.parseKeyword(&identifier))) {
@@ -78,7 +76,7 @@ static ParseResult parseStorageRange(DialectAsmParser &parser,
   }
 
   // Explicit storage min and storage max.
-  llvm::SMLoc minLoc = parser.getCurrentLocation(), maxLoc;
+  SMLoc minLoc = parser.getCurrentLocation(), maxLoc;
   if (parser.parseInteger(storageTypeMin) || parser.parseColon() ||
       parser.getCurrentLocation(&maxLoc) ||
       parser.parseInteger(storageTypeMax) || parser.parseGreater())
@@ -252,7 +250,7 @@ static Type parseUniformType(DialectAsmParser &parser) {
   }
 
   // Parse scales/zeroPoints.
-  llvm::SMLoc scaleZPLoc = parser.getCurrentLocation();
+  SMLoc scaleZPLoc = parser.getCurrentLocation();
   do {
     scales.resize(scales.size() + 1);
     zeroPoints.resize(zeroPoints.size() + 1);

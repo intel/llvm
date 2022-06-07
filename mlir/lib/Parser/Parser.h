@@ -68,14 +68,18 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Emit an error and return failure.
-  InFlightDiagnostic emitError(const Twine &message = {}) {
-    return emitError(state.curToken.getLoc(), message);
-  }
-  InFlightDiagnostic emitError(llvm::SMLoc loc, const Twine &message = {});
+  InFlightDiagnostic emitError(const Twine &message = {});
+  InFlightDiagnostic emitError(SMLoc loc, const Twine &message = {});
+
+  /// Emit an error about a "wrong token".  If the current token is at the
+  /// start of a source line, this will apply heuristics to back up and report
+  /// the error at the end of the previous line, which is where the expected
+  /// token is supposed to be.
+  InFlightDiagnostic emitWrongTokenError(const Twine &message = {});
 
   /// Encode the specified source location information into an attribute for
   /// attachment to the IR.
-  Location getEncodedSourceLocation(llvm::SMLoc loc) {
+  Location getEncodedSourceLocation(SMLoc loc) {
     // If there are no active nested parsers, we can get the encoded source
     // location directly.
     if (state.parserDepth == 0)
@@ -88,7 +92,7 @@ public:
   /// Remaps the given SMLoc to the top level lexer of the parser. This is used
   /// to adjust locations of potentially nested parsers to ensure that they can
   /// be emitted properly as diagnostics.
-  llvm::SMLoc remapLocationToTopLevelBuffer(llvm::SMLoc loc) {
+  SMLoc remapLocationToTopLevelBuffer(SMLoc loc) {
     // If there are no active nested parsers, we can return location directly.
     SymbolState &symbols = state.symbols;
     if (state.parserDepth == 0)
@@ -101,7 +105,7 @@ public:
     size_t offset = loc.getPointer() - state.lex.getBufferBegin();
     auto *rawLoc =
         symbols.nestedParserLocs[state.parserDepth - 1].getPointer() + offset;
-    return llvm::SMLoc::getFromPointer(rawLoc);
+    return SMLoc::getFromPointer(rawLoc);
   }
 
   //===--------------------------------------------------------------------===//
@@ -158,7 +162,7 @@ public:
   /// unlike `OpBuilder::getType`, this method does not implicitly insert a
   /// context parameter.
   template <typename T, typename... ParamsT>
-  T getChecked(llvm::SMLoc loc, ParamsT &&...params) {
+  T getChecked(SMLoc loc, ParamsT &&...params) {
     return T::getChecked([&] { return emitError(loc); },
                          std::forward<ParamsT>(params)...);
   }
@@ -199,7 +203,8 @@ public:
   ParseResult parseVectorDimensionList(SmallVectorImpl<int64_t> &dimensions,
                                        unsigned &numScalableDims);
   ParseResult parseDimensionListRanked(SmallVectorImpl<int64_t> &dimensions,
-                                       bool allowDynamic = true);
+                                       bool allowDynamic = true,
+                                       bool withTrailingX = true);
   ParseResult parseIntegerInDimensionList(int64_t &value);
   ParseResult parseXInDimensionList();
 

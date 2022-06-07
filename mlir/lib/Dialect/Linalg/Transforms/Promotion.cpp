@@ -186,7 +186,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
   Location loc = linalgOp.getLoc();
   auto defaultCopyCallBack = [loc](OpBuilder &b, Value src,
                                    Value dst) -> LogicalResult {
-    b.create<linalg::CopyOp>(loc, src, dst);
+    b.create<memref::CopyOp>(loc, src, dst);
     return success();
   };
   copyInFn = (options.copyInFn ? *(options.copyInFn) : defaultCopyCallBack);
@@ -397,8 +397,8 @@ struct LinalgPromotionPass : public LinalgPromotionBase<LinalgPromotionPass> {
     this->useAlloca = useAlloca;
   }
 
-  void runOnFunction() override {
-    getFunction().walk([&](LinalgOp op) {
+  void runOnOperation() override {
+    getOperation().walk([&](LinalgOp op) {
       auto options = LinalgPromotionOptions()
                          .setDynamicBuffers(dynamicBuffers)
                          .setUseAlloca(useAlloca);
@@ -414,10 +414,10 @@ struct LinalgPromotionPass : public LinalgPromotionBase<LinalgPromotionPass> {
 } // namespace
 
 // TODO: support more transformation options in the pass.
-std::unique_ptr<OperationPass<FuncOp>>
+std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca) {
   return std::make_unique<LinalgPromotionPass>(dynamicBuffers, useAlloca);
 }
-std::unique_ptr<OperationPass<FuncOp>> mlir::createLinalgPromotionPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLinalgPromotionPass() {
   return std::make_unique<LinalgPromotionPass>();
 }

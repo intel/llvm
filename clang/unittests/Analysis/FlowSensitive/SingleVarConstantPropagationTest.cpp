@@ -29,6 +29,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Testing/Support/Annotations.h"
+#include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <cstdint>
@@ -121,9 +122,8 @@ public:
     return ConstantPropagationLattice::bottom();
   }
 
-  ConstantPropagationLattice transfer(const Stmt *S,
-                                      const ConstantPropagationLattice &Element,
-                                      Environment &Env) {
+  void transfer(const Stmt *S, ConstantPropagationLattice &Element,
+                Environment &Env) {
     auto matcher = stmt(
         anyOf(declStmt(hasSingleDecl(varDecl(hasType(isInteger()),
                                              hasInitializer(expr().bind(kInit)))
@@ -137,7 +137,7 @@ public:
     ASTContext &Context = getASTContext();
     auto Results = match(matcher, *S, Context);
     if (Results.empty())
-      return Element;
+      return;
     const BoundNodes &Nodes = Results[0];
 
     const auto *Var = Nodes.getNodeAs<clang::VarDecl>(kVar);
@@ -145,30 +145,26 @@ public:
 
     if (const auto *E = Nodes.getNodeAs<clang::Expr>(kInit)) {
       Expr::EvalResult R;
-      if (E->EvaluateAsInt(R, Context) && R.Val.isInt())
-        return ConstantPropagationLattice{
-            {{Var, R.Val.getInt().getExtValue()}}};
-      return ConstantPropagationLattice::top();
-    }
-
-    if (Nodes.getNodeAs<clang::Expr>(kJustAssignment)) {
+      Element =
+          (E->EvaluateAsInt(R, Context) && R.Val.isInt())
+              ? ConstantPropagationLattice{{{Var,
+                                             R.Val.getInt().getExtValue()}}}
+              : ConstantPropagationLattice::top();
+    } else if (Nodes.getNodeAs<clang::Expr>(kJustAssignment)) {
       const auto *RHS = Nodes.getNodeAs<clang::Expr>(kRHS);
       assert(RHS != nullptr);
 
       Expr::EvalResult R;
-      if (RHS->EvaluateAsInt(R, Context) && R.Val.isInt())
-        return ConstantPropagationLattice{
-            {{Var, R.Val.getInt().getExtValue()}}};
-      return ConstantPropagationLattice::top();
-    }
-
-    // Any assignment involving the expression itself resets the variable to
-    // "unknown". A more advanced analysis could try to evaluate the compound
-    // assignment. For example, `x += 0` need not invalidate `x`.
-    if (Nodes.getNodeAs<clang::Expr>(kAssignment))
-      return ConstantPropagationLattice::top();
-
-    llvm_unreachable("expected at least one bound identifier");
+      Element =
+          (RHS->EvaluateAsInt(R, Context) && R.Val.isInt())
+              ? ConstantPropagationLattice{{{Var,
+                                             R.Val.getInt().getExtValue()}}}
+              : ConstantPropagationLattice::top();
+    } else if (Nodes.getNodeAs<clang::Expr>(kAssignment))
+      // Any assignment involving the expression itself resets the variable to
+      // "unknown". A more advanced analysis could try to evaluate the compound
+      // assignment. For example, `x += 0` need not invalidate `x`.
+      Element = ConstantPropagationLattice::top();
   }
 };
 
@@ -194,18 +190,20 @@ class ConstantPropagationTest : public ::testing::Test {
 protected:
   template <typename Matcher>
   void RunDataflow(llvm::StringRef Code, Matcher Expectations) {
-    test::checkDataflow<ConstantPropagationAnalysis>(
-        Code, "fun",
-        [](ASTContext &C, Environment &) {
-          return ConstantPropagationAnalysis(C);
-        },
-        [&Expectations](
-            llvm::ArrayRef<std::pair<
-                std::string,
-                DataflowAnalysisState<ConstantPropagationAnalysis::Lattice>>>
-                Results,
-            ASTContext &) { EXPECT_THAT(Results, Expectations); },
-        {"-fsyntax-only", "-std=c++17"});
+    ASSERT_THAT_ERROR(
+        test::checkDataflow<ConstantPropagationAnalysis>(
+            Code, "fun",
+            [](ASTContext &C, Environment &) {
+              return ConstantPropagationAnalysis(C);
+            },
+            [&Expectations](
+                llvm::ArrayRef<std::pair<
+                    std::string, DataflowAnalysisState<
+                                     ConstantPropagationAnalysis::Lattice>>>
+                    Results,
+                ASTContext &) { EXPECT_THAT(Results, Expectations); },
+            {"-fsyntax-only", "-std=c++17"}),
+        llvm::Succeeded());
   }
 };
 

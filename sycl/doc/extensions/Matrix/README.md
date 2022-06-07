@@ -1,2 +1,0 @@
-# Matrix Programming Extension for DPC++
-`matrix` is a new experimental DPC++ extension to provide unified matrix programming on different tensor hardware. The current implementation provides support of the matrix interface using Intel(R) Advanced Matrix Extensions (AMX).

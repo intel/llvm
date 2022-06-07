@@ -23,6 +23,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
@@ -76,12 +77,10 @@ llvm::StringRef ObjectFilePECOFF::GetPluginDescriptionStatic() {
          "(32 and 64 bit)";
 }
 
-ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
-                                             DataBufferSP &data_sp,
-                                             lldb::offset_t data_offset,
-                                             const lldb_private::FileSpec *file_p,
-                                             lldb::offset_t file_offset,
-                                             lldb::offset_t length) {
+ObjectFile *ObjectFilePECOFF::CreateInstance(
+    const lldb::ModuleSP &module_sp, DataBufferSP data_sp,
+    lldb::offset_t data_offset, const lldb_private::FileSpec *file_p,
+    lldb::offset_t file_offset, lldb::offset_t length) {
   FileSpec file = file_p ? *file_p : FileSpec();
   if (!data_sp) {
     data_sp = MapFileData(file, length, file_offset);
@@ -112,7 +111,7 @@ ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFile *ObjectFilePECOFF::CreateMemoryInstance(
-    const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
+    const lldb::ModuleSP &module_sp, lldb::WritableDataBufferSP data_sp,
     const lldb::ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return nullptr;
@@ -132,7 +131,7 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return initial_count;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
 
   if (data_sp->GetByteSize() < length)
     if (DataBufferSP full_sp = MapFileData(file, -1, file_offset))
@@ -190,7 +189,7 @@ bool ObjectFilePECOFF::SaveCore(const lldb::ProcessSP &process_sp,
   return SaveMiniDump(process_sp, outfile, error);
 }
 
-bool ObjectFilePECOFF::MagicBytesMatch(DataBufferSP &data_sp) {
+bool ObjectFilePECOFF::MagicBytesMatch(DataBufferSP data_sp) {
   DataExtractor data(data_sp, eByteOrderLittle, 4);
   lldb::offset_t offset = 0;
   uint16_t magic = data.GetU16(&offset);
@@ -212,7 +211,7 @@ bool ObjectFilePECOFF::CreateBinary() {
   if (m_binary)
     return true;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
 
   auto binary = llvm::object::createBinary(llvm::MemoryBufferRef(
       toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()));
@@ -235,7 +234,7 @@ bool ObjectFilePECOFF::CreateBinary() {
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
-                                   DataBufferSP &data_sp,
+                                   DataBufferSP data_sp,
                                    lldb::offset_t data_offset,
                                    const FileSpec *file,
                                    lldb::offset_t file_offset,
@@ -248,7 +247,7 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
-                                   DataBufferSP &header_data_sp,
+                                   WritableDataBufferSP header_data_sp,
                                    const lldb::ProcessSP &process_sp,
                                    addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
@@ -884,7 +883,7 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
   if (!CreateBinary())
     return 0;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
   LLDB_LOG(log, "this = {0}, module = {1} ({2}), file = {3}, binary = {4}",
            this, GetModule().get(), GetModule()->GetSpecificationDescription(),
            m_file.GetPath(), m_binary.get());

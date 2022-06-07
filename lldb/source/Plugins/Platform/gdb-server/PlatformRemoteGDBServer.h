@@ -65,7 +65,8 @@ public:
                                          // target, else use existing one
                          Status &error) override;
 
-  std::vector<ArchSpec> GetSupportedArchitectures() override {
+  std::vector<ArchSpec>
+  GetSupportedArchitectures(const ArchSpec &process_host_arch) override {
     return m_supported_architectures;
   }
 
@@ -153,7 +154,8 @@ public:
   GetPendingGdbServerList(std::vector<std::string> &connection_urls);
 
 protected:
-  process_gdb_remote::GDBRemoteCommunicationClient m_gdb_client;
+  std::unique_ptr<process_gdb_remote::GDBRemoteCommunicationClient>
+      m_gdb_client_up;
   std::string m_platform_description; // After we connect we can get a more
                                       // complete description of what we are
                                       // connected to

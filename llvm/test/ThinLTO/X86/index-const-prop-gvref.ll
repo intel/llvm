@@ -1,24 +1,24 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop-gvref.ll -o %t2.bc
-; RUN: llvm-lto2 run -relocation-model=static -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
+; RUN: llvm-lto2 run -relocation-model=static -opaque-pointers -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
 ; RUN:   %t1.bc -r=%t1.bc,main,plx -r=%t1.bc,a, -r=%t1.bc,b, -o %t3
 ; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=SRC
 ; RUN: llvm-dis %t3.2.3.import.bc -o - | FileCheck %s --check-prefix=DEST
 
 ;; When producing an ELF DSO, clear dso_local for declarations to avoid direct access.
-; RUN: llvm-lto2 run -relocation-model=pic -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
+; RUN: llvm-lto2 run -relocation-model=pic -opaque-pointers -save-temps %t2.bc -r=%t2.bc,b,pl -r=%t2.bc,a,pl \
 ; RUN:   %t1.bc -r=%t1.bc,main,plx -r=%t1.bc,a, -r=%t1.bc,b, -o %t4
 ; RUN: llvm-dis %t4.1.3.import.bc -o - | FileCheck %s --check-prefix=SRC
 ; RUN: llvm-dis %t4.2.3.import.bc -o - | FileCheck %s --check-prefix=DEST_DSO
 
 ; No variable in the source module should have been internalized
-; SRC:      @b = dso_local global i32* @a
+; SRC:      @b = dso_local global ptr @a
 ; SRC-NEXT: @a = dso_local global i32 42
 
 ; We can't internalize globals referenced by other live globals
-; DEST:          @b = external dso_local global i32*
+; DEST:          @b = external dso_local global ptr
 ; DEST-NEXT:     @a = available_externally dso_local global i32 42, align 4
-; DEST_DSO:      @b = external global i32*
+; DEST_DSO:      @b = external global ptr
 ; DEST_DSO-NEXT: @a = available_externally global i32 42, align 4
 
 ;; Test old API.

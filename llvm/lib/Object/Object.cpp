@@ -16,6 +16,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/MachOUniversal.h"
+#include "llvm/Support/MemAlloc.h"
 
 using namespace llvm;
 using namespace object;
@@ -119,6 +120,8 @@ LLVMBinaryType LLVMBinaryGetType(LLVMBinaryRef BR) {
         return LLVMBinaryTypeMachO64L;
       case ID_MachO64B:
         return LLVMBinaryTypeMachO64B;
+      case ID_Offload:
+        return LLVMBinaryTypeOffload;
       case ID_Wasm:
         return LLVMBinaryTypeWasm;
       case ID_StartObjects:

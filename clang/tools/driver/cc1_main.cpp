@@ -237,8 +237,10 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
                                   static_cast<void*>(&Clang->getDiagnostics()));
 
   DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
-  if (!Success)
+  if (!Success) {
+    Clang->getDiagnosticClient().finish();
     return 1;
+  }
 
   // Execute the frontend actions.
   {
@@ -258,8 +260,7 @@ int cc1_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
             Path.str(), /*Binary=*/false, /*RemoveFileOnSignal=*/false,
             /*useTemporary=*/false)) {
       llvm::timeTraceProfilerWrite(*profilerOutput);
-      // FIXME(ibiryukov): make profilerOutput flush in destructor instead.
-      profilerOutput->flush();
+      profilerOutput.reset();
       llvm::timeTraceProfilerCleanup();
       Clang->clearOutputFiles(false);
     }

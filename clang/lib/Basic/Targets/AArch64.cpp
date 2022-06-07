@@ -138,7 +138,7 @@ bool AArch64TargetInfo::setABI(const std::string &Name) {
   return true;
 }
 
-bool AArch64TargetInfo::validateBranchProtection(StringRef Spec,
+bool AArch64TargetInfo::validateBranchProtection(StringRef Spec, StringRef,
                                                  BranchProtectionInfo &BPI,
                                                  StringRef &Err) const {
   llvm::ARM::ParsedBranchProtection PBP;
@@ -435,6 +435,9 @@ void AArch64TargetInfo::getTargetDefines(const LangOptions &Opts,
   if (HasRandGen)
     Builder.defineMacro("__ARM_FEATURE_RNG", "1");
 
+  if (HasMOPS)
+    Builder.defineMacro("__ARM_FEATURE_MOPS", "1");
+
   switch (ArchKind) {
   default:
     break;
@@ -506,21 +509,18 @@ AArch64TargetInfo::getVScaleRange(const LangOptions &LangOpts) const {
 }
 
 bool AArch64TargetInfo::hasFeature(StringRef Feature) const {
-  return Feature == "aarch64" || Feature == "arm64" || Feature == "arm" ||
-         (Feature == "neon" && (FPU & NeonMode)) ||
-         ((Feature == "sve" || Feature == "sve2" || Feature == "sve2-bitperm" ||
-           Feature == "sve2-aes" || Feature == "sve2-sha3" ||
-           Feature == "sve2-sm4" || Feature == "f64mm" || Feature == "f32mm" ||
-           Feature == "i8mm" || Feature == "bf16") &&
-          (FPU & SveMode)) ||
-         (Feature == "ls64" && HasLS64);
+  return llvm::StringSwitch<bool>(Feature)
+    .Cases("aarch64", "arm64", "arm", true)
+    .Case("neon", FPU & NeonMode)
+    .Cases("sve", "sve2", "sve2-bitperm", "sve2-aes", "sve2-sha3", "sve2-sm4", "f64mm", "f32mm", "i8mm", "bf16", FPU & SveMode)
+    .Case("ls64", HasLS64)
+    .Default(false);
 }
 
 bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
                                              DiagnosticsEngine &Diags) {
   FPU = FPUMode;
   HasCRC = false;
-  HasCrypto = false;
   HasAES = false;
   HasSHA2 = false;
   HasSHA3 = false;
@@ -543,6 +543,7 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
   HasMatmulFP64 = false;
   HasMatmulFP32 = false;
   HasLSE = false;
+  HasMOPS = false;
 
   ArchKind = llvm::AArch64::ArchKind::INVALID;
 
@@ -551,36 +552,36 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       FPU |= NeonMode;
     if (Feature == "+sve") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
+      HasFullFP16 = true;
     }
     if (Feature == "+sve2") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
     }
     if (Feature == "+sve2-aes") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2AES = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2AES = true;
     }
     if (Feature == "+sve2-sha3") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2SHA3 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2SHA3 = true;
     }
     if (Feature == "+sve2-sm4") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2SM4 = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2SM4 = true;
     }
     if (Feature == "+sve2-bitperm") {
       FPU |= SveMode;
-      HasFullFP16 = 1;
-      HasSVE2 = 1;
-      HasSVE2BitPerm = 1;
+      HasFullFP16 = true;
+      HasSVE2 = true;
+      HasSVE2BitPerm = true;
     }
     if (Feature == "+f32mm") {
       FPU |= SveMode;
@@ -592,8 +593,6 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
     }
     if (Feature == "+crc")
       HasCRC = true;
-    if (Feature == "+crypto")
-      HasCrypto = true;
     if (Feature == "+aes")
       HasAES = true;
     if (Feature == "+sha2")
@@ -658,6 +657,8 @@ bool AArch64TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasRandGen = true;
     if (Feature == "+flagm")
       HasFlagM = true;
+    if (Feature == "+mops")
+      HasMOPS = true;
   }
 
   setDataLayout();
@@ -675,6 +676,7 @@ AArch64TargetInfo::checkCallingConvention(CallingConv CC) const {
   case CC_PreserveAll:
   case CC_OpenCLKernel:
   case CC_AArch64VectorCall:
+  case CC_AArch64SVEPCS:
   case CC_Win64:
     return CCCR_OK;
   default:

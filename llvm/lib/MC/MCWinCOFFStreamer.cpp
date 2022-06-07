@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/MC/MCWinCOFFStreamer.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Triple.h"
@@ -27,14 +28,12 @@
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCSymbolCOFF.h"
-#include "llvm/MC/MCWinCOFFStreamer.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
-#include <cassert>
 #include <cstdint>
 
 using namespace llvm;
@@ -142,7 +141,7 @@ void MCWinCOFFStreamer::BeginCOFFSymbolDef(MCSymbol const *S) {
   CurSymbol = Symbol;
 }
 
-void MCWinCOFFStreamer::EmitCOFFSymbolStorageClass(int StorageClass) {
+void MCWinCOFFStreamer::emitCOFFSymbolStorageClass(int StorageClass) {
   if (!CurSymbol) {
     Error("storage class specified outside of symbol definition");
     return;
@@ -158,7 +157,7 @@ void MCWinCOFFStreamer::EmitCOFFSymbolStorageClass(int StorageClass) {
   cast<MCSymbolCOFF>(CurSymbol)->setClass((uint16_t)StorageClass);
 }
 
-void MCWinCOFFStreamer::EmitCOFFSymbolType(int Type) {
+void MCWinCOFFStreamer::emitCOFFSymbolType(int Type) {
   if (!CurSymbol) {
     Error("symbol type specified outside of a symbol definition");
     return;
@@ -179,7 +178,7 @@ void MCWinCOFFStreamer::EndCOFFSymbolDef() {
   CurSymbol = nullptr;
 }
 
-void MCWinCOFFStreamer::EmitCOFFSafeSEH(MCSymbol const *Symbol) {
+void MCWinCOFFStreamer::emitCOFFSafeSEH(MCSymbol const *Symbol) {
   // SafeSEH is a feature specific to 32-bit x86.  It does not exist (and is
   // unnecessary) on all platforms which use table-based exception dispatch.
   if (getContext().getTargetTriple().getArch() != Triple::x86)
@@ -205,7 +204,7 @@ void MCWinCOFFStreamer::EmitCOFFSafeSEH(MCSymbol const *Symbol) {
                    << COFF::SCT_COMPLEX_TYPE_SHIFT);
 }
 
-void MCWinCOFFStreamer::EmitCOFFSymbolIndex(MCSymbol const *Symbol) {
+void MCWinCOFFStreamer::emitCOFFSymbolIndex(MCSymbol const *Symbol) {
   MCSection *Sec = getCurrentSectionOnly();
   getAssembler().registerSection(*Sec);
   if (Sec->getAlignment() < 4)
@@ -216,7 +215,7 @@ void MCWinCOFFStreamer::EmitCOFFSymbolIndex(MCSymbol const *Symbol) {
   getAssembler().registerSymbol(*Symbol);
 }
 
-void MCWinCOFFStreamer::EmitCOFFSectionIndex(const MCSymbol *Symbol) {
+void MCWinCOFFStreamer::emitCOFFSectionIndex(const MCSymbol *Symbol) {
   visitUsedSymbol(*Symbol);
   MCDataFragment *DF = getOrCreateDataFragment();
   const MCSymbolRefExpr *SRE = MCSymbolRefExpr::create(Symbol, getContext());
@@ -225,7 +224,7 @@ void MCWinCOFFStreamer::EmitCOFFSectionIndex(const MCSymbol *Symbol) {
   DF->getContents().resize(DF->getContents().size() + 2, 0);
 }
 
-void MCWinCOFFStreamer::EmitCOFFSecRel32(const MCSymbol *Symbol,
+void MCWinCOFFStreamer::emitCOFFSecRel32(const MCSymbol *Symbol,
                                          uint64_t Offset) {
   visitUsedSymbol(*Symbol);
   MCDataFragment *DF = getOrCreateDataFragment();
@@ -243,7 +242,7 @@ void MCWinCOFFStreamer::EmitCOFFSecRel32(const MCSymbol *Symbol,
   DF->getContents().resize(DF->getContents().size() + 4, 0);
 }
 
-void MCWinCOFFStreamer::EmitCOFFImgRel32(const MCSymbol *Symbol,
+void MCWinCOFFStreamer::emitCOFFImgRel32(const MCSymbol *Symbol,
                                          int64_t Offset) {
   visitUsedSymbol(*Symbol);
   MCDataFragment *DF = getOrCreateDataFragment();
@@ -334,7 +333,7 @@ void MCWinCOFFStreamer::emitIdent(StringRef IdentString) {
   llvm_unreachable("not implemented");
 }
 
-void MCWinCOFFStreamer::EmitWinEHHandlerData(SMLoc Loc) {
+void MCWinCOFFStreamer::emitWinEHHandlerData(SMLoc Loc) {
   llvm_unreachable("not implemented");
 }
 

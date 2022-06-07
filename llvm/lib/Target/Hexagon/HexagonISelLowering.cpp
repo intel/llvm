@@ -686,7 +686,7 @@ HexagonTargetLowering::LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const {
       case InlineAsm::Kind_RegDef:
       case InlineAsm::Kind_RegDefEarlyClobber: {
         for (; NumVals; --NumVals, ++i) {
-          unsigned Reg = cast<RegisterSDNode>(Op.getOperand(i))->getReg();
+          Register Reg = cast<RegisterSDNode>(Op.getOperand(i))->getReg();
           if (Reg != LR)
             continue;
           HMFI.setHasClobberLR(true);
@@ -1186,7 +1186,7 @@ HexagonTargetLowering::LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const {
   }
 
   // Return LR, which contains the return address. Mark it an implicit live-in.
-  unsigned Reg = MF.addLiveIn(HRI.getRARegister(), getRegClassFor(MVT::i32));
+  Register Reg = MF.addLiveIn(HRI.getRARegister(), getRegClassFor(MVT::i32));
   return DAG.getCopyFromReg(DAG.getEntryNode(), dl, Reg, VT);
 }
 
@@ -1396,10 +1396,9 @@ HexagonTargetLowering::LowerToTLSGeneralDynamicModel(GlobalAddressSDNode *GA,
   Chain = DAG.getCopyToReg(DAG.getEntryNode(), dl, Hexagon::R0, Chain, InFlag);
   InFlag = Chain.getValue(1);
 
-  unsigned Flags =
-      static_cast<const HexagonSubtarget &>(DAG.getSubtarget()).useLongCalls()
-          ? HexagonII::MO_GDPLT | HexagonII::HMOTF_ConstExtended
-          : HexagonII::MO_GDPLT;
+  unsigned Flags = DAG.getSubtarget<HexagonSubtarget>().useLongCalls()
+                       ? HexagonII::MO_GDPLT | HexagonII::HMOTF_ConstExtended
+                       : HexagonII::MO_GDPLT;
 
   return GetDynamicTLSAddr(DAG, Chain, GA, InFlag, PtrVT,
                            Hexagon::R0, Flags);
@@ -2164,6 +2163,11 @@ HexagonTargetLowering::getPreferredVectorAction(MVT VT) const {
   // Always widen (remaining) vectors of i1.
   if (ElemTy == MVT::i1)
     return TargetLoweringBase::TypeWidenVector;
+  // Widen non-power-of-2 vectors. Such types cannot be split right now,
+  // and computeRegisterProperties will override "split" with "widen",
+  // which can cause other issues.
+  if (!isPowerOf2_32(VecLen))
+    return TargetLoweringBase::TypeWidenVector;
 
   return TargetLoweringBase::TypeSplitVector;
 }
@@ -2423,16 +2427,25 @@ HexagonTargetLowering::buildVector32(ArrayRef<SDValue> Elem, const SDLoc &dl,
       llvm::all_of(Consts, [](ConstantInt *CI) { return CI->isZero(); }))
     return getZero(dl, VecTy, DAG);
 
-  if (ElemTy == MVT::i16) {
+  if (ElemTy == MVT::i16 || ElemTy == MVT::f16) {
     assert(Elem.size() == 2);
     if (AllConst) {
+      // The 'Consts' array will have all values as integers regardless
+      // of the vector element type.
       uint32_t V = (Consts[0]->getZExtValue() & 0xFFFF) |
                    Consts[1]->getZExtValue() << 16;
-      return DAG.getBitcast(MVT::v2i16, DAG.getConstant(V, dl, MVT::i32));
+      return DAG.getBitcast(VecTy, DAG.getConstant(V, dl, MVT::i32));
     }
-    SDValue N = getInstr(Hexagon::A2_combine_ll, dl, MVT::i32,
-                         {Elem[1], Elem[0]}, DAG);
-    return DAG.getBitcast(MVT::v2i16, N);
+    SDValue E0, E1;
+    if (ElemTy == MVT::f16) {
+      E0 = DAG.getZExtOrTrunc(DAG.getBitcast(MVT::i16, Elem[0]), dl, MVT::i32);
+      E1 = DAG.getZExtOrTrunc(DAG.getBitcast(MVT::i16, Elem[1]), dl, MVT::i32);
+    } else {
+      E0 = Elem[0];
+      E1 = Elem[1];
+    }
+    SDValue N = getInstr(Hexagon::A2_combine_ll, dl, MVT::i32, {E1, E0}, DAG);
+    return DAG.getBitcast(VecTy, N);
   }
 
   if (ElemTy == MVT::i8) {
@@ -2506,7 +2519,7 @@ HexagonTargetLowering::buildVector64(ArrayRef<SDValue> Elem, const SDLoc &dl,
     return getZero(dl, VecTy, DAG);
 
   // First try splat if possible.
-  if (ElemTy == MVT::i16) {
+  if (ElemTy == MVT::i16 || ElemTy == MVT::f16) {
     bool IsSplat = true;
     for (unsigned i = First+1; i != Num; ++i) {
       if (Elem[i] == Elem[First] || isUndef(Elem[i]))
@@ -2516,7 +2529,9 @@ HexagonTargetLowering::buildVector64(ArrayRef<SDValue> Elem, const SDLoc &dl,
     }
     if (IsSplat) {
       // Legalize the operand of SPLAT_VECTOR
-      SDValue Ext = DAG.getZExtOrTrunc(Elem[First], dl, MVT::i32);
+      SDValue S = ElemTy == MVT::f16 ? DAG.getBitcast(MVT::i16, Elem[First])
+                                     : Elem[First];
+      SDValue Ext = DAG.getZExtOrTrunc(S, dl, MVT::i32);
       return DAG.getNode(ISD::SPLAT_VECTOR, dl, VecTy, Ext);
     }
   }
@@ -2525,8 +2540,7 @@ HexagonTargetLowering::buildVector64(ArrayRef<SDValue> Elem, const SDLoc &dl,
   if (AllConst) {
     uint64_t Val = 0;
     unsigned W = ElemTy.getSizeInBits();
-    uint64_t Mask = (ElemTy == MVT::i8)  ? 0xFFull
-                  : (ElemTy == MVT::i16) ? 0xFFFFull : 0xFFFFFFFFull;
+    uint64_t Mask = (1ull << W) - 1;
     for (unsigned i = 0; i != Num; ++i)
       Val = (Val << W) | (Consts[Num-1-i]->getZExtValue() & Mask);
     SDValue V0 = DAG.getConstant(Val, dl, MVT::i64);
@@ -3656,9 +3670,12 @@ HexagonTargetLowering::shouldExpandAtomicLoadInIR(LoadInst *LI) const {
              : AtomicExpansionKind::None;
 }
 
-bool HexagonTargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
+TargetLowering::AtomicExpansionKind
+HexagonTargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
   // Do not expand loads and stores that don't exceed 64 bits.
-  return SI->getValueOperand()->getType()->getPrimitiveSizeInBits() > 64;
+  return SI->getValueOperand()->getType()->getPrimitiveSizeInBits() > 64
+             ? AtomicExpansionKind::Expand
+             : AtomicExpansionKind::None;
 }
 
 TargetLowering::AtomicExpansionKind

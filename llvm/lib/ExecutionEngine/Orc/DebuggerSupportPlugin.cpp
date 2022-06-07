@@ -48,7 +48,7 @@ public:
 
   MachODebugObjectSynthesizerBase(LinkGraph &G, ExecutorAddr RegisterActionAddr)
       : G(G), RegisterActionAddr(RegisterActionAddr) {}
-  virtual ~MachODebugObjectSynthesizerBase() {}
+  virtual ~MachODebugObjectSynthesizerBase() = default;
 
   Error preserveDebugSections() {
     if (G.findSectionByName(SynthDebugSectionName)) {
@@ -350,7 +350,10 @@ public:
 
     SectionRange R(MachOContainerBlock->getSection());
     G.allocActions().push_back(
-        {{RegisterActionAddr, R.getStart(), R.getSize()}, {}});
+        {cantFail(shared::WrapperFunctionCall::Create<
+                  shared::SPSArgList<shared::SPSExecutorAddrRange>>(
+             RegisterActionAddr, R.getRange())),
+         {}});
     return Error::success();
   }
 

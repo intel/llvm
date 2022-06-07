@@ -9,7 +9,7 @@
 // RUN: | FileCheck %s
 
 // CHECK-COUNT-8: [{{(5356, ){12}5356}}]
-func @main() {
+func.func @main() {
   %arg = memref.alloc() : memref<2x4x13xf32>
   %dst = memref.cast %arg : memref<2x4x13xf32> to memref<?x?x?xf32>
   %c0 = arith.constant 0 : index
@@ -28,12 +28,12 @@ func @main() {
     %idx = arith.addi %tx, %t2 : index
     %t3 = arith.index_cast %idx : index to i32
     %val = arith.sitofp %t3 : i32 to f32
-    %sum = "gpu.all_reduce"(%val) ({}) { op = "add" } : (f32) -> (f32)
+    %sum = gpu.all_reduce add %val {} : (f32) -> (f32)
     memref.store %sum, %dst[%tz, %ty, %tx] : memref<?x?x?xf32>
     gpu.terminator
   }
-  call @print_memref_f32(%cast_dst) : (memref<*xf32>) -> ()
+  call @printMemrefF32(%cast_dst) : (memref<*xf32>) -> ()
   return
 }
 
-func private @print_memref_f32(%ptr : memref<*xf32>)
+func.func private @printMemrefF32(%ptr : memref<*xf32>)

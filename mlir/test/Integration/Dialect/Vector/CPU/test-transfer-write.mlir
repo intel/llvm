@@ -1,36 +1,36 @@
-// RUN: mlir-opt %s -convert-scf-to-std -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
+// RUN: mlir-opt %s -convert-scf-to-cf -convert-vector-to-llvm -convert-memref-to-llvm -convert-func-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
 // RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-func @transfer_write16_inbounds_1d(%A : memref<?xf32>, %base: index) {
+func.func @transfer_write16_inbounds_1d(%A : memref<?xf32>, %base: index) {
   %f = arith.constant 16.0 : f32
-  %v = splat %f : vector<16xf32>
+  %v = vector.splat %f : vector<16xf32>
   vector.transfer_write %v, %A[%base]
     {permutation_map = affine_map<(d0) -> (d0)>, in_bounds = [true]}
     : vector<16xf32>, memref<?xf32>
   return
 }
 
-func @transfer_write13_1d(%A : memref<?xf32>, %base: index) {
+func.func @transfer_write13_1d(%A : memref<?xf32>, %base: index) {
   %f = arith.constant 13.0 : f32
-  %v = splat %f : vector<13xf32>
+  %v = vector.splat %f : vector<13xf32>
   vector.transfer_write %v, %A[%base]
     {permutation_map = affine_map<(d0) -> (d0)>}
     : vector<13xf32>, memref<?xf32>
   return
 }
 
-func @transfer_write17_1d(%A : memref<?xf32>, %base: index) {
+func.func @transfer_write17_1d(%A : memref<?xf32>, %base: index) {
   %f = arith.constant 17.0 : f32
-  %v = splat %f : vector<17xf32>
+  %v = vector.splat %f : vector<17xf32>
   vector.transfer_write %v, %A[%base]
     {permutation_map = affine_map<(d0) -> (d0)>}
     : vector<17xf32>, memref<?xf32>
   return
 }
 
-func @transfer_read_1d(%A : memref<?xf32>) -> vector<32xf32> {
+func.func @transfer_read_1d(%A : memref<?xf32>) -> vector<32xf32> {
   %z = arith.constant 0: index
   %f = arith.constant 0.0: f32
   %r = vector.transfer_read %A[%z], %f
@@ -39,7 +39,7 @@ func @transfer_read_1d(%A : memref<?xf32>) -> vector<32xf32> {
   return %r : vector<32xf32>
 }
 
-func @entry() {
+func.func @entry() {
   %c0 = arith.constant 0: index
   %c1 = arith.constant 1: index
   %c32 = arith.constant 32: index

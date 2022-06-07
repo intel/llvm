@@ -10,17 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_SCF_H_
-#define MLIR_DIALECT_SCF_H_
+#ifndef MLIR_DIALECT_SCF_SCF_H
+#define MLIR_DIALECT_SCF_SCF_H
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/RegionKindInterface.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/ViewLikeInterface.h"
 
 namespace mlir {
 namespace scf {
@@ -98,4 +97,4 @@ LoopNest buildLoopNest(OpBuilder &builder, Location loc, ValueRange lbs,
 
 } // namespace scf
 } // namespace mlir
-#endif // MLIR_DIALECT_SCF_H_
+#endif // MLIR_DIALECT_SCF_SCF_H

@@ -11,7 +11,7 @@ endif()
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 14)
+  set(LLVM_VERSION_MAJOR 15)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -28,7 +28,12 @@ if (NOT PACKAGE_VERSION)
     "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX}")
 endif()
 
-if ((CMAKE_GENERATOR MATCHES "Visual Studio") AND (CMAKE_GENERATOR_TOOLSET STREQUAL ""))
+if(NOT DEFINED LLVM_SHLIB_SYMBOL_VERSION)
+  # "Symbol version prefix for libLLVM.so"
+  set(LLVM_SHLIB_SYMBOL_VERSION "LLVM_${LLVM_VERSION_MAJOR}")
+endif()
+
+if ((CMAKE_GENERATOR MATCHES "Visual Studio") AND (MSVC_TOOLSET_VERSION LESS 142) AND (CMAKE_GENERATOR_TOOLSET STREQUAL ""))
   message(WARNING "Visual Studio generators use the x86 host compiler by "
                   "default, even for 64-bit targets. This can result in linker "
                   "instability and out of memory errors. To use the 64-bit "
@@ -45,6 +50,9 @@ project(LLVM
   VERSION ${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}
   LANGUAGES C CXX ASM)
 
+# Must go after project(..)
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 if (CYGWIN)
@@ -56,15 +64,22 @@ else()
 endif()
 
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "No build type selected, default to Debug")
-  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type (default Debug)" FORCE)
+  message(FATAL_ERROR "
+No build type selected. You need to pass -DCMAKE_BUILD_TYPE=<type> in order to configure LLVM.
+Available options are:
+  * -DCMAKE_BUILD_TYPE=Release - For an optimized build with no assertions or debug info.
+  * -DCMAKE_BUILD_TYPE=Debug - For an unoptimized build with assertions and debug info.
+  * -DCMAKE_BUILD_TYPE=RelWithDebInfo - For an optimized build with no assertions but with debug info.
+  * -DCMAKE_BUILD_TYPE=MinSizeRel - For a build optimized for size instead of speed.
+Learn more about these options in our documentation at https://llvm.org/docs/CMake.html#cmake-build-type
+")
 endif()
 
 # Side-by-side subprojects layout: automatically set the
 # LLVM_EXTERNAL_${project}_SOURCE_DIR using LLVM_ALL_PROJECTS
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
-set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;polly;pstl")
+set(LLVM_ALL_PROJECTS "bolt;clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;polly;pstl")
 set(LLVM_ALL_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTERNAL_PROJECTS}")
 # The flang project is not yet part of "all" projects (see C++ requirements)
 set(LLVM_EXTRA_PROJECTS "flang")
@@ -160,11 +175,12 @@ set(LLVM_CCACHE_BUILD OFF CACHE BOOL "Set to ON for a ccache enabled build")
 if(LLVM_CCACHE_BUILD)
   find_program(CCACHE_PROGRAM ccache)
   if(CCACHE_PROGRAM)
-      set(LLVM_CCACHE_MAXSIZE "" CACHE STRING "Size of ccache")
-      set(LLVM_CCACHE_DIR "" CACHE STRING "Directory to keep ccached data")
-      set(LLVM_CCACHE_PARAMS "CCACHE_CPP2=yes CCACHE_HASHDIR=yes"
-          CACHE STRING "Parameters to pass through to ccache")
+    set(LLVM_CCACHE_MAXSIZE "" CACHE STRING "Size of ccache")
+    set(LLVM_CCACHE_DIR "" CACHE STRING "Directory to keep ccached data")
+    set(LLVM_CCACHE_PARAMS "CCACHE_CPP2=yes CCACHE_HASHDIR=yes"
+        CACHE STRING "Parameters to pass through to ccache")
 
+    if(NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
       set(CCACHE_PROGRAM "${LLVM_CCACHE_PARAMS} ${CCACHE_PROGRAM}")
       if (LLVM_CCACHE_MAXSIZE)
         set(CCACHE_PROGRAM "CCACHE_MAXSIZE=${LLVM_CCACHE_MAXSIZE} ${CCACHE_PROGRAM}")
@@ -173,6 +189,16 @@ if(LLVM_CCACHE_BUILD)
         set(CCACHE_PROGRAM "CCACHE_DIR=${LLVM_CCACHE_DIR} ${CCACHE_PROGRAM}")
       endif()
       set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_PROGRAM})
+    else()
+      if(LLVM_CCACHE_MAXSIZE OR LLVM_CCACHE_DIR OR
+         NOT LLVM_CCACHE_PARAMS MATCHES "CCACHE_CPP2=yes CCACHE_HASHDIR=yes")
+        message(FATAL_ERROR "Ccache configuration through CMake is not supported on Windows. Please use environment variables.")
+      endif()
+      # RULE_LAUNCH_COMPILE should work with Ninja but currently has issues
+      # with cmd.exe and some MSVC tools other than cl.exe
+      set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+      set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})     
+    endif()
   else()
     message(FATAL_ERROR "Unable to find the program ccache. Set LLVM_CCACHE_BUILD to OFF")
   endif()
@@ -291,12 +317,17 @@ endif()
 
 set(LLVM_LIBDIR_SUFFIX "" CACHE STRING "Define suffix of library directory name (32/64)" )
 
-set(LLVM_TOOLS_INSTALL_DIR "bin" CACHE STRING "Path for binary subdirectory (defaults to 'bin')")
+set(LLVM_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE STRING
+    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
 mark_as_advanced(LLVM_TOOLS_INSTALL_DIR)
 
 set(LLVM_UTILS_INSTALL_DIR "${LLVM_TOOLS_INSTALL_DIR}" CACHE STRING
     "Path to install LLVM utilities (enabled by LLVM_INSTALL_UTILS=ON) (defaults to LLVM_TOOLS_INSTALL_DIR)")
 mark_as_advanced(LLVM_UTILS_INSTALL_DIR)
+
+set(LLVM_EXAMPLES_INSTALL_DIR "examples" CACHE STRING
+    "Path for examples subdirectory (enabled by LLVM_BUILD_EXAMPLES=ON) (defaults to 'examples')")
+mark_as_advanced(LLVM_EXAMPLES_INSTALL_DIR)
 
 # They are used as destination of target generators.
 set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/bin)
@@ -454,6 +485,7 @@ option(LLVM_ENABLE_PEDANTIC "Compile with pedantic enabled." ON)
 option(LLVM_ENABLE_WERROR "Fail and stop if a warning is triggered." OFF)
 
 option(LLVM_ENABLE_DUMP "Enable dump functions even when assertions are disabled" OFF)
+option(LLVM_UNREACHABLE_OPTIMIZE "Optimize llvm_unreachable() as undefined behavior (default), guaranteed trap when OFF" ON)
 
 if( NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
   option(LLVM_ENABLE_ASSERTIONS "Enable assertions" OFF)
@@ -613,9 +645,9 @@ option (LLVM_ENABLE_SPHINX "Use Sphinx to generate llvm documentation." OFF)
 option (LLVM_ENABLE_OCAMLDOC "Build OCaml bindings documentation." ON)
 option (LLVM_ENABLE_BINDINGS "Build bindings." ON)
 
-set(LLVM_INSTALL_DOXYGEN_HTML_DIR "share/doc/llvm/doxygen-html"
+set(LLVM_INSTALL_DOXYGEN_HTML_DIR "${CMAKE_INSTALL_DOCDIR}/llvm/doxygen-html"
     CACHE STRING "Doxygen-generated HTML documentation install directory")
-set(LLVM_INSTALL_OCAMLDOC_HTML_DIR "share/doc/llvm/ocaml-html"
+set(LLVM_INSTALL_OCAMLDOC_HTML_DIR "${CMAKE_INSTALL_DOCDIR}/llvm/ocaml-html"
     CACHE STRING "OCamldoc-generated HTML documentation install directory")
 
 option (LLVM_BUILD_EXTERNAL_COMPILER_RT
@@ -721,10 +753,23 @@ set(LLVM_PROFDATA_FILE "" CACHE FILEPATH
 include(config-ix)
 
 # By default, we target the host, but this can be overridden at CMake
-# invocation time.
-set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_HOST_TRIPLE}" CACHE STRING
+# invocation time. Except on 64-bit AIX, where the system toolchain
+# expect 32-bit objects by default.
+if("${LLVM_HOST_TRIPLE}" MATCHES "^powerpc64-ibm-aix")
+  string(REGEX REPLACE "^powerpc64" "powerpc" LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+else()
+  set(LLVM_DEFAULT_TARGET_TRIPLE_default "${LLVM_HOST_TRIPLE}")
+endif()
+
+set(LLVM_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE_default}" CACHE STRING
   "Default target for which LLVM will generate code." )
-set(TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+if (TARGET_TRIPLE)
+  message(WARNING "TARGET_TRIPLE is deprecated and will be removed in a future release. "
+                  "Please use LLVM_DEFAULT_TARGET_TRIPLE instead.")
+  set(LLVM_TARGET_TRIPLE "${TARGET_TRIPLE}")
+else()
+  set(LLVM_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+endif()
 message(STATUS "LLVM host triple: ${LLVM_HOST_TRIPLE}")
 message(STATUS "LLVM default target triple: ${LLVM_DEFAULT_TARGET_TRIPLE}")
 
@@ -739,12 +784,11 @@ else()
 endif()
 option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default})
 
-set(LLVM_ENABLE_NEW_PASS_MANAGER FALSE CACHE BOOL
+set(LLVM_ENABLE_NEW_PASS_MANAGER TRUE CACHE BOOL
   "Enable the new pass manager by default.")
 if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
-  message(WARNING "Using the legacy pass manager for the optimization pipeline"
-                  " is deprecated. The functionality will degrade over time and"
-                  " be removed in a future release.")
+  message(FATAL_ERROR "Enabling the legacy pass manager on the cmake level is"
+                      " no longer supported.")
 endif()
 
 include(HandleLLVMOptions)
@@ -886,12 +930,23 @@ if (NOT TENSORFLOW_AOT_PATH STREQUAL "")
     ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT tf_xla_runtime)
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS tf_xla_runtime)
   # Once we add more modules, we should handle this more automatically.
-  if (NOT DEFINED LLVM_INLINER_MODEL_PATH
+  if (DEFINED LLVM_OVERRIDE_MODEL_HEADER_INLINERSIZEMODEL)
+    set(LLVM_INLINER_MODEL_PATH "none")
+  elseif(NOT DEFINED LLVM_INLINER_MODEL_PATH
       OR "${LLVM_INLINER_MODEL_PATH}" STREQUAL ""
       OR "${LLVM_INLINER_MODEL_PATH}" STREQUAL "autogenerate")
     set(LLVM_INLINER_MODEL_PATH "autogenerate")
     set(LLVM_INLINER_MODEL_AUTOGENERATED 1)
   endif()
+  if (DEFINED LLVM_OVERRIDE_MODEL_HEADER_REGALLOCEVICTMODEL)
+    set(LLVM_RAEVICT_MODEL_PATH "none")
+  elseif(NOT DEFINED LLVM_RAEVICT_MODEL_PATH
+      OR "${LLVM_RAEVICT_MODEL_PATH}" STREQUAL ""
+      OR "${LLVM_RAEVICT_MODEL_PATH}" STREQUAL "autogenerate")
+    set(LLVM_RAEVICT_MODEL_PATH "autogenerate")
+    set(LLVM_RAEVICT_MODEL_AUTOGENERATED 1)
+  endif()
+
 endif()
 
 # Configure the three LLVM configuration header files.
@@ -1021,6 +1076,10 @@ if( MINGW AND NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
   llvm_replace_compiler_option(CMAKE_CXX_FLAGS_RELEASE "-O3" "-O2")
 endif()
 
+if(LLVM_INCLUDE_TESTS)
+  umbrella_lit_testsuite_begin(check-all)
+endif()
+
 # Put this before tblgen. Else we have a circular dependence.
 add_subdirectory(lib/Demangle)
 add_subdirectory(lib/Support)
@@ -1092,28 +1151,12 @@ if( LLVM_INCLUDE_TESTS )
     add_subdirectory(utils/KillTheDoctor)
   endif()
 
-  # Add a global check rule now that all subdirectories have been traversed
-  # and we know the total set of lit testsuites.
-  get_property(LLVM_LIT_TESTSUITES GLOBAL PROPERTY LLVM_LIT_TESTSUITES)
-  get_property(LLVM_LIT_PARAMS GLOBAL PROPERTY LLVM_LIT_PARAMS)
-  get_property(LLVM_LIT_DEPENDS GLOBAL PROPERTY LLVM_LIT_DEPENDS)
-  get_property(LLVM_LIT_EXTRA_ARGS GLOBAL PROPERTY LLVM_LIT_EXTRA_ARGS)
-  get_property(LLVM_ADDITIONAL_TEST_TARGETS
-               GLOBAL PROPERTY LLVM_ADDITIONAL_TEST_TARGETS)
-  get_property(LLVM_ADDITIONAL_TEST_DEPENDS
-               GLOBAL PROPERTY LLVM_ADDITIONAL_TEST_DEPENDS)
-  add_lit_target(check-all
-    "Running all regression tests"
-    ${LLVM_LIT_TESTSUITES}
-    PARAMS ${LLVM_LIT_PARAMS}
-    DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_TARGETS}
-    ARGS ${LLVM_LIT_EXTRA_ARGS}
-    )
-  if(TARGET check-runtimes)
-    add_dependencies(check-all check-runtimes)
-  endif()
+  umbrella_lit_testsuite_end(check-all)
+  get_property(LLVM_ALL_LIT_DEPENDS GLOBAL PROPERTY LLVM_ALL_LIT_DEPENDS)
+  get_property(LLVM_ALL_ADDITIONAL_TEST_DEPENDS
+      GLOBAL PROPERTY LLVM_ALL_ADDITIONAL_TEST_DEPENDS)
   add_custom_target(test-depends
-                    DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_DEPENDS})
+      DEPENDS ${LLVM_ALL_LIT_DEPENDS} ${LLVM_ALL_ADDITIONAL_TEST_DEPENDS})
   set_target_properties(test-depends PROPERTIES FOLDER "Tests")
 endif()
 
@@ -1130,7 +1173,7 @@ endif()
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   install(DIRECTORY include/llvm include/llvm-c
-    DESTINATION include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT llvm-headers
     FILES_MATCHING
     PATTERN "*.def"
@@ -1141,7 +1184,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     )
 
   install(DIRECTORY ${LLVM_INCLUDE_DIR}/llvm ${LLVM_INCLUDE_DIR}/llvm-c
-    DESTINATION include
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     COMPONENT llvm-headers
     FILES_MATCHING
     PATTERN "*.def"
@@ -1155,13 +1198,13 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
 
   if (LLVM_INSTALL_MODULEMAPS)
     install(DIRECTORY include/llvm include/llvm-c
-            DESTINATION include
+            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
             COMPONENT llvm-headers
             FILES_MATCHING
             PATTERN "module.modulemap"
             )
     install(FILES include/llvm/module.install.modulemap
-            DESTINATION include/llvm
+            DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/llvm"
             COMPONENT llvm-headers
             RENAME "module.extern.modulemap"
             )
@@ -1220,11 +1263,11 @@ if (LLVM_INCLUDE_BENCHMARKS)
   set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "Don't install benchmark" FORCE)
   set(BENCHMARK_DOWNLOAD_DEPENDENCIES OFF CACHE BOOL "Don't download dependencies" FORCE)
   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable Google Test in benchmark" FORCE)
-  set(BENCHMARK_ENABLE_WERROR ${LLVM_ENABLE_WERROR} CACHE BOOL 
+  set(BENCHMARK_ENABLE_WERROR ${LLVM_ENABLE_WERROR} CACHE BOOL
     "Handle -Werror for Google Benchmark based on LLVM_ENABLE_WERROR" FORCE)
   # Since LLVM requires C++11 it is safe to assume that std::regex is available.
   set(HAVE_STD_REGEX ON CACHE BOOL "OK" FORCE)
-  add_subdirectory(${LLVM_THIRD_PARTY_DIR}/benchmark 
+  add_subdirectory(${LLVM_THIRD_PARTY_DIR}/benchmark
     ${CMAKE_CURRENT_BINARY_DIR}/third-party/benchmark)
   add_subdirectory(benchmarks)
 endif()

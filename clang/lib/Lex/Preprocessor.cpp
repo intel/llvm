@@ -158,11 +158,6 @@ Preprocessor::Preprocessor(std::shared_ptr<PreprocessorOptions> PPOpts,
   if (this->PPOpts->GeneratePreamble)
     PreambleConditionalStack.startRecording();
 
-  ExcludedConditionalDirectiveSkipMappings =
-      this->PPOpts->ExcludedConditionalDirectiveSkipMappings;
-  if (ExcludedConditionalDirectiveSkipMappings)
-    ExcludedConditionalDirectiveSkipMappings->clear();
-
   MaxTokens = LangOpts.MaxTokens;
 }
 
@@ -208,6 +203,9 @@ void Preprocessor::Initialize(const TargetInfo &Target,
 
   // Populate the identifier table with info about keywords for the current language.
   Identifiers.AddKeywords(LangOpts);
+
+  // Initialize the __FTL_EVAL_METHOD__ macro to the TargetInfo.
+  setTUFPEvalMethod(getTargetInfo().getFPEvalMethod());
 }
 
 void Preprocessor::InitializeForModelFile() {
@@ -229,8 +227,10 @@ void Preprocessor::FinalizeForModelFile() {
 }
 
 void Preprocessor::DumpToken(const Token &Tok, bool DumpFlags) const {
-  llvm::errs() << tok::getTokenName(Tok.getKind()) << " '"
-               << getSpelling(Tok) << "'";
+  llvm::errs() << tok::getTokenName(Tok.getKind());
+
+  if (!Tok.isAnnotation())
+    llvm::errs() << " '" << getSpelling(Tok) << "'";
 
   if (!DumpFlags) return;
 
@@ -377,7 +377,9 @@ StringRef Preprocessor::getLastMacroWithSpelling(
 
 void Preprocessor::recomputeCurLexerKind() {
   if (CurLexer)
-    CurLexerKind = CLK_Lexer;
+    CurLexerKind = CurLexer->isDependencyDirectivesLexer()
+                       ? CLK_DependencyDirectivesLexer
+                       : CLK_Lexer;
   else if (CurTokenLexer)
     CurLexerKind = CLK_TokenLexer;
   else
@@ -549,7 +551,7 @@ void Preprocessor::EnterMainSourceFile() {
     // Tell the header info that the main file was entered.  If the file is later
     // #imported, it won't be re-entered.
     if (const FileEntry *FE = SourceMgr.getFileEntryForID(MainFileID))
-      HeaderInfo.IncrementIncludeCount(FE);
+      markIncluded(FE);
   }
 
   // Preprocess Predefines to populate the initial preprocessor state.
@@ -566,11 +568,10 @@ void Preprocessor::EnterMainSourceFile() {
   if (!PPOpts->PCHThroughHeader.empty()) {
     // Lookup and save the FileID for the through header. If it isn't found
     // in the search path, it's a fatal error.
-    const DirectoryLookup *CurDir;
     Optional<FileEntryRef> File = LookupFile(
         SourceLocation(), PPOpts->PCHThroughHeader,
-        /*isAngled=*/false, /*FromDir=*/nullptr, /*FromFile=*/nullptr, CurDir,
-        /*SearchPath=*/nullptr, /*RelativePath=*/nullptr,
+        /*isAngled=*/false, /*FromDir=*/nullptr, /*FromFile=*/nullptr,
+        /*CurDir=*/nullptr, /*SearchPath=*/nullptr, /*RelativePath=*/nullptr,
         /*SuggestedModule=*/nullptr, /*IsMapped=*/nullptr,
         /*IsFrameworkFound=*/nullptr);
     if (!File) {
@@ -640,6 +641,9 @@ void Preprocessor::SkipTokensWhileUsingPCH() {
       break;
     case CLK_CachingLexer:
       CachingLex(Tok);
+      break;
+    case CLK_DependencyDirectivesLexer:
+      CurLexer->LexDependencyDirectiveToken(Tok);
       break;
     case CLK_LexAfterModuleImport:
       LexAfterModuleImport(Tok);
@@ -901,6 +905,9 @@ void Preprocessor::Lex(Token &Result) {
     case CLK_CachingLexer:
       CachingLex(Result);
       ReturnedToken = true;
+      break;
+    case CLK_DependencyDirectivesLexer:
+      ReturnedToken = CurLexer->LexDependencyDirectiveToken(Result);
       break;
     case CLK_LexAfterModuleImport:
       ReturnedToken = LexAfterModuleImport(Result);

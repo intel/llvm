@@ -33,6 +33,7 @@ class SanitizerArgs {
   int CoverageFeatures = 0;
   int MsanTrackOrigins = 0;
   bool MsanUseAfterDtor = true;
+  bool MsanParamRetval = false;
   bool CfiCrossDso = false;
   bool CfiICallGeneralizePointers = false;
   bool CfiCanonicalJumpTables = false;
@@ -62,6 +63,8 @@ class SanitizerArgs {
   bool HwasanUseAliases = false;
   llvm::AsanDetectStackUseAfterReturnMode AsanUseAfterReturn =
       llvm::AsanDetectStackUseAfterReturnMode::Invalid;
+
+  std::string MemtagMode;
 
 public:
   /// Parses the sanitizer arguments from an argument list.
@@ -95,6 +98,18 @@ public:
   bool needsCfiDiagRt() const;
   bool needsStatsRt() const { return Stats; }
   bool needsScudoRt() const { return Sanitizers.has(SanitizerKind::Scudo); }
+
+  bool hasMemTag() const { return hasMemtagHeap() || hasMemtagStack(); }
+  bool hasMemtagHeap() const {
+    return Sanitizers.has(SanitizerKind::MemtagHeap);
+  }
+  bool hasMemtagStack() const {
+    return Sanitizers.has(SanitizerKind::MemtagStack);
+  }
+  const std::string &getMemtagMode() const {
+    assert(!MemtagMode.empty());
+    return MemtagMode;
+  }
 
   bool requiresPIE() const;
   bool needsUnwindTables() const;

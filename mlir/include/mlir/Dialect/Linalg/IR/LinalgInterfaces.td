@@ -34,6 +34,7 @@ def LinalgContractionOpInterface : OpInterface<"ContractionOpInterface"> {
   }];
   let cppNamespace = "::mlir::linalg";
   let verify = [{ return detail::verifyContractionInterface($_op); }];
+  let verifyWithRegions = 1;
   let methods = [
     InterfaceMethod<
     /*desc=*/"Returns the left-hand side operand.",
@@ -127,6 +128,50 @@ def LinalgConvolutionOpInterface : OpInterface<"ConvolutionOpInterface"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         return $_op.getOperation()->getOperand(1);
+      }]
+    >,
+  ];
+}
+
+def LinalgFillOpInterface : OpInterface<"FillOpInterface"> {
+  let description = [{
+    A fill operation is defined in general terms:
+    1. Has a scalar `value` operand.
+    2. Has one `output` operand.
+  }];
+  let cppNamespace = "::mlir::linalg";
+  let verify = [{ return detail::verifyFillInterface($_op); }];
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Return the fill value.",
+      /*retTy=*/"Value",
+      /*methodName=*/"value",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op.getOperation()->getOperand(0);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Return the output operand.",
+      /*retTy=*/"Value",
+      /*methodName=*/"output",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op.getOperation()->getOperand(1);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Return the result.",
+      /*retTy=*/"Value",
+      /*methodName=*/"result",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        if ($_op.getOperation()->getResults().empty())
+          return nullptr;
+        return $_op.getOperation()->getResults().front();
       }]
     >,
   ];
@@ -643,6 +688,19 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Return the block argument for an `opOperand`.
+      }],
+      /*retTy=*/"BlockArgument",
+      /*methodName=*/"getTiedBlockArgument",
+      /*args=*/(ins "OpOperand *":$opOperand),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        assert(opOperand->getOwner() == this->getOperation());
+        return getBlock()->getArgument(opOperand->getOperandNumber());
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return the input or output indexing map for `opOperand`.
       }],
       /*retTy=*/"AffineMap",
@@ -654,6 +712,22 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         auto indexingMaps =
           $_op.indexing_maps().template getAsValueRange<AffineMapAttr>();
         return *(indexingMaps.begin() + opOperand->getOperandNumber());
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the indexing map for a `result`.
+      }],
+      /*retTy=*/"AffineMap",
+      /*methodName=*/"getTiedIndexingMapForResult",
+      /*args=*/(ins "OpResult":$result),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        assert(result.getOwner() == this->getOperation());
+        auto indexingMaps =
+          $_op.indexing_maps().template getAsValueRange<AffineMapAttr>();
+          return *(indexingMaps.begin() + getNumInputs() +
+              result.getResultNumber());
       }]
     >,
     InterfaceMethod<
@@ -670,6 +744,24 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         assert(resultIndex >= 0 &&
                resultIndex < this->getOperation()->getNumResults() );
         return this->getOperation()->getResult(resultIndex);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the value yielded by the region corresponding to an output
+        `opOperand`.
+      }],
+      /*retTy=*/"OpOperand *",
+      /*methodName=*/"getTiedYieldValue",
+      /*args=*/(ins "OpOperand*":$opOperand),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        assert(opOperand->getOwner() == this->getOperation());
+        int64_t resultIndex = opOperand->getOperandNumber() - getNumInputs();
+        assert(resultIndex >= 0 &&
+               resultIndex < this->getOperation()->getNumResults());
+        Operation *yieldOp = getBlock()->getTerminator();
+        return &yieldOp->getOpOperand(resultIndex);
       }]
     >,
     //===------------------------------------------------------------------===//
@@ -868,6 +960,19 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
+        Checks if the given operands can be dropped, and the remaining
+        operands can still compute the bounds of the op.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"canOpOperandsBeDropped",
+      /*args=*/(ins "ArrayRef<OpOperand *>":$droppedOperands),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return detail::canOpOperandsBeDroppedImpl($_op, droppedOperands);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
         Return the range of position in the result of the affine map
         computed by getLoopsToShapesMap() which correspond to the
         AffineExprs used to access the outputs of the operation.
@@ -907,18 +1012,17 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
       /*desc=*/[{
         Returns the statically-known loop ranges. Composes
         `getShapesToLoopsMap()` with the result of `getStaticShape`.
-        Returns None if `getShapesToLoopsMap()` fails. Returns
-        ShapeType::kDynamicSize for non-statically-known loop ranges.
+        Returns ShapeType::kDynamicSize for non-statically-known loop ranges.
+        This is expected to be called by a valid Linalg op
       }],
-      /*retTy=*/"Optional<SmallVector<int64_t, 4>>",
+      /*retTy=*/"SmallVector<int64_t, 4>",
       /*methodName=*/"getStaticLoopRanges",
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         SmallVector<int64_t> viewSizes = getStaticShape();
         AffineMap invertedMap = getShapesToLoopsMap();
-        if (!invertedMap)
-          return {};
+        assert(invertedMap && "expected a valid Linalg op to call the method");
         return invertedMap.compose(viewSizes);
       }]
     >,
@@ -943,7 +1047,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
           $_op->getAttrs());
         for (Region &r : $_op->getRegions())
           r.cloneInto(state.addRegion(), bvm);
-        return b.createOperation(state);
+        return b.create(state);
       }]
     >,
     InterfaceMethod<
@@ -964,7 +1068,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
           $_op->getAttrs());
         for (Region &r : $_op->getRegions())
           r.cloneInto(state.addRegion(), bvm);
-        return b.createOperation(state);
+        return b.create(state);
       }]
     >,
     InterfaceMethod<
@@ -985,7 +1089,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
           $_op->getAttrs());
         for (size_t cnt = 0, e = $_op->getNumRegions(); cnt < e; ++cnt)
           state.addRegion();
-        return b.createOperation(state);
+        return b.create(state);
       }]
     >,
     StaticInterfaceMethod<
@@ -994,10 +1098,23 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
         Returns a null function if this named op does not define a region
         builder.
       }],
-      /*retTy=*/"std::function<void(ImplicitLocOpBuilder &, Block &)>",
+      /*retTy=*/"std::function<void(ImplicitLocOpBuilder &, Block &, ArrayRef<NamedAttribute>)>",
       /*methodName=*/"getRegionBuilder",
       (ins),
       [{ return ConcreteOp::getRegionBuilder(); }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return true if all the indexing maps are projected permutations.
+        Otherwise return false.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"hasOnlyProjectedPermutations",
+      (ins),
+      [{
+        return llvm::all_of($_op.getIndexingMaps(),
+                            [](AffineMap map) { return map.isProjectedPermutation(); });
+      }]
     >
   ];
 
@@ -1026,6 +1143,9 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
     LogicalResult reifyResultShapes(OpBuilder &b,
         ReifiedRankedShapedTypeDims &reifiedReturnShapes);
 
+    // TODO: Remove once prefixing is flipped.
+    ArrayAttr getIteratorTypes() { return iterator_types(); }
+
     //========================================================================//
     // Helper functions to mutate the `operand_segment_sizes` attribute.
     // These are useful when cloning and changing operand types.
@@ -1045,6 +1165,7 @@ def LinalgStructuredInterface : OpInterface<"LinalgOp"> {
   }];
 
   let verify = [{ return detail::verifyStructuredOpInterface($_op); }];
+  let verifyWithRegions = 1;
 }
 
 #endif // LINALG_IR_LINALGINTERFACES

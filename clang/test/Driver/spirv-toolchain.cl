@@ -59,7 +59,21 @@
 // TMP: {{llvm-spirv.*"}} [[S]] "-to-binary" "-o" {{".*o"}}
 
 //-----------------------------------------------------------------------------
-// Check that warning occurs if multiple input files are passed.
-// RUN: %clang -### --target=spirv64 %s %s 2>&1 | FileCheck --check-prefix=WARN %s
+// Check linking when multiple input files are passed.
+// RUN: %clang -### -target spirv64 %s %s 2>&1 | FileCheck --check-prefix=SPLINK %s
 
-// WARN: warning: Linking multiple input files is not supported for SPIR-V yet
+// SPLINK: "-cc1" "-triple" "spirv64"
+// SPLINK-SAME: "-o" [[BC:".*bc"]]
+// SPLINK: {{llvm-spirv.*"}} [[BC]] "-o" [[SPV1:".*o"]]
+// SPLINK: "-cc1" "-triple" "spirv64"
+// SPLINK-SAME: "-o" [[BC:".*bc"]]
+// SPLINK: {{llvm-spirv.*"}} [[BC]] "-o" [[SPV2:".*o"]]
+// SPLINK: {{spirv-link.*"}} [[SPV1]] [[SPV2]] "-o" "a.out"
+
+//-----------------------------------------------------------------------------
+// Check external vs internal object emission.
+// RUN: %clang -### --target=spirv64 -fno-integrated-objemitter %s 2>&1 | FileCheck --check-prefix=XTOR %s
+// RUN: %clang -### --target=spirv64 -fintegrated-objemitter %s 2>&1 | FileCheck --check-prefix=BACKEND %s
+
+// XTOR: {{llvm-spirv.*"}}
+// BACKEND-NOT: {{llvm-spirv.*"}}

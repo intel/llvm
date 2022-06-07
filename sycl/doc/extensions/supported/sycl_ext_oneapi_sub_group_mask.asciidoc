@@ -1,0 +1,340 @@
+= sycl_ext_oneapi_sub_group_mask
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+This document describes an extension which adds a `sub_group_mask` type.  Such a mask can be used to efficiently represent subsets of work-items in a sub-group for which a given Boolean condition holds.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Revision: 1
+
+== Contact
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_SUB_GROUP_MASK` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+== Overview
+
+A group mask is an integral type sized such that each work-item in the group is
+represented by a single bit. Such a mask can be used to efficiently represent
+subsets of work-items in a group for which a given Boolean condition holds.
+
+Group mask functionality is currently limited to groups that are instances of
+the `sub_group` class, but this limitation may be lifted in a future version of
+the specification.
+
+=== Ballot
+
+The `group_ballot` algorithm converts a Boolean condition from each work-item
+in the group into a group mask.  Like other group algorithms, `group_ballot`
+must be encountered by all work-items in the group in converged control flow.
+
+|===
+|Function|Description
+
+|`template <typename Group> Group::mask_type group_ballot(Group g, bool predicate = true)`
+|Return a `sub_group_mask` with one bit for each work-item in group _g_. A bit is set in this mask if and only if the corresponding work-item's _predicate_ is `true`.
+|===
+
+=== Group Masks
+
+The group mask type is an opaque type, permitting implementations to use any
+mask representation that has the same size and alignment across host and
+device. The maximum number of bits that can be stored in a `sub_group_mask` is
+exposed as a static member variable, `sub_group_mask::max_bits`.
+
+Functions declared in the `sub_group_mask` class can be called independently by
+different work-items in the same group.  An instance of a group class (e.g.
+`group` or `sub_group`) is not required to manipulate a group mask.
+
+The mask is defined such that the least significant bit (LSB) corresponds to
+the work-item with id 0, and the most significant bit (MSB) corresponds to the
+work-item with the id `max_local_range()-1`.
+
+|===
+|Member Function|Description
+
+|`bool operator[](id<1> id) const`
+|Return `true` if the bit corresponding to the specified _id_ is set in the
+ mask.
+
+|`sub_group_mask::reference operator[](id<1> id)`
+|Return a reference to the bit corresponding to the specified _id_ in the mask.
+
+|`bool test(id<1> id) const`
+|Return `true` if the bit corresponding to the specified _id_ is set in the
+ mask.
+
+|`bool all() const`
+|Return `true` if all bits in the mask are set.
+
+|`bool any() const`
+|Return `true` if any bits in the mask are set.
+
+|`bool none() const`
+|Return `true` if none of the bits in the mask are set.
+
+|`uint32_t count() const`
+|Return the number of bits set in the mask.
+
+|`uint32_t size() const`
+|Return the number of bits in the mask.
+
+|`id<1> find_low() const`
+|Return the lowest `id` with a corresponding bit set in the mask. If no bits
+ are set, the return value is equal to `size()`.
+
+|`id<1> find_high() const`
+|Return the highest `id` with a corresponding bit set in the mask. If no bits
+ are set, the return value is equal to `size()`.
+
+|`template <typename T> void insert_bits(const T &bits, id<1> pos = 0)`
+|Insert `CHAR_BIT * sizeof(T)` bits into the mask, starting from _pos_.  `T`
+ must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
+ `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
+ `CHAR_BIT * sizeof(T)`) bits are ignored.
+
+|`template <typename T> void extract_bits(T &out, id<1> pos = 0) const`
+|Return `CHAR_BIT * sizeof(T)` bits from the mask, starting from _pos_.  `T`
+ must be an integral type or a SYCL `marray` of integral types. If _pos_ pass:[+]
+ `CHAR_BIT * sizeof(T)` is greater than `size()`, the final `size()` - (_pos_ pass:[+]
+ `CHAR_BIT * sizeof(T)`) bits of the return value are zero.
+
+|`void set()`
+|Set all bits in the mask to true.
+
+|`void set(id<1> id, bool value = true)`
+|Set the bit corresponding to the specified _id_ to the value specified by
+ _value_.
+
+|`void reset()`
+|Reset all bits in the mask.
+
+|`void reset(id<1> id)`
+|Reset the bit corresponding to the specified _id_.
+
+|`void reset_low()`
+|Reset the bit for the lowest `id` with a corresponding bit set in the mask.
+ Functionally equivalent to `reset(find_low())`.
+
+|`void reset_high()`
+|Reset the bit for the highest `id` with a corresponding bit set in the mask.
+ Functionally equivalent to `reset(find_high())`.
+
+|`void flip()`
+|Toggle the values of all bits in the mask.
+
+|`void flip(id<1> id)`
+|Toggle the value of the bit corresponding to the specified _id_.
+
+|`bool operator==(const sub_group_mask &rhs) const`
+|Return true if each bit in this mask is equal to the corresponding bit in
+ `rhs`.
+
+|`bool operator!=(const sub_group_mask &rhs) const`
+|Return true if any bit in this mask is not equal to the corresponding bit in
+ `rhs`.
+
+|`sub_group_mask &operator &=(const sub_group_mask &rhs)`
+|Set the bits of this mask to the result of performing a bitwise AND with this
+ mask and `rhs`.
+
+|`sub_group_mask &operator \|=(const sub_group_mask &rhs)`
+|Set the bits of this mask to the result of performing a bitwise OR with this
+ mask and `rhs`.
+
+|`sub_group_mask &operator ^=(const sub_group_mask &rhs)`
+|Set the bits of this mask to the result of performing a bitwise XOR with this
+ mask and `rhs`.
+
+|`sub_group_mask &operator pass:[<<=](size_t shift)`
+|Set the bits of this mask to the result of shifting its bits _shift_ positions
+ to the left using a logical shift.  Bits that are shifted out to the left are
+ discarded, and zeroes are shifted in from the right.
+
+|`sub_group_mask &operator >>=(size_t shift)`
+|Set the bits of this mask to the result of shifting its bits _shift_ positions
+ to the right using a logical shift.  Bits that are shifted out to the right are
+ discarded, and zeroes are shifted in from the left.
+
+|`sub_group_mask operator ~() const`
+|Return a mask representing the result of flipping all the bits in this mask.
+
+|`sub_group_mask operator <<(size_t shift) const`
+|Return a mask representing the result of shifting its bits _shift_ positions
+ to the left using a logical shift.  Bits that are shifted out to the left are
+ discarded, and zeroes are shifted in from the right.
+
+|`sub_group_mask operator >>(size_t shift) const`
+|Return a mask representing the result of shifting its bits _shift_ positions
+ to the right using a logical shift.  Bits that are shifted out to the right are
+ discarded, and zeroes are shifted in from the left.
+
+|===
+
+|===
+|Function|Description
+
+|`sub_group_mask operator &(const sub_group_mask& lhs, const sub_group_mask& rhs)`
+|Return a mask representing the result of performing a bitwise AND of `lhs` and
+ `rhs`.
+
+|`sub_group_mask operator \|(const sub_group_mask& lhs, const sub_group_mask& rhs)`
+|Return a mask representing the result of performing a bitwise OR of `lhs` and
+ `rhs`.
+
+|`sub_group_mask operator ^(const sub_group_mask& lhs, const sub_group_mask& rhs)`
+|Return a mask representing the result of performing a bitwise XOR of `lhs` and
+ `rhs`.
+
+|===
+
+==== Sample Header
+
+[source, c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+struct sub_group_mask {
+
+  // enable reference to individual bit
+  struct reference {
+    reference& operator=(bool x);
+    reference& operator=(const reference& x);
+    bool operator~() const;
+    operator bool() const;
+    reference& flip();
+  };
+
+  static constexpr size_t max_bits = /* implementation-defined */;
+
+  bool operator[](id<1> id) const;
+  reference operator[](id<1> id);
+  bool test(id<1> id) const;
+  bool all() const;
+  bool any() const;
+  bool none() const;
+  uint32_t count() const;
+  uint32_t size() const;
+  id<1> find_low() const;
+  id<1> find_high() const;
+
+  template <typename T>
+  void insert_bits(const T &bits, id<1> pos = 0);
+
+  template <typename T>
+  void extract_bits(T &out, id<1> pos = 0) const;
+
+  void set();
+  void set(id<1> id, bool value = true);
+  void reset();
+  void reset(id<1> id);
+  void reset_low();
+  void reset_high();
+  void flip();
+  void flip(id<1> id);
+
+  bool operator==(const sub_group_mask &rhs) const;
+  bool operator!=(const sub_group_mask &rhs) const;
+
+  sub_group_mask &operator &=(const sub_group_mask &rhs);
+  sub_group_mask &operator |=(const sub_group_mask &rhs);
+  sub_group_mask &operator ^=(const sub_group_mask &rhs);
+  sub_group_mask &operator <<=(size_t n);
+  sub_group_mask &operator >>=(size_t n);
+
+  sub_group_mask operator ~() const;
+  sub_group_mask operator <<(size_t n) const;
+  sub_group_mask operator >>(size_t n) const;
+
+};
+
+sub_group_mask operator &(const sub_group_mask& lhs, const sub_group_mask& rhs);
+sub_group_mask operator |(const sub_group_mask& lhs, const sub_group_mask& rhs);
+sub_group_mask operator ^(const sub_group_mask& lhs, const sub_group_mask& rhs);
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+== Issues
+
+None.
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-11|John Pennycook|*Initial public working draft*
+|2|2021-09-13|Vladimir Lazarev|*Update during implementation*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

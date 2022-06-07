@@ -1438,7 +1438,7 @@ bool ResultBuilder::IsOrdinaryNonTypeName(const NamedDecl *ND) const {
 
 bool ResultBuilder::IsIntegralConstantValue(const NamedDecl *ND) const {
   if (!IsOrdinaryNonTypeName(ND))
-    return 0;
+    return false;
 
   if (const auto *VD = dyn_cast<ValueDecl>(ND->getUnderlyingDecl()))
     if (VD->getType()->isIntegralOrEnumerationType())
@@ -1896,6 +1896,7 @@ static PrintingPolicy getCompletionPrintingPolicy(const ASTContext &Context,
   Policy.SuppressStrongLifetime = true;
   Policy.SuppressUnwrittenScope = true;
   Policy.SuppressScope = true;
+  Policy.CleanUglifiedParameters = true;
   return Policy;
 }
 
@@ -2121,8 +2122,7 @@ static void AddOrdinaryNameResults(Sema::ParserCompletionContext CCC, Scope *S,
       if (CCC == Sema::PCC_Class) {
         AddTypedefResult(Results);
 
-        bool IsNotInheritanceScope =
-            !(S->getFlags() & Scope::ClassInheritanceScope);
+        bool IsNotInheritanceScope = !S->isClassInheritanceScope();
         // public:
         Builder.AddTypedTextChunk("public");
         if (IsNotInheritanceScope && Results.includeCodePatterns())
@@ -2837,7 +2837,7 @@ FormatFunctionParameter(const PrintingPolicy &Policy,
     std::string Result;
 
     if (Param->getIdentifier() && !ObjCMethodParam && !SuppressName)
-      Result = std::string(Param->getIdentifier()->getName());
+      Result = std::string(Param->getIdentifier()->deuglifiedName());
 
     QualType Type = Param->getType();
     if (ObjCSubsts)
@@ -2847,7 +2847,7 @@ FormatFunctionParameter(const PrintingPolicy &Policy,
       Result = "(" + formatObjCParamQualifiers(ObjCQual, Type);
       Result += Type.getAsString(Policy) + ")";
       if (Param->getIdentifier() && !SuppressName)
-        Result += Param->getIdentifier()->getName();
+        Result += Param->getIdentifier()->deuglifiedName();
     } else {
       Type.getAsStringInternal(Result, Policy);
     }
@@ -2875,7 +2875,7 @@ FormatFunctionParameter(const PrintingPolicy &Policy,
     // for the block; just use the parameter type as a placeholder.
     std::string Result;
     if (!ObjCMethodParam && Param->getIdentifier())
-      Result = std::string(Param->getIdentifier()->getName());
+      Result = std::string(Param->getIdentifier()->deuglifiedName());
 
     QualType Type = Param->getType().getUnqualifiedType();
 
@@ -2887,7 +2887,7 @@ FormatFunctionParameter(const PrintingPolicy &Policy,
       if (Result.back() != ')')
         Result += " ";
       if (Param->getIdentifier())
-        Result += Param->getIdentifier()->getName();
+        Result += Param->getIdentifier()->deuglifiedName();
     } else {
       Type.getAsStringInternal(Result, Policy);
     }
@@ -3082,14 +3082,14 @@ static void AddTemplateParameterChunks(
 
       if (TTP->getIdentifier()) {
         PlaceholderStr += ' ';
-        PlaceholderStr += TTP->getIdentifier()->getName();
+        PlaceholderStr += TTP->getIdentifier()->deuglifiedName();
       }
 
       HasDefaultArg = TTP->hasDefaultArgument();
     } else if (NonTypeTemplateParmDecl *NTTP =
                    dyn_cast<NonTypeTemplateParmDecl>(*P)) {
       if (NTTP->getIdentifier())
-        PlaceholderStr = std::string(NTTP->getIdentifier()->getName());
+        PlaceholderStr = std::string(NTTP->getIdentifier()->deuglifiedName());
       NTTP->getType().getAsStringInternal(PlaceholderStr, Policy);
       HasDefaultArg = NTTP->hasDefaultArgument();
     } else {
@@ -3101,7 +3101,7 @@ static void AddTemplateParameterChunks(
       PlaceholderStr = "template<...> class";
       if (TTP->getIdentifier()) {
         PlaceholderStr += ' ';
-        PlaceholderStr += TTP->getIdentifier()->getName();
+        PlaceholderStr += TTP->getIdentifier()->deuglifiedName();
       }
 
       HasDefaultArg = TTP->hasDefaultArgument();
@@ -4043,6 +4043,9 @@ CXCursorKind clang::getCursorKindForDecl(const Decl *D) {
 
   case Decl::ObjCTypeParam:
     return CXCursor_TemplateTypeParameter;
+
+  case Decl::Concept:
+    return CXCursor_ConceptDecl;
 
   default:
     if (const auto *TD = dyn_cast<TagDecl>(D)) {
@@ -5519,11 +5522,18 @@ QualType getApproximateType(const Expr *E) {
                         : getApproximateType(CDSME->getBase());
     if (CDSME->isArrow() && !Base.isNull())
       Base = Base->getPointeeType(); // could handle unique_ptr etc here?
-    RecordDecl *RD = Base.isNull() ? nullptr : getAsRecordDecl(Base);
+    auto *RD =
+        Base.isNull()
+            ? nullptr
+            : llvm::dyn_cast_or_null<CXXRecordDecl>(getAsRecordDecl(Base));
     if (RD && RD->isCompleteDefinition()) {
-      for (const auto *Member : RD->lookup(CDSME->getMember()))
-        if (const ValueDecl *VD = llvm::dyn_cast<ValueDecl>(Member))
-          return VD->getType().getNonReferenceType();
+      // Look up member heuristically, including in bases.
+      for (const auto *Member : RD->lookupDependentName(
+               CDSME->getMember(), [](const NamedDecl *Member) {
+                 return llvm::isa<ValueDecl>(Member);
+               })) {
+        return llvm::cast<ValueDecl>(Member)->getType().getNonReferenceType();
+      }
     }
   }
   return Unresolved;
@@ -6344,7 +6354,15 @@ void Sema::CodeCompleteDesignator(QualType BaseType,
                         CodeCompleter->getCodeCompletionTUInfo(), CCC);
 
   Results.EnterNewScope();
-  for (const auto *FD : RD->fields()) {
+  for (const Decl *D : RD->decls()) {
+    const FieldDecl *FD;
+    if (auto *IFD = dyn_cast<IndirectFieldDecl>(D))
+      FD = IFD->getAnonField();
+    else if (auto *DFD = dyn_cast<FieldDecl>(D))
+      FD = DFD;
+    else
+      continue;
+
     // FIXME: Make use of previous designators to mark any fields before those
     // inaccessible, and also compute the next initializer priority.
     ResultBuilder::Result Result(FD, Results.getBasePriority(FD));
@@ -9122,8 +9140,8 @@ static void AddObjCKeyValueCompletions(ObjCPropertyDecl *Property,
   if (IsInstanceMethod &&
       (ReturnType.isNull() ||
        (ReturnType->isObjCObjectPointerType() &&
-        ReturnType->getAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
-        ReturnType->getAs<ObjCObjectPointerType>()
+        ReturnType->castAs<ObjCObjectPointerType>()->getInterfaceDecl() &&
+        ReturnType->castAs<ObjCObjectPointerType>()
                 ->getInterfaceDecl()
                 ->getName() == "NSEnumerator"))) {
     std::string SelectorName = (Twine("enumeratorOf") + UpperKey).str();
@@ -9489,8 +9507,7 @@ void Sema::CodeCompleteObjCMethodDecl(Scope *S, Optional<bool> IsInstanceMethod,
         IFace = Category->getClassInterface();
 
     if (IFace)
-      for (auto *Cat : IFace->visible_categories())
-        Containers.push_back(Cat);
+      llvm::append_range(Containers, IFace->visible_categories());
 
     if (IsInstanceMethod) {
       for (unsigned I = 0, N = Containers.size(); I != N; ++I)
@@ -9771,7 +9788,7 @@ void Sema::CodeCompletePreprocessorMacroName(bool IsDefinition) {
                         CodeCompleter->getCodeCompletionTUInfo(),
                         IsDefinition ? CodeCompletionContext::CCC_MacroName
                                      : CodeCompletionContext::CCC_MacroNameUse);
-  if (!IsDefinition && (!CodeCompleter || CodeCompleter->includeMacros())) {
+  if (!IsDefinition && CodeCompleter->includeMacros()) {
     // Add just the names of macros, not their arguments.
     CodeCompletionBuilder Builder(Results.getAllocator(),
                                   Results.getCodeCompletionTUInfo());
@@ -9798,9 +9815,8 @@ void Sema::CodeCompletePreprocessorExpression() {
                         CodeCompleter->getCodeCompletionTUInfo(),
                         CodeCompletionContext::CCC_PreprocessorExpression);
 
-  if (!CodeCompleter || CodeCompleter->includeMacros())
-    AddMacroResults(PP, Results,
-                    !CodeCompleter || CodeCompleter->loadExternal(), true);
+  if (CodeCompleter->includeMacros())
+    AddMacroResults(PP, Results, CodeCompleter->loadExternal(), true);
 
   // defined (<macro>)
   Results.EnterNewScope();
@@ -9958,7 +9974,7 @@ void Sema::CodeCompleteIncludedFile(llvm::StringRef Dir, bool Angled) {
   using llvm::make_range;
   if (!Angled) {
     // The current directory is on the include path for "quoted" includes.
-    auto *CurFile = PP.getCurrentFileLexer()->getFileEntry();
+    const FileEntry *CurFile = PP.getCurrentFileLexer()->getFileEntry();
     if (CurFile && CurFile->getDir())
       AddFilesFromIncludeDir(CurFile->getDir()->getName(), false,
                              DirectoryLookup::LT_NormalDir);

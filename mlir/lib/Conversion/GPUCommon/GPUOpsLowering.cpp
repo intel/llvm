@@ -8,7 +8,6 @@
 
 #include "GPUOpsLowering.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -42,7 +41,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
   }
 
   // Rewrite the original GPU function to an LLVM function.
-  auto funcType = typeConverter->convertType(gpuFuncOp.getType())
+  auto funcType = typeConverter->convertType(gpuFuncOp.getFunctionType())
                       .template cast<LLVM::LLVMPointerType>()
                       .getElementType();
 
@@ -50,14 +49,14 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
   TypeConverter::SignatureConversion signatureConversion(
       gpuFuncOp.front().getNumArguments());
   getTypeConverter()->convertFunctionSignature(
-      gpuFuncOp.getType(), /*isVariadic=*/false, signatureConversion);
+      gpuFuncOp.getFunctionType(), /*isVariadic=*/false, signatureConversion);
 
   // Create the new function operation. Only copy those attributes that are
   // not specific to function modeling.
   SmallVector<NamedAttribute, 4> attributes;
   for (const auto &attr : gpuFuncOp->getAttrs()) {
     if (attr.getName() == SymbolTable::getSymbolAttrName() ||
-        attr.getName() == function_like_impl::getTypeAttrName() ||
+        attr.getName() == FunctionOpInterface::getTypeAttrName() ||
         attr.getName() == gpu::GPUFuncOp::getNumWorkgroupAttributionsAttrName())
       continue;
     attributes.push_back(attr);
@@ -69,7 +68,8 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     attributes.emplace_back(kernelAttributeName, rewriter.getUnitAttr());
   auto llvmFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
       gpuFuncOp.getLoc(), gpuFuncOp.getName(), funcType,
-      LLVM::Linkage::External, /*dsoLocal*/ false, attributes);
+      LLVM::Linkage::External, /*dsoLocal*/ false, /*cconv*/ LLVM::CConv::C,
+      attributes);
 
   {
     // Insert operations that correspond to converted workgroup and private

@@ -42,6 +42,7 @@ CHECK: --version            - Display the version of this program
 
 CHECK: sycl-post-link options:
 
+CHECK: --device-globals     - Lower and generate information about device global variables
 CHECK: -f                   - Enable binary output on terminals
 CHECK: --ir-output-only     - Output single IR file
 CHECK: -o=<filename>        - Output filename

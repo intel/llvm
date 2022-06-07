@@ -1,3 +1,4 @@
+include(GNUInstallDirs)
 include(LLVMDistributionSupport)
 include(LLVMProcessSources)
 include(LLVM-Config)
@@ -839,7 +840,7 @@ macro(add_llvm_library name)
               ${export_to_llvmexports}
               LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT ${name}
               ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT ${name}
-              RUNTIME DESTINATION bin COMPONENT ${name})
+              RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT ${name})
 
       if (NOT LLVM_ENABLE_IDE)
         add_llvm_install_targets(install-${name}
@@ -876,6 +877,9 @@ macro(add_llvm_executable name)
       )
     llvm_update_compile_flags(${obj_name})
     set(ALL_FILES "$<TARGET_OBJECTS:${obj_name}>")
+    if(ARG_DEPENDS)
+      add_dependencies(${obj_name} ${ARG_DEPENDS})
+    endif()
 
     set_target_properties(${obj_name} PROPERTIES FOLDER "Object Libraries")
   endif()
@@ -1209,12 +1213,14 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-ar
     llvm-cov
     llvm-cxxfilt
+    llvm-dwp
     llvm-ranlib
     llvm-lib
     llvm-ml
     llvm-nm
     llvm-objcopy
     llvm-objdump
+    llvm-pdbutil
     llvm-rc
     llvm-readobj
     llvm-size
@@ -1272,7 +1278,7 @@ macro(add_llvm_example name)
   endif()
   add_llvm_executable(${name} ${ARGN})
   if( LLVM_BUILD_EXAMPLES )
-    install(TARGETS ${name} RUNTIME DESTINATION examples)
+    install(TARGETS ${name} RUNTIME DESTINATION "${LLVM_EXAMPLES_INSTALL_DIR}")
   endif()
   set_target_properties(${name} PROPERTIES FOLDER "Examples")
 endmacro(add_llvm_example name)
@@ -1499,7 +1505,7 @@ function(add_unittest test_suite test_name)
   # libpthreads overrides some standard library symbols, so main
   # executable must be linked with it in order to provide consistent
   # API for all shared libaries loaded by this executable.
-  target_link_libraries(${test_name} PRIVATE gtest_main gtest ${LLVM_PTHREAD_LIB})
+  target_link_libraries(${test_name} PRIVATE llvm_gtest_main llvm_gtest ${LLVM_PTHREAD_LIB})
 
   add_dependencies(${test_suite} ${test_name})
   get_target_property(test_suite_folder ${test_suite} FOLDER)
@@ -1611,14 +1617,11 @@ string(CONCAT LLVM_LIT_PATH_FUNCTION
 # path back to absolute form. This makes it possible to move a build directory
 # containing lit.cfg.py files from one machine to another.
 function(configure_lit_site_cfg site_in site_out)
-  cmake_parse_arguments(ARG "" "" "MAIN_CONFIG;OUTPUT_MAPPING;PATHS" ${ARGN})
+  cmake_parse_arguments(ARG "" "" "MAIN_CONFIG;PATHS" ${ARGN})
 
   if ("${ARG_MAIN_CONFIG}" STREQUAL "")
     get_filename_component(INPUT_DIR ${site_in} DIRECTORY)
     set(ARG_MAIN_CONFIG "${INPUT_DIR}/lit.cfg")
-  endif()
-  if ("${ARG_OUTPUT_MAPPING}" STREQUAL "")
-    set(ARG_OUTPUT_MAPPING "${site_out}")
   endif()
 
   foreach(c ${LLVM_TARGETS_TO_BUILD})
@@ -1630,13 +1633,15 @@ function(configure_lit_site_cfg site_in site_out)
 
   set_llvm_build_mode()
 
-  # The below might not be the build tree but provided binary tree.
+  # For standalone builds of subprojects, these might not be the build tree but
+  # a provided binary tree.
   set(LLVM_SOURCE_DIR ${LLVM_MAIN_SRC_DIR})
   set(LLVM_BINARY_DIR ${LLVM_BINARY_DIR})
   string(REPLACE "${CMAKE_CFG_INTDIR}" "${LLVM_BUILD_MODE}" LLVM_TOOLS_DIR "${LLVM_TOOLS_BINARY_DIR}")
   string(REPLACE "${CMAKE_CFG_INTDIR}" "${LLVM_BUILD_MODE}" LLVM_LIBS_DIR  "${LLVM_LIBRARY_DIR}")
-
-  # SHLIBDIR points the build tree.
+  # Like LLVM_{TOOLS,LIBS}_DIR, but pointing at the build tree.
+  string(REPLACE "${CMAKE_CFG_INTDIR}" "${LLVM_BUILD_MODE}" CURRENT_TOOLS_DIR "${LLVM_RUNTIME_OUTPUT_INTDIR}")
+  string(REPLACE "${CMAKE_CFG_INTDIR}" "${LLVM_BUILD_MODE}" CURRENT_LIBS_DIR  "${LLVM_LIBRARY_OUTPUT_INTDIR}")
   string(REPLACE "${CMAKE_CFG_INTDIR}" "${LLVM_BUILD_MODE}" SHLIBDIR "${LLVM_SHLIB_OUTPUT_INTDIR}")
 
   # FIXME: "ENABLE_SHARED" doesn't make sense, since it is used just for
@@ -1671,11 +1676,11 @@ function(configure_lit_site_cfg site_in site_out)
     string(CONCAT LIT_SITE_CFG_IN_HEADER "${LIT_SITE_CFG_IN_HEADER}"
       "import os\n"
       "target_env = \"${LLVM_TARGET_TRIPLE_ENV}\"\n"
-      "config.target_triple = config.environment[target_env] = os.environ.get(target_env, \"${TARGET_TRIPLE}\")\n"
+      "config.target_triple = config.environment[target_env] = os.environ.get(target_env, \"${LLVM_TARGET_TRIPLE}\")\n"
       )
 
     # This is expanded to; config.target_triple = ""+config.target_triple+""
-    set(TARGET_TRIPLE "\"+config.target_triple+\"")
+    set(LLVM_TARGET_TRIPLE "\"+config.target_triple+\"")
   endif()
 
   if (ARG_PATHS)
@@ -1822,17 +1827,62 @@ function(add_lit_target target comment)
   set_target_properties(${target} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD ON)
 endfunction()
 
+# Convert a target name like check-clang to a variable name like CLANG.
+function(umbrella_lit_testsuite_var target outvar)
+  if (NOT target MATCHES "^check-")
+    message(FATAL_ERROR "umbrella lit suites must be check-*, not '${target}'")
+  endif()
+  string(SUBSTRING "${target}" 6 -1 var)
+  string(REPLACE "-" "_" var ${var})
+  string(TOUPPER "${var}" var)
+  set(${outvar} "${var}" PARENT_SCOPE)
+endfunction()
+
+# Start recording all lit test suites for a combined 'check-foo' target.
+# The recording continues until umbrella_lit_testsuite_end() creates the target.
+function(umbrella_lit_testsuite_begin target)
+  umbrella_lit_testsuite_var(${target} name)
+  set_property(GLOBAL APPEND PROPERTY LLVM_LIT_UMBRELLAS ${name})
+endfunction()
+
+# Create a combined 'check-foo' target for a set of related test suites.
+# It runs all suites added since the matching umbrella_lit_testsuite_end() call.
+# Tests marked EXCLUDE_FROM_CHECK_ALL are not gathered.
+function(umbrella_lit_testsuite_end target)
+  umbrella_lit_testsuite_var(${target} name)
+
+  get_property(testsuites GLOBAL PROPERTY LLVM_${name}_LIT_TESTSUITES)
+  get_property(params GLOBAL PROPERTY LLVM_${name}_LIT_PARAMS)
+  get_property(depends GLOBAL PROPERTY LLVM_${name}_LIT_DEPENDS)
+  get_property(extra_args GLOBAL PROPERTY LLVM_${name}_LIT_EXTRA_ARGS)
+  # Additional test targets are not gathered, but may be set externally.
+  get_property(additional_test_targets
+               GLOBAL PROPERTY LLVM_${name}_ADDITIONAL_TEST_TARGETS)
+
+  string(TOLOWER ${name} name)
+  add_lit_target(${target}
+    "Running ${name} regression tests"
+    ${testsuites}
+    PARAMS ${params}
+    DEPENDS ${depends} ${additional_test_targets}
+    ARGS ${extra_args}
+    )
+endfunction()
+
 # A function to add a set of lit test suites to be driven through 'check-*' targets.
 function(add_lit_testsuite target comment)
   cmake_parse_arguments(ARG "EXCLUDE_FROM_CHECK_ALL" "" "PARAMS;DEPENDS;ARGS" ${ARGN})
 
   # EXCLUDE_FROM_ALL excludes the test ${target} out of check-all.
   if(NOT ARG_EXCLUDE_FROM_CHECK_ALL)
-    # Register the testsuites, params and depends for the global check rule.
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_TESTSUITES ${ARG_UNPARSED_ARGUMENTS})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_PARAMS ${ARG_PARAMS})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_DEPENDS ${ARG_DEPENDS})
-    set_property(GLOBAL APPEND PROPERTY LLVM_LIT_EXTRA_ARGS ${ARG_ARGS})
+    get_property(gather_names GLOBAL PROPERTY LLVM_LIT_UMBRELLAS)
+    foreach(name ${gather_names})
+    # Register the testsuites, params and depends for the umbrella check rule.
+      set_property(GLOBAL APPEND PROPERTY LLVM_${name}_LIT_TESTSUITES ${ARG_UNPARSED_ARGUMENTS})
+      set_property(GLOBAL APPEND PROPERTY LLVM_${name}_LIT_PARAMS ${ARG_PARAMS})
+      set_property(GLOBAL APPEND PROPERTY LLVM_${name}_LIT_DEPENDS ${ARG_DEPENDS})
+      set_property(GLOBAL APPEND PROPERTY LLVM_${name}_LIT_EXTRA_ARGS ${ARG_ARGS})
+    endforeach()
   endif()
 
   # Produce a specific suffixed check rule.

@@ -13,8 +13,7 @@
 #include "Target.h"
 
 #include "lld/Common/Args.h"
-#include "lld/Common/ErrorHandler.h"
-#include "lld/Common/Memory.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Reproduce.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseMap.h"
@@ -82,7 +81,7 @@ InputArgList MachOOptTable::parse(ArrayRef<const char *> argv) {
 
   // Expand response files (arguments in the form of @<filename>)
   // and then parse the argument again.
-  cl::ExpandResponseFiles(saver, cl::TokenizeGNUCommandLine, vec);
+  cl::ExpandResponseFiles(saver(), cl::TokenizeGNUCommandLine, vec);
   InputArgList args = ParseArgs(vec, missingIndex, missingCount);
 
   // Handle -fatal_warnings early since it converts missing argument warnings
@@ -191,12 +190,12 @@ Optional<StringRef> macho::resolveDylibPath(StringRef dylibPath) {
   bool tbdExists = fs::exists(tbdPath);
   searchedDylib(tbdPath, tbdExists);
   if (tbdExists)
-    return saver.save(tbdPath.str());
+    return saver().save(tbdPath.str());
 
   bool dylibExists = fs::exists(dylibPath);
   searchedDylib(dylibPath, dylibExists);
   if (dylibExists)
-    return saver.save(dylibPath);
+    return saver().save(dylibPath);
   return {};
 }
 
@@ -205,11 +204,14 @@ Optional<StringRef> macho::resolveDylibPath(StringRef dylibPath) {
 static DenseMap<CachedHashStringRef, DylibFile *> loadedDylibs;
 
 DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
-                            bool isBundleLoader) {
+                            bool isBundleLoader, bool explicitlyLinked) {
   CachedHashStringRef path(mbref.getBufferIdentifier());
   DylibFile *&file = loadedDylibs[path];
-  if (file)
+  if (file) {
+    if (explicitlyLinked)
+      file->explicitlyLinked = explicitlyLinked;
     return file;
+  }
 
   DylibFile *newFile;
   file_magic magic = identify_magic(mbref.getBuffer());
@@ -220,7 +222,8 @@ DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
             ": " + toString(result.takeError()));
       return nullptr;
     }
-    file = make<DylibFile>(**result, umbrella, isBundleLoader);
+    file =
+        make<DylibFile>(**result, umbrella, isBundleLoader, explicitlyLinked);
 
     // parseReexports() can recursively call loadDylib(). That's fine since
     // we wrote the DylibFile we just loaded to the loadDylib cache via the
@@ -235,7 +238,7 @@ DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
            magic == file_magic::macho_dynamically_linked_shared_lib_stub ||
            magic == file_magic::macho_executable ||
            magic == file_magic::macho_bundle);
-    file = make<DylibFile>(mbref, umbrella, isBundleLoader);
+    file = make<DylibFile>(mbref, umbrella, isBundleLoader, explicitlyLinked);
 
     // parseLoadCommands() can also recursively call loadDylib(). See comment
     // in previous block for why this means we must copy `file` here.
@@ -261,7 +264,7 @@ macho::findPathCombination(const Twine &name,
       bool exists = fs::exists(location);
       searchedDylib(location, exists);
       if (exists)
-        return saver.save(location.str());
+        return saver().save(location.str());
     }
   }
   return {};

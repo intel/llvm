@@ -13,7 +13,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
@@ -35,21 +35,19 @@
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
-#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCParser/AsmCond.h"
 #include "llvm/MC/MCParser/AsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include "llvm/MC/MCParser/MCAsmParserExtension.h"
-#include "llvm/MC/MCParser/MCAsmParserUtils.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSection.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/MCValue.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -63,7 +61,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
-#include <cctype>
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -379,7 +376,7 @@ private:
   /// time of assembly
   struct tm TM;
 
-  std::vector<bool> EndStatementAtEOFStack;
+  BitVector EndStatementAtEOFStack;
 
   AsmCond TheCondState;
   std::vector<AsmCond> TheCondStack;
@@ -424,7 +421,7 @@ private:
     int64_t LineNumber;
     SMLoc Loc;
     unsigned Buf;
-    CppHashInfoTy() : Filename(), LineNumber(0), Loc(), Buf(0) {}
+    CppHashInfoTy() : LineNumber(0), Buf(0) {}
   };
   CppHashInfoTy CppHashInfo;
 
@@ -979,6 +976,8 @@ private:
   bool parseDirectiveEnds(StringRef Name, SMLoc NameLoc);
   bool parseDirectiveNestedEnds();
 
+  bool parseDirectiveExtern();
+
   /// Parse a directive like ".globl" which accepts a single symbol (which
   /// should be a label or an external).
   bool parseDirectiveSymbolAttribute(MCSymbolAttr Attr);
@@ -1516,11 +1515,8 @@ StringRef MasmParser::parseStringToEndOfStatement() {
 bool MasmParser::parseParenExpr(const MCExpr *&Res, SMLoc &EndLoc) {
   if (parseExpression(Res))
     return true;
-  if (Lexer.isNot(AsmToken::RParen))
-    return TokError("expected ')' in parentheses expression");
   EndLoc = Lexer.getTok().getEndLoc();
-  Lex();
-  return false;
+  return parseRParen();
 }
 
 /// Parse a bracket expression and return it.
@@ -1838,9 +1834,8 @@ bool MasmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc,
     Lex(); // Eat the operator.
     if (parseExpression(Res, EndLoc))
       return true;
-    if (Lexer.isNot(AsmToken::RParen))
-      return TokError("expected ')'");
-    Lex(); // Eat the operator.
+    if (parseRParen())
+      return true;
     Res = getTargetParser().createTargetUnaryExpr(Res, FirstTokenKind, Ctx);
     return !Res;
   }
@@ -1929,8 +1924,7 @@ bool MasmParser::parseParenExprOfDepth(unsigned ParenDepth, const MCExpr *&Res,
     // This is the same behavior as parseParenExpression().
     if (ParenDepth - 1 > 0) {
       EndLoc = getTok().getEndLoc();
-      if (parseToken(AsmToken::RParen,
-                     "expected ')' in parentheses expression"))
+      if (parseRParen())
         return true;
     }
   }
@@ -2413,8 +2407,7 @@ bool MasmParser::parseStatement(ParseStatementInfo &Info,
     case DK_ORG:
       return parseDirectiveOrg();
     case DK_EXTERN:
-      eatToEndOfStatement(); // .extern is the default, ignore it.
-      return false;
+      return parseDirectiveExtern();
     case DK_PUBLIC:
       return parseDirectiveSymbolAttribute(MCSA_Global);
     case DK_COMM:
@@ -3358,8 +3351,7 @@ bool MasmParser::handleMacroInvocation(const MCAsmMacro *M, SMLoc NameLoc) {
   }
 
   // Consume the right-parenthesis on the other side of the arguments.
-  if (parseToken(AsmToken::RParen, "invoking macro function '" + M->Name +
-                                       "' requires arguments in parentheses"))
+  if (parseRParen())
     return true;
 
   // Exit values may require lexing, unfortunately. We construct a new buffer to
@@ -3743,8 +3735,7 @@ bool MasmParser::parseScalarInitializer(unsigned Size,
       SmallVector<const MCExpr *, 1> DuplicatedValues;
       if (parseToken(AsmToken::LParen,
                      "parentheses required for 'dup' contents") ||
-          parseScalarInstList(Size, DuplicatedValues) ||
-          parseToken(AsmToken::RParen, "unmatched parentheses"))
+          parseScalarInstList(Size, DuplicatedValues) || parseRParen())
         return true;
 
       for (int i = 0; i < Repetitions; ++i)
@@ -3950,8 +3941,7 @@ bool MasmParser::parseRealInstList(const fltSemantics &Semantics,
       SmallVector<APInt, 1> DuplicatedValues;
       if (parseToken(AsmToken::LParen,
                      "parentheses required for 'dup' contents") ||
-          parseRealInstList(Semantics, DuplicatedValues) ||
-          parseToken(AsmToken::RParen, "unmatched parentheses"))
+          parseRealInstList(Semantics, DuplicatedValues) || parseRParen())
         return true;
 
       for (int i = 0; i < Repetitions; ++i)
@@ -4316,8 +4306,7 @@ bool MasmParser::parseStructInstList(
       std::vector<StructInitializer> DuplicatedValues;
       if (parseToken(AsmToken::LParen,
                      "parentheses required for 'dup' contents") ||
-          parseStructInstList(Structure, DuplicatedValues) ||
-          parseToken(AsmToken::RParen, "unmatched parentheses"))
+          parseStructInstList(Structure, DuplicatedValues) || parseRParen())
         return true;
 
       for (int i = 0; i < Repetitions; ++i)
@@ -4771,7 +4760,7 @@ bool MasmParser::emitAlignTo(int64_t Alignment) {
     // directive.
     const MCSection *Section = getStreamer().getCurrentSectionOnly();
     assert(Section && "must have section to emit alignment");
-    if (Section->UseCodeAlign()) {
+    if (Section->useCodeAlign()) {
       getStreamer().emitCodeAlignment(Alignment, &getTargetParser().getSTI(),
                                       /*MaxBytesToEmit=*/0);
     } else {
@@ -4919,8 +4908,8 @@ bool MasmParser::parseDirectiveFile(SMLoc DirectiveLoc) {
     if (HasMD5) {
       MD5::MD5Result Sum;
       for (unsigned i = 0; i != 8; ++i) {
-        Sum.Bytes[i] = uint8_t(MD5Hi >> ((7 - i) * 8));
-        Sum.Bytes[i + 8] = uint8_t(MD5Lo >> ((7 - i) * 8));
+        Sum[i] = uint8_t(MD5Hi >> ((7 - i) * 8));
+        Sum[i + 8] = uint8_t(MD5Lo >> ((7 - i) * 8));
       }
       CKMem = Sum;
     }
@@ -5105,7 +5094,7 @@ bool MasmParser::parseDirectiveCVFile() {
   ArrayRef<uint8_t> ChecksumAsBytes(reinterpret_cast<const uint8_t *>(CKMem),
                                     Checksum.size());
 
-  if (!getStreamer().EmitCVFileDirective(FileNumber, Filename, ChecksumAsBytes,
+  if (!getStreamer().emitCVFileDirective(FileNumber, Filename, ChecksumAsBytes,
                                          static_cast<uint8_t>(ChecksumKind)))
     return Error(FileNumberLoc, "file number already allocated");
 
@@ -5146,7 +5135,7 @@ bool MasmParser::parseDirectiveCVFuncId() {
                  "unexpected token in '.cv_func_id' directive"))
     return true;
 
-  if (!getStreamer().EmitCVFuncIdDirective(FunctionId))
+  if (!getStreamer().emitCVFuncIdDirective(FunctionId))
     return Error(FunctionIdLoc, "function id already allocated");
 
   return false;
@@ -5206,7 +5195,7 @@ bool MasmParser::parseDirectiveCVInlineSiteId() {
                  "unexpected token in '.cv_inline_site_id' directive"))
     return true;
 
-  if (!getStreamer().EmitCVInlineSiteIdDirective(FunctionId, IAFunc, IAFile,
+  if (!getStreamer().emitCVInlineSiteIdDirective(FunctionId, IAFunc, IAFile,
                                                  IALine, IACol, FunctionIdLoc))
     return Error(FunctionIdLoc, "function id already allocated");
 
@@ -5506,7 +5495,7 @@ bool MasmParser::parseDirectiveCVFPOData() {
   if (parseEOL("unexpected tokens"))
     return addErrorSuffix(" in '.cv_fpo_data' directive");
   MCSymbol *ProcSym = getContext().getOrCreateSymbol(ProcName);
-  getStreamer().EmitCVFPOData(ProcSym, DirLoc);
+  getStreamer().emitCVFPOData(ProcSym, DirLoc);
   return false;
 }
 
@@ -6028,6 +6017,39 @@ bool MasmParser::parseDirectivePurgeMacro(SMLoc DirectiveLoc) {
     parseOptionalToken(AsmToken::EndOfStatement);
   }
 
+  return false;
+}
+
+bool MasmParser::parseDirectiveExtern() {
+  // .extern is the default - but we still need to take any provided type info.
+  auto parseOp = [&]() -> bool {
+    StringRef Name;
+    SMLoc NameLoc = getTok().getLoc();
+    if (parseIdentifier(Name))
+      return Error(NameLoc, "expected name");
+    if (parseToken(AsmToken::Colon))
+      return true;
+
+    StringRef TypeName;
+    SMLoc TypeLoc = getTok().getLoc();
+    if (parseIdentifier(TypeName))
+      return Error(TypeLoc, "expected type");
+    if (!TypeName.equals_insensitive("proc")) {
+      AsmTypeInfo Type;
+      if (lookUpType(TypeName, Type))
+        return Error(TypeLoc, "unrecognized type");
+      KnownType[Name.lower()] = Type;
+    }
+
+    MCSymbol *Sym = getContext().getOrCreateSymbol(Name);
+    Sym->setExternal(true);
+    getStreamer().emitSymbolAttribute(Sym, MCSA_Extern);
+
+    return false;
+  };
+
+  if (parseMany(parseOp))
+    return addErrorSuffix(" in directive 'extern'");
   return false;
 }
 

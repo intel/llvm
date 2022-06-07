@@ -73,6 +73,8 @@ void SanitizerMetadata::reportGlobalToASan(llvm::GlobalVariable *GV,
   for (auto Attr : D.specific_attrs<NoSanitizeAttr>())
     if (Attr->getMask() & SanitizerKind::Address)
       IsExcluded = true;
+  if (D.hasAttr<DisableSanitizerInstrumentationAttr>())
+    IsExcluded = true;
   reportGlobalToASan(GV, D.getLocation(), OS.str(), D.getType(), IsDynInit,
                      IsExcluded);
 }
@@ -85,7 +87,7 @@ void SanitizerMetadata::disableSanitizerForGlobal(llvm::GlobalVariable *GV) {
 }
 
 void SanitizerMetadata::disableSanitizerForInstruction(llvm::Instruction *I) {
-  I->setMetadata(CGM.getModule().getMDKindID("nosanitize"),
+  I->setMetadata(llvm::LLVMContext::MD_nosanitize,
                  llvm::MDNode::get(CGM.getLLVMContext(), None));
 }
 

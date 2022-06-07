@@ -110,9 +110,8 @@ public:
             interpreter, "process launch",
             "Launch the executable in the debugger.", nullptr,
             eCommandRequiresTarget, "restart"),
-        m_options(),
-        m_class_options("scripted process", true, 'C', 'k', 'v', 0),
-        m_all_options() {
+
+        m_class_options("scripted process", true, 'C', 'k', 'v', 0) {
     m_all_options.Append(&m_options);
     m_all_options.Append(&m_class_options, LLDB_OPT_SET_1 | LLDB_OPT_SET_2,
                          LLDB_OPT_SET_ALL);
@@ -146,10 +145,10 @@ public:
 
   Options *GetOptions() override { return &m_all_options; }
 
-  const char *GetRepeatCommand(Args &current_command_args,
-                               uint32_t index) override {
+  llvm::Optional<std::string> GetRepeatCommand(Args &current_command_args,
+                                               uint32_t index) override {
     // No repeat for "process launch"...
-    return "";
+    return std::string("");
   }
 
 protected:
@@ -300,7 +299,7 @@ class CommandObjectProcessAttach : public CommandObjectProcessLaunchOrAttach {
 public:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {
+    CommandOptions() {
       // Keep default values of all options in one place: OptionParsingStarting
       // ()
       OptionParsingStarting(nullptr);
@@ -364,8 +363,7 @@ public:
   CommandObjectProcessAttach(CommandInterpreter &interpreter)
       : CommandObjectProcessLaunchOrAttach(
             interpreter, "process attach", "Attach to a process.",
-            "process attach <cmd-options>", 0, "attach"),
-        m_options() {}
+            "process attach <cmd-options>", 0, "attach") {}
 
   ~CommandObjectProcessAttach() override = default;
 
@@ -502,15 +500,14 @@ public:
             "Continue execution of all threads in the current process.",
             "process continue",
             eCommandRequiresProcess | eCommandTryTargetAPILock |
-                eCommandProcessMustBeLaunched | eCommandProcessMustBePaused),
-        m_options() {}
+                eCommandProcessMustBeLaunched | eCommandProcessMustBePaused) {}
 
   ~CommandObjectProcessContinue() override = default;
 
 protected:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {
+    CommandOptions() {
       // Keep default values of all options in one place: OptionParsingStarting
       // ()
       OptionParsingStarting(nullptr);
@@ -651,7 +648,7 @@ class CommandObjectProcessDetach : public CommandObjectParsed {
 public:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() { OptionParsingStarting(nullptr); }
+    CommandOptions() { OptionParsingStarting(nullptr); }
 
     ~CommandOptions() override = default;
 
@@ -698,8 +695,7 @@ public:
                             "Detach from the current target process.",
                             "process detach",
                             eCommandRequiresProcess | eCommandTryTargetAPILock |
-                                eCommandProcessMustBeLaunched),
-        m_options() {}
+                                eCommandProcessMustBeLaunched) {}
 
   ~CommandObjectProcessDetach() override = default;
 
@@ -741,7 +737,7 @@ class CommandObjectProcessConnect : public CommandObjectParsed {
 public:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {
+    CommandOptions() {
       // Keep default values of all options in one place: OptionParsingStarting
       // ()
       OptionParsingStarting(nullptr);
@@ -781,8 +777,7 @@ public:
   CommandObjectProcessConnect(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "process connect",
                             "Connect to a remote debug service.",
-                            "process connect <remote-url>", 0),
-        m_options() {}
+                            "process connect <remote-url>", 0) {}
 
   ~CommandObjectProcessConnect() override = default;
 
@@ -863,7 +858,7 @@ class CommandObjectProcessLoad : public CommandObjectParsed {
 public:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {
+    CommandOptions() {
       // Keep default values of all options in one place: OptionParsingStarting
       // ()
       OptionParsingStarting(nullptr);
@@ -907,8 +902,7 @@ public:
                             "process load <filename> [<filename> ...]",
                             eCommandRequiresProcess | eCommandTryTargetAPILock |
                                 eCommandProcessMustBeLaunched |
-                                eCommandProcessMustBePaused),
-        m_options() {}
+                                eCommandProcessMustBePaused) {}
 
   ~CommandObjectProcessLoad() override = default;
 
@@ -1220,8 +1214,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions()
-        : Options(), m_requested_save_core_style(eSaveCoreUnspecified) {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1257,7 +1250,7 @@ public:
     }
 
     // Instance variables to hold the values for command options.
-    SaveCoreStyle m_requested_save_core_style;
+    SaveCoreStyle m_requested_save_core_style = eSaveCoreUnspecified;
     std::string m_requested_plugin_name;
   };
 
@@ -1316,8 +1309,7 @@ public:
             interpreter, "process status",
             "Show status and stop location for the current target process.",
             "process status",
-            eCommandRequiresProcess | eCommandTryTargetAPILock),
-        m_options() {}
+            eCommandRequiresProcess | eCommandTryTargetAPILock) {}
 
   ~CommandObjectProcessStatus() override = default;
 
@@ -1325,7 +1317,7 @@ public:
 
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() {}
+    CommandOptions() = default;
 
     ~CommandOptions() override = default;
 
@@ -1430,7 +1422,7 @@ class CommandObjectProcessHandle : public CommandObjectParsed {
 public:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() { OptionParsingStarting(nullptr); }
+    CommandOptions() { OptionParsingStarting(nullptr); }
 
     ~CommandOptions() override = default;
 
@@ -1440,6 +1432,12 @@ public:
       const int short_option = m_getopt_table[option_idx].val;
 
       switch (short_option) {
+      case 'c':
+        do_clear = true;
+        break;
+      case 'd':
+        dummy = true;
+        break;
       case 's':
         stop = std::string(option_arg);
         break;
@@ -1448,6 +1446,9 @@ public:
         break;
       case 'p':
         pass = std::string(option_arg);
+        break;
+      case 't':
+        only_target_values = true;
         break;
       default:
         llvm_unreachable("Unimplemented option");
@@ -1459,6 +1460,9 @@ public:
       stop.clear();
       notify.clear();
       pass.clear();
+      only_target_values = false;
+      do_clear = false;
+      dummy = false;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
@@ -1470,6 +1474,9 @@ public:
     std::string stop;
     std::string notify;
     std::string pass;
+    bool only_target_values = false;
+    bool do_clear = false;
+    bool dummy = false;
   };
 
   CommandObjectProcessHandle(CommandInterpreter &interpreter)
@@ -1477,10 +1484,19 @@ public:
                             "Manage LLDB handling of OS signals for the "
                             "current target process.  Defaults to showing "
                             "current policy.",
-                            nullptr, eCommandRequiresTarget),
-        m_options() {
-    SetHelpLong("\nIf no signals are specified, update them all.  If no update "
-                "option is specified, list the current values.");
+                            nullptr) {
+    SetHelpLong("\nIf no signals are specified but one or more actions are, "
+                "and there is a live process, update them all.  If no action "
+                "is specified, list the current values.\n"
+                "If you specify actions with no target (e.g. in an init file) "
+                "or in a target with no process "
+                "the values will get copied into subsequent targets, but "
+                "lldb won't be able to spell-check the options since it can't "
+                "know which signal set will later be in force."
+                "\nYou can see the signal modifications held by the target"
+                "by passing the -t option."
+                "\nYou can also clear the target modification for a signal"
+                "by passing the -c option");
     CommandArgumentEntry arg;
     CommandArgumentData signal_arg;
 
@@ -1563,15 +1579,13 @@ public:
 
 protected:
   bool DoExecute(Args &signal_args, CommandReturnObject &result) override {
-    Target *target_sp = &GetSelectedTarget();
+    Target &target = GetSelectedOrDummyTarget();
 
-    ProcessSP process_sp = target_sp->GetProcessSP();
-
-    if (!process_sp) {
-      result.AppendError("No current process; cannot handle signals until you "
-                         "have a valid process.\n");
-      return false;
-    }
+    // Any signals that are being set should be added to the Target's 
+    // DummySignals so they will get applied on rerun, etc.
+    // If we have a process, however, we can do a more accurate job of vetting
+    // the user's options.
+    ProcessSP process_sp = target.GetProcessSP();
 
     int stop_action = -1;   // -1 means leave the current setting alone
     int pass_action = -1;   // -1 means leave the current setting alone
@@ -1597,35 +1611,99 @@ protected:
                          "true or false.\n");
       return false;
     }
+    
+    bool no_actions = (stop_action == -1 && pass_action == -1 
+        && notify_action == -1);
+    if (m_options.only_target_values && !no_actions) {
+      result.AppendError("-t is for reporting, not setting, target values.");
+      return false;
+    }
 
     size_t num_args = signal_args.GetArgumentCount();
-    UnixSignalsSP signals_sp = process_sp->GetUnixSignals();
+    UnixSignalsSP signals_sp;
+    if (process_sp)
+      signals_sp = process_sp->GetUnixSignals();
+
     int num_signals_set = 0;
 
+    // If we were just asked to print the target values, do that here and
+    // return:
+    if (m_options.only_target_values) {
+      target.PrintDummySignals(result.GetOutputStream(), signal_args);
+      result.SetStatus(eReturnStatusSuccessFinishResult);
+      return true;
+    }
+
+    // This handles clearing values:
+    if (m_options.do_clear) {
+      target.ClearDummySignals(signal_args);
+      if (m_options.dummy)
+        GetDummyTarget().ClearDummySignals(signal_args);
+      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      return true;
+    }
+
+    // This rest handles setting values:
     if (num_args > 0) {
       for (const auto &arg : signal_args) {
-        int32_t signo = signals_sp->GetSignalNumberFromName(arg.c_str());
-        if (signo != LLDB_INVALID_SIGNAL_NUMBER) {
-          // Casting the actions as bools here should be okay, because
-          // VerifyCommandOptionValue guarantees the value is either 0 or 1.
-          if (stop_action != -1)
-            signals_sp->SetShouldStop(signo, stop_action);
-          if (pass_action != -1) {
-            bool suppress = !pass_action;
-            signals_sp->SetShouldSuppress(signo, suppress);
+        // Do the process first.  If we have a process we can catch
+        // invalid signal names, which we do here.
+        if (signals_sp) {
+          int32_t signo = signals_sp->GetSignalNumberFromName(arg.c_str());
+          if (signo != LLDB_INVALID_SIGNAL_NUMBER) {
+            // Casting the actions as bools here should be okay, because
+            // VerifyCommandOptionValue guarantees the value is either 0 or 1.
+            if (stop_action != -1)
+              signals_sp->SetShouldStop(signo, stop_action);
+            if (pass_action != -1) {
+              bool suppress = !pass_action;
+              signals_sp->SetShouldSuppress(signo, suppress);
+            }
+            if (notify_action != -1)
+              signals_sp->SetShouldNotify(signo, notify_action);
+            ++num_signals_set;
+          } else {
+            result.AppendErrorWithFormat("Invalid signal name '%s'\n",
+                                          arg.c_str());
+            continue;
           }
-          if (notify_action != -1)
-            signals_sp->SetShouldNotify(signo, notify_action);
-          ++num_signals_set;
         } else {
-          result.AppendErrorWithFormat("Invalid signal name '%s'\n",
-                                       arg.c_str());
+          // If there's no process we can't check, so we just set them all.
+          // But since the map signal name -> signal number across all platforms
+          // is not 1-1, we can't sensibly set signal actions by number before
+          // we have a process.  Check that here:
+          int32_t signo;
+          if (llvm::to_integer(arg.c_str(), signo)) {
+            result.AppendErrorWithFormat("Can't set signal handling by signal "
+                                         "number with no process");
+            return false;
+          }
+         num_signals_set = num_args;
         }
+        auto set_lazy_bool = [] (int action) -> LazyBool {
+          LazyBool lazy;
+          if (action == -1) 
+            lazy = eLazyBoolCalculate;
+          else if (action) 
+            lazy = eLazyBoolYes;
+          else
+            lazy = eLazyBoolNo;
+          return lazy;
+        };
+
+        // If there were no actions, we're just listing, don't add the dummy:
+        if (!no_actions)
+          target.AddDummySignal(arg.ref(),
+                                set_lazy_bool(pass_action),
+                                set_lazy_bool(notify_action),
+                                set_lazy_bool(stop_action));
       }
     } else {
       // No signal specified, if any command options were specified, update ALL
-      // signals.
-      if ((notify_action != -1) || (stop_action != -1) || (pass_action != -1)) {
+      // signals.  But we can't do this without a process since we don't know
+      // all the possible signals that might be valid for this target.
+      if (((notify_action != -1) || (stop_action != -1) || (pass_action != -1))
+          && process_sp) {
         if (m_interpreter.Confirm(
                 "Do you really want to update all the signals?", false)) {
           int32_t signo = signals_sp->GetFirstSignalNumber();
@@ -1644,11 +1722,15 @@ protected:
       }
     }
 
-    PrintSignalInformation(result.GetOutputStream(), signal_args,
-                           num_signals_set, signals_sp);
+    if (signals_sp)
+      PrintSignalInformation(result.GetOutputStream(), signal_args,
+                             num_signals_set, signals_sp);
+    else
+      target.PrintDummySignals(result.GetOutputStream(), 
+          signal_args);
 
     if (num_signals_set > 0)
-      result.SetStatus(eReturnStatusSuccessFinishNoResult);
+      result.SetStatus(eReturnStatusSuccessFinishResult);
     else
       result.SetStatus(eReturnStatusFailed);
 
@@ -1687,7 +1769,7 @@ class CommandObjectProcessTraceSave : public CommandObjectParsed {
 public:
   class CommandOptions : public Options {
   public:
-    CommandOptions() : Options() { OptionParsingStarting(nullptr); }
+    CommandOptions() { OptionParsingStarting(nullptr); }
 
     Status SetOptionValue(uint32_t option_idx, llvm::StringRef option_arg,
                           ExecutionContext *execution_context) override {

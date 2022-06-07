@@ -25,8 +25,6 @@
 #include <iostream>
 #include <limits>
 #include <map>
-#include <memory>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -73,93 +71,38 @@ CONSTFIX char clGetDeviceFunctionPointerName[] =
 
 #undef CONSTFIX
 
-typedef CL_API_ENTRY cl_int(CL_API_CALL *clGetDeviceFunctionPointer_fn)(
-    cl_device_id device, cl_program program, const char *FuncName,
-    cl_ulong *ret_ptr);
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
 
-typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
-    cl_program program, cl_uint spec_id, size_t spec_size,
-    const void *spec_value);
+// Utility function for setting a message and warning
+[[maybe_unused]] static void setErrorMessage(const char *message,
+                                             pi_result error_code) {
+  assert(strlen(message) <= MaxMessageSize);
+  strcpy(ErrorMessage, message);
+  ErrorMessageCode = error_code;
+}
 
-struct ExtFuncsPerContextT;
-
-namespace detail {
-template <const char *FuncName, typename FuncT>
-std::pair<FuncT &, bool &> get(ExtFuncsPerContextT &);
-} // namespace detail
-
-struct ExtFuncsPerContextT {
-#define _EXT_FUNCTION_INTEL(t_pfx)                                             \
-  t_pfx##INTEL_fn t_pfx##Func = nullptr;                                       \
-  bool t_pfx##Initialized = false;
-
-#define _EXT_FUNCTION(t_pfx)                                                   \
-  t_pfx##_fn t_pfx##Func = nullptr;                                            \
-  bool t_pfx##Initialized = false;
-
-#include "ext_functions.inc"
-
-#undef _EXT_FUNCTION
-#undef _EXT_FUNCTION_INTEL
-
-  std::mutex Mtx;
-
-  template <const char *FuncName, typename FuncT>
-  std::pair<FuncT &, bool &> get() {
-    return detail::get<FuncName, FuncT>(*this);
-  }
-};
-
-namespace detail {
-
-#define _EXT_FUNCTION_COMMON(t_pfx, t_pfx_suff)                                \
-  template <>                                                                  \
-  std::pair<t_pfx_suff##_fn &, bool &> get<t_pfx##Name, t_pfx_suff##_fn>(      \
-      ExtFuncsPerContextT & Funcs) {                                           \
-    using FPtrT = t_pfx_suff##_fn;                                             \
-    std::pair<FPtrT &, bool &> Ret{Funcs.t_pfx##Func,                          \
-                                   Funcs.t_pfx##Initialized};                  \
-    return Ret;                                                                \
-  }
-#define _EXT_FUNCTION_INTEL(t_pfx) _EXT_FUNCTION_COMMON(t_pfx, t_pfx##INTEL)
-#define _EXT_FUNCTION(t_pfx) _EXT_FUNCTION_COMMON(t_pfx, t_pfx)
-
-#include "ext_functions.inc"
-
-#undef _EXT_FUNCTION
-#undef _EXT_FUNCTION_INTEL
-#undef _EXT_FUNCTION_COMMON
-} // namespace detail
-
-struct ExtFuncsCachesT {
-  std::map<pi_context, ExtFuncsPerContextT> Caches;
-  std::mutex Mtx;
-};
-
-ExtFuncsCachesT *ExtFuncsCaches = nullptr;
+// Returns plugin specific error and warning messages
+pi_result piPluginGetLastError(char **message) {
+  *message = &ErrorMessage[0];
+  return ErrorMessageCode;
+}
 
 // USM helper function to get an extension function pointer
 template <const char *FuncName, typename T>
 static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   // TODO
   // Potentially redo caching as PI interface changes.
-  ExtFuncsPerContextT *PerContext = nullptr;
-  {
-    assert(ExtFuncsCaches);
-    std::lock_guard<std::mutex> Lock{ExtFuncsCaches->Mtx};
-
-    PerContext = &ExtFuncsCaches->Caches[context];
-  }
-
-  std::lock_guard<std::mutex> Lock{PerContext->Mtx};
-  std::pair<T &, bool &> FuncInitialized = PerContext->get<FuncName, T>();
+  thread_local static std::map<pi_context, T> FuncPtrs;
 
   // if cached, return cached FuncPtr
-  if (FuncInitialized.second) {
+  if (auto F = FuncPtrs[context]) {
     // if cached that extension is not available return nullptr and
     // PI_INVALID_VALUE
-    *fptr = FuncInitialized.first;
-    return *fptr ? PI_SUCCESS : PI_INVALID_VALUE;
+    *fptr = F;
+    return F ? PI_SUCCESS : PI_INVALID_VALUE;
   }
 
   cl_uint deviceCount;
@@ -191,17 +134,14 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   T FuncPtr =
       (T)clGetExtensionFunctionAddressForPlatform(curPlatform, FuncName);
 
-  // We're about to store the cached value. Mark this cache entry initialized.
-  FuncInitialized.second = true;
-
   if (!FuncPtr) {
     // Cache that the extension is not available
-    FuncInitialized.first = nullptr;
+    FuncPtrs[context] = nullptr;
     return PI_INVALID_VALUE;
   }
 
-  FuncInitialized.first = FuncPtr;
   *fptr = FuncPtr;
+  FuncPtrs[context] = FuncPtr;
 
   return cast<pi_result>(ret_err);
 }
@@ -270,18 +210,42 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // TODO: Check if device UUID extension is enabled in OpenCL.
     // For details about Intel UUID extension, see
-    // sycl/doc/extensions/IntelGPU/IntelGPUDeviceInfo.md
+    // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
   case PI_DEVICE_INFO_UUID:
-  // TODO: Implement.
-  case PI_DEVICE_INFO_ATOMIC_64:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
     return PI_INVALID_VALUE;
+  case PI_DEVICE_INFO_ATOMIC_64: {
+    size_t extSize;
+    cl_bool result = clGetDeviceInfo(
+        cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS, 0, nullptr, &extSize);
+    std::string extStr(extSize, '\0');
+    result = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_EXTENSIONS,
+                             extSize, &extStr.front(), nullptr);
+    if (extStr.find("cl_khr_int64_base_atomics") == std::string::npos ||
+        extStr.find("cl_khr_int64_extended_atomics") == std::string::npos)
+      result = false;
+    else
+      result = true;
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
+  case PI_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
+    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
+    cl_int res = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
+                                 sizeof(cl_device_type), &devType, nullptr);
 
+    // FIXME: here we assume that program built for a root GPU device can be
+    // used on its sub-devices without re-building
+    cl_bool result = (res == CL_SUCCESS) && (devType == CL_DEVICE_TYPE_GPU);
+    std::memcpy(paramValue, &result, sizeof(cl_bool));
+    return PI_SUCCESS;
+  }
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
     // Returns the maximum sizes of a work group for each dimension one
     // could use to submit a kernel. There is no such query defined in OpenCL
@@ -467,8 +431,9 @@ pi_result piQueueCreate(pi_context context, pi_device device,
 }
 
 pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                           pi_context, pi_queue *piQueue,
-                                           bool ownNativeHandle) {
+                                           pi_context, pi_device,
+                                           bool ownNativeHandle,
+                                           pi_queue *piQueue) {
   (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
@@ -640,6 +605,9 @@ static bool is_in_separated_string(const std::string &str, char delimiter,
   return false;
 }
 
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clGetDeviceFunctionPointer_fn)(
+    cl_device_id device, cl_program program, const char *FuncName,
+    cl_ulong *ret_ptr);
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
@@ -786,7 +754,10 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
-                                         pi_mem *piMem) {
+                                         pi_context context,
+                                         bool ownNativeHandle, pi_mem *piMem) {
+  (void)context;
+  (void)ownNativeHandle;
   assert(piMem != nullptr);
   *piMem = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
@@ -1339,7 +1310,7 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
 /// \param param_value is the result
 /// \param param_value_ret is how many bytes were written
 pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
-                                  pi_mem_info param_name,
+                                  pi_mem_alloc_info param_name,
                                   size_t param_value_size, void *param_value,
                                   size_t *param_value_size_ret) {
 
@@ -1379,6 +1350,10 @@ pi_result piKernelSetExecInfo(pi_kernel kernel, pi_kernel_exec_info param_name,
         cast<cl_kernel>(kernel), param_name, param_value_size, param_value));
   }
 }
+
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clSetProgramSpecializationConstant_fn)(
+    cl_program program, cl_uint spec_id, size_t spec_size,
+    const void *spec_value);
 
 pi_result piextProgramSetSpecializationConstant(pi_program prog,
                                                 pi_uint32 spec_id,
@@ -1455,19 +1430,7 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
 // pi_level_zero.cpp for reference) Currently this is just a NOOP.
 pi_result piTearDown(void *PluginParameter) {
   (void)PluginParameter;
-  delete ExtFuncsCaches;
-  ExtFuncsCaches = nullptr;
   return PI_SUCCESS;
-}
-
-pi_result piContextRelease(pi_context Context) {
-  {
-    std::lock_guard<std::mutex> Lock{ExtFuncsCaches->Mtx};
-
-    ExtFuncsCaches->Caches.erase(Context);
-  }
-
-  return cast<pi_result>(clReleaseContext(cast<cl_context>(Context)));
 }
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -1479,9 +1442,10 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   // PI interface supports higher version or the same version.
-  strncpy(PluginInit->PluginVersion, SupportedVersion, 4);
-
-  ExtFuncsCaches = new ExtFuncsCachesT;
+  size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
+  if (strlen(SupportedVersion) >= PluginVersionSize)
+    return PI_INVALID_VALUE;
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
 #define _PI_CL(pi_api, ocl_api)                                                \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&ocl_api);
@@ -1506,7 +1470,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piContextCreate, piContextCreate)
   _PI_CL(piContextGetInfo, clGetContextInfo)
   _PI_CL(piContextRetain, clRetainContext)
-  _PI_CL(piContextRelease, piContextRelease)
+  _PI_CL(piContextRelease, clReleaseContext)
   _PI_CL(piextContextGetNativeHandle, piextContextGetNativeHandle)
   _PI_CL(piextContextCreateWithNativeHandle, piextContextCreateWithNativeHandle)
   // Queue
@@ -1602,6 +1566,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)
+  _PI_CL(piPluginGetLastError, piPluginGetLastError)
   _PI_CL(piTearDown, piTearDown)
 
 #undef _PI_CL

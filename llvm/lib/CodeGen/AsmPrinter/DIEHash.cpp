@@ -19,7 +19,6 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Endian.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -310,10 +309,10 @@ void DIEHash::hashAttribute(const DIEValue &Value, dwarf::Tag Tag) {
     addULEB128(Attribute);
     addULEB128(dwarf::DW_FORM_block);
     if (Value.getType() == DIEValue::isBlock) {
-      addULEB128(Value.getDIEBlock().ComputeSize(AP));
+      addULEB128(Value.getDIEBlock().computeSize(AP->getDwarfFormParams()));
       hashBlockData(Value.getDIEBlock().values());
     } else if (Value.getType() == DIEValue::isLoc) {
-      addULEB128(Value.getDIELoc().ComputeSize(AP));
+      addULEB128(Value.getDIELoc().computeSize(AP->getDwarfFormParams()));
       hashBlockData(Value.getDIELoc().values());
     } else {
       // We could add the block length, but that would take

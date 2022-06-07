@@ -24,7 +24,8 @@
 ;      OBJ:   Compile3Sym {
 ; OBJ-NEXT:     Kind: S_COMPILE3 (0x113C)
 ; OBJ-NEXT:     Language: C (0x0)
-; OBJ-NEXT:     Flags [ (0x0)
+; OBJ-NEXT:     Flags [ (0x4000)
+; OBJ-NEXT:       HotPatch (0x4000)
 ; OBJ-NEXT:     ]
 ; OBJ-NEXT:     Machine: ARMNT (0xF4)
 
@@ -43,9 +44,9 @@
 ; OBJ-NEXT:   OffsetInParent: 0
 ; OBJ-NEXT:   BasePointerOffset: 12
 ; OBJ-NEXT:   LocalVariableAddrRange {
-; OBJ-NEXT:     OffsetStart: .text+0x8
+; OBJ-NEXT:     OffsetStart: .text+0xA
 ; OBJ-NEXT:     ISectStart: 0x0
-; OBJ-NEXT:     Range: 0x1A
+; OBJ-NEXT:     Range: 0x1C
 ; OBJ-NEXT:   }
 ; OBJ-NEXT: }
 

@@ -19,11 +19,10 @@
 #include "Transport.h"
 #include "index/Background.h"
 #include "index/Index.h"
+#include "index/MemIndex.h"
 #include "index/Merge.h"
 #include "index/ProjectAware.h"
-#include "index/Serialization.h"
 #include "index/remote/Client.h"
-#include "refactor/Rename.h"
 #include "support/Path.h"
 #include "support/Shutdown.h"
 #include "support/ThreadCrashReporter.h"
@@ -62,8 +61,7 @@ namespace clang {
 namespace clangd {
 
 // Implemented in Check.cpp.
-bool check(const llvm::StringRef File,
-           llvm::function_ref<bool(const Position &)> ShouldCheckLine,
+bool check(const llvm::StringRef File, llvm::Optional<Range> LineRange,
            const ThreadsafeFS &TFS, const ClangdLSPServer::Options &Opts,
            bool EnableCodeCompletion);
 
@@ -169,6 +167,21 @@ opt<bool> EnableBackgroundIndex{
     cat(Features),
     desc("Index project code in the background and persist index on disk."),
     init(true),
+};
+
+opt<llvm::ThreadPriority> BackgroundIndexPriority{
+    "background-index-priority",
+    cat(Features),
+    desc("Thread priority for building the background index. "
+         "The effect of this flag is OS-specific."),
+    values(clEnumValN(llvm::ThreadPriority::Background, "background",
+                      "Minimum priority, runs on idle CPUs. "
+                      "May leave 'performance' cores unused."),
+           clEnumValN(llvm::ThreadPriority::Low, "low",
+                      "Reduced priority compared to interactive work."),
+           clEnumValN(llvm::ThreadPriority::Default, "normal",
+                      "Same priority as other clangd work.")),
+    init(llvm::ThreadPriority::Low),
 };
 
 opt<bool> EnableClangTidy{
@@ -294,6 +307,7 @@ RetiredFlag<bool> AsyncPreamble("async-preamble");
 RetiredFlag<bool> CollectMainFileRefs("collect-main-file-refs");
 RetiredFlag<bool> CrossFileRename("cross-file-rename");
 RetiredFlag<std::string> ClangTidyChecks("clang-tidy-checks");
+RetiredFlag<std::string> InlayHints("inlay-hints");
 
 opt<int> LimitResults{
     "limit-results",
@@ -324,15 +338,6 @@ opt<bool> FoldingRanges{
     cat(Features),
     desc("Enable preview of FoldingRanges feature"),
     init(false),
-    Hidden,
-};
-
-opt<bool> InlayHints{
-    "inlay-hints",
-    cat(Features),
-    desc("Enable InlayHints feature"),
-    init(ClangdLSPServer::Options().InlayHints),
-    // FIXME: allow inlayHints to be disabled in Config and remove this option.
     Hidden,
 };
 
@@ -501,6 +506,20 @@ opt<bool> EnableConfig{
     init(true),
 };
 
+opt<bool> UseDirtyHeaders{"use-dirty-headers", cat(Misc),
+                          desc("Use files open in the editor when parsing "
+                               "headers instead of reading from the disk"),
+                          Hidden,
+                          init(ClangdServer::Options().UseDirtyHeaders)};
+
+opt<bool> PreambleParseForwardingFunctions{
+    "parse-forwarding-functions",
+    cat(Misc),
+    desc("Parse all emplace-like functions in included headers"),
+    Hidden,
+    init(ParseOptions().PreambleParseForwardingFunctions),
+};
+
 #if defined(__GLIBC__) && CLANGD_MALLOC_TRIM
 opt<bool> EnableMallocTrim{
     "malloc-trim",
@@ -602,7 +621,7 @@ loadExternalIndex(const Config::ExternalIndexSpec &External,
     auto NewIndex = std::make_unique<SwapIndex>(std::make_unique<MemIndex>());
     auto IndexLoadTask = [File = External.Location,
                           PlaceHolder = NewIndex.get()] {
-      if (auto Idx = loadIndex(File, /*UseDex=*/true))
+      if (auto Idx = loadIndex(File, SymbolOrigin::Static, /*UseDex=*/true))
         PlaceHolder->reset(std::move(Idx));
     };
     if (Tasks) {
@@ -872,6 +891,7 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
 #endif
   Opts.BackgroundIndex = EnableBackgroundIndex;
+  Opts.BackgroundIndexPriority = BackgroundIndexPriority;
   Opts.ReferencesLimit = ReferencesLimit;
   auto PAI = createProjectAwareIndex(loadExternalIndex, Sync);
   if (StaticIdx) {
@@ -884,7 +904,6 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   }
   Opts.AsyncThreadsCount = WorkerThreadsCount;
   Opts.FoldingRanges = FoldingRanges;
-  Opts.InlayHints = InlayHints;
   Opts.MemoryCleanup = getMemoryCleanupFunction();
 
   Opts.CodeComplete.IncludeIneligibleResults = IncludeIneligibleResults;
@@ -938,6 +957,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
     ClangTidyOptProvider = combine(std::move(Providers));
     Opts.ClangTidyProvider = ClangTidyOptProvider;
   }
+  Opts.UseDirtyHeaders = UseDirtyHeaders;
+  Opts.PreambleParseForwardingFunctions = PreambleParseForwardingFunctions;
   Opts.QueryDriverGlobs = std::move(QueryDriverGlobs);
   Opts.TweakFilter = [&](const Tweak &T) {
     if (T.hidden() && !HiddenFeatures)
@@ -958,8 +979,9 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
       return 1;
     }
     log("Entering check mode (no LSP server)");
-    uint32_t Begin = 0, End = std::numeric_limits<uint32_t>::max();
+    llvm::Optional<Range> CheckLineRange;
     if (!CheckFileLines.empty()) {
+      uint32_t Begin = 0, End = std::numeric_limits<uint32_t>::max();
       StringRef RangeStr(CheckFileLines);
       bool ParseError = RangeStr.consumeInteger(0, Begin);
       if (RangeStr.empty()) {
@@ -968,19 +990,18 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
         ParseError |= !RangeStr.consume_front("-");
         ParseError |= RangeStr.consumeInteger(0, End);
       }
-      if (ParseError || !RangeStr.empty()) {
-        elog("Invalid --check-line specified. Use Begin-End format, e.g. 3-17");
+      if (ParseError || !RangeStr.empty() || Begin <= 0 || End < Begin) {
+        elog(
+            "Invalid --check-lines specified. Use Begin-End format, e.g. 3-17");
         return 1;
       }
+      CheckLineRange = Range{Position{static_cast<int>(Begin - 1), 0},
+                             Position{static_cast<int>(End), 0}};
     }
-    auto ShouldCheckLine = [&](const Position &Pos) {
-      uint32_t Line = Pos.line + 1; // Position::line is 0-based.
-      return Line >= Begin && Line <= End;
-    };
     // For now code completion is enabled any time the range is limited via
     // --check-lines. If it turns out to be to slow, we can introduce a
     // dedicated flag for that instead.
-    return check(Path, ShouldCheckLine, TFS, Opts,
+    return check(Path, CheckLineRange, TFS, Opts,
                  /*EnableCodeCompletion=*/!CheckFileLines.empty())
                ? 0
                : static_cast<int>(ErrorResultCode::CheckFailed);

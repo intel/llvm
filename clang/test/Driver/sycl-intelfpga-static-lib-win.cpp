@@ -1,7 +1,6 @@
 ///
 /// tests specific to -fintelfpga -fsycl w/ static libs
 ///
-// REQUIRES: clang-driver
 // REQUIRES: system-windows
 
 // make dummy archive
@@ -11,14 +10,14 @@
 // RUN: lib -out:%t.lib %t1_bundle.obj
 
 /// Check phases with static lib
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga %t.lib -ccc-print-phases 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t.lib -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_PHASES %s
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.lib]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
 // CHECK_PHASES: 2: linker, {0}, host_dep_image, (host-sycl)
 // CHECK_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
 // CHECK_PHASES: 4: input, "[[INPUT]]", archive
-// CHECK_PHASES: 5: clang-offload-unbundler, {4}, archive
+// CHECK_PHASES: 5: clang-offload-unbundler, {4}, tempfilelist
 // CHECK_PHASES: 6: spirv-to-ir-wrapper, {5}, tempfilelist, (device-sycl)
 // CHECK_PHASES: 7: linker, {3, 6}, ir, (device-sycl)
 // CHECK_PHASES: 8: sycl-post-link, {7}, tempfiletable, (device-sycl)
@@ -34,7 +33,7 @@
 /// Check for unbundle and use of deps in static lib
 // RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.lib -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_UNBUNDLE %s
-// CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-inputs={{.*}}" "-outputs=[[DEPFILES:.+\.txt]]" "-unbundle"
+// CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-input={{.*}}" "-output=[[DEPFILES:.+\.txt]]" "-unbundle"
 // CHECK_UNBUNDLE: aoc{{.*}} "-dep-files=@[[DEPFILES]]"
 
 /// Check for no unbundle and use of deps in static lib when using triple

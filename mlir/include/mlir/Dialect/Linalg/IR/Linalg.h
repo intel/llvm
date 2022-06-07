@@ -6,14 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_LINALG_LINALG_H_
-#define MLIR_DIALECT_LINALG_LINALG_H_
+#ifndef MLIR_DIALECT_LINALG_IR_LINALG_H
+#define MLIR_DIALECT_LINALG_IR_LINALG_H
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -23,6 +18,7 @@
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/CopyOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -105,6 +101,19 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 #include "mlir/Dialect/Linalg/IR/LinalgOpsDialect.h.inc"
 
 //===----------------------------------------------------------------------===//
+// Linalg Enums
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Dialect/Linalg/IR/LinalgOpsEnums.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Linalg Attributes
+//===----------------------------------------------------------------------===//
+
+#define GET_ATTRDEF_CLASSES
+#include "mlir/Dialect/Linalg/IR/LinalgOpsAttrDefs.h.inc"
+
+//===----------------------------------------------------------------------===//
 // Linalg Interfaces
 //===----------------------------------------------------------------------===//
 
@@ -120,4 +129,4 @@ LogicalResult verifyStructuredOpInterface(Operation *op);
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/IR/LinalgStructuredOps.h.inc"
 
-#endif // MLIR_DIALECT_LINALG_LINALG_H_
+#endif // MLIR_DIALECT_LINALG_IR_LINALG_H

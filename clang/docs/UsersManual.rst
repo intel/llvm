@@ -1132,10 +1132,28 @@ A ``#include`` directive which finds a file relative to the current
 directory is treated as including a system header if the including file
 is treated as a system header.
 
+Controlling Deprecation Diagnostics in Clang-Provided C Runtime Headers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Clang is responsible for providing some of the C runtime headers that cannot be
+provided by a platform CRT, such as implementation limits or when compiling in
+freestanding mode. Define the ``_CLANG_DISABLE_CRT_DEPRECATION_WARNINGS`` macro
+prior to including such a C runtime header to disable the deprecation warnings.
+Note that the C Standard Library headers are allowed to transitively include
+other standard library headers (see 7.1.2p5), and so the most appropriate use
+of this macro is to set it within the build system using ``-D`` or before any
+include directives in the translation unit.
+
+.. code-block:: c
+
+  #define _CLANG_DISABLE_CRT_DEPRECATION_WARNINGS
+  #include <stdint.h>    // Clang CRT deprecation warnings are disabled.
+  #include <stdatomic.h> // Clang CRT deprecation warnings are disabled.
+
 .. _diagnostics_enable_everything:
 
 Enabling All Diagnostics
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 In addition to the traditional ``-W`` flags, one can enable **all** diagnostics
 by passing :option:`-Weverything`. This works as expected with
@@ -1201,23 +1219,22 @@ for generating PCH files:
 Using a PCH File
 ^^^^^^^^^^^^^^^^
 
-A PCH file can then be used as a prefix header when a :option:`-include`
+A PCH file can then be used as a prefix header when a ``-include-pch``
 option is passed to ``clang``:
 
 .. code-block:: console
 
-  $ clang -include test.h test.c -o test
+  $ clang -include-pch test.h.pch test.c -o test
 
-The ``clang`` driver will first check if a PCH file for ``test.h`` is
+The ``clang`` driver will check if the PCH file ``test.h.pch`` is
 available; if so, the contents of ``test.h`` (and the files it includes)
-will be processed from the PCH file. Otherwise, Clang falls back to
-directly processing the content of ``test.h``. This mirrors the behavior
-of GCC.
+will be processed from the PCH file. Otherwise, Clang will report an error.
 
 .. note::
 
   Clang does *not* automatically use PCH files for headers that are directly
-  included within a source file. For example:
+  included within a source file or indirectly via :option:`-include`.
+  For example:
 
   .. code-block:: console
 
@@ -1228,7 +1245,7 @@ of GCC.
 
   In this example, ``clang`` will not automatically use the PCH file for
   ``test.h`` since ``test.h`` was included directly in the source file and not
-  specified on the command line using :option:`-include`.
+  specified on the command line using ``-include-pch``.
 
 Relocatable PCH Files
 ^^^^^^^^^^^^^^^^^^^^^
@@ -1380,8 +1397,8 @@ floating point semantic models: precise (the default), strict, and fast.
    When a floating-point value is not representable in a destination integer
    type, the code has undefined behavior according to the language standard.
    By default, Clang will not guarantee any particular result in that case.
-   With the 'no-strict' option, Clang attempts to match the overflowing behavior
-   of the target's native float-to-int conversion instructions.
+   With the 'no-strict' option, Clang will saturate towards the smallest and
+   largest representable integer values instead. NaNs will be converted to zero.
 
 .. _opt_fmath-errno:
 
@@ -1548,6 +1565,22 @@ Note that floating-point operations performed as part of constant initialization
    * ``maytrap`` The compiler avoids transformations that may raise exceptions that would not have been raised by the original code. Constant folding performed by the compiler is exempt from this option.
    * ``strict`` The compiler ensures that all transformations strictly preserve the floating point exception semantics of the original code.
 
+.. option:: -ffp-eval-method=<value>
+
+   Specify the floating-point evaluation method for intermediate results within
+   a single expression of the code.
+
+   Valid values are: ``source``, ``double``, and ``extended``.
+   For 64-bit targets, the default value is ``source``. For 32-bit x86 targets
+   however, in the case of NETBSD 6.99.26 and under, the default value is
+   ``double``; in the case of NETBSD greater than 6.99.26, with NoSSE, the
+   default value is ``extended``, with SSE the default value is ``source``.
+   Details:
+
+   * ``source`` The compiler uses the floating-point type declared in the source program as the evaluation method.
+   * ``double`` The compiler uses ``double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``double``.
+   * ``extended`` The compiler uses ``long double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``long double``.
+
 .. option:: -f[no-]protect-parens:
 
    This option pertains to floating-point types, complex types with
@@ -1568,6 +1601,17 @@ Note that floating-point operations performed as part of constant initialization
    modes, such as `-ffp-model=precise` or `-ffp-model=strict`, this option
    has no effect because the optimizer is prohibited from making unsafe
    transformations.
+
+.. _FLT_EVAL_METHOD:
+
+A note about ``__FLT_EVAL_METHOD__``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The macro ``__FLT_EVAL_METHOD__`` will expand to either the value set from the
+command line option ``ffp-eval-method`` or to the value from the target info
+setting. The ``__FLT_EVAL_METHOD__`` macro cannot expand to the correct
+evaluation method in the presence of a ``#pragma`` which alters the evaluation
+method. An error is issued if ``__FLT_EVAL_METHOD__`` is expanded inside a scope
+modified by ``#pragma clang fp eval_method``.
 
 .. _fp-constant-eval:
 
@@ -2531,12 +2575,6 @@ using the ``llvm-cxxmap`` and ``llvm-profdata merge`` tools.
 
 .. note::
 
-  Profile data remapping support is currently only implemented for LLVM's
-  new pass manager, which can be enabled with
-  ``-fexperimental-new-pass-manager``.
-
-.. note::
-
   Profile data remapping is currently only supported for C++ mangled names
   following the Itanium C++ ABI mangling scheme. This covers all C++ targets
   supported by Clang other than Windows.
@@ -3027,7 +3065,7 @@ Compiling to bitcode can be done as follows:
 This will produce a file `test.bc` that can be used in vendor toolchains
 to perform machine code generation.
 
-Note that if compiled to bitcode for generic targets such as SPIR,
+Note that if compiled to bitcode for generic targets such as SPIR/SPIR-V,
 portable IR is produced that can be used with various vendor
 tools as well as open source tools such as `SPIRV-LLVM Translator
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator>`_
@@ -3035,15 +3073,17 @@ to produce SPIR-V binary. More details are provided in `the offline
 compilation from OpenCL kernel sources into SPIR-V using open source
 tools
 <https://github.com/KhronosGroup/OpenCL-Guide/blob/main/chapters/os_tooling.md>`_.
+From clang 14 onwards SPIR-V can be generated directly as detailed in
+:ref:`the SPIR-V support section <spir-v>`.
 
 Clang currently supports OpenCL C language standards up to v2.0. Clang mainly
 supports full profile. There is only very limited support of the embedded
 profile.
-Starting from clang 9 a C++ mode is available for OpenCL (see
+From clang 9 a C++ mode is available for OpenCL (see
 :ref:`C++ for OpenCL <cxx_for_opencl>`).
 
-There is ongoing support for OpenCL v3.0 that is documented along with other
-experimental functionality and features in development on :doc:`OpenCLSupport`
+OpenCL v3.0 support is complete but it remains in experimental state, see more
+details about the experimental features and limitations in :doc:`OpenCLSupport`
 page.
 
 OpenCL Specific Options
@@ -3083,6 +3123,34 @@ compile.
 More information about the standard types and functions is provided in :ref:`the
 section on the OpenCL Header <opencl_header>`.
 
+.. _opencl_cl_ext:
+
+.. option:: -cl-ext
+
+Enables/Disables support of OpenCL extensions and optional features. All OpenCL
+targets set a list of extensions that they support. Clang allows to amend this using
+the ``-cl-ext`` flag with a comma-separated list of extensions prefixed with
+``'+'`` or ``'-'``. The syntax: ``-cl-ext=<(['-'|'+']<extension>[,])+>``,  where
+extensions can be either one of `the OpenCL published extensions
+<https://www.khronos.org/registry/OpenCL>`_
+or any vendor extension. Alternatively, ``'all'`` can be used to enable
+or disable all known extensions.
+
+Example disabling double support for the 64-bit SPIR-V target:
+
+   .. code-block:: console
+
+     $ clang -c -target spirv64 -cl-ext=-cl_khr_fp64 test.cl
+
+Enabling all extensions except double support in R600 AMD GPU can be done using:
+
+   .. code-block:: console
+
+     $ clang -target r600 -cl-ext=-all,+cl_khr_fp16 test.cl
+
+Note that some generic targets e.g. SPIR/SPIR-V enable all extensions/features in
+clang by default.
+
 OpenCL Targets
 --------------
 
@@ -3115,8 +3183,8 @@ Generic Targets
 
    .. code-block:: console
 
-    $ clang -target spirv32 test.cl
-    $ clang -target spirv64 test.cl
+    $ clang -target spirv32 -c test.cl
+    $ clang -target spirv64 -c test.cl
 
   More details can be found in :ref:`the SPIR-V support section <spir-v>`.
 
@@ -3130,9 +3198,8 @@ Generic Targets
     $ clang -target spir test.cl -emit-llvm -c
     $ clang -target spir64 test.cl -emit-llvm -c
 
-  All known OpenCL extensions are supported in the SPIR targets. Clang will
-  generate SPIR v1.2 compatible IR for OpenCL versions up to 2.0 and SPIR v2.0
-  for OpenCL v2.0 or C++ for OpenCL.
+  Clang will generate SPIR v1.2 compatible IR for OpenCL versions up to 2.0 and
+  SPIR v2.0 for OpenCL v2.0 or C++ for OpenCL.
 
 - x86 is used by some implementations that are x86 compatible and currently
   remains for backwards compatibility (with older implementations prior to
@@ -3145,6 +3212,10 @@ Generic Targets
   This target does not support multiple memory segments and, therefore, the fake
   address space map can be added using the :ref:`-ffake-address-space-map
   <opencl_fake_address_space_map>` flag.
+
+  All known OpenCL extensions and features are set to supported in the generic targets,
+  however :option:`-cl-ext` flag can be used to toggle individual extensions and
+  features.
 
 .. _opencl_header:
 
@@ -3357,6 +3428,7 @@ Example of use:
    .. code-block:: console
 
      clang -cl-std=clc++1.0 test.clcpp
+     clang -cl-std=clc++ -c -target spirv64 test.cl
 
 
 By default, files with ``.clcpp`` extension are compiled with the C++ for
@@ -3570,7 +3642,7 @@ To generate SPIR-V binaries, Clang uses the external ``llvm-spirv`` tool from th
 Prior to the generation of SPIR-V binary with Clang, ``llvm-spirv``
 should be built or installed. Please refer to `the following instructions
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator#build-instructions>`_
-for more details. Clang will expects the ``llvm-spirv`` executable to
+for more details. Clang will expect the ``llvm-spirv`` executable to
 be present in the ``PATH`` environment variable. Clang uses ``llvm-spirv``
 with `the widely adopted assembly syntax package
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator/#build-with-spirv-tools>`_.
@@ -3587,8 +3659,8 @@ Example usage for OpenCL kernel compilation:
 
    .. code-block:: console
 
-     $ clang -target spirv32 test.cl
-     $ clang -target spirv64 test.cl
+     $ clang -target spirv32 -c test.cl
+     $ clang -target spirv64 -c test.cl
 
 Both invocations of Clang will result in the generation of a SPIR-V binary file
 `test.o` for 32 bit and 64 bit respectively. This file can be imported
@@ -3598,6 +3670,33 @@ further by offline SPIR-V consumer tools.
 Converting to SPIR-V produced with the optimization levels other than `-O0` is
 currently available as an experimental feature and it is not guaranteed to work
 in all cases.
+
+Clang also supports integrated generation of SPIR-V without use of ``llvm-spirv``
+tool as an experimental feature when ``-fintegrated-objemitter`` flag is passed in
+the command line.
+
+   .. code-block:: console
+
+     $ clang -target spirv32 -fintegrated-objemitter -c test.cl
+
+Note that only very basic functionality is supported at this point and therefore
+it is not suitable for arbitrary use cases. This feature is only enabled when clang
+build is configured with ``-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV`` option.
+
+Linking is done using ``spirv-link`` from `the SPIRV-Tools project
+<https://github.com/KhronosGroup/SPIRV-Tools#linker>`_. Similar to other external
+linkers, Clang will expect ``spirv-link`` to be installed separately and to be
+present in the ``PATH`` environment variable. Please refer to `the build and
+installation instructions
+<https://github.com/KhronosGroup/SPIRV-Tools#build>`_.
+
+   .. code-block:: console
+
+     $ clang -target spirv64 test1.cl test2.cl
+
+More information about the SPIR-V target settings and supported versions of SPIR-V
+format can be found in `the SPIR-V target guide
+<https://llvm.org/docs/SPIRVUsage.html>`__.
 
 .. _clang-cl:
 
@@ -3632,7 +3731,7 @@ When using CMake and the Visual Studio generators, the toolset can be set with t
 
   ::
 
-    cmake -G"Visual Studio 15 2017" -T LLVM ..
+    cmake -G"Visual Studio 16 2019" -T LLVM ..
 
 When using CMake with the Ninja generator, set the ``CMAKE_C_COMPILER`` and
 ``CMAKE_CXX_COMPILER`` variables to clang-cl:

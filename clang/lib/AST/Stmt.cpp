@@ -363,10 +363,9 @@ int64_t Stmt::getID(const ASTContext &Context) const {
 
 CompoundStmt::CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB,
                            SourceLocation RB)
-    : Stmt(CompoundStmtClass), RBraceLoc(RB) {
+    : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB) {
   CompoundStmtBits.NumStmts = Stmts.size();
   setStmts(Stmts);
-  CompoundStmtBits.LBraceLoc = LB;
 }
 
 void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
@@ -568,21 +567,20 @@ void GCCAsmStmt::setOutputsAndInputsAndClobbers(const ASTContext &C,
 /// translate this into a numeric value needed to reference the same operand.
 /// This returns -1 if the operand name is invalid.
 int GCCAsmStmt::getNamedOperand(StringRef SymbolicName) const {
-  unsigned NumPlusOperands = 0;
-
   // Check if this is an output operand.
-  for (unsigned i = 0, e = getNumOutputs(); i != e; ++i) {
+  unsigned NumOutputs = getNumOutputs();
+  for (unsigned i = 0; i != NumOutputs; ++i)
     if (getOutputName(i) == SymbolicName)
       return i;
-  }
 
-  for (unsigned i = 0, e = getNumInputs(); i != e; ++i)
+  unsigned NumInputs = getNumInputs();
+  for (unsigned i = 0; i != NumInputs; ++i)
     if (getInputName(i) == SymbolicName)
-      return getNumOutputs() + NumPlusOperands + i;
+      return NumOutputs + i;
 
   for (unsigned i = 0, e = getNumLabels(); i != e; ++i)
     if (getLabelName(i) == SymbolicName)
-      return i + getNumOutputs() + getNumInputs();
+      return NumOutputs + NumInputs + getNumPlusOperands() + i;
 
   // Not found.
   return -1;

@@ -193,13 +193,8 @@ public:
   ///   - For bitwidth = 1: Packed into 8bit bytes with bits corresponding to
   ///     the linear order of the shape type from MSB to LSB, padded to on the
   ///     right.
-  ///
-  /// If `isSplatBuffer` is true, then the raw buffer should contain a
-  /// single element (or for the case of 1-bit, a single byte of 0 or 255),
-  /// which will be used to construct a splat.
   static DenseElementsAttr getFromRawBuffer(ShapedType type,
-                                            ArrayRef<char> rawBuffer,
-                                            bool isSplatBuffer);
+                                            ArrayRef<char> rawBuffer);
 
   /// Returns true if the given buffer is a valid raw buffer for the given type.
   /// `detectedSplat` is set if the buffer is valid and represents a splat
@@ -656,6 +651,11 @@ public:
   DenseElementsAttr reshape(ShapedType newType);
 
   /// Return a new DenseElementsAttr that has the same data as the current
+  /// attribute, but with a different shape for a splat type. The new type must
+  /// have the same element type.
+  DenseElementsAttr resizeSplat(ShapedType newType);
+
+  /// Return a new DenseElementsAttr that has the same data as the current
   /// attribute, but has bitcast elements to 'newElType'. The new type must have
   /// the same bitwidth as the current element type.
   DenseElementsAttr bitcast(Type newElType);
@@ -900,8 +900,7 @@ auto SparseElementsAttr::value_begin() const -> iterator<T> {
   auto valueIt = getValues().value_begin<T>();
   const std::vector<ptrdiff_t> flatSparseIndices(getFlattenedSparseIndices());
   std::function<T(ptrdiff_t)> mapFn =
-      [flatSparseIndices{std::move(flatSparseIndices)},
-       valueIt{std::move(valueIt)},
+      [flatSparseIndices{flatSparseIndices}, valueIt{std::move(valueIt)},
        zeroValue{std::move(zeroValue)}](ptrdiff_t index) {
         // Try to map the current index to one of the sparse indices.
         for (unsigned i = 0, e = flatSparseIndices.size(); i != e; ++i)

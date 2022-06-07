@@ -9,15 +9,18 @@
 #ifndef LLVM_ANALYSIS_MLINLINEADVISOR_H
 #define LLVM_ANALYSIS_MLINLINEADVISOR_H
 
-#include "llvm/Analysis/CallGraph.h"
+#include "llvm/Analysis/FunctionPropertiesAnalysis.h"
 #include "llvm/Analysis/InlineAdvisor.h"
+#include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/MLModelRunner.h"
 #include "llvm/IR/PassManager.h"
 
+#include <deque>
+#include <map>
 #include <memory>
-#include <unordered_map>
 
 namespace llvm {
+class DiagnosticInfoOptimizationBase;
 class Module;
 class MLInlineAdvice;
 
@@ -26,19 +29,22 @@ public:
   MLInlineAdvisor(Module &M, ModuleAnalysisManager &MAM,
                   std::unique_ptr<MLModelRunner> ModelRunner);
 
-  CallGraph *callGraph() const { return CG.get(); }
   virtual ~MLInlineAdvisor() = default;
 
   void onPassEntry() override;
+  void onPassExit(LazyCallGraph::SCC *SCC) override;
 
-  int64_t getIRSize(const Function &F) const { return F.getInstructionCount(); }
+  int64_t getIRSize(Function &F) const {
+    return getCachedFPI(F).TotalInstructionCount;
+  }
   void onSuccessfulInlining(const MLInlineAdvice &Advice,
                             bool CalleeWasDeleted);
 
   bool isForcedToStop() const { return ForceStop; }
   int64_t getLocalCalls(Function &F);
   const MLModelRunner &getModelRunner() const { return *ModelRunner.get(); }
-  void onModuleInvalidated() override { Invalid = true; }
+  FunctionPropertiesInfo &getCachedFPI(Function &) const;
+  const LoopInfo &getLoopInfo(Function &F) const;
 
 protected:
   std::unique_ptr<InlineAdvice> getAdviceImpl(CallBase &CB) override;
@@ -51,20 +57,34 @@ protected:
   virtual std::unique_ptr<MLInlineAdvice>
   getAdviceFromModel(CallBase &CB, OptimizationRemarkEmitter &ORE);
 
+  // Get the initial 'level' of the function, or 0 if the function has been
+  // introduced afterwards.
+  // TODO: should we keep this updated?
+  unsigned getInitialFunctionLevel(const Function &F) const;
+
   std::unique_ptr<MLModelRunner> ModelRunner;
 
 private:
   int64_t getModuleIRSize() const;
 
-  bool Invalid = true;
-  std::unique_ptr<CallGraph> CG;
+  void print(raw_ostream &OS) const override {
+    OS << "[MLInlineAdvisor] Nodes: " << NodeCount << " Edges: " << EdgeCount
+       << "\n";
+  }
+
+  mutable DenseMap<const Function *, FunctionPropertiesInfo> FPICache;
+
+  LazyCallGraph &CG;
 
   int64_t NodeCount = 0;
   int64_t EdgeCount = 0;
-  std::map<const Function *, unsigned> FunctionLevels;
+  int64_t EdgesOfLastSeenNodes = 0;
+
+  std::map<const LazyCallGraph::Node *, unsigned> FunctionLevels;
   const int32_t InitialIRSize = 0;
   int32_t CurrentIRSize = 0;
-
+  std::deque<const LazyCallGraph::Node *> NodesInLastSCC;
+  DenseSet<const LazyCallGraph::Node *> AllNodes;
   bool ForceStop = false;
 };
 
@@ -73,16 +93,7 @@ private:
 class MLInlineAdvice : public InlineAdvice {
 public:
   MLInlineAdvice(MLInlineAdvisor *Advisor, CallBase &CB,
-                 OptimizationRemarkEmitter &ORE, bool Recommendation)
-      : InlineAdvice(Advisor, CB, ORE, Recommendation),
-        CallerIRSize(Advisor->isForcedToStop() ? 0
-                                               : Advisor->getIRSize(*Caller)),
-        CalleeIRSize(Advisor->isForcedToStop() ? 0
-                                               : Advisor->getIRSize(*Callee)),
-        CallerAndCalleeEdges(Advisor->isForcedToStop()
-                                 ? 0
-                                 : (Advisor->getLocalCalls(*Caller) +
-                                    Advisor->getLocalCalls(*Callee))) {}
+                 OptimizationRemarkEmitter &ORE, bool Recommendation);
   virtual ~MLInlineAdvice() = default;
 
   void recordInliningImpl() override;
@@ -99,10 +110,14 @@ public:
 
 private:
   void reportContextForRemark(DiagnosticInfoOptimizationBase &OR);
-
+  void updateCachedCallerFPI();
   MLInlineAdvisor *getAdvisor() const {
     return static_cast<MLInlineAdvisor *>(Advisor);
   };
+  // Make a copy of the FPI of the caller right before inlining. If inlining
+  // fails, we can just update the cache with that value.
+  const FunctionPropertiesInfo PreInlineCallerFPI;
+  Optional<FunctionPropertiesUpdater> FPU;
 };
 
 } // namespace llvm

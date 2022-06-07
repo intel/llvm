@@ -69,10 +69,6 @@ if(TARGET lldb-vscode)
   add_lldb_test_dependency(lldb-vscode)
 endif()
 
-if(TARGET lldb-instr)
-  add_lldb_test_dependency(lldb-instr)
-endif()
-
 if(TARGET liblldb)
   add_lldb_test_dependency(liblldb)
 endif()
@@ -107,7 +103,7 @@ if(TARGET clang)
     add_lldb_test_dependency(tsan)
   endif()
 
-  if(APPLE)
+  if(APPLE AND NOT LLVM_TARGET_IS_CROSSCOMPILE_HOST)
     # FIXME: Standalone builds should import the cxx target as well.
     if(LLDB_BUILT_STANDALONE)
       # For now check that the include directory exists.
@@ -137,7 +133,7 @@ if(TARGET clang)
 endif()
 
 if (LLDB_BUILT_STANDALONE)
-  set(LLVM_HOST_TRIPLE ${TARGET_TRIPLE})
+  set(LLVM_HOST_TRIPLE ${LLVM_TARGET_TRIPLE})
 endif()
 
 add_lldb_test_dependency(

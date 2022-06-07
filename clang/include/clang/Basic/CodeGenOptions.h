@@ -276,6 +276,10 @@ public:
   /// CUDA runtime back-end for incorporating them into host-side object file.
   std::string CudaGpuBinaryFileName;
 
+  /// List of filenames passed in using the -fembed-offload-object option. These
+  /// are offloading binaries containing device images and metadata.
+  std::vector<std::string> OffloadObjects;
+
   /// The name of the file to which the backend should save YAML optimization
   /// records.
   std::string OptRecordFile;
@@ -414,6 +418,10 @@ public:
   ///
   /// If threshold option is not specified, it is disabled by default.
   Optional<uint64_t> DiagnosticsHotnessThreshold = 0;
+
+  /// The maximum percentage profiling weights can deviate from the expected
+  /// values in order to be included in misexpect diagnostics.
+  Optional<uint64_t> DiagnosticsMisExpectTolerance = 0;
 
 public:
   // Define accessors/mutators for code generation options of enumeration type.

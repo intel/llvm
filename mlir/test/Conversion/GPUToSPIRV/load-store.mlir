@@ -5,7 +5,7 @@ module attributes {
   spv.target_env = #spv.target_env<
     #spv.vce<v1.0, [Shader], [SPV_KHR_storage_buffer_storage_class]>, {}>
 } {
-  func @load_store(%arg0: memref<12x4xf32>, %arg1: memref<12x4xf32>, %arg2: memref<12x4xf32>) {
+  func.func @load_store(%arg0: memref<12x4xf32>, %arg1: memref<12x4xf32>, %arg2: memref<12x4xf32>) {
     %c0 = arith.constant 0 : index
     %c12 = arith.constant 12 : index
     %0 = arith.subi %c12, %c0 : index
@@ -43,18 +43,18 @@ module attributes {
       // CHECK: %[[ADDRESSLOCALINVOCATIONID:.*]] = spv.mlir.addressof @[[$LOCALINVOCATIONIDVAR]]
       // CHECK: %[[LOCALINVOCATIONID:.*]] = spv.Load "Input" %[[ADDRESSLOCALINVOCATIONID]]
       // CHECK: %[[LOCALINVOCATIONIDX:.*]] = spv.CompositeExtract %[[LOCALINVOCATIONID]]{{\[}}0 : i32{{\]}}
-      %0 = "gpu.block_id"() {dimension = "x"} : () -> index
-      %1 = "gpu.block_id"() {dimension = "y"} : () -> index
-      %2 = "gpu.block_id"() {dimension = "z"} : () -> index
-      %3 = "gpu.thread_id"() {dimension = "x"} : () -> index
-      %4 = "gpu.thread_id"() {dimension = "y"} : () -> index
-      %5 = "gpu.thread_id"() {dimension = "z"} : () -> index
-      %6 = "gpu.grid_dim"() {dimension = "x"} : () -> index
-      %7 = "gpu.grid_dim"() {dimension = "y"} : () -> index
-      %8 = "gpu.grid_dim"() {dimension = "z"} : () -> index
-      %9 = "gpu.block_dim"() {dimension = "x"} : () -> index
-      %10 = "gpu.block_dim"() {dimension = "y"} : () -> index
-      %11 = "gpu.block_dim"() {dimension = "z"} : () -> index
+      %0 = gpu.block_id x
+      %1 = gpu.block_id y
+      %2 = gpu.block_id z
+      %3 = gpu.thread_id x
+      %4 = gpu.thread_id y
+      %5 = gpu.thread_id z
+      %6 = gpu.grid_dim x
+      %7 = gpu.grid_dim y
+      %8 = gpu.grid_dim z
+      %9 = gpu.block_dim x
+      %10 = gpu.block_dim y
+      %11 = gpu.block_dim z
       // CHECK: %[[INDEX1:.*]] = spv.IAdd %[[ARG3]], %[[WORKGROUPIDX]]
       %12 = arith.addi %arg3, %0 : index
       // CHECK: %[[INDEX2:.*]] = spv.IAdd %[[ARG4]], %[[LOCALINVOCATIONIDX]]

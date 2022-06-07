@@ -567,6 +567,18 @@ set(armv7em_SOURCES ${arm_SOURCES})
 set(armv8m.main_SOURCES ${arm_SOURCES})
 set(armv8.1m.main_SOURCES ${arm_SOURCES})
 
+# 8-bit AVR MCU
+set(avr_SOURCES
+  avr/mulqi3.S
+  avr/mulhi3.S
+  avr/exit.S
+  avr/divmodhi4.S
+  avr/udivmodhi4.S
+  avr/divmodqi4.S
+  avr/udivmodqi4.S
+  ${GENERIC_SOURCES}
+)
+
 # hexagon arch
 set(hexagon_SOURCES
   hexagon/common_entry_exit_abi1.S
@@ -677,6 +689,10 @@ if (APPLE)
   darwin_add_builtin_libraries(${BUILTIN_SUPPORTED_OS})
 else ()
   set(BUILTIN_CFLAGS "")
+
+  if (COMPILER_RT_HAS_FCF_PROTECTION_FLAG)
+    append_list_if(COMPILER_RT_ENABLE_CET -fcf-protection=full BUILTIN_CFLAGS)
+  endif()
 
   append_list_if(COMPILER_RT_HAS_FLOAT16 -DCOMPILER_RT_HAS_FLOAT16 BUILTIN_CFLAGS)
 
@@ -799,7 +815,7 @@ if(COMPILER_RT_BUILD_STANDALONE_LIBATOMIC)
   # archive, i.e., libatomic.a. Once cmake adds support of such usage for AIX,
   # this ad-hoc part can be removed.
   if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-    archive_aix_libatomic(clang_rt.atomic
+    archive_aix_libatomic(clang_rt.atomic libatomic
                           ARCHS ${BUILTIN_SUPPORTED_ARCH}
                           PARENT_TARGET builtins-standalone-atomic)
   endif()

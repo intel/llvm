@@ -18,12 +18,14 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/Module.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Sema.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Serialization/ASTBitCodes.h"
 #include "clang/Serialization/ASTDeserializationListener.h"
 #include "clang/Serialization/PCHContainerOperations.h"
+#include "clang/Serialization/SourceLocationEncoding.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -43,26 +45,13 @@
 #include <utility>
 #include <vector>
 
-namespace llvm {
-
-class APFloat;
-class APInt;
-class APSInt;
-
-} // namespace llvm
-
 namespace clang {
 
 class ASTContext;
 class ASTReader;
-class ASTUnresolvedSet;
 class Attr;
-class CXXBaseSpecifier;
-class CXXCtorInitializer;
 class CXXRecordDecl;
-class CXXTemporary;
 class FileEntry;
-class FPOptions;
 class FPOptionsOverride;
 class FunctionDecl;
 class HeaderSearch;
@@ -79,16 +68,13 @@ class NamedDecl;
 class ObjCInterfaceDecl;
 class PreprocessingRecord;
 class Preprocessor;
-struct QualifierInfo;
 class RecordDecl;
 class Sema;
 class SourceManager;
 class Stmt;
 class StoredDeclsList;
 class SwitchCase;
-class TemplateParameterList;
 class Token;
-class TypeSourceInfo;
 
 /// Writes an AST file containing the contents of a translation unit.
 ///
@@ -118,6 +104,8 @@ private:
   /// Keys in the map never have const/volatile qualifiers.
   using TypeIdxMap = llvm::DenseMap<QualType, serialization::TypeIdx,
                                     serialization::UnsafeQualTypeDenseMapInfo>;
+
+  using LocSeq = SourceLocationSequence;
 
   /// The bitstream writer used to emit this precompiled header.
   llvm::BitstreamWriter &Stream;
@@ -481,6 +469,7 @@ private:
                        std::set<const FileEntry *> &AffectingModuleMaps);
   void WriteSourceManagerBlock(SourceManager &SourceMgr,
                                const Preprocessor &PP);
+  void writeIncludedFiles(raw_ostream &Out, const Preprocessor &PP);
   void WritePreprocessor(const Preprocessor &PP, bool IsModule);
   void WriteHeaderSearch(const HeaderSearch &HS);
   void WritePreprocessorDetail(PreprocessingRecord &PPRec,
@@ -491,7 +480,6 @@ private:
                                      bool isModule);
 
   unsigned TypeExtQualAbbrev = 0;
-  unsigned TypeFunctionProtoAbbrev = 0;
   void WriteTypeAbbrevs();
   void WriteType(QualType T);
 
@@ -596,10 +584,12 @@ public:
                         RecordDataImpl &Record);
 
   /// Emit a source location.
-  void AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record);
+  void AddSourceLocation(SourceLocation Loc, RecordDataImpl &Record,
+                         LocSeq *Seq = nullptr);
 
   /// Emit a source range.
-  void AddSourceRange(SourceRange Range, RecordDataImpl &Record);
+  void AddSourceRange(SourceRange Range, RecordDataImpl &Record,
+                      LocSeq *Seq = nullptr);
 
   /// Emit a reference to an identifier.
   void AddIdentifierRef(const IdentifierInfo *II, RecordDataImpl &Record);
@@ -694,10 +684,6 @@ public:
 
   unsigned getTypeExtQualAbbrev() const {
     return TypeExtQualAbbrev;
-  }
-
-  unsigned getTypeFunctionProtoAbbrev() const {
-    return TypeFunctionProtoAbbrev;
   }
 
   unsigned getDeclParmVarAbbrev() const { return DeclParmVarAbbrev; }

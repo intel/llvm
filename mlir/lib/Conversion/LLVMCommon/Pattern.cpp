@@ -11,6 +11,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/BuiltinAttributes.h"
 
 using namespace mlir;
 
@@ -79,14 +80,14 @@ Value ConvertToLLVMPattern::getStridedElementPtr(
 
   Value index;
   if (offset != 0) // Skip if offset is zero.
-    index = MemRefType::isDynamicStrideOrOffset(offset)
+    index = ShapedType::isDynamicStrideOrOffset(offset)
                 ? memRefDescriptor.offset(rewriter, loc)
                 : createIndexConstant(rewriter, loc, offset);
 
   for (int i = 0, e = indices.size(); i < e; ++i) {
     Value increment = indices[i];
     if (strides[i] != 1) { // Skip if stride is 1.
-      Value stride = MemRefType::isDynamicStrideOrOffset(strides[i])
+      Value stride = ShapedType::isDynamicStrideOrOffset(strides[i])
                          ? memRefDescriptor.stride(rewriter, loc, i)
                          : createIndexConstant(rewriter, loc, strides[i]);
       increment = rewriter.create<LLVM::MulOp>(loc, increment, stride);
@@ -319,11 +320,9 @@ LogicalResult LLVM::detail::oneToOneRewrite(
   }
 
   // Create the operation through state since we don't know its C++ type.
-  OperationState state(op->getLoc(), targetOp);
-  state.addTypes(packedType);
-  state.addOperands(operands);
-  state.addAttributes(op->getAttrs());
-  Operation *newOp = rewriter.createOperation(state);
+  Operation *newOp =
+      rewriter.create(op->getLoc(), rewriter.getStringAttr(targetOp), operands,
+                      packedType, op->getAttrs());
 
   // If the operation produced 0 or 1 result, return them immediately.
   if (numResults == 0)

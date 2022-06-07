@@ -23,7 +23,7 @@ public:
   typedef bool (*ResponseValidatorCallback)(
       void *baton, const StringExtractorGDBRemote &response);
 
-  StringExtractorGDBRemote() : StringExtractor() {}
+  StringExtractorGDBRemote() {}
 
   StringExtractorGDBRemote(llvm::StringRef str)
       : StringExtractor(str), m_validator(nullptr) {}
@@ -174,6 +174,7 @@ public:
     eServerPacketType_QMemTags, // write memory tags
 
     eServerPacketType_qLLDBSaveCore,
+    eServerPacketType_QSetIgnoredExceptions
   };
 
   ServerPacketType GetServerPacketType() const;

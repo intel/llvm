@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/IR/DiagnosticInfo.h"
-#include "LLVMContextImpl.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
@@ -24,22 +23,19 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/InstructionCost.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/Regex.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
 #include <atomic>
-#include <cassert>
-#include <memory>
 #include <string>
 
 using namespace llvm;
@@ -395,6 +391,17 @@ std::string DiagnosticInfoOptimizationBase::getMsg() const {
                                     : Args.begin() + FirstExtraArgIndex))
     OS << Arg.Val;
   return OS.str();
+}
+
+DiagnosticInfoMisExpect::DiagnosticInfoMisExpect(const Instruction *Inst,
+                                                 Twine &Msg)
+    : DiagnosticInfoWithLocationBase(DK_MisExpect, DS_Warning,
+                                     *Inst->getParent()->getParent(),
+                                     Inst->getDebugLoc()),
+      Msg(Msg) {}
+
+void DiagnosticInfoMisExpect::print(DiagnosticPrinter &DP) const {
+  DP << getLocationStr() << ": " << getMsg();
 }
 
 void OptimizationRemarkAnalysisFPCommute::anchor() {}

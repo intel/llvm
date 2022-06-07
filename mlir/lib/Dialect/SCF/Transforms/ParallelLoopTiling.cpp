@@ -16,8 +16,7 @@
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/SCF/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -195,9 +194,9 @@ struct ParallelLoopTiling
     this->noMinMaxBounds = noMinMaxBounds;
   }
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     SmallVector<ParallelOp, 2> innermostPloops;
-    getInnermostParallelLoops(getFunction().getOperation(), innermostPloops);
+    getInnermostParallelLoops(getOperation().getOperation(), innermostPloops);
     for (ParallelOp ploop : innermostPloops) {
       // FIXME: Add reduction support.
       if (ploop.getNumReductions() == 0)

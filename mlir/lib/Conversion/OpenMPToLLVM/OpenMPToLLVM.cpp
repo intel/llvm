@@ -10,11 +10,12 @@
 
 #include "../PassDetail.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 
@@ -44,13 +45,56 @@ struct RegionOpConversion : public ConvertOpToLLVMPattern<OpType> {
     return success();
   }
 };
+
+template <typename T>
+struct RegionLessOpConversion : public ConvertOpToLLVMPattern<T> {
+  using ConvertOpToLLVMPattern<T>::ConvertOpToLLVMPattern;
+  LogicalResult
+  matchAndRewrite(T curOp, typename T::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    TypeConverter *converter = ConvertToLLVMPattern::getTypeConverter();
+    SmallVector<Type> resTypes;
+    if (failed(converter->convertTypes(curOp->getResultTypes(), resTypes)))
+      return failure();
+    SmallVector<Value> convertedOperands;
+    for (unsigned idx = 0; idx < curOp.getNumVariableOperands(); ++idx) {
+      Value originalVariableOperand = curOp.getVariableOperand(idx);
+      if (!originalVariableOperand)
+        return failure();
+      if (originalVariableOperand.getType().isa<MemRefType>()) {
+        // TODO: Support memref type in variable operands
+        return rewriter.notifyMatchFailure(curOp,
+                                           "memref is not supported yet");
+      }
+      convertedOperands.emplace_back(adaptor.getOperands()[idx]);
+    }
+    rewriter.replaceOpWithNewOp<T>(curOp, resTypes, convertedOperands,
+                                   curOp->getAttrs());
+    return success();
+  }
+};
 } // namespace
+
+void mlir::configureOpenMPToLLVMConversionLegality(
+    ConversionTarget &target, LLVMTypeConverter &typeConverter) {
+  target.addDynamicallyLegalOp<mlir::omp::ParallelOp, mlir::omp::WsLoopOp,
+                               mlir::omp::MasterOp>(
+      [&](Operation *op) { return typeConverter.isLegal(&op->getRegion(0)); });
+  target
+      .addDynamicallyLegalOp<mlir::omp::AtomicReadOp, mlir::omp::AtomicWriteOp,
+                             mlir::omp::ThreadprivateOp>([&](Operation *op) {
+        return typeConverter.isLegal(op->getOperandTypes());
+      });
+}
 
 void mlir::populateOpenMPToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                   RewritePatternSet &patterns) {
   patterns.add<RegionOpConversion<omp::MasterOp>,
                RegionOpConversion<omp::ParallelOp>,
-               RegionOpConversion<omp::WsLoopOp>>(converter);
+               RegionOpConversion<omp::WsLoopOp>,
+               RegionLessOpConversion<omp::AtomicReadOp>,
+               RegionLessOpConversion<omp::AtomicWriteOp>,
+               RegionLessOpConversion<omp::ThreadprivateOp>>(converter);
 }
 
 namespace {
@@ -66,16 +110,16 @@ void ConvertOpenMPToLLVMPass::runOnOperation() {
   // Convert to OpenMP operations with LLVM IR dialect
   RewritePatternSet patterns(&getContext());
   LLVMTypeConverter converter(&getContext());
-  mlir::arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
+  arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
+  cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
   populateMemRefToLLVMConversionPatterns(converter, patterns);
-  populateStdToLLVMConversionPatterns(converter, patterns);
+  populateFuncToLLVMConversionPatterns(converter, patterns);
   populateOpenMPToLLVMConversionPatterns(converter, patterns);
 
   LLVMConversionTarget target(getContext());
-  target.addDynamicallyLegalOp<omp::MasterOp, omp::ParallelOp, omp::WsLoopOp>(
-      [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
   target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
                     omp::BarrierOp, omp::TaskwaitOp>();
+  configureOpenMPToLLVMConversionLegality(target, converter);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();
 }

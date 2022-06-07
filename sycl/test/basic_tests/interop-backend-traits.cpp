@@ -1,6 +1,7 @@
 // RUN: %clangxx -fsycl -DUSE_OPENCL %s
 // RUN: %clangxx -fsycl -DUSE_L0 %s
 // RUN: %clangxx -fsycl -DUSE_CUDA %s
+// RUN: %clangxx -fsycl -DUSE_HIP %s
 
 #ifdef USE_OPENCL
 #include <CL/cl.h>
@@ -24,6 +25,12 @@ constexpr auto Backend = sycl::backend::ext_oneapi_level_zero;
 constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 #endif
 
+#ifdef USE_HIP
+#include <CL/sycl/detail/backend_traits_hip.hpp>
+
+constexpr auto Backend = sycl::backend::ext_oneapi_hip;
+#endif
+
 #include <sycl/sycl.hpp>
 
 int main() {
@@ -43,7 +50,8 @@ int main() {
 #endif
 
 // CUDA does not have a native type for platforms
-#ifndef USE_CUDA
+// HIP also should follow the same behavior - need confirmation
+#if !(defined(USE_CUDA) || defined(USE_HIP))
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::input_type<sycl::platform>,
                      sycl::detail::interop<Backend, sycl::platform>::type>);

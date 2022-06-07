@@ -5,6 +5,7 @@
 //
 #include "xpti/xpti_trace_framework.hpp"
 #include "xpti_int64_hash_table.hpp"
+#include "xpti_object_table.hpp"
 #include "xpti_string_table.hpp"
 
 #include <algorithm>
@@ -17,6 +18,7 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -44,6 +46,8 @@ static_assert(std::is_trivially_destructible<xpti::utils::SpinLock>::value,
 static_assert(
     std::is_trivially_destructible<xpti::utils::PlatformHelper>::value,
     "PlatformHelper is not trivial");
+
+static thread_local uint64_t g_tls_uid = xpti::invalid_uid;
 
 namespace xpti {
 constexpr const char *env_subscribers = "XPTI_SUBSCRIBERS";
@@ -358,18 +362,15 @@ public:
   // data types, we will allow them to add these pairs as strings. Internally,
   // we will store key-value pairs as a map of string ids.
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
-                             const char *Value) {
-    if (!Event || !Key || !Value)
+                             object_id_t ValueID) {
+    if (!Event || !Key)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     string_id_t KeyID = MStringTableRef.add(Key);
     if (KeyID == xpti::invalid_id) {
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
     }
-    string_id_t ValueID = MStringTableRef.add(Value);
-    if (ValueID == xpti::invalid_id) {
-      return xpti::result_t::XPTI_RESULT_INVALIDARG;
-    }
+
     // Protect simultaneous insert operations on the metadata tables
     {
       std::lock_guard<std::mutex> HashLock(MMetadataMutex);
@@ -829,9 +830,13 @@ public:
 
   inline uint64_t makeUniqueID() { return MTracepoints.makeUniqueID(); }
 
+  uint64_t getUniversalID() const noexcept { return g_tls_uid; }
+
+  void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
+
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
-                             const char *Value) {
-    return MTracepoints.addMetadata(Event, Key, Value);
+                             object_id_t ValueID) {
+    return MTracepoints.addMetadata(Event, Key, ValueID);
   }
 
   xpti::trace_event_data_t *
@@ -912,6 +917,18 @@ public:
     if (ID < 0)
       return nullptr;
     return MStringTableRef.query(ID);
+  }
+
+  object_id_t registerObject(const char *Object, size_t Size, uint8_t Type) {
+    if (!Object)
+      return xpti::invalid_id;
+
+    return MObjectTable.insert(std::string_view(Object, Size), Type);
+  }
+
+  object_data_t lookupObject(object_id_t ID) {
+    auto [Result, Type] = MObjectTable.lookup(ID);
+    return {Result.size(), Result.data(), Type};
   }
 
   uint64_t registerPayload(xpti::payload_t *payload) {
@@ -1031,6 +1048,8 @@ private:
   xpti::Notifications MNotifier;
   /// Thread-safe string table
   xpti::StringTable MStringTableRef;
+  /// Thread-safe object table
+  xpti::ObjectTable<object_id_t> MObjectTable;
   /// Thread-safe string table, used for stream IDs
   xpti::StringTable MStreamStringTable;
   /// Thread-safe string table, used for vendor IDs
@@ -1061,6 +1080,14 @@ XPTI_EXPORT_API void xptiFrameworkFinalize() {
   if (xpti::GFrameworkReferenceCounter == 0) {
     xpti::Framework::release();
   }
+}
+
+XPTI_EXPORT_API uint64_t xptiGetUniversalId() {
+  return xpti::Framework::instance().getUniversalID();
+}
+
+XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
+  xpti::Framework::instance().setUniversalID(uid);
 }
 
 XPTI_EXPORT_API uint16_t
@@ -1102,6 +1129,15 @@ XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *String,
 
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t ID) {
   return xpti::Framework::instance().lookupString(ID);
+}
+
+XPTI_EXPORT_API xpti::object_id_t
+xptiRegisterObject(const char *Data, size_t Size, uint8_t Type) {
+  return xpti::Framework::instance().registerObject(Data, Size, Type);
+}
+
+XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t ID) {
+  return xpti::Framework::instance().lookupObject(ID);
 }
 
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
@@ -1166,8 +1202,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *Event,
                                                const char *Key,
-                                               const char *Value) {
-  return xpti::Framework::instance().addMetadata(Event, Key, Value);
+                                               xpti::object_id_t ID) {
+  return xpti::Framework::instance().addMetadata(Event, Key, ID);
 }
 
 XPTI_EXPORT_API xpti::metadata_t *

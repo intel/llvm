@@ -17,17 +17,17 @@
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Alignment.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 #include <bitset>
 #include <cassert>
 #include <cstdint>
-#include <map>
 #include <set>
 #include <string>
 #include <utility>
@@ -43,6 +43,18 @@ class FoldingSetNodeID;
 class Function;
 class LLVMContext;
 class Type;
+
+enum class AllocFnKind : uint64_t {
+  Unknown = 0,
+  Alloc = 1 << 0,         // Allocator function returns a new allocation
+  Realloc = 1 << 1,       // Allocator function resizes the `allocptr` argument
+  Free = 1 << 2,          // Allocator function frees the `allocptr` argument
+  Uninitialized = 1 << 3, // Allocator function returns uninitialized memory
+  Zeroed = 1 << 4,        // Allocator function returns zeroed memory
+  Aligned = 1 << 5,       // Allocator function aligns allocations per the
+                          // `allocalign` argument
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ Aligned)
+};
 
 //===----------------------------------------------------------------------===//
 /// \class
@@ -132,6 +144,7 @@ public:
   static Attribute getWithByRefType(LLVMContext &Context, Type *Ty);
   static Attribute getWithPreallocatedType(LLVMContext &Context, Type *Ty);
   static Attribute getWithInAllocaType(LLVMContext &Context, Type *Ty);
+  static Attribute getWithUWTableKind(LLVMContext &Context, UWTableKind Kind);
 
   /// For a typed attribute, return the equivalent attribute with the type
   /// changed to \p ReplacementTy.
@@ -224,6 +237,12 @@ public:
   /// Returns the maximum value for the vscale_range attribute or None when
   /// unknown.
   Optional<unsigned> getVScaleRangeMax() const;
+
+  // Returns the unwind table kind.
+  UWTableKind getUWTableKind() const;
+
+  // Returns the allocator function kind.
+  AllocFnKind getAllocKind() const;
 
   /// The Attribute is converted to a string of equivalent mnemonic. This
   /// is, presumably, for writing out the mnemonics for the assembly writer.
@@ -355,6 +374,8 @@ public:
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
   unsigned getVScaleRangeMin() const;
   Optional<unsigned> getVScaleRangeMax() const;
+  UWTableKind getUWTableKind() const;
+  AllocFnKind getAllocKind() const;
   std::string getAsString(bool InAttrGrp = false) const;
 
   /// Return true if this attribute set belongs to the LLVMContext.
@@ -843,6 +864,11 @@ public:
   /// arg.
   uint64_t getParamDereferenceableOrNullBytes(unsigned ArgNo) const;
 
+  /// Get the unwind table kind requested for the function.
+  UWTableKind getUWTableKind() const;
+
+  AllocFnKind getAllocKind() const;
+
   /// Return the attributes at the index as a string.
   std::string getAsString(unsigned Index, bool InAttrGrp = false) const;
 
@@ -981,12 +1007,12 @@ public:
   /// attribute.
   bool contains(StringRef A) const { return TargetDepAttrs.count(A); }
 
-  using td_const_iterator = decltype(TargetDepAttrs)::const_iterator;
-  using td_const_range = iterator_range<td_const_iterator>;
-  td_const_range td_attrs() const {
-    return {TargetDepAttrs.begin(), TargetDepAttrs.end()};
+  /// Return true if the mask contains the specified attribute.
+  bool contains(Attribute A) const {
+    if (A.isStringAttribute())
+      return contains(A.getKindAsString());
+    return contains(A.getKindAsEnum());
   }
-  auto const &attrs() const { return Attrs; }
 };
 
 //===----------------------------------------------------------------------===//
@@ -996,37 +1022,24 @@ public:
 /// value, however, is not. So this can be used as a quick way to test for
 /// equality, presence of attributes, etc.
 class AttrBuilder {
-  std::bitset<Attribute::EndAttrKinds> Attrs;
-  std::map<SmallString<32>, SmallString<32>, std::less<>> TargetDepAttrs;
-  std::array<uint64_t, Attribute::NumIntAttrKinds> IntAttrs = {};
-  std::array<Type *, Attribute::NumTypeAttrKinds> TypeAttrs = {};
-
-  Optional<unsigned> kindToIntIndex(Attribute::AttrKind Kind) const;
-  Optional<unsigned> kindToTypeIndex(Attribute::AttrKind Kind) const;
+  LLVMContext &Ctx;
+  SmallVector<Attribute, 8> Attrs;
 
 public:
-  AttrBuilder() = default;
+  AttrBuilder(LLVMContext &Ctx) : Ctx(Ctx) {}
   AttrBuilder(const AttrBuilder &) = delete;
   AttrBuilder(AttrBuilder &&) = default;
 
-  AttrBuilder(const Attribute &A) {
+  AttrBuilder(LLVMContext &Ctx, const Attribute &A) : Ctx(Ctx) {
     addAttribute(A);
   }
 
-  AttrBuilder(AttributeList AS, unsigned Idx);
-  AttrBuilder(AttributeSet AS);
+  AttrBuilder(LLVMContext &Ctx, AttributeSet AS);
 
   void clear();
 
   /// Add an attribute to the builder.
-  AttrBuilder &addAttribute(Attribute::AttrKind Val) {
-    assert((unsigned)Val < Attribute::EndAttrKinds &&
-           "Attribute out of range!");
-    assert(Attribute::isEnumAttrKind(Val) &&
-           "Adding integer/type attribute without an argument!");
-    Attrs[Val] = true;
-    return *this;
-  }
+  AttrBuilder &addAttribute(Attribute::AttrKind Val);
 
   /// Add the Attribute object to the builder.
   AttrBuilder &addAttribute(Attribute A);
@@ -1048,10 +1061,8 @@ public:
       return removeAttribute(A.getKindAsEnum());
   }
 
-  /// Remove the attributes from the builder.
-  AttrBuilder &removeAttributes(AttributeList A, uint64_t WithoutIndex);
-
-  /// Add the attributes from the builder.
+  /// Add the attributes from the builder. Attributes in the passed builder
+  /// overwrite attributes in this builder if they have the same key.
   AttrBuilder &merge(const AttrBuilder &B);
 
   /// Remove the attributes from the builder.
@@ -1062,24 +1073,25 @@ public:
   bool overlaps(const AttributeMask &AM) const;
 
   /// Return true if the builder has the specified attribute.
-  bool contains(Attribute::AttrKind A) const {
-    assert((unsigned)A < Attribute::EndAttrKinds && "Attribute out of range!");
-    return Attrs[A];
-  }
+  bool contains(Attribute::AttrKind A) const;
 
   /// Return true if the builder has the specified target-dependent
   /// attribute.
   bool contains(StringRef A) const;
 
   /// Return true if the builder has IR-level attributes.
-  bool hasAttributes() const;
-
-  /// Return true if the builder has any attribute that's in the
-  /// specified attribute.
-  bool hasAttributes(AttributeList A, uint64_t Index) const;
+  bool hasAttributes() const { return !Attrs.empty(); }
 
   /// Return true if the builder has an alignment attribute.
   bool hasAlignmentAttr() const;
+
+  /// Return Attribute with the given Kind. The returned attribute will be
+  /// invalid if the Kind is not present in the builder.
+  Attribute getAttribute(Attribute::AttrKind Kind) const;
+
+  /// Return Attribute with the given Kind. The returned attribute will be
+  /// invalid if the Kind is not present in the builder.
+  Attribute getAttribute(StringRef Kind) const;
 
   /// Return raw (possibly packed/encoded) value of integer attribute or 0 if
   /// not set.
@@ -1206,30 +1218,14 @@ public:
   /// Attribute.getIntValue().
   AttrBuilder &addVScaleRangeAttrFromRawRepr(uint64_t RawVScaleRangeRepr);
 
-  /// Return true if the builder contains no target-independent
-  /// attributes.
-  bool empty() const { return Attrs.none(); }
+  /// This turns the unwind table kind into the form used internally in
+  /// Attribute.
+  AttrBuilder &addUWTableAttr(UWTableKind Kind);
 
-  // Iterators for target-dependent attributes.
-  using td_type = decltype(TargetDepAttrs)::value_type;
-  using td_iterator = decltype(TargetDepAttrs)::iterator;
-  using td_const_iterator = decltype(TargetDepAttrs)::const_iterator;
-  using td_range = iterator_range<td_iterator>;
-  using td_const_range = iterator_range<td_const_iterator>;
+  // This turns the allocator kind into the form used internally in Attribute.
+  AttrBuilder &addAllocKindAttr(AllocFnKind Kind);
 
-  td_iterator td_begin() { return TargetDepAttrs.begin(); }
-  td_iterator td_end() { return TargetDepAttrs.end(); }
-
-  td_const_iterator td_begin() const { return TargetDepAttrs.begin(); }
-  td_const_iterator td_end() const { return TargetDepAttrs.end(); }
-
-  td_range td_attrs() { return td_range(td_begin(), td_end()); }
-
-  td_const_range td_attrs() const {
-    return td_const_range(td_begin(), td_end());
-  }
-
-  bool td_empty() const { return TargetDepAttrs.empty(); }
+  ArrayRef<Attribute> attrs() const { return Attrs; }
 
   bool operator==(const AttrBuilder &B) const;
   bool operator!=(const AttrBuilder &B) const { return !(*this == B); }
@@ -1237,8 +1233,17 @@ public:
 
 namespace AttributeFuncs {
 
-/// Which attributes cannot be applied to a type.
-AttributeMask typeIncompatible(Type *Ty);
+enum AttributeSafetyKind : uint8_t {
+  ASK_SAFE_TO_DROP = 1,
+  ASK_UNSAFE_TO_DROP = 2,
+  ASK_ALL = ASK_SAFE_TO_DROP | ASK_UNSAFE_TO_DROP,
+};
+
+/// Which attributes cannot be applied to a type. The argument \p ASK indicates,
+/// if only attributes that are known to be safely droppable are contained in
+/// the mask; only attributes that might be unsafe to drop (e.g., ABI-related
+/// attributes) are in the mask; or both.
+AttributeMask typeIncompatible(Type *Ty, AttributeSafetyKind ASK = ASK_ALL);
 
 /// Get param/return attributes which imply immediate undefined behavior if an
 /// invalid value is passed. For example, this includes noundef (where undef
@@ -1268,6 +1273,9 @@ void mergeAttributesForInlining(Function &Caller, const Function &Callee);
 /// \param [in,out] Base - The function being merged into.
 /// \param [in] ToMerge - The function to merge attributes from.
 void mergeAttributesForOutlining(Function &Base, const Function &ToMerge);
+
+/// Update min-legal-vector-width if it is in Attribute and less than Width.
+void updateMinLegalVectorWidthAttr(Function &Fn, uint64_t Width);
 
 } // end namespace AttributeFuncs
 

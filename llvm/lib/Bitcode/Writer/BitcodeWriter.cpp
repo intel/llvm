@@ -19,6 +19,8 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -610,6 +612,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
   switch (Kind) {
   case Attribute::Alignment:
     return bitc::ATTR_KIND_ALIGNMENT;
+  case Attribute::AllocAlign:
+    return bitc::ATTR_KIND_ALLOC_ALIGN;
   case Attribute::AllocSize:
     return bitc::ATTR_KIND_ALLOC_SIZE;
   case Attribute::AlwaysInline:
@@ -644,6 +648,10 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_JUMP_TABLE;
   case Attribute::MinSize:
     return bitc::ATTR_KIND_MIN_SIZE;
+  case Attribute::AllocatedPointer:
+    return bitc::ATTR_KIND_ALLOCATED_POINTER;
+  case Attribute::AllocKind:
+    return bitc::ATTR_KIND_ALLOC_KIND;
   case Attribute::Naked:
     return bitc::ATTR_KIND_NAKED;
   case Attribute::Nest:
@@ -688,6 +696,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_NO_PROFILE;
   case Attribute::NoUnwind:
     return bitc::ATTR_KIND_NO_UNWIND;
+  case Attribute::NoSanitizeBounds:
+    return bitc::ATTR_KIND_NO_SANITIZE_BOUNDS;
   case Attribute::NoSanitizeCoverage:
     return bitc::ATTR_KIND_NO_SANITIZE_COVERAGE;
   case Attribute::NullPointerIsValid:
@@ -948,7 +958,7 @@ void ModuleBitcodeWriter::writeTypeTable() {
       } else {
         // POINTER: [pointee type, address space]
         Code = bitc::TYPE_CODE_POINTER;
-        TypeVals.push_back(VE.getTypeID(PTy->getElementType()));
+        TypeVals.push_back(VE.getTypeID(PTy->getNonOpaquePointerElementType()));
         TypeVals.push_back(AddressSpace);
         if (AddressSpace == 0)
           AbbrevToUse = PtrAbbrev;
@@ -1013,6 +1023,8 @@ void ModuleBitcodeWriter::writeTypeTable() {
         TypeVals.push_back(true);
       break;
     }
+    case Type::DXILPointerTyID:
+      llvm_unreachable("DXIL pointers cannot be added to IR modules");
     }
 
     // Emit the finished record.
@@ -1657,6 +1669,7 @@ void ModuleBitcodeWriter::writeDIStringType(const DIStringType *N,
   Record.push_back(VE.getMetadataOrNullID(N->getRawName()));
   Record.push_back(VE.getMetadataOrNullID(N->getStringLength()));
   Record.push_back(VE.getMetadataOrNullID(N->getStringLengthExp()));
+  Record.push_back(VE.getMetadataOrNullID(N->getStringLocationExp()));
   Record.push_back(N->getSizeInBits());
   Record.push_back(N->getAlignInBits());
   Record.push_back(N->getEncoding());
@@ -1816,6 +1829,7 @@ void ModuleBitcodeWriter::writeDISubprogram(const DISubprogram *N,
   Record.push_back(N->getThisAdjustment());
   Record.push_back(VE.getMetadataOrNullID(N->getThrownTypes().get()));
   Record.push_back(VE.getMetadataOrNullID(N->getAnnotations().get()));
+  Record.push_back(VE.getMetadataOrNullID(N->getRawTargetFuncName()));
 
   Stream.EmitRecord(bitc::METADATA_SUBPROGRAM, Record, Abbrev);
   Record.clear();
@@ -2648,6 +2662,10 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
         Record.push_back(VE.getValueID(C->getOperand(1)));
         Record.push_back(CE->getPredicate());
         break;
+      case Instruction::ExtractValue:
+      case Instruction::InsertValue:
+        report_fatal_error("extractvalue/insertvalue constexprs not supported");
+        break;
       }
     } else if (const BlockAddress *BA = dyn_cast<BlockAddress>(C)) {
       Code = bitc::CST_CODE_BLOCKADDRESS;
@@ -3067,6 +3085,10 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Bitfield::set<APV::ExplicitType>(Record, true);
     Bitfield::set<APV::SwiftError>(Record, AI.isSwiftError());
     Vals.push_back(Record);
+
+    unsigned AS = AI.getAddressSpace();
+    if (AS != M.getDataLayout().getAllocaAddrSpace())
+      Vals.push_back(AS);
     break;
   }
 
@@ -3346,8 +3368,10 @@ void ModuleBitcodeWriter::writeFunction(
   bool NeedsMetadataAttachment = F.hasMetadata();
 
   DILocation *LastDL = nullptr;
+  SmallSetVector<Function *, 4> BlockAddressUsers;
+
   // Finally, emit all the instructions, in order.
-  for (const BasicBlock &BB : F)
+  for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
       writeInstruction(I, InstID, Vals);
 
@@ -3378,6 +3402,32 @@ void ModuleBitcodeWriter::writeFunction(
 
       LastDL = DL;
     }
+
+    if (BlockAddress *BA = BlockAddress::lookup(&BB)) {
+      SmallVector<Value *> Worklist{BA};
+      SmallPtrSet<Value *, 8> Visited{BA};
+      while (!Worklist.empty()) {
+        Value *V = Worklist.pop_back_val();
+        for (User *U : V->users()) {
+          if (auto *I = dyn_cast<Instruction>(U)) {
+            Function *P = I->getFunction();
+            if (P != &F)
+              BlockAddressUsers.insert(P);
+          } else if (isa<Constant>(U) && !isa<GlobalValue>(U) &&
+                     Visited.insert(U).second)
+            Worklist.push_back(U);
+        }
+      }
+    }
+  }
+
+  if (!BlockAddressUsers.empty()) {
+    Vals.resize(BlockAddressUsers.size());
+    for (auto I : llvm::enumerate(BlockAddressUsers))
+      Vals[I.index()] = VE.getValueID(I.value());
+    Stream.EmitRecord(bitc::FUNC_CODE_BLOCKADDR_USERS, Vals);
+    Vals.clear();
+  }
 
   // Emit names for all the instructions etc.
   if (auto *Symtab = F.getValueSymbolTable())
@@ -4374,7 +4424,7 @@ void ModuleBitcodeWriter::writeModuleHash(size_t BlockStartPos) {
     uint32_t Vals[5];
     Hasher.update(ArrayRef<uint8_t>((const uint8_t *)&(Buffer)[BlockStartPos],
                                     Buffer.size() - BlockStartPos));
-    StringRef Hash = Hasher.result();
+    std::array<uint8_t, 20> Hash = Hasher.result();
     for (int Pos = 0; Pos < 20; Pos += 4) {
       Vals[Pos / 4] = support::endian::read32be(Hash.data() + Pos);
     }
@@ -4668,7 +4718,7 @@ void IndexBitcodeWriter::write() {
 // where it will be written in a new bitcode block. This is used when
 // writing the combined index file for ThinLTO. When writing a subset of the
 // index for a distributed backend, provide a \p ModuleToSummariesForIndex map.
-void llvm::WriteIndexToFile(
+void llvm::writeIndexToFile(
     const ModuleSummaryIndex &Index, raw_ostream &Out,
     const std::map<std::string, GVSummaryMapTy> *ModuleToSummariesForIndex) {
   SmallVector<char, 0> Buffer;
@@ -4828,7 +4878,7 @@ void BitcodeWriter::writeThinLinkBitcode(const Module &M,
 // Write the specified thin link bitcode file to the given raw output stream,
 // where it will be written in a new bitcode block. This is used when
 // writing the per-module index file for ThinLTO.
-void llvm::WriteThinLinkBitcodeToFile(const Module &M, raw_ostream &Out,
+void llvm::writeThinLinkBitcodeToFile(const Module &M, raw_ostream &Out,
                                       const ModuleSummaryIndex &Index,
                                       const ModuleHash &ModHash) {
   SmallVector<char, 0> Buffer;
@@ -4854,8 +4904,14 @@ static const char *getSectionNameForBitcode(const Triple &T) {
   case Triple::GOFF:
     llvm_unreachable("GOFF is not yet implemented");
     break;
+  case Triple::SPIRV:
+    llvm_unreachable("SPIRV is not yet implemented");
+    break;
   case Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");
+    break;
+  case Triple::DXContainer:
+    llvm_unreachable("DXContainer is not yet implemented");
     break;
   }
   llvm_unreachable("Unimplemented ObjectFormatType");
@@ -4873,14 +4929,20 @@ static const char *getSectionNameForCommandline(const Triple &T) {
   case Triple::GOFF:
     llvm_unreachable("GOFF is not yet implemented");
     break;
+  case Triple::SPIRV:
+    llvm_unreachable("SPIRV is not yet implemented");
+    break;
   case Triple::XCOFF:
     llvm_unreachable("XCOFF is not yet implemented");
+    break;
+  case Triple::DXContainer:
+    llvm_unreachable("DXC is not yet implemented");
     break;
   }
   llvm_unreachable("Unimplemented ObjectFormatType");
 }
 
-void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
+void llvm::embedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
                                 bool EmbedBitcode, bool EmbedCmdline,
                                 const std::vector<uint8_t> &CmdArgs) {
   // Save llvm.compiler.used and remove it.
@@ -4930,7 +4992,7 @@ void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
       ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
   if (llvm::GlobalVariable *Old =
           M.getGlobalVariable("llvm.embedded.module", true)) {
-    assert(Old->hasOneUse() &&
+    assert(Old->hasZeroLiveUses() &&
            "llvm.embedded.module can only be used once in llvm.compiler.used");
     GV->takeName(Old);
     Old->eraseFromParent();
@@ -4953,7 +5015,7 @@ void llvm::EmbedBitcodeInModule(llvm::Module &M, llvm::MemoryBufferRef Buf,
     UsedArray.push_back(
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, UsedElementType));
     if (llvm::GlobalVariable *Old = M.getGlobalVariable("llvm.cmdline", true)) {
-      assert(Old->hasOneUse() &&
+      assert(Old->hasZeroLiveUses() &&
              "llvm.cmdline can only be used once in llvm.compiler.used");
       GV->takeName(Old);
       Old->eraseFromParent();

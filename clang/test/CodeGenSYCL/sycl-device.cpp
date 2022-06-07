@@ -9,11 +9,11 @@ int bar20(int a) { return a + 20; }
 class A {
 public:
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1A3fooEv
-  // CHECK-DAG: define {{.*}}spir_func i32 @_Z5bar20i
+  // CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z5bar20i
   __attribute__((sycl_device)) void foo() { bar20(10); }
 
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AC1Ev
-  // CHECK-DAG: define {{.*}}spir_func i32 @_Z5bar10i
+  // CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z5bar10i
   __attribute__((sycl_device))
   A() { bar10(10); }
   // CHECK-DAG: define linkonce_odr spir_func void @_ZN1AD1Ev
@@ -27,10 +27,10 @@ public:
   template <>
   __attribute__((sycl_device)) void AFoo<int>(int t) {}
 
-  // CHECK-DAG: define linkonce_odr spir_func i32 @_ZN1A13non_annotatedEv
+  // CHECK-DAG: define linkonce_odr spir_func noundef i32 @_ZN1A13non_annotatedEv
   int non_annotated() { return 1; }
 
-  // CHECK-DAG: define linkonce_odr spir_func i32 @_ZN1A9annotatedEv
+  // CHECK-DAG: define linkonce_odr spir_func noundef i32 @_ZN1A9annotatedEv
   __attribute__((sycl_device)) int annotated() { return non_annotated() + 1; }
 };
 
@@ -81,26 +81,26 @@ struct Finalizer1 : Base {
   void BaseWithAttr() final { int a = 20; }
 };
 
-// CHECK-DAG: define {{.*}}spir_func i32 @_Z3fooii
+// CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z3fooii
 __attribute__((sycl_device))
 int foo(int a, int b) { return a + bar(b); }
 
-// CHECK-DAG: define {{.*}}spir_func i32 @_Z3bari
+// CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z3bari
 int bar(int b) { return b; }
 
-// CHECK-DAG: define {{.*}}spir_func i32 @_Z3fari
+// CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z3fari
 int far(int b) { return b; }
 
-// CHECK-DAG: define {{.*}}spir_func i32 @_Z3booii
+// CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z3booii
 __attribute__((sycl_device))
 int boo(int a, int b) { return a + far(b); }
 
-// CHECK-DAG: define {{.*}}spir_func i32 @_Z3cari
+// CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z3cari
 __attribute__((sycl_device))
 int car(int b);
 int car(int b) { return b; }
 
-// CHECK-DAG: define {{.*}}spir_func i32 @_Z3cazi
+// CHECK-DAG: define {{.*}}spir_func noundef i32 @_Z3cazi
 int caz(int b);
 __attribute__((sycl_device))
 int caz(int b) { return b; }

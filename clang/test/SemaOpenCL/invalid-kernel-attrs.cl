@@ -12,6 +12,8 @@ kernel __attribute__((vec_type_hint(int))) __attribute__((vec_type_hint(float)))
 
 kernel __attribute__((work_group_size_hint(8,16,32,4))) void kernel6() {} //expected-error{{'work_group_size_hint' attribute requires exactly 3 arguments}}
 
+kernel __attribute__((work_group_size_hint(1,2))) void kernel6b() {}  //expected-error{{'work_group_size_hint' attribute requires exactly 3 arguments}}
+
 kernel __attribute__((work_group_size_hint(1,2,3))) __attribute__((work_group_size_hint(3,2,1))) void kernel7() {}  //expected-warning{{attribute 'work_group_size_hint' is already applied with different arguments}} expected-note {{previous attribute is here}}
 
 __attribute__((reqd_work_group_size(8,16,32))) void kernel8(){} // expected-error {{attribute 'reqd_work_group_size' can only be applied to an OpenCL kernel}}
@@ -30,9 +32,9 @@ void f_kernel_image2d_t( kernel image2d_t image ) { // expected-error {{'kernel'
   int __kernel x; // expected-error {{'__kernel' attribute only applies to functions}}
 }
 
-kernel __attribute__((reqd_work_group_size(1,2,0))) void kernel11(){} // expected-error {{'reqd_work_group_size' attribute must be greater than 0}}
-kernel __attribute__((reqd_work_group_size(1,0,2))) void kernel12(){} // expected-error {{'reqd_work_group_size' attribute must be greater than 0}}
-kernel __attribute__((reqd_work_group_size(0,1,2))) void kernel13(){} // expected-error {{'reqd_work_group_size' attribute must be greater than 0}}
+kernel __attribute__((reqd_work_group_size(1,2,0))) void kernel11(){} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+kernel __attribute__((reqd_work_group_size(1,0,2))) void kernel12(){} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
+kernel __attribute__((reqd_work_group_size(0,1,2))) void kernel13(){} // expected-error {{'reqd_work_group_size' attribute requires a positive integral compile time constant expression}}
 
 __attribute__((intel_reqd_sub_group_size(8))) void kernel14(){} // expected-error {{attribute 'intel_reqd_sub_group_size' can only be applied to an OpenCL kernel}}
 kernel __attribute__((intel_reqd_sub_group_size(0))) void kernel15() {} // expected-error {{'intel_reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
@@ -43,7 +45,6 @@ kernel __attribute__((intel_reqd_sub_group_size(8))) __attribute__((intel_reqd_s
                                                                                                                        // expected-note {{previous attribute is here}}
 
 __kernel __attribute__((work_group_size_hint(8,-16,32))) void neg1() {} //expected-error{{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
-__kernel __attribute__((reqd_work_group_size(8, 16, -32))) void neg2() {} //expected-warning{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
 
 // 4294967294 is a negative integer if treated as signed.
 // Should compile successfully, since we expect an unsigned.

@@ -14,7 +14,6 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 using namespace mlir;
 using namespace mlir::LLVM;
@@ -75,6 +74,18 @@ struct AbsOpConversion : public ConvertOpToLLVMPattern<complex::AbsOp> {
 
     rewriter.replaceOpWithNewOp<LLVM::SqrtOp>(op, sqNorm);
     return success();
+  }
+};
+
+struct ConstantOpLowering : public ConvertOpToLLVMPattern<complex::ConstantOp> {
+  using ConvertOpToLLVMPattern::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(complex::ConstantOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return LLVM::detail::oneToOneRewrite(
+        op, LLVM::ConstantOp::getOperationName(), adaptor.getOperands(),
+        *getTypeConverter(), rewriter);
   }
 };
 
@@ -294,6 +305,7 @@ void mlir::populateComplexToLLVMConversionPatterns(
   patterns.add<
       AbsOpConversion,
       AddOpConversion,
+      ConstantOpLowering,
       CreateOpConversion,
       DivOpConversion,
       ImOpConversion,
@@ -312,21 +324,18 @@ struct ConvertComplexToLLVMPass
 } // namespace
 
 void ConvertComplexToLLVMPass::runOnOperation() {
-  auto module = getOperation();
-
   // Convert to the LLVM IR dialect using the converter defined above.
   RewritePatternSet patterns(&getContext());
   LLVMTypeConverter converter(&getContext());
   populateComplexToLLVMConversionPatterns(converter, patterns);
 
   LLVMConversionTarget target(getContext());
-  target.addLegalOp<ModuleOp, FuncOp>();
   target.addIllegalDialect<complex::ComplexDialect>();
-  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+  if (failed(
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::createConvertComplexToLLVMPass() {
+std::unique_ptr<Pass> mlir::createConvertComplexToLLVMPass() {
   return std::make_unique<ConvertComplexToLLVMPass>();
 }

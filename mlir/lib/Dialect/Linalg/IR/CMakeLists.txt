@@ -8,20 +8,22 @@ add_mlir_dialect_library(MLIRLinalg
 
   DEPENDS
   MLIRLinalgInterfacesIncGen
+  MLIRLinalgOpsAttributesIncGen
+  MLIRLinalgOpsEnumsIncGen
   MLIRLinalgOpsIncGen
   MLIRLinalgStructuredOpsIncGen
 
   LINK_LIBS PUBLIC
   MLIRAffine
   MLIRArithmetic
-  MLIRBufferizableOpInterface
+  MLIRBufferization
   MLIRDialectUtils
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRParser
   MLIRSideEffectInterfaces
+  MLIRSparseTensor
   MLIRSCF
-  MLIRStandard
   MLIRMath
   MLIRMemRef
   MLIRTensor

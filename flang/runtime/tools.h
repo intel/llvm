@@ -56,6 +56,15 @@ void CheckConformability(const Descriptor &to, const Descriptor &x,
     Terminator &, const char *funcName, const char *toName,
     const char *fromName);
 
+// Helper to store integer value in result[at].
+template <int KIND> struct StoreIntegerAt {
+  void operator()(const Fortran::runtime::Descriptor &result, std::size_t at,
+      std::int64_t value) const {
+    *result.ZeroBasedIndexedElement<Fortran::runtime::CppTypeFor<
+        Fortran::common::TypeCategory::Integer, KIND>>(at) = value;
+  }
+};
+
 // Validate a KIND= argument
 void CheckIntegerKind(Terminator &, int kind, const char *intrinsic);
 
@@ -87,16 +96,16 @@ inline bool SetInteger(INT &x, int kind, std::int64_t value) {
   switch (kind) {
   case 1:
     reinterpret_cast<CppTypeFor<TypeCategory::Integer, 1> &>(x) = value;
-    return true;
+    return value == reinterpret_cast<CppTypeFor<TypeCategory::Integer, 1> &>(x);
   case 2:
     reinterpret_cast<CppTypeFor<TypeCategory::Integer, 2> &>(x) = value;
-    return true;
+    return value == reinterpret_cast<CppTypeFor<TypeCategory::Integer, 2> &>(x);
   case 4:
     reinterpret_cast<CppTypeFor<TypeCategory::Integer, 4> &>(x) = value;
-    return true;
+    return value == reinterpret_cast<CppTypeFor<TypeCategory::Integer, 4> &>(x);
   case 8:
     reinterpret_cast<CppTypeFor<TypeCategory::Integer, 8> &>(x) = value;
-    return true;
+    return value == reinterpret_cast<CppTypeFor<TypeCategory::Integer, 8> &>(x);
   default:
     return false;
   }
@@ -125,7 +134,7 @@ inline RESULT ApplyType(
       return FUNC<TypeCategory::Integer, 16>{}(std::forward<A>(x)...);
 #endif
     default:
-      terminator.Crash("unsupported INTEGER(KIND=%d)", kind);
+      terminator.Crash("not yet implemented: INTEGER(KIND=%d)", kind);
     }
   case TypeCategory::Real:
     switch (kind) {
@@ -147,7 +156,7 @@ inline RESULT ApplyType(
       return FUNC<TypeCategory::Real, 16>{}(std::forward<A>(x)...);
 #endif
     default:
-      terminator.Crash("unsupported REAL(KIND=%d)", kind);
+      terminator.Crash("not yet implemented: REAL(KIND=%d)", kind);
     }
   case TypeCategory::Complex:
     switch (kind) {
@@ -169,7 +178,7 @@ inline RESULT ApplyType(
       return FUNC<TypeCategory::Complex, 16>{}(std::forward<A>(x)...);
 #endif
     default:
-      terminator.Crash("unsupported COMPLEX(KIND=%d)", kind);
+      terminator.Crash("not yet implemented: COMPLEX(KIND=%d)", kind);
     }
   case TypeCategory::Character:
     switch (kind) {
@@ -180,7 +189,7 @@ inline RESULT ApplyType(
     case 4:
       return FUNC<TypeCategory::Character, 4>{}(std::forward<A>(x)...);
     default:
-      terminator.Crash("unsupported CHARACTER(KIND=%d)", kind);
+      terminator.Crash("not yet implemented: CHARACTER(KIND=%d)", kind);
     }
   case TypeCategory::Logical:
     switch (kind) {
@@ -193,10 +202,11 @@ inline RESULT ApplyType(
     case 8:
       return FUNC<TypeCategory::Logical, 8>{}(std::forward<A>(x)...);
     default:
-      terminator.Crash("unsupported LOGICAL(KIND=%d)", kind);
+      terminator.Crash("not yet implemented: LOGICAL(KIND=%d)", kind);
     }
   default:
-    terminator.Crash("unsupported type category(%d)", static_cast<int>(cat));
+    terminator.Crash(
+        "not yet implemented: type category(%d)", static_cast<int>(cat));
   }
 }
 
@@ -218,7 +228,7 @@ inline RESULT ApplyIntegerKind(int kind, Terminator &terminator, A &&...x) {
     return FUNC<16>{}(std::forward<A>(x)...);
 #endif
   default:
-    terminator.Crash("unsupported INTEGER(KIND=%d)", kind);
+    terminator.Crash("not yet implemented: INTEGER(KIND=%d)", kind);
   }
 }
 
@@ -244,7 +254,7 @@ inline RESULT ApplyFloatingPointKind(
     return FUNC<16>{}(std::forward<A>(x)...);
 #endif
   default:
-    terminator.Crash("unsupported REAL/COMPLEX(KIND=%d)", kind);
+    terminator.Crash("not yet implemented: REAL/COMPLEX(KIND=%d)", kind);
   }
 }
 
@@ -258,7 +268,7 @@ inline RESULT ApplyCharacterKind(int kind, Terminator &terminator, A &&...x) {
   case 4:
     return FUNC<4>{}(std::forward<A>(x)...);
   default:
-    terminator.Crash("unsupported CHARACTER(KIND=%d)", kind);
+    terminator.Crash("not yet implemented: CHARACTER(KIND=%d)", kind);
   }
 }
 
@@ -274,7 +284,7 @@ inline RESULT ApplyLogicalKind(int kind, Terminator &terminator, A &&...x) {
   case 8:
     return FUNC<8>{}(std::forward<A>(x)...);
   default:
-    terminator.Crash("unsupported LOGICAL(KIND=%d)", kind);
+    terminator.Crash("not yet implemented: LOGICAL(KIND=%d)", kind);
   }
 }
 

@@ -36,8 +36,8 @@ class MicrosoftNumberingContext : public MangleNumberingContext {
 
 public:
   MicrosoftNumberingContext()
-      : MangleNumberingContext(), LambdaManglingNumber(0),
-        StaticLocalNumber(0), StaticThreadlocalNumber(0) {}
+      : LambdaManglingNumber(0), StaticLocalNumber(0),
+        StaticThreadlocalNumber(0) {}
 
   unsigned getManglingNumber(const CXXMethodDecl *CallOperator) override {
     return ++LambdaManglingNumber;
@@ -69,12 +69,27 @@ class MSHIPNumberingContext : public MicrosoftNumberingContext {
   std::unique_ptr<MangleNumberingContext> DeviceCtx;
 
 public:
+  using MicrosoftNumberingContext::getManglingNumber;
   MSHIPNumberingContext(MangleContext *DeviceMangler) {
     DeviceCtx = createItaniumNumberingContext(DeviceMangler);
   }
 
   unsigned getDeviceManglingNumber(const CXXMethodDecl *CallOperator) override {
     return DeviceCtx->getManglingNumber(CallOperator);
+  }
+
+  unsigned getManglingNumber(const TagDecl *TD,
+                             unsigned MSLocalManglingNumber) override {
+    unsigned DeviceN = DeviceCtx->getManglingNumber(TD, MSLocalManglingNumber);
+    unsigned HostN =
+        MicrosoftNumberingContext::getManglingNumber(TD, MSLocalManglingNumber);
+    if (DeviceN > 0xFFFF || HostN > 0xFFFF) {
+      DiagnosticsEngine &Diags = TD->getASTContext().getDiagnostics();
+      unsigned DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error, "Mangling number exceeds limit (65535)");
+      Diags.Report(TD->getLocation(), DiagID);
+    }
+    return (DeviceN << 16) | HostN;
   }
 };
 

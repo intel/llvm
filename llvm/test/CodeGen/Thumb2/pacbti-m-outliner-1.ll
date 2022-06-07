@@ -120,9 +120,9 @@ attributes #0 = { minsize nofree norecurse nounwind optsize uwtable}
 
 !llvm.module.flags = !{!0, !1, !2}
 
-!0 = !{i32 1, !"branch-target-enforcement", i32 0}
-!1 = !{i32 1, !"sign-return-address", i32 1}
-!2 = !{i32 1, !"sign-return-address-all", i32 0}
+!0 = !{i32 8, !"branch-target-enforcement", i32 0}
+!1 = !{i32 8, !"sign-return-address", i32 1}
+!2 = !{i32 8, !"sign-return-address-all", i32 0}
 
 ; UNWIND-LABEL: FunctionAddress: 0x0
 ; UNWIND:       0xB4      ; pop ra_auth_code
@@ -137,7 +137,9 @@ attributes #0 = { minsize nofree norecurse nounwind optsize uwtable}
 ; UNWIND-NEXT:  0xB0      ; finish
 
 ; UNWIND-LABEL:  FunctionAddress: 0x40
-; UNWIND:        Model: CantUnwind
+; UNWIND:        Opcodes [
+; UNWIND-NEXT:     0xB0      ; finish
+
 
 ; UNWINND-LABEL: 00000041 {{.*}} OUTLINED_FUNCTION_0
 ; UNWINND-LABEL: 00000001 {{.*}} x

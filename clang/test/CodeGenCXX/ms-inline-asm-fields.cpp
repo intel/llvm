@@ -1,5 +1,5 @@
 // REQUIRES: x86-registered-target
-// RUN: %clang_cc1 %s -triple i386-apple-darwin10 -fasm-blocks -emit-llvm -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers %s -triple i386-apple-darwin10 -fasm-blocks -emit-llvm -o - | FileCheck %s
 
 struct A {
   int a1;
@@ -15,7 +15,7 @@ A a_global;
 }
 
 extern "C" int test_param_field(A p) {
-// CHECK: define{{.*}} i32 @test_param_field(%struct.A* byval(%struct.A) align 4 %p)
+// CHECK: define{{.*}} i32 @test_param_field(%struct.A* noundef byval(%struct.A) align 4 %p)
 // CHECK: getelementptr inbounds %struct.A, %struct.A* %p, i32 0, i32 0
 // CHECK: call i32 asm sideeffect inteldialect "mov eax, $1"
 // CHECK: ret i32

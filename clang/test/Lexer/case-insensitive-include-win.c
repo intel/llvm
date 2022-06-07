@@ -3,8 +3,6 @@
 // run.
 
 // REQUIRES: system-windows
-// Disable file portability check to unblock pulldown (intel/llvm/issues/1594)
-// XFAIL: system-windows
 // RUN: mkdir -p %t.dir
 // RUN: touch %t.dir/foo.h
 // RUN: not %clang_cl /FI\\?\%t.dir\FOO.h /WX -fsyntax-only %s 2>&1 | FileCheck %s

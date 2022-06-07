@@ -38,16 +38,41 @@ This file describes macros that have effect on SYCL compiler and run-time.
 
   Disables a message which warns about unsupported C++ version.
 
-- **SYCL_DISABLE_FALLBACK_ASSERT**
+- **SYCL_FALLBACK_ASSERT**
 
-  Defining this macro eliminates some overhead that is associated with
-  submitting kernels that call `assert()`. When this macro is defined, the logic
-  for detecting assertion failures in kernels is disabled, so a failed assert
-  will not cause a message to be printed and will not cause the program to
-  abort. However, this macro only affects kernels that are submitted to devices
-  that do **not** have native support for `assert()` because devices with native
-  support do not impose any extra overhead. One can check to see if a device has
-  native support for `assert()` via `aspect::ext_oneapi_native_assert`.
+  Defining as non-zero enables the fallback assert feature even on devices
+  without native support. Be aware that this will add some overhead that is
+  associated with submitting kernels that call `assert()`. When this macro is
+  defined as 0 or is not defined, the logic for detecting assertion failures in kernels is
+  disabled, so a failed assert will not cause a message to be printed and will
+  not cause the program to abort. Some devices have native support for
+  assertions. The logic for detecting assertion failures is always enabled on
+  these devices regardless of whether this macro is defined because that logic
+  does not add any extra overhead. One can check to see if a device has native
+  support for `assert()` via `aspect::ext_oneapi_native_assert`.
+  This macro is undefined by default.
+
+- **SYCL2020_CONFORMANT_APIS**
+  This macro is used to comply with the SYCL 2020 specification, as some of the current 
+  implementations may be widespread and not conform to it.
+  Description of what it changes:
+  1) According to spec, `backend_return_t` for opencl event 
+  should be `std::vector<cl_event>` instead of `cl_event`. Defining this macro 
+  will change the behavior of `sycl::get_native()` function and using types for 
+  next structs: `interop<backend::opencl, event>`, `BackendInput<backend::opencl, event>`, 
+  `BackendReturn<backend::opencl, event>` to be in line with the spec.
+  2) According to spec, `backend_return_t` for opencl buffer 
+  should be `std::vector<cl_mem>` instead of `cl_mem`. Defining this macro 
+  will change the behavior of `interop_handle::get_native_mem()` and `sycl::get_native()` functions
+  and using type for `BackendReturn<backend::opencl, buffer>` to be in line with the spec.
+  3) According to spec, `sycl::buffer_allocator` should be a template class taking a single
+  type parameter denoting the data type of the associated buffer. Likewise, `sycl::buffer`
+  with that take an allocator as a constructor argument should use
+  `sycl::buffer_allocator<std::remove_const_t<T>>`  by default, where `T` is the data type of
+  that buffer. Defining this macro will change the definition of `sycl::buffer_allocator` to
+  be templated and `sycl::buffer` will be using `sycl::buffer_allocator<std::remove_const_t<T>>`
+  by default, where `T` is the data type of that buffer, if it is not explicitly given an
+  allocator.
 
 ## Version macros
 

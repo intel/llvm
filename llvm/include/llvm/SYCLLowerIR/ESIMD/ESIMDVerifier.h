@@ -17,6 +17,8 @@
 
 namespace llvm {
 
+class ModulePass;
+
 struct ESIMDVerifierPass : public PassInfoMixin<ESIMDVerifierPass> {
   ESIMDVerifierPass() {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);

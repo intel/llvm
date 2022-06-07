@@ -12,6 +12,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/CastInterfaces.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/VectorInterfaces.h"
 
@@ -121,6 +122,8 @@ Value getIdentityValue(AtomicRMWKind op, Type resultType, OpBuilder &builder,
 /// associated with a binary AtomicRMWKind op to `lhs` and `rhs`.
 Value getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
                      Value lhs, Value rhs);
+
+arith::CmpIPredicate invertPredicate(arith::CmpIPredicate pred);
 } // namespace arith
 } // namespace mlir
 

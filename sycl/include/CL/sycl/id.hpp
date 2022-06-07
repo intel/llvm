@@ -360,7 +360,7 @@ namespace oneapi {
 namespace experimental {
 template <int Dims> id<Dims> this_id() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(detail::declptr<id<Dims>>());
+  return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
 #else
   throw sycl::exception(
       sycl::make_error_code(sycl::errc::feature_not_supported),

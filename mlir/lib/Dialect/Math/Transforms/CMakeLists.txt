@@ -1,6 +1,6 @@
 add_mlir_dialect_library(MLIRMathTransforms
   AlgebraicSimplification.cpp
-  ExpandTanh.cpp
+  ExpandPatterns.cpp
   PolynomialApproximation.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -8,10 +8,12 @@ add_mlir_dialect_library(MLIRMathTransforms
 
   LINK_LIBS PUBLIC
   MLIRArithmetic
+  MLIRDialectUtils  
   MLIRIR
   MLIRMath
   MLIRPass
-  MLIRStandard
   MLIRTransforms
   MLIRX86Vector
+  MLIRVector
+  MLIRVectorUtils
   )

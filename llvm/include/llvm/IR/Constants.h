@@ -1160,6 +1160,11 @@ public:
                     Type *Ty     ///< The type to trunc or bitcast C to
   );
 
+  /// Create either an sext, trunc or nothing, depending on whether Ty is
+  /// wider, narrower or the same as C->getType(). This only works with
+  /// integer or vector of integer types.
+  static Constant *getSExtOrTrunc(Constant *C, Type *Ty);
+
   /// Create a BitCast, AddrSpaceCast, or a PtrToInt cast constant
   /// expression.
   static Constant *
@@ -1195,13 +1200,6 @@ public:
   /// Return true if this is an insertvalue or extractvalue expression,
   /// and the getIndices() method may be used.
   bool hasIndices() const;
-
-  /// Return true if this is a getelementptr expression and all
-  /// the index operands are compile-time known integers within the
-  /// corresponding notional static array extents. Note that this is
-  /// not equivalant to, a subset of, or a superset of the "inbounds"
-  /// property.
-  bool isGEPWithNoNotionalOverIndexing() const;
 
   /// Select constant expr
   ///

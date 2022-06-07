@@ -16,6 +16,7 @@
 #include "CodeRegionGenerator.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCTargetOptions.h"
@@ -63,8 +64,8 @@ public:
                     SMLoc Loc = SMLoc()) override {}
   void emitGPRel32Value(const MCExpr *Value) override {}
   void BeginCOFFSymbolDef(const MCSymbol *Symbol) override {}
-  void EmitCOFFSymbolStorageClass(int StorageClass) override {}
-  void EmitCOFFSymbolType(int Type) override {}
+  void emitCOFFSymbolStorageClass(int StorageClass) override {}
+  void emitCOFFSymbolType(int Type) override {}
   void EndCOFFSymbolDef() override {}
 
   ArrayRef<MCInst> GetInstructionSequence(unsigned Index) const {

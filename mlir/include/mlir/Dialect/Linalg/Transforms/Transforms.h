@@ -6,16 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
-#define DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
+#ifndef MLIR_DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H
+#define MLIR_DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H
+
+#include <utility>
 
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/Utils.h"
+#include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
-#include "mlir/Dialect/Vector/VectorTransforms.h"
+#include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/Dialect/X86Vector/Transforms.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -35,19 +37,13 @@ struct LinalgElementwiseFusionOptions;
 struct LinalgFusionOptions;
 struct LinalgTilingOptions;
 
-/// Default function to control reshape folding. Skips folding unit dimension
-/// reshapes.
-bool skipUnitDimReshape(const OpResult &producer, OpOperand &consumer);
-
 //===----------------------------------------------------------------------===//
 // Transformations exposed as function calls.
 //===----------------------------------------------------------------------===//
 using LinalgLoops = SmallVector<Operation *, 4>;
 
-/// [DEPRECATED] Populate patterns for vectorization of all ConvN-D ops.
-void populateConvVectorizationPatterns(
-    MLIRContext *context, SmallVectorImpl<RewritePatternSet> &patterns,
-    ArrayRef<int64_t> tileSizes);
+void populatePadTensorTilingPatterns(RewritePatternSet &patterns,
+                                     const LinalgTilingOptions &options);
 
 /// Populate patterns for vectorizing low-D convolution ops. This is a step in
 /// progressive lowering for convolution ops, it assume high-D convolution ops
@@ -59,48 +55,46 @@ void populateConvolutionVectorizationPatterns(RewritePatternSet &patterns,
 /// parallel loops.
 void populateElementwiseToLinalgConversionPatterns(RewritePatternSet &patterns);
 
+/// Populate patterns that are only useful in the context of sparse tensors.
+void populateSparseTensorRewriting(RewritePatternSet &patterns);
+
 /// Function type which is used to control when to stop fusion. It is expected
 /// that OpOperand is not modified in the callback. The OpOperand is not marked
 /// as const to allow callers to use non-const methods.
-using ControlElementwiseOpsFusionFn =
+using ControlFusionFn =
     std::function<bool(const OpResult &producer, OpOperand &consumer)>;
+
+/// Patterns for fusing linalg operation on tensors.
+
+/// Pattern to fuse `linalg.generic` -> `linalg.generic` operations
+/// when both operations are fusable elementwise operations.
+void populateElementwiseOpsFusionPatterns(
+    RewritePatternSet &patterns,
+    const ControlFusionFn &controlElementwiseOpFusion);
 
 /// Patterns to fold an expanding (collapsing) tensor_reshape operation with its
 /// producer (consumer) generic operation by expanding the dimensionality of the
 /// loop in the generic op.
 void populateFoldReshapeOpsByExpansionPatterns(
-    RewritePatternSet &patterns,
-    const ControlElementwiseOpsFusionFn &controlFoldingReshapes =
-        skipUnitDimReshape);
+    RewritePatternSet &patterns, const ControlFusionFn &controlFoldingReshapes);
 
-/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
-/// producer (consumer) generic operation by linearizing the indexing map used
-/// to access the source (target) of the reshape operation in the generic
-/// operation.
-void populateFoldReshapeOpsByLinearizationPatterns(RewritePatternSet &patterns);
+/// Patterns to fold an expanding tensor.expand_shape operation with its
+/// producer generic operation by collapsing the dimensions of the generic op.
+void populateFoldReshapeOpsByCollapsingPatterns(
+    RewritePatternSet &patterns, const ControlFusionFn &controlFoldingReshapes);
 
-/// Patterns to fold a collapsing (expanding) tensor_reshape operation with its
-/// producer (consumer) generic operation by linearizing the indexing map used
-/// to access the source (target) of the reshape operation in the generic
-/// operation. The patterns are applied only when the tensor reshape involved is
-/// collapsing (introducing) unit-extent dimensions.
-void populateFoldUnitDimsReshapeOpsByLinearizationPatterns(
+/// Patterns to constant fold Linalg operations.
+void populateConstantFoldLinalgOperations(RewritePatternSet &patterns,
+                                          const ControlFusionFn &controlFn);
+
+/// Pattern to fuse a `tensor.pad` operation with the producer of its source,
+/// if the producer is a `linalg` operation with all parallel iterator types.
+void populateFuseTensorPadWithProducerLinalgOpPatterns(
     RewritePatternSet &patterns);
 
 /// Patterns to convert from one named op to another. These can be seen as
 /// canonicalizations of named ops into another named op.
 void populateLinalgNamedOpConversionPatterns(RewritePatternSet &patterns);
-
-/// Populate the given list with patterns to bufferize linalg ops.
-void populateLinalgBufferizePatterns(
-    bufferization::BufferizeTypeConverter &converter,
-    RewritePatternSet &patterns);
-
-/// Create linalg op on buffers given the original tensor-based operation and
-/// the buffers for the outputs.
-LinalgOp createLinalgOpOnBuffers(ConversionPatternRewriter &rewriter,
-                                 LinalgOp linalgOp, ValueRange inputs,
-                                 ValueRange outputs);
 
 /// Patterns to fold unit-extent dimensions in operands/results of linalg ops on
 /// tensors.
@@ -109,45 +103,8 @@ void populateFoldUnitExtentDimsPatterns(RewritePatternSet &patterns);
 /// Patterns that are used to inline constant operands into linalg generic ops.
 void populateInlineConstantOperandsPatterns(RewritePatternSet &patterns);
 
-/// Pattern to convert TiledLoopOp to SCF loops.
-void populateTiledLoopToSCFPattern(RewritePatternSet &patterns);
-
-/// Options that control fusion of elementwise operations.
-struct LinalgElementwiseFusionOptions {
-  /// Enable fusion of reshapes into the shape with elementwise operations. By
-  /// default it is disabled for unit dimensions reshape.
-  ControlElementwiseOpsFusionFn controlFoldingReshapesFn = skipUnitDimReshape;
-
-  LinalgElementwiseFusionOptions &
-  setControlFoldingReshapes(ControlElementwiseOpsFusionFn fun) {
-    controlFoldingReshapesFn = std::move(fun);
-    return *this;
-  }
-
-  /// Function to allow the caller to control when to stop fusion. Once a
-  /// producer is deemed fusable with the consumer (structurally), this callback
-  /// can be used to abort the fusion based on non-structural constraints. This
-  /// is the hook for cost models to control the amount of fusion done.
-  ControlElementwiseOpsFusionFn controlElementwiseOpsFusionFn =
-      [](const OpResult & /*producer */, OpOperand & /*consumer */) {
-        return true;
-      };
-
-  LinalgElementwiseFusionOptions &
-  setControlElementwiseOpsFusionFn(ControlElementwiseOpsFusionFn fun) {
-    controlElementwiseOpsFusionFn = std::move(fun);
-    return *this;
-  }
-};
-
-/// Patterns for fusing linalg operation on tensors.
-void populateElementwiseOpsFusionPatterns(
-    RewritePatternSet &patterns,
-    LinalgElementwiseFusionOptions options = LinalgElementwiseFusionOptions());
-
-/// Patterns to push reshape op towards the end of the graph in order to expose
-/// more fusion opportunities.
-void populatePushReshapeOpsPatterns(RewritePatternSet &patterns);
+/// Patterns that are used to bubble up extract slice op above linalg op.
+void populateBubbleUpExtractSliceOpPatterns(RewritePatternSet &patterns);
 
 /// Perform standalone tiling of a single LinalgOp by `tileSizes`.
 /// and permute the loop nest according to `interchangeVector`
@@ -343,7 +300,7 @@ struct LinalgPromotionOptions {
     return *this;
   }
   /// Callback function to do the copy of data to and from the promoted
-  /// subview. If None then a linalg.copy is used.
+  /// subview. If None then a memref.copy is used.
   Optional<CopyCallbackFn> copyInFn = None;
   Optional<CopyCallbackFn> copyOutFn = None;
   LinalgPromotionOptions &setCopyInOutFns(CopyCallbackFn const &copyIn,
@@ -383,6 +340,9 @@ FailureOr<LinalgOp> promoteSubViews(OpBuilder &b, LinalgOp op,
 
 /// Emit a suitable vector form for a Linalg op with fully static shape.
 LogicalResult vectorize(RewriterBase &builder, LinalgOp linalgOp);
+
+/// Emit a suitable vector form for a Copy op with fully static shape.
+LogicalResult vectorizeCopy(RewriterBase &builder, memref::CopyOp copyOp);
 
 /// Emit a loop nest of `scf.for` with the proper body for `linalgOp`.
 FailureOr<LinalgLoops> linalgOpToLoops(PatternRewriter &rewriter,
@@ -437,7 +397,7 @@ struct LinalgTransformationFilter {
                                          Operation *op) const;
   bool hasReplacementFilter(Operation *op) const;
 
-  LinalgTransformationFilter &addFilter(FilterFunction f) {
+  LinalgTransformationFilter &addFilter(const FilterFunction &f) {
     if (f)
       filters.push_back(f);
     return *this;
@@ -472,53 +432,107 @@ private:
 using TileSizeComputationFunction =
     std::function<SmallVector<Value, 4>(OpBuilder &, Operation *)>;
 
-/// Callback returning the padding value to use for a given OpOperand or failure
-/// for no padding. This should be a function of both the operation and the
-/// operand type.
-using PaddingValueComputationFunction =
-    std::function<FailureOr<Value>(OpBuilder &, OpOperand &)>;
+/// Creates a number of ranges equal to the number of non-zero in `tileSizes`.
+/// One for each loop of the LinalgOp that is tiled. The `tileSizes` argument
+/// has one entry per surrounding loop. It uses zero as the convention that a
+/// particular loop is not tiled. This convention simplifies implementations by
+/// avoiding affine map manipulations.
+/// The returned ranges correspond to the loop ranges, in the proper order, that
+/// are tiled and for which new loops will be created. Also the function returns
+/// a map from loop indices of the LinalgOp to the corresponding non-empty range
+/// indices of newly created loops.
+using LoopIndexToRangeIndexMap = DenseMap<int, int>;
+std::tuple<SmallVector<Range, 4>, LoopIndexToRangeIndexMap>
+makeTiledLoopRanges(RewriterBase &b, Location loc, AffineMap map,
+                    ValueRange allShapeSizes, ValueRange allTileSizes);
 
-/// Callback returning true if the pad tensor operation defining the given
-/// OpOperand shall be marked as nofold to enable packing.
-using PaddingNoFoldComputationFunction = std::function<bool(OpOperand &)>;
-
-/// Callback returning the number of loops to hoist the pad tensor operation
-/// defining the given OpOperand.
-using PaddingHoistComputationFunction = std::function<int64_t(OpOperand &)>;
+/// All indices returned by IndexOp should be invariant with respect to tiling.
+/// Therefore, if an operation is tiled, we have to transform the indices
+/// accordingly, i.e. offset them by the values of the corresponding induction
+/// variables that are captured implicitly in the body of the op.
+///
+/// Example. `linalg.generic` before tiling:
+///
+/// #id_2d = (i, j) -> (i, j)
+/// #pointwise_2d_trait = {
+///   indexing_maps = [#id_2d, #id_2d],
+///   iterator_types = ["parallel", "parallel"]
+/// }
+/// linalg.generic #pointwise_2d_trait %operand, %result {
+///   ^bb0(%operand_in: f32, %result_in: f32):
+///     %i = linalg.index 0 : index
+///     %j = linalg.index 1 : index
+///     <some operations that use %i, %j>
+/// }: memref<50x100xf32>, memref<50x100xf32>
+///
+/// After tiling pass with tiles sizes 10 and 25:
+///
+/// #strided = (i, j)[s0, s1, s2] -> (i * s1 + s0 + j * s2)
+///
+/// %c1 = arith.constant 1 : index
+/// %c0 = arith.constant 0 : index
+/// %c25 = arith.constant 25 : index
+/// %c10 = arith.constant 10 : index
+/// operand_dim_0 = dim %operand, 0 : memref<50x100xf32>
+/// operand_dim_1 = dim %operand, 1 : memref<50x100xf32>
+/// scf.for %k = %c0 to operand_dim_0 step %c10 {
+///   scf.for %l = %c0 to operand_dim_1 step %c25 {
+///     %4 = memref.subview %operand[%k, %l][%c10, %c25][%c1, %c1]
+///       : memref<50x100xf32> to memref<?x?xf32, #strided>
+///     %5 = memref.subview %result[%k, %l][%c10, %c25][%c1, %c1]
+///       : memref<50x100xf32> to memref<?x?xf32, #strided>
+///     linalg.generic pointwise_2d_trait %4, %5 {
+///     ^bb0(%operand_in: f32, %result_in: f32):
+///       %i = linalg.index 0 : index
+///       %j = linalg.index 1 : index
+///       // Indices `k` and `l` are implicitly captured in the body.
+///       %transformed_i = arith.addi %i, %k : index // index `i` is offset by
+///       %k %transformed_j = arith.addi %j, %l : index // index `j` is offset
+///       by %l
+///       // Every use of %i, %j is replaced with %transformed_i, %transformed_j
+///       <some operations that use %transformed_i, %transformed_j>
+///     }: memref<?x?xf32, #strided>, memref<?x?xf32, #strided>
+///   }
+/// }
+///
+/// TODO: Investigate whether mixing implicit and explicit indices
+/// does not lead to losing information.
+void transformIndexOps(RewriterBase &b, LinalgOp op,
+                       SmallVectorImpl<Value> &ivs,
+                       const LoopIndexToRangeIndexMap &loopIndexToRangeIndex);
 
 struct LinalgPaddingOptions {
-  /// Callback returning the padding value to use for a given OpOperand or
-  /// failure for no padding. Padding operations are introduced if
-  /// `paddingValueComputationFunction` is set and does not return failure.
-  /// Padding all operands guarantees the operation is statically shaped and
-  /// thus can be vectorized.
-  PaddingValueComputationFunction paddingValueComputationFunction = nullptr;
-
-  LinalgPaddingOptions &
-  setPaddingValueComputationFunction(PaddingValueComputationFunction fun) {
-    paddingValueComputationFunction = std::move(fun);
+  /// A padding value for every operand.
+  SmallVector<Attribute> paddingValues;
+  LinalgPaddingOptions &setPaddingValues(ArrayRef<Attribute> pv) {
+    paddingValues.assign(pv.begin(), pv.end());
     return *this;
   }
-
-  /// Callback returning true if the pad tensor operation defining the given
-  /// OpOperand shall be marked as nofold to enable packing. A padding operation
-  /// is only marked nofold if `paddingNoFoldComputationFunction` is set and
-  /// returns true. Otherwise, the nofold attribute is set to false.
-  PaddingNoFoldComputationFunction paddingNoFoldComputationFunction = nullptr;
-
-  LinalgPaddingOptions &
-  setPaddingNoFoldComputationFunction(PaddingNoFoldComputationFunction fun) {
-    paddingNoFoldComputationFunction = std::move(fun);
+  /// A list of iterator dimensions to pad.
+  SmallVector<int64_t> paddingDimensions;
+  LinalgPaddingOptions &setPaddingDimensions(ArrayRef<int64_t> pd) {
+    paddingDimensions.assign(pd.begin(), pd.end());
     return *this;
   }
-
-  /// Callback returning the number of loops to hoist the pad tensor operation
-  /// defining the given OpOperand.
-  PaddingHoistComputationFunction paddingHoistComputationFunction = nullptr;
-
+  /// A flag for every operand to mark the PadOp as nofold which enables packing
+  /// for statically shaped operands.
+  SmallVector<bool> packPaddings;
+  LinalgPaddingOptions &setPackPaddings(ArrayRef<bool> pp) {
+    packPaddings.assign(pp.begin(), pp.end());
+    return *this;
+  }
+  /// A number of loops to hoist the PadOp out for every operand.
+  SmallVector<int64_t> hoistPaddings;
+  LinalgPaddingOptions &setHoistPaddings(ArrayRef<int64_t> hp) {
+    hoistPaddings.assign(hp.begin(), hp.end());
+    return *this;
+  }
+  /// A permutation vector for every operand used to transpose the packed PadOp
+  /// results.
+  SmallVector<SmallVector<int64_t>> transposePaddings;
   LinalgPaddingOptions &
-  setPaddingHoistComputationFunction(PaddingHoistComputationFunction fun) {
-    paddingHoistComputationFunction = std::move(fun);
+  setTransposePaddings(ArrayRef<SmallVector<int64_t>> tp) {
+    transposePaddings.assign(tp.begin(), tp.end());
     return *this;
   }
 };
@@ -526,8 +540,20 @@ struct LinalgPaddingOptions {
 struct LinalgTilingAndFusionOptions {
   /// Tile sizes used to tile the root operation.
   SmallVector<int64_t> tileSizes;
+  LinalgTilingAndFusionOptions &setTileSizes(ArrayRef<int64_t> ts) {
+    tileSizes.assign(ts.begin(), ts.end());
+    return *this;
+  }
   /// Tile interchange used to permute the tile loops.
   SmallVector<int64_t> tileInterchange;
+  /// When specified, specifies distribution of generated tile loops to
+  /// processors.
+  Optional<LinalgLoopDistributionOptions> tileDistribution = None;
+  LinalgTilingAndFusionOptions &
+  setDistributionOptions(LinalgLoopDistributionOptions distributionOptions) {
+    tileDistribution = std::move(distributionOptions);
+    return *this;
+  }
 };
 
 struct LinalgTilingOptions {
@@ -544,7 +570,7 @@ struct LinalgTilingOptions {
   /// Set the `tileSizeComputationFunction` to return the values `ts`. The
   /// values must not fold away when tiling. Otherwise, use a more robust
   /// `tileSizeComputationFunction`.
-  LinalgTilingOptions &setTileSizes(SmallVector<Value, 4> ts) {
+  LinalgTilingOptions &setTileSizes(const SmallVector<Value, 4> &ts) {
     tileSizeComputationFunction = [=](OpBuilder &, Operation *) { return ts; };
     return *this;
   }
@@ -682,6 +708,56 @@ private:
   LinalgPaddingOptions options;
 };
 
+/// Rewrites 2-D convolution ops with size-1 window dimensions into 1-D
+/// convolution ops.
+struct DownscaleSizeOneWindowed2DConvolution final
+    : public OpRewritePattern<Conv2DNhwcHwcfOp> {
+  DownscaleSizeOneWindowed2DConvolution(
+      MLIRContext *context,
+      LinalgTransformationFilter f = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : OpRewritePattern<Conv2DNhwcHwcfOp>(context, benefit),
+        filter(std::move(f)) {}
+
+  FailureOr<Conv1DNwcWcfOp>
+  returningMatchAndRewrite(linalg::Conv2DNhwcHwcfOp convOp,
+                           PatternRewriter &rewriter) const;
+
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcHwcfOp convOp,
+                                PatternRewriter &rewriter) const override {
+    return returningMatchAndRewrite(convOp, rewriter);
+  }
+
+private:
+  /// LinalgTransformMarker handles special attribute manipulations.
+  LinalgTransformationFilter filter;
+};
+
+/// Rewrites 2-D depthwise convolution ops with size-1 (w, kw) or (h, kh)
+/// dimensions into 1-D depthwise convolution ops.
+struct DownscaleDepthwiseConv2DNhwcHwcOp final
+    : public OpRewritePattern<DepthwiseConv2DNhwcHwcOp> {
+  DownscaleDepthwiseConv2DNhwcHwcOp(
+      MLIRContext *context,
+      LinalgTransformationFilter f = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1)
+      : OpRewritePattern<DepthwiseConv2DNhwcHwcOp>(context, benefit),
+        filter(std::move(f)) {}
+
+  FailureOr<DepthwiseConv1DNwcWcOp>
+  returningMatchAndRewrite(DepthwiseConv2DNhwcHwcOp convOp,
+                           PatternRewriter &rewriter) const;
+
+  LogicalResult matchAndRewrite(DepthwiseConv2DNhwcHwcOp convOp,
+                                PatternRewriter &rewriter) const override {
+    return returningMatchAndRewrite(convOp, rewriter);
+  }
+
+private:
+  /// LinalgTransformMarker handles special attribute manipulations.
+  LinalgTransformationFilter filter;
+};
+
 struct LinalgFusionOptions {
   /// List of operands indices to use for fusion.
   llvm::SmallSet<unsigned, 1> indicesToFuse = {};
@@ -756,8 +832,16 @@ struct LinalgTileAndFuseTensorOpsPattern : public RewritePattern {
       LinalgTilingAndFusionOptions options,
       LinalgTransformationFilter f = LinalgTransformationFilter(),
       PatternBenefit benefit = 1);
+
+  /// `matchAndRewrite` implementation that returns the significant transformed
+  /// pieces of IR.
+  FailureOr<TileLoopNest>
+  returningMatchAndRewrite(Operation *op, PatternRewriter &rewriter) const;
+
   LogicalResult matchAndRewrite(Operation *op,
-                                PatternRewriter &rewriter) const override;
+                                PatternRewriter &rewriter) const override {
+    return returningMatchAndRewrite(op, rewriter);
+  }
 
 private:
   /// LinalgTransformMarker handles special attribute manipulations.
@@ -911,6 +995,18 @@ private:
   /// LinalgTransformMarker handles special attribute manipulations.
   LinalgTransformationFilter filter;
 };
+
+/// `filter` controls LinalgTransformMarker matching and update when specified.
+/// See `vectorizeLinalgOp` for more details.
+struct CopyVectorizationPattern : public OpRewritePattern<memref::CopyOp> {
+  using OpRewritePattern<memref::CopyOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CopyOp copyOp,
+                                PatternRewriter &rewriter) const override;
+};
+
+/// Return vector::CombiningKind for the given op.
+llvm::Optional<vector::CombiningKind> getCombinerOpKind(Operation *combinerOp);
 
 //===----------------------------------------------------------------------===//
 // Transformation and lowering options exposed as auxiliary structs.
@@ -1112,67 +1208,61 @@ void populateDecomposeConvolutionPatterns(
     const LinalgTransformationFilter &filter = LinalgTransformationFilter(),
     PatternBenefit benefit = 1);
 
-/// Linalg distribution patterns
-//
-/// Populates `patterns` with patterns to distribute linalg.tiled_loop.
-void populateLinalgDistributeTiledLoopPattern(
-    RewritePatternSet &patterns, const LinalgLoopDistributionOptions &opts,
-    const LinalgTransformationFilter &marker);
-
 //===----------------------------------------------------------------------===//
 // Op-specific patterns.
 //===----------------------------------------------------------------------===//
 
-/// PadTensorOp is not canonicalized away yet, so we provide a transformation to
-/// `linalg.generic`.
-struct PadTensorOpTransformationPattern : public OpRewritePattern<PadTensorOp> {
-  using OpRewritePattern<PadTensorOp>::OpRewritePattern;
+/// tensor::PadOp is not canonicalized away yet, so we provide a transformation
+/// to `linalg.generic`.
+struct PadOpTransformationPattern : public OpRewritePattern<tensor::PadOp> {
+  using OpRewritePattern<tensor::PadOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(PadTensorOp padOp,
+  LogicalResult matchAndRewrite(tensor::PadOp padOp,
                                 PatternRewriter &rewriter) const override;
 };
 
-/// Pad the operands of `opToPad` to a static bounding box. Use `paddingFunc`
-/// and `nofoldFunc` to set the padding value and the nofold attribute of the
-/// introduced PadTensorOps, respectively. Update `paddedOp` to the cloned
-/// statically shaped operation and return the extracted dynamically shaped
-/// results. If padding fails, return failure.
+/// Pad the iterator dimensions `paddingDimensions` of all `opToPad` operands to
+/// a static bounding box. Use `paddingValues` and `packPaddings` to set padding
+/// value and nofold attribute of the created tensor::PadOps, respectively.
+/// Update `paddedOp` to the cloned operation with statically shaped
+/// `paddingDimensions` and return the extracted dynamically shaped results. If
+/// padding fails, return failure.
 FailureOr<SmallVector<Value>>
 rewriteAsPaddedOp(OpBuilder &b, LinalgOp opToPad,
-                  const PaddingValueComputationFunction &paddingFunc,
-                  const PaddingNoFoldComputationFunction &nofoldFunc,
-                  LinalgOp &paddedOp);
+                  ArrayRef<int64_t> paddingDimensions,
+                  ArrayRef<Attribute> paddingValues,
+                  ArrayRef<bool> packPaddings, LinalgOp &paddedOp);
 
 using OptimizeCopyFn =
-    std::function<LogicalResult(PatternRewriter &, PadTensorOp, Value)>;
+    std::function<LogicalResult(PatternRewriter &, tensor::PadOp, Value)>;
 
-/// Rewrite a PadTensorOp into a sequence of InitTensorOp, FillOp and
+/// Rewrite a tensor::PadOp into a sequence of InitTensorOp, FillOp and
 /// InsertSliceOp. For now, only constant padding values are supported.
 /// `OptimizeCopyFn` can be used to customize copying step optimization.
-struct GeneralizePadTensorOpPattern : public OpRewritePattern<PadTensorOp> {
-  GeneralizePadTensorOpPattern(MLIRContext *context,
-                               OptimizeCopyFn optimizeCopyFn = nullptr,
-                               PatternBenefit benefit = 1)
-      : OpRewritePattern<PadTensorOp>(context, benefit),
-        optimizeCopyFn(optimizeCopyFn) {}
-  LogicalResult matchAndRewrite(PadTensorOp padOp,
+struct GeneralizePadOpPattern : public OpRewritePattern<tensor::PadOp> {
+  GeneralizePadOpPattern(MLIRContext *context,
+                         OptimizeCopyFn optimizeCopyFn = nullptr,
+                         PatternBenefit benefit = 1)
+      : OpRewritePattern<tensor::PadOp>(context, benefit),
+        optimizeCopyFn(std::move(optimizeCopyFn)) {}
+  LogicalResult matchAndRewrite(tensor::PadOp padOp,
                                 PatternRewriter &rewriter) const override;
 
 protected:
   OptimizeCopyFn optimizeCopyFn;
-  Value createFillOrGenerateOp(PatternRewriter &rewriter, PadTensorOp padOp,
+  Value createFillOrGenerateOp(PatternRewriter &rewriter, tensor::PadOp padOp,
                                Value dest,
                                const SmallVector<Value> &dynSizes) const;
 };
 
-/// Populates `patterns` with patterns that vectorize linalg.pad_tensor.
+/// Populates `patterns` with patterns that vectorize tensor.pad.
 /// These patterns are meant to apply in a complementary fashion. Benefits
 /// are used to encode a certain ordering of pattern application. To avoid
 /// scattering magic constants throughout the code base, the patterns must be
 /// added with this function. `baseBenefit` can be used to offset the benefit
-/// of all PadTensorOp vectorization patterns by a certain value.
-void populatePadTensorOpVectorizationPatterns(RewritePatternSet &patterns,
-                                              PatternBenefit baseBenefit = 1);
+/// of all tensor::PadOp vectorization patterns by a certain value.
+void populatePadOpVectorizationPatterns(RewritePatternSet &patterns,
+                                        PatternBenefit baseBenefit = 1);
 
 /// Match and rewrite for the pattern:
 /// ```
@@ -1181,7 +1271,7 @@ void populatePadTensorOpVectorizationPatterns(RewritePatternSet &patterns,
 ///    %subView = subview %allocOrView ...
 ///    [optional] linalg.fill(%allocOrView, %cst) ...
 ///    ...
-///    linalg.copy(%in, %subView) ...
+///    memref.copy(%in, %subView) ...
 ///    vector.transfer_read %allocOrView[...], %cst ...
 /// ```
 /// into
@@ -1192,8 +1282,8 @@ void populatePadTensorOpVectorizationPatterns(RewritePatternSet &patterns,
 ///    ...
 ///    vector.transfer_read %in[...], %cst ...
 /// ```
-/// Where there is no interleaved use between linalg.copy and transfer_read as
-/// well as no interleaved use between linalg.fill and linalg.copy (if
+/// Where there is no interleaved use between memref.copy and transfer_read as
+/// well as no interleaved use between linalg.fill and memref.copy (if
 /// linalg.fill is specified).
 /// This is a custom rewrite to forward partial reads (with optional fills) to
 /// vector.transfer_read.
@@ -1212,7 +1302,7 @@ struct LinalgCopyVTRForwardingPattern
 ///    %subView = subview %allocOrView...
 ///    ...
 ///    vector.transfer_write %..., %allocOrView[...]
-///    linalg.copy(%subView, %out)
+///    memref.copy(%subView, %out)
 /// ```
 /// into
 /// ```
@@ -1222,7 +1312,7 @@ struct LinalgCopyVTRForwardingPattern
 ///    ...
 ///    vector.transfer_write %..., %out[...]
 /// ```
-/// Where there is no interleaved use between transfer_write and linalg.copy.
+/// Where there is no interleaved use between transfer_write and memref.copy.
 /// This is a custom rewrite to forward partial writes to vector.transfer_write.
 struct LinalgCopyVTWForwardingPattern
     : public OpRewritePattern<vector::TransferWriteOp> {
@@ -1232,79 +1322,6 @@ struct LinalgCopyVTWForwardingPattern
                                 PatternRewriter &rewriter) const override;
 };
 
-/// Converts Convolution op into vector contraction.
-///
-/// Conversion expects ConvOp to have dimensions marked in the *mask* as
-/// false of size 1. This ensures that the ConvOp can be lowered to vector
-/// contraction of dimensions marked in the *mask* as true.
-///
-/// A good example for vectorization is ConvNHWCOp which is 2D Conv op
-/// with channels as the last dimension. Let's vectorize last 3 dimensions.
-/// The initial op definition looks like this:
-/// ```
-/// linalg.conv_2d_nhwc  %arg0, %arg1, %arg2 :
-///   (memref<1x3x3x3xf32>, memref<1x3x3x3xf32>, memref<?x?x?x?xf32>)
-/// ```
-/// This op can be expressed as a dot product between %arg0 (input) and
-/// %arg1 (kernel) which is written into first entry of %arg2 (output). This is
-/// the ConvOp this pass expects and converts into:
-/// ```
-/// #map0 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
-/// #map1 = affine_map<(d0, d1, d2) -> ()>
-/// .....
-/// %0 = vector.transfer_read %arg0[%c0, %c0, %c0, %c0], %c0_f32
-///   : memref<1x3x3x3xf32>, vector<3x3x3xf32>
-/// %1 = vector.transfer_read %arg1[%c0, %c0, %c0, %c0], %c0_f32
-///   : memref<1x3x3x3xf32>, vector<3x3x3xf32>
-/// %2 = vector.contract {indexing_maps = [#map0, #map0, #map1],
-///   iterator_types = ["reduction", "reduction", "reduction"]} %0, %1,
-///   %c0_f32 : vector<3x3x3xf32>, vector<3x3x3xf32> into f32
-/// store %2, %arg2[%c0, %c0, %c0, %c0] : memref<?x?x?x?xf32>
-/// ```
-/// where first 2 operations read input and kernel memory buffers into vectors.
-/// Subsequently, they are contracted together and the result is written to
-/// the first entry of the output buffer.
-template <typename ConvOp, int N>
-class ConvOpVectorization : public OpRewritePattern<ConvOp> {
-  using OpRewritePattern<ConvOp>::OpRewritePattern;
-  SmallVector<bool, 4> mask;
-
-public:
-  ConvOpVectorization(MLIRContext *context, SmallVector<bool, 4> msk)
-      : OpRewritePattern<ConvOp>(context) {
-    assert(msk.size() == N && "Mask size does not match rank");
-    this->mask = msk;
-  }
-
-  LogicalResult matchAndRewrite(ConvOp minOp,
-                                PatternRewriter &rewriter) const override;
-};
-
-/// Rewrite a TiledLoopOp with bounds/step that potentially do not divide evenly
-/// into a TiledLoopOp where the step divides the iteration space evenly,
-/// followed by another TiledLoopOp for the last (partial) iteration (if any).
-/// This transformation is called "loop peeling".
-///
-/// This function peels the `idx`-th loop of the TiledLoopOp. To tile all loops
-/// in the loop nest, this function must be called multiple times.
-///
-/// After loop peeling, this function tries to simplify/canonicalize affine.min
-/// and affine.max ops in the body of the two TiledLoopOps. For more details,
-/// refer to `mlir::scf::peelAndCanonicalizeForLoop`.
-///
-/// The return value indicates whether the loop was rewritten or not. Loops are
-/// not rewritten if:
-/// * Loop step size is 1 or
-/// * Loop bounds and step size are static, and step already divides the
-///   iteration space evenly.
-///
-/// Note: This function rewrites the given TiledLoopOp in-place and clones the
-/// TileLoopOp operation for the last iteration. It replaces all uses of the
-/// unpeeled TiledLoopOp with the results of the newly generated TiledLoopOp.
-LogicalResult peelAndCanonicalizeTiledLoop(RewriterBase &rewriter,
-                                           TiledLoopOp loopOp, int64_t idx,
-                                           TiledLoopOp &result);
-
 //===----------------------------------------------------------------------===//
 // Support for staged pattern application.
 //===----------------------------------------------------------------------===//
@@ -1312,8 +1329,8 @@ LogicalResult peelAndCanonicalizeTiledLoop(RewriterBase &rewriter,
 /// global transformations, in a staged fashion:
 ///   1. the first stage consists of a list of FrozenRewritePatternSet. Each
 ///   FrozenRewritePatternSet in this list is applied once, in order.
-///   2. the second stage consists of a single OwningRewritePattern that is
-///   applied greedily until convergence.
+///   2. the second stage consists of a single RewritePattern that is applied
+///      greedily until convergence.
 ///   3. the third stage consists of applying a lambda, generally used for
 ///   non-local transformation effects. This allows creating custom fused
 ///   transformations where patterns can be ordered and applied at a finer
@@ -1323,13 +1340,30 @@ LogicalResult applyStagedPatterns(
     const FrozenRewritePatternSet &stage2Patterns,
     function_ref<LogicalResult(Operation *)> stage3Lambda = nullptr);
 
-/// Rewrite extract_slice(pad_tensor(x)) into pad_tensor(extract_slice(x)).
+/// Rewrite extract_slice(tensor.pad(x)) into tensor.pad(extract_slice(x)).
 struct ExtractSliceOfPadTensorSwapPattern
     : public OpRewritePattern<tensor::ExtractSliceOp> {
-  using OpRewritePattern<tensor::ExtractSliceOp>::OpRewritePattern;
+  /// A function to control pattern application and rewrite logic.
+  ///
+  /// The function will be given the slice op and should return:
+  /// -  None: to fail the match and not apply the pattern;
+  /// -  true: to apply the pattern with zero slice guard;
+  /// - false: to apply the pattern without zero slice guard.
+  ///
+  /// See the documentation for tensor::bubbleUpPadSlice regarding zero slice
+  /// guard.
+  using ControlFn = std::function<llvm::Optional<bool>(tensor::ExtractSliceOp)>;
+
+  ExtractSliceOfPadTensorSwapPattern(MLIRContext *context,
+                                     ControlFn controlFn = nullptr,
+                                     PatternBenefit benefit = 1)
+      : OpRewritePattern(context, benefit), controlFn(std::move(controlFn)) {}
 
   LogicalResult matchAndRewrite(tensor::ExtractSliceOp sliceOp,
                                 PatternRewriter &rewriter) const override;
+
+private:
+  ControlFn controlFn;
 };
 
 //===----------------------------------------------------------------------===//
@@ -1381,7 +1415,65 @@ public:
   }
 };
 
+/// Function signature to control reduction splitting. This returns a pair
+/// containing a ratio and a dimension index. The ratio is used to split the
+/// reduction dimension. The dimension index is used to control where the extra
+/// dimension is added to the intermediate tensor shape. If the ratio value is
+/// less or equal to 1 then nothing will be done.
+using ControlSplitReductionFn =
+    std::function<std::pair<int64_t, unsigned>(LinalgOp op)>;
+
+/// Patterns to apply `splitReduction` below.
+void populateSplitReductionPattern(
+    RewritePatternSet &patterns,
+    const ControlSplitReductionFn &controlSplitReductionFn,
+    const LinalgTransformationFilter &f = LinalgTransformationFilter());
+
+/// Apply transformation to split the single linalg op reduction into a parallel
+/// and reduction dimension. Then create a new linalg.generic op doing the rest
+/// of the reduction. Return the new linalg op with an extra parallel dimension
+/// or failure if the transformation didn't happen.
+/// Example:
+/// ```
+///  %r = linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>,
+///                                        affine_map<(d0) -> ()>],
+///       iterator_types = ["reduction"]}
+///  ins(%in : tensor<32xf32>)
+///  outs(%out : tensor<f32>) {
+///  ^bb0(%arg1: f32, %arg2: f32):
+///    %y = arith.addf %arg1, %arg2 : f32
+///    linalg.yield %y : f32
+///  } -> tensor<f32>
+/// ```
+/// To:
+/// ```
+///  %cst = arith.constant 0.000000e+00 : f32
+///  %0 = tensor.expand_shape %in [[0, 1]] : tensor<32xf32> into tensor<4x8xf32>
+///  %1 = linalg.init_tensor [4] : tensor<4xf32>
+///  %2 = linalg.fill ins(%cst : f32) outs(%1 : tensor<4xf32>) -> tensor<4xf32>
+///  %3 = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+///                                        affine_map<(d0, d1) -> (d0)>],
+///    iterator_types = ["parallel", "reduction"]}
+///    ins(%0 : tensor<4x8xf32>) outs(%2 : tensor<4xf32>) {
+///    ^bb0(%arg3: f32, %arg5: f32):
+///    %5 = arith.addf %arg3, %arg4 : f32
+///    linalg.yield %5 : f32
+///  } -> tensor<4xf32>
+/// %r = linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>,
+///                                       affine_map<(d0) -> ()>],
+///   iterator_types = ["reduction"]}
+///   ins(%3 : tensor<4xf32>) outs(%out : tensor<f32>) {
+///   ^bb0(%arg3: f32, %arg4: f32):
+///   %5 = arith.addf %arg3, %arg4 : f32
+///   linalg.yield %5 : f32
+/// } -> tensor<f32>
+/// ```
+FailureOr<LinalgOp>
+splitReduction(PatternRewriter &b, LinalgOp op,
+               const ControlSplitReductionFn &controlSplitReductionFn,
+               const LinalgTransformationFilter &f);
+
 } // namespace linalg
 } // namespace mlir
 
-#endif // DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H_
+#endif // MLIR_DIALECT_LINALG_TRANSFORMS_TRANSFORMS_H

@@ -35,6 +35,11 @@ class RegScavenger;
 class TargetRegisterClass;
 class ScheduleHazardRecognizer;
 
+/// Mark the MMO of a uniform load if there are no potentially clobbering stores
+/// on any path from the start of an entry function to this load.
+static const MachineMemOperand::Flags MONoClobber =
+    MachineMemOperand::MOTargetFlag1;
+
 class SIInstrInfo final : public AMDGPUGenInstrInfo {
 private:
   const SIRegisterInfo RI;
@@ -78,11 +83,8 @@ private:
   moveScalarAddSub(SetVectorType &Worklist, MachineInstr &Inst,
                    MachineDominatorTree *MDT = nullptr) const;
 
-  void lowerSelect32(SetVectorType &Worklist, MachineInstr &Inst,
-                     MachineDominatorTree *MDT = nullptr) const;
-
-  void splitSelect64(SetVectorType &Worklist, MachineInstr &Inst,
-                     MachineDominatorTree *MDT = nullptr) const;
+  void lowerSelect(SetVectorType &Worklist, MachineInstr &Inst,
+                   MachineDominatorTree *MDT = nullptr) const;
 
   void lowerScalarAbs(SetVectorType &Worklist,
                       MachineInstr &Inst) const;
@@ -326,14 +328,13 @@ public:
                             Register SrcReg2, int64_t CmpMask, int64_t CmpValue,
                             const MachineRegisterInfo *MRI) const override;
 
-  unsigned getAddressSpaceForPseudoSourceKind(
-             unsigned Kind) const override;
-
   bool
   areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
                                   const MachineInstr &MIb) const override;
 
   static bool isFoldableCopy(const MachineInstr &MI);
+
+  void removeModOperands(MachineInstr &MI) const;
 
   bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
                      MachineRegisterInfo *MRI) const final;
@@ -660,6 +661,22 @@ public:
 
   bool isDOT(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::IsDOT;
+  }
+
+  static bool isLDSDIR(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::LDSDIR;
+  }
+
+  bool isLDSDIR(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::LDSDIR;
+  }
+
+  static bool isVINTERP(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::VINTERP;
+  }
+
+  bool isVINTERP(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::VINTERP;
   }
 
   static bool isScalarUnit(const MachineInstr &MI) {
@@ -1039,6 +1056,9 @@ public:
   ArrayRef<std::pair<unsigned, const char *>>
   getSerializableDirectMachineOperandTargetFlags() const override;
 
+  ArrayRef<std::pair<MachineMemOperand::Flags, const char *>>
+  getSerializableMachineMemOperandTargetFlags() const override;
+
   ScheduleHazardRecognizer *
   CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
                                  const ScheduleDAG *DAG) const override;
@@ -1135,6 +1155,11 @@ public:
   static unsigned getDSShaderTypeValue(const MachineFunction &MF);
 
   const TargetSchedModel &getSchedModel() const { return SchedModel; }
+
+  // Enforce operand's \p OpName even alignment if required by target.
+  // This is used if an operand is a 32 bit register but needs to be aligned
+  // regardless.
+  void enforceOperandRCAlignment(MachineInstr &MI, unsigned OpName) const;
 };
 
 /// \brief Returns true if a reg:subreg pair P has a TRC class
@@ -1213,9 +1238,6 @@ namespace AMDGPU {
   int getIfAddr64Inst(uint16_t Opcode);
 
   LLVM_READONLY
-  int getMUBUFNoLdsInst(uint16_t Opcode);
-
-  LLVM_READONLY
   int getAtomicNoRetOp(uint16_t Opcode);
 
   LLVM_READONLY
@@ -1239,6 +1261,11 @@ namespace AMDGPU {
   LLVM_READONLY
   int getFlatScratchInstSTfromSS(uint16_t Opcode);
 
+  /// \returns SV (VADDR) form of a FLAT Scratch instruction given an \p Opcode
+  /// of an SVS (SADDR + VADDR) form.
+  LLVM_READONLY
+  int getFlatScratchInstSVfromSVS(uint16_t Opcode);
+
   /// \returns SS (SADDR) form of a FLAT Scratch instruction given an \p Opcode
   /// of an SV (VADDR) form.
   LLVM_READONLY
@@ -1248,6 +1275,14 @@ namespace AMDGPU {
   /// of an SS (SADDR) form.
   LLVM_READONLY
   int getFlatScratchInstSVfromSS(uint16_t Opcode);
+
+  /// \returns earlyclobber version of a MAC MFMA is exists.
+  LLVM_READONLY
+  int getMFMAEarlyClobberOp(uint16_t Opcode);
+
+  /// \returns v_cmpx version of a v_cmp instruction.
+  LLVM_READONLY
+  int getVCMPXOpFromVCMP(uint16_t Opcode);
 
   const uint64_t RSRC_DATA_FORMAT = 0xf00000000000LL;
   const uint64_t RSRC_ELEMENT_SIZE_SHIFT = (32 + 19);

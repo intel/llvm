@@ -22,7 +22,7 @@ namespace detail {
 
 namespace enqueue_kernel_launch {
 
-bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
+void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
                                 const NDRDescT &NDRDesc) {
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
 
@@ -246,7 +246,7 @@ bool handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
       "PI backend failed. PI backend returns: " + codeToString(Error), Error);
 }
 
-bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
+void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
                                const NDRDescT &NDRDesc) {
 
   const plugin &Plugin = DeviceImpl.getPlugin();
@@ -265,11 +265,35 @@ bool handleInvalidWorkItemSize(const device_impl &DeviceImpl,
               " > " + std::to_string(MaxWISize[I]),
           PI_INVALID_WORK_ITEM_SIZE);
   }
-  return 0;
 }
 
-bool handleError(pi_result Error, const device_impl &DeviceImpl,
-                 pi_kernel Kernel, const NDRDescT &NDRDesc) {
+void handleInvalidValue(const device_impl &DeviceImpl,
+                        const NDRDescT &NDRDesc) {
+  const plugin &Plugin = DeviceImpl.getPlugin();
+  RT::PiDevice Device = DeviceImpl.getHandleRef();
+
+  size_t MaxNWGs[] = {0, 0, 0};
+  Plugin.call<PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D, sizeof(MaxNWGs),
+      &MaxNWGs, nullptr);
+  for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
+    size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];
+    if (NWgs > MaxNWGs[I])
+      throw sycl::nd_range_error(
+          "Number of work-groups exceed limit for dimension " +
+              std::to_string(I) + " : " + std::to_string(NWgs) + " > " +
+              std::to_string(MaxNWGs[I]),
+          PI_INVALID_VALUE);
+  }
+
+  // fallback
+  constexpr pi_result Error = PI_INVALID_VALUE;
+  throw runtime_error(
+      "Native API failed. Native API returns: " + codeToString(Error), Error);
+}
+
+void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
+                          pi_kernel Kernel, const NDRDescT &NDRDesc) {
   assert(Error != PI_SUCCESS &&
          "Success is expected to be handled on caller side");
   switch (Error) {
@@ -314,6 +338,17 @@ bool handleError(pi_result Error, const device_impl &DeviceImpl,
         "dimensions (image width, height, specified or compute row and/or "
         "slice pitch) are not supported by device associated with queue",
         PI_INVALID_IMAGE_SIZE);
+
+  case PI_INVALID_VALUE:
+    return handleInvalidValue(DeviceImpl, NDRDesc);
+
+  case PI_PLUGIN_SPECIFIC_ERROR:
+    // checkPiResult does all the necessary handling for
+    // PI_PLUGIN_SPECIFIC_ERROR, making sure an error is thrown or not,
+    // depending on whether PI_PLUGIN_SPECIFIC_ERROR contains an error or a
+    // warning. It also ensures that the contents of the error message buffer
+    // (used only by PI_PLUGIN_SPECIFIC_ERROR) get handled correctly.
+    return DeviceImpl.getPlugin().checkPiResult(Error);
 
     // TODO: Handle other error codes
 

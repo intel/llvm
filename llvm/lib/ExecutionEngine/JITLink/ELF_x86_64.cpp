@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
 #include "llvm/ExecutionEngine/JITLink/TableManager.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
@@ -172,7 +173,7 @@ private:
 
   Error addSingleRelocation(const typename ELFT::Rela &Rel,
                             const typename ELFT::Shdr &FixupSection,
-                            Section &GraphSection) {
+                            Block &BlockToFix) {
     using Base = ELFLinkGraphBuilder<ELFT>;
 
     uint32_t SymbolIndex = Rel.getSymbol(false);
@@ -248,17 +249,16 @@ private:
     }
     }
 
-    Block *BlockToFix = *(GraphSection.blocks().begin());
     auto FixupAddress = orc::ExecutorAddr(FixupSection.sh_addr) + Rel.r_offset;
-    Edge::OffsetT Offset = FixupAddress - BlockToFix->getAddress();
+    Edge::OffsetT Offset = FixupAddress - BlockToFix.getAddress();
     Edge GE(Kind, Offset, *GraphSymbol, Addend);
     LLVM_DEBUG({
       dbgs() << "    ";
-      printEdge(dbgs(), *BlockToFix, GE, x86_64::getEdgeKindName(Kind));
+      printEdge(dbgs(), BlockToFix, GE, x86_64::getEdgeKindName(Kind));
       dbgs() << "\n";
     });
 
-    BlockToFix->addEdge(std::move(GE));
+    BlockToFix.addEdge(std::move(GE));
     return Error::success();
   }
 
@@ -380,10 +380,10 @@ void link_ELF_x86_64(std::unique_ptr<LinkGraph> G,
 
   if (Ctx->shouldAddDefaultTargetPasses(G->getTargetTriple())) {
 
-    Config.PrePrunePasses.push_back(EHFrameSplitter(".eh_frame"));
-    Config.PrePrunePasses.push_back(
-        EHFrameEdgeFixer(".eh_frame", x86_64::PointerSize, x86_64::Delta64,
-                         x86_64::Delta32, x86_64::NegDelta32));
+    Config.PrePrunePasses.push_back(DWARFRecordSectionSplitter(".eh_frame"));
+    Config.PrePrunePasses.push_back(EHFrameEdgeFixer(
+        ".eh_frame", x86_64::PointerSize, x86_64::Pointer32, x86_64::Pointer64,
+        x86_64::Delta32, x86_64::Delta64, x86_64::NegDelta32));
     Config.PrePrunePasses.push_back(EHFrameNullTerminator(".eh_frame"));
 
     // Construct a JITLinker and run the link function.

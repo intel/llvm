@@ -74,6 +74,7 @@
 # CHECK-NEXT:      },
 # CHECK-NEXT:      "hoverProvider": true,
 # CHECK-NEXT:      "implementationProvider": true,
+# CHECK-NEXT:      "inlayHintProvider": true,
 # CHECK-NEXT:      "memoryUsageProvider": true,
 # CHECK-NEXT:      "referencesProvider": true,
 # CHECK-NEXT:      "renameProvider": true,
@@ -121,6 +122,7 @@
 # CHECK-NEXT:        "openClose": true,
 # CHECK-NEXT:        "save": true
 # CHECK-NEXT:      },
+# CHECK-NEXT:      "typeDefinitionProvider": true,
 # CHECK-NEXT:      "typeHierarchyProvider": true
 # CHECK-NEXT:      "workspaceSymbolProvider": true
 # CHECK-NEXT:    },

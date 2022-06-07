@@ -27,18 +27,8 @@ def Affine_Dialect : Dialect {
 }
 
 // Base class for Affine dialect ops.
-class Affine_Op<string mnemonic, list<OpTrait> traits = []> :
-    Op<Affine_Dialect, mnemonic, traits> {
-  // For every affine op, there needs to be a:
-  //   * void print(OpAsmPrinter &p, ${C++ class of Op} op)
-  //   * LogicalResult verify(${C++ class of Op} op)
-  //   * ParseResult parse${C++ class of Op}(OpAsmParser &parser,
-  //                                         OperationState &result)
-  // functions.
-  let printer = [{ return ::print(p, *this); }];
-  let verifier = [{ return ::verify(*this); }];
-  let parser = [{ return ::parse$cppClass(parser, result); }];
-}
+class Affine_Op<string mnemonic, list<Trait> traits = []> :
+    Op<Affine_Dialect, mnemonic, traits>;
 
 // Require regions to have affine.yield.
 def ImplicitAffineTerminator
@@ -111,12 +101,18 @@ def AffineApplyOp : Affine_Op<"apply", [NoSideEffect]> {
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def AffineForOp : Affine_Op<"for",
-    [ImplicitAffineTerminator, RecursiveSideEffects,
-     DeclareOpInterfaceMethods<LoopLikeOpInterface>]> {
+    [AutomaticAllocationScope, ImplicitAffineTerminator, RecursiveSideEffects,
+     DeclareOpInterfaceMethods<LoopLikeOpInterface,
+     ["getSingleInductionVar", "getSingleLowerBound", "getSingleStep",
+      "getSingleUpperBound"]>,
+     DeclareOpInterfaceMethods<RegionBranchOpInterface,
+     ["getSuccessorEntryOperands"]>]> {
   let summary = "for operation";
   let description = [{
     Syntax:
@@ -167,7 +163,7 @@ def AffineForOp : Affine_Op<"for",
     ```mlir
     #map57 = affine_map<(d0)[s0] -> (s0 - d0 - 1)>
 
-    func @simple_example(%A: memref<?x?xf32>, %B: memref<?x?xf32>) {
+    func.func @simple_example(%A: memref<?x?xf32>, %B: memref<?x?xf32>) {
       %N = dim %A, 0 : memref<?x?xf32>
       affine.for %i = 0 to %N step 1 {
         affine.for %j = 0 to %N {   // implicitly steps by 1
@@ -195,7 +191,7 @@ def AffineForOp : Affine_Op<"for",
     For example, to sum-reduce a memref:
 
      ```mlir
-    func @reduce(%buffer: memref<1024xf32>) -> (f32) {
+    func.func @reduce(%buffer: memref<1024xf32>) -> (f32) {
       // Initial sum set to 0.
       %sum_0 = arith.constant 0.0 : f32
       // iter_args binds initial values to the loop's region arguments.
@@ -349,7 +345,9 @@ def AffineForOp : Affine_Op<"for",
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasRegionVerifier = 1;
 }
 
 def AffineIfOp : Affine_Op<"if",
@@ -389,7 +387,7 @@ def AffineIfOp : Affine_Op<"if",
     ```mlir
     #set = affine_set<(d0, d1)[s0]: (d0 - 10 >= 0, s0 - d0 - 9 >= 0,
                                      d1 - 10 >= 0, s0 - d1 - 9 >= 0)>
-    func @reduced_domain_example(%A, %X, %N) : (memref<10xi32>, i32, i32) {
+    func.func @reduced_domain_example(%A, %X, %N) : (memref<10xi32>, i32, i32) {
       affine.for %i = 0 to %N {
          affine.for %j = 0 to %N {
            %0 = affine.apply #map42(%j)
@@ -408,7 +406,7 @@ def AffineIfOp : Affine_Op<"if",
 
     ```mlir
     #interior = affine_set<(i, j) : (i - 1 >= 0, j - 1 >= 0,  10 - i >= 0, 10 - j >= 0)> (%i, %j)
-    func @pad_edges(%I : memref<10x10xf32>) -> (memref<12x12xf32) {
+    func.func @pad_edges(%I : memref<10x10xf32>) -> (memref<12x12xf32) {
       %O = alloc memref<12x12xf32>
       affine.parallel (%i, %j) = (0, 0) to (12, 12) {
         %1 = affine.if #interior (%i, %j) {
@@ -472,10 +470,12 @@ def AffineIfOp : Affine_Op<"if",
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
-class AffineLoadOpBase<string mnemonic, list<OpTrait> traits = []> :
+class AffineLoadOpBase<string mnemonic, list<Trait> traits = []> :
     Affine_Op<mnemonic, !listconcat(traits,
         [DeclareOpInterfaceMethods<AffineReadOpInterface>,
         DeclareOpInterfaceMethods<AffineMapAccessInterface>,
@@ -496,6 +496,9 @@ class AffineLoadOpBase<string mnemonic, list<OpTrait> traits = []> :
     }
 
     static StringRef getMapAttrName() { return "map"; }
+
+    // TODO: Remove once prefixing is flipped.
+    operand_range getIndices() { return indices(); }
   }];
 }
 
@@ -537,10 +540,12 @@ def AffineLoadOp : AffineLoadOpBase<"load"> {
   let extraClassDeclaration = extraClassDeclarationBase;
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
-class AffineMinMaxOpBase<string mnemonic, list<OpTrait> traits = []> :
+class AffineMinMaxOpBase<string mnemonic, list<Trait> traits = []> :
     Op<Affine_Dialect, mnemonic, traits> {
   let arguments = (ins AffineMapAttr:$map, Variadic<Index>:$operands);
   let results = (outs Index);
@@ -565,11 +570,10 @@ class AffineMinMaxOpBase<string mnemonic, list<OpTrait> traits = []> :
                         operands().end()};
     }
   }];
-  let verifier = [{ return ::verifyAffineMinMaxOp(*this); }];
-  let printer = [{ return ::printAffineMinMaxOp(p, *this); }];
-  let parser = [{ return ::parseAffineMinMaxOp<$cppClass>(parser, result); }];
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
   let hasCanonicalizer = 1;
+  let hasVerifier = 1;
 }
 
 def AffineMinOp : AffineMinMaxOpBase<"min", [NoSideEffect]> {
@@ -611,7 +615,7 @@ def AffineMaxOp : AffineMinMaxOpBase<"max", [NoSideEffect]> {
 }
 
 def AffineParallelOp : Affine_Op<"parallel",
-    [ImplicitAffineTerminator, RecursiveSideEffects,
+    [AutomaticAllocationScope, ImplicitAffineTerminator, RecursiveSideEffects,
      DeclareOpInterfaceMethods<LoopLikeOpInterface>, MemRefsNormalizable]> {
   let summary = "multi-index parallel band operation";
   let description = [{
@@ -651,7 +655,7 @@ def AffineParallelOp : Affine_Op<"parallel",
     Example (3x3 valid convolution):
 
     ```mlir
-    func @conv_2d(%D : memref<100x100xf32>, %K : memref<3x3xf32>) -> (memref<98x98xf32>) {
+    func.func @conv_2d(%D : memref<100x100xf32>, %K : memref<3x3xf32>) -> (memref<98x98xf32>) {
       %O = alloc memref<98x98xf32>
       affine.parallel (%x, %y) = (0, 0) to (98, 98) {
         %0 = affine.parallel (%kx, %ky) = (0, 0) to (2, 2) reduce ("addf") {
@@ -752,7 +756,9 @@ def AffineParallelOp : Affine_Op<"parallel",
     }
   }];
 
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def AffinePrefetchOp : Affine_Op<"prefetch",
@@ -831,10 +837,12 @@ def AffinePrefetchOp : Affine_Op<"prefetch",
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
-class AffineStoreOpBase<string mnemonic, list<OpTrait> traits = []> :
+class AffineStoreOpBase<string mnemonic, list<Trait> traits = []> :
     Affine_Op<mnemonic, !listconcat(traits,
     [DeclareOpInterfaceMethods<AffineWriteOpInterface>,
     DeclareOpInterfaceMethods<AffineMapAccessInterface>,
@@ -854,6 +862,9 @@ class AffineStoreOpBase<string mnemonic, list<OpTrait> traits = []> :
     }
 
     static StringRef getMapAttrName() { return "map"; }
+
+    // TODO: Remove once prefixing is flipped.
+    operand_range getIndices() { return indices(); }
   }];
 }
 
@@ -895,7 +906,9 @@ def AffineStoreOp : AffineStoreOpBase<"store"> {
   let extraClassDeclaration = extraClassDeclarationBase;
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def AffineYieldOp : Affine_Op<"yield", [NoSideEffect, Terminator, ReturnLike,
@@ -921,6 +934,7 @@ def AffineYieldOp : Affine_Op<"yield", [NoSideEffect, Terminator, ReturnLike,
   ];
 
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+  let hasVerifier = 1;
 }
 
 def AffineVectorLoadOp : AffineLoadOpBase<"vector_load"> {
@@ -984,6 +998,8 @@ def AffineVectorLoadOp : AffineLoadOpBase<"vector_load"> {
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 def AffineVectorStoreOp : AffineStoreOpBase<"vector_store"> {
@@ -1048,6 +1064,8 @@ def AffineVectorStoreOp : AffineStoreOpBase<"vector_store"> {
   }];
 
   let hasCanonicalizer = 1;
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 #endif // AFFINE_OPS
