@@ -1,4 +1,4 @@
-//==----- PersistenDeviceCodeCache.cpp --- Persistent cache tests ----------==//
+//==----- PersistentDeviceCodeCache.cpp --- Persistent cache tests ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -78,7 +78,8 @@ static pi_result redefinedProgramGetInfo(pi_program program,
   return PI_SUCCESS;
 }
 
-class PersistenDeviceCodeCache : public ::testing::Test {
+class PersistentDeviceCodeCache
+    : public ::testing::TestWithParam<pi_device_binary_type> {
 public:
 #ifdef _WIN32
   int setenv(const char *name, const char *value, int overwrite) {
@@ -119,13 +120,13 @@ public:
     SYCLCachePersistentChanged = true;
   }
 
-  virtual void SetUp() {
+  void SetUp() override {
     EXPECT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
         << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
            "location.";
   }
 
-  virtual void TearDown() {
+  void TearDown() override {
     // If we changed the cache, set it back to the old value.
     if (SYCLCachePersistentChanged)
       SetSYCLCachePersistentEnv(SYCLCachePersistentBefore
@@ -133,7 +134,7 @@ public:
                                     : nullptr);
   }
 
-  PersistenDeviceCodeCache() : Plt{default_selector()} {
+  PersistentDeviceCodeCache() : Plt{default_selector()} {
 
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
@@ -201,7 +202,7 @@ protected:
   device Dev;
   pi_device_binary_struct BinStruct{/*Version*/ 1,
                                     /*Kind*/ 4,
-                                    /*Format*/ PI_DEVICE_BINARY_TYPE_SPIRV,
+                                    /*Format*/ GetParam(),
                                     /*DeviceTargetSpec*/ nullptr,
                                     /*CompileOptions*/ nullptr,
                                     /*LinkOptions*/ nullptr,
@@ -221,7 +222,7 @@ protected:
 
 /* Checks that key values with \0 symbols are processed correctly
  */
-TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
+TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -254,21 +255,21 @@ TEST_F(PersistenDeviceCodeCache, KeysWithNullTermSymbol) {
 /* Do read/write for the same cache item to/from 300 threads for small device
  * code size. Make sure that there is no data corruption or crashes.
  */
-TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteSmallItem) {
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteSmallItem) {
   ConcurentReadWriteCache(0, 300);
 }
 
 /* Do read/write for the same cache item to/from 100 threads for medium device
  * code size. Make sure that there is no data corruption or crashes.
  */
-TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheMediumItem) {
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheMediumItem) {
   ConcurentReadWriteCache(1, 100);
 }
 
 /* Do read/write for the same cache item to/from 20 threads from big device
  * code size. Make sure that there is no data corruption or crashes.
  */
-TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
+TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
   ConcurentReadWriteCache(2, 20);
 }
 
@@ -279,7 +280,7 @@ TEST_F(PersistenDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
  *  - source file is corrupted;
  *  - binary file is corrupted.
  */
-TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
+TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -349,7 +350,7 @@ TEST_F(PersistenDeviceCodeCache, CorruptedCacheFiles) {
  *  - new cache item is created if existing one is locked on write operation;
  *  - cache miss happens on read operation.
  */
-TEST_F(PersistenDeviceCodeCache, LockFile) {
+TEST_P(PersistentDeviceCodeCache, LockFile) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -405,7 +406,7 @@ TEST_F(PersistenDeviceCodeCache, LockFile) {
 // llvm::sys::fs::setPermissions does not make effect on Windows
 /* Checks cache behavior when filesystem read/write operations fail
  */
-TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
+TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
@@ -452,4 +453,9 @@ TEST_F(PersistenDeviceCodeCache, AccessDeniedForCacheDir) {
   ASSERT_NO_ERROR(llvm::sys::fs::remove_directories(ItemDir));
 }
 #endif //_WIN32
+
+INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
+                         PersistentDeviceCodeCache,
+                         ::testing::Values(PI_DEVICE_BINARY_TYPE_SPIRV,
+                                           PI_DEVICE_BINARY_TYPE_NATIVE));
 } // namespace

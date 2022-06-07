@@ -14,6 +14,8 @@
 #include <CL/sycl/usm.hpp>
 #include <detail/queue_impl.hpp>
 
+#include <array>
+#include <cassert>
 #include <cstdlib>
 #include <memory>
 
@@ -150,16 +152,32 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     }
     case alloc::shared: {
       Id = detail::getSyclObjImpl(Dev)->getHandleRef();
+
+      std::array<pi_usm_mem_properties, 5> Props;
+      auto PropsIter = Props.begin();
+
       if (PropList.has_property<
               cl::sycl::ext::oneapi::property::usm::device_read_only>()) {
-        pi_usm_mem_properties Props[3] = {PI_MEM_ALLOC_FLAGS,
-                                          PI_MEM_ALLOC_DEVICE_READ_ONLY, 0};
-        Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
-            &RetVal, C, Id, Props, Size, Alignment);
-      } else {
-        Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
-            &RetVal, C, Id, nullptr, Size, Alignment);
+        *PropsIter++ = PI_MEM_ALLOC_FLAGS;
+        *PropsIter++ = PI_MEM_ALLOC_DEVICE_READ_ONLY;
       }
+
+      if (Dev.has_extension("cl_intel_mem_alloc_buffer_location") &&
+          PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>()) {
+        *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
+        *PropsIter++ = PropList
+                           .get_property<cl::sycl::ext::intel::experimental::
+                                             property::usm::buffer_location>()
+                           .get_buffer_location();
+      }
+
+      assert(PropsIter >= Props.begin() && PropsIter < Props.end());
+      *PropsIter++ = 0; // null-terminate property list
+
+      Error = Plugin.call_nocheck<PiApiKind::piextUSMSharedAlloc>(
+          &RetVal, C, Id, Props.data(), Size, Alignment);
+
       break;
     }
     case alloc::host:
