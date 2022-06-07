@@ -1854,8 +1854,7 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 }
 
 /// Created a PI device object from a CUDA device handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
+/// NOTE: The created PI object does not take ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI device object from.
 /// \param[in] platform is the PI platform of the device.
@@ -2046,15 +2045,13 @@ pi_result cuda_piContextRelease(pi_context ctxt) {
       PI_CHECK_ERROR(cuCtxPopCurrent(&current));
     }
     return PI_CHECK_ERROR(cuCtxDestroy(cuCtxt));
-  } else {
-    // Primary context is not destroyed, but released
-    CUdevice cuDev = ctxt->get_device()->get();
-    CUcontext current;
-    cuCtxPopCurrent(&current);
-    return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
   }
 
-  return PI_SUCCESS;
+  // Primary context is not destroyed, but released
+  CUdevice cuDev = ctxt->get_device()->get();
+  CUcontext current;
+  cuCtxPopCurrent(&current);
+  return PI_CHECK_ERROR(cuDevicePrimaryCtxRelease(cuDev));
 }
 
 /// Gets the native CUDA handle of a PI context object
@@ -2070,8 +2067,7 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 }
 
 /// Created a PI context object from a CUDA context handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
+/// NOTE: The created PI object does not take ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI context object from.
 /// \param[out] context Set to the PI context object created from native handle.
