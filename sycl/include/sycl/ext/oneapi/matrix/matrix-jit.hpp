@@ -70,63 +70,65 @@ public:
   }
 };
 
-// class tf32 should not hold actual data. It is a tag type only, an empty class
-// with no member variables. Morally, it is equivalent to an enumeration--it
-// just uses the type system to communicate the desired accuracy of arithmetic
-// computations. Users can't construct a tf32
+// class tf32 should not hold actual data. It is a tag type only, an empty
+// class with no member variables. Morally, it is equivalent to an
+// enumeration--it just uses the type system to communicate the desired
+// accuracy of arithmetic computations. Users can't construct a tf32
 namespace precision {
 class tf32 {};
 } // namespace precision
 
 // Differentiating between the "element type" and the "storage element type"
 template <typename T> struct helper_traits {
-  typedef T element_type;
-  typedef T storage_element_type;
-  typedef T fill_argument_type;
+  using element_type = T;
+  using storage_element_type = T;
+  using fill_argument_type = T;
 };
 
 template <> struct helper_traits<precision::tf32> {
-  typedef precision::tf32 element_type;
-  typedef float storage_element_type;
-  typedef float fill_argument_type;
+  using element_type = precision::tf32;
+  using storage_element_type = float;
+  using fill_argument_type = float;
 };
 
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major,
+template <typename Group, typename Te, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major, typename Tm,
           access::address_space Space>
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_load(Group sg,
-                  joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
-                  multi_ptr<T, Space> src, size_t stride, matrix_layout MemL) {
+                  joint_matrix<Te, NumRows, NumCols, Layout, Group> &res,
+                  multi_ptr<Tm, Space> src, size_t stride, matrix_layout MemL) {
 #ifdef __SYCL_DEVICE_ONLY__
-  T *Ptr = src.get();
+  // For non tf32 case, check that Te is the same that Tm
+  Tm *Ptr = src.get();
+  using Ts = typename helper_traits<Te>::storage_element_type;
   switch (MemL) {
   default:
     assert(false && "Invalid Memory Layout!");
   case matrix_layout::row_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<Te, Ts, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::RowMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::col_major:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<Te, Ts, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::ColumnMajor,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_a:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<Te, Ts, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedA,
             spv_scope_traits<Group>::value);
     break;
   case matrix_layout::packed_b:
     res.spvm =
-        __spirv_JointMatrixLoadINTEL<T, NumRows, NumCols,
+        __spirv_JointMatrixLoadINTEL<Te, Ts, NumRows, NumCols,
                                      spv_matrix_layout_traits<Layout>::value>(
             Ptr, stride, __spv::MatrixLayout::PackedB,
             spv_scope_traits<Group>::value);
@@ -252,7 +254,7 @@ class wi_element {
   std::size_t idx;
 
 public:
-  typedef typename helper_traits<T>::storage_element_type storage_element_type;
+  using storage_element_type = typename helper_traits<T>::storage_element_type;
   wi_element(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat,
              std::size_t i)
       : M(Mat), idx(i) {}
@@ -306,8 +308,6 @@ public:
   }
 
 #if __SYCL_DEVICE_ONLY__
-  // TODO: __spirv_VectorInsertDynamic should take storage element type as
-  // argument
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 &rhs) {           \
     T elem = __spirv_VectorExtractDynamic(M.spvm, idx);                        \
@@ -315,9 +315,7 @@ public:
         reinterpret_cast<storage_element_type &>(elem);                        \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
         M.spvm,                                                                \
-        static_cast<storage_element_type>(                                     \
-            elems op static_cast<storage_element_type>(rhs)),                  \
-        idx);                                                                  \
+        static_cast<storage_element_type>(elems op static_cast<T>(rhs)), idx); \
     return *this;                                                              \
   }
 #else // __SYCL_DEVICE_ONLY__
@@ -337,10 +335,10 @@ public:
 
 // Note that similarly to the other matrix functions, uint16_t is used here to
 // represent bf16 type. Since the AMX and DPAS implementations don't support
-// uint16_t, this interpretation is possible. This design choice was made before
-// the introduction of SYCL experimental bfloat16 type. Our plan is to move
-// towards using the SYCL bfloat16. But since it is still experimental, we will
-// probably keep both uint16 interpretation and SYCL bfloat16.
+// uint16_t, this interpretation is possible. This design choice was made
+// before the introduction of SYCL experimental bfloat16 type. Our plan is to
+// move towards using the SYCL bfloat16. But since it is still experimental,
+// we will probably keep both uint16 interpretation and SYCL bfloat16.
 template <size_t NumRows, size_t NumCols, matrix_layout Layout, typename Group>
 class wi_element<uint16_t, NumRows, NumCols, Layout, Group> {
   joint_matrix<uint16_t, NumRows, NumCols, Layout, Group> &M;
@@ -395,8 +393,8 @@ public:
 
   // We use here the following functions for conversion (bf16=>fp32 and
   // fp32=>bf16). This is a workaround until we are able to use
-  // __spirv_ConvertFToBF16INTEL and __spirv_ConvertBF16ToFINTEL once these are
-  // supported in the CPU backend
+  // __spirv_ConvertFToBF16INTEL and __spirv_ConvertBF16ToFINTEL once these
+  // are supported in the CPU backend
   static float make_fp32(uint16_t x) {
     unsigned int y = x;
     y = y << 16;

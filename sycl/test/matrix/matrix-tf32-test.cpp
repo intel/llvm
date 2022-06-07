@@ -1,13 +1,13 @@
 // RUN: %clangxx -fsycl -O2 %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 8
+auto constexpr SG_SZ = 8;
 
 #define TM 8
 #define TN SG_SZ
@@ -23,6 +23,15 @@ public:
   big_matrix(T *data) : mat(data) {}
 };
 
+// this should be replaced with a DPC++ and spirv functions
+float round_to_tf32(float a) {
+  uint32_t tmp_uint = reinterpret_cast<uint32_t &>(a);
+  tmp_uint += 0x1000u;     // Round up the 13th last bit
+  tmp_uint &= 0xFFFFE000u; // Zero out the bottom 13 bits
+  float ret = reinterpret_cast<float &>(tmp_uint);
+  return ret;
+}
+
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
@@ -37,8 +46,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
   // buffer<float, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<precision::tf32, 2> bufA(A.get_data(), range<2>(M, K));
-  buffer<precision::tf32, 2> bufB(B.get_data(), range<2>(K, N));
+  buffer<float, 2> bufA(A.get_data(), range<2>(M, K));
+  buffer<float, 2> bufB(B.get_data(), range<2>(K, N));
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
@@ -48,9 +57,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      cgh.parallel_for<class imatrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}), [=
+     ](nd_item<2> spmd_item)[[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -79,6 +87,16 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                                accB.get_pointer() + (k) * (N) +
                                    sg_starty / SG_SZ * TN,
                                N, matrix_layout::packed_b);
+             // If no rounding to tf32 function is called, the mad function will
+             // work on truncated floats.
+             // TODO: change signature of __spirv_VectorInsertDynamic to have
+             // two types: matrix type can be different from value type
+             for (int i = 0; i < sub_a.get_wi_data().length(); i++) {
+               sub_a.get_wi_data()[i] = round_to_tf32(sub_a.get_wi_data()[i]);
+             }
+             for (int i = 0; i < sub_b.get_wi_data().length(); i++) {
+               sub_b.get_wi_data()[i] = round_to_tf32(sub_b.get_wi_data()[i]);
+             }
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            auto wi_slice_a = sub_a.get_wi_data();
@@ -93,34 +111,27 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                                   sg_starty / SG_SZ * TN,
                               N, matrix_layout::row_major);
          }); // parallel for
-   }).wait();
+   })
+      .wait();
 }
 
 static constexpr size_t MATRIX_M = TM * 2;
 static constexpr size_t MATRIX_N = TN * 2;
 static constexpr size_t MATRIX_K = TK * 2;
-precision::tf32 A[MATRIX_M][MATRIX_K];
-precision::tf32 B[MATRIX_K][MATRIX_N];
+float A[MATRIX_M][MATRIX_K];
+float B[MATRIX_K][MATRIX_N];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
-
-// this is a hack and should be replaced with a spirv function
-precision::tf32 make_tf32(float x) {
-  uint32_t y = reinterpret_cast<uint32_t const &>(x);
-  y += 0x1000u;
-  precision::tf32 res = reinterpret_cast<precision::tf32 const &>(y);
-  return res;
-}
 
 void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
                          int K) {
   for (int m = 0; m < M; m++)
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
-        float va = *(float *)(A_mem + m * K + k);
-        float vb = *(float *)(B_mem + k * N + n);
-        float acc = *((float *)(C_mem + m * N + n));
-        *((float *)(C_mem + m * N + n)) = va * vb;
+        float va = A_mem[m * K + k];
+        float vb = B_mem[k * N + n];
+        float acc = C_mem[m * N + n];
+        C_mem[m * N + n] = va * vb;
       }
     }
 }
@@ -128,12 +139,12 @@ void matrix_multiply_ref(float *A_mem, float *B_mem, float *C_mem, int M, int N,
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_K; j++) {
-      A[i][j] = make_tf32(1.0f * (i + j));
+      A[i][j] = 1.0f * (i + j);
     }
   }
   for (int i = 0; i < MATRIX_K / 2; i++) {
     for (int j = 0; j < MATRIX_N * 2; j++) {
-      B[i][j] = make_tf32(2.0f * i + 3.0f * j);
+      B[i][j] = 2.0f * i + 3.0f * j;
     }
   }
   for (int i = 0; i < MATRIX_M; i++) {
@@ -145,8 +156,8 @@ int main() {
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
-  big_matrix<precision::tf32, MATRIX_M, MATRIX_K> MA((precision::tf32 *)&A);
-  big_matrix<precision::tf32, MATRIX_K, MATRIX_N> MB((precision::tf32 *)&B);
+  big_matrix<float, MATRIX_M, MATRIX_K> MA((float *)&A);
+  big_matrix<float, MATRIX_K, MATRIX_N> MB((float *)&B);
   matrix_multiply(MC, MA, MB);
   matrix_multiply_ref((float *)A, (float *)B, (float *)D, MATRIX_M, MATRIX_N,
                       MATRIX_K / 2);
@@ -163,3 +174,4 @@ int main() {
   else
     std::cout << "failed\n";
 }
+#endif // (SYCL_EXT_ONEAPI_MATRIX == 2)
