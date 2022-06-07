@@ -1006,6 +1006,16 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
               << ")\n";
   }
 
+  // TODO: old sycl compiler always marks cassert fallback device library as
+  // "required", this will lead to compatibilty issue when we enable online
+  // link in SYCL runtime. If users compile their code with old compiler and run
+  // their executable with latest SYCL runtime, cassert fallback spv file will
+  // always be loaded which is not expected, cassert device library development
+  // is still in progress, the unexpected loading may lead to runtime problem.
+  // So, we clear bit 0 in device library require mask to avoid loading cassert
+  // fallback device library and will revert this when cassert development is
+  // done.
+  DeviceLibReqMask &= 0xFFFFFFFE;
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
@@ -1462,6 +1472,16 @@ kernel_id ProgramManager::getSYCLKernelID(const std::string &KernelName) {
                         PI_INVALID_KERNEL_NAME);
 
   return KernelID->second;
+}
+
+bool ProgramManager::hasCompatibleImage(const device &Dev) {
+  std::lock_guard<std::mutex> Guard(m_KernelIDsMutex);
+
+  return std::any_of(
+      m_BinImg2KernelIDs.cbegin(), m_BinImg2KernelIDs.cend(),
+      [&](std::pair<RTDeviceBinaryImage *,
+                    std::shared_ptr<std::vector<kernel_id>>>
+              Elem) { return compatibleWithDevice(Elem.first, Dev); });
 }
 
 std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
