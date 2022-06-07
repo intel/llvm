@@ -39,7 +39,7 @@ program_impl::program_impl(ContextImplPtr Context,
     throw feature_not_supported(
         "multiple devices within a context are not supported with "
         "sycl::program and sycl::kernel",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
   }
 }
 
@@ -51,7 +51,7 @@ program_impl::program_impl(
   // Verify arguments
   if (ProgramList.empty()) {
     throw runtime_error("Non-empty vector of programs expected",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
   }
 
   // Sort the programs to avoid deadlocks due to locking multiple mutexes &
@@ -60,7 +60,7 @@ program_impl::program_impl(
   auto It = std::unique(ProgramList.begin(), ProgramList.end());
   if (It != ProgramList.end()) {
     throw runtime_error("Attempting to link a program with itself",
-                        PI_INVALID_PROGRAM);
+                        PI_ERROR_INVALID_PROGRAM);
   }
 
   MContext = ProgramList[0]->MContext;
@@ -68,7 +68,7 @@ program_impl::program_impl(
     throw feature_not_supported(
         "multiple devices within a context are not supported with "
         "sycl::program and sycl::kernel",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
   }
   MDevices = ProgramList[0]->MDevices;
   std::vector<device> DevicesSorted;
@@ -83,7 +83,7 @@ program_impl::program_impl(
     if (Prg->MContext != MContext) {
       throw invalid_object_error(
           "Not all programs are associated with the same context",
-          PI_INVALID_PROGRAM);
+          PI_ERROR_INVALID_PROGRAM);
     }
     if (!is_host()) {
       std::vector<device> PrgDevicesSorted =
@@ -91,7 +91,7 @@ program_impl::program_impl(
       if (PrgDevicesSorted != DevicesSorted) {
         throw invalid_object_error(
             "Not all programs are associated with the same devices",
-            PI_INVALID_PROGRAM);
+            PI_ERROR_INVALID_PROGRAM);
       }
     }
   }
@@ -170,7 +170,7 @@ program_impl::program_impl(ContextImplPtr Context,
     throw invalid_object_error(
         "The native program passed to the program constructor has to be either "
         "compiled or linked",
-        PI_INVALID_PROGRAM);
+        PI_ERROR_INVALID_PROGRAM);
   }
   size_t Size = 0;
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
@@ -217,7 +217,7 @@ cl_program program_impl::get() const {
   if (is_host()) {
     throw invalid_object_error(
         "This instance of program doesn't support OpenCL interoperability.",
-        PI_INVALID_PROGRAM);
+        PI_ERROR_INVALID_PROGRAM);
   }
   getPlugin().call<PiApiKind::piProgramRetain>(MProgram);
   return pi::cast<cl_program>(MProgram);
@@ -319,12 +319,13 @@ bool program_impl::has_kernel(std::string KernelName,
   for (RT::PiDevice Device : Devices) {
     Err = Plugin.call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
         Device, MProgram, KernelName.c_str(), &function_ptr);
-    if (Err != PI_SUCCESS && Err != PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
-        Err != PI_INVALID_KERNEL_NAME)
+    if (Err != PI_SUCCESS &&
+        Err != PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
+        Err != PI_ERROR_INVALID_KERNEL_NAME)
       throw runtime_error(
           "Error from piextGetDeviceFunctionPointer when called by program",
           Err);
-    if (Err == PI_SUCCESS || Err == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+    if (Err == PI_SUCCESS || Err == PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
       return true;
   }
 
@@ -338,7 +339,7 @@ kernel program_impl::get_kernel(std::string KernelName,
   if (is_host()) {
     if (IsCreatedFromSource)
       throw invalid_object_error("This instance of program is a host instance",
-                                 PI_INVALID_PROGRAM);
+                                 PI_ERROR_INVALID_PROGRAM);
 
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
@@ -380,10 +381,10 @@ void program_impl::create_cl_program_with_source(const std::string &Source) {
       Plugin.call_nocheck<PiApiKind::piclProgramCreateWithSource>(
           MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
 
-  if (Err == PI_INVALID_OPERATION) {
+  if (Err == PI_ERROR_INVALID_OPERATION) {
     throw feature_not_supported(
         "program::compile_with_source is not supported by the selected backend",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
   }
 
   if (Err != PI_SUCCESS) {
@@ -452,7 +453,7 @@ RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {
     const detail::plugin &Plugin = getPlugin();
     RT::PiResult Err = Plugin.call_nocheck<PiApiKind::piKernelCreate>(
         MProgram, KernelName.c_str(), &Kernel);
-    if (Err == PI_INVALID_KERNEL_NAME) {
+    if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
       throw invalid_object_error(
           "This instance of program does not contain the kernel requested",
           Err);
@@ -480,13 +481,15 @@ program_impl::sort_devices_by_cl_device_id(std::vector<device> Devices) {
 
 void program_impl::throw_if_state_is(program_state State) const {
   if (MState == State) {
-    throw invalid_object_error("Invalid program state", PI_INVALID_PROGRAM);
+    throw invalid_object_error("Invalid program state",
+                               PI_ERROR_INVALID_PROGRAM);
   }
 }
 
 void program_impl::throw_if_state_is_not(program_state State) const {
   if (MState != State) {
-    throw invalid_object_error("Invalid program state", PI_INVALID_PROGRAM);
+    throw invalid_object_error("Invalid program state",
+                               PI_ERROR_INVALID_PROGRAM);
   }
 }
 
@@ -505,7 +508,7 @@ template <>
 cl_uint program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance",
-                               PI_INVALID_PROGRAM);
+                               PI_ERROR_INVALID_PROGRAM);
   }
   pi_uint32 Result;
   const detail::plugin &Plugin = getPlugin();
@@ -528,7 +531,7 @@ void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
     throw cl::sycl::ext::oneapi::experimental::spec_const_error(
-        "Invalid program state", PI_INVALID_PROGRAM);
+        "Invalid program state", PI_ERROR_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();
   spec_constant_impl &SC = SpecConstRegistry[Name];

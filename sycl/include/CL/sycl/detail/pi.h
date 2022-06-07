@@ -85,48 +85,49 @@ using pi_native_handle = uintptr_t;
 //
 typedef enum {
   PI_SUCCESS = 0,
-  PI_INVALID_KERNEL_NAME = -46,
-  PI_INVALID_OPERATION = -59,
-  PI_INVALID_KERNEL = -48,
-  PI_INVALID_QUEUE_PROPERTIES = -35,
-  PI_INVALID_VALUE = -30,
-  PI_INVALID_CONTEXT = -34,
-  PI_INVALID_PLATFORM = -32,
-  PI_INVALID_DEVICE = -33,
-  PI_INVALID_BINARY = -42,
-  PI_INVALID_QUEUE = -36,
-  PI_OUT_OF_HOST_MEMORY = -6,
-  PI_INVALID_PROGRAM = -44,
-  PI_INVALID_PROGRAM_EXECUTABLE = -45,
-  PI_INVALID_SAMPLER = -41,
-  PI_INVALID_BUFFER_SIZE = -61,
-  PI_INVALID_MEM_OBJECT = -38,
-  PI_OUT_OF_RESOURCES = -5,
-  PI_INVALID_EVENT = -58,
-  PI_INVALID_EVENT_WAIT_LIST = -57,
-  PI_MISALIGNED_SUB_BUFFER_OFFSET = -13,
-  PI_BUILD_PROGRAM_FAILURE = -11,
-  PI_INVALID_WORK_GROUP_SIZE = -54,
-  PI_COMPILER_NOT_AVAILABLE = -3,
-  PI_PROFILING_INFO_NOT_AVAILABLE = -7,
-  PI_DEVICE_NOT_FOUND = -1,
-  PI_INVALID_WORK_ITEM_SIZE = -55,
-  PI_INVALID_WORK_DIMENSION = -53,
-  PI_INVALID_KERNEL_ARGS = -52,
-  PI_INVALID_IMAGE_SIZE = -40,
-  PI_INVALID_ARG_VALUE = -50,
-  PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = -39,
-  PI_IMAGE_FORMAT_NOT_SUPPORTED = -10,
-  PI_MEM_OBJECT_ALLOCATION_FAILURE = -4,
-  PI_LINK_PROGRAM_FAILURE = -17,
-  PI_PLUGIN_SPECIFIC_ERROR = -996, ///< PI_PLUGIN_SPECIFIC_ERROR indicates
-                                   ///< that an backend spcific error or
-                                   ///< warning has been emitted by the plugin.
-  PI_COMMAND_EXECUTION_FAILURE =
-      -997, ///< PI_COMMAND_EXECUTION_FAILURE indicates an error occurred
+  PI_ERROR_INVALID_KERNEL_NAME = -46,
+  PI_ERROR_INVALID_OPERATION = -59,
+  PI_ERROR_INVALID_KERNEL = -48,
+  PI_ERROR_INVALID_QUEUE_PROPERTIES = -35,
+  PI_ERROR_INVALID_VALUE = -30,
+  PI_ERROR_INVALID_CONTEXT = -34,
+  PI_ERROR_INVALID_PLATFORM = -32,
+  PI_ERROR_INVALID_DEVICE = -33,
+  PI_ERROR_INVALID_BINARY = -42,
+  PI_ERROR_INVALID_QUEUE = -36,
+  PI_ERROR_OUT_OF_HOST_MEMORY = -6,
+  PI_ERROR_INVALID_PROGRAM = -44,
+  PI_ERROR_INVALID_PROGRAM_EXECUTABLE = -45,
+  PI_ERROR_INVALID_SAMPLER = -41,
+  PI_ERROR_INVALID_BUFFER_SIZE = -61,
+  PI_ERROR_INVALID_MEM_OBJECT = -38,
+  PI_ERROR_OUT_OF_RESOURCES = -5,
+  PI_ERROR_INVALID_EVENT = -58,
+  PI_ERROR_INVALID_EVENT_WAIT_LIST = -57,
+  PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = -13,
+  PI_ERROR_BUILD_PROGRAM_FAILURE = -11,
+  PI_ERROR_INVALID_WORK_GROUP_SIZE = -54,
+  PI_ERROR_COMPILER_NOT_AVAILABLE = -3,
+  PI_ERROR_PROFILING_INFO_NOT_AVAILABLE = -7,
+  PI_ERROR_DEVICE_NOT_FOUND = -1,
+  PI_ERROR_INVALID_WORK_ITEM_SIZE = -55,
+  PI_ERROR_INVALID_WORK_DIMENSION = -53,
+  PI_ERROR_INVALID_KERNEL_ARGS = -52,
+  PI_ERROR_INVALID_IMAGE_SIZE = -40,
+  PI_ERROR_INVALID_ARG_VALUE = -50,
+  PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = -39,
+  PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = -10,
+  PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = -4,
+  PI_ERROR_LINK_PROGRAM_FAILURE = -17,
+  PI_ERROR_PLUGIN_SPECIFIC_ERROR =
+      -996, ///< PI_ERROR_PLUGIN_SPECIFIC_ERROR indicates
+            ///< that an backend spcific error or
+            ///< warning has been emitted by the plugin.
+  PI_ERROR_COMMAND_EXECUTION_FAILURE =
+      -997, ///< PI_ERROR_COMMAND_EXECUTION_FAILURE indicates an error occurred
             ///< during command enqueue or execution.
-  PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
-      -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
+  PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
+      -998, ///< PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
             ///< method determines the function exists but its address cannot be
             ///< found.
   PI_ERROR_UNKNOWN = -999
@@ -1019,8 +1020,8 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 /// \arg \c program.
 ///
 /// If a fallback method determines the function exists but the address is
-/// not available PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE is returned. If the
-/// address does not exist PI_INVALID_KERNEL_NAME is returned.
+/// not available PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE is returned. If the
+/// address does not exist PI_ERROR_INVALID_KERNEL_NAME is returned.
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);
@@ -1075,10 +1076,11 @@ piextContextGetNativeHandle(pi_context context, pi_native_handle *nativeHandle);
 ///        should take ownership of the native handle.
 /// \param context is the PI context created from the native handle.
 /// \return PI_SUCCESS if successfully created pi_context from the handle.
-///         PI_OUT_OF_HOST_MEMORY if can't allocate memory for the pi_context
-///         object. PI_INVALID_VALUE if numDevices == 0 or devices is NULL but
-///         backend doesn't have API to query a list of devices from the context
-///         native handle. PI_UNKNOWN_ERROR in case of another error.
+///         PI_ERROR_OUT_OF_HOST_MEMORY if can't allocate memory for the
+///         pi_context object. PI_ERROR_INVALID_VALUE if numDevices == 0 or
+///         devices is NULL but backend doesn't have API to query a list of
+///         devices from the context native handle. PI_UNKNOWN_ERROR in case of
+///         another error.
 __SYCL_EXPORT pi_result piextContextCreateWithNativeHandle(
     pi_native_handle nativeHandle, pi_uint32 numDevices,
     const pi_device *devices, bool pluginOwnsNativeHandle, pi_context *context);

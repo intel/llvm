@@ -110,7 +110,7 @@ auto get_native_buffer(const buffer<DataT, Dimensions, AllocatorT, void> &Obj)
     throw sycl::runtime_error(
         errc::feature_not_supported,
         "Buffer interop is not supported by level zero yet",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
   return Obj.template getNative<BackendName>();
 }
 } // namespace detail
@@ -121,7 +121,7 @@ auto get_native(const SyclObjectT &Obj)
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != BackendName) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
   }
   return Obj.template get_native<BackendName>();
 }
@@ -157,7 +157,7 @@ get_native<backend::opencl, event>(const event &Obj) {
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
   }
   backend_return_t<backend::opencl, event> ReturnValue;
   for (auto const &element : Obj.getNativeVector()) {
@@ -180,7 +180,7 @@ inline backend_return_t<backend::opencl, event> get_native<
   // TODO use SYCL 2020 exception when implemented
   if (Obj.get_backend() != backend::opencl) {
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_INVALID_OPERATION);
+                              PI_ERROR_INVALID_OPERATION);
   }
   return reinterpret_cast<
       typename detail::interop<backend::opencl, event>::type>(Obj.getNative());

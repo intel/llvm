@@ -17,11 +17,11 @@ using namespace cl::sycl;
 pi_result piProgramBuildRedefine(pi_program, pi_uint32, const pi_device *,
                                  const char *, void (*)(pi_program, void *),
                                  void *) {
-  return PI_INVALID_BINARY;
+  return PI_ERROR_INVALID_BINARY;
 }
 
 pi_result piKernelCreateRedefine(pi_program, const char *, pi_kernel *) {
-  return PI_INVALID_DEVICE;
+  return PI_ERROR_INVALID_DEVICE;
 }
 
 TEST(PiMockTest, ConstructFromQueue) {

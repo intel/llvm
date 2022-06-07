@@ -35,7 +35,7 @@ public:
     (void)state;
     (void)expected_count;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -44,7 +44,7 @@ public:
     __clc_BarrierInvalidate(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -53,7 +53,7 @@ public:
     return __clc_BarrierArrive(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -62,7 +62,7 @@ public:
     return __clc_BarrierArriveAndDrop(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -72,7 +72,7 @@ public:
 #else
     (void)count;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -82,7 +82,7 @@ public:
 #else
     (void)count;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -91,7 +91,7 @@ public:
     __clc_BarrierCopyAsyncArrive(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -100,7 +100,7 @@ public:
     __clc_BarrierCopyAsyncArriveNoInc(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -110,7 +110,7 @@ public:
 #else
     (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -120,7 +120,7 @@ public:
 #else
     (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -129,7 +129,7 @@ public:
     __clc_BarrierArriveAndWait(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
