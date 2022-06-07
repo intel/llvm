@@ -16,11 +16,11 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out &> %t.txt
 // RUN: %ACC_RUN_PLACEHOLDER FileCheck %s --check-prefix=CHECK-ACC --input-file %t.txt
 //
-// CHECK:      {{.*}}assert_in_simultaneous_kernels.hpp:12: void assertFunc(): global id: [9,7,0], local id: [0,0,0]
+// CHECK:      {{.*}}assert_in_simultaneous_kernels.hpp:13: void assertFunc(): global id: [9,7,0], local id: [0,0,0]
 // CHECK-SAME: Assertion `false && "from assert statement"` failed.
 // CHECK-NOT:  The test ended.
 //
-// CHECK-ACC-NOT: {{.*}}assert_in_simultaneous_kernels.hpp:12: void assertFunc(): global id: [9,7,0], local id: [0,0,0]
+// CHECK-ACC-NOT: {{.*}}assert_in_simultaneous_kernels.hpp:13: void assertFunc(): global id: [9,7,0], local id: [0,0,0]
 // CHECK-ACC: The test ended.
 
 #include "assert_in_simultaneous_kernels.hpp"

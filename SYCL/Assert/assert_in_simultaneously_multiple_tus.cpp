@@ -24,6 +24,7 @@
 
 #include "Inputs/kernels_in_file2.hpp"
 #include <CL/sycl.hpp>
+#include <cstdio>
 #include <iostream>
 #include <thread>
 
@@ -82,6 +83,15 @@ void runTestForTid(queue *Q, size_t Tid) {
 }
 
 int main(int Argc, const char *Argv[]) {
+#ifndef __SYCL_DEVICE_ONLY__
+  // On windows stderr output becomes messed up if several thread
+  // output simultaneously. Hence, setting explicit line buffering here.
+  if (setvbuf(stderr, nullptr, _IOLBF, BUFSIZ)) {
+    std::cerr << "Can't set line-buffering mode fo stderr\n";
+    return 1;
+  }
+#endif
+
   std::vector<std::thread> threadPool;
   threadPool.reserve(NUM_THREADS);
 
