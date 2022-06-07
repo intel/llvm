@@ -425,7 +425,7 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   }
 }
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
 
 const char *toString(SyclEsimdSplitStatus S) {
   switch (S) {
@@ -472,15 +472,17 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
   llvm::errs() << "}\n";
 }
 
+#endif // NDEBUG
+
 void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
   Module &MB = getModule();
-#ifndef _NDEBUG
+#ifndef NDEBUG
   DenseSet<StringRef> EntryNamesB;
   auto It0 = entries().cbegin();
   auto It1 = entries().cend();
   std::for_each(It0, It1,
                 [&](const Function *F) { EntryNamesB.insert(F->getName()); });
-#endif // _NDEBUG
+#endif // NDEBUG
   for (const GlobalObject &GoA : MA.global_objects()) {
     if (GoA.isDeclaration()) {
       continue;
@@ -495,12 +497,12 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
       // function or variable is not shared or is a declaration in MB
       continue;
     }
-#ifndef _NDEBUG
+#ifndef NDEBUG
     if (F) {
       // this is a shared function, must not be an entry point:
       assert(!EntryNamesB.contains(Name));
     }
-#endif // _NDEBUG
+#endif // NDEBUG
     // rename the global object in MB:
     GoB->setName(Name + Suff);
   }
@@ -514,12 +516,12 @@ void ModuleDesc::assignESIMDProperty() {
   } else {
     Props.HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
   }
-#ifndef _NDEBUG
+#ifndef NDEBUG
   verifyESIMDProperty();
-#endif // _NDEBUG
+#endif // NDEBUG
 }
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
   if (Props.HasEsimd == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     return; // nothing to verify
@@ -550,7 +552,6 @@ void ModuleDesc::verifyESIMDProperty() const {
   //  }
   //}
 }
-#endif // _NDEBUG
 
 void ModuleDesc::dump() {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
@@ -560,7 +561,7 @@ void ModuleDesc::dump() {
   dumpEntryPoints(entries(), EntryPoints.getId().str().c_str(), 1);
   llvm::errs() << "}\n";
 }
-#endif // _NDEBUG
+#endif // NDEBUG
 
 bool EntryPointGroup::isEsimd() const { return GroupId == ESIMD_SCOPE_NAME; }
 
