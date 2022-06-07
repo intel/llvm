@@ -33,7 +33,7 @@ void fpga_pipeline() {
   // CHECK-NEXT:  value: Int 1
   // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
   for (int i = 0; i < 10; ++i) {
-    [[intel::fpga_pipeline(1)]]  for (int j = 0; j < 10; ++j) {
+    [[intel::fpga_pipeline(1)]] for (int j = 0; j < 10; ++j) {
       a1[i] += a1[j];
     }
   }
@@ -52,15 +52,14 @@ void fpga_pipeline() {
   // CHECK-NEXT:  value: Int 1
   // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
   int b = 10;
-  [[intel::fpga_pipeline(1)]]
-    do {
-        b = b + 1;
-    }while( b < 20 );
+  [[intel::fpga_pipeline(1)]] do {
+    b = b + 1;
+  } while (b < 20);
 
-   // CHECK: AttributedStmt
-   // CHECK-NEXT: SYCLIntelFPGAPipelineAttr
-   int c[] = {0, 1, 2, 3, 4, 5};
-   [[intel::fpga_pipeline(A)]] for (int n : c) { n *= 2; }
+  // CHECK: AttributedStmt
+  // CHECK-NEXT: SYCLIntelFPGAPipelineAttr
+  int c[] = {0, 1, 2, 3, 4, 5};
+  [[intel::fpga_pipeline(A)]] for (int n : c) { n *= 2; }
 }
 
 int main() {
@@ -69,4 +68,3 @@ int main() {
   });
   return 0;
 }
-

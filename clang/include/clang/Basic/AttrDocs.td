@@ -3345,10 +3345,9 @@ loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
 
   void check() {
     int a = 10;
-    [[intel::fpga_pipeline(1)]]
-    do {
-        a = a + 1;
-    }while( a < 20 );
+    [[intel::fpga_pipeline(1)]] do {
+      a = a + 1;
+    } while (a < 20);
   }
 
   template<int A>

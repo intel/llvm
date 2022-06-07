@@ -187,14 +187,13 @@ void fpga_pipeline() {
 
   // CHECK: ![[MD_FP_5]] = distinct !{![[MD_FP_5]], ![[MP]], ![[MD_fpga_pipeline]]}
   int b = 10;
-   [[intel::fpga_pipeline(1)]]
-    do {
-        b = b + 1;
-    }while( b < 20 );
+  [[intel::fpga_pipeline(1)]] do {
+    b = b + 1;
+  } while (b < 20);
 
-   // CHECK: ![[MD_FP_6]] = distinct !{![[MD_FP_6]], ![[MD_fpga_pipeline]]}
-   int c[] = {0, 1, 2, 3, 4, 5};
-   [[intel::fpga_pipeline(A)]] for (int n : c) { n *= 2; }
+  // CHECK: ![[MD_FP_6]] = distinct !{![[MD_FP_6]], ![[MD_fpga_pipeline]]}
+  int c[] = {0, 1, 2, 3, 4, 5};
+  [[intel::fpga_pipeline(A)]] for (int n : c) { n *= 2; }
 }
 
 template <typename name, typename Func>
