@@ -944,10 +944,10 @@ struct UpdateUint64MetaDataToMaxValue {
         continue;
       }
       llvm::Value *Old = getVal(Node->getOperand(Key));
-#ifndef _NDEBUG
+#ifndef NDEBUG
       uint64_t OldVal = cast<llvm::ConstantInt>(Old)->getZExtValue();
       assert(OldVal < NewVal);
-#endif // _NDEBUG
+#endif // NDEBUG
       llvm::Value *New = llvm::ConstantInt::get(Old->getType(), NewVal);
       Node->replaceOperandWith(Key, getMD(New));
     }
