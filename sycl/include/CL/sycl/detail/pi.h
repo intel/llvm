@@ -58,8 +58,10 @@
 
 // NOTE: This file presents a maping of OpenCL to PI enums, constants and
 // typedefs. The general approach taken was to replace `CL_` prefix with `PI_`.
-// Please consider this when adding or modifying values, as the strinct value
+// Please consider this when adding or modifying values, as the strict value
 // match is required.
+// TODO: We should consider re-implementing PI enums and constants and only
+// perform a mapping of PI to OpenCL in the pi_opencl backend.
 #include <CL/sycl/detail/export.hpp>
 
 #include <cstddef>
