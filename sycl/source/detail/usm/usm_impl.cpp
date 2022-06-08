@@ -183,9 +183,9 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
         *PropsIter++ = PI_MEM_ALLOC_DEVICE_READ_ONLY;
       }
 
-      if (Dev.has_extension("cl_intel_mem_alloc_buffer_location") &&
-          PropList.has_property<cl::sycl::ext::intel::experimental::property::
-                                    usm::buffer_location>()) {
+      if (PropList.has_property<cl::sycl::ext::intel::experimental::property::
+                                    usm::buffer_location>() &&
+          Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
                            .get_property<cl::sycl::ext::intel::experimental::
