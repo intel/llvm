@@ -107,7 +107,7 @@ cl_context context_impl::get() const {
   if (MHostContext) {
     throw invalid_object_error(
         "This instance of context doesn't support OpenCL interoperability.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piContextRetain>(MContext);

@@ -1187,7 +1187,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
       if (AH->Flag == __SYCL_ASSERT_START)
         throw sycl::runtime_error(
             "Internal Error. Invalid value in assert description.",
-            PI_INVALID_VALUE);
+            PI_ERROR_INVALID_VALUE);
 #endif
 
       if (AH->Flag) {

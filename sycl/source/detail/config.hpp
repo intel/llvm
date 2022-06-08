@@ -362,14 +362,14 @@ public:
           throw invalid_parameter_error(
               "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
               "variable: value should be a number",
-              PI_INVALID_VALUE);
+              PI_ERROR_INVALID_VALUE);
         }
 
       if (Result < 1)
         throw invalid_parameter_error(
             "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
             "variable: value should be larger than zero",
-            PI_INVALID_VALUE);
+            PI_ERROR_INVALID_VALUE);
 
       return Result;
     }();
