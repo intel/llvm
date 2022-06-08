@@ -3,7 +3,7 @@
 ; intrinsic by LowerESIMDKernelProps pass - it should:
 ; - determine kernels calling this intrinsic (walk up the call graph)
 ; - remove the intrinsic call 
-; - mark the kernel with corrsponding attribute (only "esimd-double-grf" for now)
+; - mark the kernel with corresponding attribute (only "esimd-double-grf" for now)
 
 ; RUN: opt -passes=lower-esimd-kernel-props -S %s -o - | FileCheck %s
 
