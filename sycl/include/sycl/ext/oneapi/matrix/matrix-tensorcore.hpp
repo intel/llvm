@@ -138,12 +138,12 @@ joint_matrix_fill(Group sg,
                   const T2 v) {
   // We kept the unused "sg" in joint_matrix_fill to match the other DPC++
   // functions
-  (void)sg;
+  std::ignore = sg;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   res.wi_marray = v;
 #else
-  (void)res;
-  (void)v;
+  std::ignore = res;
+  std::ignore = v;
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
@@ -652,10 +652,10 @@ void joint_matrix_load(
                                                     Layout, Space>{}
       .load(res, src, stride);
 #else
-  (void)sg;
-  (void)res;
-  (void)src;
-  (void)stride;
+  std::ignore = sg;
+  std::ignore = res;
+  std::ignore = src;
+  std::ignore = stride;
   throw runtime_error(
       "When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_load is "
       "only supported by CUDA devices",
@@ -674,10 +674,10 @@ void joint_matrix_store(Group sg,
                                                      Layout, Space>{}
       .store(src, dst, stride);
 #else
-  (void)sg;
-  (void)src;
-  (void)dst;
-  (void)stride;
+  std::ignore = sg;
+  std::ignore = src;
+  std::ignore = dst;
+  std::ignore = stride;
   throw runtime_error(
       "When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_store is "
       "only supported by CUDA devices",
@@ -698,10 +698,10 @@ joint_matrix_mad(
              T1, T2, M, K, N, LayoutA, LayoutB, LayoutC>{}
       .mad(A, B, C);
 #else
-  (void)sg;
-  (void)A;
-  (void)B;
-  (void)C;
+  std::ignore = sg;
+  std::ignore = A;
+  std::ignore = B;
+  std::ignore = C;
   throw runtime_error("When using SYCL_EXT_ONEAPI_MATRIX=3 joint_matrix_mad is "
                       "only supported by CUDA devices",
                       PI_INVALID_DEVICE);
