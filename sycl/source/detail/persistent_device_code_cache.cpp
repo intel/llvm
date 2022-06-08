@@ -380,7 +380,7 @@ static bool parsePersistentCacheConfig() {
           std::string{"Invalid value for bool configuration variable "} +
           SYCLConfig<SYCL_CACHE_PERSISTENT>::getName() + std::string{": "} +
           RawVal;
-      throw runtime_error(Msg, PI_INVALID_OPERATION);
+      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
     }
   }
   PersistentDeviceCodeCache::trace(Ret ? "enabled" : "disabled");

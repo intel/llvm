@@ -99,7 +99,7 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     case alloc::shared:
     case alloc::unknown: {
       RetVal = nullptr;
-      Error = PI_INVALID_VALUE;
+      Error = PI_ERROR_INVALID_VALUE;
       break;
     }
     }
@@ -204,7 +204,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
     case alloc::host:
     case alloc::unknown: {
       RetVal = nullptr;
-      Error = PI_INVALID_VALUE;
+      Error = PI_ERROR_INVALID_VALUE;
       break;
     }
     }
@@ -493,8 +493,8 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
           PICtx, Ptr, PI_MEM_ALLOC_TYPE, sizeof(pi_usm_type), &AllocTy,
           nullptr);
 
-  // PI_INVALID_VALUE means USM doesn't know about this ptr
-  if (Err == PI_INVALID_VALUE)
+  // PI_ERROR_INVALID_VALUE means USM doesn't know about this ptr
+  if (Err == PI_ERROR_INVALID_VALUE)
     return alloc::unknown;
   // otherwise PI_SUCCESS is expected
   if (Err != PI_SUCCESS) {
@@ -527,7 +527,8 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // Check if ptr is a valid USM pointer
   if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)
-    throw runtime_error("Ptr not a valid USM allocation!", PI_INVALID_VALUE);
+    throw runtime_error("Ptr not a valid USM allocation!",
+                        PI_ERROR_INVALID_VALUE);
 
   // Just return the host device in the host context
   if (Ctxt.is_host())
@@ -539,7 +540,8 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   if (get_pointer_type(Ptr, Ctxt) == alloc::host) {
     auto Devs = CtxImpl->getDevices();
     if (Devs.size() == 0)
-      throw runtime_error("No devices in passed context!", PI_INVALID_VALUE);
+      throw runtime_error("No devices in passed context!",
+                          PI_ERROR_INVALID_VALUE);
 
     // Just return the first device in the context
     return Devs[0];
@@ -560,7 +562,7 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   }
 
   throw runtime_error("Cannot find device associated with USM allocation!",
-                      PI_INVALID_OPERATION);
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 // For ABI compatibility

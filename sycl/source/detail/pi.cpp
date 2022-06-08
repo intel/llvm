@@ -521,7 +521,7 @@ template <backend BE> const plugin &getPlugin() {
     }
 
   throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_INVALID_OPERATION);
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
