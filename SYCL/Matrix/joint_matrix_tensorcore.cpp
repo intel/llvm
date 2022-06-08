@@ -74,7 +74,7 @@ T2 matrix_ref_mn(const int &m, const int &n, T1 *A, T1 *B, T2 *C) {
 }
 
 template <typename T1, typename T2, size_t Sub_Tiles_M, size_t Sub_Tiles_K,
-          size_t Sub_Tiles_N, size_t M, size_t K, size_t N>
+          size_t Sub_Tiles_N, size_t M, size_t K, size_t N, typename T3 = T1>
 void test() {
 
   constexpr auto Big_M =
@@ -131,19 +131,19 @@ void test() {
     range<2> GlobalRange = {Sub_Tiles_M, Sub_Tiles_N * N_THREADS_PER_MATRIX_OP};
 
     cgh.parallel_for<KernelName<T1, T2, M, K, N>>(
-        nd_range<2>(GlobalRange, LocalRange), [=
-    ](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
+        nd_range<2>(GlobalRange, LocalRange),
+        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
           sycl::sub_group sg = item.get_sub_group();
           const auto m =
-              item.get_group()
-                  .get_id()[0]; // row id of current submatrix of BIG C matrix
+              item.get_group().get_group_id()[0]; // row id of current submatrix
+                                                  // of BIG C matrix
           const auto n =
-              item.get_group().get_id()[1]; // column id of current
-                                            // submatrix of BIG C matrix
+              item.get_group().get_group_id()[1]; // column id of current
+                                                  // submatrix of BIG C matrix
 
-          joint_matrix<T1, matrix_use::a, M, K, matrix_layout::row_major> sub_a;
+          joint_matrix<T3, matrix_use::a, M, K, matrix_layout::row_major> sub_a;
 
-          joint_matrix<T1, matrix_use::b, K, N, matrix_layout::row_major> sub_b;
+          joint_matrix<T3, matrix_use::b, K, N, matrix_layout::row_major> sub_b;
 
           joint_matrix<T2, matrix_use::accumulator, M, N,
                        matrix_layout::row_major>
@@ -162,6 +162,14 @@ void test() {
             joint_matrix_load(sg, sub_b,
                               accB.get_pointer() + (k * K * Big_N) + (n * N),
                               Big_N);
+
+            // Convert values if using tf32
+            if constexpr (std::is_same<T3, precision::tf32>::value) {
+              for (auto i = 0; i < 4; ++i) {
+                sub_a.data[i] = round_to_tf32(sub_a.data[i]);
+                sub_b.data[i] = round_to_tf32(sub_b.data[i]);
+              }
+            }
 
             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
           }
@@ -182,7 +190,6 @@ void test() {
 };
 
 int main() {
-
   // A/B half, Accumulator float
   test<half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>();
   test<half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>();
@@ -207,6 +214,10 @@ int main() {
   test<uint16_t, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 16, 16>();
   test<uint16_t, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 32>();
   test<uint16_t, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 32, 16, 8>();
+
+  // A/B tf32
+  test<float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 8, 16,
+       precision::tf32>();
 
   return 0;
 };
