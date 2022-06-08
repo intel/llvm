@@ -44,27 +44,25 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace SPIRV {
 
-class SPIRVLowerBoolBase : public InstVisitor<SPIRVLowerBoolBase> {
+class SPIRVLowerBoolBase : public llvm::InstVisitor<SPIRVLowerBoolBase> {
 public:
   SPIRVLowerBoolBase() : Context(nullptr) {}
   virtual ~SPIRVLowerBoolBase() {}
-  void replace(Instruction *I, Instruction *NewI);
-  bool isBoolType(Type *Ty);
-  virtual void visitTruncInst(TruncInst &I);
-  void handleExtInstructions(Instruction &I);
-  void handleCastInstructions(Instruction &I);
-  virtual void visitZExtInst(ZExtInst &I);
-  virtual void visitSExtInst(SExtInst &I);
-  virtual void visitUIToFPInst(UIToFPInst &I);
-  virtual void visitSIToFPInst(SIToFPInst &I);
-  bool runLowerBool(Module &M);
+  void replace(llvm::Instruction *I, llvm::Instruction *NewI);
+  bool isBoolType(llvm::Type *Ty);
+  virtual void visitTruncInst(llvm::TruncInst &I);
+  void handleExtInstructions(llvm::Instruction &I);
+  void handleCastInstructions(llvm::Instruction &I);
+  virtual void visitZExtInst(llvm::ZExtInst &I);
+  virtual void visitSExtInst(llvm::SExtInst &I);
+  virtual void visitUIToFPInst(llvm::UIToFPInst &I);
+  virtual void visitSIToFPInst(llvm::SIToFPInst &I);
+  bool runLowerBool(llvm::Module &M);
 
 private:
-  LLVMContext *Context;
+  llvm::LLVMContext *Context;
 };
 
 class SPIRVLowerBoolPass : public llvm::PassInfoMixin<SPIRVLowerBoolPass>,
@@ -74,10 +72,11 @@ public:
                               llvm::ModuleAnalysisManager &MAM);
 };
 
-class SPIRVLowerBoolLegacy : public ModulePass, public SPIRVLowerBoolBase {
+class SPIRVLowerBoolLegacy : public llvm::ModulePass,
+                             public SPIRVLowerBoolBase {
 public:
   SPIRVLowerBoolLegacy();
-  bool runOnModule(Module &M) override;
+  bool runOnModule(llvm::Module &M) override;
 
   static char ID;
 };

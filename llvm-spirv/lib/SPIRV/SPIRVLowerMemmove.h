@@ -44,20 +44,18 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace SPIRV {
 
 class SPIRVLowerMemmoveBase {
 public:
   SPIRVLowerMemmoveBase() : Context(nullptr) {}
 
-  void LowerMemMoveInst(MemMoveInst &I);
-  bool expandMemMoveIntrinsicUses(Function &F);
-  bool runLowerMemmove(Module &M);
+  void LowerMemMoveInst(llvm::MemMoveInst &I);
+  bool expandMemMoveIntrinsicUses(llvm::Function &F);
+  bool runLowerMemmove(llvm::Module &M);
 
 private:
-  LLVMContext *Context;
+  llvm::LLVMContext *Context;
 };
 
 class SPIRVLowerMemmovePass : public llvm::PassInfoMixin<SPIRVLowerMemmovePass>,
@@ -67,11 +65,11 @@ public:
                               llvm::ModuleAnalysisManager &MAM);
 };
 
-class SPIRVLowerMemmoveLegacy : public ModulePass,
+class SPIRVLowerMemmoveLegacy : public llvm::ModulePass,
                                 public SPIRVLowerMemmoveBase {
 public:
   SPIRVLowerMemmoveLegacy();
-  bool runOnModule(Module &M) override;
+  bool runOnModule(llvm::Module &M) override;
 
   static char ID;
 };

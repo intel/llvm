@@ -40,8 +40,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace SPIRV {
 
 class SPIRVLowerBitCastToNonStandardTypePass
@@ -50,13 +48,14 @@ public:
   SPIRVLowerBitCastToNonStandardTypePass(const SPIRV::TranslatorOpts &Opts)
       : Opts(Opts) {}
 
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 
 private:
   SPIRV::TranslatorOpts Opts;
 };
 
-class SPIRVLowerBitCastToNonStandardTypeLegacy : public FunctionPass {
+class SPIRVLowerBitCastToNonStandardTypeLegacy : public llvm::FunctionPass {
 public:
   static char ID;
   SPIRVLowerBitCastToNonStandardTypeLegacy(const SPIRV::TranslatorOpts &Opts)
@@ -64,11 +63,11 @@ public:
 
   SPIRVLowerBitCastToNonStandardTypeLegacy() : FunctionPass(ID) {}
 
-  bool runOnFunction(Function &F) override;
+  bool runOnFunction(llvm::Function &F) override;
 
-  bool doFinalization(Module &M) override;
+  bool doFinalization(llvm::Module &M) override;
 
-  StringRef getPassName() const override;
+  llvm::StringRef getPassName() const override;
 
 private:
   SPIRV::TranslatorOpts Opts;

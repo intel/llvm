@@ -39,22 +39,20 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace SPIRV {
 
 class SPIRVLowerSaddWithOverflowBase
-    : public InstVisitor<SPIRVLowerSaddWithOverflowBase> {
+    : public llvm::InstVisitor<SPIRVLowerSaddWithOverflowBase> {
 public:
   SPIRVLowerSaddWithOverflowBase() : Context(nullptr) {}
   virtual ~SPIRVLowerSaddWithOverflowBase() {}
-  virtual void visitIntrinsicInst(CallInst &I);
+  virtual void visitIntrinsicInst(llvm::CallInst &I);
 
-  bool runLowerSaddWithOverflow(Module &M);
+  bool runLowerSaddWithOverflow(llvm::Module &M);
 
 private:
-  LLVMContext *Context;
-  Module *Mod;
+  llvm::LLVMContext *Context;
+  llvm::Module *Mod;
   bool TheModuleIsModified = false;
 };
 
@@ -66,12 +64,12 @@ public:
                               llvm::ModuleAnalysisManager &MAM);
 };
 
-class SPIRVLowerSaddWithOverflowLegacy : public ModulePass,
+class SPIRVLowerSaddWithOverflowLegacy : public llvm::ModulePass,
                                          public SPIRVLowerSaddWithOverflowBase {
 public:
   SPIRVLowerSaddWithOverflowLegacy();
 
-  bool runOnModule(Module &M) override;
+  bool runOnModule(llvm::Module &M) override;
 
   static char ID;
 };
