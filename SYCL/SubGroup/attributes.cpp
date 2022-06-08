@@ -140,7 +140,7 @@ int main() {
       }
       default:
         throw feature_not_supported("sub-group size is not supported",
-                                    PI_INVALID_OPERATION);
+                                    PI_ERROR_INVALID_OPERATION);
       }
 
       auto Kernel = TheKernel[0];
