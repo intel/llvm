@@ -402,7 +402,7 @@ class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
-  MemType getMemTypeImpl() override { return SystemMemory::SharedReadOnly; }
+  MemType getMemTypeImpl() override { return MemType::SharedReadOnly; }
 
 public:
   USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
