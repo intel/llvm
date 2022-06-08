@@ -157,13 +157,10 @@ public:
 
   void renameDuplicatesOf(const Module &M, StringRef Suff);
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
   void verifyESIMDProperty() const;
-#endif // _NDEBUG
-
-#ifndef _NDEBUG
-  void dump();
-#endif // _NDEBUG
+  void dump() const;
+#endif // NDEBUG
 };
 
 // Module split support interface.
@@ -225,11 +222,11 @@ getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
 std::unique_ptr<ModuleSplitterBase>
 getESIMDDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
 void dumpEntryPoints(const EntryPointVec &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
-#endif // _NDEBUG
+#endif // NDEBUG
 
 } // namespace module_split
 

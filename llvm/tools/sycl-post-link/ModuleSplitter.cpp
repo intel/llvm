@@ -506,7 +506,7 @@ void ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
   }
 }
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
 
 const char *toString(SyclEsimdSplitStatus S) {
   switch (S) {
@@ -553,6 +553,8 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints,
   llvm::errs() << "}\n";
 }
 
+#endif // NDEBUG
+
 void ModuleDesc::assignMergedProperties(const ModuleDesc &MD1,
                                         const ModuleDesc &MD2) {
   EntryPoints.Props = MD1.EntryPoints.Props.merge(MD2.EntryPoints.Props);
@@ -561,13 +563,13 @@ void ModuleDesc::assignMergedProperties(const ModuleDesc &MD1,
 
 void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
   Module &MB = getModule();
-#ifndef _NDEBUG
+#ifndef NDEBUG
   DenseSet<StringRef> EntryNamesB;
   auto It0 = entries().cbegin();
   auto It1 = entries().cend();
   std::for_each(It0, It1,
                 [&](const Function *F) { EntryNamesB.insert(F->getName()); });
-#endif // _NDEBUG
+#endif // NDEBUG
   for (const GlobalObject &GoA : MA.global_objects()) {
     if (GoA.isDeclaration()) {
       continue;
@@ -582,18 +584,18 @@ void ModuleDesc::renameDuplicatesOf(const Module &MA, StringRef Suff) {
       // function or variable is not shared or is a declaration in MB
       continue;
     }
-#ifndef _NDEBUG
+#ifndef NDEBUG
     if (F) {
       // this is a shared function, must not be an entry point:
       assert(!EntryNamesB.contains(Name));
     }
-#endif // _NDEBUG
+#endif // NDEBUG
     // rename the global object in MB:
     GoB->setName(Name + Suff);
   }
 }
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
   if (EntryPoints.Props.HasESIMD == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     return; // nothing to verify
@@ -624,9 +626,8 @@ void ModuleDesc::verifyESIMDProperty() const {
   //  }
   //}
 }
-#endif // _NDEBUG
 
-void ModuleDesc::dump() {
+void ModuleDesc::dump() const {
   llvm::errs() << "split_module::ModuleDesc[" << Name << "] {\n";
   llvm::errs() << "  ESIMD:" << toString(EntryPoints.Props.HasESIMD)
                << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO")
@@ -635,7 +636,7 @@ void ModuleDesc::dump() {
   dumpEntryPoints(entries(), EntryPoints.GroupId.str().c_str(), 1);
   llvm::errs() << "}\n";
 }
-#endif // _NDEBUG
+#endif // NDEBUG
 
 void EntryPointGroup::saveNames(std::vector<std::string> &Dest) const {
   Dest.reserve(Dest.size() + Functions.size());
