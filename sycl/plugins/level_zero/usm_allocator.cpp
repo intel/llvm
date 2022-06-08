@@ -66,26 +66,27 @@ static sycl::detail::SpinLock PoolLock;
 static class SetLimits {
 public:
   // String names of memory types for printing in limits traces.
-  MemTypeValues<const char *> MemTypeNames;
+  static constexpr const char *MemTypeNames[MemType::All] = {
+      "Host", "Device", "Shared", "SharedReadOnly"};
 
   // Minimum allocation size that will be requested from the system.
   // By default this is the minimum allocation size of each memory type.
-  MemTypeValues<size_t> SlabMinSize;
+  size_t SlabMinSize[MemType::All] = {};
 
   // Allocations up to this limit will be subject to chunking/pooling
-  MemTypeValues<size_t> MaxPoolableSize;
+  size_t MaxPoolableSize[MemType::All] = {};
 
   // When pooling, each bucket will hold a max of 4 unfreed slabs
-  MemTypeValues<size_t> Capacity;
+  size_t Capacity[MemType::All] = {};
 
   // Holds the minimum bucket size valid for allocation of a memory type.
-  MemTypeValues<size_t> MinBucketSize;
+  size_t MinBucketSize[MemType::All] = {};
 
   // Maximum memory left unfreed in pool
   size_t MaxPoolSize = 16_MB;
 
   size_t CurPoolSize = 0;
-  MemTypeValues<size_t> CurPoolSizes;
+  size_t CurPoolSizes[MemType::All] = {};
 
   size_t EnableBuffers = 1;
 
@@ -104,24 +105,20 @@ public:
     MinBucketSize[MemType::SharedReadOnly] = 512;
 
     // Initialize default pool settings.
-    MemTypeNames[MemType::Host] = "Host";
     MaxPoolableSize[MemType::Host] = 2_MB;
     Capacity[MemType::Host] = 4;
     SlabMinSize[MemType::Host] = 64_KB;
 
-    MemTypeNames[MemType::Device] = "Device";
     MaxPoolableSize[MemType::Device] = 4_MB;
     Capacity[MemType::Device] = 4;
     SlabMinSize[MemType::Device] = 64_KB;
 
     // Disable pooling of shared USM allocations.
-    MemTypeNames[MemType::Shared] = "Shared";
     MaxPoolableSize[MemType::Shared] = 0;
     Capacity[MemType::Shared] = 0;
     SlabMinSize[MemType::Shared] = 2_MB;
 
     // Allow pooling of shared allocations that are only modified on host.
-    MemTypeNames[MemType::SharedReadOnly] = "SharedReadOnly";
     MaxPoolableSize[MemType::SharedReadOnly] = 4_MB;
     Capacity[MemType::SharedReadOnly] = 4;
     SlabMinSize[MemType::SharedReadOnly] = 2_MB;

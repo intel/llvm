@@ -11,11 +11,7 @@
 
 #include <memory>
 
-enum class MemType { Host, Device, Shared, SharedReadOnly, All };
-
-// Helper class to keep values of type T indexed by MemType
-template <class T>
-class MemTypeValues : public std::unordered_map<MemType, T> {};
+enum MemType { Host, Device, Shared, SharedReadOnly, All };
 
 // USM system memory allocation/deallocation interface.
 class SystemMemory {
