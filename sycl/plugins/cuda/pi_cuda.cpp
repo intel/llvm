@@ -4906,7 +4906,7 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
       setErrorMessage("Mem advise ignored as device does not support "
                       "concurrent managed access",
                       PI_SUCCESS);
-      return PI_PLUGIN_SPECIFIC_ERROR;
+      return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
     }
 
     // TODO: If ptr points to valid system-allocated pageable memory we should
