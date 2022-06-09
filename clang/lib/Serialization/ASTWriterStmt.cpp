@@ -543,11 +543,7 @@ void ASTStmtWriter::VisitCapturedStmt(CapturedStmt *S) {
 void ASTStmtWriter::VisitExpr(Expr *E) {
   VisitStmt(E);
   Record.AddTypeRef(E->getType());
-  Record.push_back(E->isTypeDependent());
-  Record.push_back(E->isValueDependent());
-  Record.push_back(E->isInstantiationDependent());
-  Record.push_back(E->containsUnexpandedParameterPack());
-  Record.push_back(E->containsErrors());
+  Record.push_back(E->getDependence());
   Record.push_back(E->getValueKind());
   Record.push_back(E->getObjectKind());
 }
@@ -2359,6 +2355,7 @@ void ASTStmtWriter::VisitOMPAtomicDirective(OMPAtomicDirective *D) {
   VisitOMPExecutableDirective(D);
   Record.writeBool(D->isXLHSInRHSPart());
   Record.writeBool(D->isPostfixUpdate());
+  Record.writeBool(D->isFailOnly());
   Code = serialization::STMT_OMP_ATOMIC_DIRECTIVE;
 }
 

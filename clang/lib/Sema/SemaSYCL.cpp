@@ -3669,17 +3669,29 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
 
   KernelObjVisitor Visitor{*this};
-  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                           int_footer, opt_report);
-  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                            int_footer, opt_report);
+
+  // Visit handlers to generate information for optimization record only if
+  // optimization record is saved.
+  if (!getLangOpts().OptRecordFile.empty()) {
+    Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
+                             int_footer, opt_report);
+    Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
+                              int_footer, opt_report);
+  } else {
+    Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
+                             int_footer);
+    Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
+                              int_footer);
+  }
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
-    opt_report.handleSyclKernelHandlerType();
+
+    if (!getLangOpts().OptRecordFile.empty())
+      opt_report.handleSyclKernelHandlerType();
   }
 }
 

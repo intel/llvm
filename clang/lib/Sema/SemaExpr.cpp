@@ -1698,17 +1698,17 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
     ControllingExpr = R.get();
   }
 
-  // The controlling expression is an unevaluated operand, so side effects are
-  // likely unintended.
-  if (!inTemplateInstantiation() &&
-      ControllingExpr->HasSideEffects(Context, false))
-    Diag(ControllingExpr->getExprLoc(),
-         diag::warn_side_effects_unevaluated_context);
-
   bool TypeErrorFound = false,
        IsResultDependent = ControllingExpr->isTypeDependent(),
        ContainsUnexpandedParameterPack
          = ControllingExpr->containsUnexpandedParameterPack();
+
+  // The controlling expression is an unevaluated operand, so side effects are
+  // likely unintended.
+  if (!inTemplateInstantiation() && !IsResultDependent &&
+      ControllingExpr->HasSideEffects(Context, false))
+    Diag(ControllingExpr->getExprLoc(),
+         diag::warn_side_effects_unevaluated_context);
 
   for (unsigned i = 0; i < NumAssocs; ++i) {
     if (Exprs[i]->containsUnexpandedParameterPack())
@@ -1730,6 +1730,34 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
           D = diag::err_assoc_type_nonobject;
         else if (Types[i]->getType()->isVariablyModifiedType())
           D = diag::err_assoc_type_variably_modified;
+        else {
+          // Because the controlling expression undergoes lvalue conversion,
+          // array conversion, and function conversion, an association which is
+          // of array type, function type, or is qualified can never be
+          // reached. We will warn about this so users are less surprised by
+          // the unreachable association. However, we don't have to handle
+          // function types; that's not an object type, so it's handled above.
+          //
+          // The logic is somewhat different for C++ because C++ has different
+          // lvalue to rvalue conversion rules than C. [conv.lvalue]p1 says,
+          // If T is a non-class type, the type of the prvalue is the cv-
+          // unqualified version of T. Otherwise, the type of the prvalue is T.
+          // The result of these rules is that all qualified types in an
+          // association in C are unreachable, and in C++, only qualified non-
+          // class types are unreachable.
+          unsigned Reason = 0;
+          QualType QT = Types[i]->getType();
+          if (QT->isArrayType())
+            Reason = 1;
+          else if (QT.hasQualifiers() &&
+                   (!LangOpts.CPlusPlus || !QT->isRecordType()))
+            Reason = 2;
+
+          if (Reason)
+            Diag(Types[i]->getTypeLoc().getBeginLoc(),
+                 diag::warn_unreachable_association)
+                << QT << (Reason - 1);
+        }
 
         if (D != 0) {
           Diag(Types[i]->getTypeLoc().getBeginLoc(), D)
@@ -1770,10 +1798,14 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
 
   SmallVector<unsigned, 1> CompatIndices;
   unsigned DefaultIndex = -1U;
+  // Look at the canonical type of the controlling expression in case it was a
+  // deduced type like __auto_type. However, when issuing diagnostics, use the
+  // type the user wrote in source rather than the canonical one.
   for (unsigned i = 0; i < NumAssocs; ++i) {
     if (!Types[i])
       DefaultIndex = i;
-    else if (Context.typesAreCompatible(ControllingExpr->getType(),
+    else if (Context.typesAreCompatible(
+                 ControllingExpr->getType().getCanonicalType(),
                                         Types[i]->getType()))
       CompatIndices.push_back(i);
   }
@@ -2598,10 +2630,10 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   if (R.isAmbiguous())
     return ExprError();
 
-  // This could be an implicitly declared function reference (legal in C90,
-  // extension in C99, forbidden in C++ and C2x).
-  if (R.empty() && HasTrailingLParen && II && !getLangOpts().CPlusPlus &&
-      !getLangOpts().C2x) {
+  // This could be an implicitly declared function reference if the language
+  // mode allows it as a feature.
+  if (R.empty() && HasTrailingLParen && II &&
+      getLangOpts().implicitFunctionsAllowed()) {
     NamedDecl *D = ImplicitlyDefineFunction(NameLoc, *II, S);
     if (D) R.addDecl(D);
   }
@@ -4327,6 +4359,7 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
   // FIXME: Should we consider instantiation-dependent operands to 'alignof'?
   if (IsUnevaluatedOperand && !inTemplateInstantiation() &&
       !E->isInstantiationDependent() &&
+      !E->getType()->isVariableArrayType() &&
       E->HasSideEffects(Context, false))
     Diag(E->getExprLoc(), diag::warn_side_effects_unevaluated_context);
 
@@ -6642,18 +6675,17 @@ static void DiagnosedUnqualifiedCallsToStdFunctions(Sema &S, CallExpr *Call) {
   if (DRE->getQualifier())
     return;
 
-  NamedDecl *D = dyn_cast_or_null<NamedDecl>(Call->getCalleeDecl());
-  if (!D || !D->isInStdNamespace())
+  const FunctionDecl *FD = Call->getDirectCallee();
+  if (!FD)
     return;
 
   // Only warn for some functions deemed more frequent or problematic.
-  static constexpr llvm::StringRef SpecialFunctions[] = {"move", "forward"};
-  auto it = llvm::find(SpecialFunctions, D->getName());
-  if (it == std::end(SpecialFunctions))
+  unsigned BuiltinID = FD->getBuiltinID();
+  if (BuiltinID != Builtin::BImove && BuiltinID != Builtin::BIforward)
     return;
 
   S.Diag(DRE->getLocation(), diag::warn_unqualified_call_to_std_cast_function)
-      << D->getQualifiedNameAsString()
+      << FD->getQualifiedNameAsString()
       << FixItHint::CreateInsertion(DRE->getLocation(), "std::");
 }
 
@@ -10900,8 +10932,10 @@ static void diagnoseSubtractionOnNullPointer(Sema &S, SourceLocation Loc,
   if (S.Diags.getSuppressSystemWarnings() && S.SourceMgr.isInSystemMacro(Loc))
     return;
 
-  S.Diag(Loc, diag::warn_pointer_sub_null_ptr)
-      << S.getLangOpts().CPlusPlus << Pointer->getSourceRange();
+  S.DiagRuntimeBehavior(Loc, Pointer,
+                        S.PDiag(diag::warn_pointer_sub_null_ptr)
+                            << S.getLangOpts().CPlusPlus
+                            << Pointer->getSourceRange());
 }
 
 /// Diagnose invalid arithmetic on two function pointers.

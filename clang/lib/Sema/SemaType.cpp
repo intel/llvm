@@ -121,6 +121,8 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_SwiftAsyncCall:                                          \
   case ParsedAttr::AT_VectorCall:                                              \
   case ParsedAttr::AT_AArch64VectorPcs:                                        \
+  case ParsedAttr::AT_AArch64SVEPcs:                                           \
+  case ParsedAttr::AT_AMDGPUKernelCall:                                        \
   case ParsedAttr::AT_MSABI:                                                   \
   case ParsedAttr::AT_SysVABI:                                                 \
   case ParsedAttr::AT_Pcs:                                                     \
@@ -166,12 +168,6 @@ namespace {
     /// DeclSpec.
     unsigned chunkIndex;
 
-    /// Whether there are non-trivial modifications to the decl spec.
-    bool trivial;
-
-    /// Whether we saved the attributes in the decl spec.
-    bool hasSavedAttrs;
-
     /// The original set of attributes on the DeclSpec.
     SmallVector<ParsedAttr *, 2> savedAttrs;
 
@@ -200,8 +196,7 @@ namespace {
   public:
     TypeProcessingState(Sema &sema, Declarator &declarator)
         : sema(sema), declarator(declarator),
-          chunkIndex(declarator.getNumTypeObjects()), trivial(true),
-          hasSavedAttrs(false), parsedNoDeref(false) {}
+          chunkIndex(declarator.getNumTypeObjects()), parsedNoDeref(false) {}
 
     Sema &getSema() const {
       return sema;
@@ -238,13 +233,12 @@ namespace {
     /// Save the current set of attributes on the DeclSpec.
     void saveDeclSpecAttrs() {
       // Don't try to save them multiple times.
-      if (hasSavedAttrs) return;
+      if (!savedAttrs.empty())
+        return;
 
       DeclSpec &spec = getMutableDeclSpec();
       llvm::append_range(savedAttrs,
                          llvm::make_pointer_range(spec.getAttributes()));
-      trivial &= savedAttrs.empty();
-      hasSavedAttrs = true;
     }
 
     /// Record that we had nowhere to put the given type attribute.
@@ -335,22 +329,17 @@ namespace {
     bool didParseNoDeref() const { return parsedNoDeref; }
 
     ~TypeProcessingState() {
-      if (trivial) return;
+      if (savedAttrs.empty())
+        return;
 
-      restoreDeclSpecAttrs();
+      getMutableDeclSpec().getAttributes().clearListOnly();
+      for (ParsedAttr *AL : savedAttrs)
+        getMutableDeclSpec().getAttributes().addAtEnd(AL);
     }
 
   private:
     DeclSpec &getMutableDeclSpec() const {
       return const_cast<DeclSpec&>(declarator.getDeclSpec());
-    }
-
-    void restoreDeclSpecAttrs() {
-      assert(hasSavedAttrs);
-
-      getMutableDeclSpec().getAttributes().clearListOnly();
-      for (ParsedAttr *AL : savedAttrs)
-        getMutableDeclSpec().getAttributes().addAtEnd(AL);
     }
   };
 } // end anonymous namespace
@@ -1361,36 +1350,35 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     // allowed to be completely missing a declspec.  This is handled in the
     // parser already though by it pretending to have seen an 'int' in this
     // case.
-    if (S.getLangOpts().ImplicitInt) {
-      // In C89 mode, we only warn if there is a completely missing declspec
-      // when one is not allowed.
-      if (DS.isEmpty()) {
-        S.Diag(DeclLoc, diag::ext_missing_declspec)
-            << DS.getSourceRange()
-            << FixItHint::CreateInsertion(DS.getBeginLoc(), "int");
-      }
+    if (S.getLangOpts().isImplicitIntRequired()) {
+      S.Diag(DeclLoc, diag::warn_missing_type_specifier)
+          << DS.getSourceRange()
+          << FixItHint::CreateInsertion(DS.getBeginLoc(), "int");
     } else if (!DS.hasTypeSpecifier()) {
       // C99 and C++ require a type specifier.  For example, C99 6.7.2p2 says:
       // "At least one type specifier shall be given in the declaration
       // specifiers in each declaration, and in the specifier-qualifier list in
       // each struct declaration and type name."
-      if (S.getLangOpts().CPlusPlus && !DS.isTypeSpecPipe()) {
+      if (!S.getLangOpts().isImplicitIntAllowed() && !DS.isTypeSpecPipe()) {
         S.Diag(DeclLoc, diag::err_missing_type_specifier)
-          << DS.getSourceRange();
+            << DS.getSourceRange();
 
-        // When this occurs in C++ code, often something is very broken with the
-        // value being declared, poison it as invalid so we don't get chains of
+        // When this occurs, often something is very broken with the value
+        // being declared, poison it as invalid so we don't get chains of
         // errors.
         declarator.setInvalidType(true);
       } else if ((S.getLangOpts().getOpenCLCompatibleVersion() >= 200 ||
                   S.getLangOpts().SYCLIsDevice) &&
                  DS.isTypeSpecPipe()) {
         S.Diag(DeclLoc, diag::err_missing_actual_pipe_type)
-          << DS.getSourceRange();
+            << DS.getSourceRange();
         declarator.setInvalidType(true);
       } else {
+        assert(S.getLangOpts().isImplicitIntAllowed() &&
+               "implicit int is disabled?");
         S.Diag(DeclLoc, diag::ext_missing_type_specifier)
-          << DS.getSourceRange();
+            << DS.getSourceRange()
+            << FixItHint::CreateInsertion(DS.getBeginLoc(), "int");
       }
     }
 
@@ -2655,7 +2643,7 @@ QualType Sema::BuildVectorType(QualType CurType, Expr *SizeExpr,
     return QualType();
   }
 
-  if (VectorSizeBits % TypeSize) {
+  if (!TypeSize || VectorSizeBits % TypeSize) {
     Diag(AttrLoc, diag::err_attribute_invalid_size)
         << SizeExpr->getSourceRange();
     return QualType();
@@ -5599,7 +5587,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   //   of the parameters is supplied.
   // See ActOnFinishFunctionBody() and MergeFunctionDecl() for handling of
   // function declarations whose behavior changes in C2x.
-  if (!LangOpts.CPlusPlus) {
+  if (!LangOpts.requiresStrictPrototypes()) {
     bool IsBlock = false;
     for (const DeclaratorChunk &DeclType : D.type_objects()) {
       switch (DeclType.Kind) {
@@ -5610,8 +5598,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         const DeclaratorChunk::FunctionTypeInfo &FTI = DeclType.Fun;
         // We suppress the warning when there's no LParen location, as this
         // indicates the declaration was an implicit declaration, which gets
-        // warned about separately via -Wimplicit-function-declaration.
-        if (FTI.NumParams == 0 && !FTI.isVariadic && FTI.getLParenLoc().isValid())
+        // warned about separately via -Wimplicit-function-declaration. We also
+        // suppress the warning when we know the function has a prototype.
+        if (!FTI.hasPrototype && FTI.NumParams == 0 && !FTI.isVariadic &&
+            FTI.getLParenLoc().isValid())
           S.Diag(DeclType.Loc, diag::warn_strict_prototypes)
               << IsBlock
               << FixItHint::CreateInsertion(FTI.getRParenLoc(), "void");
@@ -7577,6 +7567,10 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
     return createSimpleAttr<VectorCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_AArch64VectorPcs:
     return createSimpleAttr<AArch64VectorPcsAttr>(Ctx, Attr);
+  case ParsedAttr::AT_AArch64SVEPcs:
+    return createSimpleAttr<AArch64SVEPcsAttr>(Ctx, Attr);
+  case ParsedAttr::AT_AMDGPUKernelCall:
+    return createSimpleAttr<AMDGPUKernelCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_Pcs: {
     // The attribute may have had a fixit applied where we treated an
     // identifier as a string literal.  The contents of the string are valid,

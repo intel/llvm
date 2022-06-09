@@ -41,11 +41,11 @@ add_custom_target(libsycldevice DEPENDS
   libsycldevice-spv)
 
 function(add_devicelib_obj obj_filename)
-  cmake_parse_arguments(OBJ  "" "" "SRC;DEP" ${ARGN})
+  cmake_parse_arguments(OBJ  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
   set(devicelib-obj-file ${obj_binary_dir}/${obj_filename}.${lib-suffix})
   add_custom_command(OUTPUT ${devicelib-obj-file}
                      COMMAND ${clang} -fsycl -c
-                             ${compile_opts} ${sycl_targets_opt}
+                             ${compile_opts} ${sycl_targets_opt} ${OBJ_EXTRA_ARGS}
                              ${CMAKE_CURRENT_SOURCE_DIR}/${OBJ_SRC}
                              -o ${devicelib-obj-file}
                      MAIN_DEPENDENCY ${OBJ_SRC}
@@ -60,11 +60,11 @@ function(add_devicelib_obj obj_filename)
 endfunction()
 
 function(add_devicelib_spv spv_filename)
-  cmake_parse_arguments(SPV  "" "" "SRC;DEP" ${ARGN})
+  cmake_parse_arguments(SPV  "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
   set(devicelib-spv-file ${spv_binary_dir}/${spv_filename}.spv)
   add_custom_command(OUTPUT ${devicelib-spv-file}
                      COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
-                             ${compile_opts}
+                             ${compile_opts} ${SPV_EXTRA_ARGS}
                              ${CMAKE_CURRENT_SOURCE_DIR}/${SPV_SRC}
                              -o ${devicelib-spv-file}
                      MAIN_DEPENDENCY ${SPV_SRC}
@@ -79,9 +79,9 @@ function(add_devicelib_spv spv_filename)
 endfunction()
 
 function(add_fallback_devicelib fallback_filename)
-  cmake_parse_arguments(FB "" "" "SRC;DEP" ${ARGN})
-  add_devicelib_spv(${fallback_filename} SRC ${FB_SRC} DEP ${FB_DEP})
-  add_devicelib_obj(${fallback_filename} SRC ${FB_SRC} DEP ${FB_DEP})
+  cmake_parse_arguments(FB "" "" "SRC;DEP;EXTRA_ARGS" ${ARGN})
+  add_devicelib_spv(${fallback_filename} SRC ${FB_SRC} DEP ${FB_DEP} EXTRA_ARGS ${FB_EXTRA_ARGS})
+  add_devicelib_obj(${fallback_filename} SRC ${FB_SRC} DEP ${FB_DEP} EXTRA_ARGS ${FB_EXTRA_ARGS})
 endfunction()
 
 set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
@@ -98,8 +98,11 @@ add_devicelib_obj(libsycl-complex SRC complex_wrapper.cpp DEP ${complex_obj_deps
 add_devicelib_obj(libsycl-complex-fp64 SRC complex_wrapper_fp64.cpp DEP ${complex_obj_deps} )
 add_devicelib_obj(libsycl-cmath SRC cmath_wrapper.cpp DEP ${cmath_obj_deps})
 add_devicelib_obj(libsycl-cmath-fp64 SRC cmath_wrapper_fp64.cpp DEP ${cmath_obj_deps} )
+if(WIN32)
+add_devicelib_obj(libsycl-msvc-math SRC msvc_math.cpp DEP ${cmath_obj_deps})
+endif()
 
-add_fallback_devicelib(libsycl-fallback-cassert SRC fallback-cassert.cpp DEP ${crt_obj_deps})
+add_fallback_devicelib(libsycl-fallback-cassert SRC fallback-cassert.cpp DEP ${crt_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
 add_fallback_devicelib(libsycl-fallback-cstring SRC fallback-cstring.cpp DEP ${crt_obj_deps})
 add_fallback_devicelib(libsycl-fallback-complex SRC fallback-complex.cpp DEP ${complex_obj_deps})
 add_fallback_devicelib(libsycl-fallback-complex-fp64 SRC fallback-complex-fp64.cpp DEP ${complex_obj_deps} )

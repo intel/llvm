@@ -95,7 +95,7 @@ cl_device_id device_impl::get() const {
   if (MIsHostDevice) {
     throw invalid_object_error(
         "This instance of device doesn't support OpenCL interoperability.",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piDeviceRetain>(MDevice);
@@ -158,7 +158,7 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw cl::sycl::feature_not_supported();
@@ -184,7 +184,7 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw cl::sycl::feature_not_supported();
@@ -229,7 +229,7 @@ std::vector<device> device_impl::create_sub_devices(
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
@@ -366,10 +366,17 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::ext_oneapi_srgb>();
   case aspect::ext_oneapi_native_assert:
     return isAssertFailSupported();
-
+  case aspect::ext_oneapi_cuda_async_barrier: {
+    int async_barrier_supported;
+    bool call_successful =
+        getPlugin().call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER, sizeof(int),
+            &async_barrier_supported, nullptr) == PI_SUCCESS;
+    return call_successful && async_barrier_supported;
+  }
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
   }
 }
 

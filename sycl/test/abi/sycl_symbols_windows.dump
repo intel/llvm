@@ -2701,7 +2701,9 @@
 ?make_program@level_zero@sycl@cl@@YA?AVprogram@23@AEBVcontext@23@_K@Z
 ?make_program@opencl@sycl@cl@@YA?AVprogram@23@AEBVcontext@23@_K@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@AEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
+?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@AEBVdevice@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
 ?make_queue@detail@sycl@cl@@YA?AVqueue@23@_KAEBVcontext@23@_NAEBV?$function@$$A6AXVexception_list@sycl@cl@@@Z@std@@W4backend@23@@Z
+?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@AEBVdevice@45@_K_N@Z
 ?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K@Z
 ?make_queue@level_zero@oneapi@ext@sycl@cl@@YA?AVqueue@45@AEBVcontext@45@_K_N@Z
 ?make_queue@level_zero@sycl@cl@@YA?AVqueue@23@AEBVcontext@23@_K@Z

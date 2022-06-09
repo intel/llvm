@@ -70,6 +70,23 @@ static size_t getOCLCpp11AtomicMaxNumOps(StringRef Name) {
       .Default(0);
 }
 
+static Type *getBlockStructType(Value *Parameter) {
+  // In principle, this information should be passed to us from Clang via
+  // an elementtype attribute. However, said attribute requires that the
+  // function call be an intrinsic, which it is not. Instead, we rely on being
+  // able to trace this to the declaration of a variable: OpenCL C specification
+  // section 6.12.5 should guarantee that we can do this.
+  Value *UnderlyingObject = Parameter->stripPointerCasts();
+  Type *ParamType = nullptr;
+  if (auto *GV = dyn_cast<GlobalValue>(UnderlyingObject))
+    ParamType = GV->getValueType();
+  else if (auto *Alloca = dyn_cast<AllocaInst>(UnderlyingObject))
+    ParamType = Alloca->getAllocatedType();
+  else
+    llvm_unreachable("Blocks in OpenCL C must be traceable to allocation site");
+  return ParamType;
+}
+
 class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
 public:
   OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
@@ -674,11 +691,9 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
       M, CI,
       [&](CallInst *CI, std::vector<Value *> &Args, Type *&RetTy) {
         Expected = Args[1]; // temporary save second argument.
-        Args[1] = new LoadInst(Args[1]->getType()->getPointerElementType(),
-                               Args[1], "exp", false, CI);
         RetTy = Args[2]->getType();
-        assert(Args[0]->getType()->getPointerElementType()->isIntegerTy() &&
-               Args[1]->getType()->isIntegerTy() &&
+        Args[1] = new LoadInst(RetTy, Args[1], "exp", false, CI);
+        assert(Args[1]->getType()->isIntegerTy() &&
                Args[2]->getType()->isIntegerTy() &&
                "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
                "an integer type scalars");
@@ -1584,9 +1599,7 @@ void OCLToSPIRVBase::visitCallEnqueueKernel(CallInst *CI,
   // Param Size: Size of block literal structure
   // Param Aligment: Aligment of block literal structure
   // TODO: these numbers should be obtained from block literal structure
-  Type *ParamType = getUnderlyingObject(BlockLiteral)->getType();
-  if (PointerType *PT = dyn_cast<PointerType>(ParamType))
-    ParamType = PT->getPointerElementType();
+  Type *ParamType = getBlockStructType(BlockLiteral);
   Args.push_back(getInt32(M, DL.getTypeStoreSize(ParamType)));
   Args.push_back(getInt32(M, DL.getPrefTypeAlignment(ParamType)));
 
@@ -1636,10 +1649,7 @@ void OCLToSPIRVBase::visitCallKernelQuery(CallInst *CI,
       M, CI,
       [=](CallInst *CI, std::vector<Value *> &Args) {
         Value *Param = *Args.rbegin();
-        Type *ParamType = getUnderlyingObject(Param)->getType();
-        if (PointerType *PT = dyn_cast<PointerType>(ParamType)) {
-          ParamType = PT->getPointerElementType();
-        }
+        Type *ParamType = getBlockStructType(Param);
         // Last arg corresponds to SPIRV Param operand.
         // Insert Invoke in front of Param.
         // Add Param Size and Param Align at the end.
@@ -1733,10 +1743,11 @@ static const char *getSubgroupAVCIntelOpKind(StringRef Name) {
       .StartsWith(kOCLSubgroupsAVCIntel::SICPrefix, "sic");
 }
 
-static const char *getSubgroupAVCIntelTyKind(Type *Ty) {
-  auto *STy = cast<StructType>(cast<PointerType>(Ty)->getPointerElementType());
-  auto TName = STy->getName();
-  return TName.endswith("_payload_t") ? "payload" : "result";
+static const char *getSubgroupAVCIntelTyKind(StringRef MangledName) {
+  // We're looking for the type name of the last parameter, which will be at the
+  // very end of the mangled name. Since we only care about the ending of the
+  // name, we don't need to be any more clever than this.
+  return MangledName.endswith("_payload_t") ? "payload" : "result";
 }
 
 static Type *getSubgroupAVCIntelMCEType(Module *M, std::string &TName) {
@@ -1768,11 +1779,9 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
 
   // Update names for built-ins mapped on two or more SPIRV instructions
   if (FName.find(Prefix + "ime_get_streamout_major_shape_") == 0) {
-    auto PTy = cast<PointerType>(CI->getArgOperand(0)->getType());
-    auto *STy = cast<StructType>(PTy->getPointerElementType());
-    assert(STy->hasName() && "Invalid Subgroup AVC Intel built-in call");
-    FName += (STy->getName().contains("single")) ? "_single_reference"
-                                                 : "_dual_reference";
+    // _single_reference functions have 2 arguments, _dual_reference have 3
+    // arguments.
+    FName += (CI->arg_size() == 2) ? "_single_reference" : "_dual_reference";
   } else if (FName.find(Prefix + "sic_configure_ipe") == 0) {
     FName += (CI->arg_size() == 8) ? "_luma" : "_luma_chroma";
   }
@@ -1808,8 +1817,8 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   // Find 'to_mce' conversion function.
   // The operand required conversion is always the last one.
   const char *OpKind = getSubgroupAVCIntelOpKind(DemangledName);
-  const char *TyKind = getSubgroupAVCIntelTyKind(
-      CI->getArgOperand(CI->arg_size() - 1)->getType());
+  const char *TyKind =
+      getSubgroupAVCIntelTyKind(CI->getCalledFunction()->getName());
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
   auto *MCETy =

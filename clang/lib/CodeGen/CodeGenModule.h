@@ -86,6 +86,7 @@ class CGOpenCLRuntime;
 class CGOpenMPRuntime;
 class CGCUDARuntime;
 class CGSYCLRuntime;
+class CGHLSLRuntime;
 class CoverageMappingModuleGen;
 class TargetCodeGenInfo;
 
@@ -321,6 +322,7 @@ private:
   std::unique_ptr<CGOpenMPRuntime> OpenMPRuntime;
   std::unique_ptr<CGCUDARuntime> CUDARuntime;
   std::unique_ptr<CGSYCLRuntime> SYCLRuntime;
+  std::unique_ptr<CGHLSLRuntime> HLSLRuntime;
   std::unique_ptr<CGDebugInfo> DebugInfo;
   std::unique_ptr<ObjCEntrypoints> ObjCData;
   llvm::MDNode *NoObjCARCExceptionsMetadata = nullptr;
@@ -524,6 +526,7 @@ private:
   void createOpenMPRuntime();
   void createCUDARuntime();
   void createSYCLRuntime();
+  void createHLSLRuntime();
 
   bool isTriviallyRecursive(const FunctionDecl *F);
   bool shouldEmitFunction(GlobalDecl GD);
@@ -628,6 +631,12 @@ public:
   CGSYCLRuntime &getSYCLRuntime() {
     assert(SYCLRuntime != nullptr);
     return *SYCLRuntime;
+  }
+
+  /// Return a reference to the configured HLSL runtime.
+  CGHLSLRuntime &getHLSLRuntime() {
+    assert(HLSLRuntime != nullptr);
+    return *HLSLRuntime;
   }
 
   ObjCEntrypoints &getObjCEntrypoints() const {
@@ -1392,6 +1401,9 @@ public:
   /// \param D The allocate declaration
   void EmitOMPAllocateDecl(const OMPAllocateDecl *D);
 
+  /// Return the alignment specified in an allocate directive, if present.
+  llvm::Optional<CharUnits> getOMPAllocateAlignment(const VarDecl *VD);
+
   /// Returns whether the given record has hidden LTO visibility and therefore
   /// may participate in (single-module) CFI and whole-program vtable
   /// optimization.
@@ -1494,7 +1506,10 @@ public:
   bool stopAutoInit();
 
   /// Print the postfix for externalized static variable or kernels for single
-  /// source offloading languages CUDA and HIP.
+  /// source offloading languages CUDA and HIP. The unique postfix is created
+  /// using either the CUID argument, or the file's UniqueID and active macros.
+  /// The fallback method without a CUID requires that the offloading toolchain
+  /// does not define separate macros via the -cc1 options.
   void printPostfixForExternalizedDecl(llvm::raw_ostream &OS,
                                        const Decl *D) const;
 

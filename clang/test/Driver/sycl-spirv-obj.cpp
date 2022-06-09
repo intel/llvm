@@ -2,8 +2,6 @@
 /// Tests for SPIR-V related objects
 ///
 
-// REQUIRES: clang-driver
-
 /// -fsycl-device-obj=spirv
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -c -fsycl -fsycl-device-obj=spirv -### %s 2>&1 | \
 // RUN:  FileCheck %s -check-prefix SPIRV_DEVICE_OBJ

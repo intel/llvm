@@ -453,6 +453,7 @@ def : DiagGroup<"init-self">;
 def : DiagGroup<"inline">;
 def : DiagGroup<"invalid-pch">;
 def GNULabelsAsValue : DiagGroup<"gnu-label-as-value">;
+def GNULineMarker : DiagGroup<"gnu-line-marker">;
 def LiteralRange : DiagGroup<"literal-range">;
 def LocalTypeTemplateArgs : DiagGroup<"local-type-template-args",
                                       [CXX98CompatLocalTypeTemplateArgs]>;
@@ -613,7 +614,12 @@ def StaticInInline : DiagGroup<"static-in-inline">;
 def StaticLocalInInline : DiagGroup<"static-local-in-inline">;
 def GNUStaticFloatInit : DiagGroup<"gnu-static-float-init">;
 def StaticFloatInit : DiagGroup<"static-float-init", [GNUStaticFloatInit]>;
-def GNUStatementExpression : DiagGroup<"gnu-statement-expression">;
+// Allow differentiation between GNU statement expressions in a macro versus
+// written directly in source.
+def GNUStatementExpressionFromMacroExpansion :
+  DiagGroup<"gnu-statement-expression-from-macro-expansion">;
+def GNUStatementExpression : DiagGroup<"gnu-statement-expression",
+                                       [GNUStatementExpressionFromMacroExpansion]>;
 def StringConcatation : DiagGroup<"string-concatenation">;
 def StringCompare : DiagGroup<"string-compare">;
 def StringPlusInt : DiagGroup<"string-plus-int">;
@@ -848,9 +854,11 @@ def ReservedIdentifier : DiagGroup<"reserved-identifier",
 //
 def UnreachableCodeLoopIncrement : DiagGroup<"unreachable-code-loop-increment">;
 def UnreachableCodeFallthrough : DiagGroup<"unreachable-code-fallthrough">;
+def UnreachableCodeGenericAssoc : DiagGroup<"unreachable-code-generic-assoc">;
 def UnreachableCode : DiagGroup<"unreachable-code",
                                 [UnreachableCodeLoopIncrement,
-                                 UnreachableCodeFallthrough]>;
+                                 UnreachableCodeFallthrough,
+                                 UnreachableCodeGenericAssoc]>;
 def UnreachableCodeBreak : DiagGroup<"unreachable-code-break">;
 def UnreachableCodeReturn : DiagGroup<"unreachable-code-return">;
 def UnreachableCodeAggressive : DiagGroup<"unreachable-code-aggressive",
@@ -1116,7 +1124,7 @@ def GNU : DiagGroup<"gnu", [GNUAlignofExpression, GNUAnonymousStruct,
                             VLAExtension, GNUFlexibleArrayInitializer,
                             GNUFlexibleArrayUnionMember, GNUFoldingConstant,
                             GNUImaginaryConstant, GNUIncludeNext,
-                            GNULabelsAsValue, GNUNullPointerArithmetic,
+                            GNULabelsAsValue, GNULineMarker, GNUNullPointerArithmetic,
                             GNUPointerArith, RedeclaredClassMember,
                             GNURedeclaredEnum, GNUStatementExpression,
                             GNUStaticFloatInit,
@@ -1376,3 +1384,6 @@ def PedanticMacros : DiagGroup<"pedantic-macros",
 
 def BranchProtection : DiagGroup<"branch-protection">;
 
+// HLSL diagnostic groups
+// Warnings for HLSL Clang extensions
+def HLSLExtension : DiagGroup<"hlsl-extensions">;

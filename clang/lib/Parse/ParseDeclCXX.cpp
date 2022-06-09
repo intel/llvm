@@ -10,15 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Parse/Parser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
+#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Parse/ParseDiagnostic.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -438,7 +439,6 @@ Decl *Parser::ParseExportDeclaration() {
     // FIXME: Factor out a ParseExternalDeclarationWithAttrs.
     ParsedAttributes Attrs(AttrFactory);
     MaybeParseCXX11Attributes(Attrs);
-    MaybeParseMicrosoftAttributes(Attrs);
     ParseExternalDeclaration(Attrs);
     return Actions.ActOnFinishExportDecl(getCurScope(), ExportDecl,
                                          SourceLocation());
@@ -458,7 +458,6 @@ Decl *Parser::ParseExportDeclaration() {
          Tok.isNot(tok::eof)) {
     ParsedAttributes Attrs(AttrFactory);
     MaybeParseCXX11Attributes(Attrs);
-    MaybeParseMicrosoftAttributes(Attrs);
     ParseExternalDeclaration(Attrs);
   }
 
@@ -2170,8 +2169,11 @@ BaseResult Parser::ParseBaseSpecifier(Decl *ClassDecl) {
 
   // Parse an (optional) access specifier.
   AccessSpecifier Access = getAccessSpecifierIfPresent();
-  if (Access != AS_none)
+  if (Access != AS_none) {
     ConsumeToken();
+    if (getLangOpts().HLSL)
+      Diag(Tok.getLocation(), diag::ext_hlsl_access_specifiers);
+  }
 
   CheckMisplacedCXX11Attribute(Attributes, StartLoc);
 
@@ -3270,6 +3272,8 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclarationWithPragmas(
     LLVM_FALLTHROUGH;
   case tok::kw_public:
   case tok::kw_protected: {
+    if (getLangOpts().HLSL)
+      Diag(Tok.getLocation(), diag::ext_hlsl_access_specifiers);
     AccessSpecifier NewAS = getAccessSpecifierIfPresent();
     assert(NewAS != AS_none);
     // Current token is a C++ access specifier.
@@ -3509,8 +3513,9 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   // C++ 11p3: Members of a class defined with the keyword class are private
   // by default. Members of a class defined with the keywords struct or union
   // are public by default.
+  // HLSL: In HLSL members of a class are public by default.
   AccessSpecifier CurAS;
-  if (TagType == DeclSpec::TST_class)
+  if (TagType == DeclSpec::TST_class && !getLangOpts().HLSL)
     CurAS = AS_private;
   else
     CurAS = AS_public;
@@ -4304,16 +4309,17 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
 
   // Try parsing microsoft attributes
   if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {
-    if (hasAttribute(AttrSyntax::Microsoft, ScopeName, AttrName,
-                     getTargetInfo(), getLangOpts()))
+    if (hasAttribute(AttributeCommonInfo::Syntax::AS_Microsoft, ScopeName,
+                     AttrName, getTargetInfo(), getLangOpts()))
       Syntax = ParsedAttr::AS_Microsoft;
   }
 
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
   if (Syntax != ParsedAttr::AS_Microsoft &&
-      !hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
-                    AttrName, getTargetInfo(), getLangOpts())) {
+      !hasAttribute(LO.CPlusPlus ? AttributeCommonInfo::Syntax::AS_CXX11
+                                 : AttributeCommonInfo::Syntax::AS_C2x,
+                    ScopeName, AttrName, getTargetInfo(), getLangOpts())) {
     if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {}
     // Eat the left paren, then skip to the ending right paren.
     ConsumeParen();

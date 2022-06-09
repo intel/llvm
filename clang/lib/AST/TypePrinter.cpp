@@ -285,6 +285,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
       // address_space attribute.
       const auto *AttrTy = cast<AttributedType>(UnderlyingType);
       CanPrefixQualifiers = AttrTy->getAttrKind() == attr::AddressSpace;
+      break;
     }
   }
 
@@ -970,6 +971,12 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
     case CC_AArch64VectorCall:
       OS << "__attribute__((aarch64_vector_pcs))";
       break;
+    case CC_AArch64SVEPCS:
+      OS << "__attribute__((aarch64_sve_pcs))";
+      break;
+    case CC_AMDGPUKernelCall:
+      OS << "__attribute__((amdgpu_kernel))";
+      break;
     case CC_IntelOclBicc:
       OS << " __attribute__((intel_ocl_bicc))";
       break;
@@ -1476,8 +1483,7 @@ void TypePrinter::printTemplateId(const TemplateSpecializationType *T,
     if (!Policy.SuppressScope)
       AppendScope(TD->getDeclContext(), OS, TD->getDeclName());
 
-    IdentifierInfo *II = TD->getIdentifier();
-    OS << II->getName();
+    OS << TD->getName();
   } else {
     T->getTemplateName().print(OS, Policy);
   }
@@ -1769,6 +1775,8 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
    break;
   }
   case attr::AArch64VectorPcs: OS << "aarch64_vector_pcs"; break;
+  case attr::AArch64SVEPcs: OS << "aarch64_sve_pcs"; break;
+  case attr::AMDGPUKernelCall: OS << "amdgpu_kernel"; break;
   case attr::IntelOclBicc: OS << "inteloclbicc"; break;
   case attr::PreserveMost:
     OS << "preserve_most";

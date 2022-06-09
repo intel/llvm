@@ -100,7 +100,7 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of kernel doesn't support OpenCL interoperability.",
-          PI_INVALID_KERNEL);
+          PI_ERROR_INVALID_KERNEL);
     }
     getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
     return pi::cast<cl_kernel>(MKernel);
@@ -263,7 +263,7 @@ kernel_impl::get_info(
         Value) const {
   if (is_host()) {
     throw runtime_error("Sub-group feature is not supported on HOST device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
   }
   return get_kernel_device_specific_info_with_input<param>::get(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), Value,

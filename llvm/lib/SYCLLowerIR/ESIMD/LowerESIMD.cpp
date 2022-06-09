@@ -418,6 +418,15 @@ public:
         {"gather_masked_scaled2",
          {"gather.masked.scaled2", {t(3), t(4), aSI(0), a(1), a(2), ai1(3)}}},
 
+        // arg0: i32 channel mask, CONSTANT
+        // arg1: i16 scale, CONSTANT
+        // arg2: i32 surface index
+        // arg3: i32 global offset in bytes
+        // arg4: vXi32 element offset in bytes
+        // arg5: vXi1 predicate (overloaded)
+        {"gather4_masked_scaled2",
+         {"gather4.masked.scaled2", {t(2), t(4), aSI(0), a(1), a(2), ai1(3)}}},
+
         // arg0: vXi1 predicate (overloaded)
         // arg1: i32 log2 num blocks, CONSTANT (0/1/2 for num blocks 1/2/4)
         // arg2: i16 scale, CONSTANT
@@ -1641,10 +1650,15 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
-  // 'alwaysinline' attribute.
+  // 'alwaysinline' attribute, except few cases:
+  //     - kernels are not called from device code, so can't be inlined
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
+      // - 'noninline' should not be overridden
       !F.hasFnAttribute(Attribute::NoInline) &&
-      !F.hasFnAttribute(Attribute::AlwaysInline))
+      // - 'alwaysinline' should not be duplicated
+      !F.hasFnAttribute(Attribute::AlwaysInline) &&
+      // - VC BE forbids 'alwaysinline' and "VCStackCall" on the same function
+      !F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
     F.addFnAttr(Attribute::AlwaysInline);
 
   SmallVector<CallInst *, 32> ESIMDIntrCalls;

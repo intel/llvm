@@ -29,44 +29,84 @@ Expr<T> PackageConstantBounds(
   }
 }
 
-// Class to retrieve the constant lower bound of an expression which is an
+// Class to retrieve the constant bound of an expression which is an
 // array that devolves to a type of Constant<T>
-class GetConstantArrayLboundHelper {
+class GetConstantArrayBoundHelper {
 public:
-  GetConstantArrayLboundHelper(std::optional<ConstantSubscript> dim)
-      : dim_{dim} {}
+  template <typename T>
+  static Expr<T> GetLbound(
+      const Expr<SomeType> &array, std::optional<int> dim) {
+    return PackageConstantBounds<T>(
+        GetConstantArrayBoundHelper(dim, /*getLbound=*/true).Get(array),
+        dim.has_value());
+  }
 
-  template <typename T> ConstantSubscripts GetLbound(const T &) {
+  template <typename T>
+  static Expr<T> GetUbound(
+      const Expr<SomeType> &array, std::optional<int> dim) {
+    return PackageConstantBounds<T>(
+        GetConstantArrayBoundHelper(dim, /*getLbound=*/false).Get(array),
+        dim.has_value());
+  }
+
+private:
+  GetConstantArrayBoundHelper(
+      std::optional<ConstantSubscript> dim, bool getLbound)
+      : dim_{dim}, getLbound_{getLbound} {}
+
+  template <typename T> ConstantSubscripts Get(const T &) {
     // The method is needed for template expansion, but we should never get
     // here in practice.
     CHECK(false);
     return {0};
   }
 
-  template <typename T> ConstantSubscripts GetLbound(const Constant<T> &x) {
-    // Return the lower bound
-    if (dim_) {
-      return {x.lbounds().at(*dim_)};
+  template <typename T> ConstantSubscripts Get(const Constant<T> &x) {
+    if (getLbound_) {
+      // Return the lower bound
+      if (dim_) {
+        return {x.lbounds().at(*dim_)};
+      } else {
+        return x.lbounds();
+      }
     } else {
-      return x.lbounds();
+      // Return the upper bound
+      if (arrayFromParenthesesExpr) {
+        // Underlying array comes from (x) expression - return shapes
+        if (dim_) {
+          return {x.shape().at(*dim_)};
+        } else {
+          return x.shape();
+        }
+      } else {
+        return x.ComputeUbounds(dim_);
+      }
     }
   }
 
-  template <typename T> ConstantSubscripts GetLbound(const Parentheses<T> &x) {
-    // LBOUND for (x) is [1, ..., 1] cause of temp variable inside
-    // parentheses (lower bound is omitted, the default value is 1).
-    return ConstantSubscripts(x.Rank(), ConstantSubscript{1});
+  template <typename T> ConstantSubscripts Get(const Parentheses<T> &x) {
+    // Cause of temp variable inside parentheses - return [1, ... 1] for lower
+    // bounds and shape for upper bounds
+    if (getLbound_) {
+      return ConstantSubscripts(x.Rank(), ConstantSubscript{1});
+    } else {
+      // Indicate that underlying array comes from parentheses expression.
+      // Continue to unwrap expression until we hit a constant
+      arrayFromParenthesesExpr = true;
+      return Get(x.left());
+    }
   }
 
-  template <typename T> ConstantSubscripts GetLbound(const Expr<T> &x) {
+  template <typename T> ConstantSubscripts Get(const Expr<T> &x) {
     // recurse through Expr<T>'a until we hit a constant
-    return common::visit([&](const auto &inner) { return GetLbound(inner); },
+    return common::visit([&](const auto &inner) { return Get(inner); },
         //      [&](const auto &) { return 0; },
         x.u);
   }
 
-private:
-  std::optional<ConstantSubscript> dim_;
+  const std::optional<ConstantSubscript> dim_;
+  const bool getLbound_;
+  bool arrayFromParenthesesExpr{false};
 };
 
 template <int KIND>
@@ -112,9 +152,7 @@ Expr<Type<TypeCategory::Integer, KIND>> LBOUND(FoldingContext &context,
         }
       }
       if (IsActuallyConstant(*array)) {
-        const ConstantSubscripts bounds{
-            GetConstantArrayLboundHelper{dim}.GetLbound(*array)};
-        return PackageConstantBounds<T>(std::move(bounds), dim.has_value());
+        return GetConstantArrayBoundHelper::GetLbound<T>(*array, dim);
       }
       if (lowerBoundsAreOne) {
         ConstantSubscripts ones(rank, ConstantSubscript{1});
@@ -177,6 +215,9 @@ Expr<Type<TypeCategory::Integer, KIND>> UBOUND(FoldingContext &context,
         } else {
           takeBoundsFromShape = symbol.Rank() == 0; // UBOUND(array%component)
         }
+      }
+      if (IsActuallyConstant(*array)) {
+        return GetConstantArrayBoundHelper::GetUbound<T>(*array, dim);
       }
       if (takeBoundsFromShape) {
         if (auto shape{GetContextFreeShape(context, *array)}) {
@@ -272,6 +313,15 @@ public:
     array->SetLowerBoundsToOne();
     ConstantSubscripts at{array->lbounds()}, maskAt, resultIndices, resultShape;
     if (mask) {
+      if (auto scalarMask{mask->GetScalarValue()}) {
+        // Convert into array in case of scalar MASK= (for
+        // MAXLOC/MINLOC/FINDLOC mask should be be conformable)
+        ConstantSubscript n{GetSize(array->shape())};
+        std::vector<Scalar<LogicalResult>> mask_elements(
+            n, Scalar<LogicalResult>{scalarMask.value()});
+        *mask = Constant<LogicalResult>{
+            std::move(mask_elements), ConstantSubscripts{n}};
+      }
       mask->SetLowerBoundsToOne();
       maskAt = mask->lbounds();
     }
