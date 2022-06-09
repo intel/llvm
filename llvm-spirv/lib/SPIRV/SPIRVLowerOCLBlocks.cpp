@@ -33,7 +33,7 @@
 //===----------------------------------------------------------------------===//
 //
 // SPIR-V specification doesn't allow function pointers, so SPIR-V translator
-// is designed to fail if a value with function type (except calls) is occured.
+// is designed to fail if a value with function type (except calls) occurs.
 // Currently there is only two cases, when function pointers are generating in
 // LLVM IR in OpenCL - block calls and device side enqueue built-in calls.
 //
@@ -44,9 +44,9 @@
 // structure:
 // %struct.__opencl_block_literal_generic = type { i32, i32, i8 addrspace(4)* }
 // Pointers to block invoke functions are stored in the third field. Clang
-// replaces inderect function calls in all cases except if block is passed as a
+// replaces indirect function calls in all cases except if block is passed as a
 // function argument. Note that it is somewhat unclear if the OpenCL C spec
-// should allow passing blocks as function argumernts. This pass is not supposed
+// should allow passing blocks as function arguments. This pass is not supposed
 // to work correctly with such functions.
 // Clang though has to store function pointers to this structure. Purpose of
 // this pass is to replace store of function pointers(not allowed in SPIR-V)
@@ -124,10 +124,9 @@ char SPIRVLowerOCLBlocksLegacy::ID = 0;
 
 } // namespace
 
-INITIALIZE_PASS(
-    SPIRVLowerOCLBlocksLegacy, "spv-lower-ocl-blocks",
-    "Remove function pointers occured in case of using OpenCL blocks", false,
-    false)
+INITIALIZE_PASS(SPIRVLowerOCLBlocksLegacy, "spv-lower-ocl-blocks",
+                "Remove function pointers originating from OpenCL blocks",
+                false, false)
 
 llvm::ModulePass *llvm::createSPIRVLowerOCLBlocksLegacy() {
   return new SPIRVLowerOCLBlocksLegacy();

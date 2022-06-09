@@ -396,6 +396,8 @@ struct _pi_queue {
   std::atomic_uint32_t transfer_stream_idx_;
   unsigned int num_compute_streams_;
   unsigned int num_transfer_streams_;
+  unsigned int last_sync_compute_streams_;
+  unsigned int last_sync_transfer_streams_;
   unsigned int flags_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
@@ -408,7 +410,9 @@ struct _pi_queue {
         transfer_streams_{std::move(transfer_streams)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
-        num_compute_streams_{0}, num_transfer_streams_{0}, flags_(flags) {
+        num_compute_streams_{0}, num_transfer_streams_{0},
+        last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
+        flags_(flags) {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -445,7 +449,62 @@ struct _pi_queue {
     }
   }
 
+  template <typename T> void sync_streams(T &&f) {
+    auto sync = [&f](const std::vector<CUstream> &streams, unsigned int start,
+                     unsigned int stop) {
+      for (unsigned int i = start; i < stop; i++) {
+        f(streams[i]);
+      }
+    };
+    {
+      unsigned int size = static_cast<unsigned int>(compute_streams_.size());
+      std::lock_guard<std::mutex> compute_guard(compute_stream_mutex_);
+      unsigned int start = last_sync_compute_streams_;
+      unsigned int end = num_compute_streams_ < size
+                             ? num_compute_streams_
+                             : compute_stream_idx_.load();
+      last_sync_compute_streams_ = end;
+      if (end - start >= size) {
+        sync(compute_streams_, 0, size);
+      } else {
+        start %= size;
+        end %= size;
+        if (start < end) {
+          sync(compute_streams_, start, end);
+        } else {
+          sync(compute_streams_, start, size);
+          sync(compute_streams_, 0, end);
+        }
+      }
+    }
+    {
+      unsigned int size = static_cast<unsigned int>(transfer_streams_.size());
+      if (size > 0) {
+        std::lock_guard<std::mutex> transfer_guard(transfer_stream_mutex_);
+        unsigned int start = last_sync_transfer_streams_;
+        unsigned int end = num_transfer_streams_ < size
+                               ? num_transfer_streams_
+                               : transfer_stream_idx_.load();
+        last_sync_transfer_streams_ = end;
+        if (end - start >= size) {
+          sync(transfer_streams_, 0, size);
+        } else {
+          start %= size;
+          end %= size;
+          if (start < end) {
+            sync(transfer_streams_, start, end);
+          } else {
+            sync(transfer_streams_, start, size);
+            sync(transfer_streams_, 0, end);
+          }
+        }
+      }
+    }
+  }
+
   _pi_context *get_context() const { return context_; };
+
+  _pi_device *get_device() const { return device_; };
 
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 

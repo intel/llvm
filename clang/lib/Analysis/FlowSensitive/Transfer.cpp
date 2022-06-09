@@ -136,9 +136,6 @@ public:
       return;
     }
 
-    InitExpr = D.getInit();
-    assert(InitExpr != nullptr);
-
     if (D.getType()->isReferenceType()) {
       // Initializing a reference variable - do not create a reference to
       // reference.
@@ -147,25 +144,52 @@ public:
         auto &Val =
             Env.takeOwnership(std::make_unique<ReferenceValue>(*InitExprLoc));
         Env.setValue(Loc, Val);
-        return;
       }
     } else if (auto *InitExprVal = Env.getValue(*InitExpr, SkipPast::None)) {
       Env.setValue(Loc, *InitExprVal);
-      return;
     }
 
-    // We arrive here in (the few) cases where an expression is intentionally
-    // "uninterpreted". There are two ways to handle this situation: propagate
-    // the status, so that uninterpreted initializers result in uninterpreted
-    // variables, or provide a default value. We choose the latter so that later
-    // refinements of the variable can be used for reasoning about the
-    // surrounding code.
-    //
-    // FIXME. If and when we interpret all language cases, change this to assert
-    // that `InitExpr` is interpreted, rather than supplying a default value
-    // (assuming we don't update the environment API to return references).
-    if (Value *Val = Env.createValue(D.getType()))
-      Env.setValue(Loc, *Val);
+    if (Env.getValue(Loc) == nullptr) {
+      // We arrive here in (the few) cases where an expression is intentionally
+      // "uninterpreted". There are two ways to handle this situation: propagate
+      // the status, so that uninterpreted initializers result in uninterpreted
+      // variables, or provide a default value. We choose the latter so that
+      // later refinements of the variable can be used for reasoning about the
+      // surrounding code.
+      //
+      // FIXME. If and when we interpret all language cases, change this to
+      // assert that `InitExpr` is interpreted, rather than supplying a default
+      // value (assuming we don't update the environment API to return
+      // references).
+      if (Value *Val = Env.createValue(D.getType()))
+        Env.setValue(Loc, *Val);
+    }
+
+    if (const auto *Decomp = dyn_cast<DecompositionDecl>(&D)) {
+      // If VarDecl is a DecompositionDecl, evaluate each of its bindings. This
+      // needs to be evaluated after initializing the values in the storage for
+      // VarDecl, as the bindings refer to them.
+      // FIXME: Add support for ArraySubscriptExpr.
+      // FIXME: Consider adding AST nodes that are used for structured bindings
+      // to the CFG.
+      for (const auto *B : Decomp->bindings()) {
+        auto *ME = dyn_cast_or_null<MemberExpr>(B->getBinding());
+        if (ME == nullptr)
+          continue;
+
+        auto *DE = dyn_cast_or_null<DeclRefExpr>(ME->getBase());
+        if (DE == nullptr)
+          continue;
+
+        // ME and its base haven't been visited because they aren't included in
+        // the statements of the CFG basic block.
+        VisitDeclRefExpr(DE);
+        VisitMemberExpr(ME);
+
+        if (auto *Loc = Env.getStorageLocation(*ME, SkipPast::Reference))
+          Env.setStorageLocation(*B, *Loc);
+      }
+    }
   }
 
   void VisitImplicitCastExpr(const ImplicitCastExpr *S) {
@@ -279,7 +303,10 @@ public:
 
   void VisitCXXThisExpr(const CXXThisExpr *S) {
     auto *ThisPointeeLoc = Env.getThisPointeeStorageLocation();
-    assert(ThisPointeeLoc != nullptr);
+    if (ThisPointeeLoc == nullptr)
+      // Unions are not supported yet, and will not have a location for the
+      // `this` expression's pointee.
+      return;
 
     auto &Loc = Env.createStorageLocation(*S);
     Env.setStorageLocation(*S, Loc);
@@ -571,12 +598,15 @@ private:
         return *Val;
     }
 
-    // Sub-expressions that are logic operators are not added in basic blocks
-    // (e.g. see CFG for `bool d = a && (b || c);`). If `SubExpr` is a logic
-    // operator, it isn't evaluated and assigned a value yet. In that case, we
-    // need to first visit `SubExpr` and then try to get the value that gets
-    // assigned to it.
-    Visit(&SubExpr);
+    if (Env.getStorageLocation(SubExpr, SkipPast::None) == nullptr) {
+      // Sub-expressions that are logic operators are not added in basic blocks
+      // (e.g. see CFG for `bool d = a && (b || c);`). If `SubExpr` is a logic
+      // operator, it may not have been evaluated and assigned a value yet. In
+      // that case, we need to first visit `SubExpr` and then try to get the
+      // value that gets assigned to it.
+      Visit(&SubExpr);
+    }
+
     if (auto *Val = dyn_cast_or_null<BoolValue>(
             Env.getValue(SubExpr, SkipPast::Reference)))
       return *Val;

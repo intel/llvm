@@ -557,7 +557,7 @@ template <> struct get_device_info<device, info::device::parent_device> {
     if (result == nullptr)
       throw invalid_object_error(
           "No parent for device because it is not a subdevice",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
 
     // Get the platform of this device
     std::shared_ptr<detail::platform_impl> Platform =
@@ -1068,7 +1068,7 @@ template <> inline device get_device_info_host<info::device::parent_device>() {
   // TODO: implement host device partitioning
   throw invalid_object_error(
       "Partitioning to subdevices of the host device is not implemented yet",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1114,7 +1114,7 @@ template <>
 inline cl_uint get_device_info_host<info::device::max_num_sub_groups>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1122,7 +1122,7 @@ inline std::vector<size_t>
 get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1130,7 +1130,7 @@ inline bool
 get_device_info_host<info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1142,7 +1142,7 @@ template <>
 inline std::string get_device_info_host<info::device::backend_version>() {
   throw runtime_error(
       "Backend version feature is not supported on HOST device.",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1260,53 +1260,53 @@ template <>
 inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_uint get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_uint get_device_info_host<info::device::ext_intel_gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_uint
 get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
   throw runtime_error(
       "Obtaining the HW threads count per EU is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 template <>
 inline cl_ulong
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
   return false;
@@ -1317,7 +1317,7 @@ inline detail::uuid_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",
-      PI_INVALID_DEVICE);
+      PI_ERROR_INVALID_DEVICE);
 }
 
 } // namespace detail

@@ -175,11 +175,12 @@ set(LLVM_CCACHE_BUILD OFF CACHE BOOL "Set to ON for a ccache enabled build")
 if(LLVM_CCACHE_BUILD)
   find_program(CCACHE_PROGRAM ccache)
   if(CCACHE_PROGRAM)
-      set(LLVM_CCACHE_MAXSIZE "" CACHE STRING "Size of ccache")
-      set(LLVM_CCACHE_DIR "" CACHE STRING "Directory to keep ccached data")
-      set(LLVM_CCACHE_PARAMS "CCACHE_CPP2=yes CCACHE_HASHDIR=yes"
-          CACHE STRING "Parameters to pass through to ccache")
+    set(LLVM_CCACHE_MAXSIZE "" CACHE STRING "Size of ccache")
+    set(LLVM_CCACHE_DIR "" CACHE STRING "Directory to keep ccached data")
+    set(LLVM_CCACHE_PARAMS "CCACHE_CPP2=yes CCACHE_HASHDIR=yes"
+        CACHE STRING "Parameters to pass through to ccache")
 
+    if(NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
       set(CCACHE_PROGRAM "${LLVM_CCACHE_PARAMS} ${CCACHE_PROGRAM}")
       if (LLVM_CCACHE_MAXSIZE)
         set(CCACHE_PROGRAM "CCACHE_MAXSIZE=${LLVM_CCACHE_MAXSIZE} ${CCACHE_PROGRAM}")
@@ -188,6 +189,16 @@ if(LLVM_CCACHE_BUILD)
         set(CCACHE_PROGRAM "CCACHE_DIR=${LLVM_CCACHE_DIR} ${CCACHE_PROGRAM}")
       endif()
       set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_PROGRAM})
+    else()
+      if(LLVM_CCACHE_MAXSIZE OR LLVM_CCACHE_DIR OR
+         NOT LLVM_CCACHE_PARAMS MATCHES "CCACHE_CPP2=yes CCACHE_HASHDIR=yes")
+        message(FATAL_ERROR "Ccache configuration through CMake is not supported on Windows. Please use environment variables.")
+      endif()
+      # RULE_LAUNCH_COMPILE should work with Ninja but currently has issues
+      # with cmd.exe and some MSVC tools other than cl.exe
+      set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+      set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})     
+    endif()
   else()
     message(FATAL_ERROR "Unable to find the program ccache. Set LLVM_CCACHE_BUILD to OFF")
   endif()
@@ -1065,6 +1076,10 @@ if( MINGW AND NOT "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" )
   llvm_replace_compiler_option(CMAKE_CXX_FLAGS_RELEASE "-O3" "-O2")
 endif()
 
+if(LLVM_INCLUDE_TESTS)
+  umbrella_lit_testsuite_begin(check-all)
+endif()
+
 # Put this before tblgen. Else we have a circular dependence.
 add_subdirectory(lib/Demangle)
 add_subdirectory(lib/Support)
@@ -1136,25 +1151,12 @@ if( LLVM_INCLUDE_TESTS )
     add_subdirectory(utils/KillTheDoctor)
   endif()
 
-  # Add a global check rule now that all subdirectories have been traversed
-  # and we know the total set of lit testsuites.
-  get_property(LLVM_LIT_TESTSUITES GLOBAL PROPERTY LLVM_LIT_TESTSUITES)
-  get_property(LLVM_LIT_PARAMS GLOBAL PROPERTY LLVM_LIT_PARAMS)
-  get_property(LLVM_LIT_DEPENDS GLOBAL PROPERTY LLVM_LIT_DEPENDS)
-  get_property(LLVM_LIT_EXTRA_ARGS GLOBAL PROPERTY LLVM_LIT_EXTRA_ARGS)
-  get_property(LLVM_ADDITIONAL_TEST_TARGETS
-               GLOBAL PROPERTY LLVM_ADDITIONAL_TEST_TARGETS)
-  get_property(LLVM_ADDITIONAL_TEST_DEPENDS
-               GLOBAL PROPERTY LLVM_ADDITIONAL_TEST_DEPENDS)
-  add_lit_target(check-all
-    "Running all regression tests"
-    ${LLVM_LIT_TESTSUITES}
-    PARAMS ${LLVM_LIT_PARAMS}
-    DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_TARGETS}
-    ARGS ${LLVM_LIT_EXTRA_ARGS}
-    )
+  umbrella_lit_testsuite_end(check-all)
+  get_property(LLVM_ALL_LIT_DEPENDS GLOBAL PROPERTY LLVM_ALL_LIT_DEPENDS)
+  get_property(LLVM_ALL_ADDITIONAL_TEST_DEPENDS
+      GLOBAL PROPERTY LLVM_ALL_ADDITIONAL_TEST_DEPENDS)
   add_custom_target(test-depends
-                    DEPENDS ${LLVM_LIT_DEPENDS} ${LLVM_ADDITIONAL_TEST_DEPENDS})
+      DEPENDS ${LLVM_ALL_LIT_DEPENDS} ${LLVM_ALL_ADDITIONAL_TEST_DEPENDS})
   set_target_properties(test-depends PROPERTIES FOLDER "Tests")
 endif()
 

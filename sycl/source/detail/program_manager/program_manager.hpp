@@ -188,6 +188,9 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // Returns true if any available image is compatible with the device Dev.
+  bool hasCompatibleImage(const device &Dev);
+
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(

@@ -82,6 +82,13 @@ inline raw_ostream &operator<<(raw_ostream &OS, const SegmentInfo &SegInfo) {
   return OS;
 }
 
+// AArch64-specific symbol markers used to delimit code/data in .text.
+enum class MarkerSymType : char {
+  NONE = 0,
+  CODE,
+  DATA,
+};
+
 enum class MemoryContentsType : char {
   UNKNOWN = 0,             /// Unknown contents.
   POSSIBLE_JUMP_TABLE,     /// Possibly a non-PIC jump table.
@@ -549,6 +556,9 @@ public:
 
   std::unique_ptr<MCDisassembler> DisAsm;
 
+  /// Symbolic disassembler.
+  std::unique_ptr<MCDisassembler> SymbolicDisAsm;
+
   std::unique_ptr<MCAsmBackend> MAB;
 
   /// Indicates if relocations are available for usage.
@@ -661,6 +671,11 @@ public:
     return TheTriple->getArch() == llvm::Triple::x86 ||
            TheTriple->getArch() == llvm::Triple::x86_64;
   }
+
+  // AArch64-specific functions to check if symbol is used to delimit
+  // code/data in .text. Code is marked by $x, data by $d.
+  MarkerSymType getMarkerType(const SymbolRef &Symbol) const;
+  bool isMarker(const SymbolRef &Symbol) const;
 
   /// Iterate over all BinaryData.
   iterator_range<binary_data_const_iterator> getBinaryData() const {
@@ -1187,7 +1202,8 @@ public:
                         uint64_t Offset = 0,
                         const BinaryFunction *Function = nullptr,
                         bool PrintMCInst = false, bool PrintMemData = false,
-                        bool PrintRelocations = false) const;
+                        bool PrintRelocations = false,
+                        StringRef Endl = "\n") const;
 
   /// Print a range of instructions.
   template <typename Itr>
@@ -1195,10 +1211,11 @@ public:
   printInstructions(raw_ostream &OS, Itr Begin, Itr End, uint64_t Offset = 0,
                     const BinaryFunction *Function = nullptr,
                     bool PrintMCInst = false, bool PrintMemData = false,
-                    bool PrintRelocations = false) const {
+                    bool PrintRelocations = false,
+                    StringRef Endl = "\n") const {
     while (Begin != End) {
       printInstruction(OS, *Begin, Offset, Function, PrintMCInst, PrintMemData,
-                       PrintRelocations);
+                       PrintRelocations, Endl);
       Offset += computeCodeSize(Begin, Begin + 1);
       ++Begin;
     }

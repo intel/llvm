@@ -47,11 +47,17 @@ LockCacheItem::~LockCacheItem() {
                                      FileName);
 }
 
+// Returns true if the specified format is either SPIRV or a native binary.
+static bool IsSupportedImageFormat(RT::PiDeviceBinaryType Format) {
+  return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
+         Format == PI_DEVICE_BINARY_TYPE_NATIVE;
+}
+
 /* Returns true if specified image should be cached on disk. It checks if
- * cache is enabled, image has SPIRV type and matches thresholds. */
+ * cache is enabled, image has supported format and matches thresholds. */
 bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
-  // Cache shoould be enabled and image type should be SPIR-V
-  if (!isEnabled() || Img.getFormat() != PI_DEVICE_BINARY_TYPE_SPIRV)
+  // Cache should be enabled and image type is one of the supported formats.
+  if (!isEnabled() || !IsSupportedImageFormat(Img.getFormat()))
     return false;
 
   // Disable cache for ITT-profiled images.
@@ -374,7 +380,7 @@ static bool parsePersistentCacheConfig() {
           std::string{"Invalid value for bool configuration variable "} +
           SYCLConfig<SYCL_CACHE_PERSISTENT>::getName() + std::string{": "} +
           RawVal;
-      throw runtime_error(Msg, PI_INVALID_OPERATION);
+      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
     }
   }
   PersistentDeviceCodeCache::trace(Ret ? "enabled" : "disabled");
