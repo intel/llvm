@@ -16,6 +16,11 @@
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
+#if !defined(__SPIR__) && !defined(__LIBDEVICE_HOST_IMPL__)
+#error                                                                         \
+    "__SPIR__ or __LIBDEVICE_HOST_IMPL__ must be defined to enable device imf functions!"
+#endif
+
 // TODO: Bitcast is valid to trivially copyable object only but using
 // is_trivially_copyable check will lead to compiling error in some
 // pre-ci tests, the pre-ci environment used some legacy c++ std library
