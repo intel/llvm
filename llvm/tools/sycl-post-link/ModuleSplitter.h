@@ -82,11 +82,11 @@ struct EntryPointGroup {
                   const Properties &Props)
       : GroupId(GroupId), Functions(std::move(Functions)), Props(Props) {}
 
-  // Tells if this group has only ESIMD entry points (based on GroupId).
+  // Tells if this group has only ESIMD entry points.
   bool isEsimd() const {
     return Props.HasESIMD == SyclEsimdSplitStatus::ESIMD_ONLY;
   }
-  // Tells if this group has only SYCL entry points (based on GroupId).
+  // Tells if this group has only SYCL entry points.
   bool isSycl() const {
     return Props.HasESIMD == SyclEsimdSplitStatus::SYCL_ONLY;
   }
@@ -100,6 +100,13 @@ struct EntryPointGroup {
 
 using EntryPointGroupVec = std::vector<EntryPointGroup>;
 
+// Annotates an llvm::Module with information necessary to perform and track
+// result of device code (llvm::Module instances) splitting:
+// - entry points of the module determined e.g. by a module splitter, as well
+//   as information about entry point origin (e.g. result of a scoped split)
+// - its properties, such as whether it has specialization constants uses
+// It also provides convenience functions for entry point set transformation
+// between llvm::Function object and string representations.
 class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
