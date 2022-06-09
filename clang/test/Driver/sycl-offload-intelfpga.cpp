@@ -517,3 +517,10 @@
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xssimulation %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_HARDWARE -DBEOPT=simulation %s
 // IMPLIED_DEVICE_HARDWARE: aoc{{.*}} "-[[BEOPT]]"
+
+/// -fno-discard-value-names is default for FPGA
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DISCARD-VALUE-NAMES %s
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DISCARD-VALUE-NAMES %s
+// CHK-DISCARD-VALUE-NAMES-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-discard-value-names"
