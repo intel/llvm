@@ -201,15 +201,13 @@ template <class To> inline To cast(std::vector<cl_event> value) {
 }
 
 // These conversions should use PI interop API.
-template <> inline PiProgram cast(cl_program) {
-  RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
-  return {};
-}
+template <>
+inline PiProgram
+    cast(cl_program) = delete; // Use piextCreateProgramWithNativeHandle
 
-template <> inline PiDevice cast(cl_device_id) {
-  RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
-  return {};
-}
+template <>
+inline PiDevice
+    cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
 } // namespace pi
 } // namespace detail
 } // namespace sycl
