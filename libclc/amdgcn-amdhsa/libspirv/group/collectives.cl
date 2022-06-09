@@ -234,7 +234,6 @@ __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
-// There is no Mul group op in SPIR-V, use non-uniform variant instead.
 __CLC_GROUP_COLLECTIVE(IMulKHR, IMul, __CLC_MUL, char, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, IMul, __CLC_MUL, uchar, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, IMul, __CLC_MUL, short, 1)
