@@ -420,25 +420,19 @@ template <class To, class From> inline To cast(From value) {
   return (To)(value);
 }
 
-// Specialization for vectors that applies the cast to all elements. This
-// creates a new vector.
-template <class To, class From>
-inline std::vector<To> cast(std::vector<From> Values) {
-  std::vector<To> ResultVec;
-  ResultVec.reserve(Values.size());
-  for (From &Val : Values)
-    ResultVec.push_back(cast<To>(Val));
-  return ResultVec;
-}
+// Helper traits for identifying std::vector with arbitrary element type.
+template <typename T> struct IsStdVector : std::false_type {};
+template <typename T> struct IsStdVector<std::vector<T>> : std::true_type {};
 
-// Disallow vector casts that do not result in a vector.
-template <class To, class From> inline To cast(std::vector<From> value) {
-  // Silence the unused parameter warning.
-  (void)value;
-  RT::assertion(false,
-                "Compatibility specialization, not expected to be used. "
-                "Casts with an input vector must result in another vector.");
-  return {};
+// Overload for vectors that applies the cast to all elements. This
+// creates a new vector.
+template <class To, class FromE> To cast(std::vector<FromE> Values) {
+  static_assert(IsStdVector<To>::value, "Return type must be a vector.");
+  To ResultVec;
+  ResultVec.reserve(Values.size());
+  for (FromE &Val : Values)
+    ResultVec.push_back(cast<typename To::value_type>(Val));
+  return ResultVec;
 }
 
 } // namespace pi
