@@ -22,14 +22,15 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
     // Update all callers as well.
     for (auto It = CurF->use_begin(); It != CurF->use_end(); It++) {
       auto FCall = It->getUser();
+      auto ErrMsg =
+          llvm::Twine(__FILE__ " ") +
+          "Function use other than call detected while traversing call\n"
+          "graph up to a kernel";
       if (!isa<CallInst>(FCall)) {
         // A use other than a call is met...
         if (ErrorOnNonCallUse) {
           // ... non-call is an error - report
-          llvm::report_fatal_error(
-              llvm::Twine(__FILE__ " ") +
-              "Function use other than call detected while traversing call\n"
-              "graph up to a kernel");
+          llvm::report_fatal_error(ErrMsg);
         } else {
           // ... non-call is OK - add using function to the worklist
           if (auto *I = dyn_cast<Instruction>(FCall)) {
@@ -41,10 +42,17 @@ void traverseCallgraphUp(llvm::Function *F, CallGraphNodeAction ActionF,
           }
         }
       } else {
-        auto FCaller = cast<CallInst>(FCall)->getFunction();
+        auto *CI = cast<CallInst>(FCall);
 
-        if (!FunctionsVisited.count(FCaller)) {
-          Worklist.push_back(FCaller);
+        if ((CI->getCalledFunction() != CurF) && ErrorOnNonCallUse) {
+          // CurF is used in a call, but not as the callee.
+          llvm::report_fatal_error(ErrMsg);
+        } else {
+          auto FCaller = CI->getFunction();
+
+          if (!FunctionsVisited.count(FCaller)) {
+            Worklist.push_back(FCaller);
+          }
         }
       }
     }

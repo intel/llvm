@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Error.h"
@@ -34,7 +35,7 @@ enum IRSplitMode {
 };
 
 // A vector that contains all entry point functions in a split module.
-using EntryPointVec = std::vector<const Function *>;
+using EntryPointSet = SetVector<const Function *>;
 
 enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
 
@@ -71,13 +72,13 @@ struct EntryPointGroup {
   };
 
   StringRef GroupId;
-  EntryPointVec Functions;
+  EntryPointSet Functions;
   Properties Props;
 
   EntryPointGroup(StringRef GroupId = "") : GroupId(GroupId) {}
-  EntryPointGroup(StringRef GroupId, EntryPointVec &&Functions)
+  EntryPointGroup(StringRef GroupId, EntryPointSet &&Functions)
       : GroupId(GroupId), Functions(std::move(Functions)) {}
-  EntryPointGroup(StringRef GroupId, EntryPointVec &&Functions,
+  EntryPointGroup(StringRef GroupId, EntryPointSet &&Functions,
                   const Properties &Props)
       : GroupId(GroupId), Functions(std::move(Functions)), Props(Props) {}
 
@@ -102,6 +103,7 @@ using EntryPointGroupVec = std::vector<EntryPointGroup>;
 class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
+  bool IsTopLevel = false;
 
 public:
   struct Properties {
@@ -110,11 +112,8 @@ public:
   std::string Name = "";
   Properties Props;
 
-  ModuleDesc() { Name = "EMPTY"; }
-
-  ModuleDesc(std::unique_ptr<Module> &&M) : M(std::move(M)) {
-    Name = "TOP-LEVEL";
-  }
+  ModuleDesc(std::unique_ptr<Module> &&M, StringRef Name = "TOP-LEVEL")
+      : M(std::move(M)), IsTopLevel(true), Name(Name) {}
 
   ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints,
              const Properties &Props)
@@ -122,9 +121,18 @@ public:
     Name = this->EntryPoints.GroupId.str();
   }
 
-  ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names)
-      : M(std::move(M)) {
+  ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names,
+             StringRef Name = "NoName")
+      : M(std::move(M)), Name(Name) {
     rebuildEntryPoints(Names);
+  }
+
+  // Filters out functions which are not part of this module's entry point set.
+  bool isEntryPointCandidate(const Function &F) const {
+    if (EntryPoints.Functions.size() > 0) {
+      return EntryPoints.Functions.contains(&F);
+    }
+    return IsTopLevel; // Top level module does not limit entry points set.
   }
 
   void assignMergedProperties(const ModuleDesc &MD1, const ModuleDesc &MD2);
@@ -133,9 +141,9 @@ public:
   bool isSYCL() const { return EntryPoints.isSycl(); }
   bool isDoubleGRF() const { return EntryPoints.isDoubleGRF(); }
 
-  const EntryPointVec &entries() const { return EntryPoints.Functions; }
+  const EntryPointSet &entries() const { return EntryPoints.Functions; }
   const EntryPointGroup &getEntryPointGroup() const { return EntryPoints; }
-  EntryPointVec &entries() { return EntryPoints.Functions; }
+  EntryPointSet &entries() { return EntryPoints.Functions; }
   Module &getModule() { return *M; }
   const Module &getModule() const { return *M; }
   std::unique_ptr<Module> releaseModulePtr() { return std::move(M); }
@@ -211,8 +219,7 @@ public:
 };
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints,
-                        EntryPointVec *AllowedEntries = nullptr);
+getSplitterByKernelType(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByMode(ModuleDesc &&MD, IRSplitMode Mode,
@@ -223,7 +230,7 @@ std::unique_ptr<ModuleSplitterBase>
 getESIMDDoubleGRFSplitter(ModuleDesc &&MD, bool EmitOnlyKernelsAsEntryPoints);
 
 #ifndef NDEBUG
-void dumpEntryPoints(const EntryPointVec &C, const char *msg = "", int Tab = 0);
+void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
 #endif // NDEBUG

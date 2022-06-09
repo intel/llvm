@@ -452,7 +452,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
 }
 
 // Saves specified collection of symbols to a file.
-std::string saveModuleSymbolTable(const module_split::EntryPointVec &Es, int I,
+std::string saveModuleSymbolTable(const module_split::EntryPointSet &Es, int I,
                                   StringRef Suffix) {
 #ifndef NDEBUG
   if (DebugPostLink > 0) {
@@ -692,7 +692,7 @@ processInputModule(std::unique_ptr<Module> M) {
 
   DUMP_ENTRY_POINTS(*M, EmitOnlyKernelsAsEntryPoints, "Input");
 
-  // --ir-output-only assumes single module output thus no code splitting.
+  // -ir-output-only assumes single module output thus no code splitting.
   // Violation of this invariant is user error and must've been reported.
   // However, if split mode is "auto", then entry point filtering is still
   // performed.
@@ -730,6 +730,7 @@ processInputModule(std::unique_ptr<Module> M) {
     const bool SplitByDoubleGRF = DoubleGRFSplitter->totalSplits() > 1;
     Modified |= SplitByDoubleGRF;
 
+    // Now split further by "esimd-double-grf" attribute.
     while (DoubleGRFSplitter->hasMoreSplits()) {
       module_split::ModuleDesc MDesc1 = DoubleGRFSplitter->nextSplit();
       DUMP_ENTRY_POINTS(MDesc1.entries(), MDesc1.Name.c_str(), 2);
@@ -737,13 +738,12 @@ processInputModule(std::unique_ptr<Module> M) {
       // Do SYCL/ESIMD splitting. It happens always, as ESIMD and SYCL must
       // undergo different set of LLVMIR passes. After this they are linked back
       // together to form single module with disjoint SYCL and ESIMD call graphs
-      // unless --split-esimd option is specified. The graphs become disjoint
+      // unless -split-esimd option is specified. The graphs become disjoint
       // when linked back because functions shared between graphs are cloned and
       // renamed.
       std::unique_ptr<module_split::ModuleSplitterBase> ESIMDSplitter =
           module_split::getSplitterByKernelType(std::move(MDesc1),
-                                                EmitOnlyKernelsAsEntryPoints,
-                                                &MDesc1.entries());
+                                                EmitOnlyKernelsAsEntryPoints);
       const bool SplitByESIMD = ESIMDSplitter->totalSplits() > 1;
       Modified |= SplitByESIMD;
 
