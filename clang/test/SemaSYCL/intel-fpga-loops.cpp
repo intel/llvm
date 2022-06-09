@@ -363,8 +363,7 @@ void zoo() {
 // Test for Intel FPGA loop attributes compatibility
 void loop_attrs_compatibility() {
   int a[10];
-  [[intel::fpga_pipeline]]
-  [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+  [[intel::fpga_pipeline]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+4 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}
