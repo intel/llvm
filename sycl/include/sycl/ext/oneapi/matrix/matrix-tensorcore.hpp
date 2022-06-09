@@ -351,8 +351,9 @@ struct joint_matrix_load_impl<
           __hmma_m32n8k16_ld_c_f32(dstptr, src.get(), stride,
                                    get_layout_id<Layout>());
         }
-      } else if constexpr (std::is_same<S, sycl::ext::oneapi::experimental::matrix::
-                                     precision::tf32>::value) {
+      } else if constexpr (std::is_same<S,
+                                        sycl::ext::oneapi::experimental::
+                                            matrix::precision::tf32>::value) {
         auto tileptr = reinterpret_cast<int32_t *>(src.get());
         auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
         if constexpr (NumRows == 16 && NumCols == 8) {
