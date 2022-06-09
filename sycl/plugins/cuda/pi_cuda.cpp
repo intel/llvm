@@ -1903,7 +1903,7 @@ pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
 
   // If the provided nativeHandle cannot be matched to an
   // existing device return error
-  return PI_INVALID_VALUE;
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 /* Context APIs */
