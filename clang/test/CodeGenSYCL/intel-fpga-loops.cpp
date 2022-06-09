@@ -27,6 +27,7 @@
 // CHECK: br label %while.cond, !llvm.loop ![[MD_FP_4:[0-9]+]]
 // CHECK: br i1 %cmp38, label %do.body, label %do.end, !llvm.loop ![[MD_FP_5:[0-9]+]]
 // CHECK: br label %for.cond40, !llvm.loop ![[MD_FP_6:[0-9]+]]
+// CHECK: br label %while.cond47, !llvm.loop ![[MD_FP_7:[0-9]+]]
 
 void disable_loop_pipelining() {
   int a[10];
@@ -194,6 +195,10 @@ void fpga_pipeline() {
   // CHECK: ![[MD_FP_6]] = distinct !{![[MD_FP_6]], ![[MD_fpga_pipeline]]}
   int c[] = {0, 1, 2, 3, 4, 5};
   [[intel::fpga_pipeline(A)]] for (int n : c) { n *= 2; }
+
+  // CHECK: ![[MD_FP_7]] = distinct !{![[MD_FP_7]], ![[MP]], ![[MD_fpga_pipeline]]}
+  int k = 0;
+  [[intel::fpga_pipeline(-1)]] while (k < 20) { a[k] += 2; }
 }
 
 template <typename name, typename Func>
