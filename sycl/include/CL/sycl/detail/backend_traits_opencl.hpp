@@ -197,7 +197,7 @@ template <class To> inline To cast(std::vector<cl_event> value) {
   RT::assertion(value.size() == 1,
                 "Temporary workaround requires that the "
                 "size of the input vector for make_event be equal to one.");
-  return (To)(value[0]);
+  return cast<To>(value[0]);
 }
 
 // These conversions should use PI interop API.
