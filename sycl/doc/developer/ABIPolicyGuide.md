@@ -96,11 +96,11 @@ There is a set of tests to help identifying ABI changes:
 ## Changing ABI
 
 Generally DPC++ runtime and compiler ABI is frozen and ABI-breaking changes are
-not accepted by default since Oct 2020. Please, try to avoid making any breaking
+not accepted by default since Oct 2020. Please try to avoid making any breaking
 changes. If you need to change existing functionality, consider adding new APIs
-instead of replacing them. Also, please, avoid any changes, mentioned in the
+instead of replacing existing APIs. Also, please, avoid any changes, mentioned in the
 [Intro](#intro) section as breaking. Refer to the above guide to distinguish
-breaking and non-breaking changes. If not sure, do not hesitate to ask code
+between breaking and non-breaking changes. If unsure, do not hesitate to ask code
 owners for help.
 
 **Note**: Features clearly marked as experimental are considered as an exception
@@ -108,10 +108,10 @@ to this guideline.
 
 ### ABI breaking changes window June 15 - September 15 2022
 
-Since the point when ABI was frozen ~2 years ago we accumulated significant
+Since the point when ABI was frozen ~2 years ago we have accumulated a significant
 volume of changes, which require breaking ABI. We are opening a window to
 implement these changes. During this period of time ABI breaking changes will be
-accepted. All breaking changes still require a good justification.
+accepted. All breaking changes will still require a good justification.
 
 Whenever you need to change the existing ABI, please, follow these steps:
 
