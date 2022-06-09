@@ -1069,9 +1069,13 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   }
 
   std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
-  assert(PiESimdSurfaceMap->find((*RetMem)->SurfaceIndex) ==
-             PiESimdSurfaceMap->end() &&
-         "Failure from CM-managed buffer creation");
+  if (PiESimdSurfaceMap->find((*RetMem)->SurfaceIndex) !=
+      PiESimdSurfaceMap->end()) {
+    if (PrintPiTrace) {
+      std::cerr << "Failure from CM-managed buffer creation" << std::endl;
+    }
+    return PI_ERROR_INVALID_MEM_OBJECT;
+  }
 
   (*PiESimdSurfaceMap)[(*RetMem)->SurfaceIndex] = *RetMem;
 
@@ -1099,8 +1103,12 @@ pi_result piMemRelease(pi_mem Mem) {
     // Removing Surface-map entry
     std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
     auto MapEntryIt = PiESimdSurfaceMap->find(Mem->SurfaceIndex);
-    assert(MapEntryIt != PiESimdSurfaceMap->end() &&
-           "Failure from Buffer/Image deletion");
+    if (MapEntryIt == PiESimdSurfaceMap->end()) {
+      if (PrintPiTrace) {
+        std::cerr << "Failure from Buffer/Image deletion" << std::endl;
+      }
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
     PiESimdSurfaceMap->erase(MapEntryIt);
     delete Mem;
   }
@@ -1122,8 +1130,8 @@ _pi_mem::~_pi_mem() {
     Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
   }
 
-  assert(Status == cm_support::CM_SUCCESS &&
-         "Surface Deletion Failure from CM_EMU");
+  cl::sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
+                                  "Surface Deletion Failure from CM_EMU");
 
   for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
     mapit = Mappings.erase(mapit);
@@ -1265,9 +1273,13 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   }
 
   std::lock_guard<std::mutex> Lock{*PiESimdSurfaceMapLock};
-  assert(PiESimdSurfaceMap->find((*RetImage)->SurfaceIndex) ==
-             PiESimdSurfaceMap->end() &&
-         "Failure from CM-managed image creation");
+  if (PiESimdSurfaceMap->find((*RetImage)->SurfaceIndex) !=
+      PiESimdSurfaceMap->end()) {
+    if (PrintPiTrace) {
+      std::cerr << "Failure from CM-managed image creation" << std::endl;
+    }
+    return PI_ERROR_INVALID_VALUE;
+  }
 
   (*PiESimdSurfaceMap)[(*RetImage)->SurfaceIndex] = *RetImage;
 
@@ -1503,12 +1515,21 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
 
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
-    assert(false &&
-           "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI");
+    if (PrintPiTrace) {
+      std::cerr
+          << "ESIMD_EMULATOR support for blocking piEnqueueMemBufferRead is NYI"
+          << std::endl;
+    }
+    return PI_ERROR_INVALID_OPERATION;
   }
 
-  assert(Offset == 0 &&
-         "ESIMD_EMULATOR does not support buffer reading with offsets");
+  if (Offset != 0) {
+    if (PrintPiTrace) {
+      std::cerr << "ESIMD_EMULATOR does not support buffer reading with offsets"
+                << std::endl;
+    }
+    return PI_ERROR_INVALID_ARG_VALUE;
+  }
 
   if (NumEventsInWaitList != 0) {
     return PI_ERROR_INVALID_EVENT_WAIT_LIST;
@@ -1527,7 +1548,9 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
     // Surface. memcpy is used for BufferRead PI_API call.
     memcpy(Dst, buf->MapHostPtr, Size);
   } else {
-    assert(buf->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularBuffer);
+    if (buf->SurfacePtr.tag != cm_surface_ptr_t::TypeRegularBuffer) {
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
     int Status = buf->SurfacePtr.RegularBufPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Dst),
         nullptr, // event
@@ -1688,16 +1711,32 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
 
   /// TODO : Support Blocked read, 'Queue' handling
   if (BlockingRead) {
-    assert(false && "ESIMD_EMULATOR does not support Blocking Read");
+    if (PrintPiTrace) {
+      std::cerr
+          << "ESIMD_EMULATOR support for blocking piEnqueueMemImageRead is NYI"
+          << std::endl;
+    }
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   // SlicePitch is for 3D image while ESIMD_EMULATOR does not
   // support. For 2D surfaces, SlicePitch must be 0.
-  assert((SlicePitch == 0) && "ESIMD_EMULATOR does not support 3D-image");
+  if (SlicePitch != 0) {
+    if (PrintPiTrace) {
+      std::cerr << "ESIMD_EMULATOR does not support 3D-image" << std::endl;
+    }
+    return PI_ERROR_INVALID_ARG_VALUE;
+  }
 
   // CM_EMU does not support ReadSurface with offset
-  assert(Origin->x == 0 && Origin->y == 0 && Origin->z == 0 &&
-         "ESIMD_EMULATOR does not support 2D-image reading with offsets");
+  if (Origin->x != 0 || Origin->y != 0 || Origin->z != 0) {
+    if (PrintPiTrace) {
+      std::cerr
+          << "ESIMD_EMULATOR does not support 2D-image reading with offsets"
+          << std::endl;
+    }
+    return PI_ERROR_INVALID_ARG_VALUE;
+  }
 
   _pi_image *PiImg = static_cast<_pi_image *>(Image);
 
@@ -1714,7 +1753,9 @@ pi_result piEnqueueMemImageRead(pi_queue CommandQueue, pi_mem Image,
     // Surface. memcpy is used for ImageRead PI_API call.
     memcpy(Ptr, PiImg->MapHostPtr, Size);
   } else {
-    assert(PiImg->SurfacePtr.tag == cm_surface_ptr_t::TypeRegularImage);
+    if (PiImg->SurfacePtr.tag != cm_surface_ptr_t::TypeRegularImage) {
+      return PI_ERROR_INVALID_MEM_OBJECT;
+    }
     int Status = PiImg->SurfacePtr.RegularImgPtr->ReadSurface(
         reinterpret_cast<unsigned char *>(Ptr),
         nullptr, // event
