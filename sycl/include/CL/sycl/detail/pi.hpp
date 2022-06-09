@@ -424,6 +424,8 @@ template <class To, class From> inline To cast(From value) {
 }
 
 template <class To, class From> inline To cast(std::vector<From> value) {
+  // Silence the unused parameter warning.
+  (void)value;
   RT::assertion(false,
                 "Compatibility specialization, not expected to be used. "
                 "The only allowed cast using a vector of From values is "
