@@ -13,9 +13,6 @@
 
 #pragma once
 
-#ifdef PI_OPENCL_AVAILABLE
-#include <CL/sycl/detail/cl.h>
-#endif // PI_OPENCL_AVAILABLE
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -423,38 +420,26 @@ template <class To, class From> inline To cast(From value) {
   return (To)(value);
 }
 
+// Specialization for vectors that applies the cast to all elements. This
+// creates a new vector.
+template <class To, class From>
+inline std::vector<To> cast(std::vector<From> Values) {
+  std::vector<To> ResultVec;
+  ResultVec.reserve(Values.size());
+  for (From &Val : Values)
+    ResultVec.push_back(cast<To>(Val));
+  return ResultVec;
+}
+
+// Disallow vector casts that do not result in a vector.
 template <class To, class From> inline To cast(std::vector<From> value) {
   // Silence the unused parameter warning.
   (void)value;
   RT::assertion(false,
                 "Compatibility specialization, not expected to be used. "
-                "The only allowed cast using a vector of From values is "
-                "implemented in the OpenCL backend (see cl_event case).");
+                "Casts with an input vector must result in another vector.");
   return {};
 }
-
-#ifdef PI_OPENCL_AVAILABLE
-
-// Cast for std::vector<cl_event>, according to the spec, make_event
-// should create one(?) event from a vector of cl_event
-template <class To> inline To cast(std::vector<cl_event> value) {
-  RT::assertion(value.size() == 1,
-                "Temporary workaround requires that the "
-                "size of the input vector for make_event be equal to one.");
-  return (To)(value[0]);
-}
-
-// These conversions should use PI interop API.
-template <> inline pi::PiProgram cast(cl_program) {
-  RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
-  return {};
-}
-
-template <> inline pi::PiDevice cast(cl_device_id) {
-  RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
-  return {};
-}
-#endif // PI_OPENCL_AVAILABLE
 
 } // namespace pi
 } // namespace detail
