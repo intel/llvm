@@ -62,7 +62,7 @@ unsigned LangOptions::getOpenCLCompatibleVersion() const {
   llvm_unreachable("Unknown OpenCL version");
 }
 
-void LangOptions::remapPathPrefix(SmallString<256> &Path) const {
+void LangOptions::remapPathPrefix(SmallVectorImpl<char> &Path) const {
   for (const auto &Entry : MacroPrefixMap)
     if (llvm::sys::path::replace_path_prefix(Path, Entry.first, Entry.second))
       break;
@@ -117,6 +117,8 @@ void LangOptions::setLangDefaults(LangOptions &Opts, Language Lang,
   Opts.Digraphs = Std.hasDigraphs();
 
   Opts.HLSL = Lang == Language::HLSL;
+  if (Opts.HLSL && Opts.IncludeDefaultHeader)
+    Includes.push_back("hlsl.h");
 
   // Set OpenCL Version.
   Opts.OpenCL = Std.isOpenCL();

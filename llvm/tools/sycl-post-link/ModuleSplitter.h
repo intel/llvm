@@ -119,13 +119,10 @@ public:
   // this module descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split.
   // Otherwise assumes the module has both SYCL and ESIMD.
   void assignESIMDProperty();
-#ifndef _NDEBUG
+#ifndef NDEBUG
   void verifyESIMDProperty() const;
-#endif // _NDEBUG
-
-#ifndef _NDEBUG
   void dump();
-#endif // _NDEBUG
+#endif // NDEBUG
 };
 
 // Module split support interface.
@@ -188,11 +185,11 @@ getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
                   bool AutoSplitIsGlobalScope,
                   bool EmitOnlyKernelsAsEntryPoints);
 
-#ifndef _NDEBUG
+#ifndef NDEBUG
 void dumpEntryPoints(const EntryPointVec &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
-#endif // _NDEBUG
+#endif // NDEBUG
 
 } // namespace module_split
 

@@ -89,16 +89,6 @@ void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
   Call->removeFnAttr(Attr);
 }
 
-Value *removeCast(Value *V) {
-  auto Cast = dyn_cast<ConstantExpr>(V);
-  if (Cast && Cast->isCast()) {
-    return removeCast(Cast->getOperand(0));
-  }
-  if (auto Cast = dyn_cast<CastInst>(V))
-    return removeCast(Cast->getOperand(0));
-  return V;
-}
-
 void saveLLVMModule(Module *M, const std::string &OutputFile) {
   std::error_code EC;
   ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
@@ -648,17 +638,6 @@ bool containsUnsignedAtomicType(StringRef Name) {
 bool isFunctionPointerType(Type *T) {
   if (isa<PointerType>(T) && isa<FunctionType>(T->getPointerElementType())) {
     return true;
-  }
-  return false;
-}
-
-bool hasFunctionPointerArg(Function *F, Function::arg_iterator &AI) {
-  AI = F->arg_begin();
-  for (auto AE = F->arg_end(); AI != AE; ++AI) {
-    LLVM_DEBUG(dbgs() << "[hasFuncPointerArg] " << *AI << '\n');
-    if (isFunctionPointerType(AI->getType())) {
-      return true;
-    }
   }
   return false;
 }
@@ -1256,8 +1235,12 @@ Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
     assert(Len == 1 && "Invalid length");
     return ConstantInt::get(IT, V, IsSigned);
   }
-  if (auto PT = dyn_cast<PointerType>(T)) {
-    auto ET = PT->getPointerElementType();
+  if (isa<PointerType>(T)) {
+    unsigned PointerSize =
+        Pos->getModule()->getDataLayout().getPointerTypeSizeInBits(T);
+    auto *ET = Type::getIntNTy(T->getContext(), PointerSize);
+    assert(cast<PointerType>(T)->isOpaqueOrPointeeTypeMatches(ET) &&
+           "Pointer-to-non-size_t arguments are not valid for this call");
     auto AT = ArrayType::get(ET, Len);
     std::vector<Constant *> EV(Len, ConstantInt::get(ET, V, IsSigned));
     auto CA = ConstantArray::get(AT, EV);

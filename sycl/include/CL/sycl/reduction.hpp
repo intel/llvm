@@ -46,7 +46,7 @@ reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
   (void)PropList;
   throw runtime_error("Identity-less reductions with unknown identity are not "
                       "supported yet.",
-                      PI_INVALID_VALUE);
+                      PI_ERROR_INVALID_VALUE);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
@@ -80,7 +80,7 @@ reduction(T *, BinaryOperation, const property_list &PropList = {}) {
   (void)PropList;
   throw runtime_error("Identity-less reductions with unknown identity are not "
                       "supported yet.",
-                      PI_INVALID_VALUE);
+                      PI_ERROR_INVALID_VALUE);
 }
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
@@ -149,7 +149,7 @@ reduction(span<T, Extent>, BinaryOperation,
   (void)PropList;
   throw runtime_error("Identity-less reductions with unknown identity are not "
                       "supported yet.",
-                      PI_INVALID_VALUE);
+                      PI_ERROR_INVALID_VALUE);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by

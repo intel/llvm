@@ -549,6 +549,9 @@ void arith::XOrIOp::getCanonicalizationPatterns(
 //===----------------------------------------------------------------------===//
 
 OpFoldResult arith::NegFOp::fold(ArrayRef<Attribute> operands) {
+  /// negf(negf(x)) -> x
+  if (auto op = this->getOperand().getDefiningOp<arith::NegFOp>())
+    return op.getOperand();
   return constFoldUnaryOp<FloatAttr>(operands,
                                      [](const APFloat &a) { return -a; });
 }
@@ -751,6 +754,19 @@ OpFoldResult arith::DivFOp::fold(ArrayRef<Attribute> operands) {
 
   return constFoldBinaryOp<FloatAttr>(
       operands, [](const APFloat &a, const APFloat &b) { return a / b; });
+}
+
+//===----------------------------------------------------------------------===//
+// RemFOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult arith::RemFOp::fold(ArrayRef<Attribute> operands) {
+  return constFoldBinaryOp<FloatAttr>(operands,
+                                      [](const APFloat &a, const APFloat &b) {
+                                        APFloat Result(a);
+                                        (void)Result.remainder(b);
+                                        return Result;
+                                      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1293,20 +1309,16 @@ OpFoldResult arith::CmpIOp::fold(ArrayRef<Attribute> operands) {
 
   if (matchPattern(getRhs(), m_Zero())) {
     if (auto extOp = getLhs().getDefiningOp<ExtSIOp>()) {
-      if (extOp.getOperand().getType().cast<IntegerType>().getWidth() == 1) {
-        // extsi(%x : i1 -> iN) != 0  ->  %x
-        if (getPredicate() == arith::CmpIPredicate::ne) {
-          return extOp.getOperand();
-        }
-      }
+      // extsi(%x : i1 -> iN) != 0  ->  %x
+      if (extOp.getOperand().getType().cast<IntegerType>().getWidth() == 1 &&
+          getPredicate() == arith::CmpIPredicate::ne)
+        return extOp.getOperand();
     }
     if (auto extOp = getLhs().getDefiningOp<ExtUIOp>()) {
-      if (extOp.getOperand().getType().cast<IntegerType>().getWidth() == 1) {
-        // extui(%x : i1 -> iN) != 0  ->  %x
-        if (getPredicate() == arith::CmpIPredicate::ne) {
-          return extOp.getOperand();
-        }
-      }
+      // extui(%x : i1 -> iN) != 0  ->  %x
+      if (extOp.getOperand().getType().cast<IntegerType>().getWidth() == 1 &&
+          getPredicate() == arith::CmpIPredicate::ne)
+        return extOp.getOperand();
     }
   }
 
@@ -1730,24 +1742,24 @@ struct SelectToExtUI : public OpRewritePattern<arith::SelectOp> {
       return failure();
 
     // select %x, c1, %c0 => extui %arg
-    if (matchPattern(op.getTrueValue(), m_One()))
-      if (matchPattern(op.getFalseValue(), m_Zero())) {
-        rewriter.replaceOpWithNewOp<arith::ExtUIOp>(op, op.getType(),
-                                                    op.getCondition());
-        return success();
-      }
+    if (matchPattern(op.getTrueValue(), m_One()) &&
+        matchPattern(op.getFalseValue(), m_Zero())) {
+      rewriter.replaceOpWithNewOp<arith::ExtUIOp>(op, op.getType(),
+                                                  op.getCondition());
+      return success();
+    }
 
     // select %x, c0, %c1 => extui (xor %arg, true)
-    if (matchPattern(op.getTrueValue(), m_Zero()))
-      if (matchPattern(op.getFalseValue(), m_One())) {
-        rewriter.replaceOpWithNewOp<arith::ExtUIOp>(
-            op, op.getType(),
-            rewriter.create<arith::XOrIOp>(
-                op.getLoc(), op.getCondition(),
-                rewriter.create<arith::ConstantIntOp>(
-                    op.getLoc(), 1, op.getCondition().getType())));
-        return success();
-      }
+    if (matchPattern(op.getTrueValue(), m_Zero()) &&
+        matchPattern(op.getFalseValue(), m_One())) {
+      rewriter.replaceOpWithNewOp<arith::ExtUIOp>(
+          op, op.getType(),
+          rewriter.create<arith::XOrIOp>(
+              op.getLoc(), op.getCondition(),
+              rewriter.create<arith::ConstantIntOp>(
+                  op.getLoc(), 1, op.getCondition().getType())));
+      return success();
+    }
 
     return failure();
   }
@@ -1775,10 +1787,9 @@ OpFoldResult arith::SelectOp::fold(ArrayRef<Attribute> operands) {
     return falseVal;
 
   // select %x, true, false => %x
-  if (getType().isInteger(1))
-    if (matchPattern(getTrueValue(), m_One()))
-      if (matchPattern(getFalseValue(), m_Zero()))
-        return condition;
+  if (getType().isInteger(1) && matchPattern(getTrueValue(), m_One()) &&
+      matchPattern(getFalseValue(), m_Zero()))
+    return condition;
 
   if (auto cmp = dyn_cast_or_null<arith::CmpIOp>(condition.getDefiningOp())) {
     auto pred = cmp.getPredicate();

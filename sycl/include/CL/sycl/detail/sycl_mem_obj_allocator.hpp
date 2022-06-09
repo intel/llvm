@@ -15,6 +15,9 @@ namespace detail {
 template <typename T>
 class aligned_allocator;
 
+template <typename DataT>
+using sycl_memory_object_allocator = aligned_allocator<DataT>;
+
 class SYCLMemObjAllocator {
 
 protected:
@@ -31,18 +34,8 @@ public:
   }
 };
 
-template <typename AllocatorT>
+template <typename AllocatorT, typename OwnerDataT>
 class SYCLMemObjAllocatorHolder : public SYCLMemObjAllocator {
-  using sycl_memory_object_allocator = detail::aligned_allocator<char>;
-
-  template <typename T>
-  using EnableIfDefaultAllocator =
-      enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
-
-  template <typename T>
-  using EnableIfNonDefaultAllocator =
-      enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
-
 public:
   SYCLMemObjAllocatorHolder(AllocatorT Allocator)
       : MAllocator(Allocator),
@@ -73,6 +66,14 @@ protected:
   virtual void *getAllocatorImpl() override { return &MAllocator; }
 
 private:
+  template <typename T>
+  using EnableIfDefaultAllocator = enable_if_t<
+      std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
+
+  template <typename T>
+  using EnableIfNonDefaultAllocator = enable_if_t<
+      !std::is_same<T, sycl_memory_object_allocator<OwnerDataT>>::value>;
+
   template <typename T = AllocatorT>
   EnableIfNonDefaultAllocator<T> setAlignImpl(std::size_t) {
     // Do nothing in case of user's allocator.
