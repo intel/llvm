@@ -19,6 +19,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
@@ -200,12 +201,12 @@ template <class To> inline To cast(std::vector<cl_event> value) {
 }
 
 // These conversions should use PI interop API.
-template <> inline pi::PiProgram cast(cl_program) {
+template <> inline PiProgram cast(cl_program) {
   RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
   return {};
 }
 
-template <> inline pi::PiDevice cast(cl_device_id) {
+template <> inline PiDevice cast(cl_device_id) {
   RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
   return {};
 }
