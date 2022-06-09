@@ -4832,16 +4832,13 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
+  pi_device device = queue->get_context()->get_device();
 
   // Certain cuda devices and Windows do not have support for some Unified
   // Memory features. cuMemPrefetchAsync requires concurrent memory access
   // for managed memory. Therfore, ignore prefetch hint if concurrent managed
   // memory access is not available.
-  int isConcurrentManagedAccessAvailable = 0;
-  cuDeviceGetAttribute(&isConcurrentManagedAccessAvailable,
-                       CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS,
-                       queue->get_context()->get_device()->get());
-  if (!isConcurrentManagedAccessAvailable) {
+  if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
     setErrorMessage("Prefetch hint ignored as device does not support "
                     "concurrent managed access",
                     PI_SUCCESS);
@@ -4875,9 +4872,8 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
           PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, cuStream));
       event_ptr->start();
     }
-    result = PI_CHECK_ERROR(cuMemPrefetchAsync(
-        (CUdeviceptr)ptr, size, queue->get_context()->get_device()->get(),
-        cuStream));
+    result = PI_CHECK_ERROR(
+        cuMemPrefetchAsync((CUdeviceptr)ptr, size, device->get(), cuStream));
     if (event) {
       result = event_ptr->record();
       *event = event_ptr.release();
@@ -4894,6 +4890,29 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                                         pi_event *event) {
   assert(queue != nullptr);
   assert(ptr != nullptr);
+
+  // Certain cuda devices and Windows do not have support for some Unified
+  // Memory features. Passing CU_MEM_ADVISE_[UN]SET_PREFERRED_LOCATION and
+  // CU_MEM_ADVISE_[UN]SET_ACCESSED_BY to cuMemAdvise on a GPU device requires
+  // the GPU device to report a non-zero value for
+  // CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS. Therfore, ignore memory
+  // advise if concurrent managed memory access is not available.
+  if (advice == PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION ||
+      advice == PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION ||
+      advice == PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY ||
+      advice == PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+    pi_device device = queue->get_context()->get_device();
+    if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
+      setErrorMessage("Mem advise ignored as device does not support "
+                      "concurrent managed access",
+                      PI_SUCCESS);
+      return PI_PLUGIN_SPECIFIC_ERROR;
+    }
+
+    // TODO: If ptr points to valid system-allocated pageable memory we should
+    // check that the device also has the
+    // CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS property.
+  }
 
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
