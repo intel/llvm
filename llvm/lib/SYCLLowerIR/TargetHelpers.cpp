@@ -83,5 +83,6 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
         Kernels.push_back(KernelPayload(Func, MetadataNode));
   }
 }
+
 } // namespace TargetHelpers
 } // namespace llvm
