@@ -90,11 +90,11 @@ public:
 
 class ESIMDVerifierImpl {
   const Module &M;
-  bool ForceStateless;
+  bool ForceStatelessMem;
 
 public:
-  ESIMDVerifierImpl(const Module &M, bool ForceStateless)
-      : M(M), ForceStateless(ForceStateless) {}
+  ESIMDVerifierImpl(const Module &M, bool ForceStatelessMem)
+      : M(M), ForceStatelessMem(ForceStatelessMem) {}
 
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
@@ -157,7 +157,7 @@ public:
             return LegalNameRE.match(Name);
           };
           if (any_of(LegalSYCLFunctions, checkLegalFunc) ||
-              (ForceStateless &&
+              (ForceStatelessMem &&
                any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))
             continue;
 
@@ -175,7 +175,7 @@ public:
 } // end anonymous namespace
 
 PreservedAnalyses ESIMDVerifierPass::run(Module &M, ModuleAnalysisManager &AM) {
-  ESIMDVerifierImpl(M, ForceStateless).verify();
+  ESIMDVerifierImpl(M, ForceStatelessMem).verify();
   return PreservedAnalyses::all();
 }
 
@@ -183,7 +183,7 @@ namespace {
 
 struct ESIMDVerifier : public ModulePass {
   static char ID;
-  bool ForceStateless;
+  bool ForceStatelessMem;
 
   ESIMDVerifier() : ModulePass(ID) {
     initializeESIMDVerifierPass(*PassRegistry::getPassRegistry());
@@ -194,7 +194,7 @@ struct ESIMDVerifier : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    ESIMDVerifierImpl(M, ForceStateless).verify();
+    ESIMDVerifierImpl(M, ForceStatelessMem).verify();
     return false;
   }
 };

@@ -2786,8 +2786,8 @@ def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
   Flags<[CC1Option, CoreOption]>, HelpText<"Perform ahead of time compilation for FPGA">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
-defm sycl_esimd_stateless : BoolFOption<"sycl-esimd-stateless-access",
-    LangOpts<"SYCLESIMDStateless">, DefaultFalse,
+defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
+    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
     PosFlag<SetTrue, [CC1Option, CoreOption], "Convert accesses via accessors to USM memory accesses in ESIMD kernels">,
     NegFlag<SetFalse>>;
 
