@@ -1367,8 +1367,13 @@ INTERCEPTOR(int, prctl, int option, unsigned long arg2, unsigned long arg3,
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, prctl, option, arg2, arg3, arg4, arg5);
   static const int PR_SET_NAME = 15;
+  static const int PR_SET_VMA = 0x53564d41;
   static const int PR_SCHED_CORE = 62;
   static const int PR_SCHED_CORE_GET = 0;
+  if (option == PR_SET_VMA && arg2 == 0UL) {
+    char *name = (char *)arg5;
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, name, internal_strlen(name) + 1);
+  }
   int res = REAL(prctl(option, arg2, arg3, arg4, arg5));
   if (option == PR_SET_NAME) {
     char buff[16];
@@ -4961,6 +4966,27 @@ INTERCEPTOR(int, pthread_attr_getaffinity_np, void *attr, SIZE_T cpusetsize,
   COMMON_INTERCEPT_FUNCTION(pthread_attr_getaffinity_np);
 #else
 #define INIT_PTHREAD_ATTR_GETAFFINITY_NP
+#endif
+
+#if SANITIZER_INTERCEPT_PTHREAD_GETAFFINITY_NP
+INTERCEPTOR(int, pthread_getaffinity_np, void *attr, SIZE_T cpusetsize,
+            void *cpuset) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, pthread_getaffinity_np, attr, cpusetsize,
+                           cpuset);
+  // FIXME: under ASan the call below may write to freed memory and corrupt
+  // its metadata. See
+  // https://github.com/google/sanitizers/issues/321.
+  int res = REAL(pthread_getaffinity_np)(attr, cpusetsize, cpuset);
+  if (!res && cpusetsize && cpuset)
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, cpuset, cpusetsize);
+  return res;
+}
+
+#define INIT_PTHREAD_GETAFFINITY_NP \
+  COMMON_INTERCEPT_FUNCTION(pthread_getaffinity_np);
+#else
+#define INIT_PTHREAD_GETAFFINITY_NP
 #endif
 
 #if SANITIZER_INTERCEPT_PTHREAD_MUTEXATTR_GETPSHARED
@@ -10328,6 +10354,42 @@ INTERCEPTOR(int, sigaltstack, void *ss, void *oss) {
 #define INIT_SIGALTSTACK
 #endif
 
+#if SANITIZER_INTERCEPT_PROCCTL
+INTERCEPTOR(int, procctl, int idtype, u64 id, int cmd, uptr data) {
+   void *ctx;
+   COMMON_INTERCEPTOR_ENTER(ctx, procctl, idtype, id, cmd, data);
+   static const int PROC_REAP_ACQUIRE = 2;
+   static const int PROC_REAP_RELEASE = 3;
+   static const int PROC_REAP_STATUS = 4;
+   static const int PROC_REAP_GETPIDS = 5;
+   static const int PROC_REAP_KILL = 6;
+   if (cmd < PROC_REAP_ACQUIRE || cmd > PROC_REAP_KILL) {
+     COMMON_INTERCEPTOR_READ_RANGE(ctx, (void *)data, sizeof(int));
+   } else {
+     // reap_acquire/reap_release bears no arguments.
+     if (cmd > PROC_REAP_RELEASE) {
+       unsigned int reapsz;
+       switch (cmd) {
+       case PROC_REAP_STATUS:
+         reapsz = struct_procctl_reaper_status_sz;
+         break;
+       case PROC_REAP_GETPIDS:
+         reapsz = struct_procctl_reaper_pids_sz;
+         break;
+       case PROC_REAP_KILL:
+         reapsz = struct_procctl_reaper_kill_sz;
+         break;
+       }
+       COMMON_INTERCEPTOR_READ_RANGE(ctx, (void *)data, reapsz);
+     }
+   }
+   return REAL(procctl)(idtype, id, cmd, data);
+}
+#define INIT_PROCCTL COMMON_INTERCEPT_FUNCTION(procctl)
+#else
+#define INIT_PROCCTL
+#endif
+
 #if SANITIZER_INTERCEPT_UNAME
 INTERCEPTOR(int, uname, struct utsname *utsname) {
 #if SANITIZER_LINUX
@@ -10535,6 +10597,7 @@ static void InitializeCommonInterceptors() {
   INIT_PTHREAD_ATTR_GET_SCHED;
   INIT_PTHREAD_ATTR_GETINHERITSCHED;
   INIT_PTHREAD_ATTR_GETAFFINITY_NP;
+  INIT_PTHREAD_GETAFFINITY_NP;
   INIT_PTHREAD_MUTEXATTR_GETPSHARED;
   INIT_PTHREAD_MUTEXATTR_GETTYPE;
   INIT_PTHREAD_MUTEXATTR_GETPROTOCOL;
@@ -10686,6 +10749,7 @@ static void InitializeCommonInterceptors() {
   INIT_QSORT_R;
   INIT_BSEARCH;
   INIT_SIGALTSTACK;
+  INIT_PROCCTL
   INIT_UNAME;
   INIT___XUNAME;
 
