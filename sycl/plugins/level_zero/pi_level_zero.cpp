@@ -7331,17 +7331,11 @@ pi_result USMHostMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
-SystemMemory::MemType USMSharedMemoryAlloc::getMemTypeImpl() {
-  return SystemMemory::Shared;
-}
+MemType USMSharedMemoryAlloc::getMemTypeImpl() { return MemType::Shared; }
 
-SystemMemory::MemType USMDeviceMemoryAlloc::getMemTypeImpl() {
-  return SystemMemory::Device;
-}
+MemType USMDeviceMemoryAlloc::getMemTypeImpl() { return MemType::Device; }
 
-SystemMemory::MemType USMHostMemoryAlloc::getMemTypeImpl() {
-  return SystemMemory::Host;
-}
+MemType USMHostMemoryAlloc::getMemTypeImpl() { return MemType::Host; }
 
 void *USMMemoryAllocBase::allocate(size_t Size) {
   void *Ptr = nullptr;
@@ -7371,9 +7365,7 @@ void USMMemoryAllocBase::deallocate(void *Ptr, bool OwnZeMemHandle) {
   }
 }
 
-SystemMemory::MemType USMMemoryAllocBase::getMemType() {
-  return getMemTypeImpl();
-}
+MemType USMMemoryAllocBase::getMemType() { return getMemTypeImpl(); }
 
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
