@@ -4720,6 +4720,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   bool IsUsingLTO = D.isUsingLTO(IsDeviceOffloadAction);
   auto LTOMode = D.getLTOMode(IsDeviceOffloadAction);
+  bool IsFPGASYCLOffloadDevice =
+      IsSYCLOffloadDevice &&
+      Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -4871,7 +4874,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // Default value for FPGA is false, for all other targets is true.
     if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
                       options::OPT_fno_sycl_early_optimizations,
-                      Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
+                      !IsFPGASYCLOffloadDevice))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
     else if (RawTriple.isSPIR()) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
@@ -5355,7 +5358,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Discard value names in assert builds unless otherwise specified.
   if (Args.hasFlag(options::OPT_fdiscard_value_names,
-                   options::OPT_fno_discard_value_names, !IsAssertBuild)) {
+                   options::OPT_fno_discard_value_names,
+                   !IsAssertBuild && !IsFPGASYCLOffloadDevice)) {
     if (Args.hasArg(options::OPT_fdiscard_value_names) &&
         llvm::any_of(Inputs, [](const clang::driver::InputInfo &II) {
           return types::isLLVMIR(II.getType());
