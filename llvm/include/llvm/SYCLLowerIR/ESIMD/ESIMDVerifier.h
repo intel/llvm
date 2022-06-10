@@ -21,8 +21,7 @@ class ModulePass;
 
 struct ESIMDVerifierPass : public PassInfoMixin<ESIMDVerifierPass> {
   ESIMDVerifierPass() : ForceStateless(false) {}
-  ESIMDVerifierPass(bool ForceStateless)
-      : ForceStateless(ForceStateless) {}
+  ESIMDVerifierPass(bool ForceStateless) : ForceStateless(ForceStateless) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
   static bool isRequired() { return true; }
 

@@ -553,7 +553,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
              __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  return lsc_prefetch<T, NElts, DS, L1H, L3H>(acc.get_pointer().get(), offsets, pred);
+  return lsc_prefetch<T, NElts, DS, L1H, L3H>(acc.get_pointer().get(), offsets,
+                                              pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -1279,7 +1280,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(), offsets, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(),
+                                                   offsets, pred);
 #else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
@@ -1328,7 +1330,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(), offsets, src0, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(),
+                                                   offsets, src0, pred);
 #else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
@@ -1379,7 +1382,8 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(), offsets, src0, src1, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(),
+                                                   offsets, src0, src1, pred);
 #else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();

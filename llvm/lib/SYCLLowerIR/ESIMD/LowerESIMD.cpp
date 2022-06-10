@@ -46,11 +46,11 @@ namespace id = itanium_demangle;
 
 #define MAX_DIMS 3
 
-cl::opt<bool> ForceStateless("lower-esimd-force-stateless",
-                             llvm::cl::Optional,
-                             llvm::cl::Hidden,
-                             llvm::cl::desc("Use stateless API for accessor based API."),
-                             llvm::cl::init(false));
+cl::opt<bool>
+    ForceStateless("lower-esimd-force-stateless", llvm::cl::Optional,
+                   llvm::cl::Hidden,
+                   llvm::cl::desc("Use stateless API for accessor based API."),
+                   llvm::cl::init(false));
 
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);

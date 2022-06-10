@@ -51,12 +51,10 @@ static const char *LegalSYCLFunctions[] = {
     "^cl::sycl::ext::oneapi::experimental::this_sub_group"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
-    "^cl::sycl::multi_ptr<.+>::get",
-    "^cl::sycl::multi_ptr<.+>::multi_ptr",
+    "^cl::sycl::multi_ptr<.+>::get", "^cl::sycl::multi_ptr<.+>::multi_ptr",
     "^cl::sycl::accessor<.+>::get_pointer.+",
     "^cl::sycl::accessor<.+>::getPointerAdjusted",
     "^cl::sycl::accessor<.+>::getQualifiedPtr"};
-
 
 namespace {
 
@@ -154,10 +152,10 @@ public:
 
           // Check if function name matches any allowed SYCL function name.
           auto checkLegalFunc = [Name](const char *LegalName) {
-                Regex LegalNameRE(LegalName);
-                assert(LegalNameRE.isValid() && "invalid function name regex");
-                return LegalNameRE.match(Name);
-              };
+            Regex LegalNameRE(LegalName);
+            assert(LegalNameRE.isValid() && "invalid function name regex");
+            return LegalNameRE.match(Name);
+          };
           if (any_of(LegalSYCLFunctions, checkLegalFunc) ||
               (ForceStateless &&
                any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))

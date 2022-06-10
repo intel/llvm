@@ -1306,7 +1306,6 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
 
     if (LangOpts.SYCLESIMDStateless)
       Builder.defineMacro("ESIMD_FORCE_STATELESS_MEM_ACCESS");
-
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");

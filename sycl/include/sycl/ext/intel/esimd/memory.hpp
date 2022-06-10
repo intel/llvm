@@ -439,7 +439,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> mask = 1) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  auto BytePtr = reinterpret_cast<char*>(acc.get_pointer().get()) + glob_offset;
+  auto BytePtr =
+      reinterpret_cast<char *>(acc.get_pointer().get()) + glob_offset;
   auto Ptr = reinterpret_cast<T *>(BytePtr);
   return gather<T, N>(Ptr, offsets, mask);
 #else
@@ -473,7 +474,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  auto BytePtr = reinterpret_cast<char*>(acc.get_pointer().get()) + glob_offset;
+  auto BytePtr =
+      reinterpret_cast<char *>(acc.get_pointer().get()) + glob_offset;
   auto Ptr = reinterpret_cast<T *>(BytePtr);
   scatter<T, N>(Ptr, vals, offsets, mask);
 #else
@@ -646,7 +648,8 @@ __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
 gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
+  auto BytePtr =
+      reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
   auto Ptr = reinterpret_cast<T *>(BytePtr);
   return gather_rgba<RGBAMask>(Ptr, offsets, mask);
 #else
@@ -683,7 +686,8 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESS
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
+  auto BytePtr =
+      reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
   auto Ptr = reinterpret_cast<T *>(BytePtr);
   scatter_rgba<RGBAMask>(Ptr, offsets, vals, mask);
 #else
@@ -952,7 +956,8 @@ template <typename T, int N>
 __ESIMD_API
     std::enable_if_t<(N == 1 || N == 8 || N == 16 || N == 32), simd<T, N>>
     slm_gather(simd<uint32_t, N> offsets, simd_mask<N> mask = 1) {
-  detail::LocalAccessorMarker acc; // !!!! TODO: does get_pointer() method works for local accessors?
+  detail::LocalAccessorMarker
+      acc; // !!!! TODO: does get_pointer() method works for local accessors?
   return detail::gather_impl<T, N>(acc, offsets, 0, mask);
 }
 
@@ -1142,7 +1147,8 @@ __ESIMD_API simd<T, m * N> media_block_load(AccessorTy acc, unsigned x,
   static_assert(plane <= 3u, "valid plane index is in range [0, 3]");
 
 #ifdef ESIMD_FORCE_STATELESS_MEM_ACCESSX
-  static_assert(0, "media_block_load() does not support stateless memory access mode");
+  static_assert(
+      0, "media_block_load() does not support stateless memory access mode");
 #else
   const auto si = __ESIMD_GET_SURF_HANDLE(acc);
   using SurfIndTy = decltype(si);
