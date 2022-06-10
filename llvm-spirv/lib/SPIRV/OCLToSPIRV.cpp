@@ -690,14 +690,24 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
         if (!IsFPType(AtomicBuiltinsReturnType))
           return SPIRVFunctionName;
         // Translate FP-typed atomic builtins. Currently we only need to
-        // translate atomic_fetch_[add, max, min] and atomic_fetch_[add, max,
-        // min]_explicit to related float instructions
+        // translate atomic_fetch_[add, sub, max, min] and atomic_fetch_[add,
+        // sub, max, min]_explicit to related float instructions.
+        // Translate atomic_fetch_sub to OpAtomicFAddEXT with negative value
+        // operand
         auto SPIRFunctionNameForFloatAtomics =
             llvm::StringSwitch<std::string>(SPIRVFunctionName)
                 .Case("__spirv_AtomicIAdd", "__spirv_AtomicFAddEXT")
+                .Case("__spirv_AtomicISub", "__spirv_AtomicFAddEXT")
                 .Case("__spirv_AtomicSMax", "__spirv_AtomicFMaxEXT")
                 .Case("__spirv_AtomicSMin", "__spirv_AtomicFMinEXT")
                 .Default("others");
+        if (SPIRVFunctionName == "__spirv_AtomicISub") {
+          IRBuilder<> IRB(CI);
+          // Set float operand to its negation
+          CI->setOperand(1, IRB.CreateFNeg(CI->getArgOperand(1)));
+          // Update Args which is used to generate new call
+          Args.back() = CI->getArgOperand(1);
+        }
         return SPIRFunctionNameForFloatAtomics == "others"
                    ? SPIRVFunctionName
                    : SPIRFunctionNameForFloatAtomics;
