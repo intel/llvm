@@ -1863,19 +1863,17 @@ bool RISCVDAGToDAGISel::SelectFrameAddrRegImm(SDValue Addr, SDValue &Base,
     return true;
   }
 
-  // TODO: Use SelectionDAG::isBaseWithConstantOffset.
-  if (Addr.getOpcode() == ISD::ADD ||
-      (Addr.getOpcode() == ISD::OR && isOrEquivalentToAdd(Addr.getNode()))) {
-    if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0))) {
-      if (auto *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
-        if (isInt<12>(CN->getSExtValue())) {
-          Base = CurDAG->getTargetFrameIndex(FIN->getIndex(),
-                                             Subtarget->getXLenVT());
-          Offset = CurDAG->getTargetConstant(CN->getSExtValue(), SDLoc(Addr),
-                                             Subtarget->getXLenVT());
-          return true;
-        }
-      }
+  if (!CurDAG->isBaseWithConstantOffset(Addr))
+    return false;
+
+  if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0))) {
+    auto *CN = cast<ConstantSDNode>(Addr.getOperand(1));
+    if (isInt<12>(CN->getSExtValue())) {
+      Base = CurDAG->getTargetFrameIndex(FIN->getIndex(),
+                                         Subtarget->getXLenVT());
+      Offset = CurDAG->getTargetConstant(CN->getSExtValue(), SDLoc(Addr),
+                                         Subtarget->getXLenVT());
+      return true;
     }
   }
 
@@ -1894,29 +1892,12 @@ bool RISCVDAGToDAGISel::SelectBaseAddr(SDValue Addr, SDValue &Base) {
 
 bool RISCVDAGToDAGISel::SelectAddrRegImm(SDValue Addr, SDValue &Base,
                                          SDValue &Offset) {
-  if (Addr.getOpcode() == ISD::ADD) {
-    if (auto *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
-      if (isInt<12>(CN->getSExtValue())) {
-        SelectBaseAddr(Addr.getOperand(0), Base);
-        Offset = CurDAG->getTargetConstant(CN->getSExtValue(), SDLoc(Addr),
-                                           Subtarget->getXLenVT());
-        return true;
-      }
-    }
-  } else if (Addr.getOpcode() == ISD::OR) {
-    // We might be able to treat this OR as an ADD.
-    // TODO: Use SelectionDAG::isBaseWithConstantOffset.
-    if (auto *FIN = dyn_cast<FrameIndexSDNode>(Addr.getOperand(0))) {
-      if (auto *CN = dyn_cast<ConstantSDNode>(Addr.getOperand(1))) {
-        if (isInt<12>(CN->getSExtValue()) &&
-            isOrEquivalentToAdd(Addr.getNode())) {
-          Base = CurDAG->getTargetFrameIndex(FIN->getIndex(),
-                                             Subtarget->getXLenVT());
-          Offset = CurDAG->getTargetConstant(CN->getSExtValue(), SDLoc(Addr),
-                                             Subtarget->getXLenVT());
-          return true;
-        }
-      }
+  if (CurDAG->isBaseWithConstantOffset(Addr)) {
+    auto *CN = cast<ConstantSDNode>(Addr.getOperand(1));
+    if (isInt<12>(CN->getSExtValue())) {
+      Offset = CurDAG->getTargetConstant(CN->getSExtValue(), SDLoc(Addr),
+                                         Subtarget->getXLenVT());
+      return SelectBaseAddr(Addr.getOperand(0), Base);
     }
   }
 
@@ -2252,9 +2233,23 @@ bool RISCVDAGToDAGISel::doPeepholeLoadStoreADDI(SDNode *N) {
   if (!Base.isMachineOpcode())
     return false;
 
-  // If the base is an ADDI, we can merge it in to the load/store.
-  if (Base.getMachineOpcode() != RISCV::ADDI)
-    return false;
+  if (Base.getMachineOpcode() == RISCV::ADDI) {
+    // If the base is an ADDI, we can merge it in to the load/store.
+  } else if (Base.getMachineOpcode() == RISCV::ADDIW &&
+             isa<ConstantSDNode>(Base.getOperand(1)) &&
+             Base.getOperand(0).isMachineOpcode() &&
+             Base.getOperand(0).getMachineOpcode() == RISCV::LUI &&
+             isa<ConstantSDNode>(Base.getOperand(0).getOperand(0))) {
+    // ADDIW can be merged if it's part of LUI+ADDIW constant materialization
+    // and LUI+ADDI would have produced the same result. This is true for all
+    // simm32 values except 0x7ffff800-0x7fffffff.
+    int64_t Offset =
+      SignExtend64<32>(Base.getOperand(0).getConstantOperandVal(0) << 12);
+    Offset += cast<ConstantSDNode>(Base.getOperand(1))->getSExtValue();
+    if (!isInt<32>(Offset))
+      return false;
+  } else
+   return false;
 
   SDValue ImmOperand = Base.getOperand(1);
   uint64_t Offset2 = N->getConstantOperandVal(OffsetOpIdx);

@@ -1253,7 +1253,7 @@ bool Driver::loadConfigFile() {
         if (llvm::sys::fs::make_absolute(CfgDir).value() != 0)
           SystemConfigDir.clear();
         else
-          SystemConfigDir = std::string(CfgDir.begin(), CfgDir.end());
+          SystemConfigDir = static_cast<std::string>(CfgDir);
       }
     }
     if (CLOptions->hasArg(options::OPT_config_user_dir_EQ)) {
@@ -1264,7 +1264,7 @@ bool Driver::loadConfigFile() {
         if (llvm::sys::fs::make_absolute(CfgDir).value() != 0)
           UserConfigDir.clear();
         else
-          UserConfigDir = std::string(CfgDir.begin(), CfgDir.end());
+          UserConfigDir = static_cast<std::string>(CfgDir);
       }
     }
   }
@@ -2395,6 +2395,13 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
       llvm::outs() << RuntimePath << '\n';
     else
       llvm::outs() << TC.getCompilerRTPath() << '\n';
+    return false;
+  }
+
+  if (C.getArgs().hasArg(options::OPT_print_diagnostic_options)) {
+    std::vector<std::string> Flags = DiagnosticIDs::getDiagnosticFlags();
+    for (std::size_t I = 0; I != Flags.size(); I += 2)
+      llvm::outs() << "  " << Flags[I] << "\n  " << Flags[I + 1] << "\n\n";
     return false;
   }
 

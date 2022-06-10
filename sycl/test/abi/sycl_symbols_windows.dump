@@ -18,6 +18,7 @@
 ??$create_sub_devices@$0BAII@@device@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
 ??$getPlugin@$00@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
 ??$getPlugin@$01@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
+??$getPlugin@$02@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
 ??$getPlugin@$04@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
 ??$getPluginOpaqueData@$04@detail@sycl@cl@@YAPEAXPEAX@Z
 ??$get_info@$0BAAA@@device@sycl@cl@@QEBA?AW4device_type@info@12@XZ

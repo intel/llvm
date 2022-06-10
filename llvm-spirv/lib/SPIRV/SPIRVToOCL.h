@@ -262,7 +262,10 @@ public:
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
   std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
+  void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
+
   void translateOpaqueTypes();
+  std::string translateOpaqueType(StringRef STName);
 
   Module *M;
   LLVMContext *Ctx;

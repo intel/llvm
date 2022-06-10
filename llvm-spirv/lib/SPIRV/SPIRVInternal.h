@@ -607,6 +607,7 @@ SPIRVValue *addDecorations(SPIRVValue *Target,
 
 PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace = SPIRAS_Global);
+StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name);
 PointerType *getSamplerType(Module *M);
 PointerType *getPipeStorageType(Module *M);
 PointerType *getSPIRVOpaquePtrType(Module *M, Op OC);
@@ -649,17 +650,15 @@ Decoration getArgAsDecoration(CallInst *CI, unsigned I);
 bool isPointerToOpaqueStructType(llvm::Type *Ty);
 bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name);
 
-/// Check if a type is SPIRV sampler type.
-bool isSPIRVSamplerType(llvm::Type *Ty);
-
-/// Check if a type is OCL image type.
+/// Check if a type is OCL image type (if pointed to).
 /// \return type name without "opencl." prefix.
-bool isOCLImageType(llvm::Type *Ty, StringRef *Name = nullptr);
+bool isOCLImageStructType(llvm::Type *Ty, StringRef *Name = nullptr);
 
 /// \param BaseTyName is the type name as in spirv.BaseTyName.Postfixes
 /// \param Postfix contains postfixes extracted from the SPIR-V image
 ///   type name as spirv.BaseTyName.Postfixes.
-bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix = 0);
+bool isSPIRVStructType(llvm::Type *Ty, StringRef BaseTyName,
+                       StringRef *Postfix = 0);
 
 bool isSYCLHalfType(llvm::Type *Ty);
 
@@ -855,7 +854,7 @@ ConstantInt *getSizet(Module *M, uint64_t Value);
 int64_t getMDOperandAsInt(MDNode *N, unsigned I);
 
 /// Get metadata operand as string.
-std::string getMDOperandAsString(MDNode *N, unsigned I);
+StringRef getMDOperandAsString(MDNode *N, unsigned I);
 
 /// Get metadata operand as another metadata node
 MDNode *getMDOperandAsMDNode(MDNode *N, unsigned I);
@@ -934,7 +933,7 @@ std::string getSPIRVImageSampledTypeName(SPIRVType *Ty);
 
 /// Translates OpenCL image type names to SPIR-V.
 /// E.g. %opencl.image1d_rw_t -> %spirv.Image._void_0_0_0_0_0_0_2
-Type *getSPIRVImageTypeFromOCL(Module *M, Type *T);
+Type *adaptSPIRVImageType(Module *M, Type *PointeeType);
 
 /// Get LLVM type for sampled type of SPIR-V image type by postfix.
 Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
@@ -996,6 +995,15 @@ bool containsUnsignedAtomicType(StringRef Name);
 ///    return IA64 mangled name.
 std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
                           BuiltinFuncMangleInfo *BtnInfo);
+
+/// Extract the pointee types of arguments from a mangled function name. If the
+/// corresponding type is not a pointer to a struct type, its value will be a
+/// nullptr instead.
+void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys);
+inline void getParameterTypes(CallInst *CI,
+                              SmallVectorImpl<StructType *> &ArgTys) {
+  return getParameterTypes(CI->getCalledFunction(), ArgTys);
+}
 
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
