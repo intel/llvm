@@ -224,9 +224,6 @@ void goo() {
       a[i] = 0;
 
   // no diagnostics are expected
-  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
-    a[i] = 0;
-  // no diagnostics are expected
   [[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // no diagnostics are expected
