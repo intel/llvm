@@ -829,8 +829,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(ESIMDVerifierPass());
+          [&](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDStateless));
           });
 
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;

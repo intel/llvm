@@ -28,8 +28,6 @@ namespace id = itanium_demangle;
 
 #define DEBUG_TYPE "esimd-verifier"
 
-extern cl::opt<bool> ForceStateless;
-
 // A list of SYCL functions (regexps) allowed for use in ESIMD context.
 static const char *LegalSYCLFunctions[] = {
     "^cl::sycl::accessor<.+>::accessor",
@@ -94,9 +92,11 @@ public:
 
 class ESIMDVerifierImpl {
   const Module &M;
+  bool ForceStateless;
 
 public:
-  ESIMDVerifierImpl(const Module &M) : M(M) {}
+  ESIMDVerifierImpl(const Module &M, bool ForceStateless)
+      : M(M), ForceStateless(ForceStateless) {}
 
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
@@ -177,7 +177,7 @@ public:
 } // end anonymous namespace
 
 PreservedAnalyses ESIMDVerifierPass::run(Module &M, ModuleAnalysisManager &AM) {
-  ESIMDVerifierImpl(M).verify();
+  ESIMDVerifierImpl(M, ForceStateless).verify();
   return PreservedAnalyses::all();
 }
 
@@ -185,6 +185,7 @@ namespace {
 
 struct ESIMDVerifier : public ModulePass {
   static char ID;
+  bool ForceStateless;
 
   ESIMDVerifier() : ModulePass(ID) {
     initializeESIMDVerifierPass(*PassRegistry::getPassRegistry());
@@ -195,7 +196,7 @@ struct ESIMDVerifier : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    ESIMDVerifierImpl(M).verify();
+    ESIMDVerifierImpl(M, ForceStateless).verify();
     return false;
   }
 };

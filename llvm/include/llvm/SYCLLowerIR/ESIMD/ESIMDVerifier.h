@@ -20,9 +20,15 @@ namespace llvm {
 class ModulePass;
 
 struct ESIMDVerifierPass : public PassInfoMixin<ESIMDVerifierPass> {
-  ESIMDVerifierPass() {}
+  ESIMDVerifierPass() : ForceStateless(false) {}
+  ESIMDVerifierPass(bool ForceStateless)
+      : ForceStateless(ForceStateless) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
   static bool isRequired() { return true; }
+
+  // The verifier pass allowed more SYCL classes/methos when
+  // stateless memory accesses are enforced.
+  bool ForceStateless;
 };
 
 ModulePass *createESIMDVerifierPass();
