@@ -71,9 +71,8 @@ using namespace clang;
 using namespace CodeGen;
 
 static llvm::cl::opt<bool> LimitedCoverage(
-    "limited-coverage-experimental", llvm::cl::ZeroOrMore, llvm::cl::Hidden,
-    llvm::cl::desc("Emit limited coverage mapping information (experimental)"),
-    llvm::cl::init(false));
+    "limited-coverage-experimental", llvm::cl::Hidden,
+    llvm::cl::desc("Emit limited coverage mapping information (experimental)"));
 
 static const char AnnotationSection[] = "llvm.metadata";
 
@@ -575,10 +574,8 @@ void CodeGenModule::Release() {
     CodeGenFunction(*this).EmitCfiCheckStub();
   }
   emitAtAvailableLinkGuard();
-  if (Context.getTargetInfo().getTriple().isWasm() &&
-      !Context.getTargetInfo().getTriple().isOSEmscripten()) {
+  if (Context.getTargetInfo().getTriple().isWasm())
     EmitMainVoidAlias();
-  }
 
   if (getTriple().isAMDGPU()) {
     // Emit reference of __amdgpu_device_library_preserve_asan_functions to
@@ -5231,7 +5228,7 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   if (NeedsGlobalCtor || NeedsGlobalDtor)
     EmitCXXGlobalVarDeclInitFunc(D, GV, NeedsGlobalCtor);
 
-  SanitizerMD->reportGlobalToASan(GV, *D, NeedsGlobalCtor);
+  SanitizerMD->reportGlobal(GV, *D, NeedsGlobalCtor);
 
   // Emit global variable debug information.
   if (CGDebugInfo *DI = getModuleDebugInfo())
@@ -5339,12 +5336,8 @@ llvm::GlobalValue::LinkageTypes CodeGenModule::getLLVMLinkageForDeclarator(
   if (Linkage == GVA_Internal)
     return llvm::Function::InternalLinkage;
 
-  if (D->hasAttr<WeakAttr>()) {
-    if (IsConstantVariable)
-      return llvm::GlobalVariable::WeakODRLinkage;
-    else
-      return llvm::GlobalVariable::WeakAnyLinkage;
-  }
+  if (D->hasAttr<WeakAttr>())
+    return llvm::GlobalVariable::WeakAnyLinkage;
 
   if (const auto *FD = D->getAsFunction())
     if (FD->isMultiVersion() && Linkage == GVA_AvailableExternally)
@@ -6127,8 +6120,7 @@ CodeGenModule::GetAddrOfConstantStringFromLiteral(const StringLiteral *S,
   if (Entry)
     *Entry = GV;
 
-  SanitizerMD->reportGlobalToASan(GV, S->getStrTokenLoc(0), "<string literal>",
-                                  QualType());
+  SanitizerMD->reportGlobal(GV, S->getStrTokenLoc(0), "<string literal>");
 
   return ConstantAddress(castStringLiteralToDefaultAddressSpace(*this, GV),
                          GV->getValueType(), Alignment);
@@ -6800,8 +6792,10 @@ void CodeGenModule::EmitMainVoidAlias() {
   // new-style no-argument main is in used.
   if (llvm::Function *F = getModule().getFunction("main")) {
     if (!F->isDeclaration() && F->arg_size() == 0 && !F->isVarArg() &&
-        F->getReturnType()->isIntegerTy(Context.getTargetInfo().getIntWidth()))
-      addUsedGlobal(llvm::GlobalAlias::create("__main_void", F));
+        F->getReturnType()->isIntegerTy(Context.getTargetInfo().getIntWidth())) {
+      auto *GA = llvm::GlobalAlias::create("__main_void", F);
+      GA->setVisibility(llvm::GlobalValue::HiddenVisibility);
+    }
   }
 }
 
@@ -6835,6 +6829,10 @@ bool CodeGenModule::CheckAndReplaceExternCIFuncs(llvm::GlobalValue *Elem,
   // List of ConstantExprs that we should be able to delete when we're done
   // here.
   llvm::SmallVector<llvm::ConstantExpr *> CEs;
+
+  // It isn't valid to replace the extern-C ifuncs if all we find is itself!
+  if (Elem == CppFunc)
+    return false;
 
   // First make sure that all users of this are ifuncs (or ifuncs via a
   // bitcast), and collect the list of ifuncs and CEs so we can work on them
@@ -6904,7 +6902,7 @@ void CodeGenModule::EmitStaticExternCAliases() {
 
     // If Val is null, that implies there were multiple declarations that each
     // had a claim to the unmangled name. In this case, generation of the alias
-    // is suppressed. See CodeGenModule::MaybeHandleStaticInExterC.
+    // is suppressed. See CodeGenModule::MaybeHandleStaticInExternC.
     if (!Val)
       break;
 

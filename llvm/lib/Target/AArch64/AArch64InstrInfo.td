@@ -694,8 +694,12 @@ def AArch64sabd     : PatFrags<(ops node:$lhs, node:$rhs),
                                [(abds node:$lhs, node:$rhs),
                                 (int_aarch64_neon_sabd node:$lhs, node:$rhs)]>;
 
+def AArch64addp_n   : SDNode<"AArch64ISD::ADDP", SDT_AArch64Zip>;
 def AArch64uaddlp_n : SDNode<"AArch64ISD::UADDLP", SDT_AArch64uaddlp>;
 def AArch64saddlp_n : SDNode<"AArch64ISD::SADDLP", SDT_AArch64uaddlp>;
+def AArch64addp     : PatFrags<(ops node:$Rn, node:$Rm),
+                               [(AArch64addp_n node:$Rn, node:$Rm),
+                                (int_aarch64_neon_addp node:$Rn, node:$Rm)]>;
 def AArch64uaddlp   : PatFrags<(ops node:$src),
                                [(AArch64uaddlp_n node:$src),
                                 (int_aarch64_neon_uaddlp node:$src)]>;
@@ -2433,6 +2437,10 @@ def TLSDESCCALL : Pseudo<(outs), (ins i64imm:$sym), []>, Sched<[]> {
 // Pseudo instruction to tell the streamer to emit a 'B' character into the
 // augmentation string.
 def EMITBKEY : Pseudo<(outs), (ins), []>, Sched<[]> {}
+
+// Pseudo instruction to tell the streamer to emit a 'G' character into the
+// augmentation string.
+def EMITMTETAGGED : Pseudo<(outs), (ins), []>, Sched<[]> {}
 
 // FIXME: maybe the scratch register used shouldn't be fixed to X1?
 // FIXME: can "hasSideEffects be dropped?
@@ -4506,7 +4514,7 @@ def : Pat<(v8i16 (concat_vectors
 //===----------------------------------------------------------------------===//
 
 defm ADD     : SIMDThreeSameVector<0, 0b10000, "add", add>;
-defm ADDP    : SIMDThreeSameVector<0, 0b10111, "addp", int_aarch64_neon_addp>;
+defm ADDP    : SIMDThreeSameVector<0, 0b10111, "addp", AArch64addp>;
 defm CMEQ    : SIMDThreeSameVector<1, 0b10001, "cmeq", AArch64cmeq>;
 defm CMGE    : SIMDThreeSameVector<0, 0b00111, "cmge", AArch64cmge>;
 defm CMGT    : SIMDThreeSameVector<0, 0b00110, "cmgt", AArch64cmgt>;
@@ -7252,14 +7260,6 @@ def SHA256SU0rr : SHATiedInstVV<0b0010, "sha256su0",int_aarch64_crypto_sha256su0
 // Compiler-pseudos
 //----------------------------------------------------------------------------
 // FIXME: Like for X86, these should go in their own separate .td file.
-
-def def32 : PatLeaf<(i32 GPR32:$src), [{
-  return isDef32(*N);
-}]>;
-
-// In the case of a 32-bit def that is known to implicitly zero-extend,
-// we can use a SUBREG_TO_REG.
-def : Pat<(i64 (zext def32:$src)), (SUBREG_TO_REG (i64 0), GPR32:$src, sub_32)>;
 
 // For an anyext, we don't care what the high bits are, so we can perform an
 // INSERT_SUBREF into an IMPLICIT_DEF.
