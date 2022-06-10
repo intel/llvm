@@ -2437,6 +2437,9 @@ pi_result cuda_piQueueRelease(pi_queue command_queue) {
   try {
     std::unique_ptr<_pi_queue> queueImpl(command_queue);
 
+    if (!command_queue->backend_has_ownership())
+      return PI_SUCCESS;
+
     ScopedContext active(command_queue->get_context());
 
     command_queue->for_each_stream([](CUstream s) {
@@ -2500,8 +2503,7 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 }
 
 /// Created a PI queue object from a CUDA queue handle.
-/// TODO: Implement this.
-/// NOTE: The created PI object takes ownership of the native handle.
+/// NOTE: The created PI object does not take ownership of the native handle.
 ///
 /// \param[in] nativeHandle The native handle to create PI queue object from.
 /// \param[in] context is the PI context of the queue.
@@ -2510,13 +2512,44 @@ pi_result cuda_piextQueueGetNativeHandle(pi_queue queue,
 ///        the native handle, if it can.
 ///
 /// \return TBD
-pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                pi_device, bool ownNativeHandle,
-                                                pi_queue *) {
+pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                pi_device device,
+                                                bool ownNativeHandle,
+                                                pi_queue *queue) {
+  (void)device;
   (void)ownNativeHandle;
-  cl::sycl::detail::pi::die(
-      "Creation of PI queue from native handle not implemented");
-  return {};
+
+  assert(ownNativeHandle == 1);
+
+  unsigned int flags;
+  CUstream cuStream = reinterpret_cast<CUstream>(nativeHandle);
+
+  auto retErr = PI_CHECK_ERROR(cuStreamGetFlags(cuStream, &flags));
+
+  pi_queue_properties properties = 0;
+  if (flags == CU_STREAM_DEFAULT)
+    properties = __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
+  else if (flags == CU_STREAM_NON_BLOCKING)
+    properties = __SYCL_PI_CUDA_SYNC_WITH_DEFAULT;
+  else
+    cl::sycl::detail::pi::die("Unknown cuda stream");
+
+  std::vector<CUstream> computeCuStreams(1, cuStream);
+  std::vector<CUstream> transferCuStreams(0);
+
+  // Create queue and set num_compute_streams to 1, as computeCuStreams has
+  // valid stream
+  *queue = new _pi_queue{std::move(computeCuStreams),
+                         std::move(transferCuStreams),
+                         context,
+                         context->get_device(),
+                         properties,
+                         flags,
+                         /*backend_owns*/ false};
+  (*queue)->num_compute_streams_ = 1;
+
+  return retErr;
 }
 
 pi_result cuda_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
