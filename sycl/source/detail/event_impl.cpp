@@ -36,10 +36,8 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 void event_impl::ensureContextInitialized() {
   if (!MIsContextInitialized) {
     const device &SyclDevice = default_selector().select_device();
-    auto tempState = MState; // setContextImpl changes MState for some reason. We don't want that.
     this->setContextImpl(detail::queue_impl::getDefaultOrNew(
         detail::getSyclObjImpl(SyclDevice)));
-    MState = tempState; //restore 
   }
 }
 
@@ -118,13 +116,13 @@ const plugin &event_impl::getPlugin() {
   return MContext->getPlugin();
 }
 
+void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
+
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
   MOpenCLInterop = !MHostEvent;
   MContext = Context;
   MIsContextInitialized = true;
-
-  MState = HES_NotComplete;
 }
 
 event_impl::event_impl(HostEventState State)

@@ -48,6 +48,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 

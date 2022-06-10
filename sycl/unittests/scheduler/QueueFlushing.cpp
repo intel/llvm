@@ -208,6 +208,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     detail::EventImplPtr DepEvent{new detail::event_impl(QueueImplB)};
     DepEvent->setContextImpl(QueueImplB->getContextImplPtr());
+    DepEvent->setStateIncomplete();
     DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
@@ -225,6 +226,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
       detail::QueueImplPtr TempQueueImpl = detail::getSyclObjImpl(TempQueue);
       DepEvent.reset(new detail::event_impl(TempQueueImpl));
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());
+      DepEvent->setStateIncomplete();
       DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     }
     (void)Cmd.addDep(DepEvent, ToCleanUp);

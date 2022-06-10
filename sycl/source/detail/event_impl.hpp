@@ -146,6 +146,9 @@ public:
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
 
+  /// clear the event state
+  void setStateIncomplete();
+
   /// Returns command that is associated with the event.
   ///
   /// Scheduler mutex must be locked in read mode when this is called.
