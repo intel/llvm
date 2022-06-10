@@ -125,14 +125,14 @@ public:
 
   // Only if Space is in
   // {global_space, ext_intel_global_device_space, generic_space}
-  template <int dimensions, access::mode Mode,
-            access::placeholder isPlaceholder, typename PropertyListT,
-            access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
-                _Space == Space &&
-                (Space == access::address_space::generic_space ||
-                 Space == access::address_space::global_space ||
-                 Space == access::address_space::ext_intel_global_device_space)>>
+  template <
+      int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+      typename PropertyListT, access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space &&
+          (Space == access::address_space::generic_space ||
+           Space == access::address_space::global_space ||
+           Space == access::address_space::ext_intel_global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor) {
