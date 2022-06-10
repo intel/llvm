@@ -168,7 +168,7 @@ public:
                 << Plt.get_info<info::platform::name>();
       return;
     }
-    
+
     char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
     if (!SYCLCacheDir) {
       std::clog << "This test requires the SYCL_CACHE_DIR environment variable "
