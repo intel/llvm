@@ -1371,35 +1371,21 @@ template <> ESIMD_INLINE float atan2(float y, float x) {
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                              __ESIMD_NS::simd<float, N> x) {
+  __ESIMD_NS::simd<int, N> v_quot;
   __ESIMD_NS::simd<float, N> fmod;
-  __ESIMD_NS::simd<float, N> abs_x;
-  __ESIMD_NS::simd<float, N> reminder;
-  __ESIMD_NS::simd<float, N> reminder_sign_mask;
-  __ESIMD_NS::simd<float, N> y_sign_mask;
 
-  y_sign_mask.merge(-1.0f, 1.0f, y < 0);
-  abs_x = __ESIMD_NS::abs(x);
-  reminder = y - abs_x * __ESIMD_NS::trunc<float>(__ESIMD_NS::abs(y) / abs_x);
-  reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
-
-  fmod = reminder + abs_x * reminder_sign_mask;
-  return __ESIMD_NS::abs(fmod) * y_sign_mask;
+  v_quot = convert<int>(y / x);
+  fmod = y - x * convert<float>(v_quot);
+  return fmod;
 }
 
 //     For Scalar Input
 template <> ESIMD_INLINE float fmod(float y, float x) {
+  int v_quot;
   __ESIMD_NS::simd<float, 1> fmod;
-  __ESIMD_NS::simd<float, 1> abs_x;
-  __ESIMD_NS::simd<float, 1> reminder;
-  __ESIMD_NS::simd<float, 1> reminder_sign_mask;
-  __ESIMD_NS::simd<float, 1> y_sign_mask;
 
-  y_sign_mask.merge(-1.0f, 1.0f, y < 0);
-  abs_x = __ESIMD_NS::abs(x);
-  reminder = y - abs_x * __ESIMD_NS::trunc<float>(__ESIMD_NS::abs(y) / abs_x);
-  reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
-
-  fmod = __ESIMD_NS::abs(reminder + abs_x * reminder_sign_mask) * y_sign_mask;
+  v_quot = (int)(y / x);
+  fmod = y - x * v_quot;
   return fmod[0];
 }
 
