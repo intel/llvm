@@ -245,9 +245,7 @@ template <typename Tx, int N, typename AccessorTy,
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                                    Flags = {}) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
-  auto Ptr = reinterpret_cast<Tx *>(BytePtr);
-  return block_load<Tx, N>(Ptr);
+  return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset));
 #else
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -311,9 +309,7 @@ template <typename Tx, int N, typename AccessorTy,
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                              simd<Tx, N> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
-  auto Ptr = reinterpret_cast<Tx *>(BytePtr);
-  block_store<Tx, N>(Ptr, vals);
+  block_store<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset), vals);
 #else
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -439,10 +435,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr =
-      reinterpret_cast<char *>(acc.get_pointer().get()) + glob_offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  return gather<T, N>(Ptr, offsets, mask);
+  return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
+                      offsets, mask);
 #else
   return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
 #endif
@@ -474,10 +468,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr =
-      reinterpret_cast<char *>(acc.get_pointer().get()) + glob_offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  scatter<T, N>(Ptr, vals, offsets, mask);
+  scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), vals,
+                offsets, mask);
 #else
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
@@ -648,10 +640,8 @@ __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
 gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr =
-      reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  return gather_rgba<RGBAMask>(Ptr, offsets, mask);
+  return gather_rgba<RGBAMask>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, global_offset), offsets, mask);
 #else
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
@@ -686,10 +676,8 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr =
-      reinterpret_cast<char *>(acc.get_pointer().get()) + global_offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  scatter_rgba<RGBAMask>(Ptr, offsets, vals, mask);
+  scatter_rgba<RGBAMask>(__ESIMD_DNS::accessorToPointer<T>(acc, global_offset),
+                         offsets, vals, mask);
 #else
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;

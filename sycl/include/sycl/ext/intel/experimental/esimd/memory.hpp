@@ -421,9 +421,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  return lsc_block_load<T, NElts, DS, L1H, L3H>(Ptr);
+  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -553,8 +552,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
              __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_prefetch<T, NElts, DS, L1H, L3H>(acc.get_pointer().get(), offsets,
-                                              pred);
+  return lsc_prefetch<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -595,9 +594,8 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, uint32_t offset) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  lsc_prefetch<T, NElts, DS, L1H, L3H>(Ptr);
+  lsc_prefetch<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -794,7 +792,8 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
             __ESIMD_NS::simd<T, N * NElts> vals,
             __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  lsc_scatter<T, NElts, DS, L1H>(acc.get_pointer().get(), offsets, pred);
+  lsc_scatter<T, NElts, DS, L1H>(__ESIMD_DNS::accessorToPointer<T>(acc),
+                                 offsets, pred);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -840,9 +839,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  auto BytePtr = reinterpret_cast<char *>(acc.get_pointer().get()) + offset;
-  auto Ptr = reinterpret_cast<T *>(BytePtr);
-  lsc_block_store<T, NElts, DS, L1H>(Ptr, vals);
+  lsc_block_store<T, NElts, DS, L1H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals);
 #else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
@@ -1280,8 +1278,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(),
-                                                   offsets, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
 #else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
@@ -1330,8 +1328,8 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(),
-                                                   offsets, src0, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
 #else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
@@ -1382,8 +1380,8 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(acc.get_pointer().get(),
-                                                   offsets, src0, src1, pred);
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
 #else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
