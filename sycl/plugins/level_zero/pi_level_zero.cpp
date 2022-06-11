@@ -122,114 +122,121 @@ static const bool IndirectAccessTrackingEnabled = [] {
          nullptr;
 }();
 
-static std::unordered_map<ze_result_t, const char *> ZeErrorMessage = {
-    {ZE_RESULT_SUCCESS, "ZE_RESULT_SUCCESS: success"},
-    {ZE_RESULT_NOT_READY,
-     "ZE_RESULT_NOT_READY: synchronization primitive not signaled"},
-    {ZE_RESULT_ERROR_DEVICE_LOST,
-     "ZE_RESULT_ERROR_DEVICE_LOST: device hung, reset, was removed, or driver "
-     "update occurred"},
-    {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY,
-     "insufficient host memory to satisfy call"},
-    {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
-     "insufficient device memory to satisfy call"},
-    {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE,
-     "error occurred when building module, see build log for details"},
-    {ZE_RESULT_ERROR_MODULE_LINK_FAILURE,
-     "error occurred when linking modules, see build log for details"},
-    {ZE_RESULT_ERROR_DEVICE_REQUIRES_RESET, "device requires a reset"},
-    {ZE_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE,
-     "device currently in low power state"},
-    {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS,
-     "access denied due to permission level"},
-    {ZE_RESULT_ERROR_NOT_AVAILABLE,
-     "resource already in use and simultaneous access not allowed or resource "
-     "was removed"},
-    {ZE_RESULT_ERROR_DEPENDENCY_UNAVAILABLE,
-     "external required dependency is unavailable or missing"},
-    {ZE_RESULT_ERROR_UNINITIALIZED, "driver is not initialized"},
-    {ZE_RESULT_ERROR_UNSUPPORTED_VERSION,
-     "generic error code for unsupported versions"},
-    {ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
-     "generic error code for unsupported features"},
-    {ZE_RESULT_ERROR_INVALID_ARGUMENT,
-     "generic error code for invalid arguments"},
-    {ZE_RESULT_ERROR_INVALID_NULL_HANDLE, "handle argument is not valid"},
-    {ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE,
-     "object pointed to by handle still in-use by device"},
-    {ZE_RESULT_ERROR_INVALID_NULL_POINTER,
-     "pointer argument may not be nullptr"},
-    {ZE_RESULT_ERROR_INVALID_SIZE,
-     "size argument is invalid (e.g., must not be zero)"},
-    {ZE_RESULT_ERROR_UNSUPPORTED_SIZE,
-     "size argument is not supported by the device (e.g., too large)"},
-    {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT,
-     "alignment argument is not supported by the device (e.g. too small"},
-    {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT,
-     "synchronization object in invalid state"},
-    {ZE_RESULT_ERROR_INVALID_ENUMERATION, "enumerator argument is not valid"},
-    {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION,
-     "enumerator argument is not supported by the device"},
-    {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT,
-     "image format is not supported by the device"},
-    {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY,
-     "native binary is not supported by the device"},
-    {ZE_RESULT_ERROR_INVALID_GLOBAL_NAME,
-     "global variable is not found in the module"},
-    {ZE_RESULT_ERROR_INVALID_KERNEL_NAME,
-     "kernel name is not found in the module"},
-    {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME,
-     "function name is not found in the module"},
-    {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
-     "group size dimension is not valid for the kernel or device"},
-    {ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION,
-     "global width dimension is not valid for the kernel or device"},
-    {ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
-     "kernel argument index is not valid for kernel"},
-    {ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
-     "kernel argument size does not match kernel"},
-    {ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE,
-     "value of kernel attribute is not valid for the kernel or device"},
-    {ZE_RESULT_ERROR_INVALID_MODULE_UNLINKED,
-     "module with imports needs to be linked before kernels can be created "
-     "from it."},
-    {ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE,
-     "command list type does not match command queue type"},
-    {ZE_RESULT_ERROR_OVERLAPPING_REGIONS,
-     "copy operations do not support overlapping regions of memory"},
-    {ZE_RESULT_ERROR_UNKNOWN, "unknown or internal error"}};
+static std::unordered_map<ze_result_t, const char *> *ZeErrorMessage = nullptr;
+static std::unordered_map<ze_result_t, pi_result> *ErrorMapping = nullptr;
+
+static void __attribute__((constructor)) initialize_pi_level_zero() {
+  ZeErrorMessage = new std::unordered_map<ze_result_t, const char *>(
+      {{ZE_RESULT_SUCCESS, "ZE_RESULT_SUCCESS: success"},
+       {ZE_RESULT_NOT_READY,
+        "ZE_RESULT_NOT_READY: synchronization primitive not signaled"},
+       {ZE_RESULT_ERROR_DEVICE_LOST, "ZE_RESULT_ERROR_DEVICE_LOST: device "
+                                     "hung, reset, was removed, or driver "
+                                     "update occurred"},
+       {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY,
+        "insufficient host memory to satisfy call"},
+       {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY,
+        "insufficient device memory to satisfy call"},
+       {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE,
+        "error occurred when building module, see build log for details"},
+       {ZE_RESULT_ERROR_MODULE_LINK_FAILURE,
+        "error occurred when linking modules, see build log for details"},
+       {ZE_RESULT_ERROR_DEVICE_REQUIRES_RESET, "device requires a reset"},
+       {ZE_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE,
+        "device currently in low power state"},
+       {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS,
+        "access denied due to permission level"},
+       {ZE_RESULT_ERROR_NOT_AVAILABLE,
+        "resource already in use and simultaneous access not allowed or "
+        "resource "
+        "was removed"},
+       {ZE_RESULT_ERROR_DEPENDENCY_UNAVAILABLE,
+        "external required dependency is unavailable or missing"},
+       {ZE_RESULT_ERROR_UNINITIALIZED, "driver is not initialized"},
+       {ZE_RESULT_ERROR_UNSUPPORTED_VERSION,
+        "generic error code for unsupported versions"},
+       {ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
+        "generic error code for unsupported features"},
+       {ZE_RESULT_ERROR_INVALID_ARGUMENT,
+        "generic error code for invalid arguments"},
+       {ZE_RESULT_ERROR_INVALID_NULL_HANDLE, "handle argument is not valid"},
+       {ZE_RESULT_ERROR_HANDLE_OBJECT_IN_USE,
+        "object pointed to by handle still in-use by device"},
+       {ZE_RESULT_ERROR_INVALID_NULL_POINTER,
+        "pointer argument may not be nullptr"},
+       {ZE_RESULT_ERROR_INVALID_SIZE,
+        "size argument is invalid (e.g., must not be zero)"},
+       {ZE_RESULT_ERROR_UNSUPPORTED_SIZE,
+        "size argument is not supported by the device (e.g., too large)"},
+       {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT,
+        "alignment argument is not supported by the device (e.g. too small"},
+       {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT,
+        "synchronization object in invalid state"},
+       {ZE_RESULT_ERROR_INVALID_ENUMERATION,
+        "enumerator argument is not valid"},
+       {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION,
+        "enumerator argument is not supported by the device"},
+       {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT,
+        "image format is not supported by the device"},
+       {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY,
+        "native binary is not supported by the device"},
+       {ZE_RESULT_ERROR_INVALID_GLOBAL_NAME,
+        "global variable is not found in the module"},
+       {ZE_RESULT_ERROR_INVALID_KERNEL_NAME,
+        "kernel name is not found in the module"},
+       {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME,
+        "function name is not found in the module"},
+       {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
+        "group size dimension is not valid for the kernel or device"},
+       {ZE_RESULT_ERROR_INVALID_GLOBAL_WIDTH_DIMENSION,
+        "global width dimension is not valid for the kernel or device"},
+       {ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX,
+        "kernel argument index is not valid for kernel"},
+       {ZE_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE,
+        "kernel argument size does not match kernel"},
+       {ZE_RESULT_ERROR_INVALID_KERNEL_ATTRIBUTE_VALUE,
+        "value of kernel attribute is not valid for the kernel or device"},
+       {ZE_RESULT_ERROR_INVALID_MODULE_UNLINKED,
+        "module with imports needs to be linked before kernels can be created "
+        "from it."},
+       {ZE_RESULT_ERROR_INVALID_COMMAND_LIST_TYPE,
+        "command list type does not match command queue type"},
+       {ZE_RESULT_ERROR_OVERLAPPING_REGIONS,
+        "copy operations do not support overlapping regions of memory"},
+       {ZE_RESULT_ERROR_UNKNOWN, "unknown or internal error"}});
+
+  ErrorMapping = new std::unordered_map<ze_result_t, pi_result>(
+      {{ZE_RESULT_SUCCESS, PI_SUCCESS},
+       {ZE_RESULT_ERROR_DEVICE_LOST, PI_ERROR_DEVICE_NOT_FOUND},
+       {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS, PI_ERROR_INVALID_OPERATION},
+       {ZE_RESULT_ERROR_NOT_AVAILABLE, PI_ERROR_INVALID_OPERATION},
+       {ZE_RESULT_ERROR_UNINITIALIZED, PI_ERROR_INVALID_PLATFORM},
+       {ZE_RESULT_ERROR_INVALID_ARGUMENT, PI_ERROR_INVALID_ARG_VALUE},
+       {ZE_RESULT_ERROR_INVALID_NULL_POINTER, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_INVALID_SIZE, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT, PI_ERROR_INVALID_EVENT},
+       {ZE_RESULT_ERROR_INVALID_ENUMERATION, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, PI_ERROR_INVALID_VALUE},
+       {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, PI_ERROR_INVALID_BINARY},
+       {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, PI_ERROR_INVALID_KERNEL_NAME},
+       {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_ERROR_BUILD_PROGRAM_FAILURE},
+       {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, PI_ERROR_INVALID_OPERATION},
+       {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
+        PI_ERROR_INVALID_WORK_GROUP_SIZE},
+       {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE},
+       {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, PI_ERROR_OUT_OF_RESOURCES},
+       {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY, PI_ERROR_OUT_OF_HOST_MEMORY}});
+}
 
 // Map Level Zero runtime error code to PI error code.
 static pi_result mapError(ze_result_t ZeResult) {
   // TODO: these mapping need to be clarified and synced with the PI API return
   // values, which is TBD.
-  static std::unordered_map<ze_result_t, pi_result> ErrorMapping = {
-      {ZE_RESULT_SUCCESS, PI_SUCCESS},
-      {ZE_RESULT_ERROR_DEVICE_LOST, PI_ERROR_DEVICE_NOT_FOUND},
-      {ZE_RESULT_ERROR_INSUFFICIENT_PERMISSIONS, PI_ERROR_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_NOT_AVAILABLE, PI_ERROR_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_UNINITIALIZED, PI_ERROR_INVALID_PLATFORM},
-      {ZE_RESULT_ERROR_INVALID_ARGUMENT, PI_ERROR_INVALID_ARG_VALUE},
-      {ZE_RESULT_ERROR_INVALID_NULL_POINTER, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_SIZE, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_SIZE, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ALIGNMENT, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_SYNCHRONIZATION_OBJECT, PI_ERROR_INVALID_EVENT},
-      {ZE_RESULT_ERROR_INVALID_ENUMERATION, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_ENUMERATION, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT, PI_ERROR_INVALID_VALUE},
-      {ZE_RESULT_ERROR_INVALID_NATIVE_BINARY, PI_ERROR_INVALID_BINARY},
-      {ZE_RESULT_ERROR_INVALID_KERNEL_NAME, PI_ERROR_INVALID_KERNEL_NAME},
-      {ZE_RESULT_ERROR_INVALID_FUNCTION_NAME, PI_ERROR_BUILD_PROGRAM_FAILURE},
-      {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, PI_ERROR_INVALID_OPERATION},
-      {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
-       PI_ERROR_INVALID_WORK_GROUP_SIZE},
-      {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_ERROR_BUILD_PROGRAM_FAILURE},
-      {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, PI_ERROR_OUT_OF_RESOURCES},
-      {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY, PI_ERROR_OUT_OF_HOST_MEMORY}};
-
-  auto It = ErrorMapping.find(ZeResult);
-  if (It == ErrorMapping.end()) {
+  auto It = ErrorMapping->find(ZeResult);
+  if (It == ErrorMapping->end()) {
     return PI_ERROR_UNKNOWN;
   }
   return It->second;
@@ -260,7 +267,7 @@ thread_local char ErrorMessage[MaxMessageSize];
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
     auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, true);           \
     auto PiResult = mapError(Result);                                          \
-    setErrorMessage(ZeErrorMessage[ZeResult], PiResult, Result);               \
+    setErrorMessage((*ZeErrorMessage)[ZeResult], PiResult, Result);            \
     if (PiResult)                                                              \
       return PiResult;                                                         \
   }
@@ -270,7 +277,7 @@ thread_local char ErrorMessage[MaxMessageSize];
     ze_result_t ZeResult = ZeName ZeArgs;                                      \
     auto Result = ZeCall().doCall(ZeResult, #ZeName, #ZeArgs, false);          \
     auto PiResult = mapError(Result);                                          \
-    setErrorMessage(ZeErrorMessage[ZeResult], PiResult, Result);               \
+    setErrorMessage((*ZeErrorMessage)[ZeResult], PiResult, Result);            \
   }
 
 // Trace an internal PI call; returns in case of an error.
