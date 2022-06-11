@@ -10854,22 +10854,24 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
         Other = N1;
       }
 
+      // zext(x) >= y ? trunc(zext(x) - y) : 0
+      // --> usubsat(trunc(zext(x)),trunc(umin(y,SatLimit)))
+      // zext(x) >  y ? trunc(zext(x) - y) : 0
+      // --> usubsat(trunc(zext(x)),trunc(umin(y,SatLimit)))
+      if (Other && Other.getOpcode() == ISD::TRUNCATE &&
+          Other.getOperand(0).getOpcode() == ISD::SUB &&
+          (SatCC == ISD::SETUGE || SatCC == ISD::SETUGT)) {
+        SDValue OpLHS = Other.getOperand(0).getOperand(0);
+        SDValue OpRHS = Other.getOperand(0).getOperand(1);
+        if (LHS == OpLHS && RHS == OpRHS && LHS.getOpcode() == ISD::ZERO_EXTEND)
+          if (SDValue R = getTruncatedUSUBSAT(VT, LHS.getValueType(), LHS, RHS,
+                                              DAG, DL))
+            return R;
+      }
+
       if (Other && Other.getNumOperands() == 2) {
         SDValue CondRHS = RHS;
         SDValue OpLHS = Other.getOperand(0), OpRHS = Other.getOperand(1);
-
-        if (Other.getOpcode() == ISD::SUB &&
-            LHS.getOpcode() == ISD::ZERO_EXTEND && LHS.getOperand(0) == OpLHS &&
-            OpRHS.getOpcode() == ISD::TRUNCATE && OpRHS.getOperand(0) == RHS) {
-          // Look for a general sub with unsigned saturation first.
-          // zext(x) >= y ? x - trunc(y) : 0
-          // --> usubsat(x,trunc(umin(y,SatLimit)))
-          // zext(x) >  y ? x - trunc(y) : 0
-          // --> usubsat(x,trunc(umin(y,SatLimit)))
-          if (SatCC == ISD::SETUGE || SatCC == ISD::SETUGT)
-            return getTruncatedUSUBSAT(VT, LHS.getValueType(), LHS, RHS, DAG,
-                                       DL);
-        }
 
         if (OpLHS == LHS) {
           // Look for a general sub with unsigned saturation first.
@@ -10901,8 +10903,8 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
 
               // Another special case: If C was a sign bit, the sub has been
               // canonicalized into a xor.
-              // FIXME: Would it be better to use computeKnownBits to determine
-              //        whether it's safe to decanonicalize the xor?
+              // FIXME: Would it be better to use computeKnownBits to
+              // determine whether it's safe to decanonicalize the xor?
               // x s< 0 ? x^C : 0 --> usubsat x, C
               APInt SplatValue;
               if (SatCC == ISD::SETLT && Other.getOpcode() == ISD::XOR &&
@@ -12508,13 +12510,9 @@ SDValue DAGCombiner::visitAssertExt(SDNode *N) {
     // This eliminates the later assert:
     // assert (trunc (assert X, i8) to iN), i1 --> trunc (assert X, i1) to iN
     // assert (trunc (assert X, i1) to iN), i8 --> trunc (assert X, i1) to iN
+    SDLoc DL(N);
     SDValue BigA = N0.getOperand(0);
     EVT BigA_AssertVT = cast<VTSDNode>(BigA.getOperand(1))->getVT();
-    assert(BigA_AssertVT.bitsLE(N0.getValueType()) &&
-           "Asserting zero/sign-extended bits to a type larger than the "
-           "truncated destination does not provide information");
-
-    SDLoc DL(N);
     EVT MinAssertVT = AssertVT.bitsLT(BigA_AssertVT) ? AssertVT : BigA_AssertVT;
     SDValue MinAssertVTVal = DAG.getValueType(MinAssertVT);
     SDValue NewAssert = DAG.getNode(Opcode, DL, BigA.getValueType(),
@@ -12530,10 +12528,6 @@ SDValue DAGCombiner::visitAssertExt(SDNode *N) {
       Opcode == ISD::AssertZext) {
     SDValue BigA = N0.getOperand(0);
     EVT BigA_AssertVT = cast<VTSDNode>(BigA.getOperand(1))->getVT();
-    assert(BigA_AssertVT.bitsLE(N0.getValueType()) &&
-           "Asserting zero/sign-extended bits to a type larger than the "
-           "truncated destination does not provide information");
-
     if (AssertVT.bitsLT(BigA_AssertVT)) {
       SDLoc DL(N);
       SDValue NewAssert = DAG.getNode(Opcode, DL, BigA.getValueType(),
@@ -18159,7 +18153,7 @@ bool DAGCombiner::tryStoreMergeOfConstants(
   while (NumConsecutiveStores >= 2) {
     LSBaseSDNode *FirstInChain = StoreNodes[0].MemNode;
     unsigned FirstStoreAS = FirstInChain->getAddressSpace();
-    unsigned FirstStoreAlign = FirstInChain->getAlignment();
+    Align FirstStoreAlign = FirstInChain->getAlign();
     unsigned LastLegalType = 1;
     unsigned LastLegalVectorType = 1;
     bool LastIntegerTrunc = false;
@@ -18247,7 +18241,7 @@ bool DAGCombiner::tryStoreMergeOfConstants(
       unsigned NumSkip = 1;
       while ((NumSkip < NumConsecutiveStores) &&
              (NumSkip < FirstZeroAfterNonZero) &&
-             (StoreNodes[NumSkip].MemNode->getAlignment() <= FirstStoreAlign))
+             (StoreNodes[NumSkip].MemNode->getAlign() <= FirstStoreAlign))
         NumSkip++;
 
       StoreNodes.erase(StoreNodes.begin(), StoreNodes.begin() + NumSkip);
@@ -18286,7 +18280,7 @@ bool DAGCombiner::tryStoreMergeOfExtracts(
   while (NumConsecutiveStores >= 2) {
     LSBaseSDNode *FirstInChain = StoreNodes[0].MemNode;
     unsigned FirstStoreAS = FirstInChain->getAddressSpace();
-    unsigned FirstStoreAlign = FirstInChain->getAlignment();
+    Align FirstStoreAlign = FirstInChain->getAlign();
     unsigned NumStoresToMerge = 1;
     for (unsigned i = 0; i < NumConsecutiveStores; ++i) {
       // Find a legal type for the vector store.
@@ -18317,7 +18311,7 @@ bool DAGCombiner::tryStoreMergeOfExtracts(
       // improved. Drop as many candidates as we can here.
       unsigned NumSkip = 1;
       while ((NumSkip < NumConsecutiveStores) &&
-             (StoreNodes[NumSkip].MemNode->getAlignment() <= FirstStoreAlign))
+             (StoreNodes[NumSkip].MemNode->getAlign() <= FirstStoreAlign))
         NumSkip++;
 
       StoreNodes.erase(StoreNodes.begin(), StoreNodes.begin() + NumSkip);
@@ -19237,6 +19231,14 @@ SDValue DAGCombiner::combineInsertEltToShuffle(SDNode *N, unsigned InsIndex) {
         // computation.
         assert(CurrentArgOffset == ArgOffset);
       }
+    }
+
+    // If we failed to find a match, see if we can replace an UNDEF shuffle
+    // operand.
+    if (ElementOffset == -1 && Y.isUndef() &&
+        InsertVal0.getValueType() == Y.getValueType()) {
+      ElementOffset = Mask.size();
+      Y = InsertVal0;
     }
 
     if (ElementOffset != -1) {
@@ -21960,6 +21962,13 @@ static SDValue combineShuffleOfSplatVal(ShuffleVectorSDNode *Shuf,
                                         SelectionDAG &DAG) {
   if (!Shuf->getOperand(1).isUndef())
     return SDValue();
+
+  // If the inner operand is a known splat with no undefs, just return that directly.
+  // TODO: Create DemandedElts mask from Shuf's mask.
+  // TODO: Allow undef elements and merge with the shuffle code below.
+  if (DAG.isSplatValue(Shuf->getOperand(0), /*AllowUndefs*/ false))
+    return Shuf->getOperand(0);
+
   auto *Splat = dyn_cast<ShuffleVectorSDNode>(Shuf->getOperand(0));
   if (!Splat || !Splat->isSplat())
     return SDValue();
