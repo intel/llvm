@@ -24,7 +24,7 @@ unsigned int __devicelib_imf_brev(unsigned int x) {
 }
 
 DEVICE_EXTERN_C_INLINE
-unsigned long int __devicelib_imf_brevll(unsigned long long int x) {
+unsigned long long int __devicelib_imf_brevll(unsigned long long int x) {
   unsigned long long int res = 0;
   size_t bit_count = 8 * sizeof(unsigned long long int);
   for (size_t idx = 0; idx < bit_count - 1; ++idx) {
