@@ -14,11 +14,12 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_brev(unsigned int x) {
   unsigned int res = 0;
   size_t bit_count = 8 * sizeof(unsigned int);
-  for (size_t idx = 0; idx < bit_count; ++idx) {
+  for (size_t idx = 0; idx < bit_count - 1; ++idx) {
     res |= x & 0x1;
     res <<= 1;
     x >>= 1;
   }
+  res |= x & 0x1;
   return res;
 }
 
@@ -26,11 +27,12 @@ DEVICE_EXTERN_C_INLINE
 unsigned long int __devicelib_imf_brevll(unsigned long long int x) {
   unsigned long long int res = 0;
   size_t bit_count = 8 * sizeof(unsigned long long int);
-  for (size_t idx = 0; idx < bit_count; ++idx) {
+  for (size_t idx = 0; idx < bit_count - 1; ++idx) {
     res |= x & 0x1;
     res <<= 1;
     x >>= 1;
   }
+  res |= x & 0x1;
   return res;
 }
 
@@ -69,7 +71,7 @@ unsigned int __devicelib_imf_byte_perm(unsigned int x, unsigned int y,
     if (select_idx < 4)
       buf[idx] = __get_bytes_by_index<unsigned int, uint8_t>(x, select_idx);
     else
-      buf[idx] = __get_bytes_by_index<unsigned int, uint8_t>(y, select_idx - 3);
+      buf[idx] = __get_bytes_by_index<unsigned int, uint8_t>(y, select_idx - 4);
     s >>= 4;
   }
   return __assemble_integral_value<unsigned int, uint8_t, 4>(buf);

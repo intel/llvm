@@ -419,6 +419,8 @@ static inline _iml_half __trunc(_iml_half x) {
 }
 
 static inline int __clz(int x) {
+  if (x == 0)
+    return 32;
   uint32_t xi32 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_clz(xi32);
@@ -428,6 +430,8 @@ static inline int __clz(int x) {
 }
 
 static inline int __clzll(long long int x) {
+  if (x == 0)
+    return 64;
   uint64_t xi64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __builtin_clzll(xi64);
