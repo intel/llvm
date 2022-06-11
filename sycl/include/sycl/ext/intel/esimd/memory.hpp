@@ -1353,9 +1353,15 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
-                          Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+        if constexpr (sizeof(T) == 1) {
+          simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
+          BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
+        } else {
+          simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+          scatter<UT, RemN>(
+              Addr + (NumChunks * ChunkSize), Offsets,
+              Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+        }
       } else {
         constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
         simd_mask_type<N1> Pred(0);
@@ -1420,10 +1426,15 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN, AccessorT>(
-            acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
-            offset + (NumChunks * ChunkSize * sizeof(T)));
+        if constexpr (sizeof(T) == 1) {
+          simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
+          BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
+        } else {
+          simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+          scatter<UT, RemN, AccessorT>(
+              acc, Offsets, Tmp.template select<RemN, 1>(NumChunks * ChunkSize),
+              offset + (NumChunks * ChunkSize * sizeof(T)));
+        }
       } else {
         constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
         simd_mask_type<N1> Pred(0);
