@@ -47,7 +47,7 @@ template <cl::sycl::access::address_space AS>
 using IsValidAtomicAddressSpace =
     bool_constant<AS == access::address_space::global_space ||
                   AS == access::address_space::local_space ||
-                  AS == access::address_space::global_device_space>;
+                  AS == access::address_space::ext_intel_global_device_space>;
 
 // DefaultOrder parameter is limited to read-modify-write orders
 template <memory_order Order>
@@ -122,7 +122,7 @@ class atomic_ref_base {
       "and pointer types");
   static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
-                "global_space, local_space, global_device_space");
+                "global_space, local_space, ext_intel_global_device_space");
   static_assert(
       detail::IsValidDefaultOrder<DefaultOrder>::value,
       "Invalid default memory_order for atomics.  Valid defaults are: "
