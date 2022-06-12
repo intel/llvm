@@ -2505,38 +2505,44 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
-  void markParallelWorkItemCalls() {
-    if (getKernelInvocationKind(KernelCallerFunc) ==
-        InvokeParallelForWorkGroup) {
-      // Fetch the kernel object and the associated call operator
-      // (of either the lambda or the function object).
-      CXXRecordDecl *KernelObj =
-          GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-      CXXMethodDecl *WGLambdaFn = nullptr;
-      if (KernelObj->isLambda())
-        WGLambdaFn = KernelObj->getLambdaCallOperator();
-      else
-        WGLambdaFn = getOperatorParens(KernelObj);
-      assert(WGLambdaFn && "non callable object is passed as kernel obj");
-      // Mark the function that it "works" in a work group scope:
-      // NOTE: In case of parallel_for_work_item the marker call itself is
-      // marked with work item scope attribute, here  the '()' operator of the
-      // object passed as parameter is marked. This is an optimization -
-      // there are a lot of locals created at parallel_for_work_group
-      // scope before calling the lambda - it is more efficient to have
-      // all of them in the private address space rather then sharing via
-      // the local AS. See parallel_for_work_group implementation in the
-      // SYCL headers.
-      if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
-        WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
-            SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-        // Search and mark parallel_for_work_item calls:
-        MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
-        MarkWIScope.TraverseDecl(WGLambdaFn);
-        // Now mark local variables declared in the PFWG lambda with work group
-        // scope attribute
-        addScopeAttrToLocalVars(*WGLambdaFn);
-      }
+  void annotateHierarchicalParallelismAPICalls() {
+    // Is this a hierarchical parallelism kernel invocation?
+    if (getKernelInvocationKind(KernelCallerFunc) != InvokeParallelForWorkGroup)
+      return;
+
+    // Mark kernel object with work-group scope attribute to avoid work-item
+    // scope memory allocation.
+    KernelObjClone->addAttr(SYCLScopeAttr::CreateImplicit(
+        SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+
+    // Fetch the kernel object and the associated call operator
+    // (of either the lambda or the function object).
+    CXXRecordDecl *KernelObj =
+        GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
+    CXXMethodDecl *WGLambdaFn = nullptr;
+    if (KernelObj->isLambda())
+      WGLambdaFn = KernelObj->getLambdaCallOperator();
+    else
+      WGLambdaFn = getOperatorParens(KernelObj);
+    assert(WGLambdaFn && "non callable object is passed as kernel obj");
+    // Mark the function that it "works" in a work group scope:
+    // NOTE: In case of parallel_for_work_item the marker call itself is
+    // marked with work item scope attribute, here  the '()' operator of the
+    // object passed as parameter is marked. This is an optimization -
+    // there are a lot of locals created at parallel_for_work_group
+    // scope before calling the lambda - it is more efficient to have
+    // all of them in the private address space rather then sharing via
+    // the local AS. See parallel_for_work_group implementation in the
+    // SYCL headers.
+    if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
+      WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
+          SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+      // Search and mark parallel_for_work_item calls:
+      MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
+      MarkWIScope.TraverseDecl(WGLambdaFn);
+      // Now mark local variables declared in the PFWG lambda with work group
+      // scope attribute
+      addScopeAttrToLocalVars(*WGLambdaFn);
     }
   }
 
@@ -2768,13 +2774,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     auto Type = QualType(KernelObj->getTypeForDecl(), 0);
-    Type->getAsRecordDecl()->setAnonymousStructOrUnion(true);
+    if (KernelObj->isLambda())
+      Type->getAsRecordDecl()->setAnonymousStructOrUnion(true);
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
         KernelObj->getIdentifier(), Type, TSInfo, SC_None);
-    if (getKernelInvocationKind(KernelCallerFunc) == InvokeParallelForWorkGroup)
-      VD->addAttr(
-          SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkGroup));
     return VD;
   }
 
@@ -2856,7 +2860,7 @@ public:
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
-    markParallelWorkItemCalls();
+    annotateHierarchicalParallelismAPICalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);
