@@ -2769,8 +2769,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
-                                       const CXXRecordDecl *KernelObj,
-                                       FunctionDecl *KernelCallerFunc) {
+                                       const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     auto Type = QualType(KernelObj->getTypeForDecl(), 0);
@@ -2854,8 +2853,7 @@ public:
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
         KernelObjClone(createKernelObjClone(S.getASTContext(),
-                                            DC.getKernelDecl(), KernelObj,
-                                            KernelCallerFunc)),
+                                            DC.getKernelDecl(), KernelObj)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
