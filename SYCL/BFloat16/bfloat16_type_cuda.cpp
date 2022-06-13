@@ -1,8 +1,6 @@
 // REQUIRES: gpu, cuda
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 %s -o %t.out
-// TODO: Currently the CI does not have a sm_80 capable machine. Enable the test
-// execution once it does.
-// RUNx: %t.out
+// RUN: %t.out
 
 //==--------- bfloat16_type_cuda.cpp - SYCL bfloat16 type test -------------==//
 //
@@ -14,4 +12,13 @@
 
 #include "bfloat16_type.hpp"
 
-int main() { return run_tests(); }
+int main() {
+  bool has_bfloat16_aspect = false;
+  for (const auto &plt : sycl::platform::get_platforms()) {
+    if (plt.has(aspect::ext_oneapi_bfloat16))
+      has_bfloat16_aspect = true;
+  }
+
+  if (has_bfloat16_aspect)
+    return run_tests();
+}
