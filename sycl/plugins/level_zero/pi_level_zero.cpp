@@ -2925,6 +2925,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
     return PI_ERROR_INVALID_VALUE;
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+    return PI_ERROR_INVALID_VALUE;
 
   // TODO: Implement.
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
