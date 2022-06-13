@@ -468,8 +468,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), vals,
-                offsets, mask);
+  scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
+                vals, mask);
 #else
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
 #endif
