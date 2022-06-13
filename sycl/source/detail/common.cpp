@@ -216,11 +216,11 @@ const char *stringifyErrorCode(cl_int error) {
       case CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR:
         return "CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR";
         */
-  case PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
+  case PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
     return "Function exists but address is not available";
-  case PI_PLUGIN_SPECIFIC_ERROR:
+  case PI_ERROR_PLUGIN_SPECIFIC_ERROR:
     return "The plugin has emitted a backend specific error";
-  case PI_COMMAND_EXECUTION_FAILURE:
+  case PI_ERROR_COMMAND_EXECUTION_FAILURE:
     return "Command failed to enqueue/execute";
   default:
     return "Unknown OpenCL error code";

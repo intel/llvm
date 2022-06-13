@@ -31,7 +31,7 @@ static constexpr auto WarningLevelEnvVar = "SYCL_RT_WARNING_LEVEL";
 static bool LogRequested = false;
 
 static pi_result redefinedProgramGetBuildInfo(
-    pi_program program, pi_device device, cl_program_build_info param_name,
+    pi_program program, pi_device device, pi_program_build_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
 
   if (param_value_size_ret) {
@@ -99,10 +99,9 @@ TEST(BuildLog, OutputNothingOnLevel1) {
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  sycl::queue Queue{Dev};
-
-  sycl::context Ctx = Queue.get_context();
   auto ContextImpl = getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
   ContextImpl->getKernelProgramCache().reset();
@@ -133,10 +132,9 @@ TEST(BuildLog, OutputLogOnLevel2) {
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
   auto ContextImpl = getSyclObjImpl(Ctx);
   // Make sure no kernels are cached
   ContextImpl->getKernelProgramCache().reset();

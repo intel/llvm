@@ -90,6 +90,9 @@ SVal SimpleSValBuilder::evalMinus(NonLoc val) {
   switch (val.getSubKind()) {
   case nonloc::ConcreteIntKind:
     return val.castAs<nonloc::ConcreteInt>().evalMinus(*this);
+  case nonloc::SymbolValKind:
+    return makeNonLoc(val.castAs<nonloc::SymbolVal>().getSymbol(), UO_Minus,
+                      val.getType(Context));
   default:
     return UnknownVal();
   }
@@ -99,9 +102,29 @@ SVal SimpleSValBuilder::evalComplement(NonLoc X) {
   switch (X.getSubKind()) {
   case nonloc::ConcreteIntKind:
     return X.castAs<nonloc::ConcreteInt>().evalComplement(*this);
+  case nonloc::SymbolValKind:
+    return makeNonLoc(X.castAs<nonloc::SymbolVal>().getSymbol(), UO_Not,
+                      X.getType(Context));
   default:
     return UnknownVal();
   }
+}
+
+// Checks if the negation the value and flipping sign preserve
+// the semantics on the operation in the resultType
+static bool isNegationValuePreserving(const llvm::APSInt &Value,
+                                      APSIntType ResultType) {
+  const unsigned ValueBits = Value.getSignificantBits();
+  if (ValueBits == ResultType.getBitWidth()) {
+    // The value is the lowest negative value that is representable
+    // in signed integer with bitWith of result type. The
+    // negation is representable if resultType is unsigned.
+    return ResultType.isUnsigned();
+  }
+
+  // If resultType bitWith is higher that number of bits required
+  // to represent RHS, the sign flip produce same value.
+  return ValueBits < ResultType.getBitWidth();
 }
 
 //===----------------------------------------------------------------------===//
@@ -202,22 +225,14 @@ SVal SimpleSValBuilder::MakeSymIntVal(const SymExpr *LHS,
     // Adjust addition/subtraction of negative value, to
     // subtraction/addition of the negated value.
     APSIntType resultIntTy = BasicVals.getAPSIntType(resultTy);
-    assert(resultIntTy.getBitWidth() >= RHS.getBitWidth() &&
-           "The result operation type must have at least the same "
-           "number of bits as its operands.");
-
-    llvm::APSInt ConvertedRHSValue = resultIntTy.convert(RHS);
-    // Check if the negation of the RHS is representable:
-    // * if resultIntTy is unsigned, then negation is always representable
-    // * if resultIntTy is signed, and RHS is not the lowest representable
-    //   signed value
-    if (resultIntTy.isUnsigned() || !ConvertedRHSValue.isMinSignedValue()) {
-      ConvertedRHS = &BasicVals.getValue(-ConvertedRHSValue);
+    if (isNegationValuePreserving(RHS, resultIntTy)) {
+      ConvertedRHS = &BasicVals.getValue(-resultIntTy.convert(RHS));
       op = (op == BO_Add) ? BO_Sub : BO_Add;
+    } else {
+      ConvertedRHS = &BasicVals.Convert(resultTy, RHS);
     }
-  } else {
+  } else
     ConvertedRHS = &BasicVals.Convert(resultTy, RHS);
-  }
 
   return makeNonLoc(LHS, op, *ConvertedRHS, resultTy);
 }
@@ -675,7 +690,6 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
               assert(newRHS && "Invalid operation despite common type!");
               rhs = nonloc::ConcreteInt(*newRHS);
               lhs = nonloc::SymbolVal(symIntExpr->getLHS());
-
               continue;
             }
           }
@@ -837,6 +851,8 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
     return UnknownVal();
 
   case loc::ConcreteIntKind: {
+    auto L = lhs.castAs<loc::ConcreteInt>();
+
     // If one of the operands is a symbol and the other is a constant,
     // build an expression for use by the constraint manager.
     if (SymbolRef rSym = rhs.getAsLocSymbol()) {
@@ -845,19 +861,17 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
       if (!BinaryOperator::isComparisonOp(op) || op == BO_Cmp)
         return UnknownVal();
 
-      const llvm::APSInt &lVal = lhs.castAs<loc::ConcreteInt>().getValue();
       op = BinaryOperator::reverseComparisonOp(op);
-      return makeNonLoc(rSym, op, lVal, resultTy);
+      return makeNonLoc(rSym, op, L.getValue(), resultTy);
     }
 
     // If both operands are constants, just perform the operation.
     if (Optional<loc::ConcreteInt> rInt = rhs.getAs<loc::ConcreteInt>()) {
-      SVal ResultVal =
-          lhs.castAs<loc::ConcreteInt>().evalBinOp(BasicVals, op, *rInt);
-      if (Optional<NonLoc> Result = ResultVal.getAs<NonLoc>())
-        return evalCast(*Result, resultTy, QualType{});
+      assert(BinaryOperator::isComparisonOp(op) || op == BO_Sub);
 
-      assert(!ResultVal.getAs<Loc>() && "Loc-Loc ops should not produce Locs");
+      if (const auto *ResultInt =
+              BasicVals.evalAPSInt(op, L.getValue(), rInt->getValue()))
+        return evalCast(nonloc::ConcreteInt(*ResultInt), resultTy, QualType{});
       return UnknownVal();
     }
 
@@ -1264,8 +1278,6 @@ SVal SimpleSValBuilder::simplifySValOnce(ProgramStateRef State, SVal V) {
       return SVB.makeSymbolVal(S);
     }
 
-    // TODO: Support SymbolCast.
-
     SVal VisitSymIntExpr(const SymIntExpr *S) {
       auto I = Cached.find(S);
       if (I != Cached.end())
@@ -1333,6 +1345,30 @@ SVal SimpleSValBuilder::simplifySValOnce(ProgramStateRef State, SVal V) {
 
       return cache(
           S, SVB.evalBinOp(State, S->getOpcode(), LHS, RHS, S->getType()));
+    }
+
+    SVal VisitSymbolCast(const SymbolCast *S) {
+      auto I = Cached.find(S);
+      if (I != Cached.end())
+        return I->second;
+      const SymExpr *OpSym = S->getOperand();
+      SVal OpVal = getConstOrVisit(OpSym);
+      if (isUnchanged(OpSym, OpVal))
+        return skip(S);
+
+      return cache(S, SVB.evalCast(OpVal, S->getType(), OpSym->getType()));
+    }
+
+    SVal VisitUnarySymExpr(const UnarySymExpr *S) {
+      auto I = Cached.find(S);
+      if (I != Cached.end())
+        return I->second;
+      SVal Op = getConstOrVisit(S->getOperand());
+      if (isUnchanged(S->getOperand(), Op))
+        return skip(S);
+
+      return cache(
+          S, SVB.evalUnaryOp(State, S->getOpcode(), Op, S->getType()));
     }
 
     SVal VisitSymExpr(SymbolRef S) { return nonloc::SymbolVal(S); }
