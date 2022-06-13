@@ -1650,10 +1650,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<SPIRVWord> MemoryAccess(1, 0);
     if (ST->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
-    if (ST->getAlignment()) {
-      MemoryAccess[0] |= MemoryAccessAlignedMask;
-      MemoryAccess.push_back(ST->getAlignment());
-    }
+    MemoryAccess[0] |= MemoryAccessAlignedMask;
+    MemoryAccess.push_back(ST->getAlign().value());
     if (ST->getMetadata(LLVMContext::MD_nontemporal))
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = ST->getMetadata(LLVMContext::MD_alias_scope))
@@ -1681,10 +1679,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<uint32_t> MemoryAccess(1, 0);
     if (LD->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
-    if (LD->getAlignment()) {
-      MemoryAccess[0] |= MemoryAccessAlignedMask;
-      MemoryAccess.push_back(LD->getAlignment());
-    }
+    MemoryAccess[0] |= MemoryAccessAlignedMask;
+    MemoryAccess.push_back(LD->getAlign().value());
     if (LD->getMetadata(LLVMContext::MD_nontemporal))
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = LD->getMetadata(LLVMContext::MD_alias_scope))
