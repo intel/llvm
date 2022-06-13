@@ -2773,8 +2773,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     auto Type = QualType(KernelObj->getTypeForDecl(), 0);
-    if (KernelObj->isLambda())
-      Type->getAsRecordDecl()->setAnonymousStructOrUnion(true);
+    Type->getAsRecordDecl()->setAnonymousStructOrUnion(KernelObj->isLambda());
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
         KernelObj->getIdentifier(), Type, TSInfo, SC_None);
