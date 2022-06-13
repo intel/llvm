@@ -39885,7 +39885,9 @@ static SDValue combineTargetShuffle(SDValue N, SelectionDAG &DAG,
         if ((InsertPSMask & (1u << i)) || (i == (int)DstIdx)) {
           // No change if element is already zero or the inserted element.
           continue;
-        } else if (KnownUndef0[i] || KnownZero0[i]) {
+        }
+
+        if (KnownUndef0[i] || KnownZero0[i]) {
           // If the target mask is undef/zero then we must zero the element.
           InsertPSMask |= (1u << i);
           Updated = true;
@@ -41134,20 +41136,31 @@ bool X86TargetLowering::SimplifyDemandedBitsForTargetNode(
     KnownBits KnownOp;
     SDValue LHS = Op.getOperand(0);
     SDValue RHS = Op.getOperand(1);
+
+    // Don't mask bits on 32-bit AVX512 targets which might lose a broadcast.
     // FIXME: Can we bound this better?
     APInt DemandedMask = APInt::getLowBitsSet(64, 32);
-    if (SimplifyDemandedBits(LHS, DemandedMask, OriginalDemandedElts, KnownOp,
-                             TLO, Depth + 1))
+    APInt DemandedMaskLHS = APInt::getAllOnes(64);
+    APInt DemandedMaskRHS = APInt::getAllOnes(64);
+
+    bool Is32BitAVX512 = !Subtarget.is64Bit() && Subtarget.hasAVX512();
+    if (!Is32BitAVX512 || !TLO.DAG.isSplatValue(LHS))
+      DemandedMaskLHS = DemandedMask;
+    if (!Is32BitAVX512 || !TLO.DAG.isSplatValue(RHS))
+      DemandedMaskRHS = DemandedMask;
+
+    if (SimplifyDemandedBits(LHS, DemandedMaskLHS, OriginalDemandedElts,
+                             KnownOp, TLO, Depth + 1))
       return true;
-    if (SimplifyDemandedBits(RHS, DemandedMask, OriginalDemandedElts, KnownOp,
-                             TLO, Depth + 1))
+    if (SimplifyDemandedBits(RHS, DemandedMaskRHS, OriginalDemandedElts,
+                             KnownOp, TLO, Depth + 1))
       return true;
 
     // Aggressively peek through ops to get at the demanded low bits.
     SDValue DemandedLHS = SimplifyMultipleUseDemandedBits(
-        LHS, DemandedMask, OriginalDemandedElts, TLO.DAG, Depth + 1);
+        LHS, DemandedMaskLHS, OriginalDemandedElts, TLO.DAG, Depth + 1);
     SDValue DemandedRHS = SimplifyMultipleUseDemandedBits(
-        RHS, DemandedMask, OriginalDemandedElts, TLO.DAG, Depth + 1);
+        RHS, DemandedMaskRHS, OriginalDemandedElts, TLO.DAG, Depth + 1);
     if (DemandedLHS || DemandedRHS) {
       DemandedLHS = DemandedLHS ? DemandedLHS : LHS;
       DemandedRHS = DemandedRHS ? DemandedRHS : RHS;
@@ -51338,7 +51351,7 @@ static bool isOrXorXorTree(SDValue X, bool Root = true) {
 
 /// Recursive helper for combineVectorSizedSetCCEquality() to emit the memcmp
 /// expansion.
-template<typename F>
+template <typename F>
 static SDValue emitOrXorXorTree(SDValue X, SDLoc &DL, SelectionDAG &DAG,
                                 EVT VecVT, EVT CmpVT, bool HasPT, F SToV) {
   SDValue Op0 = X.getOperand(0);
@@ -51351,7 +51364,8 @@ static SDValue emitOrXorXorTree(SDValue X, SDLoc &DL, SelectionDAG &DAG,
     if (HasPT)
       return DAG.getNode(ISD::OR, DL, VecVT, A, B);
     return DAG.getNode(ISD::AND, DL, CmpVT, A, B);
-  } else if (X.getOpcode() == ISD::XOR) {
+  }
+  if (X.getOpcode() == ISD::XOR) {
     SDValue A = SToV(Op0);
     SDValue B = SToV(Op1);
     if (VecVT != CmpVT)
@@ -53351,6 +53365,12 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
         Subs.push_back(SubOp.getOperand(I));
       return DAG.getNode(ISD::CONCAT_VECTORS, DL, VT, Subs);
     };
+    auto IsConcatFree = [](MVT VT, ArrayRef<SDValue> SubOps, unsigned I) {
+      return all_of(SubOps, [VT, I](SDValue Sub) {
+        return Sub.getOperand(I).getOpcode() == ISD::EXTRACT_SUBVECTOR &&
+               Sub.getOperand(I).getOperand(0).getValueType() == VT;
+      });
+    };
 
     unsigned NumOps = Ops.size();
     switch (Op0.getOpcode()) {
@@ -53534,8 +53554,19 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
                            ConcatSubOperand(VT, Ops, 1), Op0.getOperand(2));
       }
       break;
-      // TODO: ISD::VSELECT and X86ISD::BLENDV handling if some of the args can
-      // be concatenated for free.
+    case ISD::VSELECT:
+    case X86ISD::BLENDV:
+      if (!IsSplat && VT.is256BitVector() && Ops.size() == 2 &&
+          (VT.getScalarSizeInBits() >= 32 || Subtarget.hasInt256()) &&
+          IsConcatFree(VT, Ops, 1) && IsConcatFree(VT, Ops, 2)) {
+        EVT SelVT = Ops[0].getOperand(0).getValueType();
+        SelVT = SelVT.getDoubleNumVectorElementsVT(*DAG.getContext());
+        return DAG.getNode(Op0.getOpcode(), DL, VT,
+                           ConcatSubOperand(SelVT.getSimpleVT(), Ops, 0),
+                           ConcatSubOperand(VT, Ops, 1),
+                           ConcatSubOperand(VT, Ops, 2));
+      }
+      break;
     }
   }
 
