@@ -1353,7 +1353,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
-        if constexpr (sizeof(T) == 1) {
+        if constexpr (sizeof(T) == 1 && N > 4) {
           simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
           BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
         } else {
@@ -1426,7 +1426,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        if constexpr (sizeof(T) == 1) {
+        if constexpr (sizeof(T) == 1 && N > 4) {
           simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
           BC.copy_to(acc, offset, Flags{});
         } else {
