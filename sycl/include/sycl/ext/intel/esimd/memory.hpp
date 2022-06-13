@@ -1428,7 +1428,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
         if constexpr (sizeof(T) == 1) {
           simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
-          BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
+          BC.copy_to(acc, offset, Flags{});
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN, AccessorT>(
