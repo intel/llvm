@@ -754,6 +754,10 @@ static const char *getDeviceLibFilename(DeviceLibExt Extension) {
     return "libsycl-fallback-complex-fp64.spv";
   case DeviceLibExt::cl_intel_devicelib_cstring:
     return "libsycl-fallback-cstring.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf:
+    return "libsycl-fallback-imf.spv";
+  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
+    return "libsycl-fallback-imf-fp64.spv";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -773,6 +777,10 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
     return "cl_intel_devicelib_complex_fp64";
   case DeviceLibExt::cl_intel_devicelib_cstring:
     return "cl_intel_devicelib_cstring";
+  case DeviceLibExt::cl_intel_devicelib_imf:
+    return "cl_intel_devicelib_imf";
+  case DeviceLibExt::cl_intel_devicelib_imf_fp64:
+    return "cl_intel_devicelib_imf_fp64";
   }
   throw compile_program_error("Unhandled (new?) device library extension",
                               PI_ERROR_INVALID_OPERATION);
@@ -935,7 +943,9 @@ getDeviceLibPrograms(const ContextImplPtr Context, const RT::PiDevice &Device,
       {DeviceLibExt::cl_intel_devicelib_math_fp64, false},
       {DeviceLibExt::cl_intel_devicelib_complex, false},
       {DeviceLibExt::cl_intel_devicelib_complex_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_cstring, false}};
+      {DeviceLibExt::cl_intel_devicelib_cstring, false},
+      {DeviceLibExt::cl_intel_devicelib_imf, false},
+      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false}};
 
   // Disable all devicelib extensions requiring fp64 support if at least
   // one underlying device doesn't support cl_khr_fp64.
