@@ -71,6 +71,11 @@ def FlangOnlyOption : OptionFlag;
 // FC1Option - This option should be accepted by flang -fc1.
 def FC1Option : OptionFlag;
 
+// Deprecated - The option is deprecated, but still supported.  A
+// diagnostic is emitted about the potential for the option to be removed
+// in an upcoming release.
+def Deprecated : OptionFlag;
+
 // A short name to show in documentation. The name will be interpreted as rST.
 class DocName<string name> { string DocName = name; }
 
@@ -2785,10 +2790,14 @@ def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
-def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[NoXarchOption, CoreOption]>,
-  HelpText<"Specify comma-separated list of triple and device binary image pairs to add to the final SYCL binary">;
-def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
-  HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
+def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,
+  Flags<[NoXarchOption, CoreOption, Deprecated]>,
+  HelpText<"Specify comma-separated list of triple and device binary image "
+           "pairs to add to the final SYCL binary (deprecated)">;
+def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">,
+  Flags<[NoXarchOption, CC1Option, CoreOption, Deprecated]>,
+  HelpText<"Specify comma-separated list of triples SYCL offloading targets "
+           "to produce linked device images (deprecated)">;
 def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
    Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split: per_kernel (device code module is "
   "created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)) | off (no device code split). | auto (use heuristic to select the best way of splitting device code). "
@@ -4898,9 +4907,12 @@ def fsycl : Flag<["-"], "fsycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl
 def fno_sycl : Flag<["-"], "fno-sycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl_Group>,
   HelpText<"Disables SYCL kernels compilation for device">;
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
-def : Flag<["-"], "fsycl-explicit-simd">, Flags<[CoreOption]>, Group<clang_ignored_legacy_options_Group>,
+def : Flag<["-"], "fsycl-explicit-simd">, Flags<[CoreOption, Deprecated]>,
+  Group<clang_ignored_legacy_options_Group>,
   HelpText<"Enable SYCL explicit SIMD extension. (deprecated)">;
-def : Flag<["-"], "fno-sycl-explicit-simd">, Flags<[CoreOption]>, Group<clang_ignored_legacy_options_Group>,
+def : Flag<["-"], "fno-sycl-explicit-simd">,
+  Flags<[CoreOption, Deprecated]>,
+  Group<clang_ignored_legacy_options_Group>,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
 defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,

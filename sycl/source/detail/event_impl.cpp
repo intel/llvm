@@ -70,6 +70,7 @@ void event_impl::waitInternal() {
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
+    std::unique_lock lock(MMutex);
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;

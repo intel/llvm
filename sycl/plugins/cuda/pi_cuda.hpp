@@ -163,8 +163,10 @@ struct _pi_context {
   _pi_device *deviceId_;
   std::atomic_uint32_t refCount_;
 
-  _pi_context(kind k, CUcontext ctxt, _pi_device *devId)
-      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1} {
+  _pi_context(kind k, CUcontext ctxt, _pi_device *devId,
+              bool backend_owns = true)
+      : kind_{k}, cuContext_{ctxt}, deviceId_{devId}, refCount_{1},
+        has_ownership{backend_owns} {
     cuda_piDeviceRetain(deviceId_);
   };
 
@@ -195,9 +197,12 @@ struct _pi_context {
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
+  bool backend_has_ownership() const noexcept { return has_ownership; }
+
 private:
   std::mutex mutex_;
   std::vector<deleter_data> extended_deleters_;
+  const bool has_ownership;
 };
 
 /// PI Mem mapping to CUDA memory allocations, both data and texture/surface.

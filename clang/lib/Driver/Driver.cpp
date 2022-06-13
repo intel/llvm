@@ -293,6 +293,15 @@ InputArgList Driver::ParseArgStrings(ArrayRef<const char *> ArgStrings,
       continue;
     }
 
+    // Deprecated options emit a diagnostic about deprecation, but are still
+    // supported until removed.
+    if (A->getOption().hasFlag(options::Deprecated)) {
+      Diag(diag::warn_drv_deprecated_option_release) << A->getAsString(Args);
+      ContainsError |= Diags.getDiagnosticLevel(
+                           diag::warn_drv_deprecated_option_release,
+                           SourceLocation()) > DiagnosticsEngine::Warning;
+    }
+
     // Warn about -mcpu= without an argument.
     if (A->getOption().matches(options::OPT_mcpu_EQ) && A->containsValue("")) {
       Diag(diag::warn_drv_empty_joined_argument) << A->getAsString(Args);
