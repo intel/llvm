@@ -88,7 +88,7 @@ queue make_queue_impl(pi_native_handle NativeHandle, const context &Context,
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), Device, !KeepOwnership,
+      NativeHandle, ContextImpl->getHandleRef(), Device, KeepOwnership,
       &PiQueue);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(

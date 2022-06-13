@@ -2519,8 +2519,7 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 pi_queue *queue) {
   (void)device;
   (void)ownNativeHandle;
-
-  assert(ownNativeHandle == 1);
+  assert(ownNativeHandle == false);
 
   unsigned int flags;
   CUstream cuStream = reinterpret_cast<CUstream>(nativeHandle);
