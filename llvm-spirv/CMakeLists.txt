@@ -81,6 +81,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       BitWriter
       CodeGen
       Core
+      Passes
       Support
       TransformUtils
       ${LLVM_TEST_COMPONENTS}

@@ -241,15 +241,20 @@ private:
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
 };
 
-class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass>,
-                        public LLVMToSPIRVBase {
+class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass> {
 public:
+  LLVMToSPIRVPass(SPIRVModule *SMod) : SMod(SMod) {}
+
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM) {
-    setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
-    return runLLVMToSPIRV(M) ? llvm::PreservedAnalyses::none()
-                             : llvm::PreservedAnalyses::all();
+    LLVMToSPIRVBase PassInstance(SMod);
+    PassInstance.setOCLTypeToSPIRV(&MAM.getResult<OCLTypeToSPIRVPass>(M));
+    return PassInstance.runLLVMToSPIRV(M) ? llvm::PreservedAnalyses::none()
+                                          : llvm::PreservedAnalyses::all();
   }
+
+private:
+  SPIRVModule *SMod;
 };
 
 class LLVMToSPIRVLegacy : public ModulePass, public LLVMToSPIRVBase {

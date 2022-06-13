@@ -40,6 +40,8 @@
 
 #include "SPIRVWriter.h"
 #include "LLVMToSPIRVDbgTran.h"
+#include "OCLToSPIRV.h"
+#include "PreprocessMetadata.h"
 #include "SPIRVAsm.h"
 #include "SPIRVBasicBlock.h"
 #include "SPIRVEntry.h"
@@ -49,9 +51,16 @@
 #include "SPIRVInstruction.h"
 #include "SPIRVInternal.h"
 #include "SPIRVLLVMUtil.h"
+#include "SPIRVLowerBitCastToNonStandardType.h"
+#include "SPIRVLowerBool.h"
+#include "SPIRVLowerConstExpr.h"
+#include "SPIRVLowerMemmove.h"
+#include "SPIRVLowerOCLBlocks.h"
+#include "SPIRVLowerSaddWithOverflow.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVModule.h"
+#include "SPIRVRegularizeLLVM.h"
 #include "SPIRVType.h"
 #include "SPIRVUtil.h"
 #include "SPIRVValue.h"
@@ -60,6 +69,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Constants.h"
@@ -70,14 +80,15 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Transforms/Utils.h" // loop-simplify pass
+#include "llvm/Transforms/Utils/LoopSimplify.h"
+#include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include <cstdlib>
 #include <functional>
@@ -5135,19 +5146,20 @@ ModulePass *llvm::createLLVMToSPIRVLegacy(SPIRVModule *SMod) {
   return new LLVMToSPIRVLegacy(SMod);
 }
 
-void addPassesForSPIRV(legacy::PassManager &PassMgr,
+void addPassesForSPIRV(ModulePassManager &PassMgr,
                        const SPIRV::TranslatorOpts &Opts) {
   if (Opts.isSPIRVMemToRegEnabled())
-    PassMgr.add(createPromoteMemoryToRegisterPass());
-  PassMgr.add(createPreprocessMetadataLegacy());
-  PassMgr.add(createSPIRVLowerOCLBlocksLegacy());
-  PassMgr.add(createOCLToSPIRVLegacy());
-  PassMgr.add(createSPIRVRegularizeLLVMLegacy());
-  PassMgr.add(createSPIRVLowerConstExprLegacy());
-  PassMgr.add(createSPIRVLowerBoolLegacy());
-  PassMgr.add(createSPIRVLowerMemmoveLegacy());
-  PassMgr.add(createSPIRVLowerSaddWithOverflowLegacy());
-  PassMgr.add(createSPIRVLowerBitCastToNonStandardTypeLegacy(Opts));
+    PassMgr.addPass(createModuleToFunctionPassAdaptor(PromotePass()));
+  PassMgr.addPass(PreprocessMetadataPass());
+  PassMgr.addPass(SPIRVLowerOCLBlocksPass());
+  PassMgr.addPass(OCLToSPIRVPass());
+  PassMgr.addPass(SPIRVRegularizeLLVMPass());
+  PassMgr.addPass(SPIRVLowerConstExprPass());
+  PassMgr.addPass(SPIRVLowerBoolPass());
+  PassMgr.addPass(SPIRVLowerMemmovePass());
+  PassMgr.addPass(SPIRVLowerSaddWithOverflowPass());
+  PassMgr.addPass(createModuleToFunctionPassAdaptor(
+      SPIRVLowerBitCastToNonStandardTypePass(Opts)));
 }
 
 bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
@@ -5177,17 +5189,30 @@ bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
   if (!isValidLLVMModule(M, BM->getErrorLog()))
     return false;
 
-  legacy::PassManager PassMgr;
+  ModulePassManager PassMgr;
   addPassesForSPIRV(PassMgr, Opts);
   if (WriteSpirv) {
     // Run loop simplify pass in order to avoid duplicate OpLoopMerge
     // instruction. It can happen in case of continue operand in the loop.
     if (hasLoopMetadata(M))
-      PassMgr.add(createLoopSimplifyPass());
-    PassMgr.add(createLLVMToSPIRVLegacy(BM.get()));
+      PassMgr.addPass(createModuleToFunctionPassAdaptor(LoopSimplifyPass()));
+    PassMgr.addPass(LLVMToSPIRVPass(BM.get()));
   }
 
-  PassMgr.run(*M);
+  LoopAnalysisManager LAM;
+  CGSCCAnalysisManager CGAM;
+  FunctionAnalysisManager FAM;
+  ModuleAnalysisManager MAM;
+
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  MAM.registerPass([&] { return OCLTypeToSPIRVPass(); });
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  PassMgr.run(*M, MAM);
 
   if (BM->getError(ErrMsg) != SPIRVEC_Success)
     return false;
