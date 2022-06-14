@@ -1373,13 +1373,15 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                              __ESIMD_NS::simd<float, N> x) {
   __ESIMD_NS::simd<float, N> fmod;
   __ESIMD_NS::simd<float, N> abs_x;
+  __ESIMD_NS::simd<float, N> abs_y;
   __ESIMD_NS::simd<float, N> reminder;
   __ESIMD_NS::simd<float, N> reminder_sign_mask;
   __ESIMD_NS::simd<float, N> y_sign_mask;
 
   y_sign_mask.merge(-1.0f, 1.0f, y < 0);
   abs_x = __ESIMD_NS::abs(x);
-  reminder = y - abs_x * __ESIMD_NS::trunc<float>(__ESIMD_NS::abs(y) / abs_x);
+  abs_y = __ESIMD_NS::abs(y);
+  reminder = abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
   reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
 
   fmod = reminder + abs_x * reminder_sign_mask;
@@ -1390,13 +1392,15 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
 template <> ESIMD_INLINE float fmod(float y, float x) {
   __ESIMD_NS::simd<float, 1> fmod;
   __ESIMD_NS::simd<float, 1> abs_x;
+  __ESIMD_NS::simd<float, 1> abs_y;
   __ESIMD_NS::simd<float, 1> reminder;
   __ESIMD_NS::simd<float, 1> reminder_sign_mask;
   __ESIMD_NS::simd<float, 1> y_sign_mask;
 
   y_sign_mask.merge(-1.0f, 1.0f, y < 0);
   abs_x = __ESIMD_NS::abs(x);
-  reminder = y - abs_x * __ESIMD_NS::trunc<float>(__ESIMD_NS::abs(y) / abs_x);
+  abs_y = __ESIMD_NS::abs(y);
+  reminder = abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
   reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
 
   fmod = __ESIMD_NS::abs(reminder + abs_x * reminder_sign_mask) * y_sign_mask;
