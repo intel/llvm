@@ -2772,14 +2772,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                        const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
-    // Generate a name kernel object variable.
-    Twine Name = Twine("__SYCLKernel");
-    SmallString<12> Buffer;
-    StringRef NameRef = Name.toStringRef(Buffer);
-    auto &Ident = Ctx.Idents.getOwn(NameRef);
+    IdentifierInfo *Ident = KernelObj->getIdentifier();
+    if (!Ident)
+      Ident = &Ctx.Idents.getOwn("__SYCLKernel");
 
     VarDecl *VD = VarDecl::Create(
-        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), &Ident,
+        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), Ident,
         QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
     return VD;
   }
