@@ -36,6 +36,10 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 
 /// @} sycl_esimd_memory
 
+// sycl_esimd_raw_send intrinsics are not available when stateless memory
+// accesses are enforced.
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
@@ -194,6 +198,8 @@ __ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
 }
 
 /// @} sycl_esimd_raw_send
+
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
 /// @ingroup sycl_esimd_memory
