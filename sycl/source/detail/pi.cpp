@@ -451,7 +451,7 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << " ["
+                << PluginNames[I].first << " [ PluginVersion: "
                 << Plugins[I].getPiPlugin().PluginVersion << "]" << std::endl;
   }
 
