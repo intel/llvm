@@ -291,7 +291,7 @@ and not recommended to use in production environment.
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
 
-**`-f[no]-sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
+**`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 
     Enforces usage of stateless memory accesses and automatic conversion of
     "stateful" memory accesses via SYCL accessors to "stateless" accesses
@@ -301,14 +301,19 @@ and not recommended to use in production environment.
     or "surface-index" and that cannot be automatically converted to their
     "stateless" equivalents.
 
+    The stateless memory accesses enforcement is disabled by default.
+
+    -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
+    enforce usage of stateless memory accesses.
+
     NOTE: "Stateful" accesses are those that use SYCL accessors or a pair
     of "surface-index" + 32-bit byte-offset and use specific memory access
     data port messages to read/write/fetch.
     "Stateless" accesses are those that use memory locations represented
     with virtual memory addresses such as USM pointers.
 
-    For some of usages using "stateless" memory may be beneficial as it
-    does not have  the limit of 4Gb per surface.
+    The "stateless" memory may be beneficial as it does not have the limit
+    of 4Gb per surface.
     Also, some of Intel GPUs or GPU run-time/drivers may support only
     "stateless" memory accesses.
 

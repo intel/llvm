@@ -2790,8 +2790,11 @@ def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
     LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
-    PosFlag<SetTrue, [CC1Option, CoreOption], "Convert accesses via accessors to USM memory accesses in ESIMD kernels">,
-    NegFlag<SetFalse>>;
+    PosFlag<SetTrue, [], "Enforce using stateless memory accesses. "
+            "Convert stateful accesses via SYCL accessors to stateless within ESIMD kernels. "
+            "Disabled by default. (experimental)">,
+    NegFlag<SetFalse, [], "Do not enforce using stateless memory accesses. (experimental)">,
+    BothFlags<[CC1Option, CoreOption], "">>;
 
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
