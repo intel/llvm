@@ -2774,7 +2774,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
     IdentifierInfo *Ident = KernelObj->getIdentifier();
     if (!Ident)
-      Ident = &Ctx.Idents.getOwn("__SYCLKernel");
+      Ident = &Ctx.Idents.get("__SYCLKernel");
 
     VarDecl *VD = VarDecl::Create(
         Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), Ident,
