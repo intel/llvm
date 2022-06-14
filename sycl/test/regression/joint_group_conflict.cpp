@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -shared %t.1.o %t.2.o -o %t.so
 
 // Tests that creating a shared library with multiple object files using joint
-// group operations do not cause conflicting definitions.
+// group operations does not cause conflicting definitions.
 
 #include <CL/sycl.hpp>
 
