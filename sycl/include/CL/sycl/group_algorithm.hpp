@@ -65,12 +65,12 @@ get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
 
 // ---- get_local_linear_id
 template <typename Group>
-typename Group::linear_id_type get_local_linear_id(Group g);
+inline typename Group::linear_id_type get_local_linear_id(Group g);
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
   template <>                                                                  \
-  group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {           \
+  inline group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {    \
     nd_item<D> it = cl::sycl::detail::Builder::getNDItem<D>();                 \
     return it.get_local_linear_id();                                           \
   }
