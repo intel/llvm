@@ -1353,9 +1353,14 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
-        if constexpr (sizeof(T) == 1 && N > 4) {
-          simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
-          BC.copy_to(reinterpret_cast<int32_t *>(Addr), Flags{});
+        if constexpr (sizeof(T) == 1 && RemN == 16) {
+          simd_mask_type<8> Pred(0);
+          Pred.template select<4, 1>() = 1;
+          simd<int32_t, 8> Vals;
+          Vals.template select<4, 1>() =
+            Tmp.template bit_cast_view<int32_t>().template select<4, 1>(NumChunks * ChunkSize);
+          simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
+          scatter<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) + (NumChunks * ChunkSize), Offsets, Vals, Pred);
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN>(
@@ -1426,9 +1431,16 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
-        if constexpr (sizeof(T) == 1 && N > 4) {
-          simd<int32_t, N / 4> BC = Tmp.template bit_cast_view<int32_t>();
-          BC.copy_to(acc, offset, Flags{});
+        if constexpr (sizeof(T) == 1 && RemN == 16) {
+          simd_mask_type<8> Pred(0);
+          Pred.template select<4, 1>() = 1;
+          simd<int32_t, 8> Vals;
+          Vals.template select<4, 1>() =
+            Tmp.template bit_cast_view<int32_t>().template select<4, 1>(NumChunks * ChunkSize);
+          simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
+          scatter<int32_t, 8, AccessorT>(acc, Offsets, Vals,
+                                         offset + (NumChunks * ChunkSize * sizeof(int32_t)),
+                                         Pred);
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN, AccessorT>(
