@@ -818,6 +818,14 @@ public:
 
   void setDSOLocal(llvm::GlobalValue *GV) const;
 
+  bool shouldMapVisibilityToDLLExport(const NamedDecl *D) const {
+    return getLangOpts().hasDefaultVisibilityExportMapping() && D &&
+           (D->getLinkageAndVisibility().getVisibility() ==
+            DefaultVisibility) &&
+           (getLangOpts().isAllDefaultVisibilityExportMapping() ||
+            (getLangOpts().isExplicitDefaultVisibilityExportMapping() &&
+             D->getLinkageAndVisibility().isVisibilityExplicit()));
+  }
   void setDLLImportDLLExport(llvm::GlobalValue *GV, GlobalDecl D) const;
   void setDLLImportDLLExport(llvm::GlobalValue *GV, const NamedDecl *D) const;
   /// Set visibility, dllimport/dllexport and dso_local.
@@ -1342,8 +1350,9 @@ public:
   bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
                           SourceLocation Loc) const;
 
-  bool isInNoSanitizeList(llvm::GlobalVariable *GV, SourceLocation Loc,
-                          QualType Ty, StringRef Category = StringRef()) const;
+  bool isInNoSanitizeList(SanitizerMask Kind, llvm::GlobalVariable *GV,
+                          SourceLocation Loc, QualType Ty,
+                          StringRef Category = StringRef()) const;
 
   /// Imbue XRay attributes to a function, applying the always/never attribute
   /// lists in the process. Returns true if we did imbue attributes this way,
@@ -1521,23 +1530,23 @@ public:
            "Should have emitted all decls deferred to emit.");
     assert(NewBuilder->DeferredDecls.empty() &&
            "Newly created module should not have deferred decls");
-    NewBuilder->DeferredDecls = std::move(DeferredDecls);
+    std::swap(NewBuilder->DeferredDecls, DeferredDecls);
 
     assert(NewBuilder->DeferredVTables.empty() &&
            "Newly created module should not have deferred vtables");
-    NewBuilder->DeferredVTables = std::move(DeferredVTables);
+    std::swap(NewBuilder->DeferredVTables, DeferredVTables);
 
     assert(NewBuilder->MangledDeclNames.empty() &&
            "Newly created module should not have mangled decl names");
     assert(NewBuilder->Manglings.empty() &&
            "Newly created module should not have manglings");
-    NewBuilder->Manglings = std::move(Manglings);
+    std::swap(NewBuilder->Manglings, Manglings);
 
     assert(WeakRefReferences.empty() &&
            "Not all WeakRefRefs have been applied");
-    NewBuilder->WeakRefReferences = std::move(WeakRefReferences);
+    std::swap(NewBuilder->WeakRefReferences, WeakRefReferences);
 
-    NewBuilder->TBAA = std::move(TBAA);
+    std::swap(NewBuilder->TBAA, TBAA);
   }
 
 private:
