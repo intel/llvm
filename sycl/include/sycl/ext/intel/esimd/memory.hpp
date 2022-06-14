@@ -1358,9 +1358,12 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
           Pred.template select<4, 1>() = 1;
           simd<int32_t, 8> Vals;
           Vals.template select<4, 1>() =
-            Tmp.template bit_cast_view<int32_t>().template select<4, 1>(NumChunks * ChunkSize);
+              Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
+                  NumChunks * ChunkSize);
           simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
-          scatter<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) + (NumChunks * ChunkSize), Offsets, Vals, Pred);
+          scatter<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) +
+                                  (NumChunks * ChunkSize),
+                              Offsets, Vals, Pred);
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN>(
@@ -1436,11 +1439,12 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
           Pred.template select<4, 1>() = 1;
           simd<int32_t, 8> Vals;
           Vals.template select<4, 1>() =
-            Tmp.template bit_cast_view<int32_t>().template select<4, 1>(NumChunks * ChunkSize);
+              Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
+                  NumChunks * ChunkSize);
           simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
-          scatter<int32_t, 8, AccessorT>(acc, Offsets, Vals,
-                                         offset + (NumChunks * ChunkSize * sizeof(int32_t)),
-                                         Pred);
+          scatter<int32_t, 8, AccessorT>(
+              acc, Offsets, Vals,
+              offset + (NumChunks * ChunkSize * sizeof(int32_t)), Pred);
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN, AccessorT>(
