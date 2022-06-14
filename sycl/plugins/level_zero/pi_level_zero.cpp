@@ -7486,9 +7486,8 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   // indirect access. This lock also protects access to the context's data
   // structures. If indirect access tracking is not enabled then lock context
   // mutex to protect access to context's data structures.
-  auto Lock = IndirectAccessTrackingEnabled
-                  ? std::scoped_lock(Plt->ContextsMutex)
-                  : std::scoped_lock(Context->Mutex);
+  std::scoped_lock Lock(IndirectAccessTrackingEnabled ? Plt->ContextsMutex
+                                                      : Context->Mutex);
 
   if (IndirectAccessTrackingEnabled) {
     // We are going to defer memory release if there are kernels with indirect
@@ -7729,9 +7728,8 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->getPlatform();
 
-  auto Lock = IndirectAccessTrackingEnabled
-                  ? std::scoped_lock(Plt->ContextsMutex)
-                  : std::scoped_lock(Context->Mutex);
+  std::scoped_lock Lock(IndirectAccessTrackingEnabled ? Plt->ContextsMutex
+                                                      : Context->Mutex);
 
   return USMFreeHelper(Context, Ptr, true /* OwnZeMemHandle */);
 }
@@ -8358,9 +8356,8 @@ pi_result _pi_buffer::free() {
       break;
     case allocation_t::free: {
       pi_platform Plt = Context->getPlatform();
-      auto Lock = IndirectAccessTrackingEnabled
-                      ? std::scoped_lock(Plt->ContextsMutex)
-                      : std::scoped_lock(Context->Mutex);
+      std::scoped_lock Lock(IndirectAccessTrackingEnabled ? Plt->ContextsMutex
+                                                          : Context->Mutex);
 
       PI_CALL(USMFreeHelper(Context, ZeHandle, true));
       break;
