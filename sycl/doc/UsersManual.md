@@ -291,7 +291,7 @@ and not recommended to use in production environment.
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
 
-**`-f[no]-sycl-esimd-force-stateless-mem`**
+**`-f[no]-sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 
     Enforces usage of stateless memory accesses and automatic conversion of
     "stateful" memory accesses via SYCL accessors to "stateless" accesses
