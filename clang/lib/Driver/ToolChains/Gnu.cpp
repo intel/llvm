@@ -694,6 +694,19 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
           !Args.hasArg(options::OPT_nolibsycl)) {
         CmdArgs.push_back("-lsycl");
         CmdArgs.push_back("-lsycl-devicelib-host");
+
+        if (Args.hasFlag(options::OPT_fsycl_implicit_rpath,
+                         options::OPT_fno_sycl_implicit_rpath, true)) {
+          // Add clang libdir to the rpath so that libsycl.so can be found at
+          // runtime.
+          SmallString<256> DefaultLibPath =
+              llvm::sys::path::parent_path(ToolChain.getDriver().Dir);
+          llvm::sys::path::append(DefaultLibPath,
+                                  Twine("lib") + CLANG_LIBDIR_SUFFIX);
+          CmdArgs.push_back("-rpath");
+          CmdArgs.push_back(Args.MakeArgString(DefaultLibPath));
+        }
+
         // Use of -fintelfpga implies -lOpenCL.
         // FIXME: Adjust to use plugin interface when available.
         if (Args.hasArg(options::OPT_fintelfpga))

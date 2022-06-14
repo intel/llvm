@@ -290,6 +290,12 @@ and not recommended to use in production environment.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
+**`-fsycl-implicit-rpath, -fno-sycl-implicit-rpath`**
+
+    Instructs the compiler to add the directory within the clang build or
+    installation containing the SYCL library to the `RPATH` of generated
+    binaries when building in SYCL mode. This flag is enabled by default.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

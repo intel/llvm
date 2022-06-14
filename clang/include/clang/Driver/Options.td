@@ -4938,6 +4938,11 @@ def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>, Flags<[CC1Option]>,
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
+defm sycl_implicit_rpath: BoolFOption<"sycl-implicit-rpath",
+  LangOpts<"SYCLImplicitRPath">,
+  DefaultTrue,
+  PosFlag<SetTrue, [], "Set rpath on SYCL executables">,
+  NegFlag<SetFalse>>;
 
 //===----------------------------------------------------------------------===//
 // FLangOption + NoXarchOption
