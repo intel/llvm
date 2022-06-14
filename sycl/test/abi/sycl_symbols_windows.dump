@@ -137,6 +137,7 @@
 ??$get_info@$0BBLK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BBNC@@event@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBND@@event@sycl@cl@@QEBA?AW4event_command_status@info@12@XZ
+??$get_info@$0BPPPP@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
 ??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ
