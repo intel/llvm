@@ -697,10 +697,15 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         // FIXME: Adjust to use plugin interface when available.
         if (Args.hasArg(options::OPT_fintelfpga))
           CmdArgs.push_back("-lOpenCL");
-        CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("imf-fp32-host.o")));
-        CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("fallback-imf-fp32-host.o")));
-        CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("imf-fp64-host.o")));
-        CmdArgs.push_back(Args.MakeArgString(ToolChain.GetFilePath("fallback-imf-fp64-host.o")));
+
+        CmdArgs.push_back(
+            Args.MakeArgString(ToolChain.GetFilePath("imf-fp32-host.o")));
+        CmdArgs.push_back(Args.MakeArgString(
+            ToolChain.GetFilePath("fallback-imf-fp32-host.o")));
+        CmdArgs.push_back(
+            Args.MakeArgString(ToolChain.GetFilePath("imf-fp64-host.o")));
+        CmdArgs.push_back(Args.MakeArgString(
+            ToolChain.GetFilePath("fallback-imf-fp64-host.o")));
       }
 
       if (WantPthread && !isAndroid)
