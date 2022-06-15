@@ -170,6 +170,11 @@ Bug Fixes
   fixes `Issue 48230 <https://github.com/llvm/llvm-project/issues/48230>`_.
 - Fixed memory leak due to ``VarTemplateSpecializationDecl`` using
   ``TemplateArgumentListInfo`` instead of ``ASTTemplateArgumentListInfo``.
+- An initializer for a static variable declaration, which is nested
+  inside a statement expression in an aggregate initializer, is now
+  emitted as a dynamic initializer. Previously the variable would
+  incorrectly be zero-initialized. In contexts where a dynamic
+  initializer is not allowed this is now diagnosed as an error.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -256,6 +261,10 @@ Improvements to Clang's diagnostics
 - The ``-Wdeprecated`` diagnostic will now warn on out-of-line ``constexpr``
   declarations downgraded to definitions in C++1z, in addition to the
   existing warning on out-of-line ``const`` declarations.
+- ``-Wshift-overflow`` will not warn for signed left shifts in C++20 mode
+  (and newer), as it will always wrap and never overflow. This fixes
+  `Issue 52873 <https://github.com/llvm/llvm-project/issues/52873>`_.
+
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
