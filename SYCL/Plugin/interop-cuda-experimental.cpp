@@ -95,4 +95,31 @@ int main() {
     sycl::queue new_Q(sycl_ctx, sycl::default_selector());
     assert(check_queue(new_Q));
   }
+
+  // Create new queue
+  CUstream cu_queue;
+  CUDA_CHECK(cuCtxSetCurrent(cu_ctx));
+  CUDA_CHECK(cuStreamCreate(&cu_queue, CU_STREAM_DEFAULT));
+
+  auto sycl_queue =
+      sycl::make_queue<sycl::backend::ext_oneapi_cuda>(cu_queue, sycl_ctx);
+  native_queue = sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_queue);
+
+  check_type<sycl::queue>(sycl_queue);
+  check_type<CUstream>(native_queue);
+
+  // Submit some work to new queue
+  assert(check_queue(sycl_queue));
+
+  // Create new queue with Q's native type and submit some work
+  {
+    CUstream Q_native_stream =
+        sycl::get_native<sycl::backend::ext_oneapi_cuda>(Q);
+    sycl::queue new_Q = sycl::make_queue<sycl::backend::ext_oneapi_cuda>(
+        Q_native_stream, Q_sycl_ctx);
+    assert(check_queue(new_Q));
+  }
+
+  // Check Q still works
+  assert(check_queue(Q));
 }
