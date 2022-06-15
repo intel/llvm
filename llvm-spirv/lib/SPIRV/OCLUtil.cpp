@@ -416,6 +416,9 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle_relative
   _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
   _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
+  // cl_khr_subgroup_rotate
+  _SPIRV_OP(group_rotate, GroupNonUniformRotateKHR)
+  _SPIRV_OP(group_clustered_rotate, GroupNonUniformRotateKHR)
   // cl_khr_extended_bit_ops
   _SPIRV_OP(bitfield_insert, BitFieldInsert)
   _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
@@ -1279,6 +1282,8 @@ public:
         else if (NameRef.contains("bit_extract")) {
           addUnsignedArgs(0, 1);
         }
+      } else if (NameRef.startswith("sub_group_clustered_rotate")) {
+        addUnsignedArg(2);
       } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
     } else if (NameRef.startswith("bitfield_insert")) {
