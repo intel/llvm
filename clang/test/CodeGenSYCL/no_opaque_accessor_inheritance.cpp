@@ -50,7 +50,7 @@ int main() {
 // CHECK: [[ARG_C]].addr.ascast = addrspacecast i32* [[ARG_C]].addr to i32 addrspace(4)*
 //
 // Lambda object alloca
-// CHECK: [[KERNEL_OBJ:%[a-zA-Z0-9_]+]] = addrspacecast %class{{.*}}.anon* [[KERNEL]] to %class{{.*}}.anon addrspace(4)*
+// CHECK: [[KERNEL_OBJ:%[a-zA-Z0-9_.]+]] = addrspacecast %class{{.*}}.anon* [[KERNEL]] to %class{{.*}}.anon addrspace(4)*
 //
 // Kernel argument stores
 // CHECK: store i32 [[ARG_A]], i32 addrspace(4)* [[ARG_A]].addr.ascast
