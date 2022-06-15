@@ -31,7 +31,7 @@ namespace foo {
 device_global<int> same_name; // OK
 }
 
-namespace { // #PREVIOUS
+namespace {                   // #PREVIOUS
 device_global<int> same_name; // OK
 }
 
@@ -43,9 +43,9 @@ device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
 // expected-error@+2{{non-inline namespace cannot be reopened as inline}}
 // expected-note@#PREVIOUS{{previous definition is here}}
 inline namespace {
-  namespace foo {
-  }
+namespace foo {
 }
+} //namespace
 
 struct BBar {
 private:

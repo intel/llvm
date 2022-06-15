@@ -1592,7 +1592,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
     SemaRef.addSyclVarDecl(Var);
     if (SemaRef.getLangOpts().SYCLIsDevice &&
         SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-              Var->getType())) {
+            Var->getType())) {
       if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope);
