@@ -651,7 +651,7 @@ static bool removeSYCLKernelsConstRefArray(Module &M) {
     }
 
     // Remove unused kernel declarations to avoid LLVM IR check fails.
-    if (F && F->isDeclaration())
+    if (F && F->isDeclaration() && F->use_empty())
       F->eraseFromParent();
   }
   return true;
