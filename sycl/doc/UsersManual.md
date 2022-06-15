@@ -301,10 +301,8 @@ and not recommended to use in production environment.
     accepting SYCL accessors or "surface-index" which cannot be automatically
     converted to their "stateless" equivalents.
 
-    The stateless memory access enforcement is disabled by default.
-
     -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
-    enforce usage of stateless memory accesses.
+    enforce usage of stateless memory accesses. This is the default behavior.
 
     NOTE: "Stateful" access is the one that uses SYCL accessor or a pair
     of "surface-index" + 32-bit byte-offset and uses specific memory access
