@@ -725,7 +725,8 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
     struct {
       RT::PiDeviceBinaryType Fmt;
       const uint16_t Magic;
-    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04}}; // OpenCL executable
+    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04},  // OpenCL executable
+                   {PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF12}}; // ZEBIN executable
 
     // ELF files need to be parsed separately. The header type ends after 18
     // bytes.
