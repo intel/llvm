@@ -388,7 +388,7 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  for (unsigned int I = 0u, PluginIdx = 0u; I < PluginNames.size(); I++) {
+  for (unsigned int I = 0; I < PluginNames.size(); I++) {
     std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
         PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
                  /*Targets=*/nullptr, /*FunctionPointers=*/{}});
@@ -446,14 +446,14 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       GlobalPlugin = std::make_shared<plugin>(
           PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
-    Plugins.emplace_back(
+    plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << " [ PluginVersion: "
-                << Plugins[PluginIdx++].getPiPlugin().PluginVersion << " ]"
-                << std::endl;
+                << PluginNames[I].first
+                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
+                << " ]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
