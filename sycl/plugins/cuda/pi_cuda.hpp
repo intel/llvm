@@ -397,6 +397,7 @@ struct _pi_queue {
   unsigned int last_sync_compute_streams_;
   unsigned int last_sync_transfer_streams_;
   unsigned int flags_;
+  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be locked at the same time, compute_stream_sync_mutex_ should be locked first to avoid deadlocks
   std::mutex compute_stream_sync_mutex_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
@@ -428,9 +429,9 @@ struct _pi_queue {
   // this overload tries select a stream that was used by one of dependancies.
   // If that is not possible returns a new stream. If a stream is reused it
   // returns a lock that needs to remain locked as long as the stream is in use
-  _pi_stream_guard get_next_compute_stream(pi_uint32 num_events_in_wait_list,
+  native_type get_next_compute_stream(pi_uint32 num_events_in_wait_list,
                                            const pi_event *event_wait_list,
-                                           native_type &res,
+                                           _pi_stream_guard &guard,
                                            pi_uint32 *stream_token = nullptr);
   native_type get_next_transfer_stream();
   native_type get() { return get_next_compute_stream(); };
@@ -487,8 +488,13 @@ struct _pi_queue {
   }
 
   template <typename T> void sync_streams(T &&f) {
-    auto sync = [&f](const std::vector<CUstream> &streams, unsigned int start,
-                     unsigned int stop) {
+    auto sync_compute = [&f, &streams = compute_streams_, &delay = delay_compute_](unsigned int start, unsigned int stop) {
+      for (unsigned int i = start; i < stop; i++) {
+        f(streams[i]);
+        delay[i] = false;
+      }
+    };
+    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start, unsigned int stop) {
       for (unsigned int i = start; i < stop; i++) {
         f(streams[i]);
       }
@@ -503,15 +509,15 @@ struct _pi_queue {
                              : compute_stream_idx_.load();
       last_sync_compute_streams_ = end;
       if (end - start >= size) {
-        sync(compute_streams_, 0, size);
+        sync_compute(0, size);
       } else {
         start %= size;
         end %= size;
         if (start < end) {
-          sync(compute_streams_, start, end);
+          sync_compute(start, end);
         } else {
-          sync(compute_streams_, start, size);
-          sync(compute_streams_, 0, end);
+          sync_compute(start, size);
+          sync_compute(0, end);
         }
       }
     }
@@ -525,15 +531,15 @@ struct _pi_queue {
                                : transfer_stream_idx_.load();
         last_sync_transfer_streams_ = end;
         if (end - start >= size) {
-          sync(transfer_streams_, 0, size);
+          sync_transfer(0, size);
         } else {
           start %= size;
           end %= size;
           if (start < end) {
-            sync(transfer_streams_, start, end);
+            sync_transfer(start, end);
           } else {
-            sync(transfer_streams_, start, size);
-            sync(transfer_streams_, 0, end);
+            sync_transfer(start, size);
+            sync_transfer(0, end);
           }
         }
       }

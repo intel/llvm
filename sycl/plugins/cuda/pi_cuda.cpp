@@ -400,10 +400,10 @@ CUstream _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
   return compute_streams_[stream_i % compute_streams_.size()];
 }
 
-_pi_stream_guard
+CUstream
 _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
                                    const pi_event *event_wait_list,
-                                   CUstream &res, pi_uint32 *stream_token) {
+                                   _pi_stream_guard &guard, pi_uint32 *stream_token) {
   for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
     pi_uint32 token = event_wait_list[i]->get_stream_token();
     if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
@@ -416,13 +416,13 @@ _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
         if (stream_token) {
           *stream_token = token;
         }
-        res = event_wait_list[i]->get_stream();
-        return _pi_stream_guard{std::move(compute_sync_guard)};
+        guard = _pi_stream_guard{std::move(compute_sync_guard)};
+        return event_wait_list[i]->get_stream();
       }
     }
   }
-  res = get_next_compute_stream(stream_token);
-  return {};
+  guard = {};
+  return get_next_compute_stream(stream_token);
 }
 
 CUstream _pi_queue::get_next_transfer_stream() {
@@ -2884,9 +2884,9 @@ pi_result cuda_piEnqueueKernelLaunch(
     std::unique_ptr<_pi_event> retImplEv{nullptr};
 
     pi_uint32 stream_token;
-    CUstream cuStream;
-    _pi_stream_guard guard = command_queue->get_next_compute_stream(
-        num_events_in_wait_list, event_wait_list, cuStream, &stream_token);
+    _pi_stream_guard guard;
+    CUstream cuStream = command_queue->get_next_compute_stream(
+        num_events_in_wait_list, event_wait_list, guard, &stream_token);
     CUfunction cuFunc = kernel->get();
 
     retError = enqueueEventsWait(command_queue, cuStream,
@@ -3763,9 +3763,9 @@ pi_result cuda_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
 
     if (event) {
       pi_uint32 stream_token;
-      CUstream cuStream;
-      _pi_stream_guard guard = command_queue->get_next_compute_stream(
-          num_events_in_wait_list, event_wait_list, cuStream, &stream_token);
+      _pi_stream_guard guard;
+      CUstream cuStream = command_queue->get_next_compute_stream(
+          num_events_in_wait_list, event_wait_list, guard, &stream_token);
       *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
                                       cuStream, stream_token);
       (*event)->start();
@@ -4826,9 +4826,9 @@ pi_result cuda_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
   try {
     ScopedContext active(queue->get_context());
     pi_uint32 stream_token;
-    CUstream cuStream;
-    _pi_stream_guard guard = queue->get_next_compute_stream(
-        num_events_in_waitlist, events_waitlist, cuStream, &stream_token);
+    _pi_stream_guard guard;
+    CUstream cuStream = queue->get_next_compute_stream(
+        num_events_in_waitlist, events_waitlist, guard, &stream_token);
     result = enqueueEventsWait(queue, cuStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
