@@ -293,24 +293,24 @@ and not recommended to use in production environment.
 
 **`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
 
-    Enforces usage of stateless memory accesses and automatic conversion of
-    "stateful" memory accesses via SYCL accessors to "stateless" accesses
-    within ESIMD (Explicit SIMD) kernels by compiler.
+    Enforces stateless memory access and enables the automatic conversion of
+    "stateful" memory access via SYCL accessors to "stateless" within ESIMD
+    (Explicit SIMD) kernels.
 
-    This option disables the intrinsics and methods accepting SYCL accessors
-    or "surface-index" and that cannot be automatically converted to their
-    "stateless" equivalents.
+    -fsycl-esimd-force-stateless-mem disables the intrinsics and methods
+    accepting SYCL accessors or "surface-index" which cannot be automatically
+    converted to their "stateless" equivalents.
 
-    The stateless memory accesses enforcement is disabled by default.
+    The stateless memory access enforcement is disabled by default.
 
     -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
     enforce usage of stateless memory accesses.
 
-    NOTE: "Stateful" accesses are those that use SYCL accessors or a pair
-    of "surface-index" + 32-bit byte-offset and use specific memory access
+    NOTE: "Stateful" access is the one that uses SYCL accessor or a pair
+    of "surface-index" + 32-bit byte-offset and uses specific memory access
     data port messages to read/write/fetch.
-    "Stateless" accesses are those that use memory locations represented
-    with virtual memory addresses such as USM pointers.
+    "Stateless" memory access uses memory location represented with virtual
+    memory address pointer such as USM pointer.
 
     The "stateless" memory may be beneficial as it does not have the limit
     of 4Gb per surface.
