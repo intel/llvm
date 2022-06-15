@@ -401,18 +401,19 @@ struct _pi_queue {
   unsigned int flags_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
+  bool has_ownership_;
 
   _pi_queue(std::vector<CUstream> &&compute_streams,
             std::vector<CUstream> &&transfer_streams, _pi_context *context,
             _pi_device *device, pi_queue_properties properties,
-            unsigned int flags)
+            unsigned int flags, bool backend_owns = true)
       : compute_streams_{std::move(compute_streams)},
         transfer_streams_{std::move(transfer_streams)}, context_{context},
         device_{device}, properties_{properties}, refCount_{1}, eventCount_{0},
         compute_stream_idx_{0}, transfer_stream_idx_{0},
         num_compute_streams_{0}, num_transfer_streams_{0},
         last_sync_compute_streams_{0}, last_sync_transfer_streams_{0},
-        flags_(flags) {
+        flags_(flags), has_ownership_{backend_owns} {
     cuda_piContextRetain(context_);
     cuda_piDeviceRetain(device_);
   }
@@ -513,6 +514,8 @@ struct _pi_queue {
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
   pi_uint32 get_next_event_id() noexcept { return ++eventCount_; }
+
+  bool backend_has_ownership() const noexcept { return has_ownership_; }
 };
 
 typedef void (*pfn_notify)(pi_event event, pi_int32 eventCommandStatus,
