@@ -45,7 +45,7 @@ device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
 inline namespace {
 namespace foo {
 }
-} //namespace
+} // namespace
 
 struct BBar {
 private:
