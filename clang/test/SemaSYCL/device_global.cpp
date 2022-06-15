@@ -18,7 +18,7 @@ device_global<char> Foo::d;
 
 struct Baz {
 private:
-  // expected-error@+1{{'device_global' member variable 'f' is not publicly accessible from namespace scope}}
+  // expected-error@+1{{'device_global' member variable 'f' should be publicly accessible from namespace scope}}
   static device_global<int> f;
 };
 device_global<int> Baz::f;
@@ -26,10 +26,12 @@ device_global<int> Baz::f;
 device_global<int[4]> not_array; // OK
 
 device_global<int> same_name; // OK
+
 namespace foo {
 device_global<int> same_name; // OK
 }
-namespace {
+
+namespace { // #PREVIOUS
 device_global<int> same_name; // OK
 }
 
@@ -38,12 +40,12 @@ inline namespace other {
 device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
 } // namespace other
 
-// TODO: add diagnostic for this case
-// inline namespace {
-//  namespace foo {               // ILLEGAL: namespace name shadows "::foo"
-//  }                             // namespace which contains "device_global"
-//                                // variable.
-//}
+// expected-error@+2{{non-inline namespace cannot be reopened as inline}}
+// expected-note@#PREVIOUS{{previous definition is here}}
+inline namespace {
+  namespace foo {
+  }
+}
 
 struct BBar {
 private:
@@ -77,7 +79,7 @@ private:
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
   device_global<T> b;
   // FIXME: Why are both messages emitted
-  // expected-error@+2 {{'device_global' member variable 'c' is not publicly accessible from namespace scope}}
+  // expected-error@+2 {{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
   device_global<int> c;
 

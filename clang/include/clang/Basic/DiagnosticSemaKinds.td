@@ -7144,7 +7144,7 @@ def warn_format_nonliteral : Warning<
 def err_sycl_device_global_incorrect_scope : Error<
   "'device_global' variables must be static or declared at namespace scope">;
 def err_sycl_device_global_not_publicly_accessible: Error<
-  "'device_global' member variable %0 is not publicly accessible from namespace scope">;
+  "'device_global' member variable %0 should be publicly accessible from namespace scope">;
 
 def err_unexpected_interface : Error<
   "unexpected interface name %0: expected expression">;

@@ -1590,25 +1590,24 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   // adding the VarTemplateSpecializationDecl later.
   if (!InstantiatingVarTemplate) {
     SemaRef.addSyclVarDecl(Var);
-    if (SemaRef.getLangOpts().SYCLIsDevice) {
-      if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+    if (SemaRef.getLangOpts().SYCLIsDevice &&
+        SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
               Var->getType())) {
-        if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
-          SemaRef.Diag(D->getLocation(),
-                       diag::err_sycl_device_global_incorrect_scope);
-          return nullptr;
-        }
+      if (!Var->hasGlobalStorage() || Var->isLocalVarDeclOrParm()) {
+        SemaRef.Diag(D->getLocation(),
+                     diag::err_sycl_device_global_incorrect_scope);
+        return nullptr;
+      }
 
-        if (Var->isStaticLocal()) {
-          const DeclContext *DC = Var->getDeclContext();
-          while (!DC->isTranslationUnit()) {
-            if (isa<FunctionDecl>(DC)) {
-              SemaRef.Diag(D->getLocation(),
-                           diag::err_sycl_device_global_incorrect_scope);
-              break;
-            }
-            DC = DC->getParent();
+      if (Var->isStaticLocal()) {
+        const DeclContext *DC = Var->getDeclContext();
+        while (!DC->isTranslationUnit()) {
+          if (isa<FunctionDecl>(DC)) {
+            SemaRef.Diag(D->getLocation(),
+                         diag::err_sycl_device_global_incorrect_scope);
+            return nullptr;
           }
+          DC = DC->getParent();
         }
       }
     }
@@ -1710,6 +1709,8 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
         SemaRef.Diag(D->getLocation(),
                      diag::err_sycl_device_global_incorrect_scope)
             << Value;
+        Field->setInvalidDecl();
+        return nullptr;
       }
     }
   }
