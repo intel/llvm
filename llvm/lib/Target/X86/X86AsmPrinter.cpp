@@ -70,12 +70,12 @@ bool X86AsmPrinter::runOnMachineFunction(MachineFunction &MF) {
 
   if (Subtarget->isTargetCOFF()) {
     bool Local = MF.getFunction().hasLocalLinkage();
-    OutStreamer->BeginCOFFSymbolDef(CurrentFnSym);
-    OutStreamer->EmitCOFFSymbolStorageClass(
+    OutStreamer->beginCOFFSymbolDef(CurrentFnSym);
+    OutStreamer->emitCOFFSymbolStorageClass(
         Local ? COFF::IMAGE_SYM_CLASS_STATIC : COFF::IMAGE_SYM_CLASS_EXTERNAL);
-    OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
-                                               << COFF::SCT_COMPLEX_TYPE_SHIFT);
-    OutStreamer->EndCOFFSymbolDef();
+    OutStreamer->emitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_FUNCTION
+                                    << COFF::SCT_COMPLEX_TYPE_SHIFT);
+    OutStreamer->endCOFFSymbolDef();
   }
 
   // Emit the rest of the function body.
@@ -334,6 +334,37 @@ void X86AsmPrinter::PrintLeaMemReference(const MachineInstr *MI, unsigned OpNo,
     }
     O << ')';
   }
+}
+
+static bool isSimpleReturn(const MachineInstr &MI) {
+  // We exclude all tail calls here which set both isReturn and isCall.
+  return MI.getDesc().isReturn() && !MI.getDesc().isCall();
+}
+
+static bool isIndirectBranchOrTailCall(const MachineInstr &MI) {
+  unsigned Opc = MI.getOpcode();
+  return MI.getDesc().isIndirectBranch() /*Make below code in a good shape*/ ||
+         Opc == X86::TAILJMPr || Opc == X86::TAILJMPm ||
+         Opc == X86::TAILJMPr64 || Opc == X86::TAILJMPm64 ||
+         Opc == X86::TCRETURNri || Opc == X86::TCRETURNmi ||
+         Opc == X86::TCRETURNri64 || Opc == X86::TCRETURNmi64 ||
+         Opc == X86::TAILJMPr64_REX || Opc == X86::TAILJMPm64_REX;
+}
+
+void X86AsmPrinter::emitBasicBlockEnd(const MachineBasicBlock &MBB) {
+  if (Subtarget->hardenSlsRet() || Subtarget->hardenSlsIJmp()) {
+    auto I = MBB.getLastNonDebugInstr();
+    if (I != MBB.end()) {
+      if ((Subtarget->hardenSlsRet() && isSimpleReturn(*I)) ||
+          (Subtarget->hardenSlsIJmp() && isIndirectBranchOrTailCall(*I))) {
+        MCInst TmpInst;
+        TmpInst.setOpcode(X86::INT3);
+        EmitToStreamer(*OutStreamer, TmpInst);
+      }
+    }
+  }
+  AsmPrinter::emitBasicBlockEnd(MBB);
+  SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
 }
 
 void X86AsmPrinter::PrintMemReference(const MachineInstr *MI, unsigned OpNo,
@@ -678,10 +709,10 @@ void X86AsmPrinter::emitStartOfAsmFile(Module &M) {
     // Emit an absolute @feat.00 symbol.  This appears to be some kind of
     // compiler features bitfield read by link.exe.
     MCSymbol *S = MMI->getContext().getOrCreateSymbol(StringRef("@feat.00"));
-    OutStreamer->BeginCOFFSymbolDef(S);
-    OutStreamer->EmitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_STATIC);
-    OutStreamer->EmitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
-    OutStreamer->EndCOFFSymbolDef();
+    OutStreamer->beginCOFFSymbolDef(S);
+    OutStreamer->emitCOFFSymbolStorageClass(COFF::IMAGE_SYM_CLASS_STATIC);
+    OutStreamer->emitCOFFSymbolType(COFF::IMAGE_SYM_DTYPE_NULL);
+    OutStreamer->endCOFFSymbolDef();
     int64_t Feat00Flags = 0;
 
     if (TT.getArch() == Triple::x86) {
@@ -756,7 +787,7 @@ static void emitNonLazyStubs(MachineModuleInfo *MMI, MCStreamer &OutStreamer) {
       emitNonLazySymbolPointer(OutStreamer, Stub.first, Stub.second);
 
     Stubs.clear();
-    OutStreamer.AddBlankLine();
+    OutStreamer.addBlankLine();
   }
 }
 

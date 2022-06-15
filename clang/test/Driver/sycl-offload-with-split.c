@@ -338,3 +338,17 @@
 // RUN:   %clang    -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang_cl -### -fsycl -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // CHK-ESIMD-LOWER: sycl-post-link{{.*}} "-lower-esimd"
+
+// Check -f[no]sycl-device-code-split-esimd option's effect on sycl-post-link invocation
+// RUN:   %clang -### -fsycl -fsycl-device-code-split-esimd %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-ON
+// RUN:   %clang -### -fsycl -fno-sycl-device-code-split-esimd %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-OFF
+// RUN:   %clang -### -fsycl %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-DEFAULT
+// RUN:   %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN:    | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT-NON-SPIRV
+// CHK-ESIMD-SPLIT-ON: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-o"{{.*}}
+// CHK-ESIMD-SPLIT-OFF-NOT: sycl-post-link{{.*}} "-split-esimd"{{.*}}
+// CHK-ESIMD-SPLIT-DEFAULT: sycl-post-link{{.*}} "-split-esimd"{{.*}} "-o"{{.*}}
+// CHK-ESIMD-SPLIT-NON-SPIRV-NOT: sycl-post-link{{.*}} "-split-esimd"{{.*}}

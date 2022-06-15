@@ -99,7 +99,7 @@ static cl::opt<bool>
                            cl::init(false), cl::Hidden);
 
 static cl::opt<int> ColdCCRelFreq(
-    "coldcc-rel-freq", cl::Hidden, cl::init(2), cl::ZeroOrMore,
+    "coldcc-rel-freq", cl::Hidden, cl::init(2),
     cl::desc(
         "Maximum block frequency, expressed as a percentage of caller's "
         "entry frequency, for a call site to be considered cold for enabling"
@@ -608,17 +608,14 @@ static bool AllUsesOfValueWillTrapIfNull(const Value *V,
       // Will trap.
     } else if (const StoreInst *SI = dyn_cast<StoreInst>(U)) {
       if (SI->getOperand(0) == V) {
-        //cerr << "NONTRAPPING USE: " << *U;
         return false;  // Storing the value.
       }
     } else if (const CallInst *CI = dyn_cast<CallInst>(U)) {
       if (CI->getCalledOperand() != V) {
-        //cerr << "NONTRAPPING USE: " << *U;
         return false;  // Not calling the ptr
       }
     } else if (const InvokeInst *II = dyn_cast<InvokeInst>(U)) {
       if (II->getCalledOperand() != V) {
-        //cerr << "NONTRAPPING USE: " << *U;
         return false;  // Not calling the ptr
       }
     } else if (const BitCastInst *CI = dyn_cast<BitCastInst>(U)) {
@@ -642,7 +639,6 @@ static bool AllUsesOfValueWillTrapIfNull(const Value *V,
       // the comparing of the value of the created global init bool later in
       // optimizeGlobalAddressOfAllocation for the global variable.
     } else {
-      //cerr << "NONTRAPPING USE: " << *U;
       return false;
     }
   }
@@ -2058,6 +2054,9 @@ OptimizeGlobalVars(Module &M,
 /// can, false otherwise.
 static bool EvaluateStaticConstructor(Function *F, const DataLayout &DL,
                                       TargetLibraryInfo *TLI) {
+  // Skip external functions.
+  if (F->isDeclaration())
+    return false;
   // Call the function.
   Evaluator Eval(DL, TLI);
   Constant *RetValDummy;
@@ -2419,6 +2418,8 @@ static bool optimizeGlobalsInModule(
   SmallPtrSet<const Comdat *, 8> NotDiscardableComdats;
   bool Changed = false;
   bool LocalChange = true;
+  Optional<uint32_t> FirstNotFullyEvaluatedPriority;
+
   while (LocalChange) {
     LocalChange = false;
 
@@ -2441,9 +2442,16 @@ static bool optimizeGlobalsInModule(
                                      NotDiscardableComdats);
 
     // Optimize global_ctors list.
-    LocalChange |= optimizeGlobalCtorsList(M, [&](Function *F) {
-      return EvaluateStaticConstructor(F, DL, &GetTLI(*F));
-    });
+    LocalChange |=
+        optimizeGlobalCtorsList(M, [&](uint32_t Priority, Function *F) {
+          if (FirstNotFullyEvaluatedPriority &&
+              *FirstNotFullyEvaluatedPriority != Priority)
+            return false;
+          bool Evaluated = EvaluateStaticConstructor(F, DL, &GetTLI(*F));
+          if (!Evaluated)
+            FirstNotFullyEvaluatedPriority = Priority;
+          return Evaluated;
+        });
 
     // Optimize non-address-taken globals.
     LocalChange |= OptimizeGlobalVars(M, GetTTI, GetTLI, LookupDomTree,

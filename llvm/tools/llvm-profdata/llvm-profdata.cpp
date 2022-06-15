@@ -979,7 +979,7 @@ static int merge_main(int argc, const char *argv[]) {
       cl::desc(
           "Trim context sample profiles whose count is below cold threshold"));
   cl::opt<uint32_t> SampleColdContextFrameDepth(
-      "sample-frame-depth-for-cold-context", cl::init(1), cl::ZeroOrMore,
+      "sample-frame-depth-for-cold-context", cl::init(1),
       cl::desc("Keep the last K frames while merging cold profile. 1 means the "
                "context-less base profile"));
   cl::opt<bool> GenPartialProfile(
@@ -2532,8 +2532,8 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
 static int showMemProfProfile(const std::string &Filename,
                               const std::string &ProfiledBinary,
                               raw_fd_ostream &OS) {
-  auto ReaderOr =
-      llvm::memprof::RawMemProfReader::create(Filename, ProfiledBinary);
+  auto ReaderOr = llvm::memprof::RawMemProfReader::create(
+      Filename, ProfiledBinary, /*KeepNames=*/true);
   if (Error E = ReaderOr.takeError())
     // Since the error can be related to the profile or the binary we do not
     // pass whence. Instead additional context is provided where necessary in

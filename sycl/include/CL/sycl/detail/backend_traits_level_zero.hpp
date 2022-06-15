@@ -140,7 +140,7 @@ struct OptionalDevice {
 
   operator device() const {
     if (!DeviceImpl)
-      throw runtime_error("No device has been set.", PI_INVALID_DEVICE);
+      throw runtime_error("No device has been set.", PI_ERROR_INVALID_DEVICE);
     return createSyclObjFromImpl<device>(DeviceImpl);
   }
 

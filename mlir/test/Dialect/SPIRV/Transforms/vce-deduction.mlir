@@ -49,6 +49,18 @@ spv.module Logical GLSL450 attributes {
   }
 }
 
+// Test Physical Storage Buffers are deduced correctly.
+
+// CHECK: spv.module PhysicalStorageBuffer64 GLSL450 requires #spv.vce<v1.0, [PhysicalStorageBufferAddresses, Shader], [SPV_EXT_physical_storage_buffer]>
+spv.module PhysicalStorageBuffer64 GLSL450 attributes {
+  spv.target_env = #spv.target_env<
+    #spv.vce<v1.0, [Shader, PhysicalStorageBufferAddresses], [SPV_EXT_physical_storage_buffer]>, {}>
+} {
+  spv.func @physical_ptr(%val : !spv.ptr<f32, PhysicalStorageBuffer>) "None" {
+    spv.Return
+  }
+}
+
 // Test deducing implied capability.
 // AtomicStorage implies Shader.
 
@@ -186,10 +198,10 @@ spv.module Logical GLSL450 attributes {
 // Complicated nested types
 // * Buffer requires ImageBuffer or SampledBuffer.
 // * Rg32f requires StorageImageExtendedFormats.
-// CHECK: requires #spv.vce<v1.0, [UniformAndStorageBuffer8BitAccess, StorageUniform16, Shader, ImageBuffer, StorageImageExtendedFormats], [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>
+// CHECK: requires #spv.vce<v1.0, [UniformAndStorageBuffer8BitAccess, StorageUniform16, Int64, Shader, ImageBuffer, StorageImageExtendedFormats], [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>
 spv.module Logical GLSL450 attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.5, [Shader, UniformAndStorageBuffer8BitAccess, StorageBuffer16BitAccess, StorageUniform16, Int16, ImageBuffer, StorageImageExtendedFormats], []>,
+    #spv.vce<v1.5, [Shader, UniformAndStorageBuffer8BitAccess, StorageBuffer16BitAccess, StorageUniform16, Int16, Int64, ImageBuffer, StorageImageExtendedFormats], []>,
     {}>
 } {
   spv.GlobalVariable @data : !spv.ptr<!spv.struct<(i8 [0], f16 [2], i64 [4])>, Uniform>

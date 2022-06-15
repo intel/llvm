@@ -293,13 +293,13 @@ bool COFFMasmParser::ParseDirectiveIncludelib(StringRef Directive, SMLoc Loc) {
 
   unsigned Flags = COFF::IMAGE_SCN_MEM_PRELOAD | COFF::IMAGE_SCN_MEM_16BIT;
   SectionKind Kind = computeSectionKind(Flags);
-  getStreamer().PushSection();
+  getStreamer().pushSection();
   getStreamer().SwitchSection(getContext().getCOFFSection(
       ".drectve", Flags, Kind, "", (COFF::COMDATType)(0)));
   getStreamer().emitBytes("/DEFAULTLIB:");
   getStreamer().emitBytes(Lib);
   getStreamer().emitBytes(" ");
-  getStreamer().PopSection();
+  getStreamer().popSection();
   return false;
 }
 
@@ -336,7 +336,7 @@ bool COFFMasmParser::ParseDirectiveProc(StringRef Directive, SMLoc Loc) {
       getTok().getString().equals_insensitive("frame")) {
     Lex();
     Framed = true;
-    getStreamer().EmitWinCFIStartProc(Sym, Loc);
+    getStreamer().emitWinCFIStartProc(Sym, Loc);
   }
   getStreamer().emitLabel(Sym, Loc);
 
@@ -357,7 +357,7 @@ bool COFFMasmParser::ParseDirectiveEndProc(StringRef Directive, SMLoc Loc) {
                                CurrentProcedure + "'");
 
   if (CurrentProcedureFramed) {
-    getStreamer().EmitWinCFIEndProc(Loc);
+    getStreamer().emitWinCFIEndProc(Loc);
   }
   CurrentProcedure = "";
   CurrentProcedureFramed = false;
@@ -391,13 +391,13 @@ bool COFFMasmParser::ParseSEHDirectiveAllocStack(StringRef Directive,
     return Error(SizeLoc, "expected integer size");
   if (Size % 8 != 0)
     return Error(SizeLoc, "stack size must be a multiple of 8");
-  getStreamer().EmitWinCFIAllocStack(static_cast<unsigned>(Size), Loc);
+  getStreamer().emitWinCFIAllocStack(static_cast<unsigned>(Size), Loc);
   return false;
 }
 
 bool COFFMasmParser::ParseSEHDirectiveEndProlog(StringRef Directive,
                                                 SMLoc Loc) {
-  getStreamer().EmitWinCFIEndProlog(Loc);
+  getStreamer().emitWinCFIEndProlog(Loc);
   return false;
 }
 

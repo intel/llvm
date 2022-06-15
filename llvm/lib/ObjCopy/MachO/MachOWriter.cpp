@@ -634,9 +634,7 @@ void MachOWriter::writeTail() {
     }
   }
 
-  llvm::sort(Queue, [](const WriteOperation &LHS, const WriteOperation &RHS) {
-    return LHS.first < RHS.first;
-  });
+  llvm::sort(Queue, llvm::less_first());
 
   for (auto WriteOp : Queue)
     (this->*WriteOp.second)();
@@ -651,7 +649,6 @@ Error MachOWriter::write() {
     return createStringError(errc::not_enough_memory,
                              "failed to allocate memory buffer of " +
                                  Twine::utohexstr(TotalSize) + " bytes");
-  memset(Buf->getBufferStart(), 0, totalSize());
   writeHeader();
   writeLoadCommands();
   writeSections();

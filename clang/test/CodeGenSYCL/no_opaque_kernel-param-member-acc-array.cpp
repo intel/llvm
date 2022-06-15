@@ -42,7 +42,7 @@ int main() {
 // CHECK: [[MEM_ARG1]].addr{{[0-9]*}} = alloca i32 addrspace(1)*, align 8
 
 // Check lambda object alloca
-// CHECK: [[LOCAL_OBJECTA:%0]] = alloca %class{{.*}}.anon, align 4
+// CHECK: [[LOCAL_OBJECTA:%__SYCLKernel]] = alloca %class{{.*}}.anon, align 4
 
 // Check allocas for ranges
 // CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
@@ -53,7 +53,7 @@ int main() {
 // CHECK: [[OFFSET2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
 
 // Check lambda object addrspacecast
-// CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %class{{.*}}.anon* %0 to %class{{.*}}.anon addrspace(4)*
+// CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %class{{.*}}.anon* %__SYCLKernel to %class{{.*}}.anon addrspace(4)*
 
 // Check addrspacecast for ranges
 // CHECK: [[ACC_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*

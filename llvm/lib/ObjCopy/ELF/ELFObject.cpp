@@ -655,6 +655,15 @@ static bool isValidReservedSectionIndex(uint16_t Index, uint16_t Machine) {
     return Index == SHN_AMDGPU_LDS;
   }
 
+  if (Machine == EM_MIPS) {
+    switch (Index) {
+    case SHN_MIPS_ACOMMON:
+    case SHN_MIPS_SCOMMON:
+    case SHN_MIPS_SUNDEFINED:
+      return true;
+    }
+  }
+
   if (Machine == EM_HEXAGON) {
     switch (Index) {
     case SHN_HEXAGON_SCOMMON:
@@ -741,8 +750,8 @@ Error SymbolTableSection::removeSectionReferences(
 }
 
 void SymbolTableSection::updateSymbols(function_ref<void(Symbol &)> Callable) {
-  std::for_each(std::begin(Symbols) + 1, std::end(Symbols),
-                [Callable](SymPtr &Sym) { Callable(*Sym); });
+  for (SymPtr &Sym : llvm::drop_begin(Symbols))
+    Callable(*Sym);
   std::stable_partition(
       std::begin(Symbols), std::end(Symbols),
       [](const SymPtr &Sym) { return Sym->Binding == STB_LOCAL; });

@@ -123,15 +123,16 @@ public:
     return reinterpret_cast<ReturnPtr>(m_Pointer)[index];
   }
 
-  // Only if Space == global_space || global_device_space || generic_space
-  template <int dimensions, access::mode Mode,
-            access::placeholder isPlaceholder, typename PropertyListT,
-            access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
-                _Space == Space &&
-                (Space == access::address_space::generic_space ||
-                 Space == access::address_space::global_space ||
-                 Space == access::address_space::global_device_space)>>
+  // Only if Space is in
+  // {global_space, ext_intel_global_device_space, generic_space}
+  template <
+      int dimensions, access::mode Mode, access::placeholder isPlaceholder,
+      typename PropertyListT, access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space &&
+          (Space == access::address_space::generic_space ||
+           Space == access::address_space::global_space ||
+           Space == access::address_space::ext_intel_global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor) {
@@ -170,8 +171,9 @@ public:
   //    2. from multi_ptr<ElementType, Space> to multi_ptr<const ElementType,
   //    Space>
 
-  // Only if Space == global_space || global_device_space || generic_space and
-  // element type is const
+  // Only if Space is in
+  // {global_space, ext_intel_global_device_space, generic_space} and element
+  // type is const
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -180,7 +182,7 @@ public:
           _Space == Space &&
           (Space == access::address_space::generic_space ||
            Space == access::address_space::global_space ||
-           Space == access::address_space::global_device_space) &&
+           Space == access::address_space::ext_intel_global_device_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                      access::target::device, isPlaceholder, PropertyListT>
@@ -302,13 +304,14 @@ public:
 
 #ifdef __ENABLE_USM_ADDR_SPACE__
   // Explicit conversion to global_space
-  // Only available if Space == address_space::global_device_space ||
-  // Space == address_space::global_host_space
-  template <access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
-                _Space == Space &&
-                (Space == access::address_space::global_device_space ||
-                 Space == access::address_space::global_host_space)>>
+  // Only available if Space == address_space::ext_intel_global_device_space ||
+  // Space == address_space::ext_intel_global_host_space
+  template <
+      access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space &&
+          (Space == access::address_space::ext_intel_global_device_space ||
+           Space == access::address_space::ext_intel_global_host_space)>>
   explicit
   operator multi_ptr<ElementType, access::address_space::global_space>() const {
     using global_pointer_t = typename detail::DecoratedType<
@@ -392,14 +395,16 @@ public:
     return *this;
   }
 
-  // Only if Space == global_space || global_device_space || generic_space
-  template <typename ElementType, int dimensions, access::mode Mode,
-            typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
-                _Space == Space &&
-                (Space == access::address_space::generic_space ||
-                 Space == access::address_space::global_space ||
-                 Space == access::address_space::global_device_space)>>
+  // Only if Space is in
+  // {global_space, ext_intel_global_device_space, generic_space}
+  template <
+      typename ElementType, int dimensions, access::mode Mode,
+      typename PropertyListT, access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space &&
+          (Space == access::address_space::generic_space ||
+           Space == access::address_space::global_space ||
+           Space == access::address_space::ext_intel_global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
@@ -515,14 +520,16 @@ public:
     return *this;
   }
 
-  // Only if Space == global_space || global_device_space || generic_space
-  template <typename ElementType, int dimensions, access::mode Mode,
-            typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
-                _Space == Space &&
-                (Space == access::address_space::generic_space ||
-                 Space == access::address_space::global_space ||
-                 Space == access::address_space::global_device_space)>>
+  // Only if Space is in
+  // {global_space, ext_intel_global_device_space, generic_space}
+  template <
+      typename ElementType, int dimensions, access::mode Mode,
+      typename PropertyListT, access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space &&
+          (Space == access::address_space::generic_space ||
+           Space == access::address_space::global_space ||
+           Space == access::address_space::ext_intel_global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)

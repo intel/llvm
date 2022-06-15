@@ -652,7 +652,12 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                                    const llvm::opt::ArgList &Args,
                                    std::vector<StringRef> &Features,
                                    Optional<clang::CudaVersion> Version) {
-  if (!Version) {
+  if (Args.hasArg(options::OPT_cuda_feature_EQ)) {
+    StringRef PtxFeature =
+        Args.getLastArgValue(options::OPT_cuda_feature_EQ, "+ptx42");
+    Features.push_back(Args.MakeArgString(PtxFeature));
+    return;
+  } else if (!Version) {
     CudaInstallationDetector CudaInstallation(D, Triple, Args);
     Version = CudaInstallation.version();
   }
@@ -927,10 +932,10 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       if (!llvm::is_contained(*DAL, A))
         DAL->append(A);
 
-    StringRef Arch = DAL->getLastArgValue(options::OPT_march_EQ);
-    if (Arch.empty())
+    if (!DAL->hasArg(options::OPT_march_EQ))
       DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ),
-                        CLANG_OPENMP_NVPTX_DEFAULT_ARCH);
+                        !BoundArch.empty() ? BoundArch
+                                           : CLANG_OPENMP_NVPTX_DEFAULT_ARCH);
 
     return DAL;
   }
