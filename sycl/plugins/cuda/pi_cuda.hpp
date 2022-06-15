@@ -384,6 +384,10 @@ struct _pi_queue {
 
   std::vector<native_type> compute_streams_;
   std::vector<native_type> transfer_streams_;
+  // delay_compute_ keeps track of which streams have been recently reused and
+  // their next use should be delayed. If a stream has been recently reused it
+  // will be skipped the next time it would be selected round-robin style. When
+  // skipped, its delay flag is cleared.
   std::vector<bool> delay_compute_;
   _pi_context *context_;
   _pi_device *device_;
