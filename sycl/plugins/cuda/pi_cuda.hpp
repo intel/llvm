@@ -397,7 +397,9 @@ struct _pi_queue {
   unsigned int last_sync_compute_streams_;
   unsigned int last_sync_transfer_streams_;
   unsigned int flags_;
-  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be locked at the same time, compute_stream_sync_mutex_ should be locked first to avoid deadlocks
+  // When compute_stream_sync_mutex_ and compute_stream_mutex_ both need to be
+  // locked at the same time, compute_stream_sync_mutex_ should be locked first
+  // to avoid deadlocks
   std::mutex compute_stream_sync_mutex_;
   std::mutex compute_stream_mutex_;
   std::mutex transfer_stream_mutex_;
@@ -430,9 +432,9 @@ struct _pi_queue {
   // If that is not possible returns a new stream. If a stream is reused it
   // returns a lock that needs to remain locked as long as the stream is in use
   native_type get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                                           const pi_event *event_wait_list,
-                                           _pi_stream_guard &guard,
-                                           pi_uint32 *stream_token = nullptr);
+                                      const pi_event *event_wait_list,
+                                      _pi_stream_guard &guard,
+                                      pi_uint32 *stream_token = nullptr);
   native_type get_next_transfer_stream();
   native_type get() { return get_next_compute_stream(); };
 
@@ -488,13 +490,16 @@ struct _pi_queue {
   }
 
   template <typename T> void sync_streams(T &&f) {
-    auto sync_compute = [&f, &streams = compute_streams_, &delay = delay_compute_](unsigned int start, unsigned int stop) {
+    auto sync_compute = [&f, &streams = compute_streams_,
+                         &delay = delay_compute_](unsigned int start,
+                                                  unsigned int stop) {
       for (unsigned int i = start; i < stop; i++) {
         f(streams[i]);
         delay[i] = false;
       }
     };
-    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start, unsigned int stop) {
+    auto sync_transfer = [&f, &streams = transfer_streams_](unsigned int start,
+                                                            unsigned int stop) {
       for (unsigned int i = start; i < stop; i++) {
         f(streams[i]);
       }

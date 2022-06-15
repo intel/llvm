@@ -400,10 +400,10 @@ CUstream _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
   return compute_streams_[stream_i % compute_streams_.size()];
 }
 
-CUstream
-_pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                                   const pi_event *event_wait_list,
-                                   _pi_stream_guard &guard, pi_uint32 *stream_token) {
+CUstream _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
+                                            const pi_event *event_wait_list,
+                                            _pi_stream_guard &guard,
+                                            pi_uint32 *stream_token) {
   for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
     pi_uint32 token = event_wait_list[i]->get_stream_token();
     if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
