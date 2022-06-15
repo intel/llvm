@@ -32,7 +32,7 @@ namespace detail {
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
-// if we do not yet have a context, use the default one.
+// If we do not yet have a context, use the default one.
 void event_impl::ensureContextInitialized() {
   if (!MIsContextInitialized) {
     const device &SyclDevice = default_selector().select_device();
@@ -42,7 +42,7 @@ void event_impl::ensureContextInitialized() {
 }
 
 bool event_impl::is_host() {
-  // we'll need a context before we can answer is_host question.
+  // We'll need a context before we can answer is_host question.
   // setting it may adjust the values of MHostEvent and MOpenCLInterop
   ensureContextInitialized();
   // Treat all devices that don't support interoperability as host devices to
@@ -367,13 +367,14 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() {
-  if (!MContext) {
-    static context SyclContext;
-    MContext = getSyclObjImpl(SyclContext);
-    MIsContextInitialized = true;
-    MHostEvent = MContext->is_host();
-    MOpenCLInterop = !MHostEvent;
-  }
+  ensureContextInitialized();
+  // if (!MContext) {
+  //   static context SyclContext;
+  //   MContext = getSyclObjImpl(SyclContext);
+  //   MIsContextInitialized = true;
+  //   MHostEvent = MContext->is_host();
+  //   MOpenCLInterop = !MHostEvent;
+  // }
   auto Plugin = getPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;

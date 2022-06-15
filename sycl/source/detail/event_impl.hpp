@@ -146,7 +146,7 @@ public:
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
 
-  /// clear the event state
+  /// Clear the event state
   void setStateIncomplete();
 
   /// Returns command that is associated with the event.
@@ -222,7 +222,7 @@ private:
   void instrumentationEpilog(void *TelementryEvent, const std::string &Name,
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
-  // events constructed without a context will lazily use the default context
+  // Events constructed without a context will lazily use the default context
   // when needed.
   void ensureContextInitialized();
   mutable bool MIsInitialized = true;
