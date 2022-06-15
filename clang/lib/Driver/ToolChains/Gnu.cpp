@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "Gnu.h"
 #include "Arch/ARM.h"
 #include "Arch/CSKY.h"
@@ -688,6 +689,7 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         WantPthread = true;
 
       AddRunTimeLibs(ToolChain, D, CmdArgs, Args);
+
       if (Args.hasArg(options::OPT_fsycl) &&
           !Args.hasArg(options::OPT_nolibsycl)) {
         CmdArgs.push_back("-lsycl");
