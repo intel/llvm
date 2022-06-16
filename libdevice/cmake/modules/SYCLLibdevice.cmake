@@ -116,7 +116,7 @@ add_fallback_devicelib(libsycl-fallback-complex-fp64 SRC fallback-complex-fp64.c
 add_fallback_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps})
 add_fallback_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
 
-file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice/imf_fallback)
+file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
 set(imf_src_dir ${CMAKE_CURRENT_SOURCE_DIR})
 set(imf_fallback_fp32_deps imf_utils/integer_misc.cpp
@@ -125,26 +125,20 @@ set(imf_fallback_fp32_deps imf_utils/integer_misc.cpp
                            imf/imf_inline_fp32.cpp)
 set(imf_fallback_fp64_deps imf_utils/double_convert.cpp
                            imf/imf_inline_fp64.cpp)
-set(imf_fp32_fallback_src ${imf_fallback_src_dir}/imf_fallback/imf_fp32_fallback.cpp)
-set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fallback/imf_fp64_fallback.cpp)
+set(imf_fp32_fallback_src ${imf_fallback_src_dir}/imf_fp32_fallback.cpp)
+set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fp64_fallback.cpp)
 
 set(imf_headers_required device.h device_imf.hpp imf_half.hpp)
-add_custom_target(copy_imf_headers
-                  COMMAND ${CMAKE_COMMAND} -D SRC_DIR=${imf_src_dir}
-                                           -D DEST_DIR=${imf_fallback_src_dir}
-                                           -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/ImfHeaderCopy.cmake
-                  DEPENDS ${imf_headers_required})
-
 add_custom_command(OUTPUT ${imf_fp32_fallback_src}
                    COMMAND ${CMAKE_COMMAND} -D SRC_DIR=${imf_src_dir}
-                                            -D DEST_DIR=${imf_fallback_src_dir}/imf_fallback
+                                            -D DEST_DIR=${imf_fallback_src_dir}
                                             -D FP64=0
                                             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/ImfSrcConcate.cmake
                    DEPENDS ${imf_fallback_fp32_deps})
 
 add_custom_command(OUTPUT ${imf_fp64_fallback_src}
                    COMMAND ${CMAKE_COMMAND} -D SRC_DIR=${imf_src_dir}
-                                            -D DEST_DIR=${imf_fallback_src_dir}/imf_fallback
+                                            -D DEST_DIR=${imf_fallback_src_dir}
                                             -D FP64=1
                                             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/ImfSrcConcate.cmake
                    DEPENDS ${imf_fallback_fp64_deps})
@@ -152,47 +146,51 @@ add_custom_command(OUTPUT ${imf_fp64_fallback_src}
 add_custom_target(get_imf_fallback_fp32  DEPENDS ${imf_fp32_fallback_src})
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf.spv
                    COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp32_fallback_src}
                            -o ${spv_binary_dir}/libsycl-fallback-imf.spv
-                   DEPENDS get_imf_fallback_fp32 copy_imf_headers ${imf_headers_required}
+                   DEPENDS get_imf_fallback_fp32 ${imf_headers_required}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
-                           ${imf_fp32_fallback_src}
+                           ${imf_fp32_fallback_src} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            -o ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
-                   DEPENDS get_imf_fallback_fp32 copy_imf_headers ${imf_headers_required}
+                   DEPENDS get_imf_fallback_fp32 ${imf_headers_required}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
-                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__ ${imf_fp32_fallback_src}
+                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__
+                           -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp32_fallback_src}
                            -o ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
-                   DEPENDS get_imf_fallback_fp32 copy_imf_headers ${imf_headers_required}
+                   DEPENDS get_imf_fallback_fp32 ${imf_headers_required}
                    VERBATIM)
 
 add_custom_target(get_imf_fallback_fp64  DEPENDS ${imf_fp64_fallback_src})
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
                    COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
-                           ${compile_opts}
+                           ${compile_opts} -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp64_fallback_src}
                            -o ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
-                   DEPENDS get_imf_fallback_fp64 copy_imf_headers ${imf_headers_required}
+                   DEPENDS get_imf_fallback_fp64 ${imf_headers_required}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
+                   COMMAND ${clang} -fsycl -c -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${compile_opts} ${sycl_targets_opt}
                            ${imf_fp64_fallback_src}
                            -o ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
-                   DEPENDS get_imf_fallback_fp64 copy_imf_headers ${imf_headers_required}
+                   DEPENDS get_imf_fallback_fp64 ${imf_headers_required}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
-                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__ ${imf_fp64_fallback_src}
+                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__
+                           -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
+                           ${imf_fp64_fallback_src}
                            -o ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
-                   DEPENDS get_imf_fallback_fp64 copy_imf_headers ${imf_headers_required}
+                   DEPENDS get_imf_fallback_fp64 ${imf_headers_required}
                    VERBATIM)
 
 add_custom_target(imf_fallback_fp32_spv DEPENDS ${spv_binary_dir}/libsycl-fallback-imf.spv)
