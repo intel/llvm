@@ -95,11 +95,19 @@ inline __SYCL_ALWAYS_INLINE
   _ocl_T arg1 = cl::sycl::detail::convertDataToType<T, _ocl_T>(x);
   return cl::sycl::detail::convertDataToType<_ocl_T, T>(
       __clc_native_tanh(arg1));
+    return cl::sycl::detail::convertDataToType<_ocl_T, T>(
 #else
   return __sycl_std::__invoke_tanh<T>(x);
 #endif
 }
 
+// These marray math function implementations use vectorizations of
+// size two as a simple general optimization. A more complex implementation
+// using larger vectorizations for large marray sizes is possible; however more
+// testing is required in order to ascertain the performance implications for
+// all backends. Currently the compiler does not produce vectorized loads and
+// stores from this implementation for all backends. It would be wise to
+// investigate how this can be fixed first.
 template <typename T, size_t N>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<std::is_same<T, half>::value ||
                                                  std::is_same<T, float>::value,
@@ -108,11 +116,11 @@ tanh(sycl::marray<T, N> x) __NOEXC {
   sycl::marray<T, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_native_tanh(sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = native::tanh(sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if constexpr (N % 2) {
-    res[N - 1] = __clc_native_tanh(x[N - 1]);
+    res[N - 1] = native::tanh(x[N - 1]);
   }
 #else
   for (size_t i = 0; i < N / 2; i++) {
@@ -148,11 +156,11 @@ exp2(sycl::marray<half, N> x) __NOEXC {
   sycl::marray<half, N> res;
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res = __clc_native_exp2(sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = native::exp2(sycl::detail::to_vec2(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if constexpr (N % 2) {
-    res[N - 1] = __clc_native_exp2(x[N - 1]);
+    res[N - 1] = native::exp2(x[N - 1]);
   }
 #else
   for (size_t i = 0; i < N / 2; i++) {
