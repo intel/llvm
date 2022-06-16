@@ -62,7 +62,7 @@ using string_vector = std::vector<std::string>;
 namespace {
 
 #ifdef NDEBUG
-#define DUMP_ENTRY_POINTS(args...)
+#define DUMP_ENTRY_POINTS(...)
 #else
 constexpr int DebugPostLink = 0;
 
