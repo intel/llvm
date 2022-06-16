@@ -66,6 +66,12 @@
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
 
+// _PI_VERSION_MAJOR_STRING_LEN will be used to check the major versions of
+// plugins versus the major versions of PI.
+#define _PI_STRING_SUBSTITUTE(X) _PI_STRING_HELPER(X)
+#define _PI_VERSION_MAJOR_STRING_LEN                                           \
+  sizeof(_PI_STRING_SUBSTITUTE(_PI_H_VERSION_MAJOR))
+
 // NOTE: This file presents a maping of OpenCL to PI enums, constants and
 // typedefs. The general approach taken was to replace `CL_` prefix with `PI_`.
 // Please consider this when adding or modifying values, as the strict value
