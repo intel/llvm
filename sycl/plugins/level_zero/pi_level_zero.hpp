@@ -553,7 +553,7 @@ struct pi_command_list_info_t {
   // was not yet signaled at the time all events in that list were already
   // completed (we are polling the fence at events completion). The fence
   // may be still "in-use" due to sporadic delay in HW.
-  bool InUse{false};
+  bool ZeFenceInUse{false};
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};
