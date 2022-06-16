@@ -79,6 +79,16 @@ inline device make_device<backend::ext_oneapi_cuda>(
   return ext::oneapi::cuda::make_device(NativeHandle);
 }
 
+// CUDA event specialization
+template <>
+inline event make_event<backend::ext_oneapi_cuda>(
+    const backend_input_t<backend::ext_oneapi_cuda, event> &BackendObject,
+    const context &TargetContext) {
+  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, true,
+                            /*Backend*/ backend::ext_oneapi_cuda);
+}
+
 // CUDA queue specialization
 template <>
 inline queue make_queue<backend::ext_oneapi_cuda>(
