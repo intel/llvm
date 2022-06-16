@@ -226,10 +226,10 @@ private:
   }
 
   template <class _T, access::address_space Space, class BinaryOperation>
-  static inline constexpr bool
-      BasicCheck = std::is_same<typename remove_AS<_T>::type, T>::value &&
-                   (Space == access::address_space::global_space ||
-                    Space == access::address_space::local_space);
+  static inline constexpr bool BasicCheck =
+      std::is_same<typename remove_AS<_T>::type, T>::value &&
+      (Space == access::address_space::global_space ||
+       Space == access::address_space::local_space);
 
 public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
