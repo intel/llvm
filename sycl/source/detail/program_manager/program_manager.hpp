@@ -63,7 +63,9 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_math_fp64,
   cl_intel_devicelib_complex,
   cl_intel_devicelib_complex_fp64,
-  cl_intel_devicelib_cstring
+  cl_intel_devicelib_cstring,
+  cl_intel_devicelib_imf,
+  cl_intel_devicelib_imf_fp64,
 };
 
 // Provides single loading and building OpenCL programs with unique contexts
@@ -187,6 +189,9 @@ public:
   // device_global map.
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
+
+  // Returns true if any available image is compatible with the device Dev.
+  bool hasCompatibleImage(const device &Dev);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.

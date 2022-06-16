@@ -24,7 +24,6 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/OSLog.h"
-#include "clang/AST/FormatString.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
@@ -2003,7 +2002,7 @@ EmitCheckedMixedSignMultiply(CodeGenFunction &CGF, const clang::Expr *Op1,
     // Signed overflow occurs if the result is greater than INT_MAX or lesser
     // than INT_MIN, i.e when |Result| > (INT_MAX + IsNegative).
     auto IntMax =
-        llvm::APInt::getSignedMaxValue(ResultInfo.Width).zextOrSelf(OpWidth);
+        llvm::APInt::getSignedMaxValue(ResultInfo.Width).zext(OpWidth);
     llvm::Value *MaxResult =
         CGF.Builder.CreateAdd(llvm::ConstantInt::get(OpTy, IntMax),
                               CGF.Builder.CreateZExt(IsNegative, OpTy));
@@ -2042,117 +2041,6 @@ EmitCheckedMixedSignMultiply(CodeGenFunction &CGF, const clang::Expr *Op1,
   CGF.Builder.CreateStore(CGF.EmitToMemory(Result, ResultQTy), ResultPtr,
                           isVolatile);
   return RValue::get(Overflow);
-}
-
-static std::string getPrintfSpecifier(CodeGenFunction &CGF, QualType QT) {
-  analyze_printf::PrintfSpecifier spec;
-  if (!spec.fixType(QT, CGF.getLangOpts(), CGF.getContext(), false)) {
-    // If this type is a boolean type, we should use '%d' to dump its value.
-    if (QT->isBooleanType())
-      return "%d";
-
-    // Otherwise, in order to keep the same behavior as before, use '%p' for
-    // unknown types
-    return "%p";
-  }
-  std::string str;
-  llvm::raw_string_ostream ss(str);
-  spec.toString(ss);
-  return str;
-}
-
-static llvm::Value *dumpValue(CodeGenFunction &CGF, QualType RType,
-                              LValue RecordLV, CharUnits Align,
-                              llvm::FunctionCallee Func, PrintingPolicy Policy,
-                              int Lvl) {
-  RecordDecl *RD = RType->castAs<RecordType>()->getDecl()->getDefinition();
-  std::string Pad = std::string(Lvl * 4, ' ');
-  std::string ElementPad = std::string((Lvl + 1) * 4, ' ');
-
-  Value *GString = CGF.Builder.CreateGlobalStringPtr("{\n");
-  Value *Res = CGF.Builder.CreateCall(Func, {GString});
-
-  for (const auto *FD : RD->fields()) {
-    Value *TmpRes = nullptr;
-
-    std::string Format = llvm::Twine(ElementPad)
-                             .concat(FD->getType().getAsString(Policy))
-                             .concat(llvm::Twine(' '))
-                             .concat(FD->getNameAsString())
-                             .str();
-
-    if (FD->isBitField()) {
-      unsigned BitfieldWidth = FD->getBitWidthValue(CGF.getContext());
-
-      // If current field is a unnamed bitfield, we should dump only one ' '
-      // between type-name and ':'
-      if (!FD->getDeclName().isEmpty())
-        Format += ' ';
-      Format += llvm::Twine(": ").concat(llvm::Twine(BitfieldWidth)).str();
-
-      // If current field is a zero-width bitfield, we just dump a string like
-      // 'type-name : 0'
-      if (FD->isZeroSize(CGF.getContext())) {
-        Format += "\n";
-        GString = CGF.Builder.CreateGlobalStringPtr(Format);
-        TmpRes = CGF.Builder.CreateCall(Func, {GString});
-        Res = CGF.Builder.CreateAdd(Res, TmpRes);
-        continue;
-      }
-    }
-
-    GString = CGF.Builder.CreateGlobalStringPtr(
-        llvm::Twine(Format).concat(" = ").str());
-    TmpRes = CGF.Builder.CreateCall(Func, {GString});
-    Res = CGF.Builder.CreateAdd(TmpRes, Res);
-
-    LValue FieldLV = CGF.EmitLValueForField(RecordLV, FD);
-    QualType CanonicalType =
-        FD->getType().getUnqualifiedType().getCanonicalType();
-
-    // We check whether we are in a recursive type
-    if (CanonicalType->isRecordType()) {
-
-      // If current field is a record type, we should not dump the type name in
-      // recursive dumpRecord call, and we only dump the things between {...}
-      TmpRes =
-          dumpValue(CGF, CanonicalType, FieldLV, Align, Func, Policy, Lvl + 1);
-      Res = CGF.Builder.CreateAdd(TmpRes, Res);
-      continue;
-    }
-
-    // We try to determine the best format to print the current field
-    std::string PrintFormatSpec = getPrintfSpecifier(CGF, FD->getType());
-    GString = CGF.Builder.CreateGlobalStringPtr(
-        llvm::Twine(PrintFormatSpec).concat(llvm::Twine('\n')).str());
-
-    RValue RV = FD->isBitField()
-                    ? CGF.EmitLoadOfBitfieldLValue(FieldLV, FD->getLocation())
-                    : CGF.EmitLoadOfLValue(FieldLV, FD->getLocation());
-
-    /// FIXME: This place needs type promotion.
-    TmpRes = CGF.Builder.CreateCall(Func, {GString, RV.getScalarVal()});
-    Res = CGF.Builder.CreateAdd(Res, TmpRes);
-  }
-
-  GString = CGF.Builder.CreateGlobalStringPtr(Pad + "}\n");
-  Value *TmpRes = CGF.Builder.CreateCall(Func, {GString});
-  Res = CGF.Builder.CreateAdd(Res, TmpRes);
-  return Res;
-}
-
-static llvm::Value *dumpRecord(CodeGenFunction &CGF, QualType RType,
-                               LValue RecordLV, CharUnits Align,
-                               llvm::FunctionCallee Func) {
-  ASTContext &Context = CGF.getContext();
-  PrintingPolicy Policy(Context.getLangOpts());
-  Policy.AnonymousTagLocations = false;
-  std::string Name = llvm::Twine(RType.getAsString(Policy)).concat(" ").str();
-  Value *GString = CGF.Builder.CreateGlobalStringPtr(Name);
-  Value *Res = CGF.Builder.CreateCall(Func, {GString});
-  Value *TmpRes = dumpValue(CGF, RType, RecordLV, Align, Func, Policy, 0);
-  Res = CGF.Builder.CreateAdd(Res, TmpRes);
-  return Res;
 }
 
 static bool
@@ -2679,24 +2567,6 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BIcreall: {
     ComplexPairTy ComplexVal = EmitComplexExpr(E->getArg(0));
     return RValue::get(ComplexVal.first);
-  }
-
-  case Builtin::BI__builtin_dump_struct: {
-    llvm::Type *LLVMIntTy = getTypes().ConvertType(getContext().IntTy);
-    llvm::FunctionType *LLVMFuncType = llvm::FunctionType::get(
-        LLVMIntTy, {llvm::Type::getInt8PtrTy(getLLVMContext())}, true);
-
-    Value *Func = EmitScalarExpr(E->getArg(1)->IgnoreImpCasts());
-    CharUnits Arg0Align = EmitPointerWithAlignment(E->getArg(0)).getAlignment();
-
-    const Expr *Arg0 = E->getArg(0)->IgnoreImpCasts();
-    QualType Arg0Type = Arg0->getType()->getPointeeType();
-
-    Value *RecordPtr = EmitScalarExpr(Arg0);
-    LValue RecordLV = MakeAddrLValue(RecordPtr, Arg0Type, Arg0Align);
-    Value *Res = dumpRecord(*this, Arg0Type, RecordLV, Arg0Align,
-                            {LLVMFuncType, Func});
-    return RValue::get(Res);
   }
 
   case Builtin::BI__builtin_preserve_access_index: {
@@ -3276,6 +3146,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_reduce_add:
     return RValue::get(emitUnaryBuiltin(
         *this, E, llvm::Intrinsic::vector_reduce_add, "rdx.add"));
+  case Builtin::BI__builtin_reduce_mul:
+    return RValue::get(emitUnaryBuiltin(
+        *this, E, llvm::Intrinsic::vector_reduce_mul, "rdx.mul"));
   case Builtin::BI__builtin_reduce_xor:
     return RValue::get(emitUnaryBuiltin(
         *this, E, llvm::Intrinsic::vector_reduce_xor, "rdx.xor"));
@@ -7916,6 +7789,11 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
                                       AccessKind);
   }
 
+  if (BuiltinID == ARM::BI__builtin_sponentry) {
+    llvm::Function *F = CGM.getIntrinsic(Intrinsic::sponentry, AllocaInt8PtrTy);
+    return Builder.CreateCall(F);
+  }
+
   // Handle MSVC intrinsics before argument evaluation to prevent double
   // evaluation.
   if (Optional<MSVCIntrin> MsvcIntId = translateArmToMsvcIntrin(BuiltinID))
@@ -10083,6 +9961,55 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     HigherBits = Builder.CreateIntCast(HigherBits, ResType, IsSigned);
 
     return HigherBits;
+  }
+
+  if (BuiltinID == AArch64::BI__writex18byte ||
+      BuiltinID == AArch64::BI__writex18word ||
+      BuiltinID == AArch64::BI__writex18dword ||
+      BuiltinID == AArch64::BI__writex18qword) {
+    llvm::Type *IntTy = ConvertType(E->getArg(1)->getType());
+
+    // Read x18 as i8*
+    LLVMContext &Context = CGM.getLLVMContext();
+    llvm::Metadata *Ops[] = {llvm::MDString::get(Context, "x18")};
+    llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
+    llvm::Value *Metadata = llvm::MetadataAsValue::get(Context, RegName);
+    llvm::Function *F =
+        CGM.getIntrinsic(llvm::Intrinsic::read_register, {Int64Ty});
+    llvm::Value *X18 = Builder.CreateCall(F, Metadata);
+    X18 = Builder.CreateIntToPtr(X18, llvm::PointerType::get(Int8Ty, 0));
+
+    // Store val at x18 + offset
+    Value *Offset = Builder.CreateZExt(EmitScalarExpr(E->getArg(0)), Int64Ty);
+    Value *Ptr = Builder.CreateGEP(Int8Ty, X18, Offset);
+    Ptr = Builder.CreatePointerCast(Ptr, llvm::PointerType::get(IntTy, 0));
+    Value *Val = EmitScalarExpr(E->getArg(1));
+    StoreInst *Store = Builder.CreateAlignedStore(Val, Ptr, CharUnits::One());
+    return Store;
+  }
+
+  if (BuiltinID == AArch64::BI__readx18byte ||
+      BuiltinID == AArch64::BI__readx18word ||
+      BuiltinID == AArch64::BI__readx18dword ||
+      BuiltinID == AArch64::BI__readx18qword) {
+    llvm::Type *IntTy = ConvertType(E->getType());
+
+    // Read x18 as i8*
+    LLVMContext &Context = CGM.getLLVMContext();
+    llvm::Metadata *Ops[] = {llvm::MDString::get(Context, "x18")};
+    llvm::MDNode *RegName = llvm::MDNode::get(Context, Ops);
+    llvm::Value *Metadata = llvm::MetadataAsValue::get(Context, RegName);
+    llvm::Function *F =
+        CGM.getIntrinsic(llvm::Intrinsic::read_register, {Int64Ty});
+    llvm::Value *X18 = Builder.CreateCall(F, Metadata);
+    X18 = Builder.CreateIntToPtr(X18, llvm::PointerType::get(Int8Ty, 0));
+
+    // Load x18 + offset
+    Value *Offset = Builder.CreateZExt(EmitScalarExpr(E->getArg(0)), Int64Ty);
+    Value *Ptr = Builder.CreateGEP(Int8Ty, X18, Offset);
+    Ptr = Builder.CreatePointerCast(Ptr, llvm::PointerType::get(IntTy, 0));
+    LoadInst *Load = Builder.CreateAlignedLoad(IntTy, Ptr, CharUnits::One());
+    return Load;
   }
 
   // Handle MSVC intrinsics before argument evaluation to prevent double
@@ -14540,12 +14467,6 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     Function *F =
         CGM.getIntrinsic(Intrinsic::vector_reduce_fmin, Ops[0]->getType());
     Builder.getFastMathFlags().setNoNaNs();
-    return Builder.CreateCall(F, {Ops[0]});
-  }
-  case X86::BI__builtin_ia32_reduce_mul_d512:
-  case X86::BI__builtin_ia32_reduce_mul_q512: {
-    Function *F =
-        CGM.getIntrinsic(Intrinsic::vector_reduce_mul, Ops[0]->getType());
     return Builder.CreateCall(F, {Ops[0]});
   }
 
@@ -20769,6 +20690,26 @@ Value *CodeGenFunction::EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
     }
     Function *Callee = CGM.getIntrinsic(IntNo);
     return Builder.CreateCall(Callee, {Vec});
+  }
+  case WebAssembly::BI__builtin_wasm_relaxed_q15mulr_s_i16x8: {
+    Value *LHS = EmitScalarExpr(E->getArg(0));
+    Value *RHS = EmitScalarExpr(E->getArg(1));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_relaxed_q15mulr_signed);
+    return Builder.CreateCall(Callee, {LHS, RHS});
+  }
+  case WebAssembly::BI__builtin_wasm_dot_i8x16_i7x16_s_i16x8: {
+    Value *LHS = EmitScalarExpr(E->getArg(0));
+    Value *RHS = EmitScalarExpr(E->getArg(1));
+    Function *Callee = CGM.getIntrinsic(Intrinsic::wasm_dot_i8x16_i7x16_signed);
+    return Builder.CreateCall(Callee, {LHS, RHS});
+  }
+  case WebAssembly::BI__builtin_wasm_dot_i8x16_i7x16_add_s_i32x4: {
+    Value *LHS = EmitScalarExpr(E->getArg(0));
+    Value *RHS = EmitScalarExpr(E->getArg(1));
+    Value *Acc = EmitScalarExpr(E->getArg(2));
+    Function *Callee =
+        CGM.getIntrinsic(Intrinsic::wasm_dot_i8x16_i7x16_add_signed);
+    return Builder.CreateCall(Callee, {LHS, RHS, Acc});
   }
   default:
     return nullptr;

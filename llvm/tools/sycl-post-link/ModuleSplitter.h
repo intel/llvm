@@ -13,6 +13,8 @@
 #pragma once
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Function.h"
+#include "llvm/Support/Error.h"
 
 #include <memory>
 #include <vector>
@@ -34,21 +36,93 @@ enum IRSplitMode {
 // A vector that contains all entry point functions in a split module.
 using EntryPointVec = std::vector<const Function *>;
 
+// Represents a named group of device code entry points - kernels and
+// SYCL_EXTERNAL functions. There are special group names - "<SYCL>" and
+// "<ESIMD>" - which have effect on group processing.
+
 struct EntryPointGroup {
   StringRef GroupId;
+
+public:
   EntryPointVec Functions;
+
+  EntryPointGroup(StringRef GroupId = "") : GroupId(GroupId) {}
+  EntryPointGroup(StringRef GroupId, EntryPointVec &&Functions)
+      : GroupId(GroupId), Functions(std::move(Functions)) {}
+
+  const StringRef getId() const { return GroupId; }
+  // Tells if this group has only ESIMD entry points (based on GroupId).
+  bool isEsimd() const;
+  // Tells if this group has only SYCL entry points (based on GroupId).
+  bool isSycl() const;
+  void saveNames(std::vector<std::string> &Dest) const;
+  void rebuildFromNames(const std::vector<std::string> &Names, const Module &M);
+  void rebuild(const Module &M);
 };
 
 using EntryPointGroupVec = std::vector<EntryPointGroup>;
 
-struct ModuleDesc {
+enum class SyclEsimdSplitStatus { SYCL_ONLY, ESIMD_ONLY, SYCL_AND_ESIMD };
+
+class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
 
+public:
+  struct Properties {
+    SyclEsimdSplitStatus HasEsimd = SyclEsimdSplitStatus::SYCL_AND_ESIMD;
+    bool SpecConstsMet = true;
+  };
+  std::string Name = "";
+  Properties Props;
+
+  ModuleDesc(std::unique_ptr<Module> &&M, EntryPointGroup &&EntryPoints)
+      : M(std::move(M)), EntryPoints(std::move(EntryPoints)) {
+    Name = this->EntryPoints.getId().str();
+  }
+
+  ModuleDesc(std::unique_ptr<Module> &&M, const std::vector<std::string> &Names)
+      : M(std::move(M)) {
+    rebuildEntryPoints(Names);
+  }
+
+  bool isESIMD() const {
+    return Props.HasEsimd == SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
+  bool isSYCL() const {
+    return Props.HasEsimd == SyclEsimdSplitStatus::SYCL_ONLY;
+  }
+  const EntryPointVec &entries() const { return EntryPoints.Functions; }
+  EntryPointVec &entries() { return EntryPoints.Functions; }
   Module &getModule() { return *M; }
   const Module &getModule() const { return *M; }
+  std::unique_ptr<Module> releaseModulePtr() { return std::move(M); }
 
-  bool isEsimd();
+  // Sometimes, during module transformations, some Function objects within the
+  // module are replaced with different Function objects with the same name (for
+  // example, GenXSPIRVWriterAdaptor). Entry points need to be updated to
+  // include the replacement function. save/rebuild pair of functions is
+  // provided to automate this process.
+  void saveEntryPointNames(std::vector<std::string> &Dest) {
+    EntryPoints.saveNames(Dest);
+  }
+
+  void rebuildEntryPoints(const std::vector<std::string> &Names) {
+    EntryPoints.rebuildFromNames(Names, getModule());
+  }
+
+  void rebuildEntryPoints(const Module &M) { EntryPoints.rebuild(M); }
+
+  void renameDuplicatesOf(const Module &M, StringRef Suff);
+
+  // Updates Props.HasEsimd to SyclEsimdSplitStatus::ESIMD_ONLY/SYCL_ONLY if
+  // this module descriptor is a ESIMD/SYCL part of the ESIMD/SYCL module split.
+  // Otherwise assumes the module has both SYCL and ESIMD.
+  void assignESIMDProperty();
+#ifndef NDEBUG
+  void verifyESIMDProperty() const;
+  void dump();
+#endif // NDEBUG
 };
 
 // Module split support interface.
@@ -57,13 +131,14 @@ struct ModuleDesc {
 // a split module.
 class ModuleSplitterBase {
   std::unique_ptr<Module> InputModule{nullptr};
-  const EntryPointGroupVec Groups;
-  EntryPointGroupVec::const_iterator GroupsIt;
+  EntryPointGroupVec Groups;
 
 protected:
-  const EntryPointGroup &nextGroup() {
+  EntryPointGroup nextGroup() {
     assert(hasMoreSplits() && "Reached end of entry point groups list.");
-    return *(GroupsIt++);
+    EntryPointGroup Res = std::move(Groups.back());
+    Groups.pop_back();
+    return Res;
   }
 
   Module &getInputModule() {
@@ -76,13 +151,17 @@ protected:
   }
 
 public:
-  explicit ModuleSplitterBase(std::unique_ptr<Module> M,
-                              EntryPointGroupVec GroupVec)
+  ModuleSplitterBase(std::unique_ptr<Module> M, EntryPointGroupVec &&GroupVec)
       : InputModule(std::move(M)), Groups(std::move(GroupVec)) {
     assert(InputModule && "Module is absent.");
     assert(!Groups.empty() && "Entry points groups collection is empty!");
-    GroupsIt = Groups.cbegin();
   }
+
+  // For device global variables with the 'device_image_scope' property,
+  // the function checks that there are no usages of a single device global
+  // variable from kernels grouped to different modules. Otherwise, an error is
+  // issued and the tool is aborted.
+  void verifyNoCrossModuleDeviceGlobalUsage();
 
   virtual ~ModuleSplitterBase() = default;
 
@@ -93,17 +172,24 @@ public:
   size_t totalSplits() const { return Groups.size(); }
 
   // Check that there are still submodules to split.
-  bool hasMoreSplits() const { return GroupsIt != Groups.cend(); }
+  bool hasMoreSplits() const { return totalSplits() > 0; }
 };
 
 std::unique_ptr<ModuleSplitterBase>
-getSplitterByKernelType(std::unique_ptr<Module> M, bool SplitEsimd,
-                        bool EmitOnlyKernelsAsEntryPoints);
+getSplitterByKernelType(std::unique_ptr<Module> M,
+                        bool EmitOnlyKernelsAsEntryPoints,
+                        EntryPointVec *AllowedEntries = nullptr);
 
 std::unique_ptr<ModuleSplitterBase>
 getSplitterByMode(std::unique_ptr<Module> M, IRSplitMode Mode,
-                  bool IROutputOnly, bool EmitOnlyKernelsAsEntryPoints,
-                  bool DeviceGlobals);
+                  bool AutoSplitIsGlobalScope,
+                  bool EmitOnlyKernelsAsEntryPoints);
+
+#ifndef NDEBUG
+void dumpEntryPoints(const EntryPointVec &C, const char *msg = "", int Tab = 0);
+void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
+                     const char *msg = "", int Tab = 0);
+#endif // NDEBUG
 
 } // namespace module_split
 

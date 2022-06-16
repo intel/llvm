@@ -62,9 +62,8 @@ createConvertLinalgToParallelLoopsPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertLinalgToAffineLoopsPass();
 
-/// Create a pass that tries to eliminate init_tensor ops that are anchored on
-/// insert_slice ops.
-std::unique_ptr<Pass> createLinalgInitTensorEliminationPass();
+/// Create a pass that rewrites init_tensor to alloc_tensor.
+std::unique_ptr<Pass> createLinalgInitTensorToAllocTensorPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
@@ -125,6 +124,13 @@ std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyDecomposePass(
 std::unique_ptr<OperationPass<func::FuncOp>>
 createLinalgStrategyInterchangePass(
     ArrayRef<int64_t> iteratorInterchange = {},
+    const linalg::LinalgTransformationFilter &filter =
+        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyPeelPass.
+std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPeelPass(
+    StringRef opName = "",
+    linalg::LinalgPeelOptions opt = linalg::LinalgPeelOptions(),
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 

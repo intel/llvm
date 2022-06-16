@@ -5462,8 +5462,7 @@ static void DiagnoseBaseOrMemInitializerOrder(
     return;
 
   // Sort based on the ideal order, first in the pair.
-  llvm::sort(CorrelatedInitOrder,
-             [](auto &LHS, auto &RHS) { return LHS.first < RHS.first; });
+  llvm::sort(CorrelatedInitOrder, llvm::less_first());
 
   // Introduce a new scope as SemaDiagnosticBuilder needs to be destroyed to
   // emit the diagnostic before we can try adding notes.
@@ -9245,13 +9244,12 @@ bool SpecialMemberDeletionInfo::shouldDeleteForField(FieldDecl *FD) {
           << !!ICI << MD->getParent() << FD << FieldType << /*Reference*/0;
       return true;
     }
-    // C++11 [class.ctor]p5: any non-variant non-static data member of
-    // const-qualified type (or array thereof) with no
-    // brace-or-equal-initializer does not have a user-provided default
-    // constructor.
+    // C++11 [class.ctor]p5 (modified by DR2394): any non-variant non-static
+    // data member of const-qualified type (or array thereof) with no
+    // brace-or-equal-initializer is not const-default-constructible.
     if (!inUnion() && FieldType.isConstQualified() &&
         !FD->hasInClassInitializer() &&
-        (!FieldRecord || !FieldRecord->hasUserProvidedDefaultConstructor())) {
+        (!FieldRecord || !FieldRecord->allowConstDefaultInit())) {
       if (Diagnose)
         S.Diag(FD->getLocation(), diag::note_deleted_default_ctor_uninit_field)
           << !!ICI << MD->getParent() << FD << FD->getType() << /*Const*/1;

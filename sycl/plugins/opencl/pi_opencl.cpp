@@ -40,9 +40,9 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   // if cached, return cached FuncPtr
   if (auto F = FuncPtrs[context]) {
     // if cached that extension is not available return nullptr and
-    // PI_INVALID_VALUE
+    // PI_ERROR_INVALID_VALUE
     *fptr = F;
-    return F ? PI_SUCCESS : PI_INVALID_VALUE;
+    return F ? PI_SUCCESS : PI_ERROR_INVALID_VALUE;
   }
 
   cl_uint deviceCount;
@@ -51,7 +51,7 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
                        sizeof(cl_uint), &deviceCount, nullptr);
 
   if (ret_err != CL_SUCCESS || deviceCount < 1) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   std::vector<cl_device_id> devicesInCtx(deviceCount);
@@ -60,7 +60,7 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
                              devicesInCtx.data(), nullptr);
 
   if (ret_err != CL_SUCCESS) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   cl_platform_id curPlatform;
@@ -68,7 +68,7 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
                             sizeof(cl_platform_id), &curPlatform, nullptr);
 
   if (ret_err != CL_SUCCESS) {
-    return PI_INVALID_CONTEXT;
+    return PI_ERROR_INVALID_CONTEXT;
   }
 
   T FuncPtr =
@@ -77,7 +77,7 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   if (!FuncPtr) {
     // Cache that the extension is not available
     FuncPtrs[context] = nullptr;
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
 
   *fptr = FuncPtr;
@@ -154,7 +154,7 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   case PI_DEVICE_INFO_UUID:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
   case PI_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   case PI_DEVICE_INFO_ATOMIC_64: {
     size_t extSize;
     cl_bool result = clGetDeviceInfo(
@@ -170,6 +170,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
+  case PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16:
+    return PI_ERROR_INVALID_VALUE;
   case PI_DEVICE_INFO_IMAGE_SRGB: {
     cl_bool result = true;
     std::memcpy(paramValue, &result, sizeof(cl_bool));
@@ -263,7 +265,7 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
   // for the given device, and simply picks the first one compatible
   // Real implementation will use the same mechanism OpenCL ICD dispatcher
   // uses. Something like:
-  //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_INVALID_CONTEXT);
+  //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_ERROR_INVALID_CONTEXT);
   //     return context->dispatch->piextDeviceSelectIR(
   //       ctx, images, num_images, selected_image);
   // where context->dispatch is set to the dispatch table provided by PI
@@ -320,7 +322,7 @@ pi_result piextDeviceSelectBinary(pi_device device, pi_device_binary *images,
   if ((*selected_image_ind = fallback) != invalid_ind)
     return PI_SUCCESS;
   // No image can be loaded for the given device
-  return PI_INVALID_BINARY;
+  return PI_ERROR_INVALID_BINARY;
 }
 
 pi_result piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
@@ -453,7 +455,7 @@ pi_result piProgramCreate(pi_context context, const void *il, size_t length,
     *res_program = cast<pi_program>(
         funcPtr(cast<cl_context>(context), il, length, cast<cl_int *>(&err)));
   else
-    err = PI_INVALID_VALUE;
+    err = PI_ERROR_INVALID_VALUE;
 
   return err;
 }
@@ -592,21 +594,21 @@ pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
   // exists
   ClResult.pop_back();
   if (!is_in_separated_string(ClResult, ';', func_name))
-    return PI_INVALID_KERNEL_NAME;
+    return PI_ERROR_INVALID_KERNEL_NAME;
 
-  pi_ret_err = PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+  pi_ret_err = PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
 
   // If clGetDeviceFunctionPointer is in list of extensions
   if (FuncT) {
     pi_ret_err = cast<pi_result>(FuncT(cast<cl_device_id>(device),
                                        cast<cl_program>(program), func_name,
                                        function_pointer_ret));
-    // GPU runtime sometimes returns PI_INVALID_ARG_VALUE if func address cannot
-    // be found even if kernel exits. As the kernel does exist return that the
-    // address is not available
+    // GPU runtime sometimes returns PI_ERROR_INVALID_ARG_VALUE if func address
+    // cannot be found even if kernel exits. As the kernel does exist return
+    // that the address is not available
     if (pi_ret_err == CL_INVALID_ARG_VALUE) {
       *function_pointer_ret = 0;
-      return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+      return PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
     }
   }
   return pi_ret_err;
@@ -618,7 +620,7 @@ pi_result piContextCreate(const pi_context_properties *properties,
                                              const void *private_info,
                                              size_t cb, void *user_data1),
                           void *user_data, pi_context *retcontext) {
-  pi_result ret = PI_INVALID_OPERATION;
+  pi_result ret = PI_ERROR_INVALID_OPERATION;
   *retcontext = cast<pi_context>(
       clCreateContext(properties, cast<cl_uint>(num_devices),
                       cast<const cl_device_id *>(devices), pfn_notify,
@@ -644,7 +646,7 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
 pi_result piMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
                             void *host_ptr, pi_mem *ret_mem,
                             const pi_mem_properties *properties) {
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   if (properties) {
     // TODO: need to check if all properties are supported by OpenCL RT and
     // ignore unsupported
@@ -671,7 +673,7 @@ pi_result piMemImageCreate(pi_context context, pi_mem_flags flags,
                            const pi_image_format *image_format,
                            const pi_image_desc *image_desc, void *host_ptr,
                            pi_mem *ret_mem) {
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_mem = cast<pi_mem>(
       clCreateImage(cast<cl_context>(context), cast<cl_mem_flags>(flags),
                     cast<const cl_image_format *>(image_format),
@@ -685,7 +687,7 @@ pi_result piMemBufferPartition(pi_mem buffer, pi_mem_flags flags,
                                pi_buffer_create_type buffer_create_type,
                                void *buffer_create_info, pi_mem *ret_mem) {
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_mem = cast<pi_mem>(
       clCreateSubBuffer(cast<cl_mem>(buffer), cast<cl_mem_flags>(flags),
                         cast<cl_buffer_create_type>(buffer_create_type),
@@ -708,7 +710,7 @@ pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
                                       const size_t *lengths,
                                       pi_program *ret_program) {
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_program = cast<pi_program>(
       clCreateProgramWithSource(cast<cl_context>(context), cast<cl_uint>(count),
                                 strings, lengths, cast<cl_int *>(&ret_err)));
@@ -723,7 +725,7 @@ pi_result piProgramCreateWithBinary(
   (void)metadata;
   (void)num_metadata_entries;
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_program = cast<pi_program>(clCreateProgramWithBinary(
       cast<cl_context>(context), cast<cl_uint>(num_devices),
       cast<const cl_device_id *>(device_list), lengths, binaries,
@@ -738,7 +740,7 @@ pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
                         void (*pfn_notify)(pi_program program, void *user_data),
                         void *user_data, pi_program *ret_program) {
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_program = cast<pi_program>(
       clLinkProgram(cast<cl_context>(context), cast<cl_uint>(num_devices),
                     cast<const cl_device_id *>(device_list), options,
@@ -752,7 +754,7 @@ pi_result piProgramLink(pi_context context, pi_uint32 num_devices,
 pi_result piKernelCreate(pi_program program, const char *kernel_name,
                          pi_kernel *ret_kernel) {
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_kernel = cast<pi_kernel>(clCreateKernel(
       cast<cl_program>(program), kernel_name, cast<cl_int *>(&ret_err)));
   return ret_err;
@@ -763,12 +765,12 @@ pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
                                size_t param_value_size, void *param_value,
                                size_t *param_value_size_ret) {
   if (kernel == nullptr) {
-    return PI_INVALID_KERNEL;
+    return PI_ERROR_INVALID_KERNEL;
   }
 
   switch (param_name) {
   case PI_KERNEL_GROUP_INFO_NUM_REGS:
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   default:
     cl_int result = clGetKernelWorkGroupInfo(
         cast<cl_kernel>(kernel), cast<cl_device_id>(device),
@@ -803,7 +805,7 @@ pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
 
 pi_result piEventCreate(pi_context context, pi_event *ret_event) {
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_event = cast<pi_event>(
       clCreateUserEvent(cast<cl_context>(context), cast<cl_int *>(&ret_err)));
   return ret_err;
@@ -832,7 +834,7 @@ pi_result piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
                                 const pi_event *event_wait_list,
                                 pi_event *event, void **ret_map) {
 
-  pi_result ret_err = PI_INVALID_OPERATION;
+  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_map = cast<void *>(clEnqueueMapBuffer(
       cast<cl_command_queue>(command_queue), cast<cl_mem>(buffer),
       cast<cl_bool>(blocking_map), map_flags, offset, size,
@@ -858,7 +860,7 @@ pi_result piextUSMHostAlloc(void **result_ptr, pi_context context,
                             pi_uint32 alignment) {
 
   void *Ptr = nullptr;
-  pi_result RetVal = PI_INVALID_OPERATION;
+  pi_result RetVal = PI_ERROR_INVALID_OPERATION;
 
   // First we need to look up the function pointer
   clHostMemAllocINTEL_fn FuncPtr = nullptr;
@@ -895,7 +897,7 @@ pi_result piextUSMDeviceAlloc(void **result_ptr, pi_context context,
                               pi_uint32 alignment) {
 
   void *Ptr = nullptr;
-  pi_result RetVal = PI_INVALID_OPERATION;
+  pi_result RetVal = PI_ERROR_INVALID_OPERATION;
 
   // First we need to look up the function pointer
   clDeviceMemAllocINTEL_fn FuncPtr = nullptr;
@@ -933,7 +935,7 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
                               pi_uint32 alignment) {
 
   void *Ptr = nullptr;
-  pi_result RetVal = PI_INVALID_OPERATION;
+  pi_result RetVal = PI_ERROR_INVALID_OPERATION;
 
   // First we need to look up the function pointer
   clSharedMemAllocINTEL_fn FuncPtr = nullptr;
@@ -955,7 +957,7 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
   return RetVal;
 }
 
-/// Frees allocated USM memory
+/// Frees allocated USM memory in a blocking manner
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
@@ -964,52 +966,10 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
   // might be still running.
   clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
 
-  // We need to use clMemBlockingFreeINTEL here, however, due to a bug in OpenCL
-  // CPU runtime this call fails with CL_INVALID_EVENT on CPU devices in certain
-  // cases. As a temporary workaround, this function replicates caching of
-  // extension function pointers in getExtFuncFromContext, while choosing
-  // clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other device types.
-  // TODO remove this workaround when the new OpenCL CPU runtime version is
-  // uplifted in CI.
-  static_assert(
-      std::is_same<clMemBlockingFreeINTEL_fn, clMemFreeINTEL_fn>::value);
-  cl_uint deviceCount;
-  cl_int ret_err =
-      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
-                       sizeof(cl_uint), &deviceCount, nullptr);
-
-  if (ret_err != CL_SUCCESS || deviceCount < 1) {
-    return PI_INVALID_CONTEXT;
-  }
-
-  std::vector<cl_device_id> devicesInCtx(deviceCount);
-  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
-                             deviceCount * sizeof(cl_device_id),
-                             devicesInCtx.data(), nullptr);
-
-  if (ret_err != CL_SUCCESS) {
-    return PI_INVALID_CONTEXT;
-  }
-
-  bool useBlockingFree = true;
-  for (const cl_device_id &dev : devicesInCtx) {
-    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
-    ret_err = clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type),
-                              &devType, nullptr);
-    if (ret_err != CL_SUCCESS) {
-      return PI_INVALID_DEVICE;
-    }
-    useBlockingFree &= devType == CL_DEVICE_TYPE_GPU;
-  }
-
-  pi_result RetVal = PI_INVALID_OPERATION;
-  if (useBlockingFree)
-    RetVal =
-        getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
-            context, &FuncPtr);
-  else
-    RetVal = getExtFuncFromContext<clMemFreeName, clMemFreeINTEL_fn>(context,
-                                                                     &FuncPtr);
+  pi_result RetVal = PI_ERROR_INVALID_OPERATION;
+  RetVal =
+      getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
+          context, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
@@ -1154,7 +1114,7 @@ pi_result piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr, size_t size,
 
   // flags is currently unused so fail if set
   if (flags != 0)
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
 
   return cast<pi_result>(clEnqueueMarkerWithWaitList(
       cast<cl_command_queue>(queue), num_events_in_waitlist,
@@ -1313,7 +1273,7 @@ pi_result piextProgramSetSpecializationConstant(pi_program prog,
                               decltype(F)>(cast<pi_context>(Ctx), &F);
 
   if (!F || Res != CL_SUCCESS)
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   Res = F(ClProg, spec_id, spec_size, spec_value);
   return cast<pi_result>(Res);
 }
@@ -1380,13 +1340,13 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   if (strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen) < 0) {
     // PI interface supports lower version of PI.
     // TODO: Take appropriate actions.
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   // PI interface supports higher version or the same version.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
   if (strlen(SupportedVersion) >= PluginVersionSize)
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
 #define _PI_CL(pi_api, ocl_api)                                                \

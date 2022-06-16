@@ -591,6 +591,10 @@ spellings of the attribute are not supported on statements. If a statement is
 marked ``[[clang::noinline]]`` and contains calls, those calls inside the
 statement will not be inlined by the compiler.
 
+``__noinline__`` can be used as a keyword in CUDA/HIP languages. This is to
+avoid diagnostics due to usage of ``__attribute__((__noinline__))``
+with ``__noinline__`` defined as a macro as ``__attribute__((noinline))``.
+
 .. code-block:: c
 
   int example(void) {
@@ -1604,6 +1608,10 @@ attributes are ignored. Supported platforms are:
 ``watchos``
   Apple's watchOS operating system. The minimum deployment target is specified by
   the ``-mwatchos-version-min=*version*`` command-line argument.
+  
+``driverkit``
+  Apple's DriverKit userspace kernel extensions. The minimum deployment target
+  is specified as part of the triple.
 
 A declaration can typically be used even when deploying back to a platform
 version prior to when the declaration was introduced. When this happens, the
@@ -3283,6 +3291,9 @@ function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
 
+The ``[[intel::disable_loop_pipelining]]`` attribute spelling is a deprecated
+synonym for ``[[[intel::fpga_pipeline]]`` and will be removed in the future.
+
 .. code-block:: c++
 
   void foo() {
@@ -3291,6 +3302,58 @@ or ``ivdep``.
   }
 
   [[intel::disable_loop_pipelining]] void foo1() { }
+
+  }];
+}
+
+def SYCLIntelFPGAPipelineAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::fpga_pipeline";
+  let Content = [{
+The ``intel::fpga_pipeline(N)`` attribute applies to a loop and it allows users
+to disable or enable pipelining iterations of a loop. The attribute optionally
+accepts an integer constant expression that is converted to `bool`. A `true`
+value enables pipelining while a `false` value disables pipelining. The
+optional argument defaults to `true`. This attribute cannot be applied to a
+loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
+
+.. code-block:: c++
+
+  // Disable loop pipelining
+  void bar() {
+    int a[10];
+    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  // Enable loop pipelining
+  void foo() {
+    int var = 0;
+    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  void Array(int *array, size_t n) {
+    // identical to [[intel::fpga_pipeline(1)]]
+    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+  int a1[10], int i = 0;
+  [[intel::fpga_pipeline(1)]] while (i < 10) {
+    a1[i] += 3;
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::fpga_pipeline(1)]] do {
+      a = a + 1;
+    } while (a < 20);
+  }
+
+  template<int A>
+  void func() {
+    [[intel::fpga_pipeline(A)]] for(;;) { }
+  }
 
   }];
 }
@@ -4030,6 +4093,32 @@ For more information, see the documentation for `aarch64_vector_pcs`_ on
 the Arm Developer website.
 
 .. _`aarch64_vector_pcs`: https://developer.arm.com/products/software-development-tools/hpc/arm-compiler-for-hpc/vector-function-abi
+  }];
+}
+
+def AArch64SVEPcsDocs : Documentation {
+  let Category = DocCatCallingConvs;
+  let Content = [{
+On AArch64 targets, this attribute changes the calling convention of a
+function to preserve additional Scalable Vector registers and Scalable
+Predicate registers relative to the default calling convention used for
+AArch64.
+
+This means it is more efficient to call such functions from code that performs
+extensive scalable vector and scalable predicate calculations, because fewer
+live SVE registers need to be saved. This property makes it well-suited for SVE
+math library functions, which are typically leaf functions that require a small
+number of registers.
+
+However, using this attribute also means that it is more expensive to call
+a function that adheres to the default calling convention from within such
+a function. Therefore, it is recommended that this attribute is only used
+for leaf functions.
+
+For more information, see the documentation for `aarch64_sve_pcs` in the
+ARM C Language Extension (ACLE) documentation.
+
+.. _`aarch64_sve_pcs`: https://github.com/ARM-software/acle/blob/main/main/acle.md#scalable-vector-extension-procedure-call-standard-attribute
   }];
 }
 
@@ -7544,9 +7633,6 @@ attribute `clang_builtin_alias`.
 def NoBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-.. Note:: This attribute is not yet fully implemented, it is validated but has
-          no effect on the generated code.
-
 The ``__attribute__((no_builtin))`` is similar to the ``-fno-builtin`` flag
 except it is specific to the body of a function. The attribute may also be
 applied to a virtual function but has no effect on the behavior of overriding
@@ -8022,5 +8108,71 @@ data binding to map the group index to the specified parameter. This attribute
 is only supported in compute shaders.
 
 The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-groupindex
+  }];
+}
+
+def WeakDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+
+In supported output formats the ``weak`` attribute can be used to
+specify that a variable or function should be emitted as a symbol with
+``weak`` (if a definition) or ``extern_weak`` (if a declaration of an
+external symbol) `linkage
+<https://llvm.org/docs/LangRef.html#linkage-types>`_.
+
+If there is a non-weak definition of the symbol the linker will select
+that over the weak. They must have same type and alignment (variables
+must also have the same size), but may have a different value.
+
+If there are multiple weak definitions of same symbol, but no non-weak
+definition, they should have same type, size, alignment and value, the
+linker will select one of them (see also selectany_ attribute).
+
+If the ``weak`` attribute is applied to a ``const`` qualified variable
+definition that variable is no longer consider a compiletime constant
+as its value can change during linking (or dynamic linking). This
+means that it can e.g no longer be part of an initializer expression.
+
+.. code-block:: c
+
+  const int ANSWER __attribute__ ((weak)) = 42;
+
+  /* This function may be replaced link-time */
+  __attribute__ ((weak)) void debug_log(const char *msg)
+  {
+      fprintf(stderr, "DEBUG: %s\n", msg);
+  }
+
+  int main(int argc, const char **argv)
+  {
+      debug_log ("Starting up...");
+
+      /* This may print something else than "6 * 7 = 42",
+         if there is a non-weak definition of "ANSWER" in
+	 an object linked in */
+      printf("6 * 7 = %d\n", ANSWER);
+
+      return 0;
+   }
+
+If an external declaration is marked weak and that symbol does not
+exist during linking (possibly dynamic) the address of the symbol will
+evaluate to NULL.
+
+.. code-block:: c
+
+  void may_not_exist(void) __attribute__ ((weak));
+
+  int main(int argc, const char **argv)
+  {
+      if (may_not_exist) {
+          may_not_exist();
+      } else {
+          printf("Function did not exist\n");
+      }
+      return 0;
+  }
+
   }];
 }
