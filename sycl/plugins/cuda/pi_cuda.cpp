@@ -475,7 +475,8 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
 _pi_event::_pi_event(pi_context context, CUevent eventNative)
     : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
       hasBeenWaitedOn_{false}, isRecorded_{false},
-      isStarted_{false}, evEnd_{eventNative}, evStart_{nullptr},
+      isStarted_{false}, streamToken_{std::numeric_limits<pi_uint32>::max()}, 
+      evEnd_{eventNative}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{nullptr}, context_{context} {}
 
 _pi_event::~_pi_event() {
