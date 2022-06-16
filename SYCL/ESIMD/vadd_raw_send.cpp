@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-dg1,cuda,hip
 // TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
 // XFAIL: esimd_emulator

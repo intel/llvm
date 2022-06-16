@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
+// REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-dg1,cuda,hip
 // UNSUPPORTED: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl %s -o %t.out

@@ -100,12 +100,19 @@ elif platform.system() == "Linux":
     config.substitutions.append( ('%obj_ext', '.o') )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 
+# Intel GPU FAMILY availability
+if lit_config.params.get('gpu-intel-gen9', False):
+    config.available_features.add('gpu-intel-gen9')
+if lit_config.params.get('gpu-intel-gen11', False):
+    config.available_features.add('gpu-intel-gen11')
+if lit_config.params.get('gpu-intel-gen12', False):
+    config.available_features.add('gpu-intel-gen12')
+
+# Intel GPU DEVICE availability
 if lit_config.params.get('gpu-intel-dg1', False):
     config.available_features.add('gpu-intel-dg1')
-
 if lit_config.params.get('gpu-intel-dg2', False):
     config.available_features.add('gpu-intel-dg2')
-
 if lit_config.params.get('gpu-intel-pvc', False):
     config.available_features.add('gpu-intel-pvc')
 

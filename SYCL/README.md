@@ -163,6 +163,9 @@ unavailable.
  * **aot_tool** - Ahead-of-time compilation tools availability;
  * **ocloc**, **opencl-aot** - Specific AOT tool availability;
  * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
+ * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
+ * **gpu-intel-gen11** - Intel GPU Gen11 availability;
+ * **gpu-intel-gen12** - Intel GPU Gen12 availability;
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
