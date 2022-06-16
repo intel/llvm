@@ -1407,7 +1407,8 @@ template <> ESIMD_INLINE float fmod(float y, float x) {
   reminder = abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
   reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
 
-  fmod = __ESIMD_NS::abs(reminder + abs_x * reminder_sign_mask) * result_sign_mask;
+  fmod =
+      __ESIMD_NS::abs(reminder + abs_x * reminder_sign_mask) * result_sign_mask;
 
   return fmod[0];
 }
