@@ -321,7 +321,6 @@ Release notes for commit range f34ba2c..4043dda
 
 # API/ABI breakages
   - Removed deprecated API from ESIMD headers. [ec0385d]
-  - Removed direct initialization constructor from `sycl::ext::intel::experimental::bfloat16` class. bfloat16::from_bits() method must be used instead. [81154ece]
 
 # Known issues
  - Having MESA OpenCL implementation which provides no devices on a
@@ -527,6 +526,8 @@ Release notes for commit range 23ca0c2..27f59d8
  - Added support for classes implicitly converted from `sycl::item` in
    `sycl::handler::parallel_for` parameter to align with the SYCL 2020
    specification [34b93bf8]
+ - Removed direct initialization constructor from
+   `sycl::ext::intel::experimental::bfloat16` class [81154ece]
  - Added `sycl::vec` and `sycl::marray` support to `sycl::known_identity` type
    trait [8fefb257]
  - Added minimal support for the generic space address space to match
