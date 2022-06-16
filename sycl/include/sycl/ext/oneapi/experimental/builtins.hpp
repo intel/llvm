@@ -95,7 +95,6 @@ inline __SYCL_ALWAYS_INLINE
   _ocl_T arg1 = cl::sycl::detail::convertDataToType<T, _ocl_T>(x);
   return cl::sycl::detail::convertDataToType<_ocl_T, T>(
       __clc_native_tanh(arg1));
-    return cl::sycl::detail::convertDataToType<_ocl_T, T>(
 #else
   return __sycl_std::__invoke_tanh<T>(x);
 #endif
