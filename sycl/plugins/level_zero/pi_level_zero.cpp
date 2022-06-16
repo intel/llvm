@@ -8073,14 +8073,14 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   static int PiVersionLen = strlen(PluginInit->PiVersion);
   if (strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen) < 0) {
-    return PI_INVALID_OPERATION;
+    return PI_ERROR_INVALID_OPERATION;
   }
 
   // TODO: handle versioning/targets properly.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
 
   PI_ASSERT(strlen(_PI_LEVEL_ZERO_PLUGIN_VERSION_STRING) < PluginVersionSize,
-            PI_INVALID_VALUE);
+            PI_ERROR_INVALID_VALUE);
 
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
