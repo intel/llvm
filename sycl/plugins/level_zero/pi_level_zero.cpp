@@ -1141,7 +1141,7 @@ pi_result resetCommandLists(pi_queue Queue) {
          it != Queue->CommandListMap.end(); ++it) {
       // It is possible that the fence was already noted as signalled and
       // reset. In that case the InUse flag will be false.
-      if (it->second.InUse) {
+      if (it->second.ZeFence != nullptr && it->second.InUse) {
         ze_result_t ZeResult =
             ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
         if (ZeResult == ZE_RESULT_SUCCESS) {
