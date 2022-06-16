@@ -51,40 +51,39 @@
 #include <map>
 #include <set>
 
-using namespace llvm;
-
 namespace SPIRV {
 
 class OCLTypeToSPIRVBase {
 public:
   OCLTypeToSPIRVBase();
 
-  bool runOCLTypeToSPIRV(Module &M);
+  bool runOCLTypeToSPIRV(llvm::Module &M);
   /// \return Adapted type based on kernel argument metadata. If \p V is
   ///   a function, returns function type.
   /// E.g. for a function with argument of read only opencl.image_2d_t* type
   /// returns a function with argument of type opencl.image2d_t.read_only*.
-  Type *getAdaptedType(Value *V);
+  llvm::Type *getAdaptedType(llvm::Value *V);
 
 private:
-  Module *M;
-  LLVMContext *Ctx;
-  std::map<Value *, Type *> AdaptedTy; // Adapted types for values
-  std::set<Function *> WorkSet;        // Functions to be adapted
+  llvm::Module *M;
+  llvm::LLVMContext *Ctx;
+  std::map<llvm::Value *, llvm::Type *> AdaptedTy; // Adapted types for values
+  std::set<llvm::Function *> WorkSet;              // Functions to be adapted
 
-  void adaptFunctionArguments(Function *F);
-  void adaptArgumentsByMetadata(Function *F);
-  void adaptArgumentsBySamplerUse(Module &M);
-  void adaptFunction(Function *F);
-  void addAdaptedType(Value *V, Type *T);
-  void addWork(Function *F);
+  void adaptFunctionArguments(llvm::Function *F);
+  void adaptArgumentsByMetadata(llvm::Function *F);
+  void adaptArgumentsBySamplerUse(llvm::Module &M);
+  void adaptFunction(llvm::Function *F);
+  void addAdaptedType(llvm::Value *V, llvm::Type *T);
+  void addWork(llvm::Function *F);
 };
 
-class OCLTypeToSPIRVLegacy : public OCLTypeToSPIRVBase, public ModulePass {
+class OCLTypeToSPIRVLegacy : public OCLTypeToSPIRVBase,
+                             public llvm::ModulePass {
 public:
   OCLTypeToSPIRVLegacy();
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-  bool runOnModule(Module &M) override;
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
+  bool runOnModule(llvm::Module &M) override;
   static char ID;
 };
 

@@ -662,20 +662,21 @@ size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC) {
   return 1;
 }
 
-// atomic_fetch_[add, min, max] and atomic_fetch_[add, min, max]_explicit
-// functions declared in clang headers should be translated to corresponding
-// FP-typed Atomic Instructions
+// atomic_fetch_[add, sub, min, max] and atomic_fetch_[add, sub, min,
+// max]_explicit functions declared in clang headers should be translated
+// to corresponding FP-typed Atomic Instructions
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
   if (!DemangledName.startswith(kOCLBuiltinName::AtomicPrefix) &&
       !DemangledName.startswith(kOCLBuiltinName::AtomPrefix))
     return false;
 
   return llvm::StringSwitch<bool>(DemangledName)
-      .EndsWith("sub", true)
       .EndsWith("atomic_add", true)
+      .EndsWith("atomic_sub", true)
       .EndsWith("atomic_min", true)
       .EndsWith("atomic_max", true)
       .EndsWith("atom_add", true)
+      .EndsWith("atom_sub", true)
       .EndsWith("atom_min", true)
       .EndsWith("atom_max", true)
       .EndsWith("inc", true)
@@ -684,7 +685,6 @@ bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
       .EndsWith("and", true)
       .EndsWith("or", true)
       .EndsWith("xor", true)
-      .EndsWith("sub_explicit", true)
       .EndsWith("or_explicit", true)
       .EndsWith("xor_explicit", true)
       .EndsWith("and_explicit", true)
@@ -1361,12 +1361,7 @@ bool isSpecialTypeInitializer(Instruction *Inst) {
   return isSamplerInitializer(Inst) || isPipeStorageInitializer(Inst);
 }
 
-bool isSamplerTy(Type *Ty) {
-  auto PTy = dyn_cast<PointerType>(Ty);
-  if (!PTy)
-    return false;
-
-  auto *STy = dyn_cast<StructType>(PTy->getPointerElementType());
+bool isSamplerStructTy(StructType *STy) {
   return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
 }
 

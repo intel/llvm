@@ -50,6 +50,7 @@
 
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Metadata.h"
@@ -206,10 +207,14 @@ std::string mapSPIRVTypeToOCLType(SPIRVType *Ty, bool Signed) {
 
 PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace) {
+  return PointerType::get(getOrCreateOpaqueStructType(M, Name), AddrSpace);
+}
+
+StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name) {
   auto OpaqueType = StructType::getTypeByName(M->getContext(), Name);
   if (!OpaqueType)
     OpaqueType = StructType::create(M->getContext(), Name);
-  return PointerType::get(OpaqueType, AddrSpace);
+  return OpaqueType;
 }
 
 PointerType *getSamplerType(Module *M) {
@@ -252,51 +257,39 @@ bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name) {
   return false;
 }
 
-bool isSPIRVSamplerType(llvm::Type *Ty) {
-  if (auto *PT = dyn_cast<PointerType>(Ty))
-    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
-      if (ST->isOpaque()) {
-        auto Name = ST->getName();
-        if (Name.startswith(std::string(kSPIRVTypeName::PrefixAndDelim) +
-                            kSPIRVTypeName::Sampler)) {
-          return true;
-        }
+bool isOCLImageStructType(llvm::Type *Ty, StringRef *Name) {
+  if (auto *ST = dyn_cast_or_null<StructType>(Ty))
+    if (ST->isOpaque()) {
+      auto FullName = ST->getName();
+      if (FullName.find(kSPR2TypeName::ImagePrefix) == 0) {
+        if (Name)
+          *Name = FullName.drop_front(strlen(kSPR2TypeName::OCLPrefix));
+        return true;
       }
-  return false;
-}
-
-bool isOCLImageType(llvm::Type *Ty, StringRef *Name) {
-  if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
-      if (ST->isOpaque()) {
-        auto FullName = ST->getName();
-        if (FullName.find(kSPR2TypeName::ImagePrefix) == 0) {
-          if (Name)
-            *Name = FullName.drop_front(strlen(kSPR2TypeName::OCLPrefix));
-          return true;
-        }
-      }
+    }
   return false;
 }
 
 /// \param BaseTyName is the type Name as in spirv.BaseTyName.Postfixes
 /// \param Postfix contains postfixes extracted from the SPIR-V image
 ///   type Name as spirv.BaseTyName.Postfixes.
-bool isSPIRVType(llvm::Type *Ty, StringRef BaseTyName, StringRef *Postfix) {
-  if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
-      if (ST->isOpaque()) {
-        auto FullName = ST->getName();
-        std::string N =
-            std::string(kSPIRVTypeName::PrefixAndDelim) + BaseTyName.str();
-        if (FullName != N)
-          N = N + kSPIRVTypeName::Delimiter;
-        if (FullName.startswith(N)) {
-          if (Postfix)
-            *Postfix = FullName.drop_front(N.size());
-          return true;
-        }
-      }
+bool isSPIRVStructType(llvm::Type *Ty, StringRef BaseTyName,
+                       StringRef *Postfix) {
+  auto *ST = dyn_cast<StructType>(Ty);
+  if (!ST)
+    return false;
+  if (ST->isOpaque()) {
+    auto FullName = ST->getName();
+    std::string N =
+        std::string(kSPIRVTypeName::PrefixAndDelim) + BaseTyName.str();
+    if (FullName != N)
+      N = N + kSPIRVTypeName::Delimiter;
+    if (FullName.startswith(N)) {
+      if (Postfix)
+        *Postfix = FullName.drop_front(N.size());
+      return true;
+    }
+  }
   return false;
 }
 
@@ -657,6 +650,131 @@ bool hasArrayArg(Function *F) {
   return false;
 }
 
+/// Convert a struct name from the name given to it in Itanium name mangling to
+/// the name given to it as an LLVM opaque struct.
+static std::string demangleBuiltinOpenCLTypeName(StringRef MangledStructName) {
+  assert(MangledStructName.startswith("ocl_") &&
+         "Not a valid builtin OpenCL mangled name");
+  // Bare structure type that starts with ocl_ is a builtin opencl type.
+  // See clang/lib/CodeGen/CGOpenCLRuntime for how these map to LLVM types
+  // and clang/lib/AST/ItaniumMangle for how they are mangled.
+  // In general, ocl_<foo> is mapped to pointer-to-%opencl.<foo>, but
+  // there is some variance around whether or not _t is included in the
+  // mangled name.
+  std::string LlvmStructName = StringSwitch<StringRef>(MangledStructName)
+                                   .Case("ocl_sampler", "opencl.sampler_t")
+                                   .Case("ocl_event", "opencl.event_t")
+                                   .Case("ocl_clkevent", "opencl.clk_event_t")
+                                   .Case("ocl_queue", "opencl.queue_t")
+                                   .Case("ocl_reserveid", "opencl.reserve_id_t")
+                                   .Default("")
+                                   .str();
+  if (LlvmStructName.empty()) {
+    LlvmStructName = "opencl.";
+    LlvmStructName += MangledStructName.substr(4); // Strip off ocl_
+    if (!MangledStructName.endswith("_t"))
+      LlvmStructName += "_t";
+  }
+  return LlvmStructName;
+}
+
+void getParameterTypes(Function *F, SmallVectorImpl<StructType *> &ArgTys) {
+  // If there's no mangled name, we can't do anything. Also, if there's no
+  // parameters, do nothing.
+  StringRef Name = F->getName();
+  if (!Name.startswith("_Z") || F->arg_empty())
+    return;
+
+  // Start by filling in a skeleton of information we can get from the LLVM type
+  // itself.
+  ArgTys.clear();
+  auto *FT = F->getFunctionType();
+  ArgTys.reserve(FT->getNumParams());
+  bool HasSret = false;
+  for (Argument &Arg : F->args()) {
+    if (!Arg.getType()->isPointerTy())
+      ArgTys.push_back(nullptr);
+    else if (Type *Ty = Arg.getParamStructRetType()) {
+      assert(!HasSret && &Arg == F->getArg(0) &&
+             "sret parameter should only appear on the first argument");
+      HasSret = true;
+      ArgTys.push_back(dyn_cast<StructType>(Ty));
+    } else {
+      ArgTys.push_back(nullptr);
+    }
+  }
+
+  Module *M = F->getParent();
+
+  // Skip the first argument if it's an sret parameter--this would be an
+  // implicit parameter not recognized as part of the function parameters.
+  auto *ArgIter = ArgTys.begin();
+  if (HasSret)
+    ++ArgIter;
+
+  // Demangle the function arguments. If we get an input name of
+  // "_Z12write_imagei20ocl_image1d_array_woDv2_iiDv4_i", then we expect
+  // that Demangler.getFunctionParameters will return
+  // "(ocl_image1d_array_wo, int __vector(2), int, int __vector(4))" (in other
+  // words, the stuff between the parentheses if you ran C++ filt, including
+  // the parentheses itself).
+  ItaniumPartialDemangler Demangler;
+  std::string MangledName = F->getName().str();
+  if (Demangler.partialDemangle(MangledName.c_str()))
+    return;
+  char *Buf = nullptr;
+  size_t BufLen = 0;
+  Buf = Demangler.getFunctionParameters(Buf, &BufLen);
+  StringRef Args(Buf, BufLen);
+  // Strip parentheses from the result.
+  Args = Args.slice(1, Args.size() - 2);
+
+  if (Args.find_first_of("<(") == StringRef::npos) {
+    // Go through the function arguments using type names where possible.
+    SmallVector<StringRef, 8> ArgParams;
+    Args.split(ArgParams, ", ");
+
+    // Sanity check that the name mangling matches up to the expected number of
+    // arguments.
+    if (ArgParams.size() > (size_t)(ArgTys.end() - ArgIter)) {
+      LLVM_DEBUG(dbgs() << "[getParameterTypes] function " << F->getName()
+                        << " appears to have " << ArgParams.size()
+                        << " arguments but has " << (ArgTys.end() - ArgIter)
+                        << "\n");
+      free(Buf);
+      return;
+    }
+
+    for (StringRef Arg : ArgParams) {
+      StructType *Pointee = nullptr;
+      if (Arg.endswith("*") && !Arg.endswith("**")) {
+        // Strip off address space and other qualifiers.
+        StringRef MangledStructName = Arg.split(' ').first;
+
+        if (MangledStructName.consume_front("__spirv_")) {
+          // This is a pointer to a SPIR-V OpType* opaque struct. In general,
+          // convert __spirv_<Type>[__Suffix] to %spirv.Type[._Suffix]
+          auto NameSuffixPair = MangledStructName.split('_');
+          std::string StructName = "spirv.";
+          StructName += NameSuffixPair.first;
+          if (!NameSuffixPair.second.empty()) {
+            StructName += ".";
+            StructName += NameSuffixPair.second;
+          }
+          Pointee = getOrCreateOpaqueStructType(M, StructName);
+        } else if (MangledStructName.startswith("opencl.")) {
+          Pointee = getOrCreateOpaqueStructType(M, MangledStructName);
+        }
+      } else if (!Arg.contains(' ') && Arg.startswith("ocl_")) {
+        std::string StructName = demangleBuiltinOpenCLTypeName(Arg);
+        Pointee = getOrCreateOpaqueStructType(M, StructName);
+      }
+      *ArgIter++ = Pointee;
+    }
+  }
+  free(Buf);
+}
+
 CallInst *mutateCallInst(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
@@ -913,9 +1031,9 @@ Metadata *getMDOperandOrNull(MDNode *N, unsigned I) {
   return N->getOperand(I);
 }
 
-std::string getMDOperandAsString(MDNode *N, unsigned I) {
+StringRef getMDOperandAsString(MDNode *N, unsigned I) {
   if (auto *Str = dyn_cast_or_null<MDString>(getMDOperandOrNull(N, I)))
-    return Str->getString().str();
+    return Str->getString();
   return "";
 }
 
@@ -941,7 +1059,7 @@ std::set<std::string> getNamedMDAsStringSet(Module *M,
     if (!MD || MD->getNumOperands() == 0)
       continue;
     for (unsigned J = 0, N = MD->getNumOperands(); J != N; ++J)
-      StrSet.insert(getMDOperandAsString(MD, J));
+      StrSet.insert(getMDOperandAsString(MD, J).str());
   }
 
   return StrSet;
@@ -1293,7 +1411,7 @@ bool isSPIRVConstantName(StringRef TyName) {
 Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
                                        StringRef NewName) {
   StringRef Postfixes;
-  if (isSPIRVType(T, OldName, &Postfixes))
+  if (isSPIRVStructType(T, OldName, &Postfixes))
     return getOrCreateOpaquePtrType(M, getSPIRVTypeName(NewName, Postfixes));
   LLVM_DEBUG(dbgs() << " Invalid SPIR-V type " << *T << '\n');
   llvm_unreachable("Invalid SPIR-V type");
@@ -1558,13 +1676,16 @@ StringRef getAccessQualifierFullName(StringRef TyName) {
 }
 
 /// Translates OpenCL image type names to SPIR-V.
-Type *getSPIRVImageTypeFromOCL(Module *M, Type *ImageTy) {
-  assert(isOCLImageType(ImageTy) && "Unsupported type");
-  auto ImageTypeName = ImageTy->getPointerElementType()->getStructName();
-  StringRef Acc = kAccessQualName::ReadOnly;
-  if (hasAccessQualifiedName(ImageTypeName))
-    Acc = getAccessQualifierFullName(ImageTypeName);
-  return getOrCreateOpaquePtrType(M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));
+Type *adaptSPIRVImageType(Module *M, Type *PointeeType) {
+  if (isOCLImageStructType(PointeeType)) {
+    auto ImageTypeName = PointeeType->getStructName();
+    StringRef Acc = kAccessQualName::ReadOnly;
+    if (hasAccessQualifiedName(ImageTypeName))
+      Acc = getAccessQualifierFullName(ImageTypeName);
+    return getOrCreateOpaqueStructType(
+        M, mapOCLTypeNameToSPIRV(ImageTypeName, Acc));
+  }
+  return PointeeType;
 }
 
 llvm::PointerType *getOCLClkEventType(Module *M) {
