@@ -31,6 +31,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VersionTuple.h"
@@ -234,6 +235,8 @@ protected:
   unsigned ARMCDECoprocMask : 8;
 
   unsigned MaxOpenCLWorkGroupSize;
+
+  Optional<unsigned> MaxBitIntWidth;
 
   Optional<llvm::Triple> DarwinTargetVariantTriple;
 
@@ -595,11 +598,16 @@ public:
   // Different targets may support a different maximum width for the _BitInt
   // type, depending on what operations are supported.
   virtual size_t getMaxBitIntWidth() const {
+    // Consider -fexperimental-max-bitint-width= first.
+    if (MaxBitIntWidth)
+      return std::min<size_t>(*MaxBitIntWidth, llvm::IntegerType::MAX_INT_BITS);
+
     // FIXME: this value should be llvm::IntegerType::MAX_INT_BITS, which is
     // maximum bit width that LLVM claims its IR can support. However, most
-    // backends currently have a bug where they only support division
-    // operations on types that are <= 128 bits and crash otherwise. We're
-    // setting the max supported value to 128 to be conservative.
+    // backends currently have a bug where they only support float to int
+    // conversion (and vice versa) on types that are <= 128 bits and crash
+    // otherwise. We're setting the max supported value to 128 to be
+    // conservative.
     return 128;
   }
 
@@ -1195,12 +1203,12 @@ public:
   /// Microsoft C++ code using dllimport/export attributes?
   virtual bool shouldDLLImportComdatSymbols() const {
     return getTriple().isWindowsMSVCEnvironment() ||
-           getTriple().isWindowsItaniumEnvironment() || getTriple().isPS4();
+           getTriple().isWindowsItaniumEnvironment() || getTriple().isPS();
   }
 
   // Does this target have PS4 specific dllimport/export handling?
   virtual bool hasPS4DLLImportExport() const {
-    return getTriple().isPS4() ||
+    return getTriple().isPS() ||
            // Windows Itanium support allows for testing the SCEI flavour of
            // dllimport/export handling on a Windows system.
            (getTriple().isWindowsItaniumEnvironment() &&

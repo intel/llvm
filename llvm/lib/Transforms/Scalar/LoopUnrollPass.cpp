@@ -132,7 +132,7 @@ static cl::opt<bool> UnrollAllowRemainder(
              "when unrolling a loop."));
 
 static cl::opt<bool>
-    UnrollRuntime("unroll-runtime", cl::ZeroOrMore, cl::Hidden,
+    UnrollRuntime("unroll-runtime", cl::Hidden,
                   cl::desc("Unroll loops with run-time trip counts"));
 
 static cl::opt<unsigned> UnrollMaxUpperBound(
@@ -909,7 +909,7 @@ bool llvm::computeUnrollCount(
   if (PP.PeelCount) {
     if (UnrollCount.getNumOccurrences() > 0) {
       report_fatal_error("Cannot specify both explicit peel count and "
-                         "explicit unroll count");
+                         "explicit unroll count", /*GenCrashDiag=*/false);
     }
     UP.Count = 1;
     UP.Runtime = false;

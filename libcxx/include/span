@@ -130,6 +130,7 @@ template<class R>
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
 #include <__debug>
+#include <__fwd/span.h>
 #include <__iterator/concepts.h>
 #include <__iterator/wrap_iter.h>
 #include <__ranges/concepts.h>
@@ -137,6 +138,7 @@ template<class R>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
 #include <__ranges/size.h>
+#include <__utility/forward.h>
 #include <array>        // for array
 #include <cstddef>      // for byte
 #include <iterator>     // for iterators
@@ -154,9 +156,6 @@ _LIBCPP_PUSH_MACROS
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER > 17
-
-inline constexpr size_t dynamic_extent = numeric_limits<size_t>::max();
-template <typename _Tp, size_t _Extent = dynamic_extent> class span;
 
 template <class _Tp>
 struct __is_std_array : false_type {};
@@ -198,6 +197,10 @@ concept __span_compatible_range =
   is_convertible_v<remove_reference_t<ranges::range_reference_t<_Range>>(*)[], _ElementType(*)[]>;
 #endif // !defined(_LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
+#if defined(_LIBCPP_ENABLE_DEBUG_MODE) || defined(_LIBCPP_ABI_SPAN_POINTER_ITERATORS)
+#   define _LIBCPP_SPAN_USE_POINTER_ITERATOR
+#endif
+
 template <typename _Tp, size_t _Extent>
 class _LIBCPP_TEMPLATE_VIS span {
 public:
@@ -210,7 +213,7 @@ public:
     using const_pointer          = const _Tp *;
     using reference              = _Tp &;
     using const_reference        = const _Tp &;
-#if (_LIBCPP_DEBUG_LEVEL == 2) || defined(_LIBCPP_ABI_SPAN_POINTER_ITERATORS)
+#ifdef _LIBCPP_SPAN_USE_POINTER_ITERATOR
     using iterator               = pointer;
 #else
     using iterator               = __wrap_iter<pointer>;
@@ -382,8 +385,20 @@ public:
     _LIBCPP_INLINE_VISIBILITY constexpr pointer data()                         const noexcept { return __data; }
 
 // [span.iter], span iterator support
-    _LIBCPP_INLINE_VISIBILITY constexpr iterator                 begin() const noexcept { return iterator(data()); }
-    _LIBCPP_INLINE_VISIBILITY constexpr iterator                   end() const noexcept { return iterator(data() + size()); }
+    _LIBCPP_INLINE_VISIBILITY constexpr iterator begin() const noexcept {
+#ifdef _LIBCPP_SPAN_USE_POINTER_ITERATOR
+        return iterator(data());
+#else
+        return iterator(this, data());
+#endif
+    }
+    _LIBCPP_INLINE_VISIBILITY constexpr iterator end() const noexcept {
+#ifdef _LIBCPP_SPAN_USE_POINTER_ITERATOR
+        return iterator(data() + size());
+#else
+        return iterator(this, data() + size());
+#endif
+    }
     _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator        rbegin() const noexcept { return reverse_iterator(end()); }
     _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator          rend() const noexcept { return reverse_iterator(begin()); }
 
@@ -413,7 +428,7 @@ public:
     using const_pointer          = const _Tp *;
     using reference              = _Tp &;
     using const_reference        = const _Tp &;
-#if (_LIBCPP_DEBUG_LEVEL == 2) || defined(_LIBCPP_ABI_SPAN_POINTER_ITERATORS)
+#ifdef _LIBCPP_SPAN_USE_POINTER_ITERATOR
     using iterator               = pointer;
 #else
     using iterator               = __wrap_iter<pointer>;
@@ -561,8 +576,20 @@ public:
     _LIBCPP_INLINE_VISIBILITY constexpr pointer data()                         const noexcept { return __data; }
 
 // [span.iter], span iterator support
-    _LIBCPP_INLINE_VISIBILITY constexpr iterator                 begin() const noexcept { return iterator(data()); }
-    _LIBCPP_INLINE_VISIBILITY constexpr iterator                   end() const noexcept { return iterator(data() + size()); }
+    _LIBCPP_INLINE_VISIBILITY constexpr iterator begin() const noexcept {
+#ifdef _LIBCPP_SPAN_USE_POINTER_ITERATOR
+        return iterator(data());
+#else
+        return iterator(this, data());
+#endif
+    }
+    _LIBCPP_INLINE_VISIBILITY constexpr iterator end() const noexcept {
+#ifdef _LIBCPP_SPAN_USE_POINTER_ITERATOR
+        return iterator(data() + size());
+#else
+        return iterator(this, data() + size());
+#endif
+    }
     _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator        rbegin() const noexcept { return reverse_iterator(end()); }
     _LIBCPP_INLINE_VISIBILITY constexpr reverse_iterator          rend() const noexcept { return reverse_iterator(begin()); }
 

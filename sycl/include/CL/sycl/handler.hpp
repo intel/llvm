@@ -143,7 +143,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
+    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
 }
 #endif
 
@@ -553,11 +553,11 @@ private:
     if (is_host()) {
       throw invalid_object_error(
           "This kernel invocation method cannot be used on the host",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
     }
     if (Kernel.is_host()) {
       throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_INVALID_KERNEL);
+                                 PI_ERROR_INVALID_KERNEL);
     }
   }
 
@@ -717,7 +717,7 @@ private:
     if (IsCallableWithKernelHandler && MIsHost) {
       throw cl::sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
     }
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
@@ -1771,7 +1771,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
@@ -1790,7 +1790,7 @@ public:
                                 "The maximal work group size depends on the "
                                 "device and the size of the objects passed to "
                                 "the reduction.",
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       handler AuxHandler(QueueCopy, MIsHost);
@@ -1869,7 +1869,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
                                                 ReduTuple, ReduIndices);

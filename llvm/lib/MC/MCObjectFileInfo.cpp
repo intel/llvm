@@ -523,8 +523,13 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
 }
 
 void MCObjectFileInfo::initGOFFMCObjectFileInfo(const Triple &T) {
-  TextSection = Ctx->getGOFFSection(".text", SectionKind::getText());
-  BSSSection = Ctx->getGOFFSection(".bss", SectionKind::getBSS());
+  TextSection =
+      Ctx->getGOFFSection(".text", SectionKind::getText(), nullptr, nullptr);
+  BSSSection =
+      Ctx->getGOFFSection(".bss", SectionKind::getBSS(), nullptr, nullptr);
+  PPA1Section =
+      Ctx->getGOFFSection(".ppa1", SectionKind::getMetadata(), TextSection,
+                          MCConstantExpr::create(GOFF::SK_PPA1, *Ctx));
 }
 
 void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
@@ -559,8 +564,9 @@ void MCObjectFileInfo::initCOFFMCObjectFileInfo(const Triple &T) {
       ".rdata", COFF::IMAGE_SCN_CNT_INITIALIZED_DATA | COFF::IMAGE_SCN_MEM_READ,
       SectionKind::getReadOnly());
 
-  if (T.getArch() == Triple::x86_64 || T.getArch() == Triple::aarch64) {
-    // On Windows 64 with SEH, the LSDA is emitted into the .xdata section
+  if (T.getArch() == Triple::x86_64 || T.getArch() == Triple::aarch64 ||
+      T.getArch() == Triple::arm || T.getArch() == Triple::thumb) {
+    // On Windows with SEH, the LSDA is emitted into the .xdata section
     LSDASection = nullptr;
   } else {
     LSDASection = Ctx->getCOFFSection(".gcc_except_table",

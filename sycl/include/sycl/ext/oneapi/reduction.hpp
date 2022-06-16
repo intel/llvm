@@ -780,7 +780,7 @@ public:
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -793,7 +793,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -806,7 +806,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// SYCL-2020.
@@ -824,7 +824,7 @@ public:
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -849,7 +849,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -874,7 +874,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -902,7 +902,7 @@ public:
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -914,7 +914,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -926,7 +926,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.

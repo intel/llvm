@@ -121,6 +121,8 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_SwiftAsyncCall:                                          \
   case ParsedAttr::AT_VectorCall:                                              \
   case ParsedAttr::AT_AArch64VectorPcs:                                        \
+  case ParsedAttr::AT_AArch64SVEPcs:                                           \
+  case ParsedAttr::AT_AMDGPUKernelCall:                                        \
   case ParsedAttr::AT_MSABI:                                                   \
   case ParsedAttr::AT_SysVABI:                                                 \
   case ParsedAttr::AT_Pcs:                                                     \
@@ -3547,6 +3549,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
         break; // auto(x)
       LLVM_FALLTHROUGH;
     case DeclaratorContext::TypeName:
+    case DeclaratorContext::Association:
       Error = 15; // Generic
       break;
     case DeclaratorContext::File:
@@ -3657,6 +3660,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::ObjCCatch:
     case DeclaratorContext::TemplateArg:
     case DeclaratorContext::TemplateTypeArg:
+    case DeclaratorContext::Association:
       DiagID = diag::err_type_defined_in_type_specifier;
       break;
     case DeclaratorContext::Prototype:
@@ -4744,6 +4748,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::TypeName:
     case DeclaratorContext::FunctionalCast:
     case DeclaratorContext::RequiresExpr:
+    case DeclaratorContext::Association:
       // Don't infer in these contexts.
       break;
     }
@@ -5596,8 +5601,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         const DeclaratorChunk::FunctionTypeInfo &FTI = DeclType.Fun;
         // We suppress the warning when there's no LParen location, as this
         // indicates the declaration was an implicit declaration, which gets
-        // warned about separately via -Wimplicit-function-declaration.
-        if (FTI.NumParams == 0 && !FTI.isVariadic && FTI.getLParenLoc().isValid())
+        // warned about separately via -Wimplicit-function-declaration. We also
+        // suppress the warning when we know the function has a prototype.
+        if (!FTI.hasPrototype && FTI.NumParams == 0 && !FTI.isVariadic &&
+            FTI.getLParenLoc().isValid())
           S.Diag(DeclType.Loc, diag::warn_strict_prototypes)
               << IsBlock
               << FixItHint::CreateInsertion(FTI.getRParenLoc(), "void");
@@ -5795,6 +5802,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorContext::TrailingReturnVar:
     case DeclaratorContext::TemplateArg:
     case DeclaratorContext::TemplateTypeArg:
+    case DeclaratorContext::Association:
       // FIXME: We may want to allow parameter packs in block-literal contexts
       // in the future.
       S.Diag(D.getEllipsisLoc(),
@@ -7563,6 +7571,10 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
     return createSimpleAttr<VectorCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_AArch64VectorPcs:
     return createSimpleAttr<AArch64VectorPcsAttr>(Ctx, Attr);
+  case ParsedAttr::AT_AArch64SVEPcs:
+    return createSimpleAttr<AArch64SVEPcsAttr>(Ctx, Attr);
+  case ParsedAttr::AT_AMDGPUKernelCall:
+    return createSimpleAttr<AMDGPUKernelCallAttr>(Ctx, Attr);
   case ParsedAttr::AT_Pcs: {
     // The attribute may have had a fixit applied where we treated an
     // identifier as a string literal.  The contents of the string are valid,

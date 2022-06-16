@@ -1067,7 +1067,7 @@ public:
     C.ScaleCost = 0;
   }
 
-  bool isLess(Cost &Other);
+  bool isLess(const Cost &Other);
 
   void Lose();
 
@@ -1355,6 +1355,8 @@ void Cost::RateFormula(const Formula &F,
                        const DenseSet<const SCEV *> &VisitedRegs,
                        const LSRUse &LU,
                        SmallPtrSetImpl<const SCEV *> *LoserRegs) {
+  if (isLoser())
+    return;
   assert(F.isCanonical(*L) && "Cost is accurate only for canonical formula");
   // Tally up the registers.
   unsigned PrevAddRecCost = C.AddRecCost;
@@ -1464,7 +1466,7 @@ void Cost::Lose() {
 }
 
 /// Choose the lower cost.
-bool Cost::isLess(Cost &Other) {
+bool Cost::isLess(const Cost &Other) {
   if (InsnsCost.getNumOccurrences() > 0 && InsnsCost &&
       C.Insns != Other.C.Insns)
     return C.Insns < Other.C.Insns;

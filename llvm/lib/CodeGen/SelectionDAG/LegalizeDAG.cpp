@@ -1731,16 +1731,14 @@ SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
 SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
                                                EVT DestVT, const SDLoc &dl,
                                                SDValue Chain) {
-  unsigned SrcSize = SrcOp.getValueSizeInBits();
-  unsigned SlotSize = SlotVT.getSizeInBits();
-  unsigned DestSize = DestVT.getSizeInBits();
+  EVT SrcVT = SrcOp.getValueType();
   Type *DestType = DestVT.getTypeForEVT(*DAG.getContext());
   Align DestAlign = DAG.getDataLayout().getPrefTypeAlign(DestType);
 
   // Don't convert with stack if the load/store is expensive.
-  if ((SrcSize > SlotSize &&
+  if ((SrcVT.bitsGT(SlotVT) &&
        !TLI.isTruncStoreLegalOrCustom(SrcOp.getValueType(), SlotVT)) ||
-      (SlotSize < DestSize &&
+      (SlotVT.bitsLT(DestVT) &&
        !TLI.isLoadExtLegalOrCustom(ISD::EXTLOAD, DestVT, SlotVT)))
     return SDValue();
 
@@ -1758,20 +1756,19 @@ SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
   // later than DestVT.
   SDValue Store;
 
-  if (SrcSize > SlotSize)
+  if (SrcVT.bitsGT(SlotVT))
     Store = DAG.getTruncStore(Chain, dl, SrcOp, FIPtr, PtrInfo,
                               SlotVT, SrcAlign);
   else {
-    assert(SrcSize == SlotSize && "Invalid store");
-    Store =
-        DAG.getStore(Chain, dl, SrcOp, FIPtr, PtrInfo, SrcAlign);
+    assert(SrcVT.bitsEq(SlotVT) && "Invalid store");
+    Store = DAG.getStore(Chain, dl, SrcOp, FIPtr, PtrInfo, SrcAlign);
   }
 
   // Result is a load from the stack slot.
-  if (SlotSize == DestSize)
+  if (SlotVT.bitsEq(DestVT))
     return DAG.getLoad(DestVT, dl, Store, FIPtr, PtrInfo, DestAlign);
 
-  assert(SlotSize < DestSize && "Unknown extension!");
+  assert(SlotVT.bitsLT(DestVT) && "Unknown extension!");
   return DAG.getExtLoad(ISD::EXTLOAD, dl, DestVT, Store, FIPtr, PtrInfo, SlotVT,
                         DestAlign);
 }
@@ -4098,12 +4095,25 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
     assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unexpected fpowi.");
     if (!TLI.getLibcallName(LC)) {
       // Some targets don't have a powi libcall; use pow instead.
-      SDValue Exponent = DAG.getNode(ISD::SINT_TO_FP, SDLoc(Node),
-                                     Node->getValueType(0),
-                                     Node->getOperand(1));
-      Results.push_back(DAG.getNode(ISD::FPOW, SDLoc(Node),
-                                    Node->getValueType(0), Node->getOperand(0),
-                                    Exponent));
+      if (Node->isStrictFPOpcode()) {
+        SDValue Exponent =
+            DAG.getNode(ISD::STRICT_SINT_TO_FP, SDLoc(Node),
+                        {Node->getValueType(0), Node->getValueType(1)},
+                        {Node->getOperand(0), Node->getOperand(2)});
+        SDValue FPOW =
+            DAG.getNode(ISD::STRICT_FPOW, SDLoc(Node),
+                        {Node->getValueType(0), Node->getValueType(1)},
+                        {Exponent.getValue(1), Node->getOperand(1), Exponent});
+        Results.push_back(FPOW);
+        Results.push_back(FPOW.getValue(1));
+      } else {
+        SDValue Exponent =
+            DAG.getNode(ISD::SINT_TO_FP, SDLoc(Node), Node->getValueType(0),
+                        Node->getOperand(1));
+        Results.push_back(DAG.getNode(ISD::FPOW, SDLoc(Node),
+                                      Node->getValueType(0),
+                                      Node->getOperand(0), Exponent));
+      }
       break;
     }
     unsigned Offset = Node->isStrictFPOpcode() ? 1 : 0;
