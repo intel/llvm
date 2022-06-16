@@ -1989,7 +1989,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   // Check that the major version matches in PiVersion and SupportedVersion
-  static int PiMajorVersionLen = strcspn(PluginInit->PiVersion.".");
+  static int PiMajorVersionLen = strcspn(PluginInit->PiVersion, ".");
   if (strncmp(PluginInit->PiVersion, SupportedVersion, PiMajorVersionLen) < 0) {
     return PI_ERROR_INVALID_VALUE;
   }
