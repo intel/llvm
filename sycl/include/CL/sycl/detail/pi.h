@@ -53,6 +53,8 @@
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
 #define _PI_TRIPLE_CONCAT(a, b, c) _PI_STRING_HELPER(a.b.c)
+// This is the macro that plugins should all use to define their version
+#define _PI_PLUGIN_VERSION_STRING(PluginVersion) _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR, (PluginVersion))
 
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
