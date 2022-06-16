@@ -8,6 +8,7 @@ else()
   set(lib-suffix o)
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
   set(install_dest_spv lib${LLVM_LIBDIR_SUFFIX})
+  set(devicelib_host_static libsycl-devicelib-host.a)
 endif()
 set(install_dest_lib lib${LLVM_LIBDIR_SUFFIX})
 
@@ -224,31 +225,15 @@ add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
 
 add_custom_target(imf_fp32_host_obj DEPENDS ${obj_binary_dir}/imf-fp32-host.${lib-suffix})
 add_custom_target(imf_fp64_host_obj DEPENDS ${obj_binary_dir}/imf-fp64-host.${lib-suffix})
-if (WIN32)
-  add_custom_target(imf_host_obj
-                    COMMAND ${llvm-ar} rcs ${obj_binary_dir}/${devicelib_host_static}
-                            ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
-                            ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
-                            ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
-                            ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
-                    DEPENDS imf_fp32_host_obj imf_fallback_fp32_host_obj imf_fp64_host_obj imf_fallback_fp64_host_obj
-                    VERBATIM)
-  add_dependencies(libsycldevice-obj imf_host_obj)
-  install(FILES ${obj_binary_dir}/${devicelib_host_static}
-          DESTINATION ${install_dest_lib}
-          COMPONENT libsycldevice)
-else()
-  add_dependencies(libsycldevice-obj imf_fp32_host_obj)
-  add_dependencies(libsycldevice-obj imf_fallback_fp32_host_obj)
-  add_dependencies(libsycldevice-obj imf_fp64_host_obj)
-  add_dependencies(libsycldevice-obj imf_fallback_fp64_host_obj)
-  install(FILES ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
-                ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
-                ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
-                ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
-          DESTINATION ${install_dest_lib}
-          COMPONENT libsycldevice)
-endif()
+add_custom_target(imf_host_obj
+                  COMMAND ${llvm-ar} rcs ${obj_binary_dir}/${devicelib_host_static}
+                          ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
+                          ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
+                          ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
+                          ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
+                  DEPENDS imf_fp32_host_obj imf_fallback_fp32_host_obj imf_fp64_host_obj imf_fallback_fp64_host_obj
+                  VERBATIM)
+add_dependencies(libsycldevice-obj imf_host_obj)
 install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
               ${spv_binary_dir}/libsycl-fallback-imf-fp64.spv
         DESTINATION ${install_dest_spv}
@@ -256,6 +241,7 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-imf.spv
 
 install(FILES ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
               ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suffix}
+              ${obj_binary_dir}/${devicelib_host_static}
         DESTINATION ${install_dest_lib}
         COMPONENT libsycldevice)
 
