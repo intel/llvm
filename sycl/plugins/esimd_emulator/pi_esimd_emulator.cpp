@@ -1990,7 +1990,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   static int PiVersionLen = strlen(PluginInit->PiVersion);
   if (strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen) < 0) {
-    return PI_INVALID_VALUE;
+    return PI_ERROR_INVALID_VALUE;
   }
 
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
