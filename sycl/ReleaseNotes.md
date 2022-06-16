@@ -33,7 +33,6 @@ Release notes for commit range f34ba2c..4043dda
   - Added bf16 builtins for fma, fmin, fmax and fmax on CUDA backend. [62651dd]
   - Added support for USM buffer location properties which allows to specify at what memory location the device usm allocation should be in. [12c988a]
   - Added support for buffer_location property to the sycl::buffer. [9808525]
-  - Moved some ESIMD APIs outside of experimental namespace. [c557d78][b2ee289]
   - Added single_task support for ESIMD_EMU backend. [2331160]
   - Added support for SVM 1,2,4-elements gather/scatter for ESIMD. [e200720]
   - Added support for bf16 builtins operating on storage types for CUDA backend. [413a9ef]
@@ -160,11 +159,7 @@ Release notes for commit range f34ba2c..4043dda
   - Improved runtime to redirect warning from using `SYCL_DEVICE_FILTER` with `sycl-ls` to `std::cerr`. [70593d6]
   - Use new SPIR-V group operations within uniform control flow instead of non-uniform operations in SYCL headers. [9b84dd8]
   - Enabled online linking of the device libraries. [9fcab29]
-  - Renamed wi_slice to wi_data. [f364e18]
-  - Renamed `nbarrier_*` API to `named_barrier_*` for ESIMD. [5023657]
-  - Moved a part of ESIMD APIs outside of experimental namespace. [c557d78][b2ee289]
   - Improved esimd-verifier logic for detecting valid SYCL calls. [eaf8b42]
-  - Moved `bfloat16` from `intel` namespace to `oneapi` namespace. [5231fe4]
   - Extended XPTI information with the kernel info. [4b9eef3]
   - Improved error message for exceeding CUDA grid limits. [ed877c2]
   - Added overload for `sycl::select(a, b, c)` where `c` is a bool. [7ae8fd3]
@@ -321,6 +316,10 @@ Release notes for commit range f34ba2c..4043dda
 
 # API/ABI breakages
   - Removed deprecated API from ESIMD headers. [ec0385d]
+  - Renamed wi_slice to wi_data. [f364e18]
+  - Renamed `nbarrier_*` API to `named_barrier_*` for ESIMD. [5023657]
+  - Moved a part of ESIMD APIs outside of experimental namespace. [c557d78][b2ee289]
+  - Moved `bfloat16` from `intel` namespace to `oneapi` namespace. [5231fe4]
 
 # Known issues
  - Having MESA OpenCL implementation which provides no devices on a
