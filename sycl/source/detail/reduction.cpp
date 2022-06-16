@@ -116,29 +116,28 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   // The default of 16 was chosen based on empirical benchmarking results;
   // an environment variable is provided to allow users to override this
   // behavior.
-  using CPUMaxWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE_CPU>;
+  using PrefWGConfig =
+      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE>;
   if (Dev.is_cpu()) {
-    size_t CPUMaxWGSize = CPUMaxWGConfig::get();
+    size_t CPUMaxWGSize = PrefWGConfig::get(info::device_type::cpu);
     if (CPUMaxWGSize == 0)
       return 16;
     size_t DevMaxWGSize = Dev.get_info<info::device::max_work_group_size>();
     return std::min(CPUMaxWGSize, DevMaxWGSize);
   }
 
-  // If the user has specified an explicit max work-group size we use that.
-  using GPUMaxWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE_GPU>;
-  if (Dev.is_gpu() && GPUMaxWGConfig::get()) {
+  // If the user has specified an explicit preferred work-group size we use
+  // that.
+  if (Dev.is_gpu() && PrefWGConfig::get(info::device_type::gpu)) {
     size_t DevMaxWGSize = Dev.get_info<info::device::max_work_group_size>();
-    return std::min(GPUMaxWGConfig::get(), DevMaxWGSize);
+    return std::min(PrefWGConfig::get(info::device_type::gpu), DevMaxWGSize);
   }
 
-  using ACCMaxWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE_ACC>;
-  if (Dev.is_accelerator() && ACCMaxWGConfig::get()) {
+  if (Dev.is_accelerator() &&
+      PrefWGConfig::get(info::device_type::accelerator)) {
     size_t DevMaxWGSize = Dev.get_info<info::device::max_work_group_size>();
-    return std::min(ACCMaxWGConfig::get(), DevMaxWGSize);
+    return std::min(PrefWGConfig::get(info::device_type::accelerator),
+                    DevMaxWGSize);
   }
 
   // Use the maximum work-group size otherwise.
