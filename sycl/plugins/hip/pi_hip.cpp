@@ -4892,10 +4892,12 @@ pi_result hip_piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
-const char SupportedVersion[] = _PI_H_VERSION_STRING;
+const char SupportedVersion[] = _PI_HIP_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
+  static int PiVersionLen = strlen(PluginInit->PiVersion);
+  int CompareVersions =
+      strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen);
   if (CompareVersions < 0) {
     // PI interface supports lower version of PI.
     // TODO: Take appropriate actions.

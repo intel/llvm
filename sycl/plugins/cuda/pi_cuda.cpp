@@ -5068,9 +5068,7 @@ const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
   static int PiVersionLen = strlen(PluginInit->PiVersion);
-  int CompareVersions =
-      strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen);
-  if (CompareVersions < 0) {
+  if (strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen) < 0) {
     // PI interface supports lower version of PI.
     // TODO: Take appropriate actions.
     return PI_INVALID_OPERATION;

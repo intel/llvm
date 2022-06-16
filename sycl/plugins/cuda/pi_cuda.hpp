@@ -18,6 +18,8 @@
 #ifndef PI_CUDA_HPP
 #define PI_CUDA_HPP
 
+// This version should be incremented for any change made to this file or its
+// corresponding .cpp file.
 #define _PI_CUDA_PLUGIN_VERSION 1
 
 #define _PI_CUDA_PLUGIN_VERSION_STRING                                         \
