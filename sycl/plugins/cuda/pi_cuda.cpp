@@ -5260,8 +5260,9 @@ pi_result cuda_piTearDown(void *) { return PI_SUCCESS; }
 const char SupportedVersion[] = _PI_CUDA_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  static int PiVersionLen = strlen(PluginInit->PiVersion);
-  if (strncmp(PluginInit->PiVersion, SupportedVersion, PiVersionLen) < 0) {
+  // Check that the major version matches in PiVersion and SupportedVersion
+  static int PiMajorVersionLen = strcspn(PluginInit->PiVersion, ".");
+  if (strncmp(PluginInit->PiVersion, SupportedVersion, PiMajorVersionLen) < 0) {
     // PI interface supports lower version of PI.
     // TODO: Take appropriate actions.
     return PI_ERROR_INVALID_OPERATION;
