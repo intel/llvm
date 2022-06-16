@@ -897,7 +897,7 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     // calls.
     ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
     ZE_CALL(zeCommandListReset, (CommandList->first));
-    CommandList->second.InUse = false;
+    CommandList->second.ZeFenceInUse = false;
   }
 
   auto &EventList = CommandList->second.EventList;
@@ -1140,8 +1140,8 @@ pi_result resetCommandLists(pi_queue Queue) {
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
       // It is possible that the fence was already noted as signalled and
-      // reset. In that case the InUse flag will be false.
-      if (it->second.ZeFence != nullptr && it->second.InUse) {
+      // reset. In that case the ZeFenceInUse flag will be false.
+      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
         ze_result_t ZeResult =
             ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
         if (ZeResult == ZE_RESULT_SUCCESS) {
@@ -1220,7 +1220,8 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         CommandList = it;
-        CommandList->second.InUse = true;
+        if (CommandList->second.ZeFence != nullptr)
+          CommandList->second.ZeFenceInUse = true;
       } else {
         // If there is a command list available on this context, but it
         // wasn't yet used in this queue then create a new entry in this
@@ -3360,7 +3361,7 @@ pi_result piQueueRelease(pi_queue Queue) {
       // For immediate commandlists we don't need to do an L0 reset of the
       // commandlist but do need to do event cleanup which is also in the
       // resetCommandList function.
-      if (it->second.InUse) {
+      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
         Queue->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
