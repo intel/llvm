@@ -2,6 +2,7 @@
 ; RUN: opt < %s -passes=instcombine -S | FileCheck %s
 
 declare void @use8(i8)
+declare void @use16(i16)
 declare void @use32(i32)
 
 ; There should be no 'and' instructions left in any test.
@@ -1619,4 +1620,237 @@ define i8 @not_lshr_bitwidth_mask(i8 %x, i8 %y) {
   %not = xor i8 %sign, -1
   %r = and i8 %not, %y
   ret i8 %r
+}
+
+; CTTZ(ShlC) < LShrC
+
+define i16 @shl_lshr_pow2_const_case1(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case1(
+; CHECK-NEXT:    [[SHL:%.*]] = shl i16 4, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr i16 [[SHL]], 6
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR]], 8
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %shl = shl i16 4, %x
+  %lshr = lshr i16 %shl, 6
+  %r = and i16 %lshr, 8
+  ret i16 %r
+}
+
+define <3 x i16> @shl_lshr_pow2_const_case1_uniform_vec(<3 x i16> %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case1_uniform_vec(
+; CHECK-NEXT:    [[SHL:%.*]] = shl <3 x i16> <i16 4, i16 4, i16 4>, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr <3 x i16> [[SHL]], <i16 6, i16 6, i16 6>
+; CHECK-NEXT:    [[R:%.*]] = and <3 x i16> [[LSHR]], <i16 8, i16 8, i16 8>
+; CHECK-NEXT:    ret <3 x i16> [[R]]
+;
+  %shl = shl <3 x i16> <i16 4, i16 4, i16 4>, %x
+  %lshr = lshr <3 x i16> %shl, <i16 6, i16 6, i16 6>
+  %r = and <3 x i16> %lshr, <i16 8, i16 8, i16 8>
+  ret <3 x i16> %r
+}
+
+define <3 x i16> @shl_lshr_pow2_const_case1_non_uniform_vec(<3 x i16> %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case1_non_uniform_vec(
+; CHECK-NEXT:    [[SHL:%.*]] = shl <3 x i16> <i16 16, i16 8, i16 4>, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr <3 x i16> [[SHL]], <i16 5, i16 4, i16 3>
+; CHECK-NEXT:    [[R:%.*]] = and <3 x i16> [[LSHR]], <i16 8, i16 16, i16 4>
+; CHECK-NEXT:    ret <3 x i16> [[R]]
+;
+  %shl = shl <3 x i16> <i16 16, i16 8, i16 4>, %x
+  %lshr = lshr <3 x i16> %shl, <i16 5, i16 4, i16 3>
+  %r = and <3 x i16> %lshr, <i16 8, i16 16, i16 4>
+  ret <3 x i16> %r
+}
+
+define <3 x i16> @shl_lshr_pow2_const_case1_undef1_vec(<3 x i16> %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case1_undef1_vec(
+; CHECK-NEXT:    [[SHL:%.*]] = shl <3 x i16> <i16 undef, i16 16, i16 16>, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr <3 x i16> [[SHL]], <i16 5, i16 5, i16 5>
+; CHECK-NEXT:    [[R:%.*]] = and <3 x i16> [[LSHR]], <i16 8, i16 8, i16 8>
+; CHECK-NEXT:    ret <3 x i16> [[R]]
+;
+  %shl = shl <3 x i16> <i16 undef, i16 16, i16 16>, %x
+  %lshr = lshr <3 x i16> %shl, <i16 5, i16 5, i16 5>
+  %r = and <3 x i16> %lshr, <i16 8, i16 8, i16 8>
+  ret <3 x i16> %r
+}
+
+define <3 x i16> @shl_lshr_pow2_const_case1_undef2_vec(<3 x i16> %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case1_undef2_vec(
+; CHECK-NEXT:    [[SHL:%.*]] = shl <3 x i16> <i16 16, i16 16, i16 16>, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr <3 x i16> [[SHL]], <i16 undef, i16 5, i16 5>
+; CHECK-NEXT:    [[R:%.*]] = and <3 x i16> [[LSHR]], <i16 8, i16 8, i16 8>
+; CHECK-NEXT:    ret <3 x i16> [[R]]
+;
+  %shl = shl <3 x i16> <i16 16, i16 16, i16 16>, %x
+  %lshr = lshr <3 x i16> %shl, <i16 undef, i16 5, i16 5>
+  %r = and <3 x i16> %lshr, <i16 8, i16 8, i16 8>
+  ret <3 x i16> %r
+}
+
+define <3 x i16> @shl_lshr_pow2_const_case1_undef3_vec(<3 x i16> %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case1_undef3_vec(
+; CHECK-NEXT:    [[SHL:%.*]] = shl <3 x i16> <i16 16, i16 16, i16 16>, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr <3 x i16> [[SHL]], <i16 5, i16 5, i16 5>
+; CHECK-NEXT:    [[R:%.*]] = and <3 x i16> [[LSHR]], <i16 undef, i16 8, i16 8>
+; CHECK-NEXT:    ret <3 x i16> [[R]]
+;
+  %shl = shl <3 x i16> <i16 16, i16 16, i16 16>, %x
+  %lshr = lshr <3 x i16> %shl, <i16 5, i16 5, i16 5>
+  %r = and <3 x i16> %lshr, <i16 undef, i16 8, i16 8>
+  ret <3 x i16> %r
+}
+
+; LShrC < CTTZ(ShlC) < LShrC + CTTZ(AndC)
+
+define i16 @shl_lshr_pow2_const_case2(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_case2(
+; CHECK-NEXT:    [[TMP1:%.*]] = shl i16 2, [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[TMP1]], 8
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %shl = shl i16 16, %x
+  %lshr = lshr i16 %shl, 3
+  %r = and i16 %lshr, 8
+  ret i16 %r
+}
+
+define i16 @shl_lshr_pow2_not_const_case2(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_not_const_case2(
+; CHECK-NEXT:    [[TMP1:%.*]] = shl i16 2, [[X:%.*]]
+; CHECK-NEXT:    [[AND:%.*]] = and i16 [[TMP1]], 8
+; CHECK-NEXT:    [[R:%.*]] = xor i16 [[AND]], 8
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %shl = shl i16 16, %x
+  %lshr = lshr i16 %shl, 3
+  %and = and i16 %lshr, 8
+  %r   = xor i16 %and, 8
+  ret i16 %r
+}
+
+; CTTZ(ShlC) > LShrC + CTTZ(AndC)
+
+define i16 @shl_lshr_pow2_const_negative_overflow1(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_negative_overflow1(
+; CHECK-NEXT:    ret i16 0
+;
+  %shl = shl i16 4096, %x
+  %lshr = lshr i16 %shl, 6
+  %r = and i16 %lshr, 8
+  ret i16 %r
+}
+
+; LShrC + CTTZ(AndC) > BitWidth
+
+define i16 @shl_lshr_pow2_const_negative_overflow2(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_negative_overflow2(
+; CHECK-NEXT:    ret i16 0
+;
+  %shl = shl i16 8, %x
+  %lshr = lshr i16 %shl, 6
+  %r = and i16 %lshr, 32768
+  ret i16 %r
+}
+
+define i16 @shl_lshr_pow2_const_negative_oneuse(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_negative_oneuse(
+; CHECK-NEXT:    [[SHL:%.*]] = shl i16 4, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr i16 [[SHL]], 6
+; CHECK-NEXT:    call void @use16(i16 [[LSHR]])
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR]], 8
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %shl = shl i16 4, %x
+  %lshr = lshr i16 %shl, 6
+  call void @use16(i16 %lshr)
+  %r = and i16 %lshr, 8
+  ret i16 %r
+}
+
+define i16 @shl_lshr_pow2_const_negative_nopow2_1(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_negative_nopow2_1(
+; CHECK-NEXT:    [[SHL:%.*]] = shl i16 3, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr i16 [[SHL]], 6
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR]], 8
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %shl = shl i16 3, %x
+  %lshr = lshr i16 %shl, 6
+  %r = and i16 %lshr, 8
+  ret i16 %r
+}
+
+define i16 @shl_lshr_pow2_const_negative_nopow2_2(i16 %x) {
+; CHECK-LABEL: @shl_lshr_pow2_const_negative_nopow2_2(
+; CHECK-NEXT:    [[SHL:%.*]] = shl i16 3, [[X:%.*]]
+; CHECK-NEXT:    [[LSHR:%.*]] = lshr i16 [[SHL]], 6
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR]], 7
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %shl = shl i16 3, %x
+  %lshr = lshr i16 %shl, 6
+  %r = and i16 %lshr, 7
+  ret i16 %r
+}
+
+define i16 @lshr_lshr_pow2_const(i16 %x) {
+; CHECK-LABEL: @lshr_lshr_pow2_const(
+; CHECK-NEXT:    [[LSHR2:%.*]] = lshr i16 32, [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR2]], 4
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %lshr1 = lshr i16 2048, %x
+  %lshr2 = lshr i16 %lshr1, 6
+  %r = and i16 %lshr2, 4
+  ret i16 %r
+}
+
+define i16 @lshr_lshr_pow2_const_negative_oneuse(i16 %x) {
+; CHECK-LABEL: @lshr_lshr_pow2_const_negative_oneuse(
+; CHECK-NEXT:    [[LSHR2:%.*]] = lshr i16 32, [[X:%.*]]
+; CHECK-NEXT:    call void @use16(i16 [[LSHR2]])
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR2]], 4
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %lshr1 = lshr i16 2048, %x
+  %lshr2 = lshr i16 %lshr1, 6
+  call void @use16(i16 %lshr2)
+  %r = and i16 %lshr2, 4
+  ret i16 %r
+}
+
+define i16 @lshr_lshr_pow2_const_negative_nopow2_1(i16 %x) {
+; CHECK-LABEL: @lshr_lshr_pow2_const_negative_nopow2_1(
+; CHECK-NEXT:    [[LSHR2:%.*]] = lshr i16 31, [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR2]], 4
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %lshr1 = lshr i16 2047, %x
+  %lshr2 = lshr i16 %lshr1, 6
+  %r = and i16 %lshr2, 4
+  ret i16 %r
+}
+
+define i16 @lshr_lshr_pow2_const_negative_nopow2_2(i16 %x) {
+; CHECK-LABEL: @lshr_lshr_pow2_const_negative_nopow2_2(
+; CHECK-NEXT:    [[LSHR2:%.*]] = lshr i16 128, [[X:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR2]], 3
+; CHECK-NEXT:    ret i16 [[R]]
+;
+  %lshr1 = lshr i16 8192, %x
+  %lshr2 = lshr i16 %lshr1, 6
+  %r = and i16 %lshr2, 3
+  ret i16 %r
+}
+
+define i16 @lshr_lshr_pow2_const_negative_overflow(i16 %x) {
+; CHECK-LABEL: @lshr_lshr_pow2_const_negative_overflow(
+; CHECK-NEXT:    ret i16 0
+;
+  %lshr1 = lshr i16 32768, %x
+  %lshr2 = lshr i16 %lshr1, 15
+  %r = and i16 %lshr2, 4
+  ret i16 %r
 }

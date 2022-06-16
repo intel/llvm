@@ -574,9 +574,19 @@ def FlushOp : OpenMP_Op<"flush"> {
     specified or implied.
   }];
 
-  let arguments = (ins Variadic<AnyType>:$varList);
+  let arguments = (ins Variadic<OpenMP_PointerLikeType>:$varList);
 
   let assemblyFormat = [{ ( `(` $varList^ `:` type($varList) `)` )? attr-dict}];
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      return getOperation()->getNumOperands();
+    }
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      return getOperand(i);
+    }
+  }];
 }
 //===----------------------------------------------------------------------===//
 // 2.14.5 target construct
@@ -813,6 +823,20 @@ def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>]> {
     `:` type($x) attr-dict
   }];
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      assert(x() && "expected 'x' operand");
+      assert(v() && "expected 'v' operand");
+      return 2;
+    }
+
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      assert(i < 2 && "invalid index position for an operand");
+      return i == 0 ? x() : v();
+    }
+  }];
 }
 
 def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
@@ -847,6 +871,20 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
     attr-dict
   }];
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      assert(address() && "expected address operand");
+      assert(value() && "expected value operand");
+      return 2;
+    }
+
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      assert(i < 2 && "invalid index position for an operand");
+      return i == 0 ? address() : value();
+    }
+  }];
 }
 
 def AtomicUpdateOp : OpenMP_Op<"atomic.update",
@@ -995,6 +1033,19 @@ def ThreadprivateOp : OpenMP_Op<"threadprivate"> {
   let results = (outs OpenMP_PointerLikeType:$tls_addr);
   let assemblyFormat = [{
     $sym_addr `:` type($sym_addr) `->` type($tls_addr) attr-dict
+  }];
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      assert(sym_addr() && "expected one variable operand");
+      return 1;
+    }
+
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      assert(i == 0 && "invalid index position for an operand");
+      return sym_addr();
+    }
   }];
 }
 

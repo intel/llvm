@@ -234,10 +234,36 @@ endfunction()
 # Generate a Bitcode library for all the compute capabilities the user requested
 add_custom_target(omptarget.devicertl.nvptx)
 foreach(sm ${nvptx_sm_list})
-  compileDeviceRTLLibrary(sm_${sm} nvptx -target nvptx64-nvidia-cuda -Xclang -target-feature -Xclang +ptx61 "-D__CUDA_ARCH__=${sm}0")
+  compileDeviceRTLLibrary(sm_${sm} nvptx -target nvptx64-nvidia-cuda -DLIBOMPTARGET_BC_TARGET -Xclang -target-feature -Xclang +ptx61 "-D__CUDA_ARCH__=${sm}0")
 endforeach()
 
 add_custom_target(omptarget.devicertl.amdgpu)
 foreach(mcpu ${amdgpu_mcpus})
-  compileDeviceRTLLibrary(${mcpu} amdgpu -target amdgcn-amd-amdhsa -D__AMDGCN__ -nogpulib)
+  compileDeviceRTLLibrary(${mcpu} amdgpu -target amdgcn-amd-amdhsa -DLIBOMPTARGET_BC_TARGET -D__AMDGCN__ -nogpulib)
 endforeach()
+
+set(LIBOMPTARGET_LLVM_VERSION "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}")
+if(NOT (CMAKE_CXX_COMPILER_ID MATCHES "[Cc]lang" AND CMAKE_CXX_COMPILER_VERSION VERSION_EQUAL LIBOMPTARGET_LLVM_VERSION))
+  libomptarget_say("Not building static library, CMake compiler '${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}' is not 'Clang ${LIBOMPTARGET_LLVM_VERSION}'.")
+  libomptarget_say("  Use the 'LLVM_ENABLE_RUNTIMES=openmp' option instead")
+  return()
+endif()
+
+# Set the flags to build the device runtime from clang.
+set(clang_lib_flags -fopenmp -fopenmp-cuda-mode -foffload-lto -fvisibility=hidden -Xopenmp-target=nvptx64-nvidia-cuda --cuda-feature=+ptx61 -mllvm -openmp-opt-disable -nocudalib -nogpulib -nostdinc -DSHARED_SCRATCHPAD_SIZE=512)
+foreach(arch ${nvptx_sm_list})
+  set(clang_lib_flags ${clang_lib_flags} --offload-arch=sm_${arch})
+endforeach()
+foreach(arch ${amdgpu_mcpus})
+  set(clang_lib_flags ${clang_lib_flags} --offload-arch=${arch})
+endforeach()
+
+# Build the static library version of the device runtime.
+add_library(omptarget.devicertl STATIC)
+target_compile_features(omptarget.devicertl PRIVATE cxx_std_17)
+target_include_directories(omptarget.devicertl PRIVATE ${include_directory} ${devicertl_base_directory}/../include)
+target_compile_options(omptarget.devicertl PRIVATE ${clang_lib_flags})
+
+install(TARGETS omptarget.devicertl ARCHIVE DESTINATION ${OPENMP_INSTALL_LIBDIR})
+
+add_subdirectory(src)

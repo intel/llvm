@@ -1,15 +1,13 @@
-; TODO: remove -enable-new-pm from RUN-lines once we move to new pass manager
-; by default. This test was designed to test NewPM only.
-
-; RUN: not opt -enable-new-pm -O1 -O2 < %s 2>&1 | FileCheck %s --check-prefix=MULTIPLE
-; RUN: not opt -enable-new-pm -O1 -passes='no-op-module' < %s 2>&1 | FileCheck %s --check-prefix=BOTH
-; RUN: opt -enable-new-pm -O0 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
-; RUN: opt -enable-new-pm -O1 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
-; RUN: opt -enable-new-pm -O2 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
-; RUN: opt -enable-new-pm -O3 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
-; RUN: opt -enable-new-pm -Os < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
-; RUN: opt -enable-new-pm -Oz < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
-; RUN: opt -enable-new-pm -O2 -debug-pass-manager -disable-output < %s 2>&1 | FileCheck %s --check-prefix=AA
+; RUN: not opt -O1 -O2 < %s 2>&1 | FileCheck %s --check-prefix=MULTIPLE
+; RUN: not opt -O1 -passes='no-op-module' < %s 2>&1 | FileCheck %s --check-prefix=BOTH
+; RUN: not opt -O1 --gvn < %s 2>&1 | FileCheck %s --check-prefix=BOTH
+; RUN: opt -O0 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
+; RUN: opt -O1 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
+; RUN: opt -O2 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
+; RUN: opt -O3 < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
+; RUN: opt -Os < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
+; RUN: opt -Oz < %s -S 2>&1 | FileCheck %s --check-prefix=OPT
+; RUN: opt -O2 -debug-pass-manager -disable-output < %s 2>&1 | FileCheck %s --check-prefix=AA
 
 ; MULTIPLE: Cannot specify multiple -O#
 ; BOTH: Cannot specify -O# and --passes=

@@ -825,9 +825,17 @@ bool AArch64DAGToDAGISel::SelectArithExtendedRegister(SDValue N, SDValue &Reg,
 
     Reg = N.getOperand(0);
 
-    // Don't match if free 32-bit -> 64-bit zext can be used instead.
-    if (Ext == AArch64_AM::UXTW &&
-        Reg->getValueType(0).getSizeInBits() == 32 && isDef32(*Reg.getNode()))
+    // Don't match if free 32-bit -> 64-bit zext can be used instead. Use the
+    // isDef32 as a heuristic for when the operand is likely to be a 32bit def.
+    auto isDef32 = [](SDValue N) {
+      unsigned Opc = N.getOpcode();
+      return Opc != ISD::TRUNCATE && Opc != TargetOpcode::EXTRACT_SUBREG &&
+             Opc != ISD::CopyFromReg && Opc != ISD::AssertSext &&
+             Opc != ISD::AssertZext && Opc != ISD::AssertAlign &&
+             Opc != ISD::FREEZE;
+    };
+    if (Ext == AArch64_AM::UXTW && Reg->getValueType(0).getSizeInBits() == 32 &&
+        isDef32(Reg))
       return false;
   }
 
@@ -3148,7 +3156,7 @@ bool AArch64DAGToDAGISel::SelectSVEAddSubImm(SDValue N, MVT VT, SDValue &Imm,
   SDLoc DL(N);
   uint64_t Val = cast<ConstantSDNode>(N)
                      ->getAPIntValue()
-                     .truncOrSelf(VT.getFixedSizeInBits())
+                     .trunc(VT.getFixedSizeInBits())
                      .getZExtValue();
 
   switch (VT.SimpleTy) {
@@ -3188,7 +3196,7 @@ bool AArch64DAGToDAGISel::SelectSVECpyDupImm(SDValue N, MVT VT, SDValue &Imm,
   SDLoc DL(N);
   int64_t Val = cast<ConstantSDNode>(N)
                     ->getAPIntValue()
-                    .truncOrSelf(VT.getFixedSizeInBits())
+                    .trunc(VT.getFixedSizeInBits())
                     .getSExtValue();
 
   switch (VT.SimpleTy) {

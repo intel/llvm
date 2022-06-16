@@ -106,11 +106,10 @@ STATISTIC(BanerjeeIndependence, "Banerjee independence");
 STATISTIC(BanerjeeSuccesses, "Banerjee successes");
 
 static cl::opt<bool>
-    Delinearize("da-delinearize", cl::init(true), cl::Hidden, cl::ZeroOrMore,
+    Delinearize("da-delinearize", cl::init(true), cl::Hidden,
                 cl::desc("Try to delinearize array references."));
 static cl::opt<bool> DisableDelinearizationChecks(
-    "da-disable-delinearization-checks", cl::init(false), cl::Hidden,
-    cl::ZeroOrMore,
+    "da-disable-delinearization-checks", cl::Hidden,
     cl::desc(
         "Disable checks that try to statically verify validity of "
         "delinearized subscripts. Enabling this option may result in incorrect "
@@ -118,7 +117,7 @@ static cl::opt<bool> DisableDelinearizationChecks(
         "dimension to underflow or overflow into another dimension."));
 
 static cl::opt<unsigned> MIVMaxLevelThreshold(
-    "da-miv-max-level-threshold", cl::init(7), cl::Hidden, cl::ZeroOrMore,
+    "da-miv-max-level-threshold", cl::init(7), cl::Hidden,
     cl::desc("Maximum depth allowed for the recursive algorithm used to "
              "explore MIV direction vectors."));
 
@@ -784,6 +783,8 @@ unsigned DependenceInfo::mapSrcLoop(const Loop *SrcLoop) const {
 unsigned DependenceInfo::mapDstLoop(const Loop *DstLoop) const {
   unsigned D = DstLoop->getLoopDepth();
   if (D > CommonLevels)
+    // This tries to make sure that we assign unique numbers to src and dst when
+    // the memory accesses reside in different loops that have the same depth.
     return D - CommonLevels + SrcLevels;
   else
     return D;
@@ -793,10 +794,19 @@ unsigned DependenceInfo::mapDstLoop(const Loop *DstLoop) const {
 // Returns true if Expression is loop invariant in LoopNest.
 bool DependenceInfo::isLoopInvariant(const SCEV *Expression,
                                      const Loop *LoopNest) const {
+  // Unlike ScalarEvolution::isLoopInvariant() we consider an access outside of
+  // any loop as invariant, because we only consier expression evaluation at a
+  // specific position (where the array access takes place), and not across the
+  // entire function.
   if (!LoopNest)
     return true;
-  return SE->isLoopInvariant(Expression, LoopNest) &&
-    isLoopInvariant(Expression, LoopNest->getParentLoop());
+
+  // If the expression is invariant in the outermost loop of the loop nest, it
+  // is invariant anywhere in the loop nest.
+  const Loop *OutermostLoop = LoopNest;
+  while (OutermostLoop->getParentLoop())
+    OutermostLoop = OutermostLoop->getParentLoop();
+  return SE->isLoopInvariant(Expression, OutermostLoop);
 }
 
 
@@ -887,13 +897,25 @@ void DependenceInfo::removeMatchingExtensions(Subscript *Pair) {
   }
 }
 
-// Examine the scev and return true iff it's linear.
+// Examine the scev and return true iff it's affine.
 // Collect any loops mentioned in the set of "Loops".
 bool DependenceInfo::checkSubscript(const SCEV *Expr, const Loop *LoopNest,
                                     SmallBitVector &Loops, bool IsSrc) {
   const SCEVAddRecExpr *AddRec = dyn_cast<SCEVAddRecExpr>(Expr);
   if (!AddRec)
     return isLoopInvariant(Expr, LoopNest);
+
+  // The AddRec must depend on one of the containing loops. Otherwise,
+  // mapSrcLoop and mapDstLoop return indices outside the intended range. This
+  // can happen when a subscript in one loop references an IV from a sibling
+  // loop that could not be replaced with a concrete exit value by
+  // getSCEVAtScope.
+  const Loop *L = LoopNest;
+  while (L && AddRec->getLoop() != L)
+    L = L->getParentLoop();
+  if (!L)
+    return false;
+
   const SCEV *Start = AddRec->getStart();
   const SCEV *Step = AddRec->getStepRecurrence(*SE);
   const SCEV *UB = SE->getBackedgeTakenCount(AddRec->getLoop());

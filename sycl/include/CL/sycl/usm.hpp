@@ -157,9 +157,8 @@ T *malloc_device(
     size_t Count, const device &Dev, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(
-      aligned_alloc_device(std::max(alignof(T), alignof(std::max_align_t)),
-                           Count * sizeof(T), Dev, Ctxt, PropList, CodeLoc));
+  return static_cast<T *>(aligned_alloc_device(alignof(T), Count * sizeof(T),
+                                               Dev, Ctxt, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -175,7 +174,7 @@ T *aligned_alloc_device(
     size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(aligned_alloc_device(std::max(Alignment, alignof(T)),
+  return static_cast<T *>(aligned_alloc_device(max(Alignment, alignof(T)),
                                                Count * sizeof(T), Dev, Ctxt,
                                                PropList, CodeLoc));
 }
@@ -193,9 +192,8 @@ template <typename T>
 T *malloc_host(
     size_t Count, const context &Ctxt, const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(
-      aligned_alloc_host(std::max(alignof(T), alignof(std::max_align_t)),
-                         Count * sizeof(T), Ctxt, PropList, CodeLoc));
+  return static_cast<T *>(aligned_alloc_host(alignof(T), Count * sizeof(T),
+                                             Ctxt, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -210,9 +208,8 @@ T *malloc_shared(
     size_t Count, const device &Dev, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(
-      aligned_alloc_shared(std::max(alignof(T), alignof(std::max_align_t)),
-                           Count * sizeof(T), Dev, Ctxt, PropList, CodeLoc));
+  return static_cast<T *>(aligned_alloc_shared(alignof(T), Count * sizeof(T),
+                                               Dev, Ctxt, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -247,7 +244,7 @@ T *aligned_alloc_shared(
     size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
     const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(aligned_alloc_shared(std::max(Alignment, alignof(T)),
+  return static_cast<T *>(aligned_alloc_shared(max(Alignment, alignof(T)),
                                                Count * sizeof(T), Dev, Ctxt,
                                                PropList, CodeLoc));
 }
@@ -266,9 +263,8 @@ T *malloc(
     size_t Count, const device &Dev, const context &Ctxt, usm::alloc Kind,
     const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(
-      aligned_alloc(std::max(alignof(T), alignof(std::max_align_t)),
-                    Count * sizeof(T), Dev, Ctxt, Kind, PropList, CodeLoc));
+  return static_cast<T *>(aligned_alloc(alignof(T), Count * sizeof(T), Dev,
+                                        Ctxt, Kind, PropList, CodeLoc));
 }
 
 template <typename T>
@@ -285,7 +281,7 @@ T *aligned_alloc(
     size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
     usm::alloc Kind, const property_list &PropList = {},
     const detail::code_location CodeLoc = detail::code_location::current()) {
-  return static_cast<T *>(aligned_alloc(std::max(Alignment, alignof(T)),
+  return static_cast<T *>(aligned_alloc(max(Alignment, alignof(T)),
                                         Count * sizeof(T), Dev, Ctxt, Kind,
                                         PropList, CodeLoc));
 }

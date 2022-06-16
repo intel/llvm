@@ -55,7 +55,6 @@ void initializeOCLToSPIRVLegacyPass(PassRegistry &);
 void initializeOCLTypeToSPIRVLegacyPass(PassRegistry &);
 void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
 void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSPIRBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
 void initializeSPIRVLowerSaddWithOverflowLegacyPass(PassRegistry &);
@@ -175,9 +174,6 @@ ModulePass *createSPIRVLowerBoolLegacy();
 
 /// Create a pass for lowering constant expressions to instructions.
 ModulePass *createSPIRVLowerConstExprLegacy();
-
-/// Create a pass for lowering SPIR 2.0 blocks to functions calls.
-ModulePass *createSPIRVLowerSPIRBlocksLegacy();
 
 /// Create a pass for removing function pointers related to OCL 2.0 blocks
 ModulePass *createSPIRVLowerOCLBlocksLegacy();

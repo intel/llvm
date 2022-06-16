@@ -222,12 +222,12 @@ public:
   }
 
   /// Parse a '|' token.
-  virtual ParseResult parseVerticalBar() override {
+  ParseResult parseVerticalBar() override {
     return parser.parseToken(Token::vertical_bar, "expected '|'");
   }
 
   /// Parse a '|' token if present.
-  virtual ParseResult parseOptionalVerticalBar() override {
+  ParseResult parseOptionalVerticalBar() override {
     return success(parser.consumeIf(Token::vertical_bar));
   }
 
@@ -491,8 +491,10 @@ public:
   }
 
   ParseResult parseDimensionList(SmallVectorImpl<int64_t> &dimensions,
-                                 bool allowDynamic) override {
-    return parser.parseDimensionListRanked(dimensions, allowDynamic);
+                                 bool allowDynamic,
+                                 bool withTrailingX) override {
+    return parser.parseDimensionListRanked(dimensions, allowDynamic,
+                                           withTrailingX);
   }
 
   ParseResult parseXInDimensionList() override {

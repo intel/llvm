@@ -285,6 +285,7 @@ namespace clang {
       ToD = CreateFun(std::forward<Args>(args)...);
       // Keep track of imported Decls.
       Importer.RegisterImportedDecl(FromD, ToD);
+      Importer.SharedState->markAsNewDecl(ToD);
       InitializeImportedDecl(FromD, ToD);
       return false; // A new Decl is created.
     }
@@ -547,6 +548,7 @@ namespace clang {
     ExpectedDecl VisitUsingDecl(UsingDecl *D);
     ExpectedDecl VisitUsingShadowDecl(UsingShadowDecl *D);
     ExpectedDecl VisitUsingDirectiveDecl(UsingDirectiveDecl *D);
+    ExpectedDecl VisitUsingPackDecl(UsingPackDecl *D);
     ExpectedDecl ImportUsingShadowDecls(BaseUsingDecl *D, BaseUsingDecl *ToSI);
     ExpectedDecl VisitUsingEnumDecl(UsingEnumDecl *D);
     ExpectedDecl VisitUnresolvedUsingValueDecl(UnresolvedUsingValueDecl *D);
@@ -4837,6 +4839,35 @@ ExpectedDecl ASTNodeImporter::VisitUsingDirectiveDecl(UsingDirectiveDecl *D) {
   return ToUsingDir;
 }
 
+ExpectedDecl ASTNodeImporter::VisitUsingPackDecl(UsingPackDecl *D) {
+  DeclContext *DC, *LexicalDC;
+  DeclarationName Name;
+  SourceLocation Loc;
+  NamedDecl *ToD = nullptr;
+  if (Error Err = ImportDeclParts(D, DC, LexicalDC, Name, ToD, Loc))
+    return std::move(Err);
+  if (ToD)
+    return ToD;
+
+  auto ToInstantiatedFromUsingOrErr =
+      Importer.Import(D->getInstantiatedFromUsingDecl());
+  if (!ToInstantiatedFromUsingOrErr)
+    return ToInstantiatedFromUsingOrErr.takeError();
+  SmallVector<NamedDecl *, 4> Expansions(D->expansions().size());
+  if (Error Err = ImportArrayChecked(D->expansions(), Expansions.begin()))
+    return std::move(Err);
+
+  UsingPackDecl *ToUsingPack;
+  if (GetImportedOrCreateDecl(ToUsingPack, D, Importer.getToContext(), DC,
+                              cast<NamedDecl>(*ToInstantiatedFromUsingOrErr),
+                              Expansions))
+    return ToUsingPack;
+
+  addDeclToContexts(D, ToUsingPack);
+
+  return ToUsingPack;
+}
+
 ExpectedDecl ASTNodeImporter::VisitUnresolvedUsingValueDecl(
     UnresolvedUsingValueDecl *D) {
   DeclContext *DC, *LexicalDC;
@@ -5993,9 +6024,10 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateSpecializationDecl(
       return TInfoOrErr.takeError();
 
     TemplateArgumentListInfo ToTAInfo;
-    if (Error Err = ImportTemplateArgumentListInfo(
-        D->getTemplateArgsInfo(), ToTAInfo))
-      return std::move(Err);
+    if (const ASTTemplateArgumentListInfo *Args = D->getTemplateArgsInfo()) {
+      if (Error Err = ImportTemplateArgumentListInfo(*Args, ToTAInfo))
+        return std::move(Err);
+    }
 
     using PartVarSpecDecl = VarTemplatePartialSpecializationDecl;
     // Create a new specialization.

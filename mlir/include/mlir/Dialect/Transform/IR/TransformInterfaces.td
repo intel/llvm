@@ -47,6 +47,32 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
           "::mlir::transform::TransformState &":$state
     )>,
   ];
+
+  let extraSharedClassDeclaration = [{
+    /// Emits a generic transform error for the current transform operation
+    /// targeting the given Payload IR operation and returns failure. Should
+    /// be only used as a last resort when the transformation itself provides
+    /// no further indication as to the reason of the failure.
+    ::mlir::LogicalResult reportUnknownTransformError(
+        ::mlir::Operation *target) {
+      ::mlir::InFlightDiagnostic diag = $_op->emitError() << "failed to apply";
+      diag.attachNote(target->getLoc()) << "attempted to apply to this op";
+      return diag;
+    }
+  }];
+}
+
+def FunctionalStyleTransformOpTrait
+    : NativeOpTrait<"FunctionalStyleTransformOpTrait"> {
+  let cppNamespace = "::mlir::transform";
+}
+
+def TransformEachOpTrait : NativeOpTrait<"TransformEachOpTrait"> {
+  let cppNamespace = "::mlir::transform";
+}
+
+def NavigationTransformOpTrait : NativeOpTrait<"NavigationTransformOpTrait"> {
+  let cppNamespace = "::mlir::transform";
 }
 
 #endif // MLIR_DIALECT_TRANSFORM_IR_TRANSFORM_INTERFACES_TD

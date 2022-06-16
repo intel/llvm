@@ -369,7 +369,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     Streamer.emitLabel(C.getOrCreateSymbol(StringRef("OBJC_IMAGE_INFO")));
     Streamer.emitInt32(Version);
     Streamer.emitInt32(Flags);
-    Streamer.AddBlankLine();
+    Streamer.addBlankLine();
   }
 
   emitCGProfileMetadata(Streamer, M);
@@ -449,7 +449,7 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
       Name == ".llvmbc" || Name == ".llvmcmd")
     return SectionKind::getMetadata();
 
-  if (Name.startswith(".llvm.offloading"))
+  if (Name == ".llvm.offloading")
     return SectionKind::getExclude();
 
   if (Name.empty() || Name[0] != '.') return K;
@@ -1231,7 +1231,7 @@ void TargetLoweringObjectFileMachO::emitModuleMetadata(MCStreamer &Streamer,
                      getOrCreateSymbol(StringRef("L_OBJC_IMAGE_INFO")));
   Streamer.emitInt32(VersionVal);
   Streamer.emitInt32(ImageInfoFlags);
-  Streamer.AddBlankLine();
+  Streamer.addBlankLine();
 }
 
 static void checkMachOComdat(const GlobalValue *GV) {
@@ -1781,7 +1781,7 @@ void TargetLoweringObjectFileCOFF::emitModuleMetadata(MCStreamer &Streamer,
     Streamer.emitLabel(C.getOrCreateSymbol(StringRef("OBJC_IMAGE_INFO")));
     Streamer.emitInt32(Version);
     Streamer.emitInt32(Flags);
-    Streamer.AddBlankLine();
+    Streamer.addBlankLine();
   }
 
   emitCGProfileMetadata(Streamer, M);
@@ -2593,8 +2593,8 @@ MCSection *TargetLoweringObjectFileGOFF::SelectSectionForGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
   auto *Symbol = TM.getSymbol(GO);
   if (Kind.isBSS())
-    return getContext().getGOFFSection(Symbol->getName(),
-                                       SectionKind::getBSS());
+    return getContext().getGOFFSection(Symbol->getName(), SectionKind::getBSS(),
+                                       nullptr, nullptr);
 
   return getContext().getObjectFileInfo()->getTextSection();
 }

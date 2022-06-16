@@ -597,6 +597,8 @@ private:
   CFGBlock *VisitObjCMessageExpr(ObjCMessageExpr *E, AddStmtChoice asc);
   CFGBlock *VisitPseudoObjectExpr(PseudoObjectExpr *E);
   CFGBlock *VisitReturnStmt(Stmt *S);
+  CFGBlock *VisitCoroutineSuspendExpr(CoroutineSuspendExpr *S,
+                                      AddStmtChoice asc);
   CFGBlock *VisitSEHExceptStmt(SEHExceptStmt *S);
   CFGBlock *VisitSEHFinallyStmt(SEHFinallyStmt *S);
   CFGBlock *VisitSEHLeaveStmt(SEHLeaveStmt *S);
@@ -2019,13 +2021,8 @@ LocalScope* CFGBuilder::addLocalScopeForVarDecl(VarDecl *VD,
     return Scope;
 
   // Check if variable is local.
-  switch (VD->getStorageClass()) {
-  case SC_None:
-  case SC_Auto:
-  case SC_Register:
-    break;
-  default: return Scope;
-  }
+  if (!VD->hasLocalStorage())
+    return Scope;
 
   if (BuildOpts.AddImplicitDtors) {
     if (!hasTrivialDestructor(VD) || BuildOpts.AddScopes) {
@@ -2301,6 +2298,10 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc,
     case Stmt::ReturnStmtClass:
     case Stmt::CoreturnStmtClass:
       return VisitReturnStmt(S);
+
+    case Stmt::CoyieldExprClass:
+    case Stmt::CoawaitExprClass:
+      return VisitCoroutineSuspendExpr(cast<CoroutineSuspendExpr>(S), asc);
 
     case Stmt::SEHExceptStmtClass:
       return VisitSEHExceptStmt(cast<SEHExceptStmt>(S));
@@ -3142,8 +3143,40 @@ CFGBlock *CFGBuilder::VisitReturnStmt(Stmt *S) {
       return Visit(O, AddStmtChoice::AlwaysAdd, /*ExternallyDestructed=*/true);
     return Block;
   }
-  // co_return
-  return VisitChildren(S);
+
+  CoreturnStmt *CRS = cast<CoreturnStmt>(S);
+  auto *B = Block;
+  if (CFGBlock *R = Visit(CRS->getPromiseCall()))
+    B = R;
+
+  if (Expr *RV = CRS->getOperand())
+    if (RV->getType()->isVoidType() && !isa<InitListExpr>(RV))
+      // A non-initlist void expression.
+      if (CFGBlock *R = Visit(RV))
+        B = R;
+
+  return B;
+}
+
+CFGBlock *CFGBuilder::VisitCoroutineSuspendExpr(CoroutineSuspendExpr *E,
+                                                AddStmtChoice asc) {
+  // We're modelling the pre-coro-xform CFG. Thus just evalate the various
+  // active components of the co_await or co_yield. Note we do not model the
+  // edge from the builtin_suspend to the exit node.
+  if (asc.alwaysAdd(*this, E)) {
+    autoCreateBlock();
+    appendStmt(Block, E);
+  }
+  CFGBlock *B = Block;
+  if (auto *R = Visit(E->getResumeExpr()))
+    B = R;
+  if (auto *R = Visit(E->getSuspendExpr()))
+    B = R;
+  if (auto *R = Visit(E->getReadyExpr()))
+    B = R;
+  if (auto *R = Visit(E->getCommonExpr()))
+    B = R;
+  return B;
 }
 
 CFGBlock *CFGBuilder::VisitSEHExceptStmt(SEHExceptStmt *ES) {

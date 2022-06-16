@@ -5,7 +5,7 @@
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-!Filename = type !llvm.ptr<i8>
+!Filename = !llvm.ptr<i8>
 
 #DenseMatrix = #sparse_tensor.encoding<{
   dimLevelType = [ "dense", "dense" ],
@@ -46,7 +46,7 @@ module {
     %c1 = arith.constant 1 : index
     %d0 = tensor.dim %arga, %c0 : tensor<?x?xf64, #SparseMatrix>
     %d1 = tensor.dim %arga, %c1 : tensor<?x?xf64, #SparseMatrix>
-    %init = sparse_tensor.init [%d0, %d1] : tensor<?x?xf64, #DenseMatrix>
+    %init = bufferization.alloc_tensor(%d0, %d1) : tensor<?x?xf64, #DenseMatrix>
     %0 = linalg.generic #trait_assign
        ins(%arga: tensor<?x?xf64, #SparseMatrix>)
       outs(%init: tensor<?x?xf64, #DenseMatrix>) {

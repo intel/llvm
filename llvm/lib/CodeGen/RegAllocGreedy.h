@@ -164,8 +164,6 @@ private:
 
   // Shortcuts to some useful interface.
   const TargetInstrInfo *TII;
-  const TargetRegisterInfo *TRI;
-  RegisterClassInfo RCI;
 
   // analyses
   SlotIndexes *Indexes;
@@ -322,6 +320,10 @@ private:
   /// Function
   ArrayRef<uint8_t> RegCosts;
 
+  /// Flags for the live range priority calculation, determined once per
+  /// machine function.
+  bool RegClassPriorityTrumpsGlobalness;
+
 public:
   RAGreedy(const RegClassFilterFunc F = allocateAllRegClasses);
 
@@ -368,21 +370,11 @@ private:
   bool addSplitConstraints(InterferenceCache::Cursor, BlockFrequency &);
   bool addThroughConstraints(InterferenceCache::Cursor, ArrayRef<unsigned>);
   bool growRegion(GlobalSplitCandidate &Cand);
-  bool splitCanCauseEvictionChain(Register Evictee, GlobalSplitCandidate &Cand,
-                                  unsigned BBNumber,
-                                  const AllocationOrder &Order);
   BlockFrequency calcGlobalSplitCost(GlobalSplitCandidate &,
                                      const AllocationOrder &Order);
   bool calcCompactRegion(GlobalSplitCandidate &);
   void splitAroundRegion(LiveRangeEdit &, ArrayRef<unsigned>);
   void calcGapWeights(MCRegister, SmallVectorImpl<float> &);
-  bool canEvictInterferenceInRange(const LiveInterval &VirtReg,
-                                   MCRegister PhysReg, SlotIndex Start,
-                                   SlotIndex End, EvictionCost &MaxCost) const;
-  MCRegister getCheapestEvicteeWeight(const AllocationOrder &Order,
-                                      const LiveInterval &VirtReg,
-                                      SlotIndex Start, SlotIndex End,
-                                      float *BestEvictWeight) const;
   void evictInterference(const LiveInterval &, MCRegister,
                          SmallVectorImpl<Register> &);
   bool mayRecolorAllInterferences(MCRegister PhysReg,

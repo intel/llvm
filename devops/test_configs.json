@@ -59,6 +59,18 @@
       "container_options": "--device=/dev/dri --device=/dev/kfd",
       "check_sycl_all": "hip:gpu,host",
       "cmake_args": "-DHIP_PLATFORM=\"AMD\" -DAMD_ARCH=\"gfx1031\""
+    },
+    {
+      "config": "cuda",
+      "name": "CUDA LLVM Test Suite",
+      "runs-on": [
+        "Linux",
+        "cuda"
+      ],
+      "image": "${{ inputs.cuda_image }}",
+      "container_options": "--gpus all",
+      "check_sycl_all": "cuda:gpu,host",
+      "cmake_args": ""
     }
   ]
 }
