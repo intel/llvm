@@ -12,11 +12,11 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/fineg74/vc-intrinsics.git)
-    # Author: Victor Mustya <victor.mustya@intel.com>
-    # Date:   Tue, 3 May 2022 17:56:40 +0000
-    # Remove default switch labels for LSC-related functions
-    set(LLVMGenXIntrinsics_GIT_TAG 62809c570bbdcbea7acfee7954c39e27983c5a92)
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
+    # Author: Gregory Fine <gregory.fine@intel.com>
+    # Date:   Wed, 6 July 2022 16:00:33 +0000
+    # Add support for LLVM_LINK_LLVM_DYLIB option
+    set(LLVMGenXIntrinsics_GIT_TAG c456ff05bd8e11458772acef20e59ef18aa7876d)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
