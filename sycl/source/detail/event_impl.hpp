@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/host_profiling_info.hpp>
 #include <CL/sycl/detail/pi.hpp>

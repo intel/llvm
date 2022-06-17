@@ -132,7 +132,7 @@ const async_handler &context_impl::get_async_handler() const {
 }
 
 template <>
-cl_uint context_impl::get_info<info::context::reference_count>() const {
+uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
   return get_context_info<info::context::reference_count>::get(

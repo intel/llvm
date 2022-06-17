@@ -86,41 +86,10 @@ using pi_native_handle = uintptr_t;
 // TODO: populate PI enums.
 //
 typedef enum {
-  PI_SUCCESS = 0,
-  PI_ERROR_INVALID_KERNEL_NAME = -46,
-  PI_ERROR_INVALID_OPERATION = -59,
-  PI_ERROR_INVALID_KERNEL = -48,
-  PI_ERROR_INVALID_QUEUE_PROPERTIES = -35,
-  PI_ERROR_INVALID_VALUE = -30,
-  PI_ERROR_INVALID_CONTEXT = -34,
-  PI_ERROR_INVALID_PLATFORM = -32,
-  PI_ERROR_INVALID_DEVICE = -33,
-  PI_ERROR_INVALID_BINARY = -42,
-  PI_ERROR_INVALID_QUEUE = -36,
-  PI_ERROR_OUT_OF_HOST_MEMORY = -6,
-  PI_ERROR_INVALID_PROGRAM = -44,
-  PI_ERROR_INVALID_PROGRAM_EXECUTABLE = -45,
-  PI_ERROR_INVALID_SAMPLER = -41,
-  PI_ERROR_INVALID_BUFFER_SIZE = -61,
-  PI_ERROR_INVALID_MEM_OBJECT = -38,
-  PI_ERROR_OUT_OF_RESOURCES = -5,
-  PI_ERROR_INVALID_EVENT = -58,
-  PI_ERROR_INVALID_EVENT_WAIT_LIST = -57,
-  PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET = -13,
-  PI_ERROR_BUILD_PROGRAM_FAILURE = -11,
-  PI_ERROR_INVALID_WORK_GROUP_SIZE = -54,
-  PI_ERROR_COMPILER_NOT_AVAILABLE = -3,
-  PI_ERROR_PROFILING_INFO_NOT_AVAILABLE = -7,
-  PI_ERROR_DEVICE_NOT_FOUND = -1,
-  PI_ERROR_INVALID_WORK_ITEM_SIZE = -55,
-  PI_ERROR_INVALID_WORK_DIMENSION = -53,
-  PI_ERROR_INVALID_KERNEL_ARGS = -52,
-  PI_ERROR_INVALID_IMAGE_SIZE = -40,
-  PI_ERROR_INVALID_ARG_VALUE = -50,
-  PI_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR = -39,
-  PI_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = -10,
-  PI_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = -4,
-  PI_ERROR_LINK_PROGRAM_FAILURE = -17,
+#define _PI_ERRC(NAME, VAL) NAME = VAL,
+#include <CL/sycl/detail/pi_error.def>
+#undef _PI_ERRC
+
   PI_ERROR_PLUGIN_SPECIFIC_ERROR =
       -996, ///< PI_ERROR_PLUGIN_SPECIFIC_ERROR indicates
             ///< that an backend spcific error or
@@ -180,8 +149,9 @@ typedef enum : pi_uint64 {
   PI_DEVICE_TYPE_ALL = 0xFFFFFFFF, ///< All devices available in the PI plugin.
   PI_DEVICE_TYPE_CPU = (1 << 1),   ///< A PI device that is the host processor.
   PI_DEVICE_TYPE_GPU = (1 << 2),   ///< A PI device that is a GPU.
-  PI_DEVICE_TYPE_ACC = (1 << 3)    ///< A PI device that is a
+  PI_DEVICE_TYPE_ACC = (1 << 3),   ///< A PI device that is a
                                    ///< dedicated accelerator.
+  PI_DEVICE_TYPE_CUSTOM = (1 << 4) ///< A PI device that is a custom device.
 } _pi_device_type;
 
 typedef enum {
@@ -321,6 +291,7 @@ typedef enum {
 
 typedef enum {
   PI_CONTEXT_INFO_DEVICES = 0x1081,
+  PI_CONTEXT_INFO_PLATFORM = 0x1084,
   PI_CONTEXT_INFO_NUM_DEVICES = 0x1083,
   PI_CONTEXT_INFO_PROPERTIES = 0x1082,
   PI_CONTEXT_INFO_REFERENCE_COUNT = 0x1080,
@@ -357,16 +328,6 @@ typedef enum {
   // The number of registers used by the compiled kernel (device specific)
   PI_KERNEL_GROUP_INFO_NUM_REGS = 0x10112
 } _pi_kernel_group_info;
-
-typedef enum {
-  PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT = (1 << 7),
-  PI_FP_ROUND_TO_NEAREST = (1 << 2),
-  PI_FP_ROUND_TO_ZERO = (1 << 3),
-  PI_FP_ROUND_TO_INF = (1 << 4),
-  PI_FP_INF_NAN = (1 << 1),
-  PI_FP_DENORM = (1 << 0),
-  PI_FP_FMA = (1 << 5)
-} _pi_fp_capabilities;
 
 typedef enum {
   PI_IMAGE_INFO_FORMAT = 0x1110,
@@ -608,7 +569,6 @@ using pi_image_info = _pi_image_info;
 using pi_kernel_info = _pi_kernel_info;
 using pi_kernel_group_info = _pi_kernel_group_info;
 using pi_kernel_sub_group_info = _pi_kernel_sub_group_info;
-using pi_fp_capabilities = _pi_fp_capabilities;
 using pi_event_info = _pi_event_info;
 using pi_command_type = _pi_command_type;
 using pi_mem_type = _pi_mem_type;
@@ -630,6 +590,10 @@ using pi_profiling_info = _pi_profiling_info;
 using pi_device_partition_property = intptr_t;
 static constexpr pi_device_partition_property PI_DEVICE_PARTITION_EQUALLY =
     0x1086;
+static constexpr pi_device_partition_property PI_DEVICE_PARTITION_BY_COUNTS =
+    0x1087;
+static constexpr pi_device_partition_property
+    PI_DEVICE_PARTITION_BY_COUNTS_LIST_END = 0x0;
 static constexpr pi_device_partition_property
     PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN = 0x1088;
 
@@ -637,8 +601,33 @@ static constexpr pi_device_partition_property
 using pi_device_affinity_domain = pi_bitfield;
 static constexpr pi_device_affinity_domain PI_DEVICE_AFFINITY_DOMAIN_NUMA =
     (1 << 0);
+static constexpr pi_device_affinity_domain PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE =
+    (1 << 1);
+static constexpr pi_device_affinity_domain PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE =
+    (1 << 2);
+static constexpr pi_device_affinity_domain PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE =
+    (1 << 3);
+static constexpr pi_device_affinity_domain PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE =
+    (1 << 4);
 static constexpr pi_device_affinity_domain
     PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE = (1 << 5);
+
+// For compatibility with OpenCL define this not as enum.
+using pi_device_fp_config = pi_bitfield;
+static constexpr pi_device_fp_config PI_FP_DENORM = (1 << 0);
+static constexpr pi_device_fp_config PI_FP_INF_NAN = (1 << 1);
+static constexpr pi_device_fp_config PI_FP_ROUND_TO_NEAREST = (1 << 2);
+static constexpr pi_device_fp_config PI_FP_ROUND_TO_ZERO = (1 << 3);
+static constexpr pi_device_fp_config PI_FP_ROUND_TO_INF = (1 << 4);
+static constexpr pi_device_fp_config PI_FP_FMA = (1 << 5);
+static constexpr pi_device_fp_config PI_FP_SOFT_FLOAT = (1 << 6);
+static constexpr pi_device_fp_config PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT =
+    (1 << 7);
+
+// For compatibility with OpenCL define this not as enum.
+using pi_device_exec_capabilities = pi_bitfield;
+static constexpr pi_device_exec_capabilities PI_EXEC_KERNEL = (1 << 0);
+static constexpr pi_device_exec_capabilities PI_EXEC_NATIVE_KERNEL = (1 << 1);
 
 // Entry type, matches OpenMP for compatibility
 struct _pi_offload_entry_struct {
