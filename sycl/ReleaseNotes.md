@@ -19,6 +19,7 @@ Release notes for commit range f34ba2c..4043dda
   - Added `-f[no-]sycl-device-lib-jit-link` option to control jit linking of SYCL device libraries. [dfb37a8] [c946286]
   - Added support for the new FPGA attribute `[[intel::fpga_pipeline(N)]]` for loop pipelining. [92aadf3]
   - Added `assert` support for Windows NVPTX. [f29b498]
+  - Added support for [compile-time property list extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc). [87f60f6][1984e74][a2583ec][cdf561a][d2982c6][35c2e00]
 
 ### SYCL Library
   - Added support for Nvidia MMA for `bf16`, mixed precision int `((u)int8/int32)`, and mixed precision float `(half/float)`. [5373362]
@@ -197,7 +198,7 @@ Release notes for commit range f34ba2c..4043dda
     - Moved the deprecated extensions to the "sycl/doc/extensions/deprecated". [09be931]
     - Moved internal design docs and BKMs to sycl/doc/developer. [edbfc99]
     - Moved SPIR-V and OpenCL extensions to "doc/design". [64e92cb]
-  - Updated [CompileTimeProperties](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompileTimeProperties.md) design regarding usage of `__sycl_detail__::add_ir_attributes_kernel_parameter`. [2359e81]
+  - Updated [CompileTimeProperties](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompileTimeProperties.md) design documentation. [2359e81][f6420c7]
   - Clarified which SPIR-V decorations the `sycl-post-link` tool generates for each device global variable. [3c3b485]
   - Updated the design for device global variables for variables that are "shadowed" in an unnamed namespace. [e211d73]
   - Clarified the specification that device global with `SYCL_EXTERNAL` is allowed. [0d95d6f]
