@@ -18,6 +18,7 @@
 #include <llvm/Support/FileSystem.h>
 #include <optional>
 #include <vector>
+#include <fstream>
 
 #define ASSERT_NO_ERROR(x)                                                     \
   if (std::error_code EC = x) {                                                \

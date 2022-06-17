@@ -9,7 +9,7 @@
 #include <detail/plugin.hpp>
 #include <functional>
 #include <optional>
-
+#include <iostream>
 namespace pi {
 inline std::optional<cl::sycl::detail::plugin>
 initializeAndGet(cl::sycl::backend backend) {

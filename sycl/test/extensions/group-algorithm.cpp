@@ -16,6 +16,7 @@
 #include <cassert>
 #include <limits>
 #include <numeric>
+#include <iostream>
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 

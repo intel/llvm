@@ -26,7 +26,7 @@
 #include <bitset>
 #include <cstdarg>
 #include <cstring>
-#include <iostream>
+#include <cstdio>
 #include <map>
 #include <sstream>
 #include <stddef.h>

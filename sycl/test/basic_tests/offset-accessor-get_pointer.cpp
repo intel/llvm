@@ -13,6 +13,7 @@
 
 #include <CL/sycl.hpp>
 #include <vector>
+#include <iostream>
 using namespace cl::sycl;
 
 void test_across_ranges() {

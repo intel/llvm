@@ -14,7 +14,8 @@
 #include <CL/sycl/exception.hpp>
 
 #include <cstring>
-#include <iostream>
+#include <cstdio>
+//#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

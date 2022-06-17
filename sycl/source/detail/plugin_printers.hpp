@@ -19,44 +19,13 @@ namespace sycl {
 namespace detail {
 namespace pi {
 
-inline void __plugin__print(const bool val){
-  printf("%s",val?"true":"false");
-}
-// inline void __plugin__print(const float val){
-//   printf("%f",val);
-// }
-inline void __plugin__print(const double val){
-  printf("%lf",val);
-}
-inline void __plugin__print(const long double val){
-  printf("%Lf",val);
-}
-// inline void __plugin__print(const short val){
-//   printf("%hi",val);
-// }
-// inline void __plugin__print(const unsigned short val){
-//   printf("%hu",val);
-// }
-// inline void __puglin__print(const int val){
-//   printf("%d",val);
-// }
-// inline void __plugin__print(const unsigned int val){
-//   printf("%u",val);
-// }
-inline void __plugin__print(const long val){
-  printf("%ld",val);
-}
-inline void __plugin__print(const unsigned long val){
-  printf("%lu",val);
-}
-inline void __plugin__print(const std::string val){
-  printf("%s",val.c_str());
-}
+
+//Note:Casting val to unsigned long may not work for all function specializations
 template <typename T>
 inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
 print(T val) {
   printf("<unknown> : ");
-  std::cout << val;
+  printf("%lu",(unsigned long)val);
   printf("\n");
 }
 template <typename T>
