@@ -133,9 +133,7 @@ public:
 #endif
   }
 
-  size_t get_local_id(int dimention) const {
-    return get_local_id()[dimention];
-  }
+  size_t get_local_id(int dimention) const { return get_local_id()[dimention]; }
 
   size_t get_local_linear_id() const {
     return get_local_linear_id_impl<Dimensions>();
