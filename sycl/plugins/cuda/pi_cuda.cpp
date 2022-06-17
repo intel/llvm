@@ -3926,7 +3926,7 @@ pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                 bool ownNativeHandle,
                                                 pi_event *event) {
   (void)ownNativeHandle;
-  assert(ownNativeHandle == false);
+  assert(!ownNativeHandle);
 
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
