@@ -14,7 +14,66 @@
 ///
 /// \ingroup sycl_pi_ocl
 
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
+#include <CL/sycl/detail/cl.h>
+#include <CL/sycl/detail/pi.h>
 #include <pi_opencl.hpp>
+
+#include <algorithm>
+#include <cassert>
+#include <cstring>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \
+  if (err != CL_SUCCESS) {                                                     \
+    if (ptr != nullptr)                                                        \
+      *ptr = nullptr;                                                          \
+    return cast<pi_result>(reterr);                                            \
+  }
+
+// Want all the needed casts be explicit, do not define conversion operators.
+template <class To, class From> To cast(From value) {
+  // TODO: see if more sanity checks are possible.
+  static_assert(sizeof(From) == sizeof(To), "cast failed size check");
+  return (To)(value);
+}
+
+// Older versions of GCC don't like "const" here
+#if defined(__GNUC__) && (__GNUC__ < 7 || (__GNU__C == 7 && __GNUC_MINOR__ < 2))
+#define CONSTFIX constexpr
+#else
+#define CONSTFIX const
+#endif
+
+// Names of USM functions that are queried from OpenCL
+CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
+CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
+CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
+CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
+CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
+CONSTFIX char clCreateBufferWithPropertiesName[] =
+    "clCreateBufferWithPropertiesINTEL";
+CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
+CONSTFIX char clEnqueueMemsetName[] = "clEnqueueMemsetINTEL";
+CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
+CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
+CONSTFIX char clSetProgramSpecializationConstantName[] =
+    "clSetProgramSpecializationConstant";
+CONSTFIX char clGetDeviceFunctionPointerName[] =
+    "clGetDeviceFunctionPointerINTEL";
+
+#undef CONSTFIX
+
+// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+constexpr size_t MaxMessageSize = 256;
+thread_local pi_result ErrorMessageCode = PI_SUCCESS;
+thread_local char ErrorMessage[MaxMessageSize];
 
 // Utility function for setting a message and warning
 [[maybe_unused]] static void setErrorMessage(const char *message,
