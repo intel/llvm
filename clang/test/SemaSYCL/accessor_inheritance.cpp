@@ -44,7 +44,7 @@ int main() {
 // CHECK: ParmVarDecl{{.*}} used _arg_C 'int'
 
 // Check lambda initialization
-// CHECK: VarDecl {{.*}} used '(lambda at {{.*}}accessor_inheritance.cpp
+// CHECK: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}accessor_inheritance.cpp
 // CHECK-NEXT: InitListExpr {{.*}}
 // CHECK-NEXT: InitListExpr {{.*}} 'AccessorDerived'
 // CHECK-NEXT: InitListExpr {{.*}} 'AccessorBase'

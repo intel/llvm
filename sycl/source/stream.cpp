@@ -27,7 +27,7 @@ static size_t CheckMaxStatementSize(const size_t &MaxStatementSize) {
     throw sycl::invalid_parameter_error(
         "Maximum statement size exceeds limit of " +
             std::to_string(MAX_STATEMENT_SIZE) + " bytes.",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
   }
   return MaxStatementSize;
 }

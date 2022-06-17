@@ -31,7 +31,7 @@ static constexpr auto WarningLevelEnvVar = "SYCL_RT_WARNING_LEVEL";
 static bool LogRequested = false;
 
 static pi_result redefinedProgramGetBuildInfo(
-    pi_program program, pi_device device, cl_program_build_info param_name,
+    pi_program program, pi_device device, pi_program_build_info param_name,
     size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
 
   if (param_value_size_ret) {

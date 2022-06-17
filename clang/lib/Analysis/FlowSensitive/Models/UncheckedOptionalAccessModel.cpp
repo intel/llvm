@@ -43,12 +43,13 @@ DeclarationMatcher optionalClass() {
       hasTemplateArgument(0, refersToType(type().bind("T"))));
 }
 
-auto hasOptionalType() { return hasType(optionalClass()); }
-
-auto hasOptionalOrAliasType() {
+auto optionalOrAliasType() {
   return hasUnqualifiedDesugaredType(
       recordType(hasDeclaration(optionalClass())));
 }
+
+/// Matches any of the spellings of the optional types and sugar, aliases, etc.
+auto hasOptionalType() { return hasType(optionalOrAliasType()); }
 
 auto isOptionalMemberCallWithName(
     llvm::StringRef MemberName,
@@ -164,9 +165,8 @@ auto isValueOrNotEqX() {
 }
 
 auto isCallReturningOptional() {
-  return callExpr(callee(functionDecl(
-      returns(anyOf(hasOptionalOrAliasType(),
-                    referenceType(pointee(hasOptionalOrAliasType())))))));
+  return callExpr(callee(functionDecl(returns(anyOf(
+      optionalOrAliasType(), referenceType(pointee(optionalOrAliasType())))))));
 }
 
 /// Creates a symbolic value for an `optional` value using `HasValueVal` as the
@@ -178,9 +178,9 @@ StructValue &createOptionalValue(Environment &Env, BoolValue &HasValueVal) {
 }
 
 /// Returns the symbolic value that represents the "has_value" property of the
-/// optional value `Val`. Returns null if `Val` is null.
-BoolValue *getHasValue(Value *Val) {
-  if (auto *OptionalVal = cast_or_null<StructValue>(Val)) {
+/// optional value `OptionalVal`. Returns null if `OptionalVal` is null.
+BoolValue *getHasValue(Value *OptionalVal) {
+  if (OptionalVal) {
     return cast<BoolValue>(OptionalVal->getProperty("has_value"));
   }
   return nullptr;
@@ -221,8 +221,8 @@ int countOptionalWrappers(const ASTContext &ASTCtx, QualType Type) {
 void initializeOptionalReference(const Expr *OptionalExpr,
                                  const MatchFinder::MatchResult &,
                                  LatticeTransferState &State) {
-  if (auto *OptionalVal = cast_or_null<StructValue>(
-          State.Env.getValue(*OptionalExpr, SkipPast::Reference))) {
+  if (auto *OptionalVal =
+          State.Env.getValue(*OptionalExpr, SkipPast::Reference)) {
     if (OptionalVal->getProperty("has_value") == nullptr) {
       OptionalVal->setProperty("has_value", State.Env.makeAtomicBoolValue());
     }
@@ -231,8 +231,8 @@ void initializeOptionalReference(const Expr *OptionalExpr,
 
 void transferUnwrapCall(const Expr *UnwrapExpr, const Expr *ObjectExpr,
                         LatticeTransferState &State) {
-  if (auto *OptionalVal = cast_or_null<StructValue>(
-          State.Env.getValue(*ObjectExpr, SkipPast::ReferenceThenPointer))) {
+  if (auto *OptionalVal =
+          State.Env.getValue(*ObjectExpr, SkipPast::ReferenceThenPointer)) {
     auto *HasValueVal = getHasValue(OptionalVal);
     assert(HasValueVal != nullptr);
 
@@ -485,8 +485,9 @@ auto buildTransferMatchSwitch(
   return MatchSwitchBuilder<LatticeTransferState>()
       // Attach a symbolic "has_value" state to optional values that we see for
       // the first time.
-      .CaseOf<Expr>(expr(anyOf(declRefExpr(), memberExpr()), hasOptionalType()),
-                    initializeOptionalReference)
+      .CaseOf<Expr>(
+          expr(anyOf(declRefExpr(), memberExpr()), hasOptionalType()),
+          initializeOptionalReference)
 
       // make_optional
       .CaseOf<CallExpr>(isMakeOptionalCall(), transferMakeOptionalCall)

@@ -71,6 +71,11 @@ def FlangOnlyOption : OptionFlag;
 // FC1Option - This option should be accepted by flang -fc1.
 def FC1Option : OptionFlag;
 
+// Deprecated - The option is deprecated, but still supported.  A
+// diagnostic is emitted about the potential for the option to be removed
+// in an upcoming release.
+def Deprecated : OptionFlag;
+
 // A short name to show in documentation. The name will be interpreted as rST.
 class DocName<string name> { string DocName = name; }
 
@@ -2204,6 +2209,8 @@ def fms_memptr_rep_EQ : Joined<["-"], "fms-memptr-rep=">, Group<f_Group>, Flags<
   NormalizedValues<["PPTMK_FullGeneralitySingleInheritance", "PPTMK_FullGeneralityMultipleInheritance",
                     "PPTMK_FullGeneralityVirtualInheritance"]>,
   MarshallingInfoEnum<LangOpts<"MSPointerToMemberRepresentationMethod">, "PPTMK_BestCase">;
+def fms_kernel : Flag<["-"], "fms-kernel">, Group<f_Group>, Flags<[CC1Option, NoDriverOption]>,
+  MarshallingInfoFlag<LangOpts<"Kernel">>;
 // __declspec is enabled by default for the PS4 by the driver, and also
 // enabled for Microsoft Extensions or Borland Extensions, here.
 //
@@ -2783,10 +2790,14 @@ def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
-def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">, Flags<[NoXarchOption, CoreOption]>,
-  HelpText<"Specify comma-separated list of triple and device binary image pairs to add to the final SYCL binary">;
-def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
-  HelpText<"Specify comma-separated list of triples SYCL offloading targets to produce linked device images">;
+def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,
+  Flags<[NoXarchOption, CoreOption, Deprecated]>,
+  HelpText<"Specify comma-separated list of triple and device binary image "
+           "pairs to add to the final SYCL binary (deprecated)">;
+def fsycl_link_targets_EQ : CommaJoined<["-"], "fsycl-link-targets=">,
+  Flags<[NoXarchOption, CC1Option, CoreOption, Deprecated]>,
+  HelpText<"Specify comma-separated list of triples SYCL offloading targets "
+           "to produce linked device images (deprecated)">;
 def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
    Flags<[CC1Option, CoreOption]>, HelpText<"Perform SYCL device code split: per_kernel (device code module is "
   "created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)) | off (no device code split). | auto (use heuristic to select the best way of splitting device code). "
@@ -4120,6 +4131,8 @@ def print_rocm_search_dirs : Flag<["-", "--"], "print-rocm-search-dirs">,
   HelpText<"Print the paths used for finding ROCm installation">;
 def print_runtime_dir : Flag<["-", "--"], "print-runtime-dir">,
   HelpText<"Print the directory pathname containing clangs runtime libraries">;
+def print_diagnostic_options : Flag<["-", "--"], "print-diagnostic-options">,
+  HelpText<"Print all of Clang's warning options">;
 def private__bundle : Flag<["-"], "private_bundle">;
 def pthreads : Flag<["-"], "pthreads">;
 defm pthread : BoolOption<"", "pthread",
@@ -4894,9 +4907,12 @@ def fsycl : Flag<["-"], "fsycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl
 def fno_sycl : Flag<["-"], "fno-sycl">, Flags<[NoXarchOption, CoreOption]>, Group<sycl_Group>,
   HelpText<"Disables SYCL kernels compilation for device">;
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
-def : Flag<["-"], "fsycl-explicit-simd">, Flags<[CoreOption]>, Group<clang_ignored_legacy_options_Group>,
+def : Flag<["-"], "fsycl-explicit-simd">, Flags<[CoreOption, Deprecated]>,
+  Group<clang_ignored_legacy_options_Group>,
   HelpText<"Enable SYCL explicit SIMD extension. (deprecated)">;
-def : Flag<["-"], "fno-sycl-explicit-simd">, Flags<[CoreOption]>, Group<clang_ignored_legacy_options_Group>,
+def : Flag<["-"], "fno-sycl-explicit-simd">,
+  Flags<[CoreOption, Deprecated]>,
+  Group<clang_ignored_legacy_options_Group>,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
 defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
@@ -4906,9 +4922,9 @@ def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimizati
   Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
   "elimination of DPC++ dead kernel arguments">;
 def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption, CoreOption]>,
-  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control inclusion of "
+  Values<"libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, all">, HelpText<"Control inclusion of "
   "device libraries into device binary linkage. Valid arguments "
-  "are libc, libm-fp32, libm-fp64, all">;
+  "are libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, all">;
 def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption, CoreOption]>,
   Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
   "device libraries from device binary linkage. Valid arguments "
@@ -6248,6 +6264,12 @@ def fobjc_gc_only : Flag<["-"], "fobjc-gc-only">, Group<f_Group>,
   HelpText<"Use GC exclusively for Objective-C related memory management">;
 def fobjc_gc : Flag<["-"], "fobjc-gc">, Group<f_Group>,
   HelpText<"Enable Objective-C garbage collection">;
+
+def fexperimental_max_bitint_width_EQ:
+  Joined<["-"], "fexperimental-max-bitint-width=">, Group<f_Group>,
+  MetaVarName<"<N>">,
+  HelpText<"Set the maximum bitwidth for _BitInt (this option is expected to be removed in the future)">,
+  MarshallingInfoInt<LangOpts<"MaxBitIntWidth">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 

@@ -3291,6 +3291,9 @@ function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
 
+The ``[[intel::disable_loop_pipelining]]`` attribute spelling is a deprecated
+synonym for ``[[[intel::fpga_pipeline]]`` and will be removed in the future.
+
 .. code-block:: c++
 
   void foo() {
@@ -3299,6 +3302,58 @@ or ``ivdep``.
   }
 
   [[intel::disable_loop_pipelining]] void foo1() { }
+
+  }];
+}
+
+def SYCLIntelFPGAPipelineAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::fpga_pipeline";
+  let Content = [{
+The ``intel::fpga_pipeline(N)`` attribute applies to a loop and it allows users
+to disable or enable pipelining iterations of a loop. The attribute optionally
+accepts an integer constant expression that is converted to `bool`. A `true`
+value enables pipelining while a `false` value disables pipelining. The
+optional argument defaults to `true`. This attribute cannot be applied to a
+loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
+
+.. code-block:: c++
+
+  // Disable loop pipelining
+  void bar() {
+    int a[10];
+    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  // Enable loop pipelining
+  void foo() {
+    int var = 0;
+    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  void Array(int *array, size_t n) {
+    // identical to [[intel::fpga_pipeline(1)]]
+    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+  int a1[10], int i = 0;
+  [[intel::fpga_pipeline(1)]] while (i < 10) {
+    a1[i] += 3;
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::fpga_pipeline(1)]] do {
+      a = a + 1;
+    } while (a < 20);
+  }
+
+  template<int A>
+  void func() {
+    [[intel::fpga_pipeline(A)]] for(;;) { }
+  }
 
   }];
 }
@@ -8053,5 +8108,71 @@ data binding to map the group index to the specified parameter. This attribute
 is only supported in compute shaders.
 
 The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-groupindex
+  }];
+}
+
+def WeakDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+
+In supported output formats the ``weak`` attribute can be used to
+specify that a variable or function should be emitted as a symbol with
+``weak`` (if a definition) or ``extern_weak`` (if a declaration of an
+external symbol) `linkage
+<https://llvm.org/docs/LangRef.html#linkage-types>`_.
+
+If there is a non-weak definition of the symbol the linker will select
+that over the weak. They must have same type and alignment (variables
+must also have the same size), but may have a different value.
+
+If there are multiple weak definitions of same symbol, but no non-weak
+definition, they should have same type, size, alignment and value, the
+linker will select one of them (see also selectany_ attribute).
+
+If the ``weak`` attribute is applied to a ``const`` qualified variable
+definition that variable is no longer consider a compiletime constant
+as its value can change during linking (or dynamic linking). This
+means that it can e.g no longer be part of an initializer expression.
+
+.. code-block:: c
+
+  const int ANSWER __attribute__ ((weak)) = 42;
+
+  /* This function may be replaced link-time */
+  __attribute__ ((weak)) void debug_log(const char *msg)
+  {
+      fprintf(stderr, "DEBUG: %s\n", msg);
+  }
+
+  int main(int argc, const char **argv)
+  {
+      debug_log ("Starting up...");
+
+      /* This may print something else than "6 * 7 = 42",
+         if there is a non-weak definition of "ANSWER" in
+	 an object linked in */
+      printf("6 * 7 = %d\n", ANSWER);
+
+      return 0;
+   }
+
+If an external declaration is marked weak and that symbol does not
+exist during linking (possibly dynamic) the address of the symbol will
+evaluate to NULL.
+
+.. code-block:: c
+
+  void may_not_exist(void) __attribute__ ((weak));
+
+  int main(int argc, const char **argv)
+  {
+      if (may_not_exist) {
+          may_not_exist();
+      } else {
+          printf("Function did not exist\n");
+      }
+      return 0;
+  }
+
   }];
 }

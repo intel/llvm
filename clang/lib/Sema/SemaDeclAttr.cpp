@@ -364,6 +364,14 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
     return;
   }
+
+  // Deprecate [[intel::disable_loop_pipelining]] attribute spelling in favor
+  // of the SYCL FPGA attribute spelling [[intel::fpga_pipeline]].
+  if (A.hasScope() && A.getScopeName()->isStr("intel") &&
+      A.getAttrName()->isStr("disable_loop_pipelining")) {
+    DiagnoseDeprecatedAttribute(A, "intel", "fpga_pipeline");
+    return;
+  }
 }
 
 /// Check if IdxExpr is a valid parameter index for a function or
@@ -4718,7 +4726,7 @@ bool Sema::checkTargetClonesAttrString(SourceLocation LiteralLoc, StringRef Str,
       return Diag(CurLoc, diag::warn_unsupported_target_attribute)
              << Unsupported << None << Cur << TargetClones;
 
-    if (llvm::find(Strings, Cur) != Strings.end() || DefaultIsDupe)
+    if (llvm::is_contained(Strings, Cur) || DefaultIsDupe)
       Diag(CurLoc, diag::warn_target_clone_duplicate_options);
     // Note: Add even if there are duplicates, since it changes name mangling.
     Strings.push_back(Cur);

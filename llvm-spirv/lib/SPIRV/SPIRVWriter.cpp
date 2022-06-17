@@ -102,7 +102,7 @@ static void foreachKernelArgMD(
         Func) {
   for (unsigned I = 0, E = MD->getNumOperands(); I != E; ++I) {
     SPIRVFunctionParameter *BA = BF->getArgument(I);
-    Func(getMDOperandAsString(MD, I), BA);
+    Func(getMDOperandAsString(MD, I).str(), BA);
   }
 }
 
@@ -363,7 +363,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
       }
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         assert(AddrSpc == SPIRAS_Global);
-        auto SPIRVImageTy = getSPIRVImageTypeFromOCL(M, T);
+        auto *SPIRVImageTy =
+            PointerType::get(adaptSPIRVImageType(M, ST), SPIRAS_Global);
         return mapType(T, transType(SPIRVImageTy));
       }
       if (STName == kSPR2TypeName::Sampler)
@@ -394,7 +395,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         }
       }
 
-      if (isPointerToOpaqueStructType(T)) {
+      if (ST->isOpaque()) {
         return mapType(
             T, BM->addPointerType(SPIRSPIRVAddrSpaceMap::map(
                                       static_cast<SPIRAddressSpace>(AddrSpc)),
@@ -619,17 +620,17 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
                                     static_cast<spv::AccessQualifier>(Ops[6])));
   } else if (TN == kSPIRVTypeName::SampledImg) {
     return mapType(
-        T, BM->addSampledImageType(static_cast<SPIRVTypeImage *>(
-               transType(getSPIRVTypeByChangeBaseTypeName(
-                   M, T, kSPIRVTypeName::SampledImg, kSPIRVTypeName::Image)))));
+        T,
+        BM->addSampledImageType(static_cast<SPIRVTypeImage *>(
+            transType(getSPIRVTypeByChangeBaseTypeName(
+                M, ST, kSPIRVTypeName::SampledImg, kSPIRVTypeName::Image)))));
   } else if (TN == kSPIRVTypeName::VmeImageINTEL) {
     // This type is the same as SampledImageType, but consumed by Subgroup AVC
     // Intel extension instructions.
-    return mapType(
-        T,
-        BM->addVmeImageINTELType(static_cast<SPIRVTypeImage *>(
-            transType(getSPIRVTypeByChangeBaseTypeName(
-                M, T, kSPIRVTypeName::VmeImageINTEL, kSPIRVTypeName::Image)))));
+    return mapType(T, BM->addVmeImageINTELType(static_cast<SPIRVTypeImage *>(
+                          transType(getSPIRVTypeByChangeBaseTypeName(
+                              M, ST, kSPIRVTypeName::VmeImageINTEL,
+                              kSPIRVTypeName::Image)))));
   } else if (TN == kSPIRVTypeName::Sampler)
     return mapType(T, BM->addSamplerType());
   else if (TN == kSPIRVTypeName::DeviceEvent)
@@ -1249,7 +1250,7 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
 
   for (const MDOperand &MDOp : LoopMD->operands()) {
     if (MDNode *Node = dyn_cast<MDNode>(MDOp)) {
-      std::string S = getMDOperandAsString(Node, 0);
+      StringRef S = getMDOperandAsString(Node, 0);
       // Set the loop control bits. Parameters are set in the order described
       // in 3.23 SPIR-V Spec. rev. 1.4:
       // Bits that are set can indicate whether an additional operand follows,
@@ -2505,9 +2506,13 @@ SPIRVValue *LLVMToSPIRVBase::oclTransSpvcCastSampler(CallInst *CI,
   auto FT = F->getFunctionType();
   auto RT = FT->getReturnType();
   assert(FT->getNumParams() == 1);
-  assert((isSPIRVType(RT, kSPIRVTypeName::Sampler) ||
-          isPointerToOpaqueStructType(RT, kSPR2TypeName::Sampler)) &&
-         FT->getParamType(0)->isIntegerTy() && "Invalid sampler type");
+  if (!RT->isOpaquePointerTy()) {
+    StructType *ST = dyn_cast<StructType>(RT->getNonOpaquePointerElementType());
+    (void)ST;
+    assert(isSPIRVStructType(ST, kSPIRVTypeName::Sampler) ||
+           (ST->isOpaque() && ST->getName() == kSPR2TypeName::Sampler));
+  }
+  assert(FT->getParamType(0)->isIntegerTy() && "Invalid sampler type");
   auto Arg = CI->getArgOperand(0);
 
   auto GetSamplerConstant = [&](uint64_t SamplerValue) {
@@ -4638,9 +4643,9 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // for this call, because there is no support for type corresponding to
     // OpTypeSampledImage. So, in this case, we create the required type here.
     Value *Image = CI->getArgOperand(0);
-    Type *ImageTy = Image->getType();
-    if (isOCLImageType(ImageTy))
-      ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
+    SmallVector<StructType *, 4> ParamTys;
+    getParameterTypes(CI, ParamTys);
+    Type *ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
     Type *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
         M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
     Value *Sampler = CI->getArgOperand(1);

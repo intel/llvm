@@ -55,6 +55,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spv-lower-ocl-blocks"
 
+#include "SPIRVLowerOCLBlocks.h"
 #include "SPIRVInternal.h"
 
 #include "llvm/IR/Module.h"
@@ -71,58 +72,38 @@ static bool isBlockInvoke(Function &F) {
   return BlockInvokeRegex.match(F.getName());
 }
 
-class SPIRVLowerOCLBlocksBase {
+} // namespace
 
-public:
-  SPIRVLowerOCLBlocksBase() {}
+namespace SPIRV {
 
-  bool runLowerOCLBlocks(Module &M) {
-    bool Changed = false;
-    for (Function &F : M) {
-      if (!isBlockInvoke(F))
+bool SPIRVLowerOCLBlocksBase::runLowerOCLBlocks(Module &M) {
+  bool Changed = false;
+  for (Function &F : M) {
+    if (!isBlockInvoke(F))
+      continue;
+    for (User *U : F.users()) {
+      if (!isa<Constant>(U))
         continue;
-      for (User *U : F.users()) {
-        if (!isa<Constant>(U))
-          continue;
-        Constant *Null = Constant::getNullValue(U->getType());
-        if (U != Null) {
-          U->replaceAllUsesWith(Null);
-          Changed = true;
-        }
+      Constant *Null = Constant::getNullValue(U->getType());
+      if (U != Null) {
+        U->replaceAllUsesWith(Null);
+        Changed = true;
       }
     }
-    return Changed;
   }
-};
+  return Changed;
+}
 
-class SPIRVLowerOCLBlocksPass
-    : public llvm::PassInfoMixin<SPIRVLowerOCLBlocksPass>,
-      public SPIRVLowerOCLBlocksBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runLowerOCLBlocks(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
-  }
-};
-
-class SPIRVLowerOCLBlocksLegacy : public ModulePass,
-                                  public SPIRVLowerOCLBlocksBase {
-public:
-  SPIRVLowerOCLBlocksLegacy() : ModulePass(ID) {}
-
-  bool runOnModule(Module &M) override { return runLowerOCLBlocks(M); }
-
-  StringRef getPassName() const override {
-    return "Lower OpenCL Blocks For SPIR-V";
-  }
-
-  static char ID;
-};
+llvm::PreservedAnalyses
+SPIRVLowerOCLBlocksPass::run(llvm::Module &M,
+                             llvm::ModuleAnalysisManager &MAM) {
+  return runLowerOCLBlocks(M) ? llvm::PreservedAnalyses::none()
+                              : llvm::PreservedAnalyses::all();
+}
 
 char SPIRVLowerOCLBlocksLegacy::ID = 0;
 
-} // namespace
+} // namespace SPIRV
 
 INITIALIZE_PASS(SPIRVLowerOCLBlocksLegacy, "spv-lower-ocl-blocks",
                 "Remove function pointers originating from OpenCL blocks",
