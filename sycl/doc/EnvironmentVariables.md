@@ -84,7 +84,7 @@ A `sycl::exception` with `sycl::errc::invalid` is thrown during submission of a 
 
 If this environment variable is not set, the preferred work-group size for reductions is implementation defined.
 
-Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions on all other devices devices than CPUs to 16 and to 32 for CPUs.
+Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions to 32 on CPUs and to 16 on all other devices.
 
 ## Controlling DPC++ Level Zero Plugin
 
