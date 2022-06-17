@@ -855,10 +855,9 @@ static StringRef solveTypeName(Type *Ty) {
     auto Name = Ty->getStructName();
 
     SmallString<16> Buffer(Name);
-    for_each(Buffer, [](auto &Iter) {
+    for (auto &Iter : Buffer)
       if (Iter == '.' || Iter == ':')
         Iter = '_';
-    });
     auto *MDName = MDString::get(Ty->getContext(), Buffer.str());
     return MDName->getString();
   }
@@ -2565,6 +2564,7 @@ void coro::salvageDebugInfo(
   bool SkipOutermostLoad = !isa<DbgValueInst>(DVI);
   Value *Storage = DVI->getVariableLocationOp(0);
   Value *OriginalStorage = Storage;
+
   while (auto *Inst = dyn_cast_or_null<Instruction>(Storage)) {
     if (auto *LdInst = dyn_cast<LoadInst>(Inst)) {
       Storage = LdInst->getOperand(0);
@@ -2620,8 +2620,7 @@ void coro::salvageDebugInfo(
       // expression, we need to add a DW_OP_deref at the *start* of the
       // expression to first load the contents of the alloca before
       // adjusting it with the expression.
-      if (Expr && Expr->isComplex())
-        Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
+      Expr = DIExpression::prepend(Expr, DIExpression::DerefBefore);
     }
 
   DVI->replaceVariableLocationOp(OriginalStorage, Storage);
@@ -2794,10 +2793,9 @@ void coro::buildCoroutineFrame(Function &F, Shape &Shape) {
     auto *V = Iter.first;
     SmallVector<DbgValueInst *, 16> DVIs;
     findDbgValues(DVIs, V);
-    llvm::for_each(DVIs, [&](DbgValueInst *DVI) {
+    for (DbgValueInst *DVI : DVIs)
       if (Checker.isDefinitionAcrossSuspend(*V, DVI))
         FrameData.Spills[V].push_back(DVI);
-    });
   }
 
   LLVM_DEBUG(dumpSpills("Spills", FrameData.Spills));

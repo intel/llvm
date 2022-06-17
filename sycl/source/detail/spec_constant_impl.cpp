@@ -23,7 +23,8 @@ namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {
   if (0 == Size)
-    throw sycl::runtime_error("invalid spec constant size", PI_INVALID_VALUE);
+    throw sycl::runtime_error("invalid spec constant size",
+                              PI_ERROR_INVALID_VALUE);
   auto *BytePtr = reinterpret_cast<const char *>(Val);
   this->Bytes.assign(BytePtr, BytePtr + Size);
 }

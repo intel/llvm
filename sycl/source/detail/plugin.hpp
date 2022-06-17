@@ -115,7 +115,7 @@ public:
   template <typename Exception = cl::sycl::runtime_error>
   void checkPiResult(RT::PiResult pi_result) const {
     char *message = nullptr;
-    if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
+    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
@@ -132,7 +132,7 @@ public:
 
   /// \throw SYCL 2020 exception(errc) if pi_result is not PI_SUCCESS
   template <sycl::errc errc> void checkPiResult(RT::PiResult pi_result) const {
-    if (pi_result == PI_PLUGIN_SPECIFIC_ERROR) {
+    if (pi_result == PI_ERROR_PLUGIN_SPECIFIC_ERROR) {
       char *message = nullptr;
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 

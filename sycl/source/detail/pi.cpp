@@ -31,6 +31,7 @@
 #include <sstream>
 #include <stddef.h>
 #include <string>
+#include <iostream>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -445,12 +446,15 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       GlobalPlugin = std::make_shared<plugin>(
           PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
-    Plugins.emplace_back(
+    plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
-      fprintf(stderr,"SYCL_PI_TRACE[basic]: "
-                     "Plugin found and successfully loaded: %s\n",
-                     PluginNames[I].first.c_str());
+
+      std::cerr << "SYCL_PI_TRACE[basic]: "
+                << "Plugin found and successfully loaded: "
+                << PluginNames[I].first
+                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
+                << " ]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -520,7 +524,7 @@ template <backend BE> const plugin &getPlugin() {
     }
 
   throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_INVALID_OPERATION);
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
@@ -528,6 +532,7 @@ template __SYCL_EXPORT const plugin &
 getPlugin<backend::ext_oneapi_level_zero>();
 template __SYCL_EXPORT const plugin &
 getPlugin<backend::ext_intel_esimd_emulator>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::ext_oneapi_cuda>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
@@ -726,21 +731,57 @@ DeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
+// Returns the e_type field from an ELF image.
+static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
+  (void)ImgSize;
+  assert(ImgSize >= 18 && "Not enough bytes to have an ELF header type.");
+
+  bool IsBigEndian = ImgData[5] == 2;
+  if (IsBigEndian)
+    return (static_cast<uint16_t>(ImgData[16]) << 8) |
+           static_cast<uint16_t>(ImgData[17]);
+  uint16_t HdrType = 0;
+  std::copy(ImgData + 16, ImgData + 16 + sizeof(HdrType),
+            reinterpret_cast<char *>(&HdrType));
+  return HdrType;
+}
+
 RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                             size_t ImgSize) {
+  // Top-level magic numbers for the recognized binary image formats.
   struct {
     RT::PiDeviceBinaryType Fmt;
     const uint32_t Magic;
   } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
-              {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342}};
+              {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342},
+              // 'I', 'N', 'T', 'C' ; Intel native
+              {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
 
   if (ImgSize >= sizeof(Fmts[0].Magic)) {
     detail::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
     std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
 
+    // Check headers for direct formats.
     for (const auto &Fmt : Fmts) {
       if (Hdr == Fmt.Magic)
         return Fmt.Fmt;
+    }
+
+    // ELF e_type for recognized binary image formats.
+    struct {
+      RT::PiDeviceBinaryType Fmt;
+      const uint16_t Magic;
+    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04},  // OpenCL executable
+                   {PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF12}}; // ZEBIN executable
+
+    // ELF files need to be parsed separately. The header type ends after 18
+    // bytes.
+    if (Hdr == 0x464c457F && ImgSize >= 18) {
+      uint16_t HdrType = getELFHeaderType(ImgData, ImgSize);
+      for (const auto &ELFFmt : ELFFmts) {
+        if (HdrType == ELFFmt.Magic)
+          return ELFFmt.Fmt;
+      }
     }
   }
   return PI_DEVICE_BINARY_TYPE_NONE;
