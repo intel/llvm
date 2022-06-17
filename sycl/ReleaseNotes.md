@@ -57,7 +57,7 @@ Release notes for commit range f34ba2c..4043dda
   - Added support for SVM 1,2,4-elements gather/scatter for ESIMD. [e200720]
   - Added support for `bf16` builtins operating on storage types for CUDA backend. [413a9ef]
   - Added `backend_version` device property. [4b1a4bc]
-  - Added support for the `invoke_simd` feature. [4072557][8471ff3][8c7bb45][62afb59][3e1c1bf][8c7bb45]
+  - Added support for the `invoke_simd` feature. [4072557][8471ff3][8c7bb45][62afb59][3e1c1bf]
   - Added support for `info::device::atomic64` for OpenCL and Level Zero backends. [8feb558]
   - Added support for [sycl_ext_oneapi_usm_device_read_only](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc) [644c614][58c9d3a]
   - Added support for mapping/unmapping operations for ESIMD_EMULATOR plugin. [bc0579a]
