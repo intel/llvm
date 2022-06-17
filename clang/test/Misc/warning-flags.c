@@ -43,6 +43,7 @@ CHECK-NEXT:   warn_collection_expr_type
 CHECK-NEXT:   warn_conflicting_variadic
 CHECK-NEXT:   warn_delete_array_type
 CHECK-NEXT:   warn_double_const_requires_fp64
+CHECK-NEXT:   warn_double_precision
 CHECK-NEXT:   warn_drv_assuming_mfloat_abi_is
 CHECK-NEXT:   warn_drv_clang_unsupported
 CHECK-NEXT:   warn_drv_pch_not_first_include
