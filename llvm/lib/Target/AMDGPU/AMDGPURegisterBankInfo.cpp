@@ -4267,6 +4267,7 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_wqm:
     case Intrinsic::amdgcn_softwqm:
     case Intrinsic::amdgcn_set_inactive:
+    case Intrinsic::amdgcn_permlane64:
       return getDefaultMappingAllVGPR(MI);
     case Intrinsic::amdgcn_kernarg_segment_ptr:
     case Intrinsic::amdgcn_s_getpc:
@@ -4497,7 +4498,8 @@ AMDGPURegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     case Intrinsic::amdgcn_s_getreg:
     case Intrinsic::amdgcn_s_memtime:
     case Intrinsic::amdgcn_s_memrealtime:
-    case Intrinsic::amdgcn_s_get_waveid_in_workgroup: {
+    case Intrinsic::amdgcn_s_get_waveid_in_workgroup:
+    case Intrinsic::amdgcn_s_sendmsg_rtn: {
       unsigned Size = MRI.getType(MI.getOperand(0).getReg()).getSizeInBits();
       OpdsMapping[0] = AMDGPU::getValueMapping(AMDGPU::SGPRRegBankID, Size);
       break;

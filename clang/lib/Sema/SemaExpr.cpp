@@ -10348,12 +10348,18 @@ static bool tryGCCVectorConvertAndSplat(Sema &S, ExprResult *Scalar,
                                         ExprResult *Vector) {
   QualType ScalarTy = Scalar->get()->getType().getUnqualifiedType();
   QualType VectorTy = Vector->get()->getType().getUnqualifiedType();
-  const auto *VT = VectorTy->castAs<VectorType>();
+  QualType VectorEltTy;
 
-  assert(!isa<ExtVectorType>(VT) &&
-         "ExtVectorTypes should not be handled here!");
-
-  QualType VectorEltTy = VT->getElementType();
+  if (const auto *VT = VectorTy->getAs<VectorType>()) {
+    assert(!isa<ExtVectorType>(VT) &&
+           "ExtVectorTypes should not be handled here!");
+    VectorEltTy = VT->getElementType();
+  } else if (VectorTy->isVLSTBuiltinType()) {
+    VectorEltTy =
+        VectorTy->castAs<BuiltinType>()->getSveEltType(S.getASTContext());
+  } else {
+    llvm_unreachable("Only Fixed-Length and SVE Vector types are handled here");
+  }
 
   // Reject cases where the vector element type or the scalar element type are
   // not integral or floating point types.
@@ -10680,24 +10686,14 @@ QualType Sema::CheckSizelessVectorOperands(ExprResult &LHS, ExprResult &RHS,
   if (Context.hasSameType(LHSType, RHSType))
     return LHSType;
 
-  auto tryScalableVectorConvert = [this](ExprResult *Src, QualType SrcType,
-                                         QualType DestType) {
-    const QualType DestBaseType = DestType->getSveEltType(Context);
-    if (DestBaseType->getUnqualifiedDesugaredType() ==
-        SrcType->getUnqualifiedDesugaredType()) {
-      unsigned DiagID = diag::err_typecheck_invalid_operands;
-      if (!tryVectorConvertAndSplat(*this, Src, SrcType, DestBaseType, DestType,
-                                    DiagID))
-        return DestType;
-    }
-    return QualType();
-  };
-
   if (LHSType->isVLSTBuiltinType() && !RHSType->isVLSTBuiltinType()) {
-    auto DestType = tryScalableVectorConvert(&RHS, RHSType, LHSType);
-    if (DestType == QualType())
-      return InvalidOperands(Loc, LHS, RHS);
-    return DestType;
+    if (!tryGCCVectorConvertAndSplat(*this, &RHS, &LHS))
+      return LHSType;
+  }
+  if (RHSType->isVLSTBuiltinType() && !LHSType->isVLSTBuiltinType()) {
+    if (LHS.get()->isLValue() ||
+        !tryGCCVectorConvertAndSplat(*this, &LHS, &RHS))
+      return RHSType;
   }
 
   if ((!LHSType->isVLSTBuiltinType() && !LHSType->isRealType()) ||
@@ -11507,10 +11503,16 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
     return;
   llvm::APSInt Left = LHSResult.Val.getInt();
 
-  // If LHS does not have a signed type and non-negative value
-  // then, the behavior is undefined before C++2a. Warn about it.
-  if (Left.isNegative() && !S.getLangOpts().isSignedOverflowDefined() &&
-      !S.getLangOpts().CPlusPlus20) {
+  // Don't warn if signed overflow is defined, then all the rest of the
+  // diagnostics will not be triggered because the behavior is defined.
+  // Also don't warn in C++20 mode (and newer), as signed left shifts
+  // always wrap and never overflow.
+  if (S.getLangOpts().isSignedOverflowDefined() || S.getLangOpts().CPlusPlus20)
+    return;
+
+  // If LHS does not have a non-negative value then, the
+  // behavior is undefined before C++2a. Warn about it.
+  if (Left.isNegative()) {
     S.DiagRuntimeBehavior(Loc, LHS.get(),
                           S.PDiag(diag::warn_shift_lhs_negative)
                             << LHS.get()->getSourceRange());

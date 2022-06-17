@@ -1038,7 +1038,12 @@ bool GCNHazardRecognizer::fixVcmpxPermlaneHazards(MachineInstr *MI) {
     return false;
 
   const SIInstrInfo *TII = ST.getInstrInfo();
-  auto IsHazardFn = [TII](const MachineInstr &MI) { return TII->isVOPC(MI); };
+  const SIRegisterInfo *TRI = ST.getRegisterInfo();
+  auto IsHazardFn = [TII, TRI](const MachineInstr &MI) {
+    return (TII->isVOPC(MI) ||
+            ((TII->isVOP3(MI) || TII->isSDWA(MI)) && MI.isCompare())) &&
+           MI.modifiesRegister(AMDGPU::EXEC, TRI);
+  };
 
   auto IsExpiredFn = [](const MachineInstr &MI, int) {
     unsigned Opc = MI.getOpcode();
@@ -1386,20 +1391,14 @@ int GCNHazardRecognizer::checkMFMAPadding(MachineInstr *MI) {
   if (MFMAPaddingRatio == 0)
     return 0;
 
-  auto IsMFMAFn = [](const MachineInstr &MI) {
-    return SIInstrInfo::isMAI(MI) &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
-  };
-
   const SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
-  if (!IsMFMAFn(*MI) || MFI->getOccupancy() < 2)
+  if (!SIInstrInfo::isMFMA(*MI) || MFI->getOccupancy() < 2)
     return 0;
 
   int NeighborMFMALatency = 0;
-  auto IsNeighboringMFMA = [&IsMFMAFn, &NeighborMFMALatency,
+  auto IsNeighboringMFMA = [&NeighborMFMALatency,
                             this](const MachineInstr &MI) {
-    if (!IsMFMAFn(MI))
+    if (!SIInstrInfo::isMFMA(MI))
       return false;
 
     NeighborMFMALatency = this->getMFMAPipelineWaitStates(MI);
@@ -1451,12 +1450,6 @@ int GCNHazardRecognizer::checkMAIHazards908(MachineInstr *MI) {
     }
   }
 
-  auto IsMFMAFn = [](const MachineInstr &MI) {
-    return SIInstrInfo::isMAI(MI) &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
-  };
-
   for (const MachineOperand &Op : MI->explicit_operands()) {
     if (!Op.isReg() || !TRI.isAGPR(MF.getRegInfo(), Op.getReg()))
       continue;
@@ -1476,9 +1469,9 @@ int GCNHazardRecognizer::checkMAIHazards908(MachineInstr *MI) {
     Register Reg = Op.getReg();
     unsigned HazardDefLatency = 0;
 
-    auto IsOverlappedMFMAFn = [Reg, &IsMFMAFn, &HazardDefLatency,
+    auto IsOverlappedMFMAFn = [Reg, &HazardDefLatency,
                                this](const MachineInstr &MI) {
-      if (!IsMFMAFn(MI))
+      if (!SIInstrInfo::isMFMA(MI))
         return false;
       Register DstReg = MI.getOperand(0).getReg();
       if (DstReg == Reg)
@@ -1555,9 +1548,9 @@ int GCNHazardRecognizer::checkMAIHazards908(MachineInstr *MI) {
     Register DstReg = MI->getOperand(0).getReg();
     unsigned HazardDefLatency = 0;
 
-    auto IsSrcCMFMAFn = [DstReg, &IsMFMAFn, &HazardDefLatency,
+    auto IsSrcCMFMAFn = [DstReg, &HazardDefLatency,
                          this](const MachineInstr &MI) {
-      if (!IsMFMAFn(MI))
+      if (!SIInstrInfo::isMFMA(MI))
         return false;
       Register Reg = TII.getNamedOperand(MI, AMDGPU::OpName::src2)->getReg();
       HazardDefLatency =
@@ -1591,21 +1584,16 @@ int GCNHazardRecognizer::checkMAIHazards90A(MachineInstr *MI) {
   int WaitStatesNeeded = 0;
   unsigned Opc = MI->getOpcode();
 
-  auto IsMFMAFn = [](const MachineInstr &MI) {
-    return SIInstrInfo::isMAI(MI) &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
+  auto IsLegacyVALUFn = [](const MachineInstr &MI) {
+    return SIInstrInfo::isVALU(MI) && !SIInstrInfo::isMFMA(MI);
   };
 
-  auto IsLegacyVALUFn = [&IsMFMAFn](const MachineInstr &MI) {
-    return SIInstrInfo::isVALU(MI) && !IsMFMAFn(MI);
+  auto IsLegacyVALUNotDotFn = [](const MachineInstr &MI) {
+    return SIInstrInfo::isVALU(MI) && !SIInstrInfo::isMFMA(MI) &&
+           !SIInstrInfo::isDOT(MI);
   };
 
-  auto IsLegacyVALUNotDotFn = [&IsMFMAFn](const MachineInstr &MI) {
-    return SIInstrInfo::isVALU(MI) && !IsMFMAFn(MI) && !SIInstrInfo::isDOT(MI);
-  };
-
-  if (!IsMFMAFn(*MI))
+  if (!SIInstrInfo::isMFMA(*MI))
     return WaitStatesNeeded;
 
   const int VALUWritesExecWaitStates = 4;
@@ -1657,9 +1645,9 @@ int GCNHazardRecognizer::checkMAIHazards90A(MachineInstr *MI) {
     bool FullReg;
     const MachineInstr *MI1;
 
-    auto IsOverlappedMFMAFn = [Reg, &IsMFMAFn, &FullReg, &MI1,
+    auto IsOverlappedMFMAFn = [Reg, &FullReg, &MI1,
                                this](const MachineInstr &MI) {
-      if (!IsMFMAFn(MI))
+      if (!SIInstrInfo::isMFMA(MI))
         return false;
       Register DstReg = MI.getOperand(0).getReg();
       FullReg = (DstReg == Reg);
@@ -1853,18 +1841,12 @@ int GCNHazardRecognizer::checkMAIVALUHazards(MachineInstr *MI) {
   if (!ST.hasGFX90AInsts())
     return 0;
 
-  auto IsMFMAFn = [](const MachineInstr &MI) -> bool {
-    return SIInstrInfo::isMAI(MI) &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
-           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
-  };
-
   auto IsDGEMMFn = [](const MachineInstr &MI) -> bool {
     return isDGEMM(MI.getOpcode());
   };
 
   // This is checked in checkMAIHazards90A()
-  if (IsMFMAFn(*MI))
+  if (SIInstrInfo::isMFMA(*MI))
     return 0;
 
   int WaitStatesNeeded = 0;
@@ -1877,8 +1859,9 @@ int GCNHazardRecognizer::checkMAIVALUHazards(MachineInstr *MI) {
 
   const MachineInstr *MFMA = nullptr;
   unsigned Reg;
-  auto IsMFMAWriteFn = [&Reg, &IsMFMAFn, &MFMA, this](const MachineInstr &MI) {
-    if (!IsMFMAFn(MI) || !TRI.regsOverlap(MI.getOperand(0).getReg(), Reg))
+  auto IsMFMAWriteFn = [&Reg, &MFMA, this](const MachineInstr &MI) {
+    if (!SIInstrInfo::isMFMA(MI) ||
+        !TRI.regsOverlap(MI.getOperand(0).getReg(), Reg))
       return false;
     MFMA = &MI;
     return true;
@@ -2086,9 +2069,8 @@ int GCNHazardRecognizer::checkMAIVALUHazards(MachineInstr *MI) {
         break;
     }
 
-    auto IsSMFMAReadAsCFn = [&Reg, &IsMFMAFn, &MFMA,
-                             this](const MachineInstr &MI) {
-      if (!IsMFMAFn(MI) || isDGEMM(MI.getOpcode()) ||
+    auto IsSMFMAReadAsCFn = [&Reg, &MFMA, this](const MachineInstr &MI) {
+      if (!SIInstrInfo::isMFMA(MI) || isDGEMM(MI.getOpcode()) ||
           !MI.readsRegister(Reg, &TRI))
         return false;
 
@@ -2138,11 +2120,10 @@ bool GCNHazardRecognizer::ShouldPreferAnother(SUnit *SU) {
     return false;
 
   const MachineInstr *MAI = nullptr;
+
   auto IsMFMAFn = [&MAI](const MachineInstr &MI) {
     MAI = nullptr;
-    if (SIInstrInfo::isMAI(MI) &&
-        MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
-        MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64)
+    if (SIInstrInfo::isMFMA(MI))
       MAI = &MI;
     return MAI != nullptr;
   };

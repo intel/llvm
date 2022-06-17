@@ -458,14 +458,14 @@ bool ExternalFileUnit::BeginReadingRecord(IoErrorHandler &handler) {
 void ExternalFileUnit::FinishReadingRecord(IoErrorHandler &handler) {
   RUNTIME_CHECK(handler, direction_ == Direction::Input && beganReadingRecord_);
   beganReadingRecord_ = false;
-  if (handler.InError() && handler.GetIoStat() != IostatEor) {
+  if (handler.GetIoStat() == IostatEnd ||
+      (IsRecordFile() && !recordLength.has_value())) {
     // Avoid bogus crashes in END/ERR circumstances; but
     // still increment the current record number so that
     // an attempted read of an endfile record, followed by
     // a BACKSPACE, will still be at EOF.
     ++currentRecordNumber;
   } else if (IsRecordFile()) {
-    RUNTIME_CHECK(handler, recordLength.has_value());
     recordOffsetInFrame_ += *recordLength;
     if (access != Access::Direct) {
       RUNTIME_CHECK(handler, isUnformatted.has_value());
@@ -909,6 +909,32 @@ void ExternalFileUnit::PopChildIo(ChildIo &child) {
         "ChildIo being popped is not top of stack");
   }
   child_.reset(child.AcquirePrevious().release()); // deletes top child
+}
+
+int ExternalFileUnit::GetAsynchronousId(IoErrorHandler &handler) {
+  if (!mayAsynchronous()) {
+    handler.SignalError(IostatBadAsynchronous);
+    return -1;
+  } else if (auto least{asyncIdAvailable_.LeastElement()}) {
+    asyncIdAvailable_.reset(*least);
+    return static_cast<int>(*least);
+  } else {
+    handler.SignalError(IostatTooManyAsyncOps);
+    return -1;
+  }
+}
+
+bool ExternalFileUnit::Wait(int id) {
+  if (id < 0 || asyncIdAvailable_.test(id)) {
+    return false;
+  } else {
+    if (id == 0) {
+      asyncIdAvailable_.set();
+    } else {
+      asyncIdAvailable_.set(id);
+    }
+    return true;
+  }
 }
 
 void ChildIo::EndIoStatement() {

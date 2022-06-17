@@ -1071,6 +1071,9 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
     // ADDP custom lowering
     for (MVT VT : { MVT::v32i8, MVT::v16i16, MVT::v8i32, MVT::v4i64 })
       setOperationAction(ISD::ADD, VT, Custom);
+    // FADDP custom lowering
+    for (MVT VT : { MVT::v16f16, MVT::v8f32, MVT::v4f64 })
+      setOperationAction(ISD::FADD, VT, Custom);
   }
 
   if (Subtarget->hasSVE()) {
@@ -2320,6 +2323,58 @@ MachineBasicBlock *AArch64TargetLowering::EmitLoweredCatchRet(
   return BB;
 }
 
+MachineBasicBlock *
+AArch64TargetLowering::EmitTileLoad(unsigned Opc, unsigned BaseReg,
+                                    MachineInstr &MI,
+                                    MachineBasicBlock *BB) const {
+  const TargetInstrInfo *TII = Subtarget->getInstrInfo();
+  MachineInstrBuilder MIB = BuildMI(*BB, MI, MI.getDebugLoc(), TII->get(Opc));
+
+  MIB.addReg(BaseReg + MI.getOperand(0).getImm(), RegState::Define);
+  MIB.add(MI.getOperand(1)); // slice index register
+  MIB.add(MI.getOperand(2)); // slice index offset
+  MIB.add(MI.getOperand(3)); // pg
+  MIB.add(MI.getOperand(4)); // base
+  MIB.add(MI.getOperand(5)); // offset
+
+  MI.eraseFromParent(); // The pseudo is gone now.
+  return BB;
+}
+
+MachineBasicBlock *
+AArch64TargetLowering::EmitFill(MachineInstr &MI, MachineBasicBlock *BB) const {
+  const TargetInstrInfo *TII = Subtarget->getInstrInfo();
+  MachineInstrBuilder MIB =
+      BuildMI(*BB, MI, MI.getDebugLoc(), TII->get(AArch64::LDR_ZA));
+
+  MIB.addReg(AArch64::ZA, RegState::Define);
+  MIB.add(MI.getOperand(0)); // Vector select register
+  MIB.add(MI.getOperand(1)); // Vector select offset
+  MIB.add(MI.getOperand(2)); // Base
+  MIB.add(MI.getOperand(1)); // Offset, same as vector select offset
+
+  MI.eraseFromParent(); // The pseudo is gone now.
+  return BB;
+}
+
+MachineBasicBlock *
+AArch64TargetLowering::EmitInsertVectorToTile(unsigned Opc, unsigned BaseReg,
+                                              MachineInstr &MI,
+                                              MachineBasicBlock *BB) const {
+  const TargetInstrInfo *TII = Subtarget->getInstrInfo();
+  MachineInstrBuilder MIB = BuildMI(*BB, MI, MI.getDebugLoc(), TII->get(Opc));
+
+  MIB.addReg(BaseReg + MI.getOperand(0).getImm(), RegState::Define);
+  MIB.addReg(BaseReg + MI.getOperand(0).getImm());
+  MIB.add(MI.getOperand(1)); // Slice index register
+  MIB.add(MI.getOperand(2)); // Slice index offset
+  MIB.add(MI.getOperand(3)); // pg
+  MIB.add(MI.getOperand(4)); // zn
+
+  MI.eraseFromParent(); // The pseudo is gone now.
+  return BB;
+}
+
 MachineBasicBlock *AArch64TargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   switch (MI.getOpcode()) {
@@ -2350,6 +2405,58 @@ MachineBasicBlock *AArch64TargetLowering::EmitInstrWithCustomInserter(
 
   case AArch64::CATCHRET:
     return EmitLoweredCatchRet(MI, BB);
+  case AArch64::LD1_MXIPXX_H_PSEUDO_B:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_H_B, AArch64::ZAB0, MI, BB);
+  case AArch64::LD1_MXIPXX_H_PSEUDO_H:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_H_H, AArch64::ZAH0, MI, BB);
+  case AArch64::LD1_MXIPXX_H_PSEUDO_S:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_H_S, AArch64::ZAS0, MI, BB);
+  case AArch64::LD1_MXIPXX_H_PSEUDO_D:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_H_D, AArch64::ZAD0, MI, BB);
+  case AArch64::LD1_MXIPXX_H_PSEUDO_Q:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_H_Q, AArch64::ZAQ0, MI, BB);
+  case AArch64::LD1_MXIPXX_V_PSEUDO_B:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_V_B, AArch64::ZAB0, MI, BB);
+  case AArch64::LD1_MXIPXX_V_PSEUDO_H:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_V_H, AArch64::ZAH0, MI, BB);
+  case AArch64::LD1_MXIPXX_V_PSEUDO_S:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_V_S, AArch64::ZAS0, MI, BB);
+  case AArch64::LD1_MXIPXX_V_PSEUDO_D:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_V_D, AArch64::ZAD0, MI, BB);
+  case AArch64::LD1_MXIPXX_V_PSEUDO_Q:
+    return EmitTileLoad(AArch64::LD1_MXIPXX_V_Q, AArch64::ZAQ0, MI, BB);
+  case AArch64::LDR_ZA_PSEUDO:
+    return EmitFill(MI, BB);
+  case AArch64::INSERT_MXIPZ_H_PSEUDO_B:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_H_B, AArch64::ZAB0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_H_PSEUDO_H:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_H_H, AArch64::ZAH0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_H_PSEUDO_S:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_H_S, AArch64::ZAS0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_H_PSEUDO_D:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_H_D, AArch64::ZAD0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_H_PSEUDO_Q:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_H_Q, AArch64::ZAQ0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_V_PSEUDO_B:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_V_B, AArch64::ZAB0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_V_PSEUDO_H:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_V_H, AArch64::ZAH0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_V_PSEUDO_S:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_V_S, AArch64::ZAS0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_V_PSEUDO_D:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_V_D, AArch64::ZAD0, MI,
+                                  BB);
+  case AArch64::INSERT_MXIPZ_V_PSEUDO_Q:
+    return EmitInsertVectorToTile(AArch64::INSERT_MXIPZ_V_Q, AArch64::ZAQ0, MI,
+                                  BB);
   }
 }
 
@@ -5310,7 +5417,7 @@ bool AArch64TargetLowering::mergeStoresAfterLegalization(EVT VT) const {
 
 bool AArch64TargetLowering::useSVEForFixedLengthVectorVT(
     EVT VT, bool OverrideNEON) const {
-  if (!VT.isFixedLengthVector())
+  if (!VT.isFixedLengthVector() || !VT.isSimple())
     return false;
 
   // Don't use SVE for vectors we cannot scalarize if required.
@@ -19317,9 +19424,13 @@ void AArch64TargetLowering::ReplaceBITCASTResults(
 }
 
 static void ReplaceAddWithADDP(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                               SelectionDAG &DAG) {
+                               SelectionDAG &DAG,
+                               const AArch64Subtarget *Subtarget) {
   EVT VT = N->getValueType(0);
-  if (!VT.is256BitVector())
+  if (!VT.is256BitVector() ||
+      (VT.getScalarType().isFloatingPoint() &&
+       !N->getFlags().hasAllowReassociation()) ||
+      (VT.getScalarType() == MVT::f16 && !Subtarget->hasFullFP16()))
     return;
 
   SDValue X = N->getOperand(0);
@@ -19537,7 +19648,8 @@ void AArch64TargetLowering::ReplaceNodeResults(
     Results.push_back(LowerVECREDUCE(SDValue(N, 0), DAG));
     return;
   case ISD::ADD:
-    ReplaceAddWithADDP(N, Results, DAG);
+  case ISD::FADD:
+    ReplaceAddWithADDP(N, Results, DAG, Subtarget);
     return;
 
   case ISD::CTPOP:
@@ -19680,11 +19792,11 @@ bool AArch64TargetLowering::isOpSuitableForLDPSTP(const Instruction *I) const {
 
   if (auto LI = dyn_cast<LoadInst>(I))
     return LI->getType()->getPrimitiveSizeInBits() == 128 &&
-           LI->getAlignment() >= 16;
+           LI->getAlign() >= Align(16);
 
   if (auto SI = dyn_cast<StoreInst>(I))
     return SI->getValueOperand()->getType()->getPrimitiveSizeInBits() == 128 &&
-           SI->getAlignment() >= 16;
+           SI->getAlign() >= Align(16);
 
   return false;
 }

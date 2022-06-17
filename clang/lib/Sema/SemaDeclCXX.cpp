@@ -8649,10 +8649,10 @@ bool Sema::CheckExplicitlyDefaultedComparison(Scope *S, FunctionDecl *FD,
                             int(1)))
       return true;
 
-    if (llvm::find_if(RD->friends(), [&](const FriendDecl *F) {
+    if (llvm::none_of(RD->friends(), [&](const FriendDecl *F) {
           return FD->getCanonicalDecl() ==
                  F->getFriendDecl()->getCanonicalDecl();
-        }) == RD->friends().end()) {
+        })) {
       Diag(FD->getLocation(), diag::err_defaulted_comparison_not_friend)
           << int(DCK) << int(0) << RD;
       Diag(RD->getCanonicalDecl()->getLocation(), diag::note_declared_at);
@@ -16892,7 +16892,8 @@ Decl *Sema::ActOnFriendTypeDecl(Scope *S, const DeclSpec &DS,
   // Try to convert the decl specifier to a type.  This works for
   // friend templates because ActOnTag never produces a ClassTemplateDecl
   // for a TUK_Friend.
-  Declarator TheDeclarator(DS, DeclaratorContext::Member);
+  Declarator TheDeclarator(DS, ParsedAttributesView::none(),
+                           DeclaratorContext::Member);
   TypeSourceInfo *TSI = GetTypeForDeclarator(TheDeclarator, S);
   QualType T = TSI->getType();
   if (TheDeclarator.isInvalidType())
