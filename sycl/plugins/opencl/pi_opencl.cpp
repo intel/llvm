@@ -55,7 +55,6 @@ template <class To, class From> To cast(From value) {
 CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
 CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
 CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
 CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
@@ -70,7 +69,7 @@ CONSTFIX char clGetDeviceFunctionPointerName[] =
 
 #undef CONSTFIX
 
-// Global variables for PI_PLUGIN_SPECIFIC_ERROR
+// Global variables for PI_ERROR_PLUGIN_SPECIFIC_ERROR
 constexpr size_t MaxMessageSize = 256;
 thread_local pi_result ErrorMessageCode = PI_SUCCESS;
 thread_local char ErrorMessage[MaxMessageSize];
