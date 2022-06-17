@@ -12,10 +12,9 @@
 #include <detail/config.hpp>
 
 #include <cstring>
-#include <fstream>
-#include <iostream>
 #include <limits>
-
+#include <cstdio>
+#include <fstream>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -149,13 +148,11 @@ void dumpConfig() {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   {                                                                            \
     const char *Val = SYCLConfigBase<Name>::getRawValue();                     \
-    std::cerr << SYCLConfigBase<Name>::MConfigName << " : "                    \
-              << (Val ? Val : "unset") << std::endl;                           \
+    fprintf(stderr, "%s%s%s\n",SYCLConfigBase<Name>::MConfigName," : ",Val ? Val : "unset");                           \
   }
 #include "detail/config.def"
 #undef CONFIG
 }
-
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
 const std::array<std::pair<std::string, info::device_type>, 5> &
 getSyclDeviceTypeMap() {

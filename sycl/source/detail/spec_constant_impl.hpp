@@ -12,7 +12,7 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <iostream>
+//#include <iostream>
 #include <map>
 #include <vector>
 
@@ -32,12 +32,13 @@ public:
   size_t getSize() const { return Bytes.size(); }
   const char *getValuePtr() const { return Bytes.data(); }
   bool isSet() const { return !Bytes.empty(); }
+  operator std::string() const;
 
 private:
   std::vector<char> Bytes;
 };
 
-std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V);
+// std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V);
 
 // Used to define specialization constant registry. Must be ordered map, since
 // the order of entries matters in stableSerializeSpecConstRegistry.

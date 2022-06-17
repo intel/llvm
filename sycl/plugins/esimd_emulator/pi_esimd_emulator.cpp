@@ -367,27 +367,26 @@ extern "C" {
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   if (PrintPiTrace) {                                                          \
-    std::cerr << "Not Implemented : " << __FUNCTION__                          \
-              << " - File : " << __FILE__;                                     \
-    std::cerr << " / Line : " << __LINE__ << std::endl;                        \
+    fprintf(stderr,"%s%c%s%s","Not Implemented : %s%s%s", __FUNCTION__, " - File : ", __FILE__);                                     \
+    fprintf(stderr,"%s%s\n"," / Line : ",__LINE__);                            \
   }                                                                            \
   return PI_INVALID_OPERATION;
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   if (PrintPiTrace) {                                                          \
-    std::cerr << "Warning : Not Implemented : " << __FUNCTION__                \
-              << " - File : " << __FILE__;                                     \
-    std::cerr << " / Line : " << __LINE__ << std::endl;                        \
+     fprintf(stderr, "%s%s%s","Warning : Not Implemented : ", __FUNCTION__                \
+              ," - File : " ,__FILE__);                                     \
+     fprintf(stderr, "%s%s\n"," / Line : ", __LINE__);                        \
   }                                                                            \
   return PI_SUCCESS;
 
 #define CASE_PI_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
     if (PrintPiTrace) {                                                        \
-      std::cerr << std::endl                                                   \
-                << "Unsupported PI case : " << #not_supported << " in "        \
-                << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
-                << std::endl;                                                  \
+      fprintf(stderr,"\n%s%s%s%s%s%s%s%s%s\n",                                                   \
+                , "Unsupported PI case : ", #not_supported, " in "        \
+                , __FUNCTION__, ":" , __LINE__ , "(" , __FILE__ , ")"   \
+                ;                                                  \
     }                                                                          \
     return PI_INVALID_OPERATION;
 
@@ -409,9 +408,8 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
     /// Runtime queries number of Platforms
     if (Platforms != nullptr) {
       if (PrintPiTrace) {
-        std::cerr << "Invalid Arguments for piPlatformsGet of esimd_emultor "
-                     "(Platforms!=nullptr) while querying number of platforms"
-                  << std::endl;
+        fprintf(stderr,"%s%s\n","Invalid Arguments for piPlatformsGet of esimd_emultor ",
+                      ,"(Platforms!=nullptr) while querying number of platforms");
       }
       return PI_INVALID_VALUE;
     }
@@ -499,9 +497,8 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
     /// Runtime queries number of devices
     if (Devices != nullptr) {
       if (PrintPiTrace) {
-        std::cerr << "Invalid Arguments for piDevicesGet of esimd_emultor "
-                     "(Devices!=nullptr) while querying number of platforms"
-                  << std::endl;
+        fprintf(stderr,"%s%s\n","Invalid Arguments for piDevicesGet of esimd_emultor ",
+                "(Devices!=nullptr) while querying number of platforms");
       }
       return PI_INVALID_VALUE;
     }
@@ -552,8 +549,7 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
 
   if (((Version / 10) % 10) != 0) {
     if (PrintPiTrace) {
-      std::cerr << "CM_EMU Device version info is incorrect : " << Version
-                << std::endl;
+      fprintf(stderr,"%s%d\n","CM_EMU Device version info is incorrect : ",Version);
     }
     return PI_INVALID_DEVICE;
   }
@@ -907,9 +903,8 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
   if (Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
     if (HostPtr == nullptr) {
       if (PrintPiTrace) {
-        std::cerr << "HostPtr argument is required for "
-                     "PI_MEM_FLAGS_HOST_PTR_USE/COPY"
-                  << std::endl;
+        fprintf(stderr,"%s%s\n","HostPtr argument is required for "
+                              ,"PI_MEM_FLAGS_HOST_PTR_USE/COPY");
       }
       return false;
     }
@@ -917,9 +912,7 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
     if ((Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) ==
         (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
       if (PrintPiTrace) {
-        std::cerr
-            << "PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together"
-            << std::endl;
+        fprintf(stderr, "%s\n","PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together");
       }
       return false;
     }
@@ -1011,8 +1004,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemBufferCreate"
-                << std::endl;
+      fprintf(stderr,"Invalid memory attribute for piMemBufferCreate\n");
     }
     return PI_INVALID_OPERATION;
   }
@@ -1161,7 +1153,7 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            pi_mem *RetImage) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     if (PrintPiTrace) {
-      std::cerr << "Invalid memory attribute for piMemImageCreate" << std::endl;
+      fprintf(stderr,"Invalid memory attribute for piMemImageCreate\n");
     }
     return PI_INVALID_OPERATION;
   }
@@ -1398,8 +1390,7 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   ARG_UNUSED(ParamValueSizeRet);
 
   if (PrintPiTrace) {
-    std::cerr << "Warning : Profiling Not supported under PI_ESIMD_EMULATOR"
-              << std::endl;
+    fprintf(stderr,"Warning : Profiling Not supported under PI_ESIMD_EMULATOR\n");
   }
   return PI_SUCCESS;
 }
@@ -1621,8 +1612,7 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
     if (!Res.second) {
       ret = PI_INVALID_VALUE;
       if (PrintPiTrace) {
-        std::cerr << "piEnqueueMemBufferMap: duplicate mapping detected"
-                  << std::endl;
+        fprintf(stderr,"piEnqueueMemBufferMap: duplicate mapping detected\n");
       }
     }
   }
@@ -1658,7 +1648,7 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     if (It == MemObj->Mappings.end()) {
       ret = PI_INVALID_VALUE;
       if (PrintPiTrace) {
-        std::cerr << "piEnqueueMemUnmap: unknown memory mapping" << std::endl;
+        fprintf(stderr,"piEnqueueMemUnmap: unknown memory mapping\n");
       }
     }
     MemObj->Mappings.erase(It);
@@ -1950,9 +1940,7 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
   /// for the images
   if (RawImgSize != 1) {
     if (PrintPiTrace) {
-      std::cerr
-          << "Only single device binary image is supported in ESIMD_EMULATOR"
-          << std::endl;
+      fprintf(stderr, "Only single device binary image is supported in ESIMD_EMULATOR\n");
     }
     return PI_INVALID_VALUE;
   }

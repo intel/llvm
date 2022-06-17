@@ -84,9 +84,8 @@ static bool IsBannedPlatform(platform Platform) {
         detail::getSyclObjImpl(Platform)->getPlugin().getBackend();
     const bool IsCUDAOCL = (HasCUDA && Backend == backend::opencl);
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "NVIDIA CUDA OpenCL platform found but is not compatible."
-                << std::endl;
+      printf("%s%s\n", "SYCL_PI_TRACE[all]: ",
+             "NVIDIA CUDA OpenCL platform found but is not compatible.");
     }
     return IsCUDAOCL;
   };

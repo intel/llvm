@@ -43,7 +43,7 @@ public:
 
   void print() const override {
     pi::DeviceBinaryImage::print();
-    std::cerr << "    OSModuleHandle=" << ModuleHandle << "\n";
+    fprintf(stderr,"    OSModuleHandle=%ld\n",ModuleHandle);
   }
 
 protected:
@@ -60,7 +60,7 @@ public:
 
   void print() const override {
     RTDeviceBinaryImage::print();
-    std::cerr << "    DYNAMICALLY CREATED\n";
+    fprintf(stderr,"    DYNAMICALLY CREATED\n");
   }
 
 protected:

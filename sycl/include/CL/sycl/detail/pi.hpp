@@ -232,14 +232,15 @@ public:
   pi_uint32 asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
+  operator std::string()const;
 
 protected:
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const DeviceBinaryProperty &P);
+  // friend std::ostream &operator<<(std::ostream &Out,
+  //                                 const DeviceBinaryProperty &P);
   const _pi_device_binary_property_struct *Prop;
 };
 
-std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
+//std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
 
 // C++ convenience wrapper over the pi_device_binary_struct structure.
 class DeviceBinaryImage {
@@ -298,7 +299,7 @@ public:
   DeviceBinaryImage() : Bin(nullptr){};
 
   virtual void print() const;
-  virtual void dump(std::ostream &Out) const;
+  virtual void dump(FILE* file) const;
 
   size_t getSize() const {
     assert(Bin && "binary image data not set");

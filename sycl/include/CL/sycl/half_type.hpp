@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <functional>
-#include <iostream>
+// #include <iostream>
 #include <limits>
 
 #if !__has_builtin(__builtin_expect)
@@ -143,7 +143,8 @@ public:
   half(const float &rhs);
 
   half &operator=(const half &rhs) = default;
-
+  // string operator
+  inline operator std::string()const;
   // Operator +=, -=, *=, /=
   half &operator+=(const half &rhs);
 
@@ -693,18 +694,28 @@ template <> struct numeric_limits<cl::sycl::half> {
 };
 
 } // namespace std
-
-inline std::ostream &operator<<(std::ostream &O, cl::sycl::half const &rhs) {
-  O << static_cast<float>(rhs);
-  return O;
+inline FILE* operator<<(FILE* file,cl::sycl::half const &rhs){
+  fprintf(file,"%lf",static_cast<float>(rhs));
+  return file;
 }
 
-inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
+// inline std::ostream &operator<<(std::ostream &O, cl::sycl::half const &rhs) {
+//   O << static_cast<float>(rhs);
+//   return O;
+// }
+
+inline FILE* operator>>(FILE* file,cl::sycl::half &rhs){
   float ValFloat = 0.0f;
-  I >> ValFloat;
-  rhs = ValFloat;
-  return I;
+  fscanf(file,"%f",&ValFloat);
+  rhs=ValFloat;
+  return file;
 }
+// inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
+//   float ValFloat = 0.0f;
+//   I >> ValFloat;
+//   rhs = ValFloat;
+//   return I;
+// }
 
 #undef __SYCL_CONSTEXPR_HALF
 #undef _CPP14_CONSTEXPR

@@ -194,7 +194,7 @@ public:
   static void trace(const std::string &msg) {
     static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();
     if (TraceEnabled)
-      std::cerr << "*** Code caching: " << msg << std::endl;
+      fprintf(stderr, "*** Code caching: %s\n",msg.c_str());
   }
 };
 } // namespace detail

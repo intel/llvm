@@ -385,8 +385,8 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
-    std::cerr << "SYCL_PI_TRACE[all]: "
-              << "No Plugins Found." << std::endl;
+    fprintf(stderr, "SYCL_PI_TRACE[all]: "
+           "No Plugins Found.\n");
 
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
@@ -397,19 +397,18 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
-        std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Check if plugin is present. "
-                  << "Failed to load plugin: " << PluginNames[I].first
-                  << std::endl;
+        fprintf(stderr,"SYCL_PI_TRACE[all]: "
+               "Check if plugin is present. "
+               "Failed to load plugin: %s\n",PluginNames[I].first.c_str());
       }
       continue;
     }
 
     if (!bindPlugin(Library, PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
-        std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Failed to bind PI APIs to the plugin: "
-                  << PluginNames[I].first << std::endl;
+        fprintf(stderr, "SYCL_PI_TRACE[all]: "
+                        "Failed to bind PI APIs to the plugin: %s\n",
+                        PluginNames[I].first.c_str());
       }
       continue;
     }
@@ -449,9 +448,9 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
-      std::cerr << "SYCL_PI_TRACE[basic]: "
-                << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << std::endl;
+      fprintf(stderr,"SYCL_PI_TRACE[basic]: "
+                     "Plugin found and successfully loaded: %s\n",
+                     PluginNames[I].first.c_str());
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -535,7 +534,7 @@ getPlugin<backend::ext_intel_esimd_emulator>();
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
+  fprintf(stderr,"pi_die: %s\n",Message);
   std::terminate();
 }
 
@@ -544,39 +543,40 @@ void assertion(bool Condition, const char *Message) {
     die(Message);
 }
 
-std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
-  switch (P.Prop->Type) {
+DeviceBinaryProperty::operator std::string()const{
+  std::string Out;
+  switch (this->Prop->Type) {
   case PI_PROPERTY_TYPE_UINT32:
-    Out << "[UINT32] ";
+    Out += "[UINT32] ";
     break;
   case PI_PROPERTY_TYPE_BYTE_ARRAY:
-    Out << "[Byte array] ";
+    Out += "[Byte array] ";
     break;
   case PI_PROPERTY_TYPE_STRING:
-    Out << "[String] ";
+    Out += "[String] ";
     break;
   default:
     assert(false && "unsupported property");
     return Out;
   }
-  Out << P.Prop->Name << "=";
+  Out += this->Prop->Name;
+  Out+= "=";
 
-  switch (P.Prop->Type) {
+  switch (this->Prop->Type) {
   case PI_PROPERTY_TYPE_UINT32:
-    Out << P.asUint32();
+    Out += std::to_string(this->asUint32());
     break;
   case PI_PROPERTY_TYPE_BYTE_ARRAY: {
-    ByteArray BA = P.asByteArray();
-    std::ios_base::fmtflags FlagsBackup = Out.flags();
-    Out << std::hex;
+    ByteArray BA = this->asByteArray();
+    char string[30];
     for (const auto &Byte : BA) {
-      Out << "0x" << static_cast<unsigned>(Byte) << " ";
+      sprintf(string,"0x%x", static_cast<unsigned>(Byte));
+      Out+= string;
     }
-    Out.flags(FlagsBackup);
     break;
   }
   case PI_PROPERTY_TYPE_STRING:
-    Out << P.asCString();
+    Out += this->asCString();
     break;
   default:
     assert(false && "Unsupported property");
@@ -585,43 +585,85 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   return Out;
 }
 
+// std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
+//   switch (P.Prop->Type) {
+//   case PI_PROPERTY_TYPE_UINT32:
+//     Out << "[UINT32] ";
+//     break;
+//   case PI_PROPERTY_TYPE_BYTE_ARRAY:
+//     Out << "[Byte array] ";
+//     break;
+//   case PI_PROPERTY_TYPE_STRING:
+//     Out << "[String] ";
+//     break;
+//   default:
+//     assert(false && "unsupported property");
+//     return Out;
+//   }
+//   Out << P.Prop->Name << "=";
+
+//   switch (P.Prop->Type) {
+//   case PI_PROPERTY_TYPE_UINT32:
+//     Out << P.asUint32();
+//     break;
+//   case PI_PROPERTY_TYPE_BYTE_ARRAY: {
+//     ByteArray BA = P.asByteArray();
+//     std::ios_base::fmtflags FlagsBackup = Out.flags();
+//     Out << std::hex;
+//     for (const auto &Byte : BA) {
+//       Out << "0x" << static_cast<unsigned>(Byte) << " ";
+//     }
+//     Out.flags(FlagsBackup);
+//     break;
+//   }
+//   case PI_PROPERTY_TYPE_STRING:
+//     Out << P.asCString();
+//     break;
+//   default:
+//     assert(false && "Unsupported property");
+//     return Out;
+//   }
+//   return Out;
+// }
+
 void DeviceBinaryImage::print() const {
-  std::cerr << "  --- Image " << Bin << "\n";
+  fprintf(stderr,"  --- Image %p\n",(void*)Bin);
   if (!Bin)
     return;
-  std::cerr << "    Version  : " << (int)Bin->Version << "\n";
-  std::cerr << "    Kind     : " << (int)Bin->Kind << "\n";
-  std::cerr << "    Format   : " << (int)Bin->Format << "\n";
-  std::cerr << "    Target   : " << Bin->DeviceTargetSpec << "\n";
-  std::cerr << "    Bin size : "
-            << ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart) << "\n";
-  std::cerr << "    Compile options : "
-            << (Bin->CompileOptions ? Bin->CompileOptions : "NULL") << "\n";
-  std::cerr << "    Link options    : "
-            << (Bin->LinkOptions ? Bin->LinkOptions : "NULL") << "\n";
-  std::cerr << "    Entries  : ";
+  fprintf(stderr,"    Version  : %d\n", (int)Bin->Version);
+  fprintf(stderr,"    Kind     : %d\n", (int)Bin->Kind);
+  fprintf(stderr,"    Format   : %d\n", (int)Bin->Format);
+  fprintf(stderr,"    Target   : %s\n", Bin->DeviceTargetSpec);
+  fprintf(stderr,"    Bin size : %ld\n",
+          ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart));
+  fprintf(stderr,"    Compile options : %s",
+          (Bin->CompileOptions ? Bin->CompileOptions : "NULL"));
+  fprintf(stderr,"    Link options    : %s",
+          (Bin->LinkOptions ? Bin->LinkOptions : "NULL"));
+  fprintf(stderr,"    Entries  : ");
   for (_pi_offload_entry EntriesIt = Bin->EntriesBegin;
        EntriesIt != Bin->EntriesEnd; ++EntriesIt)
-    std::cerr << EntriesIt->name << " ";
-  std::cerr << "\n";
-  std::cerr << "    Properties [" << Bin->PropertySetsBegin << "-"
-            << Bin->PropertySetsEnd << "]:\n";
+    fprintf(stderr,"%s ",EntriesIt->name);
+  fprintf(stderr,"\n");
+  fprintf(stderr,"    Properties [%p-%p]:\n", (void*)Bin->PropertySetsBegin ,
+          (void*)Bin->PropertySetsEnd);
 
   for (pi_device_binary_property_set PS = Bin->PropertySetsBegin;
        PS != Bin->PropertySetsEnd; ++PS) {
-    std::cerr << "      Category " << PS->Name << " [" << PS->PropertiesBegin
-              << "-" << PS->PropertiesEnd << "]:\n";
+    fprintf(stderr,"      Category %s [%p-%p]:\n",PS->Name,(void*)PS->PropertiesBegin,
+            (void*)PS->PropertiesEnd);
 
     for (pi_device_binary_property P = PS->PropertiesBegin;
          P != PS->PropertiesEnd; ++P) {
-      std::cerr << "        " << DeviceBinaryProperty(P) << "\n";
+      fprintf(stderr,"        %s\n",DeviceBinaryProperty(P).asCString());
     }
   }
 }
 
-void DeviceBinaryImage::dump(std::ostream &Out) const {
+void DeviceBinaryImage::dump(FILE* file) const {
   size_t ImgSize = getSize();
-  Out.write(reinterpret_cast<const char *>(Bin->BinaryStart), ImgSize);
+  const char* aString=reinterpret_cast<const char *>(Bin->BinaryStart);
+  fwrite(aString,sizeof(char),ImgSize,file);
 }
 
 static pi_uint32 asUint32(const void *Addr) {

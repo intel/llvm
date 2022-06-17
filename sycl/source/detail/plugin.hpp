@@ -120,7 +120,8 @@ public:
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        std::clog << message << std::endl;
+        //TODO: Implement clog replacment, stderr is not fully analogous
+        fprintf(stderr,"%s\n",message);
 
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
@@ -137,7 +138,7 @@ public:
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        std::clog << message << std::endl;
+        fprintf(stderr, "%s\n",message);
 
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
@@ -190,13 +191,13 @@ public:
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
-      std::cout << "---> " << FnName << "(" << std::endl;
+      printf("---> %s(\n",FnName);
       RT::printArgs(Args...);
       R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
-      std::cout << ") ---> ";
+      printf(") ---> ");
       RT::printArgs(R);
       RT::printOuts(Args...);
-      std::cout << std::endl;
+      printf("\n");
     } else {
       R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
     }

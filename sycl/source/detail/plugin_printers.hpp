@@ -19,110 +19,139 @@ namespace sycl {
 namespace detail {
 namespace pi {
 
+inline void __plugin__print(const bool val){
+  printf("%s",val?"true":"false");
+}
+// inline void __plugin__print(const float val){
+//   printf("%f",val);
+// }
+inline void __plugin__print(const double val){
+  printf("%lf",val);
+}
+inline void __plugin__print(const long double val){
+  printf("%Lf",val);
+}
+// inline void __plugin__print(const short val){
+//   printf("%hi",val);
+// }
+// inline void __plugin__print(const unsigned short val){
+//   printf("%hu",val);
+// }
+// inline void __puglin__print(const int val){
+//   printf("%d",val);
+// }
+// inline void __plugin__print(const unsigned int val){
+//   printf("%u",val);
+// }
+inline void __plugin__print(const long val){
+  printf("%ld",val);
+}
+inline void __plugin__print(const unsigned long val){
+  printf("%lu",val);
+}
+inline void __plugin__print(const std::string val){
+  printf("%s",val.c_str());
+}
 template <typename T>
 inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
 print(T val) {
-  std::cout << "<unknown> : " << val << std::endl;
+  printf("<unknown> : ");
+  std::cout << val;
+  printf("\n");
 }
-
 template <typename T>
 inline typename std::enable_if<std::is_pointer<T>::value, void>::type
 print(T val) {
-  std::cout << "<unknown> : " << reinterpret_cast<const void *>(val)
-            << std::endl;
+  printf("<unknown> : %p\n",reinterpret_cast<const void *>(val));
 }
 
 template <> inline void print<>(PiPlatform val) {
-  std::cout << "pi_platform : " << val << std::endl;
+  printf("pi_platform : %p\n",(void*)val);
 }
 
 template <> inline void print<>(PiEvent val) {
-  std::cout << "pi_event : " << val << std::endl;
+  printf("pi_event : %p\n",(void*)val);
 }
 
 template <> inline void print<>(PiMem val) {
-  std::cout << "pi_mem : " << val << std::endl;
+  printf("pi_mem : %p\n",(void*)val);
 }
 
 template <> inline void print<>(PiEvent *val) {
-  std::cout << "pi_event * : " << val;
+  printf("pi_event * : %p",(void*)val);
   if (val)
-    std::cout << "[ " << *val << " ... ]";
+    printf("[ %p ... ]",(void*)*val);
   else
-    std::cout << "[ nullptr ]";
-  std::cout << std::endl;
+    printf("[ nullptr ]");
+  printf("\n");
 }
 
 template <> inline void print<>(const PiEvent *val) {
-  std::cout << "const pi_event * : " << val;
+  printf("const pi_event * : %p",(const void*)val);
   if (val)
-    std::cout << "[ " << *val << " ... ]";
+    printf("[ %p ... ]",(void*)*val);
   else
-    std::cout << "[ nullptr ]";
-  std::cout << std::endl;
+    printf("[ nullptr ]");
+  printf("\n");
 }
 
 template <> inline void print<>(pi_buffer_region rgn) {
-  std::cout << "pi_buffer_region origin/size : " << rgn->origin << "/"
-            << rgn->size << std::endl;
+  printf("pi_buffer_region origin/size : %lu/%lu\n",rgn->origin,rgn->size);
 }
 
 template <> inline void print<>(pi_buff_rect_region rgn) {
-  std::cout << "pi_buff_rect_region width_bytes/height/depth : "
-            << rgn->width_bytes << "/" << rgn->height_scalar << "/"
-            << rgn->depth_scalar << std::endl;
+  printf("pi_buff_rect_region width_bytes/height/depth : %lu/%lu/%lu\n",
+         rgn->width_bytes,rgn->height_scalar,rgn->depth_scalar);
 }
 
 template <> inline void print<>(pi_buff_rect_offset off) {
-  std::cout << "pi_buff_rect_offset x_bytes/y/z : " << off->x_bytes << "/"
-            << off->y_scalar << "/" << off->z_scalar << std::endl;
+  printf("pi_buff_rect_offset x_bytes/y/z : %lu/%lu/%lu\n",off->x_bytes,
+         off->y_scalar,off->z_scalar);
 }
 
 template <> inline void print<>(pi_image_region rgn) {
-  std::cout << "pi_image_region width/height/depth : " << rgn->width << "/"
-            << rgn->height << "/" << rgn->depth << std::endl;
+  printf("pi_image_region width/height/depth : %lu/%lu/%lu\n",rgn->width,
+          rgn->height,rgn->depth);
 }
 
 template <> inline void print<>(pi_image_offset off) {
-  std::cout << "pi_image_offset x/y/z : " << off->x << "/" << off->y << "/"
-            << off->z << std::endl;
+  printf("pi_image_offset x/y/z : %lu/%lu/%lu\n",off->x,off->y,off->z);
 }
 
 template <> inline void print<>(const pi_image_desc *desc) {
-  std::cout << "image_desc w/h/d : " << desc->image_width << " / "
-            << desc->image_height << " / " << desc->image_depth
-            << "  --  arrSz/row/slice : " << desc->image_array_size << " / "
-            << desc->image_row_pitch << " / " << desc->image_slice_pitch
-            << "  --  num_mip_lvls/num_smpls/image_type : "
-            << desc->num_mip_levels << " / " << desc->num_samples << " / "
-            << desc->image_type << std::endl;
+  printf("image_desc w/h/d : %lu/%lu/%lu%s%lu/%lu/%lu%s%d/%d/%d\n",
+          desc->image_width,desc->image_height,desc->image_depth,
+          "  --  arrSz/row/slice : ",desc->image_array_size,
+          desc->image_row_pitch,desc->image_slice_pitch,
+          "  --  num_mip_lvls/num_smpls/image_type : ",
+          desc->num_mip_levels,desc->num_samples,desc->image_type);
 }
 
 template <> inline void print<>(PiResult val) {
-  std::cout << "pi_result : ";
+  printf("pi_result : ");
   if (val == PI_SUCCESS)
-    std::cout << "PI_SUCCESS" << std::endl;
+    printf("PI_SUCCESS\n");
   else
-    std::cout << val << std::endl;
+    printf("%d\n",val);
 }
 
 // cout does not resolve a nullptr.
 template <> inline void print<>(std::nullptr_t) {
-  std::cout << "<nullptr>" << std::endl;
+  printf("<nullptr>\n");
 }
 
 template <> inline void print<>(char *val) {
-  std::cout << "<char * > : " << static_cast<void *>(val) << std::endl;
+  printf("<char * > : %p\n",static_cast<void *>(val));
 }
 
 template <> inline void print<>(const char *val) {
-  std::cout << "<const char *>: " << val << std::endl;
+  printf("<const char *>: %s\n",val);
 }
 
 inline void printArgs(void) {}
 template <typename Arg0, typename... Args>
 void printArgs(Arg0 arg0, Args... args) {
-  std::cout << "\t";
+  printf("\t");
   print(arg0);
   pi::printArgs(std::forward<Args>(args)...);
 }
@@ -133,38 +162,39 @@ template <typename T> struct printOut {
 
 template <> struct printOut<PiEvent *> {
   printOut(PiEvent *val) {
-    std::cout << "\t[out]pi_event * : " << val;
+    printf("\t[out]pi_event * : %p",static_cast<void*>(val));
     if (val)
-      std::cout << "[ " << *val << " ... ]";
+      printf("[ %p ... ]",static_cast<void*>(*val));
     else
-      std::cout << "[ nullptr ]";
-    std::cout << std::endl;
+      printf("[ nullptr ]");
+    printf("\n");
   }
 };
 
 template <> struct printOut<PiMem *> {
   printOut(PiMem *val) {
-    std::cout << "\t[out]pi_mem * : " << val;
+    printf("\t[out]pi_mem * : %p",(void*)val);
     if (val)
-      std::cout << "[ " << *val << " ... ]";
+      printf("[ %p ... ]",(void*)*val);
     else
-      std::cout << "[ nullptr ]";
-    std::cout << std::endl;
+      printf("[ nullptr ]");
+    printf("\n");
   }
 };
 
 template <> struct printOut<void *> {
-  printOut(void *val) { std::cout << "\t[out]void * : " << val << std::endl; }
+  printOut(void *val) { 
+    printf("\t[out]void * : %p\n",val); }
 };
 
 template <typename T> struct printOut<T **> {
   printOut(T **val) {
-    std::cout << "\t[out]<unknown> ** : " << val;
+    printf("\t[out]<unknown> ** : %p",(void*)val);
     if (val)
-      std::cout << "[ " << *val << " ... ]";
+      printf("[ %p ... ]",(const void*)*val);
     else
-      std::cout << "[ nullptr ]";
-    std::cout << std::endl;
+      printf("[ nullptr ]");
+    printf("\n");
   }
 };
 

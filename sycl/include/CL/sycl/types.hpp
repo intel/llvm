@@ -826,9 +826,9 @@ public:
   void dump() {
 #ifndef __SYCL_DEVICE_ONLY__
     for (int I = 0; I < NumElements; ++I) {
-      std::cout << "  " << I << ": " << getValue(I) << std::endl;
+      printf("  %d: %d\n",I,getValue(I));
     }
-    std::cout << std::endl;
+    printf("\n");
 #endif // __SYCL_DEVICE_ONLY__
   }
 

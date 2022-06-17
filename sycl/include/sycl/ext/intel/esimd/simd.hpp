@@ -22,7 +22,7 @@
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <iostream>
+//#include <iostream>
 #endif // __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -125,6 +125,27 @@ public:
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
   }
 
+  /// @ingroup sycl_esimd_misc
+  /// Prints a \c simd object to an output stream.
+  /// TODO: implemented for host code only.
+  operator std::string() const
+    #ifdef __SYCL_DEVICE_ONLY__
+    {}
+    #else
+    {
+      std::string OS;
+      OS += "{";
+      for (int I = 0; I < N; I++) {
+        OS += (*this)[I];
+        if (I < N - 1)
+          OS += ",";
+      }
+      OS += "}";
+      return OS;
+    }
+    #endif // __SYCL_DEVICE_ONLY__
+
+
   /// Prefix increment, increments elements of this object.
   /// @return Reference to this object.
   simd &operator++() {
@@ -203,19 +224,19 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// @ingroup sycl_esimd_misc
 /// Prints a \c simd object to an output stream.
 /// TODO: implemented for host code only.
-template <typename Ty, int N>
-std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
-#ifdef __SYCL_DEVICE_ONLY__
-    {}
-#else
-{
-  OS << "{";
-  for (int I = 0; I < N; I++) {
-    OS << V[I];
-    if (I < N - 1)
-      OS << ",";
-  }
-  OS << "}";
-  return OS;
-}
-#endif // __SYCL_DEVICE_ONLY__
+// template <typename Ty, int N>
+// std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
+// #ifdef __SYCL_DEVICE_ONLY__
+//     {}
+// #else
+// {
+//   OS << "{";
+//   for (int I = 0; I < N; I++) {
+//     OS << V[I];
+//     if (I < N - 1)
+//       OS << ",";
+//   }
+//   OS << "}";
+//   return OS;
+// }
+// #endif // __SYCL_DEVICE_ONLY__

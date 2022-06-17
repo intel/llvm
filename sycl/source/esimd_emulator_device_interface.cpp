@@ -33,9 +33,8 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
         getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(
             nullptr);
   } catch (...) {
-    std::cerr << "ESIMD EMU plugin error or not loaded - try setting "
-                 "SYCL_DEVICE_FILTER=esimd_emulator:gpu environment variable"
-              << std::endl;
+    fprintf(stderr,"ESIMD EMU plugin error or not loaded - try setting"
+                    "SYCL_DEVICE_FILTER=esimd_emulator:gpu environment variable\n");
     throw cl::sycl::feature_not_supported();
   }
 
@@ -48,12 +47,12 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
     // versions of PluginOpaqueData is not backward compatible, unlike
     // layout of the ESIMDDeviceInterface.
 
-    std::cerr << __FUNCTION__ << std::endl
-              << "Opaque data returned by ESIMD Emu plugin is incompatible with"
-              << "the one used in current implementation." << std::endl
-              << "Returned version : " << OpaqueData->version << std::endl
-              << "Required version : "
-              << ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION << std::endl;
+    fprintf(stderr, "%s\n"
+                    "Opaque data returned by ESIMD Emu plugin is incompatible with"
+                    "the one used in current implementation.\n"
+                    "Returned version : %lu\n"
+                    "Required version : %d\n",__FUNCTION__,OpaqueData->version,
+                    ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION);
     throw feature_not_supported();
   }
   // Opaque data version is OK, can cast the 'data' field.
@@ -62,13 +61,12 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
 
   // Now check that device interface version is compatible.
   if (Interface->version < ESIMD_DEVICE_INTERFACE_VERSION) {
-    std::cerr << __FUNCTION__ << std::endl
-              << "The device interface version provided from plug-in "
-              << "library is behind required device interface version"
-              << std::endl
-              << "Found version : " << Interface->version << std::endl
-              << "Required version :" << ESIMD_DEVICE_INTERFACE_VERSION
-              << std::endl;
+    fprintf(stderr,"%s\n"
+                  "The device interface version provided from plug-in" 
+                  "library is behind required device interface version\n"
+                  "Found version : %lu\n"
+                  "Required version :%d\n", __FUNCTION__, Interface->version,
+                  ESIMD_DEVICE_INTERFACE_VERSION);
     throw feature_not_supported();
   }
   return Interface;

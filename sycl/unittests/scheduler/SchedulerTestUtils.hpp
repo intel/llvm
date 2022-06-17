@@ -53,7 +53,7 @@ public:
     EXPECT_CALL(*this, enqueue).Times(AnyNumber());
   }
 
-  void printDot(std::ostream &) const override {}
+  void printDot(FILE*) const override {}
   void emitInstrumentationData() override {}
 
   const cl::sycl::detail::Requirement *getRequirement() const final {

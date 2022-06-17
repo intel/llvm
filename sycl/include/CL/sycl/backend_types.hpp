@@ -31,7 +31,7 @@ enum class backend : char {
   esimd_cpu __SYCL2020_DEPRECATED("use 'ext_oneapi_esimd_emulator' instead") =
       ext_intel_esimd_emulator,
   ext_oneapi_hip = 6,
-  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
+  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip
 };
 
 template <backend Backend> class backend_traits;
@@ -42,32 +42,59 @@ using backend_input_t =
 template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
+    
+inline std::string backend_to_string(const backend& be) {
 
-inline std::ostream &operator<<(std::ostream &Out, backend be) {
-  switch (be) {
+    std::string Out="";
+     switch (be) {
   case backend::host:
-    Out << "host";
+    Out+= "host";
     break;
   case backend::opencl:
-    Out << "opencl";
+    Out+= "opencl";
     break;
   case backend::ext_oneapi_level_zero:
-    Out << "ext_oneapi_level_zero";
+    Out+= "ext_oneapi_level_zero";
     break;
   case backend::ext_oneapi_cuda:
-    Out << "ext_oneapi_cuda";
+    Out+= "ext_oneapi_cuda";
     break;
   case backend::ext_intel_esimd_emulator:
-    Out << "ext_intel_esimd_emulator";
+    Out+= "ext_intel_esimd_emulator";
     break;
   case backend::ext_oneapi_hip:
-    Out << "ext_oneapi_hip";
+    Out+= "ext_oneapi_hip";
     break;
   case backend::all:
-    Out << "all";
+    Out+= "all";
   }
   return Out;
 }
+// inline std::ostream &operator<<(std::ostream &Out, backend be) {
+//   switch (be) {
+//   case backend::host:
+//     Out << "host";
+//     break;
+//   case backend::opencl:
+//     Out << "opencl";
+//     break;
+//   case backend::ext_oneapi_level_zero:
+//     Out << "ext_oneapi_level_zero";
+//     break;
+//   case backend::ext_oneapi_cuda:
+//     Out << "ext_oneapi_cuda";
+//     break;
+//   case backend::ext_intel_esimd_emulator:
+//     Out << "ext_intel_esimd_emulator";
+//     break;
+//   case backend::ext_oneapi_hip:
+//     Out << "ext_oneapi_hip";
+//     break;
+//   case backend::all:
+//     Out << "all";
+//   }
+//   return Out;
+// }
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -15,9 +15,10 @@
 #include <CL/sycl/half_type.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/region.hpp>
+#include <string>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
-#define __esimd_dbg_print(a) std::cout << ">>> " << #a << "\n"
+#define __esimd_dbg_print(a) printf(">>> %s\n",((std::string)(#a)).c_str());
 #else
 #define __esimd_dbg_print(a)
 #endif // defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)

@@ -383,7 +383,7 @@ event handler::finalize() {
     break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      std::cout << "WARNING: An empty command group is submitted." << std::endl;
+      printf("WARNING: An empty command group is submitted.\n");
     }
     detail::EventImplPtr Event =
         std::make_shared<cl::sycl::detail::event_impl>();

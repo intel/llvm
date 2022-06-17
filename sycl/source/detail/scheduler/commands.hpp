@@ -182,7 +182,7 @@ public:
 
   // End Methods needed to support SYCL instrumentation
 
-  virtual void printDot(std::ostream &Stream) const = 0;
+  virtual void printDot(FILE* file) const = 0;
 
   virtual const Requirement *getRequirement() const {
     assert(false && "Internal Error. The command has no stored requirement");
@@ -324,7 +324,7 @@ class EmptyCommand : public Command {
 public:
   EmptyCommand(QueueImplPtr Queue);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   const Requirement *getRequirement() const final { return &MRequirements[0]; }
   void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
                       const Requirement *Req);
@@ -348,7 +348,7 @@ class ReleaseCommand : public Command {
 public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   void emitInstrumentationData() override;
   bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
@@ -409,7 +409,7 @@ public:
                 AllocaCommandBase *LinkedAllocaCmd = nullptr);
 
   void *getMemAllocation() const final { return MMemAllocation; }
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   void emitInstrumentationData() override;
 
 private:
@@ -429,7 +429,7 @@ public:
                       std::vector<Command *> &ToCleanUp);
 
   void *getMemAllocation() const final;
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
   void emitInstrumentationData() override;
 
@@ -445,7 +445,7 @@ public:
   MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req, void **DstPtr,
                QueueImplPtr Queue, access::mode MapMode);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
   void emitInstrumentationData() override;
 
@@ -464,7 +464,7 @@ public:
   UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
                  void **SrcPtr, QueueImplPtr Queue);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() override;
   bool producesPiEvent() const final;
@@ -485,7 +485,7 @@ public:
                 Requirement DstReq, AllocaCommandBase *DstAllocaCmd,
                 QueueImplPtr SrcQueue, QueueImplPtr DstQueue);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
@@ -510,7 +510,7 @@ public:
                     Requirement DstReq, void **DstPtr, QueueImplPtr SrcQueue,
                     QueueImplPtr DstQueue);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
   const ContextImplPtr &getWorkerContext() const final;
@@ -546,7 +546,7 @@ public:
   void clearStreams();
   void clearAuxiliaryResources();
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   void emitInstrumentationData() final;
 
   detail::CG &getCG() const { return *MCommandGroup; }
@@ -576,7 +576,7 @@ public:
   UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
                                AllocaCommandBase *SrcAllocaCmd, void **DstPtr);
 
-  void printDot(std::ostream &Stream) const final;
+  void printDot(FILE* file) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
   void emitInstrumentationData() final;
 

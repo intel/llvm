@@ -353,13 +353,12 @@ static bool parsePersistentCacheConfig() {
 
   // Check if deprecated opt-out env var is used, then warn.
   if (SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get()) {
-    std::cerr
-        << "WARNING: " << SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName()
-        << " environment variable is deprecated "
-        << "and has no effect. By default, persistent device code caching is "
-        << (Default ? "enabled." : "disabled.") << " Use "
-        << SYCLConfig<SYCL_CACHE_PERSISTENT>::getName()
-        << "=1/0 to enable/disable.\n";
+    fprintf(stderr,
+           "WARNING: %s%s%s%s%s%s",SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName(),
+           "and has no effect. By default, persistent device code caching is ",
+           (Default ? "enabled." : "disabled."), " Use ",
+           SYCLConfig<SYCL_CACHE_PERSISTENT>::getName(),
+           "=1/0 to enable/disable.\n");
   }
   bool Ret = Default;
   const char *RawVal = SYCLConfig<SYCL_CACHE_PERSISTENT>::get();
