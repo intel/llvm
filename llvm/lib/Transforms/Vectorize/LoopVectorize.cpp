@@ -482,11 +482,6 @@ public:
   /// new unrolled loop, where UF is the unroll factor.
   using VectorParts = SmallVector<Value *, 2>;
 
-  /// Vectorize a single vector PHINode in a block in the VPlan-native path
-  /// only.
-  void widenPHIInstruction(Instruction *PN, VPWidenPHIRecipe *PhiR,
-                           VPTransformState &State);
-
   /// A helper function to scalarize a single Instruction in the innermost loop.
   /// Generates a sequence of scalar instances for each lane between \p MinLane
   /// and \p MaxLane, times each part between \p MinPart and \p MaxPart,
@@ -512,8 +507,7 @@ public:
 
   /// Set the debug location in the builder \p Ptr using the debug location in
   /// \p V. If \p Ptr is None then it uses the class member's Builder.
-  void setDebugLocFromInst(const Value *V,
-                           Optional<IRBuilderBase *> CustomBuilder = None);
+  void setDebugLocFromInst(const Value *V);
 
   /// Fix the non-induction PHIs in \p Plan.
   void fixNonInductionPHIs(VPlan &Plan, VPTransformState &State);
@@ -927,8 +921,7 @@ static Instruction *getDebugLocFromInstOrOperands(Instruction *I) {
 }
 
 void InnerLoopVectorizer::setDebugLocFromInst(
-    const Value *V, Optional<IRBuilderBase *> CustomBuilder) {
-  IRBuilderBase *B = (CustomBuilder == None) ? &Builder : *CustomBuilder;
+    const Value *V) {
   if (const Instruction *Inst = dyn_cast_or_null<Instruction>(V)) {
     const DILocation *DIL = Inst->getDebugLoc();
 
@@ -940,15 +933,15 @@ void InnerLoopVectorizer::setDebugLocFromInst(
       auto NewDIL =
           DIL->cloneByMultiplyingDuplicationFactor(UF * VF.getKnownMinValue());
       if (NewDIL)
-        B->SetCurrentDebugLocation(NewDIL.getValue());
+        Builder.SetCurrentDebugLocation(NewDIL.getValue());
       else
         LLVM_DEBUG(dbgs()
                    << "Failed to create new discriminator: "
                    << DIL->getFilename() << " Line: " << DIL->getLine());
     } else
-      B->SetCurrentDebugLocation(DIL);
+      Builder.SetCurrentDebugLocation(DIL);
   } else
-    B->SetCurrentDebugLocation(DebugLoc());
+    Builder.SetCurrentDebugLocation(DebugLoc());
 }
 
 /// Write a \p DebugMsg about vectorization to the debug output stream. If \p I
@@ -4185,22 +4178,6 @@ bool InnerLoopVectorizer::useOrderedReductions(
   return Cost->useOrderedReductions(RdxDesc);
 }
 
-void InnerLoopVectorizer::widenPHIInstruction(Instruction *PN,
-                                              VPWidenPHIRecipe *PhiR,
-                                              VPTransformState &State) {
-  assert(EnableVPlanNativePath &&
-         "Non-native vplans are not expected to have VPWidenPHIRecipes.");
-  // Currently we enter here in the VPlan-native path for non-induction
-  // PHIs where all control flow is uniform. We simply widen these PHIs.
-  // Create a vector phi with no operands - the vector phi operands will be
-  // set at the end of vector code generation.
-  Type *VecTy = (State.VF.isScalar())
-                    ? PN->getType()
-                    : VectorType::get(PN->getType(), State.VF);
-  Value *VecPhi = Builder.CreatePHI(VecTy, PN->getNumOperands(), "vec.phi");
-  State.set(PhiR, VecPhi, 0);
-}
-
 /// A helper function for checking whether an integer division-related
 /// instruction may divide by zero (in which case it must be predicated if
 /// executed conditionally in the scalar code).
@@ -4396,7 +4373,7 @@ void LoopVectorizationCostModel::collectLoopScalars(ElementCount VF) {
     }
 
   // Insert the forced scalars.
-  // FIXME: Currently widenPHIInstruction() often creates a dead vector
+  // FIXME: Currently VPWidenPHIRecipe() often creates a dead vector
   // induction variable when the PHI user is scalarized.
   auto ForcedScalar = ForcedScalars.find(VF);
   if (ForcedScalar != ForcedScalars.end())
@@ -9704,13 +9681,8 @@ void VPScalarIVStepsRecipe::execute(VPTransformState &State) {
   }
 }
 
-void VPWidenPHIRecipe::execute(VPTransformState &State) {
-  State.ILV->widenPHIInstruction(cast<PHINode>(getUnderlyingValue()), this,
-                                 State);
-}
-
 void VPBlendRecipe::execute(VPTransformState &State) {
-  State.ILV->setDebugLocFromInst(Phi, &State.Builder);
+  State.ILV->setDebugLocFromInst(Phi);
   // We know that all PHIs in non-header blocks are converted into
   // selects, so we don't have to worry about the insertion order and we
   // can just use the builder.

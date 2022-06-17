@@ -2157,6 +2157,7 @@ public:
   void VisitOMPParallelForDirective(const OMPParallelForDirective *D);
   void VisitOMPParallelForSimdDirective(const OMPParallelForSimdDirective *D);
   void VisitOMPParallelMasterDirective(const OMPParallelMasterDirective *D);
+  void VisitOMPParallelMaskedDirective(const OMPParallelMaskedDirective *D);
   void VisitOMPParallelSectionsDirective(const OMPParallelSectionsDirective *D);
   void VisitOMPTaskDirective(const OMPTaskDirective *D);
   void VisitOMPTaskyieldDirective(const OMPTaskyieldDirective *D);
@@ -3075,6 +3076,11 @@ void EnqueueVisitor::VisitOMPParallelForSimdDirective(
 
 void EnqueueVisitor::VisitOMPParallelMasterDirective(
     const OMPParallelMasterDirective *D) {
+  VisitOMPExecutableDirective(D);
+}
+
+void EnqueueVisitor::VisitOMPParallelMaskedDirective(
+    const OMPParallelMaskedDirective *D) {
   VisitOMPExecutableDirective(D);
 }
 
@@ -5771,6 +5777,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("OMPParallelForSimdDirective");
   case CXCursor_OMPParallelMasterDirective:
     return cxstring::createRef("OMPParallelMasterDirective");
+  case CXCursor_OMPParallelMaskedDirective:
+    return cxstring::createRef("OMPParallelMaskedDirective");
   case CXCursor_OMPParallelSectionsDirective:
     return cxstring::createRef("OMPParallelSectionsDirective");
   case CXCursor_OMPTaskDirective:

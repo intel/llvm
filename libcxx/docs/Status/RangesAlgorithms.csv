@@ -9,7 +9,7 @@ Search,find_first_of,Nikolas Klauser,`D126529 <https://llvm.org/D126529>`_,✅
 Search,adjacent_find,Nikolas Klauser,`D126610 <https://llvm.org/D126610>`_,✅
 Search,mismatch,Nikolas Klauser,`D117817 <https://llvm.org/D117817>`_,✅
 Search,equal,Nikolas Klauser,`D123681 <https://llvm.org/D123681>`_,✅
-Search,lexicographical_compare,Nikolas Klauser,`D127130 <https://llvm.org/D127130>`_,Under review
+Search,lexicographical_compare,Nikolas Klauser,`D127130 <https://llvm.org/D127130>`_,✅
 Search,partition_point,Christopher Di Bella,`D105794 <https://llvm.org/D105794>`_,Under review
 Search,lower_bound,Nikolas Klauser,`D121964 <https://llvm.org/D121964>`_,✅
 Search,upper_bound,Nikolas Klauser,`D121964 <https://llvm.org/D121964>`_,✅
@@ -73,7 +73,7 @@ Permutation,shuffle,Not assigned,n/a,Not started
 Permutation,unique,Not assigned,n/a,Not started
 Permutation,partition,Not assigned,n/a,Not started
 Permutation,stable_partition,Not assigned,n/a,Not started
-Permutation,sort,Konstantin Varlamov,n/a,In progress
+Permutation,sort,`D127557 <https://llvm.org/D127557>`_,Konstantin Varlamov,✅
 Permutation,stable_sort,Konstantin Varlamov,n/a,In progress
 Permutation,partial_sort,Konstantin Varlamov,n/a,In progress
 Permutation,nth_element,Not assigned,n/a,Not started
