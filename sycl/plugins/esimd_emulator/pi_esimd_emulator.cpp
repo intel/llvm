@@ -1990,7 +1990,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
   // Check that the major version matches in PiVersion and SupportedVersion
   _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
-  
+
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
   if (strlen(_PI_H_VERSION_STRING) >= PluginVersionSize) {
     return PI_ERROR_INVALID_VALUE;
