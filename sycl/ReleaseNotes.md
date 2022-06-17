@@ -338,15 +338,10 @@ Release notes for commit range f34ba2c..4043dda
        end of the string.  Execute all string one by one.
  - `-fsycl-dead-args-optimization` can't help eliminate offset of
    accessor even though it's created with no offset specified
- - `cuMemPrefetchAsync` has issues on Windows. Hence, using
-   `sycl::queue::prefetch` API on Windows might lead to failure [0c33048e4926]
  - SYCL 2020 barriers show worse performance than SYCL 1.2.1 do [18c80fa]
  - When using fallback assert in separate compilation flow it requires explicit
    linking against `lib/libsycl-fallback-cassert.o` or
    `lib/libsycl-fallback-cassert.spv`
- - Performance may be impacted by JIT-ing an extra 'copier' kernel and due
-   running the 'copier' kernel and host-task after each kernel which uses
-   assert
  - Limit alignment of allocation requests at 64KB which is the only alignment
    supported by Level Zero[7dfaf3bd]
  - On the following scenario on Level Zero backend:
