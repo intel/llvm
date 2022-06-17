@@ -53,10 +53,6 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 // with the given queue.
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
     std::shared_ptr<sycl::detail::queue_impl> Queue) {
-#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
-  std::ignore = Queue;
-  return __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
-#else
   device Dev = Queue->get_device();
   uint32_t NumThreads = Dev.get_info<info::device::max_compute_units>();
   // TODO: The heuristics here require additional tuning for various devices
@@ -66,7 +62,6 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   if (Dev.is_gpu())
     NumThreads *= 8;
   return NumThreads;
-#endif
 }
 
 __SYCL_EXPORT size_t

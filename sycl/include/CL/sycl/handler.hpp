@@ -1607,7 +1607,11 @@ public:
     size_t OneElemSize =
         IsTreeReduction ? sizeof(typename Reduction::result_type) : 0;
     uint32_t NumConcurrentWorkGroups =
+#ifdef __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS
+        __SYCL_REDUCTION_NUM_CONCURRENT_WORKGROUPS;
+#else
         ext::oneapi::detail::reduGetMaxNumConcurrentWorkGroups(MQueue);
+#endif
     // TODO: currently the maximal work group size is determined for the given
     // queue/device, while it is safer to use queries to the kernel pre-compiled
     // for the device.
