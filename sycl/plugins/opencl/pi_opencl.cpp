@@ -1337,12 +1337,7 @@ const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
   // Check that the major version matches in PiVersion and SupportedVersion
-  if (strncmp(PluginInit->PiVersion, SupportedVersion,
-              _PI_VERSION_MAJOR_STRING_LEN) < 0) {
-    // PI interface supports lower version of PI.
-    // TODO: Take appropriate actions.
-    return PI_ERROR_INVALID_OPERATION;
-  }
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   // PI interface supports higher version or the same version.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
