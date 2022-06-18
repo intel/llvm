@@ -18,6 +18,7 @@
 
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
+#include <pi_opencl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -35,8 +36,6 @@
       *ptr = nullptr;                                                          \
     return cast<pi_result>(reterr);                                            \
   }
-
-const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value) {
@@ -1392,13 +1391,11 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
+const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
-  if (CompareVersions < 0) {
-    // PI interface supports lower version of PI.
-    // TODO: Take appropriate actions.
-    return PI_ERROR_INVALID_OPERATION;
-  }
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   // PI interface supports higher version or the same version.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);

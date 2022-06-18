@@ -53,8 +53,27 @@
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
+#define _PI_TRIPLE_CONCAT(a, b, c) _PI_STRING_HELPER(a.b.c)
+
+// This is the macro that plugins should all use to define their version.
+// _PI_PLUGIN_VERSION_STRING will be printed when environment variable
+// SYCL_PI_TRACE is set to 1. PluginVersion should be defined for each plugin
+// in plugins/*/pi_*.hpp. PluginVersion should be incremented with each change
+// to the plugin.
+#define _PI_PLUGIN_VERSION_STRING(PluginVersion)                               \
+  _PI_TRIPLE_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR, PluginVersion)
+
 #define _PI_H_VERSION_STRING                                                   \
   _PI_CONCAT(_PI_H_VERSION_MAJOR, _PI_H_VERSION_MINOR)
+
+// This will be used to check the major versions of plugins versus the major
+// versions of PI.
+#define _PI_STRING_SUBSTITUTE(X) _PI_STRING_HELPER(X)
+#define _PI_PLUGIN_VERSION_CHECK(PI_API_VERSION, PI_PLUGIN_VERSION)            \
+  if (strncmp(PI_API_VERSION, PI_PLUGIN_VERSION,                               \
+              sizeof(_PI_STRING_SUBSTITUTE(_PI_H_VERSION_MAJOR))) < 0) {       \
+    return PI_ERROR_INVALID_OPERATION;                                         \
+  }
 
 // NOTE: This file presents a maping of OpenCL to PI enums, constants and
 // typedefs. The general approach taken was to replace `CL_` prefix with `PI_`.
@@ -1786,9 +1805,9 @@ struct _pi_plugin {
   // Some choices are:
   // - Use of integers to keep major and minor version.
   // - Keeping char* Versions.
-  char PiVersion[10];
+  char PiVersion[20];
   // Plugin edits this.
-  char PluginVersion[10];
+  char PluginVersion[20];
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;

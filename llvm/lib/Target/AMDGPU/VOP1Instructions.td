@@ -147,7 +147,7 @@ class VOPProfileI2F<ValueType dstVt, ValueType srcVt> :
   VOPProfile<[dstVt, srcVt, untyped, untyped]> {
 
   let Ins64 = (ins Src0RC64:$src0, clampmod:$clamp, omod:$omod);
-  let InsVOP3Base = Ins64;
+  let InsVOP3Base = (ins Src0DPP:$src0, clampmod:$clamp, omod:$omod);
   let Asm64 = "$vdst, $src0$clamp$omod";
   let AsmVOP3DPPBase = Asm64;
 
@@ -518,7 +518,8 @@ def V_ACCVGPR_MOV_B32 : VOP1_Pseudo<"v_accvgpr_mov_b32", VOPProfileAccMov, [], 1
 let SubtargetPredicate = isGFX11Plus in {
   // Restrict src0 to be VGPR
   def V_PERMLANE64_B32 : VOP1_Pseudo<"v_permlane64_b32", VOP_MOVRELS,
-                                      [],
+                                      getVOP1Pat64<int_amdgcn_permlane64,
+                                                   VOP_MOVRELS>.ret,
                                       /*VOP1Only=*/ 1>;
   defm V_NOT_B16        : VOP1Inst<"v_not_b16", VOP_I16_I16>;
   defm V_CVT_I32_I16    : VOP1Inst<"v_cvt_i32_i16", VOP_I32_I16>;
@@ -1110,3 +1111,15 @@ def : GCNPat <
                         (as_i32timm $dpp8), (i32 DPP8Mode.FI_0))
 >;
 } // End OtherPredicates = [isGFX10Only]
+
+//===----------------------------------------------------------------------===//
+// GFX11
+//===----------------------------------------------------------------------===//
+
+let OtherPredicates = [isGFX11Only] in {
+def : GCNPat <
+  (i32 (int_amdgcn_mov_dpp8 i32:$src, timm:$dpp8)),
+  (V_MOV_B32_dpp8_gfx11 VGPR_32:$src, VGPR_32:$src,
+                        (as_i32timm $dpp8), (i32 DPP8Mode.FI_0))
+>;
+} // End OtherPredicates = [isGFX11Only]
