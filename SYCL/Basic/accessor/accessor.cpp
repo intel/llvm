@@ -556,6 +556,40 @@ int main() {
       return 1;
     }
   }
+
+  // placeholder accessor exception  // SYCL2020 4.7.6.9
+  {
+    sycl::queue q;
+    // host device executes kernels via a different method and there
+    // is no good way to throw an exception at this time.
+    if (!q.is_host()) {
+      sycl::range<1> r(4);
+      sycl::buffer<int, 1> b(r);
+      try {
+        sycl::accessor<int, 1, sycl::access::mode::read_write,
+                       sycl::access::target::device,
+                       sycl::access::placeholder::true_t>
+            acc(b);
+
+        q.submit([&](sycl::handler &cgh) {
+          // we do NOT call .require(acc) without which we should throw a
+          // synchronous exception with errc::kernel_argument
+          cgh.parallel_for<class ph>(
+              r, [=](sycl::id<1> index) { acc[index] = 0; });
+        });
+        q.wait_and_throw();
+        assert(false && "we should not be here, missing exception");
+      } catch (sycl::exception &e) {
+        std::cout << "exception received: " << e.what() << std::endl;
+        assert(e.code() == sycl::errc::kernel_argument &&
+               "incorrect error code");
+      } catch (...) {
+        std::cout << "some other exception" << std::endl;
+        return 1;
+      }
+    }
+  }
+
   {
     try {
       int data = -1;
