@@ -1371,46 +1371,24 @@ template <> ESIMD_INLINE float atan2(float y, float x) {
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                              __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<float, N> fmod;
-  __ESIMD_NS::simd<float, N> abs_x;
-  __ESIMD_NS::simd<float, N> abs_y;
-  __ESIMD_NS::simd<float, N> reminder;
-  __ESIMD_NS::simd<float, N> reminder_sign_mask;
-  __ESIMD_NS::simd<float, N> result_sign_mask;
+  __ESIMD_NS::simd<float, N> abs_x = __ESIMD_NS::abs(x);
+  __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y);
+  auto fmod_sign_mask = (y.template bit_cast_view<int32_t>()) & 0x80000000;
 
-  auto bits = y.template bit_cast_view<int32_t>();
-  result_sign_mask.merge(-1.0f, 1.0f, (bits & 0x80000000) != 0);
-  abs_x = __ESIMD_NS::abs(x);
-  abs_y = __ESIMD_NS::abs(y);
-  reminder = abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
-  reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
+  __ESIMD_NS::simd<float, N> reminder =
+      abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
 
-  fmod = reminder + abs_x * reminder_sign_mask;
+  abs_x.merge(0.0, reminder >= 0);
+  __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
+  __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
 
-  return __ESIMD_NS::abs(fmod) * result_sign_mask;
+  auto fmod_bits = (fmod_abs.template bit_cast_view<int32_t>()) | fmod_sign_mask;
+  return fmod_bits.template bit_cast_view<float>();
 }
 
-//     For Scalar Input
+// For Scalar Input
 template <> ESIMD_INLINE float fmod(float y, float x) {
-  __ESIMD_NS::simd<float, 1> fmod;
-  __ESIMD_NS::simd<float, 1> abs_x;
-  __ESIMD_NS::simd<float, 1> abs_y;
-  __ESIMD_NS::simd<float, 1> reminder;
-  __ESIMD_NS::simd<float, 1> reminder_sign_mask;
-  __ESIMD_NS::simd<float, 1> result_sign_mask;
-  __ESIMD_NS::simd<float, 1> simd_y = y;
-
-  auto bits = simd_y.template bit_cast_view<int32_t>();
-  result_sign_mask.merge(-1.0f, 1.0f, (bits & 0x80000000) != 0);
-  abs_x = __ESIMD_NS::abs(x);
-  abs_y = __ESIMD_NS::abs(y);
-  reminder = abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
-  reminder_sign_mask.merge(1.0f, 0.0f, reminder < 0);
-
-  fmod =
-      __ESIMD_NS::abs(reminder + abs_x * reminder_sign_mask) * result_sign_mask;
-
-  return fmod[0];
+  return fmod (__ESIMD_NS::simd<float, 1>(y), __ESIMD_NS::simd<float, 1>(x))[0];
 }
 
 // sin_emu - EU emulation for sin(x)
