@@ -844,7 +844,7 @@ FormatToken *UnwrappedLineParser::parseBlock(
 
   size_t PPStartHash = computePPHash();
 
-  unsigned InitialLevel = Line->Level;
+  const unsigned InitialLevel = Line->Level;
   nextToken(/*LevelDifference=*/AddLevels);
 
   // Bail out if there are too many levels. Otherwise, the stack might overflow.
@@ -905,7 +905,8 @@ FormatToken *UnwrappedLineParser::parseBlock(
         return false;
     }
     assert(!CurrentLines->empty());
-    if (!mightFitOnOneLine(CurrentLines->back()))
+    auto &LastLine = CurrentLines->back();
+    if (LastLine.Level == InitialLevel + 1 && !mightFitOnOneLine(LastLine))
       return false;
     if (Tok->is(TT_ElseLBrace))
       return true;
@@ -2610,6 +2611,7 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
     nextToken();
     handleAttributes();
     if (FormatTok->is(tok::l_brace)) {
+      const bool FollowedByIf = Tokens->peekNextToken()->is(tok::kw_if);
       FormatTok->setFinalizedType(TT_ElseLBrace);
       ElseLeftBrace = FormatTok;
       CompoundStatementIndenter Indenter(this, Style, Line->Level);
@@ -2621,7 +2623,7 @@ FormatToken *UnwrappedLineParser::parseIfThenElse(IfStmtKind *IfKind,
         KeepElseBraces = KeepElseBraces ||
                          ElseBlockKind == IfStmtKind::IfOnly ||
                          ElseBlockKind == IfStmtKind::IfElseIf;
-      } else if (IfLBrace && !IfLBrace->Optional) {
+      } else if (FollowedByIf && IfLBrace && !IfLBrace->Optional) {
         KeepElseBraces = true;
         assert(ElseLeftBrace->MatchingParen);
         markOptionalBraces(ElseLeftBrace);

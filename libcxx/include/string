@@ -524,22 +524,28 @@ basic_string<char32_t> operator "" s( const char32_t *str, size_t len );        
 #include <__config>
 #include <__debug>
 #include <__format/enable_insertable.h>
+#include <__functional/hash.h>
 #include <__functional/unary_function.h>
 #include <__ios/fpos.h>
+#include <__iterator/distance.h>
+#include <__iterator/iterator_traits.h>
+#include <__iterator/reverse_iterator.h>
 #include <__iterator/wrap_iter.h>
 #include <__memory/allocate_at_least.h>
+#include <__string/char_traits.h>
+#include <__string/extern_template_lists.h>
 #include <__utility/auto_cast.h>
 #include <__utility/move.h>
 #include <__utility/swap.h>
 #include <__utility/unreachable.h>
 #include <climits>
 #include <compare>
+#include <cstdint>
 #include <cstdio>  // EOF
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <iosfwd>
-#include <iterator>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -547,16 +553,8 @@ basic_string<char32_t> operator "" s( const char32_t *str, size_t len );        
 #include <type_traits>
 #include <version>
 
-// TODO: remove these headers
-#include <new>
-#include <typeinfo>
-
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
 #  include <cwchar>
-#endif
-
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
-#  include <cstdint>
 #endif
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -619,11 +617,8 @@ struct __can_be_converted_to_string_view : public _BoolConstant<
 #ifndef _LIBCPP_HAS_NO_CHAR8_T
 typedef basic_string<char8_t> u8string;
 #endif
-
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
 typedef basic_string<char16_t> u16string;
 typedef basic_string<char32_t> u32string;
-#endif
 
 struct __uninitialized_size_tag {};
 
@@ -633,10 +628,8 @@ class
 #ifndef _LIBCPP_HAS_NO_CHAR8_T
     _LIBCPP_PREFERRED_NAME(u8string)
 #endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     _LIBCPP_PREFERRED_NAME(u16string)
     _LIBCPP_PREFERRED_NAME(u32string)
-#endif
     basic_string
 {
 public:
@@ -686,8 +679,8 @@ private:
     {
         value_type __data_[__min_cap];
         unsigned char __padding_[sizeof(value_type) - 1];
-        size_type __size_ : 7;
-        size_type __is_long_ : 1;
+        unsigned char __size_ : 7;
+        unsigned char __is_long_ : 1;
     };
 
 // The __endian_factor is required because the field we use to store the size
@@ -730,13 +723,15 @@ private:
 
     struct __short
     {
-        size_type __is_long_ : 1;
-        size_type __size_ : 7;
+        unsigned char __is_long_ : 1;
+        unsigned char __size_ : 7;
         char __padding_[sizeof(value_type) - 1];
         value_type __data_[__min_cap];
     };
 
 #endif // _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
+
+    static_assert(sizeof(__short) == (sizeof(value_type) * (__min_cap + 1)), "__short has an unexpected size.");
 
     union __ulx{__long __lx; __short __lxx;};
 
