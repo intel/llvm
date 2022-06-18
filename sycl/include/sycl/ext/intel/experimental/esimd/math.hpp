@@ -1382,13 +1382,14 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
   __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
   __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
 
-  auto fmod_bits = (fmod_abs.template bit_cast_view<int32_t>()) | fmod_sign_mask;
+  auto fmod_bits =
+      (fmod_abs.template bit_cast_view<int32_t>()) | fmod_sign_mask;
   return fmod_bits.template bit_cast_view<float>();
 }
 
 // For Scalar Input
 template <> ESIMD_INLINE float fmod(float y, float x) {
-  return fmod (__ESIMD_NS::simd<float, 1>(y), __ESIMD_NS::simd<float, 1>(x))[0];
+  return fmod(__ESIMD_NS::simd<float, 1>(y), __ESIMD_NS::simd<float, 1>(x))[0];
 }
 
 // sin_emu - EU emulation for sin(x)
