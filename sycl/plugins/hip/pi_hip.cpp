@@ -371,7 +371,7 @@ pi_result enqueueEventsWait(pi_queue command_queue, hipStream_t stream,
     return PI_ERROR_UNKNOWN;
   }
 }
-  
+
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
@@ -490,7 +490,7 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
     // change num_transfer_streams_ after that
     if (num_transfer_streams_ < transfer_streams_.size()) {
       PI_CHECK_ERROR(
-        hipStreamCreateWithFlags(&transfer_streams_[num_compute_streams_++], flags_));
+        hipStreamCreateWithFlags(&transfer_streams_[num_transfer_streams_++], flags_));
     }
   }
   return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
@@ -2302,7 +2302,7 @@ pi_result hip_piQueueCreate(pi_context context, pi_device device,
     }
 
     unsigned int flags = 0;
-    
+
     const bool is_out_of_order =
         properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE;
 
@@ -2400,7 +2400,7 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
     command_queue->sync_streams([&result](hipStream_t s) {
       result = PI_CHECK_ERROR(hipStreamSynchronize(s));
     });
-    
+
     // result = PI_CHECK_ERROR(hipStreamSynchronize(command_queue->stream_));
 
   } catch (pi_result err) {
@@ -2431,7 +2431,7 @@ pi_result hip_piQueueFlush(pi_queue command_queue) {
 /// \return PI_SUCCESS
 pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
                                         pi_native_handle *nativeHandle) {
-  ScopedContext active(queue->get_context());  
+  ScopedContext active(queue->get_context());
   *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
@@ -2820,7 +2820,7 @@ pi_result hip_piEnqueueKernelLaunch(
 
     if (event) {
       retError = retImplEv->record();
-      *event = retImplEv.release();      
+      *event = retImplEv.release();
     }
   } catch (pi_result err) {
     retError = err;
@@ -3704,11 +3704,11 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
       }
     }
 
-    if (event) { 
+    if (event) {
       pi_uint32 stream_token;
       _pi_stream_guard guard;
       hipStream_t hipStream = command_queue->get_next_compute_stream(
-          num_events_in_wait_list, event_wait_list, guard, &stream_token);      
+          num_events_in_wait_list, event_wait_list, guard, &stream_token);
       *event = _pi_event::make_native(PI_COMMAND_TYPE_MARKER, command_queue,
                                       hipStream, stream_token);
       (*event)->start();
@@ -4069,7 +4069,7 @@ pi_result hip_piEnqueueMemBufferCopy(pi_queue command_queue, pi_mem src_buffer,
 
   try {
     ScopedContext active(command_queue->get_context());
-    pi_result result;    
+    pi_result result;
     auto stream = command_queue->get_next_transfer_stream();
 
     if (event_wait_list) {
@@ -4175,7 +4175,7 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
     ScopedContext active(command_queue->get_context());
 
     auto stream = command_queue->get_next_transfer_stream();
-    pi_result result;    
+    pi_result result;
     if (event_wait_list) {
       result = enqueueEventsWait(command_queue, stream, num_events_in_wait_list,
                                  event_wait_list);
@@ -4868,7 +4868,6 @@ pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
   } catch (pi_result err) {
     result = err;
   }
-
   return result;
 }
 
