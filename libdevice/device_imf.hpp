@@ -465,6 +465,14 @@ static inline typename std::make_unsigned<T>::type __abs(T x) {
   return x < 0 ? -x : x;
 }
 
+template<typename T>
+static inline void __swap(T &x, T &y) {
+  static_assert(std::is_integral<T>::value, "__swap can only accept integral type.");
+  T tmp = x;
+  x = y;
+  y = x;
+}
+
 template <typename Ty1, typename Ty2>
 static inline Ty2 __get_bytes_by_index(Ty1 x, size_t idx) {
   static_assert(!std::is_signed<Ty1>::value && !std::is_signed<Ty2>::value,

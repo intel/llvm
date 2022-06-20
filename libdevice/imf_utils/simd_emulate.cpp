@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "../device_imf.hpp"
-#include <algorithm>
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
 DEVICE_EXTERN_C_INLINE
@@ -115,7 +114,7 @@ unsigned int __devicelib_imf_vabsdiffu2(unsigned int x, unsigned int y) {
     x_tmp = __get_bytes_by_index<unsigned int, uint16_t>(x, idx);
     y_tmp = __get_bytes_by_index<unsigned int, uint16_t>(y, idx);
     if (x_tmp < y_tmp)
-      std::swap(x_tmp, y_tmp);
+      __swap(x_tmp, y_tmp);
     x_tmp -= y_tmp;
     res_buf[idx] = x_tmp;
   }
@@ -132,7 +131,7 @@ unsigned int __devicelib_imf_vabsdiffu4(unsigned int x, unsigned int y) {
     x_tmp = __get_bytes_by_index<unsigned int, uint8_t>(x, idx);
     y_tmp = __get_bytes_by_index<unsigned int, uint8_t>(y, idx);
     if (x_tmp < y_tmp)
-      std::swap(x_tmp, y_tmp);
+      __swap(x_tmp, y_tmp);
     x_tmp -= y_tmp;
     res_buf[idx] = x_tmp;
   }
