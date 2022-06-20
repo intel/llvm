@@ -458,9 +458,10 @@ static inline int __popcll(unsigned long long int x) {
 #endif
 }
 
-static inline unsigned int __abs(int x) { return x < 0 ? -x : x; }
-
-static inline unsigned long long int __abs(long long int x) {
+template <typename T>
+static inline typename std::make_unsigned<T>::type __abs(T x) {
+  static_assert((std::is_signed<T>::value && std::is_integral<T>::value),
+                "__abs can only accept signed integral type.");
   return x < 0 ? -x : x;
 }
 

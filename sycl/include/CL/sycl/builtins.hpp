@@ -1879,6 +1879,23 @@ extern SYCL_EXTERNAL double __imf_uint2double_rn(unsigned int x);
 extern SYCL_EXTERNAL double __imf_uint2double_ru(unsigned int x);
 extern SYCL_EXTERNAL double __imf_uint2double_rz(unsigned int x);
 extern SYCL_EXTERNAL double __imf_hiloint2double(int hi, int lo);
+
+extern SYCL_EXTERNAL unsigned int __imf_vabs2(unsigned int x);
+extern SYCL_EXTERNAL unsigned int __imf_vabs4(unsigned int x);
+extern SYCL_EXTERNAL unsigned int __imf_vabsss2(unsigned int x);
+extern SYCL_EXTERNAL unsigned int __imf_vabsss4(unsigned int x);
+extern SYCL_EXTERNAL unsigned int __imf_vabsdiffs2(unsigned int x,
+                                                   unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vabsdiffs4(unsigned int x,
+                                                   unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vabsdiffu2(unsigned int x,
+                                                   unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vabsdiffu4(unsigned int x,
+                                                   unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vadd2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vadd4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vaddss2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vaddss4(unsigned int x, unsigned int y);
 }
 #ifdef __GLIBC__
 extern "C" {
