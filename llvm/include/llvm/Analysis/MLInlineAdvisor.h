@@ -31,7 +31,7 @@ public:
 
   virtual ~MLInlineAdvisor() = default;
 
-  void onPassEntry() override;
+  void onPassEntry(LazyCallGraph::SCC *SCC) override;
   void onPassExit(LazyCallGraph::SCC *SCC) override;
 
   int64_t getIRSize(Function &F) const {
@@ -65,7 +65,8 @@ protected:
 
 private:
   int64_t getModuleIRSize() const;
-
+  std::unique_ptr<InlineAdvice>
+  getSkipAdviceIfUnreachableCallsite(CallBase &CB);
   void print(raw_ostream &OS) const override;
 
   mutable DenseMap<const Function *, FunctionPropertiesInfo> FPICache;
@@ -79,7 +80,7 @@ private:
   std::map<const LazyCallGraph::Node *, unsigned> FunctionLevels;
   const int32_t InitialIRSize = 0;
   int32_t CurrentIRSize = 0;
-  std::deque<const LazyCallGraph::Node *> NodesInLastSCC;
+  llvm::SmallPtrSet<const LazyCallGraph::Node *, 1> NodesInLastSCC;
   DenseSet<const LazyCallGraph::Node *> AllNodes;
   bool ForceStop = false;
 };

@@ -9,7 +9,7 @@
 #ifndef LLVM_LIBC_SRC_STDIO_PRINTF_CORE_INT_CONVERTER_H
 #define LLVM_LIBC_SRC_STDIO_PRINTF_CORE_INT_CONVERTER_H
 
-#include "src/__support/CPP/Limits.h"
+#include "src/stdio/printf_core/converter_utils.h"
 #include "src/stdio/printf_core/core_structs.h"
 #include "src/stdio/printf_core/writer.h"
 
@@ -19,7 +19,7 @@
 namespace __llvm_libc {
 namespace printf_core {
 
-void inline convert_int(Writer *writer, const FormatSection &to_conv) {
+int inline convert_int(Writer *writer, const FormatSection &to_conv) {
   static constexpr size_t BITS_IN_BYTE = 8;
   static constexpr size_t BITS_IN_NUM = sizeof(uintmax_t) * BITS_IN_BYTE;
 
@@ -52,37 +52,7 @@ void inline convert_int(Writer *writer, const FormatSection &to_conv) {
     }
   }
 
-  switch (to_conv.length_modifier) {
-  case LengthModifier::none:
-    num = num & cpp::NumericLimits<unsigned int>::max();
-    break;
-
-  case LengthModifier::l:
-    num = num & cpp::NumericLimits<unsigned long>::max();
-    break;
-  case LengthModifier::ll:
-  case LengthModifier::L:
-    num = num & cpp::NumericLimits<unsigned long long>::max();
-    break;
-  case LengthModifier::h:
-    num = num & cpp::NumericLimits<unsigned short>::max();
-    break;
-  case LengthModifier::hh:
-    num = num & cpp::NumericLimits<unsigned char>::max();
-    break;
-  case LengthModifier::z:
-    num = num & cpp::NumericLimits<size_t>::max();
-    break;
-  case LengthModifier::t:
-    // We don't have unsigned ptrdiff so uintptr_t is used, since we need an
-    // unsigned type and ptrdiff is usually the same size as a pointer.
-    static_assert(sizeof(ptrdiff_t) == sizeof(uintptr_t));
-    num = num & cpp::NumericLimits<uintptr_t>::max();
-    break;
-  case LengthModifier::j:
-    // j is intmax, so no mask is necessary.
-    break;
-  }
+  num = apply_length_modifier(num, to_conv.length_modifier);
 
   // buff_cur can never reach 0, since the buffer is sized to always be able to
   // contain the whole integer. This means that bounds checking it should be
@@ -148,24 +118,25 @@ void inline convert_int(Writer *writer, const FormatSection &to_conv) {
   if ((flags & FormatFlags::LEFT_JUSTIFIED) == FormatFlags::LEFT_JUSTIFIED) {
     // If left justified it goes sign zeroes digits spaces
     if (sign_char != 0)
-      writer->write(&sign_char, 1);
+      RET_IF_RESULT_NEGATIVE(writer->write(&sign_char, 1));
     if (zeroes > 0)
-      writer->write_chars('0', zeroes);
+      RET_IF_RESULT_NEGATIVE(writer->write_chars('0', zeroes));
     if (digits_written > 0)
-      writer->write(buffer + buff_cur, digits_written);
+      RET_IF_RESULT_NEGATIVE(writer->write(buffer + buff_cur, digits_written));
     if (spaces > 0)
-      writer->write_chars(' ', spaces);
+      RET_IF_RESULT_NEGATIVE(writer->write_chars(' ', spaces));
   } else {
     // Else it goes spaces sign zeroes digits
     if (spaces > 0)
-      writer->write_chars(' ', spaces);
+      RET_IF_RESULT_NEGATIVE(writer->write_chars(' ', spaces));
     if (sign_char != 0)
-      writer->write(&sign_char, 1);
+      RET_IF_RESULT_NEGATIVE(writer->write(&sign_char, 1));
     if (zeroes > 0)
-      writer->write_chars('0', zeroes);
+      RET_IF_RESULT_NEGATIVE(writer->write_chars('0', zeroes));
     if (digits_written > 0)
-      writer->write(buffer + buff_cur, digits_written);
+      RET_IF_RESULT_NEGATIVE(writer->write(buffer + buff_cur, digits_written));
   }
+  return 0;
 }
 
 } // namespace printf_core

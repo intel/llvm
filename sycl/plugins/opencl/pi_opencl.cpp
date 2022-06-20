@@ -18,6 +18,7 @@
 
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.h>
+#include <pi_opencl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -35,8 +36,6 @@
       *ptr = nullptr;                                                          \
     return cast<pi_result>(reterr);                                            \
   }
-
-const char SupportedVersion[] = _PI_H_VERSION_STRING;
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value) {
@@ -56,7 +55,6 @@ template <class To, class From> To cast(From value) {
 CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
 CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
 CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
 CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
@@ -1017,7 +1015,7 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
   return RetVal;
 }
 
-/// Frees allocated USM memory
+/// Frees allocated USM memory in a blocking manner
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
@@ -1026,52 +1024,10 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
   // might be still running.
   clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
 
-  // We need to use clMemBlockingFreeINTEL here, however, due to a bug in OpenCL
-  // CPU runtime this call fails with CL_INVALID_EVENT on CPU devices in certain
-  // cases. As a temporary workaround, this function replicates caching of
-  // extension function pointers in getExtFuncFromContext, while choosing
-  // clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other device types.
-  // TODO remove this workaround when the new OpenCL CPU runtime version is
-  // uplifted in CI.
-  static_assert(
-      std::is_same<clMemBlockingFreeINTEL_fn, clMemFreeINTEL_fn>::value);
-  cl_uint deviceCount;
-  cl_int ret_err =
-      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
-                       sizeof(cl_uint), &deviceCount, nullptr);
-
-  if (ret_err != CL_SUCCESS || deviceCount < 1) {
-    return PI_ERROR_INVALID_CONTEXT;
-  }
-
-  std::vector<cl_device_id> devicesInCtx(deviceCount);
-  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
-                             deviceCount * sizeof(cl_device_id),
-                             devicesInCtx.data(), nullptr);
-
-  if (ret_err != CL_SUCCESS) {
-    return PI_ERROR_INVALID_CONTEXT;
-  }
-
-  bool useBlockingFree = true;
-  for (const cl_device_id &dev : devicesInCtx) {
-    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
-    ret_err = clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type),
-                              &devType, nullptr);
-    if (ret_err != CL_SUCCESS) {
-      return PI_ERROR_INVALID_DEVICE;
-    }
-    useBlockingFree &= devType == CL_DEVICE_TYPE_GPU;
-  }
-
   pi_result RetVal = PI_ERROR_INVALID_OPERATION;
-  if (useBlockingFree)
-    RetVal =
-        getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
-            context, &FuncPtr);
-  else
-    RetVal = getExtFuncFromContext<clMemFreeName, clMemFreeINTEL_fn>(context,
-                                                                     &FuncPtr);
+  RetVal =
+      getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
+          context, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
@@ -1435,13 +1391,11 @@ pi_result piTearDown(void *PluginParameter) {
   return PI_SUCCESS;
 }
 
+const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
-  int CompareVersions = strcmp(PluginInit->PiVersion, SupportedVersion);
-  if (CompareVersions < 0) {
-    // PI interface supports lower version of PI.
-    // TODO: Take appropriate actions.
-    return PI_ERROR_INVALID_OPERATION;
-  }
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   // PI interface supports higher version or the same version.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);

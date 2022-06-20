@@ -57,9 +57,11 @@ add_object_library(
   HDRS
     converter.h
     converter_atlas.h
+    converter_utils.h
     string_converter.h
     char_converter.h
     int_converter.h
+    hex_converter.h
   DEPENDS
     .writer
     .core_structs
@@ -78,4 +80,20 @@ add_object_library(
     .writer
     .core_structs
     libc.src.__support.arg_list
+)
+
+add_object_library(
+  vfprintf_internal
+  SRCS
+    vfprintf_internal.cpp
+  HDRS
+    vfprintf_internal.h
+  DEPENDS
+    libc.include.stdio
+    libc.src.__support.File.file
+    libc.src.__support.File.platform_file
+    libc.src.__support.arg_list
+    libc.src.stdio.printf_core.printf_main
+    libc.src.stdio.printf_core.file_writer
+    libc.src.stdio.printf_core.writer
 )

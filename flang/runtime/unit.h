@@ -39,6 +39,7 @@ public:
   explicit ExternalFileUnit(int unitNumber) : unitNumber_{unitNumber} {
     isUTF8 = executionEnvironment.defaultUTF8;
     asyncIdAvailable_.set();
+    asyncIdAvailable_.reset(0);
   }
   ~ExternalFileUnit() {}
 
@@ -47,10 +48,9 @@ public:
   bool createdForInternalChildIo() const { return createdForInternalChildIo_; }
 
   static ExternalFileUnit *LookUp(int unit);
-  static ExternalFileUnit &LookUpOrCrash(int unit, const Terminator &);
-  static ExternalFileUnit &LookUpOrCreate(
+  static ExternalFileUnit *LookUpOrCreate(
       int unit, const Terminator &, bool &wasExtant);
-  static ExternalFileUnit &LookUpOrCreateAnonymous(int unit, Direction,
+  static ExternalFileUnit *LookUpOrCreateAnonymous(int unit, Direction,
       std::optional<bool> isUnformatted, const Terminator &);
   static ExternalFileUnit *LookUp(const char *path, std::size_t pathLen);
   static ExternalFileUnit &CreateNew(int unit, const Terminator &);
@@ -97,7 +97,7 @@ public:
   void SetPosition(std::int64_t, IoErrorHandler &); // zero-based
   std::int64_t InquirePos() const {
     // 12.6.2.11 defines POS=1 as the beginning of file
-    return frameOffsetInFile_ + 1;
+    return frameOffsetInFile_ + recordOffsetInFrame_ + positionInRecord + 1;
   }
 
   ChildIo *GetChildIo() { return child_.get(); }

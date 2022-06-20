@@ -446,12 +446,14 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       GlobalPlugin = std::make_shared<plugin>(
           PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
-    Plugins.emplace_back(
+    plugin &NewPlugin = Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
                 << "Plugin found and successfully loaded: "
-                << PluginNames[I].first << std::endl;
+                << PluginNames[I].first
+                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
+                << " ]" << std::endl;
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -725,7 +727,8 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
     struct {
       RT::PiDeviceBinaryType Fmt;
       const uint16_t Magic;
-    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04}}; // OpenCL executable
+    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04},  // OpenCL executable
+                   {PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF12}}; // ZEBIN executable
 
     // ELF files need to be parsed separately. The header type ends after 18
     // bytes.

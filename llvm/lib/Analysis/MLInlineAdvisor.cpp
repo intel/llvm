@@ -139,8 +139,8 @@ unsigned MLInlineAdvisor::getInitialFunctionLevel(const Function &F) const {
   return CG.lookup(F) ? FunctionLevels.at(CG.lookup(F)) : 0;
 }
 
-void MLInlineAdvisor::onPassEntry() {
-  if (ForceStop)
+void MLInlineAdvisor::onPassEntry(LazyCallGraph::SCC *LastSCC) {
+  if (!LastSCC || ForceStop)
     return;
   FPICache.clear();
   // Function passes executed between InlinerPass runs may have changed the
@@ -158,8 +158,8 @@ void MLInlineAdvisor::onPassEntry() {
   // care about the nature of the Edge (call or ref).
   NodeCount -= static_cast<int64_t>(NodesInLastSCC.size());
   while (!NodesInLastSCC.empty()) {
-    const auto *N = NodesInLastSCC.front();
-    NodesInLastSCC.pop_front();
+    const auto *N = *NodesInLastSCC.begin();
+    NodesInLastSCC.erase(N);
     // The Function wrapped by N could have been deleted since we last saw it.
     if (N->isDead()) {
       assert(!N->getFunction().isDeclaration());
@@ -172,12 +172,18 @@ void MLInlineAdvisor::onPassEntry() {
       assert(!AdjNode->isDead() && !AdjNode->getFunction().isDeclaration());
       auto I = AllNodes.insert(AdjNode);
       if (I.second)
-        NodesInLastSCC.push_back(AdjNode);
+        NodesInLastSCC.insert(AdjNode);
     }
   }
 
   EdgeCount -= EdgesOfLastSeenNodes;
   EdgesOfLastSeenNodes = 0;
+
+  // (Re)use NodesInLastSCC to remember the nodes in the SCC right now,
+  // in case the SCC is split before onPassExit and some nodes are split out
+  assert(NodesInLastSCC.empty());
+  for (const auto &N : *LastSCC)
+    NodesInLastSCC.insert(&N);
 }
 
 void MLInlineAdvisor::onPassExit(LazyCallGraph::SCC *LastSCC) {
@@ -189,14 +195,24 @@ void MLInlineAdvisor::onPassExit(LazyCallGraph::SCC *LastSCC) {
   // Keep track of the nodes and edges we last saw. Then, in onPassEntry,
   // we update the node count and edge count from the subset of these nodes that
   // survived.
-  assert(NodesInLastSCC.empty());
-  assert(NodeCount >= LastSCC->size());
   EdgesOfLastSeenNodes = 0;
+
+  // Check on nodes that were in SCC onPassEntry
+  for (auto I = NodesInLastSCC.begin(); I != NodesInLastSCC.end();) {
+    if ((*I)->isDead())
+      NodesInLastSCC.erase(*I++);
+    else
+      EdgesOfLastSeenNodes += getLocalCalls((*I++)->getFunction());
+  }
+
+  // Check on nodes that may have got added to SCC
   for (const auto &N : *LastSCC) {
     assert(!N.isDead());
-    EdgesOfLastSeenNodes += getLocalCalls(N.getFunction());
-    NodesInLastSCC.push_back(&N);
+    auto I = NodesInLastSCC.insert(&N);
+    if (I.second)
+      EdgesOfLastSeenNodes += getLocalCalls(N.getFunction());
   }
+  assert(NodeCount >= NodesInLastSCC.size());
   assert(EdgeCount >= EdgesOfLastSeenNodes);
 }
 
@@ -261,6 +277,9 @@ FunctionPropertiesInfo &MLInlineAdvisor::getCachedFPI(Function &F) const {
 }
 
 std::unique_ptr<InlineAdvice> MLInlineAdvisor::getAdviceImpl(CallBase &CB) {
+  if (auto Skip = getSkipAdviceIfUnreachableCallsite(CB))
+    return Skip;
+
   auto &Caller = *CB.getCaller();
   auto &Callee = *CB.getCalledFunction();
 
@@ -360,9 +379,19 @@ MLInlineAdvisor::getAdviceFromModel(CallBase &CB,
       this, CB, ORE, static_cast<bool>(ModelRunner->evaluate<int64_t>()));
 }
 
+std::unique_ptr<InlineAdvice>
+MLInlineAdvisor::getSkipAdviceIfUnreachableCallsite(CallBase &CB) {
+  if (!FAM.getResult<DominatorTreeAnalysis>(*CB.getCaller())
+           .isReachableFromEntry(CB.getParent()))
+    return std::make_unique<InlineAdvice>(this, CB, getCallerORE(CB), false);
+  return nullptr;
+}
+
 std::unique_ptr<InlineAdvice> MLInlineAdvisor::getMandatoryAdvice(CallBase &CB,
                                                                   bool Advice) {
   // Make sure we track inlinings in all cases - mandatory or not.
+  if (auto Skip = getSkipAdviceIfUnreachableCallsite(CB))
+    return Skip;
   if (Advice && !ForceStop)
     return getMandatoryAdviceImpl(CB);
 
@@ -380,7 +409,7 @@ MLInlineAdvisor::getMandatoryAdviceImpl(CallBase &CB) {
 
 void MLInlineAdvisor::print(raw_ostream &OS) const {
   OS << "[MLInlineAdvisor] Nodes: " << NodeCount << " Edges: " << EdgeCount
-     << "\n";
+     << " EdgesOfLastSeenNodes: " << EdgesOfLastSeenNodes << "\n";
   OS << "[MLInlineAdvisor] FPI:\n";
   for (auto I : FPICache) {
     OS << I.getFirst()->getName() << ":\n";

@@ -45,6 +45,7 @@ set(files
   __algorithm/lexicographical_compare.h
   __algorithm/lower_bound.h
   __algorithm/make_heap.h
+  __algorithm/make_projected.h
   __algorithm/max.h
   __algorithm/max_element.h
   __algorithm/merge.h
@@ -89,6 +90,7 @@ set(files
   __algorithm/ranges_is_partitioned.h
   __algorithm/ranges_is_sorted.h
   __algorithm/ranges_is_sorted_until.h
+  __algorithm/ranges_lexicographical_compare.h
   __algorithm/ranges_lower_bound.h
   __algorithm/ranges_max.h
   __algorithm/ranges_max_element.h
@@ -101,6 +103,7 @@ set(files
   __algorithm/ranges_replace.h
   __algorithm/ranges_replace_if.h
   __algorithm/ranges_reverse.h
+  __algorithm/ranges_sort.h
   __algorithm/ranges_swap_ranges.h
   __algorithm/ranges_transform.h
   __algorithm/ranges_upper_bound.h
