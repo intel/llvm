@@ -9,6 +9,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iterator>
 #include <string>
 #include <unistd.h>
 #include <vector>
