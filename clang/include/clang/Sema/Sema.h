@@ -7927,7 +7927,7 @@ public:
     RequiredTemplateKind(TemplateNameIsRequiredTag) {}
 
     SourceLocation getTemplateKeywordLoc() const {
-      return TemplateKW.getValueOr(SourceLocation());
+      return TemplateKW.value_or(SourceLocation());
     }
     bool hasTemplateKeyword() const { return getTemplateKeywordLoc().isValid(); }
     bool isRequired() const { return TemplateKW != SourceLocation(); }
