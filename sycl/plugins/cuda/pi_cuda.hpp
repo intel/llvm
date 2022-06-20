@@ -635,6 +635,8 @@ public:
 
   pi_uint32 get_event_id() const noexcept { return eventId_; }
 
+  bool backend_has_ownership() const noexcept { return has_ownership_; }
+
   // Returns the counter time when the associated command(s) were enqueued
   //
   pi_uint64 get_queued_time() const;
@@ -655,6 +657,10 @@ public:
                          stream_token);
   }
 
+  static pi_event make_with_native(pi_context context, CUevent eventNative) {
+    return new _pi_event(context, eventNative);
+  }
+
   pi_result release();
 
   ~_pi_event();
@@ -665,9 +671,15 @@ private:
   _pi_event(pi_command_type type, pi_context context, pi_queue queue,
             CUstream stream, pi_uint32 stream_token);
 
+  // This constructor is private to force programmers to use the
+  // make_with_native for event introp
+  _pi_event(pi_context context, CUevent eventNative);
+
   pi_command_type commandType_; // The type of command associated with event.
 
   std::atomic_uint32_t refCount_; // Event reference count.
+
+  bool has_ownership_; // Signifies if event owns the native type.
 
   bool hasBeenWaitedOn_; // Signifies whether the event has been waited
                          // on through a call to wait(), which implies
