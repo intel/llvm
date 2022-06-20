@@ -35,10 +35,6 @@ class plugin;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
-template <typename T>
-class aligned_allocator;
-using sycl_memory_object_allocator = aligned_allocator<char>;
-
 // The class serves as a base for all SYCL memory objects.
 class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
 
@@ -53,14 +49,6 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   template <typename T>
   using EnableIfOutputIteratorT = enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
-
-  template <typename T>
-  using EnableIfDefaultAllocator =
-      enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
-
-  template <typename T>
-  using EnableIfNonDefaultAllocator =
-      enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
@@ -89,6 +77,10 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(MemObject, SyclContext, /*SizeInBytes*/ 0, AvailableEvent,
                     std::move(Allocator)) {}
+
+  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+              bool OwmNativeHandle, event AvailableEvent,
+              std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   virtual ~SYCLMemObjT() = default;
 
@@ -275,7 +267,7 @@ public:
       throw runtime_error(
           "Buffer constructor from a pair of iterator values does not support "
           "use_host_ptr property.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();
@@ -309,7 +301,7 @@ public:
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;
-    throw runtime_error("Not implemented", PI_INVALID_OPERATION);
+    throw runtime_error("Not implemented", PI_ERROR_INVALID_OPERATION);
   }
 
   __SYCL_DLL_LOCAL MemObjType getType() const override {
@@ -336,10 +328,9 @@ protected:
   EventImplPtr MInteropEvent;
   // Context passed by user to interoperability constructor.
   ContextImplPtr MInteropContext;
-  // OpenCL's memory object handle passed by user to interoperability
+  // Native backend memory object handle passed by user to interoperability
   // constructor.
-  // TODO update this member to support other backends.
-  cl_mem MInteropMemObject;
+  RT::PiMem MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

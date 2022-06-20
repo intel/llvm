@@ -49,11 +49,14 @@
 
 namespace llvm {
 class raw_ostream;
+class ThreadPool;
 }
 
 namespace lldb_private {
 class Address;
+class CallbackLogHandler;
 class CommandInterpreter;
+class LogHandler;
 class Process;
 class Stream;
 class SymbolContext;
@@ -301,6 +304,8 @@ public:
 
   bool GetShowProgress() const;
 
+  bool SetShowProgress(bool show_progress);
+
   llvm::StringRef GetShowProgressAnsiPrefix() const;
 
   llvm::StringRef GetShowProgressAnsiSuffix() const;
@@ -376,6 +381,9 @@ public:
   lldb::BroadcasterManagerSP GetBroadcasterManager() {
     return m_broadcaster_manager_sp;
   }
+
+  /// Shared thread poll. Use only with ThreadPoolTaskGroup.
+  static llvm::ThreadPool &GetThreadPool();
 
   /// Report warning events.
   ///
@@ -547,8 +555,8 @@ protected:
 
   llvm::Optional<uint64_t> m_current_event_id;
 
-  llvm::StringMap<std::weak_ptr<llvm::raw_ostream>> m_log_streams;
-  std::shared_ptr<llvm::raw_ostream> m_log_callback_stream_sp;
+  llvm::StringMap<std::weak_ptr<LogHandler>> m_stream_handlers;
+  std::shared_ptr<CallbackLogHandler> m_callback_handler_sp;
   ConstString m_instance_name;
   static LoadPluginCallbackType g_load_plugin_callback;
   typedef std::vector<llvm::sys::DynamicLibrary> LoadedPluginsList;

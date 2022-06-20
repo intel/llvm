@@ -34,11 +34,11 @@ using namespace llvm::sys;
 static lto::Config createConfig() {
   lto::Config c;
   c.Options = initTargetOptionsFromCodeGenFlags();
+  c.Options.EmitAddrsig = config->icfLevel == ICFLevel::safe;
   c.CodeModel = getCodeModelFromCMModel();
   c.CPU = getCPUStr();
   c.MAttrs = getMAttrs();
   c.DiagHandler = diagnosticHandler;
-  c.UseNewPM = config->ltoNewPassManager;
   c.PreCodeGenPassesHook = [](legacy::PassManager &pm) {
     pm.add(createObjCARCContractPass());
   };

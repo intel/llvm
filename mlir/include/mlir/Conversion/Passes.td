@@ -74,6 +74,22 @@ def ConvertAffineToStandard : Pass<"lower-affine"> {
 }
 
 //===----------------------------------------------------------------------===//
+// AMDGPUToROCDL
+//===----------------------------------------------------------------------===//
+
+def ConvertAMDGPUToROCDL : Pass<"convert-amdgpu-to-rocdl"> {
+  let summary = "Convert AMDGPU dialect to ROCDL dialect";
+  let description = [{
+    This pass converts supported AMDGPU ops to ROCDL dialect intrinsics.
+  }];
+  let constructor = "mlir::createConvertAMDGPUToROCDLPass()";
+  let dependentDialects = [
+    "LLVM::LLVMDialect",
+    "ROCDL::ROCDLDialect",
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // ArithmeticToLLVM
 //===----------------------------------------------------------------------===//
 
@@ -181,6 +197,21 @@ def ConvertComplexToLLVM : Pass<"convert-complex-to-llvm"> {
 }
 
 //===----------------------------------------------------------------------===//
+// ComplexToLibm
+//===----------------------------------------------------------------------===//
+
+def ConvertComplexToLibm : Pass<"convert-complex-to-libm", "ModuleOp"> {
+  let summary = "Convert Complex dialect to libm calls";
+  let description = [{
+    This pass converts supported Complex ops to libm calls.
+  }];
+  let constructor = "mlir::createConvertComplexToLibmPass()";
+  let dependentDialects = [
+    "func::FuncDialect",
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // ComplexToStandard
 //===----------------------------------------------------------------------===//
 
@@ -263,9 +294,6 @@ def ConvertFuncToLLVM : Pass<"convert-func-to-llvm", "ModuleOp"> {
            /*default=*/"false",
            "Replace FuncOp's MemRef arguments with bare pointers to the MemRef "
            "element types">,
-    Option<"emitCWrappers", "emit-c-wrappers", "bool", /*default=*/"false",
-           "Emit wrappers for C-compatible pointer-to-struct memref "
-           "descriptors">,
     Option<"indexBitwidth", "index-bitwidth", "unsigned",
            /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
            "Bitwidth of the index type, 0 to use size of machine word">,
@@ -507,6 +535,22 @@ def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// NVGPUToNVVM
+//===----------------------------------------------------------------------===//
+
+def ConvertNVGPUToNVVM : Pass<"convert-nvgpu-to-nvvm"> {
+  let summary = "Convert NVGPU dialect to NVVM dialect";
+  let description = [{
+    This pass converts supported NVGPU ops to NVVM dialect intrinsics.
+  }];
+  let constructor = "mlir::createConvertNVGPUToNVVMPass()";
+  let dependentDialects = [
+    "NVVM::NVVMDialect",
+  ];
+}
+
+
+//===----------------------------------------------------------------------===//
 // OpenACCToSCF
 //===----------------------------------------------------------------------===//
 
@@ -677,6 +721,20 @@ def ConvertSPIRVToLLVM : Pass<"convert-spirv-to-llvm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// TensorToLinalg
+//===----------------------------------------------------------------------===//
+
+def ConvertTensorToLinalg : Pass<"convert-tensor-to-linalg", "ModuleOp"> {
+  let summary = "Convert some Tensor dialect ops to Linalg dialect";
+  let constructor = "mlir::createConvertTensorToLinalgPass()";
+  let dependentDialects = [
+    "arith::ArithmeticDialect",
+    "linalg::LinalgDialect",
+  ];
+}
+
+
+//===----------------------------------------------------------------------===//
 // TensorToSPIRV
 //===----------------------------------------------------------------------===//
 
@@ -690,6 +748,33 @@ def ConvertTensorToSPIRV : Pass<"convert-tensor-to-spirv", "ModuleOp"> {
            "Emulate non-32-bit scalar types with 32-bit ones if "
            "missing native support">
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// TosaToArith
+//===----------------------------------------------------------------------===//
+
+def TosaToArith : Pass<"tosa-to-arith"> {
+  let summary = "Lower TOSA to the Arith dialect";
+  let dependentDialects = [
+    "arith::ArithmeticDialect",
+  ];
+  let description = [{
+    Pass that converts TOSA operations to the equivalent operations using the
+    operations in the Arith dialect. The ApplyScale operator is optionally
+    included as it is often preserved until the final invocation.
+  }];
+
+  let options = [
+    Option<"includeApplyRescale", "include-apply-rescale",
+           "bool", /*default=*/"false",
+           "Whether to include the lowering for tosa.apply_rescale to arith">,
+    Option<"use32Bit", "use-32-bit",
+           "bool", /*default=*/"false",
+           "Whether to prioritze lowering to 32-bit operations">
+  ];
+
+  let constructor = "tosa::createTosaToArith()";
 }
 
 //===----------------------------------------------------------------------===//
@@ -738,21 +823,20 @@ def TosaToSCF : Pass<"tosa-to-scf"> {
 }
 
 //===----------------------------------------------------------------------===//
-// TosaToStandard
+// TosaToTensor
 //===----------------------------------------------------------------------===//
 
-def TosaToStandard : Pass<"tosa-to-standard"> {
-  let summary = "Lower TOSA to the Standard dialect";
+def TosaToTensor : Pass<"tosa-to-tensor"> {
+  let summary = "Lower TOSA to the Tensor dialect";
   let dependentDialects = [
-    "arith::ArithmeticDialect",
     "tensor::TensorDialect",
   ];
   let description = [{
     Pass that converts TOSA operations to the equivalent operations using the
-    operations in the Standard dialect.
+    operations in the Tensor dialect.
   }];
 
-  let constructor = "tosa::createTosaToStandard()";
+  let constructor = "tosa::createTosaToTensor()";
 }
 
 //===----------------------------------------------------------------------===//
@@ -764,8 +848,13 @@ def ConvertVectorToGPU : Pass<"convert-vector-to-gpu"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToGPUPass()";
   let dependentDialects = [
-    "memref::MemRefDialect",
-    "gpu::GPUDialect"
+    "memref::MemRefDialect", "gpu::GPUDialect", "AffineDialect", 
+    "vector::VectorDialect", "nvgpu::NVGPUDialect"
+  ];
+
+  let options = [
+    Option<"useNvGpu", "use-nvgpu", "bool", /*default=*/"false", 
+      "convert to NvGPU ops instead of GPU dialect ops">
   ];
 }
 
@@ -819,10 +908,10 @@ def ConvertVectorToLLVM : Pass<"convert-vector-to-llvm", "ModuleOp"> {
     Option<"reassociateFPReductions", "reassociate-fp-reductions",
            "bool", /*default=*/"false",
            "Allows llvm to reassociate floating-point reductions for speed">,
-    Option<"indexOptimizations", "enable-index-optimizations",
+    Option<"force32BitVectorIndices", "force-32bit-vector-indices",
            "bool", /*default=*/"true",
-           "Allows compiler to assume indices fit in 32-bit if that yields "
-	   "faster code">,
+           "Allows compiler to assume vector indices fit in 32-bit if that "
+     "yields faster code">,
     Option<"amx", "enable-amx",
            "bool", /*default=*/"false",
            "Enables the use of AMX dialect while lowering the vector "

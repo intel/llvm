@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Support/LogicalResult.h"
 #include "mlir/TableGen/GenInfo.h"
 #include "mlir/TableGen/Operator.h"
 #include "llvm/ADT/StringSet.h"
@@ -48,6 +49,10 @@ class _Dialect(_ods_ir.Dialect):
   DIALECT_NAMESPACE = "{0}"
   pass
 
+)Py";
+
+constexpr const char *dialectExtensionTemplate = R"Py(
+from ._{0}_ops_gen import _Dialect
 )Py";
 
 /// Template for operation class:
@@ -269,6 +274,10 @@ static llvm::cl::opt<std::string>
     clDialectName("bind-dialect",
                   llvm::cl::desc("The dialect to run the generator for"),
                   llvm::cl::init(""), llvm::cl::cat(clOpPythonBindingCat));
+
+static llvm::cl::opt<std::string> clDialectExtensionName(
+    "dialect-extension", llvm::cl::desc("The prefix of the dialect extension"),
+    llvm::cl::init(""), llvm::cl::cat(clOpPythonBindingCat));
 
 using AttributeClasses = DenseMap<StringRef, StringRef>;
 
@@ -534,6 +543,21 @@ constexpr const char *initAttributeTemplate = R"Py(attributes["{0}"] = {1})Py";
 constexpr const char *initOptionalAttributeTemplate =
     R"Py(if {1} is not None: attributes["{0}"] = {1})Py";
 
+/// Template for setting an attribute with a default value in the operation
+/// builder.
+///   {0} is the attribute name;
+///   {1} is the builder argument name;
+///   {2} is the default value.
+constexpr const char *initDefaultValuedAttributeTemplate =
+    R"Py(attributes["{0}"] = {1} if {1} is not None else {2})Py";
+
+/// Template for asserting that an attribute value was provided when calling a
+/// builder.
+///   {0} is the attribute name;
+///   {1} is the builder argument name.
+constexpr const char *assertAttributeValueSpecified =
+    R"Py(assert {1} is not None, "attribute {0} must be specified")Py";
+
 constexpr const char *initUnitAttributeTemplate =
     R"Py(if bool({1}): attributes["{0}"] = _ods_ir.UnitAttr.get(
       _ods_get_default_loc_context(loc)))Py";
@@ -620,6 +644,13 @@ populateBuilderArgs(const Operator &op,
     if (!op.getArg(i).is<NamedAttribute *>())
       operandNames.push_back(name);
   }
+}
+
+/// Populates `builderArgs` with the Python-compatible names of builder function
+/// successor arguments. Additionally, `successorArgNames` is also populated.
+static void populateBuilderArgsSuccessors(
+    const Operator &op, llvm::SmallVectorImpl<std::string> &builderArgs,
+    llvm::SmallVectorImpl<std::string> &successorArgNames) {
 
   for (int i = 0, e = op.getNumSuccessors(); i < e; ++i) {
     NamedSuccessor successor = op.getSuccessor(i);
@@ -630,6 +661,21 @@ populateBuilderArgs(const Operator &op,
     builderArgs.push_back(name);
     successorArgNames.push_back(name);
   }
+}
+
+/// Generates Python code for the default value of the given attribute.
+static FailureOr<std::string> getAttributeDefaultValue(Attribute attr) {
+  assert(attr.hasDefaultValue() && "expected attribute with default value");
+  StringRef storageType = attr.getStorageType().trim();
+  StringRef defaultValCpp = attr.getDefaultValue().trim();
+
+  // A list of commonly used attribute types and default values for which
+  // we can generate Python code. Extend as needed.
+  if (storageType.equals("::mlir::ArrayAttr") && defaultValCpp.equals("{}"))
+    return std::string("_ods_ir.ArrayAttr.get([])");
+
+  // No match: Cannot generate Python code.
+  return failure();
 }
 
 /// Populates `builderLines` with additional lines that are required in the
@@ -651,6 +697,25 @@ populateBuilderLinesAttr(const Operator &op,
     if (attribute->attr.getStorageType().trim().equals("::mlir::UnitAttr")) {
       builderLines.push_back(llvm::formatv(initUnitAttributeTemplate,
                                            attribute->name, argNames[i]));
+      continue;
+    }
+
+    // Attributes with default value are handled specially.
+    if (attribute->attr.hasDefaultValue()) {
+      // In case we cannot generate Python code for the default value, the
+      // attribute must be specified by the user.
+      FailureOr<std::string> defaultValPy =
+          getAttributeDefaultValue(attribute->attr);
+      if (succeeded(defaultValPy)) {
+        builderLines.push_back(llvm::formatv(initDefaultValuedAttributeTemplate,
+                                             attribute->name, argNames[i],
+                                             *defaultValPy));
+      } else {
+        builderLines.push_back(llvm::formatv(assertAttributeValueSpecified,
+                                             attribute->name, argNames[i]));
+        builderLines.push_back(
+            llvm::formatv(initAttributeTemplate, attribute->name, argNames[i]));
+      }
       continue;
     }
 
@@ -857,6 +922,8 @@ static void emitDefaultOpBuilder(const Operator &op, raw_ostream &os) {
   populateBuilderArgsResults(op, builderArgs);
   size_t numResultArgs = builderArgs.size();
   populateBuilderArgs(op, builderArgs, operandArgNames, successorArgNames);
+  size_t numOperandAttrArgs = builderArgs.size() - numResultArgs;
+  populateBuilderArgsSuccessors(op, builderArgs, successorArgNames);
 
   populateBuilderLinesOperand(op, operandArgNames, builderLines);
   populateBuilderLinesAttr(
@@ -868,10 +935,52 @@ static void emitDefaultOpBuilder(const Operator &op, raw_ostream &os) {
   populateBuilderLinesSuccessors(op, successorArgNames, builderLines);
   populateBuilderRegions(op, builderArgs, builderLines);
 
-  builderArgs.push_back("*");
-  builderArgs.push_back("loc=None");
-  builderArgs.push_back("ip=None");
-  os << llvm::formatv(initTemplate, llvm::join(builderArgs, ", "),
+  // Layout of builderArgs vector elements:
+  // [ result_args  operand_attr_args successor_args regions ]
+
+  // Determine whether the argument corresponding to a given index into the
+  // builderArgs vector is a python keyword argument or not.
+  auto isKeywordArgFn = [&](size_t builderArgIndex) -> bool {
+    // All result, successor, and region arguments are positional arguments.
+    if ((builderArgIndex < numResultArgs) ||
+        (builderArgIndex >= (numResultArgs + numOperandAttrArgs)))
+      return false;
+    // Keyword arguments:
+    // - optional named attributes (including unit attributes)
+    // - default-valued named attributes
+    // - optional operands
+    Argument a = op.getArg(builderArgIndex - numResultArgs);
+    if (auto *nattr = a.dyn_cast<NamedAttribute *>())
+      return (nattr->attr.isOptional() || nattr->attr.hasDefaultValue());
+    if (auto *ntype = a.dyn_cast<NamedTypeConstraint *>())
+      return ntype->isOptional();
+    return false;
+  };
+
+  // StringRefs in functionArgs refer to strings allocated by builderArgs.
+  llvm::SmallVector<llvm::StringRef> functionArgs;
+
+  // Add positional arguments.
+  for (size_t i = 0, cnt = builderArgs.size(); i < cnt; ++i) {
+    if (!isKeywordArgFn(i))
+      functionArgs.push_back(builderArgs[i]);
+  }
+
+  // Add a bare '*' to indicate that all following arguments must be keyword
+  // arguments.
+  functionArgs.push_back("*");
+
+  // Add a default 'None' value to each keyword arg string, and then add to the
+  // function args list.
+  for (size_t i = 0, cnt = builderArgs.size(); i < cnt; ++i) {
+    if (isKeywordArgFn(i)) {
+      builderArgs[i].append("=None");
+      functionArgs.push_back(builderArgs[i]);
+    }
+  }
+  functionArgs.push_back("loc=None");
+  functionArgs.push_back("ip=None");
+  os << llvm::formatv(initTemplate, llvm::join(functionArgs, ", "),
                       llvm::join(builderLines, "\n    "));
 }
 
@@ -962,8 +1071,14 @@ static bool emitAllOps(const llvm::RecordKeeper &records, raw_ostream &os) {
   AttributeClasses attributeClasses;
   constructAttributeMapping(records, attributeClasses);
 
-  os << llvm::formatv(fileHeader, clDialectName.getValue());
-  os << llvm::formatv(dialectClassTemplate, clDialectName.getValue());
+  bool isExtension = !clDialectExtensionName.empty();
+  os << llvm::formatv(fileHeader, isExtension
+                                      ? clDialectExtensionName.getValue()
+                                      : clDialectName.getValue());
+  if (isExtension)
+    os << llvm::formatv(dialectExtensionTemplate, clDialectName.getValue());
+  else
+    os << llvm::formatv(dialectClassTemplate, clDialectName.getValue());
 
   for (const llvm::Record *rec : records.getAllDerivedDefinitions("Op")) {
     Operator op(rec);

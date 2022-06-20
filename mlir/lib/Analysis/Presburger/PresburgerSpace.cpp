@@ -56,6 +56,19 @@ unsigned PresburgerSpace::getIdKindOverlap(IdKind kind, unsigned idStart,
   return overlapEnd - overlapStart;
 }
 
+IdKind PresburgerSpace::getIdKindAt(unsigned pos) const {
+  assert(pos < getNumIds() && "`pos` should represent a valid id position");
+  if (pos < getIdKindEnd(IdKind::Domain))
+    return IdKind::Domain;
+  if (pos < getIdKindEnd(IdKind::Range))
+    return IdKind::Range;
+  if (pos < getIdKindEnd(IdKind::Symbol))
+    return IdKind::Symbol;
+  if (pos < getIdKindEnd(IdKind::Local))
+    return IdKind::Local;
+  llvm_unreachable("`pos` should represent a valid id position");
+}
+
 unsigned PresburgerSpace::insertId(IdKind kind, unsigned pos, unsigned num) {
   assert(pos <= getNumIdKind(kind));
 
@@ -69,6 +82,11 @@ unsigned PresburgerSpace::insertId(IdKind kind, unsigned pos, unsigned num) {
     numSymbols += num;
   else
     numLocals += num;
+
+  // Insert NULL attachments if `usingAttachments` and variables inserted are
+  // not locals.
+  if (usingAttachments && kind != IdKind::Local)
+    attachments.insert(attachments.begin() + absolutePos, num, nullptr);
 
   return absolutePos;
 }
@@ -89,22 +107,66 @@ void PresburgerSpace::removeIdRange(IdKind kind, unsigned idStart,
     numSymbols -= numIdsEliminated;
   else
     numLocals -= numIdsEliminated;
+
+  // Remove attachments if `usingAttachments` and variables removed are not
+  // locals.
+  if (usingAttachments && kind != IdKind::Local)
+    attachments.erase(attachments.begin() + getIdKindOffset(kind) + idStart,
+                      attachments.begin() + getIdKindOffset(kind) + idLimit);
 }
 
-void PresburgerSpace::truncateIdKind(IdKind kind, unsigned num) {
-  unsigned curNum = getNumIdKind(kind);
-  assert(num <= curNum && "Can't truncate to more ids!");
-  removeIdRange(kind, num, curNum);
+void PresburgerSpace::swapId(IdKind kindA, IdKind kindB, unsigned posA,
+                             unsigned posB) {
+
+  if (!usingAttachments)
+    return;
+
+  if (kindA == IdKind::Local && kindB == IdKind::Local)
+    return;
+
+  if (kindA == IdKind::Local) {
+    atAttachment(kindB, posB) = nullptr;
+    return;
+  }
+
+  if (kindB == IdKind::Local) {
+    atAttachment(kindA, posA) = nullptr;
+    return;
+  }
+
+  std::swap(atAttachment(kindA, posA), atAttachment(kindB, posB));
 }
 
-bool PresburgerSpace::isSpaceCompatible(const PresburgerSpace &other) const {
+bool PresburgerSpace::isCompatible(const PresburgerSpace &other) const {
   return getNumDomainIds() == other.getNumDomainIds() &&
          getNumRangeIds() == other.getNumRangeIds() &&
          getNumSymbolIds() == other.getNumSymbolIds();
 }
 
-bool PresburgerSpace::isSpaceEqual(const PresburgerSpace &other) const {
-  return isSpaceCompatible(other) && getNumLocalIds() == other.getNumLocalIds();
+bool PresburgerSpace::isEqual(const PresburgerSpace &other) const {
+  return isCompatible(other) && getNumLocalIds() == other.getNumLocalIds();
+}
+
+bool PresburgerSpace::isAligned(const PresburgerSpace &other) const {
+  assert(isUsingAttachments() && other.isUsingAttachments() &&
+         "Both spaces should be using attachments to check for "
+         "alignment.");
+  return isCompatible(other) && attachments == other.attachments;
+}
+
+bool PresburgerSpace::isAligned(const PresburgerSpace &other,
+                                IdKind kind) const {
+  assert(isUsingAttachments() && other.isUsingAttachments() &&
+         "Both spaces should be using attachments to check for "
+         "alignment.");
+
+  ArrayRef<void *> kindAttachments =
+      makeArrayRef(attachments)
+          .slice(getIdKindOffset(kind), getNumIdKind(kind));
+  ArrayRef<void *> otherKindAttachments =
+      makeArrayRef(other.attachments)
+          .slice(other.getIdKindOffset(kind), other.getNumIdKind(kind));
+  return kindAttachments == otherKindAttachments;
 }
 
 void PresburgerSpace::setDimSymbolSeparation(unsigned newSymbolCount) {
@@ -112,6 +174,8 @@ void PresburgerSpace::setDimSymbolSeparation(unsigned newSymbolCount) {
          "invalid separation position");
   numRange = numRange + numSymbols - newSymbolCount;
   numSymbols = newSymbolCount;
+  // We do not need to change `attachments` since the ordering of
+  // `attachments` remains same.
 }
 
 void PresburgerSpace::print(llvm::raw_ostream &os) const {
@@ -119,6 +183,18 @@ void PresburgerSpace::print(llvm::raw_ostream &os) const {
      << "Range: " << getNumRangeIds() << ", "
      << "Symbols: " << getNumSymbolIds() << ", "
      << "Locals: " << getNumLocalIds() << "\n";
+
+  if (usingAttachments) {
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
+    os << "TypeID of attachments: " << attachmentType.getAsOpaquePointer()
+       << "\n";
+#endif
+
+    os << "(";
+    for (void *attachment : attachments)
+      os << attachment << " ";
+    os << ")\n";
+  }
 }
 
 void PresburgerSpace::dump() const { print(llvm::errs()); }

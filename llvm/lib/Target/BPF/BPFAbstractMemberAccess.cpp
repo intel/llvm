@@ -143,9 +143,9 @@ private:
   Module *M = nullptr;
 
   static std::map<std::string, GlobalVariable *> GEPGlobals;
-  // A map to link preserve_*_access_index instrinsic calls.
+  // A map to link preserve_*_access_index intrinsic calls.
   std::map<CallInst *, std::pair<CallInst *, CallInfo>> AIChain;
-  // A map to hold all the base preserve_*_access_index instrinsic calls.
+  // A map to hold all the base preserve_*_access_index intrinsic calls.
   // The base call is not an input of any other preserve_*
   // intrinsics.
   std::map<CallInst *, CallInfo> BaseAICalls;
@@ -943,8 +943,11 @@ MDNode *BPFAbstractMemberAccess::computeAccessKey(CallInst *Call,
     // ENUM_VALUE_EXISTENCE and ENUM_VALUE
     IsInt32Ret = false;
 
-    const auto *CE = cast<ConstantExpr>(Call->getArgOperand(1));
-    const GlobalVariable *GV = cast<GlobalVariable>(CE->getOperand(0));
+    // The argument could be a global variable or a getelementptr with base to
+    // a global variable depending on whether the clang option `opaque-options`
+    // is set or not.
+    const GlobalVariable *GV =
+        cast<GlobalVariable>(Call->getArgOperand(1)->stripPointerCasts());
     assert(GV->hasInitializer());
     const ConstantDataArray *DA = cast<ConstantDataArray>(GV->getInitializer());
     assert(DA->isString());

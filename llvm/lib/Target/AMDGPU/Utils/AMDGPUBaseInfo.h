@@ -54,6 +54,9 @@ bool isHsaAbiVersion5(const MCSubtargetInfo *STI);
 /// false otherwise.
 bool isHsaAbiVersion3AndAbove(const MCSubtargetInfo *STI);
 
+/// \returns The offset of the multigrid_sync_arg argument from implicitarg_ptr
+unsigned getMultigridSyncArgImplicitArgPosition();
+
 /// \returns The offset of the hostcall pointer argument from implicitarg_ptr
 unsigned getHostcallImplicitArgPosition();
 
@@ -395,6 +398,7 @@ struct MIMGInfo {
   uint8_t MIMGEncoding;
   uint8_t VDataDwords;
   uint8_t VAddrDwords;
+  uint8_t VAddrOperands;
 };
 
 LLVM_READONLY
@@ -575,11 +579,14 @@ unsigned decodeLgkmcnt(const IsaVersion &Version, unsigned Waitcnt);
 /// \p Lgkmcnt respectively.
 ///
 /// \details \p Vmcnt, \p Expcnt and \p Lgkmcnt are decoded as follows:
-///     \p Vmcnt = \p Waitcnt[3:0]                      (pre-gfx9 only)
-///     \p Vmcnt = \p Waitcnt[3:0] | \p Waitcnt[15:14]  (gfx9+ only)
-///     \p Expcnt = \p Waitcnt[6:4]
-///     \p Lgkmcnt = \p Waitcnt[11:8]                   (pre-gfx10 only)
-///     \p Lgkmcnt = \p Waitcnt[13:8]                   (gfx10+ only)
+///     \p Vmcnt = \p Waitcnt[3:0]        (pre-gfx9)
+///     \p Vmcnt = \p Waitcnt[15:14,3:0]  (gfx9,10)
+///     \p Vmcnt = \p Waitcnt[15:10]      (gfx11+)
+///     \p Expcnt = \p Waitcnt[6:4]       (pre-gfx11)
+///     \p Expcnt = \p Waitcnt[2:0]       (gfx11+)
+///     \p Lgkmcnt = \p Waitcnt[11:8]     (pre-gfx10)
+///     \p Lgkmcnt = \p Waitcnt[13:8]     (gfx10)
+///     \p Lgkmcnt = \p Waitcnt[9:4]      (gfx11+)
 void decodeWaitcnt(const IsaVersion &Version, unsigned Waitcnt,
                    unsigned &Vmcnt, unsigned &Expcnt, unsigned &Lgkmcnt);
 
@@ -601,12 +608,15 @@ unsigned encodeLgkmcnt(const IsaVersion &Version, unsigned Waitcnt,
 /// \p Version.
 ///
 /// \details \p Vmcnt, \p Expcnt and \p Lgkmcnt are encoded as follows:
-///     Waitcnt[3:0]   = \p Vmcnt       (pre-gfx9 only)
-///     Waitcnt[3:0]   = \p Vmcnt[3:0]  (gfx9+ only)
-///     Waitcnt[6:4]   = \p Expcnt
-///     Waitcnt[11:8]  = \p Lgkmcnt     (pre-gfx10 only)
-///     Waitcnt[13:8]  = \p Lgkmcnt     (gfx10+ only)
-///     Waitcnt[15:14] = \p Vmcnt[5:4]  (gfx9+ only)
+///     Waitcnt[2:0]   = \p Expcnt      (gfx11+)
+///     Waitcnt[3:0]   = \p Vmcnt       (pre-gfx9)
+///     Waitcnt[3:0]   = \p Vmcnt[3:0]  (gfx9,10)
+///     Waitcnt[6:4]   = \p Expcnt      (pre-gfx11)
+///     Waitcnt[9:4]   = \p Lgkmcnt     (gfx11+)
+///     Waitcnt[11:8]  = \p Lgkmcnt     (pre-gfx10)
+///     Waitcnt[13:8]  = \p Lgkmcnt     (gfx10)
+///     Waitcnt[15:10] = \p Vmcnt       (gfx11+)
+///     Waitcnt[15:14] = \p Vmcnt[5:4]  (gfx9,10)
 ///
 /// \returns Waitcnt with encoded \p Vmcnt, \p Expcnt and \p Lgkmcnt for given
 /// isa \p Version.
@@ -639,6 +649,18 @@ void decodeHwreg(unsigned Val, unsigned &Id, unsigned &Offset, unsigned &Width);
 
 } // namespace Hwreg
 
+namespace DepCtr {
+
+int getDefaultDepCtrEncoding(const MCSubtargetInfo &STI);
+int encodeDepCtr(const StringRef Name, int64_t Val, unsigned &UsedOprMask,
+                 const MCSubtargetInfo &STI);
+bool isSymbolicDepCtrEncoding(unsigned Code, bool &HasNonDefaultVal,
+                              const MCSubtargetInfo &STI);
+bool decodeDepCtr(unsigned Code, int &Id, StringRef &Name, unsigned &Val,
+                  bool &IsDefault, const MCSubtargetInfo &STI);
+
+} // namespace DepCtr
+
 namespace Exp {
 
 bool getTgtName(unsigned Id, StringRef &Name, int &Index);
@@ -670,13 +692,14 @@ bool isValidDfmtNfmt(unsigned Val, const MCSubtargetInfo &STI);
 
 bool isValidNfmt(unsigned Val, const MCSubtargetInfo &STI);
 
-int64_t getUnifiedFormat(const StringRef Name);
+int64_t getUnifiedFormat(const StringRef Name, const MCSubtargetInfo &STI);
 
-StringRef getUnifiedFormatName(unsigned Id);
+StringRef getUnifiedFormatName(unsigned Id, const MCSubtargetInfo &STI);
 
-bool isValidUnifiedFormat(unsigned Val);
+bool isValidUnifiedFormat(unsigned Val, const MCSubtargetInfo &STI);
 
-int64_t convertDfmtNfmt2Ufmt(unsigned Dfmt, unsigned Nfmt);
+int64_t convertDfmtNfmt2Ufmt(unsigned Dfmt, unsigned Nfmt,
+                             const MCSubtargetInfo &STI);
 
 bool isValidFormatEncoding(unsigned Val, const MCSubtargetInfo &STI);
 
@@ -696,10 +719,10 @@ LLVM_READNONE
 StringRef getMsgName(int64_t MsgId, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
-StringRef getMsgOpName(int64_t MsgId, int64_t OpId);
+StringRef getMsgOpName(int64_t MsgId, int64_t OpId, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
-bool isValidMsgId(int64_t MsgId);
+bool isValidMsgId(int64_t MsgId, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
 bool isValidMsgOp(int64_t MsgId, int64_t OpId, const MCSubtargetInfo &STI,
@@ -710,15 +733,13 @@ bool isValidMsgStream(int64_t MsgId, int64_t OpId, int64_t StreamId,
                       const MCSubtargetInfo &STI, bool Strict = true);
 
 LLVM_READNONE
-bool msgRequiresOp(int64_t MsgId);
+bool msgRequiresOp(int64_t MsgId, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
-bool msgSupportsStream(int64_t MsgId, int64_t OpId);
+bool msgSupportsStream(int64_t MsgId, int64_t OpId, const MCSubtargetInfo &STI);
 
-void decodeMsg(unsigned Val,
-               uint16_t &MsgId,
-               uint16_t &OpId,
-               uint16_t &StreamId);
+void decodeMsg(unsigned Val, uint16_t &MsgId, uint16_t &OpId,
+               uint16_t &StreamId, const MCSubtargetInfo &STI);
 
 LLVM_READNONE
 uint64_t encodeMsg(uint64_t MsgId,
@@ -781,12 +802,16 @@ bool isCI(const MCSubtargetInfo &STI);
 bool isVI(const MCSubtargetInfo &STI);
 bool isGFX9(const MCSubtargetInfo &STI);
 bool isGFX9_GFX10(const MCSubtargetInfo &STI);
+bool isGFX8_GFX9_GFX10(const MCSubtargetInfo &STI);
 bool isGFX8Plus(const MCSubtargetInfo &STI);
 bool isGFX9Plus(const MCSubtargetInfo &STI);
 bool isGFX10(const MCSubtargetInfo &STI);
 bool isGFX10Plus(const MCSubtargetInfo &STI);
 bool isNotGFX10Plus(const MCSubtargetInfo &STI);
 bool isGFX10Before1030(const MCSubtargetInfo &STI);
+bool isGFX11(const MCSubtargetInfo &STI);
+bool isGFX11Plus(const MCSubtargetInfo &STI);
+bool isNotGFX11Plus(const MCSubtargetInfo &STI);
 bool isGCN3Encoding(const MCSubtargetInfo &STI);
 bool isGFX10_AEncoding(const MCSubtargetInfo &STI);
 bool isGFX10_BEncoding(const MCSubtargetInfo &STI);

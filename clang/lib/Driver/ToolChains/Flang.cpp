@@ -19,6 +19,14 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+/// Add -x lang to \p CmdArgs for \p Input.
+static void addDashXForInput(const ArgList &Args, const InputInfo &Input,
+                             ArgStringList &CmdArgs) {
+  CmdArgs.push_back("-x");
+  // Map the driver type to the frontend type.
+  CmdArgs.push_back(types::getTypeName(Input.getType()));
+}
+
 void Flang::AddFortranDialectOptions(const ArgList &Args,
                                      ArgStringList &CmdArgs) const {
   Args.AddAllArgs(
@@ -113,6 +121,11 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
     A->render(Args, CmdArgs);
   }
 
+  for (const Arg *A : Args.filtered(options::OPT_mmlir)) {
+    A->claim();
+    A->render(Args, CmdArgs);
+  }
+
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
@@ -121,6 +134,9 @@ void Flang::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   assert(Input.isFilename() && "Invalid input.");
+
+  addDashXForInput(Args, Input, CmdArgs);
+
   CmdArgs.push_back(Input.getFilename());
 
   const auto& D = C.getDriver();

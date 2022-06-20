@@ -158,7 +158,7 @@ void AsmPrinter::emitDwarfSymbolReference(const MCSymbol *Label,
     if (MAI->needsDwarfSectionOffsetDirective()) {
       assert(!isDwarf64() &&
              "emitting DWARF64 is not implemented for COFF targets");
-      OutStreamer->EmitCOFFSecRel32(Label, /*Offset=*/0);
+      OutStreamer->emitCOFFSecRel32(Label, /*Offset=*/0);
       return;
     }
 
@@ -272,6 +272,12 @@ void AsmPrinter::emitCFIInstruction(const MCCFIInstruction &Inst) const {
     break;
   case MCCFIInstruction::OpUndefined:
     OutStreamer->emitCFIUndefined(Inst.getRegister());
+    break;
+  case MCCFIInstruction::OpRememberState:
+    OutStreamer->emitCFIRememberState();
+    break;
+  case MCCFIInstruction::OpRestoreState:
+    OutStreamer->emitCFIRestoreState();
     break;
   }
 }

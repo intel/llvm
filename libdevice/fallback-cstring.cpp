@@ -42,7 +42,7 @@ static void *__devicelib_memcpy_uint32_aligned(void *dest, const void *src,
   return dest;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 void *__devicelib_memcpy(void *dest, const void *src, size_t n) {
   if (dest == NULL || src == NULL || n == 0)
     return dest;
@@ -104,7 +104,7 @@ static void *__devicelib_memset_uint32_aligned(void *dest, int c, size_t n) {
   return dest;
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 void *__devicelib_memset(void *dest, int c, size_t n) {
   if (dest == NULL || n == 0)
     return dest;
@@ -173,7 +173,7 @@ static int __devicelib_memcmp_uint32_aligned(const void *s1, const void *s2,
       &s1_uint32_ptr[cmp_num], &s2_uint32_ptr[cmp_num], tailing_bytes);
 }
 
-DEVICE_EXTERN_C
+DEVICE_EXTERN_C_INLINE
 int __devicelib_memcmp(const void *s1, const void *s2, size_t n) {
   if (s1 == s2 || n == 0)
     return 0;

@@ -114,11 +114,11 @@ defm : FPFMADynFrmAlias_m<FNMSUB_D, "fnmsub.d", DINX>;
 defm : FPFMADynFrmAlias_m<FNMADD_D, "fnmadd.d", DINX>;
 
 let SchedRW = [WriteFALU64, ReadFALU64, ReadFALU64] in {
-defm FADD_D : FPALU_rr_frm_m<0b0000001, "fadd.d", DINX>;
+defm FADD_D : FPALU_rr_frm_m<0b0000001, "fadd.d", DINX, /*Commutable*/1>;
 defm FSUB_D : FPALU_rr_frm_m<0b0000101, "fsub.d", DINX>;
 }
 let SchedRW = [WriteFMul64, ReadFMul64, ReadFMul64] in
-defm FMUL_D : FPALU_rr_frm_m<0b0001001, "fmul.d", DINX>;
+defm FMUL_D : FPALU_rr_frm_m<0b0001001, "fmul.d", DINX, /*Commutable*/1>;
 
 let SchedRW = [WriteFDiv64, ReadFDiv64, ReadFDiv64] in
 defm FDIV_D : FPALU_rr_frm_m<0b0001101, "fdiv.d", DINX>;
@@ -140,8 +140,8 @@ defm FSGNJX_D : FPALU_rr_m<0b0010001, 0b010, "fsgnjx.d", DINX>;
 }
 
 let SchedRW = [WriteFMinMax64, ReadFMinMax64, ReadFMinMax64] in {
-defm FMIN_D   : FPALU_rr_m<0b0010101, 0b000, "fmin.d", DINX>;
-defm FMAX_D   : FPALU_rr_m<0b0010101, 0b001, "fmax.d", DINX>;
+defm FMIN_D   : FPALU_rr_m<0b0010101, 0b000, "fmin.d", DINX, /*Commutable*/1>;
+defm FMAX_D   : FPALU_rr_m<0b0010101, 0b001, "fmax.d", DINX, /*Commutable*/1>;
 }
 
 defm FCVT_S_D : FPUnaryOp_r_frm_m<0b0100000, 0b00001, FDINX, "fcvt.s.d">,
@@ -152,7 +152,7 @@ defm FCVT_D_S : FPUnaryOp_r_m<0b0100001, 0b00000, 0b000, DFINX, "fcvt.d.s">,
                 Sched<[WriteFCvtF32ToF64, ReadFCvtF32ToF64]>;
 
 let SchedRW = [WriteFCmp64, ReadFCmp64, ReadFCmp64] in {
-defm FEQ_D : FPCmp_rr_m<0b1010001, 0b010, "feq.d", DINX>;
+defm FEQ_D : FPCmp_rr_m<0b1010001, 0b010, "feq.d", DINX, /*Commutable*/1>;
 defm FLT_D : FPCmp_rr_m<0b1010001, 0b001, "flt.d", DINX>;
 defm FLE_D : FPCmp_rr_m<0b1010001, 0b000, "fle.d", DINX>;
 }
@@ -292,6 +292,10 @@ def : Pat<(any_fma (fneg FPR64:$rs1), FPR64:$rs2, FPR64:$rs3),
 
 // fnmadd: -rs1 * rs2 - rs3
 def : Pat<(any_fma (fneg FPR64:$rs1), FPR64:$rs2, (fneg FPR64:$rs3)),
+          (FNMADD_D FPR64:$rs1, FPR64:$rs2, FPR64:$rs3, 0b111)>;
+
+// fnmadd: -(rs1 * rs2 + rs3) (the nsz flag on the FMA)
+def : Pat<(fneg (any_fma_nsz FPR64:$rs1, FPR64:$rs2, FPR64:$rs3)),
           (FNMADD_D FPR64:$rs1, FPR64:$rs2, FPR64:$rs3, 0b111)>;
 
 // The ratified 20191213 ISA spec defines fmin and fmax in a way that matches

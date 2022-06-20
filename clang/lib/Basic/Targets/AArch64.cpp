@@ -226,8 +226,6 @@ void AArch64TargetInfo::getTargetDefinesARMV87A(const LangOptions &Opts,
 
 void AArch64TargetInfo::getTargetDefinesARMV88A(const LangOptions &Opts,
                                                 MacroBuilder &Builder) const {
-  // FIXME: this does not handle the case where MOPS is disabled using +nomops
-  Builder.defineMacro("__ARM_FEATURE_MOPS", "1");
   // Also include the Armv8.7 defines
   getTargetDefinesARMV87A(Opts, Builder);
 }
@@ -678,6 +676,7 @@ AArch64TargetInfo::checkCallingConvention(CallingConv CC) const {
   case CC_PreserveAll:
   case CC_OpenCLKernel:
   case CC_AArch64VectorCall:
+  case CC_AArch64SVEPCS:
   case CC_Win64:
     return CCCR_OK;
   default:

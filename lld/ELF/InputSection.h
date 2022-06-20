@@ -149,6 +149,8 @@ public:
     bytesDropped -= num;
   }
 
+  mutable ArrayRef<uint8_t> rawData;
+
   void trim() {
     if (bytesDropped) {
       rawData = rawData.drop_back(bytesDropped);
@@ -220,8 +222,6 @@ public:
     return llvm::makeArrayRef<T>((const T *)rawData.data(), s / sizeof(T));
   }
 
-  mutable ArrayRef<uint8_t> rawData;
-
 protected:
   template <typename ELFT>
   void parseCompressedHeader();
@@ -282,8 +282,8 @@ public:
   }
 
   // Returns the SectionPiece at a given input section offset.
-  SectionPiece *getSectionPiece(uint64_t offset);
-  const SectionPiece *getSectionPiece(uint64_t offset) const {
+  SectionPiece &getSectionPiece(uint64_t offset);
+  const SectionPiece &getSectionPiece(uint64_t offset) const {
     return const_cast<MergeInputSection *>(this)->getSectionPiece(offset);
   }
 
@@ -325,6 +325,7 @@ public:
   SmallVector<EhSectionPiece, 0> pieces;
 
   SyntheticSection *getParent() const;
+  uint64_t getParentOffset(uint64_t offset) const;
 };
 
 // This is a section that is added directly to an output section
@@ -386,7 +387,7 @@ static_assert(sizeof(InputSection) <= 160, "InputSection is too big");
 
 inline bool isDebugSection(const InputSectionBase &sec) {
   return (sec.flags & llvm::ELF::SHF_ALLOC) == 0 &&
-         (sec.name.startswith(".debug") || sec.name.startswith(".zdebug"));
+         sec.name.startswith(".debug");
 }
 
 // The list of all input sections.

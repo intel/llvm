@@ -88,11 +88,11 @@ public:
   /// The filter is used to filter out the diagnostics which are not enabled by
   /// the user.
   struct CStringChecksFilter {
-    DefaultBool CheckCStringNullArg;
-    DefaultBool CheckCStringOutOfBounds;
-    DefaultBool CheckCStringBufferOverlap;
-    DefaultBool CheckCStringNotNullTerm;
-    DefaultBool CheckCStringUninitializedRead;
+    bool CheckCStringNullArg = false;
+    bool CheckCStringOutOfBounds = false;
+    bool CheckCStringBufferOverlap = false;
+    bool CheckCStringNotNullTerm = false;
+    bool CheckCStringUninitializedRead = false;
 
     CheckerNameRef CheckNameCStringNullArg;
     CheckerNameRef CheckNameCStringOutOfBounds;
@@ -355,8 +355,8 @@ ProgramStateRef CStringChecker::CheckLocation(CheckerContext &C,
   // Get the index of the accessed element.
   DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
 
-  ProgramStateRef StInBound = state->assumeInBound(Idx, Size, true);
-  ProgramStateRef StOutBound = state->assumeInBound(Idx, Size, false);
+  ProgramStateRef StInBound, StOutBound;
+  std::tie(StInBound, StOutBound) = state->assumeInBoundDual(Idx, Size);
   if (StOutBound && !StInBound) {
     // These checks are either enabled by the CString out-of-bounds checker
     // explicitly or implicitly by the Malloc checker.
@@ -459,6 +459,11 @@ ProgramStateRef CStringChecker::CheckOverlap(CheckerContext &C,
     return nullptr;
 
   ProgramStateRef stateTrue, stateFalse;
+
+  // Assume different address spaces cannot overlap.
+  if (First.Expression->getType()->getPointeeType().getAddressSpace() !=
+      Second.Expression->getType()->getPointeeType().getAddressSpace())
+    return state;
 
   // Get the buffer values and make sure they're known locations.
   const LocationContext *LCtx = C.getLocationContext();
@@ -691,7 +696,7 @@ ProgramStateRef CStringChecker::checkAdditionOverflow(CheckerContext &C,
   NonLoc maxVal = svalBuilder.makeIntVal(maxValInt);
 
   SVal maxMinusRight;
-  if (right.getAs<nonloc::ConcreteInt>()) {
+  if (isa<nonloc::ConcreteInt>(right)) {
     maxMinusRight = svalBuilder.evalBinOpNN(state, BO_Sub, maxVal, right,
                                                  sizeTy);
   } else {
@@ -1041,23 +1046,20 @@ bool CStringChecker::SummarizeRegion(raw_ostream &os, ASTContext &Ctx,
   case MemRegion::CXXThisRegionKind:
   case MemRegion::CXXTempObjectRegionKind:
     os << "a C++ temp object of type "
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+       << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::NonParamVarRegionKind:
-    os << "a variable of type"
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+    os << "a variable of type" << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::ParamVarRegionKind:
-    os << "a parameter of type"
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+    os << "a parameter of type" << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::FieldRegionKind:
-    os << "a field of type "
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+    os << "a field of type " << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   case MemRegion::ObjCIvarRegionKind:
     os << "an instance variable of type "
-       << cast<TypedValueRegion>(MR)->getValueType().getAsString();
+       << cast<TypedValueRegion>(MR)->getValueType();
     return true;
   default:
     return false;
@@ -1673,7 +1675,7 @@ void CStringChecker::evalStrcpyCommon(CheckerContext &C, const CallExpr *CE,
         // amountCopied = min (size - dstLen - 1 , srcLen)
         SVal freeSpace = svalBuilder.evalBinOpNN(state, BO_Sub, *lenValNL,
                                                  *dstStrLengthNL, sizeTy);
-        if (!freeSpace.getAs<NonLoc>())
+        if (!isa<NonLoc>(freeSpace))
           return;
         freeSpace =
             svalBuilder.evalBinOp(state, BO_Sub, freeSpace,

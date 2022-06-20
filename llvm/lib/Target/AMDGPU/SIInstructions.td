@@ -30,6 +30,8 @@ include "SMInstructions.td"
 include "FLATInstructions.td"
 include "BUFInstructions.td"
 include "EXPInstructions.td"
+include "LDSDIRInstructions.td"
+include "VINTERPInstructions.td"
 
 //===----------------------------------------------------------------------===//
 // VINTRP Instructions
@@ -313,6 +315,18 @@ def WAVE_BARRIER : SPseudoInstSI<(outs), (ins),
   let Size = 0;
 }
 
+def SCHED_BARRIER : SPseudoInstSI<(outs), (ins i32imm:$mask),
+  [(int_amdgcn_sched_barrier (i32 timm:$mask))]> {
+  let SchedRW = [];
+  let hasNoSchedulingInfo = 1;
+  let hasSideEffects = 1;
+  let mayLoad = 0;
+  let mayStore = 0;
+  let isConvergent = 1;
+  let FixedSize = 1;
+  let Size = 0;
+}
+
 // SI pseudo instructions. These are used by the CFG structurizer pass
 // and should be lowered to ISA instructions prior to codegen.
 
@@ -520,6 +534,7 @@ def : GCNPat<
 def SI_CALL : SPseudoInstSI <
   (outs SReg_64:$dst), (ins SSrc_b64:$src0, unknown:$callee)> {
   let Size = 4;
+  let FixedSize = 1;
   let isCall = 1;
   let UseNamedOperandTable = 1;
   let SchedRW = [WriteBranch];
@@ -532,6 +547,7 @@ def SI_TCRETURN : SPseudoInstSI <(outs),
   (ins SReg_64:$src0, unknown:$callee, i32imm:$fpdiff),
   [(AMDGPUtc_return i64:$src0, tglobaladdr:$callee, i32:$fpdiff)]> {
   let Size = 4;
+  let FixedSize = 1;
   let isCall = 1;
   let isTerminator = 1;
   let isReturn = 1;
@@ -3093,6 +3109,19 @@ def G_AMDGPU_CLAMP : AMDGPUGenericInstruction {
   let InOperandList = (ins type0:$src);
   let hasSideEffects = 0;
 }
+
+// Integer multiply-add: arg0 * arg1 + arg2.
+//
+// arg0 and arg1 are 32-bit integers (interpreted as signed or unsigned),
+// arg2 is a 64-bit integer. Result is a 64-bit integer and a 1-bit carry-out.
+class G_AMDGPU_MAD_64_32 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst, type1:$carry_out);
+  let InOperandList = (ins type2:$arg0, type2:$arg1, type0:$arg2);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_MAD_U64_U32 : G_AMDGPU_MAD_64_32;
+def G_AMDGPU_MAD_I64_I32 : G_AMDGPU_MAD_64_32;
 
 // Atomic cmpxchg. $cmpval ad $newval are packed in a single vector
 // operand Expects a MachineMemOperand in addition to explicit

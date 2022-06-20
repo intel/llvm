@@ -399,6 +399,17 @@ define i32 @mul_splat_fold_no_nuw(i32 %x) {
   ret i32 %t
 }
 
+; Negative test (but simplifies before we reach the mul_splat transform)- need more than 2 bits
+
+define i2 @mul_splat_fold_too_narrow(i2 %x) {
+; CHECK-LABEL: @mul_splat_fold_too_narrow(
+; CHECK-NEXT:    ret i2 [[X:%.*]]
+;
+  %m = mul nuw i2 %x, 2
+  %t = lshr i2 %m, 1
+  ret i2 %t
+}
+
 define i32 @negative_and_odd(i32 %x) {
 ; CHECK-LABEL: @negative_and_odd(
 ; CHECK-NEXT:    [[TMP1:%.*]] = lshr i32 [[X:%.*]], 31
@@ -853,18 +864,16 @@ define i128 @narrow_bswap_extra_wide(i16 %x) {
   ret i128 %s
 }
 
-; TODO: The bswap can be narrowed followed by shl.
-
 define i32 @narrow_bswap_undershift(i16 %x) {
 ; CHECK-LABEL: @narrow_bswap_undershift(
-; CHECK-NEXT:    [[Z:%.*]] = zext i16 [[X:%.*]] to i32
-; CHECK-NEXT:    [[B:%.*]] = call i32 @llvm.bswap.i32(i32 [[Z]])
-; CHECK-NEXT:    [[S:%.*]] = lshr exact i32 [[B]], 8
+; CHECK-NEXT:    [[TMP1:%.*]] = call i16 @llvm.bswap.i16(i16 [[X:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = zext i16 [[TMP1]] to i32
+; CHECK-NEXT:    [[S:%.*]] = shl nuw nsw i32 [[TMP2]], 7
 ; CHECK-NEXT:    ret i32 [[S]]
 ;
   %z = zext i16 %x to i32
   %b = call i32 @llvm.bswap.i32(i32 %z)
-  %s = lshr i32 %b, 8
+  %s = lshr i32 %b, 9
   ret i32 %s
 }
 

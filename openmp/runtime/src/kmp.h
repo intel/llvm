@@ -100,17 +100,17 @@ class kmp_stats_list;
 #ifndef HWLOC_OBJ_PACKAGE
 #define HWLOC_OBJ_PACKAGE HWLOC_OBJ_SOCKET
 #endif
-#if HWLOC_API_VERSION >= 0x00020000
-// hwloc 2.0 changed type of depth of object from unsigned to int
-typedef int kmp_hwloc_depth_t;
-#else
-typedef unsigned int kmp_hwloc_depth_t;
-#endif
 #endif
 
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
 #include <xmmintrin.h>
 #endif
+
+// The below has to be defined before including "kmp_barrier.h".
+#define KMP_INTERNAL_MALLOC(sz) malloc(sz)
+#define KMP_INTERNAL_FREE(p) free(p)
+#define KMP_INTERNAL_REALLOC(p, sz) realloc((p), (sz))
+#define KMP_INTERNAL_CALLOC(n, sz) calloc((n), (sz))
 
 #include "kmp_debug.h"
 #include "kmp_lock.h"
@@ -967,7 +967,6 @@ extern omp_memspace_handle_t const omp_large_cap_mem_space;
 extern omp_memspace_handle_t const omp_const_mem_space;
 extern omp_memspace_handle_t const omp_high_bw_mem_space;
 extern omp_memspace_handle_t const omp_low_lat_mem_space;
-// Preview of target memory support
 extern omp_memspace_handle_t const llvm_omp_target_host_mem_space;
 extern omp_memspace_handle_t const llvm_omp_target_shared_mem_space;
 extern omp_memspace_handle_t const llvm_omp_target_device_mem_space;
@@ -987,7 +986,6 @@ extern omp_allocator_handle_t const omp_low_lat_mem_alloc;
 extern omp_allocator_handle_t const omp_cgroup_mem_alloc;
 extern omp_allocator_handle_t const omp_pteam_mem_alloc;
 extern omp_allocator_handle_t const omp_thread_mem_alloc;
-// Preview of target memory support
 extern omp_allocator_handle_t const llvm_omp_target_host_mem_alloc;
 extern omp_allocator_handle_t const llvm_omp_target_shared_mem_alloc;
 extern omp_allocator_handle_t const llvm_omp_target_device_mem_alloc;
@@ -3168,6 +3166,7 @@ extern int __kmp_tp_cached; /* whether threadprivate cache has been created
                                (__kmpc_threadprivate_cached()) */
 extern int __kmp_dflt_blocktime; /* number of milliseconds to wait before
                                     blocking (env setting) */
+extern bool __kmp_wpolicy_passive; /* explicitly set passive wait policy */
 #if KMP_USE_MONITOR
 extern int
     __kmp_monitor_wakeups; /* number of times monitor wakes up per second */
@@ -3468,11 +3467,6 @@ extern void ___kmp_thread_free(kmp_info_t *th, void *ptr KMP_SRC_LOC_DECL);
   ___kmp_thread_realloc((th), (ptr), (size)KMP_SRC_LOC_CURR)
 #define __kmp_thread_free(th, ptr)                                             \
   ___kmp_thread_free((th), (ptr)KMP_SRC_LOC_CURR)
-
-#define KMP_INTERNAL_MALLOC(sz) malloc(sz)
-#define KMP_INTERNAL_FREE(p) free(p)
-#define KMP_INTERNAL_REALLOC(p, sz) realloc((p), (sz))
-#define KMP_INTERNAL_CALLOC(n, sz) calloc((n), (sz))
 
 extern void __kmp_push_num_threads(ident_t *loc, int gtid, int num_threads);
 

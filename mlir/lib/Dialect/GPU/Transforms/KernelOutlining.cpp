@@ -15,9 +15,9 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/GPU/Passes.h"
-#include "mlir/Dialect/GPU/Utils.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/GPU/Transforms/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -225,10 +225,13 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
   OpBuilder builder(launchOp);
   // The launch op has an optional dynamic shared memory size. If it doesn't
   // exist, we use zero.
-  builder.create<gpu::LaunchFuncOp>(
+  Value asyncToken = launchOp.asyncToken();
+  auto launchFunc = builder.create<gpu::LaunchFuncOp>(
       launchOp.getLoc(), kernelFunc, launchOp.getGridSizeOperandValues(),
       launchOp.getBlockSizeOperandValues(), launchOp.dynamicSharedMemorySize(),
-      operands);
+      operands, asyncToken ? asyncToken.getType() : nullptr,
+      launchOp.asyncDependencies());
+  launchOp.replaceAllUsesWith(launchFunc);
   launchOp.erase();
 }
 
@@ -271,8 +274,8 @@ public:
   }
 
   GpuKernelOutliningPass(const GpuKernelOutliningPass &other)
-      : dataLayoutSpec(other.dataLayoutSpec) {
-    dataLayoutStr = other.dataLayoutStr;
+      : GpuKernelOutliningBase(other), dataLayoutSpec(other.dataLayoutSpec) {
+    dataLayoutStr = other.dataLayoutStr.getValue();
   }
 
   LogicalResult initialize(MLIRContext *context) override {
@@ -293,13 +296,14 @@ public:
   void runOnOperation() override {
     SymbolTable symbolTable(getOperation());
     bool modified = false;
-    for (auto func : getOperation().getOps<FuncOp>()) {
+    for (auto func : getOperation().getOps<func::FuncOp>()) {
       // Insert just after the function.
       Block::iterator insertPt(func->getNextNode());
       auto funcWalkResult = func.walk([&](gpu::LaunchOp op) {
         SetVector<Value> operands;
         std::string kernelFnName =
-            Twine(op->getParentOfType<FuncOp>().getName(), "_kernel").str();
+            Twine(op->getParentOfType<func::FuncOp>().getName(), "_kernel")
+                .str();
 
         gpu::GPUFuncOp outlinedFunc =
             outlineKernelFuncImpl(op, kernelFnName, operands);

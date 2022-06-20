@@ -26,7 +26,6 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/IPO.h"
-#include <set>
 #include <vector>
 
 #define DEBUG_TYPE "iroutliner"
@@ -284,11 +283,13 @@ void OutlinableRegion::splitCandidate() {
   BasicBlock::iterator It = StartInst->getIterator();
   EndBB = BackInst->getParent();
   BasicBlock *IBlock;
+  BasicBlock *PHIPredBlock = nullptr;
   bool EndBBTermAndBackInstDifferent = EndBB->getTerminator() != BackInst;
   while (PHINode *PN = dyn_cast<PHINode>(&*It)) {
     unsigned NumPredsOutsideRegion = 0;
     for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
       if (!BBSet.contains(PN->getIncomingBlock(i))) {
+        PHIPredBlock = PN->getIncomingBlock(i);
         ++NumPredsOutsideRegion;
         continue;
       }
@@ -297,8 +298,10 @@ void OutlinableRegion::splitCandidate() {
       // the same as the final block of the OutlinableRegion.  If this is the
       // case, the branch from this block must also be outlined to be valid.
       IBlock = PN->getIncomingBlock(i);
-      if (IBlock == EndBB && EndBBTermAndBackInstDifferent)
+      if (IBlock == EndBB && EndBBTermAndBackInstDifferent) {
+        PHIPredBlock = PN->getIncomingBlock(i);
         ++NumPredsOutsideRegion;
+      }
     }
 
     if (NumPredsOutsideRegion > 1)
@@ -337,6 +340,10 @@ void OutlinableRegion::splitCandidate() {
 
   StartBB = PrevBB->splitBasicBlock(StartInst, OriginalName + "_to_outline");
   PrevBB->replaceSuccessorsPhiUsesWith(PrevBB, StartBB);
+  // If there was a PHINode with an incoming block outside the region,
+  // make sure is correctly updated in the newly split block.
+  if (PHIPredBlock)
+    PrevBB->replaceSuccessorsPhiUsesWith(PHIPredBlock, PrevBB);
 
   CandidateSplit = true;
   if (!BackInst->isTerminator()) {
@@ -380,6 +387,25 @@ void OutlinableRegion::reattachCandidate() {
   assert(StartBB != nullptr && "StartBB for Candidate is not defined!");
 
   assert(PrevBB->getTerminator() && "Terminator removed from PrevBB!");
+  // Make sure PHINode references to the block we are merging into are
+  // updated to be incoming blocks from the predecessor to the current block.
+
+  // NOTE: If this is updated such that the outlined block can have more than
+  // one incoming block to a PHINode, this logic will have to updated
+  // to handle multiple precessors instead.
+
+  // We only need to update this if the outlined section contains a PHINode, if
+  // it does not, then the incoming block was never changed in the first place.
+  // On the other hand, if PrevBB has no predecessors, it means that all
+  // incoming blocks to the first block are contained in the region, and there
+  // will be nothing to update.
+  Instruction *StartInst = (*Candidate->begin()).Inst;
+  if (isa<PHINode>(StartInst) && !PrevBB->hasNPredecessors(0)) {
+    assert(!PrevBB->hasNPredecessorsOrMore(2) &&
+         "PrevBB has more than one predecessor. Should be 0 or 1.");
+    BasicBlock *BeforePrevBB = PrevBB->getSinglePredecessor();
+    PrevBB->replaceSuccessorsPhiUsesWith(PrevBB, BeforePrevBB);
+  }
   PrevBB->getTerminator()->eraseFromParent();
 
   // If we reattaching after outlining, we iterate over the phi nodes to
@@ -1157,20 +1183,49 @@ static Optional<unsigned> getGVNForPHINode(OutlinableRegion &Region,
     // adding an extra input.  We ignore this case for now, and so ignore the
     // region.
     Optional<unsigned> OGVN = Cand.getGVN(Incoming);
-    if (!OGVN.hasValue() && (Blocks.find(IncomingBlock) != Blocks.end())) {
+    if (!OGVN.hasValue() && Blocks.contains(IncomingBlock)) {
       Region.IgnoreRegion = true;
       return None;
     }
 
     // If the incoming block isn't in the region, we don't have to worry about
     // this incoming value.
-    if (Blocks.find(IncomingBlock) == Blocks.end())
+    if (!Blocks.contains(IncomingBlock))
       continue;
 
     // Collect the canonical numbers of the values in the PHINode.
     unsigned GVN = OGVN.getValue();
     OGVN = Cand.getCanonicalNum(GVN);
     assert(OGVN.hasValue() && "No GVN found for incoming value?");
+    PHIGVNs.push_back(*OGVN);
+
+    // Find the incoming block and use the canonical numbering as well to define
+    // the hash for the PHINode.
+    OGVN = Cand.getGVN(IncomingBlock);
+
+    // If there is no number for the incoming block, it is becaause we have
+    // split the candidate basic blocks.  So we use the previous block that it
+    // was split from to find the valid global value numbering for the PHINode.
+    if (!OGVN.hasValue()) {
+      assert(Cand.getStartBB() == IncomingBlock &&
+             "Unknown basic block used in exit path PHINode.");
+
+      BasicBlock *PrevBlock = nullptr;
+      // Iterate over the predecessors to the incoming block of the
+      // PHINode, when we find a block that is not contained in the region
+      // we know that this is the first block that we split from, and should
+      // have a valid global value numbering.
+      for (BasicBlock *Pred : predecessors(IncomingBlock))
+        if (!Blocks.contains(Pred)) {
+          PrevBlock = Pred;
+          break;
+        }
+      assert(PrevBlock && "Expected a predecessor not in the reigon!");
+      OGVN = Cand.getGVN(PrevBlock);
+    }
+    GVN = OGVN.getValue();
+    OGVN = Cand.getCanonicalNum(GVN);
+    assert(OGVN.hasValue() && "No GVN found for incoming block?");
     PHIGVNs.push_back(*OGVN);
   }
 
@@ -1646,7 +1701,7 @@ findOrCreatePHIInBlock(PHINode &PN, OutlinableRegion &Region,
   for (PHINode &CurrPN : OverallPhiBlock->phis()) {
     // If this PHINode has already been matched to another PHINode to be merged,
     // we skip it.
-    if (UsedPHIs.find(&CurrPN) != UsedPHIs.end())
+    if (UsedPHIs.contains(&CurrPN))
       continue;
 
     CurrentCanonNums.clear();
@@ -1719,6 +1774,10 @@ findOrCreatePHIInBlock(PHINode &PN, OutlinableRegion &Region,
     IncomingVal = findOutputMapping(OutputMappings, IncomingVal);
     Value *Val = Region.findCorrespondingValueIn(*FirstRegion, IncomingVal);
     assert(Val && "Value is nullptr?");
+    DenseMap<Value *, Value *>::iterator RemappedIt =
+        FirstRegion->RemappedArguments.find(Val);
+    if (RemappedIt != FirstRegion->RemappedArguments.end())
+      Val = RemappedIt->second;
     NewPN->setIncomingValue(Idx, Val);
   }
   return NewPN;
@@ -1762,6 +1821,8 @@ replaceArgumentUses(OutlinableRegion &Region,
                         << *Region.ExtractedFunction << " with " << *AggArg
                         << " in function " << *Group.OutlinedFunction << "\n");
       Arg->replaceAllUsesWith(AggArg);
+      Value *V = Region.Call->getArgOperand(ArgIdx);
+      Region.RemappedArguments.insert(std::make_pair(V, AggArg));
       continue;
     }
 

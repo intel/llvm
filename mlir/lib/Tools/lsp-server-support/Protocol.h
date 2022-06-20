@@ -35,6 +35,8 @@
 #include <vector>
 
 namespace mlir {
+struct LogicalResult;
+
 namespace lsp {
 
 enum class ErrorCode {
@@ -279,7 +281,7 @@ struct Position {
   /// source manager.
   SMLoc getAsSMLoc(llvm::SourceMgr &mgr) const {
     return mgr.FindLocForLineAndColumn(mgr.getMainFileID(), line + 1,
-                                       character);
+                                       character + 1);
   }
 };
 
@@ -321,6 +323,18 @@ struct Range {
   bool contains(Position pos) const { return start <= pos && pos < end; }
   bool contains(Range range) const {
     return start <= range.start && range.end <= end;
+  }
+
+  /// Convert this range into a source range in the main file of the given
+  /// source manager.
+  SMRange getAsSMRange(llvm::SourceMgr &mgr) const {
+    SMLoc startLoc = start.getAsSMLoc(mgr);
+    SMLoc endLoc = end.getAsSMLoc(mgr);
+    // Check that the start and end locations are valid.
+    if (!startLoc.isValid() || !endLoc.isValid() ||
+        startLoc.getPointer() > endLoc.getPointer())
+      return SMRange();
+    return SMRange(startLoc, endLoc);
   }
 };
 
@@ -431,6 +445,12 @@ bool fromJSON(const llvm::json::Value &value,
 //===----------------------------------------------------------------------===//
 
 struct TextDocumentContentChangeEvent {
+  /// Try to apply this change to the given contents string.
+  LogicalResult applyTo(std::string &contents) const;
+  /// Try to apply a set of changes to the given contents string.
+  static LogicalResult applyTo(ArrayRef<TextDocumentContentChangeEvent> changes,
+                               std::string &contents);
+
   /// The range of the document that changed.
   Optional<Range> range;
 
@@ -929,6 +949,136 @@ struct SignatureHelp {
 
 /// Add support for JSON serialization.
 llvm::json::Value toJSON(const SignatureHelp &value);
+
+//===----------------------------------------------------------------------===//
+// DocumentLinkParams
+//===----------------------------------------------------------------------===//
+
+/// Parameters for the document link request.
+struct DocumentLinkParams {
+  /// The document to provide document links for.
+  TextDocumentIdentifier textDocument;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, DocumentLinkParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// DocumentLink
+//===----------------------------------------------------------------------===//
+
+/// A range in a text document that links to an internal or external resource,
+/// like another text document or a web site.
+struct DocumentLink {
+  DocumentLink() = default;
+  DocumentLink(Range range, URIForFile target)
+      : range(range), target(std::move(target)) {}
+
+  /// The range this link applies to.
+  Range range;
+
+  /// The uri this link points to. If missing a resolve request is sent later.
+  URIForFile target;
+
+  // TODO: The following optional fields defined by the language server protocol
+  // are unsupported:
+  //
+  // data?: any - A data entry field that is preserved on a document link
+  //              between a DocumentLinkRequest and a
+  //              DocumentLinkResolveRequest.
+
+  friend bool operator==(const DocumentLink &lhs, const DocumentLink &rhs) {
+    return lhs.range == rhs.range && lhs.target == rhs.target;
+  }
+
+  friend bool operator!=(const DocumentLink &lhs, const DocumentLink &rhs) {
+    return !(lhs == rhs);
+  }
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const DocumentLink &value);
+
+//===----------------------------------------------------------------------===//
+// InlayHintsParams
+//===----------------------------------------------------------------------===//
+
+/// A parameter literal used in inlay hint requests.
+struct InlayHintsParams {
+  /// The text document.
+  TextDocumentIdentifier textDocument;
+
+  /// The visible document range for which inlay hints should be computed.
+  Range range;
+};
+
+/// Add support for JSON serialization.
+bool fromJSON(const llvm::json::Value &value, InlayHintsParams &result,
+              llvm::json::Path path);
+
+//===----------------------------------------------------------------------===//
+// InlayHintKind
+//===----------------------------------------------------------------------===//
+
+/// Inlay hint kinds.
+enum class InlayHintKind {
+  /// An inlay hint that for a type annotation.
+  ///
+  /// An example of a type hint is a hint in this position:
+  ///    auto var ^ = expr;
+  /// which shows the deduced type of the variable.
+  Type = 1,
+
+  /// An inlay hint that is for a parameter.
+  ///
+  /// An example of a parameter hint is a hint in this position:
+  ///    func(^arg);
+  /// which shows the name of the corresponding parameter.
+  Parameter = 2,
+};
+
+//===----------------------------------------------------------------------===//
+// InlayHint
+//===----------------------------------------------------------------------===//
+
+/// Inlay hint information.
+struct InlayHint {
+  InlayHint(InlayHintKind kind, Position pos) : position(pos), kind(kind) {}
+
+  /// The position of this hint.
+  Position position;
+
+  /// The label of this hint. A human readable string or an array of
+  /// InlayHintLabelPart label parts.
+  ///
+  /// *Note* that neither the string nor the label part can be empty.
+  std::string label;
+
+  /// The kind of this hint. Can be omitted in which case the client should fall
+  /// back to a reasonable default.
+  InlayHintKind kind;
+
+  /// Render padding before the hint.
+  ///
+  /// Note: Padding should use the editor's background color, not the
+  /// background color of the hint itself. That means padding can be used
+  /// to visually align/separate an inlay hint.
+  bool paddingLeft = false;
+
+  /// Render padding after the hint.
+  ///
+  /// Note: Padding should use the editor's background color, not the
+  /// background color of the hint itself. That means padding can be used
+  /// to visually align/separate an inlay hint.
+  bool paddingRight = false;
+};
+
+/// Add support for JSON serialization.
+llvm::json::Value toJSON(const InlayHint &);
+bool operator==(const InlayHint &lhs, const InlayHint &rhs);
+bool operator<(const InlayHint &lhs, const InlayHint &rhs);
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, InlayHintKind value);
 
 } // namespace lsp
 } // namespace mlir

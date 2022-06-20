@@ -49,23 +49,25 @@ public:
   /// accessor), the exception `cl::sycl::invalid_object` is thrown
   /// asynchronously.
   template <backend Backend = backend::opencl, typename DataT, int Dims,
-            access::mode Mode, access::target Target, access::placeholder IsPlh>
-  backend_return_t<Backend, buffer<DataT, Dims>>
-  get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
+            access::mode Mode, access::target Target, access::placeholder IsPlh,
+            typename PropertyListT = ext::oneapi::accessor_property_list<>>
+  backend_return_t<Backend, buffer<DataT, Dims>> get_native_mem(
+      const accessor<DataT, Dims, Mode, Target, IsPlh, PropertyListT> &Acc)
+      const {
     static_assert(Target == access::target::device ||
                       Target == access::target::constant_buffer,
                   "The method is available only for target::device accessors");
 #ifndef __SYCL_DEVICE_ONLY__
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<Backend, DataT, Dims>(
         detail::getSyclObjImpl(*AccBase).get());
 #else
     (void)Acc;
     // we believe this won't be ever called on device side
-    return 0;
+    return backend_return_t<Backend, buffer<DataT, Dims>>{0};
 #endif
   }
 
@@ -89,7 +91,7 @@ public:
     // are ready to be used.
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
 #else
     // we believe this won't be ever called on device side
@@ -110,7 +112,7 @@ public:
     // are ready to be used.
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     // C-style cast required to allow various native types
     return (backend_return_t<Backend, device>)getNativeDevice();
 #else
@@ -132,7 +134,7 @@ public:
     // are ready to be used.
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     return reinterpret_cast<backend_return_t<Backend, context>>(
         getNativeContext());
 #else
@@ -156,25 +158,9 @@ private:
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
   getMemImpl(detail::Requirement *Req) const {
-    /*
-      Do not update this cast: a C-style cast is required here.
-
-      This function tries to cast pi_native_handle to the native handle type.
-      pi_native_handle is a typedef of uintptr_t. It is used to store opaque
-      pointers, such as cl_device, and integer handles, such as CUdevice. To
-      convert a uintptr_t to a pointer type, such as cl_device, reinterpret_cast
-      must be used. However, reinterpret_cast cannot be used to convert
-      uintptr_t to a different integer type, such as CUdevice. For this,
-      static_cast must be used. This function must employ a cast that is capable
-      of reinterpret_cast and static_cast depending on the arguments passed to
-      it. A C-style cast will achieve this. The compiler will attempt to
-      interpret it as a static_cast, and will fall back to reinterpret_cast
-      where appropriate.
-
-      https://en.cppreference.com/w/cpp/language/reinterpret_cast
-      https://en.cppreference.com/w/cpp/language/explicit_cast
-      */
-    return (backend_return_t<Backend, buffer<DataT, Dims>>)(getNativeMem(Req));
+    std::vector<pi_native_handle> NativeHandles{getNativeMem(Req)};
+    return detail::BufferInterop<Backend, DataT, Dims>::GetNativeObjs(
+        NativeHandles);
   }
 
   __SYCL_EXPORT pi_native_handle getNativeMem(detail::Requirement *Req) const;

@@ -52,8 +52,8 @@ public:
   }
 
   /// Get the current Function
-  mlir::FuncOp getFunction() {
-    return getRegion().getParentOfType<mlir::FuncOp>();
+  mlir::func::FuncOp getFunction() {
+    return getRegion().getParentOfType<mlir::func::FuncOp>();
   }
 
   /// Get a reference to the kind map.
@@ -222,19 +222,19 @@ public:
 
   /// Get a function by name. If the function exists in the current module, it
   /// is returned. Otherwise, a null FuncOp is returned.
-  mlir::FuncOp getNamedFunction(llvm::StringRef name) {
+  mlir::func::FuncOp getNamedFunction(llvm::StringRef name) {
     return getNamedFunction(getModule(), name);
   }
-  static mlir::FuncOp getNamedFunction(mlir::ModuleOp module,
-                                       llvm::StringRef name);
+  static mlir::func::FuncOp getNamedFunction(mlir::ModuleOp module,
+                                             llvm::StringRef name);
 
   /// Get a function by symbol name. The result will be null if there is no
   /// function with the given symbol in the module.
-  mlir::FuncOp getNamedFunction(mlir::SymbolRefAttr symbol) {
+  mlir::func::FuncOp getNamedFunction(mlir::SymbolRefAttr symbol) {
     return getNamedFunction(getModule(), symbol);
   }
-  static mlir::FuncOp getNamedFunction(mlir::ModuleOp module,
-                                       mlir::SymbolRefAttr symbol);
+  static mlir::func::FuncOp getNamedFunction(mlir::ModuleOp module,
+                                             mlir::SymbolRefAttr symbol);
 
   fir::GlobalOp getNamedGlobal(llvm::StringRef name) {
     return getNamedGlobal(getModule(), name);
@@ -247,30 +247,36 @@ public:
   mlir::Value createConvert(mlir::Location loc, mlir::Type toTy,
                             mlir::Value val);
 
+  /// Create a fir.store of \p val into \p addr. A lazy conversion
+  /// of \p val to the element type of \p addr is created if needed.
+  void createStoreWithConvert(mlir::Location loc, mlir::Value val,
+                              mlir::Value addr);
+
   /// Create a new FuncOp. If the function may have already been created, use
   /// `addNamedFunction` instead.
-  mlir::FuncOp createFunction(mlir::Location loc, llvm::StringRef name,
-                              mlir::FunctionType ty) {
+  mlir::func::FuncOp createFunction(mlir::Location loc, llvm::StringRef name,
+                                    mlir::FunctionType ty) {
     return createFunction(loc, getModule(), name, ty);
   }
 
-  static mlir::FuncOp createFunction(mlir::Location loc, mlir::ModuleOp module,
-                                     llvm::StringRef name,
-                                     mlir::FunctionType ty);
+  static mlir::func::FuncOp createFunction(mlir::Location loc,
+                                           mlir::ModuleOp module,
+                                           llvm::StringRef name,
+                                           mlir::FunctionType ty);
 
   /// Determine if the named function is already in the module. Return the
   /// instance if found, otherwise add a new named function to the module.
-  mlir::FuncOp addNamedFunction(mlir::Location loc, llvm::StringRef name,
-                                mlir::FunctionType ty) {
+  mlir::func::FuncOp addNamedFunction(mlir::Location loc, llvm::StringRef name,
+                                      mlir::FunctionType ty) {
     if (auto func = getNamedFunction(name))
       return func;
     return createFunction(loc, name, ty);
   }
 
-  static mlir::FuncOp addNamedFunction(mlir::Location loc,
-                                       mlir::ModuleOp module,
-                                       llvm::StringRef name,
-                                       mlir::FunctionType ty) {
+  static mlir::func::FuncOp addNamedFunction(mlir::Location loc,
+                                             mlir::ModuleOp module,
+                                             llvm::StringRef name,
+                                             mlir::FunctionType ty) {
     if (auto func = getNamedFunction(module, name))
       return func;
     return createFunction(loc, module, name, ty);
@@ -371,10 +377,10 @@ public:
   }
 
   /// Generate code testing \p addr is not a null address.
-  mlir::Value genIsNotNull(mlir::Location loc, mlir::Value addr);
+  mlir::Value genIsNotNullAddr(mlir::Location loc, mlir::Value addr);
 
   /// Generate code testing \p addr is a null address.
-  mlir::Value genIsNull(mlir::Location loc, mlir::Value addr);
+  mlir::Value genIsNullAddr(mlir::Location loc, mlir::Value addr);
 
   /// Compute the extent of (lb:ub:step) as max((ub-lb+step)/step, 0). See
   /// Fortran 2018 9.5.3.3.2 section for more details.
@@ -420,12 +426,6 @@ llvm::SmallVector<mlir::Value> readExtents(fir::FirOpBuilder &builder,
                                            mlir::Location loc,
                                            const fir::BoxValue &box);
 
-/// Get extents from \p box. For fir::BoxValue and
-/// fir::MutableBoxValue, this will generate code to read the extents.
-llvm::SmallVector<mlir::Value> getExtents(fir::FirOpBuilder &builder,
-                                          mlir::Location loc,
-                                          const fir::ExtendedValue &box);
-
 /// Read a fir::BoxValue into an fir::UnboxValue, a fir::ArrayBoxValue or a
 /// fir::CharArrayBoxValue. This should only be called if the fir::BoxValue is
 /// known to be contiguous given the context (or if the resulting address will
@@ -434,8 +434,8 @@ llvm::SmallVector<mlir::Value> getExtents(fir::FirOpBuilder &builder,
 fir::ExtendedValue readBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
                                 const fir::BoxValue &box);
 
-/// Get non default (not all ones) lower bounds of \p exv. Returns empty
-/// vector if the lower bounds are all ones.
+/// Get the lower bounds of \p exv. NB: returns an empty vector if the lower
+/// bounds are all ones, which is the default in Fortran.
 llvm::SmallVector<mlir::Value>
 getNonDefaultLowerBounds(fir::FirOpBuilder &builder, mlir::Location loc,
                          const fir::ExtendedValue &exv);
@@ -541,6 +541,10 @@ mlir::Value createZeroValue(fir::FirOpBuilder &builder, mlir::Location loc,
 
 /// Unwrap integer constant from an mlir::Value.
 llvm::Optional<std::int64_t> getIntIfConstant(mlir::Value value);
+
+/// Generate max(\p value, 0) where \p value is a scalar integer.
+mlir::Value genMaxWithZero(fir::FirOpBuilder &builder, mlir::Location loc,
+                           mlir::Value value);
 
 } // namespace fir::factory
 

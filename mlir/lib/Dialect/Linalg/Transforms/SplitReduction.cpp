@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -54,10 +56,10 @@ static Optional<Attribute> getIdentity(Operation *op) {
   return llvm::None;
 }
 
-FailureOr<LinalgOp>
-mlir::linalg::splitReduction(PatternRewriter &b, LinalgOp op,
-                             ControlSplitReductionFn controlSplitReductionFn,
-                             LinalgTransformationFilter filter) {
+FailureOr<LinalgOp> mlir::linalg::splitReduction(
+    PatternRewriter &b, LinalgOp op,
+    const ControlSplitReductionFn &controlSplitReductionFn,
+    const LinalgTransformationFilter &filter) {
   if (failed(filter.checkAndNotify(b, op)) || !op.hasTensorSemantics() ||
       op.getNumReductionLoops() != 1 || op.getNumOutputs() != 1 ||
       !op.hasOnlyProjectedPermutations())
@@ -71,12 +73,10 @@ mlir::linalg::splitReduction(PatternRewriter &b, LinalgOp op,
   op.getReductionDims(dims);
   assert(dims.size() == 1);
   unsigned reductionDim = dims[0];
-  Optional<SmallVector<int64_t, 4>> loopRanges = op.getStaticLoopRanges();
-  if (!loopRanges)
-    return b.notifyMatchFailure(op, "Cannot analyze loops");
-  int64_t reductionDimSize = (*loopRanges)[reductionDim];
+  SmallVector<int64_t, 4> loopRanges = op.getStaticLoopRanges();
+  int64_t reductionDimSize = loopRanges[reductionDim];
   if (reductionDimSize == ShapedType::kDynamicSize ||
-      reductionDimSize % ratio != 0 || insertDimIndex >= loopRanges->size())
+      reductionDimSize % ratio != 0 || insertDimIndex >= loopRanges.size())
     return b.notifyMatchFailure(
         op, "Reduction dimension not divisible by split ratio");
   SmallVector<Operation *, 4> combinerOps;
@@ -210,8 +210,8 @@ struct LinalgSplitReduction : public OpInterfaceRewritePattern<LinalgOp> {
                        ControlSplitReductionFn controlSplitReductionFn,
                        LinalgTransformationFilter f, PatternBenefit benefit = 1)
       : OpInterfaceRewritePattern<LinalgOp>(context, benefit),
-        controlSplitReductionFn(controlSplitReductionFn), filter(std::move(f)) {
-  }
+        controlSplitReductionFn(std::move(controlSplitReductionFn)),
+        filter(std::move(f)) {}
 
   LogicalResult matchAndRewrite(LinalgOp op,
                                 PatternRewriter &rewriter) const override {
@@ -227,8 +227,8 @@ private:
 
 void linalg::populateSplitReductionPattern(
     RewritePatternSet &patterns,
-    ControlSplitReductionFn controlSplitReductionFn,
-    LinalgTransformationFilter f) {
+    const ControlSplitReductionFn &controlSplitReductionFn,
+    const LinalgTransformationFilter &f) {
   patterns.add<LinalgSplitReduction>(patterns.getContext(),
                                      controlSplitReductionFn, f);
 }

@@ -21,6 +21,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclObjC.h"
+#include "clang/Lex/MacroInfo.h"
 #include "llvm/ADT/StringRef.h"
 #include <vector>
 
@@ -202,11 +204,58 @@ public:
   /// Build DeclarationFragments for a struct record declaration RecordDecl.
   static DeclarationFragments getFragmentsForStruct(const RecordDecl *);
 
+  /// Build DeclarationFragments for an Objective-C category declaration
+  /// ObjCCategoryDecl.
+  static DeclarationFragments
+  getFragmentsForObjCCategory(const ObjCCategoryDecl *);
+
+  /// Build DeclarationFragments for an Objective-C interface declaration
+  /// ObjCInterfaceDecl.
+  static DeclarationFragments
+  getFragmentsForObjCInterface(const ObjCInterfaceDecl *);
+
+  /// Build DeclarationFragments for an Objective-C method declaration
+  /// ObjCMethodDecl.
+  static DeclarationFragments getFragmentsForObjCMethod(const ObjCMethodDecl *);
+
+  /// Build DeclarationFragments for an Objective-C property declaration
+  /// ObjCPropertyDecl.
+  static DeclarationFragments
+  getFragmentsForObjCProperty(const ObjCPropertyDecl *);
+
+  /// Build DeclarationFragments for an Objective-C protocol declaration
+  /// ObjCProtocolDecl.
+  static DeclarationFragments
+  getFragmentsForObjCProtocol(const ObjCProtocolDecl *);
+
+  /// Build DeclarationFragments for a macro.
+  ///
+  /// \param Name name of the macro.
+  /// \param MD the associated MacroDirective.
+  static DeclarationFragments getFragmentsForMacro(StringRef Name,
+                                                   const MacroDirective *MD);
+
+  /// Build DeclarationFragments for a typedef \p TypedefNameDecl.
+  static DeclarationFragments
+  getFragmentsForTypedef(const TypedefNameDecl *Decl);
+
   /// Build sub-heading fragments for a NamedDecl.
   static DeclarationFragments getSubHeading(const NamedDecl *);
 
-  /// Build FunctionSignature for a function declaration FunctionDecl.
-  static FunctionSignature getFunctionSignature(const FunctionDecl *);
+  /// Build sub-heading fragments for an Objective-C method.
+  static DeclarationFragments getSubHeading(const ObjCMethodDecl *);
+
+  /// Build a sub-heading for macro \p Name.
+  static DeclarationFragments getSubHeadingForMacro(StringRef Name);
+
+  /// Build FunctionSignature for a function-like declaration \c FunctionT like
+  /// FunctionDecl or ObjCMethodDecl.
+  ///
+  /// The logic and implementation of building a signature for a FunctionDecl
+  /// and an ObjCMethodDecl are exactly the same, but they do not share a common
+  /// base. This template helps reuse the code.
+  template <typename FunctionT>
+  static FunctionSignature getFunctionSignature(const FunctionT *);
 
 private:
   DeclarationFragmentsBuilder() = delete;

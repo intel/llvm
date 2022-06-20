@@ -384,6 +384,54 @@ void Sema::ActOnPragmaPack(SourceLocation PragmaLoc, PragmaMsStackAction Action,
   AlignPackStack.Act(PragmaLoc, Action, SlotLabel, Info);
 }
 
+bool Sema::ConstantFoldAttrArgs(const AttributeCommonInfo &CI,
+                                MutableArrayRef<Expr *> Args) {
+  llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
+  for (unsigned Idx = 0; Idx < Args.size(); Idx++) {
+    Expr *&E = Args.begin()[Idx];
+    assert(E && "error are handled before");
+    if (E->isValueDependent() || E->isTypeDependent())
+      continue;
+
+    // FIXME: Use DefaultFunctionArrayLValueConversion() in place of the logic
+    // that adds implicit casts here.
+    if (E->getType()->isArrayType())
+      E = ImpCastExprToType(E, Context.getPointerType(E->getType()),
+                            clang::CK_ArrayToPointerDecay)
+              .get();
+    if (E->getType()->isFunctionType())
+      E = ImplicitCastExpr::Create(Context,
+                                   Context.getPointerType(E->getType()),
+                                   clang::CK_FunctionToPointerDecay, E, nullptr,
+                                   VK_PRValue, FPOptionsOverride());
+    if (E->isLValue())
+      E = ImplicitCastExpr::Create(Context, E->getType().getNonReferenceType(),
+                                   clang::CK_LValueToRValue, E, nullptr,
+                                   VK_PRValue, FPOptionsOverride());
+
+    Expr::EvalResult Eval;
+    Notes.clear();
+    Eval.Diag = &Notes;
+
+    bool Result = E->EvaluateAsConstantExpr(Eval, Context);
+
+    /// Result means the expression can be folded to a constant.
+    /// Note.empty() means the expression is a valid constant expression in the
+    /// current language mode.
+    if (!Result || !Notes.empty()) {
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
+          << CI << (Idx + 1) << AANT_ArgumentConstantExpr;
+      for (auto &Note : Notes)
+        Diag(Note.first, Note.second);
+      return false;
+    }
+    assert(Eval.Val.hasValue());
+    E = ConstantExpr::Create(Context, E, Eval.Val);
+  }
+
+  return true;
+}
+
 void Sema::DiagnoseNonDefaultPragmaAlignPack(PragmaAlignPackDiagnoseKind Kind,
                                              SourceLocation IncludeLoc) {
   if (Kind == PragmaAlignPackDiagnoseKind::NonDefaultStateAtInclude) {
@@ -486,6 +534,12 @@ void Sema::ActOnPragmaFPEvalMethod(SourceLocation Loc,
     NewFPFeatures.setFPEvalMethodOverride(LangOptions::FEM_Extended);
     break;
   }
+  if (getLangOpts().ApproxFunc)
+    Diag(Loc, diag::err_setting_eval_method_used_in_unsafe_context) << 0 << 0;
+  if (getLangOpts().AllowFPReassoc)
+    Diag(Loc, diag::err_setting_eval_method_used_in_unsafe_context) << 0 << 1;
+  if (getLangOpts().AllowRecip)
+    Diag(Loc, diag::err_setting_eval_method_used_in_unsafe_context) << 0 << 2;
   FpPragmaStack.Act(Loc, PSK_Set, StringRef(), NewFPFeatures);
   CurFPFeatures = NewFPFeatures.applyOverrides(getLangOpts());
   PP.setCurrentFPEvalMethod(Loc, Value);
@@ -733,6 +787,37 @@ void Sema::ActOnPragmaMSInitSeg(SourceLocation PragmaLocation,
   // tacking on unnecessary attributes.
   CurInitSeg = SegmentName->getString() == ".CRT$XCU" ? nullptr : SegmentName;
   CurInitSegLoc = PragmaLocation;
+}
+
+void Sema::ActOnPragmaMSAllocText(
+    SourceLocation PragmaLocation, StringRef Section,
+    const SmallVector<std::tuple<IdentifierInfo *, SourceLocation>>
+        &Functions) {
+  if (!CurContext->getRedeclContext()->isFileContext()) {
+    Diag(PragmaLocation, diag::err_pragma_expected_file_scope) << "alloc_text";
+    return;
+  }
+
+  for (auto &Function : Functions) {
+    IdentifierInfo *II;
+    SourceLocation Loc;
+    std::tie(II, Loc) = Function;
+
+    DeclarationName DN(II);
+    NamedDecl *ND = LookupSingleName(TUScope, DN, Loc, LookupOrdinaryName);
+    if (!ND) {
+      Diag(Loc, diag::err_undeclared_use) << II->getName();
+      return;
+    }
+
+    DeclContext *DC = ND->getDeclContext();
+    if (getLangOpts().CPlusPlus && !DC->isExternCContext()) {
+      Diag(Loc, diag::err_pragma_alloc_text_c_linkage);
+      return;
+    }
+
+    FunctionToSectionMap[II->getName()] = std::make_tuple(Section, Loc);
+  }
 }
 
 void Sema::ActOnPragmaUnused(const Token &IdTok, Scope *curScope,
@@ -1059,11 +1144,37 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
     OptimizeOffPragmaLocation = PragmaLoc;
 }
 
+void Sema::ActOnPragmaMSFunction(
+    SourceLocation Loc, const llvm::SmallVectorImpl<StringRef> &NoBuiltins) {
+  if (!CurContext->getRedeclContext()->isFileContext()) {
+    Diag(Loc, diag::err_pragma_expected_file_scope) << "function";
+    return;
+  }
+
+  MSFunctionNoBuiltins.insert(NoBuiltins.begin(), NoBuiltins.end());
+}
+
 void Sema::AddRangeBasedOptnone(FunctionDecl *FD) {
   // In the future, check other pragmas if they're implemented (e.g. pragma
   // optimize 0 will probably map to this functionality too).
   if(OptimizeOffPragmaLocation.isValid())
     AddOptnoneAttributeIfNoConflicts(FD, OptimizeOffPragmaLocation);
+}
+
+void Sema::AddSectionMSAllocText(FunctionDecl *FD) {
+  if (!FD->getIdentifier())
+    return;
+
+  StringRef Name = FD->getName();
+  auto It = FunctionToSectionMap.find(Name);
+  if (It != FunctionToSectionMap.end()) {
+    StringRef Section;
+    SourceLocation Loc;
+    std::tie(Section, Loc) = It->second;
+
+    if (!FD->hasAttr<SectionAttr>())
+      FD->addAttr(SectionAttr::CreateImplicit(Context, Section));
+  }
 }
 
 void Sema::AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD,
@@ -1078,6 +1189,13 @@ void Sema::AddOptnoneAttributeIfNoConflicts(FunctionDecl *FD,
     FD->addAttr(OptimizeNoneAttr::CreateImplicit(Context, Loc));
   if (!FD->hasAttr<NoInlineAttr>())
     FD->addAttr(NoInlineAttr::CreateImplicit(Context, Loc));
+}
+
+void Sema::AddImplicitMSFunctionNoBuiltinAttr(FunctionDecl *FD) {
+  SmallVector<StringRef> V(MSFunctionNoBuiltins.begin(),
+                           MSFunctionNoBuiltins.end());
+  if (!MSFunctionNoBuiltins.empty())
+    FD->addAttr(NoBuiltinAttr::CreateImplicit(Context, V.data(), V.size()));
 }
 
 typedef std::vector<std::pair<unsigned, SourceLocation> > VisStack;
@@ -1153,6 +1271,23 @@ void Sema::ActOnPragmaFPContract(SourceLocation Loc,
 }
 
 void Sema::ActOnPragmaFPReassociate(SourceLocation Loc, bool IsEnabled) {
+  if (IsEnabled) {
+    // For value unsafe context, combining this pragma with eval method
+    // setting is not recommended. See comment in function FixupInvocation#506.
+    int Reason = -1;
+    if (getLangOpts().getFPEvalMethod() != LangOptions::FEM_UnsetOnCommandLine)
+      // Eval method set using the option 'ffp-eval-method'.
+      Reason = 1;
+    if (PP.getLastFPEvalPragmaLocation().isValid())
+      // Eval method set using the '#pragma clang fp eval_method'.
+      // We could have both an option and a pragma used to the set the eval
+      // method. The pragma overrides the option in the command line. The Reason
+      // of the diagnostic is overriden too.
+      Reason = 0;
+    if (Reason != -1)
+      Diag(Loc, diag::err_setting_eval_method_used_in_unsafe_context)
+          << Reason << 4;
+  }
   FPOptionsOverride NewFPFeatures = CurFPFeatureOverrides();
   NewFPFeatures.setAllowFPReassociateOverride(IsEnabled);
   FpPragmaStack.Act(Loc, PSK_Set, StringRef(), NewFPFeatures);

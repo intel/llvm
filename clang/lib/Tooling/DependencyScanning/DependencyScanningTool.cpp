@@ -27,30 +27,21 @@ std::vector<std::string>
 FullDependencies::getCommandLineWithoutModulePaths() const {
   std::vector<std::string> Args = OriginalCommandLine;
 
-  std::vector<std::string> AdditionalArgs =
-      getAdditionalArgsWithoutModulePaths();
-  Args.insert(Args.end(), AdditionalArgs.begin(), AdditionalArgs.end());
-
-  // This argument is unused in explicit compiles.
-  llvm::erase_if(Args, [](const std::string &Arg) {
-    return Arg.find("-fmodules-cache-path=") == 0;
-  });
-
-  // TODO: Filter out the remaining implicit modules leftovers
-  // (e.g. "-fmodules-prune-interval=" or "-fmodules-prune-after=").
-
-  return Args;
-}
-
-std::vector<std::string>
-FullDependencies::getAdditionalArgsWithoutModulePaths() const {
-  std::vector<std::string> Args{
-      "-fno-implicit-modules",
-      "-fno-implicit-module-maps",
-  };
-
+  Args.push_back("-fno-implicit-modules");
+  Args.push_back("-fno-implicit-module-maps");
   for (const PrebuiltModuleDep &PMD : PrebuiltModuleDeps)
     Args.push_back("-fmodule-file=" + PMD.PCMFile);
+
+  // These arguments are unused in explicit compiles.
+  llvm::erase_if(Args, [](StringRef Arg) {
+    if (Arg.consume_front("-fmodules-")) {
+      return Arg.startswith("cache-path=") ||
+             Arg.startswith("prune-interval=") ||
+             Arg.startswith("prune-after=") ||
+             Arg == "validate-once-per-build-session";
+    }
+    return Arg.startswith("-fbuild-session-file=");
+  });
 
   return Args;
 }
@@ -188,7 +179,7 @@ DependencyScanningTool::getFullDependencies(
   private:
     std::vector<std::string> Dependencies;
     std::vector<PrebuiltModuleDep> PrebuiltModuleDeps;
-    std::map<std::string, ModuleDeps> ClangModuleDeps;
+    llvm::MapVector<std::string, ModuleDeps, llvm::StringMap<unsigned>> ClangModuleDeps;
     std::string ContextHash;
     std::vector<std::string> OutputPaths;
     const llvm::StringSet<> &AlreadySeen;

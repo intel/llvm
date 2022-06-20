@@ -591,8 +591,10 @@ Status ProcessGDBRemote::DoConnectRemote(llvm::StringRef remote_url) {
 
           if (!module_sp) {
             // Force a an external lookup, if that tool is available.
-            if (!module_spec.GetSymbolFileSpec())
-              Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+            if (!module_spec.GetSymbolFileSpec()) {
+              Status error;
+              Symbols::DownloadObjectAndSymbolFile(module_spec, error, true);
+            }
 
             if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
               module_sp = std::make_shared<Module>(module_spec);
@@ -952,12 +954,23 @@ Status ProcessGDBRemote::ConnectToDebugserver(llvm::StringRef connect_url) {
   m_gdb_comm.GetVAttachOrWaitSupported();
   m_gdb_comm.EnableErrorStringInPacket();
 
-  size_t num_cmds = GetExtraStartupCommands().GetArgumentCount();
-  for (size_t idx = 0; idx < num_cmds; idx++) {
-    StringExtractorGDBRemote response;
-    m_gdb_comm.SendPacketAndWaitForResponse(
-        GetExtraStartupCommands().GetArgumentAtIndex(idx), response);
+  // First dispatch any commands from the platform:
+  auto handle_cmds = [&] (const Args &args) ->  void {
+    for (const Args::ArgEntry &entry : args) {
+      StringExtractorGDBRemote response;
+      m_gdb_comm.SendPacketAndWaitForResponse(
+          entry.c_str(), response);
+    }
+  };
+  
+  PlatformSP platform_sp = GetTarget().GetPlatform();
+  if (platform_sp) {
+    handle_cmds(platform_sp->GetExtraStartupCommands());
   }
+  
+  // Then dispatch any process commands:
+  handle_cmds(GetExtraStartupCommands());
+
   return error;
 }
 
@@ -1671,7 +1684,7 @@ ThreadSP ProcessGDBRemote::SetThreadStopInfo(
 
       for (const auto &pair : expedited_register_map) {
         StringExtractor reg_value_extractor(pair.second);
-        DataBufferSP buffer_sp(new DataBufferHeap(
+        WritableDataBufferSP buffer_sp(new DataBufferHeap(
             reg_value_extractor.GetStringRef().size() / 2, 0));
         reg_value_extractor.GetHexBytes(buffer_sp->GetData(), '\xcc');
         uint32_t lldb_regnum =
@@ -2050,7 +2063,8 @@ ProcessGDBRemote::SetThreadStopInfo(StructuredData::Dictionary *thread_dict) {
                   bytes.SetFilePos(0);
 
                   const size_t byte_size = bytes.GetStringRef().size() / 2;
-                  DataBufferSP data_buffer_sp(new DataBufferHeap(byte_size, 0));
+                  WritableDataBufferSP data_buffer_sp(
+                      new DataBufferHeap(byte_size, 0));
                   const size_t bytes_copied =
                       bytes.GetHexBytes(data_buffer_sp->GetData(), 0);
                   if (bytes_copied == byte_size)
@@ -2212,7 +2226,8 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
           if (!addr_str.getAsInteger(0, mem_cache_addr)) {
             StringExtractor bytes(bytes_str);
             const size_t byte_size = bytes.GetBytesLeft() / 2;
-            DataBufferSP data_buffer_sp(new DataBufferHeap(byte_size, 0));
+            WritableDataBufferSP data_buffer_sp(
+                new DataBufferHeap(byte_size, 0));
             const size_t bytes_copied =
                 bytes.GetHexBytes(data_buffer_sp->GetData(), 0);
             if (bytes_copied == byte_size)

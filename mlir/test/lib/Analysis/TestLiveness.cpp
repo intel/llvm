@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/Liveness.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -20,6 +21,8 @@ namespace {
 
 struct TestLivenessPass
     : public PassWrapper<TestLivenessPass, InterfacePass<SymbolOpInterface>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestLivenessPass)
+
   StringRef getArgument() const final { return "test-print-liveness"; }
   StringRef getDescription() const final {
     return "Print the contents of a constructed liveness information.";

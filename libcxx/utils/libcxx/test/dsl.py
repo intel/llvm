@@ -87,6 +87,7 @@ def _executeScriptInternal(test, commands):
     noExecute=False,
     debug=False,
     isWindows=platform.system() == 'Windows',
+    order='smart',
     params={})
   _, tmpBase = libcxx.test.format._getTempPaths(test)
   execDir = os.path.dirname(test.getExecPath())
@@ -275,9 +276,11 @@ def compilerMacros(config, flags=''):
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
-      # Make sure files like <__config> are included, since they can define
-      # additional macros.
-      sourceFile.write("#include <stddef.h>")
+      sourceFile.write("""
+      #if __has_include(<__config_site>)
+      #  include <__config_site>
+      #endif
+      """)
     unparsedOutput, err, exitCode, _ = _executeScriptInternal(test, [
       "%{{cxx}} %s -dM -E %{{flags}} %{{compile_flags}} {}".format(flags)
     ])

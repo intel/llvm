@@ -38,7 +38,9 @@ add_flang_library(flangFrontend
   ${dialect_libs}
 
   LINK_COMPONENTS
+  Passes
   Analysis
+  IRReader
   Option
   Support
   Target

@@ -143,7 +143,7 @@ public:
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                PI_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
     }
 
     return CommandGroup;

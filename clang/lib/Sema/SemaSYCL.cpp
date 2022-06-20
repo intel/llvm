@@ -2122,15 +2122,18 @@ public:
 
   bool handlePointerType(FieldDecl *FD, QualType FieldTy) final {
     // USM allows to use raw pointers instead of buffers/accessors, but these
-    // pointers point to the specially allocated memory. For pointer fields we
-    // add a kernel argument with the same type as field but global address
-    // space, because OpenCL requires it.
+    // pointers point to the specially allocated memory. For pointer fields,
+    // except for function pointer fields, we add a kernel argument with the
+    // same type as field but global address space, because OpenCL requires it.
+    // Function pointers should have program address space. This is set in
+    // CodeGen.
     QualType PointeeTy = FieldTy->getPointeeType();
     Qualifiers Quals = PointeeTy.getQualifiers();
     auto AS = Quals.getAddressSpace();
     // Leave global_device and global_host address spaces as is to help FPGA
     // device in memory allocations
-    if (AS != LangAS::sycl_global_device && AS != LangAS::sycl_global_host)
+    if (!PointeeTy->isFunctionType() && AS != LangAS::sycl_global_device &&
+        AS != LangAS::sycl_global_host)
       Quals.setAddressSpace(LangAS::sycl_global);
     PointeeTy = SemaRef.getASTContext().getQualifiedType(
         PointeeTy.getUnqualifiedType(), Quals);
@@ -2502,38 +2505,44 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
   }
 
-  void markParallelWorkItemCalls() {
-    if (getKernelInvocationKind(KernelCallerFunc) ==
-        InvokeParallelForWorkGroup) {
-      // Fetch the kernel object and the associated call operator
-      // (of either the lambda or the function object).
-      CXXRecordDecl *KernelObj =
-          GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-      CXXMethodDecl *WGLambdaFn = nullptr;
-      if (KernelObj->isLambda())
-        WGLambdaFn = KernelObj->getLambdaCallOperator();
-      else
-        WGLambdaFn = getOperatorParens(KernelObj);
-      assert(WGLambdaFn && "non callable object is passed as kernel obj");
-      // Mark the function that it "works" in a work group scope:
-      // NOTE: In case of parallel_for_work_item the marker call itself is
-      // marked with work item scope attribute, here  the '()' operator of the
-      // object passed as parameter is marked. This is an optimization -
-      // there are a lot of locals created at parallel_for_work_group
-      // scope before calling the lambda - it is more efficient to have
-      // all of them in the private address space rather then sharing via
-      // the local AS. See parallel_for_work_group implementation in the
-      // SYCL headers.
-      if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
-        WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
-            SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-        // Search and mark parallel_for_work_item calls:
-        MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
-        MarkWIScope.TraverseDecl(WGLambdaFn);
-        // Now mark local variables declared in the PFWG lambda with work group
-        // scope attribute
-        addScopeAttrToLocalVars(*WGLambdaFn);
-      }
+  void annotateHierarchicalParallelismAPICalls() {
+    // Is this a hierarchical parallelism kernel invocation?
+    if (getKernelInvocationKind(KernelCallerFunc) != InvokeParallelForWorkGroup)
+      return;
+
+    // Mark kernel object with work-group scope attribute to avoid work-item
+    // scope memory allocation.
+    KernelObjClone->addAttr(SYCLScopeAttr::CreateImplicit(
+        SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+
+    // Fetch the kernel object and the associated call operator
+    // (of either the lambda or the function object).
+    CXXRecordDecl *KernelObj =
+        GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
+    CXXMethodDecl *WGLambdaFn = nullptr;
+    if (KernelObj->isLambda())
+      WGLambdaFn = KernelObj->getLambdaCallOperator();
+    else
+      WGLambdaFn = getOperatorParens(KernelObj);
+    assert(WGLambdaFn && "non callable object is passed as kernel obj");
+    // Mark the function that it "works" in a work group scope:
+    // NOTE: In case of parallel_for_work_item the marker call itself is
+    // marked with work item scope attribute, here  the '()' operator of the
+    // object passed as parameter is marked. This is an optimization -
+    // there are a lot of locals created at parallel_for_work_group
+    // scope before calling the lambda - it is more efficient to have
+    // all of them in the private address space rather then sharing via
+    // the local AS. See parallel_for_work_group implementation in the
+    // SYCL headers.
+    if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
+      WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
+          SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+      // Search and mark parallel_for_work_item calls:
+      MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
+      MarkWIScope.TraverseDecl(WGLambdaFn);
+      // Now mark local variables declared in the PFWG lambda with work group
+      // scope attribute
+      addScopeAttrToLocalVars(*WGLambdaFn);
     }
   }
 
@@ -2763,11 +2772,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                        const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
-    VarDecl *VD = VarDecl::Create(
-        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
-        KernelObj->getIdentifier(), QualType(KernelObj->getTypeForDecl(), 0),
-        TSInfo, SC_None);
+    IdentifierInfo *Ident = KernelObj->getIdentifier();
+    if (!Ident)
+      Ident = &Ctx.Idents.get("__SYCLKernel");
 
+    VarDecl *VD = VarDecl::Create(
+        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), Ident,
+        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
     return VD;
   }
 
@@ -2848,7 +2859,7 @@ public:
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
-    markParallelWorkItemCalls();
+    annotateHierarchicalParallelismAPICalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);
@@ -3666,17 +3677,29 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
   SyclOptReportCreator opt_report(*this, kernel_decl, KernelObj->getLocation());
 
   KernelObjVisitor Visitor{*this};
-  Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
-                           int_footer, opt_report);
-  Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
-                            int_footer, opt_report);
+
+  // Visit handlers to generate information for optimization record only if
+  // optimization record is saved.
+  if (!getLangOpts().OptRecordFile.empty()) {
+    Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
+                             int_footer, opt_report);
+    Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
+                              int_footer, opt_report);
+  } else {
+    Visitor.VisitRecordBases(KernelObj, kernel_decl, kernel_body, int_header,
+                             int_footer);
+    Visitor.VisitRecordFields(KernelObj, kernel_decl, kernel_body, int_header,
+                              int_footer);
+  }
 
   if (ParmVarDecl *KernelHandlerArg =
           getSyclKernelHandlerArg(KernelCallerFunc)) {
     kernel_decl.handleSyclKernelHandlerType();
     kernel_body.handleSyclKernelHandlerType(KernelHandlerArg);
     int_header.handleSyclKernelHandlerType(KernelHandlerArg->getType());
-    opt_report.handleSyclKernelHandlerType();
+
+    if (!getLangOpts().OptRecordFile.empty())
+      opt_report.handleSyclKernelHandlerType();
   }
 }
 
@@ -3714,6 +3737,12 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
   // If they are the same, no error.
   if (CalcEffectiveSubGroup(S.Context, S.getLangOpts(), SYCLKernel) ==
       CalcEffectiveSubGroup(S.Context, S.getLangOpts(), FD))
+    return;
+
+  // No need to validate __spirv routines here since they
+  // are mapped to the equivalent SPIRV operations.
+  const IdentifierInfo *II = FD->getIdentifier();
+  if (II && II->getName().startswith("__spirv_"))
     return;
 
   // Else we need to figure out why they don't match.

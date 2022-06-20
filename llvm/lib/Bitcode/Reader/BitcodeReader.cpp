@@ -558,6 +558,13 @@ class BitcodeReader : public BitcodeReaderBase, public GVMaterializer {
   DenseMap<Function *, std::vector<BasicBlock *>> BasicBlockFwdRefs;
   std::deque<Function *> BasicBlockFwdRefQueue;
 
+  /// These are Functions that contain BlockAddresses which refer a different
+  /// Function. When parsing the different Function, queue Functions that refer
+  /// to the different Function. Those Functions must be materialized in order
+  /// to resolve their BlockAddress constants before the different Function
+  /// gets moved into another Module.
+  std::vector<Function *> BackwardRefFunctions;
+
   /// Indicates that we are using a new encoding for instruction operands where
   /// most operands in the current FUNCTION_BLOCK are encoded relative to the
   /// instruction number, for a more compact encoding.  Some instruction
@@ -589,8 +596,8 @@ public:
   /// Main interface to parsing a bitcode buffer.
   /// \returns true if an error occurred.
   Error parseBitcodeInto(
-      Module *M, bool ShouldLazyLoadMetadata = false, bool IsImporting = false,
-      DataLayoutCallbackTy DataLayoutCallback = [](StringRef) { return None; });
+      Module *M, bool ShouldLazyLoadMetadata, bool IsImporting,
+      DataLayoutCallbackTy DataLayoutCallback);
 
   static uint64_t decodeSignRotatedValue(uint64_t V);
 
@@ -880,6 +887,11 @@ Error BitcodeReader::materializeForwardReferencedFunctions() {
       return Err;
   }
   assert(BasicBlockFwdRefs.empty() && "Function missing from queue");
+
+  for (Function *F : BackwardRefFunctions)
+    if (Error Err = materialize(F))
+      return Err;
+  BackwardRefFunctions.clear();
 
   // Reset state.
   WillMaterializeAllForwardRefs = false;
@@ -1524,8 +1536,12 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::DereferenceableOrNull;
   case bitc::ATTR_KIND_ALLOC_ALIGN:
     return Attribute::AllocAlign;
+  case bitc::ATTR_KIND_ALLOC_KIND:
+    return Attribute::AllocKind;
   case bitc::ATTR_KIND_ALLOC_SIZE:
     return Attribute::AllocSize;
+  case bitc::ATTR_KIND_ALLOCATED_POINTER:
+    return Attribute::AllocatedPointer;
   case bitc::ATTR_KIND_NO_RED_ZONE:
     return Attribute::NoRedZone;
   case bitc::ATTR_KIND_NO_RETURN:
@@ -1618,6 +1634,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::MustProgress;
   case bitc::ATTR_KIND_HOT:
     return Attribute::Hot;
+  case bitc::ATTR_KIND_PRESPLIT_COROUTINE:
+    return Attribute::PresplitCoroutine;
   }
 }
 
@@ -1722,6 +1740,8 @@ Error BitcodeReader::parseAttributeGroupBlock() {
             B.addVScaleRangeAttrFromRawRepr(Record[++i]);
           else if (Kind == Attribute::UWTable)
             B.addUWTableAttr(UWTableKind(Record[++i]));
+          else if (Kind == Attribute::AllocKind)
+            B.addAllocKindAttr(static_cast<AllocFnKind>(Record[++i]));
         } else if (Record[i] == 3 || Record[i] == 4) { // String attribute
           bool HasValue = (Record[i++] == 4);
           SmallString<64> KindStr;
@@ -1876,6 +1896,8 @@ Error BitcodeReader::parseTypeTableBody() {
       if (!ResultTy ||
           !PointerType::isValidElementType(ResultTy))
         return error("Invalid type");
+      if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue()))
+        Context.setOpaquePointers(false);
       ContainedIDs.push_back(Record[0]);
       ResultTy = PointerType::get(ResultTy, AddressSpace);
       break;
@@ -1884,7 +1906,7 @@ Error BitcodeReader::parseTypeTableBody() {
       if (Record.size() != 1)
         return error("Invalid opaque pointer record");
       if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue())) {
-        Context.enableOpaquePointers();
+        Context.setOpaquePointers(true);
       } else if (Context.supportsTypedPointers())
         return error(
             "Opaque pointers are only supported in -opaque-pointers mode");
@@ -3421,6 +3443,19 @@ static void inferDSOLocal(GlobalValue *GV) {
     GV->setDSOLocal(true);
 }
 
+GlobalValue::SanitizerMetadata deserializeSanitizerMetadata(unsigned V) {
+  GlobalValue::SanitizerMetadata Meta;
+  if (V & (1 << 0))
+    Meta.NoAddress = true;
+  if (V & (1 << 1))
+    Meta.NoHWAddress = true;
+  if (V & (1 << 2))
+    Meta.NoMemtag = true;
+  if (V & (1 << 3))
+    Meta.IsDynInit = true;
+  return Meta;
+}
+
 Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   // v1: [pointer type, isconst, initid, linkage, alignment, section,
   // visibility, threadlocal, unnamed_addr, externally_initialized,
@@ -3523,6 +3558,12 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   // Check whether we have enough values to read a partition name.
   if (Record.size() > 15)
     NewGV->setPartition(StringRef(Strtab.data() + Record[14], Record[15]));
+
+  if (Record.size() > 16 && Record[16]) {
+    llvm::GlobalValue::SanitizerMetadata Meta =
+        deserializeSanitizerMetadata(Record[16]);
+    NewGV->setSanitizerMetadata(Meta);
+  }
 
   return Error::success();
 }
@@ -4317,6 +4358,31 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       continue;
     }
 
+    case bitc::FUNC_CODE_BLOCKADDR_USERS: // BLOCKADDR_USERS: [vals...]
+      // The record should not be emitted if it's an empty list.
+      if (Record.empty())
+        return error("Invalid record");
+      // When we have the RARE case of a BlockAddress Constant that is not
+      // scoped to the Function it refers to, we need to conservatively
+      // materialize the referred to Function, regardless of whether or not
+      // that Function will ultimately be linked, otherwise users of
+      // BitcodeReader might start splicing out Function bodies such that we
+      // might no longer be able to materialize the BlockAddress since the
+      // BasicBlock (and entire body of the Function) the BlockAddress refers
+      // to may have been moved. In the case that the user of BitcodeReader
+      // decides ultimately not to link the Function body, materializing here
+      // could be considered wasteful, but it's better than a deserialization
+      // failure as described. This keeps BitcodeReader unaware of complex
+      // linkage policy decisions such as those use by LTO, leaving those
+      // decisions "one layer up."
+      for (uint64_t ValID : Record)
+        if (auto *F = dyn_cast<Function>(ValueList[ValID]))
+          BackwardRefFunctions.push_back(F);
+        else
+          return error("Invalid record");
+
+      continue;
+
     case bitc::FUNC_CODE_DEBUG_LOC_AGAIN:  // DEBUG_LOC_AGAIN
       // This record indicates that the last instruction is at the same
       // location as the previous instruction with a location.
@@ -5097,6 +5163,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         }
       }
 
+      // Upgrade the bundles if needed.
+      if (!OperandBundles.empty())
+        UpgradeOperandBundles(OperandBundles);
+
       I = InvokeInst::Create(FTy, Callee, NormalBB, UnwindBB, Ops,
                              OperandBundles);
       ResTypeID = getContainedTypeID(FTyID);
@@ -5193,6 +5263,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
           ArgTyIDs.push_back(OpTypeID);
         }
       }
+
+      // Upgrade the bundles if needed.
+      if (!OperandBundles.empty())
+        UpgradeOperandBundles(OperandBundles);
 
       I = CallBrInst::Create(FTy, Callee, DefaultDest, IndirectDests, Args,
                              OperandBundles);
@@ -5804,6 +5878,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
           ArgTyIDs.push_back(OpTypeID);
         }
       }
+
+      // Upgrade the bundles if needed.
+      if (!OperandBundles.empty())
+        UpgradeOperandBundles(OperandBundles);
 
       I = CallInst::Create(FTy, Callee, Args, OperandBundles);
       ResTypeID = getContainedTypeID(FTyID);

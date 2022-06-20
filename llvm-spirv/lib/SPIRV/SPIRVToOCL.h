@@ -262,7 +262,10 @@ public:
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
   std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
+  void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
+
   void translateOpaqueTypes();
+  std::string translateOpaqueType(StringRef STName);
 
   Module *M;
   LLVMContext *Ctx;
@@ -425,6 +428,11 @@ public:
   bool runOnModule(Module &M) override;
   static char ID;
 };
+
+/// Add passes for translating SPIR-V Instructions to the desired
+/// representation in LLVM IR (such as OpenCL builtins or SPIR-V Friendly IR).
+void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,
+                             SPIRV::BIsRepresentation BIsRep);
 
 } // namespace SPIRV
 

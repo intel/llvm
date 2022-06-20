@@ -71,6 +71,9 @@ protected:
 public:
   // is address assigned?
   bool isFinal = false;
+  // keep the address of the symbol(s) in this section unique in the final
+  // binary ?
+  bool keepUnique = false;
   uint32_t align = 1;
 
   OutputSection *parent = nullptr;
@@ -270,6 +273,7 @@ inline bool isWordLiteralSection(uint32_t flags) {
 bool isCodeSection(const InputSection *);
 bool isCfStringSection(const InputSection *);
 bool isClassRefsSection(const InputSection *);
+bool isEhFrameSection(const InputSection *);
 
 extern std::vector<ConcatInputSection *> inputSections;
 
@@ -328,6 +332,7 @@ constexpr const char threadVars[] = "__thread_vars";
 constexpr const char unwindInfo[] = "__unwind_info";
 constexpr const char weakBinding[] = "__weak_binding";
 constexpr const char zeroFill[] = "__zerofill";
+constexpr const char addrSig[] = "__llvm_addrsig";
 
 } // namespace section_names
 

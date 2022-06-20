@@ -63,7 +63,9 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_math_fp64,
   cl_intel_devicelib_complex,
   cl_intel_devicelib_complex_fp64,
-  cl_intel_devicelib_cstring
+  cl_intel_devicelib_cstring,
+  cl_intel_devicelib_imf,
+  cl_intel_devicelib_imf_fp64,
 };
 
 // Provides single loading and building OpenCL programs with unique contexts
@@ -188,6 +190,9 @@ public:
   void addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
                                   const char *UniqueId);
 
+  // Returns true if any available image is compatible with the device Dev.
+  bool hasCompatibleImage(const device &Dev);
+
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
   std::vector<device_image_plain> getSYCLDeviceImagesWithCompatibleState(
@@ -261,8 +266,6 @@ private:
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, const RT::PiDevice &Device,
-                   std::map<std::pair<DeviceLibExt, RT::PiDevice>,
-                            RT::PiProgram> &CachedLibPrograms,
                    uint32_t DeviceLibReqMask);
   /// Provides a new kernel set id for grouping kernel names together
   KernelSetId getNextKernelSetId() const;

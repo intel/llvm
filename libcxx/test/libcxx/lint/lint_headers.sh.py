@@ -11,10 +11,9 @@ import re
 def exclude_from_consideration(path):
     return (
         path.endswith('.txt') or
-        path.endswith('.modulemap') or
+        path.endswith('.modulemap.in') or
         os.path.basename(path) == '__config' or
         os.path.basename(path) == '__config_site.in' or
-        os.path.basename(path) == '__libcpp_version' or
         not os.path.isfile(path)
     )
 

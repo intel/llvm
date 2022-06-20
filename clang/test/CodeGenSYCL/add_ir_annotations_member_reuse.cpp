@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
-// RUN:    -emit-llvm %s -o - | FileCheck %s
+// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR -S \
-// RUN:    -emit-llvm %s -o - | FileCheck %s
+// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // Tests the reuse of generated annotation value global variables for
 // __sycl_detail__::add_ir_annotations_member attributes.
@@ -101,12 +101,12 @@ int main() {
 // CHECK-DAG: @[[Prop2Value:.*]] = private unnamed_addr constant [2 x i8] c"1\00", section "llvm.metadata"
 // CHECK-DAG: @[[Prop3Value:.*]] = private unnamed_addr constant [5 x i8] c"true\00", section "llvm.metadata"
 
-// CHECK-DAG: @[[ReusedArgs:.*]] = private unnamed_addr constant { [6 x i8]*, [16 x i8]*, [6 x i8]*, [2 x i8]*, [6 x i8]*, [5 x i8]* } { [6 x i8]* @[[Prop1Name]], [16 x i8]* @[[Prop1Value]], [6 x i8]* @[[Prop2Name]], [2 x i8]* @[[Prop2Value]], [6 x i8]* @[[Prop3Name]], [5 x i8]* @[[Prop3Value]] }, section "llvm.metadata"
-// CHECK-DAG: @[[DArgs:.*]] = private unnamed_addr constant { [6 x i8]*, [16 x i8]*, [6 x i8]*, [2 x i8]* } { [6 x i8]* @[[Prop1Name]], [16 x i8]* @[[Prop1Value]], [6 x i8]* @[[Prop2Name]], [2 x i8]* @[[Prop2Value]] }, section "llvm.metadata"
-// CHECK-DAG: @[[EArgs:.*]] = private unnamed_addr constant { [6 x i8]*, [16 x i8]*, [6 x i8]*, [2 x i8]*, [6 x i8]*, [5 x i8]*, [6 x i8]*, i8* } { [6 x i8]* @[[Prop1Name]], [16 x i8]* @[[Prop1Value]], [6 x i8]* @[[Prop2Name]], [2 x i8]* @[[Prop2Value]], [6 x i8]* @[[Prop3Name]], [5 x i8]* @[[Prop3Value]], [6 x i8]* @[[Prop5Name]], i8* null }, section "llvm.metadata"
-// CHECK-DAG: @[[FArgs:.*]] = private unnamed_addr constant { [6 x i8]*, [5 x i8]*, [6 x i8]*, [2 x i8]*, [6 x i8]*, [16 x i8]* } { [6 x i8]* @[[Prop3Name]], [5 x i8]* @[[Prop3Value]], [6 x i8]* @[[Prop2Name]], [2 x i8]* @[[Prop2Value]], [6 x i8]* @[[Prop1Name]], [16 x i8]* @[[Prop1Value]] }, section "llvm.metadata"
+// CHECK-DAG: @[[ReusedArgs:.*]] = private unnamed_addr constant { ptr, ptr, ptr, ptr, ptr, ptr } { ptr @[[Prop1Name]], ptr @[[Prop1Value]], ptr @[[Prop2Name]], ptr @[[Prop2Value]], ptr @[[Prop3Name]], ptr @[[Prop3Value]] }, section "llvm.metadata"
+// CHECK-DAG: @[[DArgs:.*]] = private unnamed_addr constant { ptr, ptr, ptr, ptr } { ptr @[[Prop1Name]], ptr @[[Prop1Value]], ptr @[[Prop2Name]], ptr @[[Prop2Value]] }, section "llvm.metadata"
+// CHECK-DAG: @[[EArgs:.*]] = private unnamed_addr constant { ptr, ptr, ptr, ptr, ptr, ptr, ptr, ptr } { ptr @[[Prop1Name]], ptr @[[Prop1Value]], ptr @[[Prop2Name]], ptr @[[Prop2Value]], ptr @[[Prop3Name]], ptr @[[Prop3Value]], ptr @[[Prop5Name]], ptr null }, section "llvm.metadata"
+// CHECK-DAG: @[[FArgs:.*]] = private unnamed_addr constant { ptr, ptr, ptr, ptr, ptr, ptr } { ptr @[[Prop3Name]], ptr @[[Prop3Value]], ptr @[[Prop2Name]], ptr @[[Prop2Value]], ptr @[[Prop1Name]], ptr @[[Prop1Value]] }, section "llvm.metadata"
 
-// CHECK-COUNT-3: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 {{.*}}, i8* getelementptr inbounds ([16 x i8], [16 x i8]* @[[AnnotName]], i32 0, i32 0), i8* getelementptr inbounds {{.*}}, i32 {{.*}}, i8* bitcast ({ [6 x i8]*, [16 x i8]*, [6 x i8]*, [2 x i8]*, [6 x i8]*, [5 x i8]* }* @[[ReusedArgs]] to i8*))
-// CHECK-DAG: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 {{.*}}, i8* getelementptr inbounds ([16 x i8], [16 x i8]* @[[AnnotName]], i32 0, i32 0), i8* getelementptr inbounds {{.*}}, i32 {{.*}}, i8* bitcast ({ [6 x i8]*, [16 x i8]*, [6 x i8]*, [2 x i8]* }* @[[DArgs]] to i8*))
-// CHECK-DAG: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 {{.*}}, i8* getelementptr inbounds ([16 x i8], [16 x i8]* @[[AnnotName]], i32 0, i32 0), i8* getelementptr inbounds {{.*}}, i32 {{.*}}, i8* bitcast ({ [6 x i8]*, [16 x i8]*, [6 x i8]*, [2 x i8]*, [6 x i8]*, [5 x i8]*, [6 x i8]*, i8* }* @[[EArgs]] to i8*))
-// CHECK-DAG: %{{.*}} = call i8 addrspace(4)* @llvm.ptr.annotation.p4i8(i8 {{.*}}, i8* getelementptr inbounds ([16 x i8], [16 x i8]* @[[AnnotName]], i32 0, i32 0), i8* getelementptr inbounds {{.*}}, i32 {{.*}}, i8* bitcast ({ [6 x i8]*, [5 x i8]*, [6 x i8]*, [2 x i8]*, [6 x i8]*, [16 x i8]* }* @[[FArgs]] to i8*))
+// CHECK-COUNT-3: %{{.*}} = call ptr addrspace(4) @llvm.ptr.annotation.p4(ptr {{.*}}, ptr @[[AnnotName]], {{.*}}, i32 {{.*}}, ptr @[[ReusedArgs]])
+// CHECK-DAG: %{{.*}} = call ptr addrspace(4) @llvm.ptr.annotation.p4(ptr {{.*}}, ptr @[[AnnotName]], {{.*}}, i32 {{.*}}, ptr @[[DArgs]])
+// CHECK-DAG: %{{.*}} = call ptr addrspace(4) @llvm.ptr.annotation.p4(ptr {{.*}}, ptr @[[AnnotName]], {{.*}}, i32 {{.*}}, ptr @[[EArgs]])
+// CHECK-DAG: %{{.*}} = call ptr addrspace(4) @llvm.ptr.annotation.p4(ptr {{.*}}, ptr @[[AnnotName]], {{.*}}, i32 {{.*}}, ptr @[[FArgs]])

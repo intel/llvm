@@ -52,6 +52,16 @@ static cl::opt<bool>
 static cl::opt<bool> UseAA("aarch64-use-aa", cl::init(true),
                            cl::desc("Enable the use of AA during codegen."));
 
+static cl::opt<unsigned> OverrideVectorInsertExtractBaseCost(
+    "aarch64-insert-extract-base-cost",
+    cl::desc("Base cost of vector insert/extract element"), cl::Hidden);
+
+unsigned AArch64Subtarget::getVectorInsertExtractBaseCost() const {
+  if (OverrideVectorInsertExtractBaseCost.getNumOccurrences() > 0)
+    return OverrideVectorInsertExtractBaseCost;
+  return VectorInsertExtractBaseCost;
+}
+
 AArch64Subtarget &AArch64Subtarget::initializeSubtargetDependencies(
     StringRef FS, StringRef CPUString, StringRef TuneCPUString) {
   // Determine default and user-specified characteristics
@@ -79,14 +89,17 @@ void AArch64Subtarget::initializeProperties() {
     CacheLineSize = 64;
     break;
   case CortexA35:
-    break;
   case CortexA53:
   case CortexA55:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
     break;
   case CortexA57:
     MaxInterleaveFactor = 4;
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
     break;
   case CortexA65:
     PrefFunctionLogAlignment = 3;
@@ -94,6 +107,10 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA72:
   case CortexA73:
   case CortexA75:
+    PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
+    break;
   case CortexA76:
   case CortexA77:
   case CortexA78:
@@ -102,12 +119,21 @@ void AArch64Subtarget::initializeProperties() {
   case CortexX1:
   case CortexX1C:
     PrefFunctionLogAlignment = 4;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     break;
   case CortexA510:
+    PrefFunctionLogAlignment = 4;
+    VScaleForTuning = 1;
+    PrefLoopLogAlignment = 4;
+    MaxBytesForLoopAlignment = 8;
+    break;
   case CortexA710:
   case CortexX2:
     PrefFunctionLogAlignment = 4;
     VScaleForTuning = 1;
+    PrefLoopLogAlignment = 5;
+    MaxBytesForLoopAlignment = 16;
     break;
   case A64FX:
     CacheLineSize = 256;
@@ -221,6 +247,12 @@ void AArch64Subtarget::initializeProperties() {
     MaxPrefetchIterationsAhead = 4;
     // FIXME: remove this to enable 64-bit SLP if performance looks good.
     MinVectorRegisterBitWidth = 128;
+    break;
+  case Ampere1:
+    CacheLineSize = 64;
+    PrefFunctionLogAlignment = 6;
+    PrefLoopLogAlignment = 6;
+    MaxInterleaveFactor = 4;
     break;
   }
 }

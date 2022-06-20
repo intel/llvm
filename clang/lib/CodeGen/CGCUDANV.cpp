@@ -157,6 +157,8 @@ private:
   llvm::Function *makeModuleDtorFunction();
   /// Transform managed variables for device compilation.
   void transformManagedVars();
+  /// Create offloading entries to register globals in RDC mode.
+  void createOffloadingEntries();
 
 public:
   CGNVCUDARuntime(CodeGenModule &CGM);
@@ -210,7 +212,8 @@ static std::unique_ptr<MangleContext> InitDeviceMC(CodeGenModule &CGM) {
 CGNVCUDARuntime::CGNVCUDARuntime(CodeGenModule &CGM)
     : CGCUDARuntime(CGM), Context(CGM.getLLVMContext()),
       TheModule(CGM.getModule()),
-      RelocatableDeviceCode(CGM.getLangOpts().GPURelocatableDeviceCode),
+      RelocatableDeviceCode(CGM.getLangOpts().GPURelocatableDeviceCode ||
+                            CGM.getLangOpts().OffloadingNewDriver),
       DeviceMC(InitDeviceMC(CGM)) {
   CodeGen::CodeGenTypes &Types = CGM.getTypes();
   ASTContext &Ctx = CGM.getContext();
@@ -281,13 +284,12 @@ std::string CGNVCUDARuntime::getDeviceSideName(const NamedDecl *ND) {
     DeviceSideName = std::string(ND->getIdentifier()->getName());
 
   // Make unique name for device side static file-scope variable for HIP.
-  if (CGM.getContext().shouldExternalizeStaticVar(ND) &&
-      CGM.getLangOpts().GPURelocatableDeviceCode &&
-      !CGM.getLangOpts().CUID.empty()) {
+  if (CGM.getContext().shouldExternalize(ND) &&
+      CGM.getLangOpts().GPURelocatableDeviceCode) {
     SmallString<256> Buffer;
     llvm::raw_svector_ostream Out(Buffer);
     Out << DeviceSideName;
-    CGM.printPostfixForExternalizedStaticVar(Out);
+    CGM.printPostfixForExternalizedDecl(Out, ND);
     DeviceSideName = std::string(Out.str());
   }
   return DeviceSideName;
@@ -659,7 +661,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
 ///
 /// For CUDA:
 /// \code
-/// void __cuda_module_ctor(void*) {
+/// void __cuda_module_ctor() {
 ///     Handle = __cudaRegisterFatBinary(GpuBinaryBlob);
 ///     __cuda_register_globals(Handle);
 /// }
@@ -667,7 +669,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
 ///
 /// For HIP:
 /// \code
-/// void __hip_module_ctor(void*) {
+/// void __hip_module_ctor() {
 ///     if (__hip_gpubin_handle == 0) {
 ///         __hip_gpubin_handle  = __hipRegisterFatBinary(GpuBinaryBlob);
 ///         __hip_register_globals(__hip_gpubin_handle);
@@ -717,7 +719,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
   }
 
   llvm::Function *ModuleCtorFunc = llvm::Function::Create(
-      llvm::FunctionType::get(VoidTy, VoidPtrTy, false),
+      llvm::FunctionType::get(VoidTy, false),
       llvm::GlobalValue::InternalLinkage,
       addUnderscoredPrefixToName("_module_ctor"), &TheModule);
   llvm::BasicBlock *CtorEntryBB =
@@ -931,14 +933,14 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
 ///
 /// For CUDA:
 /// \code
-/// void __cuda_module_dtor(void*) {
+/// void __cuda_module_dtor() {
 ///     __cudaUnregisterFatBinary(Handle);
 /// }
 /// \endcode
 ///
 /// For HIP:
 /// \code
-/// void __hip_module_dtor(void*) {
+/// void __hip_module_dtor() {
 ///     if (__hip_gpubin_handle) {
 ///         __hipUnregisterFatBinary(__hip_gpubin_handle);
 ///         __hip_gpubin_handle = 0;
@@ -956,7 +958,7 @@ llvm::Function *CGNVCUDARuntime::makeModuleDtorFunction() {
       addUnderscoredPrefixToName("UnregisterFatBinary"));
 
   llvm::Function *ModuleDtorFunc = llvm::Function::Create(
-      llvm::FunctionType::get(VoidTy, VoidPtrTy, false),
+      llvm::FunctionType::get(VoidTy, false),
       llvm::GlobalValue::InternalLinkage,
       addUnderscoredPrefixToName("_module_dtor"), &TheModule);
 
@@ -1107,6 +1109,40 @@ void CGNVCUDARuntime::transformManagedVars() {
   }
 }
 
+// Creates offloading entries for all the kernels and globals that must be
+// registered. The linker will provide a pointer to this section so we can
+// register the symbols with the linked device image.
+void CGNVCUDARuntime::createOffloadingEntries() {
+  llvm::OpenMPIRBuilder OMPBuilder(CGM.getModule());
+  OMPBuilder.initialize();
+
+  StringRef Section = "cuda_offloading_entries";
+  for (KernelInfo &I : EmittedKernels)
+    OMPBuilder.emitOffloadingEntry(KernelHandles[I.Kernel],
+                                   getDeviceSideName(cast<NamedDecl>(I.D)), 0,
+                                   DeviceVarFlags::OffloadGlobalEntry, Section);
+
+  for (VarInfo &I : DeviceVars) {
+    uint64_t VarSize =
+        CGM.getDataLayout().getTypeAllocSize(I.Var->getValueType());
+    if (I.Flags.getKind() == DeviceVarFlags::Variable) {
+      OMPBuilder.emitOffloadingEntry(
+          I.Var, getDeviceSideName(I.D), VarSize,
+          I.Flags.isManaged() ? DeviceVarFlags::OffloadGlobalManagedEntry
+                              : DeviceVarFlags::OffloadGlobalEntry,
+          Section);
+    } else if (I.Flags.getKind() == DeviceVarFlags::Surface) {
+      OMPBuilder.emitOffloadingEntry(I.Var, getDeviceSideName(I.D), VarSize,
+                                     DeviceVarFlags::OffloadGlobalSurfaceEntry,
+                                     Section);
+    } else if (I.Flags.getKind() == DeviceVarFlags::Texture) {
+      OMPBuilder.emitOffloadingEntry(I.Var, getDeviceSideName(I.D), VarSize,
+                                     DeviceVarFlags::OffloadGlobalTextureEntry,
+                                     Section);
+    }
+  }
+}
+
 // Returns module constructor to be added.
 llvm::Function *CGNVCUDARuntime::finalizeModule() {
   if (CGM.getLangOpts().CUDAIsDevice) {
@@ -1135,7 +1171,11 @@ llvm::Function *CGNVCUDARuntime::finalizeModule() {
     }
     return nullptr;
   }
-  return makeModuleCtorFunction();
+  if (!(CGM.getLangOpts().OffloadingNewDriver && RelocatableDeviceCode))
+    return makeModuleCtorFunction();
+
+  createOffloadingEntries();
+  return nullptr;
 }
 
 llvm::GlobalValue *CGNVCUDARuntime::getKernelHandle(llvm::Function *F,

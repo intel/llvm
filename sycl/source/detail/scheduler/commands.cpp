@@ -710,7 +710,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
       throw sycl::runtime_error(
           std::string("Waiting for blocked command. Block reason: ") +
               std::string(getBlockReason()),
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     // Scoped trace event notifier that emits a barrier begin and barrier end
@@ -1404,7 +1404,8 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw runtime_error("Alloca for command not found", PI_INVALID_OPERATION);
+  throw runtime_error("Alloca for command not found",
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 std::vector<StreamImplPtr> ExecCGCommand::getStreams() const {
@@ -1986,9 +1987,11 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
-      assert(getMemAllocationFunc != nullptr &&
-             "The function should not be nullptr as we followed the path for "
-             "which accessors are used");
+      if (getMemAllocationFunc == nullptr)
+        throw sycl::exception(make_error_code(errc::kernel_argument),
+                              "placeholder accessor must be bound by calling "
+                              "handler::require() before it can be used.");
+
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
@@ -2022,7 +2025,7 @@ static pi_result SetKernelParamsAndLaunch(
         throw cl::sycl::feature_not_supported(
             "SYCL2020 specialization constants are not yet supported on host "
             "device",
-            PI_INVALID_OPERATION);
+            PI_ERROR_INVALID_OPERATION);
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
@@ -2034,7 +2037,7 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     }
     case kernel_param_kind_t::kind_invalid:
-      throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+      throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
       break;
     }
   };
@@ -2185,8 +2188,8 @@ cl_int enqueueImpKernel(
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
     const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
-    return detail::enqueue_kernel_launch::handleError(Error, DeviceImpl, Kernel,
-                                                      NDRDesc);
+    detail::enqueue_kernel_launch::handleErrorOrWarning(Error, DeviceImpl,
+                                                        Kernel, NDRDesc);
   }
 
   return PI_SUCCESS;
@@ -2207,7 +2210,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
   case CG::CGTYPE::UpdateHost: {
     throw runtime_error("Update host should be handled by the Scheduler.",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
   case CG::CGTYPE::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2344,7 +2347,7 @@ cl_int ExecCGCommand::enqueueImp() {
         RawEvents.empty() ? nullptr : RawEvents.data(), Event);
 
     switch (Error) {
-    case PI_INVALID_OPERATION:
+    case PI_ERROR_INVALID_OPERATION:
       throw cl::sycl::runtime_error(
           "Device doesn't support run_on_host_intel tasks.", Error);
     case PI_SUCCESS:
@@ -2486,7 +2489,7 @@ cl_int ExecCGCommand::enqueueImp() {
         break;
       }
       default:
-        throw runtime_error("Unsupported arg type", PI_INVALID_VALUE);
+        throw runtime_error("Unsupported arg type", PI_ERROR_INVALID_VALUE);
       }
     }
 
@@ -2515,7 +2518,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
         throw runtime_error(
             "Can't get memory object due to no allocation available",
-            PI_INVALID_MEM_OBJECT);
+            PI_ERROR_INVALID_MEM_OBJECT);
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -2555,9 +2558,9 @@ cl_int ExecCGCommand::enqueueImp() {
     return PI_SUCCESS;
   }
   case CG::CGTYPE::None:
-    throw runtime_error("CG type not implemented.", PI_INVALID_OPERATION);
+    throw runtime_error("CG type not implemented.", PI_ERROR_INVALID_OPERATION);
   }
-  return PI_INVALID_OPERATION;
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 bool ExecCGCommand::producesPiEvent() const {

@@ -318,29 +318,6 @@ RegionBindingsRef RegionBindingsRef::removeBinding(const MemRegion *R,
 }
 
 //===----------------------------------------------------------------------===//
-// Fine-grained control of RegionStoreManager.
-//===----------------------------------------------------------------------===//
-
-namespace {
-struct minimal_features_tag {};
-struct maximal_features_tag {};
-
-class RegionStoreFeatures {
-  bool SupportsFields;
-public:
-  RegionStoreFeatures(minimal_features_tag) :
-    SupportsFields(false) {}
-
-  RegionStoreFeatures(maximal_features_tag) :
-    SupportsFields(true) {}
-
-  void enableFields(bool t) { SupportsFields = t; }
-
-  bool supportsFields() const { return SupportsFields; }
-};
-}
-
-//===----------------------------------------------------------------------===//
 // Main RegionStore logic.
 //===----------------------------------------------------------------------===//
 
@@ -349,8 +326,6 @@ class InvalidateRegionsWorker;
 
 class RegionStoreManager : public StoreManager {
 public:
-  const RegionStoreFeatures Features;
-
   RegionBindings::Factory RBFactory;
   mutable ClusterBindings::Factory CBFactory;
 
@@ -377,15 +352,13 @@ private:
                         InvalidatedRegions *TopLevelRegions);
 
 public:
-  RegionStoreManager(ProgramStateManager& mgr, const RegionStoreFeatures &f)
-    : StoreManager(mgr), Features(f),
-      RBFactory(mgr.getAllocator()), CBFactory(mgr.getAllocator()),
-      SmallStructLimit(0) {
+  RegionStoreManager(ProgramStateManager &mgr)
+      : StoreManager(mgr), RBFactory(mgr.getAllocator()),
+        CBFactory(mgr.getAllocator()), SmallStructLimit(0) {
     ExprEngine &Eng = StateMgr.getOwningEngine();
     AnalyzerOptions &Options = Eng.getAnalysisManager().options;
     SmallStructLimit = Options.RegionStoreSmallStructLimit;
   }
-
 
   /// setImplicitDefaultValue - Set the default binding for the provided
   ///  MemRegion to the value implicitly defined for compound literals when
@@ -674,17 +647,8 @@ public: // Part of public interface to class.
 
 std::unique_ptr<StoreManager>
 ento::CreateRegionStoreManager(ProgramStateManager &StMgr) {
-  RegionStoreFeatures F = maximal_features_tag();
-  return std::make_unique<RegionStoreManager>(StMgr, F);
+  return std::make_unique<RegionStoreManager>(StMgr);
 }
-
-std::unique_ptr<StoreManager>
-ento::CreateFieldsOnlyRegionStoreManager(ProgramStateManager &StMgr) {
-  RegionStoreFeatures F = minimal_features_tag();
-  F.enableFields(true);
-  return std::make_unique<RegionStoreManager>(StMgr, F);
-}
-
 
 //===----------------------------------------------------------------------===//
 // Region Cluster analysis.
@@ -1397,10 +1361,10 @@ RegionStoreManager::invalidateRegions(Store store,
 ///  the array).  This is called by ExprEngine when evaluating casts
 ///  from arrays to pointers.
 SVal RegionStoreManager::ArrayToPointer(Loc Array, QualType T) {
-  if (Array.getAs<loc::ConcreteInt>())
+  if (isa<loc::ConcreteInt>(Array))
     return Array;
 
-  if (!Array.getAs<loc::MemRegionVal>())
+  if (!isa<loc::MemRegionVal>(Array))
     return UnknownVal();
 
   const SubRegion *R =
@@ -1414,8 +1378,8 @@ SVal RegionStoreManager::ArrayToPointer(Loc Array, QualType T) {
 //===----------------------------------------------------------------------===//
 
 SVal RegionStoreManager::getBinding(RegionBindingsConstRef B, Loc L, QualType T) {
-  assert(!L.getAs<UnknownVal>() && "location unknown");
-  assert(!L.getAs<UndefinedVal>() && "location undefined");
+  assert(!isa<UnknownVal>(L) && "location unknown");
+  assert(!isa<UndefinedVal>(L) && "location undefined");
 
   // For access to concrete addresses, return UnknownVal.  Checks
   // for null dereferences (and similar errors) are done by checkers, not
@@ -1983,15 +1947,9 @@ SVal RegionStoreManager::getBindingForField(RegionBindingsConstRef B,
   if (const Optional<SVal> &V = B.getDirectBinding(R))
     return *V;
 
-  // Is the field declared constant and has an in-class initializer?
+  // If the containing record was initialized, try to get its constant value.
   const FieldDecl *FD = R->getDecl();
   QualType Ty = FD->getType();
-  if (Ty.isConstQualified())
-    if (const Expr *Init = FD->getInClassInitializer())
-      if (Optional<SVal> V = svalBuilder.getConstantVal(Init))
-        return *V;
-
-  // If the containing record was initialized, try to get its constant value.
   const MemRegion* superR = R->getSuperRegion();
   if (const auto *VR = dyn_cast<VarRegion>(superR)) {
     const VarDecl *VD = VR->getDecl();
@@ -2036,8 +1994,7 @@ RegionStoreManager::getBindingForDerivedDefaultValue(RegionBindingsConstRef B,
 
     // Lazy bindings are usually handled through getExistingLazyBinding().
     // We should unify these two code paths at some point.
-    if (val.getAs<nonloc::LazyCompoundVal>() ||
-        val.getAs<nonloc::CompoundVal>())
+    if (isa<nonloc::LazyCompoundVal, nonloc::CompoundVal>(val))
       return val;
 
     llvm_unreachable("Unknown default value");
@@ -2153,8 +2110,13 @@ RegionStoreManager::getBindingForFieldOrElementCommon(RegionBindingsConstRef B,
       return UnknownVal();
 
     // Additionally allow introspection of a block's internal layout.
-    if (!hasPartialLazyBinding && !isa<BlockDataRegion>(R->getBaseRegion()))
+    // Try to get direct binding if all other attempts failed thus far.
+    // Else, return UndefinedVal()
+    if (!hasPartialLazyBinding && !isa<BlockDataRegion>(R->getBaseRegion())) {
+      if (const Optional<SVal> &V = B.getDefaultBinding(R))
+        return *V;
       return UndefinedVal();
+    }
   }
 
   // All other values are symbolic.
@@ -2451,7 +2413,7 @@ RegionStoreManager::bindArray(RegionBindingsConstRef B,
   }
 
   // Handle lazy compound values.
-  if (Init.getAs<nonloc::LazyCompoundVal>())
+  if (isa<nonloc::LazyCompoundVal>(Init))
     return bindAggregate(B, R, Init);
 
   if (Init.isUnknown())
@@ -2496,13 +2458,13 @@ RegionBindingsRef RegionStoreManager::bindVector(RegionBindingsConstRef B,
   const VectorType *VT = T->castAs<VectorType>(); // Use castAs for typedefs.
 
   // Handle lazy compound values and symbolic values.
-  if (V.getAs<nonloc::LazyCompoundVal>() || V.getAs<nonloc::SymbolVal>())
+  if (isa<nonloc::LazyCompoundVal, nonloc::SymbolVal>(V))
     return bindAggregate(B, R, V);
 
   // We may get non-CompoundVal accidentally due to imprecise cast logic or
   // that we are binding symbolic struct value. Kill the field values, and if
   // the value is symbolic go and bind it as a "default" binding.
-  if (!V.getAs<nonloc::CompoundVal>()) {
+  if (!isa<nonloc::CompoundVal>(V)) {
     return bindAggregate(B, R, UnknownVal());
   }
 
@@ -2570,11 +2532,8 @@ RegionStoreManager::tryBindSmallStruct(RegionBindingsConstRef B,
 }
 
 RegionBindingsRef RegionStoreManager::bindStruct(RegionBindingsConstRef B,
-                                                 const TypedValueRegion* R,
+                                                 const TypedValueRegion *R,
                                                  SVal V) {
-  if (!Features.supportsFields())
-    return B;
-
   QualType T = R->getValueType();
   assert(T->isStructureOrClassType());
 
@@ -2591,13 +2550,13 @@ RegionBindingsRef RegionStoreManager::bindStruct(RegionBindingsConstRef B,
       return *NewB;
     return bindAggregate(B, R, V);
   }
-  if (V.getAs<nonloc::SymbolVal>())
+  if (isa<nonloc::SymbolVal>(V))
     return bindAggregate(B, R, V);
 
   // We may get non-CompoundVal accidentally due to imprecise cast logic or
   // that we are binding symbolic struct value. Kill the field values, and if
   // the value is symbolic go and bind it as a "default" binding.
-  if (V.isUnknown() || !V.getAs<nonloc::CompoundVal>())
+  if (V.isUnknown() || !isa<nonloc::CompoundVal>(V))
     return bindAggregate(B, R, UnknownVal());
 
   // The raw CompoundVal is essentially a symbolic InitListExpr: an (immutable)

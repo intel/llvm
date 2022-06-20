@@ -52,7 +52,6 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Transforms/Coroutines.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/IPO/WholeProgramDevirt.h"
@@ -75,7 +74,7 @@ static cl::opt<bool> EnableNewPassManager(
     cl::desc("Enable the new pass manager, translating "
              "'opt -foo' to 'opt -passes=foo'. This is strictly for the new PM "
              "migration, use '-passes=' when possible."),
-    cl::init(LLVM_ENABLE_NEW_PASS_MANAGER));
+    cl::init(true));
 
 // This flag specifies a textual description of the optimization pass pipeline
 // to run over the module. This flag switches opt to use the new pass manager
@@ -193,10 +192,9 @@ static cl::opt<bool>
 DisableSimplifyLibCalls("disable-simplify-libcalls",
                         cl::desc("Disable simplify-libcalls"));
 
-static cl::list<std::string>
-DisableBuiltins("disable-builtin",
-                cl::desc("Disable specific target library builtin function"),
-                cl::ZeroOrMore);
+static cl::list<std::string> DisableBuiltins(
+    "disable-builtin",
+    cl::desc("Disable specific target library builtin function"));
 
 static cl::opt<bool> EnableDebugify(
     "enable-debugify",
@@ -248,11 +246,6 @@ static cl::opt<bool> DiscardValueNames(
     "discard-value-names",
     cl::desc("Discard names from Value (other than GlobalValue)."),
     cl::init(false), cl::Hidden);
-
-static cl::opt<bool> Coroutines(
-  "enable-coroutines",
-  cl::desc("Enable coroutine passes."),
-  cl::init(false), cl::Hidden);
 
 static cl::opt<bool> TimeTrace(
     "time-trace",
@@ -371,9 +364,6 @@ static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
   if (TM)
     TM->adjustPassManager(Builder);
 
-  if (Coroutines)
-    addCoroutinePassesToExtensionPoints(Builder);
-
   switch (PGOKindFlag) {
   case InstrGen:
     Builder.EnablePGOInstrGen = true;
@@ -487,7 +477,7 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "x86-",    "xcore-", "wasm-",  "systemz-", "ppc-",    "nvvm-",
       "nvptx-",  "mips-",  "lanai-", "hexagon-", "bpf-",    "avr-",
       "thumb2-", "arm-",   "si-",    "gcn-",     "amdgpu-", "aarch64-",
-      "amdgcn-", "polly-", "riscv-"};
+      "amdgcn-", "polly-", "riscv-", "dxil-"};
   std::vector<StringRef> PassNameContain = {"ehprepare"};
   std::vector<StringRef> PassNameExact = {
       "safe-stack",           "cost-model",
@@ -504,7 +494,8 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "polyhedral-info",      "print-polyhedral-info",
       "replace-with-veclib",  "jmc-instrument",
       "dot-regions",          "dot-regions-only",
-      "view-regions",         "view-regions-only"};
+      "view-regions",         "view-regions-only",
+      "select-optimize"};
   for (const auto &P : PassNamePrefix)
     if (Pass.startswith(P))
       return true;
@@ -541,7 +532,6 @@ int main(int argc, char **argv) {
   // Initialize passes
   PassRegistry &Registry = *PassRegistry::getPassRegistry();
   initializeCore(Registry);
-  initializeCoroutines(Registry);
   initializeScalarOpts(Registry);
   initializeObjCARCOpts(Registry);
   initializeVectorization(Registry);
@@ -556,6 +546,7 @@ int main(int argc, char **argv) {
   // supported.
   initializeExpandMemCmpPassPass(Registry);
   initializeScalarizeMaskedMemIntrinLegacyPassPass(Registry);
+  initializeSelectOptimizePass(Registry);
   initializeCodeGenPreparePass(Registry);
   initializeAtomicExpandPass(Registry);
   initializeRewriteSymbolsLegacyPassPass(Registry);
@@ -581,6 +572,7 @@ int main(int argc, char **argv) {
   initializeJMCInstrumenterPass(Registry);
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
   initializeSYCLLowerESIMDLegacyPassPass(Registry);
+  initializeSYCLLowerInvokeSimdLegacyPassPass(Registry);
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);
   initializeESIMDLowerVecArgLegacyPassPass(Registry);
@@ -800,8 +792,9 @@ int main(int argc, char **argv) {
       errs() << "Cannot specify multiple -O#\n";
       return 1;
     }
-    if (NumOLevel > 0 && PassPipeline.getNumOccurrences() > 0) {
-      errs() << "Cannot specify -O# and --passes=, use "
+    if (NumOLevel > 0 &&
+        (PassPipeline.getNumOccurrences() > 0 || PassList.size() > 0)) {
+      errs() << "Cannot specify -O# and --passes=/--foo-pass, use "
                 "-passes='default<O#>,other-pass'\n";
       return 1;
     }

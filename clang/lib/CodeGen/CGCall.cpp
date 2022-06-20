@@ -62,6 +62,8 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
   // TODO: Add support for __vectorcall to LLVM.
   case CC_X86VectorCall: return llvm::CallingConv::X86_VectorCall;
   case CC_AArch64VectorCall: return llvm::CallingConv::AArch64_VectorCall;
+  case CC_AArch64SVEPCS: return llvm::CallingConv::AArch64_SVE_VectorCall;
+  case CC_AMDGPUKernelCall: return llvm::CallingConv::AMDGPU_KERNEL;
   case CC_SpirFunction: return llvm::CallingConv::SPIR_FUNC;
   case CC_OpenCLKernel: return CGM.getTargetCodeGenInfo().getOpenCLKernelCallingConv();
   case CC_PreserveMost: return llvm::CallingConv::PreserveMost;
@@ -227,6 +229,12 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
 
   if (D->hasAttr<AArch64VectorPcsAttr>())
     return CC_AArch64VectorCall;
+
+  if (D->hasAttr<AArch64SVEPcsAttr>())
+    return CC_AArch64SVEPCS;
+
+  if (D->hasAttr<AMDGPUKernelCallAttr>())
+    return CC_AMDGPUKernelCall;
 
   if (D->hasAttr<IntelOclBiccAttr>())
     return CC_IntelOclBicc;
@@ -840,6 +848,7 @@ CGFunctionInfo *CGFunctionInfo::create(unsigned llvmCC,
   FI->NumArgs = argTypes.size();
   FI->HasExtParameterInfos = !paramInfos.empty();
   FI->getArgsBuffer()[0].type = resultType;
+  FI->MaxVectorWidth = 0;
   for (unsigned i = 0, e = argTypes.size(); i != e; ++i)
     FI->getArgsBuffer()[i + 1].type = argTypes[i];
   for (unsigned i = 0, e = paramInfos.size(); i != e; ++i)
@@ -1811,6 +1820,8 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
 
   if (AttrOnCallSite) {
     // Attributes that should go on the call site only.
+    // FIXME: Look for 'BuiltinAttr' on the function rather than re-checking
+    // the -fno-builtin-foo list.
     if (!CodeGenOpts.SimplifyLibCalls || LangOpts.isNoBuiltinFunc(Name))
       FuncAttrs.addAttribute(llvm::Attribute::NoBuiltin);
     if (!CodeGenOpts.TrapFuncName.empty())
@@ -3253,7 +3264,8 @@ static llvm::StoreInst *findDominatingStoreToReturnValue(CodeGenFunction &CGF) {
   // ReturnValue to some other location.
   auto GetStoreIfValid = [&CGF](llvm::User *U) -> llvm::StoreInst * {
     auto *SI = dyn_cast<llvm::StoreInst>(U);
-    if (!SI || SI->getPointerOperand() != CGF.ReturnValue.getPointer())
+    if (!SI || SI->getPointerOperand() != CGF.ReturnValue.getPointer() ||
+        SI->getValueOperand()->getType() != CGF.ReturnValue.getElementType())
       return nullptr;
     // These aren't actually possible for non-coerced returns, and we
     // only care about non-coerced returns on this code path.
@@ -3267,28 +3279,19 @@ static llvm::StoreInst *findDominatingStoreToReturnValue(CodeGenFunction &CGF) {
   if (!CGF.ReturnValue.getPointer()->hasOneUse()) {
     llvm::BasicBlock *IP = CGF.Builder.GetInsertBlock();
     if (IP->empty()) return nullptr;
-    llvm::Instruction *I = &IP->back();
 
-    // Skip lifetime markers
-    for (llvm::BasicBlock::reverse_iterator II = IP->rbegin(),
-                                            IE = IP->rend();
-         II != IE; ++II) {
-      if (llvm::IntrinsicInst *Intrinsic =
-              dyn_cast<llvm::IntrinsicInst>(&*II)) {
-        if (Intrinsic->getIntrinsicID() == llvm::Intrinsic::lifetime_end) {
-          const llvm::Value *CastAddr = Intrinsic->getArgOperand(1);
-          ++II;
-          if (II == IE)
-            break;
-          if (isa<llvm::BitCastInst>(&*II) && (CastAddr == &*II))
-            continue;
-        }
-      }
-      I = &*II;
-      break;
+    // Look at directly preceding instruction, skipping bitcasts and lifetime
+    // markers.
+    for (llvm::Instruction &I : make_range(IP->rbegin(), IP->rend())) {
+      if (isa<llvm::BitCastInst>(&I))
+        continue;
+      if (auto *II = dyn_cast<llvm::IntrinsicInst>(&I))
+        if (II->getIntrinsicID() == llvm::Intrinsic::lifetime_end)
+          continue;
+
+      return GetStoreIfValid(&I);
     }
-
-    return GetStoreIfValid(I);
+    return nullptr;
   }
 
   llvm::StoreInst *store =
@@ -3489,7 +3492,7 @@ llvm::Value *CodeGenFunction::EmitCMSEClearRecord(llvm::Value *Src,
   int CharsPerElt =
       ATy->getArrayElementType()->getScalarSizeInBits() / CharWidth;
   int MaskIndex = 0;
-  llvm::Value *R = llvm::UndefValue::get(ATy);
+  llvm::Value *R = llvm::PoisonValue::get(ATy);
   for (int I = 0, N = ATy->getArrayNumElements(); I != N; ++I) {
     uint64_t Mask = buildMultiCharMask(Bits, MaskIndex, CharsPerElt, CharWidth,
                                        DataLayout.isBigEndian());
@@ -3663,7 +3666,7 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
       // Construct a return type that lacks padding elements.
       llvm::Type *returnType = RetAI.getUnpaddedCoerceAndExpandType();
 
-      RV = llvm::UndefValue::get(returnType);
+      RV = llvm::PoisonValue::get(returnType);
       for (unsigned i = 0, e = results.size(); i != e; ++i) {
         RV = Builder.CreateInsertValue(RV, results[i], i);
       }
@@ -3770,7 +3773,7 @@ static AggValueSlot createPlaceholderSlot(CodeGenFunction &CGF,
   // placeholders.
   llvm::Type *IRTy = CGF.ConvertTypeForMem(Ty);
   llvm::Type *IRPtrTy = IRTy->getPointerTo();
-  llvm::Value *Placeholder = llvm::UndefValue::get(IRPtrTy->getPointerTo());
+  llvm::Value *Placeholder = llvm::PoisonValue::get(IRPtrTy->getPointerTo());
 
   // FIXME: When we generate this IR in one pass, we shouldn't need
   // this win32-specific alignment hack.
@@ -4694,6 +4697,19 @@ public:
 
 } // namespace
 
+static unsigned getMaxVectorWidth(const llvm::Type *Ty) {
+  if (auto *VT = dyn_cast<llvm::VectorType>(Ty))
+    return VT->getPrimitiveSizeInBits().getKnownMinSize();
+  if (auto *AT = dyn_cast<llvm::ArrayType>(Ty))
+    return getMaxVectorWidth(AT->getElementType());
+
+  unsigned MaxVectorWidth = 0;
+  if (auto *ST = dyn_cast<llvm::StructType>(Ty))
+    for (auto *I : ST->elements())
+      MaxVectorWidth = std::max(MaxVectorWidth, getMaxVectorWidth(I));
+  return MaxVectorWidth;
+}
+
 RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
                                  const CGCallee &Callee,
                                  ReturnValueSlot ReturnValue,
@@ -5252,12 +5268,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 #endif
 
   // Update the largest vector width if any arguments have vector types.
-  for (unsigned i = 0; i < IRCallArgs.size(); ++i) {
-    if (auto *VT = dyn_cast<llvm::VectorType>(IRCallArgs[i]->getType()))
-      LargestVectorWidth =
-          std::max((uint64_t)LargestVectorWidth,
-                   VT->getPrimitiveSizeInBits().getKnownMinSize());
-  }
+  for (unsigned i = 0; i < IRCallArgs.size(); ++i)
+    LargestVectorWidth = std::max(LargestVectorWidth,
+                                  getMaxVectorWidth(IRCallArgs[i]->getType()));
 
   // Compute the calling convention and attributes.
   unsigned CallingConv;
@@ -5379,10 +5392,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     CI->setName("call");
 
   // Update largest vector width from the return type.
-  if (auto *VT = dyn_cast<llvm::VectorType>(CI->getType()))
-    LargestVectorWidth =
-        std::max((uint64_t)LargestVectorWidth,
-                 VT->getPrimitiveSizeInBits().getKnownMinSize());
+  LargestVectorWidth =
+      std::max(LargestVectorWidth, getMaxVectorWidth(CI->getType()));
 
   // Insert instrumentation or attach profile metadata at indirect call sites.
   // For more details, see the comment before the definition of

@@ -306,9 +306,9 @@ public:
   /// functions might free the memory.
   /// In optimistic mode, the checker assumes that all user-defined functions
   /// which might free a pointer are annotated.
-  DefaultBool ShouldIncludeOwnershipAnnotatedFunctions;
+  bool ShouldIncludeOwnershipAnnotatedFunctions = false;
 
-  DefaultBool ShouldRegisterNoOwnershipChangeVisitor;
+  bool ShouldRegisterNoOwnershipChangeVisitor = false;
 
   /// Many checkers are essentially built into this one, so enabling them will
   /// make MallocChecker perform additional modeling and reporting.
@@ -326,7 +326,7 @@ public:
 
   using LeakInfo = std::pair<const ExplodedNode *, const MemRegion *>;
 
-  DefaultBool ChecksEnabled[CK_NumCheckKinds];
+  bool ChecksEnabled[CK_NumCheckKinds] = {false};
   CheckerNameRef CheckNames[CK_NumCheckKinds];
 
   void checkPreCall(const CallEvent &Call, CheckerContext &C) const;
@@ -927,11 +927,6 @@ public:
     ID.AddPointer(&Tag);
     ID.AddPointer(Sym);
   }
-
-  void *getTag() const {
-    static int Tag = 0;
-    return static_cast<void *>(&Tag);
-  }
 };
 
 } // end anonymous namespace
@@ -1187,7 +1182,7 @@ MallocChecker::performKernelMalloc(const CallEvent &Call, CheckerContext &C,
 
   const Expr *FlagsEx = Call.getArgExpr(Call.getNumArgs() - 1);
   const SVal V = C.getSVal(FlagsEx);
-  if (!V.getAs<NonLoc>()) {
+  if (!isa<NonLoc>(V)) {
     // The case where 'V' can be a location can only be due to a bad header,
     // so in this case bail out.
     return None;
@@ -1408,8 +1403,8 @@ void MallocChecker::checkGMalloc0(const CallEvent &Call,
 void MallocChecker::checkGMemdup(const CallEvent &Call,
                                  CheckerContext &C) const {
   ProgramStateRef State = C.getState();
-  State = MallocMemAux(C, Call, Call.getArgExpr(1), UndefinedVal(), State,
-                       AF_Malloc);
+  State =
+      MallocMemAux(C, Call, Call.getArgExpr(1), UnknownVal(), State, AF_Malloc);
   State = ProcessZeroAllocCheck(Call, 1, State);
   C.addTransition(State);
 }
@@ -1912,12 +1907,12 @@ ProgramStateRef MallocChecker::FreeMemAux(
     return nullptr;
 
   SVal ArgVal = C.getSVal(ArgExpr);
-  if (!ArgVal.getAs<DefinedOrUnknownSVal>())
+  if (!isa<DefinedOrUnknownSVal>(ArgVal))
     return nullptr;
   DefinedOrUnknownSVal location = ArgVal.castAs<DefinedOrUnknownSVal>();
 
   // Check for null dereferences.
-  if (!location.getAs<Loc>())
+  if (!isa<Loc>(location))
     return nullptr;
 
   // The explicit NULL case, no operation is performed.
@@ -2587,7 +2582,7 @@ MallocChecker::ReallocMemAux(CheckerContext &C, const CallEvent &Call,
 
   const Expr *arg0Expr = CE->getArg(0);
   SVal Arg0Val = C.getSVal(arg0Expr);
-  if (!Arg0Val.getAs<DefinedOrUnknownSVal>())
+  if (!isa<DefinedOrUnknownSVal>(Arg0Val))
     return nullptr;
   DefinedOrUnknownSVal arg0Val = Arg0Val.castAs<DefinedOrUnknownSVal>();
 
@@ -2603,7 +2598,7 @@ MallocChecker::ReallocMemAux(CheckerContext &C, const CallEvent &Call,
   SVal TotalSize = C.getSVal(Arg1);
   if (SuffixWithN)
     TotalSize = evalMulForBufferSize(C, Arg1, CE->getArg(2));
-  if (!TotalSize.getAs<DefinedOrUnknownSVal>())
+  if (!isa<DefinedOrUnknownSVal>(TotalSize))
     return nullptr;
 
   // Compare the size argument to 0.
@@ -2913,7 +2908,7 @@ void MallocChecker::checkPreCall(const CallEvent &Call,
   // Check arguments for being used after free.
   for (unsigned I = 0, E = Call.getNumArgs(); I != E; ++I) {
     SVal ArgSVal = Call.getArgSVal(I);
-    if (ArgSVal.getAs<Loc>()) {
+    if (isa<Loc>(ArgSVal)) {
       SymbolRef Sym = ArgSVal.getAsSymbol();
       if (!Sym)
         continue;
@@ -3445,7 +3440,7 @@ PathDiagnosticPieceRef MallocBugVisitor::VisitNode(const ExplodedNode *N,
               allocation_state::getContainerObjRegion(statePrev, Sym);
           const auto *TypedRegion = cast<TypedValueRegion>(ObjRegion);
           QualType ObjTy = TypedRegion->getValueType();
-          OS << "Inner buffer of '" << ObjTy.getAsString() << "' ";
+          OS << "Inner buffer of '" << ObjTy << "' ";
 
           if (N->getLocation().getKind() == ProgramPoint::PostImplicitCallKind) {
             OS << "deallocated by call to destructor";

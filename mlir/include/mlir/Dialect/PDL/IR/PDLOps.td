@@ -68,18 +68,14 @@ def PDL_ApplyNativeRewriteOp
 
     ```mlir
     // Apply a native rewrite method that returns an attribute.
-    %ret = pdl.apply_native_rewrite "myNativeFunc"(%arg0, %arg1) : !pdl.attribute
+    %ret = pdl.apply_native_rewrite "myNativeFunc"(%arg0, %attr1) : !pdl.attribute
     ```
 
     ```c++
     // The native rewrite as defined in C++:
-    static void myNativeFunc(ArrayRef<PDLValue> args, PatternRewriter &rewriter,
-                             PDLResultList &results) {
-      Value arg0 = args[0].cast<Value>();
-      Value arg1 = args[1].cast<Value>();
-
-      // Just push back the first param attribute.
-      results.push_back(param0);
+    static Attribute myNativeFunc(PatternRewriter &rewriter, Value arg0, Attribute arg1) {
+      // Just return the second arg.
+      return arg1;
     }
 
     void registerNativeRewrite(PDLPatternModule &pdlModule) {
@@ -122,14 +118,14 @@ def PDL_AttributeOp : PDL_Op<"attribute"> {
     %attr = pdl.attribute : %type
 
     // Define an attribute with a constant value:
-    %attr = pdl.attribute "hello"
+    %attr = pdl.attribute = "hello"
     ```
   }];
 
   let arguments = (ins Optional<PDL_Type>:$type,
                        OptionalAttr<AnyAttr>:$value);
   let results = (outs PDL_Attribute:$attr);
-  let assemblyFormat = "(`:` $type^)? ($value^)? attr-dict-with-keyword";
+  let assemblyFormat = "(`:` $type^)? (`=` $value^)? attr-dict-with-keyword";
 
   let builders = [
     OpBuilder<(ins CArg<"Value", "Value()">:$type), [{
@@ -373,6 +369,12 @@ def PDL_OperationOp : PDL_Op<"operation", [AttrSizedOperandSegments]> {
     /// Returns true if the operation type referenced supports result type
     /// inference.
     bool hasTypeInference();
+    
+    /// Returns true if the operation type referenced might support result type
+    /// inference, i.e. it supports type reference or is currently not
+    /// registered in the context. Returns false if the root operation name
+    /// has not been set.
+    bool mightHaveTypeInference();
   }];
   let hasVerifier = 1;
 }

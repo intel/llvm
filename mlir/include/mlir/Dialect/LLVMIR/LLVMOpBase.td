@@ -14,6 +14,7 @@
 #ifndef LLVMIR_OP_BASE
 #define LLVMIR_OP_BASE
 
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -25,9 +26,12 @@ def LLVM_Dialect : Dialect {
   let name = "llvm";
   let cppNamespace = "::mlir::LLVM";
 
+  let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
   let hasRegionArgAttrVerify = 1;
   let hasRegionResultAttrVerify = 1;
   let hasOperationAttrVerify = 1;
+
   let extraClassDeclaration = [{
     /// Name of the data layout attributes.
     static StringRef getDataLayoutAttrName() { return "llvm.data_layout"; }
@@ -52,6 +56,11 @@ def LLVM_Dialect : Dialect {
 
     /// Name of the target triple attribute.
     static StringRef getTargetTripleAttrName() { return "llvm.target_triple"; }
+
+    /// Name of the C wrapper emission attribute.
+    static StringRef getEmitCWrapperAttrName() {
+      return "llvm.emit_c_interface";
+    }
   }];
 
   let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
@@ -91,17 +100,18 @@ def LLVM_AnyFloat : Type<
 
 // Type constraint accepting any LLVM pointer type.
 def LLVM_AnyPointer : Type<CPred<"$_self.isa<::mlir::LLVM::LLVMPointerType>()">,
-                          "LLVM pointer type">;
+                          "LLVM pointer type", "::mlir::LLVM::LLVMPointerType">;
 
 // Type constraint accepting LLVM pointer type with an additional constraint
 // on the element type.
 class LLVM_PointerTo<Type pointee> : Type<
   And<[LLVM_AnyPointer.predicate,
-       SubstLeaves<
-         "$_self",
-         "$_self.cast<::mlir::LLVM::LLVMPointerType>().getElementType()",
-         pointee.predicate>]>,
-  "LLVM pointer to " # pointee.summary>;
+       Or<[CPred<"$_self.cast<::mlir::LLVM::LLVMPointerType>().isOpaque()">,
+           SubstLeaves<
+             "$_self",
+             "$_self.cast<::mlir::LLVM::LLVMPointerType>().getElementType()",
+             pointee.predicate>]>]>,
+  "LLVM pointer to " # pointee.summary, "::mlir::LLVM::LLVMPointerType">;
 
 // Type constraints accepting LLVM pointer type to integer of a specific width.
 class LLVM_IntPtrBase<int width, int addressSpace = 0> : Type<
@@ -229,6 +239,14 @@ class LLVM_EnumAttr<string name, string llvmName, string description,
   string llvmClassName = llvmName;
 }
 
+// LLVM_CEnumAttr is functionally identical to LLVM_EnumAttr, but to be used for
+// non-class enums.
+class LLVM_CEnumAttr<string name, string llvmNS, string description,
+      list<LLVM_EnumAttrCase> cases> :
+    I64EnumAttr<name, description, cases> {
+  string llvmClassName = llvmNS;
+}
+
 // For every value in the list, substitutes the value in the place of "$0" in
 // "pattern" and stores the list of strings as "lst".
 class ListIntSubst<string pattern, list<int> values> {
@@ -273,6 +291,7 @@ class LLVM_IntrOpBase<Dialect dialect, string opName, string enumName,
   string resultPattern = !if(!gt(numResults, 1),
                              LLVM_IntrPatterns.structResult,
                              LLVM_IntrPatterns.result);
+  string llvmEnumName = enumName;                           
   let llvmBuilder = [{
     llvm::Module *module = builder.GetInsertBlock()->getModule();
     llvm::Function *fn = llvm::Intrinsic::getDeclaration(
@@ -364,5 +383,48 @@ class LLVM_VectorReductionAcc<string mnem>
     builder.setFastMathFlags(origFM);  // restore fastmath flag
   }];
 }
+
+def LLVM_OneResultOpBuilder :
+  OpBuilder<(ins "Type":$resultType, "ValueRange":$operands,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
+  [{
+    if (resultType) $_state.addTypes(resultType);
+    $_state.addOperands(operands);
+    for (auto namedAttr : attributes)
+      $_state.addAttribute(namedAttr.getName(), namedAttr.getValue());
+  }]>;
+
+def LLVM_ZeroResultOpBuilder :
+  OpBuilder<(ins "ValueRange":$operands,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
+  [{
+    $_state.addOperands(operands);
+    for (auto namedAttr : attributes)
+      $_state.addAttribute(namedAttr.getName(), namedAttr.getValue());
+  }]>;
+
+// Compatibility builder that takes an instance of wrapped llvm::VoidType
+// to indicate no result.
+def LLVM_VoidResultTypeOpBuilder :
+  OpBuilder<(ins "Type":$resultType, "ValueRange":$operands,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
+  [{
+    assert(isCompatibleType(resultType) && "result must be an LLVM type");
+    assert(resultType.isa<LLVMVoidType>() &&
+           "for zero-result operands, only 'void' is accepted as result type");
+    build($_builder, $_state, operands, attributes);
+  }]>;
+
+
+// Opaque builder used for terminator operations that contain successors.
+def LLVM_TerminatorPassthroughOpBuilder :
+  OpBuilder<(ins "ValueRange":$operands, "SuccessorRange":$destinations,
+    CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes),
+  [{
+    $_state.addOperands(operands);
+    $_state.addSuccessors(destinations);
+    $_state.addAttributes(attributes);
+  }]>;
+
 
 #endif  // LLVMIR_OP_BASE

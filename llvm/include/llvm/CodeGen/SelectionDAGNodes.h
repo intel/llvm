@@ -615,8 +615,10 @@ private:
   SDNodeFlags Flags;
 
 public:
-  /// Unique and persistent id per SDNode in the DAG.
-  /// Used for debug printing.
+  /// Unique and persistent id per SDNode in the DAG. Used for debug printing.
+  /// We do not place that under `#if LLVM_ENABLE_ABI_BREAKING_CHECKS`
+  /// intentionally because it adds unneeded complexity without noticeable
+  /// benefits (see discussion with @thakis in D120714).
   uint16_t PersistentId;
 
   //===--------------------------------------------------------------------===//
@@ -1667,6 +1669,9 @@ bool isAllOnesConstant(SDValue V);
 /// Returns true if \p V is a constant integer one.
 bool isOneConstant(SDValue V);
 
+/// Returns true if \p V is a constant min signed integer value.
+bool isMinSignedConstant(SDValue V);
+
 /// Return the non-bitcasted source operand of \p V if it exists.
 /// If \p V is not a bitcasted value, it is returned as-is.
 SDValue peekThroughBitcasts(SDValue V);
@@ -1682,6 +1687,11 @@ SDValue peekThroughExtractSubvectors(SDValue V);
 /// Returns true if \p V is a bitwise not operation. Assumes that an all ones
 /// constant is canonicalized to be operand 1.
 bool isBitwiseNot(SDValue V, bool AllowUndefs = false);
+
+/// If \p V is a bitwise not, returns the inverted operand. Otherwise returns
+/// an empty SDValue. Only bits set in \p Mask are required to be inverted,
+/// other bits may be arbitrary.
+SDValue getBitwiseNotOperand(SDValue V, SDValue Mask, bool AllowUndefs);
 
 /// Returns the SDNode if it is a constant splat BuildVector or constant int.
 ConstantSDNode *isConstOrConstSplat(SDValue N, bool AllowUndefs = false,
@@ -2693,13 +2703,9 @@ public:
     return static_cast<ISD::MemIndexType>(LSBaseSDNodeBits.AddressingMode);
   }
   bool isIndexScaled() const {
-    return (getIndexType() == ISD::SIGNED_SCALED) ||
-           (getIndexType() == ISD::UNSIGNED_SCALED);
+    return !cast<ConstantSDNode>(getScale())->isOne();
   }
-  bool isIndexSigned() const {
-    return (getIndexType() == ISD::SIGNED_SCALED) ||
-           (getIndexType() == ISD::SIGNED_UNSCALED);
-  }
+  bool isIndexSigned() const { return isIndexTypeSigned(getIndexType()); }
 
   // In the both nodes address is Op1, mask is Op2:
   // VPGatherSDNode  (Chain, base, index, scale, mask, vlen)
@@ -2780,17 +2786,10 @@ public:
   ISD::MemIndexType getIndexType() const {
     return static_cast<ISD::MemIndexType>(LSBaseSDNodeBits.AddressingMode);
   }
-  void setIndexType(ISD::MemIndexType IndexType) {
-    LSBaseSDNodeBits.AddressingMode = IndexType;
-  }
   bool isIndexScaled() const {
-    return (getIndexType() == ISD::SIGNED_SCALED) ||
-           (getIndexType() == ISD::UNSIGNED_SCALED);
+    return !cast<ConstantSDNode>(getScale())->isOne();
   }
-  bool isIndexSigned() const {
-    return (getIndexType() == ISD::SIGNED_SCALED) ||
-           (getIndexType() == ISD::SIGNED_UNSCALED);
-  }
+  bool isIndexSigned() const { return isIndexTypeSigned(getIndexType()); }
 
   // In the both nodes address is Op1, mask is Op2:
   // MaskedGatherSDNode  (Chain, passthru, mask, base, index, scale)

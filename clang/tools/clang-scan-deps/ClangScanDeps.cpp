@@ -116,15 +116,15 @@ static llvm::cl::opt<ScanningMode> ScanMode(
     "mode",
     llvm::cl::desc("The preprocessing mode used to compute the dependencies"),
     llvm::cl::values(
-        clEnumValN(ScanningMode::MinimizedSourcePreprocessing,
-                   "preprocess-minimized-sources",
-                   "The set of dependencies is computed by preprocessing the "
-                   "source files that were minimized to only include the "
-                   "contents that might affect the dependencies"),
+        clEnumValN(ScanningMode::DependencyDirectivesScan,
+                   "preprocess-dependency-directives",
+                   "The set of dependencies is computed by preprocessing with "
+                   "special lexing after scanning the source files to get the "
+                   "directives that might affect the dependencies"),
         clEnumValN(ScanningMode::CanonicalPreprocessing, "preprocess",
                    "The set of dependencies is computed by preprocessing the "
-                   "unmodified source files")),
-    llvm::cl::init(ScanningMode::MinimizedSourcePreprocessing),
+                   "source files")),
+    llvm::cl::init(ScanningMode::DependencyDirectivesScan),
     llvm::cl::cat(DependencyScannerCategory));
 
 static llvm::cl::opt<ScanningOutputFormat> Format(
@@ -145,15 +145,15 @@ static llvm::cl::opt<ScanningOutputFormat> Format(
 // Build tools that want to put the PCM files in a different location should use
 // the C++ APIs instead, of which there are two flavors:
 //
-// 1. APIs that generate arguments with paths to modulemap and PCM files via
-//    callbacks provided by the client:
-//     * ModuleDeps::getCanonicalCommandLine(LookupPCMPath, LookupModuleDeps)
-//     * FullDependencies::getAdditionalArgs(LookupPCMPath, LookupModuleDeps)
+// 1. APIs that generate arguments with paths PCM files via a callback provided
+//    by the client:
+//     * ModuleDeps::getCanonicalCommandLine(LookupPCMPath)
+//     * FullDependencies::getCommandLine(LookupPCMPath)
 //
-// 2. APIs that don't generate arguments with paths to modulemap or PCM files
-//    and instead expect the client to append them manually after the fact:
+// 2. APIs that don't generate arguments with paths PCM files and instead expect
+//     the client to append them manually after the fact:
 //     * ModuleDeps::getCanonicalCommandLineWithoutModulePaths()
-//     * FullDependencies::getAdditionalArgsWithoutModulePaths()
+//     * FullDependencies::getCommandLineWithoutModulePaths()
 //
 static llvm::cl::opt<bool> GenerateModulesPathArgs(
     "generate-modules-path-args",
@@ -189,14 +189,6 @@ llvm::cl::opt<std::string>
 llvm::cl::opt<bool> ReuseFileManager(
     "reuse-filemanager",
     llvm::cl::desc("Reuse the file manager and its cache between invocations."),
-    llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
-
-llvm::cl::opt<bool> SkipExcludedPPRanges(
-    "skip-excluded-pp-ranges",
-    llvm::cl::desc(
-        "Use the preprocessor optimization that skips excluded conditionals by "
-        "bumping the buffer pointer in the lexer instead of lexing the tokens  "
-        "until reaching the end directive."),
     llvm::cl::init(true), llvm::cl::cat(DependencyScannerCategory));
 
 llvm::cl::opt<std::string> ModuleName(
@@ -522,7 +514,7 @@ int main(int argc, const char **argv) {
   SharedStream DependencyOS(llvm::outs());
 
   DependencyScanningService Service(ScanMode, Format, ReuseFileManager,
-                                    SkipExcludedPPRanges, OptimizeArgs);
+                                    OptimizeArgs);
   llvm::ThreadPool Pool(llvm::hardware_concurrency(NumThreads));
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < Pool.getThreadCount(); ++I)

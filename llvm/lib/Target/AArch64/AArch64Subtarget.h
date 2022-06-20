@@ -40,6 +40,7 @@ public:
   enum ARMProcFamilyEnum : uint8_t {
     Others,
     A64FX,
+    Ampere1,
     AppleA7,
     AppleA10,
     AppleA11,
@@ -105,7 +106,6 @@ protected:
   unsigned PrefLoopLogAlignment = 0;
   unsigned MaxBytesForLoopAlignment = 0;
   unsigned MaxJumpTableSize = 0;
-  unsigned WideningBaseCost = 0;
 
   // ReserveXRegister[i] - X#i is not available as a general purpose register.
   BitVector ReserveXRegister;
@@ -205,14 +205,12 @@ public:
   /// Return true if the CPU supports any kind of instruction fusion.
   bool hasFusion() const {
     return hasArithmeticBccFusion() || hasArithmeticCbzFusion() ||
-           hasFuseAES() || hasFuseArithmeticLogic() ||
-           hasFuseCCSelect() || hasFuseLiterals();
+           hasFuseAES() || hasFuseArithmeticLogic() || hasFuseCCSelect() ||
+           hasFuseAdrpAdd() || hasFuseLiterals();
   }
 
   unsigned getMaxInterleaveFactor() const { return MaxInterleaveFactor; }
-  unsigned getVectorInsertExtractBaseCost() const {
-    return VectorInsertExtractBaseCost;
-  }
+  unsigned getVectorInsertExtractBaseCost() const;
   unsigned getCacheLineSize() const override { return CacheLineSize; }
   unsigned getPrefetchDistance() const override { return PrefetchDistance; }
   unsigned getMinPrefetchStride(unsigned NumMemAccesses,
@@ -234,8 +232,6 @@ public:
   }
 
   unsigned getMaximumJumpTableSize() const { return MaxJumpTableSize; }
-
-  unsigned getWideningBaseCost() const { return WideningBaseCost; }
 
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.

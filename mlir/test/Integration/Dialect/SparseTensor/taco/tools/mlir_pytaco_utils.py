@@ -16,7 +16,8 @@ from mlir import execution_engine
 from mlir import ir
 from mlir import runtime
 from mlir.dialects import sparse_tensor
-from mlir.passmanager import PassManager
+
+from . import mlir_sparse_compiler
 
 # Type aliases for type annotation.
 _SupportFunc = Callable[..., None]
@@ -38,6 +39,13 @@ _ENTRY_NAME = "main"
 def _get_support_lib_name() -> str:
   """Gets the string name for the supporting C shared library."""
   return os.getenv(_SUPPORTLIB_ENV_VAR, _DEFAULT_SUPPORTLIB)
+
+
+@functools.lru_cache()
+def _get_sparse_compiler() -> mlir_sparse_compiler.SparseCompiler:
+  """Gets the MLIR sparse compiler with default setting."""
+  return mlir_sparse_compiler.SparseCompiler(
+      options="", opt_level=_OPT_LEVEL, shared_libs=[_get_support_lib_name()])
 
 
 def _record_support_funcs(
@@ -73,16 +81,22 @@ def _get_support_func_locator() -> _SupportFuncLocator:
 
   type_to_funcs = {}
   try:
-    _record_support_funcs(np.float32, c_lib.convertToMLIRSparseTensorF32,
-                          c_lib.convertFromMLIRSparseTensorF32, type_to_funcs)
+    support_types = [(np.int8, c_lib.convertToMLIRSparseTensorI8,
+                      c_lib.convertFromMLIRSparseTensorI8),
+                     (np.int16, c_lib.convertToMLIRSparseTensorI16,
+                      c_lib.convertFromMLIRSparseTensorI16),
+                     (np.int32, c_lib.convertToMLIRSparseTensorI32,
+                      c_lib.convertFromMLIRSparseTensorI32),
+                     (np.int64, c_lib.convertToMLIRSparseTensorI64,
+                      c_lib.convertFromMLIRSparseTensorI64),
+                     (np.float32, c_lib.convertToMLIRSparseTensorF32,
+                      c_lib.convertFromMLIRSparseTensorF32),
+                     (np.float64, c_lib.convertToMLIRSparseTensorF64,
+                      c_lib.convertFromMLIRSparseTensorF64)]
   except Exception as e:
     raise ValueError(f"Missing supporting function: {e}") from e
-
-  try:
-    _record_support_funcs(np.float64, c_lib.convertToMLIRSparseTensorF64,
-                          c_lib.convertFromMLIRSparseTensorF64, type_to_funcs)
-  except Exception as e:
-    raise ValueError(f"Missing supporting function: {e}") from e
+  for i, info in enumerate(support_types):
+    _record_support_funcs(info[0], info[1], info[2], type_to_funcs)
 
   def get_support_funcs(ty: np.dtype):
     funcs = type_to_funcs[ty]
@@ -184,10 +198,7 @@ def compile_and_build_engine(
     A JIT execution engine for the MLIR module.
 
   """
-  pipeline = f"sparse-compiler"
-  PassManager.parse(pipeline).run(module)
-  return execution_engine.ExecutionEngine(
-      module, opt_level=_OPT_LEVEL, shared_libs=[_get_support_lib_name()])
+  return _get_sparse_compiler().compile_and_jit(module)
 
 
 class _SparseTensorDescriptor(ctypes.Structure):
@@ -236,11 +247,11 @@ def _get_create_sparse_tensor_kernel(
 
   # Return the MLIR text kernel.
   return f"""
-!Ptr = type !llvm.ptr<i8>
+!Ptr = !llvm.ptr<i8>
 #enc = #sparse_tensor.encoding<{{
   dimLevelType = [ {sparsity} ]
 }}>
-func @{_ENTRY_NAME}(%filename: !Ptr) -> (tensor<{shape}x{type}, #enc>, memref<{rank}xindex>)
+func.func @{_ENTRY_NAME}(%filename: !Ptr) -> (tensor<{shape}x{type}, #enc>, memref<{rank}xindex>)
 attributes {{ llvm.emit_c_interface }} {{
   %t = sparse_tensor.new %filename : !Ptr to tensor<{shape}x{type}, #enc>
   %b = memref.alloc() : memref<{rank}xindex>
@@ -294,7 +305,8 @@ def create_sparse_tensor(filename: str,
 # by using Python code to generate the kernel instead of doing MLIR text code
 # stitching.
 def _get_output_sparse_tensor_kernel(
-    sparsity_codes: Sequence[sparse_tensor.DimLevelType], type: str) -> str:
+        sparsity_codes: Sequence[sparse_tensor.DimLevelType],
+        type: str) -> str:
   """Creates an MLIR text kernel to output a sparse tensor to a file.
 
   The kernel returns void.
@@ -306,15 +318,16 @@ def _get_output_sparse_tensor_kernel(
 
   # Convert the encoded sparsity values to a string representation.
   sparsity = ", ".join(
-      map(lambda s: '"compressed"' if s.value else '"dense"', sparsity_codes))
+      map(lambda s: '"compressed"'
+          if s.value else '"dense"', sparsity_codes))
 
   # Return the MLIR text kernel.
   return f"""
-!Ptr = type !llvm.ptr<i8>
+!Ptr = !llvm.ptr<i8>
 #enc = #sparse_tensor.encoding<{{
   dimLevelType = [ {sparsity} ]
 }}>
-func @{_ENTRY_NAME}(%t: tensor<{shape}x{type}, #enc>, %filename: !Ptr)
+func.func @{_ENTRY_NAME}(%t: tensor<{shape}x{type}, #enc>, %filename: !Ptr)
 attributes {{ llvm.emit_c_interface }} {{
   sparse_tensor.out %t, %filename : tensor<{shape}x{type}, #enc>, !Ptr
   func.return

@@ -2304,6 +2304,69 @@ public:
   }
 };
 
+/// This represents '#pragma omp parallel masked' directive.
+///
+/// \code
+/// #pragma omp parallel masked filter(tid)
+/// \endcode
+/// In this example directive '#pragma omp parallel masked' has a clause
+/// 'filter' with the variable tid
+///
+class OMPParallelMaskedDirective final : public OMPExecutableDirective {
+  friend class ASTStmtReader;
+  friend class OMPExecutableDirective;
+
+  OMPParallelMaskedDirective(SourceLocation StartLoc, SourceLocation EndLoc)
+      : OMPExecutableDirective(OMPParallelMaskedDirectiveClass,
+                               llvm::omp::OMPD_parallel_masked, StartLoc,
+                               EndLoc) {}
+
+  explicit OMPParallelMaskedDirective()
+      : OMPExecutableDirective(OMPParallelMaskedDirectiveClass,
+                               llvm::omp::OMPD_parallel_masked,
+                               SourceLocation(), SourceLocation()) {}
+
+  /// Sets special task reduction descriptor.
+  void setTaskReductionRefExpr(Expr *E) { Data->getChildren()[0] = E; }
+
+public:
+  /// Creates directive with a list of \a Clauses.
+  ///
+  /// \param C AST context.
+  /// \param StartLoc Starting location of the directive kind.
+  /// \param EndLoc Ending Location of the directive.
+  /// \param Clauses List of clauses.
+  /// \param AssociatedStmt Statement, associated with the directive.
+  /// \param TaskRedRef Task reduction special reference expression to handle
+  /// taskgroup descriptor.
+  ///
+  static OMPParallelMaskedDirective *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
+         ArrayRef<OMPClause *> Clauses, Stmt *AssociatedStmt, Expr *TaskRedRef);
+
+  /// Creates an empty directive with the place for \a NumClauses
+  /// clauses.
+  ///
+  /// \param C AST context.
+  /// \param NumClauses Number of clauses.
+  ///
+  static OMPParallelMaskedDirective *
+  CreateEmpty(const ASTContext &C, unsigned NumClauses, EmptyShell);
+
+  /// Returns special task reduction reference expression.
+  Expr *getTaskReductionRefExpr() {
+    return cast_or_null<Expr>(Data->getChildren()[0]);
+  }
+  const Expr *getTaskReductionRefExpr() const {
+    return const_cast<OMPParallelMaskedDirective *>(this)
+        ->getTaskReductionRefExpr();
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == OMPParallelMaskedDirectiveClass;
+  }
+};
+
 /// This represents '#pragma omp parallel sections' directive.
 ///
 /// \code
@@ -2827,25 +2890,31 @@ public:
 class OMPAtomicDirective : public OMPExecutableDirective {
   friend class ASTStmtReader;
   friend class OMPExecutableDirective;
-  /// Used for 'atomic update' or 'atomic capture' constructs. They may
-  /// have atomic expressions of forms
-  /// \code
-  /// x = x binop expr;
-  /// x = expr binop x;
-  /// \endcode
-  /// This field is true for the first form of the expression and false for the
-  /// second. Required for correct codegen of non-associative operations (like
-  /// << or >>).
-  bool IsXLHSInRHSPart = false;
-  /// Used for 'atomic update' or 'atomic capture' constructs. They may
-  /// have atomic expressions of forms
-  /// \code
-  /// v = x; <update x>;
-  /// <update x>; v = x;
-  /// \endcode
-  /// This field is true for the first(postfix) form of the expression and false
-  /// otherwise.
-  bool IsPostfixUpdate = false;
+
+  struct FlagTy {
+    /// Used for 'atomic update' or 'atomic capture' constructs. They may
+    /// have atomic expressions of forms:
+    /// \code
+    /// x = x binop expr;
+    /// x = expr binop x;
+    /// \endcode
+    /// This field is 1 for the first form of the expression and 0 for the
+    /// second. Required for correct codegen of non-associative operations (like
+    /// << or >>).
+    uint8_t IsXLHSInRHSPart : 1;
+    /// Used for 'atomic update' or 'atomic capture' constructs. They may
+    /// have atomic expressions of forms:
+    /// \code
+    /// v = x; <update x>;
+    /// <update x>; v = x;
+    /// \endcode
+    /// This field is 1 for the first(postfix) form of the expression and 0
+    /// otherwise.
+    uint8_t IsPostfixUpdate : 1;
+    /// 1 if 'v' is updated only when the condition is false (compare capture
+    /// only).
+    uint8_t IsFailOnly : 1;
+  } Flags;
 
   /// Build directive with the given start and end location.
   ///
@@ -2869,6 +2938,7 @@ class OMPAtomicDirective : public OMPExecutableDirective {
     POS_UpdateExpr,
     POS_D,
     POS_Cond,
+    POS_R,
   };
 
   /// Set 'x' part of the associated expression/statement.
@@ -2881,6 +2951,8 @@ class OMPAtomicDirective : public OMPExecutableDirective {
   }
   /// Set 'v' part of the associated expression/statement.
   void setV(Expr *V) { Data->getChildren()[DataPositionTy::POS_V] = V; }
+  /// Set 'r' part of the associated expression/statement.
+  void setR(Expr *R) { Data->getChildren()[DataPositionTy::POS_R] = R; }
   /// Set 'expr' part of the associated expression/statement.
   void setExpr(Expr *E) { Data->getChildren()[DataPositionTy::POS_E] = E; }
   /// Set 'd' part of the associated expression/statement.
@@ -2889,6 +2961,32 @@ class OMPAtomicDirective : public OMPExecutableDirective {
   void setCond(Expr *C) { Data->getChildren()[DataPositionTy::POS_Cond] = C; }
 
 public:
+  struct Expressions {
+    /// 'x' part of the associated expression/statement.
+    Expr *X = nullptr;
+    /// 'v' part of the associated expression/statement.
+    Expr *V = nullptr;
+    // 'r' part of the associated expression/statement.
+    Expr *R = nullptr;
+    /// 'expr' part of the associated expression/statement.
+    Expr *E = nullptr;
+    /// UE Helper expression of the form:
+    /// 'OpaqueValueExpr(x) binop OpaqueValueExpr(expr)' or
+    /// 'OpaqueValueExpr(expr) binop OpaqueValueExpr(x)'.
+    Expr *UE = nullptr;
+    /// 'd' part of the associated expression/statement.
+    Expr *D = nullptr;
+    /// Conditional expression in `atomic compare` construct.
+    Expr *Cond = nullptr;
+    /// True if UE has the first form and false if the second.
+    bool IsXLHSInRHSPart;
+    /// True if original value of 'x' must be stored in 'v', not an updated one.
+    bool IsPostfixUpdate;
+    /// True if 'v' is updated only when the condition is false (compare capture
+    /// only).
+    bool IsFailOnly;
+  };
+
   /// Creates directive with a list of \a Clauses and 'x', 'v' and 'expr'
   /// parts of the atomic construct (see Section 2.12.6, atomic Construct, for
   /// detailed description of 'x', 'v' and 'expr').
@@ -2898,23 +2996,12 @@ public:
   /// \param EndLoc Ending Location of the directive.
   /// \param Clauses List of clauses.
   /// \param AssociatedStmt Statement, associated with the directive.
-  /// \param X 'x' part of the associated expression/statement.
-  /// \param V 'v' part of the associated expression/statement.
-  /// \param E 'expr' part of the associated expression/statement.
-  /// \param UE Helper expression of the form
-  /// 'OpaqueValueExpr(x) binop OpaqueValueExpr(expr)' or
-  /// 'OpaqueValueExpr(expr) binop OpaqueValueExpr(x)'.
-  /// \param D 'd' part of the associated expression/statement.
-  /// \param Cond Conditional expression in `atomic compare` construct.
-  /// \param IsXLHSInRHSPart true if \a UE has the first form and false if the
-  /// second.
-  /// \param IsPostfixUpdate true if original value of 'x' must be stored in
-  /// 'v', not an updated one.
-  static OMPAtomicDirective *
-  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
-         ArrayRef<OMPClause *> Clauses, Stmt *AssociatedStmt, Expr *X, Expr *V,
-         Expr *E, Expr *UE, Expr *D, Expr *Cond, bool IsXLHSInRHSPart,
-         bool IsPostfixUpdate);
+  /// \param Exprs Associated expressions or statements.
+  static OMPAtomicDirective *Create(const ASTContext &C,
+                                    SourceLocation StartLoc,
+                                    SourceLocation EndLoc,
+                                    ArrayRef<OMPClause *> Clauses,
+                                    Stmt *AssociatedStmt, Expressions Exprs);
 
   /// Creates an empty directive with the place for \a NumClauses
   /// clauses.
@@ -2946,16 +3033,26 @@ public:
   /// Return true if helper update expression has form
   /// 'OpaqueValueExpr(x) binop OpaqueValueExpr(expr)' and false if it has form
   /// 'OpaqueValueExpr(expr) binop OpaqueValueExpr(x)'.
-  bool isXLHSInRHSPart() const { return IsXLHSInRHSPart; }
+  bool isXLHSInRHSPart() const { return Flags.IsXLHSInRHSPart; }
   /// Return true if 'v' expression must be updated to original value of
   /// 'x', false if 'v' must be updated to the new value of 'x'.
-  bool isPostfixUpdate() const { return IsPostfixUpdate; }
+  bool isPostfixUpdate() const { return Flags.IsPostfixUpdate; }
+  /// Return true if 'v' is updated only when the condition is evaluated false
+  /// (compare capture only).
+  bool isFailOnly() const { return Flags.IsFailOnly; }
   /// Get 'v' part of the associated expression/statement.
   Expr *getV() {
     return cast_or_null<Expr>(Data->getChildren()[DataPositionTy::POS_V]);
   }
   const Expr *getV() const {
     return cast_or_null<Expr>(Data->getChildren()[DataPositionTy::POS_V]);
+  }
+  /// Get 'r' part of the associated expression/statement.
+  Expr *getR() {
+    return cast_or_null<Expr>(Data->getChildren()[DataPositionTy::POS_R]);
+  }
+  const Expr *getR() const {
+    return cast_or_null<Expr>(Data->getChildren()[DataPositionTy::POS_R]);
   }
   /// Get 'expr' part of the associated expression/statement.
   Expr *getExpr() {

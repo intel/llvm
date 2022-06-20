@@ -35,6 +35,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/FPEnv.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
@@ -48,7 +49,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MachineValueType.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
@@ -71,14 +71,14 @@ static cl::opt<bool> sched4reg(
     "nvptx-sched4reg",
     cl::desc("NVPTX Specific: schedule for register pressue"), cl::init(false));
 
-static cl::opt<unsigned>
-FMAContractLevelOpt("nvptx-fma-level", cl::ZeroOrMore, cl::Hidden,
-                    cl::desc("NVPTX Specific: FMA contraction (0: don't do it"
-                             " 1: do it  2: do it aggressively"),
-                    cl::init(2));
+static cl::opt<unsigned> FMAContractLevelOpt(
+    "nvptx-fma-level", cl::Hidden,
+    cl::desc("NVPTX Specific: FMA contraction (0: don't do it"
+             " 1: do it  2: do it aggressively"),
+    cl::init(2));
 
 static cl::opt<int> UsePrecDivF32(
-    "nvptx-prec-divf32", cl::ZeroOrMore, cl::Hidden,
+    "nvptx-prec-divf32", cl::Hidden,
     cl::desc("NVPTX Specifies: 0 use div.approx, 1 use div.full, 2 use"
              " IEEE Compliant F32 div.rnd if available."),
     cl::init(2));
@@ -487,6 +487,17 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
     setOperationAction(ISD::CTLZ, Ty, Legal);
   }
 
+  setOperationAction(ISD::ADDC, MVT::i32, Legal);
+  setOperationAction(ISD::ADDE, MVT::i32, Legal);
+  setOperationAction(ISD::SUBC, MVT::i32, Legal);
+  setOperationAction(ISD::SUBE, MVT::i32, Legal);
+  if (STI.getPTXVersion() >= 43) {
+    setOperationAction(ISD::ADDC, MVT::i64, Legal);
+    setOperationAction(ISD::ADDE, MVT::i64, Legal);
+    setOperationAction(ISD::SUBC, MVT::i64, Legal);
+    setOperationAction(ISD::SUBE, MVT::i64, Legal);
+  }
+
   setOperationAction(ISD::CTTZ, MVT::i16, Expand);
   setOperationAction(ISD::CTTZ, MVT::i32, Expand);
   setOperationAction(ISD::CTTZ, MVT::i64, Expand);
@@ -499,13 +510,8 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
   setOperationAction(ISD::UMUL_LOHI, MVT::i64, Expand);
 
   // We have some custom DAG combine patterns for these nodes
-  setTargetDAGCombine(ISD::ADD);
-  setTargetDAGCombine(ISD::AND);
-  setTargetDAGCombine(ISD::FADD);
-  setTargetDAGCombine(ISD::MUL);
-  setTargetDAGCombine(ISD::SHL);
-  setTargetDAGCombine(ISD::SREM);
-  setTargetDAGCombine(ISD::UREM);
+  setTargetDAGCombine({ISD::ADD, ISD::AND, ISD::FADD, ISD::MUL, ISD::SHL,
+                       ISD::SREM, ISD::UREM});
 
   // setcc for f16x2 needs special handling to prevent legalizer's
   // attempt to scalarize it due to v2i1 not being legal.
@@ -583,6 +589,8 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
   // Now deduce the information based on the above mentioned
   // actions
   computeRegisterProperties(STI.getRegisterInfo());
+
+  setMinCmpXchgSizeInBits(32);
 }
 
 const char *NVPTXTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -2236,7 +2244,7 @@ SDValue NVPTXTargetLowering::LowerLOADi1(SDValue Op, SelectionDAG &DAG) const {
   assert(Node->getValueType(0) == MVT::i1 &&
          "Custom lowering for i1 load only");
   SDValue newLD = DAG.getLoad(MVT::i16, dl, LD->getChain(), LD->getBasePtr(),
-                              LD->getPointerInfo(), LD->getAlignment(),
+                              LD->getPointerInfo(), LD->getAlign(),
                               LD->getMemOperand()->getFlags());
   SDValue result = DAG.getNode(ISD::TRUNCATE, dl, MVT::i1, newLD);
   // The legalizer (the caller) is expecting two values from the legalized
@@ -2401,7 +2409,7 @@ SDValue NVPTXTargetLowering::LowerSTOREi1(SDValue Op, SelectionDAG &DAG) const {
   Tmp3 = DAG.getNode(ISD::ZERO_EXTEND, dl, MVT::i16, Tmp3);
   SDValue Result =
       DAG.getTruncStore(Tmp1, dl, Tmp3, Tmp2, ST->getPointerInfo(), MVT::i8,
-                        ST->getAlignment(), ST->getMemOperand()->getFlags());
+                        ST->getAlign(), ST->getMemOperand()->getFlags());
   return Result;
 }
 
@@ -4260,40 +4268,11 @@ Align NVPTXTargetLowering::getFunctionParamOptimizedAlign(
 
   // If a function has linkage different from internal or private, we
   // must use default ABI alignment as external users rely on it.
-  switch (F->getLinkage()) {
-  case GlobalValue::InternalLinkage:
-  case GlobalValue::PrivateLinkage: {
-    // Check that if a function has internal or private linkage
-    // it is not a kernel.
-#ifndef NDEBUG
-    const NamedMDNode *NMDN =
-        F->getParent()->getNamedMetadata("nvvm.annotations");
-    if (NMDN) {
-      for (const MDNode *MDN : NMDN->operands()) {
-        assert(MDN->getNumOperands() == 3);
-
-        const Metadata *MD0 = MDN->getOperand(0).get();
-        const auto *MDV0 = cast<ConstantAsMetadata>(MD0)->getValue();
-        const auto *MDFn = cast<Function>(MDV0);
-        if (MDFn != F)
-          continue;
-
-        const Metadata *MD1 = MDN->getOperand(1).get();
-        const MDString *MDStr = cast<MDString>(MD1);
-        if (MDStr->getString() != "kernel")
-          continue;
-
-        const Metadata *MD2 = MDN->getOperand(2).get();
-        const auto *MDV2 = cast<ConstantAsMetadata>(MD2)->getValue();
-        assert(!cast<ConstantInt>(MDV2)->isZero());
-      }
-    }
-#endif
-    return Align(std::max(uint64_t(16), ABITypeAlign));
-  }
-  default:
+  if (!F->hasLocalLinkage())
     return Align(ABITypeAlign);
-  }
+
+  assert(!isKernelFunction(*F) && "Expect kernels to have non-local linkage");
+  return Align(std::max(uint64_t(16), ABITypeAlign));
 }
 
 /// isLegalAddressingMode - Return true if the addressing mode represented
@@ -5146,6 +5125,67 @@ void NVPTXTargetLowering::ReplaceNodeResults(
     ReplaceINTRINSIC_W_CHAIN(N, DAG, Results);
     return;
   }
+}
+
+NVPTXTargetLowering::AtomicExpansionKind
+NVPTXTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
+  Type *Ty = AI->getValOperand()->getType();
+
+  if (AI->isFloatingPointOperation()) {
+    if (AI->getOperation() == AtomicRMWInst::BinOp::FAdd) {
+      if (Ty->isFloatTy())
+        return AtomicExpansionKind::None;
+      if (Ty->isDoubleTy() && STI.hasAtomAddF64())
+        return AtomicExpansionKind::None;
+    }
+    return AtomicExpansionKind::CmpXChg;
+  }
+
+  assert(Ty->isIntegerTy() && "Ty should be integer at this point");
+  auto ITy = cast<llvm::IntegerType>(Ty);
+
+  switch (AI->getOperation()) {
+  default:
+    return AtomicExpansionKind::CmpXChg;
+  case AtomicRMWInst::BinOp::And:
+  case AtomicRMWInst::BinOp::Or:
+  case AtomicRMWInst::BinOp::Xor:
+  case AtomicRMWInst::BinOp::Xchg:
+    switch (ITy->getBitWidth()) {
+    case 8:
+    case 16:
+      return AtomicExpansionKind::CmpXChg;
+    case 32:
+      return AtomicExpansionKind::None;
+    case 64:
+      if (STI.hasAtomBitwise64())
+        return AtomicExpansionKind::None;
+      return AtomicExpansionKind::CmpXChg;
+    default:
+      llvm_unreachable("unsupported width encountered");
+    }
+  case AtomicRMWInst::BinOp::Add:
+  case AtomicRMWInst::BinOp::Sub:
+  case AtomicRMWInst::BinOp::Max:
+  case AtomicRMWInst::BinOp::Min:
+  case AtomicRMWInst::BinOp::UMax:
+  case AtomicRMWInst::BinOp::UMin:
+    switch (ITy->getBitWidth()) {
+    case 8:
+    case 16:
+      return AtomicExpansionKind::CmpXChg;
+    case 32:
+      return AtomicExpansionKind::None;
+    case 64:
+      if (STI.hasAtomMinMax64())
+        return AtomicExpansionKind::None;
+      return AtomicExpansionKind::CmpXChg;
+    default:
+      llvm_unreachable("unsupported width encountered");
+    }
+  }
+
+  return AtomicExpansionKind::CmpXChg;
 }
 
 // Pin NVPTXTargetObjectFile's vtables to this file.

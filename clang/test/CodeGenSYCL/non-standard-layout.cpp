@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -aux-triple x86_64-unknown-windows-unknown -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck --check-prefix CHK-WIN %s
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -aux-triple x86_64-unknown-linux-unknown -disable-llvm-passes -S -emit-llvm %s -o - | FileCheck --check-prefix CHK-LIN %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -aux-triple x86_64-unknown-windows-unknown -disable-llvm-passes -S -opaque-pointers -emit-llvm %s -o - | FileCheck --check-prefix CHK-WIN %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -aux-triple x86_64-unknown-linux-unknown -disable-llvm-passes -S -opaque-pointers -emit-llvm %s -o - | FileCheck --check-prefix CHK-LIN %s
 
 #include "Inputs/sycl.hpp"
 // CHK-WIN: %struct{{.*}}F = type { i8, i8 }
@@ -15,6 +15,7 @@ int main() {
   cl::sycl::handler cgh;
   cgh.single_task<class kernel_function>(
       [=]() {
+        F f; // needed now to emit the type of F
         accessorA.use();
       });
   return 0;

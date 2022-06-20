@@ -199,7 +199,7 @@ class ErrorDummyFileSystem : public DummyFileSystem {
 };
 
 /// Replace back-slashes by front-slashes.
-std::string getPosixPath(std::string S) {
+std::string getPosixPath(const Twine &S) {
   SmallString<128> Result;
   llvm::sys::path::native(S, Result, llvm::sys::path::Style::posix);
   return std::string(Result.str());
@@ -923,11 +923,11 @@ TEST(ProxyFileSystemTest, Basic) {
 
   auto PWD = PFS.getCurrentWorkingDirectory();
   ASSERT_FALSE(PWD.getError());
-  ASSERT_EQ("/", *PWD);
+  ASSERT_EQ("/", getPosixPath(*PWD));
 
   SmallString<16> Path;
   ASSERT_FALSE(PFS.getRealPath("a", Path));
-  ASSERT_EQ("/a", Path);
+  ASSERT_EQ("/a", getPosixPath(Path));
 
   bool Local = true;
   ASSERT_FALSE(PFS.isLocal("/a", Local));
@@ -1343,7 +1343,8 @@ TEST_F(InMemoryFileSystemTest, UniqueID) {
   EXPECT_NE(FS.status("/a")->getUniqueID(), FS.status("/e")->getUniqueID());
 
   // Recreating the "same" FS yields the same UniqueIDs.
-  vfs::InMemoryFileSystem FS2;
+  // Note: FS2 should match FS with respect to path normalization.
+  vfs::InMemoryFileSystem FS2(/*UseNormalizedPath=*/false);
   ASSERT_TRUE(FS2.addFile("/a/b", 0, MemoryBuffer::getMemBuffer("text")));
   EXPECT_EQ(FS.status("/a/b")->getUniqueID(),
             FS2.status("/a/b")->getUniqueID());
@@ -1443,11 +1444,13 @@ TEST_F(VFSFromYAMLTest, MappedFiles) {
   ASSERT_FALSE(S.getError());
   EXPECT_EQ("//root/foo/bar/a", S->getName());
   EXPECT_TRUE(S->IsVFSMapped);
+  EXPECT_TRUE(S->ExposesExternalVFSPath);
 
   ErrorOr<vfs::Status> SLower = O->status("//root/foo/bar/a");
   EXPECT_EQ("//root/foo/bar/a", SLower->getName());
   EXPECT_TRUE(S->equivalent(*SLower));
   EXPECT_FALSE(SLower->IsVFSMapped);
+  EXPECT_FALSE(SLower->ExposesExternalVFSPath);
 
   // file after opening
   auto OpenedF = O->openFileForRead("//root/file1");
@@ -1456,6 +1459,7 @@ TEST_F(VFSFromYAMLTest, MappedFiles) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("//root/foo/bar/a", OpenedS->getName());
   EXPECT_TRUE(OpenedS->IsVFSMapped);
+  EXPECT_TRUE(OpenedS->ExposesExternalVFSPath);
 
   // directory
   S = O->status("//root/");
@@ -1468,26 +1472,30 @@ TEST_F(VFSFromYAMLTest, MappedFiles) {
   ASSERT_FALSE(S.getError());
   EXPECT_TRUE(S->isDirectory());
   EXPECT_TRUE(S->IsVFSMapped);
+  EXPECT_TRUE(S->ExposesExternalVFSPath);
   EXPECT_TRUE(S->equivalent(*O->status("//root/foo/bar")));
 
   SLower = O->status("//root/foo/bar");
   EXPECT_EQ("//root/foo/bar", SLower->getName());
   EXPECT_TRUE(S->equivalent(*SLower));
   EXPECT_FALSE(SLower->IsVFSMapped);
+  EXPECT_FALSE(SLower->ExposesExternalVFSPath);
 
   // file in remapped directory
   S = O->status("//root/mappeddir/a");
   ASSERT_FALSE(S.getError());
-  ASSERT_FALSE(S->isDirectory());
-  ASSERT_TRUE(S->IsVFSMapped);
-  ASSERT_EQ("//root/foo/bar/a", S->getName());
+  EXPECT_FALSE(S->isDirectory());
+  EXPECT_TRUE(S->IsVFSMapped);
+  EXPECT_TRUE(S->ExposesExternalVFSPath);
+  EXPECT_EQ("//root/foo/bar/a", S->getName());
 
   // file in remapped directory, with use-external-name=false
   S = O->status("//root/mappeddir2/a");
   ASSERT_FALSE(S.getError());
-  ASSERT_FALSE(S->isDirectory());
-  ASSERT_TRUE(S->IsVFSMapped);
-  ASSERT_EQ("//root/mappeddir2/a", S->getName());
+  EXPECT_FALSE(S->isDirectory());
+  EXPECT_TRUE(S->IsVFSMapped);
+  EXPECT_FALSE(S->ExposesExternalVFSPath);
+  EXPECT_EQ("//root/mappeddir2/a", S->getName());
 
   // file contents in remapped directory
   OpenedF = O->openFileForRead("//root/mappeddir/a");
@@ -1496,6 +1504,7 @@ TEST_F(VFSFromYAMLTest, MappedFiles) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("//root/foo/bar/a", OpenedS->getName());
   EXPECT_TRUE(OpenedS->IsVFSMapped);
+  EXPECT_TRUE(OpenedS->ExposesExternalVFSPath);
 
   // file contents in remapped directory, with use-external-name=false
   OpenedF = O->openFileForRead("//root/mappeddir2/a");
@@ -1504,6 +1513,7 @@ TEST_F(VFSFromYAMLTest, MappedFiles) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("//root/mappeddir2/a", OpenedS->getName());
   EXPECT_TRUE(OpenedS->IsVFSMapped);
+  EXPECT_FALSE(OpenedS->ExposesExternalVFSPath);
 
   // broken mapping
   EXPECT_EQ(O->status("//root/file2").getError(),
@@ -1536,11 +1546,13 @@ TEST_F(VFSFromYAMLTest, MappedRoot) {
   ASSERT_FALSE(S.getError());
   EXPECT_EQ("//root/foo/bar/a", S->getName());
   EXPECT_TRUE(S->IsVFSMapped);
+  EXPECT_TRUE(S->ExposesExternalVFSPath);
 
   ErrorOr<vfs::Status> SLower = O->status("//root/foo/bar/a");
   EXPECT_EQ("//root/foo/bar/a", SLower->getName());
   EXPECT_TRUE(S->equivalent(*SLower));
   EXPECT_FALSE(SLower->IsVFSMapped);
+  EXPECT_FALSE(SLower->ExposesExternalVFSPath);
 
   // file after opening
   auto OpenedF = O->openFileForRead("//mappedroot/a");
@@ -1549,6 +1561,7 @@ TEST_F(VFSFromYAMLTest, MappedRoot) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("//root/foo/bar/a", OpenedS->getName());
   EXPECT_TRUE(OpenedS->IsVFSMapped);
+  EXPECT_TRUE(OpenedS->ExposesExternalVFSPath);
 
   EXPECT_EQ(0, NumDiagnostics);
 }
@@ -1697,11 +1710,13 @@ TEST_F(VFSFromYAMLTest, ReturnsRequestedPathVFSMiss) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("a", OpenedS->getName());
   EXPECT_FALSE(OpenedS->IsVFSMapped);
+  EXPECT_FALSE(OpenedS->ExposesExternalVFSPath);
 
   auto DirectS = RemappedFS->status("a");
   ASSERT_FALSE(DirectS.getError());
   EXPECT_EQ("a", DirectS->getName());
   EXPECT_FALSE(DirectS->IsVFSMapped);
+  EXPECT_FALSE(DirectS->ExposesExternalVFSPath);
 
   EXPECT_EQ(0, NumDiagnostics);
 }
@@ -1737,11 +1752,13 @@ TEST_F(VFSFromYAMLTest, ReturnsExternalPathVFSHit) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("realname", OpenedS->getName());
   EXPECT_TRUE(OpenedS->IsVFSMapped);
+  EXPECT_TRUE(OpenedS->ExposesExternalVFSPath);
 
   auto DirectS = FS->status("vfsname");
   ASSERT_FALSE(DirectS.getError());
   EXPECT_EQ("realname", DirectS->getName());
   EXPECT_TRUE(DirectS->IsVFSMapped);
+  EXPECT_TRUE(DirectS->ExposesExternalVFSPath);
 
   EXPECT_EQ(0, NumDiagnostics);
 }
@@ -1777,11 +1794,13 @@ TEST_F(VFSFromYAMLTest, ReturnsInternalPathVFSHit) {
   ASSERT_FALSE(OpenedS.getError());
   EXPECT_EQ("vfsname", OpenedS->getName());
   EXPECT_TRUE(OpenedS->IsVFSMapped);
+  EXPECT_FALSE(OpenedS->ExposesExternalVFSPath);
 
   auto DirectS = FS->status("vfsname");
   ASSERT_FALSE(DirectS.getError());
   EXPECT_EQ("vfsname", DirectS->getName());
   EXPECT_TRUE(DirectS->IsVFSMapped);
+  EXPECT_FALSE(DirectS->ExposesExternalVFSPath);
 
   EXPECT_EQ(0, NumDiagnostics);
 }
@@ -2143,7 +2162,7 @@ TEST_F(VFSFromYAMLTest, DirectoryIteration) {
 TEST_F(VFSFromYAMLTest, DirectoryIterationSameDirMultipleEntries) {
   // https://llvm.org/bugs/show_bug.cgi?id=27725
   if (!supportsSameDirMultipleYAMLEntries())
-    return;
+    GTEST_SKIP();
 
   IntrusiveRefCntPtr<DummyFileSystem> Lower(new DummyFileSystem());
   Lower->addDirectory("//root/zab");

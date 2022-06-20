@@ -23,7 +23,7 @@ namespace {
 struct ShapeBufferizePass : public ShapeBufferizeBase<ShapeBufferizePass> {
   void runOnOperation() override {
     BufferizationOptions options = getPartialBufferizationOptions();
-    options.allowDialectInFilter<shape::ShapeDialect>();
+    options.opFilter.allowDialect<shape::ShapeDialect>();
 
     if (failed(bufferizeOp(getOperation(), options)))
       signalPassFailure();
@@ -37,6 +37,6 @@ struct ShapeBufferizePass : public ShapeBufferizeBase<ShapeBufferizePass> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::createShapeBufferizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>> mlir::createShapeBufferizePass() {
   return std::make_unique<ShapeBufferizePass>();
 }

@@ -634,6 +634,7 @@ void StubHelperSection::setup() {
       make<Defined>("__dyld_private", nullptr, in.imageLoaderCache, 0, 0,
                     /*isWeakDef=*/false,
                     /*isExternal=*/false, /*isPrivateExtern=*/false,
+                    /*includeInSymtab=*/true,
                     /*isThumb=*/false, /*isReferencedDynamically=*/false,
                     /*noDeadStrip=*/false);
   dyldPrivate->used = true;
@@ -703,8 +704,8 @@ uint32_t LazyBindingSection::encode(const Symbol &sym) {
   OutputSegment *dataSeg = in.lazyPointers->parent;
   os << static_cast<uint8_t>(BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB |
                              dataSeg->index);
-  uint64_t offset = in.lazyPointers->addr - dataSeg->addr +
-                    sym.stubsIndex * target->wordSize;
+  uint64_t offset =
+      in.lazyPointers->addr - dataSeg->addr + sym.stubsIndex * target->wordSize;
   encodeULEB128(offset, os);
   encodeDylibOrdinal(ordinalForSymbol(sym), os);
 
@@ -889,32 +890,46 @@ void SymtabSection::emitStabs() {
     stabs.emplace_back(std::move(astStab));
   }
 
-  std::vector<Defined *> symbolsNeedingStabs;
+  // Cache the file ID for each symbol in an std::pair for faster sorting.
+  using SortingPair = std::pair<Defined *, int>;
+  std::vector<SortingPair> symbolsNeedingStabs;
   for (const SymtabEntry &entry :
        concat<SymtabEntry>(localSymbols, externalSymbols)) {
     Symbol *sym = entry.sym;
     assert(sym->isLive() &&
            "dead symbols should not be in localSymbols, externalSymbols");
     if (auto *defined = dyn_cast<Defined>(sym)) {
+      // Excluded symbols should have been filtered out in finalizeContents().
+      assert(defined->includeInSymtab);
+
       if (defined->isAbsolute())
         continue;
+
+      // Constant-folded symbols go in the executable's symbol table, but don't
+      // get a stabs entry.
+      if (defined->wasIdenticalCodeFolded)
+        continue;
+
       InputSection *isec = defined->isec;
       ObjFile *file = dyn_cast_or_null<ObjFile>(isec->getFile());
       if (!file || !file->compileUnit)
         continue;
-      symbolsNeedingStabs.push_back(defined);
+
+      symbolsNeedingStabs.emplace_back(defined, defined->isec->getFile()->id);
     }
   }
 
-  llvm::stable_sort(symbolsNeedingStabs, [&](Defined *a, Defined *b) {
-    return a->isec->getFile()->id < b->isec->getFile()->id;
-  });
+  llvm::stable_sort(symbolsNeedingStabs,
+                    [&](const SortingPair &a, const SortingPair &b) {
+                      return a.second < b.second;
+                    });
 
   // Emit STABS symbols so that dsymutil and/or the debugger can map address
   // regions in the final binary to the source and object files from which they
   // originated.
   InputFile *lastFile = nullptr;
-  for (Defined *defined : symbolsNeedingStabs) {
+  for (SortingPair &pair : symbolsNeedingStabs) {
+    Defined *defined = pair.first;
     InputSection *isec = defined->isec;
     ObjFile *file = cast<ObjFile>(isec->getFile());
 
@@ -952,16 +967,42 @@ void SymtabSection::finalizeContents() {
     symbols.push_back({sym, strx});
   };
 
+  std::function<void(Symbol *)> localSymbolsHandler;
+  switch (config->localSymbolsPresence) {
+  case SymtabPresence::All:
+    localSymbolsHandler = [&](Symbol *sym) { addSymbol(localSymbols, sym); };
+    break;
+  case SymtabPresence::None:
+    localSymbolsHandler = [&](Symbol *) { /* Do nothing*/ };
+    break;
+  case SymtabPresence::SelectivelyIncluded:
+    localSymbolsHandler = [&](Symbol *sym) {
+      if (config->localSymbolPatterns.match(sym->getName()))
+        addSymbol(localSymbols, sym);
+    };
+    break;
+  case SymtabPresence::SelectivelyExcluded:
+    localSymbolsHandler = [&](Symbol *sym) {
+      if (!config->localSymbolPatterns.match(sym->getName()))
+        addSymbol(localSymbols, sym);
+    };
+    break;
+  }
+
   // Local symbols aren't in the SymbolTable, so we walk the list of object
   // files to gather them.
-  for (const InputFile *file : inputFiles) {
-    if (auto *objFile = dyn_cast<ObjFile>(file)) {
-      for (Symbol *sym : objFile->symbols) {
-        if (auto *defined = dyn_cast_or_null<Defined>(sym)) {
-          if (!defined->isExternal() && defined->isLive()) {
-            StringRef name = defined->getName();
-            if (!name.startswith("l") && !name.startswith("L"))
-              addSymbol(localSymbols, sym);
+  // But if `-x` is set, then we don't need to. localSymbolsHandler() will do
+  // the right thing regardless, but this check is a perf optimization because
+  // iterating through all the input files and their symbols is expensive.
+  if (config->localSymbolsPresence != SymtabPresence::None) {
+    for (const InputFile *file : inputFiles) {
+      if (auto *objFile = dyn_cast<ObjFile>(file)) {
+        for (Symbol *sym : objFile->symbols) {
+          if (auto *defined = dyn_cast_or_null<Defined>(sym)) {
+            if (defined->isExternal() || !defined->isLive() ||
+                !defined->includeInSymtab)
+              continue;
+            localSymbolsHandler(sym);
           }
         }
       }
@@ -971,7 +1012,7 @@ void SymtabSection::finalizeContents() {
   // __dyld_private is a local symbol too. It's linker-created and doesn't
   // exist in any object file.
   if (Defined *dyldPrivate = in.stubHelper->dyldPrivate)
-    addSymbol(localSymbols, dyldPrivate);
+    localSymbolsHandler(dyldPrivate);
 
   for (Symbol *sym : symtab->getSymbols()) {
     if (!sym->isLive())
@@ -981,7 +1022,7 @@ void SymtabSection::finalizeContents() {
         continue;
       assert(defined->isExternal());
       if (defined->privateExtern)
-        addSymbol(localSymbols, defined);
+        localSymbolsHandler(defined);
       else
         addSymbol(externalSymbols, defined);
     } else if (auto *dysym = dyn_cast<DylibSymbol>(sym)) {
@@ -1202,7 +1243,7 @@ void CodeSignatureSection::writeHashes(uint8_t *buf) const {
                     std::min(codeEnd - code, static_cast<ssize_t>(blockSize)));
     SHA256 hasher;
     hasher.update(block);
-    StringRef hash = hasher.final();
+    std::array<uint8_t, 32> hash = hasher.final();
     assert(hash.size() == hashSize);
     memcpy(hashes, hash.data(), hashSize);
     code += blockSize;
@@ -1430,7 +1471,7 @@ void DeduplicatedCStringSection::finalizeContents() {
       assert(it != stringOffsetMap.end());
       StringOffset &offsetInfo = it->second;
       if (offsetInfo.outSecOff == UINT64_MAX) {
-        offsetInfo.outSecOff = alignTo(size, 1 << offsetInfo.trailingZeros);
+        offsetInfo.outSecOff = alignTo(size, 1ULL << offsetInfo.trailingZeros);
         size = offsetInfo.outSecOff + s.size();
       }
       isec->pieces[i].outSecOff = offsetInfo.outSecOff;

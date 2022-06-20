@@ -17,6 +17,8 @@
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 
+#include <detail/context_impl.hpp>
+
 class InfoTestKernel;
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -85,14 +87,14 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
   static sycl::unittest::PiImage DevImage_1 =
       generateTestImage<InfoTestKernel>();
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
-      Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-  const sycl::context Ctx = Queue.get_context();
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
       Ctx, {Dev}, {KernelID_1});
 
@@ -139,13 +141,13 @@ TEST(GetProfilingInfo, command_exception_check) {
       redefinedPiEventGetProfilingInfo);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
   static sycl::unittest::PiImage DevImage_1 =
       generateTestImage<InfoTestKernel>();
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
-  sycl::queue Queue{Dev};
-  const sycl::context Ctx = Queue.get_context();
+  sycl::queue Queue{Ctx, Dev};
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
       Ctx, {Dev}, {KernelID_1});
   const int globalWIs{512};
@@ -219,6 +221,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
   static sycl::unittest::PiImage DevImage_1 =
       generateTestImage<InfoTestKernel>();
 
@@ -228,8 +231,8 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
   cl::sycl::event event;
   {
     sycl::queue Queue{
-        Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-    const sycl::context Ctx = Queue.get_context();
+        Ctx, Dev,
+        sycl::property_list{sycl::property::queue::enable_profiling{}}};
     auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
         Ctx, {Dev}, {KernelID_1});
     event = Queue.submit([&](sycl::handler &cgh) {
@@ -274,6 +277,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   Mock.redefine<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
   static sycl::unittest::PiImage DevImage_1 =
       generateTestImage<InfoTestKernel>();
 
@@ -282,8 +286,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   const int globalWIs{512};
   cl::sycl::event event;
   {
-    sycl::queue Queue{Dev};
-    const sycl::context Ctx = Queue.get_context();
+    sycl::queue Queue{Ctx, Dev};
     auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
         Ctx, {Dev}, {KernelID_1});
     event = Queue.submit([&](sycl::handler &cgh) {
@@ -325,4 +328,6 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
                              "'enable_profiling' queue property");
     }
   }
+  // The test passes without this, but keep it still, just in case.
+  sycl::detail::getSyclObjImpl(Ctx)->getKernelProgramCache().reset();
 }

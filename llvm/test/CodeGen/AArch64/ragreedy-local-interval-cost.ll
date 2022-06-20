@@ -5,7 +5,7 @@
 @B = external dso_local local_unnamed_addr global [8 x [8 x i64]], align 8
 @C = external dso_local local_unnamed_addr global [8 x [8 x i64]], align 8
 
-define dso_local void @run_test() local_unnamed_addr #0 {
+define dso_local void @run_test() local_unnamed_addr uwtable {
 ; CHECK-LABEL: run_test:
 ; CHECK:       // %bb.0: // %entry
 ; CHECK-NEXT:    sub sp, sp, #96
@@ -23,11 +23,11 @@ define dso_local void @run_test() local_unnamed_addr #0 {
 ; CHECK-NEXT:    .cfi_offset b14, -56
 ; CHECK-NEXT:    .cfi_offset b15, -64
 ; CHECK-NEXT:    movi v14.2d, #0000000000000000
-; CHECK-NEXT:    adrp x10, B+48
-; CHECK-NEXT:    adrp x11, A
 ; CHECK-NEXT:    mov x8, xzr
 ; CHECK-NEXT:    mov x9, xzr
+; CHECK-NEXT:    adrp x10, B+48
 ; CHECK-NEXT:    add x10, x10, :lo12:B+48
+; CHECK-NEXT:    adrp x11, A
 ; CHECK-NEXT:    add x11, x11, :lo12:A
 ; CHECK-NEXT:    // implicit-def: $q2
 ; CHECK-NEXT:    // implicit-def: $q3
@@ -152,15 +152,11 @@ define dso_local void @run_test() local_unnamed_addr #0 {
 ; CHECK-NEXT:    stp q13, q12, [x8]
 ; CHECK-NEXT:    stp q11, q10, [x8, #32]
 ; CHECK-NEXT:    stp q9, q8, [x8, #64]
-; CHECK-NEXT:    stp q4, q15, [x8, #432]
-; CHECK-NEXT:    stp q14, q3, [x8, #464]
-; CHECK-NEXT:    ldp d9, d8, [sp, #80] // 16-byte Folded Reload
-; CHECK-NEXT:    stp q31, q30, [x8, #96]
 ; CHECK-NEXT:    ldp d11, d10, [sp, #64] // 16-byte Folded Reload
-; CHECK-NEXT:    stp q29, q28, [x8, #144]
+; CHECK-NEXT:    stp q31, q30, [x8, #96]
 ; CHECK-NEXT:    ldp d13, d12, [sp, #48] // 16-byte Folded Reload
+; CHECK-NEXT:    stp q29, q28, [x8, #144]
 ; CHECK-NEXT:    stp q27, q26, [x8, #176]
-; CHECK-NEXT:    ldp d15, d14, [sp, #32] // 16-byte Folded Reload
 ; CHECK-NEXT:    str q25, [x8, #208]
 ; CHECK-NEXT:    stp q24, q23, [x8, #240]
 ; CHECK-NEXT:    stp q22, q21, [x8, #272]
@@ -168,8 +164,21 @@ define dso_local void @run_test() local_unnamed_addr #0 {
 ; CHECK-NEXT:    stp q18, q17, [x8, #336]
 ; CHECK-NEXT:    stp q16, q7, [x8, #368]
 ; CHECK-NEXT:    stp q6, q5, [x8, #400]
+; CHECK-NEXT:    stp q4, q15, [x8, #432]
+; CHECK-NEXT:    stp q14, q3, [x8, #464]
+; CHECK-NEXT:    ldp d9, d8, [sp, #80] // 16-byte Folded Reload
 ; CHECK-NEXT:    str q2, [x8, #496]
+; CHECK-NEXT:    ldp d15, d14, [sp, #32] // 16-byte Folded Reload
 ; CHECK-NEXT:    add sp, sp, #96
+; CHECK-NEXT:    .cfi_def_cfa_offset 0
+; CHECK-NEXT:    .cfi_restore b8
+; CHECK-NEXT:    .cfi_restore b9
+; CHECK-NEXT:    .cfi_restore b10
+; CHECK-NEXT:    .cfi_restore b11
+; CHECK-NEXT:    .cfi_restore b12
+; CHECK-NEXT:    .cfi_restore b13
+; CHECK-NEXT:    .cfi_restore b14
+; CHECK-NEXT:    .cfi_restore b15
 ; CHECK-NEXT:    ret
 ; CH`ECK-NEXT:    .cfi_offset b9, -16
 entry:

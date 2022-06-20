@@ -38,7 +38,7 @@ static llvm::cl::OptionCategory clOptionsCategory(DEBUG_TYPE " options");
 static llvm::cl::list<int> clTestVectorShapeRatio(
     "vector-shape-ratio",
     llvm::cl::desc("Specify the HW vector size for vectorization"),
-    llvm::cl::ZeroOrMore, llvm::cl::cat(clOptionsCategory));
+    llvm::cl::cat(clOptionsCategory));
 static llvm::cl::opt<bool> clTestForwardSlicingAnalysis(
     "forward-slicing",
     llvm::cl::desc("Enable testing forward static slicing and topological sort "
@@ -70,7 +70,9 @@ static llvm::cl::opt<bool> clTestVecAffineLoopNest(
 
 namespace {
 struct VectorizerTestPass
-    : public PassWrapper<VectorizerTestPass, OperationPass<FuncOp>> {
+    : public PassWrapper<VectorizerTestPass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(VectorizerTestPass)
+
   static constexpr auto kTestAffineMapOpName = "test_affine_map";
   static constexpr auto kTestAffineMapAttrName = "affine_map";
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -239,7 +241,7 @@ void VectorizerTestPass::testVecAffineLoopNest() {
 
 void VectorizerTestPass::runOnOperation() {
   // Only support single block functions at this point.
-  FuncOp f = getOperation();
+  func::FuncOp f = getOperation();
   if (!llvm::hasSingleElement(f))
     return;
 

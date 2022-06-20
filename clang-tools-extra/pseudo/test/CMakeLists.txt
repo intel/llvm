@@ -1,9 +1,10 @@
 set(CLANG_PSEUDO_TEST_DEPS
   clang-pseudo
+  clang-pseudo-fuzzer
   ClangPseudoTests
   )
 
-foreach(dep FileCheck not)
+foreach(dep FileCheck not count)
   if(TARGET ${dep})
     list(APPEND CLANG_PSEUDO_TEST_DEPS ${dep})
   endif()

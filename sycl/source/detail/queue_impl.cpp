@@ -201,7 +201,7 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   xpti::utils::StringHelper NG;
   Name = NG.nameWithAddress<queue_impl *>("queue.wait", this);
 
-  if (!CodeLoc.fileName()) {
+  if (CodeLoc.fileName()) {
     // We have source code location information
     Payload =
         xpti::payload_t(Name.c_str(), CodeLoc.fileName(), CodeLoc.lineNumber(),
@@ -236,7 +236,9 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
       xpti::addMetadata(WaitEvent, "sym_line_no",
-                        std::to_string(CodeLoc.lineNumber()));
+                        static_cast<int32_t>((CodeLoc.lineNumber())));
+      xpti::addMetadata(WaitEvent, "sym_column_no",
+                        static_cast<int32_t>((CodeLoc.columnNumber())));
     }
     xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
                           QWaitInstanceNo,

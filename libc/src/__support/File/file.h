@@ -97,6 +97,19 @@ private:
   bool eof;
   bool err;
 
+  // This is a convenience RAII class to lock and unlock file objects.
+  class FileLock {
+    File *file;
+
+  public:
+    explicit FileLock(File *f) : file(f) { file->lock(); }
+
+    ~FileLock() { file->unlock(); }
+
+    FileLock(const FileLock &) = delete;
+    FileLock(FileLock &&) = delete;
+  };
+
 protected:
   bool write_allowed() const {
     return mode & (static_cast<ModeFlags>(OpenMode::WRITE) |
@@ -145,17 +158,34 @@ public:
     f->eof = f->err = false;
   }
 
-  // Buffered write of |len| bytes from |data|.
-  size_t write(const void *data, size_t len);
+  // Buffered write of |len| bytes from |data| without the file lock.
+  size_t write_unlocked(const void *data, size_t len);
 
-  // Buffered read of |len| bytes into |data|.
-  size_t read(void *data, size_t len);
+  // Buffered write of |len| bytes from |data| under the file lock.
+  size_t write(const void *data, size_t len) {
+    FileLock l(this);
+    return write_unlocked(data, len);
+  }
+
+  // Buffered read of |len| bytes into |data| without the file lock.
+  size_t read_unlocked(void *data, size_t len);
+
+  // Buffered read of |len| bytes into |data| under the file lock.
+  size_t read(void *data, size_t len) {
+    FileLock l(this);
+    return read_unlocked(data, len);
+  }
 
   int seek(long offset, int whence);
 
   // If buffer has data written to it, flush it out. Does nothing if the
   // buffer is currently being used as a read buffer.
-  int flush();
+  int flush() {
+    FileLock lock(this);
+    return flush_unlocked();
+  }
+
+  int flush_unlocked();
 
   // Sets the internal buffer to |buffer| with buffering mode |mode|.
   // |size| is the size of |buffer|. This new |buffer| is owned by the
@@ -168,31 +198,43 @@ public:
   void lock() { mutex.lock(); }
   void unlock() { mutex.unlock(); }
 
-  bool error() const { return err; }
-  void clearerr() { err = false; }
-  bool iseof() const { return eof; }
+  bool error_unlocked() const { return err; }
+
+  bool error() {
+    FileLock l(this);
+    return error_unlocked();
+  }
+
+  void clearerr_unlocked() { err = false; }
+
+  void clearerr() {
+    FileLock l(this);
+    clearerr_unlocked();
+  }
+
+  bool iseof_unlocked() { return eof; }
+
+  bool iseof() {
+    FileLock l(this);
+    return iseof_unlocked();
+  }
 
   // Returns an bit map of flags corresponding to enumerations of
   // OpenMode, ContentType and CreateType.
   static ModeFlags mode_flags(const char *mode);
-};
 
-// This is a convenience RAII class to lock and unlock file objects.
-class FileLock {
-  File *file;
-
-public:
-  explicit FileLock(File *f) : file(f) { file->lock(); }
-
-  ~FileLock() { file->unlock(); }
-
-  FileLock(const FileLock &) = delete;
-  FileLock(FileLock &&) = delete;
+private:
+  size_t write_unlocked_lbf(const void *data, size_t len);
+  size_t write_unlocked_fbf(const void *data, size_t len);
+  size_t write_unlocked_nbf(const void *data, size_t len);
 };
 
 // The implementaiton of this function is provided by the platfrom_file
 // library.
 File *openfile(const char *path, const char *mode);
+
+extern File *stdout;
+extern File *stderr;
 
 } // namespace __llvm_libc
 

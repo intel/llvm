@@ -117,9 +117,9 @@ class Defined : public Symbol {
 public:
   Defined(StringRefZ name, InputFile *file, InputSection *isec, uint64_t value,
           uint64_t size, bool isWeakDef, bool isExternal, bool isPrivateExtern,
-          bool isThumb, bool isReferencedDynamically, bool noDeadStrip,
-          bool canOverrideWeakDef = false, bool isWeakDefCanBeHidden = false,
-          bool interposable = false);
+          bool includeInSymtab, bool isThumb, bool isReferencedDynamically,
+          bool noDeadStrip, bool canOverrideWeakDef = false,
+          bool isWeakDefCanBeHidden = false, bool interposable = false);
 
   bool isWeakDef() const override { return weakDef; }
   bool isExternalWeakDef() const {
@@ -145,6 +145,8 @@ public:
   bool privateExtern : 1;
   // Whether this symbol should appear in the output symbol table.
   bool includeInSymtab : 1;
+  // Whether this symbol was folded into a different symbol during ICF.
+  bool wasIdenticalCodeFolded : 1;
   // Only relevant when compiling for Thumb-supporting arm32 archs.
   bool thumb : 1;
   // Symbols marked referencedDynamically won't be removed from the output's
@@ -181,6 +183,7 @@ public:
   uint64_t value;
   // size is only calculated for regular (non-bitcode) symbols.
   uint64_t size;
+  // This can be a subsection of either __compact_unwind or __eh_frame.
   ConcatInputSection *unwindEntry = nullptr;
 };
 

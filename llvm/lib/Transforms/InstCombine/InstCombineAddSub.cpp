@@ -1271,7 +1271,7 @@ static Instruction *factorizeMathWithShlOps(BinaryOperator &I,
 }
 
 Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
-  if (Value *V = SimplifyAddInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyAddInst(I.getOperand(0), I.getOperand(1),
                                  I.hasNoSignedWrap(), I.hasNoUnsignedWrap(),
                                  SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -1367,6 +1367,13 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
       Constant *NewRHS = ConstantInt::get(RHS->getType(), minusC1);
       return BinaryOperator::CreateSRem(RHS, NewRHS);
     }
+  }
+
+  // (A & 2^C1) + A => A & (2^C1 - 1) iff bit C1 in A is a sign bit
+  if (match(&I, m_c_Add(m_And(m_Value(A), m_APInt(C1)), m_Deferred(A))) &&
+      C1->isPowerOf2() && (ComputeNumSignBits(A) > C1->countLeadingZeros())) {
+    Constant *NewMask = ConstantInt::get(RHS->getType(), *C1 - 1);
+    return BinaryOperator::CreateAnd(A, NewMask);
   }
 
   // A+B --> A|B iff A and B have no bits set in common.
@@ -1522,7 +1529,7 @@ static Instruction *factorizeFAddFSub(BinaryOperator &I,
 }
 
 Instruction *InstCombinerImpl::visitFAdd(BinaryOperator &I) {
-  if (Value *V = SimplifyFAddInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFAddInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -1681,7 +1688,8 @@ Value *InstCombinerImpl::OptimizePointerDifference(Value *LHS, Value *RHS,
   // Require at least one GEP with a common base pointer on both sides.
   if (auto *LHSGEP = dyn_cast<GEPOperator>(LHS)) {
     // (gep X, ...) - X
-    if (LHSGEP->getOperand(0) == RHS) {
+    if (LHSGEP->getOperand(0)->stripPointerCasts() ==
+        RHS->stripPointerCasts()) {
       GEP1 = LHSGEP;
     } else if (auto *RHSGEP = dyn_cast<GEPOperator>(RHS)) {
       // (gep X, ...) - (gep X, ...)
@@ -1743,7 +1751,7 @@ Value *InstCombinerImpl::OptimizePointerDifference(Value *LHS, Value *RHS,
 }
 
 Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
-  if (Value *V = SimplifySubInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifySubInst(I.getOperand(0), I.getOperand(1),
                                  I.hasNoSignedWrap(), I.hasNoUnsignedWrap(),
                                  SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -2008,6 +2016,37 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     }
   }
 
+  if (auto *II = dyn_cast<MinMaxIntrinsic>(Op1)) {
+    {
+      // sub(add(X,Y), s/umin(X,Y)) --> s/umax(X,Y)
+      // sub(add(X,Y), s/umax(X,Y)) --> s/umin(X,Y)
+      Value *X = II->getLHS();
+      Value *Y = II->getRHS();
+      if (match(Op0, m_c_Add(m_Specific(X), m_Specific(Y))) &&
+          (Op0->hasOneUse() || Op1->hasOneUse())) {
+        Intrinsic::ID InvID = getInverseMinMaxIntrinsic(II->getIntrinsicID());
+        Value *InvMaxMin = Builder.CreateBinaryIntrinsic(InvID, X, Y);
+        return replaceInstUsesWith(I, InvMaxMin);
+      }
+    }
+
+    {
+      // sub(add(X,Y),umin(Y,Z)) --> add(X,usub.sat(Y,Z))
+      // sub(add(X,Z),umin(Y,Z)) --> add(X,usub.sat(Z,Y))
+      Value *X, *Y, *Z;
+      if (match(Op1, m_OneUse(m_UMin(m_Value(Y), m_Value(Z))))) {
+        if (match(Op0, m_OneUse(m_c_Add(m_Specific(Y), m_Value(X)))))
+          return BinaryOperator::CreateAdd(
+              X, Builder.CreateIntrinsic(Intrinsic::usub_sat, I.getType(),
+                                         {Y, Z}));
+        if (match(Op0, m_OneUse(m_c_Add(m_Specific(Z), m_Value(X)))))
+          return BinaryOperator::CreateAdd(
+              X, Builder.CreateIntrinsic(Intrinsic::usub_sat, I.getType(),
+                                         {Z, Y}));
+      }
+    }
+  }
+
   {
     // If we have a subtraction between some value and a select between
     // said value and something else, sink subtraction into select hands, i.e.:
@@ -2113,11 +2152,11 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     // B = ashr i32 A, 31 ; smear the sign bit
     // sub (xor A, B), B  ; flip bits if negative and subtract -1 (add 1)
     // --> (A < 0) ? -A : A
-    Value *Cmp = Builder.CreateICmpSLT(A, ConstantInt::getNullValue(Ty));
+    Value *IsNeg = Builder.CreateIsNeg(A);
     // Copy the nuw/nsw flags from the sub to the negate.
-    Value *Neg = Builder.CreateNeg(A, "", I.hasNoUnsignedWrap(),
-                                   I.hasNoSignedWrap());
-    return SelectInst::Create(Cmp, Neg, A);
+    Value *NegA = Builder.CreateNeg(A, "", I.hasNoUnsignedWrap(),
+                                    I.hasNoSignedWrap());
+    return SelectInst::Create(IsNeg, NegA, A);
   }
 
   // If we are subtracting a low-bit masked subset of some value from an add
@@ -2239,7 +2278,7 @@ static Instruction *hoistFNegAboveFMulFDiv(Instruction &I,
 Instruction *InstCombinerImpl::visitFNeg(UnaryOperator &I) {
   Value *Op = I.getOperand(0);
 
-  if (Value *V = SimplifyFNegInst(Op, I.getFastMathFlags(),
+  if (Value *V = simplifyFNegInst(Op, I.getFastMathFlags(),
                                   getSimplifyQuery().getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -2290,7 +2329,7 @@ Instruction *InstCombinerImpl::visitFNeg(UnaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitFSub(BinaryOperator &I) {
-  if (Value *V = SimplifyFSubInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFSubInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   getSimplifyQuery().getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);

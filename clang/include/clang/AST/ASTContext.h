@@ -314,6 +314,10 @@ class ASTContext : public RefCountedBase<ASTContext> {
   /// Mapping from GUIDs to the corresponding MSGuidDecl.
   mutable llvm::FoldingSet<MSGuidDecl> MSGuidDecls;
 
+  /// Mapping from APValues to the corresponding UnnamedGlobalConstantDecl.
+  mutable llvm::FoldingSet<UnnamedGlobalConstantDecl>
+      UnnamedGlobalConstantDecls;
+
   /// Mapping from APValues to the corresponding TemplateParamObjects.
   mutable llvm::FoldingSet<TemplateParamObjectDecl> TemplateParamObjectDecls;
 
@@ -1160,6 +1164,10 @@ public:
 
   /// Keep track of CUDA/HIP device-side variables ODR-used by host code.
   llvm::DenseSet<const VarDecl *> CUDADeviceVarODRUsedByHost;
+
+  /// Keep track of CUDA/HIP external kernels or device variables ODR-used by
+  /// host code.
+  llvm::DenseSet<const ValueDecl *> CUDAExternalDeviceDeclODRUsedByHost;
 
   ASTContext(LangOptions &LOpts, SourceManager &SM, IdentifierTable &idents,
              SelectorTable &sels, Builtin::Context &builtins,
@@ -2179,7 +2187,7 @@ public:
 
   TemplateName getQualifiedTemplateName(NestedNameSpecifier *NNS,
                                         bool TemplateKeyword,
-                                        TemplateDecl *Template) const;
+                                        TemplateName Template) const;
 
   TemplateName getDependentTemplateName(NestedNameSpecifier *NNS,
                                         const IdentifierInfo *Name) const;
@@ -3038,7 +3046,8 @@ public:
   DeclaratorDecl *getDeclaratorForUnnamedTagDecl(const TagDecl *TD);
 
   void setManglingNumber(const NamedDecl *ND, unsigned Number);
-  unsigned getManglingNumber(const NamedDecl *ND) const;
+  unsigned getManglingNumber(const NamedDecl *ND,
+                             bool ForAuxTarget = false) const;
 
   void setStaticLocalNumber(const VarDecl *VD, unsigned Number);
   unsigned getStaticLocalNumber(const VarDecl *VD) const;
@@ -3068,6 +3077,11 @@ public:
   /// Return a declaration for the global GUID object representing the given
   /// GUID value.
   MSGuidDecl *getMSGuidDecl(MSGuidDeclParts Parts) const;
+
+  /// Return a declaration for a uniquified anonymous global constant
+  /// corresponding to a given APValue.
+  UnnamedGlobalConstantDecl *
+  getUnnamedGlobalConstantDecl(QualType Ty, const APValue &Value) const;
 
   /// Return the template parameter object of the given type with the given
   /// value.
@@ -3285,11 +3299,11 @@ public:
   /// Return a new OMPTraitInfo object owned by this context.
   OMPTraitInfo &getNewOMPTraitInfo();
 
-  /// Whether a C++ static variable may be externalized.
-  bool mayExternalizeStaticVar(const Decl *D) const;
+  /// Whether a C++ static variable or CUDA/HIP kernel may be externalized.
+  bool mayExternalize(const Decl *D) const;
 
-  /// Whether a C++ static variable should be externalized.
-  bool shouldExternalizeStaticVar(const Decl *D) const;
+  /// Whether a C++ static variable or CUDA/HIP kernel should be externalized.
+  bool shouldExternalize(const Decl *D) const;
 
   StringRef getCUIDHash() const;
 

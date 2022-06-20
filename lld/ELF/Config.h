@@ -187,7 +187,6 @@ struct Configuration {
   bool ltoPGOWarnMismatch;
   bool ltoDebugPassManager;
   bool ltoEmitAsm;
-  bool ltoNewPassManager;
   bool ltoUniqueBasicBlockSectionNames;
   bool ltoWholeProgramVisibility;
   bool mergeArmExidx;
@@ -199,6 +198,7 @@ struct Configuration {
   bool nostdlib;
   bool oFormatBinary;
   bool omagic;
+  bool opaquePointers;
   bool optEB = false;
   bool optEL = false;
   bool optimizeBBJumps;
@@ -347,6 +347,18 @@ struct Configuration {
 
   // 4 for ELF32, 8 for ELF64.
   int wordsize;
+
+  // Mode of MTE to write to the ELF note. Should be one of NT_MEMTAG_ASYNC (for
+  // async), NT_MEMTAG_SYNC (for sync), or NT_MEMTAG_LEVEL_NONE (for none). If
+  // async or sync is enabled, write the ELF note specifying the default MTE
+  // mode.
+  int androidMemtagMode;
+  // Signal to the dynamic loader to enable heap MTE.
+  bool androidMemtagHeap;
+  // Signal to the dynamic loader that this binary expects stack MTE. Generally,
+  // this means to map the primary and thread stacks as PROT_MTE. Note: This is
+  // not supported on Android 11 & 12.
+  bool androidMemtagStack;
 };
 
 // The only instance of Configuration struct.

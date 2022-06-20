@@ -7,12 +7,14 @@
 //===----------------------------------------------------------------------===//
 #include "ProfileGenerator.h"
 #include "ErrorHandling.h"
+#include "PerfReader.h"
 #include "ProfiledBinary.h"
 #include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/ProfileData/ProfileCommon.h"
 #include <algorithm>
 #include <float.h>
 #include <unordered_set>
+#include <utility>
 
 cl::opt<std::string> OutputFilename("output", cl::value_desc("output"),
                                     cl::Required,
@@ -52,23 +54,23 @@ static cl::opt<int32_t, true> RecursionCompression(
     cl::location(llvm::sampleprof::CSProfileGenerator::MaxCompressionSize));
 
 static cl::opt<bool>
-    TrimColdProfile("trim-cold-profile", cl::init(false), cl::ZeroOrMore,
+    TrimColdProfile("trim-cold-profile",
                     cl::desc("If the total count of the profile is smaller "
                              "than threshold, it will be trimmed."));
 
 static cl::opt<bool> CSProfMergeColdContext(
-    "csprof-merge-cold-context", cl::init(true), cl::ZeroOrMore,
+    "csprof-merge-cold-context", cl::init(true),
     cl::desc("If the total count of context profile is smaller than "
              "the threshold, it will be merged into context-less base "
              "profile."));
 
 static cl::opt<uint32_t> CSProfMaxColdContextDepth(
-    "csprof-max-cold-context-depth", cl::init(1), cl::ZeroOrMore,
+    "csprof-max-cold-context-depth", cl::init(1),
     cl::desc("Keep the last K contexts while merging cold profile. 1 means the "
              "context-less base profile"));
 
 static cl::opt<int, true> CSProfMaxContextDepth(
-    "csprof-max-context-depth", cl::ZeroOrMore,
+    "csprof-max-context-depth",
     cl::desc("Keep the last K contexts while merging profile. -1 means no "
              "depth limit."),
     cl::location(llvm::sampleprof::CSProfileGenerator::MaxContextDepth));
@@ -109,15 +111,33 @@ bool ProfileGeneratorBase::UseFSDiscriminator = false;
 
 std::unique_ptr<ProfileGeneratorBase>
 ProfileGeneratorBase::create(ProfiledBinary *Binary,
-                             const ContextSampleCounterMap &SampleCounters,
-                             bool ProfileIsCSFlat) {
+                             const ContextSampleCounterMap *SampleCounters,
+                             bool ProfileIsCS) {
   std::unique_ptr<ProfileGeneratorBase> Generator;
-  if (ProfileIsCSFlat) {
+  if (ProfileIsCS) {
     if (Binary->useFSDiscriminator())
       exitWithError("FS discriminator is not supported in CS profile.");
     Generator.reset(new CSProfileGenerator(Binary, SampleCounters));
   } else {
     Generator.reset(new ProfileGenerator(Binary, SampleCounters));
+  }
+  ProfileGeneratorBase::UseFSDiscriminator = Binary->useFSDiscriminator();
+  FunctionSamples::ProfileIsFS = Binary->useFSDiscriminator();
+
+  return Generator;
+}
+
+std::unique_ptr<ProfileGeneratorBase>
+ProfileGeneratorBase::create(ProfiledBinary *Binary,
+                             const SampleProfileMap &&Profiles,
+                             bool ProfileIsCS) {
+  std::unique_ptr<ProfileGeneratorBase> Generator;
+  if (ProfileIsCS) {
+    if (Binary->useFSDiscriminator())
+      exitWithError("FS discriminator is not supported in CS profile.");
+    Generator.reset(new CSProfileGenerator(Binary, std::move(Profiles)));
+  } else {
+    Generator.reset(new ProfileGenerator(Binary, std::move(Profiles)));
   }
   ProfileGeneratorBase::UseFSDiscriminator = Binary->useFSDiscriminator();
   FunctionSamples::ProfileIsFS = Binary->useFSDiscriminator();
@@ -361,42 +381,61 @@ void ProfileGeneratorBase::updateBodySamplesforFunctionProfile(
 }
 
 void ProfileGeneratorBase::updateTotalSamples() {
-  if (!UpdateTotalSamples)
-    return;
-
   for (auto &Item : ProfileMap) {
     FunctionSamples &FunctionProfile = Item.second;
     FunctionProfile.updateTotalSamples();
   }
 }
 
+void ProfileGeneratorBase::updateCallsiteSamples() {
+  for (auto &Item : ProfileMap) {
+    FunctionSamples &FunctionProfile = Item.second;
+    FunctionProfile.updateCallsiteSamples();
+  }
+}
+
+void ProfileGeneratorBase::updateFunctionSamples() {
+  updateCallsiteSamples();
+
+  if (UpdateTotalSamples)
+    updateTotalSamples();
+}
+
 void ProfileGeneratorBase::collectProfiledFunctions() {
   std::unordered_set<const BinaryFunction *> ProfiledFunctions;
-  // Go through all the stacks, ranges and branches in sample counters, use the
-  // start of the range to look up the function it belongs and record the
-  // function.
-  for (const auto &CI : SampleCounters) {
-    if (const auto *CtxKey = dyn_cast<AddrBasedCtxKey>(CI.first.getPtr())) {
-      for (auto Addr : CtxKey->Context) {
-        if (FuncRange *FRange = Binary->findFuncRangeForOffset(
-                Binary->virtualAddrToOffset(Addr)))
+  if (SampleCounters) {
+    // Go through all the stacks, ranges and branches in sample counters, use
+    // the start of the range to look up the function it belongs and record the
+    // function.
+    for (const auto &CI : *SampleCounters) {
+      if (const auto *CtxKey = dyn_cast<AddrBasedCtxKey>(CI.first.getPtr())) {
+        for (auto Addr : CtxKey->Context) {
+          if (FuncRange *FRange = Binary->findFuncRangeForOffset(
+                  Binary->virtualAddrToOffset(Addr)))
+            ProfiledFunctions.insert(FRange->Func);
+        }
+      }
+
+      for (auto Item : CI.second.RangeCounter) {
+        uint64_t StartOffset = Item.first.first;
+        if (FuncRange *FRange = Binary->findFuncRangeForOffset(StartOffset))
+          ProfiledFunctions.insert(FRange->Func);
+      }
+
+      for (auto Item : CI.second.BranchCounter) {
+        uint64_t SourceOffset = Item.first.first;
+        uint64_t TargetOffset = Item.first.first;
+        if (FuncRange *FRange = Binary->findFuncRangeForOffset(SourceOffset))
+          ProfiledFunctions.insert(FRange->Func);
+        if (FuncRange *FRange = Binary->findFuncRangeForOffset(TargetOffset))
           ProfiledFunctions.insert(FRange->Func);
       }
     }
-
-    for (auto Item : CI.second.RangeCounter) {
-      uint64_t StartOffset = Item.first.first;
-      if (FuncRange *FRange = Binary->findFuncRangeForOffset(StartOffset))
-        ProfiledFunctions.insert(FRange->Func);
-    }
-
-    for (auto Item : CI.second.BranchCounter) {
-      uint64_t SourceOffset = Item.first.first;
-      uint64_t TargetOffset = Item.first.first;
-      if (FuncRange *FRange = Binary->findFuncRangeForOffset(SourceOffset))
-        ProfiledFunctions.insert(FRange->Func);
-      if (FuncRange *FRange = Binary->findFuncRangeForOffset(TargetOffset))
-        ProfiledFunctions.insert(FRange->Func);
+  } else {
+    // This is for the case the input is a llvm sample profile.
+    for (const auto &FS : ProfileMap) {
+      if (auto *Func = Binary->getBinaryFunction(FS.first.getName()))
+        ProfiledFunctions.insert(Func);
     }
   }
 
@@ -416,11 +455,18 @@ ProfileGenerator::getTopLevelFunctionProfile(StringRef FuncName) {
 
 void ProfileGenerator::generateProfile() {
   collectProfiledFunctions();
-  if (Binary->usePseudoProbes()) {
-    generateProbeBasedProfile();
-  } else {
-    generateLineNumBasedProfile();
+
+  if (Binary->usePseudoProbes())
+    Binary->decodePseudoProbe();
+
+  if (SampleCounters) {
+    if (Binary->usePseudoProbes()) {
+      generateProbeBasedProfile();
+    } else {
+      generateLineNumBasedProfile();
+    }
   }
+
   postProcessProfiles();
 }
 
@@ -448,30 +494,29 @@ void ProfileGenerator::trimColdProfiles(const SampleProfileMap &Profiles,
 }
 
 void ProfileGenerator::generateLineNumBasedProfile() {
-  assert(SampleCounters.size() == 1 &&
+  assert(SampleCounters->size() == 1 &&
          "Must have one entry for profile generation.");
-  const SampleCounter &SC = SampleCounters.begin()->second;
+  const SampleCounter &SC = SampleCounters->begin()->second;
   // Fill in function body samples
   populateBodySamplesForAllFunctions(SC.RangeCounter);
   // Fill in boundary sample counts as well as call site samples for calls
   populateBoundarySamplesForAllFunctions(SC.BranchCounter);
 
-  updateTotalSamples();
+  updateFunctionSamples();
 }
 
 void ProfileGenerator::generateProbeBasedProfile() {
-  assert(SampleCounters.size() == 1 &&
+  assert(SampleCounters->size() == 1 &&
          "Must have one entry for profile generation.");
-  Binary->decodePseudoProbe();
   // Enable pseudo probe functionalities in SampleProf
   FunctionSamples::ProfileIsProbeBased = true;
-  const SampleCounter &SC = SampleCounters.begin()->second;
+  const SampleCounter &SC = SampleCounters->begin()->second;
   // Fill in function body samples
   populateBodySamplesWithProbesForAllFunctions(SC.RangeCounter);
   // Fill in boundary sample counts as well as call site samples for calls
   populateBoundarySamplesWithProbesForAllFunctions(SC.BranchCounter);
 
-  updateTotalSamples();
+  updateFunctionSamples();
 }
 
 void ProfileGenerator::populateBodySamplesWithProbesForAllFunctions(
@@ -678,19 +723,38 @@ FunctionSamples &CSProfileGenerator::getFunctionProfileForContext(
     FunctionSamples &FProfile = Ret.first->second;
     FProfile.setContext(FContext);
     return Ret.first->second;
+  } else {
+    // Update ContextWasInlined attribute for existing contexts.
+    // The current function can be called in two ways:
+    //  - when processing a probe of the current frame
+    //  - when processing the entry probe of an inlinee's frame, which
+    //    is then used to update the callsite count of the current frame.
+    // The two can happen in any order, hence here we are making sure
+    // `ContextWasInlined` is always set as expected.
+    // TODO: Note that the former does not always happen if no probes of the
+    // current frame has samples, and if the latter happens, we could lose the
+    // attribute. This should be fixed.
+    if (WasLeafInlined)
+      I->second.getContext().setAttribute(ContextWasInlined);
   }
+
   return I->second;
 }
 
 void CSProfileGenerator::generateProfile() {
-  FunctionSamples::ProfileIsCSFlat = true;
+  FunctionSamples::ProfileIsCS = true;
 
   collectProfiledFunctions();
 
-  if (Binary->usePseudoProbes()) {
-    generateProbeBasedProfile();
-  } else {
-    generateLineNumBasedProfile();
+  if (Binary->usePseudoProbes())
+    Binary->decodePseudoProbe();
+
+  if (SampleCounters) {
+    if (Binary->usePseudoProbes()) {
+      generateProbeBasedProfile();
+    } else {
+      generateLineNumBasedProfile();
+    }
   }
 
   if (Binary->getTrackFuncContextSize())
@@ -709,15 +773,19 @@ void CSProfileGenerator::computeSizeForProfiledFunctions() {
 }
 
 void CSProfileGenerator::generateLineNumBasedProfile() {
-  for (const auto &CI : SampleCounters) {
+  for (const auto &CI : *SampleCounters) {
     const auto *CtxKey = cast<StringBasedCtxKey>(CI.first.getPtr());
 
-    // Get or create function profile for the range
-    FunctionSamples &FunctionProfile =
-        getFunctionProfileForContext(CtxKey->Context, CtxKey->WasLeafInlined);
-
-    // Fill in function body samples
-    populateBodySamplesForFunction(FunctionProfile, CI.second.RangeCounter);
+    FunctionSamples *FunctionProfile = nullptr;
+    // Sample context will be empty if the jump is an external-to-internal call
+    // pattern, the head samples should be added for the internal function.
+    if (!CtxKey->Context.empty()) {
+      // Get or create function profile for the range
+      FunctionProfile = &getFunctionProfileForContext(CtxKey->Context,
+                                                      CtxKey->WasLeafInlined);
+      // Fill in function body samples
+      populateBodySamplesForFunction(*FunctionProfile, CI.second.RangeCounter);
+    }
     // Fill in boundary sample counts as well as call site samples for calls
     populateBoundarySamplesForFunction(CtxKey->Context, FunctionProfile,
                                        CI.second.BranchCounter);
@@ -728,7 +796,7 @@ void CSProfileGenerator::generateLineNumBasedProfile() {
   // body sample.
   populateInferredFunctionSamples();
 
-  updateTotalSamples();
+  updateFunctionSamples();
 }
 
 void CSProfileGenerator::populateBodySamplesForFunction(
@@ -766,7 +834,7 @@ void CSProfileGenerator::populateBodySamplesForFunction(
 }
 
 void CSProfileGenerator::populateBoundarySamplesForFunction(
-    SampleContextFrames ContextId, FunctionSamples &FunctionProfile,
+    SampleContextFrames ContextId, FunctionSamples *CallerProfile,
     const BranchSample &BranchCounters) {
 
   for (const auto &Entry : BranchCounters) {
@@ -779,20 +847,25 @@ void CSProfileGenerator::populateBoundarySamplesForFunction(
     if (CalleeName.size() == 0)
       continue;
 
-    // Record called target sample and its count
-    auto LeafLoc = Binary->getInlineLeafFrameLoc(SourceOffset);
-    if (!LeafLoc.hasValue())
-      continue;
-    FunctionProfile.addCalledTargetSamples(
-        LeafLoc->Location.LineOffset,
-        getBaseDiscriminator(LeafLoc->Location.Discriminator), CalleeName,
-        Count);
+    SampleContextFrameVector CalleeCtx;
+    if (CallerProfile) {
+      assert(!ContextId.empty() &&
+             "CallerProfile is null only if ContextId is empty");
+      // Record called target sample and its count
+      auto LeafLoc = Binary->getInlineLeafFrameLoc(SourceOffset);
+      if (LeafLoc.hasValue()) {
+        CallerProfile->addCalledTargetSamples(
+            LeafLoc->Location.LineOffset,
+            getBaseDiscriminator(LeafLoc->Location.Discriminator), CalleeName,
+            Count);
 
-    // Record head sample for called target(callee)
-    SampleContextFrameVector CalleeCtx(ContextId.begin(), ContextId.end());
-    assert(CalleeCtx.back().FuncName == LeafLoc->FuncName &&
-           "Leaf function name doesn't match");
-    CalleeCtx.back() = *LeafLoc;
+        // Record head sample for called target(callee)
+        CalleeCtx.append(ContextId.begin(), ContextId.end());
+        assert(CalleeCtx.back().FuncName == LeafLoc->FuncName &&
+               "Leaf function name doesn't match");
+        CalleeCtx.back() = *LeafLoc;
+      }
+    }
     CalleeCtx.emplace_back(CalleeName, LineLocation(0, 0));
     FunctionSamples &CalleeProfile = getFunctionProfileForContext(CalleeCtx);
     CalleeProfile.addHeadSamples(Count);
@@ -863,8 +936,7 @@ void CSProfileGenerator::postProcessProfiles() {
   // Run global pre-inliner to adjust/merge context profile based on estimated
   // inline decisions.
   if (EnableCSPreInliner) {
-    CSPreInliner(ProfileMap, *Binary, HotCountThreshold, ColdCountThreshold)
-        .run();
+    CSPreInliner(ProfileMap, *Binary, Summary.get()).run();
     // Turn off the profile merger by default unless it is explicitly enabled.
     if (!CSProfMergeColdContext.getNumOccurrences())
       CSProfMergeColdContext = false;
@@ -888,14 +960,13 @@ void CSProfileGenerator::postProcessProfiles() {
   if (GenCSNestedProfile) {
     CSProfileConverter CSConverter(ProfileMap);
     CSConverter.convertProfiles();
-    FunctionSamples::ProfileIsCSFlat = false;
-    FunctionSamples::ProfileIsCSNested = EnableCSPreInliner;
+    FunctionSamples::ProfileIsCS = false;
   }
 }
 
 void ProfileGeneratorBase::computeSummaryAndThreshold() {
   SampleProfileSummaryBuilder Builder(ProfileSummaryBuilder::DefaultCutoffs);
-  auto Summary = Builder.computeSummaryForProfiles(ProfileMap);
+  Summary = Builder.computeSummaryForProfiles(ProfileMap);
   HotCountThreshold = ProfileSummaryBuilder::getHotCountThreshold(
       (Summary->getDetailedSummary()));
   ColdCountThreshold = ProfileSummaryBuilder::getColdCountThreshold(
@@ -967,10 +1038,9 @@ extractPrefixContextStack(SampleContextFrameVector &ContextStack,
 }
 
 void CSProfileGenerator::generateProbeBasedProfile() {
-  Binary->decodePseudoProbe();
   // Enable pseudo probe functionalities in SampleProf
   FunctionSamples::ProfileIsProbeBased = true;
-  for (const auto &CI : SampleCounters) {
+  for (const auto &CI : *SampleCounters) {
     const AddrBasedCtxKey *CtxKey =
         dyn_cast<AddrBasedCtxKey>(CI.first.getPtr());
     SampleContextFrameVector ContextStack;

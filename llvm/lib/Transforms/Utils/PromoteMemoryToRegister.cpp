@@ -676,7 +676,7 @@ void PromoteMem2Reg::run() {
     A->eraseFromParent();
   }
 
-  // Remove alloca's dbg.declare instrinsics from the function.
+  // Remove alloca's dbg.declare intrinsics from the function.
   for (auto &DbgUsers : AllocaDbgUsers) {
     for (auto *DII : DbgUsers)
       if (DII->isAddressOfVariable() || DII->getExpression()->startsWithDeref())
@@ -702,7 +702,7 @@ void PromoteMem2Reg::run() {
       PHINode *PN = I->second;
 
       // If this PHI node merges one value and/or undefs, get the value.
-      if (Value *V = SimplifyInstruction(PN, SQ)) {
+      if (Value *V = simplifyInstruction(PN, SQ)) {
         PN->replaceAllUsesWith(V);
         PN->eraseFromParent();
         NewPhiNodes.erase(I++);

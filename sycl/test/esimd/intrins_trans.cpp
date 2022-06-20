@@ -62,10 +62,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<uint32_t, VL> v01 =
-      __esimd_svm_gather<uint32_t, VL>(v_addr.data(), 0, pred.data());
+      __esimd_svm_gather<uint32_t, VL>(v_addr.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.gather.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  __esimd_svm_scatter<uint32_t, VL>(v_addr.data(), v01.data(), 0, pred.data());
+  __esimd_svm_scatter<uint32_t, VL>(v_addr.data(), v01.data(), pred.data());
   // CHECK: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32i32(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<short, 16> mina(0, 1);
@@ -228,12 +228,12 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     // CHECK-LABEL: call void @llvm.genx.svm.block.st.i64.v8i32(i64 %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}})
   }
   {
-    auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), 0, get8ui16());
+    auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), get8ui16());
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i8> @llvm.genx.svm.gather.v8i8.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> undef)
     use(x);
   }
   {
-    __esimd_svm_scatter<unsigned char, 8>(get8ui64(), get8ui8(), 0, get8ui16());
+    __esimd_svm_scatter<unsigned char, 8>(get8ui64(), get8ui8(), get8ui16());
     // CHECK-LABEL: call void @llvm.genx.svm.scatter.v8i1.v8i64.v8i8(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> %{{[a-zA-Z0-9.]+}})
   }
   {

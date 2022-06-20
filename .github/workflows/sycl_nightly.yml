@@ -16,7 +16,8 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      lts_config: "ocl_gen9;ocl_x64;hip_amdgpu"
+      build_configure_extra_args: ''
+      lts_config: "ocl_gen9;ocl_x64"
 
   windows_default:
     name: Windows
@@ -59,13 +60,3 @@ jobs:
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers-${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers
-  ubuntu2004_build_test_new_pm:
-    # Default Linux building and LIT testing using new Pass Manager by default
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    with:
-      build_cache_root: "/__w/"
-      build_cache_suffix: new_pm
-      build_artifact_suffix: new_pm
-      build_configure_extra_args: '--hip --cuda --cmake-opt=-DLLVM_ENABLE_NEW_PASS_MANAGER=ON'
-      lts_config: "hip_amdgpu;ocl_x64"

@@ -153,6 +153,7 @@ endmacro()
 
 macro(detect_target_arch)
   check_symbol_exists(__arm__ "" __ARM)
+  check_symbol_exists(__AVR__ "" __AVR)
   check_symbol_exists(__aarch64__ "" __AARCH64)
   check_symbol_exists(__x86_64__ "" __X86_64)
   check_symbol_exists(__i386__ "" __I386)
@@ -170,6 +171,8 @@ macro(detect_target_arch)
   check_symbol_exists(__ve__ "" __VE)
   if(__ARM)
     add_default_target_arch(arm)
+  elseif(__AVR)
+    add_default_target_arch(avr)
   elseif(__AARCH64)
     add_default_target_arch(aarch64)
   elseif(__X86_64)
@@ -238,6 +241,10 @@ function(get_compiler_rt_root_source_dir ROOT_DIR_VAR)
     # Compiler-RT Builtins standalone build.
     # `llvm-project/compiler-rt/lib/builtins`
     set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRTBuiltins_SOURCE_DIR}/../../")
+  elseif (DEFINED CompilerRTCRT_SOURCE_DIR)
+    # Compiler-RT CRT standalone build.
+    # `llvm-project/compiler-rt/lib/crt`
+    set(PATH_TO_COMPILER_RT_SOURCE_ROOT "${CompilerRTCRT_SOURCE_DIR}/../../")
   elseif(DEFINED CompilerRT_SOURCE_DIR)
     # Compiler-RT standalone build.
     # `llvm-project/compiler-rt`

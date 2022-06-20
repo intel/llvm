@@ -1,5 +1,5 @@
-; RUN: opt -S -loop-vectorize -force-vector-width=8 -force-vector-interleave=1 < %s | FileCheck %s -check-prefix=VF8
-; RUN: opt -S -loop-vectorize -force-vector-width=1 -force-vector-interleave=4 < %s | FileCheck %s -check-prefix=VF1
+; RUN: opt -S -passes=loop-vectorize -force-vector-width=8 -force-vector-interleave=1 < %s | FileCheck %s -check-prefix=VF8
+; RUN: opt -S -passes=loop-vectorize -force-vector-width=1 -force-vector-interleave=4 < %s | FileCheck %s -check-prefix=VF1
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -110,8 +110,12 @@ for.end:
 
 ; VF8-LABEL: @doit2
 ; VF8: vector.body:
-; VF8: %vec.ind = phi <8 x i64> 
-; VF8: %{{.*}} = extractelement <8 x i64> %vec.ind
+; VF8-NEXT:  [[INDEX:%.+]] = phi i64 [ 0, %vector.ph ]
+; VF8-NEXT:  [[I0:%.+]] = add i64 [[INDEX]], 0
+; VF8-NEXT:  [[OFFSET_IDX:%.+]] = mul i64 [[INDEX]], %step
+; VF8-NEXT:  [[MUL0:%.+]] = mul i64 0, %step
+; VF8-NEXT:  [[ADD:%.+]] = add i64 [[OFFSET_IDX]], [[MUL0]]
+; VF8:       getelementptr inbounds i32, i32* %in, i64 [[ADD]]
 ; VF8: middle.block:
 
 ; VF1-LABEL: @doit2

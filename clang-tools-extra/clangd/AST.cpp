@@ -53,8 +53,10 @@ getTemplateSpecializationArgLocs(const NamedDecl &ND) {
                  llvm::dyn_cast<VarTemplatePartialSpecializationDecl>(&ND)) {
     if (auto *Args = Var->getTemplateArgsAsWritten())
       return Args->arguments();
-  } else if (auto *Var = llvm::dyn_cast<VarTemplateSpecializationDecl>(&ND))
-    return Var->getTemplateArgsInfo().arguments();
+  } else if (auto *Var = llvm::dyn_cast<VarTemplateSpecializationDecl>(&ND)) {
+    if (auto *Args = Var->getTemplateArgsInfo())
+      return Args->arguments();
+  }
   // We return None for ClassTemplateSpecializationDecls because it does not
   // contain TemplateArgumentLoc information.
   return llvm::None;
@@ -349,7 +351,8 @@ SymbolID getSymbolID(const llvm::StringRef MacroName, const MacroInfo *MI,
   return SymbolID(USR);
 }
 
-std::string printType(const QualType QT, const DeclContext &CurContext) {
+std::string printType(const QualType QT, const DeclContext &CurContext,
+                      const llvm::StringRef Placeholder) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   PrintingPolicy PP(CurContext.getParentASTContext().getPrintingPolicy());
@@ -370,7 +373,7 @@ std::string printType(const QualType QT, const DeclContext &CurContext) {
   PrintCB PCB(&CurContext);
   PP.Callbacks = &PCB;
 
-  QT.print(OS, PP);
+  QT.print(OS, PP, Placeholder);
   return OS.str();
 }
 

@@ -214,7 +214,7 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
       (type.isa<VectorType>() || hasVectorElementType)) {
     llvm::Constant *splatValue = LLVM::detail::getLLVMConstant(
         innermostLLVMType, denseElementsAttr.getSplatValue<Attribute>(), loc,
-        moduleTranslation, /*isTopLevel=*/false);
+        moduleTranslation);
     llvm::Constant *splatVector =
         llvm::ConstantDataVector::getSplat(0, splatValue);
     SmallVector<llvm::Constant *> constants(numAggregates, splatVector);
@@ -272,22 +272,22 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
 /// report it to `loc` and return nullptr.
 llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     llvm::Type *llvmType, Attribute attr, Location loc,
-    const ModuleTranslation &moduleTranslation, bool isTopLevel) {
+    const ModuleTranslation &moduleTranslation) {
   if (!attr)
     return llvm::UndefValue::get(llvmType);
   if (auto *structType = dyn_cast<::llvm::StructType>(llvmType)) {
-    if (!isTopLevel) {
-      emitError(loc, "nested struct types are not supported in constants");
+    auto arrayAttr = attr.dyn_cast<ArrayAttr>();
+    if (!arrayAttr || arrayAttr.size() != 2) {
+      emitError(loc, "expected struct type to be a complex number");
       return nullptr;
     }
-    auto arrayAttr = attr.cast<ArrayAttr>();
     llvm::Type *elementType = structType->getElementType(0);
-    llvm::Constant *real = getLLVMConstant(elementType, arrayAttr[0], loc,
-                                           moduleTranslation, false);
+    llvm::Constant *real =
+        getLLVMConstant(elementType, arrayAttr[0], loc, moduleTranslation);
     if (!real)
       return nullptr;
-    llvm::Constant *imag = getLLVMConstant(elementType, arrayAttr[1], loc,
-                                           moduleTranslation, false);
+    llvm::Constant *imag =
+        getLLVMConstant(elementType, arrayAttr[1], loc, moduleTranslation);
     if (!imag)
       return nullptr;
     return llvm::ConstantStruct::get(structType, {real, imag});
@@ -336,7 +336,7 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
         elementType,
         elementTypeSequential ? splatAttr
                               : splatAttr.getSplatValue<Attribute>(),
-        loc, moduleTranslation, false);
+        loc, moduleTranslation);
     if (!child)
       return nullptr;
     if (llvmType->isVectorTy())
@@ -367,7 +367,7 @@ llvm::Constant *mlir::LLVM::detail::getLLVMConstant(
     llvm::Type *innermostType = getInnermostElementType(llvmType);
     for (auto n : elementsAttr.getValues<Attribute>()) {
       constants.push_back(
-          getLLVMConstant(innermostType, n, loc, moduleTranslation, false));
+          getLLVMConstant(innermostType, n, loc, moduleTranslation));
       if (!constants.back())
         return nullptr;
     }
@@ -441,10 +441,9 @@ static Value getPHISourceValue(Block *current, Block *pred,
   for (unsigned i = 0, e = terminator.getNumSuccessors(); i < e; ++i) {
     Block *successor = terminator.getSuccessor(i);
     auto branch = cast<BranchOpInterface>(terminator);
-    Optional<OperandRange> successorOperands = branch.getSuccessorOperands(i);
+    SuccessorOperands successorOperands = branch.getSuccessorOperands(i);
     assert(
-        (!seenSuccessors.contains(successor) ||
-         (successorOperands && successorOperands->empty())) &&
+        (!seenSuccessors.contains(successor) || successorOperands.empty()) &&
         "successors with arguments in LLVM branches must be different blocks");
     seenSuccessors.insert(successor);
   }
@@ -662,7 +661,10 @@ LogicalResult ModuleTranslation::convertGlobals() {
 
     auto *var = new llvm::GlobalVariable(
         *llvmModule, type, op.getConstant(), linkage, cst, op.getSymName(),
-        /*InsertBefore=*/nullptr, llvm::GlobalValue::NotThreadLocal, addrSpace);
+        /*InsertBefore=*/nullptr,
+        op.getThreadLocal_() ? llvm::GlobalValue::GeneralDynamicTLSModel
+                             : llvm::GlobalValue::NotThreadLocal,
+        addrSpace);
 
     if (op.getUnnamedAddr().hasValue())
       var->setUnnamedAddr(convertUnnamedAddrToLLVM(*op.getUnnamedAddr()));

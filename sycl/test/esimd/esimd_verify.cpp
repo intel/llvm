@@ -1,6 +1,4 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -flegacy-pass-manager -S %s -o /dev/null 2>&1 | FileCheck %s
 // RUN: not %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager -S %s -o /dev/null 2>&1 | FileCheck %s
-// RUN: not %clangxx -fsycl -fsycl-device-only -flegacy-pass-manager -O0 -S %s -o /dev/null 2>&1 | FileCheck %s
 // RUN: not %clangxx -fsycl -fsycl-device-only -fno-legacy-pass-manager -O0 -S %s -o /dev/null 2>&1 | FileCheck %s
 
 #include <CL/sycl.hpp>
@@ -11,7 +9,7 @@ using namespace sycl::ext::intel::esimd;
 
 // CHECK-DAG: error: function 'cl::sycl::multi_ptr<{{.+}}> cl::sycl::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
 // CHECK-DAG: error: function '{{.+}} cl::sycl::accessor<{{.+}}>::operator[]<{{.+}}>({{.+}}) const' is not supported in ESIMD context
-// CHECK-DAG: error: function 'cl::sycl::ext::oneapi::detail::reducer<int, std::plus<int>, void>::combine(int const&)' is not supported in ESIMD context
+// CHECK-DAG: error: function '{{.+}}combine(int const&)' is not supported in ESIMD context
 
 SYCL_EXTERNAL auto
 test(accessor<int, 1, access::mode::read_write, access::target::device> &acc)

@@ -43,6 +43,7 @@ math/log2.cl
 math/logb.cl
 math/modf.cl
 math/native_cos.cl
+math/native_divide.cl
 math/native_exp.cl
 math/native_exp10.cl
 math/native_exp2.cl
@@ -50,6 +51,7 @@ math/native_log.cl
 math/native_log10.cl
 math/native_log2.cl
 math/native_powr.cl
+math/native_recip.cl
 math/native_rsqrt.cl
 math/native_sin.cl
 math/native_sqrt.cl
@@ -73,6 +75,7 @@ relational/isfinite.cl
 relational/isinf.cl
 relational/isnan.cl
 synchronization/barrier.cl
+synchronization/aw_barrier.cl
 async/async_work_group_strided_copy.cl
 async/wait_group_events.cl
 workitem/get_global_id.cl

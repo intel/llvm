@@ -71,8 +71,8 @@ struct ASTFileSignature : std::array<uint8_t, 20> {
     return Value;
   }
 
-  static ASTFileSignature create(StringRef Bytes) {
-    return create(Bytes.bytes_begin(), Bytes.bytes_end());
+  static ASTFileSignature create(std::array<uint8_t, 20> Bytes) {
+    return ASTFileSignature(std::move(Bytes));
   }
 
   static ASTFileSignature createDISentinel() {
@@ -167,6 +167,8 @@ public:
   /// Does this Module scope describe a fragment of the global module within
   /// some C++ module.
   bool isGlobalModule() const { return Kind == GlobalModuleFragment; }
+
+  bool isPrivateModule() const { return Kind == PrivateModuleFragment; }
 
 private:
   /// The submodules of this module, indexed by name.
@@ -527,12 +529,32 @@ public:
            Kind == ModulePartitionImplementation;
   }
 
+  /// Is this module a header unit.
+  bool isHeaderUnit() const { return Kind == ModuleHeaderUnit; }
+  // Is this a C++20 module interface or a partition.
+  bool isInterfaceOrPartition() const {
+    return Kind == ModuleInterfaceUnit || isModulePartition();
+  }
+
   /// Get the primary module interface name from a partition.
   StringRef getPrimaryModuleInterfaceName() const {
+    // Technically, global module fragment belongs to global module. And global
+    // module has no name: [module.unit]p6:
+    //   The global module has no name, no module interface unit, and is not
+    //   introduced by any module-declaration.
+    //
+    // <global> is the default name showed in module map.
+    if (isGlobalModule())
+      return "<global>";
+
     if (isModulePartition()) {
       auto pos = Name.find(':');
       return StringRef(Name.data(), pos);
     }
+
+    if (isPrivateModule())
+      return getTopLevelModuleName();
+
     return Name;
   }
 

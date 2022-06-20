@@ -12,12 +12,19 @@
 
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
+#include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/ReshapeOpsUtils.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/AffineExprVisitor.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -36,57 +43,214 @@
 using namespace mlir;
 using namespace mlir::linalg;
 
-/// Forward declarations.
+//===----------------------------------------------------------------------===//
+// Support for named Linalg ops defined in ods-gen.
+//===----------------------------------------------------------------------===//
 
-/// Generic entry point to create the block for the region of a LinalgOp.
-/// This is used by both named structured ops created by ods-gen and by manually
-/// defined C++ ops.
-/// This is used by both builders and parsers.
-/// This function creates the block in the region with arguments corresponding
-/// to the elemental types of `inputTypes` and `outputTypes`. The latter are
-/// asserted to be of ShapedType.
-template <typename NamedStructuredOpType>
-static void fillStructuredOpRegion(
-    OpBuilder &opBuilder, Region &region, TypeRange inputTypes,
-    TypeRange outputTypes, ArrayRef<NamedAttribute> attrs,
-    llvm::function_ref<void(unsigned, unsigned)> errorHandler = nullptr);
+using RegionBuilderFn = llvm::function_ref<void(ImplicitLocOpBuilder &, Block &,
+                                                ArrayRef<NamedAttribute>)>;
 
-/// Generic entry point to create both the region and the block of a LinalgOp.
-template <typename NamedStructuredOpType>
-static void
-createAndFillStructuredOpRegion(OpBuilder &opBuilder, OperationState &result,
-                                TypeRange inputTypes, TypeRange outputTypes);
+/// Fills the region of a structured operation using the provided
+/// `regionBuilder`. The method is used by both named structured ops created by
+/// ods-gen and by manually defined C++ ops. It is called by both builders and
+/// parsers and creates a block with arguments corresponding to the elemental
+/// types of `inputTypes` and `outputTypes`. All output types are asserted to be
+/// ShapedType.
+static void fillStructuredOpRegion(OpBuilder &opBuilder, Region &region,
+                                   TypeRange inputTypes, TypeRange outputTypes,
+                                   ArrayRef<NamedAttribute> attrs,
+                                   RegionBuilderFn regionBuilder) {
+  assert(llvm::all_of(outputTypes, [](Type t) { return t.isa<ShapedType>(); }));
 
-/// Common parsing and printing used for both named structured ops created by
-/// ods-gen and by manually defined C++ ops. Does not handle regions.
+  // TODO: atm all operands go through getElementTypeOrSelf,
+  // reconsider when we have evidence we need to.
+  SmallVector<Type, 8> argTypes;
+  SmallVector<Location, 8> argLocs;
+  for (auto containers : {inputTypes, outputTypes}) {
+    for (auto t : containers) {
+      argTypes.push_back(getElementTypeOrSelf(t));
+
+      // TODO: Pass in a proper location here.
+      argLocs.push_back(opBuilder.getUnknownLoc());
+    }
+  }
+
+  // RAII.
+  OpBuilder::InsertionGuard guard(opBuilder);
+  Block *body =
+      opBuilder.createBlock(&region, /*insertPt=*/{}, argTypes, argLocs);
+
+  opBuilder.setInsertionPointToStart(body);
+  ImplicitLocOpBuilder b(opBuilder.getUnknownLoc(), opBuilder);
+  regionBuilder(b, *body, attrs);
+
+  // indexing_maps is an auto-generated method.
+
+  // iterator_types is an auto-generated method.
+}
+
+/// Creates a structured operation given `inputs`, `outputs`, and `attributes`.
+/// The result types are derived automatically if `resultTensorTypes` is none.
+/// The body of the operation is filled using `regionBuilder`. All ods-gen
+/// created structured operations use the method to implement their builders.
+static void buildStructuredOp(OpBuilder &b, OperationState &state,
+                              llvm::Optional<TypeRange> resultTensorTypes,
+                              ValueRange inputs, ValueRange outputs,
+                              ArrayRef<NamedAttribute> attributes,
+                              RegionBuilderFn regionBuilder) {
+  // Derive the result types if needed.
+  SmallVector<Type> derivedResultTypes =
+      resultTensorTypes.getValueOr(TypeRange());
+  if (!resultTensorTypes.hasValue())
+    copy_if(outputs.getTypes(), std::back_inserter(derivedResultTypes),
+            [](Type type) { return type.isa<RankedTensorType>(); });
+
+  state.addOperands(inputs);
+  state.addOperands(outputs);
+  state.addTypes(derivedResultTypes);
+  state.addAttributes(attributes);
+  state.addAttribute(
+      "operand_segment_sizes",
+      b.getI32VectorAttr({static_cast<int32_t>(inputs.size()),
+                          static_cast<int32_t>(outputs.size())}));
+
+  // Create and fill the region of the structured operation.
+  Region &region = *state.addRegion();
+  fillStructuredOpRegion(b, region, TypeRange(inputs), TypeRange(outputs),
+                         state.attributes.getAttrs(), regionBuilder);
+}
+
+/// Common parsing used for both named structured ops created by ods-gen and by
+/// manually defined C++ ops. Does not handle regions.
 static ParseResult
 parseCommonStructuredOpParts(OpAsmParser &parser, OperationState &result,
                              SmallVectorImpl<Type> &inputTypes,
-                             SmallVectorImpl<Type> &outputTypes);
-template <typename NamedStructuredOpType>
-static void printCommonStructuredOpParts(OpAsmPrinter &p,
-                                         NamedStructuredOpType op);
+                             SmallVectorImpl<Type> &outputTypes) {
+  SMLoc inputsOperandsLoc, outputsOperandsLoc;
+  SmallVector<OpAsmParser::UnresolvedOperand, 4> inputsOperands,
+      outputsOperands;
 
-/// Specific parsing and printing for named structured ops created by ods-gen.
-template <typename NamedStructuredOpType>
-static ParseResult
-parseNamedStructuredOpRegion(OpAsmParser &parser, Region &region,
-                             TypeRange inputTypes, TypeRange outputTypes,
-                             ArrayRef<NamedAttribute> attrs);
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+
+  if (succeeded(parser.parseOptionalKeyword("ins"))) {
+    if (parser.parseLParen())
+      return failure();
+
+    inputsOperandsLoc = parser.getCurrentLocation();
+    if (parser.parseOperandList(inputsOperands) ||
+        parser.parseColonTypeList(inputTypes) || parser.parseRParen())
+      return failure();
+  }
+
+  if (succeeded(parser.parseOptionalKeyword("outs"))) {
+    outputsOperandsLoc = parser.getCurrentLocation();
+    if (parser.parseLParen() || parser.parseOperandList(outputsOperands) ||
+        parser.parseColonTypeList(outputTypes) || parser.parseRParen())
+      return failure();
+  }
+
+  if (parser.resolveOperands(inputsOperands, inputTypes, inputsOperandsLoc,
+                             result.operands) ||
+      parser.resolveOperands(outputsOperands, outputTypes, outputsOperandsLoc,
+                             result.operands))
+    return failure();
+
+  result.addAttribute("operand_segment_sizes",
+                      parser.getBuilder().getI32VectorAttr(
+                          {static_cast<int32_t>(inputsOperands.size()),
+                           static_cast<int32_t>(outputsOperands.size())}));
+  return success();
+}
+
+static void printCommonStructuredOpParts(OpAsmPrinter &p, ValueRange inputs,
+                                         ValueRange outputs) {
+  if (!inputs.empty())
+    p << " ins(" << inputs << " : " << inputs.getTypes() << ")";
+  if (!outputs.empty())
+    p << " outs(" << outputs << " : " << outputs.getTypes() << ")";
+}
+
+//===----------------------------------------------------------------------===//
+// Specific parsing and printing for named structured ops created by ods-gen.
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseNamedStructuredOpRegion(
+    OpAsmParser &parser, Region &region, unsigned numRegionArgs,
+    TypeRange inputTypes, TypeRange outputTypes, ArrayRef<NamedAttribute> attrs,
+    RegionBuilderFn regionBuilder) {
+  if (numRegionArgs != inputTypes.size() + outputTypes.size()) {
+    return parser.emitError(
+        parser.getCurrentLocation(),
+        llvm::formatv("[parseNamedStructuredOpRegion] ods-gen generated "
+                      "region expects {0} args, got {1}",
+                      numRegionArgs, inputTypes.size() + outputTypes.size()));
+  }
+
+  OpBuilder opBuilder(parser.getContext());
+  fillStructuredOpRegion(opBuilder, region, inputTypes, outputTypes, attrs,
+                         regionBuilder);
+  return success();
+}
 
 static ParseResult
 parseNamedStructuredOpResults(OpAsmParser &parser,
-                              SmallVectorImpl<Type> &resultTypes);
+                              SmallVectorImpl<Type> &resultTypes) {
+  if (parser.parseOptionalArrowTypeList(resultTypes))
+    return failure();
+  return success();
+}
 
-template <typename NamedStructuredOpType>
 static ParseResult parseNamedStructuredOp(OpAsmParser &parser,
-                                          OperationState &result);
+                                          OperationState &result,
+                                          unsigned numRegionArgs,
+                                          RegionBuilderFn regionBuilder) {
+  // TODO: Enable when ods-gen supports captures.
+  SmallVector<Type, 1> inputTypes, outputTypes;
+  if (parseCommonStructuredOpParts(parser, result, inputTypes, outputTypes))
+    return failure();
+
+  // TODO: consider merging results parsing into region parsing.
+  // Need to wait for declarative assembly resolution to decide.
+  SmallVector<Type, 1> outputTensorsTypes;
+  if (parseNamedStructuredOpResults(parser, outputTensorsTypes))
+    return failure();
+  result.addTypes(outputTensorsTypes);
+
+  std::unique_ptr<Region> region = std::make_unique<Region>();
+  if (parseNamedStructuredOpRegion(parser, *region, numRegionArgs, inputTypes,
+                                   outputTypes, result.attributes.getAttrs(),
+                                   regionBuilder))
+    return failure();
+  result.addRegion(std::move(region));
+
+  return success();
+}
 
 static void printNamedStructuredOpResults(OpAsmPrinter &p,
-                                          TypeRange resultTypes);
+                                          TypeRange resultTypes) {
+  if (resultTypes.empty())
+    return;
+  p.printOptionalArrowTypeList(resultTypes);
+}
 
-template <typename NamedStructuredOpType>
-static void printNamedStructuredOp(OpAsmPrinter &p, NamedStructuredOpType op);
+static void printNamedStructuredOp(OpAsmPrinter &p, Operation *op,
+                                   ValueRange inputs, ValueRange outputs) {
+  p.printOptionalAttrDict(
+      op->getAttrs(),
+      /*elidedAttrs=*/{"operand_segment_sizes",
+                       // See generated code in mlir-linalg-yaml-gen.cpp
+                       "linalg.memoized_indexing_maps"});
+
+  // Printing is shared with generic ops, except for the region and
+  // attributes.
+  printCommonStructuredOpParts(p, inputs, outputs);
+
+  // Results printing.
+  printNamedStructuredOpResults(p, op->getResultTypes());
+
+  // Region is elided.
+}
 
 /// This is a common class used for patterns of the form
 /// ```
@@ -103,33 +267,6 @@ static LogicalResult foldMemRefCast(Operation *op) {
     }
   }
   return success(folded);
-}
-
-/// Helper function to find if there is atleast one dimension in an AffineMap
-/// testMap that is contained in `testMapLocation` of  `maps` but not in any
-/// other locations
-static bool hasaUniqueDim(ArrayRef<AffineMap> maps, unsigned testMapLocation) {
-  AffineMap testMap = maps[testMapLocation];
-  llvm::SmallDenseSet<unsigned> dimsToCheck;
-  for (auto result : testMap.getResults()) {
-    auto expr = result.dyn_cast<AffineDimExpr>();
-    if (expr != nullptr)
-      dimsToCheck.insert(expr.getPosition());
-  }
-  for (auto It : llvm::enumerate(maps)) {
-    if (It.index() == testMapLocation)
-      continue;
-    auto map = It.value();
-    for (auto result : map.getResults()) {
-      auto expr = result.dyn_cast<AffineDimExpr>();
-      if (expr != nullptr) {
-        dimsToCheck.erase(expr.getPosition());
-      }
-      if (dimsToCheck.empty())
-        return false;
-    }
-  }
-  return true;
 }
 
 //===----------------------------------------------------------------------===//
@@ -185,37 +322,48 @@ public:
 
   // Build the binary functions defined by OpDSL.
   Value buildBinaryFn(BinaryFn binaryFn, Value arg0, Value arg1) {
+    bool allComplex = isComplex(arg0) && isComplex(arg1);
     bool allFloatingPoint = isFloatingPoint(arg0) && isFloatingPoint(arg1);
     bool allInteger = isInteger(arg0) && isInteger(arg1);
-    if (!allFloatingPoint && !allInteger)
+    if (!allComplex && !allFloatingPoint && !allInteger)
       llvm_unreachable("unsupported non numeric type");
     OpBuilder builder = getBuilder();
     switch (binaryFn) {
     case BinaryFn::add:
+      if (allComplex)
+        return builder.create<complex::AddOp>(arg0.getLoc(), arg0, arg1);
       if (allFloatingPoint)
         return builder.create<arith::AddFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::AddIOp>(arg0.getLoc(), arg0, arg1);
     case BinaryFn::sub:
+      if (allComplex)
+        return builder.create<complex::SubOp>(arg0.getLoc(), arg0, arg1);
       if (allFloatingPoint)
         return builder.create<arith::SubFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::SubIOp>(arg0.getLoc(), arg0, arg1);
     case BinaryFn::mul:
+      if (allComplex)
+        return builder.create<complex::MulOp>(arg0.getLoc(), arg0, arg1);
       if (allFloatingPoint)
         return builder.create<arith::MulFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::MulIOp>(arg0.getLoc(), arg0, arg1);
     case BinaryFn::max_signed:
+      assert(!allComplex);
       if (allFloatingPoint)
         return builder.create<arith::MaxFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::MaxSIOp>(arg0.getLoc(), arg0, arg1);
     case BinaryFn::min_signed:
+      assert(!allComplex);
       if (allFloatingPoint)
         return builder.create<arith::MinFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::MinSIOp>(arg0.getLoc(), arg0, arg1);
     case BinaryFn::max_unsigned:
+      assert(!allComplex);
       if (allFloatingPoint)
         return builder.create<arith::MaxFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::MaxUIOp>(arg0.getLoc(), arg0, arg1);
     case BinaryFn::min_unsigned:
+      assert(!allComplex);
       if (allFloatingPoint)
         return builder.create<arith::MinFOp>(arg0.getLoc(), arg0, arg1);
       return builder.create<arith::MinUIOp>(arg0.getLoc(), arg0, arg1);
@@ -312,6 +460,7 @@ private:
     return operand;
   }
 
+  bool isComplex(Value value) { return value.getType().isa<ComplexType>(); }
   bool isFloatingPoint(Value value) { return value.getType().isa<FloatType>(); }
   bool isInteger(Value value) { return value.getType().isa<IntegerType>(); }
 
@@ -509,16 +658,12 @@ void FillOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 void GenericOp::build(
     OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
-    ValueRange inputs, ValueRange outputs, ArrayRef<AffineMap> indexingMaps,
-    ArrayRef<StringRef> iteratorTypes, StringRef doc, StringRef libraryCall,
+    ValueRange inputs, ValueRange outputs, ArrayAttr indexingMaps,
+    ArrayAttr iteratorTypes, StringAttr doc, StringAttr libraryCall,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
     ArrayRef<NamedAttribute> attributes) {
-  build(builder, result, resultTensorTypes, inputs, outputs,
-        builder.getAffineMapArrayAttr(indexingMaps),
-        builder.getStrArrayAttr(iteratorTypes),
-        doc.empty() ? StringAttr() : builder.getStringAttr(doc),
-        libraryCall.empty() ? StringAttr()
-                            : builder.getStringAttr(libraryCall));
+  build(builder, result, resultTensorTypes, inputs, outputs, indexingMaps,
+        iteratorTypes, doc, libraryCall);
   result.addAttributes(attributes);
   if (!bodyBuild)
     return;
@@ -537,6 +682,20 @@ void GenericOp::build(
   Block *bodyBlock =
       builder.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
   bodyBuild(builder, result.location, bodyBlock->getArguments());
+}
+
+void GenericOp::build(
+    OpBuilder &builder, OperationState &result, TypeRange resultTensorTypes,
+    ValueRange inputs, ValueRange outputs, ArrayRef<AffineMap> indexingMaps,
+    ArrayRef<StringRef> iteratorTypes, StringRef doc, StringRef libraryCall,
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
+    ArrayRef<NamedAttribute> attributes) {
+  build(builder, result, resultTensorTypes, inputs, outputs,
+        builder.getAffineMapArrayAttr(indexingMaps),
+        builder.getStrArrayAttr(iteratorTypes),
+        doc.empty() ? StringAttr() : builder.getStringAttr(doc),
+        libraryCall.empty() ? StringAttr() : builder.getStringAttr(libraryCall),
+        bodyBuild, attributes);
 }
 
 void GenericOp::build(
@@ -590,7 +749,7 @@ void GenericOp::print(OpAsmPrinter &p) {
   }
 
   // Printing is shared with named ops, except for the region and attributes
-  printCommonStructuredOpParts(p, *this);
+  printCommonStructuredOpParts(p, inputs(), outputs());
 
   genericAttrNames.push_back("operand_segment_sizes");
   genericAttrNamesSet.insert(genericAttrNames.back());
@@ -638,10 +797,8 @@ ParseResult GenericOp::parse(OpAsmParser &parser, OperationState &result) {
         failed(parser.parseOptionalAttrDict(result.attributes)))
       return failure();
 
-  SmallVector<OpAsmParser::UnresolvedOperand, 8> regionOperands;
   std::unique_ptr<Region> region = std::make_unique<Region>();
-  SmallVector<Type, 8> operandTypes, regionTypes;
-  if (parser.parseRegion(*region, regionOperands, regionTypes))
+  if (parser.parseRegion(*region, {}))
     return failure();
   result.addRegion(std::move(region));
 
@@ -682,101 +839,169 @@ void GenericOp::getEffects(
                         outputBuffers);
 }
 
-template <typename GenericOpType>
-static LogicalResult verifyGenericOp(GenericOpType op) {
-  return success();
-}
-
-LogicalResult GenericOp::verify() { return verifyGenericOp(*this); }
+LogicalResult GenericOp::verify() { return success(); }
 
 namespace {
-// Deduplicate redundant args of a linalg generic op.
-// An arg is redundant if it has the same Value and indexing map as another.
-struct DeduplicateGenericOpInputs : public OpRewritePattern<GenericOp> {
+
+struct DeduplicateAndRemoveDeadOperandsAndResults
+    : public OpRewritePattern<GenericOp> {
   using OpRewritePattern<GenericOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
-    // Associate each input to an equivalent "canonical" input that has the same
-    // Value and indexing map.
-    //
-    // In the non-duplicate case, input `i` will have canonical input `i`. But
-    // in the case of duplicated inputs, the canonical input could be some other
-    // input `< i`. That is, a later input will have some earlier input as its
-    // canonical input.
-    llvm::SmallDenseMap<std::pair<Value, AffineMap>, unsigned> canonicalInput;
-    // For later remapping tasks like deduplicating payload block arguments,
-    // having a simple "inputIndex -> canonicalInputIndex" integer mapping is
-    // convenient.
-    SmallVector<unsigned> canonicalInputIndices;
-    for (OpOperand *opOperand : genericOp.getInputOperands()) {
-      AffineMap indexingMap = genericOp.getTiedIndexingMap(opOperand);
-      // STL-like maps have a convenient behavior for our use case here. In the
-      // case of duplicate keys, the insertion is rejected, and the returned
-      // iterator gives access to the value already in the map.
-      auto pair = canonicalInput.insert(
-          {{opOperand->get(), indexingMap}, opOperand->getOperandNumber()});
-      canonicalInputIndices.push_back(pair.first->second);
+    // Create a map from argument position in the original op to the argument
+    // position in the new op. If the argument is dropped it wont have an entry.
+    llvm::SmallDenseMap<unsigned, unsigned> origToNewPos;
+    unsigned numNewArgs = 0;
+    SmallVector<OpOperand *> droppedOpOperands;
+    llvm::SmallDenseSet<unsigned> droppedOutputs;
+
+    // Information needed to build the new op.
+    SmallVector<Value> newInputOperands, newOutputOperands;
+    SmallVector<AffineMap> newIndexingMaps;
+    SmallVector<Type> newResultTypes;
+
+    // Input argument can be dropped if
+    // - it has no uses, or,
+    // - there is a duplicate operand which is accessed using the same
+    //   indexing map.
+    llvm::SmallDenseMap<std::pair<Value, AffineMap>, unsigned> dedupedInputs;
+    auto indexingMaps = genericOp.getIndexingMaps();
+    ArrayRef<AffineMap> unprocessedIndexingMaps(indexingMaps);
+    for (OpOperand *inputOpOperand : genericOp.getInputOperands()) {
+      BlockArgument arg = genericOp.getTiedBlockArgument(inputOpOperand);
+      unsigned argNum = arg.getArgNumber();
+      unprocessedIndexingMaps = unprocessedIndexingMaps.drop_front();
+
+      // Check if operand is dead and if dropping the indexing map makes the
+      // loops to shape computation invalid.
+      if (!genericOp.payloadUsesValueFromOperand(inputOpOperand)) {
+        // Add the current operands to the list of potentially droppable
+        // operands. If it cannot be dropped, this needs to be popped back.
+        droppedOpOperands.push_back(inputOpOperand);
+        if (genericOp.canOpOperandsBeDropped(droppedOpOperands))
+          continue;
+        droppedOpOperands.pop_back();
+      }
+
+      // Check if this operand is a duplicate.
+      AffineMap indexingMap = genericOp.getTiedIndexingMap(inputOpOperand);
+      auto it = dedupedInputs.find(
+          std::make_pair(inputOpOperand->get(), indexingMap));
+      if (it != dedupedInputs.end()) {
+        origToNewPos[argNum] = it->second;
+        droppedOpOperands.push_back(inputOpOperand);
+        continue;
+      }
+
+      // This is a preserved argument.
+      origToNewPos[argNum] = numNewArgs;
+      dedupedInputs[{inputOpOperand->get(), indexingMap}] = numNewArgs;
+      newInputOperands.push_back(inputOpOperand->get());
+      newIndexingMaps.push_back(indexingMap);
+      numNewArgs++;
     }
 
-    // If there are no duplicate args, then bail out.
-    if (canonicalInput.size() == genericOp.getNumInputs())
-      return failure();
+    // If the op doesnt have tensor semantics, keep all the outputs as
+    // preserved.
+    if (!genericOp.hasTensorSemantics()) {
+      for (OpOperand *outputOpOperand : genericOp.getOutputOperands()) {
+        unprocessedIndexingMaps = unprocessedIndexingMaps.drop_front();
+        BlockArgument arg = genericOp.getTiedBlockArgument(outputOpOperand);
+        origToNewPos[arg.getArgNumber()] = numNewArgs++;
+        newOutputOperands.push_back(outputOpOperand->get());
+        newIndexingMaps.push_back(
+            genericOp.getTiedIndexingMap(outputOpOperand));
+      }
+    } else {
+      // Output argument can be dropped if the result has
+      // - no users, and
+      // - it is not used in the payload, and
+      // - the corresponding indexing maps are not needed for loop bound
+      //   computation.
+      for (const auto &outputOpOperand :
+           llvm::enumerate(genericOp.getOutputOperands())) {
+        unprocessedIndexingMaps = unprocessedIndexingMaps.drop_front();
+        Value result = genericOp.getResult(outputOpOperand.index());
+        BlockArgument arg =
+            genericOp.getTiedBlockArgument(outputOpOperand.value());
+        if (result.use_empty() &&
+            !genericOp.payloadUsesValueFromOperand(outputOpOperand.value())) {
+          // Check if the opoperand can be dropped without affecting loop bound
+          // computation. Add the operand to the list of dropped op operand for
+          // checking. If it cannot be dropped, need to pop the value back.
+          droppedOpOperands.push_back(outputOpOperand.value());
+          if (genericOp.canOpOperandsBeDropped(droppedOpOperands)) {
+            droppedOutputs.insert(outputOpOperand.index());
+            continue;
+          }
+          droppedOpOperands.pop_back();
+        }
 
-    // The operands for the newly canonicalized op.
-    SmallVector<Value> newInputOperands;
-    for (OpOperand *opOperand : genericOp.getInputOperands())
-      if (canonicalInputIndices[opOperand->getOperandNumber()] ==
-          opOperand->getOperandNumber())
-        newInputOperands.push_back(opOperand->get());
-
-    // Repair the indexing maps by filtering out the ones that have been
-    // eliminated.
-    SmallVector<AffineMap> newIndexingMaps;
-    for (OpOperand *opOperand : genericOp.getInputOperands())
-      if (canonicalInputIndices[opOperand->getOperandNumber()] ==
-          opOperand->getOperandNumber())
-        newIndexingMaps.push_back(genericOp.getTiedIndexingMap(opOperand));
-    for (OpOperand *opOperand : genericOp.getOutputOperands())
-      newIndexingMaps.push_back(genericOp.getTiedIndexingMap(opOperand));
-
-    // Clone the old op with new operands.
-    SmallVector<Value> outputOperands = genericOp.getOutputOperands();
-    auto newOp = rewriter.create<GenericOp>(
-        genericOp.getLoc(), genericOp->getResultTypes(), newInputOperands,
-        outputOperands, rewriter.getAffineMapArrayAttr(newIndexingMaps),
-        genericOp.iterator_types(), genericOp.docAttr(),
-        genericOp.library_callAttr());
-
-    // Copy over unknown attributes. They might be load bearing for some flow.
-    ArrayRef<StringRef> odsAttrs = genericOp.getAttributeNames();
-    for (NamedAttribute kv : genericOp->getAttrs()) {
-      if (!llvm::is_contained(odsAttrs, kv.getName().getValue())) {
-        newOp->setAttr(kv.getName(), kv.getValue());
+        origToNewPos[arg.getArgNumber()] = numNewArgs++;
+        newOutputOperands.push_back(outputOpOperand.value()->get());
+        newIndexingMaps.push_back(
+            genericOp.getTiedIndexingMap(outputOpOperand.value()));
+        newResultTypes.push_back(result.getType());
       }
     }
 
-    rewriter.inlineRegionBefore(genericOp.region(), newOp.region(),
-                                newOp.region().begin());
+    // Check if there is any change to operands.
+    if (newInputOperands.size() + newOutputOperands.size() ==
+        static_cast<size_t>(genericOp.getNumInputsAndOutputs()))
+      return failure();
 
-    // Repair the payload entry block by RAUW'ing redundant arguments and
-    // erasing them.
-    Block &payload = newOp.region().front();
-    SmallVector<OpOperand *> inputOperands = genericOp.getInputOperands();
-    for (OpOperand *opOperand : llvm::reverse(inputOperands)) {
-      // Iterate in reverse, so that we erase later args first, preventing the
-      // argument list from shifting unexpectedly and invalidating all our
-      // indices.
-      unsigned operandNumber = opOperand->getOperandNumber();
-      if (canonicalInputIndices[operandNumber] == operandNumber)
-        continue;
-      payload.getArgument(operandNumber)
-          .replaceAllUsesWith(
-              payload.getArgument(canonicalInputIndices[operandNumber]));
-      payload.eraseArgument(operandNumber);
+    // Create the new op with the body being empty.
+    Location loc = genericOp.getLoc();
+    auto newOp = rewriter.create<GenericOp>(
+        loc, newResultTypes, newInputOperands, newOutputOperands,
+        rewriter.getAffineMapArrayAttr(newIndexingMaps),
+        genericOp.iterator_types(), genericOp.docAttr(),
+        genericOp.library_callAttr(),
+        [](OpBuilder & /*builder*/, Location /*loc*/, ValueRange /*args*/) {
+          return;
+        });
+    // Copy over unknown attributes. They might be load bearing for some flow.
+    ArrayRef<StringRef> odsAttrs = genericOp.getAttributeNames();
+    for (NamedAttribute kv : genericOp->getAttrs())
+      if (!llvm::is_contained(odsAttrs, kv.getName().getValue()))
+        newOp->setAttr(kv.getName(), kv.getValue());
+
+    // Merge the body of the original op with the new op.
+    Block *newOpBlock = &newOp.region().front();
+    Block *origOpBlock = &genericOp.region().front();
+    SmallVector<Value> replacements(origOpBlock->getNumArguments(), nullptr);
+    for (auto argNum : llvm::seq<unsigned>(0, origOpBlock->getNumArguments())) {
+      auto it = origToNewPos.find(argNum);
+      if (it != origToNewPos.end())
+        replacements[argNum] = newOpBlock->getArgument(it->second);
+    }
+    rewriter.mergeBlocks(origOpBlock, newOpBlock, replacements);
+
+    // Drop the unused yield args.
+    Block *block = &newOp.region().front();
+    if (!droppedOutputs.empty()) {
+      OpBuilder::InsertionGuard g(rewriter);
+      SmallVector<Value> newYieldVals;
+      YieldOp origYieldOp = cast<YieldOp>(block->getTerminator());
+      rewriter.setInsertionPoint(origYieldOp);
+      for (const auto &yieldOpOperands :
+           llvm::enumerate(origYieldOp.values())) {
+        if (!droppedOutputs.count(yieldOpOperands.index())) {
+          newYieldVals.push_back(yieldOpOperands.value());
+          continue;
+        }
+      }
+      rewriter.replaceOpWithNewOp<YieldOp>(origYieldOp, newYieldVals);
     }
 
-    rewriter.replaceOp(genericOp, newOp->getResults());
+    // Replace all live uses of the op.
+    SmallVector<Value> replacementsVals(genericOp->getNumResults(), nullptr);
+    unsigned newResultNum = 0;
+    for (const auto &result : llvm::enumerate(genericOp.getResults()))
+      if (!droppedOutputs.count(result.index()))
+        replacementsVals[result.index()] = newOp.getResult(newResultNum++);
+    rewriter.replaceOp(genericOp, replacementsVals);
     return success();
   }
 };
@@ -836,9 +1061,13 @@ struct EraseIdentityGenericOp : public OpRewritePattern<GenericOp> {
             sparse_tensor::getSparseTensorEncoding(resultType))
           returnedArg = rewriter.create<sparse_tensor::ConvertOp>(
               genericOp.getLoc(), resultType, returnedArg);
-        else
+        else {
+          if (!tensor::CastOp::areCastCompatible(returnedArg.getType(),
+                                                 resultType))
+            return failure();
           returnedArg = rewriter.create<tensor::CastOp>(
               genericOp.getLoc(), resultType, returnedArg);
+        }
       }
       returnedArgs.push_back(returnedArg);
     }
@@ -849,95 +1078,13 @@ struct EraseIdentityGenericOp : public OpRewritePattern<GenericOp> {
     return success();
   }
 };
-
-/// Drop dead args of a linalg generic op.
-/// An arg is dead if it has zero uses in the op region.
-struct DeadArgsGenericOpInputs : public OpRewritePattern<GenericOp> {
-  using OpRewritePattern<GenericOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(GenericOp genericOp,
-                                PatternRewriter &rewriter) const override {
-    SmallVector<AffineMap> oldIndexingMaps = genericOp.getIndexingMaps();
-    // Maps must be projected permutations.
-    if (llvm::any_of(genericOp.getIndexingMaps(), [](AffineMap map) {
-          return !map.isProjectedPermutation();
-        }))
-      return failure();
-    Block &payload = genericOp.region().front();
-    SmallVector<Value> newInputOperands;
-    SmallVector<AffineMap> newIndexingMaps;
-    bool deadArgFound = false;
-    int inputSize = genericOp.getInputOperands().size();
-    for (int i = inputSize - 1; i >= 0; i--) {
-      OpOperand *opOperand = genericOp.getInputOperand(i);
-      // Iterate in reverse, so that we erase later args first, preventing the
-      // argument list from shifting unexpectedly and invalidating all our
-      // indices.
-      if (payload.getArgument(i).use_empty() &&
-          !hasaUniqueDim(oldIndexingMaps, i)) {
-        payload.eraseArgument(i);
-        deadArgFound = true;
-        // remove this indexing map out of consideration for hasaUniqueDim check
-        oldIndexingMaps.erase(oldIndexingMaps.begin() + i);
-      } else {
-        newInputOperands.insert(newInputOperands.begin(), opOperand->get());
-        newIndexingMaps.insert(newIndexingMaps.begin(),
-                               genericOp.getTiedIndexingMap(opOperand));
-      }
-    }
-    // Bail out if there are no dead args.
-    if (!deadArgFound)
-      return failure();
-    for (OpOperand *opOperand : genericOp.getOutputOperands())
-      newIndexingMaps.push_back(genericOp.getTiedIndexingMap(opOperand));
-    SmallVector<Value> outputOperands = genericOp.getOutputOperands();
-
-    auto newOp = rewriter.create<GenericOp>(
-        genericOp.getLoc(), genericOp->getResultTypes(), newInputOperands,
-        outputOperands, rewriter.getAffineMapArrayAttr(newIndexingMaps),
-        genericOp.iterator_types(), genericOp.docAttr(),
-        genericOp.library_callAttr());
-    // Copy over unknown attributes. They might be load bearing for some flow.
-    ArrayRef<StringRef> odsAttrs = genericOp.getAttributeNames();
-    for (NamedAttribute kv : genericOp->getAttrs()) {
-      if (!llvm::is_contained(odsAttrs, kv.getName().getValue())) {
-        newOp->setAttr(kv.getName(), kv.getValue());
-      }
-    }
-    rewriter.inlineRegionBefore(genericOp.region(), newOp.region(),
-                                newOp.region().begin());
-    rewriter.replaceOp(genericOp, newOp->getResults());
-    return success();
-  }
-};
-
-/// Fold linalg.fill into linalg.generic
-struct FoldFillWithGenericOp : public OpRewritePattern<GenericOp> {
-  using OpRewritePattern<GenericOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(GenericOp genericOp,
-                                PatternRewriter &rewriter) const override {
-    if (!genericOp.hasTensorSemantics())
-      return failure();
-    bool fillFound = false;
-    Block &payload = genericOp.region().front();
-    for (OpOperand *opOperand : genericOp.getInputOperands()) {
-      FillOp fillOp = opOperand->get().getDefiningOp<FillOp>();
-      if (fillOp) {
-        fillFound = true;
-        payload.getArgument(opOperand->getOperandNumber())
-            .replaceAllUsesWith(fillOp.value());
-      }
-    }
-    // fail if there are no FillOps to fold.
-    return success(fillFound);
-  }
-};
 } // namespace
 
 void GenericOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results.add<DeduplicateGenericOpInputs, EraseIdentityGenericOp,
-              DeadArgsGenericOpInputs, FoldFillWithGenericOp>(context);
+  results
+      .add<DeduplicateAndRemoveDeadOperandsAndResults, EraseIdentityGenericOp>(
+          context);
 }
 
 LogicalResult GenericOp::fold(ArrayRef<Attribute>,
@@ -1385,213 +1532,6 @@ std::string mlir::linalg::generateLibraryCallName(Operation *op) {
 }
 
 //===----------------------------------------------------------------------===//
-// Support for named Linalg ops defined in ods-gen.
-//===----------------------------------------------------------------------===//
-
-/// Generic entry point to create the block for the region of a LinalgOp.
-/// This is used by both named structured ops created by ods-gen and by manually
-/// defined C++ ops.
-/// This is used by both builders and parsers.
-/// This function creates the block in the region with arguments corresponding
-/// to the elemental types of `inputTypes` and `outputTypes`, which are asserted
-/// to be ShapedType.
-template <typename NamedStructuredOpType>
-static void fillStructuredOpRegion(
-    OpBuilder &opBuilder, Region &region, TypeRange inputTypes,
-    TypeRange outputTypes, ArrayRef<NamedAttribute> attrs,
-    llvm::function_ref<void(unsigned, unsigned)> errorHandler) {
-  assert(llvm::all_of(outputTypes, [](Type t) { return t.isa<ShapedType>(); }));
-
-  // TODO: atm all operands go through getElementTypeOrSelf,
-  // reconsider when we have evidence we need to.
-  SmallVector<Type, 8> argTypes;
-  SmallVector<Location, 8> argLocs;
-  for (auto containers : {inputTypes, outputTypes}) {
-    for (auto t : containers) {
-      argTypes.push_back(getElementTypeOrSelf(t));
-
-      // TODO: Pass in a proper location here.
-      argLocs.push_back(opBuilder.getUnknownLoc());
-    }
-  }
-
-  // RAII.
-  OpBuilder::InsertionGuard guard(opBuilder);
-  Block *body =
-      opBuilder.createBlock(&region, /*insertPt=*/{}, argTypes, argLocs);
-  unsigned actual = body->getNumArguments();
-  unsigned expected = NamedStructuredOpType::getNumRegionArgs();
-  if (expected != actual) {
-    if (errorHandler)
-      errorHandler(expected, actual);
-    return;
-  }
-
-  opBuilder.setInsertionPointToStart(body);
-  ImplicitLocOpBuilder b(opBuilder.getUnknownLoc(), opBuilder);
-  NamedStructuredOpType::regionBuilder(b, *body, attrs);
-
-  // indexing_maps is an auto-generated method.
-
-  // iterator_types is an auto-generated method.
-}
-
-/// Generic entry point to create both the region and the block of a LinalgOp.
-template <typename NamedStructuredOpType>
-void createAndFillStructuredOpRegion(OpBuilder &opBuilder,
-                                     OperationState &result,
-                                     TypeRange inputTypes,
-                                     TypeRange outputTypes) {
-  Region &region = *result.addRegion();
-  fillStructuredOpRegion<NamedStructuredOpType>(
-      opBuilder, region, inputTypes, outputTypes, result.attributes.getAttrs(),
-      [&](unsigned expected, unsigned actual) {
-        assert(expected != actual && "incorrect number of arguments");
-      });
-}
-
-/// Common parsing used for both named structured ops created by ods-gen and by
-/// manually defined C++ ops. Does not handle regions.
-static ParseResult
-parseCommonStructuredOpParts(OpAsmParser &parser, OperationState &result,
-                             SmallVectorImpl<Type> &inputTypes,
-                             SmallVectorImpl<Type> &outputTypes) {
-  SMLoc inputsOperandsLoc, outputsOperandsLoc;
-  SmallVector<OpAsmParser::UnresolvedOperand, 4> inputsOperands,
-      outputsOperands;
-
-  parser.parseOptionalAttrDict(result.attributes);
-
-  if (succeeded(parser.parseOptionalKeyword("ins"))) {
-    if (parser.parseLParen())
-      return failure();
-
-    inputsOperandsLoc = parser.getCurrentLocation();
-    if (parser.parseOperandList(inputsOperands) ||
-        parser.parseColonTypeList(inputTypes) || parser.parseRParen())
-      return failure();
-  }
-
-  if (succeeded(parser.parseOptionalKeyword("outs"))) {
-    outputsOperandsLoc = parser.getCurrentLocation();
-    if (parser.parseLParen() || parser.parseOperandList(outputsOperands) ||
-        parser.parseColonTypeList(outputTypes) || parser.parseRParen())
-      return failure();
-  }
-
-  if (parser.resolveOperands(inputsOperands, inputTypes, inputsOperandsLoc,
-                             result.operands) ||
-      parser.resolveOperands(outputsOperands, outputTypes, outputsOperandsLoc,
-                             result.operands))
-    return failure();
-
-  result.addAttribute("operand_segment_sizes",
-                      parser.getBuilder().getI32VectorAttr(
-                          {static_cast<int32_t>(inputsOperands.size()),
-                           static_cast<int32_t>(outputsOperands.size())}));
-  return success();
-}
-
-template <typename NamedStructuredOpType>
-static void printCommonStructuredOpParts(OpAsmPrinter &p,
-                                         NamedStructuredOpType op) {
-  if (!op.inputs().empty())
-    p << " ins(" << op.inputs() << " : " << op.inputs().getTypes() << ")";
-  if (!op.outputs().empty())
-    p << " outs(" << op.outputs() << " : " << op.outputs().getTypes() << ")";
-}
-
-//===----------------------------------------------------------------------===//
-// Specific parsing and printing for named structured ops created by ods-gen.
-//===----------------------------------------------------------------------===//
-
-template <typename NamedStructuredOpType>
-static ParseResult
-parseNamedStructuredOpRegion(OpAsmParser &parser, Region &region,
-                             TypeRange inputTypes, TypeRange outputTypes,
-                             ArrayRef<NamedAttribute> attrs) {
-  ParseResult res = success();
-  OpBuilder opBuilder(parser.getContext());
-  // Resolve `captures` into `capturedValues` at parse time so we can build the
-  // region with captures.
-  SmallVector<Value> capturedValues;
-  fillStructuredOpRegion<NamedStructuredOpType>(
-      opBuilder, region, inputTypes, outputTypes, attrs,
-      [&](unsigned expected, unsigned actual) {
-        res = parser.emitError(
-            parser.getCurrentLocation(),
-            llvm::formatv("[parseNamedStructuredOpRegion] ods-gen generated "
-                          "region expects {0} args, got {1}",
-                          expected, actual));
-        region.front().dump();
-      });
-  return res;
-}
-
-static ParseResult
-parseNamedStructuredOpResults(OpAsmParser &parser,
-                              SmallVectorImpl<Type> &resultTypes) {
-  if (parser.parseOptionalArrowTypeList(resultTypes))
-    return failure();
-  return success();
-}
-
-template <typename NamedStructuredOpType>
-static ParseResult parseNamedStructuredOp(OpAsmParser &parser,
-                                          OperationState &result) {
-  // TODO: Enable when ods-gen supports captures.
-  SmallVector<Type, 1> inputTypes, outputTypes;
-  if (parseCommonStructuredOpParts(parser, result, inputTypes, outputTypes))
-    return failure();
-
-  // TODO: consider merging results parsing into region parsing.
-  // Need to wait for declarative assembly resolution to decide.
-  SmallVector<Type, 1> outputTensorsTypes;
-  if (parseNamedStructuredOpResults(parser, outputTensorsTypes))
-    return failure();
-  result.addTypes(outputTensorsTypes);
-
-  std::unique_ptr<Region> region = std::make_unique<Region>();
-  if (parseNamedStructuredOpRegion<NamedStructuredOpType>(
-          parser, *region, inputTypes, outputTypes,
-          result.attributes.getAttrs()))
-    return failure();
-  result.addRegion(std::move(region));
-
-  return success();
-}
-
-static void printNamedStructuredOpResults(OpAsmPrinter &p,
-                                          TypeRange resultTypes) {
-  if (resultTypes.empty())
-    return;
-  p.printOptionalArrowTypeList(resultTypes);
-}
-
-template <typename NamedStructuredOpType>
-static void printNamedStructuredOp(OpAsmPrinter &p, NamedStructuredOpType op) {
-  p.printOptionalAttrDict(
-      op->getAttrs(),
-      /*elidedAttrs=*/{"operand_segment_sizes",
-                       // See generated code in mlir-linalg-yaml-gen.cpp
-                       "linalg.memoized_indexing_maps"});
-
-  // Printing is shared with generic ops, except for the region and
-  // attributes.
-  printCommonStructuredOpParts(p, op);
-
-  // Results printing.
-  printNamedStructuredOpResults(p, op.result_tensors().getTypes());
-
-  // Region is elided.
-}
-
-template <typename NamedStructuredOpType>
-static LogicalResult verifyNamedStructuredOp(NamedStructuredOpType op) {
-  return verifyGenericOp<NamedStructuredOpType>(op);
-}
-
-//===----------------------------------------------------------------------===//
 // Canonicalizers and Folders.
 //===----------------------------------------------------------------------===//
 
@@ -1737,7 +1677,7 @@ static void populateMap(LinalgOp linalgOp, ArrayRef<OpOperand *> operands,
     // Get the `sourceShape` of the `sourceType`. If the operand is a result of
     // `tensor.cast` operation and source of the cast operation has a static
     // shape, then assign it to the `sourceShape`.
-    auto parentOp = src.getDefiningOp();
+    auto *parentOp = src.getDefiningOp();
     ArrayRef<int64_t> sourceShape = sourceType.getShape();
     if (parentOp) {
       if (auto castOp = dyn_cast<tensor::CastOp>(parentOp)) {

@@ -223,9 +223,10 @@ bool CSKYInstrInfo::reverseBranchCondition(
 
 Register CSKYInstrInfo::movImm(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MBBI,
-                               const DebugLoc &DL, int64_t Val,
+                               const DebugLoc &DL, uint64_t Val,
                                MachineInstr::MIFlag Flag) const {
-  assert(isUInt<32>(Val) && "should be uint32");
+  if (!isInt<32>(Val))
+    report_fatal_error("Should only materialize 32-bit constants.");
 
   MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
 
@@ -476,9 +477,6 @@ void CSKYInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                 MachineBasicBlock::iterator I,
                                 const DebugLoc &DL, MCRegister DestReg,
                                 MCRegister SrcReg, bool KillSrc) const {
-
-  MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
-
   if (CSKY::GPRRegClass.contains(SrcReg) &&
       CSKY::CARRYRegClass.contains(DestReg)) {
     if (STI.hasE2()) {

@@ -772,7 +772,8 @@ removeHostnameFromPathname(llvm::StringRef path_from_dwarf) {
 
   // check whether we have a windows path, and so the first character is a
   // drive-letter not a hostname.
-  if (host.size() == 1 && llvm::isAlpha(host[0]) && path.startswith("\\"))
+  if (host.size() == 1 && llvm::isAlpha(host[0]) &&
+      (path.startswith("\\") || path.startswith("/")))
     return path_from_dwarf;
 
   return path;
@@ -864,14 +865,24 @@ DWARFUnitHeader::extract(const DWARFDataExtractor &data,
         section == DIERef::Section::DebugTypes ? DW_UT_type : DW_UT_compile;
   }
 
+  if (header.IsTypeUnit()) {
+    header.m_type_hash = data.GetU64(offset_ptr);
+    header.m_type_offset = data.GetDWARFOffset(offset_ptr);
+  }
+
   if (context.isDwo()) {
+    const llvm::DWARFUnitIndex *Index;
     if (header.IsTypeUnit()) {
-      header.m_index_entry =
-          context.GetAsLLVM().getTUIndex().getFromOffset(header.m_offset);
+      Index = &context.GetAsLLVM().getTUIndex();
+      if (*Index)
+        header.m_index_entry = Index->getFromHash(header.m_type_hash);
     } else {
-      header.m_index_entry =
-          context.GetAsLLVM().getCUIndex().getFromOffset(header.m_offset);
+      Index = &context.GetAsLLVM().getCUIndex();
+      if (*Index && header.m_version >= 5)
+        header.m_index_entry = Index->getFromHash(header.m_dwo_id);
     }
+    if (!header.m_index_entry)
+      header.m_index_entry = Index->getFromOffset(header.m_offset);
   }
 
   if (header.m_index_entry) {
@@ -893,10 +904,6 @@ DWARFUnitHeader::extract(const DWARFDataExtractor &data,
           "DWARF package index missing abbreviation column");
     }
     header.m_abbr_offset = abbr_entry->Offset;
-  }
-  if (header.IsTypeUnit()) {
-    header.m_type_hash = data.GetU64(offset_ptr);
-    header.m_type_offset = data.GetDWARFOffset(offset_ptr);
   }
 
   bool length_OK = data.ValidOffset(header.GetNextUnitOffset() - 1);

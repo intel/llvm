@@ -13,6 +13,7 @@
 #include "MCTargetDesc/X86BaseInfo.h"
 #include "MCTargetDesc/X86InstrRelaxTables.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
+#include "X86MCSymbolizer.h"
 #include "bolt/Core/MCPlus.h"
 #include "bolt/Core/MCPlusBuilder.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -43,7 +44,7 @@ extern cl::OptionCategory BoltOptCategory;
 static cl::opt<bool> X86StripRedundantAddressSize(
     "x86-strip-redundant-address-size",
     cl::desc("Remove redundant Address-Size override prefix"), cl::init(true),
-    cl::ZeroOrMore, cl::cat(BoltOptCategory));
+    cl::cat(BoltOptCategory));
 
 } // namespace opts
 
@@ -68,18 +69,26 @@ bool isMOVSX64rm32(const MCInst &Inst) {
   return Inst.getOpcode() == X86::MOVSX64rm32;
 }
 
+bool isADD64rr(const MCInst &Inst) { return Inst.getOpcode() == X86::ADD64rr; }
+
+bool isADDri(const MCInst &Inst) {
+  return Inst.getOpcode() == X86::ADD64ri32 ||
+         Inst.getOpcode() == X86::ADD64ri8;
+}
+
 class X86MCPlusBuilder : public MCPlusBuilder {
 public:
   X86MCPlusBuilder(const MCInstrAnalysis *Analysis, const MCInstrInfo *Info,
                    const MCRegisterInfo *RegInfo)
       : MCPlusBuilder(Analysis, Info, RegInfo) {}
 
-  bool isBranch(const MCInst &Inst) const override {
-    return Analysis->isBranch(Inst) && !isTailCall(Inst);
+  std::unique_ptr<MCSymbolizer>
+  createTargetSymbolizer(BinaryFunction &Function) const override {
+    return std::make_unique<X86MCSymbolizer>(Function);
   }
 
-  bool isUnconditionalBranch(const MCInst &Inst) const override {
-    return Analysis->isUnconditionalBranch(Inst) && !isTailCall(Inst);
+  bool isBranch(const MCInst &Inst) const override {
+    return Analysis->isBranch(Inst) && !isTailCall(Inst);
   }
 
   bool isNoop(const MCInst &Inst) const override {
@@ -87,15 +96,10 @@ public:
   }
 
   unsigned getCondCode(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    default:
-      return X86::COND_INVALID;
-    case X86::JCC_1:
-    case X86::JCC_2:
-    case X86::JCC_4:
-      return Inst.getOperand(Info->get(Inst.getOpcode()).NumOperands - 1)
-          .getImm();
-    }
+    unsigned Opcode = Inst.getOpcode();
+    if (X86::isJCC(Opcode))
+      return Inst.getOperand(Info->get(Opcode).NumOperands - 1).getImm();
+    return X86::COND_INVALID;
   }
 
   unsigned getInvertedCondCode(unsigned CC) const override {
@@ -183,13 +187,8 @@ public:
   }
 
   bool isPrefix(const MCInst &Inst) const override {
-    switch (Inst.getOpcode()) {
-    case X86::LOCK_PREFIX:
-    case X86::REPNE_PREFIX:
-    case X86::REP_PREFIX:
-      return true;
-    }
-    return false;
+    const MCInstrDesc &Desc = Info->get(Inst.getOpcode());
+    return X86II::isPrefix(Desc.TSFlags);
   }
 
   bool isRep(const MCInst &Inst) const override {
@@ -206,21 +205,9 @@ public:
 
   // FIXME: For compatibility with old LLVM only!
   bool isTerminator(const MCInst &Inst) const override {
-    if (Info->get(Inst.getOpcode()).isTerminator())
-      return true;
-    switch (Inst.getOpcode()) {
-    default:
-      return false;
-    case X86::TRAP:
-    // Opcodes previously known as X86::UD2B
-    case X86::UD1Wm:
-    case X86::UD1Lm:
-    case X86::UD1Qm:
-    case X86::UD1Wr:
-    case X86::UD1Lr:
-    case X86::UD1Qr:
-      return true;
-    }
+    unsigned Opcode = Inst.getOpcode();
+    return Info->get(Opcode).isTerminator() || X86::isUD1(Opcode) ||
+           X86::isUD2(Opcode);
   }
 
   bool isIndirectCall(const MCInst &Inst) const override {
@@ -318,17 +305,8 @@ public:
     return 0;
   }
 
-  bool isADD64rr(const MCInst &Inst) const override {
-    return Inst.getOpcode() == X86::ADD64rr;
-  }
-
   bool isSUB(const MCInst &Inst) const override {
     return X86::isSUB(Inst.getOpcode());
-  }
-
-  bool isADDri(const MCInst &Inst) const {
-    return Inst.getOpcode() == X86::ADD64ri32 ||
-           Inst.getOpcode() == X86::ADD64ri8;
   }
 
   bool isLEA64r(const MCInst &Inst) const override {
@@ -1013,8 +991,7 @@ public:
     case X86::MOVZX32rm8:
     case X86::MOVZX32rr8:
     case X86::TEST8ri:
-      for (int I = 0, E = MCPlus::getNumPrimeOperands(Inst); I != E; ++I) {
-        const MCOperand &Operand = Inst.getOperand(I);
+      for (const MCOperand &Operand : MCPlus::primeOperands(Inst)) {
         if (!Operand.isReg())
           continue;
         if (isUpper8BitReg(Operand.getReg()))
@@ -1273,9 +1250,10 @@ public:
     return false;
   }
 
-  bool evaluateSimple(const MCInst &Inst, int64_t &Output,
-                      std::pair<MCPhysReg, int64_t> Input1,
-                      std::pair<MCPhysReg, int64_t> Input2) const override {
+  bool
+  evaluateStackOffsetExpr(const MCInst &Inst, int64_t &Output,
+                          std::pair<MCPhysReg, int64_t> Input1,
+                          std::pair<MCPhysReg, int64_t> Input2) const override {
 
     auto getOperandVal = [&](MCPhysReg Reg) -> ErrorOr<int64_t> {
       if (Reg == Input1.first)
@@ -1289,16 +1267,6 @@ public:
     default:
       return false;
 
-    case X86::AND64ri32:
-    case X86::AND64ri8:
-      if (!Inst.getOperand(2).isImm())
-        return false;
-      if (ErrorOr<int64_t> InputVal =
-              getOperandVal(Inst.getOperand(1).getReg()))
-        Output = *InputVal & Inst.getOperand(2).getImm();
-      else
-        return false;
-      break;
     case X86::SUB64ri32:
     case X86::SUB64ri8:
       if (!Inst.getOperand(2).isImm())
@@ -1773,9 +1741,8 @@ public:
 
   bool convertCallToIndirectCall(MCInst &Inst, const MCSymbol *TargetLocation,
                                  MCContext *Ctx) override {
-    bool IsTailCall = isTailCall(Inst);
     assert((Inst.getOpcode() == X86::CALL64pcrel32 ||
-            (Inst.getOpcode() == X86::JMP_4 && IsTailCall)) &&
+            (Inst.getOpcode() == X86::JMP_4 && isTailCall(Inst))) &&
            "64-bit direct (tail) call instruction expected");
     const auto NewOpcode =
         (Inst.getOpcode() == X86::CALL64pcrel32) ? X86::CALL64m : X86::JMP32m;

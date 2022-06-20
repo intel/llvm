@@ -16,13 +16,13 @@ void kernel() __attribute__((sycl_device)) {
 
   auto v0 = slm_gather<int, 32>(offsets);
 
-  auto fm =
+  constexpr auto fm =
       fence_mask::global_coherent_fence | fence_mask::l3_flush_instructions |
       fence_mask::l3_flush_texture_data | fence_mask::l3_flush_constant_data |
       fence_mask::l3_flush_rw_data | fence_mask::local_barrier |
       fence_mask::l1_flush_ro_data | fence_mask::sw_barrier;
 
-  esimd::fence(static_cast<fence_mask>(fm));
+  esimd::fence<fm>();
   esimd::barrier();
 
   v0 = v0 + v1;

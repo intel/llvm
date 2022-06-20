@@ -143,7 +143,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
+    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
 }
 #endif
 
@@ -240,9 +240,9 @@ private:
 namespace ext {
 namespace oneapi {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-          access::placeholder IsPlaceholder>
-class reduction_impl;
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          class Algorithm>
+class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
@@ -550,11 +550,11 @@ private:
     if (is_host()) {
       throw invalid_object_error(
           "This kernel invocation method cannot be used on the host",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
     }
     if (Kernel.is_host()) {
       throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_INVALID_KERNEL);
+                                 PI_ERROR_INVALID_KERNEL);
     }
   }
 
@@ -714,7 +714,7 @@ private:
     if (IsCallableWithKernelHandler && MIsHost) {
       throw cl::sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
     }
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
@@ -927,14 +927,11 @@ private:
   }
 
   template <int Dims, typename LambdaArgType> struct TransformUserItemType {
-    using type = typename std::conditional_t<
-        detail::is_same_v<id<Dims>, LambdaArgType>, LambdaArgType,
-        typename std::conditional_t<
-            detail::is_convertible_v<nd_item<Dims>, LambdaArgType>,
-            nd_item<Dims>,
-            typename std::conditional_t<
-                detail::is_convertible_v<item<Dims>, LambdaArgType>, item<Dims>,
-                LambdaArgType>>>;
+    using type = typename std::conditional<
+        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
+        typename std::conditional<
+            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
+            LambdaArgType>::type>::type;
   };
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1770,7 +1767,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
@@ -1789,7 +1786,7 @@ public:
                                 "The maximal work group size depends on the "
                                 "device and the size of the objects passed to "
                                 "the reduction.",
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       handler AuxHandler(QueueCopy, MIsHost);
@@ -1868,7 +1865,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
                                                 ReduTuple, ReduIndices);
@@ -2685,11 +2682,11 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
-  // Make reduction_impl friend to store buffers and arrays created for it
-  // in handler from reduction_impl methods.
-  template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-            access::placeholder IsPlaceholder>
-  friend class ext::oneapi::detail::reduction_impl;
+  // Make reduction friends to store buffers and arrays created for it
+  // in handler from reduction methods.
+  template <typename T, class BinaryOperation, int Dims, size_t Extent,
+            class Algorithm>
+  friend class ext::oneapi::detail::reduction_impl_algo;
 
   // This method needs to call the method finalize().
   template <typename Reduction, typename... RestT>

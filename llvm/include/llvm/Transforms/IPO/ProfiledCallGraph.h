@@ -18,9 +18,6 @@
 #include <queue>
 #include <set>
 
-using namespace llvm;
-using namespace sampleprof;
-
 namespace llvm {
 namespace sampleprof {
 
@@ -68,7 +65,7 @@ public:
 
   // Constructor for non-CS profile.
   ProfiledCallGraph(SampleProfileMap &ProfileMap) {
-    assert(!FunctionSamples::ProfileIsCSFlat &&
+    assert(!FunctionSamples::ProfileIsCS &&
            "CS flat profile is not handled here");
     for (const auto &Samples : ProfileMap) {
       addProfiledCalls(Samples.second);

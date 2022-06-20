@@ -450,9 +450,9 @@ def warn_return_value_udt_incomplete: Warning<
 def warn_implicit_function_decl : Warning<
   "implicit declaration of function %0">,
   InGroup<ImplicitFunctionDeclare>, DefaultIgnore;
-def ext_implicit_function_decl : ExtWarn<
-  "implicit declaration of function %0 is invalid in C99">,
-  InGroup<ImplicitFunctionDeclare>;
+def ext_implicit_function_decl_c99 : ExtWarn<
+  "call to undeclared function %0; ISO C99 and later do not support implicit "
+  "function declarations">, InGroup<ImplicitFunctionDeclare>, DefaultError;
 def note_function_suggestion : Note<"did you mean %0?">;
 
 def err_ellipsis_first_param : Error<
@@ -726,11 +726,19 @@ def warn_unreachable_fallthrough_attr : Warning<
   InGroup<UnreachableCodeFallthrough>, DefaultIgnore;
 def note_unreachable_silence : Note<
   "silence by adding parentheses to mark code as explicitly dead">;
+def warn_unreachable_association : Warning<
+  "due to lvalue conversion of the controlling expression, association of type "
+  "%0 will never be selected because it is %select{of array type|qualified}1">,
+  InGroup<UnreachableCodeGenericAssoc>;
 
 /// Built-in functions.
 def ext_implicit_lib_function_decl : ExtWarn<
   "implicitly declaring library function '%0' with type %1">,
   InGroup<ImplicitFunctionDeclare>;
+def ext_implicit_lib_function_decl_c99 : ExtWarn<
+  "call to undeclared library function '%0' with type %1; ISO C99 and later "
+  "do not support implicit function declarations">,
+  InGroup<ImplicitFunctionDeclare>, DefaultError;
 def note_include_header_or_declare : Note<
   "include the header <%0> or explicitly provide a declaration for '%1'">;
 def note_previous_builtin_declaration : Note<"%0 is a builtin with type %1">;
@@ -1012,6 +1020,11 @@ def err_invalid_super_scope : Error<"invalid use of '__super', "
   "this keyword can only be used inside class or member function scope">;
 def err_super_in_lambda_unsupported : Error<
   "use of '__super' inside a lambda is unsupported">;
+
+def err_pragma_expected_file_scope : Error<
+  "'#pragma %0' can only appear at file scope">;
+def err_pragma_alloc_text_c_linkage: Error<
+  "'#pragma alloc_text' is applicable only to functions with C linkage">;
 
 def warn_pragma_unused_undeclared_var : Warning<
   "undeclared variable %0 used as an argument for '#pragma unused'">,
@@ -2754,9 +2767,9 @@ def ext_constexpr_static_var : ExtWarn<
   "definition of a %select{static|thread_local}1 variable "
   "in a constexpr %select{function|constructor}0 "
   "is a C++2b extension">, InGroup<CXX2b>;
-def warn_cxx20_compat_constexpr_static_var : Warning<
-  "definition of a %select{static|thread_local}1 variable "
-  "in a constexpr %select{function|constructor}0 "
+def warn_cxx20_compat_constexpr_var : Warning<
+  "definition of a %select{static variable|thread_local variable|variable "
+  "of non-literal type}1 in a constexpr %select{function|constructor}0 "
   "is incompatible with C++ standards before C++2b">,
   InGroup<CXXPre2bCompat>, DefaultIgnore;
 def err_constexpr_local_var_non_literal_type : Error<
@@ -2873,6 +2886,8 @@ def err_constrained_virtual_method : Error<
   "virtual function cannot have a requires clause">;
 def err_trailing_requires_clause_on_deduction_guide : Error<
   "deduction guide cannot have a requires clause">;
+def err_constrained_non_templated_function
+    : Error<"non-templated function cannot have a requires clause">;
 def err_reference_to_function_with_unsatisfied_constraints : Error<
   "invalid reference to function %0: constraints not satisfied">;
 def err_requires_expr_local_parameter_default_argument : Error<
@@ -3139,7 +3154,7 @@ def err_format_strftime_third_parameter : Error<
   "strftime format attribute requires 3rd parameter to be 0">;
 def err_format_attribute_requires_variadic : Error<
   "format attribute requires variadic function">;
-def err_format_attribute_not : Error<"format argument not %0">;
+def err_format_attribute_not : Error<"format argument not a string type">;
 def err_format_attribute_result_not : Error<"function does not return %0">;
 def err_format_attribute_implicit_this_format_string : Error<
   "format attribute cannot specify the implicit this argument as the format "
@@ -3284,6 +3299,10 @@ def err_attribute_argument_is_zero : Error<
 def warn_attribute_argument_n_negative : Warning<
   "%0 attribute parameter %1 is negative and will be ignored">,
   InGroup<CudaCompat>;
+def warn_reqd_sub_group_attribute_cuda_n_32
+    : Warning<"attribute argument %0 is invalid and will be ignored; CUDA "
+              "requires sub_group size 32">,
+      InGroup<CudaCompat>;
 def err_property_function_in_objc_container : Error<
   "use of Objective-C property in function nested in Objective-C "
   "container not supported, move function outside its container">;
@@ -3378,8 +3397,6 @@ def warn_redeclaration_without_import_attribute : Warning<
 def warn_dllimport_dropped_from_inline_function : Warning<
   "%q0 redeclared inline; %1 attribute ignored">,
   InGroup<IgnoredAttributes>;
-def warn_attribute_ignored : Warning<"%0 attribute ignored">,
-  InGroup<IgnoredAttributes>;
 def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
   " only on a function directly called from a SYCL kernel function; attribute ignored">,
   InGroup<IgnoredAttributes>;
@@ -3419,8 +3436,11 @@ def note_attribute_has_no_effect_on_compile_time_if_here : Note<
   "annotating the 'if %select{constexpr|consteval}0' statement here">;
 def err_decl_attribute_invalid_on_stmt : Error<
   "%0 attribute cannot be applied to a statement">;
-def err_stmt_attribute_invalid_on_decl : Error<
+def err_attribute_invalid_on_decl : Error<
   "%0 attribute cannot be applied to a declaration">;
+def warn_type_attribute_deprecated_on_decl : Warning<
+  "applying attribute %0 to a declaration is deprecated; apply it to the type instead">,
+  InGroup<DeprecatedAttributes>;
 def warn_declspec_attribute_ignored : Warning<
   "attribute %0 is ignored, place it after "
   "\"%select{class|struct|interface|union|enum}1\" to apply attribute to "
@@ -4381,8 +4401,9 @@ def err_void_param_qualified : Error<
   "'void' as parameter must not have type qualifiers">;
 def err_ident_list_in_fn_declaration : Error<
   "a parameter list without types is only allowed in a function definition">;
-def ext_param_not_declared : Extension<
-  "parameter %0 was not declared, defaulting to type 'int'">;
+def ext_param_not_declared : ExtWarn<
+  "parameter %0 was not declared, defaults to 'int'; ISO C99 and later do not "
+  "support implicit int">, InGroup<ImplicitInt>, DefaultError;
 def err_param_default_argument : Error<
   "C does not support default arguments">;
 def err_param_default_argument_redefinition : Error<
@@ -4424,6 +4445,9 @@ def err_uninitialized_member_in_ctor : Error<
 def err_default_arg_makes_ctor_special : Error<
   "addition of default argument on redeclaration makes this constructor a "
   "%select{default|copy|move}0 constructor">;
+def err_stmt_expr_in_default_arg : Error<
+  "default %select{argument|non-type template argument}0 may not use a GNU "
+  "statement expression">;
 
 def err_use_of_default_argument_to_function_declared_later : Error<
   "use of default argument to function %0 that is declared later in class %1">;
@@ -4889,7 +4913,7 @@ def ext_adl_only_template_id : ExtWarn<
   "with explicit template arguments is a C++20 extension">, InGroup<CXX20>;
 
 def warn_unqualified_call_to_std_cast_function : Warning<
-  "unqualified call to %0">, InGroup<DiagGroup<"unqualified-std-cast-call">>;
+  "unqualified call to '%0'">, InGroup<DiagGroup<"unqualified-std-cast-call">>;
 
 // C++ Template Argument Lists
 def err_template_missing_args : Error<
@@ -5545,6 +5569,9 @@ def err_found_later_in_class : Error<"member %0 used before its declaration">;
 def ext_found_later_in_class : ExtWarn<
   "use of member %0 before its declaration is a Microsoft extension">,
   InGroup<MicrosoftTemplate>;
+def ext_unqualified_base_class : ExtWarn<
+  "unqualified base initializer of class templates is a Microsoft extension">,
+  InGroup<MicrosoftTemplate>;
 def note_dependent_member_use : Note<
   "must qualify identifier to find this declaration in dependent base class">;
 def err_not_found_by_two_phase_lookup : Error<"call to function %0 that is neither "
@@ -5595,16 +5622,28 @@ def warn_missing_sentinel : Warning <
   InGroup<Sentinel>;
 def note_sentinel_here : Note<
   "%select{function|method|block}0 has been explicitly marked sentinel here">;
+def warn_strict_uses_without_prototype : Warning<
+  "passing arguments to %select{a function|%1}0 without a prototype is "
+  "deprecated in all versions of C and is not supported in C2x">,
+  InGroup<DeprecatedNonPrototype>;
 def warn_missing_prototype : Warning<
   "no previous prototype for function %0">,
   InGroup<DiagGroup<"missing-prototypes">>, DefaultIgnore;
 def note_declaration_not_a_prototype : Note<
   "this declaration is not a prototype; add %select{'void'|parameter declarations}0 "
   "to make it %select{a prototype for a zero-parameter function|one}0">;
-def warn_strict_prototypes : Warning<
-  "this %select{function declaration is not|block declaration is not|"
-  "old-style function definition is not preceded by}0 a prototype">,
-  InGroup<DiagGroup<"strict-prototypes">>, DefaultIgnore;
+// This is not actually an extension, but we only want it to be enabled in
+// -pedantic mode and this is the most direct way of accomplishing that.
+def warn_strict_prototypes : Extension<
+  "a %select{function|block}0 declaration without a prototype is deprecated "
+  "%select{in all versions of C|}0">, InGroup<StrictPrototypes>;
+def warn_non_prototype_changes_behavior : Warning<
+  "a function %select{declaration|definition}0 without a prototype is "
+  "deprecated in all versions of C %select{and is not supported in C2x|and is "
+  "treated as a zero-parameter prototype in C2x, conflicting with a "
+  "%select{previous|subsequent}2 %select{declaration|definition}3}1">,
+  InGroup<DeprecatedNonPrototype>;
+def note_conflicting_prototype : Note<"conflicting prototype is here">;
 def warn_missing_variable_declarations : Warning<
   "no previous extern declaration for non-static variable %0">,
   InGroup<DiagGroup<"missing-variable-declarations">>, DefaultIgnore;
@@ -6483,6 +6522,9 @@ def err_atomic_specifier_bad_type
             "%select{incomplete |array |function |reference |atomic |qualified "
             "|sizeless ||integer }0type "
             "%1 %select{|||||||which is not trivially copyable|}0">;
+def warn_atomic_member_access : Warning<
+  "accessing a member of an atomic structure or union is undefined behavior">,
+  InGroup<DiagGroup<"atomic-access">>, DefaultError;
 
 // Expressions.
 def ext_sizeof_alignof_function_type : Extension<
@@ -6535,6 +6577,10 @@ def err_unique_stable_id_global_storage
 def warn_floatingpoint_eq : Warning<
   "comparing floating point with == or != is unsafe">,
   InGroup<DiagGroup<"float-equal">>, DefaultIgnore;
+
+def err_setting_eval_method_used_in_unsafe_context : Error <
+  "%select{'#pragma clang fp eval_method'|option 'ffp-eval-method'}0 cannot be used with "
+  "%select{option 'fapprox-func'|option 'mreassociate'|option 'freciprocal'|option 'ffp-eval-method'|'#pragma clang fp reassociate'}1">;
 
 def warn_remainder_division_by_zero : Warning<
   "%select{remainder|division}0 by zero is undefined">,
@@ -6614,6 +6660,15 @@ def warn_self_move : Warning<
   "explicitly moving variable of type %0 to itself">,
   InGroup<SelfMove>, DefaultIgnore;
 
+def err_builtin_move_forward_unsupported : Error<
+  "unsupported signature for %q0">;
+def err_use_of_unaddressable_function : Error<
+  "taking address of non-addressable standard library function">;
+// FIXME: This should also be in -Wc++23-compat once we have it.
+def warn_cxx20_compat_use_of_unaddressable_function : Warning<
+  "taking address of non-addressable standard library function "
+  "is incompatible with C++20">, InGroup<CXX20Compat>;
+
 def warn_redundant_move_on_return : Warning<
   "redundant move in return statement">,
   InGroup<RedundantMove>, DefaultIgnore;
@@ -6670,6 +6725,8 @@ def err_subscript_function_type : Error<
   "subscript of pointer to function type %0">;
 def err_subscript_incomplete_or_sizeless_type : Error<
   "subscript of pointer to %select{incomplete|sizeless}0 type %1">;
+def err_subscript_svbool_t : Error<
+  "subscript of svbool_t is not allowed">;
 def err_dereference_incomplete_type : Error<
   "dereference of pointer to incomplete type %0">;
 def ext_gnu_subscript_void_type : Extension<
@@ -7589,6 +7646,12 @@ def warn_deprecated_altivec_src_compat : Warning<
   "'-altivec-compat=xl' option">,
   InGroup<DiagGroup<"deprecated-altivec-src-compat">>;
 
+def warn_deprecated_lax_vec_conv_all : Warning<
+  "Implicit conversion between vector types ('%0' and '%1') is deprecated. "
+  "In the future, the behavior implied by '-fno-lax-vector-conversions' "
+  "will be the default.">,
+  InGroup<DiagGroup<"deprecate-lax-vec-conv-all">>;
+
 def err_catch_incomplete_ptr : Error<
   "cannot catch pointer to incomplete type %0">;
 def err_catch_incomplete_ref : Error<
@@ -7900,8 +7963,8 @@ def err_invalid_declarator_scope : Error<"cannot define or redeclare %0 here "
 def err_export_non_namespace_scope_name : Error<
   "cannot export %0 as it is not at namespace scope">;
 def err_redeclaration_non_exported : Error <
-  "cannot export redeclaration %0 here since the previous declaration is not "
-  "exported">;
+  "cannot export redeclaration %0 here since the previous declaration "
+  "%select{is not exported|has internal linkage|has module linkage}1">;
 def err_invalid_declarator_global_scope : Error<
   "definition or redeclaration of %0 cannot name the global scope">;
 def err_invalid_declarator_in_function : Error<
@@ -8489,6 +8552,12 @@ def err_overflow_builtin_must_be_ptr_int : Error<
 def err_overflow_builtin_bit_int_max_size : Error<
   "__builtin_mul_overflow does not support 'signed _BitInt' operands of more "
   "than %0 bits">;
+def err_expected_struct_pointer_argument : Error<
+  "expected pointer to struct as %ordinal0 argument to %1, found %2">;
+def err_expected_callable_argument : Error<
+  "expected a callable expression as %ordinal0 argument to %1, found %2">;
+def note_building_builtin_dump_struct_call : Note<
+  "in call to printing function with arguments '(%0)' while dumping struct">;
 
 def err_atomic_load_store_uses_lib : Error<
   "atomic %select{load|store}0 requires runtime support that is not "
@@ -8733,6 +8802,10 @@ def warn_unused_result : Warning<
 def warn_unused_result_msg : Warning<
   "ignoring return value of function declared with %0 attribute: %1">,
   InGroup<UnusedResult>;
+def warn_unused_result_typedef_unsupported_spelling : Warning<
+  "'[[%select{nodiscard|gnu::warn_unused_result}0]]' attribute ignored when "
+  "applied to a typedef; consider using '__attribute__((warn_unused_result))' "
+  "or '[[clang::warn_unused_result]]' instead">, InGroup<IgnoredAttributes>;
 def warn_unused_volatile : Warning<
   "expression result unused; assign into a variable to force a volatile load">,
   InGroup<DiagGroup<"unused-volatile-lvalue">>;
@@ -10024,15 +10097,13 @@ def warn_receiver_forward_class : Warning<
   "receiver %0 is a forward class and corresponding @interface may not exist">,
   InGroup<ForwardClassReceiver>;
 def note_method_sent_forward_class : Note<"method %0 is used for the forward class">;
-def ext_missing_declspec : ExtWarn<
-  "declaration specifier missing, defaulting to 'int'">;
 def ext_missing_type_specifier : ExtWarn<
-  "type specifier missing, defaults to 'int'">,
-  InGroup<ImplicitInt>;
+  "type specifier missing, defaults to 'int'; ISO C99 and later do not support "
+  "implicit int">, InGroup<ImplicitInt>, DefaultError;
+def err_missing_type_specifier : Error<
+  "a type specifier is required for all declarations">;
 def err_decimal_unsupported : Error<
   "GNU decimal type extension not supported">;
-def err_missing_type_specifier : Error<
-  "C++ requires a type specifier for all declarations">;
 def err_objc_array_of_interfaces : Error<
   "array of interface %0 is invalid (probably should be an array of pointers)">;
 def ext_c99_array_usage : Extension<
@@ -10225,8 +10296,6 @@ def err_opencl_scalar_type_rank_greater_than_vector_type : Error<
     "element. (%0 and %1)">;
 def err_bad_kernel_param_type : Error<
   "%0 cannot be used as the type of a kernel parameter">;
-def err_opencl_implicit_function_decl : Error<
-  "implicit declaration of function %0 is invalid in OpenCL">;
 def err_record_with_pointers_kernel_param : Error<
   "%select{struct|union}0 kernel parameters may not contain pointers">;
 def note_within_field_of_type : Note<
@@ -11012,6 +11081,9 @@ def err_omp_append_args_with_varargs : Error<
   "'append_args' is not allowed with varargs functions">;
 def err_openmp_vla_in_task_untied : Error<
   "variable length arrays are not supported in OpenMP tasking regions with 'untied' clause">;
+def warn_omp_unterminated_declare_target : Warning<
+  "expected '#pragma omp end declare target' at end of file to match '#pragma omp %0'">,
+  InGroup<SourceUsesOpenMP>;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {
@@ -11125,6 +11197,8 @@ def ext_export_no_name_block : ExtWarn<
 def ext_export_no_names : ExtWarn<
   "ISO C++20 does not permit a declaration that does not introduce any names "
   "to be exported">, InGroup<ExportUnnamed>;
+def introduces_no_names : Error<
+  "declaration does not introduce any names to be exported">;
 def note_export : Note<"export block begins here">;
 def err_export_no_name : Error<
   "%select{empty|static_assert|asm}0 declaration cannot be exported">;
@@ -11136,7 +11210,8 @@ def err_export_within_export : Error<
 def err_export_internal : Error<
   "declaration of %0 with internal linkage cannot be exported">;
 def err_export_using_internal : Error<
-  "using declaration referring to %0 with internal linkage cannot be exported">;
+  "using declaration referring to %1 with %select{internal|module|unknown}0 "
+  "linkage cannot be exported">;
 def err_export_not_in_module_interface : Error<
   "export declaration can only be used within a module interface unit"
   "%select{ after the module declaration|}0">;
@@ -11256,6 +11331,9 @@ def warn_always_inline_coroutine : Warning<
   "this coroutine may be split into pieces; not every piece is guaranteed to be inlined"
   >,
   InGroup<AlwaysInlineCoroutine>;
+def err_coroutine_unusable_new : Error<
+  "'operator new' provided by %0 is not usable with the function signature of %1"
+>;
 } // end of coroutines issue category
 
 let CategoryName = "Documentation Issue" in {
@@ -11775,4 +11853,28 @@ def err_riscv_builtin_requires_extension : Error<
   "builtin requires at least one of the following extensions support to be enabled : %0">;
 def err_riscv_builtin_invalid_lmul : Error<
   "LMUL argument must be in the range [0,3] or [5,7]">;
+
+def err_std_source_location_impl_not_found : Error<
+  "'std::source_location::__impl' was not found; it must be defined before '__builtin_source_location' is called">;
+def err_std_source_location_impl_malformed : Error<
+  "'std::source_location::__impl' must be standard-layout and have only two 'const char *' fields '_M_file_name' and '_M_function_name', and two integral fields '_M_line' and '_M_column'">;
+
+// HLSL Diagnostics
+def err_hlsl_attr_unsupported_in_stage : Error<"attribute %0 is unsupported in %select{Pixel|Vertex|Geometry|Hull|Domain|Compute|Library|RayGeneration|Intersection|AnyHit|ClosestHit|Miss|Callable|Mesh|Amplification|Invalid}1 shaders, requires %2">;
+
+def err_hlsl_numthreads_argument_oor : Error<"argument '%select{X|Y|Z}0' to numthreads attribute cannot exceed %1">;
+def err_hlsl_numthreads_invalid : Error<"total number of threads cannot exceed %0">;
+def err_hlsl_attribute_param_mismatch : Error<"%0 attribute parameters do not match the previous declaration">;
+
+def err_hlsl_pointers_unsupported : Error<
+  "%select{pointers|references}0 are unsupported in HLSL">;
+
+def err_hlsl_operator_unsupported : Error<
+  "the '%select{&|*|->}0' operator is unsupported in HLSL">;
+
+// Layout randomization diagnostics.
+def err_non_designated_init_used : Error<
+  "a randomized struct can only be initialized with a designated initializer">;
+def err_cast_from_randomized_struct : Error<
+  "casting from randomized structure pointer type %0 to %1">;
 } // end of sema component.

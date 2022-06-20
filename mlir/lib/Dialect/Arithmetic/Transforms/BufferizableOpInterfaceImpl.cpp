@@ -82,17 +82,22 @@ struct IndexCastOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           BufferizationState &state) const {
     auto castOp = cast<arith::IndexCastOp>(op);
+    auto resultTensorType = castOp.getType().cast<TensorType>();
 
     Value source = *state.getBuffer(rewriter, op->getOpOperand(0) /*in*/);
     auto sourceType = source.getType().cast<BaseMemRefType>();
 
     // Result type should have same layout and address space as the source type.
-    MemRefLayoutAttrInterface layout = {};
-    if (auto rankedMemRefType = sourceType.dyn_cast<MemRefType>())
-      layout = rankedMemRefType.getLayout();
-    Type resultType =
-        getMemRefType(castOp.getType().cast<TensorType>(), state.getOptions(),
-                      layout, sourceType.getMemorySpace());
+    BaseMemRefType resultType;
+    if (auto rankedMemRefType = sourceType.dyn_cast<MemRefType>()) {
+      resultType = MemRefType::get(
+          rankedMemRefType.getShape(), resultTensorType.getElementType(),
+          rankedMemRefType.getLayout(), rankedMemRefType.getMemorySpace());
+    } else {
+      auto unrankedMemrefType = sourceType.cast<UnrankedMemRefType>();
+      resultType = UnrankedMemRefType::get(resultTensorType.getElementType(),
+                                           unrankedMemrefType.getMemorySpace());
+    }
 
     replaceOpWithNewBufferizedOp<arith::IndexCastOp>(rewriter, op, resultType,
                                                      source);
@@ -129,6 +134,7 @@ struct SelectOpInterface
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           BufferizationState &state) const {
     auto selectOp = cast<arith::SelectOp>(op);
+    Location loc = selectOp.getLoc();
 
     // `getBuffer` introduces copies if an OpOperand bufferizes out-of-place.
     // TODO: It would be more efficient to copy the result of the `select` op
@@ -139,6 +145,25 @@ struct SelectOpInterface
         *state.getBuffer(rewriter, selectOp->getOpOperand(1) /*true_value*/);
     Value falseBuffer =
         *state.getBuffer(rewriter, selectOp->getOpOperand(2) /*false_value*/);
+
+    // The "true" and the "false" operands must have the same type. If the
+    // buffers have different types, they differ only in their layout map. Cast
+    // both of them to the most dynamic MemRef type.
+    if (trueBuffer.getType() != falseBuffer.getType()) {
+      auto trueType = trueBuffer.getType().cast<MemRefType>();
+      int64_t dynamicOffset = ShapedType::kDynamicStrideOrOffset;
+      SmallVector<int64_t> dynamicStrides(trueType.getRank(),
+                                          ShapedType::kDynamicStrideOrOffset);
+      AffineMap stridedLayout = makeStridedLinearLayoutMap(
+          dynamicStrides, dynamicOffset, op->getContext());
+      auto castedType =
+          MemRefType::get(trueType.getShape(), trueType.getElementType(),
+                          stridedLayout, trueType.getMemorySpaceAsInt());
+      trueBuffer = rewriter.create<memref::CastOp>(loc, castedType, trueBuffer);
+      falseBuffer =
+          rewriter.create<memref::CastOp>(loc, castedType, falseBuffer);
+    }
+
     replaceOpWithNewBufferizedOp<arith::SelectOp>(
         rewriter, op, selectOp.getCondition(), trueBuffer, falseBuffer);
     return success();
