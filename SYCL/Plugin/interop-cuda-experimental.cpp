@@ -96,6 +96,37 @@ int main() {
     assert(check_queue(new_Q));
   }
 
+  // Create new event
+  CUevent cu_event;
+
+  CUDA_CHECK(cuCtxSetCurrent(cu_ctx));
+  CUDA_CHECK(cuEventCreate(&cu_event, CU_EVENT_DEFAULT));
+
+  auto sycl_event =
+      sycl::make_event<sycl::backend::ext_oneapi_cuda>(cu_event, sycl_ctx);
+  auto native_event =
+      sycl::get_native<sycl::backend::ext_oneapi_cuda>(sycl_event);
+
+  check_type<sycl::event>(sycl_event);
+  check_type<CUevent>(native_event);
+
+  // Check sycl queue with sycl_ctx still works
+  {
+    sycl::queue new_Q(sycl_ctx, sycl::default_selector());
+    assert(check_queue(new_Q));
+  }
+
+  // Check has_native_event
+  {
+    auto e = Q.submit([&](sycl::handler &cgh) { cgh.single_task([] {}); });
+    assert(sycl::ext::oneapi::cuda::has_native_event(e));
+  }
+
+  {
+    auto e = Q.submit([&](sycl::handler &cgh) { cgh.host_task([] {}); });
+    assert(!sycl::ext::oneapi::cuda::has_native_event(e));
+  }
+
   // Create new queue
   CUstream cu_queue;
   CUDA_CHECK(cuCtxSetCurrent(cu_ctx));
