@@ -465,9 +465,9 @@ static inline typename std::make_unsigned<T>::type __abs(T x) {
   return x < 0 ? -x : x;
 }
 
-template<typename T>
-static inline void __swap(T &x, T &y) {
-  static_assert(std::is_integral<T>::value, "__swap can only accept integral type.");
+template <typename T> static inline void __swap(T &x, T &y) {
+  static_assert(std::is_integral<T>::value,
+                "__swap can only accept integral type.");
   T tmp = x;
   x = y;
   y = x;
