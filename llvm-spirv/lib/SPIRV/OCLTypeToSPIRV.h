@@ -46,7 +46,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/IR/ValueMap.h"
 #include "llvm/Pass.h"
 
 #include <map>
@@ -71,7 +70,7 @@ private:
   llvm::Module *M;
   llvm::LLVMContext *Ctx;
   // Map of argument/Function -> {pointee type, address space}
-  llvm::ValueMap<llvm::Value *, std::pair<llvm::Type *, unsigned>> AdaptedTy;
+  std::map<llvm::Value *, std::pair<llvm::Type *, unsigned>> AdaptedTy;
   std::set<llvm::Function *> WorkSet; // Functions to be adapted
 
   void adaptFunctionArguments(llvm::Function *F);
