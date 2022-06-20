@@ -2401,8 +2401,6 @@ pi_result hip_piQueueFinish(pi_queue command_queue) {
       result = PI_CHECK_ERROR(hipStreamSynchronize(s));
     });
 
-    // result = PI_CHECK_ERROR(hipStreamSynchronize(command_queue->stream_));
-
   } catch (pi_result err) {
 
     result = err;
