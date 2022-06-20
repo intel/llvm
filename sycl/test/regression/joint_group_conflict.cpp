@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fPIC -DCASE1 %s -c -o %t.1.o
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fPIC -DCASE2 %s -c -o %t.2.o
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -shared %t.1.o %t.2.o -o %t.so
+//
+// Some of the above compiler options will not work on Windows.
+// UNSUPPORTED: windows
 
 // Tests that creating a shared library with multiple object files using joint
 // group operations does not cause conflicting definitions.
