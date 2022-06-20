@@ -1318,47 +1318,30 @@ Instruction *mutateCallInstOCL(
                         TakeFuncName);
 }
 
-static std::pair<StringRef, StringRef>
-getSrcAndDstElememntTypeName(BitCastInst *BIC) {
-  if (!BIC)
-    return std::pair<StringRef, StringRef>("", "");
-
-  Type *SrcTy = BIC->getSrcTy();
-  Type *DstTy = BIC->getDestTy();
-  if (SrcTy->isPointerTy())
-    SrcTy = SrcTy->getPointerElementType();
-  if (DstTy->isPointerTy())
-    DstTy = DstTy->getPointerElementType();
-  auto SrcST = dyn_cast<StructType>(SrcTy);
-  auto DstST = dyn_cast<StructType>(DstTy);
-  if (!DstST || !DstST->hasName() || !SrcST || !SrcST->hasName())
-    return std::pair<StringRef, StringRef>("", "");
-
-  return std::make_pair(SrcST->getName(), DstST->getName());
+static StringRef getStructName(Type *Ty) {
+  if (auto *STy = dyn_cast<StructType>(Ty))
+    return STy->isLiteral() ? "" : Ty->getStructName();
+  return "";
 }
 
-bool isSamplerInitializer(Instruction *Inst) {
-  BitCastInst *BIC = dyn_cast<BitCastInst>(Inst);
-  auto Names = getSrcAndDstElememntTypeName(BIC);
-  if (Names.second == getSPIRVTypeName(kSPIRVTypeName::Sampler) &&
-      Names.first == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
-    return true;
-
-  return false;
-}
-
-bool isPipeStorageInitializer(Instruction *Inst) {
-  BitCastInst *BIC = dyn_cast<BitCastInst>(Inst);
-  auto Names = getSrcAndDstElememntTypeName(BIC);
-  if (Names.second == getSPIRVTypeName(kSPIRVTypeName::PipeStorage) &&
-      Names.first == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
-    return true;
-
-  return false;
-}
-
-bool isSpecialTypeInitializer(Instruction *Inst) {
-  return isSamplerInitializer(Inst) || isPipeStorageInitializer(Inst);
+Value *unwrapSpecialTypeInitializer(Value *V) {
+  if (auto *BC = dyn_cast<BitCastOperator>(V)) {
+    Type *DestTy = BC->getDestTy();
+    Type *SrcTy = BC->getSrcTy();
+    if (SrcTy->isPointerTy() && !SrcTy->isOpaquePointerTy()) {
+      StringRef SrcName =
+          getStructName(SrcTy->getNonOpaquePointerElementType());
+      StringRef DestName =
+          getStructName(DestTy->getNonOpaquePointerElementType());
+      if (DestName == getSPIRVTypeName(kSPIRVTypeName::PipeStorage) &&
+          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
+        return BC->getOperand(0);
+      if (DestName == getSPIRVTypeName(kSPIRVTypeName::Sampler) &&
+          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
+        return BC->getOperand(0);
+    }
+  }
+  return nullptr;
 }
 
 bool isSamplerStructTy(StructType *STy) {
