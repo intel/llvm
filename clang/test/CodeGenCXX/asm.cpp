@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple i386-unknown-unknown -fblocks -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -opaque-pointers -triple i386-unknown-unknown -fblocks -emit-llvm %s -o - | FileCheck %s
 
 // CHECK: %[[STRUCT_A:.*]] = type { i8 }
 
