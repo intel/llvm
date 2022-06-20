@@ -105,6 +105,17 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
+    DeviceImplPtr CurrentDevice = Device;
+    while (!Context->hasDevice(CurrentDevice)) {
+      if (CurrentDevice->isRootDevice())
+        throw sycl::invalid_object_error(
+            "Queue cannot be constructed with the given context and device "
+            "since the device is neither a member of the context nor a "
+            "subdevice of its member",
+            PI_ERROR_INVALID_DEVICE);
+      CurrentDevice = detail::getSyclObjImpl(
+          CurrentDevice->get_info<info::device::parent_device>());
+    }
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
