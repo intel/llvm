@@ -25576,6 +25576,17 @@ TEST_F(FormatTest, RemoveBraces) {
                "  g;",
                Style);
 
+  verifyFormat("if (a) {\n"
+               "  b;\n"
+               "  c;\n"
+               "} else { // comment\n"
+               "  if (d) {\n"
+               "    e;\n"
+               "    f;\n"
+               "  }\n"
+               "}",
+               Style);
+
   verifyFormat("if (a)\n"
                "  b;\n"
                "else if (c)\n"
@@ -25770,6 +25781,25 @@ TEST_F(FormatTest, RemoveBraces) {
                "for (int &i :\n"
                "     chars) {\n"
                "  ++i;\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a)\n"
+               "  b;\n"
+               "else if (c) {\n"
+               "  d;\n"
+               "  e;\n"
+               "} else\n"
+               "  f = g(foo, bar,\n"
+               "        baz);",
+               "if (a)\n"
+               "  b;\n"
+               "else {\n"
+               "  if (c) {\n"
+               "    d;\n"
+               "    e;\n"
+               "  } else\n"
+               "    f = g(foo, bar, baz);\n"
                "}",
                Style);
 

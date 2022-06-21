@@ -147,6 +147,9 @@ static cl::opt<bool>
                     cl::desc("dump CFG of functions with unknown control flow"),
                     cl::cat(BoltCategory), cl::ReallyHidden);
 
+// Please MSVC19 with a forward declaration: otherwise it reports an error about
+// an undeclared variable inside a callback.
+extern cl::opt<bolt::ReorderBasicBlocks::LayoutType> ReorderBlocks;
 cl::opt<bolt::ReorderBasicBlocks::LayoutType> ReorderBlocks(
     "reorder-blocks", cl::desc("change layout of basic blocks in a function"),
     cl::init(bolt::ReorderBasicBlocks::LT_NONE),
@@ -1757,8 +1760,8 @@ void SpecializeMemcpy1::runOnFunctions(BinaryContext &BC) {
           assert(NextBB && "unexpected call to memcpy() with no return");
         }
 
-        BinaryBasicBlock *MemcpyBB =
-            Function.addBasicBlock(CurBB->getInputOffset());
+        BinaryBasicBlock *MemcpyBB = Function.addBasicBlock();
+        MemcpyBB->setOffset(CurBB->getInputOffset());
         InstructionListType CmpJCC =
             BC.MIB->createCmpJE(BC.MIB->getIntArgRegister(2), 1,
                                 OneByteMemcpyBB->getLabel(), BC.Ctx.get());
