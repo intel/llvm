@@ -130,7 +130,7 @@ int main() {
 // CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
 // CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 5}
 // CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_1:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 1}
-//
+
 /// Global ivdep w/o safelen specified
 /// All arrays have the same INF safelen - put access groups into the same parallel_access_indices metadata
 //
@@ -151,7 +151,7 @@ int main() {
 // CHECK-DAG: ![[IDX_GROUP_B_SAFELEN]] = distinct !{}
 // CHECK-DAG: ![[MD_LOOP_SAFELEN]] = distinct !{![[MD_LOOP_SAFELEN]], ![[#]], ![[IVDEP_SAFELEN:[0-9]+]], ![[IVDEP_LEGACY_SAFELEN_5]]}
 // CHECK-DAG: ![[IVDEP_SAFELEN]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_SAFELEN]], ![[IDX_GROUP_B_SAFELEN]], i32 5}
-//
+
 /// Conflicting global ivdeps, different safelens specified
 /// The highest safelen must be used for all arrays
 //
