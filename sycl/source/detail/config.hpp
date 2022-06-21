@@ -21,6 +21,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

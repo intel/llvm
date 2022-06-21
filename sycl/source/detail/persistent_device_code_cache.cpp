@@ -348,63 +348,6 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
 }
 
 
-// TODO Currently parsing configuration variables and error reporting is not
-// centralized, and is basically re-implemented (with different level of
-// reliability) for each particular variable. As a variant, this can go into
-// the SYCLConfigBase class, which can be templated by value type, default value
-// and value parser (combined with error checker). It can also have typed get()
-// function returning one-time parsed and error-checked value.
-
-// Parses persistent cache configuration and checks it for errors.
-// Returns true if it is enabled, false otherwise.
-static bool parsePersistentCacheConfig() {
-  constexpr bool Default = false; // default is disabled
-
-  // Check if deprecated opt-out env var is used, then warn.
-  if (SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get()) {
-    fprintf(stderr,
-           "WARNING: %s%s%s%s%s%s",SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName(),
-           "and has no effect. By default, persistent device code caching is ",
-           (Default ? "enabled." : "disabled."), " Use ",
-           SYCLConfig<SYCL_CACHE_PERSISTENT>::getName(),
-           "=1/0 to enable/disable.\n");
-  }
-  bool Ret = Default;
-  const char *RawVal = SYCLConfig<SYCL_CACHE_PERSISTENT>::get();
-
-  if (RawVal) {
-    if (!std::strcmp(RawVal, "0")) {
-      Ret = false;
-    } else if (!std::strcmp(RawVal, "1")) {
-      Ret = true;
-    } else {
-      std::string Msg =
-          std::string{"Invalid value for bool configuration variable "} +
-          SYCLConfig<SYCL_CACHE_PERSISTENT>::getName() + std::string{": "} +
-          RawVal;
-      throw runtime_error(Msg, PI_INVALID_OPERATION);
-    }
-  }
-  PersistentDeviceCodeCache::trace(Ret ? "enabled" : "disabled");
-  return Ret;
-}
-
-/* Cached static variable signalling if the persistent cache is enabled.
- * The variable can have three values:
- *  - None  : The configuration has not been parsed.
- *  - true  : The persistent cache is enabled.
- *  - false : The persistent cache is disabled.
- */
-static std::optional<bool> CacheIsEnabled;
-
-/* Forces a reparsing of the information used to determine if the persistent
- * cache is enabled. This is primarily used for unit-testing where the
- * corresponding configuration variable is set by the individual tests.
- */
-void PersistentDeviceCodeCache::reparseConfig() {
-  CacheIsEnabled = parsePersistentCacheConfig();
-}
-
 
 /* Returns true if persistent cache is enabled.
  */

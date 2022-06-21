@@ -21,7 +21,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
-#include <sstream>
+//#include <sstream>
 #include <string>
 #include <vector>
 
@@ -82,11 +82,14 @@ __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {
-  std::stringstream stream;
-  stream << "Unknown parameter " << parameter << " passed to " << functionName
-         << "\n";
-  auto str = stream.str();
-  auto msg = str.c_str();
+  std::string string;
+  string+= "Unknown parameter ";
+  string+= parameter;
+  string+=" passed to ";
+  string+=functionName;
+  string+= "\n";
+  auto str = string.c_str();
+  auto msg = string.c_str();
   die(msg);
 }
 

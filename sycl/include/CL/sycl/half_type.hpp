@@ -587,18 +587,18 @@ public:
   }
 
   // Operator << and >>
-  inline friend std::ostream &operator<<(std::ostream &O,
-                                         cl::sycl::half const &rhs) {
-    O << static_cast<float>(rhs);
-    return O;
-  }
+  // inline friend std::ostream &operator<<(std::ostream &O,
+  //                                        cl::sycl::half const &rhs) {
+  //   O << static_cast<float>(rhs);
+  //   return O;
+  // }
 
-  inline friend std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
-    float ValFloat = 0.0f;
-    I >> ValFloat;
-    rhs = ValFloat;
-    return I;
-  }
+  // inline friend std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
+  //   float ValFloat = 0.0f;
+  //   I >> ValFloat;
+  //   rhs = ValFloat;
+  //   return I;
+  // }
 
   template <typename Key> friend struct std::hash;
 
