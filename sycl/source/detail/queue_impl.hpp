@@ -62,8 +62,10 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-
-    return DefaultContext;
+    if (contextContainsDevice(DefaultContext, Device))
+      return DefaultContext;
+    return detail::getSyclObjImpl(
+        context{createSyclObjFromImpl<device>(Device), {}, {}});
   }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
@@ -105,17 +107,12 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    DeviceImplPtr CurrentDevice = Device;
-    while (!Context->hasDevice(CurrentDevice)) {
-      if (CurrentDevice->isRootDevice())
-        throw sycl::invalid_object_error(
-            "Queue cannot be constructed with the given context and device "
-            "since the device is neither a member of the context nor a "
-            "subdevice of its member",
-            PI_ERROR_INVALID_DEVICE);
-      CurrentDevice = detail::getSyclObjImpl(
-          CurrentDevice->get_info<info::device::parent_device>());
-    }
+    if (!contextContainsDevice(Context, Device))
+      throw sycl::invalid_object_error(
+          "Queue cannot be constructed with the given context and device "
+          "since the device is neither a member of the context nor a "
+          "subdevice of its member",
+          PI_ERROR_INVALID_DEVICE);
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
@@ -478,6 +475,20 @@ protected:
   }
 
 private:
+  /// Helper function for checking whether a device is either a member of a
+  /// context or a subdevice of its member.
+  /// \return True iff the device or its parent is a member of the context.
+  static bool contextContainsDevice(const ContextImplPtr &Context,
+                                    DeviceImplPtr Device) {
+    while (!Context->hasDevice(Device)) {
+      if (Device->isRootDevice())
+        return false;
+      Device = detail::getSyclObjImpl(
+          Device->get_info<info::device::parent_device>());
+    }
+    return true;
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
