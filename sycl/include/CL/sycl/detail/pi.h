@@ -83,8 +83,6 @@ using pi_native_handle = uintptr_t;
 // for PI <-> OpenCL ways. The PI <-> to other BE translation is almost
 // always needed anyway.
 //
-// TODO: populate PI enums.
-//
 typedef enum {
 #define _PI_ERRC(NAME, VAL) NAME = VAL,
 #include <CL/sycl/detail/pi_error.def>

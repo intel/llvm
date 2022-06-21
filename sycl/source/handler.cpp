@@ -265,7 +265,6 @@ event handler::finalize() {
                                     RawEvents, OutEvent, nullptr);
         }
       }
-      // assert(Result != PI_ERROR_INVALID_VALUE);
       return Result;
     };
 
