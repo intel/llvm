@@ -110,7 +110,7 @@ bool CompilerInstance::createTarget() {
   // other side of CUDA/OpenMP/SYCL compilation.
   if (!getAuxTarget() &&
       (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice ||
-       getLangOpts().SYCLIsDevice) &&
+       getLangOpts().SYCLIsDevice || getLangOpts().SYCLIsHost) &&
       !getFrontendOpts().AuxTriple.empty()) {
     auto TO = std::make_shared<TargetOptions>();
     TO->Triple = llvm::Triple::normalize(getFrontendOpts().AuxTriple);

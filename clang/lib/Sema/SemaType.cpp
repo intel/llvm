@@ -2305,18 +2305,13 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
     return QualType();
   }
 
-  size_t MaxBitIntWidth = getASTContext().getTargetInfo().getMaxBitIntWidth();
-  // On SYCL Host, when -fintelfpga is specified, we support a max bitsize
-  // of 2048.
-  // FIXME: Currently there is no difference in triples specified on host
-  // with -fintelfpga vs without.  It would be nice to set the limit on
-  // the target.
-  if (Context.getLangOpts().SYCLIsHost && Context.getLangOpts().IntelFPGA) {
-    assert(MaxBitIntWidth < 2048 &&
-           "Should not override a larger Target MaxBitIntWidth");
-    MaxBitIntWidth = 2048;
-  }
-
+  // If the number of bits exceed the maximum bit width supported on
+  // both host and device, issue an error diagnostic.
+  const TargetInfo *AuxTargetInfo = getASTContext().getAuxTargetInfo();
+  size_t MaxBitIntWidth = std::max((AuxTargetInfo == nullptr)
+                                   ? 0: AuxTargetInfo->getMaxBitIntWidth(),
+                                   getASTContext().getTargetInfo().
+                                       getMaxBitIntWidth());
   if (NumBits > MaxBitIntWidth) {
     Diag(Loc, diag::err_bit_int_max_size)
         << IsUnsigned << static_cast<uint64_t>(MaxBitIntWidth);

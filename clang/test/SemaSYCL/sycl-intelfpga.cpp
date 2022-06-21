@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -fintelfpga -verify=device-intelfpga -fsyntax-only %s -triple spir64_fpga -aux-triple x86_64-unknown-linux-gnu
-// RUN: %clang_cc1 -fsycl-is-host -fintelfpga -verify=host-intelfpga -fsyntax-only %s -triple x86_64
+// RUN: %clang_cc1 -fsycl-is-host -fintelfpga -verify=host-intelfpga -fsyntax-only %s -triple x86_64 -aux-triple spir64_fpga
 // RUN: %clang_cc1 -fsycl-is-device -verify=device -fsyntax-only %s
 // RUN: %clang_cc1 -fsycl-is-host -verify=host -fsyntax-only %s
 
