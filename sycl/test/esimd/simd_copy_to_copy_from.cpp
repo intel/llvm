@@ -37,9 +37,7 @@ SYCL_EXTERNAL void kernel2(int *ptr) SYCL_ESIMD_FUNCTION {
 // --- Negative tests.
 
 // Incompatible target.
-SYCL_EXTERNAL void
-kernel3(accessor<int, 1, access::mode::read_write, access::target::local> &buf)
-    SYCL_ESIMD_FUNCTION {
+SYCL_EXTERNAL void kernel3(local_accessor<int, 1> &buf) SYCL_ESIMD_FUNCTION {
   simd<int, 32> v1(0, 1);
   simd<int, 32> v0;
   // CHECK: simd_copy_to_copy_from.cpp:46{{.*}}error: no matching member function for call to 'copy_from'

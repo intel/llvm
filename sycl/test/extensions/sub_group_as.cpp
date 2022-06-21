@@ -26,9 +26,7 @@ int main(int argc, char *argv[]) {
     queue.submit([&](cl::sycl::handler &cgh) {
       auto global = buf.get_access<cl::sycl::access::mode::read_write,
                                    cl::sycl::access::target::device>(cgh);
-      sycl::accessor<int, 1, sycl::access::mode::read_write,
-                     sycl::access::target::local>
-          local(N, cgh);
+      sycl::local_accessor<int, 1> local(N, cgh);
 
       cgh.parallel_for<class test>(
           cl::sycl::nd_range<1>(N, 32), [=](cl::sycl::nd_item<1> it) {

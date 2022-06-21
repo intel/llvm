@@ -2015,8 +2015,10 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
-                                    access::target::local, IsPlaceholder> :
+class __SYCL_SPECIAL_CLASS __SYCL2020_DEPRECATED(
+    "'accessor' with 'target::local' is deprecated: use 'local_accessor' "
+    "instead.") accessor<DataT, Dimensions, AccessMode, access::target::local,
+                         IsPlaceholder> :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::LocalAccessorBaseHost,
 #endif
@@ -2217,6 +2219,12 @@ public:
   bool operator==(const accessor &Rhs) const { return impl == Rhs.impl; }
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 };
+
+// local_accessor
+// Same semantics and restrictions as accessor with target::local
+template <typename DataT, int Dimensions = 1>
+using local_accessor =
+    accessor<DataT, Dimensions, access_mode::read_write, access::target::local>;
 
 /// Image accessors.
 ///

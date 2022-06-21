@@ -1,5 +1,12 @@
+// RUN: %clangxx -DUSE_DEPRECATED_LOCAL_ACC -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE
+//
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes
 // RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE
+//
+// RUN: %clangxx -DUSE_DPRECATED_LOCAL_ACC -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes -D__ENABLE_USM_ADDR_SPACE__
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE
+//
 // RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes -D__ENABLE_USM_ADDR_SPACE__
 // RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE
 //
@@ -31,9 +38,13 @@ int main() {
                                  {cl::sycl::property::buffer::use_host_ptr()});
     queue.submit([&](cl::sycl::handler &cgh) {
       auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+#ifdef USE_DEPRECATED_LOCAL_ACC
       cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                          cl::sycl::access::target::local>
           local_acc(cl::sycl::range<1>(10), cgh);
+#else
+      cl::sycl::local_accessor<int, 1> local_acc(cl::sycl::range<1>(10), cgh);
+#endif // USE_DEPRECATED_LOCAL_ACC
       auto acc_wrapped = AccWrapper<decltype(acc)>{acc};
       auto local_acc_wrapped = AccWrapper<decltype(local_acc)>{local_acc};
       cgh.parallel_for<class check_adress_space>(
