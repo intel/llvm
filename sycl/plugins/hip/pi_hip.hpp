@@ -515,7 +515,7 @@ struct _pi_queue {
       } else {
         start %= size;
         end %= size;
-        if (start < end) {
+        if (start <= end) {
           sync_compute(start, end);
         } else {
           sync_compute(start, size);
@@ -537,7 +537,7 @@ struct _pi_queue {
         } else {
           start %= size;
           end %= size;
-          if (start < end) {
+          if (start <= end) {
             sync_transfer(start, end);
           } else {
             sync_transfer(start, size);
