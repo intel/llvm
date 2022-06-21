@@ -2309,7 +2309,7 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
   // both host and device, issue an error diagnostic.
   const TargetInfo *AuxTargetInfo = getASTContext().getAuxTargetInfo();
   size_t MaxBitIntWidth = std::max(
-      (AuxTargetInfo == nullptr) ? 0: AuxTargetInfo->getMaxBitIntWidth(),
+      (AuxTargetInfo == nullptr) ? 0 : AuxTargetInfo->getMaxBitIntWidth(),
       getASTContext().getTargetInfo().getMaxBitIntWidth());
   if (NumBits > MaxBitIntWidth) {
     Diag(Loc, diag::err_bit_int_max_size)
