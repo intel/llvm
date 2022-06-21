@@ -18,17 +18,15 @@ const char *stringifyErrorCode(pi_int32 error) {
 #define _PI_ERRC(NAME, VAL)                                                    \
   case NAME:                                                                   \
     return #NAME;
+#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
+  case NAME:                                                                   \
+    return MSG;
 #include <CL/sycl/detail/pi_error.def>
 #undef _PI_ERRC
+#undef _PI_ERRC_WITH_MSG
 
-  case PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
-    return "Function exists but address is not available";
-  case PI_ERROR_PLUGIN_SPECIFIC_ERROR:
-    return "The plugin has emitted a backend specific error";
-  case PI_ERROR_COMMAND_EXECUTION_FAILURE:
-    return "Command failed to enqueue/execute";
   default:
-    return "Unknown OpenCL error code";
+    return "Unknown error code";
   }
 }
 

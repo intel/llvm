@@ -40,16 +40,10 @@ static std::string getResult(pi_result Res) {
 #define _PI_ERRC(NAME, VAL)                                                    \
   case NAME:                                                                   \
     return #NAME;
+#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG) _PI_ERRC(NAME, VAL)
 #include <CL/sycl/detail/pi_error.def>
 #undef _PI_ERRC
-  case PI_ERROR_COMMAND_EXECUTION_FAILURE:
-    return "PI_ERROR_COMMAND_EXECUTION_FAILURE";
-  case PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
-    return "PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE";
-  case PI_ERROR_PLUGIN_SPECIFIC_ERROR:
-    return "PI_ERROR_PLUGIN_SPECIFIC_ERROR";
-  case PI_ERROR_UNKNOWN:
-    return "PI_ERROR_UNKNOWN";
+#undef _PI_ERRC_WITH_MSG
   }
 
   return "UNKNOWN RESULT";

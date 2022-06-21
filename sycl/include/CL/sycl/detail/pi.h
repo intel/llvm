@@ -85,21 +85,10 @@ using pi_native_handle = uintptr_t;
 //
 typedef enum {
 #define _PI_ERRC(NAME, VAL) NAME = VAL,
+#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG) NAME = VAL,
 #include <CL/sycl/detail/pi_error.def>
 #undef _PI_ERRC
-
-  PI_ERROR_PLUGIN_SPECIFIC_ERROR =
-      -996, ///< PI_ERROR_PLUGIN_SPECIFIC_ERROR indicates
-            ///< that an backend spcific error or
-            ///< warning has been emitted by the plugin.
-  PI_ERROR_COMMAND_EXECUTION_FAILURE =
-      -997, ///< PI_ERROR_COMMAND_EXECUTION_FAILURE indicates an error occurred
-            ///< during command enqueue or execution.
-  PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
-      -998, ///< PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
-            ///< method determines the function exists but its address cannot be
-            ///< found.
-  PI_ERROR_UNKNOWN = -999
+#undef _PI_ERRC_WITH_MSG
 } _pi_result;
 
 typedef enum {
