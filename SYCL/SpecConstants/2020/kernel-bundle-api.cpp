@@ -13,8 +13,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // FIXME: ACC devices use emulation path, which is not yet supported
-// FIXME: CUDA uses emulation path, which is not yet supported
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 
 #include <cstdlib>
 #include <iostream>

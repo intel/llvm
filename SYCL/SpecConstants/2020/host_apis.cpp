@@ -2,7 +2,6 @@
 // RUN:          -fsycl-dead-args-optimization
 // RUN: %BE_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: cuda
 // UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>

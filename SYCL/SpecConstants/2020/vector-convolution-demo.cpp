@@ -2,7 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 
 // This test checks the spenario of using specialization constants with an
 // 'array of array' as well as a 'stuct with an array of array' types for
