@@ -49,7 +49,7 @@ It depends on the following extensions:
 
  - link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
  - link:sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
- - link:sycl_ext_oneapi_annotated_arg.asciidoc[sycl_ext_oneapi_annotated_ptr]
+ - link:sycl_ext_oneapi_annotated_arg.asciidoc[sycl_ext_oneapi_annotated_arg]
 
 == Status
 
@@ -122,7 +122,7 @@ implementation supports.
 
 === `annotated_ptr` and `annotated_arg` Properties
 
-Below is a list of compile-time constant properties supported with
+Below is a list of compile-time constant properties supported by
 the `annotated_ptr` and `annotated_arg` classes. These properties control the
 kernel argument interface on FPGA devices.
 
@@ -130,9 +130,10 @@ All of the properties defined in this extension are meaningful only on the
 kernel argument and are not meaningful within the kernel body.
 
 NOTE: The properties that are defined for pointers will be meaningful for
-annotated_arg<T, ...> only when T is a pointer type
+annotated_arg<T, ...> only when T is a pointer type.
 
 ```c++
+namespace sycl::ext::oneapi::experimental {
 struct conduit_key {
   using value_t = property_value<conduit_key>;
 };
@@ -270,7 +271,39 @@ struct is_property_key_of<maxburst_key,
 template <typename T, typename PropertyListT>
 struct is_property_key_of<wait_request_key,
   annotated_ptr<T, PropertyListT>> : std::true_type {};
-} // namespace experimental::oneapi::ext::sycl
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<conduit_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<register_map_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<stable_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<buffer_location_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<awidth_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<dwidth_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<read_write_mode_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<latency_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<maxburst_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<wait_request_key,
+  annotated_arg<T, PropertyListT>> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
 ```
 --
 
@@ -328,7 +361,8 @@ a|
 Specifies the width of the memory-mapped address bus in bits. The default is
 set to 64.
 
-This property is only meaningful on pointer kernel arguments.
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
 
 a|
 [source,c++]
@@ -339,7 +373,8 @@ a|
 Specifies the width of the memory-mapped data bus in bits. The default is set
 to 64.
 
-This property is only meaningful on pointer kernel arguments.
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
 
 a|
 [source,c++]
@@ -364,7 +399,8 @@ For convenience, the following are provided:
  - read_write_mode_write
  - read_write_mode_readwrite
 
-This property is only meaningful on pointer kernel arguments.
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
 
 a|
 [source,c++]
@@ -379,7 +415,8 @@ is set to 1.
 A value of 0 specifies a variable latency and a positive value specifies a
 fixed latency.
 
-This property is only meaningful on pointer kernel arguments.
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
 
 a|
 [source,c++]
@@ -390,7 +427,8 @@ a|
 Specifies the maximum number of data transfers that can be associated with a
 read or write transaction. The default is set to 1.
 
-This property is only meaningful on pointer kernel arguments.
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
 
 a|
 [source,c++]
@@ -407,7 +445,8 @@ For convenience, the following are provided:
  - wait_request_requested
  - wait_request_not_requested
 
-This property is only meaningful on pointer kernel arguments.
+This property is only meaningful for pointer kernel arguments and only
+when the `buffer_location` property is specified.
 |===
 --
 

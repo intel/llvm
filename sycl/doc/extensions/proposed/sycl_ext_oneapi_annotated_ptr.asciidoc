@@ -184,7 +184,7 @@ allocation `T`, and a list of properties `PropertyListT`.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr {
   ...
@@ -214,30 +214,34 @@ using namespace sycl::ext::oneapi::experimental;
 }
 ----
 
-The section below and the table that follows, describe the constructors, member
-functions and factory methods for `annotated_ptr`.
+The section below and the table that follows, describe the constructors and
+member functions for `annotated_ptr`.
 The section below refers to an `annotated_ref` class which is described in the
 section following this one.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ptr {
   public:
     using reference = annotated_ref<T, PropertyListT>;
 
     annotated_ptr() noexcept;
-    explicit annotated_ptr(T *Ptr, const properties<PropertyListT> &) noexcept;
-    annotated_ptr(annotated_ptr const &) noexcept;
-    template <T, typename P> explicit annotated_ptr(
-      annotated_ptr<T, P> const &) noexcept;
-    template <T, typename PropertyListU, typename PropertyListV>
-    explicit annotated_ptr(annotated_ptr<T, PropertyListU> const &,
+    annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcept;
+
+    template <typename T2, typename P> explicit annotated_ptr(
+      annotated_ptr<T2, P> const &) noexcept;
+    template <typename T2, typename PropertyListU, typename PropertyListV>
+    explicit annotated_ptr(annotated_ptr<T2, PropertyListU> const &,
       properties<PropertyListV>) noexcept;
 
+    annotated_ptr(annotated_ptr const &) noexcept;
+
     reference operator*() const noexcept;
+
     reference operator[](std::ptrdiff_t) const noexcept;
+
     annotated_ptr operator+(size_t) const noexcept;
     std::ptrdiff_t operator-(annotated_ptr) const noexcept;
 
@@ -255,6 +259,7 @@ class annotated_ptr {
 
     annotated_ptr& operator++() noexcept;
     annotated_ptr operator++(int) noexcept;
+
     annotated_ptr& operator--() noexcept;
     annotated_ptr operator--(int) noexcept;
 
@@ -267,9 +272,9 @@ class annotated_ptr {
     static constexpr /*unspecified*/ get_property();
 
   private:
-    T *Ptr;
+    /* unspecified */
   };
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 
 ----
 
@@ -291,7 +296,7 @@ underlying pointer is initialized to `nullptr`.
 a|
 [source,c++]
 ----
-explicit annotated_ptr(T *Ptr, const properties<PropertyListT> &P) noexcept;
+annotated_ptr(T *Ptr, const properties<PropertyListT> &P = properties{}) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
@@ -305,9 +310,20 @@ and if any common property takes a value, the value must be the same.
 a|
 [source,c++]
 ----
-template <T, typename PropertyListU, typename PropertyListV>
-explicit annotated_ptr<T, PropertyListT>(
-  annotated_ptr<T, PropertyListU> const &Ptr,
+template <typename T2, typename P> explicit annotated_ptr(
+  annotated_ptr<T2, P> const & ConvertFrom);
+----
+|
+Constructs the `annotated_ptr` object from the `ConvertFrom` object if
+the list of properties in `PropertyListT` is a superset of the list of
+properties in `P`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename T2, typename PropertyListU, typename PropertyListV>
+explicit annotated_ptr(annotated_ptr<T2, PropertyListU> const &Ptr,
   properties<PropertyListV> P) noexcept;
 ----
 |
@@ -324,18 +340,6 @@ annotated_ptr(annotated_ptr const &) noexcept = default;
 |
 Constructs an `annotated_ptr` object from another `annotated_ptr` with the same
 template parameterization object.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-template <typename T, typename P> explicit annotated_ptr(
-  annotated_ptr<T, P> const & ConvertFrom);
-----
-|
-Constructs the `annotated_ptr` object from the `ConvertFrom` object if
-the list of properties in `PropertyListT` is a superset of the list of
-properties in `P`.
 
 // --- ROW BREAK ---
 a|
@@ -437,7 +441,7 @@ Prefix increment operator.
 a|
 [source,c++]
 ----
-annotated_ptr operator++() noexcept;
+annotated_ptr operator++(int) noexcept;
 ----
 |
 Postfix increment operator.
@@ -455,7 +459,7 @@ Prefix decrement operator.
 a|
 [source,c++]
 ----
-annotated_ptr operator--() noexcept;
+annotated_ptr operator--(int) noexcept;
 ----
 |
 Postfix decrement operator.
@@ -492,11 +496,11 @@ constant property.
 === Add new reference wrapper class `annotated_ref` to enable `annotated_ptr`
 
 The purpose of the `annotated_ref` class template is to provide reference
-wrapper semantics. It enables the implementation to preserve the properties on
-loads from and stores to the pointers.
+wrapper semantics. It enables properties to be preserved on loads from and
+stores to annotated_ptrs.
 
 ```c++
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
@@ -507,7 +511,7 @@ class annotated_ref {
   private:
     T *Ptr;
   };
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 
@@ -552,7 +556,8 @@ applying the annotations when the object is stored to memory.
 === Properties
 
 Below is a list of compile-time constant properties supported with
-`annotated_ptr`. 
+`annotated_ptr`. Other extensions can define additional compile-time constant or
+runtime properties that can be supported with `annotated_ptr`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -590,7 +595,7 @@ struct is_property_key_of<
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
   runtime_aligned_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-} // namespace experimental::oneapi::ext::sycl
+} // namespace sycl::ext::oneapi::experimental
 ```
 --
 [options="header"]
@@ -598,7 +603,7 @@ struct is_property_key_of<
 | Property | Description
 |`alignment`
 |
-Sets the alignment of the pointer address in bytes.
+Indicates the alignment of the pointer in bytes.
 
 |`restrict`
 |
@@ -607,8 +612,9 @@ are only done by this pointer or pointers derived from it.
 
 |`runtime_aligned`
 |
-Informs the compiler that the pointer has the alignment as determined by the
-runtime specification.
+Informs the compiler that the pointer has at least the default alignment for a
+pointer allocated through the SYCL runtime. This is always safe to apply to any
+pointer returned by a SYCL memory allocation function.
 |====
 --
 
