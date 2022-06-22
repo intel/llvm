@@ -1432,16 +1432,13 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
         if constexpr (sizeof(T) == 1 && RemN == 16) {
-          simd_mask_type<8> Pred(0);
-          Pred.template select<4, 1>() = 1;
-          simd<int32_t, 8> Vals;
+          simd<int32_t, 4> Vals;
           Vals.template select<4, 1>() =
               Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
                   NumChunks * ChunkSize);
-          simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
-          scatter<int32_t, 8, AccessorT>(
-              acc, Offsets, Vals,
-              offset + (NumChunks * ChunkSize * sizeof(int32_t)), Pred);
+          block_store<int32_t, 4, AccessorT>(
+              acc, offset + (NumChunks * ChunkSize), Vals);
+
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN, AccessorT>(
