@@ -1371,22 +1371,25 @@ template <> ESIMD_INLINE float atan2(float y, float x) {
 template <int N>
 ESIMD_INLINE __ESIMD_NS::simd<float, N> fmod(__ESIMD_NS::simd<float, N> y,
                                              __ESIMD_NS::simd<float, N> x) {
-  __ESIMD_NS::simd<int, N> v_quot;
-  __ESIMD_NS::simd<float, N> fmod;
+  __ESIMD_NS::simd<float, N> abs_x = __ESIMD_NS::abs(x);
+  __ESIMD_NS::simd<float, N> abs_y = __ESIMD_NS::abs(y);
+  auto fmod_sign_mask = (y.template bit_cast_view<int32_t>()) & 0x80000000;
 
-  v_quot = convert<int>(y / x);
-  fmod = y - x * convert<float>(v_quot);
-  return fmod;
+  __ESIMD_NS::simd<float, N> reminder =
+      abs_y - abs_x * __ESIMD_NS::trunc<float>(abs_y / abs_x);
+
+  abs_x.merge(0.0, reminder >= 0);
+  __ESIMD_NS::simd<float, N> fmod = reminder + abs_x;
+  __ESIMD_NS::simd<float, N> fmod_abs = __ESIMD_NS::abs(fmod);
+
+  auto fmod_bits =
+      (fmod_abs.template bit_cast_view<int32_t>()) | fmod_sign_mask;
+  return fmod_bits.template bit_cast_view<float>();
 }
 
-//     For Scalar Input
+// For Scalar Input
 template <> ESIMD_INLINE float fmod(float y, float x) {
-  int v_quot;
-  __ESIMD_NS::simd<float, 1> fmod;
-
-  v_quot = (int)(y / x);
-  fmod = y - x * v_quot;
-  return fmod[0];
+  return fmod(__ESIMD_NS::simd<float, 1>(y), __ESIMD_NS::simd<float, 1>(x))[0];
 }
 
 // sin_emu - EU emulation for sin(x)

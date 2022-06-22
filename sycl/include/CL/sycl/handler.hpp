@@ -2688,7 +2688,8 @@ private:
             class Algorithm>
   friend class ext::oneapi::detail::reduction_impl_algo;
 
-  // This method needs to call the method finalize().
+  // This method needs to call the method finalize() and also access to private
+  // ctor/dtor.
   template <typename Reduction, typename... RestT>
   std::enable_if_t<!Reduction::is_usm> friend ext::oneapi::detail::
       reduSaveFinalResultToUserMemHelper(

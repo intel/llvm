@@ -290,6 +290,31 @@ and not recommended to use in production environment.
 
     NOTE: This flag is currently only supported with the CUDA and HIP targets.
 
+
+**`-f[no-]sycl-esimd-force-stateless-mem`** [EXPERIMENTAL]
+
+    Enforces stateless memory access and enables the automatic conversion of
+    "stateful" memory access via SYCL accessors to "stateless" within ESIMD
+    (Explicit SIMD) kernels.
+
+    -fsycl-esimd-force-stateless-mem disables the intrinsics and methods
+    accepting SYCL accessors or "surface-index" which cannot be automatically
+    converted to their "stateless" equivalents.
+
+    -fno-sycl-esimd-force-stateless-mem is used to tell compiler not to
+    enforce usage of stateless memory accesses. This is the default behavior.
+
+    NOTE: "Stateful" access is the one that uses SYCL accessor or a pair
+    of "surface-index" + 32-bit byte-offset and uses specific memory access
+    data port messages to read/write/fetch.
+    "Stateless" memory access uses memory location represented with virtual
+    memory address pointer such as USM pointer.
+
+    The "stateless" memory may be beneficial as it does not have the limit
+    of 4Gb per surface.
+    Also, some of Intel GPUs or GPU run-time/drivers may support only
+    "stateless" memory accesses.
+
 # Example: SYCL device code compilation
 
 To invoke SYCL device compiler set `-fsycl-device-only` flag.

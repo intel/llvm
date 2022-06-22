@@ -186,6 +186,9 @@ private:
   selectVOP3PModsDOT(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
+  selectDotIUVOP3PMods(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
   selectVOP3OpSelMods(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
@@ -210,6 +213,8 @@ private:
 
   InstructionSelector::ComplexRendererFns
   selectScratchSAddr(MachineOperand &Root) const;
+  bool checkFlatScratchSVSSwizzleBug(Register VAddr, Register SAddr,
+                                     uint64_t ImmOffset) const;
   InstructionSelector::ComplexRendererFns
   selectScratchSVAddr(MachineOperand &Root) const;
 
