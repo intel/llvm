@@ -1,3 +1,4 @@
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-ivdep-compat -verify %s
 // RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-ignored-attributes -verify %s
 
 // expected-no-diagnostics

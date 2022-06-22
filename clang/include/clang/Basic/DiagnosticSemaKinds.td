@@ -11796,7 +11796,7 @@ def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   InGroup<IgnoredAttributes>;
 def warn_ivdep_attribute_argument : Warning<
   "'ivdep' attribute with value %0 has no effect; attribute ignored">,
-  InGroup<IgnoredAttributes>;
+  InGroup<SyclIvdepAttribute>;
 def warn_attribute_spelling_deprecated : Warning<
   "attribute %0 is deprecated">,
   InGroup<DeprecatedAttributes>;
