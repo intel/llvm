@@ -251,8 +251,8 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   sycl::marray<bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
-    __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
-              detail::to_uint32_t(z, i * 2));
+    auto partial_res = __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
+                                 detail::to_uint32_t(z, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
