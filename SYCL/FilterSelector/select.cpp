@@ -120,15 +120,14 @@ int main() {
   device d8(filter_selector("0"));
   std::cout << "...PASS" << std::endl;
 
-  std::string ErrorMesg(
-      "Could not find a device that matches the specified filter(s)!");
-
   try {
     // pick something crazy
     device d9(filter_selector("gpu:999"));
     std::cout << "d9 = " << d9.get_info<info::device::name>() << std::endl;
   } catch (const sycl::runtime_error &e) {
-    assert(ErrorMesg.find_first_of(e.what()) == 0);
+    const char *ErrorMesg =
+        "Could not find a device that matches the specified filter(s)!";
+    assert(std::string{e.what()}.find(ErrorMesg) == 0);
     std::cout << "Selector failed as expected! OK" << std::endl;
   }
 
@@ -137,7 +136,8 @@ int main() {
     device d10(filter_selector("bob:gpu"));
     std::cout << "d10 = " << d10.get_info<info::device::name>() << std::endl;
   } catch (const sycl::runtime_error &e) {
-    assert(ErrorMesg.find_first_of(e.what()) == 0);
+    const char *ErrorMesg = "Invalid filter string!";
+    assert(std::string{e.what()}.find(ErrorMesg) == 0);
     std::cout << "Selector failed as expected! OK" << std::endl;
   }
 
@@ -146,7 +146,8 @@ int main() {
     device d11(filter_selector("opencl:bob"));
     std::cout << "d11 = " << d11.get_info<info::device::name>() << std::endl;
   } catch (const sycl::runtime_error &e) {
-    assert(ErrorMesg.find_first_of(e.what()) == 0);
+    const char *ErrorMesg = "Invalid filter string!";
+    assert(std::string{e.what()}.find(ErrorMesg) == 0);
     std::cout << "Selector failed as expected! OK" << std::endl;
   }
 

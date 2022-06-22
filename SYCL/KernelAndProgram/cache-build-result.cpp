@@ -38,7 +38,8 @@ void test() {
         Result = e.get_cl_code();
       } else {
         // Exception constantly adds info on its error code in the message
-        assert(Msg.find_first_of(e.what()) == 0 && "CL_BUILD_PROGRAM_FAILURE");
+        assert(Msg.find_first_of(e.what()) == 0 &&
+               "PI_ERROR_BUILD_PROGRAM_FAILURE");
         assert(Result == e.get_cl_code() && "Exception code differs");
       }
     } catch (...) {
