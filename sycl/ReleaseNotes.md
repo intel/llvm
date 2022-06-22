@@ -309,11 +309,11 @@ Release notes for commit range f34ba2c..4043dda
 ### Documentation
   - Removed documentation for `[[intel::reqd_work_group_size]]`. [28ffda1]
   - Removed extension to set kernel cache configuration. [159a516]
-  - Disallowed `[[sycl_detail::uses_aspects()]]` attribute on type aliases in [OptionalDeviceFeatures](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md). [df83271]
-  - Moved `properties` and property-related APIs into `sycl::ext::oneapi::experimental`. [`sycl_ext_oneapi_properties`](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc) specification was updated to revision 2. [33fdc58][aacf541]
-  - Updated [`sycl_ext_oneapi_kernel_properties` extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc). 
+  - Disallowed `[[sycl_detail::uses_aspects()]]` attribute on type aliases in [OptionalDeviceFeatures](doc/design/OptionalDeviceFeatures.md). [df83271]
+  - Moved `properties` and property-related APIs into `sycl::ext::oneapi::experimental`. [`sycl_ext_oneapi_properties`](doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc) specification was updated to revision 2. [33fdc58][aacf541]
+  - Updated [`sycl_ext_oneapi_kernel_properties` extension](doc/extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc). 
   - Fixed documentation of `__builtin_sycl_unique_stable_id` in [clang/docs/LanguageExtensions](https://github.com/intel/llvm/blob/sycl/clang/docs/LanguageExtensions.rst). [72ca49c]
-  - Aligned [`sycl_ext_intel_kernel_args_restrict` extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_kernel_args_restrict.asciidoc) extension with SYCL 2020.  [4a794df]
+  - Aligned [`sycl_ext_intel_kernel_args_restrict` extension](doc/extensions/supported/sycl_ext_intel_kernel_args_restrict.asciidoc) extension with SYCL 2020.  [4a794df]
 
 # API/ABI breakages
   - Removed deprecated API from ESIMD headers. [ec0385d]
