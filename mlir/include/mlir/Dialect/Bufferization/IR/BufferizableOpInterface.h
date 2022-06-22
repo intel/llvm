@@ -230,6 +230,16 @@ struct BufferizationOptions {
   /// bufferized or not.
   bool bufferizeFunctionBoundaries = false;
 
+  /// Certain ops have aliasing OpOperand/OpResult invariants (e.g., scf.for).
+  /// If this flag is set to `false`, those invariants are no longer enforced
+  /// with buffer copies.
+  ///
+  /// Note: Deactivating this flag can lead to incorrect bufferization results
+  /// when used incorrectly. This flag is useful with
+  /// `AlwaysCopyBufferizationState` which bufferizes all writing tensor
+  /// OpOperands out-of-place.
+  bool enforceAliasingInvariants = true;
+
   /// This flag controls buffer types on function signatures.
   ///
   /// * InferLayoutMap: All function parameter types have a fully dynamic layout
@@ -243,9 +253,7 @@ struct BufferizationOptions {
   ///   additional buffer allocs and copies because layout maps cannot be casted
   ///   away.
   ///
-  /// If `bufferizeFunctionBoundaries` is not set, this flag has no effect. If
-  /// `promoteBufferResultsToOutParams` is set, `kInferMostPreciseLayoutMap` is
-  /// is an invalid option.
+  /// If `bufferizeFunctionBoundaries` is not set, this flag has no effect.
   ///
   /// Note: Inferred layout maps may not be desireable when interacting with
   /// external functions, because the generated function signatures will be less
@@ -284,24 +292,6 @@ struct BufferizationOptions {
   /// If set to `true`, the IR is annotated with details about RaW conflicts.
   /// For debugging only. Should be used together with `testAnalysisOnly`.
   bool printConflicts = false;
-
-  /// If set to `true`, buffers that are returned from functions are replaced
-  /// with buffer "out" parameters. At the call site, new buffers are allocated.
-  bool promoteBufferResultsToOutParams = false;
-
-  /// If set to `true`, an `getAliasingOpResult` will return the corresponding
-  /// "out"/"dest" OpOperand for every op that has the notion of an "out"/"dest"
-  /// operand. I.e., the aliasing OpOperand of the i-th tensor OpResult is
-  /// usually the i-th "out" tensor OpOperand. This is in line with
-  /// destination-passing style and the default behavior. Op interface
-  /// implementations must follow this contract to avoid surprising behavior.
-  ///
-  /// If set to `false`, BufferizableOpInterface implementations can try to be
-  /// smart and choose to alias with "in" operands or other operands. E.g., the
-  /// result of a `linalg.generic` op could bufferize in-place with an "in"
-  /// OpOperand if the corresponding "out" operand is not used within the
-  /// computation. Whether this pays off or not can be very input IR-specific.
-  bool alwaysAliasingWithDest = true;
 
   /// Buffer alignment for new memory allocations.
   unsigned int bufferAlignment = 128;
@@ -362,6 +352,10 @@ public:
   /// an alias. Return false if the op is not bufferizable.
   bool bufferizesToAliasOnly(OpOperand &opOperand) const;
 
+  /// Return true if a copy can always be avoided when allocating a new tensor
+  /// for the given OpOperand.
+  bool canOmitTensorCopy(OpOperand &opOperand) const;
+
   /// Return true if the given value is read by an op that bufferizes to a
   /// memory read. Also takes into account ops that create an alias but do not
   /// read by themselves (e.g., ExtractSliceOp).
@@ -404,23 +398,23 @@ public:
   SetVector<Value> findLastPrecedingWrite(Value value) const;
 
   /// Return `true` if the given OpResult has been decided to bufferize inplace.
-  virtual bool isInPlace(OpOperand &opOperand) const = 0;
+  virtual bool isInPlace(OpOperand &opOperand) const;
 
   /// Return true if `v1` and `v2` bufferize to equivalent buffers.
-  virtual bool areEquivalentBufferizedValues(Value v1, Value v2) const = 0;
+  virtual bool areEquivalentBufferizedValues(Value v1, Value v2) const;
 
   /// Return true if `v1` and `v2` may bufferize to aliasing buffers.
-  virtual bool areAliasingBufferizedValues(Value v1, Value v2) const = 0;
+  virtual bool areAliasingBufferizedValues(Value v1, Value v2) const;
 
   /// Return `true` if the given tensor has undefined contents.
-  virtual bool hasUndefinedContents(OpOperand *opOperand) const = 0;
+  virtual bool hasUndefinedContents(OpOperand *opOperand) const;
 
   /// Return true if the given tensor (or an aliasing tensor) is yielded from
   /// the containing block. Also include all aliasing tensors in the same block.
   ///
   /// Note: In the absence of an analysis, an implementation may return true for
   /// any given tensor.
-  virtual bool isTensorYielded(Value tensor) const = 0;
+  virtual bool isTensorYielded(Value tensor) const;
 
   /// Return `true` if the given dialect state exists.
   bool hasDialectState(StringRef name) const {
@@ -455,13 +449,12 @@ public:
   /// Return a reference to the BufferizationOptions.
   const BufferizationOptions &getOptions() const { return options; }
 
-protected:
   explicit AnalysisState(const BufferizationOptions &options);
 
   // AnalysisState should be passed as a reference.
   AnalysisState(const AnalysisState &) = delete;
 
-  ~AnalysisState() = default;
+  virtual ~AnalysisState() = default;
 
 private:
   /// Dialect-specific analysis state.
@@ -581,15 +574,6 @@ BaseMemRefType getMemRefTypeWithFullyDynamicLayout(TensorType tensorType,
 BaseMemRefType
 getMemRefTypeWithStaticIdentityLayout(TensorType tensorType,
                                       Attribute memorySpace = {});
-
-/// Create alloc/dealloc ops as specified in the bufferization options. If
-/// `onlyLeakingAlloc`, only those buffer allocations are processed for which no
-/// buffer deallocation can be created. `changed` is set to `true` if the IR was
-/// modified.
-LogicalResult createAllocDeallocOps(Operation *op,
-                                    const BufferizationOptions &options,
-                                    bool onlyLeakingAllocs = false,
-                                    bool *changed = nullptr);
 
 } // namespace bufferization
 } // namespace mlir

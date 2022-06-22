@@ -45,7 +45,8 @@ program::program(const context &context, cl_program clProgram)
           detail::pi::cast<pi_native_handle>(clProgram))) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  clRetainProgram(clProgram);
+  impl->getPlugin().call<detail::PiApiKind::piProgramRetain>(
+      impl->getHandleRef());
 }
 
 backend program::get_backend() const noexcept { return getImplBackend(impl); }
