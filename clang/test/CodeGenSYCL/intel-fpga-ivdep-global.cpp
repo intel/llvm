@@ -81,13 +81,10 @@ void ivdep_conflicting_safelen() {
 void ivdep_safelen_one() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
-  // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
-  int b[10];
   [[intel::ivdep(1)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
+    // CHECK-NOT: !llvm.index.group
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}
-    b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN1:[0-9]+]]
   }
 }
@@ -98,13 +95,10 @@ void ivdep_safelen_one() {
 void ivdep_safelen_zero() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
-  // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
-  int b[10];
   [[intel::ivdep(0)]] for (int i = 0; i != 10; ++i) {
     // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
+    // CHECK-NOT: !llvm.index.group
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}
-    b[i] = 0;
     // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN2:[0-9]+]]
   }
 }
