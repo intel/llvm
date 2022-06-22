@@ -29,13 +29,13 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl::ext::oneapi::experimental {
 namespace detail {
-  template <size_t N>
-  uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
+template <size_t N>
+uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
   uint32_t res;
   std::memcpy(&res, &x[start], sizeof(uint32_t));
   return res;
 }
-}
+} // namespace detail
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -174,8 +174,8 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   sycl::marray<bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res =
-    __clc_fmin(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2));
+    auto partial_res = __clc_fmin(detail::to_uint32_t(x, i * 2),
+                                  detail::to_uint32_t(y, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
@@ -212,8 +212,8 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   sycl::marray<bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res =
-    __clc_fmax(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2));
+    auto partial_res = __clc_fmax(detail::to_uint32_t(x, i * 2),
+                                  detail::to_uint32_t(y, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
@@ -251,9 +251,8 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   sycl::marray<bfloat16, N> res;
 
   for (size_t i = 0; i < N / 2; i++) {
-    auto partial_res =
     __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
-              detail::to_uint32_t(z, i * 2));
+                  detail::to_uint32_t(z, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
