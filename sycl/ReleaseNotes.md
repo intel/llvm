@@ -19,7 +19,7 @@ Release notes for commit range f34ba2c..4043dda
   - Added `-f[no-]sycl-device-lib-jit-link` option to control jit linking of SYCL device libraries. [dfb37a8] [c946286]
   - Added support for the new FPGA attribute `[[intel::fpga_pipeline(N)]]` for loop pipelining. [92aadf3]
   - Added `assert` support for Windows NVPTX. [f29b498]
-  - Added support for [compile-time property list extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc). [87f60f6][1984e74][a2583ec][cdf561a][d2982c6][35c2e00]
+  - Added support for [`sycl_ext_oneapi_properties` extension](doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc). [87f60f6][1984e74][a2583ec][cdf561a][d2982c6][35c2e00]
 
 ### SYCL Library
   - Added support for Nvidia MMA for `bf16`, mixed precision int `((u)int8/int32)`, and mixed precision float `(half/float)`. [5373362]
@@ -60,35 +60,35 @@ Release notes for commit range f34ba2c..4043dda
   - Added `backend_version` device property. [4b1a4bc]
   - Added support for the `invoke_simd` feature. [4072557][8471ff3][8c7bb45][62afb59][3e1c1bf]
   - Added support for `info::device::atomic64` for OpenCL and Level Zero backends. [8feb558]
-  - Added support for [sycl_ext_oneapi_usm_device_read_only](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc) [644c614][58c9d3a]
+  - Added support for [`sycl_ext_oneapi_usm_device_read_only` extension](doc/extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc) [644c614][58c9d3a]
   - Added support for mapping/unmapping operations for ESIMD_EMULATOR plugin. [bc0579a]
   - Added support for `make_buffer` API for the Level Zero backend. [7c49984]
   - Added interoperability support for HIP backend. [e06d1b5]
   - Added missing `+-*/` operations for half. [059efbc]
   - Introduced new environment variable `SYCL_PI_CUDA_MAX_LOCAL_MEM_SZ` to control the max local memory allowed to be allocated per kernel on CUDA backend. [2e24304]
-  - Added `ext_intel_global_host_space` in accordance with [sycl_ext_intel_usm_address_spaces](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_usm_address_spaces.asciidoc) extension. [7a2f44b]
+  - Added `ext_intel_global_host_space` in accordance with [`sycl_ext_intel_usm_address_spaces` extension](doc/extensions/supported/sycl_ext_intel_usm_address_spaces.asciidoc). [7a2f44b]
   - Added aspect for `bfloat16`. [f84fc32]
   - Introduced "Intel math functions" device library with support of type cast util functions for float, double and integer type. [a310952]
   - Added bfloat16 support for joint_matrix [6ac62ab]
 
 ### Documentation
-  - Added [Complex Algrorithms extension](doc/extensions/ComplexAlgorithms/ComplexAlgorithms.asciidoc) [7ae7ca8]
-  - Added a design document for [`sycl_ext_oneapi_device_global` extension](doc/DeviceGlobal.md) [8c22ef1]
-  - Added a design document for [`sycl_ext_oneapi_properties` extension](doc/CompileTimeProperties.md) [912572f]
-  - Added new [sycl_ext_oneapi_free_function_queries](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_queries.asciidoc) proposal. [7a93a49]
-  - Added [sycl_ext_oneapi_group_load_store](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_load_store.asciidoc) extension. [85ccdc0]
-  - Added validation rules to the SPIR-V extension [SPV_INTEL_global_variable_decorations](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/spirv-extensions/SPV_INTEL_global_variable_decorations.asciidoc). [dfaa070]
-  - Added [sycl_ext_intel_buffer_location](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_buffer_location.asciidoc) extension to support `buffer_location` property for USM allocations. [962417d] [36a9ee2]
-  - Added [sycl_ext_oneapi_named_sub_group_sizes](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) extension proposal which aims to simplify the process of using sub-groups. [4f3d7e1]
-  - Added experimental latency control API into [SYCL_INTEL_data_flow_pipes](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc). [5224f78]
-  - Added [sycl_ext_oneapi_auto_local_range](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_auto_local_range.asciidoc) extension proposal. [cb4e702]
-  - Added [SYCL 2020 spec constants](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/SYCL2020-SpecializationConstants.md) design doc. [8ec9755]
-  - Added [sycl_ext_oneapi_queue_status_query](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_queue_status_query.asciidoc) extension proposal. [b6143e5]
-  - Added initial version of [sycl_ext_oneapi_invoke_simd](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and [sycl_ext_oneapi_uniform](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extenions proposal. [a37ca84]
-  - Added the [sycl_ext_oneapi_annotated_arg](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_annotated_arg.asciidoc) extension proposal for applying properties on kernel arguments. [caa696f]
-  - Added [asynchronous barrier extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_cuda_async_barrier.asciidoc) for CUDA backend. [6770421]
-  - Added bfloat16 support to the fma, fmin, fmax and fabs SYCL floating point math functions into [sycl_ext_oneapi_bfloat16](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16.asciidoc). [c76ef5c]
-  - Added initial version of [root-group](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) proposal. [b59cd43]
+  - Added [`sycl_ext_oneapi_complex_algorithms` extension](doc/extensions/proposed/sycl_ext_oneapi_complex_algorithms.asciidoc) [7ae7ca8]
+  - Added a design document for [`sycl_ext_oneapi_device_global` extension](doc/design/DeviceGlobal.md) [8c22ef1]
+  - Added a design document for [`sycl_ext_oneapi_properties` extension](doc/design/CompileTimeProperties.md) [912572f]
+  - Added new [`sycl_ext_oneapi_free_function_queries` proposal](doc/extensions/proposed/sycl_ext_oneapi_free_function_queries.asciidoc). [7a93a49]
+  - Added [`sycl_ext_oneapi_group_load_store` extension](doc/extensions/experimental/sycl_ext_oneapi_group_load_store.asciidoc). [85ccdc0]
+  - Added validation rules to the SPIR-V extension [`SPV_INTEL_global_variable_decorations`](doc/design/spirv-extensions/SPV_INTEL_global_variable_decorations.asciidoc). [dfaa070]
+  - Added [`SYCL_INTEL_buffer_location` extension](doc/extensions/supported/sycl_ext_intel_buffer_location.asciidoc) to support `buffer_location` property for USM allocations. [962417d] [36a9ee2]
+  - Added [`sycl_ext_oneapi_named_sub_group_sizes` extension](doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) proposal which aims to simplify the process of using sub-groups. [4f3d7e1]
+  - Added experimental latency control API into [`SYCL_INTEL_data_flow_pipes`](doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc). [5224f78]
+  - Added [`sycl_ext_oneapi_auto_local_range` extension](doc/extensions/proposed/sycl_ext_oneapi_auto_local_range.asciidoc) proposal. [cb4e702]
+  - Added [SYCL 2020 spec constants](doc/design/SYCL2020-SpecializationConstants.md) design doc. [8ec9755]
+  - Added [`sycl_ext_oneapi_queue_status_query` extension](doc/extensions/proposed/sycl_ext_oneapi_queue_status_query.asciidoc) proposal. [b6143e5]
+  - Added initial version of [`sycl_ext_oneapi_invoke_simd`](doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and [`sycl_ext_oneapi_uniform`](doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extenions proposal. [a37ca84]
+  - Added the [`sycl_ext_oneapi_annotated_arg` extension](doc/extensions/proposed/sycl_ext_oneapi_annotated_arg.asciidoc) proposal for applying properties on kernel arguments. [caa696f]
+  - Added [`sycl_ext_oneapi_cuda_async_barrier` extension](doc/extensions/experimental/sycl_ext_oneapi_cuda_async_barrier.asciidoc) for CUDA backend. [6770421]
+  - Added `bfloat16` support to the `fma`, `fmin`, `fmax` and `fabs` SYCL floating point math functions into [`sycl_ext_oneapi_bfloat16` extension](doc/extensions/experimental/sycl_ext_oneapi_bfloat16.asciidoc). [c76ef5c]
+  - Added initial version of [`sycl_ext_oneapi_root_group` extension](doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) proposal. [b59cd43]
 
 ### Tools
   - Implemented property set generation for device globals in the sycl-post-link. Added the `--device-globals` command-line argument for lowering and generating information about device global variables. [88123c1]
@@ -189,8 +189,8 @@ Release notes for commit range f34ba2c..4043dda
   - Added PI tracing support for `loadOsLibrary`. [647249c]
 
 ### Documentation
-  - Clarified the interaction between the [invoke_simd extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and `SYCL_EXTERNAL` functions. [ac3e816]
-  - Removed extensions specifications which were adopted to SYCL 2020. Please refer to [extensions/removed/README](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/removed/README.md) for the list of removed extensions. [ae7e3d8] [57c9017]
+  - Clarified the interaction between the [`sycl_ext_oneapi_invoke_simd` extension](doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and `SYCL_EXTERNAL` functions. [ac3e816]
+  - Removed extensions specifications which were adopted to SYCL 2020. Please refer to [extensions/removed/README](doc/extensions/removed/README.md) for the list of removed extensions. [ae7e3d8] [57c9017]
   - Structured sycl/doc directory:
     - Moved the supported extensions to the "sycl/doc/extensions/supported". [2521592]
     - Moved the experimental extensions to the "sycl/doc/extensions/experimental". [eae965c]
@@ -198,7 +198,7 @@ Release notes for commit range f34ba2c..4043dda
     - Moved the deprecated extensions to the "sycl/doc/extensions/deprecated". [09be931]
     - Moved internal design docs and BKMs to sycl/doc/developer. [edbfc99]
     - Moved SPIR-V and OpenCL extensions to "doc/design". [64e92cb]
-  - Updated [CompileTimeProperties](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompileTimeProperties.md) design documentation. [2359e81][f6420c7]
+  - Updated [CompileTimeProperties](doc/design/CompileTimeProperties.md) design documentation. [2359e81][f6420c7]
   - Clarified which SPIR-V decorations the `sycl-post-link` tool generates for each device global variable. [3c3b485]
   - Updated the design for device global variables for variables that are "shadowed" in an unnamed namespace. [e211d73]
   - Clarified the specification that device global with `SYCL_EXTERNAL` is allowed. [0d95d6f]
@@ -206,12 +206,12 @@ Release notes for commit range f34ba2c..4043dda
   - Clarified the C++ attribute `[[sycl_detail::uses_aspects()]]` usage in the documentation. [27cc930]
   - Added a template document to use when creating new SYCL extension specifications. [4bd6d20]
   - Added new rule for naming C++ identifiers in the SYCL project. [1445528]
-  - Updated [GettingStartedGuide](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md) to recommend cuda 11.6. [0b456ce]
+  - Updated [GettingStartedGuide](doc/GetStartedGuide.md) to recommend cuda 11.6. [0b456ce]
   - Added ESIMD_EMULATOR to `SYCL_DEVICE_FILTER` description. [526ad0c]
   - Clarified availability of `get_property()`.  [a2c5e90]
   - Deprecated extended atomics extension. [7581741]
-  - Improved [GettingStartedGuide](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md) for non-standard HIP installations. [09c3b46]
-  - Added description of ESIMD_EMULATOR backend to [sycl_ext_intel_esimd/README](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/README.md). [b8e6d23]
+  - Improved [GettingStartedGuide](doc/GetStartedGuide.md) for non-standard HIP installations. [09c3b46]
+  - Added description of ESIMD_EMULATOR backend to [sycl_ext_intel_esimd/README](doc/extensions/experimental/sycl_ext_intel_esimd/README.md). [b8e6d23]
 
 # Bug fixes
 ### SYCL Compiler
@@ -310,10 +310,10 @@ Release notes for commit range f34ba2c..4043dda
   - Removed documentation for `[[intel::reqd_work_group_size]]`. [28ffda1]
   - Removed extension to set kernel cache configuration. [159a516]
   - Disallowed `[[sycl_detail::uses_aspects()]]` attribute on type aliases in [OptionalDeviceFeatures](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md). [df83271]
-  - Moved `properties` and property-related APIs into `sycl::ext::oneapi::experimental`. [sycl_ext_oneapi_properties](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc) specification was updated to revision 2. [33fdc58][aacf541]
-  - Updated [sycl_ext_oneapi_kernel_properties](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc) extension. 
+  - Moved `properties` and property-related APIs into `sycl::ext::oneapi::experimental`. [`sycl_ext_oneapi_properties`](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_properties.asciidoc) specification was updated to revision 2. [33fdc58][aacf541]
+  - Updated [`sycl_ext_oneapi_kernel_properties` extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_kernel_properties.asciidoc). 
   - Fixed documentation of `__builtin_sycl_unique_stable_id` in [clang/docs/LanguageExtensions](https://github.com/intel/llvm/blob/sycl/clang/docs/LanguageExtensions.rst). [72ca49c]
-  - Aligned [kernel_args_restrict](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_kernel_args_restrict.asciidoc) extension with SYCL 2020.  [4a794df]
+  - Aligned [`sycl_ext_intel_kernel_args_restrict` extension](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_kernel_args_restrict.asciidoc) extension with SYCL 2020.  [4a794df]
 
 # API/ABI breakages
   - Removed deprecated API from ESIMD headers. [ec0385d]
