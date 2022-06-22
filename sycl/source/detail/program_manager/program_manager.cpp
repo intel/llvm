@@ -908,7 +908,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-      (cl_uint)RawImgs.size(), &ImgInd);
+      (pi_uint32)RawImgs.size(), &ImgInd);
 
   if (JITCompilationIsRequired) {
     // If the image is already compiled with AOT, throw an exception.
@@ -1458,7 +1458,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       const_cast<pi_device_binary>(&BinImage->getRawData());
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextDeviceSelectBinary>(
       PIDeviceHandle, &DevBin,
-      /*num bin images = */ (cl_uint)1, &SuitableImageID);
+      /*num bin images = */ (pi_uint32)1, &SuitableImageID);
   if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
     throw runtime_error("Invalid binary image or device",
                         PI_ERROR_INVALID_VALUE);

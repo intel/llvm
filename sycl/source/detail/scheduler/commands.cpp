@@ -11,7 +11,6 @@
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/cg_types.hpp>
-#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/memory_manager.hpp>
 #include <CL/sycl/program.hpp>
@@ -749,9 +748,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
-  cl_int Res = enqueueImp();
+  pi_int32 Res = enqueueImp();
 
-  if (CL_SUCCESS != Res)
+  if (PI_SUCCESS != Res)
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
@@ -760,7 +759,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
-    // CL_SUCCESS
+    // PI_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
         !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
@@ -896,7 +895,7 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
-cl_int AllocaCommand::enqueueImp() {
+pi_int32 AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -909,7 +908,7 @@ cl_int AllocaCommand::enqueueImp() {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, Event);
 
-      return CL_SUCCESS;
+      return PI_SUCCESS;
     }
     HostPtr = MLinkedAllocaCmd->getMemAllocation();
   }
@@ -919,7 +918,7 @@ cl_int AllocaCommand::enqueueImp() {
       MQueue->getContextImplPtr(), getSYCLMemObj(), MInitFromUserData, HostPtr,
       std::move(EventImpls), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void AllocaCommand::printDot(FILE* file) const {
@@ -991,7 +990,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
   return MMemAllocation;
 }
 
-cl_int AllocaSubBufCommand::enqueueImp() {
+pi_int32 AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1003,7 +1002,7 @@ cl_int AllocaSubBufCommand::enqueueImp() {
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void AllocaSubBufCommand::printDot(FILE* file) const {
@@ -1056,7 +1055,7 @@ void ReleaseCommand::emitInstrumentationData() {
 #endif
 }
 
-cl_int ReleaseCommand::enqueueImp() {
+pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1116,7 +1115,7 @@ cl_int ReleaseCommand::enqueueImp() {
         MQueue->getContextImplPtr(), MAllocaCmd->getSYCLMemObj(),
         MAllocaCmd->getMemAllocation(), std::move(EventImpls), Event);
   }
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void ReleaseCommand::printDot(FILE* file) const {
@@ -1171,7 +1170,7 @@ void MapMemObject::emitInstrumentationData() {
 #endif
 }
 
-cl_int MapMemObject::enqueueImp() {
+pi_int32 MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1183,7 +1182,7 @@ cl_int MapMemObject::enqueueImp() {
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void MapMemObject::printDot(FILE* file) const {
@@ -1250,7 +1249,7 @@ bool UnMapMemObject::producesPiEvent() const {
          MEvent->getHandleRef() != nullptr;
 }
 
-cl_int UnMapMemObject::enqueueImp() {
+pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
@@ -1261,7 +1260,7 @@ cl_int UnMapMemObject::enqueueImp() {
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
                        std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void UnMapMemObject::printDot(FILE* file) const {
@@ -1353,7 +1352,7 @@ bool MemCpyCommand::producesPiEvent() const {
          MEvent->getHandleRef() != nullptr;
 }
 
-cl_int MemCpyCommand::enqueueImp() {
+pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
@@ -1369,7 +1368,7 @@ cl_int MemCpyCommand::enqueueImp() {
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
       MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void MemCpyCommand::printDot(FILE* file) const {
@@ -1421,7 +1420,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
     ((CGExecKernel *)MCommandGroup.get())->clearAuxiliaryResources();
 }
 
-cl_int UpdateHostRequirementCommand::enqueueImp() {
+pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1432,7 +1431,7 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
   assert(MDstPtr && "Expected valid target pointer");
   *MDstPtr = MSrcAllocaCmd->getMemAllocation();
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void UpdateHostRequirementCommand::printDot(FILE* file) const {
@@ -1509,7 +1508,7 @@ const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
   return MQueue->is_host() ? MSrcQueue : MQueue;
 }
 
-cl_int MemCpyCommandHost::enqueueImp() {
+pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -1523,7 +1522,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
 
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
@@ -1534,7 +1533,7 @@ cl_int MemCpyCommandHost::enqueueImp() {
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), Event);
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 EmptyCommand::EmptyCommand(QueueImplPtr Queue)
@@ -1542,11 +1541,11 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
   emitInstrumentationDataProxy();
 }
 
-cl_int EmptyCommand::enqueueImp() {
+pi_int32 EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
-  return CL_SUCCESS;
+  return PI_SUCCESS;
 }
 
 void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
@@ -2087,7 +2086,7 @@ void DispatchNativeKernel(void *Blob) {
   delete NDRDesc;
 }
 
-cl_int enqueueImpKernel(
+pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -2179,7 +2178,7 @@ cl_int enqueueImpKernel(
   return PI_SUCCESS;
 }
 
-cl_int ExecCGCommand::enqueueImp() {
+pi_int32 ExecCGCommand::enqueueImp() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
@@ -2209,7 +2208,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2226,7 +2225,7 @@ cl_int ExecCGCommand::enqueueImp() {
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CopyAccToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2244,7 +2243,7 @@ cl_int ExecCGCommand::enqueueImp() {
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
         MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
@@ -2257,7 +2256,7 @@ cl_int ExecCGCommand::enqueueImp() {
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
         std::move(RawEvents), MEvent->getHandleRef());
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::RunOnHostIntel: {
     CGExecKernel *HostTask = (CGExecKernel *)MCommandGroup.get();
@@ -2303,7 +2302,7 @@ cl_int ExecCGCommand::enqueueImp() {
       }
       DispatchNativeKernel((void *)ArgsBlob.data());
 
-      return CL_SUCCESS;
+      return PI_SUCCESS;
     }
 
     std::vector<pi_mem> Buffers;
@@ -2375,7 +2374,7 @@ cl_int ExecCGCommand::enqueueImp() {
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
 
-      return CL_SUCCESS;
+      return PI_SUCCESS;
     }
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
@@ -2407,14 +2406,14 @@ cl_int ExecCGCommand::enqueueImp() {
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
                             Copy->getDst(), std::move(RawEvents), Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
                             Fill->getFill(), std::move(RawEvents), Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
@@ -2422,14 +2421,14 @@ cl_int ExecCGCommand::enqueueImp() {
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
                               Advise->getAdvice(), std::move(RawEvents), Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayInteropTask: {
     const detail::plugin &Plugin = MQueue->getPlugin();
@@ -2458,7 +2457,7 @@ cl_int ExecCGCommand::enqueueImp() {
     Plugin.call<PiApiKind::piEnqueueEventsWait>(MQueue->getHandleRef(), 0,
                                                 nullptr, Event);
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
@@ -2513,7 +2512,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     MShouldCompleteEventIfPossible = false;
 
-    return CL_SUCCESS;
+    return PI_SUCCESS;
   }
   case CG::CGTYPE::Barrier: {
     if (MQueue->get_device().is_host()) {
