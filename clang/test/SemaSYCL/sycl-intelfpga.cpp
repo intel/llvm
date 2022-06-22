@@ -14,3 +14,10 @@
 signed _BitInt(2049) foo(signed _BitInt(2049) a, signed _BitInt(2049) b) {
   return a / b;
 }
+// device-error@+4 3{{signed _BitInt of bit sizes greater than 128 not supported}}
+// host-error@+3 3{{signed _BitInt of bit sizes greater than 128 not supported}}
+// device-intelfpga-no-diagnostic@+2
+// host-intelfpga-no-diagnostic@+1
+signed _BitInt(215) foo(signed _BitInt(215) a, signed _BitInt(215) b) {
+  return a + b;
+}
