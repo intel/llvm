@@ -28,6 +28,14 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl::ext::oneapi::experimental {
+namespace detail {
+  template <size_t N>
+  uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
+  uint32_t res;
+  std::memcpy(&res, &x[start], sizeof(uint32_t));
+  return res;
+}
+}
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -130,11 +138,11 @@ template <size_t N>
 sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
-  auto x_storage = reinterpret_cast<uint32_t const *>(&x);
-  auto res_storage = reinterpret_cast<uint32_t *>(&res);
 
-  for (size_t i = 0; i < N / 2; i++)
-    res_storage[i] = __clc_fabs(x_storage[i]);
+  for (size_t i = 0; i < N / 2; i++) {
+    auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
+    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+  }
 
   if constexpr (N % 2) {
     res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
@@ -164,12 +172,12 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
                                sycl::marray<bfloat16, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
-  auto x_storage = reinterpret_cast<uint32_t const *>(&x);
-  auto y_storage = reinterpret_cast<uint32_t const *>(&y);
-  auto res_storage = reinterpret_cast<uint32_t *>(&res);
 
-  for (size_t i = 0; i < N / 2; i++)
-    res_storage[i] = __clc_fmin(x_storage[i], y_storage[i]);
+  for (size_t i = 0; i < N / 2; i++) {
+    auto partial_res =
+    __clc_fmin(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2));
+    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+  }
 
   if constexpr (N % 2) {
     res[N - 1] =
@@ -202,12 +210,12 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
                                sycl::marray<bfloat16, N> y) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
-  auto x_storage = reinterpret_cast<uint32_t const *>(&x);
-  auto y_storage = reinterpret_cast<uint32_t const *>(&y);
-  auto res_storage = reinterpret_cast<uint32_t *>(&res);
 
-  for (size_t i = 0; i < N / 2; i++)
-    res_storage[i] = __clc_fmax(x_storage[i], y_storage[i]);
+  for (size_t i = 0; i < N / 2; i++) {
+    auto partial_res =
+    __clc_fmax(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2));
+    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+  }
 
   if constexpr (N % 2) {
     res[N - 1] =
@@ -241,13 +249,13 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
                               sycl::marray<bfloat16, N> z) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
   sycl::marray<bfloat16, N> res;
-  auto x_storage = reinterpret_cast<uint32_t const *>(&x);
-  auto y_storage = reinterpret_cast<uint32_t const *>(&y);
-  auto z_storage = reinterpret_cast<uint32_t const *>(&z);
-  auto res_storage = reinterpret_cast<uint32_t *>(&res);
 
-  for (size_t i = 0; i < N / 2; i++)
-    res_storage[i] = __clc_fma(x_storage[i], y_storage[i], z_storage[i]);
+  for (size_t i = 0; i < N / 2; i++) {
+    auto partial_res =
+    __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
+              detail::to_uint32_t(z, i * 2));
+    std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+  }
 
   if constexpr (N % 2) {
     res[N - 1] = bfloat16::from_bits(
