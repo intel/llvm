@@ -85,6 +85,7 @@
 #include <sycl/ext/intel/esimd/memory.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
+#include <sycl/ext/intel/experimental/esimd/kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/esimd/math.hpp>
 #include <sycl/ext/intel/experimental/esimd/memory.hpp>
 

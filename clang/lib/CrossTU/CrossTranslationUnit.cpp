@@ -735,20 +735,19 @@ CrossTranslationUnitContext::importDefinitionImpl(const T *D, ASTUnit *Unit) {
 
   auto ToDeclOrError = Importer.Import(D);
   if (!ToDeclOrError) {
-    handleAllErrors(ToDeclOrError.takeError(),
-                    [&](const ImportError &IE) {
-                      switch (IE.Error) {
-                      case ImportError::NameConflict:
-                        ++NumNameConflicts;
-                         break;
-                      case ImportError::UnsupportedConstruct:
-                        ++NumUnsupportedNodeFound;
-                        break;
-                      case ImportError::Unknown:
-                        llvm_unreachable("Unknown import error happened.");
-                        break;
-                      }
-                    });
+    handleAllErrors(ToDeclOrError.takeError(), [&](const ASTImportError &IE) {
+      switch (IE.Error) {
+      case ASTImportError::NameConflict:
+        ++NumNameConflicts;
+        break;
+      case ASTImportError::UnsupportedConstruct:
+        ++NumUnsupportedNodeFound;
+        break;
+      case ASTImportError::Unknown:
+        llvm_unreachable("Unknown import error happened.");
+        break;
+      }
+    });
     return llvm::make_error<IndexError>(index_error_code::failed_import);
   }
   auto *ToDecl = cast<T>(*ToDeclOrError);
@@ -799,6 +798,19 @@ CrossTranslationUnitContext::getMacroExpansionContextForSourceLocation(
     const clang::SourceLocation &ToLoc) const {
   // FIXME: Implement: Record such a context for every imported ASTUnit; lookup.
   return llvm::None;
+}
+
+bool CrossTranslationUnitContext::isImportedAsNew(const Decl *ToDecl) const {
+  if (!ImporterSharedSt)
+    return false;
+  return ImporterSharedSt->isNewDecl(const_cast<Decl *>(ToDecl));
+}
+
+bool CrossTranslationUnitContext::hasError(const Decl *ToDecl) const {
+  if (!ImporterSharedSt)
+    return false;
+  return static_cast<bool>(
+      ImporterSharedSt->getImportDeclErrorIfAny(const_cast<Decl *>(ToDecl)));
 }
 
 } // namespace cross_tu

@@ -34,6 +34,15 @@ def TestProduceParamOrForwardOperandOp
   let hasVerifier = 1;
 }
 
+def TestConsumeOperand : Op<Transform_Dialect, "test_consume_operand",
+     [DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let arguments = (ins
+    Arg<PDL_Operation, "",
+        [TransformMappingRead, TransformMappingFree]>:$operand);
+  let assemblyFormat = "$operand attr-dict";
+  let cppNamespace = "::mlir::test";
+}
+
 def TestConsumeOperandIfMatchesParamOrFail
   : Op<Transform_Dialect, "test_consume_operand_if_matches_param_or_fail",
        [DeclareOpInterfaceMethods<TransformOpInterface>]> {
@@ -92,5 +101,31 @@ def TestRemoveTestExtensionOp
   let cppNamespace = "::mlir::test";
 }
 
+def TestTransformOpWithRegions
+  : Op<Transform_Dialect, "test_transform_op_with_regions",
+       [DeclareOpInterfaceMethods<TransformOpInterface>,
+        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let regions = (region AnyRegion:$first, AnyRegion:$second);
+  let assemblyFormat = "attr-dict-with-keyword regions";
+  let cppNamespace = "::mlir::test";
+}
+
+def TestBranchingTransformOpTerminator
+  : Op<Transform_Dialect, "test_branching_transform_op_terminator",
+       [Terminator, DeclareOpInterfaceMethods<TransformOpInterface>,
+        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let successors = (successor VariadicSuccessor<AnySuccessor>:$succ);
+  let cppNamespace = "::mlir::test";
+}
+
+def TestEmitRemarkAndEraseOperandOp
+  : Op<Transform_Dialect, "test_emit_remark_and_erase_operand",
+    [DeclareOpInterfaceMethods<TransformOpInterface>,
+     MemoryEffectsOpInterface, FunctionalStyleTransformOpTrait]> {
+  let arguments = (ins PDL_Operation:$target, StrAttr:$remark,
+                   UnitAttr:$fail_after_erase);
+  let assemblyFormat = "$target `,` $remark attr-dict";
+  let cppNamespace = "::mlir::test";
+}
 
 #endif // MLIR_TESTTRANSFORMDIALECTEXTENSION_TD

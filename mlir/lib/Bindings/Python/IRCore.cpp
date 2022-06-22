@@ -19,7 +19,6 @@
 #include "mlir-c/Registration.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include <pybind11/stl.h>
 
 #include <utility>
 
@@ -1003,6 +1002,8 @@ void PyOperationBase::print(py::object fileObject, bool binary,
     mlirOpPrintingFlagsEnableDebugInfo(flags, /*prettyForm=*/prettyDebugInfo);
   if (printGenericOpForm)
     mlirOpPrintingFlagsPrintGenericOpForm(flags);
+  if (useLocalScope)
+    mlirOpPrintingFlagsUseLocalScope(flags);
 
   PyFileAccumulator accum(fileObject, binary);
   mlirOperationPrintWithFlags(operation, flags, accum.getCallback(),

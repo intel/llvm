@@ -10,7 +10,8 @@
 // adds that blob as a string attribute of the module.
 //
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/GPU/Passes.h"
+
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
 
@@ -261,6 +262,10 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
                          .getZExtValue();
     uint32_t isaNumber = minor + 1000 * major;
     addControlConstant("__oclc_ISA_version", isaNumber, 32);
+
+    // This constant must always match the default code object ABI version
+    // of the AMDGPU backend.
+    addControlConstant("__oclc_ABI_version", 400, 32);
   }
 
   // Determine libraries we need to link - order matters due to dependencies
@@ -274,7 +279,7 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
 
   Optional<SmallVector<std::unique_ptr<llvm::Module>, 3>> mbModules;
   std::string theRocmPath = getRocmPath();
-  llvm::SmallString<32> bitcodePath(std::move(theRocmPath));
+  llvm::SmallString<32> bitcodePath(theRocmPath);
   llvm::sys::path::append(bitcodePath, "amdgcn", "bitcode");
   mbModules = loadLibraries(bitcodePath, libraries, llvmContext);
 
@@ -433,7 +438,7 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
   llvm::FileRemover cleanupHsaco(tempHsacoFilename);
 
   std::string theRocmPath = getRocmPath();
-  llvm::SmallString<32> lldPath(std::move(theRocmPath));
+  llvm::SmallString<32> lldPath(theRocmPath);
   llvm::sys::path::append(lldPath, "llvm", "bin", "ld.lld");
   int lldResult = llvm::sys::ExecuteAndWait(
       lldPath,

@@ -66,6 +66,8 @@ static void setContextOpaquePointers(LLLexer &L, LLVMContext &C) {
     // explicit "ptr".
     if (K == lltok::star || K == lltok::Error || K == lltok::Eof ||
         isa_and_nonnull<PointerType>(L.getTyVal())) {
+      if (K == lltok::star)
+        C.setOpaquePointers(false);
       return;
     }
   }
@@ -1101,6 +1103,45 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
   return false;
 }
 
+static bool isSanitizer(lltok::Kind Kind) {
+  switch (Kind) {
+  case lltok::kw_no_sanitize_address:
+  case lltok::kw_no_sanitize_hwaddress:
+  case lltok::kw_no_sanitize_memtag:
+  case lltok::kw_sanitize_address_dyninit:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool LLParser::parseSanitizer(GlobalVariable *GV) {
+  using SanitizerMetadata = GlobalValue::SanitizerMetadata;
+  SanitizerMetadata Meta;
+  if (GV->hasSanitizerMetadata())
+    Meta = GV->getSanitizerMetadata();
+
+  switch (Lex.getKind()) {
+  case lltok::kw_no_sanitize_address:
+    Meta.NoAddress = true;
+    break;
+  case lltok::kw_no_sanitize_hwaddress:
+    Meta.NoHWAddress = true;
+    break;
+  case lltok::kw_no_sanitize_memtag:
+    Meta.NoMemtag = true;
+    break;
+  case lltok::kw_sanitize_address_dyninit:
+    Meta.IsDynInit = true;
+    break;
+  default:
+    return tokError("non-sanitizer token passed to LLParser::parseSanitizer()");
+  }
+  GV->setSanitizerMetadata(Meta);
+  Lex.Lex();
+  return false;
+}
+
 /// parseGlobal
 ///   ::= GlobalVar '=' OptionalLinkage OptionalPreemptionSpecifier
 ///       OptionalVisibility OptionalDLLStorageClass
@@ -1218,6 +1259,9 @@ bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
       GV->setAlignment(Alignment);
     } else if (Lex.getKind() == lltok::MetadataVar) {
       if (parseGlobalObjectMetadataAttachment(*GV))
+        return true;
+    } else if (isSanitizer(Lex.getKind())) {
+      if (parseSanitizer(GV))
         return true;
     } else {
       Comdat *C;
@@ -1358,6 +1402,13 @@ bool LLParser::parseEnumAttribute(Attribute::AttrKind Attr, AttrBuilder &B,
     if (parseOptionalUWTableKind(Kind))
       return true;
     B.addUWTableAttr(Kind);
+    return false;
+  }
+  case Attribute::AllocKind: {
+    AllocFnKind Kind = AllocFnKind::Unknown;
+    if (parseAllocKind(Kind))
+      return true;
+    B.addAllocKindAttr(Kind);
     return false;
   }
   default:
@@ -2037,6 +2088,40 @@ bool LLParser::parseOptionalUWTableKind(UWTableKind &Kind) {
     return error(KindLoc, "expected unwind table kind");
   Lex.Lex();
   return parseToken(lltok::rparen, "expected ')'");
+}
+
+bool LLParser::parseAllocKind(AllocFnKind &Kind) {
+  Lex.Lex();
+  LocTy ParenLoc = Lex.getLoc();
+  if (!EatIfPresent(lltok::lparen))
+    return error(ParenLoc, "expected '('");
+  LocTy KindLoc = Lex.getLoc();
+  std::string Arg;
+  if (parseStringConstant(Arg))
+    return error(KindLoc, "expected allockind value");
+  for (StringRef A : llvm::split(Arg, ",")) {
+    if (A == "alloc") {
+      Kind |= AllocFnKind::Alloc;
+    } else if (A == "realloc") {
+      Kind |= AllocFnKind::Realloc;
+    } else if (A == "free") {
+      Kind |= AllocFnKind::Free;
+    } else if (A == "uninitialized") {
+      Kind |= AllocFnKind::Uninitialized;
+    } else if (A == "zeroed") {
+      Kind |= AllocFnKind::Zeroed;
+    } else if (A == "aligned") {
+      Kind |= AllocFnKind::Aligned;
+    } else {
+      return error(KindLoc, Twine("unknown allockind ") + A);
+    }
+  }
+  ParenLoc = Lex.getLoc();
+  if (!EatIfPresent(lltok::rparen))
+    return error(ParenLoc, "expected ')'");
+  if (Kind == AllocFnKind::Unknown)
+    return error(KindLoc, "expected allockind value");
+  return false;
 }
 
 /// parseOptionalCommaAlign
@@ -5010,7 +5095,7 @@ bool LLParser::parseDITemplateValueParameter(MDNode *&Result, bool IsDistinct) {
 ///                         declaration: !4, align: 8)
 bool LLParser::parseDIGlobalVariable(MDNode *&Result, bool IsDistinct) {
 #define VISIT_MD_FIELDS(OPTIONAL, REQUIRED)                                    \
-  REQUIRED(name, MDStringField, (/* AllowEmpty */ false));                     \
+  OPTIONAL(name, MDStringField, (/* AllowEmpty */ false));                     \
   OPTIONAL(scope, MDField, );                                                  \
   OPTIONAL(linkageName, MDStringField, );                                      \
   OPTIONAL(file, MDField, );                                                   \
@@ -7434,10 +7519,12 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
 
   if (Operation == AtomicRMWInst::Xchg) {
     if (!Val->getType()->isIntegerTy() &&
-        !Val->getType()->isFloatingPointTy()) {
-      return error(ValLoc,
-                   "atomicrmw " + AtomicRMWInst::getOperationName(Operation) +
-                       " operand must be an integer or floating point type");
+        !Val->getType()->isFloatingPointTy() &&
+        !Val->getType()->isPointerTy()) {
+      return error(
+          ValLoc,
+          "atomicrmw " + AtomicRMWInst::getOperationName(Operation) +
+              " operand must be an integer, floating point, or pointer type");
     }
   } else if (IsFP) {
     if (!Val->getType()->isFloatingPointTy()) {
@@ -7453,7 +7540,9 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
     }
   }
 
-  unsigned Size = Val->getType()->getPrimitiveSizeInBits();
+  unsigned Size =
+      PFS.getFunction().getParent()->getDataLayout().getTypeStoreSizeInBits(
+          Val->getType());
   if (Size < 8 || (Size & (Size - 1)))
     return error(ValLoc, "atomicrmw operand must be power-of-two byte-sized"
                          " integer");

@@ -115,7 +115,7 @@ template <>
 inline cl::sycl::range<3> get_kernel_device_specific_info_host<
     info::kernel_device_specific::global_work_size>(const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -158,7 +158,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::max_num_sub_groups>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -166,7 +166,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::compile_num_sub_groups>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -174,7 +174,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::compile_sub_group_size>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <info::kernel_device_specific Param>

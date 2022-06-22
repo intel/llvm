@@ -139,6 +139,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-defaultlib:sycld.lib");
     else
       CmdArgs.push_back("-defaultlib:sycl.lib");
+    CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
   for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
@@ -530,8 +531,8 @@ bool MSVCToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
   // All non-x86_32 Windows targets require unwind tables. However, LLVM
   // doesn't know how to generate them for all targets, so only enable
   // the ones that are actually implemented.
-  return getArch() == llvm::Triple::x86_64 ||
-         getArch() == llvm::Triple::aarch64;
+  return getArch() == llvm::Triple::x86_64 || getArch() == llvm::Triple::arm ||
+         getArch() == llvm::Triple::thumb || getArch() == llvm::Triple::aarch64;
 }
 
 bool MSVCToolChain::isPICDefault() const {

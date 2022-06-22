@@ -1096,14 +1096,15 @@ public:
     auto *WS =
         getContext().getWasmSection(SecName, SectionKind::getText(), 0, Group,
                                     MCContext::GenericSectionID, nullptr);
-    getStreamer().SwitchSection(WS);
+    getStreamer().switchSection(WS);
     // Also generate DWARF for this section if requested.
     if (getContext().getGenDwarfForAssembly())
       getContext().addGenDwarfSection(WS);
   }
 
   void onEndOfFunction(SMLoc ErrorLoc) {
-    TC.endOfFunction(ErrorLoc);
+    if (!SkipTypeCheck)
+      TC.endOfFunction(ErrorLoc);
     // Reset the type checker state.
     TC.Clear();
 

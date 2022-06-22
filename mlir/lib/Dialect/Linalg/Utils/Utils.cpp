@@ -177,7 +177,8 @@ SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b) {
 }
 
 void getUpperBoundForIndex(Value value, AffineMap &boundMap,
-                           SmallVectorImpl<Value> &boundOperands) {
+                           SmallVectorImpl<Value> &boundOperands,
+                           bool constantRequired) {
   // Initialize `boundMap` and `boundOperands` to the identity returning
   // `value`. This combination is the default result of the method if no
   // simplification is possible.
@@ -226,11 +227,13 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
     if (!(llvm::all_of(op->getResults(), findOrCreateId) &&
           llvm::all_of(op->getOperands(), findOrCreateId)))
       return;
+
     // Add AffineApplyOps to the constraints.
     if (auto applyOp = dyn_cast<AffineApplyOp>(op)) {
-      AffineValueMap valueMap(applyOp.getAffineMap(), applyOp.getOperands(),
-                              applyOp.getResult());
-      if (failed(constraints.composeMap(&valueMap)))
+      AffineMap map = constraints.computeAlignedMap(applyOp.getAffineMap(),
+                                                    applyOp.getOperands());
+      if (failed(constraints.addBound(IntegerPolyhedron::EQ,
+                                      getPosition(applyOp.getResult()), map)))
         return;
       continue;
     }
@@ -239,17 +242,30 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
     AffineMap map = constraints.computeAlignedMap(minOp.getAffineMap(),
                                                   minOp.getOperands());
     if (failed(constraints.addBound(IntegerPolyhedron::UB,
-                                    getPosition(minOp.getResult()), map)))
+                                    getPosition(minOp.getResult()), map,
+                                    /*isClosedBound=*/true)))
       return;
   }
 
   // Obtain an upper bound for the affine index computation by projecting out
   // all temporary results and expressing the upper bound for `value` in terms
   // of the terminals of the index computation.
-  SmallVector<AffineMap> lowerBounds(1), upperBounds(1);
-  constraints.getSliceBounds(getPosition(value), 1, value.getContext(),
-                             &lowerBounds, &upperBounds);
+  unsigned pos = getPosition(value);
+  if (constantRequired) {
+    auto ubConst = constraints.getConstantBound(
+        FlatAffineValueConstraints::BoundType::UB, pos);
+    if (!ubConst.hasValue())
+      return;
 
+    boundMap =
+        AffineMap::getConstantMap(ubConst.getValue(), value.getContext());
+    return;
+  }
+
+  SmallVector<AffineMap> lowerBounds(1), upperBounds(1);
+  constraints.getSliceBounds(pos, 1, value.getContext(), &lowerBounds,
+                             &upperBounds,
+                             /*getClosedUB=*/true);
   // Verify `upperBounds[0]` is valid and has at least one result.
   if (!upperBounds[0] || upperBounds[0].getNumResults() == 0)
     return;
@@ -265,7 +281,8 @@ FailureOr<int64_t> getConstantUpperBoundForIndex(Value value) {
   // Compute an upper bound for `value`.
   AffineMap boundMap;
   SmallVector<Value> boundOperands;
-  getUpperBoundForIndex(value, boundMap, boundOperands);
+  getUpperBoundForIndex(value, boundMap, boundOperands,
+                        /*constantRequired=*/true);
 
   // Search the results of `boundMap` for constant upper bounds.
   SmallVector<int64_t> constantBounds;
@@ -876,7 +893,7 @@ SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
   return offsets;
 }
 
-SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc, ValueRange ivs,
+SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc,
                                     ValueRange tileSizes,
                                     ArrayRef<Value> sizeBounds) {
   SmallVector<Value> sizes;
@@ -906,7 +923,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
   // that define tile subshapes.
   SmallVector<Value> lbs = computeTileOffsets(b, loc, ivs, tileSizes);
   SmallVector<Value> subShapeSizes =
-      computeTileSizes(b, loc, ivs, tileSizes, sizeBounds);
+      computeTileSizes(b, loc, tileSizes, sizeBounds);
 
   assert(static_cast<int64_t>(valuesToTile.size()) ==
              linalgOp.getNumInputsAndOutputs() &&

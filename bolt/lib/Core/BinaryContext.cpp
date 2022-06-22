@@ -47,12 +47,9 @@ using namespace llvm;
 
 namespace opts {
 
-cl::opt<bool>
-NoHugePages("no-huge-pages",
-  cl::desc("use regular size pages for code alignment"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+cl::opt<bool> NoHugePages("no-huge-pages",
+                          cl::desc("use regular size pages for code alignment"),
+                          cl::Hidden, cl::cat(BoltCategory));
 
 static cl::opt<bool>
 PrintDebugInfo("print-debug-info",
@@ -61,12 +58,10 @@ PrintDebugInfo("print-debug-info",
   cl::ZeroOrMore,
   cl::cat(BoltCategory));
 
-cl::opt<bool>
-PrintRelocations("print-relocations",
-  cl::desc("print relocations when printing functions/objects"),
-  cl::Hidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+cl::opt<bool> PrintRelocations(
+    "print-relocations",
+    cl::desc("print relocations when printing functions/objects"), cl::Hidden,
+    cl::cat(BoltCategory));
 
 static cl::opt<bool>
 PrintMemData("print-mem-data",
@@ -250,6 +245,14 @@ BinaryContext::createBinaryContext(const ObjectFile *File, bool IsPIC,
   BC->setFilename(File->getFileName());
 
   BC->HasFixedLoadAddress = !IsPIC;
+
+  BC->SymbolicDisAsm = std::unique_ptr<MCDisassembler>(
+      BC->TheTarget->createMCDisassembler(*BC->STI, *BC->Ctx));
+
+  if (!BC->SymbolicDisAsm)
+    return createStringError(
+        make_error_code(std::errc::not_supported),
+        Twine("BOLT-ERROR: no disassembler info for target ", TripleName));
 
   return std::move(BC);
 }
@@ -712,13 +715,15 @@ void BinaryContext::skipMarkedFragments() {
            "internal error in traversing function fragments");
     if (opts::Verbosity >= 1)
       errs() << "BOLT-WARNING: Ignoring " << BF->getPrintName() << '\n';
-    BF->setIgnored();
+    BF->setSimple(false);
+    BF->setHasSplitJumpTable(true);
+
     std::for_each(BF->Fragments.begin(), BF->Fragments.end(), addToWorklist);
     std::for_each(BF->ParentFragments.begin(), BF->ParentFragments.end(),
                   addToWorklist);
   }
   if (!FragmentsToSkip.empty())
-    errs() << "BOLT-WARNING: ignored " << FragmentsToSkip.size() << " function"
+    errs() << "BOLT-WARNING: skipped " << FragmentsToSkip.size() << " function"
            << (FragmentsToSkip.size() == 1 ? "" : "s")
            << " due to cold fragments\n";
   FragmentsToSkip.clear();
@@ -809,6 +814,7 @@ BinaryContext::duplicateJumpTable(BinaryFunction &Function, JumpTable *JT,
     break;
   }
   assert(Found && "Label not found");
+  (void)Found;
   MCSymbol *NewLabel = Ctx->createNamedTempSymbol("duplicatedJT");
   JumpTable *NewJT =
       new JumpTable(*NewLabel, JT->getAddress(), JT->EntrySize, JT->Type,
@@ -1172,6 +1178,7 @@ void BinaryContext::postProcessSymbolTable() {
     }
   }
   assert(Valid);
+  (void)Valid;
   generateSymbolHashes();
 }
 
@@ -1404,7 +1411,7 @@ Optional<DWARFUnit *> BinaryContext::getDWOCU(uint64_t DWOId) {
   return Iter->second;
 }
 
-DWARFContext *BinaryContext::getDWOContext() {
+DWARFContext *BinaryContext::getDWOContext() const {
   if (DWOCUs.empty())
     return nullptr;
   return &DWOCUs.begin()->second->getContext();
@@ -1500,6 +1507,8 @@ void BinaryContext::preprocessDebugInfo() {
            << DwCtx->getNumCompileUnits() << " CUs will be updated\n";
   }
 
+  preprocessDWODebugInfo();
+
   // Populate MCContext with DWARF files from all units.
   StringRef GlobalPrefix = AsmInfo->getPrivateGlobalPrefix();
   for (const std::unique_ptr<DWARFUnit> &CU : DwCtx->compile_units()) {
@@ -1521,10 +1530,16 @@ void BinaryContext::preprocessDebugInfo() {
       Optional<MD5::MD5Result> Checksum = None;
       if (LineTable->Prologue.ContentTypes.HasMD5)
         Checksum = LineTable->Prologue.FileNames[0].Checksum;
-      BinaryLineTable.setRootFile(
-          CU->getCompilationDir(),
-          dwarf::toString(CU->getUnitDIE().find(dwarf::DW_AT_name), nullptr),
-          Checksum, None);
+      Optional<const char *> Name =
+          dwarf::toString(CU->getUnitDIE().find(dwarf::DW_AT_name), nullptr);
+      if (Optional<uint64_t> DWOID = CU->getDWOId()) {
+        auto Iter = DWOCUs.find(*DWOID);
+        assert(Iter != DWOCUs.end() && "DWO CU was not found.");
+        Name = dwarf::toString(
+            Iter->second->getUnitDIE().find(dwarf::DW_AT_name), nullptr);
+      }
+      BinaryLineTable.setRootFile(CU->getCompilationDir(), *Name, Checksum,
+                                  None);
     }
 
     BinaryLineTable.setDwarfVersion(DwarfVersion);
@@ -1557,8 +1572,6 @@ void BinaryContext::preprocessDebugInfo() {
           getDwarfFile(Dir, FileName, 0, Checksum, None, CUID, DwarfVersion));
     }
   }
-
-  preprocessDWODebugInfo();
 }
 
 bool BinaryContext::shouldEmit(const BinaryFunction &Function) const {
@@ -1631,13 +1644,73 @@ void BinaryContext::printCFI(raw_ostream &OS, const MCCFIInstruction &Inst) {
   }
 }
 
+MarkerSymType BinaryContext::getMarkerType(const SymbolRef &Symbol) const {
+  // For aarch64, the ABI defines mapping symbols so we identify data in the
+  // code section (see IHI0056B). $x identifies a symbol starting code or the
+  // end of a data chunk inside code, $d indentifies start of data.
+  if (!isAArch64() || ELFSymbolRef(Symbol).getSize())
+    return MarkerSymType::NONE;
+
+  Expected<StringRef> NameOrError = Symbol.getName();
+  Expected<object::SymbolRef::Type> TypeOrError = Symbol.getType();
+
+  if (!TypeOrError || !NameOrError)
+    return MarkerSymType::NONE;
+
+  if (*TypeOrError != SymbolRef::ST_Unknown)
+    return MarkerSymType::NONE;
+
+  if (*NameOrError == "$x" || NameOrError->startswith("$x."))
+    return MarkerSymType::CODE;
+
+  if (*NameOrError == "$d" || NameOrError->startswith("$d."))
+    return MarkerSymType::DATA;
+
+  return MarkerSymType::NONE;
+}
+
+bool BinaryContext::isMarker(const SymbolRef &Symbol) const {
+  return getMarkerType(Symbol) != MarkerSymType::NONE;
+}
+
+static void printDebugInfo(raw_ostream &OS, const MCInst &Instruction,
+                           const BinaryFunction *Function,
+                           DWARFContext *DwCtx) {
+  DebugLineTableRowRef RowRef =
+      DebugLineTableRowRef::fromSMLoc(Instruction.getLoc());
+  if (RowRef == DebugLineTableRowRef::NULL_ROW)
+    return;
+
+  const DWARFDebugLine::LineTable *LineTable;
+  if (Function && Function->getDWARFUnit() &&
+      Function->getDWARFUnit()->getOffset() == RowRef.DwCompileUnitIndex) {
+    LineTable = Function->getDWARFLineTable();
+  } else {
+    LineTable = DwCtx->getLineTableForUnit(
+        DwCtx->getCompileUnitForOffset(RowRef.DwCompileUnitIndex));
+  }
+  assert(LineTable && "line table expected for instruction with debug info");
+
+  const DWARFDebugLine::Row &Row = LineTable->Rows[RowRef.RowIndex - 1];
+  StringRef FileName = "";
+  if (Optional<const char *> FName =
+          dwarf::toString(LineTable->Prologue.FileNames[Row.File - 1].Name))
+    FileName = *FName;
+  OS << " # debug line " << FileName << ":" << Row.Line;
+  if (Row.Column)
+    OS << ":" << Row.Column;
+  if (Row.Discriminator)
+    OS << " discriminator:" << Row.Discriminator;
+}
+
 void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
                                      uint64_t Offset,
                                      const BinaryFunction *Function,
                                      bool PrintMCInst, bool PrintMemData,
-                                     bool PrintRelocations) const {
+                                     bool PrintRelocations,
+                                     StringRef Endl) const {
   if (MIB->isEHLabel(Instruction)) {
-    OS << "  EH_LABEL: " << *MIB->getTargetSymbol(Instruction) << '\n';
+    OS << "  EH_LABEL: " << *MIB->getTargetSymbol(Instruction) << Endl;
     return;
   }
   OS << format("    %08" PRIx64 ": ", Offset);
@@ -1646,7 +1719,7 @@ void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
     OS << "\t!CFI\t$" << Offset << "\t; ";
     if (Function)
       printCFI(OS, *Function->getCFIFor(Instruction));
-    OS << "\n";
+    OS << Endl;
     return;
   }
   InstPrinter->printInst(&Instruction, 0, "", *STI, OS);
@@ -1677,44 +1750,19 @@ void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
 
   MIB->printAnnotations(Instruction, OS);
 
-  if (opts::PrintDebugInfo) {
-    DebugLineTableRowRef RowRef =
-        DebugLineTableRowRef::fromSMLoc(Instruction.getLoc());
-    if (RowRef != DebugLineTableRowRef::NULL_ROW) {
-      const DWARFDebugLine::LineTable *LineTable;
-      if (Function && Function->getDWARFUnit() &&
-          Function->getDWARFUnit()->getOffset() == RowRef.DwCompileUnitIndex) {
-        LineTable = Function->getDWARFLineTable();
-      } else {
-        LineTable = DwCtx->getLineTableForUnit(
-            DwCtx->getCompileUnitForOffset(RowRef.DwCompileUnitIndex));
-      }
-      assert(LineTable &&
-             "line table expected for instruction with debug info");
-
-      const DWARFDebugLine::Row &Row = LineTable->Rows[RowRef.RowIndex - 1];
-      StringRef FileName = "";
-      if (Optional<const char *> FName =
-              dwarf::toString(LineTable->Prologue.FileNames[Row.File - 1].Name))
-        FileName = *FName;
-      OS << " # debug line " << FileName << ":" << Row.Line;
-      if (Row.Column)
-        OS << ":" << Row.Column;
-      if (Row.Discriminator)
-        OS << " discriminator:" << Row.Discriminator;
-    }
-  }
+  if (opts::PrintDebugInfo)
+    printDebugInfo(OS, Instruction, Function, DwCtx.get());
 
   if ((opts::PrintRelocations || PrintRelocations) && Function) {
     const uint64_t Size = computeCodeSize(&Instruction, &Instruction + 1);
     Function->printRelocations(OS, Offset, Size);
   }
 
-  OS << "\n";
+  OS << Endl;
 
   if (PrintMCInst) {
     Instruction.dump_pretty(OS, InstPrinter.get());
-    OS << "\n";
+    OS << Endl;
   }
 }
 
@@ -2024,7 +2072,7 @@ BinaryContext::calculateEmittedSize(BinaryFunction &BF, bool FixBranches) {
   MCSymbol *ColdStartLabel = LocalCtx->createTempSymbol();
   MCSymbol *ColdEndLabel = LocalCtx->createTempSymbol();
 
-  Streamer->SwitchSection(Section);
+  Streamer->switchSection(Section);
   Streamer->emitLabel(StartLabel);
   emitFunctionBody(*Streamer, BF, /*EmitColdPart=*/false,
                    /*EmitCodeOnly=*/true);
@@ -2036,14 +2084,14 @@ BinaryContext::calculateEmittedSize(BinaryFunction &BF, bool FixBranches) {
                                 ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
     ColdSection->setHasInstructions(true);
 
-    Streamer->SwitchSection(ColdSection);
+    Streamer->switchSection(ColdSection);
     Streamer->emitLabel(ColdStartLabel);
     emitFunctionBody(*Streamer, BF, /*EmitColdPart=*/true,
                      /*EmitCodeOnly=*/true);
     Streamer->emitLabel(ColdEndLabel);
     // To avoid calling MCObjectStreamer::flushPendingLabels() which is private
     Streamer->emitBytes(StringRef(""));
-    Streamer->SwitchSection(Section);
+    Streamer->switchSection(Section);
   }
 
   // To avoid calling MCObjectStreamer::flushPendingLabels() which is private or

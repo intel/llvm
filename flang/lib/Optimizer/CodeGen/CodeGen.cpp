@@ -246,7 +246,7 @@ protected:
   mlir::LLVM::GEPOp genGEP(mlir::Location loc, mlir::Type ty,
                            mlir::ConversionPatternRewriter &rewriter,
                            mlir::Value base, ARGS... args) const {
-    llvm::SmallVector<mlir::Value> cv{args...};
+    llvm::SmallVector<mlir::Value> cv = {args...};
     return rewriter.create<mlir::LLVM::GEPOp>(loc, ty, base, cv);
   }
 
@@ -275,8 +275,10 @@ public:
   doRewrite(FromOp addr, mlir::Type ty, OpAdaptor adaptor,
             mlir::ConversionPatternRewriter &rewriter) const = 0;
 };
+} // namespace
 
-// Lower `fir.address_of` operation to `llvm.address_of` operation.
+namespace {
+/// Lower `fir.address_of` operation to `llvm.address_of` operation.
 struct AddrOfOpConversion : public FIROpConversion<fir::AddrOfOp> {
   using FIROpConversion::FIROpConversion;
 
@@ -299,7 +301,36 @@ getDependentTypeMemSizeFn(fir::RecordType recTy, fir::AllocaOp op,
                           mlir::ConversionPatternRewriter &rewriter) {
   auto module = op->getParentOfType<mlir::ModuleOp>();
   std::string name = recTy.getName().str() + "P.mem.size";
-  return module.lookupSymbol<mlir::LLVM::LLVMFuncOp>(name);
+  if (auto memSizeFunc = module.lookupSymbol<mlir::LLVM::LLVMFuncOp>(name))
+    return memSizeFunc;
+  TODO(op.getLoc(), "did not find allocation function");
+}
+
+// Compute the alloc scale size (constant factors encoded in the array type).
+// We do this for arrays without a constant interior or arrays of character with
+// dynamic length arrays, since those are the only ones that get decayed to a
+// pointer to the element type.
+template <typename OP>
+static mlir::Value
+genAllocationScaleSize(OP op, mlir::Type ity,
+                       mlir::ConversionPatternRewriter &rewriter) {
+  mlir::Location loc = op.getLoc();
+  mlir::Type dataTy = op.getInType();
+  mlir::Type scalarType = fir::unwrapSequenceType(dataTy);
+  auto seqTy = dataTy.dyn_cast<fir::SequenceType>();
+  if ((op.hasShapeOperands() && seqTy && !seqTy.hasConstantInterior()) ||
+      (seqTy && fir::characterWithDynamicLen(scalarType))) {
+    fir::SequenceType::Extent constSize = 1;
+    for (auto extent : seqTy.getShape())
+      if (extent != fir::SequenceType::getUnknownExtent())
+        constSize *= extent;
+    if (constSize != 1) {
+      mlir::Value constVal{
+          genConstantIndex(loc, ity, rewriter, constSize).getResult()};
+      return constVal;
+    }
+  }
+  return nullptr;
 }
 
 namespace {
@@ -339,30 +370,15 @@ struct AllocaOpConversion : public FIROpConversion<fir::AllocaOp> {
         auto call = rewriter.create<mlir::LLVM::CallOp>(
             loc, ity, lenParams, llvm::ArrayRef<mlir::NamedAttribute>{attr});
         size = call.getResult(0);
-        ty = mlir::LLVM::LLVMPointerType::get(
-            mlir::IntegerType::get(alloc.getContext(), 8));
+        ty = ::getVoidPtrType(alloc.getContext());
       } else {
         return emitError(loc, "unexpected type ")
                << scalarType << " with type parameters";
       }
     }
+    if (auto scaleSize = genAllocationScaleSize(alloc, ity, rewriter))
+      size = rewriter.create<mlir::LLVM::MulOp>(loc, ity, size, scaleSize);
     if (alloc.hasShapeOperands()) {
-      mlir::Type allocEleTy = fir::unwrapRefType(alloc.getType());
-      // Scale the size by constant factors encoded in the array type.
-      // We only do this for arrays that don't have a constant interior, since
-      // those are the only ones that get decayed to a pointer to the element
-      // type.
-      if (auto seqTy = allocEleTy.dyn_cast<fir::SequenceType>()) {
-        if (!seqTy.hasConstantInterior()) {
-          fir::SequenceType::Extent constSize = 1;
-          for (auto extent : seqTy.getShape())
-            if (extent != fir::SequenceType::getUnknownExtent())
-              constSize *= extent;
-          mlir::Value constVal{
-              genConstantIndex(loc, ity, rewriter, constSize).getResult()};
-          size = rewriter.create<mlir::LLVM::MulOp>(loc, ity, size, constVal);
-        }
-      }
       unsigned end = operands.size();
       for (; i < end; ++i)
         size = rewriter.create<mlir::LLVM::MulOp>(
@@ -624,7 +640,7 @@ struct StringLitOpConversion : public FIROpConversion<fir::StringLitOp> {
   }
 };
 
-// `fir.call` -> `llvm.call`
+/// `fir.call` -> `llvm.call`
 struct CallOpConversion : public FIROpConversion<fir::CallOp> {
   using FIROpConversion::FIROpConversion;
 
@@ -665,7 +681,7 @@ struct CmpcOpConversion : public FIROpConversion<fir::CmpcOp> {
     mlir::Type resTy = convertType(cmp.getType());
     mlir::Location loc = cmp.getLoc();
     auto pos0 = mlir::ArrayAttr::get(ctxt, rewriter.getI32IntegerAttr(0));
-    llvm::SmallVector<mlir::Value, 2> rp{
+    llvm::SmallVector<mlir::Value, 2> rp = {
         rewriter.create<mlir::LLVM::ExtractValueOp>(loc, eleTy, operands[0],
                                                     pos0),
         rewriter.create<mlir::LLVM::ExtractValueOp>(loc, eleTy, operands[1],
@@ -673,14 +689,14 @@ struct CmpcOpConversion : public FIROpConversion<fir::CmpcOp> {
     auto rcp =
         rewriter.create<mlir::LLVM::FCmpOp>(loc, resTy, rp, cmp->getAttrs());
     auto pos1 = mlir::ArrayAttr::get(ctxt, rewriter.getI32IntegerAttr(1));
-    llvm::SmallVector<mlir::Value, 2> ip{
+    llvm::SmallVector<mlir::Value, 2> ip = {
         rewriter.create<mlir::LLVM::ExtractValueOp>(loc, eleTy, operands[0],
                                                     pos1),
         rewriter.create<mlir::LLVM::ExtractValueOp>(loc, eleTy, operands[1],
                                                     pos1)};
     auto icp =
         rewriter.create<mlir::LLVM::FCmpOp>(loc, resTy, ip, cmp->getAttrs());
-    llvm::SmallVector<mlir::Value, 2> cp{rcp, icp};
+    llvm::SmallVector<mlir::Value, 2> cp = {rcp, icp};
     switch (cmp.getPredicate()) {
     case mlir::arith::CmpFPredicate::OEQ: // .EQ.
       rewriter.replaceOpWithNewOp<mlir::LLVM::AndOp>(cmp, resTy, cp);
@@ -979,7 +995,7 @@ computeDerivedTypeSize(mlir::Location loc, mlir::Type ptrTy, mlir::Type idxTy,
                        mlir::ConversionPatternRewriter &rewriter) {
   auto nullPtr = rewriter.create<mlir::LLVM::NullOp>(loc, ptrTy);
   mlir::Value one = genConstantIndex(loc, idxTy, rewriter, 1);
-  llvm::SmallVector<mlir::Value> args{one};
+  llvm::SmallVector<mlir::Value> args = {one};
   auto gep = rewriter.create<mlir::LLVM::GEPOp>(loc, ptrTy, nullPtr, args);
   return rewriter.create<mlir::LLVM::PtrToIntOp>(loc, idxTy, gep);
 }
@@ -992,27 +1008,17 @@ struct AllocMemOpConversion : public FIROpConversion<fir::AllocMemOp> {
   mlir::LogicalResult
   matchAndRewrite(fir::AllocMemOp heap, OpAdaptor adaptor,
                   mlir::ConversionPatternRewriter &rewriter) const override {
-    auto heapTy = heap.getType();
-    auto ty = convertType(heapTy);
+    mlir::Type heapTy = heap.getType();
+    mlir::Type ty = convertType(heapTy);
     mlir::LLVM::LLVMFuncOp mallocFunc = getMalloc(heap, rewriter);
     mlir::Location loc = heap.getLoc();
     auto ity = lowerTy().indexType();
-    auto dataTy = fir::unwrapRefType(heapTy);
+    mlir::Type dataTy = fir::unwrapRefType(heapTy);
     if (fir::isRecordWithTypeParameters(fir::unwrapSequenceType(dataTy)))
       TODO(loc, "fir.allocmem codegen of derived type with length parameters");
     mlir::Value size = genTypeSizeInBytes(loc, ity, rewriter, ty);
-    // !fir.array<NxMx!fir.char<K,?>> sets `size` to the width of !fir.char<K>.
-    // So multiply the constant dimensions here.
-    if (fir::hasDynamicSize(dataTy))
-      if (auto seqTy = dataTy.dyn_cast<fir::SequenceType>())
-        if (fir::characterWithDynamicLen(seqTy.getEleTy())) {
-          fir::SequenceType::Extent arrSize = 1;
-          for (auto d : seqTy.getShape())
-            if (d != fir::SequenceType::getUnknownExtent())
-              arrSize *= d;
-          size = rewriter.create<mlir::LLVM::MulOp>(
-              loc, ity, size, genConstantIndex(loc, ity, rewriter, arrSize));
-        }
+    if (auto scaleSize = genAllocationScaleSize(heap, ity, rewriter))
+      size = rewriter.create<mlir::LLVM::MulOp>(loc, ity, size, scaleSize);
     for (mlir::Value opnd : adaptor.getOperands())
       size = rewriter.create<mlir::LLVM::MulOp>(
           loc, ity, size, integerCast(loc, rewriter, ity, opnd));
@@ -1077,8 +1083,6 @@ struct FreeMemOpConversion : public FIROpConversion<fir::FreeMemOp> {
 };
 } // namespace
 
-namespace {} // namespace
-
 /// Common base class for embox to descriptor conversion.
 template <typename OP>
 struct EmboxCommonConversion : public FIROpConversion<OP> {
@@ -1127,7 +1131,7 @@ struct EmboxCommonConversion : public FIROpConversion<OP> {
     return recTy && recTy.getNumLenParams() > 0;
   }
   static bool isDerivedType(fir::BoxType boxTy) {
-    return unwrapIfDerived(boxTy) != nullptr;
+    return static_cast<bool>(unwrapIfDerived(boxTy));
   }
 
   // Get the element size and CFI type code of the boxed value.
@@ -1997,8 +2001,8 @@ struct InsertOnRangeOpConversion
       type = t.getElementType();
     }
 
-    llvm::SmallVector<uint64_t> lBounds;
-    llvm::SmallVector<uint64_t> uBounds;
+    llvm::SmallVector<std::uint64_t> lBounds;
+    llvm::SmallVector<std::uint64_t> uBounds;
 
     // Unzip the upper and lower bound and convert to a row major format.
     mlir::DenseIntElementsAttr coor = range.getCoor();
@@ -2070,13 +2074,8 @@ struct XArrayCoorOpConversion
     const bool isSliced = !coor.slice().empty();
     const bool baseIsBoxed = coor.memref().getType().isa<fir::BoxType>();
 
-    auto indexOps = coor.indices().begin();
-    auto shapeOps = coor.shape().begin();
-    auto shiftOps = coor.shift().begin();
-    auto sliceOps = coor.slice().begin();
     // For each dimension of the array, generate the offset calculation.
-    for (unsigned i = 0; i < rank;
-         ++i, ++indexOps, ++shapeOps, ++shiftOps, sliceOps += 3) {
+    for (unsigned i = 0; i < rank; ++i) {
       mlir::Value index =
           integerCast(loc, rewriter, idxTy, operands[coor.indicesOffset() + i]);
       mlir::Value lb = isShifted ? integerCast(loc, rewriter, idxTy,
@@ -2087,10 +2086,11 @@ struct XArrayCoorOpConversion
       // Compute zero based index in dimension i of the element, applying
       // potential triplets and lower bounds.
       if (isSliced) {
-        mlir::Value ub = *(sliceOps + 1);
+        mlir::Value ub = operands[coor.sliceOffset() + i + 1];
         normalSlice = !mlir::isa_and_nonnull<fir::UndefOp>(ub.getDefiningOp());
         if (normalSlice)
-          step = integerCast(loc, rewriter, idxTy, *(sliceOps + 2));
+          step = integerCast(loc, rewriter, idxTy,
+                             operands[coor.sliceOffset() + i + 2]);
       }
       auto idx = rewriter.create<mlir::LLVM::SubOp>(loc, idxTy, index, lb);
       mlir::Value diff =
@@ -2392,7 +2392,7 @@ private:
         }
         auto voidPtrBase =
             rewriter.create<mlir::LLVM::BitcastOp>(loc, voidPtrTy, resultAddr);
-        llvm::SmallVector<mlir::Value> args{off};
+        llvm::SmallVector<mlir::Value> args = {off};
         resultAddr = rewriter.create<mlir::LLVM::GEPOp>(loc, voidPtrTy,
                                                         voidPtrBase, args);
         i += arrTy.getDimension() - 1;
@@ -2619,7 +2619,7 @@ struct GlobalOpConversion : public FIROpConversion<fir::GlobalOp> {
     if (global.getType().isa<fir::BoxType>())
       tyAttr = tyAttr.cast<mlir::LLVM::LLVMPointerType>().getElementType();
     auto loc = global.getLoc();
-    mlir::Attribute initAttr{};
+    mlir::Attribute initAttr;
     if (global.getInitVal())
       initAttr = global.getInitVal().getValue();
     auto linkage = convertLinkage(global.getLinkName());
@@ -3322,8 +3322,6 @@ namespace {
 ///
 /// This pass lowers all FIR dialect operations to LLVM IR dialect. An
 /// MLIR pass is used to lower residual Std dialect to LLVM IR dialect.
-///
-/// This pass is not complete yet. We are upstreaming it in small patches.
 class FIRToLLVMLowering : public fir::FIRToLLVMLoweringBase<FIRToLLVMLowering> {
 public:
   FIRToLLVMLowering() = default;

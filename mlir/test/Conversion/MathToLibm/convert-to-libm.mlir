@@ -8,6 +8,8 @@
 // CHECK-DAG: @atan2f(f32, f32) -> f32
 // CHECK-DAG: @tanh(f64) -> f64
 // CHECK-DAG: @tanhf(f32) -> f32
+// CHECK-DAG: @round(f64) -> f64
+// CHECK-DAG: @roundf(f32) -> f32
 
 // CHECK-LABEL: func @tanh_caller
 // CHECK-SAME: %[[FLOAT:.*]]: f32
@@ -21,17 +23,28 @@ func.func @tanh_caller(%float: f32, %double: f64) -> (f32, f64)  {
   return %float_result, %double_result : f32, f64
 }
 
-
 // CHECK-LABEL: func @atan2_caller
 // CHECK-SAME: %[[FLOAT:.*]]: f32
 // CHECK-SAME: %[[DOUBLE:.*]]: f64
-func.func @atan2_caller(%float: f32, %double: f64) -> (f32, f64) {
-  // CHECK-DAG: %[[FLOAT_RESULT:.*]] = call @atan2f(%[[FLOAT]], %[[FLOAT]]) : (f32, f32) -> f32
+// CHECK-SAME: %[[HALF:.*]]: f16
+// CHECK-SAME: %[[BFLOAT:.*]]: bf16
+func.func @atan2_caller(%float: f32, %double: f64, %half: f16, %bfloat: bf16) -> (f32, f64, f16, bf16) {
+  // CHECK: %[[FLOAT_RESULT:.*]] = call @atan2f(%[[FLOAT]], %[[FLOAT]]) : (f32, f32) -> f32
   %float_result = math.atan2 %float, %float : f32
-  // CHECK-DAG: %[[DOUBLE_RESULT:.*]] = call @atan2(%[[DOUBLE]], %[[DOUBLE]]) : (f64, f64) -> f64
+  // CHECK: %[[DOUBLE_RESULT:.*]] = call @atan2(%[[DOUBLE]], %[[DOUBLE]]) : (f64, f64) -> f64
   %double_result = math.atan2 %double, %double : f64
-  // CHECK: return %[[FLOAT_RESULT]], %[[DOUBLE_RESULT]]
-  return %float_result, %double_result : f32, f64
+  // CHECK: %[[HALF_PROMOTED1:.*]] = arith.extf %[[HALF]] : f16 to f32
+  // CHECK: %[[HALF_PROMOTED2:.*]] = arith.extf %[[HALF]] : f16 to f32
+  // CHECK: %[[HALF_CALL:.*]] = call @atan2f(%[[HALF_PROMOTED1]], %[[HALF_PROMOTED2]]) : (f32, f32) -> f32
+  // CHECK: %[[HALF_RESULT:.*]] = arith.truncf %[[HALF_CALL]] : f32 to f16
+  %half_result = math.atan2 %half, %half : f16
+  // CHECK: %[[BFLOAT_PROMOTED1:.*]] = arith.extf %[[BFLOAT]] : bf16 to f32
+  // CHECK: %[[BFLOAT_PROMOTED2:.*]] = arith.extf %[[BFLOAT]] : bf16 to f32
+  // CHECK: %[[BFLOAT_CALL:.*]] = call @atan2f(%[[BFLOAT_PROMOTED1]], %[[BFLOAT_PROMOTED2]]) : (f32, f32) -> f32
+  // CHECK: %[[BFLOAT_RESULT:.*]] = arith.truncf %[[BFLOAT_CALL]] : f32 to bf16
+  %bfloat_result = math.atan2 %bfloat, %bfloat : bf16
+  // CHECK: return %[[FLOAT_RESULT]], %[[DOUBLE_RESULT]], %[[HALF_RESULT]], %[[BFLOAT_RESULT]]
+  return %float_result, %double_result, %half_result, %bfloat_result : f32, f64, f16, bf16
 }
 
 // CHECK-LABEL: func @erf_caller
@@ -104,3 +117,15 @@ func.func @expm1_multidim_vec_caller(%float: vector<2x2xf32>) -> (vector<2x2xf32
 // CHECK:           %[[VAL_4:.*]] = vector.insert %[[OUT1_1_F32]], %[[VAL_3]] [1, 1] : f32 into vector<2x2xf32>
 // CHECK:           return %[[VAL_4]] : vector<2x2xf32>
 // CHECK:         }
+
+// CHECK-LABEL: func @round_caller
+// CHECK-SAME: %[[FLOAT:.*]]: f32
+// CHECK-SAME: %[[DOUBLE:.*]]: f64
+func.func @round_caller(%float: f32, %double: f64) -> (f32, f64) {
+  // CHECK-DAG: %[[FLOAT_RESULT:.*]] = call @roundf(%[[FLOAT]]) : (f32) -> f32
+  %float_result = math.round %float : f32
+  // CHECK-DAG: %[[DOUBLE_RESULT:.*]] = call @round(%[[DOUBLE]]) : (f64) -> f64
+  %double_result = math.round %double : f64
+  // CHECK: return %[[FLOAT_RESULT]], %[[DOUBLE_RESULT]]
+  return %float_result, %double_result : f32, f64
+}

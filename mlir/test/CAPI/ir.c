@@ -387,7 +387,7 @@ static void printFirstOfEach(MlirContext ctx, MlirOperation operation) {
   fprintf(stderr, "Terminator: ");
   mlirOperationPrint(terminator, printToStderr, NULL);
   fprintf(stderr, "\n");
-  // CHECK: Terminator: return
+  // CHECK: Terminator: func.return
 
   // Get the attribute by index.
   MlirNamedAttribute namedAttr0 = mlirOperationGetAttribute(operation, 0);
@@ -794,6 +794,21 @@ static int printBuiltinTypes(MlirContext ctx) {
   mlirTypeDump(funcType);
   fprintf(stderr, "\n");
   // CHECK: (index, i1) -> (i16, i32, i64)
+
+  // Opaque type.
+  MlirStringRef namespace = mlirStringRefCreate("dialect", 7);
+  MlirStringRef data = mlirStringRefCreate("type", 4);
+  mlirContextSetAllowUnregisteredDialects(ctx, true);
+  MlirType opaque = mlirOpaqueTypeGet(ctx, namespace, data);
+  mlirContextSetAllowUnregisteredDialects(ctx, false);
+  if (!mlirTypeIsAOpaque(opaque) ||
+      !mlirStringRefEqual(mlirOpaqueTypeGetDialectNamespace(opaque),
+                          namespace) ||
+      !mlirStringRefEqual(mlirOpaqueTypeGetData(opaque), data))
+    return 25;
+  mlirTypeDump(opaque);
+  fprintf(stderr, "\n");
+  // CHECK: !dialect.type
 
   return 0;
 }
@@ -1850,10 +1865,10 @@ int testTypeID(MlirContext ctx) {
 int testSymbolTable(MlirContext ctx) {
   fprintf(stderr, "@testSymbolTable\n");
 
-  const char *moduleString = "func private @foo()"
-                             "func private @bar()";
-  const char *otherModuleString = "func private @qux()"
-                                  "func private @foo()";
+  const char *moduleString = "func.func private @foo()"
+                             "func.func private @bar()";
+  const char *otherModuleString = "func.func private @qux()"
+                                  "func.func private @foo()";
 
   MlirModule module =
       mlirModuleCreateParse(ctx, mlirStringRefCreateFromCString(moduleString));

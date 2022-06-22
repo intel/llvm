@@ -214,57 +214,56 @@ private:
                : memory_scope::device;
   }
 
+  template <access::address_space Space, class T, class AtomicFunctor>
+  void atomic_combine_impl(T *ReduVarPtr, AtomicFunctor Functor) const {
+    auto reducer = static_cast<const Reducer *>(this);
+    for (size_t E = 0; E < Extent; ++E) {
+      auto AtomicRef =
+          atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
+              multi_ptr<T, Space>(ReduVarPtr)[E]);
+      Functor(AtomicRef, reducer->getElement(E));
+    }
+  }
+
+  template <class _T, access::address_space Space, class BinaryOperation>
+  static inline constexpr bool BasicCheck =
+      std::is_same<typename remove_AS<_T>::type, T>::value &&
+      (Space == access::address_space::global_space ||
+       Space == access::address_space::local_space);
+
 public:
   /// Atomic ADD operation: *ReduVarPtr += MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
                IsReduOptForAtomic64Add<T, _BinaryOperation>::value) &&
-              sycl::detail::IsPlus<T, _BinaryOperation>::value &&
-              (Space == access::address_space::global_space ||
-               Space == access::address_space::local_space)>
+              sycl::detail::IsPlus<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    auto reducer = static_cast<const Reducer *>(this);
-    for (size_t E = 0; E < Extent; ++E) {
-      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space>(ReduVarPtr)[E])
-          .fetch_add(reducer->getElement(E));
-    }
+    atomic_combine_impl<Space>(
+        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_add(Val); });
   }
 
   /// Atomic BITWISE OR operation: *ReduVarPtr |= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitOR<T, _BinaryOperation>::value &&
-              (Space == access::address_space::global_space ||
-               Space == access::address_space::local_space)>
+              sycl::detail::IsBitOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    auto reducer = static_cast<const Reducer *>(this);
-    for (size_t E = 0; E < Extent; ++E) {
-      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space>(ReduVarPtr)[E])
-          .fetch_or(reducer->getElement(E));
-    }
+    atomic_combine_impl<Space>(
+        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_or(Val); });
   }
 
   /// Atomic BITWISE XOR operation: *ReduVarPtr ^= MValue;
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsBitXOR<T, _BinaryOperation>::value &&
-              (Space == access::address_space::global_space ||
-               Space == access::address_space::local_space)>
+              sycl::detail::IsBitXOR<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    auto reducer = static_cast<const Reducer *>(this);
-    for (size_t E = 0; E < Extent; ++E) {
-      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space>(ReduVarPtr)[E])
-          .fetch_xor(reducer->getElement(E));
-    }
+    atomic_combine_impl<Space>(
+        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_xor(Val); });
   }
 
   /// Atomic BITWISE AND operation: *ReduVarPtr &= MValue;
@@ -276,46 +275,30 @@ public:
               (Space == access::address_space::global_space ||
                Space == access::address_space::local_space)>
   atomic_combine(_T *ReduVarPtr) const {
-    auto reducer = static_cast<const Reducer *>(this);
-    for (size_t E = 0; E < Extent; ++E) {
-      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space>(ReduVarPtr)[E])
-          .fetch_and(reducer->getElement(E));
-    }
+    atomic_combine_impl<Space>(
+        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_and(Val); });
   }
 
   /// Atomic MIN operation: *ReduVarPtr = sycl::minimum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsMinimum<T, _BinaryOperation>::value &&
-              (Space == access::address_space::global_space ||
-               Space == access::address_space::local_space)>
+              sycl::detail::IsMinimum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    auto reducer = static_cast<const Reducer *>(this);
-    for (size_t E = 0; E < Extent; ++E) {
-      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space>(ReduVarPtr)[E])
-          .fetch_min(reducer->getElement(E));
-    }
+    atomic_combine_impl<Space>(
+        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_min(Val); });
   }
 
   /// Atomic MAX operation: *ReduVarPtr = sycl::maximum(*ReduVarPtr, MValue);
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<std::is_same<typename remove_AS<_T>::type, T>::value &&
+  enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
-              sycl::detail::IsMaximum<T, _BinaryOperation>::value &&
-              (Space == access::address_space::global_space ||
-               Space == access::address_space::local_space)>
+              sycl::detail::IsMaximum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
-    auto reducer = static_cast<const Reducer *>(this);
-    for (size_t E = 0; E < Extent; ++E) {
-      atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-          multi_ptr<T, Space>(ReduVarPtr)[E])
-          .fetch_max(reducer->getElement(E));
-    }
+    atomic_combine_impl<Space>(
+        ReduVarPtr, [](auto Ref, auto Val) { return Ref.fetch_max(Val); });
   }
 };
 
@@ -415,8 +398,6 @@ public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  // SYCL 2020 revision 4 says this should be const, but this is a bug
-  // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
   reducer<T, BinaryOperation, Dims - 1, Extent, Algorithm, true>
   operator[](size_t Index) {
     return {MValue[Index], MBinaryOp};
@@ -778,7 +759,7 @@ public:
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -791,7 +772,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
@@ -804,7 +785,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// SYCL-2020.
@@ -822,7 +803,7 @@ public:
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -847,7 +828,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -872,7 +853,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
     // For now the implementation ignores the identity value given by user
     // when the implementation knows the identity.
     // The SPEC could prohibit passing identity parameter to operations with
@@ -900,7 +881,7 @@ public:
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -912,7 +893,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
@@ -924,7 +905,7 @@ public:
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
-                                PI_INVALID_VALUE);
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is statically known.

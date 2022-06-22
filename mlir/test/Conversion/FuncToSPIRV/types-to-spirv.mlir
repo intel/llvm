@@ -8,7 +8,7 @@
 // Check that non-32-bit integer types are converted to 32-bit types if the
 // corresponding capabilities are not available.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @integer8
@@ -48,7 +48,7 @@ func.func @integer64(%arg0: i64, %arg1: si64, %arg2: ui64) { return }
 // Check that non-32-bit integer types are kept untouched if the corresponding
 // capabilities are available.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Int8, Int16, Int64], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Int8, Int16, Int64], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @integer8
@@ -87,7 +87,7 @@ func.func @integer64(%arg0: i64, %arg1: si64, %arg2: ui64) { return }
 
 // Check that weird bitwidths are not supported.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-NOT: spv.func @integer4
@@ -108,7 +108,7 @@ func.func @integer42(%arg0: i42) { return }
 
 // The index type is always converted into i32.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @index_type
@@ -126,7 +126,7 @@ func.func @index_type(%arg0: index) { return }
 // Check that non-32-bit float types are converted to 32-bit types if the
 // corresponding capabilities are not available.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @float16
@@ -148,7 +148,7 @@ func.func @float64(%arg0: f64) { return }
 // Check that non-32-bit float types are kept untouched if the corresponding
 // capabilities are available.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float16, Float64], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [Float16, Float64], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @float16
@@ -169,7 +169,7 @@ func.func @float64(%arg0: f64) { return }
 
 // Check that bf16 is not supported.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-NOT: spv.func @bf16_type
@@ -186,7 +186,7 @@ func.func @bf16_type(%arg0: bf16) { return }
 // Check that capabilities for scalar types affects vector types too: no special
 // capabilities available means using turning element types to 32-bit.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @int_vector
@@ -215,7 +215,7 @@ func.func @float_vector(
 // special capabilities means keep vector types untouched.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, {}>
+    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @int_vector
@@ -246,7 +246,7 @@ func.func @one_element_vector(%arg0: vector<1xi32>) { return }
 
 // Check that > 4-element vectors are not supported.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-NOT: spv.func @large_vector
@@ -263,7 +263,7 @@ func.func @large_vector(%arg0: vector<1024xi32>) { return }
 // Check memory spaces.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [], [SPV_KHR_storage_buffer_storage_class]>, {}>
+    #spv.vce<v1.0, [], [SPV_KHR_storage_buffer_storage_class]>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: func @memref_mem_space
@@ -301,7 +301,7 @@ func.func @memref_1bit_type(
 // requires special capability and extension: convert them to 32-bit if not
 // satisfied.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // An i1 is store in 8-bit, so 5xi1 has 40 bits, which is stored in 2xi32.
@@ -312,52 +312,82 @@ module attributes {
 func.func @memref_1bit_type(%arg0: memref<5xi1>) { return }
 
 // CHECK-LABEL: spv.func @memref_8bit_StorageBuffer
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i32, stride=4> [0])>, StorageBuffer>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<4 x i32, stride=4> [0])>, StorageBuffer>
 // NOEMU-LABEL: func @memref_8bit_StorageBuffer
 // NOEMU-SAME: memref<16xi8>
 func.func @memref_8bit_StorageBuffer(%arg0: memref<16xi8, 0>) { return }
 
 // CHECK-LABEL: spv.func @memref_8bit_Uniform
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x si32, stride=4> [0])>, Uniform>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<4 x si32, stride=4> [0])>, Uniform>
 // NOEMU-LABEL: func @memref_8bit_Uniform
 // NOEMU-SAME: memref<16xsi8, 4>
 func.func @memref_8bit_Uniform(%arg0: memref<16xsi8, 4>) { return }
 
 // CHECK-LABEL: spv.func @memref_8bit_PushConstant
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x ui32, stride=4> [0])>, PushConstant>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<4 x ui32, stride=4> [0])>, PushConstant>
 // NOEMU-LABEL: func @memref_8bit_PushConstant
 // NOEMU-SAME: memref<16xui8, 7>
 func.func @memref_8bit_PushConstant(%arg0: memref<16xui8, 7>) { return }
 
 // CHECK-LABEL: spv.func @memref_16bit_StorageBuffer
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i32, stride=4> [0])>, StorageBuffer>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<8 x i32, stride=4> [0])>, StorageBuffer>
 // NOEMU-LABEL: func @memref_16bit_StorageBuffer
 // NOEMU-SAME: memref<16xi16>
 func.func @memref_16bit_StorageBuffer(%arg0: memref<16xi16, 0>) { return }
 
 // CHECK-LABEL: spv.func @memref_16bit_Uniform
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x si32, stride=4> [0])>, Uniform>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<8 x si32, stride=4> [0])>, Uniform>
 // NOEMU-LABEL: func @memref_16bit_Uniform
 // NOEMU-SAME: memref<16xsi16, 4>
 func.func @memref_16bit_Uniform(%arg0: memref<16xsi16, 4>) { return }
 
 // CHECK-LABEL: spv.func @memref_16bit_PushConstant
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x ui32, stride=4> [0])>, PushConstant>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<8 x ui32, stride=4> [0])>, PushConstant>
 // NOEMU-LABEL: func @memref_16bit_PushConstant
 // NOEMU-SAME: memref<16xui16, 7>
 func.func @memref_16bit_PushConstant(%arg0: memref<16xui16, 7>) { return }
 
 // CHECK-LABEL: spv.func @memref_16bit_Input
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f32>)>, Input>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<8 x f32>)>, Input>
 // NOEMU-LABEL: func @memref_16bit_Input
 // NOEMU-SAME: memref<16xf16, 9>
 func.func @memref_16bit_Input(%arg3: memref<16xf16, 9>) { return }
 
 // CHECK-LABEL: spv.func @memref_16bit_Output
-// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f32>)>, Output>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<8 x f32>)>, Output>
 // NOEMU-LABEL: func @memref_16bit_Output
 // NOEMU-SAME: memref<16xf16, 10>
 func.func @memref_16bit_Output(%arg4: memref<16xf16, 10>) { return }
+
+// CHECK-LABEL: spv.func @memref_64bit_StorageBuffer
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<32 x i32, stride=4> [0])>, StorageBuffer>
+// NOEMU-LABEL: func @memref_64bit_StorageBuffer
+// NOEMU-SAME: memref<16xi64>
+func.func @memref_64bit_StorageBuffer(%arg0: memref<16xi64, 0>) { return }
+
+// CHECK-LABEL: spv.func @memref_64bit_Uniform
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<32 x si32, stride=4> [0])>, Uniform>
+// NOEMU-LABEL: func @memref_64bit_Uniform
+// NOEMU-SAME: memref<16xsi64, 4>
+func.func @memref_64bit_Uniform(%arg0: memref<16xsi64, 4>) { return }
+
+// CHECK-LABEL: spv.func @memref_64bit_PushConstant
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<32 x ui32, stride=4> [0])>, PushConstant>
+// NOEMU-LABEL: func @memref_64bit_PushConstant
+// NOEMU-SAME: memref<16xui64, 7>
+func.func @memref_64bit_PushConstant(%arg0: memref<16xui64, 7>) { return }
+
+// CHECK-LABEL: spv.func @memref_64bit_Input
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<32 x f32>)>, Input>
+// NOEMU-LABEL: func @memref_64bit_Input
+// NOEMU-SAME: memref<16xf64, 9>
+func.func @memref_64bit_Input(%arg3: memref<16xf64, 9>) { return }
+
+// CHECK-LABEL: spv.func @memref_64bit_Output
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<32 x f32>)>, Output>
+// NOEMU-LABEL: func @memref_64bit_Output
+// NOEMU-SAME: memref<16xf64, 10>
+func.func @memref_64bit_Output(%arg4: memref<16xf64, 10>) { return }
 
 } // end module
 
@@ -368,8 +398,8 @@ func.func @memref_16bit_Output(%arg4: memref<16xf16, 10>) { return }
 // and extension is available.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [StoragePushConstant8, StoragePushConstant16],
-             [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>, {}>
+    #spv.vce<v1.0, [StoragePushConstant8, StoragePushConstant16, Int64, Float64],
+             [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @memref_8bit_PushConstant
@@ -389,6 +419,17 @@ func.func @memref_16bit_PushConstant(
   %arg1: memref<16xf16, 7>
 ) { return }
 
+// CHECK-LABEL: spv.func @memref_64bit_PushConstant
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64, stride=8> [0])>, PushConstant>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64, stride=8> [0])>, PushConstant>
+// NOEMU-LABEL: spv.func @memref_64bit_PushConstant
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64, stride=8> [0])>, PushConstant>
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64, stride=8> [0])>, PushConstant>
+func.func @memref_64bit_PushConstant(
+  %arg0: memref<16xi64, 7>,
+  %arg1: memref<16xf64, 7>
+) { return }
+
 } // end module
 
 // -----
@@ -398,8 +439,8 @@ func.func @memref_16bit_PushConstant(
 // and extension is available.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [StorageBuffer8BitAccess, StorageBuffer16BitAccess],
-             [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>, {}>
+    #spv.vce<v1.0, [StorageBuffer8BitAccess, StorageBuffer16BitAccess, Int64, Float64],
+             [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @memref_8bit_StorageBuffer
@@ -419,6 +460,17 @@ func.func @memref_16bit_StorageBuffer(
   %arg1: memref<16xf16, 0>
 ) { return }
 
+// CHECK-LABEL: spv.func @memref_64bit_StorageBuffer
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64, stride=8> [0])>, StorageBuffer>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64, stride=8> [0])>, StorageBuffer>
+// NOEMU-LABEL: spv.func @memref_64bit_StorageBuffer
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64, stride=8> [0])>, StorageBuffer>
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64, stride=8> [0])>, StorageBuffer>
+func.func @memref_64bit_StorageBuffer(
+  %arg0: memref<16xi64, 0>,
+  %arg1: memref<16xf64, 0>
+) { return }
+
 } // end module
 
 // -----
@@ -428,8 +480,8 @@ func.func @memref_16bit_StorageBuffer(
 // and extension is available.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [UniformAndStorageBuffer8BitAccess, StorageUniform16],
-             [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>, {}>
+    #spv.vce<v1.0, [UniformAndStorageBuffer8BitAccess, StorageUniform16, Int64, Float64],
+             [SPV_KHR_8bit_storage, SPV_KHR_16bit_storage]>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @memref_8bit_Uniform
@@ -449,6 +501,17 @@ func.func @memref_16bit_Uniform(
   %arg1: memref<16xf16, 4>
 ) { return }
 
+// CHECK-LABEL: spv.func @memref_64bit_Uniform
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64, stride=8> [0])>, Uniform>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64, stride=8> [0])>, Uniform>
+// NOEMU-LABEL: spv.func @memref_64bit_Uniform
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64, stride=8> [0])>, Uniform>
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64, stride=8> [0])>, Uniform>
+func.func @memref_64bit_Uniform(
+  %arg0: memref<16xi64, 4>,
+  %arg1: memref<16xf64, 4>
+) { return }
+
 } // end module
 
 // -----
@@ -458,7 +521,7 @@ func.func @memref_16bit_Uniform(
 // and extension is available.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [StorageInputOutput16], [SPV_KHR_16bit_storage]>, {}>
+    #spv.vce<v1.0, [StorageInputOutput16, Int64, Float64], [SPV_KHR_16bit_storage]>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @memref_16bit_Input
@@ -473,6 +536,28 @@ func.func @memref_16bit_Input(%arg3: memref<16xf16, 9>) { return }
 // NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i16>)>, Output>
 func.func @memref_16bit_Output(%arg4: memref<16xi16, 10>) { return }
 
+// CHECK-LABEL: spv.func @memref_64bit_Input
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64>)>, Input>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64>)>, Input>
+// NOEMU-LABEL: spv.func @memref_64bit_Input
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64>)>, Input>
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64>)>, Input>
+func.func @memref_64bit_Input(
+  %arg0: memref<16xi64, 9>,
+  %arg1: memref<16xf64, 9>
+) { return }
+
+// CHECK-LABEL: spv.func @memref_64bit_Output
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64>)>, Output>
+// CHECK-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64>)>, Output>
+// NOEMU-LABEL: spv.func @memref_64bit_Output
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x i64>)>, Output>
+// NOEMU-SAME: !spv.ptr<!spv.struct<(!spv.array<16 x f64>)>, Output>
+func.func @memref_64bit_Output(
+  %arg0: memref<16xi64, 10>,
+  %arg1: memref<16xf64, 10>
+) { return }
+
 } // end module
 
 // -----
@@ -480,7 +565,7 @@ func.func @memref_16bit_Output(%arg4: memref<16xi16, 10>) { return }
 // Check that memref offset and strides affect the array size.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [StorageBuffer16BitAccess], [SPV_KHR_16bit_storage]>, {}>
+    #spv.vce<v1.0, [StorageBuffer16BitAccess], [SPV_KHR_16bit_storage]>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @memref_offset_strides
@@ -514,7 +599,7 @@ func.func @memref_offset_strides(
 
 // Dynamic shapes
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // Check that unranked shapes are not supported.
@@ -592,7 +677,7 @@ func.func @memref_16bit_Output(%arg4: memref<?xf16, 10>) { return }
 
 // Vector types
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: func @memref_vector
@@ -616,7 +701,7 @@ func.func @dynamic_dim_memref_vector(%arg0: memref<8x?xvector<4xi32>>,
 
 // Vector types, check that sizes not available in SPIR-V are not transformed.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: func @memref_vector_wrong_size
@@ -636,7 +721,7 @@ func.func @memref_vector_wrong_size(
 // Check that tensor element types are kept untouched with proper capabilities.
 module attributes {
   spv.target_env = #spv.target_env<
-    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, {}>
+    #spv.vce<v1.0, [Int8, Int16, Int64, Float16, Float64], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @int_tensor_types
@@ -667,7 +752,7 @@ func.func @float_tensor_types(
 
 // Check that tensor element types are changed to 32-bit without capabilities.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: spv.func @int_tensor_types
@@ -698,7 +783,7 @@ func.func @float_tensor_types(
 
 // Check that dynamic shapes are not supported.
 module attributes {
-  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, {}>
+  spv.target_env = #spv.target_env<#spv.vce<v1.0, [], []>, #spv.resource_limits<>>
 } {
 
 // CHECK-LABEL: func @unranked_tensor

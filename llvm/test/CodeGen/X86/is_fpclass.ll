@@ -835,9 +835,9 @@ define <2 x i1> @isnan_v2f_strictfp(<2 x float> %x) strictfp {
 ;
 ; CHECK-64-LABEL: isnan_v2f_strictfp:
 ; CHECK-64:       # %bb.0: # %entry
-; CHECK-64-NEXT:    shufps {{.*#+}} xmm0 = xmm0[0,1,1,3]
-; CHECK-64-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-64-NEXT:    pand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; CHECK-64-NEXT:    pcmpgtd {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
+; CHECK-64-NEXT:    pshufd {{.*#+}} xmm0 = xmm0[0,1,1,3]
 ; CHECK-64-NEXT:    retq
 entry:
   %0 = tail call <2 x i1> @llvm.is.fpclass.v2f32(<2 x float> %x, i32 3)  ; "nan"
@@ -934,6 +934,37 @@ entry:
   %0 = tail call <4 x i1> @llvm.is.fpclass.v4f32(<4 x float> %x, i32 3)  ; "nan"
   ret <4 x i1> %0
 }
+
+define i1 @isnone_f(float %x) {
+; CHECK-32-LABEL: isnone_f:
+; CHECK-32:       # %bb.0: # %entry
+; CHECK-32-NEXT:    xorl %eax, %eax
+; CHECK-32-NEXT:    retl
+;
+; CHECK-64-LABEL: isnone_f:
+; CHECK-64:       # %bb.0: # %entry
+; CHECK-64-NEXT:    xorl %eax, %eax
+; CHECK-64-NEXT:    retq
+entry:
+  %0 = tail call i1 @llvm.is.fpclass.f32(float %x, i32 0)
+  ret i1 %0
+}
+
+define i1 @isany_f(float %x) {
+; CHECK-32-LABEL: isany_f:
+; CHECK-32:       # %bb.0: # %entry
+; CHECK-32-NEXT:    movb $1, %al
+; CHECK-32-NEXT:    retl
+;
+; CHECK-64-LABEL: isany_f:
+; CHECK-64:       # %bb.0: # %entry
+; CHECK-64-NEXT:    movb $1, %al
+; CHECK-64-NEXT:    retq
+entry:
+  %0 = tail call i1 @llvm.is.fpclass.f32(float %x, i32 1023)
+  ret i1 %0
+}
+
 
 
 declare i1 @llvm.is.fpclass.f32(float, i32)

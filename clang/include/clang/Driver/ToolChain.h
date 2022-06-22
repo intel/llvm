@@ -151,6 +151,7 @@ private:
   mutable std::unique_ptr<Tool> IfsMerge;
   mutable std::unique_ptr<Tool> OffloadBundler;
   mutable std::unique_ptr<Tool> OffloadWrapper;
+  mutable std::unique_ptr<Tool> OffloadPackager;
   mutable std::unique_ptr<Tool> OffloadDeps;
   mutable std::unique_ptr<Tool> SPIRVTranslator;
   mutable std::unique_ptr<Tool> SPIRCheck;
@@ -170,6 +171,7 @@ private:
   Tool *getClangAs() const;
   Tool *getOffloadBundler() const;
   Tool *getOffloadWrapper() const;
+  Tool *getOffloadPackager() const;
   Tool *getOffloadDeps() const;
   Tool *getSPIRVTranslator() const;
   Tool *getSPIRCheck() const;
@@ -230,6 +232,9 @@ protected:
   static void addSystemIncludes(const llvm::opt::ArgList &DriverArgs,
                                 llvm::opt::ArgStringList &CC1Args,
                                 ArrayRef<StringRef> Paths);
+
+  static std::string concat(StringRef Path, const Twine &A, const Twine &B = "",
+                            const Twine &C = "", const Twine &D = "");
   ///@}
 
 public:
@@ -402,11 +407,23 @@ public:
   /// by default.
   virtual bool IsIntegratedAssemblerDefault() const { return false; }
 
+  /// IsIntegratedBackendDefault - Does this tool chain enable
+  /// -fintegrated-objemitter by default.
+  virtual bool IsIntegratedBackendDefault() const { return true; }
+
+  /// IsIntegratedBackendSupported - Does this tool chain support
+  /// -fintegrated-objemitter.
+  virtual bool IsIntegratedBackendSupported() const { return true; }
+
+  /// IsNonIntegratedBackendSupported - Does this tool chain support
+  /// -fno-integrated-objemitter.
+  virtual bool IsNonIntegratedBackendSupported() const { return false; }
+
   /// Check if the toolchain should use the integrated assembler.
   virtual bool useIntegratedAs() const;
 
   /// Check if the toolchain should use the integrated backend.
-  virtual bool useIntegratedBackend() const { return true; }
+  virtual bool useIntegratedBackend() const;
 
   /// Check if the toolchain should use AsmParser to parse inlineAsm when
   /// integrated assembler is not default.

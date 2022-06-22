@@ -32,7 +32,7 @@ public:
     throw cl::sycl::feature_not_supported(
         "kernel_handler::get_specialization_constant() is not yet supported by "
         "host device.",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
 #endif // __SYCL_DEVICE_ONLY__
   }
 #endif // __cplusplus >= 201703L
