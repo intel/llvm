@@ -120,8 +120,8 @@ public:
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        //TODO: Implement clog replacment, stderr is not fully analogous
-        fprintf(stderr,"%s\n",message);
+        //TODO: Current solution is a proper analog ogf clog
+        fprintf(stdout,"%s\n",message);
 
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
@@ -138,7 +138,8 @@ public:
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        fprintf(stderr, "%s\n",message);
+        //TODO: Current solution is a proper analog ogf clog
+        fprintf(stdout, "%s\n",message);
 
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)

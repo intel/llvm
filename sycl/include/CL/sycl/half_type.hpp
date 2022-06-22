@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <functional>
-// #include <iostream>
 #include <limits>
 
 #if !__has_builtin(__builtin_expect)
@@ -586,20 +585,7 @@ public:
     return static_cast<float>(Data);
   }
 
-  // Operator << and >>
-  // inline friend std::ostream &operator<<(std::ostream &O,
-  //                                        cl::sycl::half const &rhs) {
-  //   O << static_cast<float>(rhs);
-  //   return O;
-  // }
-
-  // inline friend std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
-  //   float ValFloat = 0.0f;
-  //   I >> ValFloat;
-  //   rhs = ValFloat;
-  //   return I;
-  // }
-
+  
   template <typename Key> friend struct std::hash;
 
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
@@ -714,10 +700,6 @@ inline FILE* operator<<(FILE* file,cl::sycl::half const &rhs){
   return file;
 }
 
-// inline std::ostream &operator<<(std::ostream &O, cl::sycl::half const &rhs) {
-//   O << static_cast<float>(rhs);
-//   return O;
-// }
 
 inline FILE* operator>>(FILE* file,cl::sycl::half &rhs){
   float ValFloat = 0.0f;
@@ -725,12 +707,6 @@ inline FILE* operator>>(FILE* file,cl::sycl::half &rhs){
   rhs=ValFloat;
   return file;
 }
-// inline std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
-//   float ValFloat = 0.0f;
-//   I >> ValFloat;
-//   rhs = ValFloat;
-//   return I;
-// }
 
 #undef __SYCL_CONSTEXPR_HALF
 #undef _CPP14_CONSTEXPR

@@ -15,7 +15,6 @@
 
 #include <cstring>
 #include <cstdio>
-//#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -52,17 +51,6 @@ spec_constant_impl::operator std::string() const{
   Out += "]";
   return Out;
 }
-// std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
-//   Out << "spec_constant_impl"
-//       << " { Size=" << V.getSize() << " IsSet=" << V.isSet() << " Val=[";
-//   std::ios_base::fmtflags FlagsSav = Out.flags();
-//   Out << std::hex;
-//   for (unsigned I = 0; I < V.getSize(); ++I) {
-//     Out << (I == 0 ? "" : " ") << static_cast<int>(*(V.getValuePtr() + I));
-//   }
-//   Out << "]" << FlagsSav;
-//   return Out;
-// }
 
 } // namespace detail
 } // namespace sycl

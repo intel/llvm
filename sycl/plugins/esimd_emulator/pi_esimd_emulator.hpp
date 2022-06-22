@@ -17,7 +17,6 @@
 #include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
-//#include <iostream>
 #include <mutex>
 #include <unordered_map>
 

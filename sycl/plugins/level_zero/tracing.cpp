@@ -70,7 +70,8 @@ void enableZeTracing() {
   Status = zelTracerCreate(&TracerDesc, &Tracer);
 
   if (Status != ZE_RESULT_SUCCESS || Tracer == nullptr) {
-    fprintf(stderr,"[WARNING] Failed to create Level Zero tracer: %d\n",Status);
+    fprintf(stderr,"[WARNING] Failed to create Level Zero tracer: %d\n",
+            Status);
     return;
   }
 

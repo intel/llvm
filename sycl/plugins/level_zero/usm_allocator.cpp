@@ -586,12 +586,6 @@ bool operator==(const Slab &Lhs, const Slab &Rhs) {
   return Lhs.getPtr() == Rhs.getPtr();
 }
 
-// std::ostream &operator<<(std::ostream &Os, const Slab &Slab) {
-//   Os << "Slab<" << Slab.getPtr() << ", " << Slab.getEnd() << ", "
-//      << Slab.getBucket().getSize() << ">";
-//   return Os;
-// }
-
 Slab::Slab(Bucket &Bkt)
     : // In case bucket size is not a multiple of SlabMinSize, we would have
       // some padding at the end of the slab.

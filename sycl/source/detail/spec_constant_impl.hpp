@@ -12,7 +12,6 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/stl.hpp>
 
-//#include <iostream>
 #include <map>
 #include <vector>
 
@@ -38,7 +37,6 @@ private:
   std::vector<char> Bytes;
 };
 
-// std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V);
 
 // Used to define specialization constant registry. Must be ordered map, since
 // the order of entries matters in stableSerializeSpecConstRegistry.

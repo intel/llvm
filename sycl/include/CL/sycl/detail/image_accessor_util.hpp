@@ -20,7 +20,6 @@
 #include <CL/sycl/types.hpp>
 
 #include <cmath>
-//#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -238,12 +238,9 @@ public:
   operator std::string()const;
 
 protected:
-  // friend std::ostream &operator<<(std::ostream &Out,
-  //                                 const DeviceBinaryProperty &P);
   const _pi_device_binary_property_struct *Prop;
 };
 
-//std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
 
 // C++ convenience wrapper over the pi_device_binary_struct structure.
 class DeviceBinaryImage {

@@ -485,8 +485,8 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
   if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2) {
     std::string ProgramBuildLog =
         ProgramManager::getProgramBuildLog(Prog, Context);
-        //TODO: Implement clog replacment, stderr is not fully analogous
-    fprintf(stderr,"%s\n",ProgramBuildLog.c_str());
+        //TODO: Implement clog replacment, stdout is not fully analogous
+    fprintf(stdout,"%s\n",ProgramBuildLog.c_str());
   }
 }
 

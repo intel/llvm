@@ -10,9 +10,6 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-// #include <fstream>
-// #include <iostream>
-// #include <istream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -70,31 +67,7 @@ inline std::string backend_to_string(const backend& be) {
   }
   return Out;
 }
-// inline std::ostream &operator<<(std::ostream &Out, backend be) {
-//   switch (be) {
-//   case backend::host:
-//     Out << "host";
-//     break;
-//   case backend::opencl:
-//     Out << "opencl";
-//     break;
-//   case backend::ext_oneapi_level_zero:
-//     Out << "ext_oneapi_level_zero";
-//     break;
-//   case backend::ext_oneapi_cuda:
-//     Out << "ext_oneapi_cuda";
-//     break;
-//   case backend::ext_intel_esimd_emulator:
-//     Out << "ext_intel_esimd_emulator";
-//     break;
-//   case backend::ext_oneapi_hip:
-//     Out << "ext_oneapi_hip";
-//     break;
-//   case backend::all:
-//     Out << "all";
-//   }
-//   return Out;
-// }
+
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

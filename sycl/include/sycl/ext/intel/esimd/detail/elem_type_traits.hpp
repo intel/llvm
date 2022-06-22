@@ -713,20 +713,6 @@ __esimd_wrapper_type_bitcast_from<sycl::half>(sycl::half Val) {
 template <>
 struct is_esimd_arithmetic_type<__raw_t<sycl::half>, void> : std::true_type {};
 
-// Misc
-//TODO: Delete definitions duplicate from half_type.hpp
-// inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
-//   O << static_cast<float>(rhs);
-//   return O;
-// }
-
-// inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
-//   float ValFloat = 0.0f;
-//   I >> ValFloat;
-//   rhs = ValFloat;
-//   return I;
-// }
-
 // The only other place which needs to be updated to support a new type is
 // the is_wrapper_elem_type_v meta function.
 
