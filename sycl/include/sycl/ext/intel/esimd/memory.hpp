@@ -1354,11 +1354,11 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
         if constexpr (sizeof(T) == 1 && RemN == 16) {
-          simd<int32_t, 8> Vals;
+          simd<int32_t, 4> Vals;
           Vals.template select<4, 1>() =
               Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
                   NumChunks * ChunkSize);
-          block_store<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) +
+          block_store<int32_t, 4>(reinterpret_cast<int32_t *>(Addr) +
                                       (NumChunks * ChunkSize),
                                   Vals);
         } else {
