@@ -3641,6 +3641,20 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     return;
 
   {
+    // Sindhu
+    // If SYCL kernel lambda is not fully instantiated, emit an error and
+    // do not calculate the stable name
+    //
+    //if (KernelObj->getDeclContext()->isDependentContext()) {
+    if (auto *FTD = dyn_cast<FunctionTemplateDecl>(KernelObj)) {
+      //TemplateTypeParmDecl *TPD = FTD->getTemplateTypeParmDecl(); 
+      if (auto *TPD = dyn_cast<TemplateTypeParmDecl>(FTD))         
+          if (auto *MD = dyn_cast<CXXMethodDecl>(FTD))
+            if (auto *PVD = MD->getParamDecl(0))
+              // diagnose here if name of the ParmVarDecl type is 'auto'
+          return; 
+    }
+    //
     // Do enough to calculate the StableName for the purposes of the hackery
     // below for __pf_kernel_wrapper. Placed in a scope so that we don't
     // accidentially use these values below, before the names are stabililzed.
@@ -4781,7 +4795,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "  __SYCL_DLL_LOCAL\n";
     O << "  static constexpr " << ReturnType << " getKernelSize() { return "
       << K.ObjSize << "; }\n";
->>>>>>> intel_llvm_remote/sycl
     O << "};\n";
     CurStart += N;
   }
