@@ -450,8 +450,8 @@ CUstream _pi_queue::get_next_transfer_stream() {
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      CUstream stream, pi_uint32 stream_token)
-    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false},
+    : commandType_{type}, refCount_{1}, has_ownership_{true},
+      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
 
@@ -470,6 +470,13 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
   }
   cuda_piContextRetain(context_);
 }
+
+_pi_event::_pi_event(pi_context context, CUevent eventNative)
+    : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
+      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
+      streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
+                                                                  context} {}
 
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
@@ -583,7 +590,11 @@ pi_result _pi_event::wait() {
 }
 
 pi_result _pi_event::release() {
+  if (!backend_has_ownership())
+    return PI_SUCCESS;
+
   assert(queue_ != nullptr);
+
   PI_CHECK_ERROR(cuEventDestroy(evEnd_));
 
   if (queue_->properties_ & PI_QUEUE_PROFILING_ENABLE) {
@@ -3910,11 +3921,19 @@ pi_result cuda_piextEventGetNativeHandle(pi_event event,
 /// \param[out] event Set to the PI event object created from native handle.
 ///
 /// \return TBD
-pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                bool, pi_event *) {
-  cl::sycl::detail::pi::die(
-      "Creation of PI event from native handle not implemented");
-  return {};
+pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                                pi_context context,
+                                                bool ownNativeHandle,
+                                                pi_event *event) {
+  (void)ownNativeHandle;
+  assert(!ownNativeHandle);
+
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  *event = _pi_event::make_with_native(context,
+                                       reinterpret_cast<CUevent>(nativeHandle));
+
+  return PI_SUCCESS;
 }
 
 /// Creates a PI sampler object
