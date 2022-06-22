@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/aspects.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>

@@ -13,6 +13,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/cg_types.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/handler_proxy.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -404,7 +405,7 @@ private:
       throw sycl::runtime_error("Attempt to set multiple actions for the "
                                 "command group. Command group must consist of "
                                 "a single kernel or explicit memory operation.",
-                                CL_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
   }
 
   /// Extracts and prepares kernel arguments from the lambda using integration
@@ -2425,7 +2426,7 @@ public:
     if (Dst.get_size() < Src.get_size())
       throw sycl::invalid_object_error(
           "The destination accessor size is too small to copy the memory into.",
-          CL_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     if (copyAccToAccHelper(Src, Dst))
       return;
