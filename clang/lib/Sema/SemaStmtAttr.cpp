@@ -278,9 +278,11 @@ static IVDepExprResult HandleFPGAIVDepAttrExpr(Sema &S, Expr *E,
       return IVDepExprResult::Invalid;
     SafelenValue = ArgVal->getZExtValue();
     // ivdep attribute allows both safelen = 0 and safelen = 1 with a warning.
-    if (SafelenValue == 0 || SafelenValue == 1)
+    if (SafelenValue == 0 || SafelenValue == 1) {
       S.Diag(E->getExprLoc(), diag::warn_ivdep_attribute_argument)
           << SafelenValue;
+      return IVDepExprResult::Invalid;
+    }
     return IVDepExprResult::SafeLen;
   }
 

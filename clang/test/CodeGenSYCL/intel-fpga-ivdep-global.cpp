@@ -75,7 +75,7 @@ void ivdep_conflicting_safelen() {
   }
 }
 
-// Global ivdep w/ safelen value 1 is specified - annotate all GEPs
+// Global ivdep w/ safelen value 1 is specified - do not annotate GEP
 //
 // CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_safelen_onev()
 void ivdep_safelen_one() {
@@ -84,15 +84,15 @@ void ivdep_safelen_one() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep(1)]] for (int i = 0; i != 10; ++i) {
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A1_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B1_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}
     b[i] = 0;
-    // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_SAFELEN1:[0-9]+]]
+    // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN1:[0-9]+]]
   }
 }
 
-// Global ivdep w/ safelen value 0 is specified - annotate all GEPs
+// Global ivdep w/ safelen value 0 is specified - do not annotate GEP
 //
 // CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_safelen_zerov()
 void ivdep_safelen_zero() {
@@ -101,11 +101,11 @@ void ivdep_safelen_zero() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep(0)]] for (int i = 0; i != 10; ++i) {
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A2_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}
     a[i] = 0;
-    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B2_SAFELEN:[0-9]+]]
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}
     b[i] = 0;
-    // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_SAFELEN2:[0-9]+]]
+    // CHECK: br label %for.cond, !llvm.loop ![[MD_NO_LOOP_SAFELEN2:[0-9]+]]
   }
 }
 
@@ -129,7 +129,6 @@ int main() {
 // Find recurring instances of legacy "IVDep enable/safelen" MD nodes.
 // CHECK-DAG: ![[IVDEP_LEGACY_ENABLE:[0-9]+]] = !{!"llvm.loop.ivdep.enable"}
 // CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_5:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 5}
-// CHECK-DAG: ![[IVDEP_LEGACY_SAFELEN_1:[0-9]+]] = !{!"llvm.loop.ivdep.safelen", i32 1}
 
 /// Global ivdep w/o safelen specified
 /// All arrays have the same INF safelen - put access groups into the same parallel_access_indices metadata
@@ -160,18 +159,8 @@ int main() {
 // CHECK-DAG: ![[MD_LOOP_CONFL_SAFELEN]] = distinct !{![[MD_LOOP_CONFL_SAFELEN]], ![[#]], ![[IVDEP_CONFL_SAFELEN:[0-9]+]], ![[IVDEP_LEGACY_SAFELEN_5]]}
 // CHECK-DAG: ![[IVDEP_CONFL_SAFELEN]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A_CONFL_SAFELEN]], ![[IDX_GROUP_B_CONFL_SAFELEN]], i32 5}
 
-/// Global ivdep w/ safelen value of 1 is specified
-/// All arrays share the same safelen - put index groups into the same parallel_access_indices MD node
-//
-// CHECK-DAG: ![[IDX_GROUP_A1_SAFELEN]] = distinct !{}
-// CHECK-DAG: ![[IDX_GROUP_B1_SAFELEN]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_SAFELEN1]] = distinct !{![[MD_LOOP_SAFELEN1]], ![[#]], ![[IVDEP_SAFELEN1:[0-9]+]], ![[IVDEP_LEGACY_SAFELEN_1]]}
-// CHECK-DAG: ![[IVDEP_SAFELEN1]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A1_SAFELEN]], ![[IDX_GROUP_B1_SAFELEN]], i32 1}
+/// Global ivdep w/ safelen value of 1 has no effect. Attribute is ignored and no IR is generated with safelen value of 1.
+// CHECK-DAG: ![[MD_NO_LOOP_SAFELEN1]] = distinct !{![[MD_NO_LOOP_SAFELEN1]], ![[#]]}
 
-/// Global ivdep w/ safelen value 0 is specified
-/// All arrays share the same safelen - put index groups into the same parallel_access_indices MD node
-//
-// CHECK-DAG: ![[IDX_GROUP_A2_SAFELEN]] = distinct !{}
-// CHECK-DAG: ![[IDX_GROUP_B2_SAFELEN]] = distinct !{}
-// CHECK-DAG: ![[MD_LOOP_SAFELEN2]] = distinct !{![[MD_LOOP_SAFELEN2]], ![[#]], ![[IVDEP_SAFELEN2:[0-9]+]], ![[IVDEP_LEGACY_ENABLE]]}
-// CHECK-DAG: ![[IVDEP_SAFELEN2]] = !{!"llvm.loop.parallel_access_indices", ![[IDX_GROUP_A2_SAFELEN]], ![[IDX_GROUP_B2_SAFELEN]]}
+/// Global ivdep w/ safelen value of 0 has no effect. Attribute is ignored and no IR is generated with safelen value of 0.
+// CHECK-DAG: ![[MD_NO_LOOP_SAFELEN2]] = distinct !{![[MD_NO_LOOP_SAFELEN2]], ![[#]]}
