@@ -245,12 +245,12 @@ event handler::finalize() {
 
     auto EnqueueKernel = [&]() {
       // 'Result' for single point of return
-      cl_int Result = CL_INVALID_VALUE;
+      pi_int32 Result = PI_ERROR_INVALID_VALUE;
 
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
-        Result = CL_SUCCESS;
+        Result = PI_SUCCESS;
       } else {
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
@@ -258,14 +258,13 @@ event handler::finalize() {
               nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
               MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
               &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
-          Result = CL_SUCCESS;
+          Result = PI_SUCCESS;
         } else {
           Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                     MKernel, MKernelName, MOSModuleHandle,
                                     RawEvents, OutEvent, nullptr);
         }
       }
-      // assert(Result != CL_INVALID_VALUE);
       return Result;
     };
 
@@ -280,7 +279,7 @@ event handler::finalize() {
     }
 
     if (DiscardEvent) {
-      if (CL_SUCCESS != EnqueueKernel())
+      if (PI_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     } else {
@@ -288,7 +287,7 @@ event handler::finalize() {
       NewEvent->setContextImpl(MQueue->getContextImplPtr());
       OutEvent = &NewEvent->getHandleRef();
 
-      if (CL_SUCCESS != EnqueueKernel())
+      if (PI_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
       else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
