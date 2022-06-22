@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=i686-pc-linux -relocation-model=pic | FileCheck %s
+; RUN: llc -opaque-pointers < %s -mtriple=i686-pc-linux -relocation-model=pic | FileCheck %s
 
 target datalayout = "e-m:e-p:32:32-f64:32:64-f80:32-n8:16:32-S128"
 target triple = "i686-pc-linux"
@@ -6,7 +6,7 @@ target triple = "i686-pc-linux"
 ; Function Attrs: nounwind
 define void @test() #0 !dbg !4 {
 entry:
-  call void bitcast (void (...)* @bar to void ()*)(), !dbg !11
+  call void @bar(), !dbg !11
   ret void, !dbg !12
 }
 
