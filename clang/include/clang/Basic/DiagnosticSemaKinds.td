@@ -11788,7 +11788,7 @@ def warn_ivdep_redundant : Warning <"ignoring redundant Intel FPGA loop "
   "attribute 'ivdep': safelen %select{INF|%1}0 >= safelen %select{INF|%3}2">,
   InGroup<IgnoredAttributes>;
 def warn_ivdep_attribute_argument : Warning<
-  "'ivdep' attribute allows safelen value of %0 to the loop">,
+  "'ivdep' attribute applies safelen value of %0 to the loop">,
   InGroup<SyclIvdepAttribute>;
 def warn_attribute_spelling_deprecated : Warning<
   "attribute %0 is deprecated">,
