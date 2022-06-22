@@ -21,7 +21,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -411,11 +411,11 @@ public:
     if (!enc)
       return failure();
     Optional<int64_t> index = op.getConstantIndex();
-    if (!index.hasValue())
+    if (!index)
       return failure();
     // Generate the call.
     Value src = adaptor.getOperands()[0];
-    int64_t idx = index.getValue();
+    int64_t idx = *index;
     rewriter.replaceOp(op, genDimSizeCall(rewriter, op, enc, src, idx));
     return success();
   }
@@ -657,7 +657,7 @@ public:
     Value zero = constantIndex(rewriter, loc, 0);
     Value one = constantIndex(rewriter, loc, 1);
     auto indicesValues = genSplitSparseConstant(rewriter, loc, src);
-    bool isCOOConstant = indicesValues.hasValue();
+    bool isCOOConstant = indicesValues.has_value();
     Value indices;
     Value values;
     if (isCOOConstant) {

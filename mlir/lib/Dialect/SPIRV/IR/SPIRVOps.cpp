@@ -188,7 +188,7 @@ parseEnumStrAttr(EnumClass &value, OpAsmParser &parser,
     return parser.emitError(loc, "invalid ")
            << attrName << " attribute specification: " << attrVal;
   }
-  value = attrOptional.getValue();
+  value = *attrOptional;
   return success();
 }
 
@@ -870,7 +870,7 @@ static ParseResult parseGroupNonUniformArithmeticOp(OpAsmParser &parser,
   if (parser.resolveOperand(valueInfo, resultType, state.operands))
     return failure();
 
-  if (clusterSizeInfo.hasValue()) {
+  if (clusterSizeInfo) {
     Type i32Type = parser.getBuilder().getIntegerType(32);
     if (parser.resolveOperand(*clusterSizeInfo, i32Type, state.operands))
       return failure();
@@ -2497,7 +2497,7 @@ void spirv::GlobalVariableOp::print(OpAsmPrinter &printer) {
   // Print optional initializer
   if (auto initializer = this->initializer()) {
     printer << " " << kInitializerAttrName << '(';
-    printer.printSymbolName(initializer.getValue());
+    printer.printSymbolName(*initializer);
     printer << ')';
     elidedAttrs.push_back(kInitializerAttrName);
   }

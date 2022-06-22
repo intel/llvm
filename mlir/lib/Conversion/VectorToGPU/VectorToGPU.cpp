@@ -21,7 +21,7 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
@@ -183,7 +183,7 @@ convertElementwiseOpToMMA(Operation *op) {
 
 /// Return true if the op is supported as elementwise op on MMAMatrix type.
 static bool elementwiseSupportsMMAMatrixType(Operation *op) {
-  return convertElementwiseOpToMMA(op).hasValue();
+  return convertElementwiseOpToMMA(op).has_value();
 }
 
 static bool supportsMMaMatrixType(Operation *op, bool useNvGpu) {

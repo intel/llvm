@@ -34,7 +34,6 @@ using namespace NVVM;
 
 #include "mlir/Dialect/LLVMIR/NVVMOpsDialect.cpp.inc"
 #include "mlir/Dialect/LLVMIR/NVVMOpsEnums.cpp.inc"
-#include "mlir/Dialect/LLVMIR/NVVMOpsStructs.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // Printing/parsing for NVVM ops
@@ -203,7 +202,7 @@ void MmaOp::build(OpBuilder &builder, OperationState &result, Type resultType,
   result.addOperands(operandB);
   result.addOperands(operandC);
 
-  if (multiplicandPtxTypes.hasValue()) {
+  if (multiplicandPtxTypes) {
     result.addAttribute("multiplicandAPtxType",
                         MMATypesAttr::get(ctx, (*multiplicandPtxTypes)[0]));
     result.addAttribute("multiplicandBPtxType",
@@ -215,7 +214,7 @@ void MmaOp::build(OpBuilder &builder, OperationState &result, Type resultType,
       result.addAttribute("multiplicandBPtxType", MMATypesAttr::get(ctx, *res));
   }
 
-  if (multiplicandLayouts.hasValue()) {
+  if (multiplicandLayouts) {
     result.addAttribute("layoutA",
                         MMALayoutAttr::get(ctx, (*multiplicandLayouts)[0]));
     result.addAttribute("layoutB",
@@ -373,7 +372,7 @@ LogicalResult MmaOp::verify() {
   if (mmaShape[0] == 16) {
     int64_t kFactor;
     Type multiplicandFragType;
-    switch (getMultiplicandAPtxType().getValue()) {
+    switch (*getMultiplicandAPtxType()) {
     case MMATypes::tf32:
       kFactor = 4;
       multiplicandFragType = i32Ty;
@@ -422,7 +421,7 @@ LogicalResult MmaOp::verify() {
 
   // In the M=8 case, there is only 1 possible case per data type.
   if (mmaShape[0] == 8) {
-    if (getMultiplicandAPtxType().getValue() == MMATypes::f16) {
+    if (*getMultiplicandAPtxType() == MMATypes::f16) {
       expectedA.emplace_back(2, f16x2Ty);
       expectedB.emplace_back(2, f16x2Ty);
       expectedResult.push_back(f16x2x4StructTy);
@@ -431,7 +430,7 @@ LogicalResult MmaOp::verify() {
       expectedC.emplace_back(8, f32Ty);
       allowedShapes.push_back({8, 8, 4});
     }
-    if (getMultiplicandAPtxType().getValue() == MMATypes::f64) {
+    if (*getMultiplicandAPtxType() == MMATypes::f64) {
       Type f64Ty = Float64Type::get(context);
       expectedA.emplace_back(1, f64Ty);
       expectedB.emplace_back(1, f64Ty);
@@ -506,7 +505,7 @@ LogicalResult MmaOp::verify() {
   }
 
   // Ensure that binary MMA variants have a b1 MMA operation defined.
-  if (getMultiplicandAPtxType() == MMATypes::b1 && !getB1Op().hasValue()) {
+  if (getMultiplicandAPtxType() == MMATypes::b1 && !getB1Op()) {
     return emitOpError("op requires " + getB1OpAttrName().strref() +
                        " attribute");
   }
@@ -515,7 +514,7 @@ LogicalResult MmaOp::verify() {
   // attribute.
   if (isInt4PtxType(*getMultiplicandAPtxType()) ||
       isInt8PtxType(*getMultiplicandAPtxType())) {
-    if (!getIntOverflowBehavior().hasValue())
+    if (!getIntOverflowBehavior())
       return emitOpError("op requires " +
                          getIntOverflowBehaviorAttrName().strref() +
                          " attribute");

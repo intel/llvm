@@ -862,7 +862,7 @@ bool SelectOptimize::computeLoopCosts(
           }
         }
         auto ILatency = computeInstCost(&I);
-        if (!ILatency.hasValue()) {
+        if (!ILatency) {
           OptimizationRemarkMissed ORmissL(DEBUG_TYPE, "SelectOpti", &I);
           ORmissL << "Invalid instruction cost preventing analysis and "
                      "optimization of the inner-most loop containing this "
@@ -924,7 +924,7 @@ Optional<uint64_t> SelectOptimize::computeInstCost(const Instruction *I) {
   InstructionCost ICost =
       TTI->getInstructionCost(I, TargetTransformInfo::TCK_Latency);
   if (auto OC = ICost.getValue())
-    return Optional<uint64_t>(OC.getValue());
+    return Optional<uint64_t>(*OC);
   return Optional<uint64_t>(None);
 }
 

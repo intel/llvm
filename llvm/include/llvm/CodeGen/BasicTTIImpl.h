@@ -703,6 +703,8 @@ public:
                                            bool Insert, bool Extract) {
     /// FIXME: a bitfield is not a reasonable abstraction for talking about
     /// which elements are needed from a scalable vector
+    if (isa<ScalableVectorType>(InTy))
+      return InstructionCost::getInvalid();
     auto *Ty = cast<FixedVectorType>(InTy);
 
     assert(DemandedElts.getBitWidth() == Ty->getNumElements() &&
@@ -725,6 +727,8 @@ public:
   /// Helper wrapper for the DemandedElts variant of getScalarizationOverhead.
   InstructionCost getScalarizationOverhead(VectorType *InTy, bool Insert,
                                            bool Extract) {
+    if (isa<ScalableVectorType>(InTy))
+      return InstructionCost::getInvalid();
     auto *Ty = cast<FixedVectorType>(InTy);
 
     APInt DemandedElts = APInt::getAllOnes(Ty->getNumElements());
@@ -1303,8 +1307,7 @@ public:
 
       // Scale the cost of the load by the fraction of legal instructions that
       // will be used.
-      Cost = divideCeil(UsedInsts.count() * Cost.getValue().getValue(),
-                        NumLegalInsts);
+      Cost = divideCeil(UsedInsts.count() * *Cost.getValue(), NumLegalInsts);
     }
 
     // Then plus the cost of interleave operation.
@@ -1500,8 +1503,6 @@ public:
     }
     case Intrinsic::fshl:
     case Intrinsic::fshr: {
-      if (isa<ScalableVectorType>(RetTy))
-        return BaseT::getIntrinsicInstrCost(ICA, CostKind);
       const Value *X = Args[0];
       const Value *Y = Args[1];
       const Value *Z = Args[2];

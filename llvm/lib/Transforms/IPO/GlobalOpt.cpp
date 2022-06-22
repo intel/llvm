@@ -1279,8 +1279,10 @@ static bool TryToShrinkGlobalToBoolean(GlobalVariable *GV, Constant *OtherVal) {
   return true;
 }
 
-static bool deleteIfDead(
-    GlobalValue &GV, SmallPtrSetImpl<const Comdat *> &NotDiscardableComdats) {
+static bool
+deleteIfDead(GlobalValue &GV,
+             SmallPtrSetImpl<const Comdat *> &NotDiscardableComdats,
+             function_ref<void(Function &)> DeleteFnCallback = nullptr) {
   GV.removeDeadConstantUsers();
 
   if (!GV.isDiscardableIfUnused() && !GV.isDeclaration())
@@ -1299,6 +1301,10 @@ static bool deleteIfDead(
     return false;
 
   LLVM_DEBUG(dbgs() << "GLOBAL DEAD: " << GV << "\n");
+  if (auto *F = dyn_cast<Function>(&GV)) {
+    if (DeleteFnCallback)
+      DeleteFnCallback(*F);
+  }
   GV.eraseFromParent();
   ++NumDeleted;
   return true;
@@ -1436,37 +1442,6 @@ static void makeAllConstantUsesInstructions(Constant *C) {
     // will update value handles and metadata.)
     U->destroyConstant();
   }
-}
-
-// For a global variable with one store, if the store dominates any loads,
-// those loads will always load the stored value (as opposed to the
-// initializer), even in the presence of recursion.
-static bool forwardStoredOnceStore(
-    GlobalVariable *GV, const StoreInst *StoredOnceStore,
-    function_ref<DominatorTree &(Function &)> LookupDomTree) {
-  const Value *StoredOnceValue = StoredOnceStore->getValueOperand();
-  SmallVector<LoadInst *> Loads;
-  const Function *F = StoredOnceStore->getFunction();
-  for (User *U : GV->users()) {
-    if (auto *LI = dyn_cast<LoadInst>(U)) {
-      if (LI->getFunction() == F &&
-          LI->getType() == StoredOnceValue->getType() && LI->isSimple())
-        Loads.push_back(LI);
-    }
-  }
-  // Only compute DT if we have any loads to examine.
-  bool MadeChange = false;
-  if (!Loads.empty()) {
-    auto &DT = LookupDomTree(*const_cast<Function *>(F));
-    for (auto *LI : Loads) {
-      if (DT.dominates(StoredOnceStore, LI)) {
-        LI->replaceAllUsesWith(const_cast<Value *>(StoredOnceValue));
-        LI->eraseFromParent();
-        MadeChange = true;
-      }
-    }
-  }
-  return MadeChange;
 }
 
 /// Analyze the specified global variable and optimize
@@ -1626,10 +1601,6 @@ processInternalGlobal(GlobalVariable *GV, const GlobalStatus &GS,
     // Try to optimize globals based on the knowledge that only one value
     // (besides its initializer) is ever stored to the global.
     if (optimizeOnceStoredGlobal(GV, StoredOnceValue, DL, GetTLI))
-      return true;
-
-    // Try to forward the store to any loads.
-    if (forwardStoredOnceStore(GV, GS.StoredOnceStore, LookupDomTree))
       return true;
 
     // Otherwise, if the global was not a boolean, we can shrink it to be a
@@ -1942,7 +1913,8 @@ OptimizeFunctions(Module &M,
                   function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
                   function_ref<DominatorTree &(Function &)> LookupDomTree,
                   SmallPtrSetImpl<const Comdat *> &NotDiscardableComdats,
-                  function_ref<void(Function &F)> ChangedCFGCallback) {
+                  function_ref<void(Function &F)> ChangedCFGCallback,
+                  function_ref<void(Function &F)> DeleteFnCallback) {
 
   bool Changed = false;
 
@@ -1962,7 +1934,7 @@ OptimizeFunctions(Module &M,
     if (!F.hasName() && !F.isDeclaration() && !F.hasLocalLinkage())
       F.setLinkage(GlobalValue::InternalLinkage);
 
-    if (deleteIfDead(F, NotDiscardableComdats)) {
+    if (deleteIfDead(F, NotDiscardableComdats, DeleteFnCallback)) {
       Changed = true;
       continue;
     }
@@ -2448,7 +2420,8 @@ optimizeGlobalsInModule(Module &M, const DataLayout &DL,
                         function_ref<TargetTransformInfo &(Function &)> GetTTI,
                         function_ref<BlockFrequencyInfo &(Function &)> GetBFI,
                         function_ref<DominatorTree &(Function &)> LookupDomTree,
-                        function_ref<void(Function &F)> ChangedCFGCallback) {
+                        function_ref<void(Function &F)> ChangedCFGCallback,
+                        function_ref<void(Function &F)> DeleteFnCallback) {
   SmallPtrSet<const Comdat *, 8> NotDiscardableComdats;
   bool Changed = false;
   bool LocalChange = true;
@@ -2473,7 +2446,8 @@ optimizeGlobalsInModule(Module &M, const DataLayout &DL,
 
     // Delete functions that are trivially dead, ccc -> fastcc
     LocalChange |= OptimizeFunctions(M, GetTLI, GetTTI, GetBFI, LookupDomTree,
-                                     NotDiscardableComdats, ChangedCFGCallback);
+                                     NotDiscardableComdats, ChangedCFGCallback,
+                                     DeleteFnCallback);
 
     // Optimize global_ctors list.
     LocalChange |=
@@ -2529,13 +2503,14 @@ PreservedAnalyses GlobalOptPass::run(Module &M, ModuleAnalysisManager &AM) {
     auto ChangedCFGCallback = [&FAM](Function &F) {
       FAM.invalidate(F, PreservedAnalyses::none());
     };
+    auto DeleteFnCallback = [&FAM](Function &F) { FAM.clear(F, F.getName()); };
 
     if (!optimizeGlobalsInModule(M, DL, GetTLI, GetTTI, GetBFI, LookupDomTree,
-                                 ChangedCFGCallback))
+                                 ChangedCFGCallback, DeleteFnCallback))
       return PreservedAnalyses::all();
 
     PreservedAnalyses PA = PreservedAnalyses::none();
-    // We have not removed or replaced any functions.
+    // We made sure to clear analyses for deleted functions.
     PA.preserve<FunctionAnalysisManagerModuleProxy>();
     // The only place we modify the CFG is when calling
     // removeUnreachableBlocks(), but there we make sure to invalidate analyses
@@ -2578,7 +2553,7 @@ struct GlobalOptLegacyPass : public ModulePass {
     };
 
     return optimizeGlobalsInModule(M, DL, GetTLI, GetTTI, GetBFI, LookupDomTree,
-                                   ChangedCFGCallback);
+                                   ChangedCFGCallback, nullptr);
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {

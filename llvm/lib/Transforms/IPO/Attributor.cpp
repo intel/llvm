@@ -709,7 +709,7 @@ Argument *IRPosition::getAssociatedArgument() const {
 
       assert(ACS.getCalledFunction()->arg_size() > u &&
              "ACS mapped into var-args arguments!");
-      if (CBCandidateArg.hasValue()) {
+      if (CBCandidateArg) {
         CBCandidateArg = nullptr;
         break;
       }
@@ -1030,7 +1030,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
   // assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP)) {
     Optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
-    if (!SimplifiedV.hasValue())
+    if (!SimplifiedV)
       return llvm::None;
     if (isa_and_nonnull<Constant>(*SimplifiedV))
       return cast<Constant>(*SimplifiedV);
@@ -1044,7 +1044,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
       ValueSimplifyAA.getAssumedSimplifiedValue(*this);
   bool IsKnown = ValueSimplifyAA.isAtFixpoint();
   UsedAssumedInformation |= !IsKnown;
-  if (!SimplifiedV.hasValue()) {
+  if (!SimplifiedV) {
     recordDependence(ValueSimplifyAA, AA, DepClassTy::OPTIONAL);
     return llvm::None;
   }
@@ -1078,7 +1078,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
       ValueSimplifyAA.getAssumedSimplifiedValue(*this);
   bool IsKnown = ValueSimplifyAA.isAtFixpoint();
   UsedAssumedInformation |= !IsKnown;
-  if (!SimplifiedV.hasValue()) {
+  if (!SimplifiedV) {
     if (AA)
       recordDependence(ValueSimplifyAA, *AA, DepClassTy::OPTIONAL);
     return llvm::None;
@@ -1097,7 +1097,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
 Optional<Value *> Attributor::translateArgumentToCallSiteContent(
     Optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
     bool &UsedAssumedInformation) {
-  if (!V.hasValue())
+  if (!V)
     return V;
   if (*V == nullptr || isa<Constant>(*V))
     return V;
@@ -1188,16 +1188,14 @@ bool Attributor::isAssumedDead(const Instruction &I,
   if (ManifestAddedBlocks.contains(I.getParent()))
     return false;
 
-  if (!FnLivenessAA)
-    FnLivenessAA =
-        lookupAAFor<AAIsDead>(IRPosition::function(*I.getFunction(), CBCtx),
-                              QueryingAA, DepClassTy::NONE);
+  if (!FnLivenessAA || FnLivenessAA->getAnchorScope() != I.getFunction())
+    FnLivenessAA = &getOrCreateAAFor<AAIsDead>(
+        IRPosition::function(*I.getFunction(), CBCtx), QueryingAA,
+        DepClassTy::NONE);
 
   // If we have a context instruction and a liveness AA we use it.
-  if (FnLivenessAA &&
-      FnLivenessAA->getIRPosition().getAnchorScope() == I.getFunction() &&
-      (CheckBBLivenessOnly ? FnLivenessAA->isAssumedDead(I.getParent())
-                           : FnLivenessAA->isAssumedDead(&I))) {
+  if (CheckBBLivenessOnly ? FnLivenessAA->isAssumedDead(I.getParent())
+                          : FnLivenessAA->isAssumedDead(&I)) {
     if (QueryingAA)
       recordDependence(*FnLivenessAA, *QueryingAA, DepClass);
     if (!FnLivenessAA->isKnownDead(&I))
@@ -1268,9 +1266,9 @@ bool Attributor::isAssumedDead(const BasicBlock &BB,
                                const AbstractAttribute *QueryingAA,
                                const AAIsDead *FnLivenessAA,
                                DepClassTy DepClass) {
-  if (!FnLivenessAA)
-    FnLivenessAA = lookupAAFor<AAIsDead>(IRPosition::function(*BB.getParent()),
-                                         QueryingAA, DepClassTy::NONE);
+  if (!FnLivenessAA || FnLivenessAA->getAnchorScope() != BB.getParent())
+    FnLivenessAA = &getOrCreateAAFor<AAIsDead>(
+        IRPosition::function(*BB.getParent()), QueryingAA, DepClassTy::NONE);
   if (FnLivenessAA->isAssumedDead(&BB)) {
     if (QueryingAA)
       recordDependence(*FnLivenessAA, *QueryingAA, DepClass);
@@ -3159,7 +3157,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS,
   OS << " [" << Acc.getKind() << "] " << *Acc.getRemoteInst();
   if (Acc.getLocalInst() != Acc.getRemoteInst())
     OS << " via " << *Acc.getLocalInst();
-  if (Acc.getContent().hasValue()) {
+  if (Acc.getContent()) {
     if (*Acc.getContent())
       OS << " [" << **Acc.getContent() << "]";
     else

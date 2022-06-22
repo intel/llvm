@@ -2064,14 +2064,14 @@ private:
       return;
     }
 
-    if (lbounds.hasValue()) {
+    if (lbounds) {
       // Array of POINTER entities, with elemental assignment.
       if (!Fortran::lower::isWholePointer(assign.lhs))
         fir::emitFatalError(toLocation(), "pointer assignment to non-pointer");
 
       Fortran::lower::createArrayOfPointerAssignment(
           *this, assign.lhs, assign.rhs, explicitIterSpace, implicitIterSpace,
-          lbounds.getValue(), ubounds, localSymbols, stmtCtx);
+          *lbounds, ubounds, localSymbols, stmtCtx);
       return;
     }
 
@@ -2840,7 +2840,7 @@ private:
       const Fortran::semantics::Symbol &procSymbol =
           funit.getSubprogramSymbol();
       if (procSymbol.owner().IsSubmodule()) {
-        TODO(toLocation(), "support submodules");
+        TODO(toLocation(), "support for submodules");
         return;
       }
     }

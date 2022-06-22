@@ -2493,7 +2493,7 @@ private:
           return mlir::emitError(loc, "invalid coordinate/check failed");
 
         // check if the i-th coordinate relates to an array
-        if (dims.hasValue()) {
+        if (dims) {
           arrIdx.push_back(nxtOpnd);
           int dimsLeft = *dims;
           if (dimsLeft > 1) {
@@ -2529,7 +2529,7 @@ private:
 
         offs.push_back(nxtOpnd);
       }
-      if (dims.hasValue())
+      if (dims)
         offs.append(arrIdx.rbegin(), arrIdx.rend());
       mlir::Value base = operands[0];
       mlir::Value retval = genGEP(loc, ty, rewriter, base, offs);
@@ -2818,7 +2818,7 @@ struct SelectCaseOpConversion : public FIROpConversion<fir::SelectCaseOp> {
           caseOp.getSuccessorOperands(adaptor.getOperands(), t);
       llvm::Optional<mlir::ValueRange> cmpOps =
           *caseOp.getCompareOperands(adaptor.getOperands(), t);
-      mlir::Value caseArg = *(cmpOps.getValue().begin());
+      mlir::Value caseArg = *(cmpOps->begin());
       mlir::Attribute attr = cases[t];
       if (attr.isa<fir::PointIntervalAttr>()) {
         auto cmp = rewriter.create<mlir::LLVM::ICmpOp>(
@@ -2847,7 +2847,7 @@ struct SelectCaseOpConversion : public FIROpConversion<fir::SelectCaseOp> {
         rewriter.setInsertionPointToEnd(thisBlock);
         rewriter.create<mlir::LLVM::CondBrOp>(loc, cmp, newBlock1, newBlock2);
         rewriter.setInsertionPointToEnd(newBlock1);
-        mlir::Value caseArg0 = *(cmpOps.getValue().begin() + 1);
+        mlir::Value caseArg0 = *(cmpOps->begin() + 1);
         auto cmp0 = rewriter.create<mlir::LLVM::ICmpOp>(
             loc, mlir::LLVM::ICmpPredicate::sle, selector, caseArg0);
         genCondBrOp(loc, cmp0, dest, destOps, rewriter, newBlock2);

@@ -21,7 +21,7 @@
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
@@ -254,11 +254,10 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
   if (constantRequired) {
     auto ubConst = constraints.getConstantBound(
         FlatAffineValueConstraints::BoundType::UB, pos);
-    if (!ubConst.hasValue())
+    if (!ubConst)
       return;
 
-    boundMap =
-        AffineMap::getConstantMap(ubConst.getValue(), value.getContext());
+    boundMap = AffineMap::getConstantMap(*ubConst, value.getContext());
     return;
   }
 
@@ -474,7 +473,7 @@ void GenerateLoopNest<scf::ForOp>::doit(
   // Create procInfo so it dominates loops, if appropriate.
   SmallVector<ProcInfo, 4> procInfo;
   SmallVector<DistributionMethod, 0> distributionMethod;
-  if (distributionOptions.hasValue()) {
+  if (distributionOptions) {
     // Collect loop ranges for parallel dimensions.
     SmallVector<Range, 2> parallelLoopRanges;
     for (const auto &iteratorType : enumerate(iteratorTypes))
@@ -714,7 +713,7 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
   // Modify the lb, ub, and step based on the distribution options.
   SmallVector<DistributionMethod, 0> distributionMethod;
   if (distributionOptions) {
-    auto &options = distributionOptions.getValue();
+    auto &options = *distributionOptions;
     distributionMethod.assign(distributionOptions->distributionMethod.begin(),
                               distributionOptions->distributionMethod.end());
     SmallVector<Range, 2> parallelLoopRanges;
