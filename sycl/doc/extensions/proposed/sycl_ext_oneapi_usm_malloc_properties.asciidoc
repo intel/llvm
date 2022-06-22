@@ -41,7 +41,7 @@ Michael Kinsner, Intel +
 Aditi Kumaraswamy, Intel +
 Gregory Lueck, Intel +
 John Pennycook, Intel +
-Roland Schulz, Intel
+Roland Schulz, Intel +
 Jason Sewall, Intel +
 Abhishek Tiwari, Intel +
 Sherry Yuan, Intel
@@ -79,13 +79,13 @@ proposed `sycl::ext::oneapi::experimental::annotated_ptr` class.
 We also use the shortened form `properties` to refer to the `sycl::ext::oneapi::experimental::properties` class.
 ====
 
-The purpose of this document is to clearly describe and specify USM memory allocation functions with compile-time-constant properties support,
+The purpose of this document is to clearly describe and specify USM memory allocation functions with `properties` support,
 and related concepts, types, and mechanisms, and to give examples and context for their usage.
 
 == Examples
 
 This extension introduces a new compile-time constant property `sycl::ext::oneapi::experimental::usm_alloc`, with three possible values: `device`, `host`, and `shared`.
-This property will be present on the annotated_ptr returned by the non-parameterized USM memory allocation functions introduced by this extension.
+This property will be present on the annotated_ptr returned by some of the USM memory allocation functions introduced by this extension, i.e., when the type of USM memory allocated is known at compile-time.
 
 [source,c++]
 ----
@@ -193,6 +193,8 @@ The core SYCL specification lists eight functions in each of the following four 
 - Table 106 "USM Parameterized Allocation Functions", of Section 4.8.3.5 "Parameterized allocation functions"
 
 This extension introduces a new function for each function listed in the above tables of the core SYCL specification, except for the USM allocation functions that take an alignment parameter.
+This extension introduces additional USM memory allocation functions with `properties` support that do not correspond to a function in the core SYCL specification.
+These additional functions require the user to pass in the new `usm_alloc` property.
 For the sake of clarity, we first describe how the new functions differ from the corresponding functions in the core SYCL specification. All APIs introduced by this extension are listed explicitly in Section <<section.usm.allocs>>.
 
 [NOTE]
@@ -243,7 +245,7 @@ The last parameter of the USM memory allocation function is an optional `const p
 |
 The last parameter of the corresponding USM memory allocation function with `properties` support is a non-optional `const propertyListA &propList`.
 a|
-Zero or more runtime and compile-time constant properties can be provided to the allocation function via an instance of property_list.
+Zero or more properties can be provided to the allocation function via an instance of property_list.
 |
 Zero or more runtime and compile-time constant properties can be provided to the allocation function via an instance of sycl::ext::oneapi::experimental::properties.
 The compile-time constant properties in propList will also appear as properties of the returned annotated_ptr.
@@ -254,7 +256,7 @@ On failure, returns [code]#nullptr#.
 On failure, the raw pointer of the returned annotated_ptr will be [code]#nullptr#.
 |====
 
-The description of every function introduced by this extension contains the following sentence:
+The descriptions of functions introduced by this extension contain the following sentences:
 
 [options="header"]
 |====
@@ -262,25 +264,16 @@ The description of every function introduced by this extension contains the foll
 a| any of the functions specified in this extension
 |
 Available only if `propertyListA` and `propertyListB` are specializations of the sycl::ext::oneapi::experimental::properties class.
-|====
-
-
-The description of every non-parameterized function introduced by this extension contains the following sentence:
-
-[options="header"]
-|====
-| Function | Sentences appended to the Description
 a|
 any function specified in this extension that does not take a `usm::alloc` parameter
 |
 The returned annotated_ptr will also have the `usm_alloc` property, indicating the type of USM memory allocated.
 |====
 
-
 [[section.usm.allocs]]
 === USM Memory Allocation Functions with properties Support
  
-The following four tables list all functions specified by this extension.
+The following five tables list all functions specified by this extension.
 
 
 [[section.usm.device.allocs]]
@@ -742,12 +735,17 @@ Available only if `propertyListA` and `propertyListB` are specializations of the
 
 |====
 
-==== Additional USM Memory Allocation Functions
+==== USM Memory Allocation Functions Requiring usm_alloc
 
 This section defines additional USM memory allocation functions with `properties` support, that require a `usm_alloc` property to be passed in.
 
+[NOTE]
+====
+Unlike the functions defined in the first four tables, the functions defined in this section do not correspond to any functions in the core SYCL specification.
+====
+
 [[table.usm.additional.allocs]]
-.Additional USM Allocation Functions with properties Support
+.USM Allocation Functions Requiring usm_alloc
 [width="100%",options="header",separator="@",cols="65%,35%"]
 |====
 @ Function @ Description
@@ -772,7 +770,7 @@ via an instance of [code]#sycl::ext::oneapi::experimental::properties#.
 The compile-time constant properties in propList will also appear as properties of the returned annotated_ptr.
 Runtime properties in propList will not appear as properties of the returned annotated_ptr.
 The [code]#syclDevice# parameter is
-ignored if [code]#usm_alloc# is [code]#host#.  If [code]#usm_alloc is not
+ignored if [code]#usm_alloc# is [code]#host#.  If [code]#usm_alloc# is not
 [code]#host#, [code]#syclDevice# must either be contained by
 [code]#syclContext# or it must be a descendent device of some device that
 is contained by that context, otherwise this function throws a synchronous
@@ -784,7 +782,7 @@ Available only if `propertyListA` and `propertyListB` are specializations of the
 
 === USM Memory Allocation Properties 
 
-This section specifies the properties that can be passed to the USM memory allocation functions with `properties` support defined in Section <<section.usm.allocs>>.
+This section specifies the properties that can be passed to the USM memory allocation functions defined in Section <<section.usm.allocs>>.
 A SYCL implementation or SYCL backend may support additional properties other than those defined here, provided they are defined in accordance with the
 link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties] extension.
 If any other properties are passed to the USM memory allocation functions with `properties` support, the compiler will issue a diagnostic error.
