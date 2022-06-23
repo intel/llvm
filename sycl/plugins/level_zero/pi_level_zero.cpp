@@ -688,6 +688,7 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
+    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
   } else { // This is a root or a sub-device
     for (uint32_t i = 0; i < numQueueGroups; i++) {
       if (QueueGroupProperties[i].flags &
