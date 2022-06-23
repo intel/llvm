@@ -225,7 +225,6 @@ TEST_F(SchedulerTest, QueueFlushing) {
       detail::QueueImplPtr TempQueueImpl = detail::getSyclObjImpl(TempQueue);
       DepEvent.reset(new detail::event_impl(TempQueueImpl));
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());
-      DepEvent->setStateIncomplete();
       DepEvent->getHandleRef() = reinterpret_cast<pi_event>(new int{});
     }
     (void)Cmd.addDep(DepEvent, ToCleanUp);
