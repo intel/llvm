@@ -55,14 +55,15 @@ incompatible ways before it is finalized. *Shipping software products should not
 rely on APIs defined in this specification.*
 
 == Overview
-This extension introduces a wrapper class `sycl::ext::oneapi::annotated_arg`
+This extension introduces a wrapper class
+`sycl::ext::oneapi::experimental::annotated_arg`
 that provides a mechanism to attach compile-time constant information to
 kernel arguments in a reliable manner.
 
 [NOTE]
 ====
 In this document, we use the shortened form `annotated_arg` to refer to the
-proposed `sycl::ext::oneapi::annotated_arg` class.
+proposed `sycl::ext::oneapi::experimental::annotated_arg` class.
 ====
 
 The purpose of this document is to clearly describe and specify
@@ -122,7 +123,7 @@ int main () {
 arguments in a reliable manner.
 
 NOTE: `PropC` will only influence the kernel argument and not any pointer
-dereference sites. Use the `sycl::ext::oneapi::annotated_ptr`
+dereference sites. Use the `sycl::ext::oneapi::experimental::annotated_ptr`
 class template to apply properties that must be preserved at pointer dereference
 sites.
 

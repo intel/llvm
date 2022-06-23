@@ -69,7 +69,7 @@ the compiler to reliably maintain and analyze the information.
 [NOTE]
 ====
 In this document, we use the shortened form `annotated_ptr` to refer to the
-proposed `sycl::ext::oneapi::annotated_ptr` class.
+proposed `sycl::ext::oneapi::experimental::annotated_ptr` class.
 ====
 
 The purpose of this document is to clearly describe and specify `annotated_ptr`
