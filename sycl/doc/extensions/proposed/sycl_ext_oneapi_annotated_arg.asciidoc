@@ -55,15 +55,9 @@ incompatible ways before it is finalized. *Shipping software products should not
 rely on APIs defined in this specification.*
 
 == Overview
-This extension introduces a wrapper class that provides a mechanism to attach
-compile-time constant information to a variable in a manner that allows the
-compiler to reliably maintain and analyze the information when such variables are used as arguments to functions and kernels.
-
-== Overview
-
-The purpose of this document is to clearly describe and specify
-`annotated_arg` and related concepts, types, and mechanisms, and to give
-examples and context for their usage.
+This extension introduces a wrapper class `sycl::ext::oneapi::annotated_arg`
+that provides a mechanism to attach compile-time constant information to
+kernel arguments in a reliable manner.
 
 [NOTE]
 ====
@@ -71,11 +65,12 @@ In this document, we use the shortened form `annotated_arg` to refer to the
 proposed `sycl::ext::oneapi::annotated_arg` class.
 ====
 
-The purpose of this document is to clearly describe and specify `annotated_arg`
-and related concepts, types, and mechanisms, and to give examples and context
-for their usage.
+The purpose of this document is to clearly describe and specify
+`annotated_arg` and related concepts, types, and mechanisms, and to give
+examples and context for their usage.
 
 == Specification
+
 === Feature Test Macro
 
 This extension provides a feature-test macro as described in the core SYCL
@@ -96,9 +91,9 @@ supports.
 === Introduction
 
 The `annotated_arg` class enables users to attach compile-time constant
-information to the kernel arguments with properties.
+information to kernel arguments with properties.
 
-The example below shows a use case with some properties `PropA` and `PropB`.
+The example below shows a use case with some properties.
 
 .Toy Example
 [source,c++]
@@ -124,12 +119,12 @@ int main () {
 ----
 
 `PropA`, `PropB` and `PropC` are expected to be preserved on the kernel
-arguments in a reliable manner. For example, the properties may be converted to
-kernel function level metadata.
+arguments in a reliable manner.
 
-NOTE: `PropC` will just influence the kernel argument and not the device code
-where the pointer is dereferenced. Use the `sycl::ext::oneapi::annotated_ptr`
-class template to apply properties that must be preserved in the device code.
+NOTE: `PropC` will only influence the kernel argument and not any pointer
+dereference sites. Use the `sycl::ext::oneapi::annotated_ptr`
+class template to apply properties that must be preserved at pointer dereference
+sites.
 
 The example below shows a type of use-case which is not meant to be supported
 by `annotated_arg`:
@@ -164,7 +159,7 @@ processed.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 template < typename T, typename PropertyListT = properties<>>
 class annotated_arg {
   ...
@@ -181,10 +176,11 @@ The section below describes the constructors and member functions for
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
-  template <typename T, typename PropertyListT = properties<>>
-  class annotated_arg {
-    T data;
+namespace sycl::ext::oneapi::experimental {
+template <typename T, typename PropertyListT = properties<>>
+class annotated_arg {
+  private:
+    /* unspecified */
 
   public:
     annotated_arg();
@@ -194,142 +190,15 @@ namespace sycl::ext::oneapi {
     operator T&() noexcept;
     operator const T&() const noexcept;
 
-    // Available if the operator+ is valid for objects of type T
-    T operator+(const T&) noexcept;
-    const T operator+(const T&) const noexcept;
+    // Available if the operator[] is valid for objects of type T, return
+    // type will match the return type of T::operator[](std::ptrdiff_t)
+    /* ... */ operator[](std::ptrdiff_t idx) const noexcept;
 
-    // Available if the operator+ is valid for objects of type T
-    T operator+() noexcept;
-    const T operator+() const noexcept;
-
-    // Available if the operator- is valid for objects of type T
-    T operator-(const T&) noexcept;
-    const T operator-(const T&) const noexcept;
-
-    // Available if the operator- is valid for objects of type T
-    T operator-() noexcept;
-    const T operator-() const noexcept;
-
-    // Available if the operator* is valid for objects of type T
-    T operator*(const T&) noexcept;
-    const T operator*(const T&) const noexcept;
-
-    // Available if the operator/ is valid for objects of type T
-    T operator/(const T&) noexcept;
-    const T operator/(const T&) const noexcept;
-
-    // Available if the operator% is valid for objects of type T
-    T operator%(const T&) noexcept;
-    const T operator%(const T&) const noexcept;
-
-    // Available if the operator^ is valid for objects of type T
-    T operator^(const T&) noexcept;
-    const T operator^(const T&) const noexcept;
-
-    // Available if the operator| is valid for objects of type T
-    T operator|(const T&) noexcept;
-    const T operator|(const T&) const noexcept;
-
-    // Available if the operator& is valid for objects of type T
-    T operator&(const T&) noexcept;
-    const T operator&(const T&) const noexcept;
-
-    // Available if the operator~ is valid for objects of type T
-    T operator~() noexcept;
-    const T operator~() const noexcept;
-
-    // Available if the operator! is valid for objects of type T
-    T operator!() noexcept;
-    const T operator!() const noexcept;
-
-    // Assignment from underlying type
-    T& operator=(const T&) noexcept;
-
-    // Available if the operator< is valid for objects of type T
-    bool operator<(const T&) const noexcept;
-
-    // Available if the operator> is valid for objects of type T
-    bool operator>(const T&) const noexcept;
-
-    // Available if the operator+= is valid for objects of type T
-    T& operator+=(const T&) noexcept;
-
-    // Available if the operator-= is valid for objects of type T
-    T& operator-=(const T&) noexcept;
-
-    // Available if the operator*= is valid for objects of type T
-    T& operator*=(const T&) noexcept;
-
-    // Available if the operator/= is valid for objects of type T
-    T& operator/=(const T&) noexcept;
-
-    // Available if the operator%= is valid for objects of type T
-    T& operator%=(const T&) noexcept;
-
-    // Available if the operator^= is valid for objects of type T
-    T& operator^=(const T&) noexcept;
-
-    // Available if the operator&= is valid for objects of type T
-    T& operator&=(const T&) noexcept;
-
-    // Available if the operator|= is valid for objects of type T
-    T& operator|=(const T&) noexcept;
-
-    // Available if the operator<< is valid for objects of type T
-    T operator<<(const T&) noexcept;
-    const T operator<<(const T&) const noexcept;
-
-    // Available if the operator>> is valid for objects of type T
-    T operator>>(const T&) noexcept;
-    const T operator>>(const T&) const noexcept;
-
-    // Available if the operator>>= is valid for objects of type T
-    T& operator>>=(const T&) noexcept;
-
-    // Available if the operator<<= is valid for objects of type T
-    T& operator<<=(const T&) noexcept;
-
-    // Available if the operator== is valid for objects of type T
-    bool operator==(const T&) const noexcept;
-
-    // Available if the operator!= is valid for objects of type T
-    bool operator!=(const T&) const noexcept;
-
-    // Available if the operator<= is valid for objects of type T
-    bool operator<=(const T&) const noexcept;
-
-    // Available if the operator>= is valid for objects of type T
-    bool operator>=(const T&) const noexcept;
-
-    // Available if the operator&& is valid for objects of type T
-    bool operator&&(const T&) const noexcept;
-
-    // Available if the operator|| is valid for objects of type T
-    bool operator||(const T&) const noexcept;
-
-    // Available if the operator++ is valid for objects of type T
-    T& operator++() noexcept;
-
-    // Available if the operator++ is valid for objects of type T
-    T operator++(int) noexcept;
-
-    // Available if the operator-- is valid for objects of type T
-    T& operator--() noexcept;
-
-    // Available if the operator-- is valid for objects of type T
-    T operator--(int) noexcept;
-
-    // Available if the operator-> is valid for objects of type T
-    T& operator->() noexcept;
-    const T& operator->() const noexcept;
-
-    // Available if the operator[] is valid for objects of type T
-    T& operator[](std::ptrdiff_t idx) noexcept;
-    const T& operator[](std::ptrdiff_t idx) const noexcept;
-
-    // Available if the operator() is valid for objects of type T
-    template<typename... Args> auto operator()(Args... args) noexcept;
-    template<typename... Args> auto operator()(Args... args) const noexcept;
+    // Available if the operator() is valid for objects of type T, return
+    // type will match the return type of
+    //   template<typename... Args> T::operator()(Args... args)
+    template<typename... Args> /* unspecified */ operator()(Args... args) noexcept;
+    template<typename... Args> /* unspecified */ operator()(Args... args) const noexcept;
 
     template<typename propertyT>
     static constexpr bool has_property();
@@ -338,8 +207,8 @@ namespace sycl::ext::oneapi {
     // instances of propertyT
     template<typename propertyT>
     static constexpr /*unspecified*/ get_property();
-  };
-}; // namespace sycl::ext::oneapi
+};
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 [frame="topbot",options="header"]
@@ -377,381 +246,22 @@ operator const T&() const noexcept;
 a|
 [source,c++]
 ----
-T operator+(const T&) noexcept;
-const T operator+(const T&) const noexcept;
+/* unspecified */ operator[](std::ptrdiff_t idx) const noexcept;
 ----
 |
-Available if the `operator+(const T&)` is valid for objects of type `T`
+Available if the `operator[]` is valid for objects of type `T`. This function
+will call the subscript operator defined for `T`.
 
 // --- ROW BREAK ---
 a|
 [source,c++]
 ----
-T operator+() noexcept;
-const T operator+() const noexcept;
+template<typename... Args> /* unspecified */ operator()(Args... args) noexcept;
+template<typename... Args> /* unspecified */ operator()(Args... args) const noexcept;
 ----
 |
-Available if the `operator+` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator-(const T&) noexcept;
-const T operator-(const T&) const noexcept;
-----
-|
-Available if the `operator-(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator-() noexcept;
-const T operator-() const noexcept;
-----
-|
-Available if the `operator-` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator*(const T&) noexcept;
-const T operator*(const T&) const noexcept;
-----
-|
-Available if the `operator*(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator/(const T&) noexcept;
-const T operator/(const T&) const noexcept;
-----
-|
-Available if the `operator/(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator%(const T&) noexcept;
-const T operator%(const T&) const noexcept;
-----
-|
-Available if the `operator%(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator^(const T&) noexcept;
-const T operator^(const T&) const noexcept;
-----
-|
-Available if the `operator^(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator\|(const T&) noexcept;
-const T operator\|(const T&) const noexcept;
-----
-|
-Available if the `operator\|(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator&(const T&) noexcept;
-const T operator&(const T&) const noexcept;
-----
-|
-Available if the `operator&(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator~() noexcept;
-const T operator~() const noexcept;
-----
-|
-Available if the `operator~` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator!() noexcept;
-const T operator!() const noexcept;
-----
-|
-Available if the `operator!` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator=(const T&) noexcept;
-----
-|
-Assignment from underlying type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator<(const T&) const noexcept;
-----
-|
-Available if the `operator<(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator>(const T&) const noexcept;
-----
-|
-Available if the `operator>(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator+=(const T&) noexcept;
-----
-|
-Available if the `operator+=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator-=(const T&) noexcept;
-----
-|
-Available if the `operator-=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator*=(const T&) noexcept;
-----
-|
-Available if the `operator*=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator/=(const T&) noexcept;
-----
-|
-Available if the `operator/=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator%=(const T&) noexcept;
-----
-|
-Available if the `operator%=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator^=(const T&) noexcept;
-----
-|
-Available if the `operator^=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator&=(const T&) noexcept;
-----
-|
-Available if the `operator&=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator\|=(const T&) noexcept;
-----
-|
-Available if the `operator\|=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator<<(const T&) noexcept;
-const T operator<<(const T&) const noexcept;
-----
-|
-Available if the `operator<<(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator>>(const T&) noexcept;
-const T operator>>(const T&) const noexcept;
-----
-|
-Available if the `operator>>(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator>>=(const T&) noexcept;
-----
-|
-Available if the `operator>>=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator<<=(const T&) noexcept;
-----
-|
-Available if the `operator<<=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator==(const T&) const noexcept;
-----
-|
-Available if the `operator==(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator!=(const T&) const noexcept;
-----
-|
-Available if the `operator!=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator<=(const T&) const noexcept;
-----
-|
-Available if the `operator<=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator>=(const T&) const noexcept;
-----
-|
-Available if the `operator>=(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator&&(const T&) const noexcept;
-----
-|
-Available if the `operator&&(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-bool operator\|\|(const T&) const noexcept;
-----
-|
-Available if the `operator\|\|(const T&)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator++() noexcept;
-----
-|
-Available if the `operator++` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator++(int) noexcept;
-----
-|
-Available if the `operator++(int)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator--() noexcept;
-----
-|
-Available if the `operator--` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T operator--(int) noexcept;
-----
-|
-Available if the `operator--(int)` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator->() noexcept;
-const T& operator->() const noexcept;
-----
-|
-Available if the `operator->` is valid for objects of type `T`
-
-Provides member access through `T` that is a pointer or a class which defines
-`operator->`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-T& operator[](std::ptrdiff_t idx) noexcept;
-const T& operator[](std::ptrdiff_t idx) const noexcept;
-----
-|
-Available if the `operator[]` is valid for objects of type `T`
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-template<typename... Args> auto operator()(Args... args) noexcept;
-template<typename... Args> auto operator()(Args... args) const noexcept;
-----
-|
-Available if the `operator()` is valid for objects of type `T`
+Available if the `operator()` is valid for objects of type `T`. This function
+will call the 'call operator' defined for `T`.
 
 // --- ROW BREAK ---
 a|
@@ -805,12 +315,3 @@ None.
 |Rev|Date|Author|Changes
 |1|2022-03-09|Abhishek Tiwari|*Initial working draft*
 |========================================
-
-//************************************************************************
-//Other formatting suggestions:
-//
-//* Use *bold* text for host APIs, or [source] syntax highlighting.
-//* Use +mono+ text for device APIs, or [source] syntax highlighting.
-//* Use +mono+ text for extension names, types, or enum values.
-//* Use _italics_ for parameters.
-//************************************************************************
