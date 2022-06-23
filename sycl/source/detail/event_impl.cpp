@@ -34,11 +34,12 @@ extern xpti::trace_event_data_t *GSYCLGraphEvent;
 
 // If we do not yet have a context, use the default one.
 void event_impl::ensureContextInitialized() {
-  if (!MIsContextInitialized) {
-    const device &SyclDevice = default_selector().select_device();
-    this->setContextImpl(detail::queue_impl::getDefaultOrNew(
-        detail::getSyclObjImpl(SyclDevice)));
-  }
+  if (MIsContextInitialized)
+    return;
+
+  const device &SyclDevice = default_selector().select_device();
+  this->setContextImpl(
+      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
 }
 
 bool event_impl::is_host() {
@@ -368,13 +369,7 @@ void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
 pi_native_handle event_impl::getNative() {
   ensureContextInitialized();
-  // if (!MContext) {
-  //   static context SyclContext;
-  //   MContext = getSyclObjImpl(SyclContext);
-  //   MIsContextInitialized = true;
-  //   MHostEvent = MContext->is_host();
-  //   MOpenCLInterop = !MHostEvent;
-  // }
+
   auto Plugin = getPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;

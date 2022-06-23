@@ -1298,7 +1298,6 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
       MDstAllocaCmd(DstAllocaCmd) {
   if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
-    MEvent->setStateIncomplete();
   }
   emitInstrumentationDataProxy();
 }
@@ -1481,7 +1480,6 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
       MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(DstReq)), MDstPtr(DstPtr) {
   if (!MSrcQueue->is_host()) {
     MEvent->setContextImpl(MSrcQueue->getContextImplPtr());
-    MEvent->setStateIncomplete();
   }
 
   emitInstrumentationDataProxy();
