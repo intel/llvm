@@ -155,6 +155,8 @@ int main() {
 
 /// Global ivdep w/ safelen value of 1 has no effect. Attribute is ignored and no IR is generated with safelen value of 1.
 // CHECK-DAG: ![[MD_NO_LOOP_SAFELEN1]] = distinct !{![[MD_NO_LOOP_SAFELEN1]], ![[#]]}
+// CHECK-NOT: !{!"llvm.loop.ivdep.safelen", i32 1}
 
 /// Global ivdep w/ safelen value of 0 has no effect. Attribute is ignored and no IR is generated with safelen value of 0.
 // CHECK-DAG: ![[MD_NO_LOOP_SAFELEN2]] = distinct !{![[MD_NO_LOOP_SAFELEN2]], ![[#]]}
+// CHECK-NOT: !{!"llvm.loop.ivdep.enable"}
