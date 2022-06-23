@@ -234,7 +234,7 @@ TEST(ITTNotify, UseKernelBundle) {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(HasITTEnabled, true);
@@ -275,7 +275,7 @@ TEST(ITTNotify, VarNotSet) {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(HasITTEnabled, false);

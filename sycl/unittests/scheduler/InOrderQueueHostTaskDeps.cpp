@@ -59,7 +59,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
 
   event Evt = InOrderQueue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {});
+    CGH.single_task<TestKernel<>>([] {});
   });
   InOrderQueue
       .submit([&](sycl::handler &CGH) {

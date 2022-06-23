@@ -717,13 +717,25 @@ private:
           "kernel_handler is not yet supported by host device.",
           PI_ERROR_INVALID_OPERATION);
     }
+
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
 
     using KI = sycl::detail::KernelInfo<KernelName>;
+    constexpr bool KernelHasName =
+        KI::getName() != nullptr && KI::getName()[0] != '\0';
+
+    // Some host compilers may have different captures from Clang. Currently
+    // there is no stable way of handling this when extracting the captures, so
+    // a static assert is made to fail for incompatible kernel lambdas.
+    static_assert(!KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
+                  "Unexpected kernel lambda size. This can be caused by an "
+                  "external host compiler producing a lambda with an "
+                  "unexpected layout. This is a limitation of the compiler.");
+
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
-    if (KI::getName() != nullptr && KI::getName()[0] != '\0') {
+    if (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
       MArgs.clear();
       extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),

@@ -151,11 +151,12 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
 
     auto Bundle = cl::sycl::get_kernel_bundle<sycl::bundle_state::input>(
         Queue.get_context());
-    Queue.submit(
-        [&](cl::sycl::handler &cgh) { cgh.single_task<TestKernel>([]() {}); });
+    Queue.submit([&](cl::sycl::handler &cgh) {
+      cgh.single_task<TestKernel<>>([]() {});
+    });
 
     auto BundleObject = cl::sycl::build(Bundle, Bundle.get_devices());
-    auto KernelID = cl::sycl::get_kernel_id<TestKernel>();
+    auto KernelID = cl::sycl::get_kernel_id<TestKernel<>>();
     auto Kernel = BundleObject.get_kernel(KernelID);
 
     // Because of emulating 2 devices program is retained for each one in

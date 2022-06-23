@@ -50,6 +50,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr long getKernelSize() { return 1; }
 };
 
 static constexpr const kernel_param_desc_t Signatures[] = {
@@ -68,6 +69,11 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   static constexpr bool isESIMD() { return 0; }
   static constexpr bool callsThisItem() { return 0; }
   static constexpr bool callsAnyThisFreeFunction() { return 0; }
+  static constexpr long getKernelSize() {
+    // The AssertInfoCopier service kernel lambda captures an accessor.
+    return sizeof(sycl::accessor<sycl::detail::AssertHappened, 1,
+                                 sycl::access::mode::write>);
+  }
 };
 } // namespace detail
 } // namespace sycl
