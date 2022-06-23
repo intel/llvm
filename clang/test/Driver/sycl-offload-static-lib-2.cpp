@@ -21,9 +21,9 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -L/dummy/dir %t_lib.lo -### %t_obj.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=STATIC_LIB,STATIC_LIB_DEF -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -L/dummy/dir %t_lib.a -### %t_obj.o 2>&1 \
-// RUN:   | FileCheck %s -check-prefixes=STATIC_LIB,STATIC_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
+// RUN:   | FileCheck %s -check-prefixes=STATIC_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -L/dummy/dir %t_lib.lo -### %t_obj.o 2>&1 \
-// RUN:   | FileCheck %s -check-prefixes=STATIC_LIB,STATIC_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
+// RUN:   | FileCheck %s -check-prefixes=STATIC_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // STATIC_LIB: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]" "-input=[[INPUTO:.+\.o]]" "-output=[[HOSTOBJ:.+\.o]]" "-output={{.+\.o}}"
 // STATIC_LIB: clang-offload-deps{{.*}} "-targets=[[BUNDLE_TRIPLE]]"
 // STATIC_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-input={{.*}}" "-output=[[OUTFILE:.+\.txt]]"
@@ -43,7 +43,7 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -Xlinker -Bstatic -L%t_dir -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
 // RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_DEF -DBUNDLE_TRIPLE=sycl-spir64-unknown-unknown
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda -L%S/Inputs/SYCL -llin64 -### %t_obj.o 2>&1 \
-// RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB,STATIC_L_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
+// RUN:   | FileCheck %s -check-prefixes=STATIC_L_LIB_NVPTX -DBUNDLE_TRIPLE=sycl-nvptx64-nvidia-cuda-sm_50
 // STATIC_L_LIB: clang-offload-bundler{{.*}} "-type=o" "-targets={{.*}},[[BUNDLE_TRIPLE]]" "-input=[[INPUTO:.+\.o]]" "-output=[[HOSTOBJ:.+\.o]]" "-output={{.+\.o}}"
 // STATIC_L_LIB: clang-offload-deps{{.*}} "-targets=[[BUNDLE_TRIPLE]]"
 // STATIC_L_LIB_DEF: clang-offload-bundler{{.*}} "-type=aoo" "-targets=[[BUNDLE_TRIPLE]]" "-input={{.*}}liblin64.a" "-output=[[OUTFILE:.+\.txt]]"
