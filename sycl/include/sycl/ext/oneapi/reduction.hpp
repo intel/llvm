@@ -636,6 +636,12 @@ public:
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
+  auto getNoInitWriteAcc(size_t Size, handler &CGH) {
+    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+    CGH.addReduction(MOutBufPtr);
+    return MOutBufPtr->template get_access<access::mode::discard_write>(CGH);
+  }
+
   /// If reduction is initialized with read-write accessor, which does not
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create global buffer with 'num_elements' initialized
@@ -671,6 +677,18 @@ public:
     return {*CounterBuf, CGH};
   }
 
+  auto getGroupsCounterAccDiscrete(handler &CGH) {
+    auto Buf = std::make_shared<buffer<int, 1>>(1);
+    CGH.addReduction(Buf);
+    std::shared_ptr<detail::queue_impl> QueueCopy = CGH.MQueue;
+    auto Event = CGH.withAuxHandler(QueueCopy, [&](handler &InitHandler) {
+      auto Acc = Buf->get_access<access::mode::discard_write>(InitHandler);
+      InitHandler.single_task([=]() { Acc[0] = 0; });
+    });
+    CGH.depends_on(Event);
+    return Buf->get_access<access::mode::read_write>(CGH);
+  }
+
   bool hasUserDiscardWriteAccessor() { return MDWAcc != nullptr; }
 
   template <bool _IsUSM = IsUSM>
@@ -688,13 +706,14 @@ public:
     return MUSMPointer;
   }
 
-  static inline result_type *getOutPointer(const rw_accessor_type &OutAcc) {
-    return OutAcc.get_pointer().get();
-  }
-
   static inline result_type *getOutPointer(result_type *OutPtr) {
     return OutPtr;
   }
+  template <class accessor_type>
+  static inline result_type *getOutPointer(const accessor_type &OutAcc) {
+    return OutAcc.get_pointer().get();
+  }
+
 
 private:
   template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
@@ -1048,7 +1067,7 @@ void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
 
 namespace reduction {
 namespace main_krn {
-template <class KernelName> struct RangeFastReduce;
+template <class KernelName, class OutAccType> struct RangeFastReduce;
 } // namespace main_krn
 } // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
@@ -1060,74 +1079,93 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   size_t NWorkGroups = NDRange.get_group_range().size();
 
   bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
-  auto PartialSums =
-      Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
-  auto Out = (NWorkGroups == 1)
-                 ? PartialSums
-                 : Redu.getWriteAccForPartialReds(NElements, CGH);
-  auto NWorkGroupsFinished =
-      Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
   auto DoReducePartialSumsInLastWG =
       Reduction::template getReadWriteLocalAcc<int>(1, CGH);
 
-  using Name =
-      __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce, KernelName>;
-  CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
-    // Call user's functions. Reducer.MValue gets initialized there.
-    typename Reduction::reducer_type Reducer;
-    reductionLoop(Range, Reducer, NDId, KernelFunc);
+  auto Rest = [&](auto PartialSums, auto Out, auto NWorkGroupsFinished) {
+    using Name =
+        __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
+                                KernelName, decltype(Out)>;
+    CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
+      // Call user's functions. Reducer.MValue gets initialized there.
+      typename Reduction::reducer_type Reducer;
+      reductionLoop(Range, Reducer, NDId, KernelFunc);
 
-    typename Reduction::binary_operation BOp;
-    auto Group = NDId.get_group();
+      typename Reduction::binary_operation BOp;
+      auto Group = NDId.get_group();
 
-    // If there are multiple values, reduce each separately
-    // reduce_over_group is only defined for each T, not for span<T, ...>
-    size_t LID = NDId.get_local_id(0);
-    for (int E = 0; E < NElements; ++E) {
-      Reducer.getElement(E) =
-          reduce_over_group(Group, Reducer.getElement(E), BOp);
-
-      if (LID == 0) {
-        if (NWorkGroups == 1 && IsUpdateOfUserVar)
-          Reducer.getElement(E) =
-              BOp(Reducer.getElement(E), Reduction::getOutPointer(Out)[E]);
-
-        // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
-        Reduction::getOutPointer(
-            PartialSums)[NDId.get_group_linear_id() * NElements + E] =
-            Reducer.getElement(E);
-      }
-    }
-
-    // Signal this work-group has finished after all values are reduced
-    if (LID == 0) {
-      auto NFinished =
-          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                           access::address_space::global_space>(
-              NWorkGroupsFinished[0]);
-      DoReducePartialSumsInLastWG[0] =
-          ++NFinished == NWorkGroups && NWorkGroups > 1;
-    }
-
-    sycl::detail::workGroupBarrier();
-    if (DoReducePartialSumsInLastWG[0]) {
-      // Reduce each result separately
-      // TODO: Opportunity to parallelize across elements
+      // If there are multiple values, reduce each separately
+      // reduce_over_group is only defined for each T, not for span<T, ...>
+      size_t LID = NDId.get_local_id(0);
       for (int E = 0; E < NElements; ++E) {
-        auto LocalSum = Reducer.getIdentity();
-        for (size_t I = LID; I < NWorkGroups; I += WGSize)
-          LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
-        Reducer.getElement(E) = reduce_over_group(Group, LocalSum, BOp);
+        Reducer.getElement(E) =
+            reduce_over_group(Group, Reducer.getElement(E), BOp);
 
         if (LID == 0) {
-          if (IsUpdateOfUserVar)
+          if (NWorkGroups == 1 && IsUpdateOfUserVar)
             Reducer.getElement(E) =
                 BOp(Reducer.getElement(E), Reduction::getOutPointer(Out)[E]);
-          Reduction::getOutPointer(Out)[E] = Reducer.getElement(E);
+
+          // if NWorkGroups == 1, then PartialsSum and Out point to same memory.
+          Reduction::getOutPointer(
+              PartialSums)[NDId.get_group_linear_id() * NElements + E] =
+              Reducer.getElement(E);
         }
       }
-    }
-  });
+
+      // Signal this work-group has finished after all values are reduced
+      if (LID == 0) {
+        auto NFinished =
+            sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>(
+                NWorkGroupsFinished[0]);
+        DoReducePartialSumsInLastWG[0] =
+            ++NFinished == NWorkGroups && NWorkGroups > 1;
+      }
+
+      sycl::detail::workGroupBarrier();
+      if (DoReducePartialSumsInLastWG[0]) {
+        // Reduce each result separately
+        // TODO: Opportunity to parallelize across elements
+        for (int E = 0; E < NElements; ++E) {
+          auto LocalSum = Reducer.getIdentity();
+          for (size_t I = LID; I < NWorkGroups; I += WGSize)
+            LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
+          Reducer.getElement(E) = reduce_over_group(Group, LocalSum, BOp);
+
+          if (LID == 0) {
+            if (IsUpdateOfUserVar)
+              Reducer.getElement(E) =
+                  BOp(Reducer.getElement(E), Reduction::getOutPointer(Out)[E]);
+            Reduction::getOutPointer(Out)[E] = Reducer.getElement(E);
+          }
+        }
+      }
+    });
+  };
+
+  bool UseExtraKernelForInit =
+      NWorkGroups > 1 && !sycl::detail::getDeviceFromHandler(CGH)
+                              .get_info<info::device::host_unified_memory>();
+
+  if (UseExtraKernelForInit) {
+    auto PartialSums = Redu.getNoInitWriteAcc(NWorkGroups * NElements, CGH);
+    auto Out = Redu.getNoInitWriteAcc(NElements, CGH);
+
+    auto NWorkGroupsFinished = Redu.getGroupsCounterAccDiscrete(CGH);
+    Rest(PartialSums, Out, NWorkGroupsFinished);
+
+  } else {
+    auto PartialSums =
+        Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
+    auto Out = (NWorkGroups == 1)
+                   ? PartialSums
+                   : Redu.getWriteAccForPartialReds(NElements, CGH);
+    auto NWorkGroupsFinished =
+        Redu.getReadWriteAccessorToInitializedGroupsCounter(CGH);
+
+    Rest(PartialSums, Out, NWorkGroupsFinished);
+  }
 }
 
 namespace reduction {
