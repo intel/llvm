@@ -897,7 +897,7 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     // calls.
     ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
     ZE_CALL(zeCommandListReset, (CommandList->first));
-    CommandList->second.InUse = false;
+    CommandList->second.ZeFenceInUse = false;
   }
 
   auto &EventList = CommandList->second.EventList;
@@ -1140,8 +1140,8 @@ pi_result resetCommandLists(pi_queue Queue) {
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
       // It is possible that the fence was already noted as signalled and
-      // reset. In that case the InUse flag will be false.
-      if (it->second.InUse) {
+      // reset. In that case the ZeFenceInUse flag will be false.
+      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
         ze_result_t ZeResult =
             ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
         if (ZeResult == ZE_RESULT_SUCCESS) {
@@ -1220,7 +1220,8 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         CommandList = it;
-        CommandList->second.InUse = true;
+        if (CommandList->second.ZeFence != nullptr)
+          CommandList->second.ZeFenceInUse = true;
       } else {
         // If there is a command list available on this context, but it
         // wasn't yet used in this queue then create a new entry in this
@@ -3360,7 +3361,7 @@ pi_result piQueueRelease(pi_queue Queue) {
       // For immediate commandlists we don't need to do an L0 reset of the
       // commandlist but do need to do event cleanup which is also in the
       // resetCommandList function.
-      if (it->second.InUse) {
+      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
         Queue->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
@@ -7486,9 +7487,8 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
   // indirect access. This lock also protects access to the context's data
   // structures. If indirect access tracking is not enabled then lock context
   // mutex to protect access to context's data structures.
-  auto Lock = IndirectAccessTrackingEnabled
-                  ? std::scoped_lock(Plt->ContextsMutex)
-                  : std::scoped_lock(Context->Mutex);
+  std::scoped_lock Lock(IndirectAccessTrackingEnabled ? Plt->ContextsMutex
+                                                      : Context->Mutex);
 
   if (IndirectAccessTrackingEnabled) {
     // We are going to defer memory release if there are kernels with indirect
@@ -7729,9 +7729,8 @@ static pi_result USMFreeHelper(pi_context Context, void *Ptr,
 pi_result piextUSMFree(pi_context Context, void *Ptr) {
   pi_platform Plt = Context->getPlatform();
 
-  auto Lock = IndirectAccessTrackingEnabled
-                  ? std::scoped_lock(Plt->ContextsMutex)
-                  : std::scoped_lock(Context->Mutex);
+  std::scoped_lock Lock(IndirectAccessTrackingEnabled ? Plt->ContextsMutex
+                                                      : Context->Mutex);
 
   return USMFreeHelper(Context, Ptr, true /* OwnZeMemHandle */);
 }
@@ -8068,16 +8067,21 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   return PI_SUCCESS;
 }
 
+const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   PI_ASSERT(PluginInit, PI_ERROR_INVALID_VALUE);
+
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   // TODO: handle versioning/targets properly.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
 
-  PI_ASSERT(strlen(_PI_H_VERSION_STRING) < PluginVersionSize,
+  PI_ASSERT(strlen(_PI_LEVEL_ZERO_PLUGIN_VERSION_STRING) < PluginVersionSize,
             PI_ERROR_INVALID_VALUE);
 
-  strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
@@ -8358,9 +8362,8 @@ pi_result _pi_buffer::free() {
       break;
     case allocation_t::free: {
       pi_platform Plt = Context->getPlatform();
-      auto Lock = IndirectAccessTrackingEnabled
-                      ? std::scoped_lock(Plt->ContextsMutex)
-                      : std::scoped_lock(Context->Mutex);
+      std::scoped_lock Lock(IndirectAccessTrackingEnabled ? Plt->ContextsMutex
+                                                          : Context->Mutex);
 
       PI_CALL(USMFreeHelper(Context, ZeHandle, true));
       break;

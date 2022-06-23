@@ -503,6 +503,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     D.Diag(diag::err_target_unknown_triple) << Triple.str();
     return;
   }
+  if (Triple.isRISCV())
+    CmdArgs.push_back("-X");
 
   if (Args.hasArg(options::OPT_shared))
     CmdArgs.push_back("-shared");
@@ -2235,7 +2237,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     }
 
     if (ChosenToolsetVersion > 0)
-      Prefixes.push_back(ChosenToolsetDir);
+      Prefixes.push_back(ChosenToolsetDir + "/root/usr");
   }
 
   // Fall back to /usr which is used by most non-Solaris systems.

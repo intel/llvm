@@ -25,7 +25,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
+template <>
+uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
     getPlugin().call<PiApiKind::piQueueGetInfo>(

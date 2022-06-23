@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/property_list.hpp>
@@ -17,16 +18,16 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 enum class addressing_mode : unsigned int {
-  mirrored_repeat = CL_ADDRESS_MIRRORED_REPEAT,
-  repeat = CL_ADDRESS_REPEAT,
-  clamp_to_edge = CL_ADDRESS_CLAMP_TO_EDGE,
-  clamp = CL_ADDRESS_CLAMP,
-  none = CL_ADDRESS_NONE
+  mirrored_repeat = PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
+  repeat = PI_SAMPLER_ADDRESSING_MODE_REPEAT,
+  clamp_to_edge = PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE,
+  clamp = PI_SAMPLER_ADDRESSING_MODE_CLAMP,
+  none = PI_SAMPLER_ADDRESSING_MODE_NONE
 };
 
 enum class filtering_mode : unsigned int {
-  nearest = CL_FILTER_NEAREST,
-  linear = CL_FILTER_LINEAR
+  nearest = PI_SAMPLER_FILTER_MODE_NEAREST,
+  linear = PI_SAMPLER_FILTER_MODE_LINEAR
 };
 
 enum class coordinate_normalization_mode : unsigned int {

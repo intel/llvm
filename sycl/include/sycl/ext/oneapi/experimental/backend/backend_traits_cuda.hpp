@@ -131,8 +131,8 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = true;
   static constexpr bool MakeContext = true;
-  static constexpr bool MakeQueue = false;
-  static constexpr bool MakeEvent = false;
+  static constexpr bool MakeQueue = true;
+  static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
   static constexpr bool MakeKernelBundle = false;
