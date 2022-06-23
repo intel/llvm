@@ -216,6 +216,10 @@ using namespace sycl::ext::oneapi::experimental;
 
 The section below and the table that follows, describe the constructors and
 member functions for `annotated_ptr`.
+
+NOTE: `annotated_ptr` is a device copyable type since it is a wrapper over
+a pointer and pointers are trivially copyable.
+
 The section below refers to an `annotated_ref` class which is described in the
 section following this one.
 

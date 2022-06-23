@@ -175,6 +175,10 @@ separate extensions.
 The section below describes the constructors and member functions for
 `annotated_arg`.
 
+NOTE: The template parameter `T` in the definition of `annotated_arg` template
+below must be a device copyable type or a legal parameter type as defined by the
+SYCL specification.
+
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
