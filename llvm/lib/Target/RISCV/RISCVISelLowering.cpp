@@ -187,10 +187,15 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
   setOperationAction({ISD::VAARG, ISD::VACOPY, ISD::VAEND}, MVT::Other, Expand);
 
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
+
+  setOperationAction(ISD::EH_DWARF_CFA, MVT::i32, Custom);
+
   if (!Subtarget.hasStdExtZbb())
     setOperationAction(ISD::SIGN_EXTEND_INREG, {MVT::i8, MVT::i16}, Expand);
 
   if (Subtarget.is64Bit()) {
+    setOperationAction(ISD::EH_DWARF_CFA, MVT::i64, Custom);
+
     setOperationAction({ISD::ADD, ISD::SUB, ISD::SHL, ISD::SRA, ISD::SRL},
                        MVT::i32, Custom);
 
@@ -382,6 +387,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
                      XLenVT, Custom);
 
   setOperationAction(ISD::GlobalTLSAddress, XLenVT, Custom);
+
+  if (Subtarget.is64Bit())
+    setOperationAction(ISD::Constant, MVT::i64, Custom);
 
   // TODO: On M-mode only targets, the cycle[h] CSR may not be present.
   // Unfortunately this can't be determined just from the ISA naming string.
@@ -642,6 +650,25 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction({ISD::VECREDUCE_FADD, ISD::VECREDUCE_SEQ_FADD,
                           ISD::VECREDUCE_FMIN, ISD::VECREDUCE_FMAX},
                          VT, Custom);
+
+      // Expand FP operations that need libcalls.
+      setOperationAction(ISD::FREM, VT, Expand);
+      setOperationAction(ISD::FPOW, VT, Expand);
+      setOperationAction(ISD::FCOS, VT, Expand);
+      setOperationAction(ISD::FSIN, VT, Expand);
+      setOperationAction(ISD::FSINCOS, VT, Expand);
+      setOperationAction(ISD::FEXP, VT, Expand);
+      setOperationAction(ISD::FEXP2, VT, Expand);
+      setOperationAction(ISD::FLOG, VT, Expand);
+      setOperationAction(ISD::FLOG2, VT, Expand);
+      setOperationAction(ISD::FLOG10, VT, Expand);
+      setOperationAction(ISD::FRINT, VT, Expand);
+      setOperationAction(ISD::FNEARBYINT, VT, Expand);
+
+      setOperationAction(ISD::VECREDUCE_FADD, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_SEQ_FADD, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_FMIN, VT, Custom);
+      setOperationAction(ISD::VECREDUCE_FMAX, VT, Custom);
 
       setOperationAction(ISD::FCOPYSIGN, VT, Legal);
 
@@ -1909,7 +1936,9 @@ static SDValue matchSplatAsGather(SDValue SplatVal, MVT VT, const SDLoc &DL,
     return SDValue();
   SDValue Vec = SplatVal.getOperand(0);
   // Only perform this optimization on vectors of the same size for simplicity.
-  if (Vec.getValueType() != VT)
+  // Don't perform this optimization for i1 vectors.
+  // FIXME: Support i1 vectors, maybe by promoting to i8?
+  if (Vec.getValueType() != VT || VT.getVectorElementType() == MVT::i1)
     return SDValue();
   SDValue Idx = SplatVal.getOperand(1);
   // The index must be a legal type.
@@ -2932,6 +2961,32 @@ SDValue RISCVTargetLowering::expandUnalignedRVVStore(SDValue Op,
                       Store->getMemOperand()->getFlags());
 }
 
+static SDValue lowerConstant(SDValue Op, SelectionDAG &DAG,
+                             const RISCVSubtarget &Subtarget) {
+  assert(Op.getValueType() == MVT::i64 && "Unexpected VT");
+
+  int64_t Imm = cast<ConstantSDNode>(Op)->getSExtValue();
+
+  // All simm32 constants should be handled by isel.
+  // NOTE: The getMaxBuildIntsCost call below should return a value >= 2 making
+  // this check redundant, but small immediates are common so this check
+  // should have better compile time.
+  if (isInt<32>(Imm))
+    return Op;
+
+  // We only need to cost the immediate, if constant pool lowering is enabled.
+  if (!Subtarget.useConstantPoolForLargeInts())
+    return Op;
+
+  RISCVMatInt::InstSeq Seq =
+      RISCVMatInt::generateInstSeq(Imm, Subtarget.getFeatureBits());
+  if (Seq.size() <= Subtarget.getMaxBuildIntsCost())
+    return Op;
+
+  // Expand to a constant pool using the default expansion code.
+  return SDValue();
+}
+
 SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
@@ -2947,6 +3002,8 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     return lowerJumpTable(Op, DAG);
   case ISD::GlobalTLSAddress:
     return lowerGlobalTLSAddress(Op, DAG);
+  case ISD::Constant:
+    return lowerConstant(Op, DAG, Subtarget);
   case ISD::SELECT:
     return lowerSELECT(Op, DAG);
   case ISD::BRCOND:
@@ -3443,6 +3500,8 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     return lowerGET_ROUNDING(Op, DAG);
   case ISD::SET_ROUNDING:
     return lowerSET_ROUNDING(Op, DAG);
+  case ISD::EH_DWARF_CFA:
+    return lowerEH_DWARF_CFA(Op, DAG);
   case ISD::VP_SELECT:
     return lowerVPOp(Op, DAG, RISCVISD::VSELECT_VL);
   case ISD::VP_MERGE:
@@ -3547,7 +3606,7 @@ SDValue RISCVTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
       // Use PC-relative addressing to access the symbol. This generates the
       // pattern (PseudoLLA sym), which expands to (addi (auipc %pcrel_hi(sym))
       // %pcrel_lo(auipc)).
-      return SDValue(DAG.getMachineNode(RISCV::PseudoLLA, DL, Ty, Addr), 0);
+      return DAG.getNode(RISCVISD::LLA, DL, Ty, Addr);
 
     // Use PC-relative addressing to access the GOT for this symbol, then load
     // the address from the GOT. This generates the pattern (PseudoLA sym),
@@ -3572,27 +3631,18 @@ SDValue RISCVTargetLowering::getAddr(NodeTy *N, SelectionDAG &DAG,
     // address space. This generates the pattern (addi (lui %hi(sym)) %lo(sym)).
     SDValue AddrHi = getTargetNode(N, DL, Ty, DAG, RISCVII::MO_HI);
     SDValue AddrLo = getTargetNode(N, DL, Ty, DAG, RISCVII::MO_LO);
-    SDValue MNHi = SDValue(DAG.getMachineNode(RISCV::LUI, DL, Ty, AddrHi), 0);
-    return SDValue(DAG.getMachineNode(RISCV::ADDI, DL, Ty, MNHi, AddrLo), 0);
+    SDValue MNHi = DAG.getNode(RISCVISD::HI, DL, Ty, AddrHi);
+    return DAG.getNode(RISCVISD::ADD_LO, DL, Ty, MNHi, AddrLo);
   }
   case CodeModel::Medium: {
     // Generate a sequence for accessing addresses within any 2GiB range within
     // the address space. This generates the pattern (PseudoLLA sym), which
     // expands to (addi (auipc %pcrel_hi(sym)) %pcrel_lo(auipc)).
     SDValue Addr = getTargetNode(N, DL, Ty, DAG, 0);
-    return SDValue(DAG.getMachineNode(RISCV::PseudoLLA, DL, Ty, Addr), 0);
+    return DAG.getNode(RISCVISD::LLA, DL, Ty, Addr);
   }
   }
 }
-
-template SDValue RISCVTargetLowering::getAddr<GlobalAddressSDNode>(
-    GlobalAddressSDNode *N, SelectionDAG &DAG, bool IsLocal) const;
-template SDValue RISCVTargetLowering::getAddr<BlockAddressSDNode>(
-    BlockAddressSDNode *N, SelectionDAG &DAG, bool IsLocal) const;
-template SDValue RISCVTargetLowering::getAddr<ConstantPoolSDNode>(
-    ConstantPoolSDNode *N, SelectionDAG &DAG, bool IsLocal) const;
-template SDValue RISCVTargetLowering::getAddr<JumpTableSDNode>(
-    JumpTableSDNode *N, SelectionDAG &DAG, bool IsLocal) const;
 
 SDValue RISCVTargetLowering::lowerGlobalAddress(SDValue Op,
                                                 SelectionDAG &DAG) const {
@@ -6587,6 +6637,17 @@ SDValue RISCVTargetLowering::lowerSET_ROUNDING(SDValue Op,
                      RMValue);
 }
 
+SDValue RISCVTargetLowering::lowerEH_DWARF_CFA(SDValue Op,
+                                               SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+
+  bool isRISCV64 = Subtarget.is64Bit();
+  EVT PtrVT = getPointerTy(DAG.getDataLayout());
+
+  int FI = MF.getFrameInfo().CreateFixedObject(isRISCV64 ? 8 : 4, 0, false);
+  return DAG.getFrameIndex(FI, PtrVT);
+}
+
 static RISCVISD::NodeType getRISCVWOpcodeByIntr(unsigned IntNo) {
   switch (IntNo) {
   default:
@@ -9321,6 +9382,51 @@ unsigned RISCVTargetLowering::ComputeNumSignBitsForTargetNode(
   return 1;
 }
 
+const Constant *
+RISCVTargetLowering::getTargetConstantFromLoad(LoadSDNode *Ld) const {
+  assert(Ld && "Unexpected null LoadSDNode");
+  if (!ISD::isNormalLoad(Ld))
+    return nullptr;
+
+  SDValue Ptr = Ld->getBasePtr();
+
+  // Only constant pools with no offset are supported.
+  auto GetSupportedConstantPool = [](SDValue Ptr) -> ConstantPoolSDNode * {
+    auto *CNode = dyn_cast<ConstantPoolSDNode>(Ptr);
+    if (!CNode || CNode->isMachineConstantPoolEntry() ||
+        CNode->getOffset() != 0)
+      return nullptr;
+
+    return CNode;
+  };
+
+  // Simple case, LLA.
+  if (Ptr.getOpcode() == RISCVISD::LLA) {
+    auto *CNode = GetSupportedConstantPool(Ptr);
+    if (!CNode || CNode->getTargetFlags() != 0)
+      return nullptr;
+
+    return CNode->getConstVal();
+  }
+
+  // Look for a HI and ADD_LO pair.
+  if (Ptr.getOpcode() != RISCVISD::ADD_LO ||
+      Ptr.getOperand(0).getOpcode() != RISCVISD::HI)
+    return nullptr;
+
+  auto *CNodeLo = GetSupportedConstantPool(Ptr.getOperand(1));
+  auto *CNodeHi = GetSupportedConstantPool(Ptr.getOperand(0).getOperand(0));
+
+  if (!CNodeLo || CNodeLo->getTargetFlags() != RISCVII::MO_LO ||
+      !CNodeHi || CNodeHi->getTargetFlags() != RISCVII::MO_HI)
+    return nullptr;
+
+  if (CNodeLo->getConstVal() != CNodeHi->getConstVal())
+    return nullptr;
+
+  return CNodeLo->getConstVal();
+}
+
 static MachineBasicBlock *emitReadCycleWidePseudo(MachineInstr &MI,
                                                   MachineBasicBlock *BB) {
   assert(MI.getOpcode() == RISCV::ReadCycleWide && "Unexpected instruction");
@@ -11052,6 +11158,9 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(BuildPairF64)
   NODE_NAME_CASE(SplitF64)
   NODE_NAME_CASE(TAIL)
+  NODE_NAME_CASE(ADD_LO)
+  NODE_NAME_CASE(HI)
+  NODE_NAME_CASE(LLA)
   NODE_NAME_CASE(MULHSU)
   NODE_NAME_CASE(SLLW)
   NODE_NAME_CASE(SRAW)

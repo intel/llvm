@@ -171,8 +171,8 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
                           "Total counts exceed max compute units");
 
   size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)ComputeUnits,
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_EQUALLY, (pi_device_partition_property)ComputeUnits,
       0};
   return create_sub_devices(Properties, SubDevicesCount);
 }
@@ -189,9 +189,9 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw cl::sycl::feature_not_supported();
   }
-  static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  std::vector<cl_device_partition_property> Properties(P, P + 3);
+  static const pi_device_partition_property P[] = {
+      PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
+  std::vector<pi_device_partition_property> Properties(P, P + 3);
 
   // Fill the properties vector with counts and validate it
   auto It = Properties.begin() + 1;
@@ -276,6 +276,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
     return has_extension("cl_khr_fp64");
+  case aspect::ext_oneapi_bfloat16:
+    return get_info<info::device::ext_oneapi_bfloat16>();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:

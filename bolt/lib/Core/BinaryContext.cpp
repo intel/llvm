@@ -47,12 +47,9 @@ using namespace llvm;
 
 namespace opts {
 
-cl::opt<bool>
-NoHugePages("no-huge-pages",
-  cl::desc("use regular size pages for code alignment"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+cl::opt<bool> NoHugePages("no-huge-pages",
+                          cl::desc("use regular size pages for code alignment"),
+                          cl::Hidden, cl::cat(BoltCategory));
 
 static cl::opt<bool>
 PrintDebugInfo("print-debug-info",
@@ -61,12 +58,10 @@ PrintDebugInfo("print-debug-info",
   cl::ZeroOrMore,
   cl::cat(BoltCategory));
 
-cl::opt<bool>
-PrintRelocations("print-relocations",
-  cl::desc("print relocations when printing functions/objects"),
-  cl::Hidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+cl::opt<bool> PrintRelocations(
+    "print-relocations",
+    cl::desc("print relocations when printing functions/objects"), cl::Hidden,
+    cl::cat(BoltCategory));
 
 static cl::opt<bool>
 PrintMemData("print-mem-data",
@@ -720,13 +715,15 @@ void BinaryContext::skipMarkedFragments() {
            "internal error in traversing function fragments");
     if (opts::Verbosity >= 1)
       errs() << "BOLT-WARNING: Ignoring " << BF->getPrintName() << '\n';
-    BF->setIgnored();
+    BF->setSimple(false);
+    BF->setHasSplitJumpTable(true);
+
     std::for_each(BF->Fragments.begin(), BF->Fragments.end(), addToWorklist);
     std::for_each(BF->ParentFragments.begin(), BF->ParentFragments.end(),
                   addToWorklist);
   }
   if (!FragmentsToSkip.empty())
-    errs() << "BOLT-WARNING: ignored " << FragmentsToSkip.size() << " function"
+    errs() << "BOLT-WARNING: skipped " << FragmentsToSkip.size() << " function"
            << (FragmentsToSkip.size() == 1 ? "" : "s")
            << " due to cold fragments\n";
   FragmentsToSkip.clear();
@@ -1414,7 +1411,7 @@ Optional<DWARFUnit *> BinaryContext::getDWOCU(uint64_t DWOId) {
   return Iter->second;
 }
 
-DWARFContext *BinaryContext::getDWOContext() {
+DWARFContext *BinaryContext::getDWOContext() const {
   if (DWOCUs.empty())
     return nullptr;
   return &DWOCUs.begin()->second->getContext();
@@ -1676,6 +1673,36 @@ bool BinaryContext::isMarker(const SymbolRef &Symbol) const {
   return getMarkerType(Symbol) != MarkerSymType::NONE;
 }
 
+static void printDebugInfo(raw_ostream &OS, const MCInst &Instruction,
+                           const BinaryFunction *Function,
+                           DWARFContext *DwCtx) {
+  DebugLineTableRowRef RowRef =
+      DebugLineTableRowRef::fromSMLoc(Instruction.getLoc());
+  if (RowRef == DebugLineTableRowRef::NULL_ROW)
+    return;
+
+  const DWARFDebugLine::LineTable *LineTable;
+  if (Function && Function->getDWARFUnit() &&
+      Function->getDWARFUnit()->getOffset() == RowRef.DwCompileUnitIndex) {
+    LineTable = Function->getDWARFLineTable();
+  } else {
+    LineTable = DwCtx->getLineTableForUnit(
+        DwCtx->getCompileUnitForOffset(RowRef.DwCompileUnitIndex));
+  }
+  assert(LineTable && "line table expected for instruction with debug info");
+
+  const DWARFDebugLine::Row &Row = LineTable->Rows[RowRef.RowIndex - 1];
+  StringRef FileName = "";
+  if (Optional<const char *> FName =
+          dwarf::toString(LineTable->Prologue.FileNames[Row.File - 1].Name))
+    FileName = *FName;
+  OS << " # debug line " << FileName << ":" << Row.Line;
+  if (Row.Column)
+    OS << ":" << Row.Column;
+  if (Row.Discriminator)
+    OS << " discriminator:" << Row.Discriminator;
+}
+
 void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
                                      uint64_t Offset,
                                      const BinaryFunction *Function,
@@ -1723,33 +1750,8 @@ void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
 
   MIB->printAnnotations(Instruction, OS);
 
-  if (opts::PrintDebugInfo) {
-    DebugLineTableRowRef RowRef =
-        DebugLineTableRowRef::fromSMLoc(Instruction.getLoc());
-    if (RowRef != DebugLineTableRowRef::NULL_ROW) {
-      const DWARFDebugLine::LineTable *LineTable;
-      if (Function && Function->getDWARFUnit() &&
-          Function->getDWARFUnit()->getOffset() == RowRef.DwCompileUnitIndex) {
-        LineTable = Function->getDWARFLineTable();
-      } else {
-        LineTable = DwCtx->getLineTableForUnit(
-            DwCtx->getCompileUnitForOffset(RowRef.DwCompileUnitIndex));
-      }
-      assert(LineTable &&
-             "line table expected for instruction with debug info");
-
-      const DWARFDebugLine::Row &Row = LineTable->Rows[RowRef.RowIndex - 1];
-      StringRef FileName = "";
-      if (Optional<const char *> FName =
-              dwarf::toString(LineTable->Prologue.FileNames[Row.File - 1].Name))
-        FileName = *FName;
-      OS << " # debug line " << FileName << ":" << Row.Line;
-      if (Row.Column)
-        OS << ":" << Row.Column;
-      if (Row.Discriminator)
-        OS << " discriminator:" << Row.Discriminator;
-    }
-  }
+  if (opts::PrintDebugInfo)
+    printDebugInfo(OS, Instruction, Function, DwCtx.get());
 
   if ((opts::PrintRelocations || PrintRelocations) && Function) {
     const uint64_t Size = computeCodeSize(&Instruction, &Instruction + 1);
@@ -2070,7 +2072,7 @@ BinaryContext::calculateEmittedSize(BinaryFunction &BF, bool FixBranches) {
   MCSymbol *ColdStartLabel = LocalCtx->createTempSymbol();
   MCSymbol *ColdEndLabel = LocalCtx->createTempSymbol();
 
-  Streamer->SwitchSection(Section);
+  Streamer->switchSection(Section);
   Streamer->emitLabel(StartLabel);
   emitFunctionBody(*Streamer, BF, /*EmitColdPart=*/false,
                    /*EmitCodeOnly=*/true);
@@ -2082,14 +2084,14 @@ BinaryContext::calculateEmittedSize(BinaryFunction &BF, bool FixBranches) {
                                 ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
     ColdSection->setHasInstructions(true);
 
-    Streamer->SwitchSection(ColdSection);
+    Streamer->switchSection(ColdSection);
     Streamer->emitLabel(ColdStartLabel);
     emitFunctionBody(*Streamer, BF, /*EmitColdPart=*/true,
                      /*EmitCodeOnly=*/true);
     Streamer->emitLabel(ColdEndLabel);
     // To avoid calling MCObjectStreamer::flushPendingLabels() which is private
     Streamer->emitBytes(StringRef(""));
-    Streamer->SwitchSection(Section);
+    Streamer->switchSection(Section);
   }
 
   // To avoid calling MCObjectStreamer::flushPendingLabels() which is private or

@@ -286,7 +286,7 @@ void event_impl::checkProfilingPreconditions() const {
 }
 
 template <>
-cl_ulong
+uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
@@ -303,7 +303,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
 }
 
 template <>
-cl_ulong
+uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
@@ -320,7 +320,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
 }
 
 template <>
-cl_ulong event_impl::get_profiling_info<info::event_profiling::command_end>() {
+uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
@@ -334,7 +334,7 @@ cl_ulong event_impl::get_profiling_info<info::event_profiling::command_end>() {
   return MHostProfilingInfo->getEndTime();
 }
 
-template <> cl_uint event_impl::get_info<info::event::reference_count>() {
+template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>::get(
         this->getHandleRef(), this->getPlugin());
