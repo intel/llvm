@@ -23,10 +23,7 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
   std::vector<RT::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
     auto SyclEventImplPtr = detail::getSyclObjImpl(SyclEvent);
-    if (SyclEventImplPtr->getHandleRef() == nullptr)
-      continue;
-    if (SyclEventImplPtr->is_host() ||
-        SyclEventImplPtr->getContextImpl() != Context) {
+    if (SyclEventImplPtr->getHandleRef() == nullptr) {
       SyclEventImplPtr->waitInternal();
     } else {
       Events.push_back(SyclEventImplPtr->getHandleRef());
