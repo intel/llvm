@@ -1692,19 +1692,18 @@ pi_result _pi_queue::insertBarrier(pi_uint32 NumEventsInWaitList,
                                    const pi_event *EventWaitList,
                                    pi_event *Event) {
   // Helper function for appending a barrier to a command list.
-  auto insertBarrierIntoCmdList = [this](
-                                      pi_command_list_ptr_t CmdList,
-                                      const _pi_ze_event_list_t &EventWaitList,
-                                      pi_event &Event) {
-    if (auto Res = createEventAndAssociateQueue(this, &Event,
-                                                PI_COMMAND_TYPE_USER, CmdList))
-      return Res;
-    Event->WaitList = EventWaitList;
-    ZE_CALL(zeCommandListAppendBarrier,
-            (CmdList->first, Event->ZeEvent, EventWaitList.Length,
-             EventWaitList.ZeEventList));
-    return PI_SUCCESS;
-  };
+  auto insertBarrierIntoCmdList =
+      [this](pi_command_list_ptr_t CmdList,
+             const _pi_ze_event_list_t &EventWaitList, pi_event &Event) {
+        if (auto Res = createEventAndAssociateQueue(
+                this, &Event, PI_COMMAND_TYPE_USER, CmdList))
+          return Res;
+        Event->WaitList = EventWaitList;
+        ZE_CALL(zeCommandListAppendBarrier,
+                (CmdList->first, Event->ZeEvent, EventWaitList.Length,
+                 EventWaitList.ZeEventList));
+        return PI_SUCCESS;
+      };
 
   // If we have a list of events to make the barrier from, then we can create a
   // barrier on these and use the resulting event as our future barrier.
@@ -1804,11 +1803,10 @@ pi_result _pi_queue::insertBarrier(pi_uint32 NumEventsInWaitList,
   for (size_t I = 1; I < FlatCmdLists.size(); ++I) {
     _pi_ze_event_list_t ConvergenceWaitList;
     if (auto Res = ConvergenceWaitList.createAndRetainPiZeEventList(
-            1, &ConvergenceEvent, this,
-            FlatCmdLists[I]->second.isCopy(this)))
+            1, &ConvergenceEvent, this, FlatCmdLists[I]->second.isCopy(this)))
       return Res;
     insertBarrierIntoCmdList(FlatCmdLists[I], ConvergenceWaitList,
-                             RestBarrierEvents[I-1]);
+                             RestBarrierEvents[I - 1]);
   }
 
   // Barriers waiting on the convergence event will have retained it. If there
@@ -1911,9 +1909,11 @@ static const bool FilterEventWaitList = [] {
   return RetVal;
 }();
 
-pi_result _pi_ze_event_list_t::createPiZeEventList(
-    pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
-    bool UseCopyEngine, bool RetainEvents) {
+pi_result _pi_ze_event_list_t::createPiZeEventList(pi_uint32 EventListLength,
+                                                   const pi_event *EventList,
+                                                   pi_queue CurQueue,
+                                                   bool UseCopyEngine,
+                                                   bool RetainEvents) {
   this->Length = 0;
   this->ZeEventList = nullptr;
   this->PiEventList = nullptr;
