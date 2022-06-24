@@ -915,6 +915,10 @@ bool MachineBasicBlock::isLayoutSuccessor(const MachineBasicBlock *MBB) const {
   return std::next(I) == MachineFunction::const_iterator(MBB);
 }
 
+const MachineBasicBlock *MachineBasicBlock::getSingleSuccessor() const {
+  return Successors.size() == 1 ? Successors[0] : nullptr;
+}
+
 MachineBasicBlock *MachineBasicBlock::getFallThrough() {
   MachineFunction::iterator Fallthrough = getIterator();
   ++Fallthrough;
@@ -1615,6 +1619,16 @@ MachineBasicBlock::liveout_iterator MachineBasicBlock::liveout_begin() const {
   }
 
   return liveout_iterator(*this, ExceptionPointer, ExceptionSelector, false);
+}
+
+bool MachineBasicBlock::sizeWithoutDebugLargerThan(unsigned Limit) const {
+  unsigned Cntr = 0;
+  auto R = instructionsWithoutDebug(begin(), end());
+  for (auto I = R.begin(), E = R.end(); I != E; ++I) {
+    if (++Cntr > Limit)
+      return true;
+  }
+  return false;
 }
 
 const MBBSectionID MBBSectionID::ColdSectionID(MBBSectionID::SectionType::Cold);

@@ -50,6 +50,12 @@ enum NodeType : unsigned {
   // Represents an AUIPC+ADDI pair. Selected to PseudoLLA.
   LLA,
 
+  // Selected as PseudoAddTPRel. Used to emit a TP-relative relocation.
+  ADD_TPREL,
+
+  // Load address.
+  LA_TLS_GD,
+
   // Multiply high for signedxunsigned.
   MULHSU,
   // RV64I shifts, directly matching the semantics of the named RISC-V
@@ -286,8 +292,8 @@ enum NodeType : unsigned {
   VMCLR_VL,
   VMSET_VL,
 
-  // Matches the semantics of vrgather.vx and vrgather.vv with an extra operand
-  // for VL.
+  // Matches the semantics of vrgather.vx and vrgather.vv with extra operands
+  // for passthru and VL. Operands are (src, index, mask, passthru, vl).
   VRGATHER_VX_VL,
   VRGATHER_VV_VL,
   VRGATHEREI16_VV_VL,
@@ -323,6 +329,10 @@ enum NodeType : unsigned {
   // WARNING: Do not add anything in the end unless you want the node to
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
   // opcodes will be thought as target memory ops!
+
+  // Load address.
+  LA = ISD::FIRST_TARGET_MEMORY_OPCODE,
+  LA_TLS_IE,
 };
 } // namespace RISCVISD
 

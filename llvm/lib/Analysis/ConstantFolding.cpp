@@ -633,6 +633,39 @@ Constant *FoldReinterpretLoadFromConst(Constant *C, Type *LoadTy,
   return ConstantInt::get(IntType->getContext(), ResultVal);
 }
 
+} // anonymous namespace
+
+// If GV is a constant with an initializer read its representation starting
+// at Offset and return it as a constant array of unsigned char.  Otherwise
+// return null.
+Constant *llvm::ReadByteArrayFromGlobal(const GlobalVariable *GV,
+                                        uint64_t Offset) {
+  if (!GV->isConstant() || !GV->hasDefinitiveInitializer())
+    return nullptr;
+
+  const DataLayout &DL = GV->getParent()->getDataLayout();
+  Constant *Init = const_cast<Constant *>(GV->getInitializer());
+  TypeSize InitSize = DL.getTypeAllocSize(Init->getType());
+  if (InitSize < Offset)
+    return nullptr;
+
+  uint64_t NBytes = InitSize - Offset;
+  if (NBytes > UINT16_MAX)
+    // Bail for large initializers in excess of 64K to avoid allocating
+    // too much memory.
+    // Offset is assumed to be less than or equal than InitSize (this
+    // is enforced in ReadDataFromGlobal).
+    return nullptr;
+
+  SmallVector<unsigned char, 256> RawBytes(static_cast<size_t>(NBytes));
+  unsigned char *CurPtr = RawBytes.data();
+
+  if (!ReadDataFromGlobal(Init, Offset, CurPtr, NBytes, DL))
+    return nullptr;
+
+  return ConstantDataArray::get(GV->getContext(), RawBytes);
+}
+
 /// If this Offset points exactly to the start of an aggregate element, return
 /// that element, otherwise return nullptr.
 Constant *getConstantAtOffset(Constant *Base, APInt Offset,
@@ -660,8 +693,6 @@ Constant *getConstantAtOffset(Constant *Base, APInt Offset,
 
   return C;
 }
-
-} // end anonymous namespace
 
 Constant *llvm::ConstantFoldLoadFromConst(Constant *C, Type *Ty,
                                           const APInt &Offset,
@@ -999,8 +1030,24 @@ Constant *ConstantFoldInstOperandsImpl(const Value *InstOrCE, unsigned Opcode,
   if (Instruction::isUnaryOp(Opcode))
     return ConstantFoldUnaryOpOperand(Opcode, Ops[0], DL);
 
-  if (Instruction::isBinaryOp(Opcode))
+  if (Instruction::isBinaryOp(Opcode)) {
+    switch (Opcode) {
+    default:
+      break;
+    case Instruction::FAdd:
+    case Instruction::FSub:
+    case Instruction::FMul:
+    case Instruction::FDiv:
+    case Instruction::FRem:
+      // Handle floating point instructions separately to account for denormals
+      // TODO: If a constant expression is being folded rather than an
+      // instruction, denormals will not be flushed/treated as zero
+      if (const auto *I = dyn_cast<Instruction>(InstOrCE)) {
+        return ConstantFoldFPInstOperands(Opcode, Ops[0], Ops[1], DL, I);
+      }
+    }
     return ConstantFoldBinaryOpOperands(Opcode, Ops[0], Ops[1], DL);
+  }
 
   if (Instruction::isCast(Opcode))
     return ConstantFoldCastOperand(Opcode, Ops[0], DestTy, DL);
@@ -1293,6 +1340,63 @@ Constant *llvm::ConstantFoldBinaryOpOperands(unsigned Opcode, Constant *LHS,
       return C;
 
   return ConstantExpr::get(Opcode, LHS, RHS);
+}
+
+// Check whether a constant is a floating point denormal that should be flushed
+// to zero according to the denormal handling mode set in the function
+// attributes. If so, return a zero with the correct sign, otherwise return the
+// original constant. Inputs and outputs to floating point instructions can have
+// their mode set separately, so the direction is also needed.
+Constant *FlushFPConstant(Constant *Operand, const llvm::Function *F,
+                          bool IsOutput) {
+  if (F == nullptr)
+    return Operand;
+  if (auto *CFP = dyn_cast<ConstantFP>(Operand)) {
+    const APFloat &APF = CFP->getValueAPF();
+    Type *Ty = CFP->getType();
+    DenormalMode DenormMode = F->getDenormalMode(Ty->getFltSemantics());
+    DenormalMode::DenormalModeKind Mode =
+        IsOutput ? DenormMode.Output : DenormMode.Input;
+    switch (Mode) {
+    default:
+      llvm_unreachable("unknown denormal mode");
+      return Operand;
+    case DenormalMode::IEEE:
+      return Operand;
+    case DenormalMode::PreserveSign:
+      if (APF.isDenormal()) {
+        return ConstantFP::get(
+            Ty->getContext(),
+            APFloat::getZero(Ty->getFltSemantics(), APF.isNegative()));
+      }
+      return Operand;
+    case DenormalMode::PositiveZero:
+      if (APF.isDenormal()) {
+        return ConstantFP::get(Ty->getContext(),
+                               APFloat::getZero(Ty->getFltSemantics(), false));
+      }
+      return Operand;
+    }
+  }
+  return Operand;
+}
+
+Constant *llvm::ConstantFoldFPInstOperands(unsigned Opcode, Constant *LHS,
+                                           Constant *RHS, const DataLayout &DL,
+                                           const Instruction *I) {
+  if (auto *BB = I->getParent()) {
+    if (auto *F = BB->getParent()) {
+      if (Instruction::isBinaryOp(Opcode)) {
+        Constant *Op0 = FlushFPConstant(LHS, F, false);
+        Constant *Op1 = FlushFPConstant(RHS, F, false);
+        Constant *C = ConstantFoldBinaryOpOperands(Opcode, Op0, Op1, DL);
+        return FlushFPConstant(C, F, true);
+      }
+    }
+  }
+  // If instruction lacks a parent/function and the denormal mode cannot be
+  // determined, use the default (IEEE).
+  return ConstantFoldBinaryOpOperands(Opcode, LHS, RHS, DL);
 }
 
 Constant *llvm::ConstantFoldCastOperand(unsigned Opcode, Constant *C,
@@ -1983,7 +2087,7 @@ static Constant *ConstantFoldScalarCall1(StringRef Name,
     case Intrinsic::experimental_constrained_rint: {
       auto CI = cast<ConstrainedFPIntrinsic>(Call);
       RM = CI->getRoundingMode();
-      if (!RM || RM.getValue() == RoundingMode::Dynamic)
+      if (!RM || *RM == RoundingMode::Dynamic)
         return nullptr;
       break;
     }

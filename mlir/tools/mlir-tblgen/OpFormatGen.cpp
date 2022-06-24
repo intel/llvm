@@ -1001,7 +1001,7 @@ static void genCustomDirectiveParser(CustomDirective *dir, MethodBody &body) {
     } else if (auto *operand = dyn_cast<OperandVariable>(param)) {
       const NamedTypeConstraint *var = operand->getVar();
       if (var->isOptional()) {
-        body << llvm::formatv("    if ({0}Operand.hasValue())\n"
+        body << llvm::formatv("    if ({0}Operand.has_value())\n"
                               "      {0}Operands.push_back(*{0}Operand);\n",
                               var->name);
       } else if (var->isVariadicOfVariadic()) {
@@ -1043,7 +1043,7 @@ static void genEnumAttrParser(const NamedAttribute *var, MethodBody &body,
   {
     llvm::raw_string_ostream os(attrBuilderStr);
     os << tgfmt(enumAttr.getConstBuilderTemplate(), &attrTypeCtx,
-                "attrOptional.getValue()");
+                "attrOptional.value()");
   }
 
   // Build a string containing the cases that can be formatted as a keyword.
