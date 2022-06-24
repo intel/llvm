@@ -1,6 +1,6 @@
 __SYCL_PARAM_TRAITS_SPEC(kernel, function_name, std::string)
-__SYCL_PARAM_TRAITS_SPEC(kernel, num_args, cl_uint)
-__SYCL_PARAM_TRAITS_SPEC(kernel, reference_count, cl_uint)
+__SYCL_PARAM_TRAITS_SPEC(kernel, num_args, uint32_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel, reference_count, uint32_t)
 __SYCL_PARAM_TRAITS_SPEC(kernel, attributes, std::string)
 __SYCL_PARAM_TRAITS_SPEC(kernel, context, cl::sycl::context)
 #ifdef __SYCL_INTERNAL_API

@@ -2789,9 +2789,18 @@ def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
 def fdriver_only : Flag<["-"], "fdriver-only">, Flags<[NoXarchOption, CoreOption]>,
   Group<Action_Group>, HelpText<"Only run the driver.">;
 def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Perform ahead of time compilation for FPGA">;
+  Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
+  HelpText<"Perform ahead-of-time compilation for FPGA">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
+defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
+    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
+    PosFlag<SetTrue, [], "Enforce using stateless memory accesses. "
+            "Convert stateful accesses via SYCL accessors to stateless within ESIMD kernels. "
+            "Disabled by default. (experimental)">,
+    NegFlag<SetFalse, [], "Do not enforce using stateless memory accesses. (experimental)">,
+    BothFlags<[CC1Option, CoreOption], "">>;
+
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
 def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,
