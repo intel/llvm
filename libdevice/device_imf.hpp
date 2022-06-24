@@ -13,6 +13,7 @@
 #include "imf_half.hpp"
 #include <cstddef>
 #include <type_traits>
+#include <functional>
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
@@ -470,7 +471,7 @@ template <typename T> static inline void __swap(T &x, T &y) {
                 "__swap can only accept integral type.");
   T tmp = x;
   x = y;
-  y = x;
+  y = tmp;
 }
 
 template <typename Ty1, typename Ty2>

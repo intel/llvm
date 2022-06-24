@@ -1896,6 +1896,28 @@ extern SYCL_EXTERNAL unsigned int __imf_vadd2(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vadd4(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vaddss2(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vaddss4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vaddus2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vaddus4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vavgs2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vavgs4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpeq2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpeq4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpges2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpges4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpgeu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpgeu4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpgts2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpgts4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpgtu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpgtu4(unsigned int x,
+                                                 unsigned int y);
 }
 #ifdef __GLIBC__
 extern "C" {
