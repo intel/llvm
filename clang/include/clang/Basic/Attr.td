@@ -1318,7 +1318,7 @@ def SYCLAccessorPtr : Attr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 // Used to mark readonly accessors. It is not to be used directly in the source.
@@ -1326,7 +1326,7 @@ def SYCLAccessorReadonly : Attr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 // The attribute denotes that it is a function written in a scalar fashion, which
@@ -1364,7 +1364,7 @@ def SYCLScope : Attr {
     }
   }];
 
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def SYCLDeviceIndirectlyCallable : InheritableAttr {
@@ -1379,7 +1379,7 @@ def SYCLIntelBufferLocation : InheritableAttr {
   let Spellings = [];
   let Args = [UnsignedArgument<"LocationID">];
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def SYCLRequiresDecomposition : InheritableAttr {
@@ -1387,7 +1387,7 @@ def SYCLRequiresDecomposition : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[Named]>;
   let LangOpts = [SYCLIsDevice, SYCLIsHost];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def SYCLIntelKernelArgsRestrict : InheritableAttr {
