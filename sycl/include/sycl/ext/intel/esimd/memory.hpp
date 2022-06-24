@@ -1353,6 +1353,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
+        // TODO: Remove once fixed on GPU side
         if constexpr (sizeof(T) == 1 && RemN == 16) {
           simd<int32_t, 4> Vals;
           Vals.template select<4, 1>() =
@@ -1431,6 +1432,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     constexpr unsigned RemN = N % ChunkSize;
     if constexpr (RemN > 0) {
       if constexpr (RemN == 1 || RemN == 8 || RemN == 16) {
+        // TODO: Remove once fixed on GPU side
         if constexpr (sizeof(T) == 1 && RemN == 16) {
           simd<int32_t, 4> Vals;
           Vals.template select<4, 1>() =
