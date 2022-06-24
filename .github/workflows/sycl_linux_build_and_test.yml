@@ -36,11 +36,7 @@ on:
       build_artifact_suffix:
         type: string
         required: true
-      intel_drivers_image:
-        type: string
-        required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
-      lts_config:
+      lts:
         type: string
         required: false
         default: ""
@@ -48,14 +44,6 @@ on:
         type: string
         required: false
         default: ""
-      amdgpu_image:
-        type: string
-        required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      cuda_image:
-        type: string
-        required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       lts_ref:
         type: string
         required: false
@@ -169,38 +157,14 @@ jobs:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
 
-  # This job generates matrix of tests for LLVM Test Suite
-  resolve_matrix:
-    name: Resolve Test Matrix
-    runs-on: ubuntu-latest
-    outputs:
-      lts: ${{ steps.work.outputs.lts }}
-    steps:
-    - name: Download scripts and configs
-      run: |
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/generate_test_matrix.js
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/test_configs.json
-        wget raw.githubusercontent.com/intel/llvm/sycl/devops/dependencies.json
-        mv dependencies.json dependencies.sycl.json
-        wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/dependencies.json
-    - id: work
-      uses: actions/github-script@v6
-      name: Generate matrix
-      env:
-        GHA_INPUTS: ${{ toJSON(inputs) }}
-      with:
-        script: |
-          const script = require('./generate_test_matrix.js');
-          script({core, process});
-
   llvm_test_suite:
-    needs: [build, resolve_matrix]
-    if: ${{ inputs.lts_config != '' }}
+    needs: build
+    if: ${{ inputs.lts != '' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
       matrix:
-        include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
+        include: ${{ fromJSON(inputs.lts) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
     env: ${{ matrix.env }}
@@ -241,4 +205,3 @@ jobs:
         check_sycl_all: ${{ matrix.check_sycl_all }}
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
-
