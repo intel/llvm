@@ -404,7 +404,7 @@ struct _pi_queue {
   _pi_queue(std::vector<native_type> &&compute_streams,
             std::vector<native_type> &&transfer_streams, _pi_context *context,
             _pi_device *device, pi_queue_properties properties,
-            unsigned int flags)            
+            unsigned int flags)
       : compute_streams_{std::move(compute_streams)},
         transfer_streams_{std::move(transfer_streams)},
         delay_compute_(compute_streams_.size(), false), context_{context},
@@ -446,7 +446,7 @@ struct _pi_queue {
   bool can_reuse_stream(pi_uint32 stream_token) {
     // stream token not associated with one of the compute streams
     if (stream_token == std::numeric_limits<pi_uint32>::max()) {
-      return true;
+      return false;
     }
     // If the command represented by the stream token was not the last command
     // enqueued to the stream we can not reuse the stream - we need to allow for
@@ -551,7 +551,7 @@ struct _pi_queue {
   _pi_context *get_context() const { return context_; };
 
   _pi_device *get_device() const { return device_; };
-  
+
   pi_uint32 increment_reference_count() noexcept { return ++refCount_; }
 
   pi_uint32 decrement_reference_count() noexcept { return --refCount_; }
@@ -582,7 +582,7 @@ public:
   hipStream_t get_stream() const noexcept { return stream_; }
 
   pi_uint32 get_stream_token() const noexcept { return streamToken_; }
-  
+
   pi_command_type get_command_type() const noexcept { return commandType_; }
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
@@ -641,7 +641,7 @@ private:
   // This constructor is private to force programmers to use the make_native /
   // make_user static members in order to create a pi_event for HIP.
   _pi_event(pi_command_type type, pi_context context, pi_queue queue,
-		  	hipStream_t stream, pi_uint32 stream_token);
+            hipStream_t stream, pi_uint32 stream_token);
 
   pi_command_type commandType_; // The type of command associated with event.
 
@@ -650,7 +650,7 @@ private:
   bool hasBeenWaitedOn_; // Signifies whether the event has been waited
                          // on through a call to wait(), which implies
                          // that it has completed.
-  
+
   bool isRecorded_; // Signifies wether a native HIP event has been recorded
                     // yet.
   bool isStarted_;  // Signifies wether the operation associated with the
@@ -671,8 +671,8 @@ private:
   pi_queue queue_; // pi_queue associated with the event. If this is a user
                    // event, this will be nullptr.
 
-  hipStream_t stream_; // hipStream_t associated with the event. If this is a user
-                       // event, this will be uninitialized.
+  hipStream_t stream_; // hipStream_t associated with the event. If this is a
+                       // user event, this will be uninitialized.
 
   pi_context context_; // pi_context associated with the event. If this is a
                        // native event, this will be the same context associated

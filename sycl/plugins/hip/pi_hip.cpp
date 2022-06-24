@@ -434,8 +434,8 @@ hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
       // The second check is done after mutex is locked so other threads can not
       // change num_compute_streams_ after that
       if (num_compute_streams_ < compute_streams_.size()) {
-        PI_CHECK_ERROR(
-          hipStreamCreateWithFlags(&compute_streams_[num_compute_streams_++], flags_));
+        PI_CHECK_ERROR(hipStreamCreateWithFlags(
+            &compute_streams_[num_compute_streams_++], flags_));
       }
     }
     stream_i = compute_stream_idx_++;
@@ -454,10 +454,9 @@ hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 *stream_token) {
   return compute_streams_[stream_i % compute_streams_.size()];
 }
 
-hipStream_t _pi_queue::get_next_compute_stream(pi_uint32 num_events_in_wait_list,
-                                            const pi_event *event_wait_list,
-                                            _pi_stream_guard &guard,
-                                            pi_uint32 *stream_token) {
+hipStream_t _pi_queue::get_next_compute_stream(
+    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
+    _pi_stream_guard &guard, pi_uint32 *stream_token) {
   for (pi_uint32 i = 0; i < num_events_in_wait_list; i++) {
     pi_uint32 token = event_wait_list[i]->get_stream_token();
     if (event_wait_list[i]->get_queue() == this && can_reuse_stream(token)) {
@@ -489,15 +488,15 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
     // The second check is done after mutex is locked so other threads can not
     // change num_transfer_streams_ after that
     if (num_transfer_streams_ < transfer_streams_.size()) {
-      PI_CHECK_ERROR(
-        hipStreamCreateWithFlags(&transfer_streams_[num_transfer_streams_++], flags_));
+      PI_CHECK_ERROR(hipStreamCreateWithFlags(
+          &transfer_streams_[num_transfer_streams_++], flags_));
     }
   }
   return transfer_streams_[transfer_stream_idx_++ % transfer_streams_.size()];
 }
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
-		     hipStream_t stream, pi_uint32 stream_token)
+                     hipStream_t stream, pi_uint32 stream_token)
     : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
       isRecorded_{false}, isStarted_{false},
       streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
@@ -2311,9 +2310,9 @@ pi_result hip_piQueueCreate(pi_context context, pi_device device,
     std::vector<hipStream_t> transferHipStreams(
         is_out_of_order ? _pi_queue::default_num_transfer_streams : 0);
 
-    queueImpl = std::unique_ptr<_pi_queue>(
-        new _pi_queue{std::move(computeHipStreams), std::move(transferHipStreams),
-          context, device, properties, flags});
+    queueImpl = std::unique_ptr<_pi_queue>(new _pi_queue{
+        std::move(computeHipStreams), std::move(transferHipStreams), context,
+        device, properties, flags});
 
     *queue = queueImpl.release();
 
@@ -2430,7 +2429,8 @@ pi_result hip_piQueueFlush(pi_queue command_queue) {
 pi_result hip_piextQueueGetNativeHandle(pi_queue queue,
                                         pi_native_handle *nativeHandle) {
   ScopedContext active(queue->get_context());
-  *nativeHandle = reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
+  *nativeHandle =
+      reinterpret_cast<pi_native_handle>(queue->get_next_compute_stream());
   return PI_SUCCESS;
 }
 
@@ -2476,8 +2476,8 @@ pi_result hip_piEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                               event_wait_list);
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -2521,12 +2521,12 @@ pi_result hip_piEnqueueMemBufferRead(pi_queue command_queue, pi_mem buffer,
   try {
     ScopedContext active(command_queue->get_context());
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                                     event_wait_list);
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-                                               PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue, hipStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_READ, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -2804,8 +2804,8 @@ pi_result hip_piEnqueueKernelLaunch(
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(
-        _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
-                               hipStream, stream_token));
+          _pi_event::make_native(PI_COMMAND_TYPE_NDRANGE_KERNEL, command_queue,
+                                 hipStream, stream_token));
       retImplEv->start();
     }
 
@@ -3971,8 +3971,8 @@ pi_result hip_piEnqueueMemBufferReadRect(
     ScopedContext active(command_queue->get_context());
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
 
-    retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                               event_wait_list);
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4021,12 +4021,12 @@ pi_result hip_piEnqueueMemBufferWriteRect(
   try {
     ScopedContext active(command_queue->get_context());
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                               event_wait_list);
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
-                                               PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue, hipStream));
+          PI_COMMAND_TYPE_MEM_BUFFER_WRITE_RECT, command_queue, hipStream));
       retImplEv->start();
     }
 
@@ -4119,8 +4119,8 @@ pi_result hip_piEnqueueMemBufferCopyRect(
   try {
     ScopedContext active(command_queue->get_context());
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
-    retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                               event_wait_list);
+    retErr = enqueueEventsWait(command_queue, hipStream,
+                               num_events_in_wait_list, event_wait_list);
 
     if (event) {
       retImplEv = std::unique_ptr<_pi_event>(_pi_event::make_native(
@@ -4371,8 +4371,8 @@ pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
 
     if (event_wait_list) {
-      retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                                 event_wait_list);
+      retErr = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
     }
 
     hipArray *array = image->mem_.surface_mem_.get_array();
@@ -4400,8 +4400,8 @@ pi_result hip_piEnqueueMemImageRead(pi_queue command_queue, pi_mem image,
     }
 
     if (event) {
-      auto new_event =
-        _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ, command_queue, hipStream);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_READ,
+                                              command_queue, hipStream);
       new_event->record();
       *event = new_event;
     }
@@ -4440,8 +4440,8 @@ pi_result hip_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
 
     if (event_wait_list) {
-      retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                                 event_wait_list);
+      retErr = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
     }
 
     hipArray *array = image->mem_.surface_mem_.get_array();
@@ -4469,8 +4469,8 @@ pi_result hip_piEnqueueMemImageWrite(pi_queue command_queue, pi_mem image,
     }
 
     if (event) {
-      auto new_event =
-        _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE, command_queue, hipStream);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_WRITE,
+                                              command_queue, hipStream);
       new_event->record();
       *event = new_event;
     }
@@ -4504,8 +4504,8 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     ScopedContext active(command_queue->get_context());
     hipStream_t hipStream = command_queue->get_next_transfer_stream();
     if (event_wait_list) {
-      retErr = enqueueEventsWait(command_queue, hipStream, num_events_in_wait_list,
-                                 event_wait_list);
+      retErr = enqueueEventsWait(command_queue, hipStream,
+                                 num_events_in_wait_list, event_wait_list);
     }
 
     hipArray *srcArray = src_image->mem_.surface_mem_.get_array();
@@ -4542,8 +4542,8 @@ pi_result hip_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
     }
 
     if (event) {
-      auto new_event =
-        _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY, command_queue, hipStream);
+      auto new_event = _pi_event::make_native(PI_COMMAND_TYPE_IMAGE_COPY,
+                                              command_queue, hipStream);
       new_event->record();
       *event = new_event;
     }
@@ -4625,8 +4625,9 @@ pi_result hip_piEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
 
     if (event) {
       try {
-        *event = _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_MAP,
-                                        command_queue, command_queue->get_next_transfer_stream());
+        *event = _pi_event::make_native(
+            PI_COMMAND_TYPE_MEM_BUFFER_MAP, command_queue,
+            command_queue->get_next_transfer_stream());
         (*event)->start();
         (*event)->record();
       } catch (pi_result error) {
@@ -4811,8 +4812,8 @@ pi_result hip_piextUSMEnqueueMemset(pi_queue queue, void *ptr, pi_int32 value,
     result = enqueueEventsWait(queue, hipStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-        _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, hipStream, stream_token));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_FILL, queue, hipStream, stream_token));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(
@@ -4870,8 +4871,7 @@ pi_result hip_piextUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
 }
 
 pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
-                                      size_t size,
-                                      pi_usm_migration_flags flags,
+                                      size_t size, pi_usm_migration_flags flags,
                                       pi_uint32 num_events_in_waitlist,
                                       const pi_event *events_waitlist,
                                       pi_event *event) {
@@ -4890,8 +4890,8 @@ pi_result hip_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
     result = enqueueEventsWait(queue, hipStream, num_events_in_waitlist,
                                events_waitlist);
     if (event) {
-      event_ptr = std::unique_ptr<_pi_event>(
-        _pi_event::make_native(PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, hipStream));
+      event_ptr = std::unique_ptr<_pi_event>(_pi_event::make_native(
+          PI_COMMAND_TYPE_MEM_BUFFER_COPY, queue, hipStream));
       event_ptr->start();
     }
     result = PI_CHECK_ERROR(hipMemPrefetchAsync(
