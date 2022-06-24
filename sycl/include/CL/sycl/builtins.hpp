@@ -1918,6 +1918,10 @@ extern SYCL_EXTERNAL unsigned int __imf_vcmpgtu2(unsigned int x,
                                                  unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vcmpgtu4(unsigned int x,
                                                  unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmples2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmples4(unsigned int x,
+                                                 unsigned int y);
 }
 #ifdef __GLIBC__
 extern "C" {

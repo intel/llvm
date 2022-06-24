@@ -707,6 +707,12 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgtu4(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmples2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmples4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -830,5 +836,15 @@ unsigned int __imf_vcmpgtu2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vcmpgtu4(unsigned int x, unsigned int y) {
   return __devicelib_imf_vcmpgtu4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vcmples2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vcmples2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vcmples4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vcmples4(x, y);
 }
 #endif // __LIBDEVICE_IMF_ENABLED__

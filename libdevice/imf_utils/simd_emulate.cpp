@@ -396,4 +396,16 @@ unsigned int __devicelib_imf_vcmpgtu4(unsigned int x, unsigned int y) {
   return __internal_vcmpu_op<uint8_t, 4, std::greater<uint8_t>>(
       x, y, std::greater<uint8_t>());
 }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmples2(unsigned int x, unsigned int y) {
+  return __internal_vcmps_op<int16_t, 2, std::less_equal<int16_t>>(
+      x, y, std::less_equal<int16_t>());
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmples4(unsigned int x, unsigned int y) {
+  return __internal_vcmps_op<int8_t, 4, std::less_equal<int8_t>>(
+      x, y, std::less_equal<int8_t>());
+}
 #endif
