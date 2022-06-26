@@ -1252,19 +1252,9 @@ struct _pi_ze_event_list_t {
   // command-lists.
   // RetainEvents indicates that the events in the event list should be
   // retained.
-  pi_result createPiZeEventList(pi_uint32 EventListLength,
-                                const pi_event *EventList, pi_queue CurQueue,
-                                bool UseCopyEngine, bool RetainEvents);
-
-  // Same as createPiZeEventList(EventListLength, EventList, CurQueue,
-  // UseCopyEngine, true).
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
-                                         pi_queue CurQueue,
-                                         bool UseCopyEngine) {
-    return createPiZeEventList(EventListLength, EventList, CurQueue,
-                               UseCopyEngine, /*RetainEvents=*/true);
-  }
+                                         pi_queue CurQueue, bool UseCopyEngine);
 
   // Add all the events in this object's PiEventList to the end
   // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data

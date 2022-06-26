@@ -1732,33 +1732,34 @@ pi_result _pi_queue::insertBarrier(pi_uint32 NumEventsInWaitList,
     return PI_SUCCESS;
   }
 
-  // If there are no existing command lists we force one to be created.
-  if (CommandListMap.empty()) {
-    pi_command_list_ptr_t NewCmdList;
-    if (auto Res =
-            Context->getAvailableCommandList(this, NewCmdList, false, true))
-      return Res;
-  }
+  // Since there are no events to explicitly create a barrier for, we are
+  // inserting a queue-wide barrier. As such, the barrier will also encapsulate
+  // the active barriers, so we can release and clear the active barriers list.
+  // Doing it early prevents potential additional barriers from implicitly being
+  // appended.
+  for (pi_event &E : ActiveBarriers)
+    PI_CALL(piEventRelease(E));
+  ActiveBarriers.clear();
 
   // Get command lists for each command queue.
-  std::vector<pi_command_list_ptr_t> FlatCmdLists;
+  std::vector<pi_command_list_ptr_t> CmdLists;
   if (UseImmediateCommandLists) {
     // If immediate command lists are being used, each will act as their own
     // queue, so we must insert a barrier into each.
-    FlatCmdLists.reserve(CommandListMap.size());
+    CmdLists.reserve(CommandListMap.size());
     for (auto It = CommandListMap.begin(); It != CommandListMap.end(); ++It)
-      FlatCmdLists.push_back(It);
+      CmdLists.push_back(It);
   } else if (ComputeQueueGroup.ZeQueues.empty() &&
              CopyQueueGroup.ZeQueues.empty()) {
     // If there are no queues, we get any available command list.
     pi_command_list_ptr_t CmdList;
     if (auto Res = Context->getAvailableCommandList(this, CmdList, false))
       return Res;
-    FlatCmdLists.push_back(CmdList);
+    CmdLists.push_back(CmdList);
   } else {
     // Get an available command list for all queues.
-    FlatCmdLists.reserve(ComputeQueueGroup.ZeQueues.size() +
-                         CopyQueueGroup.ZeQueues.size());
+    CmdLists.reserve(ComputeQueueGroup.ZeQueues.size() +
+                     CopyQueueGroup.ZeQueues.size());
     for (auto QueueGroup : {ComputeQueueGroup, CopyQueueGroup}) {
       bool UseCopyEngine = QueueGroup.Type != queue_type::Compute;
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
@@ -1766,90 +1767,56 @@ pi_result _pi_queue::insertBarrier(pi_uint32 NumEventsInWaitList,
         if (auto Res = Context->getAvailableCommandList(
                 this, CmdList, UseCopyEngine, false, &ZeQueue))
           return Res;
-        FlatCmdLists.push_back(CmdList);
+        CmdLists.push_back(CmdList);
       }
     }
   }
 
   // Insert a barrier into each unique command queue using the available
   // command-lists.
-  std::vector<pi_event> EventWaitVector(FlatCmdLists.size());
-  for (size_t I = 0; I < FlatCmdLists.size(); ++I)
-    if (auto Res = insertBarrierIntoCmdList(
-            FlatCmdLists[I], _pi_ze_event_list_t{}, EventWaitVector[I]))
+  std::vector<pi_event> EventWaitVector(CmdLists.size());
+  for (size_t I = 0; I < CmdLists.size(); ++I)
+    if (auto Res = insertBarrierIntoCmdList(CmdLists[I], _pi_ze_event_list_t{},
+                                            EventWaitVector[I]))
       return Res;
 
-  // Use the first command list as our convergence command-list.
-  pi_command_list_ptr_t &ConvergenceCmdList = FlatCmdLists[0];
+  if (CmdLists.size() > 1) {
+    // If there were multiple queues we need to create a "convergence" event to
+    // be our active barrier. This convergence event is signalled by a barrier
+    // on all the events from the barriers we have inserted into each queue.
+    // Use the first command list as our convergence command list.
+    pi_command_list_ptr_t &ConvergenceCmdList = CmdLists[0];
 
-  // Create an event list. If the events are new, we do not retain them and
-  // instead let the list take ownership.
-  _pi_ze_event_list_t BaseWaitList;
-  if (auto Res = BaseWaitList.createPiZeEventList(
-          EventWaitVector.size(), EventWaitVector.data(), this,
-          ConvergenceCmdList->second.isCopy(this),
-          /*RetainEvents=*/NumEventsInWaitList))
-    return Res;
-
-  // Insert a barrier with the events from each command-queue into the
-  // convergence command list. The resulting event signals the convergence of
-  // all barriers.
-  pi_event ConvergenceEvent;
-  insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList, ConvergenceEvent);
-
-  // Insert barriers for the convergence event on all other command-lists.
-  std::vector<pi_event> RestBarrierEvents;
-  RestBarrierEvents.resize(FlatCmdLists.size() - 1);
-  for (size_t I = 1; I < FlatCmdLists.size(); ++I) {
-    _pi_ze_event_list_t ConvergenceWaitList;
-    if (auto Res = ConvergenceWaitList.createAndRetainPiZeEventList(
-            1, &ConvergenceEvent, this, FlatCmdLists[I]->second.isCopy(this)))
+    // Create an event list. It will take ownership over all relevant events so
+    // we relinquish ownership and let it keep all events it needs.
+    _pi_ze_event_list_t BaseWaitList;
+    if (auto Res = BaseWaitList.createAndRetainPiZeEventList(
+            EventWaitVector.size(), EventWaitVector.data(), this,
+            ConvergenceCmdList->second.isCopy(this)))
       return Res;
-    insertBarrierIntoCmdList(FlatCmdLists[I], ConvergenceWaitList,
-                             RestBarrierEvents[I - 1]);
+    for (pi_event &E : EventWaitVector)
+      PI_CALL(piEventRelease(E));
+
+    // Insert a barrier with the events from each command-queue into the
+    // convergence command list. The resulting event signals the convergence of
+    // all barriers.
+    if (auto Res =
+            insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList, *Event))
+      return Res;
+  } else {
+    // If there is only a single queue we have inserted all the barriers we need
+    // and the single result event can be used as our active barrier and used as
+    // the return event.
+    *Event = EventWaitVector[0];
   }
-
-  // Barriers waiting on the convergence event will have retained it. If there
-  // were no more than one command-list, then the following signal event will
-  // wait for the barrier anyway, so the event can safely die.
-  PI_CALL(piEventRelease(ConvergenceEvent));
-
-  if (auto Res = createEventAndAssociateQueue(this, Event, PI_COMMAND_TYPE_USER,
-                                              ConvergenceCmdList))
-    return Res;
-
-  // Only append a wait for events if there were any.
-  if (!RestBarrierEvents.empty()) {
-    // Do not retain events and instead transfer ownership to the final event.
-    _pi_ze_event_list_t FinalWaitList;
-    if (auto Res = FinalWaitList.createPiZeEventList(
-            RestBarrierEvents.size(), RestBarrierEvents.data(), this,
-            ConvergenceCmdList->second.isCopy(this),
-            /*RetainEvents=*/false))
-      return Res;
-    (*Event)->WaitList = FinalWaitList;
-    ZE_CALL(zeCommandListAppendWaitOnEvents,
-            (ConvergenceCmdList->first, FinalWaitList.Length,
-             FinalWaitList.ZeEventList));
-  }
-
-  // Append a signal event to signal when convergence has been seen by all
-  // command-lists.
-  ZE_CALL(zeCommandListAppendSignalEvent,
-          (ConvergenceCmdList->first, (*Event)->ZeEvent));
 
   // Execute each command list so the barriers can be encountered.
   // TODO: Could this be batched?
-  for (pi_command_list_ptr_t &CmdList : FlatCmdLists)
+  for (pi_command_list_ptr_t &CmdList : CmdLists)
     if (auto Res = executeCommandList(CmdList))
       return Res;
 
-  // We must keep the event internally to use if new command-lists are created.
-  // Since this is a general barrier, all previously active barriers are
-  // encapsulated by it so we can remove them.
-  for (pi_event &E : ActiveBarriers)
-    PI_CALL(piEventRelease(E));
-  ActiveBarriers.clear();
+  // We must keep the event internally to use if new command lists are created.
   PI_CALL(piEventRetain(*Event));
   ActiveBarriers.push_back(*Event);
   return PI_SUCCESS;
@@ -1863,9 +1830,8 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
 
   // Create a wait-list and retain events. This will filter out finished events.
   _pi_ze_event_list_t ActiveBarriersWaitList;
-  if (auto Res = ActiveBarriersWaitList.createPiZeEventList(
-          ActiveBarriers.size(), ActiveBarriers.data(), this, UseCopyEngine,
-          /*RetainEvents=*/true))
+  if (auto Res = ActiveBarriersWaitList.createAndRetainPiZeEventList(
+          ActiveBarriers.size(), ActiveBarriers.data(), this, UseCopyEngine))
     return Res;
 
   // We can now release all the active barriers and replace them with the ones
@@ -1877,15 +1843,12 @@ pi_result _pi_queue::insertActiveBarriers(pi_command_list_ptr_t &CmdList,
       ActiveBarriers.end(), ActiveBarriersWaitList.PiEventList,
       ActiveBarriersWaitList.PiEventList + ActiveBarriersWaitList.Length);
 
-  // Early exit if there are no active barriers after filtering.
-  if (ActiveBarriers.empty())
-    return PI_SUCCESS;
-
-  // Insert a barrier on the command-list. We do not need an event for finishing
-  // so we pass nullptr.
-  ZE_CALL(zeCommandListAppendBarrier,
-          (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
-           ActiveBarriersWaitList.ZeEventList));
+  // If there are more active barriers, insert a barrier on the command-list. We
+  // do not need an event for finishing so we pass nullptr.
+  if (!ActiveBarriers.empty())
+    ZE_CALL(zeCommandListAppendBarrier,
+            (CmdList->first, nullptr, ActiveBarriersWaitList.Length,
+             ActiveBarriersWaitList.ZeEventList));
   return PI_SUCCESS;
 }
 
@@ -1909,11 +1872,9 @@ static const bool FilterEventWaitList = [] {
   return RetVal;
 }();
 
-pi_result _pi_ze_event_list_t::createPiZeEventList(pi_uint32 EventListLength,
-                                                   const pi_event *EventList,
-                                                   pi_queue CurQueue,
-                                                   bool UseCopyEngine,
-                                                   bool RetainEvents) {
+pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
+    pi_uint32 EventListLength, const pi_event *EventList, pi_queue CurQueue,
+    bool UseCopyEngine) {
   this->Length = 0;
   this->ZeEventList = nullptr;
   this->PiEventList = nullptr;
@@ -1951,7 +1912,7 @@ pi_result _pi_ze_event_list_t::createPiZeEventList(pi_uint32 EventListLength,
 
         auto Queue = EventList[I]->Queue;
         if (Queue) {
-          // The caller of createPiZeEventList must already hold
+          // The caller of createAndRetainPiZeEventList must already hold
           // a lock of the CurQueue. Additionally lock the Queue if it
           // is different from CurQueue.
           // TODO: rework this to avoid deadlock when another thread is
@@ -2035,10 +1996,8 @@ pi_result _pi_ze_event_list_t::createPiZeEventList(pi_uint32 EventListLength,
     return PI_ERROR_OUT_OF_HOST_MEMORY;
   }
 
-  if (RetainEvents) {
-    for (pi_uint32 I = 0; I < this->Length; I++) {
-      PI_CALL(piEventRetain(this->PiEventList[I]));
-    }
+  for (pi_uint32 I = 0; I < this->Length; I++) {
+    PI_CALL(piEventRetain(this->PiEventList[I]));
   }
 
   return PI_SUCCESS;
