@@ -21052,8 +21052,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
 
-  auto AddArgValue = [&E, &Ctx, &Out](unsigned NumOfArg,
-                                      StringRef StringToAdd,
+  auto AddArgValue = [&E, &Ctx, &Out](unsigned NumOfArg, StringRef StringToAdd,
                                       int DefaultValue = INT_MIN) {
     Optional<llvm::APSInt> IntVal =
         (E->getNumArgs() > NumOfArg)
