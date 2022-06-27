@@ -18,6 +18,8 @@ config.sycl_libs_dir =  os.path.join(config.dpcpp_root_dir, ('bin' if platform.s
 config.opencl_libs_dir = (os.path.dirname("@OpenCL_LIBRARY@") if "@OpenCL_LIBRARY@" else "")
 config.level_zero_libs_dir = "@LEVEL_ZERO_LIBS_DIR@"
 config.level_zero_include = "@LEVEL_ZERO_INCLUDE@"
+config.cuda_libs_dir = "@CUDA_LIBS_DIR@"
+config.cuda_include = "@CUDA_INCLUDE@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 config.target_devices = lit_config.params.get("target_devices", "@SYCL_TARGET_DEVICES@")
