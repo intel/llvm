@@ -1008,11 +1008,23 @@ struct _pi_queue : _pi_object {
     return PI_SUCCESS;
   }
 
+  // Inserts a barrier into the queue. This will result in one or more barrier
+  // commands being inserted into one or more command lists. An event will be
+  // inserted into ActiveBarriers signalling the convergent barrier.
+  // If NumEventsInWaitList > 0 the convergent barrier will result in barriers
+  // blocking for the supplied events, while NumEventsInWaitList == 0 will
+  // result in barriers blocking for all previous work submitted to the queue.
   pi_result insertBarrier(pi_uint32 NumEventsInWaitList,
                           const pi_event *EventWaitList, pi_event *Event);
+
+  // Inserts a barrier waiting for all unfinished events in ActiveBarriers into
+  // CmdList. Any finished events will be removed from ActiveBarriers.
   pi_result insertActiveBarriers(pi_command_list_ptr_t &CmdList,
                                  bool UseCopyEngine);
 
+  // A collection of currently active barriers inserted through insertBarrier.
+  // These should be inserted into a command list whenever an available command
+  // list is needed for a command.
   std::vector<pi_event> ActiveBarriers;
 
   // Besides each PI object keeping a total reference count in
@@ -1242,7 +1254,8 @@ struct _pi_ze_event_list_t {
   // so this will be used to make list destruction thread-safe.
   pi_mutex PiZeEventListMutex;
 
-  // Initialize this using the array of events in EventList.
+  // Initialize this using the array of events in EventList, and retain
+  // all the pi_events in the created data structure.
   // CurQueue is the pi_queue that the command with this event wait
   // list is going to be added to.  That is needed to flush command
   // batches for wait events that are in other queues.
@@ -1250,8 +1263,6 @@ struct _pi_ze_event_list_t {
   // event wait-list is for) is going to go to copy or compute
   // queue. This is used to properly submit the dependent open
   // command-lists.
-  // RetainEvents indicates that the events in the event list should be
-  // retained.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
                                          pi_queue CurQueue, bool UseCopyEngine);
