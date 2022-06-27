@@ -765,6 +765,19 @@ static char getTypeSuffix(Type *T) {
   return Suffix;
 }
 
+void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args) {
+  if (Args.size() > 4) {
+    ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
+    ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
+    // Drop "Image Operands" argument.
+    Args.erase(Args.begin() + 3, Args.begin() + 4);
+    // If the image operand is LOD and its value is zero, drop it too.
+    if (ImOp && LodVal && LodVal->isNullValue() &&
+        ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
+      Args.erase(Args.begin() + 3, Args.end());
+  }
+}
+
 // TODO: Handle unsigned integer return type. May need spec change.
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
                                                                  Op OC) {
@@ -787,16 +800,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
     auto Sampler = CallSampledImg->getArgOperand(1);
     Args[0] = Img;
     Args.insert(Args.begin() + 1, Sampler);
-    if (Args.size() > 4) {
-      ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
-      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
-      // Drop "Image Operands" argument.
-      Args.erase(Args.begin() + 3, Args.begin() + 4);
-      // If the image operand is LOD and its value is zero, drop it too.
-      if (ImOp && LodVal && LodVal->isNullValue() &&
-          ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
-        Args.erase(Args.begin() + 3, Args.end());
-    }
+    mutateArgsForImageOperands(Args);
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           UndefValue::get(CallSampledImg->getType()));
@@ -831,17 +835,9 @@ void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         llvm::Type *T = Args[2]->getType();
-        if (Args.size() > 4) {
-          ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
-          ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
-          // Drop "Image Operands" argument.
-          Args.erase(Args.begin() + 3, Args.begin() + 4);
-          // If the image operand is LOD and its value is zero, drop it too.
-          if (ImOp && LodVal && LodVal->isNullValue() &&
-              ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
-            Args.erase(Args.begin() + 3, Args.end());
-          else
-            std::swap(Args[2], Args[3]);
+        mutateArgsForImageOperands(Args);
+        if (Args.size() > 3) {
+          std::swap(Args[2], Args[3]);
         }
         return std::string(kOCLBuiltinName::WriteImage) + getTypeSuffix(T);
       },
