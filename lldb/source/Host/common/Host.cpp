@@ -90,6 +90,10 @@ int __pthread_fchdir(int fildes);
 using namespace lldb;
 using namespace lldb_private;
 
+#if !defined(__APPLE__)
+void Host::SystemLog(llvm::StringRef message) { llvm::errs() << message; }
+#endif
+
 #if !defined(__APPLE__) && !defined(_WIN32)
 static thread_result_t
 MonitorChildProcessThreadFunction(::pid_t pid,
@@ -626,4 +630,10 @@ uint32_t Host::FindProcesses(const ProcessInstanceInfoMatch &match_info,
   }
 
   return result;
+}
+
+SystemLogHandler::SystemLogHandler() {}
+
+void SystemLogHandler::Emit(llvm::StringRef message) {
+  Host::SystemLog(message);
 }
