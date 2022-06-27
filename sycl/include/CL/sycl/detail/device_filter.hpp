@@ -55,23 +55,29 @@ inline device_filter::operator std::string() const {
   std::string Out{};
   Out+= backend_to_string(this->Backend);
   Out+= ":";
-   if (this->DeviceType == info::device_type::host) {
-     Out += "host";
-   } else if (this->DeviceType == info::device_type::cpu) {
-     Out += "cpu";
-   } else if (this->DeviceType == info::device_type::gpu) {
-     Out += "gpu";
-   } else if (this->DeviceType == info::device_type::accelerator) {
-     Out += "accelerator";
-   } else if (this->DeviceType == info::device_type::all) {
-     Out += "*";
-   } else {
-     Out += "unknown";
-   }
-   if (this->HasDeviceNum) {
-     Out += ":";
-     Out += this->DeviceNum;
-   }
+  switch (this->DeviceType)
+  {
+  case info::device_type::host:
+    Out += "host";
+    break;
+  case info::device_type::cpu:
+    Out += "cpu";
+    break;
+  case info::device_type::gpu:
+    Out += "gpu";
+    break;
+  case info::device_type::accelerator:
+    Out += "accelerator";
+    break;
+  default:
+    Out += "unknown";
+    break;
+  }
+  
+  if (this->HasDeviceNum) {
+    Out += ":";
+    Out += this->DeviceNum;
+  }
    return Out;
 }
 

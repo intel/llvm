@@ -21,7 +21,6 @@
 #include <mutex>
 #include <string>
 #include <utility>
-#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -395,12 +394,12 @@ private:
   static bool parseValue() {
     // Check if deprecated opt-out env var is used, then warn.
     if (SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get()) {
-      std::cerr
-          << "WARNING: " << SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName()
-          << " environment variable is deprecated "
-          << "and has no effect. By default, persistent device code caching is "
-          << (Default ? "enabled." : "disabled.") << " Use " << getName()
-          << "=1/0 to enable/disable.\n";
+      fprintf(stderr,"WARNING: %s environment variable is deprecated "
+                     "and has no effect. By default, persistent device code caching is "
+                     "%s Use %s=1/0 to enable/disable.\n",
+                     SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName(),
+                     (Default ? "enabled." : "disabled."),
+                     getName());
     }
 
     const char *ValStr = BaseT::getRawValue();

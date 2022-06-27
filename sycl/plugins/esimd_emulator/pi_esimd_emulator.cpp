@@ -40,7 +40,6 @@
 #include <string>
 #include <thread>
 #include <utility>
-#include <iostream>
 
 #include "pi_esimd_emulator.hpp"
 
@@ -115,7 +114,7 @@ static bool PrintPiTrace = false;
 
 static void PiTrace(std::string TraceString) {
   if (PrintPiTrace) {
-    std::cout << TraceString << std::endl;
+    printf("%s\n",TraceString.c_str());
   }
 }
 
@@ -374,26 +373,25 @@ extern "C" {
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   if (PrintPiTrace) {                                                          \
-    fprintf(stderr,"%s%c%s%s","Not Implemented : %s%s%s", __FUNCTION__, " - File : ", __FILE__);                                     \
-    fprintf(stderr,"%s%s\n"," / Line : ",__LINE__);                            \
+    fprintf(stderr,"Not Implemented : " __FUNCTION__ " - File : " __FILE__);                                     \
+    fprintf(stderr," / Line : "__LINE__"\n");                            \
   }                                                                            \
   return PI_ERROR_INVALID_OPERATION;
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   if (PrintPiTrace) {                                                          \
-     fprintf(stderr, "%s%s%s","Warning : Not Implemented : ", __FUNCTION__                \
-              ," - File : " ,__FILE__);                                     \
-     fprintf(stderr, "%s%s\n"," / Line : ", __LINE__);                        \
+     fprintf(stderr, "Warning : Not Implemented : " __FUNCTION__                \
+            " - File : " __FILE__);                                     \
+     fprintf(stderr," / Line : " __LINE__"\n");                        \
   }                                                                            \
   return PI_SUCCESS;
 
 #define CASE_PI_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
     if (PrintPiTrace) {                                                        \
-      fprintf(stderr,"\n%s%s%s%s%s%s%s%s%s\n",                                                   \
-                , "Unsupported PI case : ", #not_supported, " in "        \
-                , __FUNCTION__, ":" , __LINE__ , "(" , __FILE__ , ")"   \
-                ;                                                  \
+      fprintf(stderr, "\nUnsupported PI case : " #not_supported " in "        \
+                      __FUNCTION__ ":"  __LINE__  "(" __FILE__ ")\n"   \
+      );                                                  \
     }                                                                          \
     return PI_ERROR_INVALID_OPERATION;
 

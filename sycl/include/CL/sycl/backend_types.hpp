@@ -42,30 +42,23 @@ using backend_return_t =
     
 inline std::string backend_to_string(const backend& be) {
 
-    std::string Out="";
-     switch (be) {
+  switch (be) {
   case backend::host:
-    Out+= "host";
-    break;
+    return "host";
   case backend::opencl:
-    Out+= "opencl";
-    break;
+    return "opencl";
   case backend::ext_oneapi_level_zero:
-    Out+= "ext_oneapi_level_zero";
-    break;
+    return "ext_oneapi_level_zero";
   case backend::ext_oneapi_cuda:
-    Out+= "ext_oneapi_cuda";
-    break;
+    return "ext_oneapi_cuda";
   case backend::ext_intel_esimd_emulator:
-    Out+= "ext_intel_esimd_emulator";
-    break;
+    return "ext_intel_esimd_emulator";
   case backend::ext_oneapi_hip:
-    Out+= "ext_oneapi_hip";
-    break;
+    return "ext_oneapi_hip";
   case backend::all:
-    Out+= "all";
+    return "all";
   }
-  return Out;
+  return "";
 }
 
 

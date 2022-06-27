@@ -18,7 +18,7 @@
 #include <string>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
-#define __esimd_dbg_print(a) printf(">>> %s\n",((std::string)(#a)).c_str());
+#define __esimd_dbg_print(a) printf(">>> %s\n",#a);
 #else
 #define __esimd_dbg_print(a)
 #endif // defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
