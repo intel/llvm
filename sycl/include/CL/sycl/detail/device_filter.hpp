@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
-
 #pragma once
 
 #include <CL/sycl/backend_types.hpp>
@@ -31,8 +29,7 @@ struct device_filter {
 
   device_filter(){};
   device_filter(const std::string &FilterString);
-  inline operator std::string()const;
-
+  inline operator std::string() const;
 };
 
 class device_filter_list {
@@ -48,13 +45,13 @@ public:
   bool deviceTypeCompatible(info::device_type DeviceType);
   bool deviceNumberCompatible(int DeviceNum);
   bool containsHost();
-  inline operator std::string()const;
+  inline operator std::string() const;
 };
 
 inline device_filter::operator std::string() const {
   std::string Out{};
-  Out+= backend_to_string(this->Backend);
-  Out+= ":";
+  Out += backend_to_string(this->Backend);
+  Out += ":";
   switch (this->DeviceType) {
   case info::device_type::host:
     Out += "host";
@@ -77,16 +74,15 @@ inline device_filter::operator std::string() const {
     Out += ":";
     Out += this->DeviceNum;
   }
-   return Out;
+  return Out;
 }
 
-
-inline device_filter_list::operator std::string()const{
-    std::string Out;
-    for (const device_filter &Filter : this->FilterList) {
+inline device_filter_list::operator std::string() const {
+  std::string Out;
+  for (const device_filter &Filter : this->FilterList) {
     Out += Filter;
     Out += ",";
-    }
+  }
   return Out;
 }
 

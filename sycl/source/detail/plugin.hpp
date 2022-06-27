@@ -120,8 +120,8 @@ public:
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        //TODO: Current solution is a proper analog ogf clog
-        fprintf(stdout,"%s\n",message);
+        // TODO: Current solution is a proper analog ogf clog
+        fprintf(stdout, "%s\n", message);
 
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
@@ -138,8 +138,8 @@ public:
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        //TODO: Current solution is a proper analog ogf clog
-        fprintf(stdout, "%s\n",message);
+        // TODO: Current solution is a proper analog ogf clog
+        fprintf(stdout, "%s\n", message);
 
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
@@ -192,7 +192,7 @@ public:
     if (pi::trace(pi::TraceLevel::PI_TRACE_CALLS)) {
       std::lock_guard<std::mutex> Guard(*TracingMutex);
       const char *FnName = PiCallInfo.getFuncName();
-      printf("---> %s(\n",FnName);
+      printf("---> %s(\n", FnName);
       RT::printArgs(Args...);
       R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
       printf(") ---> ");

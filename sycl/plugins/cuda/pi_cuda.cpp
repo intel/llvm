@@ -137,12 +137,12 @@ pi_result check_error(CUresult result, const char *function, int line,
   const char *errorName = nullptr;
   cuGetErrorName(result, &errorName);
   cuGetErrorString(result, &errorString);
-  fprintf(stderr,"\nPI CUDA ERROR:"
-          "\n\tValue:           %s" , result
-          "\n\tName:            %s" , errorName
-          "\n\tDescription:     %s" , errorString
-          "\n\tFunction:        %s" , function
-          "\n\tSource Location: %s:%s\n\n" , file ,line);
+  fprintf(stderr,
+          "\nPI CUDA ERROR:"
+          "\n\tValue:           %s",
+          result "\n\tName:            %s", errorName "\n\tDescription:     %s",
+          errorString "\n\tFunction:        %s",
+          function "\n\tSource Location: %s:%s\n\n", file, line);
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -336,13 +336,13 @@ namespace pi {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  fprintf(stderr,"pi_die: %s\n",Message);
+  fprintf(stderr, "pi_die: %s\n", Message);
   std::terminate();
 }
 
 // Reports error messages
 void cuPrint(const char *Message) {
-  fprintf(stderr,"pi_print: %s\n",Message);
+  fprintf(stderr, "pi_print: %s\n", Message);
 }
 
 void assertion(bool Condition, const char *Message) {

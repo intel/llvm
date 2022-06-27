@@ -129,22 +129,22 @@ public:
   /// Prints a \c simd object to an output stream.
   /// TODO: implemented for host code only.
   operator std::string() const
-    #ifdef __SYCL_DEVICE_ONLY__
-    {}
-    #else
-    {
-      std::string OS;
-      OS += "{";
-      for (int I = 0; I < N; I++) {
-        OS += (*this)[I];
-        if (I < N - 1)
-          OS += ",";
-      }
-      OS += "}";
-      return OS;
+#ifdef __SYCL_DEVICE_ONLY__
+  {
+  }
+#else
+  {
+    std::string OS;
+    OS += "{";
+    for (int I = 0; I < N; I++) {
+      OS += (*this)[I];
+      if (I < N - 1)
+        OS += ",";
     }
-    #endif // __SYCL_DEVICE_ONLY__
-
+    OS += "}";
+    return OS;
+  }
+#endif // __SYCL_DEVICE_ONLY__
 
   /// Prefix increment, increments elements of this object.
   /// @return Reference to this object.

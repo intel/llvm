@@ -347,8 +347,6 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
          std::to_string(StringHasher(BuildOptionsString));
 }
 
-
-
 /* Returns true if persistent cache is enabled.
  */
 bool PersistentDeviceCodeCache::isEnabled() {

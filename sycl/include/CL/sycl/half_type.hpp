@@ -143,7 +143,7 @@ public:
 
   half &operator=(const half &rhs) = default;
   // string operator
-  inline operator std::string()const;
+  inline operator std::string() const;
   // Operator +=, -=, *=, /=
   half &operator+=(const half &rhs);
 
@@ -585,7 +585,6 @@ public:
     return static_cast<float>(Data);
   }
 
-  
   template <typename Key> friend struct std::hash;
 
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
@@ -695,16 +694,15 @@ template <> struct numeric_limits<cl::sycl::half> {
 
 } // namespace std
 
-inline FILE* operator<<(FILE* file,cl::sycl::half const &rhs){
-  fprintf(file,"%lf",static_cast<float>(rhs));
+inline FILE *operator<<(FILE *file, cl::sycl::half const &rhs) {
+  fprintf(file, "%lf", static_cast<float>(rhs));
   return file;
 }
 
-
-inline FILE* operator>>(FILE* file,cl::sycl::half &rhs){
+inline FILE *operator>>(FILE *file, cl::sycl::half &rhs) {
   float ValFloat = 0.0f;
-  fscanf(file,"%f",&ValFloat);
-  rhs=ValFloat;
+  fscanf(file, "%f", &ValFloat);
+  rhs = ValFloat;
   return file;
 }
 

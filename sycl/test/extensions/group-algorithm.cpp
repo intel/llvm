@@ -14,9 +14,9 @@
 #include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <limits>
 #include <numeric>
-#include <iostream>
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 

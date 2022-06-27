@@ -12,8 +12,8 @@
 // accessors.
 
 #include <CL/sycl.hpp>
-#include <vector>
 #include <iostream>
+#include <vector>
 using namespace cl::sycl;
 
 void test_across_ranges() {

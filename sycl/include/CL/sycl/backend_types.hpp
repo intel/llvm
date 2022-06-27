@@ -39,8 +39,8 @@ using backend_input_t =
 template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
-    
-inline std::string backend_to_string(const backend& be) {
+
+inline std::string backend_to_string(const backend &be) {
 
   switch (be) {
   case backend::host:
@@ -60,7 +60,6 @@ inline std::string backend_to_string(const backend& be) {
   }
   return "";
 }
-
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -70,7 +70,7 @@ void enableZeTracing() {
   Status = zelTracerCreate(&TracerDesc, &Tracer);
 
   if (Status != ZE_RESULT_SUCCESS || Tracer == nullptr) {
-    fprintf(stderr,"[WARNING] Failed to create Level Zero tracer: %d\n",
+    fprintf(stderr, "[WARNING] Failed to create Level Zero tracer: %d\n",
             Status);
     return;
   }
@@ -123,18 +123,18 @@ void enableZeTracing() {
 
   Status = zelTracerSetPrologues(Tracer, &Prologue);
   if (Status != ZE_RESULT_SUCCESS) {
-    fprintf(stderr,"Failed to enable Level Zero tracing\n");
+    fprintf(stderr, "Failed to enable Level Zero tracing\n");
     std::terminate();
   }
   Status = zelTracerSetEpilogues(Tracer, &Epilogue);
   if (Status != ZE_RESULT_SUCCESS) {
-    fprintf(stderr,"Failed to enable Level Zero tracing\n");
+    fprintf(stderr, "Failed to enable Level Zero tracing\n");
     std::terminate();
   }
 
   Status = zelTracerSetEnabled(Tracer, true);
   if (Status != ZE_RESULT_SUCCESS) {
-    fprintf(stderr,"Failed to enable Level Zero tracing\n");
+    fprintf(stderr, "Failed to enable Level Zero tracing\n");
     std::terminate();
   }
 #endif // XPTI_ENABLE_INSTRUMENTATION

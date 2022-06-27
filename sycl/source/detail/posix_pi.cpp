@@ -24,7 +24,7 @@ void *loadOsLibrary(const std::string &PluginPath) {
   if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
     char *Error = dlerror();
     fprintf(stderr, "SYCL_PI_TRACE[-1]: dlopen(%s) failed with <%s\n",
-                   PluginPath.c_str(),(Error ? Error : "unknown error"));
+            PluginPath.c_str(), (Error ? Error : "unknown error"));
   }
   return so;
 }

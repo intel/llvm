@@ -11,10 +11,10 @@
 #include <CL/sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
 
-#include <cstring>
-#include <limits>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
+#include <limits>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -148,7 +148,8 @@ void dumpConfig() {
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   {                                                                            \
     const char *Val = SYCLConfigBase<Name>::getRawValue();                     \
-    fprintf(stderr, "%s%s%s\n",SYCLConfigBase<Name>::MConfigName," : ",Val ? Val : "unset");                           \
+    fprintf(stderr, "%s%s%s\n", SYCLConfigBase<Name>::MConfigName, " : ",      \
+            Val ? Val : "unset");                                              \
   }
 #include "detail/config.def"
 #undef CONFIG

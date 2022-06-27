@@ -922,23 +922,26 @@ cl_int AllocaCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void AllocaCommand::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#FFD28A\", label=\"",(const void*)this);
+void AllocaCommand::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#FFD28A\", label=\"",
+          (const void *)this);
 
-  fprintf(file,"ID = %p\\n",(const void*)this);
-  fprintf(file,"ALLOCA ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file," MemObj : %p\\n",(const void*)this->MRequirement.MSYCLMemObj);
-  fprintf(file," Link : %p\\n",(const void*)this->MLinkedAllocaCmd);
-  fprintf(file,"\"];\n");
-
+  fprintf(file, "ID = %p\\n", (const void *)this);
+  fprintf(file, "ALLOCA ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, " MemObj : %p\\n",
+          (const void *)this->MRequirement.MSYCLMemObj);
+  fprintf(file, " Link : %p\\n", (const void *)this->MLinkedAllocaCmd);
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
       continue;
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)(Dep.MDepCommand),
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)(Dep.MDepCommand), " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1006,25 +1009,28 @@ cl_int AllocaSubBufCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void AllocaSubBufCommand::printDot(FILE* file) const {
+void AllocaSubBufCommand::printDot(FILE *file) const {
 
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#FFD28A\", label=\"",(const void*)this);
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#FFD28A\", label=\"",
+          (const void *)this);
 
-  
-  fprintf(file,"ID = %p\\n",(const void*)this);
-  fprintf(file,"ALLOCA SUB BUF ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file," MemObj : %p\\n",(const void*)this->MRequirement.MSYCLMemObj);
-  fprintf(file," Offset : %u\\n",this->MRequirement.MOffsetInBytes);
-  fprintf(file," Access range : %lu\\n",this->MRequirement.MAccessRange[0]);
-  fprintf(file,"\"];\n");
+  fprintf(file, "ID = %p\\n", (const void *)this);
+  fprintf(file, "ALLOCA SUB BUF ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, " MemObj : %p\\n",
+          (const void *)this->MRequirement.MSYCLMemObj);
+  fprintf(file, " Offset : %u\\n", this->MRequirement.MOffsetInBytes);
+  fprintf(file, " Access range : %lu\\n", this->MRequirement.MAccessRange[0]);
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
       continue;
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1119,20 +1125,23 @@ cl_int ReleaseCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void ReleaseCommand::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#FF827A\", label=\"",(const void*)this);
+void ReleaseCommand::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#FF827A\", label=\"",
+          (const void *)this);
 
-  fprintf(file,"ID = %p;",(const void*)this);
-  fprintf(file,"RELEASE ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file," Alloca : %p\\n",(const void*)MAllocaCmd);
-  fprintf(file," MemObj : %p\\n",(const void*)MAllocaCmd->getSYCLMemObj());
-  fprintf(file,"\"];\n");
+  fprintf(file, "ID = %p;", (const void *)this);
+  fprintf(file, "RELEASE ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, " Alloca : %p\\n", (const void *)MAllocaCmd);
+  fprintf(file, " MemObj : %p\\n", (const void *)MAllocaCmd->getSYCLMemObj());
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1186,18 +1195,20 @@ cl_int MapMemObject::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void MapMemObject::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#77AFFF\", label=\"",(const void*)this);
+void MapMemObject::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#77AFFF\", label=\"",
+          (const void *)this);
 
-  fprintf(file,"ID = %p ; ",(const void*)this);
-  fprintf(file,"MAP ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file,"\"];\n");
+  fprintf(file, "ID = %p ; ", (const void *)this);
+  fprintf(file, "MAP ON %s\\n", deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1264,18 +1275,20 @@ cl_int UnMapMemObject::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void UnMapMemObject::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#EBC40F\", label=\"",(const void*)this);
-  
-  fprintf(file,"ID = %p ; ",(const void*)this);
-  fprintf(file,"UNMAP ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file,"\"];\n");
+void UnMapMemObject::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#EBC40F\", label=\"",
+          (const void *)this);
+
+  fprintf(file, "ID = %p ; ", (const void *)this);
+  fprintf(file, "UNMAP ON %s\\n", deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1372,20 +1385,25 @@ cl_int MemCpyCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void MemCpyCommand::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#C7EB15\" label=\"",(const void*)this);
+void MemCpyCommand::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#C7EB15\" label=\"",
+          (const void *)this);
 
-  fprintf(file,"ID = %p ; ",(const void*)this);
-  fprintf(file,"MEMCPY ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file,"From: %p is host: %s\\n",(const void*)MSrcAllocaCmd,MSrcQueue->is_host()? "true":"false");
-  fprintf(file,"To: %p is host: %s\\n",(const void*)MDstAllocaCmd,MQueue->is_host()?"true":"false");
-  fprintf(file,"\"];\n");
+  fprintf(file, "ID = %p ; ", (const void *)this);
+  fprintf(file, "MEMCPY ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, "From: %p is host: %s\\n", (const void *)MSrcAllocaCmd,
+          MSrcQueue->is_host() ? "true" : "false");
+  fprintf(file, "To: %p is host: %s\\n", (const void *)MDstAllocaCmd,
+          MQueue->is_host() ? "true" : "false");
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1435,25 +1453,29 @@ cl_int UpdateHostRequirementCommand::enqueueImp() {
   return CL_SUCCESS;
 }
 
-void UpdateHostRequirementCommand::printDot(FILE* file) const {
-  
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#f1337f\", label=\"",(const void*)this);
- 
-  fprintf(file,"ID = %p\\n",(const void*)this);
-  fprintf(file,"UPDATE REQ ON %s\\n",deviceToString(MQueue->get_device()).c_str());
+void UpdateHostRequirementCommand::printDot(FILE *file) const {
+
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#f1337f\", label=\"",
+          (const void *)this);
+
+  fprintf(file, "ID = %p\\n", (const void *)this);
+  fprintf(file, "UPDATE REQ ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
   bool IsReqOnBuffer =
       MDstReq.MSYCLMemObj->getType() == SYCLMemObjI::MemObjType::Buffer;
-  fprintf(file,"TYPE: %s\\n",(IsReqOnBuffer ? "Buffer" : "Image"));
-  if (IsReqOnBuffer){
-    fprintf(file,"Is sub buffer: %s\\n",MDstReq.MIsSubBuffer?"true":"false");
+  fprintf(file, "TYPE: %s\\n", (IsReqOnBuffer ? "Buffer" : "Image"));
+  if (IsReqOnBuffer) {
+    fprintf(file, "Is sub buffer: %s\\n",
+            MDstReq.MIsSubBuffer ? "true" : "false");
   }
-  fprintf(file,"\"];\n");
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1593,36 +1615,41 @@ void EmptyCommand::emitInstrumentationData() {
 #endif
 }
 
-void EmptyCommand::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#8d8f29\", label=\"",(const void*)this);
-  
-  fprintf(file,"ID = %p\\n",(const void*)this);
-  fprintf(file,"EMPTY NODE\\n");
+void EmptyCommand::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#8d8f29\", label=\"",
+          (const void *)this);
 
-  fprintf(file,"\"];\n");
+  fprintf(file, "ID = %p\\n", (const void *)this);
+  fprintf(file, "EMPTY NODE\\n");
+
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
 bool EmptyCommand::producesPiEvent() const { return false; }
 
-void MemCpyCommandHost::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#B6A2EB\", label=\"",(const void*)this);
-  
-  fprintf(file,"ID = %p\\n",(const void*)this);
-  fprintf(file,"MEMCPY HOST ON %s\\n",deviceToString(MQueue->get_device()).c_str());
-  fprintf(file,"\"];\n");
+void MemCpyCommandHost::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#B6A2EB\", label=\"",
+          (const void *)this);
+
+  fprintf(file, "ID = %p\\n", (const void *)this);
+  fprintf(file, "MEMCPY HOST ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 
@@ -1875,36 +1902,41 @@ void ExecCGCommand::emitInstrumentationData() {
 #endif
 }
 
-void ExecCGCommand::printDot(FILE* file) const {
-  fprintf(file,"\"%p\" [style=filled, fillcolor=\"#AFFF82\", label=\"",(const void*)this);
- 
-  fprintf(file,"ID = %p\\n",(const void*)this);
-  fprintf(file, "EXEC CG ON %s\\n",deviceToString(MQueue->get_device()).c_str());
+void ExecCGCommand::printDot(FILE *file) const {
+  fprintf(file, "\"%p\" [style=filled, fillcolor=\"#AFFF82\", label=\"",
+          (const void *)this);
+
+  fprintf(file, "ID = %p\\n", (const void *)this);
+  fprintf(file, "EXEC CG ON %s\\n",
+          deviceToString(MQueue->get_device()).c_str());
 
   switch (MCommandGroup->getType()) {
   case detail::CG::Kernel: {
     auto KernelCG =
         reinterpret_cast<detail::CGExecKernel *>(MCommandGroup.get());
-    fprintf(file,"Kernel name: ");
+    fprintf(file, "Kernel name: ");
     if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource())
-      fprintf(file,"created from source");
+      fprintf(file, "created from source");
     else
-      fprintf(file,"%s",demangleKernelName(KernelCG->getKernelName()).c_str());
-    fprintf(file,"\\n");
+      fprintf(file, "%s",
+              demangleKernelName(KernelCG->getKernelName()).c_str());
+    fprintf(file, "\\n");
     break;
   }
   default:
-    fprintf(file,"CG type: %s\\n",cgTypeToString(MCommandGroup->getType()).c_str());
+    fprintf(file, "CG type: %s\\n",
+            cgTypeToString(MCommandGroup->getType()).c_str());
     break;
   }
 
-  fprintf(file,"\"];\n");
+  fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {
-    fprintf(file,"  \"%p\" -> \"%p\"%s%s%s%s%p%s\n",(const void*)this,(const void*)Dep.MDepCommand,
-                 " [ label = \"Access mode: ",
-                 accessModeToString(Dep.MDepRequirement->MAccessMode).c_str() , "\\n",
-                 "MemObj: " , (const void*)Dep.MDepRequirement->MSYCLMemObj , " \" ]");
+    fprintf(file, "  \"%p\" -> \"%p\"%s%s%s%s%p%s\n", (const void *)this,
+            (const void *)Dep.MDepCommand, " [ label = \"Access mode: ",
+            accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(), "\\n",
+            "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
+            " \" ]");
   }
 }
 

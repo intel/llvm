@@ -135,8 +135,8 @@ static void handleVisitedNodes(std::vector<Command *> &Visited) {
   }
 }
 
-static void printDotRecursive(FILE* file,
-                              std::vector<Command *> &Visited, Command *Cmd) {
+static void printDotRecursive(FILE *file, std::vector<Command *> &Visited,
+                              Command *Cmd) {
   if (!markNodeAsVisited(Cmd, Visited))
     return;
   for (Command *User : Cmd->MUsers) {
@@ -154,8 +154,8 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
 
   Counter++;
 
-  FILE* file= fopen(FileName.c_str(), "w");
-  fprintf(file,"strict digraph {\n");
+  FILE *file = fopen(FileName.c_str(), "w");
+  fprintf(file, "strict digraph {\n");
 
   MVisitedCmds.clear();
 

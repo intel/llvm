@@ -11,8 +11,9 @@
 #include <bitset>
 #include <cassert>
 #include <cctype>
-#include <iomanip>
 #include <cstdio>
+#include <iomanip>
+#include <iostream>
 #include <list>
 #include <memory>
 #include <mutex>
@@ -21,7 +22,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <iostream>
 
 #include "usm_allocator.hpp"
 #include <CL/sycl/detail/spinlock.hpp>
@@ -284,7 +284,6 @@ public:
     if (PoolTrace < 1)
       return;
 
-
     std::cout << "USM Pool Settings (Built-in or Adjusted by Environment "
                  "Variable)"
               << std::endl;
@@ -412,7 +411,7 @@ public:
   const Bucket &getBucket() const;
 
   void freeChunk(void *Ptr);
-  operator std::string()const;
+  operator std::string() const;
 };
 
 class Bucket {
@@ -712,7 +711,8 @@ bool Slab::hasAvail() { return NumAllocated != getNumChunks(); }
 
 Slab::operator std::string() const {
   char Os[120];
-  sprintf(Os,"Slab<%p, %p, %lu>",this->getPtr(),this->getEnd(),this->getBucket().getSize());
+  sprintf(Os, "Slab<%p, %p, %lu>", this->getPtr(), this->getEnd(),
+          this->getBucket().getSize());
   return std::string(Os);
 }
 // If a slab was available in the pool then note that the current pooled
@@ -928,9 +928,8 @@ void Bucket::printStats(bool &TitlePrinted, MemType MT) {
                 << std::setw(21) << "Peak Slabs in Pool" << std::endl;
       TitlePrinted = true;
     }
-    printf("%14lu%12lu%12lu%18lu%20lu%21lu\n",getSize(),allocCount,
-              freeCount,allocPoolCount,maxSlabsInUse,
-              maxSlabsInPool);
+    printf("%14lu%12lu%12lu%18lu%20lu%21lu\n", getSize(), allocCount, freeCount,
+           allocPoolCount, maxSlabsInUse, maxSlabsInPool);
   }
 }
 

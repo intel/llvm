@@ -37,7 +37,6 @@ private:
   std::vector<char> Bytes;
 };
 
-
 // Used to define specialization constant registry. Must be ordered map, since
 // the order of entries matters in stableSerializeSpecConstRegistry.
 using SpecConstRegistryT = std::map<std::string, spec_constant_impl>;

@@ -49,7 +49,7 @@ template <> uint32_t pi_cast(uint64_t Value) {
 // TODO: Currently die is defined in each plugin. Probably some
 // common header file with utilities should be created.
 [[noreturn]] void die(const char *Message) {
-  fprintf(stderr,"die: %s\n",Message);
+  fprintf(stderr, "die: %s\n", Message);
   std::terminate();
 }
 

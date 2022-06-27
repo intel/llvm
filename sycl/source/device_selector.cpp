@@ -63,13 +63,10 @@ device device_selector::select_device() const {
                                      .get_info<info::platform::name>();
       std::string DeviceName = dev.get_info<info::device::name>();
       printf("%s%s%d%s\n%s%s%s\n%s%s%s\n",
-                "SYCL_PI_TRACE[all]: ",
-                 "select_device(): -> score = ", dev_score,
-                 ((dev_score < 0) ? " (REJECTED)" : ""),
-                 "SYCL_PI_TRACE[all]: ",
-                 "  platform: ", PlatformName.c_str(),
-                 "SYCL_PI_TRACE[all]: ",
-                 "  device: ", DeviceName.c_str());
+             "SYCL_PI_TRACE[all]: ", "select_device(): -> score = ", dev_score,
+             ((dev_score < 0) ? " (REJECTED)" : ""),
+             "SYCL_PI_TRACE[all]: ", "  platform: ", PlatformName.c_str(),
+             "SYCL_PI_TRACE[all]: ", "  device: ", DeviceName.c_str());
     }
 
     // A negative score means that a device must not be selected.
@@ -95,12 +92,9 @@ device device_selector::select_device() const {
                                      .get_info<info::platform::name>();
       std::string DeviceName = res->get_info<info::device::name>();
       printf("%s%s\n%s%s%s\n%s%s%s\n",
-             "SYCL_PI_TRACE[all]: ",
-             "Selected device ->" ,
-             "SYCL_PI_TRACE[all]: ",
-             "  platform: ", PlatformName.c_str() ,
-             "SYCL_PI_TRACE[all]: ",
-             "  device: " , DeviceName.c_str());
+             "SYCL_PI_TRACE[all]: ", "Selected device ->",
+             "SYCL_PI_TRACE[all]: ", "  platform: ", PlatformName.c_str(),
+             "SYCL_PI_TRACE[all]: ", "  device: ", DeviceName.c_str());
     }
     return *res;
   }

@@ -29,7 +29,7 @@ __SYCL_EXPORT void __spirv_ControlBarrier(__spv::Scope Execution,
   (void)Execution;
   (void)Memory;
   (void)Semantics;
-  fprintf(stderr,"Barrier is not supported on the host device yet.\n");
+  fprintf(stderr, "Barrier is not supported on the host device yet.\n");
   abort();
 }
 

@@ -296,11 +296,12 @@ public:
     // Emit the deprecation warning message if SYCL_BE or SYCL_DEVICE_TYPE is
     // set.
     if (SYCLConfig<SYCL_BE>::get() || getenv("SYCL_DEVICE_TYPE")) {
-      fprintf(stderr,"\nWARNING: The legacy environment variables SYCL_BE and "
-                     "SYCL_DEVICE_TYPE are deprecated. Please use "
-                     "SYCL_DEVICE_FILTER instead. For details, please refer to "
-                     "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                     "EnvironmentVariables.md\n\n");
+      fprintf(stderr,
+              "\nWARNING: The legacy environment variables SYCL_BE and "
+              "SYCL_DEVICE_TYPE are deprecated. Please use "
+              "SYCL_DEVICE_FILTER instead. For details, please refer to "
+              "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+              "EnvironmentVariables.md\n\n");
     }
 
     // As mentioned above, configuration parameters are processed only once.

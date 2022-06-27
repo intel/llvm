@@ -1396,7 +1396,6 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
   ARG_UNUSED(ParamValue);
   ARG_UNUSED(ParamValueSizeRet);
 
-
   PiTrace("Warning : Profiling Not supported under PI_ESIMD_EMULATOR");
   return PI_SUCCESS;
 }

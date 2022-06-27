@@ -826,7 +826,7 @@ public:
   void dump() {
 #ifndef __SYCL_DEVICE_ONLY__
     for (int I = 0; I < NumElements; ++I) {
-      printf("  %d: %d\n",I,getValue(I));
+      printf("  %d: %d\n", I, getValue(I));
     }
     printf("\n");
 #endif // __SYCL_DEVICE_ONLY__

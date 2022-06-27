@@ -256,21 +256,20 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
 
   if (IsDeprecatedKeyNameDeviceNameWasUsed &&
       IsDeprecatedKeyNamePlatformNameWasUsed) {
-    printf("%s%s%s%s%s",
-           "\nWARNING: ", DeprecatedKeyNameDeviceName.c_str() , " and "
-           ,DeprecatedKeyNamePlatformName.c_str() , 
+    printf("%s%s%s%s%s", "\nWARNING: ", DeprecatedKeyNameDeviceName.c_str(),
+           " and ", DeprecatedKeyNamePlatformName.c_str(),
            " in SYCL_DEVICE_ALLOWLIST are deprecated. ");
   } else if (IsDeprecatedKeyNameDeviceNameWasUsed) {
-    printf("%s%s%s","\nWARNING: " , DeprecatedKeyNameDeviceName.c_str()
-           , " in SYCL_DEVICE_ALLOWLIST is deprecated. ");
+    printf("%s%s%s", "\nWARNING: ", DeprecatedKeyNameDeviceName.c_str(),
+           " in SYCL_DEVICE_ALLOWLIST is deprecated. ");
   } else if (IsDeprecatedKeyNamePlatformNameWasUsed) {
-    printf("%s%s%s","\nWARNING: " , DeprecatedKeyNamePlatformName.c_str()
-           , " in SYCL_DEVICE_ALLOWLIST is deprecated. ");
+    printf("%s%s%s", "\nWARNING: ", DeprecatedKeyNamePlatformName.c_str(),
+           " in SYCL_DEVICE_ALLOWLIST is deprecated. ");
   }
   if (IsDeprecatedKeyNameDeviceNameWasUsed ||
       IsDeprecatedKeyNamePlatformNameWasUsed) {
-    printf("%s%s%s%s%s%s%s%s%s","Please use " , BackendNameKeyName ,
-           ", " , DeviceTypeKeyName , " and " , DeviceVendorIdKeyName,
+    printf("%s%s%s%s%s%s%s%s%s", "Please use ", BackendNameKeyName, ", ",
+           DeviceTypeKeyName, " and ", DeviceVendorIdKeyName,
            " instead. For details, please refer to ",
            "https://github.com/intel/llvm/blob/sycl/sycl/doc/",
            "EnvironmentVariables.md\n\n");

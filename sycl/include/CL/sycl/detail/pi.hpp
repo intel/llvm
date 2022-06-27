@@ -83,10 +83,10 @@ __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {
   std::string string;
-  string+= "Unknown parameter ";
-  string+= parameter;
-  string+=" passed to ";
-  string+=functionName;
+  string += "Unknown parameter ";
+  string += parameter;
+  string += " passed to ";
+  string += functionName;
   string += "\n";
   auto msg = string.c_str();
   die(msg);
@@ -234,12 +234,11 @@ public:
   pi_uint32 asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
-  operator std::string()const;
+  operator std::string() const;
 
 protected:
   const _pi_device_binary_property_struct *Prop;
 };
-
 
 // C++ convenience wrapper over the pi_device_binary_struct structure.
 class DeviceBinaryImage {
@@ -298,7 +297,7 @@ public:
   DeviceBinaryImage() : Bin(nullptr){};
 
   virtual void print() const;
-  virtual void dump(FILE* file) const;
+  virtual void dump(FILE *file) const;
 
   size_t getSize() const {
     assert(Bin && "binary image data not set");

@@ -125,8 +125,9 @@ int main(int argc, char **argv) {
     auto PlatformName = Platform.get_info<info::platform::name>();
     const auto &Devices = Platform.get_devices();
     for (const auto &Device : Devices) {
-      std::cout << "[" << backend_to_string(Backend) << ":" << getDeviceTypeName(Device) << ":"
-                << DeviceNums[Backend] << "] ";
+      std::cout << "[" << backend_to_string(Backend) << ":"
+                << getDeviceTypeName(Device) << ":" << DeviceNums[Backend]
+                << "] ";
       ++DeviceNums[Backend];
       // Verbose parameter is set to false to print regular devices output first
       printDeviceInfo(Device, false, PlatformName);

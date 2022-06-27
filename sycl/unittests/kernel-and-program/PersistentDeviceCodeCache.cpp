@@ -13,12 +13,12 @@
 #include <CL/sycl/detail/device_binary_image.hpp>
 #include <CL/sycl/detail/os_util.hpp>
 #include <cstdio>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <optional>
 #include <vector>
-#include <fstream>
 
 #define ASSERT_NO_ERROR(x)                                                     \
   if (std::error_code EC = x) {                                                \

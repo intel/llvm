@@ -13,8 +13,8 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/exception.hpp>
 
-#include <cstring>
 #include <cstdio>
+#include <cstring>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -36,17 +36,18 @@ void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
     Dst.insert(Dst.end(), SC.getValuePtr(), SC.getValuePtr() + SC.getSize());
   }
 }
-spec_constant_impl::operator std::string() const{
+spec_constant_impl::operator std::string() const {
   std::string Out;
   Out += "spec_constant_impl";
-  Out +=  " { Size=";
-  Out += std::to_string(this->getSize()) + " IsSet=" + (this->isSet()?"true":"false")+ " Val=[";
-  
+  Out += " { Size=";
+  Out += std::to_string(this->getSize()) +
+         " IsSet=" + (this->isSet() ? "true" : "false") + " Val=[";
+
   char tempString[50];
   for (unsigned I = 0; I < this->getSize(); ++I) {
     Out += (I == 0 ? "" : " ");
-    sprintf(tempString,"%x",static_cast<int>(*(this->getValuePtr() + I)));
-    Out +=tempString;
+    sprintf(tempString, "%x", static_cast<int>(*(this->getValuePtr() + I)));
+    Out += tempString;
   }
   Out += "]";
   return Out;

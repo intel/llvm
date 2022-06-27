@@ -8,8 +8,8 @@
 #include <algorithm>
 #include <detail/plugin.hpp>
 #include <functional>
-#include <optional>
 #include <iostream>
+#include <optional>
 namespace pi {
 inline std::optional<cl::sycl::detail::plugin>
 initializeAndGet(cl::sycl::backend backend) {

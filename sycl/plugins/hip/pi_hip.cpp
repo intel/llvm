@@ -193,12 +193,12 @@ pi_result check_error(hipError_t result, const char *function, int line,
   const char *errorName = nullptr;
   errorName = hipGetErrorName(result);
   errorString = hipGetErrorString(result);
-  fprintf(stderr, "\nPI HIP ERROR:"
-                  "\n\tValue:           %s",result
-                  "\n\tName:            %s",errorName
-                  "\n\tDescription:     %s",errorString
-                  "\n\tFunction:        %s",function
-                  "\n\tSource Location: %s:%s\n\n",file,line);
+  fprintf(stderr,
+          "\nPI HIP ERROR:"
+          "\n\tValue:           %s",
+          result "\n\tName:            %s", errorName "\n\tDescription:     %s",
+          errorString "\n\tFunction:        %s",
+          function "\n\tSource Location: %s:%s\n\n", file, line);
 
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();
@@ -354,13 +354,13 @@ namespace pi {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  printf("pi_die: %s\n",Message);
+  printf("pi_die: %s\n", Message);
   std::terminate();
 }
 
 // Reports error messages
 void hipPrint(const char *Message) {
-  fprintf(stderr,"pi_print: %s\n",Message);
+  fprintf(stderr, "pi_print: %s\n", Message);
 }
 
 void assertion(bool Condition, const char *Message) {
