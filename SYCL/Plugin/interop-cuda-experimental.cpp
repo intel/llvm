@@ -1,6 +1,6 @@
-// REQUIRES: cuda
+// REQUIRES: cuda && cuda_dev_kit
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -lcuda %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %cuda_options %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1

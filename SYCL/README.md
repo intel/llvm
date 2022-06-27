@@ -123,6 +123,10 @@ at the full path specified by this variable.
 
 ***LEVEL_ZERO_LIBS_DIR*** - path to Level Zero libraries.
 
+***CUDA_INCLUDE*** - path to CUDA headers.
+
+***CUDA_LIBS_DIR*** - path to CUDA libraries.
+
 ***HIP_PLATFORM*** - platform selection for HIP targeted devices.
 Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for HIP to target AMD GPUs
@@ -163,6 +167,7 @@ unavailable.
  * **aot_tool** - Ahead-of-time compilation tools availability;
  * **ocloc**, **opencl-aot** - Specific AOT tool availability;
  * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
+ * **cuda_dev_kit** - CUDA SDK headers and libraries availability;
  * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
  * **gpu-intel-gen11** - Intel GPU Gen11 availability;
  * **gpu-intel-gen12** - Intel GPU Gen12 availability;
@@ -207,6 +212,10 @@ configure specific single test execution in the command line:
    can be also set by CMake variable LEVEL_ZERO_INCLUDE.
  * **level_zero_libs_dir** - directory containing Level_Zero native libraries,
    can be also set by CMake variable LEVEL_ZERO_LIBS_DIR.
+ * **cuda_include** - directory containing CUDA SDK headers, can be also set by
+   CMake variable CUDA_INCLUDE.
+ * **cuda_libs_dir** - directory containing CUDA SDK libraries, can be also set
+   by CMake variable CUDA_LIBS_DIR.
 
 Example:
 
