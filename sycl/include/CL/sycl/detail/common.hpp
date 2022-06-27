@@ -115,19 +115,18 @@ static inline std::string codeToString(pi_int32 code) {
   /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
                           "Native API returns: "
 
-
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <cstdio>
 // TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
   {                                                                            \
-    auto code = expr;                                                          \
+    auto code = expr;
 
-    if (code != CL_SUCCESS) {                                                  \
+if (code != CL_SUCCESS) {
 
-      fprintf(stderr,"%s%s\n",__SYCL_OCL_ERROR_REPORT                                     \
-                , cl::sycl::detail::codeToString(code).c_str());          \
-    }                                                                          \
+  fprintf(stderr, "%s%s\n", __SYCL_OCL_ERROR_REPORT,
+          cl::sycl::detail::codeToString(code).c_str());
+}
   }
 #endif
 
