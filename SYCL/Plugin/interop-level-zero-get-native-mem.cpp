@@ -1,4 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
+// L0 plugin incorrectly reports memory leaks because it doesn't take into
+// account direct calls to L0 API.
+// UNSUPPORTED: ze_debug-1,ze_debug4
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
 
