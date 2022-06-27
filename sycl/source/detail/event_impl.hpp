@@ -226,12 +226,12 @@ private:
   // Events constructed without a context will lazily use the default context
   // when needed.
   void ensureContextInitialized();
-  mutable bool MIsInitialized = true;
-  mutable bool MIsContextInitialized = false;
-  mutable RT::PiEvent MEvent = nullptr;
-  mutable ContextImplPtr MContext;
-  mutable bool MOpenCLInterop = false;
-  mutable bool MHostEvent = true;
+  bool MIsInitialized = true;
+  bool MIsContextInitialized = false;
+  RT::PiEvent MEvent = nullptr;
+  ContextImplPtr MContext;
+  bool MOpenCLInterop = false;
+  bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
