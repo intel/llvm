@@ -12,7 +12,6 @@
 #include "device.h"
 #include "imf_half.hpp"
 #include <cstddef>
-#include <functional>
 #include <type_traits>
 
 #ifdef __LIBDEVICE_IMF_ENABLED__

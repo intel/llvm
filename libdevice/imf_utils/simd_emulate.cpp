@@ -290,122 +290,392 @@ unsigned int __devicelib_imf_vavgs4(unsigned int x, unsigned int y) {
   return __assemble_integral_value<unsigned, uint8_t, 4>(res_buf);
 }
 
-template <typename Tp, size_t N, typename Comp>
-static inline unsigned int __internal_vcmps_op(unsigned int x, unsigned int y,
-                                               Comp comp) {
+template <typename Tp> class __min_op {
+public:
+  Tp operator()(const Tp &x, const Tp &y) { return (x < y) ? x : y; }
+};
+
+template <typename Tp> class __max_op {
+public:
+  Tp operator()(const Tp &x, const Tp &y) { return (x > y) ? x : y; }
+};
+
+template <typename Tp> class __eq_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return ((x == y) ? static_cast<UTp>(-1) : 0);
+  }
+};
+
+template <typename Tp> class __neq_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return ((x != y) ? static_cast<UTp>(-1) : 0);
+  }
+};
+
+template <typename Tp> class __set_eq_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) { return ((x == y) ? 1 : 0); }
+};
+
+template <typename Tp> class __set_neq_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) { return ((x != y) ? 1 : 0); }
+};
+
+template <typename Tp> class __gt_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return ((x > y) ? static_cast<UTp>(-1) : 0);
+  }
+};
+
+template <typename Tp> class __set_gt_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) { return ((x > y) ? 1 : 0); }
+};
+
+template <typename Tp> class __ge_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return ((x >= y) ? static_cast<UTp>(-1) : 0);
+  }
+};
+
+template <typename Tp> class __set_ge_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) { return ((x >= y) ? 1 : 0); }
+};
+
+template <typename Tp> class __lt_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return ((x < y) ? static_cast<UTp>(-1) : 0);
+  }
+};
+
+template <typename Tp> class __set_lt_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) { return ((x < y) ? 1 : 0); }
+};
+
+template <typename Tp> class __le_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return ((x <= y) ? static_cast<UTp>(-1) : 0);
+  }
+};
+
+template <typename Tp> class __set_le_op {
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) { return ((x <= y) ? 1 : 0); }
+};
+
+template <typename Tp, size_t N, template <typename> class BinaryOp>
+static inline unsigned int __internal_vs_binary_op(unsigned int x,
+                                                   unsigned int y) {
   static_assert(std::is_same<Tp, int16_t>::value ||
                     std::is_same<Tp, int8_t>::value,
-                "__internal_vcmps_op only accept int8_t and int16_t.");
+                "__internal_vs_binary_op only accept int8_t and int16_t.");
   static_assert(sizeof(Tp) * N == sizeof(unsigned int),
-                "__internal_vcmps_op size mismatch");
+                "__internal_vs_binary_op size mismatch");
   typedef typename std::make_unsigned<Tp>::type UTp;
   UTp res_buf[N] = {
       0,
   };
   Tp x_tmp, y_tmp;
+  BinaryOp<Tp> b_op;
   for (size_t idx = 0; idx < N; ++idx) {
     x_tmp = __bit_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(x, idx));
     y_tmp = __bit_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
-    if (comp(x_tmp, y_tmp))
-      res_buf[idx] = static_cast<UTp>(-1);
-    else
-      res_buf[idx] = 0;
+    res_buf[idx] = b_op(x_tmp, y_tmp);
   }
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
 }
 
-template <typename Tp, size_t N, typename Comp>
-static inline unsigned int __internal_vcmpu_op(unsigned int x, unsigned int y,
-                                               Comp comp) {
+template <typename Tp, size_t N, template <typename> class BinaryOp>
+static inline unsigned int __internal_vu_binary_op(unsigned int x,
+                                                   unsigned int y) {
   static_assert(std::is_same<Tp, uint16_t>::value ||
                     std::is_same<Tp, uint8_t>::value,
-                "__internal_vcmpu_op only accept uint8_t and uint16_t.");
+                "__internal_vu_binary_op only accept uint8_t and uint16_t.");
   static_assert(sizeof(Tp) * N == sizeof(unsigned int),
-                "__internal_vcmpu_op size mismatch");
+                "__internal_vu_binary_op size mismatch");
   Tp res_buf[N] = {
       0,
   };
   Tp x_tmp, y_tmp;
+  BinaryOp<Tp> b_op;
   for (size_t idx = 0; idx < N; ++idx) {
     x_tmp = __get_bytes_by_index<unsigned int, Tp>(x, idx);
     y_tmp = __get_bytes_by_index<unsigned int, Tp>(y, idx);
-    if (comp(x_tmp, y_tmp))
-      res_buf[idx] = static_cast<Tp>(-1);
-    else
-      res_buf[idx] = 0;
+    res_buf[idx] = b_op(x_tmp, y_tmp);
   }
   return __assemble_integral_value<unsigned, Tp, N>(res_buf);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpeq2(unsigned int x, unsigned int y) {
-  return __internal_vcmpu_op<uint16_t, 2, std::equal_to<uint16_t>>(
-      x, y, std::equal_to<uint16_t>());
+  return __internal_vu_binary_op<uint16_t, 2, __eq_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpeq4(unsigned int x, unsigned int y) {
-  return __internal_vcmpu_op<uint8_t, 4, std::equal_to<uint8_t>>(
-      x, y, std::equal_to<uint8_t>());
+  return __internal_vu_binary_op<uint8_t, 4, __eq_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpges2(unsigned int x, unsigned int y) {
-  return __internal_vcmps_op<int16_t, 2, std::greater_equal<int16_t>>(
-      x, y, std::greater_equal<int16_t>());
+  return __internal_vs_binary_op<int16_t, 2, __ge_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpges4(unsigned int x, unsigned int y) {
-  return __internal_vcmps_op<int8_t, 4, std::greater_equal<int8_t>>(
-      x, y, std::greater_equal<int8_t>());
+  return __internal_vs_binary_op<int8_t, 4, __ge_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgeu2(unsigned int x, unsigned int y) {
-  return __internal_vcmpu_op<uint16_t, 2, std::greater_equal<uint16_t>>(
-      x, y, std::greater_equal<uint16_t>());
+  return __internal_vu_binary_op<uint16_t, 2, __ge_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgeu4(unsigned int x, unsigned int y) {
-  return __internal_vcmpu_op<uint8_t, 4, std::greater_equal<uint8_t>>(
-      x, y, std::greater_equal<uint8_t>());
+  return __internal_vu_binary_op<uint8_t, 4, __ge_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgts2(unsigned int x, unsigned int y) {
-  return __internal_vcmps_op<int16_t, 2, std::greater<int16_t>>(
-      x, y, std::greater<int16_t>());
+  return __internal_vs_binary_op<int16_t, 2, __gt_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgts4(unsigned int x, unsigned int y) {
-  return __internal_vcmps_op<int8_t, 4, std::greater<int8_t>>(
-      x, y, std::greater<int8_t>());
+  return __internal_vs_binary_op<int8_t, 4, __gt_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgtu2(unsigned int x, unsigned int y) {
-  return __internal_vcmpu_op<uint16_t, 2, std::greater<uint16_t>>(
-      x, y, std::greater<uint16_t>());
+  return __internal_vu_binary_op<uint16_t, 2, __gt_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgtu4(unsigned int x, unsigned int y) {
-  return __internal_vcmpu_op<uint8_t, 4, std::greater<uint8_t>>(
-      x, y, std::greater<uint8_t>());
+  return __internal_vu_binary_op<uint8_t, 4, __gt_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmples2(unsigned int x, unsigned int y) {
-  return __internal_vcmps_op<int16_t, 2, std::less_equal<int16_t>>(
-      x, y, std::less_equal<int16_t>());
+  return __internal_vs_binary_op<int16_t, 2, __le_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmples4(unsigned int x, unsigned int y) {
-  return __internal_vcmps_op<int8_t, 4, std::less_equal<int8_t>>(
-      x, y, std::less_equal<int8_t>());
+  return __internal_vs_binary_op<int8_t, 4, __le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmpleu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmpleu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmplts2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __lt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmplts4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmpltu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __lt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmpltu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __lt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmpne2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __neq_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vcmpne4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __neq_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vmaxs2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __max_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vmaxs4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __max_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vmaxu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __max_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vmaxu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __max_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vmins2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __min_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vmins4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __min_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vminu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __min_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vminu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __min_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vseteq2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __set_eq_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vseteq4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __set_eq_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetne2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __set_neq_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetne4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __set_neq_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetges2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __set_ge_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetges4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __set_ge_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetgeu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __set_ge_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetgeu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __set_ge_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetgts2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __set_gt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetgts4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __set_gt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetgtu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __set_gt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetgtu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __set_gt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetles2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __set_le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetles4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __set_le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetleu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __set_le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetleu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __set_le_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetlts2(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int16_t, 2, __set_lt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetlts4(unsigned int x, unsigned int y) {
+  return __internal_vs_binary_op<int8_t, 4, __set_lt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetltu2(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint16_t, 2, __set_lt_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsetltu4(unsigned int x, unsigned int y) {
+  return __internal_vu_binary_op<uint8_t, 4, __set_lt_op>(x, y);
 }
 #endif

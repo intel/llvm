@@ -1902,6 +1902,8 @@ extern SYCL_EXTERNAL unsigned int __imf_vavgs2(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vavgs4(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vcmpeq2(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vcmpeq4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpne2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpne4(unsigned int x, unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vcmpges2(unsigned int x,
                                                  unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vcmpges4(unsigned int x,
@@ -1921,6 +1923,62 @@ extern SYCL_EXTERNAL unsigned int __imf_vcmpgtu4(unsigned int x,
 extern SYCL_EXTERNAL unsigned int __imf_vcmples2(unsigned int x,
                                                  unsigned int y);
 extern SYCL_EXTERNAL unsigned int __imf_vcmples4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpleu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpleu4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmplts2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmplts4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpltu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vcmpltu4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vmaxs2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vmaxs4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vmaxu2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vmaxu4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vmins2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vmins4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vminu2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vminu4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vseteq2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vseteq4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetne2(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetne4(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetges2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetges4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetgeu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetgeu4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetgts2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetgts4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetgtu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetgtu4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetles2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetles4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetleu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetleu4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetlts2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetlts4(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetltu2(unsigned int x,
+                                                 unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_vsetltu4(unsigned int x,
                                                  unsigned int y);
 }
 #ifdef __GLIBC__
