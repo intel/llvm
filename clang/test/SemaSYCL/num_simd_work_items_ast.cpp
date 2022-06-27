@@ -51,8 +51,7 @@ int ver() {
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 2
 // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-[[intel::num_simd_work_items(2)]]
-[[intel::num_simd_work_items(2)]] void funccc() {}
+[[intel::num_simd_work_items(2)]] [[intel::num_simd_work_items(2)]] void funccc() {}
 
 [[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
@@ -66,26 +65,22 @@ struct FuncObj {
 // if the last argument can be evenly divided by the
 // [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjGood1 {
-  [[intel::num_simd_work_items(4)]]
-  [[sycl::reqd_work_group_size(3, 64, 4)]] void
+  [[intel::num_simd_work_items(4)]] [[sycl::reqd_work_group_size(3, 64, 4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  [[sycl::reqd_work_group_size(3, 64, 4)]]
-  [[intel::num_simd_work_items(4)]] void
+  [[sycl::reqd_work_group_size(3, 64, 4)]] [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood3 {
-  [[intel::num_simd_work_items(4)]]
-  [[sycl::reqd_work_group_size(3, 64, 4)]] void
+  [[intel::num_simd_work_items(4)]] [[sycl::reqd_work_group_size(3, 64, 4)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-  [[sycl::reqd_work_group_size(3, 64, 4)]]
-  [[intel::num_simd_work_items(4)]] void
+  [[sycl::reqd_work_group_size(3, 64, 4)]] [[intel::num_simd_work_items(4)]] void
   operator()() const {}
 };
 
@@ -118,7 +113,7 @@ int main() {
     // CHECK-NEXT:  value: Int 8
     // CHECK-NEXT:  IntegerLiteral{{.*}}8{{$}}
     h.single_task<class test_kernel2>(
-        []() [[intel::num_simd_work_items(8)]]{});
+        []() [[intel::num_simd_work_items(8)]] {});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelNumSimdWorkItemsAttr {{.*}}

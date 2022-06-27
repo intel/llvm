@@ -23,7 +23,7 @@ queue q;
 // if the work group size attribute argument (the last argument)
 // can be evenly divided by the [[intel::num_simd_work_items()]] attribute.
 struct TRIFuncObjBad1 {
-  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
@@ -31,7 +31,7 @@ struct TRIFuncObjBad1 {
 
 struct TRIFuncObjBad2 {
   [[sycl::reqd_work_group_size(3, 6, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]        // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
@@ -45,7 +45,7 @@ struct TRIFuncObjBad2 {
 // (one, two, and three argument) can be used instead of assuming default
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad3 {
-  [[intel::num_simd_work_items(3)]]  // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(3)]] //expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
@@ -72,7 +72,7 @@ struct TRIFuncObjBad4 {
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad5 {
   [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-  [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
+  [[sycl::reqd_work_group_size(4, 64)]]  // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
@@ -85,36 +85,40 @@ struct TRIFuncObjBad5 {
 // values. This will prevent to redeclare the function with a different dimensionality.
 struct TRIFuncObjBad6 {
   [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(4)]]      // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(4)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad7 {
   [[sycl::reqd_work_group_size(6, 3, 5)]] // expected-note{{conflicting attribute is here}}
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad8 {
-  [[intel::num_simd_work_items(3)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+  [[intel::num_simd_work_items(3)]]       // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(6, 3, 5)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
 };
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-[[sycl::reqd_work_group_size(4, 2, 3)]] void func1(); // expected-note{{conflicting attribute is here}}
+[[sycl::reqd_work_group_size(4, 2, 3)]] void
+func1(); // expected-note{{conflicting attribute is here}}
 
 [[sycl::reqd_work_group_size(4, 2, 3)]]         // expected-note{{conflicting attribute is here}}
-[[intel::num_simd_work_items(2)]] void func2(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] void
+func2(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
-[[cl::reqd_work_group_size(4, 2, 3)]] void func3(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+[[cl::reqd_work_group_size(4, 2, 3)]] void
+func3(); // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 
 [[cl::reqd_work_group_size(4, 2, 3)]] // expected-note{{conflicting attribute is here}} expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
-[[intel::num_simd_work_items(2)]] void func4(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
+[[intel::num_simd_work_items(2)]] void
+func4(); // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 
 // If the declaration has a __attribute__((reqd_work_group_size()))
 // attribute, tests that check if the work group size attribute argument
@@ -129,9 +133,9 @@ __attribute__((reqd_work_group_size(3, 2, 6))) void func6(); // expected-warning
 
 // Tests for incorrect argument values for Intel FPGA num_simd_work_items and reqd_work_group_size function attributes
 struct TRIFuncObjBad9 {
-  [[sycl::reqd_work_group_size(5, 5, 5)]]
-  [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
-  void operator()() const {}
+  [[sycl::reqd_work_group_size(5, 5, 5)]] [[intel::num_simd_work_items(0)]] // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad10 {
@@ -142,14 +146,14 @@ struct TRIFuncObjBad10 {
 
 struct TRIFuncObjBad11 {
   [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  [[sycl::reqd_work_group_size(64, 64, 64)]]
-  void operator()() const {}
+  [[sycl::reqd_work_group_size(64, 64, 64)]] void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad12 {
-  [[sycl::reqd_work_group_size(64, 64, 64)]]
-  [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  void operator()() const {}
+  [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad13 {
@@ -162,19 +166,21 @@ struct TRIFuncObjBad13 {
 struct TRIFuncObjBad14 {
   [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  void operator()() const {}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad15 {
   [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::num_simd_work_items(3.f)]]  // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  void operator()() const {}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad16 {
-  [[intel::num_simd_work_items(3)]]
-  [[sycl::reqd_work_group_size(3, 3, 3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
-  void operator()() const {}
+  [[intel::num_simd_work_items(3)]] [[sycl::reqd_work_group_size(3, 3, 3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  void
+  operator()() const {}
 };
 
 struct TRIFuncObjBad17 {
@@ -207,10 +213,10 @@ int main() {
     [[intel::num_simd_work_items(0)]] int Var = 0; // expected-error{{'num_simd_work_items' attribute only applies to functions}}
 
     h.single_task<class test_kernel1>(
-        []() [[intel::num_simd_work_items(0)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(0)]] {}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel2>(
-        []() [[intel::num_simd_work_items(-42)]]{}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
+        []() [[intel::num_simd_work_items(-42)]] {}); // expected-error{{'num_simd_work_items' attribute requires a positive integral compile time constant expression}}
 
     h.single_task<class test_kernel3>(TRIFuncObjBad1());
 
@@ -268,11 +274,11 @@ template <typename Ty>
 
 struct S {};
 void test() {
-  //expected-note@+1{{in instantiation of function template specialization 'func7<S>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func7<S>' requested here}}
   func7<S>();
-  //expected-note@+1{{in instantiation of function template specialization 'func7<float>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func7<float>' requested here}}
   func7<float>();
-  //expected-note@+1{{in instantiation of function template specialization 'func7<int>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func7<int>' requested here}}
   func7<int>();
 }
 
@@ -359,26 +365,26 @@ template <int N>
 [[sycl::reqd_work_group_size(N, N, N)]] void func23(); // expected-note{{conflicting attribute is here}}
 
 int check1() {
-  func10<3>(); // OK
-  func10<2>(); // expected-note {{in instantiation of function template specialization 'func10<2>' requested here}}
-  func11<4>(); // expected-note {{in instantiation of function template specialization 'func11<4>' requested here}}
-  func11<5>(); // OK
-  func12<5>(); // expected-note {{in instantiation of function template specialization 'func12<5>' requested here}}
-  func12<3>(); // OK
+  func10<3>();          // OK
+  func10<2>();          // expected-note {{in instantiation of function template specialization 'func10<2>' requested here}}
+  func11<4>();          // expected-note {{in instantiation of function template specialization 'func11<4>' requested here}}
+  func11<5>();          // OK
+  func12<5>();          // expected-note {{in instantiation of function template specialization 'func12<5>' requested here}}
+  func12<3>();          // OK
   func13<6, 3, 5, 3>(); // expected-note {{in instantiation of function template specialization 'func13<6, 3, 5, 3>' requested here}}
   func13<9, 6, 3, 3>(); // OK
-  func14<6, 3, 5>(); // expected-note {{in instantiation of function template specialization 'func14<6, 3, 5>' requested here}}
-  func14<9, 6, 3>(); // OK
-  func15<6, 4, 5>(); // expected-note {{in instantiation of function template specialization 'func15<6, 4, 5>' requested here}}
-  func15<8, 6, 2>(); // OK
-  func16<3>(); // expected-note {{in instantiation of function template specialization 'func16<3>' requested here}}
-  func16<2>(); // OK
-  func17<3>(); // OK
-  func17<2>(); // expected-note {{in instantiation of function template specialization 'func17<2>' requested here}}
-  func18<4>(); // expected-note {{in instantiation of function template specialization 'func18<4>' requested here}}
-  func18<5>(); // OK
-  func19<5>(); // expected-note {{in instantiation of function template specialization 'func19<5>' requested here}}
-  func19<3>(); // OK
+  func14<6, 3, 5>();    // expected-note {{in instantiation of function template specialization 'func14<6, 3, 5>' requested here}}
+  func14<9, 6, 3>();    // OK
+  func15<6, 4, 5>();    // expected-note {{in instantiation of function template specialization 'func15<6, 4, 5>' requested here}}
+  func15<8, 6, 2>();    // OK
+  func16<3>();          // expected-note {{in instantiation of function template specialization 'func16<3>' requested here}}
+  func16<2>();          // OK
+  func17<3>();          // OK
+  func17<2>();          // expected-note {{in instantiation of function template specialization 'func17<2>' requested here}}
+  func18<4>();          // expected-note {{in instantiation of function template specialization 'func18<4>' requested here}}
+  func18<5>();          // OK
+  func19<5>();          // expected-note {{in instantiation of function template specialization 'func19<5>' requested here}}
+  func19<3>();          // OK
   func20<6, 3, 5, 3>(); // expected-note {{in instantiation of function template specialization 'func20<6, 3, 5, 3>' requested here}}
   func20<9, 6, 3, 3>(); // OK
   func21<6, 3, 5>();    // expected-note {{in instantiation of function template specialization 'func21<6, 3, 5>' requested here}}
@@ -399,7 +405,7 @@ public:
 };
 
 int kernel() {
-  //expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
+  // expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
   KernelFunctor<-1>();
   // no error expected
   KernelFunctor<10>();
@@ -420,14 +426,13 @@ template <int N>
 int ver() {
   // no error expected.
   func24<8>();
-  //expected-note@+1{{in instantiation of function template specialization 'func24<-1>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func24<-1>' requested here}}
   func24<-1>();
-  //expected-note@+1 {{in instantiation of function template specialization 'func25<6>' requested here}}
+  // expected-note@+1 {{in instantiation of function template specialization 'func25<6>' requested here}}
   func25<6>();
   return 0;
 }
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
-[[intel::num_simd_work_items(2)]]
-[[intel::num_simd_work_items(2)]] void func26() {}
+[[intel::num_simd_work_items(2)]] [[intel::num_simd_work_items(2)]] void func26() {}
 
