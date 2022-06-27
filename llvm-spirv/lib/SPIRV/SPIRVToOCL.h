@@ -241,6 +241,9 @@ public:
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
 
+  void translateOpaqueTypes();
+
+private:
   /// Transform uniform group opcode to corresponding OpenCL function name,
   /// example: GroupIAdd(Reduce) => group_iadd => work_group_reduce_add |
   /// sub_group_reduce_add
@@ -267,9 +270,9 @@ public:
 
   void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
 
-  void translateOpaqueTypes();
   std::string translateOpaqueType(StringRef STName);
 
+protected:
   Module *M;
   LLVMContext *Ctx;
 };
