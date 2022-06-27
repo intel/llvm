@@ -75,7 +75,7 @@ struct TRIFuncObjBad5 {
   [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
   void
   operator()() const {}
- };
+};
 
 // FIXME: This should be accepted instead of error which turns out to be
 // an implementation bug that shouldn't be visible to the user as there
@@ -151,7 +151,7 @@ struct TRIFuncObjBad11 {
 };
 
 struct TRIFuncObjBad12 {
-  [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}	
+  [[sycl::reqd_work_group_size(64, 64, 64)]] [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void
   operator()() const {}
 };
@@ -164,14 +164,14 @@ struct TRIFuncObjBad13 {
 };
 
 struct TRIFuncObjBad14 {
-  [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}	
+  [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[sycl::reqd_work_group_size(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void
   operator()() const {}
 };
 
 struct TRIFuncObjBad15 {
-  [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}	
+  [[intel::num_simd_work_items(3.f)]] // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   void
   operator()() const {}
 };
@@ -434,4 +434,3 @@ int ver() {
 
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
 [[intel::num_simd_work_items(2)]] [[intel::num_simd_work_items(2)]] void func26() {}
-
