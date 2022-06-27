@@ -258,6 +258,10 @@ private:
 
   std::mutex MMutex;
   std::condition_variable cv;
+
+  friend std::vector<RT::PiEvent>
+  getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
+                  std::shared_ptr<cl::sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
