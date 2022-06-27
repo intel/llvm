@@ -1118,7 +1118,28 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
-static pi_result CleanupCompletedEvent(pi_event);
+static pi_result CleanupCompletedEvent(pi_event Event,
+                                       bool QueueLocked = false);
+
+// Helper function to perform the necessary cleanup of the events from reset cmd
+// list.
+static pi_result
+CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
+                                 bool QueueLocked = false) {
+  for (auto Event : EventListToCleanup) {
+    // We don't need to synchronize the events since the fence associated with
+    // the command list was synchronized.
+    {
+      std::scoped_lock EventLock(Event->Mutex);
+      Event->Completed = true;
+    }
+    PI_CALL(CleanupCompletedEvent(Event, QueueLocked));
+    // This event was removed from the command list, so decrement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
+  }
+  return PI_SUCCESS;
+}
 
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists. A caller must not lock the queue mutex.
@@ -1150,18 +1171,7 @@ pi_result resetCommandLists(pi_queue Queue) {
       }
     }
   }
-  for (auto Event : EventListToCleanup) {
-    // We don't need to synchronize the events since the fence
-    // synchronized above already does that.
-    {
-      std::scoped_lock EventLock(Event->Mutex);
-      Event->Completed = true;
-    }
-    PI_CALL(CleanupCompletedEvent(Event));
-    // This event was removed from the command list, so decrement ref count
-    // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
-  }
+  CleanupEventListFromResetCmdList(EventListToCleanup);
   return PI_SUCCESS;
 }
 
@@ -1241,6 +1251,31 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
                 .first;
       }
       ZeCommandListCache.pop_front();
+      return PI_SUCCESS;
+    }
+  }
+
+  // If there are no available command lists in the cache, then we check for
+  // command lists that have already signalled, but have not been added to the
+  // available list yet. Each command list has a fence associated which tracks
+  // if a command list has completed dispatch of its commands and is ready for
+  // reuse. If a command list is found to have been signalled, then the
+  // command list & fence are reset and we return.
+  for (auto it = Queue->CommandListMap.begin();
+       it != Queue->CommandListMap.end(); ++it) {
+    // Make sure this is the command list type needed.
+    if (UseCopyEngine != it->second.isCopy(Queue))
+      continue;
+
+    ze_result_t ZeResult =
+        ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+    if (ZeResult == ZE_RESULT_SUCCESS) {
+      std::vector<pi_event> EventListToCleanup;
+      Queue->resetCommandList(it, false, EventListToCleanup);
+      CleanupEventListFromResetCmdList(EventListToCleanup,
+                                       true /* QueueLocked */);
+      CommandList = it;
+      CommandList->second.ZeFenceInUse = true;
       return PI_SUCCESS;
     }
   }
@@ -5452,8 +5487,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // This currently makes sure to release any kernel that may have been used by
 // the event, updates the last command event in the queue and cleans up all dep
 // events of the event.
-// The caller must not lock any mutexes.
-static pi_result CleanupCompletedEvent(pi_event Event) {
+// If the caller locks queue mutex then it must pass 'true' to QueueLocked.
+static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
   pi_kernel AssociatedKernel = nullptr;
   // List of dependent events.
   std::list<pi_event> EventsToBeReleased;
@@ -5489,7 +5524,9 @@ static pi_result CleanupCompletedEvent(pi_event Event) {
   if (AssociatedQueue) {
     {
       // Lock automatically releases when this goes out of scope.
-      std::scoped_lock Lock(AssociatedQueue->Mutex);
+      std::unique_lock QueueLock(AssociatedQueue->Mutex, std::defer_lock);
+      if (!QueueLocked)
+        QueueLock.lock();
 
       // If this event was the LastCommandEvent in the queue, being used
       // to make sure that commands were executed in-order, remove this.
