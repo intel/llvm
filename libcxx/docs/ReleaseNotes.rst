@@ -73,6 +73,14 @@ New Features
   moved from the dylib to the header. This means the function no longer has a
   minimum deployment target.
 
+- Implemented P2216R3 (std::format improvements). The format functions
+  (``std::format``, ``std::format_to``, ``std::format_to_n``, and
+  ``std::formatted_size``) now validate the format string at compile time.
+  When the format string is invalid this will make the code ill-formed instead
+  of throwing an exception at run-time.  (This does not affect the ``v``
+  functions.)
+
+
 API Changes
 -----------
 
@@ -89,7 +97,11 @@ API Changes
 - Some libc++ headers no longer transitively include all of:
     - ``<algorithm>``
     - ``<chrono>``
+    - ``<exception>``
     - ``<functional>``
+    - ``<iterator>``
+    - ``<new>``
+    - ``<typeinfo>``
     - ``<utility>``
 
   If, after updating libc++, you see compiler errors related to missing declarations
@@ -124,6 +136,11 @@ API Changes
   users of libc++. Instead, users not wishing to take a dependency on libc++ should link
   against the static version of libc++, which will result in no dependency being
   taken against the shared library.
+
+- The ``_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_VOID_SPECIALIZATION`` macro has been added to allow
+  re-enabling the ``allocator<void>`` specialization. When used in conjuction with
+  ``_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS``, this ensures that the members of
+  ``allocator<void>`` removed in C++20 can be accessed.
 
 ABI Changes
 -----------
@@ -184,3 +201,8 @@ Build System Changes
 - The ``LIBCXX_ENABLE_DEBUG_MODE_SUPPORT`` CMake configuration is not supported anymore. If you
   were disabling support for the debug mode with that flag, please use ``LIBCXX_ENABLE_BACKWARDS_COMPATIBILITY_DEBUG_MODE_SYMBOLS=OFF``
   instead.
+
+- MinGW DLL builds of libc++ no longer use dllimport in their headers, which
+  means that the same set of installed headers works for both DLL and static
+  linkage. This means that distributors finally can build both library
+  versions with a single CMake invocation.

@@ -24,6 +24,14 @@ inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
   return sycl::detail::make_device(NativeHandle, backend::ext_oneapi_cuda);
 }
 
+// Implementation of cuda::has_native_event
+inline __SYCL_EXPORT bool has_native_event(event sycl_event) {
+  if (sycl_event.get_backend() == backend::ext_oneapi_cuda)
+    return get_native<backend::ext_oneapi_cuda>(sycl_event) != nullptr;
+
+  return false;
+}
+
 } // namespace cuda
 } // namespace oneapi
 } // namespace ext
@@ -69,6 +77,26 @@ inline device make_device<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, device> &BackendObject) {
   pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
+}
+
+// CUDA event specialization
+template <>
+inline event make_event<backend::ext_oneapi_cuda>(
+    const backend_input_t<backend::ext_oneapi_cuda, event> &BackendObject,
+    const context &TargetContext) {
+  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, true,
+                            /*Backend*/ backend::ext_oneapi_cuda);
+}
+
+// CUDA queue specialization
+template <>
+inline queue make_queue<backend::ext_oneapi_cuda>(
+    const backend_input_t<backend::ext_oneapi_cuda, queue> &BackendObject,
+    const context &TargetContext, const async_handler Handler) {
+  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+                            TargetContext, true, Handler,
+                            /*Backend*/ backend::ext_oneapi_cuda);
 }
 
 } // namespace sycl

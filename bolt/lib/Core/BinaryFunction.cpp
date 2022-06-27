@@ -1383,6 +1383,9 @@ add_instruction:
   // Reset symbolizer for the disassembler.
   BC.SymbolicDisAsm->setSymbolizer(nullptr);
 
+  if (uint64_t Offset = getFirstInstructionOffset())
+    Labels[Offset] = BC.Ctx->createNamedTempSymbol();
+
   clearList(Relocations);
 
   if (!IsSimple) {
@@ -1895,7 +1898,7 @@ bool BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
     return false;
 
   assert(BasicBlocks.empty() && "basic block list should be empty");
-  assert((Labels.find(0) != Labels.end()) &&
+  assert((Labels.find(getFirstInstructionOffset()) != Labels.end()) &&
          "first instruction should always have a label");
 
   // Create basic blocks in the original layout order:
@@ -1954,8 +1957,10 @@ bool BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
     if (LI != Labels.end()) {
       // Always create new BB at branch destination.
       PrevBB = InsertBB ? InsertBB : PrevBB;
-      InsertBB = addBasicBlock(LI->first, LI->second,
-                               opts::PreserveBlocksAlignment && IsLastInstrNop);
+      InsertBB = addBasicBlockAt(LI->first, LI->second);
+      if (opts::PreserveBlocksAlignment && IsLastInstrNop)
+        InsertBB->setDerivedAlignment();
+
       if (PrevBB)
         updateOffset(LastInstrOffset);
     }
@@ -1994,14 +1999,15 @@ bool BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
           auto L = BC.scopeLock();
           Label = BC.Ctx->createNamedTempSymbol("FT");
         }
-        InsertBB = addBasicBlock(
-            Offset, Label, opts::PreserveBlocksAlignment && IsLastInstrNop);
+        InsertBB = addBasicBlockAt(Offset, Label);
+        if (opts::PreserveBlocksAlignment && IsLastInstrNop)
+          InsertBB->setDerivedAlignment();
         updateOffset(LastInstrOffset);
       }
     }
-    if (Offset == 0) {
-      // Add associated CFI pseudos in the first offset (0)
-      addCFIPlaceholders(0, InsertBB);
+    if (Offset == getFirstInstructionOffset()) {
+      // Add associated CFI pseudos in the first offset
+      addCFIPlaceholders(Offset, InsertBB);
     }
 
     const bool IsBlockEnd = MIB->isTerminator(Instr);
@@ -2252,8 +2258,9 @@ void BinaryFunction::removeConditionalTailCalls() {
     // Link new BBs to the original input offset of the BB where the CTC
     // is, so we can map samples recorded in new BBs back to the original BB
     // seem in the input binary (if using BAT)
-    std::unique_ptr<BinaryBasicBlock> TailCallBB = createBasicBlock(
-        BB.getInputOffset(), BC.Ctx->createNamedTempSymbol("TC"));
+    std::unique_ptr<BinaryBasicBlock> TailCallBB =
+        createBasicBlock(BC.Ctx->createNamedTempSymbol("TC"));
+    TailCallBB->setOffset(BB.getInputOffset());
     TailCallBB->addInstruction(TailCallInstr);
     TailCallBB->setCFIState(CFIStateBeforeCTC);
 
@@ -3830,8 +3837,8 @@ BinaryBasicBlock *BinaryFunction::splitEdge(BinaryBasicBlock *From,
   // Link new BBs to the original input offset of the From BB, so we can map
   // samples recorded in new BBs back to the original BB seem in the input
   // binary (if using BAT)
-  std::unique_ptr<BinaryBasicBlock> NewBB =
-      createBasicBlock(From->getInputOffset(), Tmp);
+  std::unique_ptr<BinaryBasicBlock> NewBB = createBasicBlock(Tmp);
+  NewBB->setOffset(From->getInputOffset());
   BinaryBasicBlock *NewBBPtr = NewBB.get();
 
   // Update "From" BB
