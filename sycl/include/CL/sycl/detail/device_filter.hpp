@@ -55,8 +55,7 @@ inline device_filter::operator std::string() const {
   std::string Out{};
   Out+= backend_to_string(this->Backend);
   Out+= ":";
-  switch (this->DeviceType)
-  {
+  switch (this->DeviceType) {
   case info::device_type::host:
     Out += "host";
     break;
@@ -73,7 +72,7 @@ inline device_filter::operator std::string() const {
     Out += "unknown";
     break;
   }
-  
+
   if (this->HasDeviceNum) {
     Out += ":";
     Out += this->DeviceNum;

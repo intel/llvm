@@ -394,12 +394,13 @@ private:
   static bool parseValue() {
     // Check if deprecated opt-out env var is used, then warn.
     if (SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get()) {
-      fprintf(stderr,"WARNING: %s environment variable is deprecated "
-                     "and has no effect. By default, persistent device code caching is "
-                     "%s Use %s=1/0 to enable/disable.\n",
-                     SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName(),
-                     (Default ? "enabled." : "disabled."),
-                     getName());
+      fprintf(
+          stderr,
+          "WARNING: %s environment variable is deprecated "
+          "and has no effect. By default, persistent device code caching is "
+          "%s Use %s=1/0 to enable/disable.\n",
+          SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName(),
+          (Default ? "enabled." : "disabled."), getName());
     }
 
     const char *ValStr = BaseT::getRawValue();
