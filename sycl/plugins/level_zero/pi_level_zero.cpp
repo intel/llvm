@@ -5017,10 +5017,6 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
   PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock Lock(Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
@@ -5218,10 +5214,6 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
 pi_result
 _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_EVENT);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::scoped_lock Lock(Queue->Mutex, this->Mutex);
 
@@ -5907,10 +5899,6 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
     bool UseCopyEngine = false;
 
-    // We need a command list to submit the command, that's why reset signalled
-    // command lists to avoid creating new one.
-    resetCommandLists(Queue);
-
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock lock(Queue->Mutex);
 
@@ -5979,10 +5967,6 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
 
@@ -6026,10 +6010,6 @@ pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   PI_ASSERT(Src, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   std::shared_lock SrcLock(Src->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, Queue->Mutex);
 
@@ -6050,10 +6030,6 @@ pi_result piEnqueueMemBufferReadRect(
 
   PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::shared_lock SrcLock(Buffer->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, Queue->Mutex);
@@ -6289,10 +6265,6 @@ pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
 
   char *ZeHandleDst;
@@ -6314,10 +6286,6 @@ pi_result piEnqueueMemBufferWriteRect(
 
   PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
 
@@ -6343,10 +6311,6 @@ pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcMem, pi_mem DstMem,
   PI_ASSERT(!DstMem->isImage(), PI_ERROR_INVALID_MEM_OBJECT);
   auto SrcBuffer = pi_cast<pi_buffer>(SrcMem);
   auto DstBuffer = pi_cast<pi_buffer>(DstMem);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
@@ -6385,10 +6349,6 @@ pi_result piEnqueueMemBufferCopyRect(
   PI_ASSERT(!DstMem->isImage(), PI_ERROR_INVALID_MEM_OBJECT);
   auto SrcBuffer = pi_cast<pi_buffer>(SrcMem);
   auto DstBuffer = pi_cast<pi_buffer>(DstMem);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::shared_lock SrcLock(SrcBuffer->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, DstBuffer->Mutex, Queue->Mutex);
@@ -6515,10 +6475,6 @@ pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   PI_ASSERT(Buffer, PI_ERROR_INVALID_MEM_OBJECT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
 
   char *ZeHandleDst;
@@ -6643,10 +6599,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Mem, pi_bool BlockingMap,
     (*Event)->Completed = true;
     return PI_SUCCESS;
   }
-
-  // We may need a command list to submit the command, that's why reset
-  // signalled command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
@@ -6788,10 +6740,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
     (*Event)->Completed = true;
     return PI_SUCCESS;
   }
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock Lock(Queue->Mutex, Buffer->Mutex);
@@ -7047,10 +6995,6 @@ pi_result piEnqueueMemImageRead(pi_queue Queue, pi_mem Image,
                                 pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   std::shared_lock SrcLock(Image->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, Queue->Mutex);
   return enqueueMemImageCommandHelper(
@@ -7073,10 +7017,6 @@ pi_result piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image,
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   std::scoped_lock Lock(Queue->Mutex, Image->Mutex);
   return enqueueMemImageCommandHelper(PI_COMMAND_TYPE_IMAGE_WRITE, Queue,
                                       Ptr,   // src
@@ -7096,10 +7036,6 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
                       const pi_event *EventWaitList, pi_event *Event) {
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::shared_lock SrcLock(SrcImage->Mutex, std::defer_lock);
   std::scoped_lock LockAll(SrcLock, DstImage->Mutex, Queue->Mutex);
@@ -7827,10 +7763,6 @@ pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr, pi_int32 Value,
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
-
   std::scoped_lock Lock(Queue->Mutex);
   return enqueueMemFillHelper(
       // TODO: do we need a new command type for USM memset?
@@ -7864,10 +7796,6 @@ pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking, void *DstPtr,
   }
 
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   std::scoped_lock lock(Queue->Mutex);
 
@@ -7904,10 +7832,6 @@ pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr, size_t Size,
   PI_ASSERT(Flags == 0, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
@@ -7974,10 +7898,6 @@ pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
                                    pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
-
-  // We need a command list to submit the command, that's why reset signalled
-  // command lists to avoid creating new one.
-  resetCommandLists(Queue);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock lock(Queue->Mutex);
