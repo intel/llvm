@@ -766,15 +766,21 @@ static char getTypeSuffix(Type *T) {
 }
 
 void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args) {
-  if (Args.size() > 4) {
+  if (Args.size() > 3) {
     ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
-    ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[4]);
+    uint64_t ImOpValue = 0;
+    if (ImOp)
+      ImOpValue = ImOp->getZExtValue();
     // Drop "Image Operands" argument.
     Args.erase(Args.begin() + 3, Args.begin() + 4);
-    // If the image operand is LOD and its value is zero, drop it too.
-    if (ImOp && LodVal && LodVal->isNullValue() &&
-        ImOp->getZExtValue() == ImageOperandsMask::ImageOperandsLodMask)
-      Args.erase(Args.begin() + 3, Args.end());
+
+    if (Args.size() > 3) {
+      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[3]);
+      // If the image operand is LOD and its value is zero, drop it too.
+      if (LodVal && LodVal->isNullValue() &&
+          ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
+        Args.erase(Args.begin() + 3, Args.end());
+    }
   }
 }
 
