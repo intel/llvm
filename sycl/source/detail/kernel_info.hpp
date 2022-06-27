@@ -39,13 +39,13 @@ template <info::kernel Param> struct get_kernel_info<std::string, Param> {
   }
 };
 
-template <info::kernel Param> struct get_kernel_info<cl_uint, Param> {
-  static cl_uint get(RT::PiKernel Kernel, const plugin &Plugin) {
-    cl_uint Result;
+template <info::kernel Param> struct get_kernel_info<uint32_t, Param> {
+  static uint32_t get(RT::PiKernel Kernel, const plugin &Plugin) {
+    uint32_t Result;
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param),
-                                            sizeof(cl_uint), &Result, nullptr);
+                                            sizeof(uint32_t), &Result, nullptr);
     return Result;
   }
 };
@@ -141,7 +141,7 @@ inline size_t get_kernel_device_specific_info_host<
 }
 
 template <>
-inline cl_ulong get_kernel_device_specific_info_host<
+inline size_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::private_mem_size>(const cl::sycl::device &) {
   return 0;
 }

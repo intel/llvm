@@ -28,51 +28,51 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-inline std::vector<info::fp_config> read_fp_bitfield(cl_device_fp_config bits) {
+inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
   std::vector<info::fp_config> result;
-  if (bits & CL_FP_DENORM)
+  if (bits & PI_FP_DENORM)
     result.push_back(info::fp_config::denorm);
-  if (bits & CL_FP_INF_NAN)
+  if (bits & PI_FP_INF_NAN)
     result.push_back(info::fp_config::inf_nan);
-  if (bits & CL_FP_ROUND_TO_NEAREST)
+  if (bits & PI_FP_ROUND_TO_NEAREST)
     result.push_back(info::fp_config::round_to_nearest);
-  if (bits & CL_FP_ROUND_TO_ZERO)
+  if (bits & PI_FP_ROUND_TO_ZERO)
     result.push_back(info::fp_config::round_to_zero);
-  if (bits & CL_FP_ROUND_TO_INF)
+  if (bits & PI_FP_ROUND_TO_INF)
     result.push_back(info::fp_config::round_to_inf);
-  if (bits & CL_FP_FMA)
+  if (bits & PI_FP_FMA)
     result.push_back(info::fp_config::fma);
-  if (bits & CL_FP_SOFT_FLOAT)
+  if (bits & PI_FP_SOFT_FLOAT)
     result.push_back(info::fp_config::soft_float);
-  if (bits & CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT)
+  if (bits & PI_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT)
     result.push_back(info::fp_config::correctly_rounded_divide_sqrt);
   return result;
 }
 
 inline std::vector<info::partition_affinity_domain>
-read_domain_bitfield(cl_device_affinity_domain bits) {
+read_domain_bitfield(pi_device_affinity_domain bits) {
   std::vector<info::partition_affinity_domain> result;
-  if (bits & CL_DEVICE_AFFINITY_DOMAIN_NUMA)
+  if (bits & PI_DEVICE_AFFINITY_DOMAIN_NUMA)
     result.push_back(info::partition_affinity_domain::numa);
-  if (bits & CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE)
+  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE)
     result.push_back(info::partition_affinity_domain::L4_cache);
-  if (bits & CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE)
+  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE)
     result.push_back(info::partition_affinity_domain::L3_cache);
-  if (bits & CL_DEVICE_AFFINITY_DOMAIN_L2_CACHE)
+  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE)
     result.push_back(info::partition_affinity_domain::L2_cache);
-  if (bits & CL_DEVICE_AFFINITY_DOMAIN_L1_CACHE)
+  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE)
     result.push_back(info::partition_affinity_domain::L1_cache);
-  if (bits & CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE)
+  if (bits & PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE)
     result.push_back(info::partition_affinity_domain::next_partitionable);
   return result;
 }
 
 inline std::vector<info::execution_capability>
-read_execution_bitfield(cl_device_exec_capabilities bits) {
+read_execution_bitfield(pi_device_exec_capabilities bits) {
   std::vector<info::execution_capability> result;
-  if (bits & CL_EXEC_KERNEL)
+  if (bits & PI_EXEC_KERNEL)
     result.push_back(info::execution_capability::exec_kernel);
-  if (bits & CL_EXEC_NATIVE_KERNEL)
+  if (bits & PI_EXEC_NATIVE_KERNEL)
     result.push_back(info::execution_capability::exec_native_kernel);
   return result;
 }
@@ -215,7 +215,7 @@ struct get_device_info<std::vector<info::fp_config>,
                        info::device::single_fp_config> {
   static std::vector<info::fp_config> get(RT::PiDevice dev,
                                           const plugin &Plugin) {
-    cl_device_fp_config result;
+    pi_device_fp_config result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::single_fp_config),
         sizeof(result), &result, nullptr);
@@ -286,7 +286,7 @@ struct get_device_info<std::vector<info::execution_capability>,
                        info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(RT::PiDevice dev,
                                                      const plugin &Plugin) {
-    cl_device_exec_capabilities result;
+    pi_device_exec_capabilities result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev, pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
         sizeof(result), &result, nullptr);
@@ -388,7 +388,7 @@ struct get_device_info<std::vector<info::partition_affinity_domain>,
                        info::device::partition_affinity_domains> {
   static std::vector<info::partition_affinity_domain>
   get(RT::PiDevice dev, const plugin &Plugin) {
-    cl_device_affinity_domain result;
+    pi_device_affinity_domain result;
     Plugin.call<PiApiKind::piDeviceGetInfo>(
         dev,
         pi::cast<RT::PiDeviceInfo>(info::device::partition_affinity_domains),
@@ -419,11 +419,11 @@ struct get_device_info<info::partition_affinity_domain,
         pi::cast<RT::PiDeviceInfo>(
             info::device::partition_type_affinity_domain),
         sizeof(result), &result, nullptr);
-    if (result == CL_DEVICE_AFFINITY_DOMAIN_NUMA ||
-        result == CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
-        result == CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
-        result == CL_DEVICE_AFFINITY_DOMAIN_L2_CACHE ||
-        result == CL_DEVICE_AFFINITY_DOMAIN_L1_CACHE) {
+    if (result == PI_DEVICE_AFFINITY_DOMAIN_NUMA ||
+        result == PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
+        result == PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
+        result == PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE ||
+        result == PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE) {
       return info::partition_affinity_domain(result);
     }
 
@@ -596,17 +596,17 @@ inline info::device_type get_device_info_host<info::device::device_type>() {
   return info::device_type::host;
 }
 
-template <> inline cl_uint get_device_info_host<info::device::vendor_id>() {
+template <> inline uint32_t get_device_info_host<info::device::vendor_id>() {
   return 0x8086;
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_compute_units>() {
+inline uint32_t get_device_info_host<info::device::max_compute_units>() {
   return std::thread::hardware_concurrency();
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_work_item_dimensions>() {
+inline uint32_t get_device_info_host<info::device::max_work_item_dimensions>() {
   return 3;
 }
 
@@ -657,109 +657,111 @@ inline size_t get_device_info_host<info::device::max_work_group_size>() {
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_char>() {
   // TODO update when appropriate
   return 1;
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_short>() {
   // TODO update when appropriate
   return 1;
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_int>() {
   // TODO update when appropriate
   return 1;
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_long>() {
   // TODO update when appropriate
   return 1;
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_float>() {
   // TODO update when appropriate
   return 1;
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_double>() {
   // TODO update when appropriate
   return 1;
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::preferred_vector_width_half>() {
   // TODO update when appropriate
   return 0;
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::native_vector_width_char>() {
+inline uint32_t get_device_info_host<info::device::native_vector_width_char>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Char);
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::native_vector_width_short>() {
+inline uint32_t
+get_device_info_host<info::device::native_vector_width_short>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Short);
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::native_vector_width_int>() {
+inline uint32_t get_device_info_host<info::device::native_vector_width_int>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Int);
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::native_vector_width_long>() {
+inline uint32_t get_device_info_host<info::device::native_vector_width_long>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Long);
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::native_vector_width_float>() {
+inline uint32_t
+get_device_info_host<info::device::native_vector_width_float>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Float);
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::native_vector_width_double>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Double);
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::native_vector_width_half>() {
+inline uint32_t get_device_info_host<info::device::native_vector_width_half>() {
   return PlatformUtil::getNativeVectorWidth(PlatformUtil::TypeIndex::Half);
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_clock_frequency>() {
+inline uint32_t get_device_info_host<info::device::max_clock_frequency>() {
   return PlatformUtil::getMaxClockFrequency();
 }
 
-template <> inline cl_uint get_device_info_host<info::device::address_bits>() {
+template <> inline uint32_t get_device_info_host<info::device::address_bits>() {
   return sizeof(void *) * 8;
 }
 
 template <>
-inline cl_ulong get_device_info_host<info::device::global_mem_size>() {
-  return static_cast<cl_ulong>(OSUtil::getOSMemSize());
+inline uint64_t get_device_info_host<info::device::global_mem_size>() {
+  return static_cast<uint64_t>(OSUtil::getOSMemSize());
 }
 
 template <>
-inline cl_ulong get_device_info_host<info::device::max_mem_alloc_size>() {
+inline uint64_t get_device_info_host<info::device::max_mem_alloc_size>() {
   // current value is the required minimum
-  const cl_ulong a = get_device_info_host<info::device::global_mem_size>() / 4;
-  const cl_ulong b = 128ul * 1024 * 1024;
+  const uint64_t a = get_device_info_host<info::device::global_mem_size>() / 4;
+  const uint64_t b = 128ul * 1024 * 1024;
   return (a > b) ? a : b;
 }
 
@@ -791,13 +793,13 @@ inline bool get_device_info_host<info::device::ext_oneapi_bfloat16>() {
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_read_image_args>() {
+inline uint32_t get_device_info_host<info::device::max_read_image_args>() {
   // current value is the required minimum
   return 128;
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_write_image_args>() {
+inline uint32_t get_device_info_host<info::device::max_write_image_args>() {
   // current value is the required minimum
   return 8;
 }
@@ -894,7 +896,7 @@ inline size_t get_device_info_host<info::device::image_max_array_size>() {
   return 2048;
 }
 
-template <> inline cl_uint get_device_info_host<info::device::max_samplers>() {
+template <> inline uint32_t get_device_info_host<info::device::max_samplers>() {
   // current value is the required minimum
   return 16;
 }
@@ -906,7 +908,7 @@ inline size_t get_device_info_host<info::device::max_parameter_size>() {
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::mem_base_addr_align>() {
+inline uint32_t get_device_info_host<info::device::mem_base_addr_align>() {
   return 1024;
 }
 
@@ -940,24 +942,24 @@ get_device_info_host<info::device::global_mem_cache_type>() {
 }
 
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::global_mem_cache_line_size>() {
   return PlatformUtil::getMemCacheLineSize();
 }
 
 template <>
-inline cl_ulong get_device_info_host<info::device::global_mem_cache_size>() {
+inline uint64_t get_device_info_host<info::device::global_mem_cache_size>() {
   return PlatformUtil::getMemCacheSize();
 }
 
 template <>
-inline cl_ulong get_device_info_host<info::device::max_constant_buffer_size>() {
+inline uint64_t get_device_info_host<info::device::max_constant_buffer_size>() {
   // current value is the required minimum
   return 64 * 1024;
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_constant_args>() {
+inline uint32_t get_device_info_host<info::device::max_constant_args>() {
   // current value is the required minimum
   return 8;
 }
@@ -969,7 +971,7 @@ get_device_info_host<info::device::local_mem_type>() {
 }
 
 template <>
-inline cl_ulong get_device_info_host<info::device::local_mem_size>() {
+inline uint64_t get_device_info_host<info::device::local_mem_size>() {
   // current value is the required minimum
   return 32 * 1024;
 }
@@ -1093,7 +1095,8 @@ template <> inline device get_device_info_host<info::device::parent_device>() {
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::partition_max_sub_devices>() {
+inline uint32_t
+get_device_info_host<info::device::partition_max_sub_devices>() {
   // TODO update once subdevice creation is enabled
   return 1;
 }
@@ -1126,13 +1129,13 @@ get_device_info_host<info::device::partition_type_affinity_domain>() {
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::reference_count>() {
+inline uint32_t get_device_info_host<info::device::reference_count>() {
   // TODO update once subdevice creation is enabled
   return 1;
 }
 
 template <>
-inline cl_uint get_device_info_host<info::device::max_num_sub_groups>() {
+inline uint32_t get_device_info_host<info::device::max_num_sub_groups>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
                       PI_ERROR_INVALID_DEVICE);
@@ -1197,7 +1200,7 @@ inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
   return false;
 }
 
-cl_uint get_native_vector_width(size_t idx);
+uint32_t get_native_vector_width(size_t idx);
 
 // USM
 
@@ -1284,46 +1287,46 @@ inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_uint get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
+inline uint32_t get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_uint get_device_info_host<info::device::ext_intel_gpu_slices>() {
+inline uint32_t get_device_info_host<info::device::ext_intel_gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_uint
+inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
   throw runtime_error(
       "Obtaining the HW threads count per EU is not supported on HOST device",
       PI_ERROR_INVALID_DEVICE);
 }
 template <>
-inline cl_ulong
+inline uint64_t
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",

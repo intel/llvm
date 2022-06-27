@@ -454,7 +454,7 @@ private:
 };
 
 template <>
-cl_uint program_impl::get_info<info::program::reference_count>() const;
+uint32_t program_impl::get_info<info::program::reference_count>() const;
 
 template <> context program_impl::get_info<info::program::context>() const;
 
