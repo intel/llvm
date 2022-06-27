@@ -1773,7 +1773,7 @@ static unsigned ArgInfoAddressSpace(LangAS AS) {
   }
 }
 
-void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
+void CodeGenModule::GenKernelArgMetadata(llvm::Function *Fn,
                                          const FunctionDecl *FD,
                                          CodeGenFunction *CGF) {
   assert(((FD && CGF) || (!FD && !CGF)) &&
@@ -1814,6 +1814,11 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   if (FD && CGF)
     for (unsigned i = 0, e = FD->getNumParams(); i != e; ++i) {
       const ParmVarDecl *parm = FD->getParamDecl(i);
+      // Get argument name.
+      argNames.push_back(llvm::MDString::get(VMContext, parm->getName()));
+
+      if (!getLangOpts().OpenCL && !getLangOpts().SYCLIsDevice)
+        continue;
       QualType ty = parm->getType();
       std::string typeQuals;
 
@@ -1831,9 +1836,6 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
           accessQuals.push_back(llvm::MDString::get(VMContext, "read_only"));
       } else
         accessQuals.push_back(llvm::MDString::get(VMContext, "none"));
-
-      // Get argument name.
-      argNames.push_back(llvm::MDString::get(VMContext, parm->getName()));
 
       auto getTypeSpelling = [&](QualType Ty) {
         auto typeName = Ty.getUnqualifiedType().getAsString(Policy);
@@ -1951,20 +1953,23 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
     }
   } else {
-    Fn->setMetadata("kernel_arg_addr_space",
-                    llvm::MDNode::get(VMContext, addressQuals));
-    Fn->setMetadata("kernel_arg_access_qual",
-                    llvm::MDNode::get(VMContext, accessQuals));
-    Fn->setMetadata("kernel_arg_type",
-                    llvm::MDNode::get(VMContext, argTypeNames));
-    Fn->setMetadata("kernel_arg_base_type",
-                    llvm::MDNode::get(VMContext, argBaseTypeNames));
-    Fn->setMetadata("kernel_arg_type_qual",
-                    llvm::MDNode::get(VMContext, argTypeQuals));
-    if (IsEsimdFunction)
-      Fn->setMetadata("kernel_arg_accessor_ptr",
-                      llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
-    if (getCodeGenOpts().EmitOpenCLArgMetadata)
+    if (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice) {
+      Fn->setMetadata("kernel_arg_addr_space",
+                      llvm::MDNode::get(VMContext, addressQuals));
+      Fn->setMetadata("kernel_arg_access_qual",
+                      llvm::MDNode::get(VMContext, accessQuals));
+      Fn->setMetadata("kernel_arg_type",
+                      llvm::MDNode::get(VMContext, argTypeNames));
+      Fn->setMetadata("kernel_arg_base_type",
+                      llvm::MDNode::get(VMContext, argBaseTypeNames));
+      Fn->setMetadata("kernel_arg_type_qual",
+                      llvm::MDNode::get(VMContext, argTypeQuals));
+      if (IsEsimdFunction)
+        Fn->setMetadata("kernel_arg_accessor_ptr",
+                        llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
+    }
+    if (getCodeGenOpts().EmitOpenCLArgMetadata ||
+        getCodeGenOpts().HIPSaveKernelArgName)
       Fn->setMetadata("kernel_arg_name",
                       llvm::MDNode::get(VMContext, argNames));
   }

@@ -598,10 +598,10 @@ CodeGenFunction::DecodeAddrUsedInPrologue(llvm::Value *F,
                             "decoded_addr");
 }
 
-void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
-                                               llvm::Function *Fn)
-{
-  if (!FD->hasAttr<OpenCLKernelAttr>() && !FD->hasAttr<SYCLDeviceAttr>())
+void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
+                                         llvm::Function *Fn) {
+  if (!FD->hasAttr<OpenCLKernelAttr>() && !FD->hasAttr<CUDAGlobalAttr>()
+    && !FD->hasAttr<SYCLDeviceAttr>())
     return;
 
   // TODO Module identifier is not reliable for this purpose since two modules
@@ -611,8 +611,11 @@ void CodeGenFunction::EmitOpenCLKernelMetadata(const FunctionDecl *FD,
 
   llvm::LLVMContext &Context = getLLVMContext();
 
-  if (FD->hasAttr<OpenCLKernelAttr>())
-    CGM.GenOpenCLArgMetadata(Fn, FD, this);
+  if (FD->hasAttr<OpenCLKernelAttr>() || FD->hasAttr<CUDAGlobalAttr>())
+    CGM.GenKernelArgMetadata(Fn, FD, this);
+
+  if (!getLangOpts().OpenCL && !getLangOpts().SYCLIsDevice)
+    return;
 
   if (const VecTypeHintAttr *A = FD->getAttr<VecTypeHintAttr>()) {
     QualType HintQTy = A->getTypeHint();
@@ -1104,9 +1107,11 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     Fn->addFnAttrs(FnAttrBuilder);
   }
 
-  if (FD && (getLangOpts().OpenCL || getLangOpts().SYCLIsDevice)) {
+  if (FD && (getLangOpts().OpenCL ||
+             (getLangOpts().HIP && getLangOpts().CUDAIsDevice) ||
+             getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
-    EmitOpenCLKernelMetadata(FD, Fn);
+    EmitKernelMetadata(FD, Fn);
 
     if (getLangOpts().SYCLIsDevice)
       CGM.getSYCLRuntime().actOnFunctionStart(*FD, *Fn);
