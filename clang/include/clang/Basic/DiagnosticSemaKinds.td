@@ -726,6 +726,10 @@ def warn_unreachable_fallthrough_attr : Warning<
   InGroup<UnreachableCodeFallthrough>, DefaultIgnore;
 def note_unreachable_silence : Note<
   "silence by adding parentheses to mark code as explicitly dead">;
+def warn_unreachable_association : Warning<
+  "due to lvalue conversion of the controlling expression, association of type "
+  "%0 will never be selected because it is %select{of array type|qualified}1">,
+  InGroup<UnreachableCodeGenericAssoc>;
 
 /// Built-in functions.
 def ext_implicit_lib_function_decl : ExtWarn<
@@ -1016,6 +1020,11 @@ def err_invalid_super_scope : Error<"invalid use of '__super', "
   "this keyword can only be used inside class or member function scope">;
 def err_super_in_lambda_unsupported : Error<
   "use of '__super' inside a lambda is unsupported">;
+
+def err_pragma_expected_file_scope : Error<
+  "'#pragma %0' can only appear at file scope">;
+def err_pragma_alloc_text_c_linkage: Error<
+  "'#pragma alloc_text' is applicable only to functions with C linkage">;
 
 def warn_pragma_unused_undeclared_var : Warning<
   "undeclared variable %0 used as an argument for '#pragma unused'">,
@@ -2877,6 +2886,8 @@ def err_constrained_virtual_method : Error<
   "virtual function cannot have a requires clause">;
 def err_trailing_requires_clause_on_deduction_guide : Error<
   "deduction guide cannot have a requires clause">;
+def err_constrained_non_templated_function
+    : Error<"non-templated function cannot have a requires clause">;
 def err_reference_to_function_with_unsatisfied_constraints : Error<
   "invalid reference to function %0: constraints not satisfied">;
 def err_requires_expr_local_parameter_default_argument : Error<
@@ -3143,7 +3154,7 @@ def err_format_strftime_third_parameter : Error<
   "strftime format attribute requires 3rd parameter to be 0">;
 def err_format_attribute_requires_variadic : Error<
   "format attribute requires variadic function">;
-def err_format_attribute_not : Error<"format argument not %0">;
+def err_format_attribute_not : Error<"format argument not a string type">;
 def err_format_attribute_result_not : Error<"function does not return %0">;
 def err_format_attribute_implicit_this_format_string : Error<
   "format attribute cannot specify the implicit this argument as the format "
@@ -3288,6 +3299,10 @@ def err_attribute_argument_is_zero : Error<
 def warn_attribute_argument_n_negative : Warning<
   "%0 attribute parameter %1 is negative and will be ignored">,
   InGroup<CudaCompat>;
+def warn_reqd_sub_group_attribute_cuda_n_32
+    : Warning<"attribute argument %0 is invalid and will be ignored; CUDA "
+              "requires sub_group size 32">,
+      InGroup<CudaCompat>;
 def err_property_function_in_objc_container : Error<
   "use of Objective-C property in function nested in Objective-C "
   "container not supported, move function outside its container">;
@@ -3382,8 +3397,6 @@ def warn_redeclaration_without_import_attribute : Warning<
 def warn_dllimport_dropped_from_inline_function : Warning<
   "%q0 redeclared inline; %1 attribute ignored">,
   InGroup<IgnoredAttributes>;
-def warn_attribute_ignored : Warning<"%0 attribute ignored">,
-  InGroup<IgnoredAttributes>;
 def warn_attribute_on_direct_kernel_callee_only : Warning<"%0 attribute allowed"
   " only on a function directly called from a SYCL kernel function; attribute ignored">,
   InGroup<IgnoredAttributes>;
@@ -3423,8 +3436,11 @@ def note_attribute_has_no_effect_on_compile_time_if_here : Note<
   "annotating the 'if %select{constexpr|consteval}0' statement here">;
 def err_decl_attribute_invalid_on_stmt : Error<
   "%0 attribute cannot be applied to a statement">;
-def err_stmt_attribute_invalid_on_decl : Error<
+def err_attribute_invalid_on_decl : Error<
   "%0 attribute cannot be applied to a declaration">;
+def warn_type_attribute_deprecated_on_decl : Warning<
+  "applying attribute %0 to a declaration is deprecated; apply it to the type instead">,
+  InGroup<DeprecatedAttributes>;
 def warn_declspec_attribute_ignored : Warning<
   "attribute %0 is ignored, place it after "
   "\"%select{class|struct|interface|union|enum}1\" to apply attribute to "
@@ -5622,10 +5638,12 @@ def warn_strict_prototypes : Extension<
   "a %select{function|block}0 declaration without a prototype is deprecated "
   "%select{in all versions of C|}0">, InGroup<StrictPrototypes>;
 def warn_non_prototype_changes_behavior : Warning<
-  "a function declaration without a prototype is deprecated in all versions of "
-  "C and is not supported in C2x">, InGroup<DeprecatedNonPrototype>;
-def note_func_decl_changes_behavior : Note<
-  "a function declaration without a prototype is not supported in C2x">;
+  "a function %select{declaration|definition}0 without a prototype is "
+  "deprecated in all versions of C %select{and is not supported in C2x|and is "
+  "treated as a zero-parameter prototype in C2x, conflicting with a "
+  "%select{previous|subsequent}2 %select{declaration|definition}3}1">,
+  InGroup<DeprecatedNonPrototype>;
+def note_conflicting_prototype : Note<"conflicting prototype is here">;
 def warn_missing_variable_declarations : Warning<
   "no previous extern declaration for non-static variable %0">,
   InGroup<DiagGroup<"missing-variable-declarations">>, DefaultIgnore;
@@ -7628,6 +7646,12 @@ def warn_deprecated_altivec_src_compat : Warning<
   "'-altivec-compat=xl' option">,
   InGroup<DiagGroup<"deprecated-altivec-src-compat">>;
 
+def warn_deprecated_lax_vec_conv_all : Warning<
+  "Implicit conversion between vector types ('%0' and '%1') is deprecated. "
+  "In the future, the behavior implied by '-fno-lax-vector-conversions' "
+  "will be the default.">,
+  InGroup<DiagGroup<"deprecate-lax-vec-conv-all">>;
+
 def err_catch_incomplete_ptr : Error<
   "cannot catch pointer to incomplete type %0">;
 def err_catch_incomplete_ref : Error<
@@ -8528,6 +8552,12 @@ def err_overflow_builtin_must_be_ptr_int : Error<
 def err_overflow_builtin_bit_int_max_size : Error<
   "__builtin_mul_overflow does not support 'signed _BitInt' operands of more "
   "than %0 bits">;
+def err_expected_struct_pointer_argument : Error<
+  "expected pointer to struct as %ordinal0 argument to %1, found %2">;
+def err_expected_callable_argument : Error<
+  "expected a callable expression as %ordinal0 argument to %1, found %2">;
+def note_building_builtin_dump_struct_call : Note<
+  "in call to printing function with arguments '(%0)' while dumping struct">;
 
 def err_atomic_load_store_uses_lib : Error<
   "atomic %select{load|store}0 requires runtime support that is not "
@@ -8772,6 +8802,10 @@ def warn_unused_result : Warning<
 def warn_unused_result_msg : Warning<
   "ignoring return value of function declared with %0 attribute: %1">,
   InGroup<UnusedResult>;
+def warn_unused_result_typedef_unsupported_spelling : Warning<
+  "'[[%select{nodiscard|gnu::warn_unused_result}0]]' attribute ignored when "
+  "applied to a typedef; consider using '__attribute__((warn_unused_result))' "
+  "or '[[clang::warn_unused_result]]' instead">, InGroup<IgnoredAttributes>;
 def warn_unused_volatile : Warning<
   "expression result unused; assign into a variable to force a volatile load">,
   InGroup<DiagGroup<"unused-volatile-lvalue">>;
@@ -11047,6 +11081,9 @@ def err_omp_append_args_with_varargs : Error<
   "'append_args' is not allowed with varargs functions">;
 def err_openmp_vla_in_task_untied : Error<
   "variable length arrays are not supported in OpenMP tasking regions with 'untied' clause">;
+def warn_omp_unterminated_declare_target : Warning<
+  "expected '#pragma omp end declare target' at end of file to match '#pragma omp %0'">,
+  InGroup<SourceUsesOpenMP>;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {
@@ -11294,6 +11331,9 @@ def warn_always_inline_coroutine : Warning<
   "this coroutine may be split into pieces; not every piece is guaranteed to be inlined"
   >,
   InGroup<AlwaysInlineCoroutine>;
+def err_coroutine_unusable_new : Error<
+  "'operator new' provided by %0 is not usable with the function signature of %1"
+>;
 } // end of coroutines issue category
 
 let CategoryName = "Documentation Issue" in {

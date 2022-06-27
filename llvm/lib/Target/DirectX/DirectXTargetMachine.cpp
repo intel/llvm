@@ -34,6 +34,9 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTarget() {
   RegisterTargetMachine<DirectXTargetMachine> X(getTheDirectXTarget());
   auto *PR = PassRegistry::getPassRegistry();
   initializeDXILPrepareModulePass(*PR);
+  initializeEmbedDXILPassPass(*PR);
+  initializeDXILOpLoweringLegacyPass(*PR);
+  initializeDXILTranslateMetadataPass(*PR);
 }
 
 class DXILTargetObjectFile : public TargetLoweringObjectFile {
@@ -84,9 +87,14 @@ bool DirectXTargetMachine::addPassesToEmitFile(
     PassManagerBase &PM, raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
     CodeGenFileType FileType, bool DisableVerify,
     MachineModuleInfoWrapperPass *MMIWP) {
+  PM.add(createDXILOpLoweringLegacyPass());
   PM.add(createDXILPrepareModulePass());
+  PM.add(createDXILTranslateMetadataPass());
   switch (FileType) {
   case CGFT_AssemblyFile:
+    if (TargetPassConfig::willCompleteCodeGenPipeline()) {
+      PM.add(createDXILEmbedderPass());
+    }
     PM.add(createPrintModulePass(Out, "", true));
     break;
   case CGFT_ObjectFile:

@@ -420,6 +420,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"a", ExtensibleDerived, Rank::anyOrAssumedRank},
             {"mold", ExtensibleDerived, Rank::anyOrAssumedRank}},
         DefaultLogical, Rank::scalar, IntrinsicClass::inquiryFunction},
+    {"failed_images", {OptionalTEAM, SizeDefaultKIND}, KINDInt, Rank::vector,
+        IntrinsicClass::transformationalFunction},
     {"findloc",
         {{"array", AnyNumeric, Rank::array},
             {"value", AnyNumeric, Rank::scalar}, RequiredDIM, OptionalMASK,
@@ -629,6 +631,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     // NULL() is a special case handled in Probe() below
     {"num_images", {}, DefaultInt, Rank::scalar,
         IntrinsicClass::transformationalFunction},
+    {"num_images", {{"team", TeamType, Rank::scalar}}, DefaultInt, Rank::scalar,
+        IntrinsicClass::transformationalFunction},
     {"num_images", {{"team_number", AnyInt, Rank::scalar}}, DefaultInt,
         Rank::scalar, IntrinsicClass::transformationalFunction},
     {"out_of_range",
@@ -725,7 +729,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"shifta", {{"i", SameInt}, {"shift", AnyInt}}, SameInt},
     {"shiftl", {{"i", SameInt}, {"shift", AnyInt}}, SameInt},
     {"shiftr", {{"i", SameInt}, {"shift", AnyInt}}, SameInt},
-    {"sign", {{"a", SameIntOrReal}, {"b", SameIntOrReal}}, SameIntOrReal},
+    {"sign", {{"a", SameInt}, {"b", AnyInt}}, SameInt},
+    {"sign", {{"a", SameReal}, {"b", AnyReal}}, SameReal},
     {"sin", {{"x", SameFloating}}, SameFloating},
     {"sind", {{"x", SameFloating}}, SameFloating},
     {"sinh", {{"x", SameFloating}}, SameFloating},
@@ -833,7 +838,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 };
 
 // TODO: Coarray intrinsic functions
-//   LCOBOUND, UCOBOUND, FAILED_IMAGES, IMAGE_INDEX,
+//   LCOBOUND, UCOBOUND, IMAGE_INDEX,
 //   STOPPED_IMAGES, COSHAPE
 // TODO: Non-standard intrinsic functions
 //  LSHIFT, RSHIFT, SHIFT, ZEXT, IZEXT,
@@ -1015,7 +1020,7 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
          TypePattern{IntType, KindCode::exactKind, 8}},
         "abs"},
     {{"len", {{"string", DefaultChar, Rank::anyOrAssumedRank}}, DefaultInt,
-        Rank::scalar}},
+        Rank::scalar, IntrinsicClass::inquiryFunction}},
     {{"lge", {{"string_a", DefaultChar}, {"string_b", DefaultChar}},
          DefaultLogical},
         "lge", true},
@@ -1562,8 +1567,8 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           // (A previous error message for UBOUND will take precedence
           // over this one, as this error is caught by the second entry
           // for UBOUND.)
-          if (std::optional<Shape> shape{GetShape(context, *arg)}) {
-            if (!shape->empty() && !shape->back().has_value()) {
+          if (const Symbol * argSym{GetLastSymbol(*arg)}) {
+            if (semantics::IsAssumedSizeArray(*argSym)) {
               if (strcmp(name, "shape") == 0) {
                 messages.Say(arg->sourceLocation(),
                     "The '%s=' argument to the intrinsic function '%s' may not be assumed-size"_err_en_US,
@@ -2392,7 +2397,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
         context.messages().Say(at,
             "OPERATION= argument of REDUCE() must be a scalar function"_err_en_US);
       } else if (result->type().IsPolymorphic() ||
-          result->type() != *arrayType) {
+          !arrayType->IsTkCompatibleWith(result->type())) {
         ok = false;
         context.messages().Say(at,
             "OPERATION= argument of REDUCE() must have the same type as ARRAY="_err_en_US);
@@ -2417,7 +2422,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
                     characteristics::DummyDataObject::Attr::Pointer) &&
                 data[j]->type.Rank() == 0 &&
                 !data[j]->type.type().IsPolymorphic() &&
-                data[j]->type.type() == *arrayType;
+                data[j]->type.type().IsTkCompatibleWith(*arrayType);
           }
           if (!ok) {
             context.messages().Say(at,

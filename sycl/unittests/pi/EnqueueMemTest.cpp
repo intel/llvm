@@ -41,7 +41,7 @@ protected:
                   platform, PI_DEVICE_TYPE_DEFAULT, 1, &_device, nullptr)),
               PI_SUCCESS);
 
-    pi_result result = PI_INVALID_VALUE;
+    pi_result result = PI_ERROR_INVALID_VALUE;
     result = plugin.call_nocheck<detail::PiApiKind::piContextCreate>(
         nullptr, 1u, &_device, nullptr, nullptr, &_context);
     ASSERT_EQ(result, PI_SUCCESS);

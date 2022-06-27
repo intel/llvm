@@ -826,6 +826,14 @@ def Annotate : InheritableParamAttr {
   let Documentation = [Undocumented];
 }
 
+def AnnotateType : TypeAttr {
+  let Spellings = [CXX11<"clang", "annotate_type">, C2x<"clang", "annotate_type">];
+  let Args = [StringArgument<"Annotation">, VariadicExprArgument<"Args">];
+  let HasCustomParsing = 1;
+  let AcceptsExprPack = 1;
+  let Documentation = [AnnotateTypeDocs];
+}
+
 def ARMInterrupt : InheritableAttr, TargetSpecificAttr<TargetARM> {
   // NOTE: If you add any additional spellings, M68kInterrupt's,
   // MSP430Interrupt's, MipsInterrupt's and AnyX86Interrupt's spellings
@@ -892,6 +900,7 @@ def Availability : InheritableAttr {
              .Case("macos", "macOS")
              .Case("tvos", "tvOS")
              .Case("watchos", "watchOS")
+             .Case("driverkit", "DriverKit")
              .Case("ios_app_extension", "iOS (App Extension)")
              .Case("macos_app_extension", "macOS (App Extension)")
              .Case("tvos_app_extension", "tvOS (App Extension)")
@@ -1973,7 +1982,7 @@ def Final : InheritableAttr {
 def MinSize : InheritableAttr {
   let Spellings = [Clang<"minsize">];
   let Subjects = SubjectList<[Function, ObjCMethod], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [MinSizeDocs];
 }
 
 def FlagEnum : InheritableAttr {
@@ -2307,6 +2316,23 @@ def : MutualExclusions<[SYCLIntelFPGAIVDep,
 def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
                         SYCLIntelFPGADisableLoopPipelining]>;
 
+def SYCLIntelFPGAPipeline : InheritableAttr {
+  let Spellings = [CXX11<"intel","fpga_pipeline">];
+  let Args = [ExprArgument<"Value", /*optional*/1>];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
+                              ErrorDiag, "'for', 'while', and 'do' statements">;
+  let Documentation = [SYCLIntelFPGAPipelineAttrDocs];
+  let IsStmtDependent = 1;
+}
+
+def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
+                        SYCLIntelFPGAPipeline]>;
+def : MutualExclusions<[SYCLIntelFPGAIVDep,
+                        SYCLIntelFPGAPipeline]>;
+def : MutualExclusions<[SYCLIntelFPGAMaxConcurrency,
+                        SYCLIntelFPGAPipeline]>;
+
 def SYCLIntelFPGALoopCount : StmtAttr {
   let Spellings = [CXX11<"intel", "loop_count_min">,
                    CXX11<"intel", "loop_count_max">,
@@ -2339,6 +2365,9 @@ def SYCLIntelFPGAMaxInterleaving : StmtAttr {
 def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
                         SYCLIntelFPGAMaxInterleaving]>;
 
+def : MutualExclusions<[SYCLIntelFPGAPipeline,
+                        SYCLIntelFPGAMaxInterleaving]>;
+
 def SYCLIntelFPGASpeculatedIterations : StmtAttr {
   let Spellings = [CXX11<"intel", "speculated_iterations">];
   let Subjects = SubjectList<[ForStmt, CXXForRangeStmt, WhileStmt, DoStmt],
@@ -2349,6 +2378,9 @@ def SYCLIntelFPGASpeculatedIterations : StmtAttr {
   let Documentation = [SYCLIntelFPGASpeculatedIterationsAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelFPGADisableLoopPipelining,
+                        SYCLIntelFPGASpeculatedIterations]>;
+
+def : MutualExclusions<[SYCLIntelFPGAPipeline,
                         SYCLIntelFPGASpeculatedIterations]>;
 
 def SYCLIntelFPGANofusion : StmtAttr {
@@ -2636,8 +2668,9 @@ def Convergent : InheritableAttr {
 }
 
 def NoInline : DeclOrStmtAttr {
-  let Spellings = [GCC<"noinline">, CXX11<"clang", "noinline">,
-                   C2x<"clang", "noinline">, Declspec<"noinline">];
+  let Spellings = [Keyword<"__noinline__">, GCC<"noinline">,
+                   CXX11<"clang", "noinline">, C2x<"clang", "noinline">,
+                   Declspec<"noinline">];
   let Accessors = [Accessor<"isClangNoInline", [CXX11<"clang", "noinline">,
                                                 C2x<"clang", "noinline">]>];
   let Documentation = [NoInlineDocs];
@@ -2716,6 +2749,11 @@ def AMDGPUNumVGPR : InheritableAttr {
   let Subjects = SubjectList<[Function], ErrorDiag, "kernel functions">;
 }
 
+def AMDGPUKernelCall : DeclOrTypeAttr {
+  let Spellings = [Clang<"amdgpu_kernel">];
+  let Documentation = [Undocumented];
+}
+
 def BPFPreserveAccessIndex : InheritableAttr,
                              TargetSpecificAttr<TargetBPF>  {
   let Spellings = [Clang<"preserve_access_index">];
@@ -2780,9 +2818,9 @@ def NonNull : InheritableParamAttr {
     bool isNonNull(unsigned IdxAST) const {
       if (!args_size())
         return true;
-      return args_end() != std::find_if(
-          args_begin(), args_end(),
-          [=](const ParamIdx &Idx) { return Idx.getASTIndex() == IdxAST; });
+      return llvm::any_of(args(), [=](const ParamIdx &Idx) {
+        return Idx.getASTIndex() == IdxAST;
+      });
     }
   }];
   // FIXME: We should merge duplicates into a single nonnull attribute.
@@ -3171,6 +3209,11 @@ def Pcs : DeclOrTypeAttr {
 def AArch64VectorPcs: DeclOrTypeAttr {
   let Spellings = [Clang<"aarch64_vector_pcs">];
   let Documentation = [AArch64VectorPcsDocs];
+}
+
+def AArch64SVEPcs: DeclOrTypeAttr {
+  let Spellings = [Clang<"aarch64_sve_pcs">];
+  let Documentation = [AArch64SVEPcsDocs];
 }
 
 def Pure : InheritableAttr {
@@ -3834,7 +3877,7 @@ def WarnUnusedResult : InheritableAttr {
                    C2x<"", "nodiscard", 201904>,
                    CXX11<"clang", "warn_unused_result">,
                    GCC<"warn_unused_result">];
-  let Subjects = SubjectList<[ObjCMethod, Enum, Record, FunctionLike]>;
+  let Subjects = SubjectList<[ObjCMethod, Enum, Record, FunctionLike, TypedefName]>;
   let Args = [StringArgument<"Message", 1>];
   let Documentation = [WarnUnusedResultsDocs];
   let AdditionalMembers = [{
@@ -3849,7 +3892,7 @@ def WarnUnusedResult : InheritableAttr {
 def Weak : InheritableAttr {
   let Spellings = [GCC<"weak">];
   let Subjects = SubjectList<[Var, Function, CXXRecord]>;
-  let Documentation = [Undocumented];
+  let Documentation = [WeakDocs];
   let SimpleHandler = 1;
 }
 

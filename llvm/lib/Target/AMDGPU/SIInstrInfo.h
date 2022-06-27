@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_AMDGPU_SIINSTRINFO_H
 
 #include "AMDGPUMIRFormatter.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIRegisterInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SetVector.h"
@@ -328,14 +329,13 @@ public:
                             Register SrcReg2, int64_t CmpMask, int64_t CmpValue,
                             const MachineRegisterInfo *MRI) const override;
 
-  unsigned getAddressSpaceForPseudoSourceKind(
-             unsigned Kind) const override;
-
   bool
   areMemAccessesTriviallyDisjoint(const MachineInstr &MIa,
                                   const MachineInstr &MIb) const override;
 
   static bool isFoldableCopy(const MachineInstr &MI);
+
+  void removeModOperands(MachineInstr &MI) const;
 
   bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
                      MachineRegisterInfo *MRI) const final;
@@ -656,12 +656,33 @@ public:
     return get(Opcode).TSFlags & SIInstrFlags::IsMAI;
   }
 
+  static bool isMFMA(const MachineInstr &MI) {
+    return isMAI(MI) && MI.getOpcode() != AMDGPU::V_ACCVGPR_WRITE_B32_e64 &&
+           MI.getOpcode() != AMDGPU::V_ACCVGPR_READ_B32_e64;
+  }
+
   static bool isDOT(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::IsDOT;
   }
 
   bool isDOT(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::IsDOT;
+  }
+
+  static bool isLDSDIR(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::LDSDIR;
+  }
+
+  bool isLDSDIR(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::LDSDIR;
+  }
+
+  static bool isVINTERP(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::VINTERP;
+  }
+
+  bool isVINTERP(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::VINTERP;
   }
 
   static bool isScalarUnit(const MachineInstr &MI) {
@@ -1140,6 +1161,11 @@ public:
   static unsigned getDSShaderTypeValue(const MachineFunction &MF);
 
   const TargetSchedModel &getSchedModel() const { return SchedModel; }
+
+  // Enforce operand's \p OpName even alignment if required by target.
+  // This is used if an operand is a 32 bit register but needs to be aligned
+  // regardless.
+  void enforceOperandRCAlignment(MachineInstr &MI, unsigned OpName) const;
 };
 
 /// \brief Returns true if a reg:subreg pair P has a TRC class
@@ -1216,9 +1242,6 @@ namespace AMDGPU {
   /// \returns \p Opcode if it is an Addr64 opcode, otherwise -1.
   LLVM_READONLY
   int getIfAddr64Inst(uint16_t Opcode);
-
-  LLVM_READONLY
-  int getMUBUFNoLdsInst(uint16_t Opcode);
 
   LLVM_READONLY
   int getAtomicNoRetOp(uint16_t Opcode);

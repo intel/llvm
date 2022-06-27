@@ -22,10 +22,10 @@
 #include "flang/Lower/StatementContext.h"
 #include "flang/Lower/Support/Utils.h"
 #include "flang/Lower/SymbolMap.h"
-#include "flang/Lower/Todo.h"
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/Derived.h"
+#include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIRAttr.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
@@ -122,7 +122,7 @@ static fir::GlobalOp declareGlobal(Fortran::lower::AbstractConverter &converter,
   // symbol is an object of a function pointer.
   const Fortran::semantics::Symbol &ultimate = sym.GetUltimate();
   if (!ultimate.has<Fortran::semantics::ObjectEntityDetails>() &&
-      !ultimate.has<Fortran::semantics::ProcEntityDetails>())
+      !Fortran::semantics::IsProcedurePointer(ultimate))
     mlir::emitError(loc, "lowering global declaration: symbol '")
         << toStringRef(sym.name()) << "' has unexpected details\n";
   return builder.createGlobal(loc, converter.genType(var), globalName, linkage,
@@ -378,6 +378,10 @@ static fir::GlobalOp defineGlobal(Fortran::lower::AbstractConverter &converter,
 
   if (global && globalIsInitialized(global))
     return global;
+
+  if (Fortran::semantics::IsProcedurePointer(sym))
+    TODO(loc, "procedure pointer globals");
+
   // If this is an array, check to see if we can use a dense attribute
   // with a tensor mlir type.  This optimization currently only supports
   // rank-1 Fortran arrays of integer, real, or logical. The tensor
@@ -1086,7 +1090,7 @@ static mlir::Value computeExtent(fir::FirOpBuilder &builder, mlir::Location loc,
   auto diff = builder.create<mlir::arith::SubIOp>(loc, idxTy, ub, lb);
   mlir::Value one = builder.createIntegerConstant(loc, idxTy, 1);
   auto rawExtent = builder.create<mlir::arith::AddIOp>(loc, idxTy, diff, one);
-  return Fortran::lower::genMaxWithZero(builder, loc, rawExtent);
+  return fir::factory::genMaxWithZero(builder, loc, rawExtent);
 }
 
 /// Lower explicit lower bounds into \p result. Does nothing if this is not an
@@ -1141,7 +1145,7 @@ lowerExplicitExtents(Fortran::lower::AbstractConverter &converter,
       mlir::Value ub = builder.createConvert(
           loc, idxTy, genScalarValue(converter, loc, expr, symMap, stmtCtx));
       if (lowerBounds.empty())
-        result.emplace_back(Fortran::lower::genMaxWithZero(builder, loc, ub));
+        result.emplace_back(fir::factory::genMaxWithZero(builder, loc, ub));
       else
         result.emplace_back(
             computeExtent(builder, loc, lowerBounds[spec.index()], ub));
@@ -1169,7 +1173,7 @@ lowerExplicitCharLen(Fortran::lower::AbstractConverter &converter,
   if (llvm::Optional<Fortran::lower::SomeExpr> lenExpr = box.getCharLenExpr())
     // If the length expression is negative, the length is zero. See F2018
     // 7.4.4.2 point 5.
-    return Fortran::lower::genMaxWithZero(
+    return fir::factory::genMaxWithZero(
         builder, loc,
         genScalarValue(converter, loc, *lenExpr, symMap, stmtCtx));
   return mlir::Value{};
@@ -1187,11 +1191,10 @@ static mlir::Value genExtentValue(fir::FirOpBuilder &builder,
 }
 
 /// Lower specification expressions and attributes of variable \p var and
-/// add it to the symbol map.
-/// For global and aliases, the address must be pre-computed and provided
-/// in \p preAlloc.
-/// Dummy arguments must have already been mapped to mlir block arguments
-/// their mapping may be updated here.
+/// add it to the symbol map.  For a global or an alias, the address must be
+/// pre-computed and provided in \p preAlloc.  A dummy argument for the current
+/// entry point has already been mapped to an mlir block argument in
+/// mapDummiesAndResults.  Its mapping may be updated here.
 void Fortran::lower::mapSymbolAttributes(
     AbstractConverter &converter, const Fortran::lower::pft::Variable &var,
     Fortran::lower::SymMap &symMap, Fortran::lower::StatementContext &stmtCtx,
@@ -1200,14 +1203,32 @@ void Fortran::lower::mapSymbolAttributes(
   const Fortran::semantics::Symbol &sym = var.getSymbol();
   const mlir::Location loc = converter.genLocation(sym.name());
   mlir::IndexType idxTy = builder.getIndexType();
-  const bool isDummy = Fortran::semantics::IsDummy(sym);
+  const bool isDeclaredDummy = Fortran::semantics::IsDummy(sym);
+  // An active dummy from the current entry point.
+  const bool isDummy = isDeclaredDummy && symMap.lookupSymbol(sym).getAddr();
+  // An unused dummy from another entry point.
+  const bool isUnusedEntryDummy = isDeclaredDummy && !isDummy;
   const bool isResult = Fortran::semantics::IsFunctionResult(sym);
   const bool replace = isDummy || isResult;
   fir::factory::CharacterExprHelper charHelp{builder, loc};
+
+  if (Fortran::semantics::IsProcedure(sym)) {
+    if (isUnusedEntryDummy) {
+      // Additional discussion below.
+      mlir::Type dummyProcType =
+          Fortran::lower::getDummyProcedureType(sym, converter);
+      mlir::Value undefOp = builder.create<fir::UndefOp>(loc, dummyProcType);
+      symMap.addSymbol(sym, undefOp);
+    }
+    if (Fortran::semantics::IsPointer(sym))
+      TODO(loc, "procedure pointers");
+    return;
+  }
+
   Fortran::lower::BoxAnalyzer ba;
   ba.analyze(sym);
 
-  // First deal with pointers an allocatables, because their handling here
+  // First deal with pointers and allocatables, because their handling here
   // is the same regardless of their rank.
   if (Fortran::semantics::IsAllocatableOrPointer(sym)) {
     // Get address of fir.box describing the entity.
@@ -1263,6 +1284,42 @@ void Fortran::lower::mapSymbolAttributes(
     }
   }
 
+  // A dummy from another entry point that is not declared in the current
+  // entry point requires a skeleton definition.  Most such "unused" dummies
+  // will not survive into final generated code, but some will.  It is illegal
+  // to reference one at run time if it does.  Such a dummy is mapped to a
+  // value in one of three ways:
+  //
+  //  - Generate a fir::UndefOp value.  This is lightweight, easy to clean up,
+  //    and often valid, but it may fail for a dummy with dynamic bounds,
+  //    or a dummy used to define another dummy.  Information to distinguish
+  //    valid cases is not generally available here, with the exception of
+  //    dummy procedures.  See the first function exit above.
+  //
+  //  - Allocate an uninitialized stack slot.  This is an intermediate-weight
+  //    solution that is harder to clean up.  It is often valid, but may fail
+  //    for an object with dynamic bounds.  This option is "automatically"
+  //    used by default for cases that do not use one of the other options.
+  //
+  //  - Allocate a heap box/descriptor, initialized to zero.  This always
+  //    works, but is more heavyweight and harder to clean up.  It is used
+  //    for dynamic objects via calls to genUnusedEntryPointBox.
+
+  auto genUnusedEntryPointBox = [&]() {
+    if (isUnusedEntryDummy) {
+      assert(!Fortran::semantics::IsAllocatableOrPointer(sym) &&
+             "handled above");
+      // The box is read right away because lowering code does not expect
+      // a non pointer/allocatable symbol to be mapped to a MutableBox.
+      symMap.addSymbol(sym, fir::factory::genMutableBoxRead(
+                                builder, loc,
+                                fir::factory::createTempMutableBox(
+                                    builder, loc, converter.genType(var))));
+      return true;
+    }
+    return false;
+  };
+
   // Helper to generate scalars for the symbol properties.
   auto genValue = [&](const Fortran::lower::SomeExpr &expr) {
     return genScalarValue(converter, loc, expr, symMap, stmtCtx);
@@ -1281,7 +1338,7 @@ void Fortran::lower::mapSymbolAttributes(
         Fortran::lower::SomeExpr highEx{*high};
         mlir::Value ub = genValue(highEx);
         ub = builder.createConvert(loc, idxTy, ub);
-        shapes.emplace_back(genMaxWithZero(builder, loc, ub));
+        shapes.emplace_back(fir::factory::genMaxWithZero(builder, loc, ub));
       } else if (spec->ubound().isColon()) {
         assert(box && "assumed bounds require a descriptor");
         mlir::Value dim =
@@ -1352,7 +1409,7 @@ void Fortran::lower::mapSymbolAttributes(
     mlir::Value rawLen = genValue(*charLen);
     // If the length expression is negative, the length is zero. See
     // F2018 7.4.4.2 point 5.
-    return genMaxWithZero(builder, loc, rawLen);
+    return fir::factory::genMaxWithZero(builder, loc, rawLen);
   };
 
   ba.match(
@@ -1412,6 +1469,8 @@ void Fortran::lower::mapSymbolAttributes(
       //===--------------------------------------------------------------===//
 
       [&](const Fortran::lower::details::ScalarDynamicChar &x) {
+        if (genUnusedEntryPointBox())
+          return;
         // type is a CHARACTER, determine the LEN value
         auto charLen = x.charLen();
         if (replace) {
@@ -1419,17 +1478,8 @@ void Fortran::lower::mapSymbolAttributes(
           mlir::Value boxAddr = symBox.getAddr();
           mlir::Value len;
           mlir::Type addrTy = boxAddr.getType();
-          if (addrTy.isa<fir::BoxCharType>() || addrTy.isa<fir::BoxType>()) {
+          if (addrTy.isa<fir::BoxCharType>() || addrTy.isa<fir::BoxType>())
             std::tie(boxAddr, len) = charHelp.createUnboxChar(symBox.getAddr());
-          } else {
-            // dummy from an other entry case: we cannot get a dynamic length
-            // for it, it's illegal for the user program to use it. However,
-            // since we are lowering all function unit statements regardless
-            // of whether the execution will reach them or not, we need to
-            // fill a value for the length here.
-            len = builder.createIntegerConstant(
-                loc, builder.getCharacterLengthType(), 1);
-          }
           // Override LEN with an expression
           if (charLen)
             len = genExplicitCharLen(charLen);
@@ -1484,6 +1534,8 @@ void Fortran::lower::mapSymbolAttributes(
       //===--------------------------------------------------------------===//
 
       [&](const Fortran::lower::details::DynamicArray &x) {
+        if (genUnusedEntryPointBox())
+          return;
         // cast to the known constant parts from the declaration
         mlir::Type varType = converter.genType(var);
         mlir::Value addr = symMap.lookupSymbol(sym).getAddr();
@@ -1587,6 +1639,8 @@ void Fortran::lower::mapSymbolAttributes(
       //===--------------------------------------------------------------===//
 
       [&](const Fortran::lower::details::StaticArrayDynamicChar &x) {
+        if (genUnusedEntryPointBox())
+          return;
         mlir::Value addr;
         mlir::Value len;
         [[maybe_unused]] bool mustBeDummy = false;
@@ -1656,6 +1710,8 @@ void Fortran::lower::mapSymbolAttributes(
       //===--------------------------------------------------------------===//
 
       [&](const Fortran::lower::details::DynamicArrayStaticChar &x) {
+        if (genUnusedEntryPointBox())
+          return;
         mlir::Value addr;
         mlir::Value len;
         mlir::Value argBox;
@@ -1714,6 +1770,8 @@ void Fortran::lower::mapSymbolAttributes(
       //===--------------------------------------------------------------===//
 
       [&](const Fortran::lower::details::DynamicArrayDynamicChar &x) {
+        if (genUnusedEntryPointBox())
+          return;
         mlir::Value addr;
         mlir::Value len;
         mlir::Value argBox;

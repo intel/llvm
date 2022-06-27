@@ -4,13 +4,18 @@ set(LLVM_TARGET_DEFINITIONS DirectX.td)
 
 tablegen(LLVM DirectXGenSubtargetInfo.inc -gen-subtarget)
 
+set(LLVM_TARGET_DEFINITIONS DXIL.td)
+tablegen(LLVM DXILOperation.inc -gen-dxil-operation)
+
 add_public_tablegen_target(DirectXCommonTableGen)
 
 add_llvm_target(DirectXCodeGen
   DirectXSubtarget.cpp
   DirectXTargetMachine.cpp
+  DXILOpLowering.cpp
   DXILPointerType.cpp
   DXILPrepare.cpp
+  DXILTranslateMetadata.cpp
   PointerTypeAnalysis.cpp
 
   LINK_COMPONENTS

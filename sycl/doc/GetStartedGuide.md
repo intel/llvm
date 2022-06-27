@@ -37,7 +37,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 * `git` - [Download](https://git-scm.com/downloads)
 * `cmake` version 3.14 or later - [Download](http://www.cmake.org/download/)
-* `python` - [Download](https://www.python.org/downloads/release/python-2716/)
+* `python` - [Download](https://www.python.org/downloads/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
@@ -46,7 +46,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
   * Windows: `Visual Studio` version 15.7 preview 4 or later -
     [Download](https://visualstudio.microsoft.com/downloads/)
 
-Alternatively, you can use Docker image, that has everything you need
+Alternatively, you can use Docker image, that has everything you need for building
 pre-installed:
 
 ```
@@ -116,14 +116,15 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
-* `--system-ocl` -> Don't download OpenCL headers and library via CMake but use the system ones
 * `--werror` -> treat warnings as errors when compiling LLVM
 * `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
 * `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
 * `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu))
+* `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
+  supported targets
 * `--shared-libs` -> Build shared libraries
-* `-t` -> Build type (debug or release)
+* `-t` -> Build type (Debug or Release)
 * `-o` -> Path to build directory
 * `--cmake-gen` -> Set build system type (e.g. `--cmake-gen "Unix Makefiles"`)
 
@@ -315,6 +316,7 @@ the following tools need to be installed:
 
 * doxygen
 * graphviz
+* sphinx
 
 Then you'll need to add the following options to your CMake configuration
 command:
@@ -519,7 +521,7 @@ python $DPCPP_HOME/llvm/buildbot/check.py
 ```bat
 python %DPCPP_HOME%\llvm\buildbot\check.py
 ```
-
+Make sure that psutil package is installed.
 If no OpenCL GPU/CPU runtimes are available, the corresponding tests are
 skipped.
 

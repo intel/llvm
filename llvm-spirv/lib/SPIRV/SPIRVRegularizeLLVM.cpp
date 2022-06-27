@@ -37,6 +37,7 @@
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "spvregular"
 
+#include "SPIRVRegularizeLLVM.h"
 #include "OCLUtil.h"
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
@@ -44,11 +45,9 @@
 #include "llvm/ADT/StringExtras.h" // llvm::isDigit
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/Demangle/Demangle.h"
-#include "llvm/IR/InstVisitor.h"
-#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h" // expandMemSetAsLoop()
 
@@ -63,99 +62,6 @@ namespace SPIRV {
 
 static bool SPIRVDbgSaveRegularizedModule = false;
 static std::string RegularizedModuleTmpFile = "regularized.bc";
-
-class SPIRVRegularizeLLVMBase {
-public:
-  SPIRVRegularizeLLVMBase() : M(nullptr), Ctx(nullptr) {}
-
-  bool runRegularizeLLVM(Module &M);
-  // Lower functions
-  bool regularize();
-
-  /// Erase cast inst of function and replace with the function.
-  /// Assuming F is a SPIR-V builtin function with op code \param OC.
-  void lowerFuncPtr(Function *F, Op OC);
-  void lowerFuncPtr(Module *M);
-
-  /// Some LLVM intrinsics that have no SPIR-V counterpart may be wrapped in
-  /// @spirv.llvm_intrinsic_* function. During reverse translation from SPIR-V
-  /// to LLVM IR we can detect this @spirv.llvm_intrinsic_* function and
-  /// replace it with @llvm.intrinsic.* back.
-  void lowerIntrinsicToFunction(IntrinsicInst *Intrinsic);
-
-  /// No SPIR-V counterpart for @llvm.fshl.*(@llvm.fshr.*) intrinsic. It will be
-  /// lowered to a newly generated @spirv.llvm_fshl_*(@spirv.llvm_fshr_*)
-  /// function.
-  ///
-  /// Conceptually, FSHL (FSHR):
-  /// 1. concatenates the ints, the first one being the more significant;
-  /// 2. performs a left (right) shift-rotate on the resulting doubled-sized
-  /// int;
-  /// 3. returns the most (least) significant bits of the shift-rotate result,
-  ///    the number of bits being equal to the size of the original integers.
-  /// If FSHL (FSHR) operates on a vector type instead, the same operations are
-  /// performed for each set of corresponding vector elements.
-  ///
-  /// The actual implementation algorithm will be slightly different for
-  /// simplification purposes.
-  void lowerFunnelShift(IntrinsicInst *FSHIntrinsic);
-
-  void lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic);
-  void buildUMulWithOverflowFunc(Function *UMulFunc);
-
-  // For some cases Clang emits VectorExtractDynamic as:
-  // void @_Z28__spirv_VectorExtractDynamic(<Ty>* sret(<Ty>), jointMatrix, idx);
-  // Instead of:
-  // <Ty> @_Z28__spirv_VectorExtractDynamic(JointMatrix, Idx);
-  // And VectorInsertDynamic as:
-  // @_Z27__spirv_VectorInsertDynamic(jointMatrix, <Ty>* byval(<Ty>), idx);
-  // Instead of:
-  // @_Z27__spirv_VectorInsertDynamic(jointMatrix, <Ty>, idx)
-  // Need to add additional GEP, store and load instructions and mutate called
-  // function to avoid translation failures
-  void expandSYCLTypeUsing(Module *M);
-  void expandVEDWithSYCLTypeSRetArg(Function *F);
-  void expandVIDWithSYCLTypeByValComp(Function *F);
-
-  // According to the specification, the operands of a shift instruction must be
-  // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
-  // i1 operands, they are treated as a bool. We need to extend them to i32 to
-  // comply with the specification. For example: "%shift = lshr i1 0, 1";
-  // The bit instruction should be changed to the extended version
-  // "%shift = lshr i32 0, 1" so the args are treated as int operands.
-  Value *extendBitInstBoolArg(Instruction *OldInst);
-
-  static std::string lowerLLVMIntrinsicName(IntrinsicInst *II);
-  void adaptStructTypes(StructType *ST);
-  static char ID;
-
-private:
-  Module *M;
-  LLVMContext *Ctx;
-};
-
-class SPIRVRegularizeLLVMPass
-    : public llvm::PassInfoMixin<SPIRVRegularizeLLVMPass>,
-      public SPIRVRegularizeLLVMBase {
-public:
-  llvm::PreservedAnalyses run(llvm::Module &M,
-                              llvm::ModuleAnalysisManager &MAM) {
-    return runRegularizeLLVM(M) ? llvm::PreservedAnalyses::none()
-                                : llvm::PreservedAnalyses::all();
-  }
-};
-
-class SPIRVRegularizeLLVMLegacy : public ModulePass,
-                                  public SPIRVRegularizeLLVMBase {
-public:
-  SPIRVRegularizeLLVMLegacy() : ModulePass(ID) {
-    initializeSPIRVRegularizeLLVMLegacyPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnModule(Module &M) override;
-
-  static char ID;
-};
 
 char SPIRVRegularizeLLVMLegacy::ID = 0;
 
@@ -567,7 +473,6 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
-  lowerFuncPtr(M);
   expandSYCLTypeUsing(M);
 
   for (auto I = M->begin(), E = M->end(); I != E;) {
@@ -639,12 +544,11 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         // Add an additional bitcast in case address space cast also changes
         // pointer element type.
         if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (DestTy->getPointerElementType() !=
-              SrcTy->getPointerElementType()) {
+          PointerType *DestTy = cast<PointerType>(ASCast->getDestTy());
+          PointerType *SrcTy = cast<PointerType>(ASCast->getSrcTy());
+          if (!DestTy->hasSameElementTypeAs(SrcTy)) {
             PointerType *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy), SrcTy->getPointerAddressSpace());
+                DestTy, SrcTy->getPointerAddressSpace());
             BitCastInst *NewBCast = new BitCastInst(
                 ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
             AddrSpaceCastInst *NewASCast =
@@ -720,43 +624,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
   if (SPIRVDbgSaveRegularizedModule)
     saveLLVMModule(M, RegularizedModuleTmpFile);
   return true;
-}
-
-// Assume F is a SPIR-V builtin function with a function pointer argument which
-// is a bitcast instruction casting a function to a void(void) function pointer.
-void SPIRVRegularizeLLVMBase::lowerFuncPtr(Function *F, Op OC) {
-  LLVM_DEBUG(dbgs() << "[lowerFuncPtr] " << *F << '\n');
-  auto Name = decorateSPIRVFunction(getName(OC));
-  std::set<Value *> InvokeFuncPtrs;
-  auto Attrs = F->getAttributes();
-  mutateFunction(
-      F,
-      [=, &InvokeFuncPtrs](CallInst *CI, std::vector<Value *> &Args) {
-        for (auto &I : Args) {
-          if (isFunctionPointerType(I->getType())) {
-            InvokeFuncPtrs.insert(I);
-            I = removeCast(I);
-          }
-        }
-        return Name;
-      },
-      nullptr, &Attrs, false);
-  for (auto &I : InvokeFuncPtrs)
-    eraseIfNoUse(I);
-}
-
-void SPIRVRegularizeLLVMBase::lowerFuncPtr(Module *M) {
-  std::vector<std::pair<Function *, Op>> Work;
-  for (auto &F : *M) {
-    auto AI = F.arg_begin();
-    if (hasFunctionPointerArg(&F, AI)) {
-      auto OC = getSPIRVFuncOC(F.getName());
-      if (OC != OpNop) // builtin with a function pointer argument
-        Work.push_back(std::make_pair(&F, OC));
-    }
-  }
-  for (auto &I : Work)
-    lowerFuncPtr(I.first, I.second);
 }
 
 } // namespace SPIRV

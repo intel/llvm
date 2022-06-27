@@ -312,7 +312,7 @@ NativeProcessLinux::NativeProcessLinux(::pid_t pid, int terminal_fd,
                                        const ArchSpec &arch, MainLoop &mainloop,
                                        llvm::ArrayRef<::pid_t> tids)
     : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch),
-      m_main_loop(mainloop), m_intel_pt_collector(pid) {
+      m_main_loop(mainloop), m_intel_pt_collector(*this) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -897,6 +897,8 @@ bool NativeProcessLinux::SupportHardwareSingleStepping() const {
 Status NativeProcessLinux::Resume(const ResumeActionList &resume_actions) {
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid {0}", GetID());
+
+  NotifyTracersProcessWillResume();
 
   bool software_single_step = !SupportHardwareSingleStepping();
 
@@ -1665,6 +1667,14 @@ void NativeProcessLinux::StopTrackingThread(NativeThreadLinux &thread) {
   SignalIfAllThreadsStopped();
 }
 
+void NativeProcessLinux::NotifyTracersProcessDidStop() {
+  m_intel_pt_collector.ProcessDidStop();
+}
+
+void NativeProcessLinux::NotifyTracersProcessWillResume() {
+  m_intel_pt_collector.ProcessWillResume();
+}
+
 Status NativeProcessLinux::NotifyTracersOfNewThread(lldb::tid_t tid) {
   Log *log = GetLog(POSIXLog::Thread);
   Status error(m_intel_pt_collector.OnThreadCreated(tid));
@@ -1967,10 +1977,7 @@ Error NativeProcessLinux::TraceStart(StringRef json_request, StringRef type) {
     if (Expected<TraceIntelPTStartRequest> request =
             json::parse<TraceIntelPTStartRequest>(json_request,
                                                   "TraceIntelPTStartRequest")) {
-      std::vector<lldb::tid_t> process_threads;
-      for (auto &thread : m_threads)
-        process_threads.push_back(thread->GetID());
-      return m_intel_pt_collector.TraceStart(*request, process_threads);
+      return m_intel_pt_collector.TraceStart(*request);
     } else
       return request.takeError();
   }

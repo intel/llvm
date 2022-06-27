@@ -48,7 +48,7 @@
 ; GCN-O0-NEXT:      Scalarize Masked Memory Intrinsics
 ; GCN-O0-NEXT:      Expand reduction intrinsics
 ; GCN-O0-NEXT:    SYCL Local Accessor to Shared Memory
-; GCN-O0-NEXT:    Add implicit SYCL global offset
+; GCN-O0-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O0-NEXT:    AMDGPU Attributor
 ; GCN-O0-NEXT:    CallGraph Construction
 ; GCN-O0-NEXT:    Call Graph SCC Pass Manager
@@ -217,7 +217,7 @@
 ; GCN-O1-NEXT:      Natural Loop Information
 ; GCN-O1-NEXT:      TLS Variable Hoist
 ; GCN-O1-NEXT:    SYCL Local Accessor to Shared Memory
-; GCN-O1-NEXT:    Add implicit SYCL global offset
+; GCN-O1-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-NEXT:    AMDGPU Attributor
 ; GCN-O1-NEXT:    CallGraph Construction
 ; GCN-O1-NEXT:    Call Graph SCC Pass Manager
@@ -300,6 +300,7 @@
 ; GCN-O1-NEXT:        Machine Block Frequency Analysis
 ; GCN-O1-NEXT:        Machine Common Subexpression Elimination
 ; GCN-O1-NEXT:        MachinePostDominator Tree Construction
+; GCN-O1-NEXT:        Machine Cycle Info Analysis
 ; GCN-O1-NEXT:        Machine code sinking
 ; GCN-O1-NEXT:        Peephole Optimizations
 ; GCN-O1-NEXT:        Remove dead machine instructions
@@ -491,7 +492,7 @@
 ; GCN-O1-OPTS-NEXT:      TLS Variable Hoist
 ; GCN-O1-OPTS-NEXT:      Early CSE
 ; GCN-O1-OPTS-NEXT:    SYCL Local Accessor to Shared Memory
-; GCN-O1-OPTS-NEXT:    Add implicit SYCL global offset
+; GCN-O1-OPTS-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O1-OPTS-NEXT:    AMDGPU Attributor
 ; GCN-O1-OPTS-NEXT:    CallGraph Construction
 ; GCN-O1-OPTS-NEXT:    Call Graph SCC Pass Manager
@@ -580,6 +581,7 @@
 ; GCN-O1-OPTS-NEXT:        Machine Block Frequency Analysis
 ; GCN-O1-OPTS-NEXT:        Machine Common Subexpression Elimination
 ; GCN-O1-OPTS-NEXT:        MachinePostDominator Tree Construction
+; GCN-O1-OPTS-NEXT:        Machine Cycle Info Analysis
 ; GCN-O1-OPTS-NEXT:        Machine code sinking
 ; GCN-O1-OPTS-NEXT:        Peephole Optimizations
 ; GCN-O1-OPTS-NEXT:        Remove dead machine instructions
@@ -779,7 +781,7 @@
 ; GCN-O2-NEXT:      TLS Variable Hoist
 ; GCN-O2-NEXT:      Early CSE
 ; GCN-O2-NEXT:    SYCL Local Accessor to Shared Memory
-; GCN-O2-NEXT:    Add implicit SYCL global offset
+; GCN-O2-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O2-NEXT:    AMDGPU Attributor
 ; GCN-O2-NEXT:    CallGraph Construction
 ; GCN-O2-NEXT:    Call Graph SCC Pass Manager
@@ -869,6 +871,7 @@
 ; GCN-O2-NEXT:        Machine Block Frequency Analysis
 ; GCN-O2-NEXT:        Machine Common Subexpression Elimination
 ; GCN-O2-NEXT:        MachinePostDominator Tree Construction
+; GCN-O2-NEXT:        Machine Cycle Info Analysis
 ; GCN-O2-NEXT:        Machine code sinking
 ; GCN-O2-NEXT:        Peephole Optimizations
 ; GCN-O2-NEXT:        Remove dead machine instructions
@@ -1081,7 +1084,7 @@
 ; GCN-O3-NEXT:      Optimization Remark Emitter
 ; GCN-O3-NEXT:      Global Value Numbering
 ; GCN-O3-NEXT:    SYCL Local Accessor to Shared Memory
-; GCN-O3-NEXT:    Add implicit SYCL global offset
+; GCN-O3-NEXT:    SYCL Add Implicit Global Offset
 ; GCN-O3-NEXT:    AMDGPU Attributor
 ; GCN-O3-NEXT:    CallGraph Construction
 ; GCN-O3-NEXT:    Call Graph SCC Pass Manager
@@ -1171,6 +1174,7 @@
 ; GCN-O3-NEXT:        Machine Block Frequency Analysis
 ; GCN-O3-NEXT:        Machine Common Subexpression Elimination
 ; GCN-O3-NEXT:        MachinePostDominator Tree Construction
+; GCN-O3-NEXT:        Machine Cycle Info Analysis
 ; GCN-O3-NEXT:        Machine code sinking
 ; GCN-O3-NEXT:        Peephole Optimizations
 ; GCN-O3-NEXT:        Remove dead machine instructions

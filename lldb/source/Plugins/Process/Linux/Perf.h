@@ -91,13 +91,16 @@ public:
   ///     Configuration information for the event.
   ///
   /// \param[in] pid
-  ///     The process to be monitored by the event.
+  ///     The process or thread to be monitored by the event. If \b None, then
+  ///     all processes and threads are monitored.
   ///
   /// \param[in] cpu
-  ///     The cpu to be monitored by the event.
+  ///     The cpu to be monitored by the event. If \b None, then all cpus are
+  ///     monitored.
   ///
   /// \param[in] group_fd
-  ///     File descriptor of the group leader.
+  ///     File descriptor of the group leader. If \b None, then this perf_event
+  ///     doesn't belong to a preexisting group.
   ///
   /// \param[in] flags
   ///     Bitmask of additional configuration flags.
@@ -105,8 +108,10 @@ public:
   /// \return
   ///     If the perf_event_open syscall was successful, a minimal \a PerfEvent
   ///     instance, or an \a llvm::Error otherwise.
-  static llvm::Expected<PerfEvent> Init(perf_event_attr &attr, lldb::pid_t pid,
-                                        int cpu, int group_fd,
+  static llvm::Expected<PerfEvent> Init(perf_event_attr &attr,
+                                        llvm::Optional<lldb::pid_t> pid,
+                                        llvm::Optional<lldb::cpu_id_t> cpu,
+                                        llvm::Optional<long> group_fd,
                                         unsigned long flags);
 
   /// Create a new performance monitoring event via the perf_event_open syscall
@@ -119,8 +124,11 @@ public:
   ///     Configuration information for the event.
   ///
   /// \param[in] pid
-  ///     The process to be monitored by the event.
-  static llvm::Expected<PerfEvent> Init(perf_event_attr &attr, lldb::pid_t pid);
+  ///     The process or thread to be monitored by the event. If \b None, then
+  ///     all threads and processes are monitored.
+  static llvm::Expected<PerfEvent>
+  Init(perf_event_attr &attr, llvm::Optional<lldb::pid_t> pid,
+       llvm::Optional<lldb::cpu_id_t> core = llvm::None);
 
   /// Mmap the metadata page and the data and aux buffers of the perf event and
   /// expose them through \a PerfEvent::GetMetadataPage() , \a
@@ -143,11 +151,16 @@ public:
   ///     A value of 0 effectively is a no-op and no data is mmap'ed for this
   ///     buffer.
   ///
+  /// \param[in] data_buffer_write
+  ///     Whether to mmap the data buffer with WRITE permissions. This changes
+  ///     the behavior of how the kernel writes to the data buffer.
+  ///
   /// \return
   ///   \a llvm::Error::success if the mmap operations succeeded,
   ///   or an \a llvm::Error otherwise.
   llvm::Error MmapMetadataAndBuffers(size_t num_data_pages,
-                                     size_t num_aux_pages);
+                                     size_t num_aux_pages,
+                                     bool data_buffer_write);
 
   /// Get the file descriptor associated with the perf event.
   long GetFd() const;
@@ -187,14 +200,68 @@ public:
   ///   \a ArrayRef<uint8_t> extending \a aux_size bytes from \a aux_offset.
   llvm::ArrayRef<uint8_t> GetAuxBuffer() const;
 
+  /// Read the aux buffer managed by this perf event assuming it was configured
+  /// with PROT_READ permissions only, which indicates that the buffer is
+  /// automatically wrapped and overwritten by the kernel or hardware. To ensure
+  /// that the data is up-to-date and is not corrupted by read-write race
+  /// conditions, the underlying perf_event is paused during read, and later
+  /// it's returned to its initial state. The returned data will be linear, i.e.
+  /// it will fix the circular wrapping the might exist in the buffer.
+  ///
+  /// \return
+  ///     A vector with the requested binary data.
+  llvm::Expected<std::vector<uint8_t>> GetReadOnlyAuxBuffer();
+
+  /// Read the data buffer managed by this perf even assuming it was configured
+  /// with PROT_READ permissions only, which indicates that the buffer is
+  /// automatically wrapped and overwritten by the kernel or hardware. To ensure
+  /// that the data is up-to-date and is not corrupted by read-write race
+  /// conditions, the underlying perf_event is paused during read, and later
+  /// it's returned to its initial state. The returned data will be linear, i.e.
+  /// it will fix the circular wrapping the might exist int he buffer.
+  ///
+  /// \return
+  ///     A vector with the requested binary data.
+  llvm::Expected<std::vector<uint8_t>> GetReadOnlyDataBuffer();
+
+  /// Use the ioctl API to disable the perf event and all the events in its
+  /// group. This doesn't terminate the perf event.
+  ///
+  /// This is no-op if the perf event is already disabled.
+  ///
+  /// \return
+  ///   An Error if the perf event couldn't be disabled.
+  llvm::Error DisableWithIoctl();
+
+  /// Use the ioctl API to enable the perf event and all the events in its
+  /// group.
+  ///
+  /// This is no-op if the perf event is already enabled.
+  ///
+  /// \return
+  ///   An Error if the perf event couldn't be enabled.
+  llvm::Error EnableWithIoctl();
+
+  /// \return
+  ///   The size in bytes of the section of the data buffer that has effective
+  ///   data.
+  size_t GetEffectiveDataBufferSize() const;
+
+  /// \return
+  ///   \b true if and only the perf event is enabled and collecting.
+  bool IsEnabled() const;
+
 private:
   /// Create new \a PerfEvent.
   ///
   /// \param[in] fd
   ///   File descriptor of the perf event.
-  PerfEvent(long fd)
+  ///
+  /// \param[in] enabled
+  ///   Initial collection state configured for this perf_event.
+  PerfEvent(long fd, bool enabled)
       : m_fd(new long(fd), resource_handle::FileDescriptorDeleter()),
-        m_metadata_data_base(), m_aux_base() {}
+        m_enabled(enabled) {}
 
   /// Wrapper for \a mmap to provide custom error messages.
   ///
@@ -214,7 +281,12 @@ private:
   ///     Number of pages in the data buffer to mmap, must be a power of 2.
   ///     A value of 0 is useful for "dummy" events that only want to access
   ///     the metadata, \a perf_event_mmap_page, or the aux buffer.
-  llvm::Error MmapMetadataAndDataBuffer(size_t num_data_pages);
+  ///
+  /// \param[in] data_buffer_write
+  ///     Whether to mmap the data buffer with WRITE permissions. This changes
+  ///     the behavior of how the kernel writes to the data buffer.
+  llvm::Error MmapMetadataAndDataBuffer(size_t num_data_pages,
+                                        bool data_buffer_write);
 
   /// Mmap the aux buffer of the perf event.
   ///
@@ -231,7 +303,21 @@ private:
   /// AUX buffer is a separate region for high-bandwidth data streams
   /// such as IntelPT.
   resource_handle::MmapUP m_aux_base;
+  /// The state of the underlying perf_event.
+  bool m_enabled;
 };
+
+/// Create a perf event that tracks context switches on a cpu.
+///
+/// \param[in] cpu_id
+///   The core to trace.
+///
+/// \param[in] parent_perf_event
+///   An optional perf event that will be grouped with the
+///   new perf event.
+llvm::Expected<PerfEvent>
+CreateContextSwitchTracePerfEvent(lldb::cpu_id_t cpu_id,
+                                  const PerfEvent *parent_perf_event = nullptr);
 
 /// Load \a PerfTscConversionParameters from \a perf_event_mmap_page, if
 /// available.

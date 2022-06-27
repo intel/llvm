@@ -248,7 +248,8 @@ void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
   (void)TargetContext;
   (void)ImageBuf;
   // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated release operation", PI_INVALID_OPERATION);
+  throw runtime_error("Deprecated release operation",
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
@@ -287,7 +288,8 @@ void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
   (void)MemBuf;
   (void)MemObj;
   // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated allocation operation", PI_INVALID_OPERATION);
+  throw runtime_error("Deprecated allocation operation",
+                      PI_ERROR_INVALID_OPERATION);
 }
 
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
@@ -442,11 +444,11 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
   Error = Plugin.call_nocheck<PiApiKind::piMemBufferPartition>(
       pi::cast<RT::PiMem>(ParentMemObj), PI_MEM_FLAGS_ACCESS_RW,
       PI_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
-  if (Error == PI_MISALIGNED_SUB_BUFFER_OFFSET)
+  if (Error == PI_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
     throw invalid_object_error(
         "Specified offset of the sub-buffer being constructed is not a "
         "multiple of the memory base address alignment",
-        PI_INVALID_VALUE);
+        PI_ERROR_INVALID_VALUE);
 
   if (Error != PI_SUCCESS) {
     Plugin.reportPiError(Error, "allocateMemSubBuffer()");
@@ -718,7 +720,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
     throw runtime_error("Not supported configuration of memcpy requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
 
   SrcMem += SrcOffset[0] * SrcElemSize;
@@ -792,7 +794,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
       return;
     }
     throw runtime_error("Not supported configuration of fill requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
@@ -808,7 +810,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          RT::PiEvent &OutEvent) {
   if (Queue->is_host()) {
     throw runtime_error("Not supported configuration of map requested",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
   }
 
   pi_map_flags Flags = 0;
@@ -875,7 +877,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
   if (!SrcMem || !DstMem)
     throw runtime_error("NULL pointer argument in memory copy operation.",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
 
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
@@ -903,7 +905,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
   if (!Mem)
     throw runtime_error("NULL pointer argument in memory fill operation.",
-                        PI_INVALID_VALUE);
+                        PI_ERROR_INVALID_VALUE);
 
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);

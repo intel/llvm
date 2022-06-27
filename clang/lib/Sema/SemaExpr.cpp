@@ -1730,6 +1730,34 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
           D = diag::err_assoc_type_nonobject;
         else if (Types[i]->getType()->isVariablyModifiedType())
           D = diag::err_assoc_type_variably_modified;
+        else {
+          // Because the controlling expression undergoes lvalue conversion,
+          // array conversion, and function conversion, an association which is
+          // of array type, function type, or is qualified can never be
+          // reached. We will warn about this so users are less surprised by
+          // the unreachable association. However, we don't have to handle
+          // function types; that's not an object type, so it's handled above.
+          //
+          // The logic is somewhat different for C++ because C++ has different
+          // lvalue to rvalue conversion rules than C. [conv.lvalue]p1 says,
+          // If T is a non-class type, the type of the prvalue is the cv-
+          // unqualified version of T. Otherwise, the type of the prvalue is T.
+          // The result of these rules is that all qualified types in an
+          // association in C are unreachable, and in C++, only qualified non-
+          // class types are unreachable.
+          unsigned Reason = 0;
+          QualType QT = Types[i]->getType();
+          if (QT->isArrayType())
+            Reason = 1;
+          else if (QT.hasQualifiers() &&
+                   (!LangOpts.CPlusPlus || !QT->isRecordType()))
+            Reason = 2;
+
+          if (Reason)
+            Diag(Types[i]->getTypeLoc().getBeginLoc(),
+                 diag::warn_unreachable_association)
+                << QT << (Reason - 1);
+        }
 
         if (D != 0) {
           Diag(Types[i]->getTypeLoc().getBeginLoc(), D)
@@ -1770,10 +1798,14 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
 
   SmallVector<unsigned, 1> CompatIndices;
   unsigned DefaultIndex = -1U;
+  // Look at the canonical type of the controlling expression in case it was a
+  // deduced type like __auto_type. However, when issuing diagnostics, use the
+  // type the user wrote in source rather than the canonical one.
   for (unsigned i = 0; i < NumAssocs; ++i) {
     if (!Types[i])
       DefaultIndex = i;
-    else if (Context.typesAreCompatible(ControllingExpr->getType(),
+    else if (Context.typesAreCompatible(
+                 ControllingExpr->getType().getCanonicalType(),
                                         Types[i]->getType()))
       CompatIndices.push_back(i);
   }
@@ -7788,6 +7820,36 @@ bool Sema::areVectorTypesSameSize(QualType SrcTy, QualType DestTy) {
   return (SrcLen * SrcEltSize == DestLen * DestEltSize);
 }
 
+// This returns true if at least one of the types is an altivec vector.
+bool Sema::anyAltivecTypes(QualType SrcTy, QualType DestTy) {
+  assert((DestTy->isVectorType() || SrcTy->isVectorType()) &&
+         "expected at least one type to be a vector here");
+
+  bool IsSrcTyAltivec =
+      SrcTy->isVectorType() && (SrcTy->castAs<VectorType>()->getVectorKind() ==
+                                VectorType::AltiVecVector);
+  bool IsDestTyAltivec = DestTy->isVectorType() &&
+                         (DestTy->castAs<VectorType>()->getVectorKind() ==
+                          VectorType::AltiVecVector);
+
+  return (IsSrcTyAltivec || IsDestTyAltivec);
+}
+
+// This returns true if both vectors have the same element type.
+bool Sema::areSameVectorElemTypes(QualType SrcTy, QualType DestTy) {
+  assert((DestTy->isVectorType() || SrcTy->isVectorType()) &&
+         "expected at least one type to be a vector here");
+
+  uint64_t SrcLen, DestLen;
+  QualType SrcEltTy, DestEltTy;
+  if (!breakDownVectorType(SrcTy, SrcLen, SrcEltTy))
+    return false;
+  if (!breakDownVectorType(DestTy, DestLen, DestEltTy))
+    return false;
+
+  return (SrcEltTy == DestEltTy);
+}
+
 /// Are the two types lax-compatible vector types?  That is, given
 /// that one of them is a vector, do they have equal storage sizes,
 /// where the storage size is the number of elements times the element
@@ -9607,6 +9669,13 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
       // vectors, the total size only needs to be the same. This is a bitcast;
       // no bits are changed but the result type is different.
       if (isLaxVectorConversion(RHSType, LHSType)) {
+        // The default for lax vector conversions with Altivec vectors will
+        // change, so if we are converting between vector types where
+        // at least one is an Altivec vector, emit a warning.
+        if (anyAltivecTypes(RHSType, LHSType) &&
+            !areSameVectorElemTypes(RHSType, LHSType))
+          Diag(RHS.get()->getExprLoc(), diag::warn_deprecated_lax_vec_conv_all)
+              << RHSType << LHSType;
         Kind = CK_BitCast;
         return IncompatibleVectors;
       }
@@ -9620,6 +9689,9 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
       const VectorType *VecType = RHSType->getAs<VectorType>();
       if (VecType && VecType->getNumElements() == 1 &&
           isLaxVectorConversion(RHSType, LHSType)) {
+        if (VecType->getVectorKind() == VectorType::AltiVecVector)
+          Diag(RHS.get()->getExprLoc(), diag::warn_deprecated_lax_vec_conv_all)
+              << RHSType << LHSType;
         ExprResult *VecExpr = &RHS;
         *VecExpr = ImpCastExprToType(VecExpr->get(), LHSType, CK_BitCast);
         Kind = CK_BitCast;
@@ -10316,12 +10388,18 @@ static bool tryGCCVectorConvertAndSplat(Sema &S, ExprResult *Scalar,
                                         ExprResult *Vector) {
   QualType ScalarTy = Scalar->get()->getType().getUnqualifiedType();
   QualType VectorTy = Vector->get()->getType().getUnqualifiedType();
-  const auto *VT = VectorTy->castAs<VectorType>();
+  QualType VectorEltTy;
 
-  assert(!isa<ExtVectorType>(VT) &&
-         "ExtVectorTypes should not be handled here!");
-
-  QualType VectorEltTy = VT->getElementType();
+  if (const auto *VT = VectorTy->getAs<VectorType>()) {
+    assert(!isa<ExtVectorType>(VT) &&
+           "ExtVectorTypes should not be handled here!");
+    VectorEltTy = VT->getElementType();
+  } else if (VectorTy->isVLSTBuiltinType()) {
+    VectorEltTy =
+        VectorTy->castAs<BuiltinType>()->getSveEltType(S.getASTContext());
+  } else {
+    llvm_unreachable("Only Fixed-Length and SVE Vector types are handled here");
+  }
 
   // Reject cases where the vector element type or the scalar element type are
   // not integral or floating point types.
@@ -10552,6 +10630,9 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
   QualType OtherType = LHSVecType ? RHSType : LHSType;
   ExprResult *OtherExpr = LHSVecType ? &RHS : &LHS;
   if (isLaxVectorConversion(OtherType, VecType)) {
+    if (anyAltivecTypes(RHSType, LHSType) &&
+        !areSameVectorElemTypes(RHSType, LHSType))
+      Diag(Loc, diag::warn_deprecated_lax_vec_conv_all) << RHSType << LHSType;
     // If we're allowing lax vector conversions, only the total (data) size
     // needs to be the same. For non compound assignment, if one of the types is
     // scalar, the result is always the vector type.
@@ -10633,10 +10714,13 @@ QualType Sema::CheckSizelessVectorOperands(ExprResult &LHS, ExprResult &RHS,
   QualType LHSType = LHS.get()->getType().getUnqualifiedType();
   QualType RHSType = RHS.get()->getType().getUnqualifiedType();
 
+  const BuiltinType *LHSBuiltinTy = LHSType->getAs<BuiltinType>();
+  const BuiltinType *RHSBuiltinTy = RHSType->getAs<BuiltinType>();
+
   unsigned DiagID = diag::err_typecheck_invalid_operands;
   if ((OperationKind == ACK_Arithmetic) &&
-      (LHSType->castAs<BuiltinType>()->isSVEBool() ||
-       RHSType->castAs<BuiltinType>()->isSVEBool())) {
+      ((LHSBuiltinTy && LHSBuiltinTy->isSVEBool()) ||
+       (RHSBuiltinTy && RHSBuiltinTy->isSVEBool()))) {
     Diag(Loc, DiagID) << LHSType << RHSType << LHS.get()->getSourceRange()
                       << RHS.get()->getSourceRange();
     return QualType();
@@ -10645,32 +10729,43 @@ QualType Sema::CheckSizelessVectorOperands(ExprResult &LHS, ExprResult &RHS,
   if (Context.hasSameType(LHSType, RHSType))
     return LHSType;
 
-  auto tryScalableVectorConvert = [this](ExprResult *Src, QualType SrcType,
-                                         QualType DestType) {
-    const QualType DestBaseType = DestType->getSveEltType(Context);
-    if (DestBaseType->getUnqualifiedDesugaredType() ==
-        SrcType->getUnqualifiedDesugaredType()) {
-      unsigned DiagID = diag::err_typecheck_invalid_operands;
-      if (!tryVectorConvertAndSplat(*this, Src, SrcType, DestBaseType, DestType,
-                                    DiagID))
-        return DestType;
-    }
-    return QualType();
-  };
-
   if (LHSType->isVLSTBuiltinType() && !RHSType->isVLSTBuiltinType()) {
-    auto DestType = tryScalableVectorConvert(&RHS, RHSType, LHSType);
-    if (DestType == QualType())
-      return InvalidOperands(Loc, LHS, RHS);
-    return DestType;
+    if (!tryGCCVectorConvertAndSplat(*this, &RHS, &LHS))
+      return LHSType;
+  }
+  if (RHSType->isVLSTBuiltinType() && !LHSType->isVLSTBuiltinType()) {
+    if (LHS.get()->isLValue() ||
+        !tryGCCVectorConvertAndSplat(*this, &LHS, &RHS))
+      return RHSType;
   }
 
-  if (RHSType->isVLSTBuiltinType() && !LHSType->isVLSTBuiltinType()) {
-    auto DestType = tryScalableVectorConvert((IsCompAssign ? nullptr : &LHS),
-                                             LHSType, RHSType);
-    if (DestType == QualType())
-      return InvalidOperands(Loc, LHS, RHS);
-    return DestType;
+  if ((!LHSType->isVLSTBuiltinType() && !LHSType->isRealType()) ||
+      (!RHSType->isVLSTBuiltinType() && !RHSType->isRealType())) {
+    Diag(Loc, diag::err_typecheck_vector_not_convertable_non_scalar)
+        << LHSType << RHSType << LHS.get()->getSourceRange()
+        << RHS.get()->getSourceRange();
+    return QualType();
+  }
+
+  if (LHSType->isVLSTBuiltinType() && RHSType->isVLSTBuiltinType() &&
+      Context.getBuiltinVectorTypeInfo(LHSBuiltinTy).EC !=
+          Context.getBuiltinVectorTypeInfo(RHSBuiltinTy).EC) {
+    Diag(Loc, diag::err_typecheck_vector_lengths_not_equal)
+        << LHSType << RHSType << LHS.get()->getSourceRange()
+        << RHS.get()->getSourceRange();
+    return QualType();
+  }
+
+  if (LHSType->isVLSTBuiltinType() || RHSType->isVLSTBuiltinType()) {
+    QualType Scalar = LHSType->isVLSTBuiltinType() ? RHSType : LHSType;
+    QualType Vector = LHSType->isVLSTBuiltinType() ? LHSType : RHSType;
+    bool ScalarOrVector =
+        LHSType->isVLSTBuiltinType() && RHSType->isVLSTBuiltinType();
+
+    Diag(Loc, diag::err_typecheck_vector_not_convertable_implict_truncation)
+        << ScalarOrVector << Scalar << Vector;
+
+    return QualType();
   }
 
   Diag(Loc, DiagID) << LHSType << RHSType << LHS.get()->getSourceRange()
@@ -10900,8 +10995,10 @@ static void diagnoseSubtractionOnNullPointer(Sema &S, SourceLocation Loc,
   if (S.Diags.getSuppressSystemWarnings() && S.SourceMgr.isInSystemMacro(Loc))
     return;
 
-  S.Diag(Loc, diag::warn_pointer_sub_null_ptr)
-      << S.getLangOpts().CPlusPlus << Pointer->getSourceRange();
+  S.DiagRuntimeBehavior(Loc, Pointer,
+                        S.PDiag(diag::warn_pointer_sub_null_ptr)
+                            << S.getLangOpts().CPlusPlus
+                            << Pointer->getSourceRange());
 }
 
 /// Diagnose invalid arithmetic on two function pointers.
@@ -11449,10 +11546,16 @@ static void DiagnoseBadShiftValues(Sema& S, ExprResult &LHS, ExprResult &RHS,
     return;
   llvm::APSInt Left = LHSResult.Val.getInt();
 
-  // If LHS does not have a signed type and non-negative value
-  // then, the behavior is undefined before C++2a. Warn about it.
-  if (Left.isNegative() && !S.getLangOpts().isSignedOverflowDefined() &&
-      !S.getLangOpts().CPlusPlus20) {
+  // Don't warn if signed overflow is defined, then all the rest of the
+  // diagnostics will not be triggered because the behavior is defined.
+  // Also don't warn in C++20 mode (and newer), as signed left shifts
+  // always wrap and never overflow.
+  if (S.getLangOpts().isSignedOverflowDefined() || S.getLangOpts().CPlusPlus20)
+    return;
+
+  // If LHS does not have a non-negative value then, the
+  // behavior is undefined before C++2a. Warn about it.
+  if (Left.isNegative()) {
     S.DiagRuntimeBehavior(Loc, LHS.get(),
                           S.PDiag(diag::warn_shift_lhs_negative)
                             << LHS.get()->getSourceRange());
@@ -19661,9 +19764,15 @@ public:
   }
 
   void Visit(Expr *E) {
-    if (std::find(StopAt.begin(), StopAt.end(), E) != StopAt.end())
+    if (llvm::is_contained(StopAt, E))
       return;
     Inherited::Visit(E);
+  }
+
+  void VisitConstantExpr(ConstantExpr *E) {
+    // Don't mark declarations within a ConstantExpression, as this expression
+    // will be evaluated and folded to a value.
+    return;
   }
 
   void VisitDeclRefExpr(DeclRefExpr *E) {

@@ -151,6 +151,17 @@ struct FinalizingBufferizePass
   }
 };
 
+static BufferizationOptions::LayoutMapOption
+parseLayoutMapOption(const std::string &s) {
+  if (s == "fully-dynamic-layout-map")
+    return BufferizationOptions::LayoutMapOption::FullyDynamicLayoutMap;
+  if (s == "identity-layout-map")
+    return BufferizationOptions::LayoutMapOption::IdentityLayoutMap;
+  if (s == "infer-layout-map")
+    return BufferizationOptions::LayoutMapOption::InferLayoutMap;
+  llvm_unreachable("invalid layout map option");
+}
+
 struct OneShotBufferizePass
     : public OneShotBufferizeBase<OneShotBufferizePass> {
   OneShotBufferizePass() : OneShotBufferizeBase<OneShotBufferizePass>() {}
@@ -169,28 +180,27 @@ struct OneShotBufferizePass
     if (!options) {
       // Make new bufferization options if none were provided when creating the
       // pass.
-      opt.dropEquivalentFuncResults = dropEquivalentFuncResults;
       opt.allowReturnAllocs = allowReturnAllocs;
       opt.allowUnknownOps = allowUnknownOps;
-      opt.alwaysAliasingWithDest = alwaysAliasingWithDest;
       opt.analysisFuzzerSeed = analysisFuzzerSeed;
       opt.createDeallocs = createDeallocs;
-      opt.fullyDynamicLayoutMaps = fullyDynamicLayoutMaps;
+      opt.functionBoundaryTypeConversion =
+          parseLayoutMapOption(functionBoundaryTypeConversion);
       opt.printConflicts = printConflicts;
       opt.testAnalysisOnly = testAnalysisOnly;
       opt.bufferizeFunctionBoundaries = bufferizeFunctionBoundaries;
+      opt.unknownTypeConversion = parseLayoutMapOption(unknownTypeConversion);
 
-      BufferizationOptions::OpFilterEntry::FilterFn filterFn =
+      OpFilter::Entry::FilterFn filterFn =
           [&](Operation *op) {
             // Filter may be specified via options.
             if (this->dialectFilter.hasValue())
-              return llvm::find(this->dialectFilter,
-                                op->getDialect()->getNamespace()) !=
-                     this->dialectFilter.end();
+              return llvm::is_contained(this->dialectFilter,
+                                        op->getDialect()->getNamespace());
             // No filter specified: All other ops are allowed.
             return true;
           };
-      opt.allowOperationInFilter(filterFn);
+      opt.opFilter.allowOperation(filterFn);
     } else {
       opt = *options;
     }
@@ -222,6 +232,28 @@ private:
   llvm::Optional<OneShotBufferizationOptions> options;
 };
 } // namespace
+
+namespace {
+struct BufferizationBufferizePass
+    : public BufferizationBufferizeBase<BufferizationBufferizePass> {
+  void runOnOperation() override {
+    BufferizationOptions options = getPartialBufferizationOptions();
+    options.opFilter.allowDialect<BufferizationDialect>();
+
+    if (failed(bufferizeOp(getOperation(), options)))
+      signalPassFailure();
+  }
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<bufferization::BufferizationDialect, memref::MemRefDialect>();
+  }
+};
+} // namespace
+
+std::unique_ptr<Pass> mlir::bufferization::createBufferizationBufferizePass() {
+  return std::make_unique<BufferizationBufferizePass>();
+}
 
 std::unique_ptr<Pass> mlir::bufferization::createOneShotBufferizePass() {
   return std::make_unique<OneShotBufferizePass>();
@@ -256,30 +288,6 @@ static bool hasTensorSemantics(Operation *op) {
   return hasTensorResult || hasTensorOperand;
 }
 
-LogicalResult
-bufferization::finalizeBuffers(Operation *op,
-                               const BufferizationOptions &options) {
-  // Hoist buffers.
-  if (failed(hoistBufferAllocations(op, options)))
-    return failure();
-
-  // Deallocate buffers that escape block boundaries ("leaking buffers") with
-  // the buffer deallocation pass.
-  bool hasLeakingAlloc = false;
-  if (failed(createAllocDeallocOps(op, options, /*onlyLeakingAllocs=*/true,
-                                   &hasLeakingAlloc)))
-    return failure();
-  if (options.createDeallocs && hasLeakingAlloc &&
-      failed(deallocateBuffers(op)))
-    return failure();
-
-  // Deallocate all remaining buffers at the end of the block.
-  if (failed(createAllocDeallocOps(op, options)))
-    return failure();
-
-  return success();
-}
-
 LogicalResult bufferization::bufferizeOp(Operation *op,
                                          const AnalysisState &analysisState) {
   // Catch incorrect API usage.
@@ -291,8 +299,6 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
   BufferizationState bufferizationState(analysisState);
   if (failed(bufferizeOp(op, bufferizationState)))
     return failure();
-  if (failed(finalizeBuffers(op, analysisState.getOptions())))
-    return failure();
   return success();
 }
 
@@ -302,14 +308,17 @@ class BufferizationRewriter : public IRRewriter {
 public:
   BufferizationRewriter(MLIRContext *ctx, DenseSet<Operation *> &erasedOps,
                         DenseSet<Operation *> &toMemrefOps,
-                        SmallVector<Operation *> &worklist)
+                        const BufferizationOptions &options,
+                        const OpFilter *opFilter)
       : IRRewriter(ctx), erasedOps(erasedOps), toMemrefOps(toMemrefOps),
-        worklist(worklist) {}
+        options(options), opFilter(opFilter) {}
 
 protected:
   void notifyOperationRemoved(Operation *op) override {
     IRRewriter::notifyOperationRemoved(op);
     erasedOps.insert(op);
+    // Erase if present.
+    toMemrefOps.erase(op);
   }
 
   void notifyOperationInserted(Operation *op) override {
@@ -325,9 +334,18 @@ protected:
     if (isa<ToTensorOp>(op))
       return;
 
-    // A new bufferizable op was inserted. Add it to the worklist.
-    if (hasTensorSemantics(op))
-      worklist.push_back(op);
+    // Skip non-tensor ops.
+    if (!hasTensorSemantics(op))
+      return;
+
+    // Skip ops that are not allowed.
+    if (!options.isOpAllowed(op) || (opFilter && !opFilter->isOpAllowed(op)))
+      return;
+
+    // Adding new bufferizable ops is not allowed during bufferization. Such ops
+    // would not be analyzed and can lead to surprising behavior.
+    llvm_unreachable(
+        "creating new tensor ops is not allowed during bufferization");
   }
 
 private:
@@ -337,15 +355,22 @@ private:
   /// A set of all to_memref ops.
   DenseSet<Operation *> &toMemrefOps;
 
-  /// The list of bufferizable ops.
-  SmallVector<Operation *> &worklist;
+  /// The bufferization options.
+  /// Used for debug modes.
+  LLVM_ATTRIBUTE_UNUSED
+  const BufferizationOptions &options;
+
+  const OpFilter *opFilter;
 };
 } // namespace
 
-LogicalResult
-bufferization::bufferizeOp(Operation *op,
-                           BufferizationState &bufferizationState) {
+LogicalResult bufferization::bufferizeOp(Operation *op,
+                                         BufferizationState &bufferizationState,
+                                         const OpFilter *opFilter) {
   const auto &options = bufferizationState.getOptions();
+  assert(options.unknownTypeConversion !=
+             BufferizationOptions::LayoutMapOption::InferLayoutMap &&
+         "invalid layout map option");
 
   // Keep track of to_memref ops.
   DenseSet<Operation *> toMemrefOps;
@@ -355,13 +380,9 @@ bufferization::bufferizeOp(Operation *op,
   //
   // We should ideally know the exact memref type of all operands when
   // bufferizing an op. (This is the case when bufferizing top-to-bottom.)
-  // Otherwise, we have to use a memref type with a fully dynamic layout map,
-  // which has to canonicalize away. This is less efficient.
-  //
-  // If "fullyDynamicLayoutMaps = false", we would have to insert buffer copies
-  // to fold ("finalize") to_memref(to_tensor(x)) ops with non-cast-compatible
-  // layout maps when doing a traversal other than top-to-bottom. These would
-  // not easily fold away.
+  // Otherwise, we have to use a memref type with a fully dynamic layout map to
+  // avoid copies. We are currently missing patterns for layout maps to
+  // canonicalize away (or canonicalize to more precise layouts).
   SmallVector<Operation *> worklist;
   op->walk<WalkOrder::PreOrder>([&](Operation *op) {
     if (hasTensorSemantics(op))
@@ -373,28 +394,29 @@ bufferization::bufferizeOp(Operation *op,
 
   // Bufferize all ops.
   BufferizationRewriter rewriter(op->getContext(), erasedOps, toMemrefOps,
-                                 worklist);
+                                 bufferizationState.getOptions(), opFilter);
   for (unsigned i = 0; i < worklist.size(); ++i) {
     Operation *op = worklist[i];
     // Skip ops that were erased.
     if (erasedOps.contains(op))
       continue;
-    // Skip ops that are not bufferizable.
-    auto bufferizableOp = dyn_cast<BufferizableOpInterface>(op);
+    // Skip ops that are not bufferizable or not allowed.
+    auto bufferizableOp = options.dynCastBufferizableOp(op);
     if (!bufferizableOp)
       continue;
-    // Continue ops that are not allowed.
-    if (!options.isOpAllowed(op))
+    if (opFilter && !opFilter->isOpAllowed(op))
+      continue;
+    // Skip ops that no longer have tensor semantics.
+    if (!hasTensorSemantics(op))
       continue;
     // Bufferize the op.
     rewriter.setInsertionPoint(op);
-    (void)bufferizableOp.bufferize(rewriter, bufferizationState);
+    if (failed(bufferizableOp.bufferize(rewriter, bufferizationState)))
+      return op->emitError("failed to bufferize op");
   }
 
   // Fold all to_memref(to_tensor(x)) pairs.
   for (Operation *op : toMemrefOps) {
-    if (erasedOps.contains(op))
-      continue;
     rewriter.setInsertionPoint(op);
     (void)bufferization::foldToMemrefToTensorPair(rewriter,
                                                   cast<ToMemrefOp>(op));
@@ -416,6 +438,8 @@ bufferization::bufferizeOp(Operation *op,
     // Continue ops that are not allowed.
     if (!options.isOpAllowed(op))
       continue;
+    if (opFilter && !opFilter->isOpAllowed(op))
+      continue;
     // Ops without any uses and no side effects will fold away.
     if (op->getUses().empty() && MemoryEffectOpInterface::hasNoEffect(op))
       continue;
@@ -425,38 +449,9 @@ bufferization::bufferizeOp(Operation *op,
   return success();
 }
 
-namespace {
-/// This a "no analysis, always copy" AnalysisState. In the absence of an
-/// analysis, a buffer must be copied each time it is written to. Therefore, all
-/// OpOperands that bufferize to a memory write must bufferize out-of-place.
-class AlwaysCopyAnalysisState : public AnalysisState {
-public:
-  AlwaysCopyAnalysisState(const BufferizationOptions &options)
-      : AnalysisState(options) {}
-
-  AlwaysCopyAnalysisState(const AlwaysCopyAnalysisState &) = delete;
-
-  virtual ~AlwaysCopyAnalysisState() = default;
-
-  /// Return `true` if the given OpResult has been decided to bufferize inplace.
-  bool isInPlace(OpOperand &opOperand) const override {
-    // OpOperands that bufferize to a memory write are out-of-place, i.e., an
-    // alloc and copy is inserted.
-    return !bufferizesToMemoryWrite(opOperand);
-  }
-
-  /// Return true if `v1` and `v2` bufferize to equivalent buffers.
-  bool areEquivalentBufferizedValues(Value v1, Value v2) const override {
-    // There is no analysis, so we do not know if the values are equivalent. The
-    // conservative answer is "false".
-    return false;
-  }
-};
-} // namespace
-
 LogicalResult bufferization::bufferizeOp(Operation *op,
                                          const BufferizationOptions &options) {
-  AlwaysCopyAnalysisState state(options);
+  AnalysisState state(options);
   return bufferizeOp(op, state);
 }
 
@@ -464,6 +459,7 @@ BufferizationOptions bufferization::getPartialBufferizationOptions() {
   BufferizationOptions options;
   options.allowUnknownOps = true;
   options.createDeallocs = false;
-  options.fullyDynamicLayoutMaps = false;
+  options.unknownTypeConversion =
+      BufferizationOptions::LayoutMapOption::IdentityLayoutMap;
   return options;
 }

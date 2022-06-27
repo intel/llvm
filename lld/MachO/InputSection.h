@@ -71,7 +71,8 @@ protected:
 public:
   // is address assigned?
   bool isFinal = false;
-  // keep the address of the symbol(s) in this section unique in the final binary ?
+  // keep the address of the symbol(s) in this section unique in the final
+  // binary ?
   bool keepUnique = false;
   uint32_t align = 1;
 
@@ -272,6 +273,7 @@ inline bool isWordLiteralSection(uint32_t flags) {
 bool isCodeSection(const InputSection *);
 bool isCfStringSection(const InputSection *);
 bool isClassRefsSection(const InputSection *);
+bool isEhFrameSection(const InputSection *);
 
 extern std::vector<ConcatInputSection *> inputSections;
 

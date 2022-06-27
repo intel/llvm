@@ -67,6 +67,8 @@ void VoteBallotOp::print(OpAsmPrinter &p) { printNVVMIntrinsicOp(p, *this); }
 LogicalResult CpAsyncOp::verify() {
   if (size() != 4 && size() != 8 && size() != 16)
     return emitError("expected byte size to be either 4, 8 or 16.");
+  if (bypass_l1() && size() != 16)
+    return emitError("bypass l1 is only support for 16 bytes copy.");
   return success();
 }
 
@@ -194,11 +196,8 @@ void MmaOp::build(OpBuilder &builder, OperationState &result, Type resultType,
 
   assert(shape.size() == 3 && "expected shape to have size 3 (m, n, k)");
   MLIRContext *ctx = builder.getContext();
-  Type i32 = builder.getIntegerType(32);
   result.addAttribute(
-      "shape", MMAShapeAttr::get(builder.getIntegerAttr(i32, shape[0]),
-                                 builder.getIntegerAttr(i32, shape[1]),
-                                 builder.getIntegerAttr(i32, shape[2]), ctx));
+      "shape", builder.getAttr<MMAShapeAttr>(shape[0], shape[1], shape[2]));
 
   result.addOperands(operandA);
   result.addOperands(operandB);
@@ -304,8 +303,8 @@ ParseResult MmaOp::parse(OpAsmParser &parser, OperationState &result) {
   }
 
   Type resultType;
-  parser.parseArrow();
-  parser.parseType(resultType);
+  if (parser.parseArrow() || parser.parseType(resultType))
+    return failure();
   frags[3].elemtype = inferOperandMMAType(resultType, /*isAccum=*/true);
 
   std::array<StringRef, 2> names{"multiplicandAPtxType",
@@ -356,9 +355,8 @@ LogicalResult MmaOp::verify() {
   auto s32x2StructTy =
       LLVM::LLVMStructType::getLiteral(context, {i32Ty, i32Ty});
 
-  std::array<int64_t, 3> mmaShape{shapeAttr().m().getInt(),
-                                  shapeAttr().n().getInt(),
-                                  shapeAttr().k().getInt()};
+  std::array<int64_t, 3> mmaShape{shapeAttr().getM(), shapeAttr().getN(),
+                                  shapeAttr().getK()};
 
   // These variables define the set of allowed data types for matrices A, B, C,
   // and result.

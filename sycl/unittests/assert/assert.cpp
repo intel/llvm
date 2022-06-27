@@ -371,12 +371,13 @@ static pi_result redefinedProgramGetInfo(pi_program P,
   return PI_ERROR_UNKNOWN;
 }
 
-static pi_result redefinedProgramGetBuildInfo(
-    pi_program P, pi_device D,
-    cl_program_build_info ParamName, // TODO: untie from OpenCL
-    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
-  if (CL_PROGRAM_BINARY_TYPE == ParamName) {
-    static const cl_program_binary_type T = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
+static pi_result redefinedProgramGetBuildInfo(pi_program P, pi_device D,
+                                              pi_program_build_info ParamName,
+                                              size_t ParamValueSize,
+                                              void *ParamValue,
+                                              size_t *ParamValueSizeRet) {
+  if (PI_PROGRAM_BUILD_INFO_BINARY_TYPE == ParamName) {
+    static const pi_program_binary_type T = PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
     if (ParamValue)
       memcpy(ParamValue, &T, sizeof(T));
     if (ParamValueSizeRet)
@@ -384,7 +385,7 @@ static pi_result redefinedProgramGetBuildInfo(
     return PI_SUCCESS;
   }
 
-  if (CL_PROGRAM_BUILD_OPTIONS == ParamName) {
+  if (PI_PROGRAM_BUILD_INFO_OPTIONS == ParamName) {
     if (ParamValueSizeRet)
       *ParamValueSizeRet = 0;
     return PI_SUCCESS;
@@ -623,9 +624,8 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::unittest::PiMock Mock{Plt};
 
   const sycl::device Dev = Plt.get_devices()[0];
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   setupMockForInterop(Mock, Ctx, Dev);
 

@@ -27,12 +27,12 @@ int main() {
 // Check alloca for pointer argument
 // CHECK: [[MEM_ARG]].addr = alloca i32 addrspace(1)*
 // Check lambda object alloca
-// CHECK: [[ANONALLOCA:%[0-9]+]] = alloca %class.anon
+// CHECK: [[ANONALLOCA:%[a-zA-Z0-9_]+]] = alloca %class.anon
 // Check allocas for ranges
 // CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.cl::sycl::range"
 // CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.cl::sycl::range"
 // CHECK: [[OIDA:%agg.tmp.*]] = alloca %"struct.cl::sycl::id"
-// CHECK: [[ANON:%[0-9]+]] = addrspacecast %class.anon* [[ANONALLOCA]] to %class.anon addrspace(4)*
+// CHECK: [[ANON:%[a-zA-Z0-9_.]+]] = addrspacecast %class.anon* [[ANONALLOCA]] to %class.anon addrspace(4)*
 // CHECK: [[ARANGET:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::range"* [[ARANGEA]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[MRANGET:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::range"* [[MRANGEA]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[OIDT:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::id"* [[OIDA]] to %"struct.cl::sycl::id" addrspace(4)*

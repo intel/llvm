@@ -21,6 +21,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
@@ -89,14 +90,6 @@ struct ConstraintTy {
   /// Returns true if all preconditions for this list of constraints are
   /// satisfied given \p CS and the corresponding \p Value2Index mapping.
   bool isValid(const ConstraintInfo &Info) const;
-
-  /// Returns true if there is exactly one constraint in the list and isValid is
-  /// also true.
-  bool isValidSingle(const ConstraintInfo &Info) const {
-    if (size() != 1)
-      return false;
-    return isValid(Info);
-  }
 };
 
 /// Wrapper encapsulating separate constraint systems and corresponding value
@@ -289,10 +282,6 @@ getConstraint(CmpInst::Predicate Pred, Value *Op0, Value *Op1,
   if (ADec.empty() || BDec.empty())
     return {};
 
-  // Skip trivial constraints without any variables.
-  if (ADec.size() == 1 && BDec.size() == 1)
-    return {};
-
   int64_t Offset1 = ADec[0].first;
   int64_t Offset2 = BDec[0].first;
   Offset1 *= -1;
@@ -357,7 +346,7 @@ bool ConstraintTy::isValid(const ConstraintInfo &Info) const {
                Info.getValue2Index(CmpInst::isSigned(C.Pred)), NewIndices);
            // TODO: properly check NewIndices.
            return NewIndices.empty() && R.Preconditions.empty() && !R.IsEq &&
-                  R.size() >= 2 &&
+                  R.size() >= 1 &&
                   Info.getCS(CmpInst::isSigned(C.Pred))
                       .isConditionImplied(R.Coefficients);
          });
@@ -517,6 +506,55 @@ void State::addInfoFor(BasicBlock &BB) {
     WorkList.emplace_back(DT.getNode(Br->getSuccessor(1)), CmpI, true);
 }
 
+static void
+tryToSimplifyOverflowMath(IntrinsicInst *II, ConstraintInfo &Info,
+                          SmallVectorImpl<Instruction *> &ToRemove) {
+  auto DoesConditionHold = [](CmpInst::Predicate Pred, Value *A, Value *B,
+                              ConstraintInfo &Info) {
+    DenseMap<Value *, unsigned> NewIndices;
+    auto R = getConstraint(
+        Pred, A, B, Info.getValue2Index(CmpInst::isSigned(Pred)), NewIndices);
+    if (R.size() < 2 || R.needsNewIndices(NewIndices) || !R.isValid(Info))
+      return false;
+
+    auto &CSToUse = Info.getCS(CmpInst::isSigned(Pred));
+    return CSToUse.isConditionImplied(R.Coefficients);
+  };
+
+  if (II->getIntrinsicID() == Intrinsic::ssub_with_overflow) {
+    // If A s>= B && B s>= 0, ssub.with.overflow(a, b) should not overflow and
+    // can be simplified to a regular sub.
+    Value *A = II->getArgOperand(0);
+    Value *B = II->getArgOperand(1);
+    if (!DoesConditionHold(CmpInst::ICMP_SGE, A, B, Info) ||
+        !DoesConditionHold(CmpInst::ICMP_SGE, B,
+                           ConstantInt::get(A->getType(), 0), Info))
+      return;
+
+    IRBuilder<> Builder(II->getParent(), II->getIterator());
+    Value *Sub = nullptr;
+    for (User *U : make_early_inc_range(II->users())) {
+      if (match(U, m_ExtractValue<0>(m_Value()))) {
+        if (!Sub)
+          Sub = Builder.CreateSub(A, B);
+        U->replaceAllUsesWith(Sub);
+      } else if (match(U, m_ExtractValue<1>(m_Value())))
+        U->replaceAllUsesWith(Builder.getFalse());
+      else
+        continue;
+
+      if (U->use_empty()) {
+        auto *I = cast<Instruction>(U);
+        ToRemove.push_back(I);
+        I->setOperand(0, PoisonValue::get(II->getType()));
+      }
+    }
+
+    if (II->use_empty())
+      II->eraseFromParent();
+  }
+}
+
 static bool eliminateConstraints(Function &F, DominatorTree &DT) {
   bool Changed = false;
   DT.updateDFSNumbers();
@@ -539,6 +577,8 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
   sort(S.WorkList, [](const ConstraintOrBlock &A, const ConstraintOrBlock &B) {
     return std::tie(A.NumIn, A.IsBlock) < std::tie(B.NumIn, B.IsBlock);
   });
+
+  SmallVector<Instruction *> ToRemove;
 
   // Finally, process ordered worklist and eliminate implied conditions.
   SmallVector<StackEntry, 16> DFSInStack;
@@ -576,14 +616,18 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
     // For a block, check if any CmpInsts become known based on the current set
     // of constraints.
     if (CB.IsBlock) {
-      for (Instruction &I : *CB.BB) {
+      for (Instruction &I : make_early_inc_range(*CB.BB)) {
+        if (auto *II = dyn_cast<WithOverflowInst>(&I)) {
+          tryToSimplifyOverflowMath(II, Info, ToRemove);
+          continue;
+        }
         auto *Cmp = dyn_cast<ICmpInst>(&I);
         if (!Cmp)
           continue;
 
         DenseMap<Value *, unsigned> NewIndices;
         auto R = getConstraint(Cmp, Info, NewIndices);
-        if (R.IsEq || R.size() < 2 || R.needsNewIndices(NewIndices) ||
+        if (R.IsEq || R.empty() || R.needsNewIndices(NewIndices) ||
             !R.isValid(Info))
           continue;
 
@@ -699,6 +743,8 @@ static bool eliminateConstraints(Function &F, DominatorTree &DT) {
          "updates to CS and DFSInStack are out of sync");
 #endif
 
+  for (Instruction *I : ToRemove)
+    I->eraseFromParent();
   return Changed;
 }
 
