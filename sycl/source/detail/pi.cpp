@@ -31,7 +31,6 @@
 #include <sstream>
 #include <stddef.h>
 #include <string>
-#include <iostream>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
@@ -450,11 +449,11 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
 
-      std::cerr << "SYCL_PI_TRACE[basic]: "
-                << "Plugin found and successfully loaded: "
-                << PluginNames[I].first
-                << " [ PluginVersion: " << NewPlugin.getPiPlugin().PluginVersion
-                << " ]" << std::endl;
+      fprintf(stderr,"SYCL_PI_TRACE[basic]: "
+                     "Plugin found and successfully loaded: %s"
+                     " [ PluginVersion: %s ]\n",
+                     PluginNames[I].first.c_str(),
+                     NewPlugin.getPiPlugin().PluginVersion);
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -590,46 +589,6 @@ DeviceBinaryProperty::operator std::string()const{
   return Out;
 }
 
-// std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
-//   switch (P.Prop->Type) {
-//   case PI_PROPERTY_TYPE_UINT32:
-//     Out << "[UINT32] ";
-//     break;
-//   case PI_PROPERTY_TYPE_BYTE_ARRAY:
-//     Out << "[Byte array] ";
-//     break;
-//   case PI_PROPERTY_TYPE_STRING:
-//     Out << "[String] ";
-//     break;
-//   default:
-//     assert(false && "unsupported property");
-//     return Out;
-//   }
-//   Out << P.Prop->Name << "=";
-
-//   switch (P.Prop->Type) {
-//   case PI_PROPERTY_TYPE_UINT32:
-//     Out << P.asUint32();
-//     break;
-//   case PI_PROPERTY_TYPE_BYTE_ARRAY: {
-//     ByteArray BA = P.asByteArray();
-//     std::ios_base::fmtflags FlagsBackup = Out.flags();
-//     Out << std::hex;
-//     for (const auto &Byte : BA) {
-//       Out << "0x" << static_cast<unsigned>(Byte) << " ";
-//     }
-//     Out.flags(FlagsBackup);
-//     break;
-//   }
-//   case PI_PROPERTY_TYPE_STRING:
-//     Out << P.asCString();
-//     break;
-//   default:
-//     assert(false && "Unsupported property");
-//     return Out;
-//   }
-//   return Out;
-// }
 
 void DeviceBinaryImage::print() const {
   fprintf(stderr,"  --- Image %p\n",(void*)Bin);

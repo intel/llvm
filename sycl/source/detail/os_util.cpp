@@ -20,7 +20,6 @@
 #include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
-#include <fstream>
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
@@ -86,20 +85,20 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   return reinterpret_cast<OSModuleHandle>(Res.Handle);
 }
 
-bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
+bool procMapsAddressInRange(FILE* file, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
-  Stream >> Start;
-  assert(!Stream.fail() && Stream.peek() == '-' &&
+  fscanf(file, "%p",&Start);
+  assert(!ferror(file) && fgetc(file) == '-' &&
          "Couldn't read /proc/self/maps correctly");
-  Stream.ignore(1);
 
-  Stream >> End;
-  assert(!Stream.fail() && Stream.peek() == ' ' &&
+  fscanf(file,"%p",&End);
+  assert(!ferror(file) && fgetc(file) == ' ' &&
          "Couldn't read /proc/self/maps correctly");
-  Stream.ignore(1);
 
   return Addr >= Start && Addr < End;
 }
+
+extern void file_ignore(FILE* file,size_t n, int delim);
 
 /// Returns an absolute path to a directory where the object was found.
 std::string OSUtil::getCurrentDSODir() {
@@ -124,44 +123,39 @@ std::string OSUtil::getCurrentDSODir() {
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
   uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
-  std::ifstream Stream("/proc/self/maps");
-  Stream >> std::hex;
-  while (!Stream.eof()) {
-    if (!procMapsAddressInRange(Stream, CurrentFunc)) {
+  FILE* file= fopen("/proc/self/maps","r");
+  while (!feof(file)) {
+    if (!procMapsAddressInRange(file, CurrentFunc)) {
       // Skip the rest until an EOL and check the next line
-      Stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      file_ignore(file, std::numeric_limits<size_t>::max(),'\n');
       continue;
     }
 
-    char Perm[4];
-    Stream.readsome(Perm, sizeof(Perm));
+    char Perm[5];
+    fgets(Perm,sizeof(Perm),file);
     assert(Perm[0] == 'r' && Perm[2] == 'x' &&
            "Invalid flags in /proc/self/maps");
-    assert(Stream.peek() == ' ');
-    Stream.ignore(1);
+    assert(fgetc(file) == ' ');
 
     // Read and ignore the following:
     // offset
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(),' ');
+    fgetc(file);
     // dev major
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ':');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(),':');
+    fgetc(file);
     // dev minor
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(),' ');
+    fgetc(file);
     // inode
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(),' ');
+    fgetc(file);
 
     // Now read the path: it is padded with whitespaces, so we skip them
     // first.
-    while (Stream.peek() == ' ') {
-      Stream.ignore(1);
-    }
+    while (fgetc(file) == ' ');
     char Path[PATH_MAX];
-    Stream.getline(Path, PATH_MAX - 1);
-    Path[PATH_MAX - 1] = '\0';
+    fgets(Path,PATH_MAX,file);
     return OSUtil::getDirName(Path);
   }
   assert(false && "Unable to find the current function in /proc/self/maps");
