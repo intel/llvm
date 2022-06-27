@@ -1,7 +1,8 @@
 // REQUIRES: x86-registered-target
 
-
+//
 // Check help message.
+//
 
 // RUN: clang-offload-wrapper --help | FileCheck %s --check-prefix CHECK-HELP
 // CHECK-HELP: OVERVIEW: A tool to create a wrapper bitcode for offload target binaries.
@@ -89,15 +90,15 @@
 
 // -------
 // Generate files to wrap.
-
+//
 // RUN: echo 'Content of device file1' > %t1.tgt
 // RUN: echo 'Content of device file2' > %t2.tgt
 // RUN: echo 'Content of device file3' > %t3.tgt
 // RUN: echo 'Content of manifest file1' > %t1_mf.txt
-
+//
 // -------
 // Check bitcode produced by the wrapper tool.
-
+//
 // RUN: clang-offload-wrapper -add-omp-offload-notes                                  \
 // RUN:   -host=x86_64-pc-linux-gnu                                                   \
 // RUN:     -kind=openmp -target=tg2                -format=native %t3.tgt %t1_mf.txt \
@@ -180,9 +181,9 @@
 
 // -------
 // Check options' effects: -emit-reg-funcs, -desc-name
-
+//
 // RUN: echo 'Content of device file' > %t.tgt
-
+//
 // RUN: clang-offload-wrapper -kind sycl -host=x86_64-pc-linux-gnu -emit-reg-funcs=0 -desc-name=lalala -o - %t.tgt | llvm-dis | FileCheck %s --check-prefix CHECK-IR1
 // CHECK-IR1: source_filename = "offload.wrapper.object"
 // CHECK-IR1: [[IMAGETY:%.+]] = type { i16, i8, i8, i8*, i8*, i8*, i8*, i8*, i8*, i8*, %__tgt_offload_entry*, %__tgt_offload_entry*, %_pi_device_binary_property_set_struct*, %_pi_device_binary_property_set_struct* }
@@ -195,7 +196,7 @@
 
 // -------
 // Check option's effects: -entries
-
+//
 // RUN: echo 'Content of device file' > %t.tgt
 // RUN: echo -e 'entryA\nentryB' > %t.txt
 // RUN: clang-offload-wrapper -host=x86_64-pc-linux-gnu -kind=sycl -entries=%t.txt %t.tgt -o - | llvm-dis | FileCheck %s --check-prefix CHECK-IR3
@@ -207,7 +208,7 @@
 
 // -------
 // Check that device image can be extracted from the wrapper object by the clang-offload-bundler tool.
-
+//
 // RUN: clang-offload-wrapper -o %t.wrapper.bc -host=x86_64-pc-linux-gnu -kind=sycl -target=spir64-unknown-linux %t1.tgt
 // RUN: %clang -target x86_64-pc-linux-gnu -c %t.wrapper.bc -o %t.wrapper.o
 // RUN: clang-offload-bundler --type=o -input=%t.wrapper.o --targets=sycl-spir64-unknown-linux -output=%t1.out --unbundle
