@@ -12,6 +12,9 @@ int main() {
     h.single_task<class kernelA>([=]() {
       dst[0] = 1.1; // expected-warning {{double precision arithmetic used in device code. reduced FP64 performance expected on GPU's.}}
       dst[1] = 0.0; // expected-warning {{double precision arithmetic used in device code. reduced FP64 performance expected on GPU's.}}
+      // Forgot F suffix. Default arugument promotion to double type.
+      float x = 1 * 2.0;                // expected-warning {{double precision arithmetic used in device code. reduced FP64 performance expected on GPU's.}}
+      double x1 = __builtin_fabs(-2.0); // expected-warning {{double precision arithmetic used in device code. reduced FP64 performance expected on GPU's.}}
     });
   });
 
