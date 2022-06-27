@@ -262,7 +262,7 @@ the decimal and an imaginary component equal to 0.
 |Adds and assigns complex number x.
 |`gencomplex& operator+=(const genfloat& x);`
 |Adds and assigns scaler number x.
-|`gencomplex& operator-=(const gencomplex& x);
+|`gencomplex& operator-=(const gencomplex& x);`
 |Subtracts and assigns complex number x.
 |`gencomplex& operator-=(const genfloat& x);`
 |Subtracts and assigns scaler number x.
