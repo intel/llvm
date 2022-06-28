@@ -12,8 +12,8 @@
 #include "device.h"
 #include "imf_half.hpp"
 #include <cstddef>
+#include <limits>
 #include <type_traits>
-
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
 #if !defined(__SPIR__) && !defined(__LIBDEVICE_HOST_IMPL__)
