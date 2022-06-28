@@ -52,9 +52,7 @@ std::vector<uint64_t> getValidAlignments() {
 
 TEST(AlignmentTest, AlignDefaultCTor) { EXPECT_EQ(Align().value(), 1ULL); }
 
-TEST(AlignmentTest, MaybeAlignDefaultCTor) {
-  EXPECT_FALSE(MaybeAlign().hasValue());
-}
+TEST(AlignmentTest, MaybeAlignDefaultCTor) { EXPECT_FALSE(MaybeAlign()); }
 
 TEST(AlignmentTest, ValidCTors) {
   for (uint64_t Value : getValidAlignments()) {
@@ -65,11 +63,11 @@ TEST(AlignmentTest, ValidCTors) {
 
 TEST(AlignmentTest, CheckMaybeAlignHasValue) {
   EXPECT_TRUE(MaybeAlign(1));
-  EXPECT_TRUE(MaybeAlign(1).hasValue());
+  EXPECT_TRUE(MaybeAlign(1).has_value());
   EXPECT_FALSE(MaybeAlign(0));
-  EXPECT_FALSE(MaybeAlign(0).hasValue());
+  EXPECT_FALSE(MaybeAlign(0).has_value());
   EXPECT_FALSE(MaybeAlign());
-  EXPECT_FALSE(MaybeAlign().hasValue());
+  EXPECT_FALSE(MaybeAlign().has_value());
 }
 
 TEST(AlignmentTest, Division) {
@@ -134,7 +132,7 @@ TEST(AlignmentTest, Encode_Decode) {
   for (uint64_t Value : getValidAlignments()) {
     {
       Align Actual(Value);
-      Align Expected = decodeMaybeAlign(encode(Actual)).getValue();
+      Align Expected = *decodeMaybeAlign(encode(Actual));
       EXPECT_EQ(Expected, Actual);
     }
     {
@@ -167,8 +165,8 @@ TEST(AlignmentTest, isAligned_isAddrAligned) {
     MaybeAlign A(T.alignment);
     // Test Align
     if (A) {
-      EXPECT_EQ(isAligned(A.getValue(), T.offset), T.isAligned);
-      EXPECT_EQ(isAddrAligned(A.getValue(), T.forgedAddr()), T.isAligned);
+      EXPECT_EQ(isAligned(*A, T.offset), T.isAligned);
+      EXPECT_EQ(isAddrAligned(*A, T.forgedAddr()), T.isAligned);
     }
   }
 }
@@ -227,9 +225,6 @@ TEST(AlignmentTest, AlignComparisons) {
     EXPECT_EQ(MA, MA);
     EXPECT_NE(MA, MB);
 
-    EXPECT_EQ(MA, MA ? (*MA).value() : 0);
-    EXPECT_NE(MA, MB ? (*MB).value() : 0);
-
     EXPECT_EQ(std::max(A, B), B);
     EXPECT_EQ(std::min(A, B), A);
   }
@@ -254,7 +249,7 @@ std::vector<uint64_t> getValidAlignmentsForDeathTest() {
 std::vector<uint64_t> getNonPowerOfTwo() { return {3, 10, 15}; }
 
 TEST(AlignmentDeathTest, CantConvertUnsetMaybe) {
-  EXPECT_DEATH((MaybeAlign(0).getValue()), ".*");
+  EXPECT_DEATH((*MaybeAlign(0)), ".*");
 }
 
 TEST(AlignmentDeathTest, InvalidCTors) {
@@ -274,14 +269,6 @@ TEST(AlignmentDeathTest, ComparisonsWithZero) {
     EXPECT_DEATH((void)(Align(Value) <= 0), ".* should be defined");
     EXPECT_DEATH((void)(Align(Value) > 0), ".* should be defined");
     EXPECT_DEATH((void)(Align(Value) < 0), ".* should be defined");
-  }
-}
-
-TEST(AlignmentDeathTest, CompareMaybeAlignToZero) {
-  for (uint64_t Value : getValidAlignmentsForDeathTest()) {
-    // MaybeAlign is allowed to be == or != 0
-    (void)(MaybeAlign(Value) == 0);
-    (void)(MaybeAlign(Value) != 0);
   }
 }
 

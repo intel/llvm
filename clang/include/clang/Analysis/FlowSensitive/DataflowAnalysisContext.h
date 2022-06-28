@@ -151,17 +151,29 @@ public:
   /// `RHS`. Subsequent calls with the same arguments, regardless of their
   /// order, will return the same result. If the given boolean values represent
   /// the same value, the result will be the value itself.
-  BoolValue &getOrCreateConjunctionValue(BoolValue &LHS, BoolValue &RHS);
+  BoolValue &getOrCreateConjunction(BoolValue &LHS, BoolValue &RHS);
 
   /// Returns a boolean value that represents the disjunction of `LHS` and
   /// `RHS`. Subsequent calls with the same arguments, regardless of their
   /// order, will return the same result. If the given boolean values represent
   /// the same value, the result will be the value itself.
-  BoolValue &getOrCreateDisjunctionValue(BoolValue &LHS, BoolValue &RHS);
+  BoolValue &getOrCreateDisjunction(BoolValue &LHS, BoolValue &RHS);
 
   /// Returns a boolean value that represents the negation of `Val`. Subsequent
   /// calls with the same argument will return the same result.
-  BoolValue &getOrCreateNegationValue(BoolValue &Val);
+  BoolValue &getOrCreateNegation(BoolValue &Val);
+
+  /// Returns a boolean value that represents `LHS => RHS`. Subsequent calls
+  /// with the same arguments, will return the same result. If the given boolean
+  /// values represent the same value, the result will be a value that
+  /// represents the true boolean literal.
+  BoolValue &getOrCreateImplication(BoolValue &LHS, BoolValue &RHS);
+
+  /// Returns a boolean value that represents `LHS <=> RHS`. Subsequent calls
+  /// with the same arguments, regardless of their order, will return the same
+  /// result. If the given boolean values represent the same value, the result
+  /// will be a value that represents the true boolean literal.
+  BoolValue &getOrCreateIff(BoolValue &LHS, BoolValue &RHS);
 
   /// Creates a fresh flow condition and returns a token that identifies it. The
   /// token can be used to perform various operations on the flow condition such
@@ -191,6 +203,11 @@ public:
   /// identified by `Token` are always true.
   bool flowConditionIsTautology(AtomicBoolValue &Token);
 
+  /// Returns true if `Val1` is equivalent to `Val2`.
+  /// Note: This function doesn't take into account constraints on `Val1` and
+  /// `Val2` imposed by the flow condition.
+  bool equivalentBoolValues(BoolValue &Val1, BoolValue &Val2);
+
 private:
   /// Adds all constraints of the flow condition identified by `Token` and all
   /// of its transitive dependencies to `Constraints`. `VisitedTokens` is used
@@ -199,6 +216,19 @@ private:
   void addTransitiveFlowConditionConstraints(
       AtomicBoolValue &Token, llvm::DenseSet<BoolValue *> &Constraints,
       llvm::DenseSet<AtomicBoolValue *> &VisitedTokens);
+
+  /// Returns the result of satisfiability checking on `Constraints`.
+  /// Possible return values are:
+  /// - `Satisfiable`: There exists a satisfying assignment for `Constraints`.
+  /// - `Unsatisfiable`: There is no satisfying assignment for `Constraints`.
+  /// - `TimedOut`: The solver gives up on finding a satisfying assignment.
+  Solver::Result querySolver(llvm::DenseSet<BoolValue *> Constraints);
+
+  /// Returns true if the solver is able to prove that there is no satisfying
+  /// assignment for `Constraints`
+  bool isUnsatisfiable(llvm::DenseSet<BoolValue *> Constraints) {
+    return querySolver(std::move(Constraints)) == Solver::Result::Unsatisfiable;
+  }
 
   std::unique_ptr<Solver> S;
 

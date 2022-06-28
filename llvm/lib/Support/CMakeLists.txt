@@ -224,6 +224,8 @@ add_llvm_component_library(LLVMSupport
   TypeSize.cpp
   Unicode.cpp
   UnicodeCaseFold.cpp
+  UnicodeNameToCodepoint.cpp
+  UnicodeNameToCodepointGenerated.cpp
   VersionTuple.cpp
   VirtualFileSystem.cpp
   WithColor.cpp

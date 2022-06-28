@@ -38,6 +38,19 @@ std::unique_ptr<IntegerPolyhedron> IntegerPolyhedron::clone() const {
   return std::make_unique<IntegerPolyhedron>(*this);
 }
 
+void IntegerRelation::setSpace(const PresburgerSpace &oSpace) {
+  assert(space.getNumIds() == oSpace.getNumIds() && "invalid space!");
+  space = oSpace;
+}
+
+void IntegerRelation::setSpaceExceptLocals(const PresburgerSpace &oSpace) {
+  assert(oSpace.getNumLocalIds() == 0 && "no locals should be present!");
+  assert(oSpace.getNumIds() <= getNumIds() && "invalid space!");
+  unsigned newNumLocals = getNumIds() - oSpace.getNumIds();
+  space = oSpace;
+  space.insertId(IdKind::Local, 0, newNumLocals);
+}
+
 void IntegerRelation::append(const IntegerRelation &other) {
   assert(space.isEqual(other.getSpace()) && "Spaces must be equal.");
 
@@ -150,6 +163,67 @@ void IntegerRelation::truncate(const CountsSnapshot &counts) {
   truncateIdKind(IdKind::Local, counts);
   removeInequalityRange(counts.getNumIneqs(), getNumInequalities());
   removeEqualityRange(counts.getNumEqs(), getNumEqualities());
+}
+
+PresburgerSet IntegerPolyhedron::computeReprWithOnlyDivLocals() const {
+  // If there are no locals, we're done.
+  if (getNumLocalIds() == 0)
+    return PresburgerSet(*this);
+
+  // Move all the non-div locals to the end, as the current API to
+  // SymbolicLexMin requires these to form a contiguous range.
+  //
+  // Take a copy so we can perform mutations.
+  IntegerPolyhedron copy = *this;
+  std::vector<MaybeLocalRepr> reprs;
+  copy.getLocalReprs(reprs);
+
+  // Iterate through all the locals. The last `numNonDivLocals` are the locals
+  // that have been scanned already and do not have division representations.
+  unsigned numNonDivLocals = 0;
+  unsigned offset = copy.getIdKindOffset(IdKind::Local);
+  for (unsigned i = 0, e = copy.getNumLocalIds(); i < e - numNonDivLocals;) {
+    if (!reprs[i]) {
+      // Whenever we come across a local that does not have a division
+      // representation, we swap it to the `numNonDivLocals`-th last position
+      // and increment `numNonDivLocal`s. `reprs` also needs to be swapped.
+      copy.swapId(offset + i, offset + e - numNonDivLocals - 1);
+      std::swap(reprs[i], reprs[e - numNonDivLocals - 1]);
+      ++numNonDivLocals;
+      continue;
+    }
+    ++i;
+  }
+
+  // If there are no non-div locals, we're done.
+  if (numNonDivLocals == 0)
+    return PresburgerSet(*this);
+
+  // We computeSymbolicIntegerLexMin by considering the non-div locals as
+  // "non-symbols" and considering everything else as "symbols". This will
+  // compute a function mapping assignments to "symbols" to the
+  // lexicographically minimal valid assignment of "non-symbols", when a
+  // satisfying assignment exists. It separately returns the set of assignments
+  // to the "symbols" such that a satisfying assignment to the "non-symbols"
+  // exists but the lexmin is unbounded. We basically want to find the set of
+  // values of the "symbols" such that an assignment to the "non-symbols"
+  // exists, which is the union of the domain of the returned lexmin function
+  // and the returned set of assignments to the "symbols" that makes the lexmin
+  // unbounded.
+  SymbolicLexMin lexminResult =
+      SymbolicLexSimplex(copy, /*symbolOffset*/ 0,
+                         IntegerPolyhedron(PresburgerSpace::getSetSpace(
+                             /*numDims=*/copy.getNumIds() - numNonDivLocals)))
+          .computeSymbolicIntegerLexMin();
+  PresburgerSet result =
+      lexminResult.lexmin.getDomain().unionSet(lexminResult.unboundedDomain);
+
+  // The result set might lie in the wrong space -- all its ids are dims.
+  // Set it to the desired space and return.
+  PresburgerSpace space = getSpace();
+  space.removeIdRange(IdKind::Local, 0, getNumLocalIds());
+  result.setSpace(space);
+  return result;
 }
 
 SymbolicLexMin IntegerPolyhedron::findSymbolicIntegerLexMin() const {
@@ -1120,6 +1194,13 @@ unsigned IntegerRelation::mergeLocalIds(IntegerRelation &other) {
   return relA.getNumLocalIds() - oldALocals;
 }
 
+bool IntegerRelation::hasOnlyDivLocals() const {
+  std::vector<MaybeLocalRepr> reprs;
+  getLocalReprs(reprs);
+  return llvm::all_of(reprs,
+                      [](const MaybeLocalRepr &repr) { return bool(repr); });
+}
+
 void IntegerRelation::removeDuplicateDivs() {
   std::vector<SmallVector<int64_t, 8>> divs;
   SmallVector<unsigned, 4> denoms;
@@ -1934,14 +2015,14 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
   int64_t lbFloorDivisor, otherLbFloorDivisor;
   for (unsigned d = 0, e = getNumDimIds(); d < e; ++d) {
     auto extent = getConstantBoundOnDimSize(d, &lb, &lbFloorDivisor, &ub);
-    if (!extent.hasValue())
+    if (!extent.has_value())
       // TODO: symbolic extents when necessary.
       // TODO: handle union if a dimension is unbounded.
       return failure();
 
     auto otherExtent = otherCst.getConstantBoundOnDimSize(
         d, &otherLb, &otherLbFloorDivisor, &otherUb);
-    if (!otherExtent.hasValue() || lbFloorDivisor != otherLbFloorDivisor)
+    if (!otherExtent.has_value() || lbFloorDivisor != otherLbFloorDivisor)
       // TODO: symbolic extents when necessary.
       return failure();
 
@@ -1962,10 +2043,10 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
       // Uncomparable - check for constant lower/upper bounds.
       auto constLb = getConstantBound(BoundType::LB, d);
       auto constOtherLb = otherCst.getConstantBound(BoundType::LB, d);
-      if (!constLb.hasValue() || !constOtherLb.hasValue())
+      if (!constLb.has_value() || !constOtherLb.has_value())
         return failure();
       std::fill(minLb.begin(), minLb.end(), 0);
-      minLb.back() = std::min(constLb.getValue(), constOtherLb.getValue());
+      minLb.back() = std::min(*constLb, constOtherLb.value());
     }
 
     // Do the same for ub's but max of upper bounds. Identify max.
@@ -1978,10 +2059,10 @@ IntegerRelation::unionBoundingBox(const IntegerRelation &otherCst) {
       // Uncomparable - check for constant lower/upper bounds.
       auto constUb = getConstantBound(BoundType::UB, d);
       auto constOtherUb = otherCst.getConstantBound(BoundType::UB, d);
-      if (!constUb.hasValue() || !constOtherUb.hasValue())
+      if (!constUb.has_value() || !constOtherUb.has_value())
         return failure();
       std::fill(maxUb.begin(), maxUb.end(), 0);
-      maxUb.back() = std::max(constUb.getValue(), constOtherUb.getValue());
+      maxUb.back() = std::max(*constUb, constOtherUb.value());
     }
 
     std::fill(newLb.begin(), newLb.end(), 0);
