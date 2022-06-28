@@ -1369,11 +1369,10 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
                     NumChunks * ChunkSize);
 
             simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
-            scatter<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) + 1 +
+            scatter<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) +
                                     (NumChunks * ChunkSize),
                                 Offsets, Vals, Pred);
           }
-
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
           scatter<UT, RemN>(
