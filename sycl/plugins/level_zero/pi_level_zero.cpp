@@ -684,20 +684,26 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
 
-  // Initialize a sub-sub-device with its own ordinal and index
+  // Initialize ordinal and compute queue group properties
+  for (uint32_t i = 0; i < numQueueGroups; i++) {
+    if (QueueGroupProperties[i].flags &
+        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+      QueueGroup[queue_group_info_t::Compute].ZeOrdinal = i;
+      QueueGroup[queue_group_info_t::Compute].ZeProperties =
+          QueueGroupProperties[i];
+      break;
+    }
+  }
+
+  // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Our sub-sub-device representation is currently [Level-Zero sub-device
+  // handle + Level-Zero compute group/engine index]. As we have a single queue
+  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
-  } else { // This is a root or a sub-device
-    for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (QueueGroupProperties[i].flags &
-          ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-        QueueGroup[queue_group_info_t::Compute].ZeOrdinal = i;
-        QueueGroup[queue_group_info_t::Compute].ZeProperties =
-            QueueGroupProperties[i];
-        break;
-      }
-    }
+    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
+  } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
       return PI_ERROR_UNKNOWN;
