@@ -19,7 +19,6 @@
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
 #include "flang/Lower/SymbolMap.h"
-#include "flang/Lower/Todo.h"
 #include "flang/Optimizer/Builder/Character.h"
 #include "flang/Optimizer/Builder/Complex.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
@@ -32,6 +31,7 @@
 #include "flang/Optimizer/Builder/Runtime/Reduction.h"
 #include "flang/Optimizer/Builder/Runtime/Stop.h"
 #include "flang/Optimizer/Builder/Runtime/Transformational.h"
+#include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Support/FatalError.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -2426,7 +2426,8 @@ void IntrinsicLibrary::genGetCommandArgument(
         fir::runtime::genArgumentValue(builder, loc, number, valBox, errBox);
     if (isStaticallyPresent(status)) {
       mlir::Value statAddr = fir::getBase(status);
-      mlir::Value statIsPresentAtRuntime = builder.genIsNotNull(loc, statAddr);
+      mlir::Value statIsPresentAtRuntime =
+          builder.genIsNotNullAddr(loc, statAddr);
       builder.genIfThen(loc, statIsPresentAtRuntime)
           .genThen(
               [&]() { builder.createStoreWithConvert(loc, stat, statAddr); })
@@ -2435,7 +2436,7 @@ void IntrinsicLibrary::genGetCommandArgument(
   }
   if (isStaticallyPresent(length)) {
     mlir::Value lenAddr = fir::getBase(length);
-    mlir::Value lenIsPresentAtRuntime = builder.genIsNotNull(loc, lenAddr);
+    mlir::Value lenIsPresentAtRuntime = builder.genIsNotNullAddr(loc, lenAddr);
     builder.genIfThen(loc, lenIsPresentAtRuntime)
         .genThen([&]() {
           mlir::Value len =
@@ -2465,7 +2466,7 @@ void IntrinsicLibrary::genGetEnvironmentVariable(
     mlir::Type i1Ty = builder.getI1Type();
     mlir::Value trimNameAddr = fir::getBase(trimName);
     mlir::Value trimNameIsPresentAtRuntime =
-        builder.genIsNotNull(loc, trimNameAddr);
+        builder.genIsNotNullAddr(loc, trimNameAddr);
     trim = builder
                .genIfOp(loc, {i1Ty}, trimNameIsPresentAtRuntime,
                         /*withElseRegion=*/true)
@@ -2496,7 +2497,8 @@ void IntrinsicLibrary::genGetEnvironmentVariable(
                                                          valBox, trim, errBox);
     if (isStaticallyPresent(status)) {
       mlir::Value statAddr = fir::getBase(status);
-      mlir::Value statIsPresentAtRuntime = builder.genIsNotNull(loc, statAddr);
+      mlir::Value statIsPresentAtRuntime =
+          builder.genIsNotNullAddr(loc, statAddr);
       builder.genIfThen(loc, statIsPresentAtRuntime)
           .genThen(
               [&]() { builder.createStoreWithConvert(loc, stat, statAddr); })
@@ -2506,7 +2508,7 @@ void IntrinsicLibrary::genGetEnvironmentVariable(
 
   if (isStaticallyPresent(length)) {
     mlir::Value lenAddr = fir::getBase(length);
-    mlir::Value lenIsPresentAtRuntime = builder.genIsNotNull(loc, lenAddr);
+    mlir::Value lenIsPresentAtRuntime = builder.genIsNotNullAddr(loc, lenAddr);
     builder.genIfThen(loc, lenIsPresentAtRuntime)
         .genThen([&]() {
           mlir::Value len =
@@ -2614,6 +2616,8 @@ IntrinsicLibrary::genIchar(mlir::Type resultType,
   }
   LLVM_DEBUG(llvm::dbgs() << "ichar(" << charVal << ")\n");
   auto code = helper.extractCodeFromSingleton(charVal);
+  if (code.getType() == resultType)
+    return code;
   return builder.create<mlir::arith::ExtUIOp>(loc, resultType, code);
 }
 
@@ -3309,7 +3313,7 @@ IntrinsicLibrary::genSize(mlir::Type resultType,
     return builder.createConvert(
         loc, resultType, fir::runtime::genSizeDim(builder, loc, array, dim));
 
-  mlir::Value isDynamicallyAbsent = builder.genIsNull(loc, dim);
+  mlir::Value isDynamicallyAbsent = builder.genIsNullAddr(loc, dim);
   return builder
       .genIfOp(loc, {resultType}, isDynamicallyAbsent,
                /*withElseRegion=*/true)
@@ -3361,7 +3365,7 @@ static mlir::Value computeLBOUND(fir::FirOpBuilder &builder, mlir::Location loc,
 fir::ExtendedValue
 IntrinsicLibrary::genLbound(mlir::Type resultType,
                             llvm::ArrayRef<fir::ExtendedValue> args) {
-  assert(args.size() > 0);
+  assert(args.size() == 2 || args.size() == 3);
   const fir::ExtendedValue &array = args[0];
   if (const auto *boxValue = array.getBoxOf<fir::BoxValue>())
     if (boxValue->hasAssumedRank())
@@ -3370,7 +3374,10 @@ IntrinsicLibrary::genLbound(mlir::Type resultType,
   //===----------------------------------------------------------------------===//
   mlir::Type indexType = builder.getIndexType();
 
-  if (isStaticallyAbsent(args, 1)) {
+  // Semantics builds signatures for LBOUND calls as either
+  // LBOUND(array, dim, [kind]) or LBOUND(array, [kind]).
+  if (args.size() == 2 || isStaticallyAbsent(args, 1)) {
+    // DIM is absent.
     mlir::Type lbType = fir::unwrapSequenceType(resultType);
     unsigned rank = array.rank();
     mlir::Type lbArrayType = fir::SequenceType::get(

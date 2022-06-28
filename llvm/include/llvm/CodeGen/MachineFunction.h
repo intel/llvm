@@ -103,6 +103,22 @@ struct MachineFunctionInfo {
   static Ty *create(BumpPtrAllocator &Allocator, MachineFunction &MF) {
     return new (Allocator.Allocate<Ty>()) Ty(MF);
   }
+
+  template <typename Ty>
+  static Ty *create(BumpPtrAllocator &Allocator, const Ty &MFI) {
+    return new (Allocator.Allocate<Ty>()) Ty(MFI);
+  }
+
+  /// Make a functionally equivalent copy of this MachineFunctionInfo in \p MF.
+  /// This requires remapping MachineBasicBlock references from the original
+  /// parent to values in the new function. Targets may assume that virtual
+  /// register and frame index values are preserved in the new function.
+  virtual MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const {
+    return nullptr;
+  }
 };
 
 /// Properties which a MachineFunction may have at a given point in time.
@@ -531,8 +547,13 @@ public:
   /// the copied value; or for parameters, creates a DBG_PHI on entry.
   /// May insert instructions into the entry block!
   /// \p MI The copy-like instruction to salvage.
+  /// \p DbgPHICache A container to cache already-solved COPYs.
   /// \returns An instruction/operand pair identifying the defining value.
-  DebugInstrOperandPair salvageCopySSA(MachineInstr &MI);
+  DebugInstrOperandPair
+  salvageCopySSA(MachineInstr &MI,
+                 DenseMap<Register, DebugInstrOperandPair> &DbgPHICache);
+
+  DebugInstrOperandPair salvageCopySSAImpl(MachineInstr &MI);
 
   /// Finalise any partially emitted debug instructions. These are DBG_INSTR_REF
   /// instructions where we only knew the vreg of the value they use, not the
@@ -739,6 +760,21 @@ public:
   template<typename Ty>
   const Ty *getInfo() const {
      return const_cast<MachineFunction*>(this)->getInfo<Ty>();
+  }
+
+  template <typename Ty> Ty *cloneInfo(const Ty &Old) {
+    assert(!MFInfo);
+    MFInfo = Ty::template create<Ty>(Allocator, Old);
+    return static_cast<Ty *>(MFInfo);
+  }
+
+  MachineFunctionInfo *cloneInfoFrom(
+      const MachineFunction &OrigMF,
+      const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB) {
+    assert(!MFInfo && "new function already has MachineFunctionInfo");
+    if (!OrigMF.MFInfo)
+      return nullptr;
+    return OrigMF.MFInfo->clone(Allocator, *this, Src2DstMBB);
   }
 
   /// Returns the denormal handling type for the default rounding mode of the
@@ -1094,12 +1130,6 @@ public:
 
   /// Add a cleanup action for a landing pad.
   void addCleanup(MachineBasicBlock *LandingPad);
-
-  void addSEHCatchHandler(MachineBasicBlock *LandingPad, const Function *Filter,
-                          const BlockAddress *RecoverBA);
-
-  void addSEHCleanupHandler(MachineBasicBlock *LandingPad,
-                            const Function *Cleanup);
 
   /// Return the type id for the specified typeinfo.  This is function wide.
   unsigned getTypeIDFor(const GlobalValue *TI);

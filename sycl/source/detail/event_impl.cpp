@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/device_selector.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/plugin.hpp>
@@ -31,15 +32,30 @@ namespace detail {
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 #endif
 
-// Threat all devices that don't support interoperability as host devices to
-// avoid attempts to call method get on such events.
-bool event_impl::is_host() const { return MHostEvent || !MOpenCLInterop; }
+// If we do not yet have a context, use the default one.
+void event_impl::ensureContextInitialized() {
+  if (MIsContextInitialized)
+    return;
 
-cl_event event_impl::get() const {
+  const device &SyclDevice = default_selector().select_device();
+  this->setContextImpl(
+      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
+}
+
+bool event_impl::is_host() {
+  // We'll need a context before we can answer is_host question.
+  // setting it may adjust the values of MHostEvent and MOpenCLInterop
+  ensureContextInitialized();
+  // Treat all devices that don't support interoperability as host devices to
+  // avoid attempts to call method get on such events.
+  return MHostEvent || !MOpenCLInterop;
+}
+
+cl_event event_impl::get() {
   if (!MOpenCLInterop) {
     throw invalid_object_error(
         "This instance of event doesn't support OpenCL interoperability.",
-        PI_INVALID_EVENT);
+        PI_ERROR_INVALID_EVENT);
   }
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
   return pi::cast<cl_event>(MEvent);
@@ -50,7 +66,7 @@ event_impl::~event_impl() {
     getPlugin().call<PiApiKind::piEventRelease>(MEvent);
 }
 
-void event_impl::waitInternal() const {
+void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
@@ -61,12 +77,16 @@ void event_impl::waitInternal() const {
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for a discarded event.");
 
-  while (MState != HES_Complete)
-    ;
+  if (MState == HES_Complete)
+    return;
+
+  std::unique_lock lock(MMutex);
+  cv.wait(lock, [this] { return MState == HES_Complete; });
 }
 
 void event_impl::setComplete() {
   if (MHostEvent || !MEvent) {
+    std::unique_lock lock(MMutex);
 #ifndef NDEBUG
     int Expected = HES_NotComplete;
     int Desired = HES_Complete;
@@ -77,6 +97,7 @@ void event_impl::setComplete() {
 #else
     MState.store(static_cast<int>(HES_Complete));
 #endif
+    cv.notify_all();
     return;
   }
 
@@ -86,31 +107,38 @@ void event_impl::setComplete() {
 const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
 RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
-const ContextImplPtr &event_impl::getContextImpl() { return MContext; }
+const ContextImplPtr &event_impl::getContextImpl() {
+  ensureContextInitialized();
+  return MContext;
+}
 
-const plugin &event_impl::getPlugin() const { return MContext->getPlugin(); }
+const plugin &event_impl::getPlugin() {
+  ensureContextInitialized();
+  return MContext->getPlugin();
+}
+
+void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
 
 void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MHostEvent = Context->is_host();
   MOpenCLInterop = !MHostEvent;
   MContext = Context;
-
-  MState = HES_NotComplete;
+  MIsContextInitialized = true;
 }
 
 event_impl::event_impl(HostEventState State)
     : MIsInitialized(false), MIsFlushed(true), MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
-    : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostEvent(false), MIsFlushed(true),
-      MState(HES_Complete) {
+    : MIsContextInitialized(true), MEvent(Event),
+      MContext(detail::getSyclObjImpl(SyclContext)), MOpenCLInterop(true),
+      MHostEvent(false), MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
 
   RT::PiContext TempContext;
@@ -121,22 +149,22 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     throw cl::sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
-
-  getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
                                          Queue->MIsProfilingEnabled} {
+  this->setContextImpl(Queue->getContextImplPtr());
+
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+        throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
     }
     return;
   }
@@ -192,8 +220,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
-void event_impl::wait(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+void event_impl::wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -259,8 +286,8 @@ void event_impl::checkProfilingPreconditions() const {
 }
 
 template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
+uint64_t
+event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
@@ -271,13 +298,13 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() const {
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getStartTime();
 }
 
 template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_start>() const {
+uint64_t
+event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
@@ -288,13 +315,12 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() const {
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getStartTime();
 }
 
 template <>
-cl_ulong
-event_impl::get_profiling_info<info::event_profiling::command_end>() const {
+uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
@@ -304,11 +330,11 @@ event_impl::get_profiling_info<info::event_profiling::command_end>() const {
   }
   if (!MHostProfilingInfo)
     throw invalid_object_error("Profiling info is not available.",
-                               PI_PROFILING_INFO_NOT_AVAILABLE);
+                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
   return MHostProfilingInfo->getEndTime();
 }
 
-template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
+template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::reference_count>::get(
         this->getHandleRef(), this->getPlugin());
@@ -318,7 +344,7 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 
 template <>
 info::event_command_status
-event_impl::get_info<info::event::command_execution_status>() const {
+event_impl::get_info<info::event::command_execution_status>() {
   if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
@@ -341,13 +367,9 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
-pi_native_handle event_impl::getNative() const {
-  if (!MContext) {
-    static context SyclContext;
-    MContext = getSyclObjImpl(SyclContext);
-    MHostEvent = MContext->is_host();
-    MOpenCLInterop = !MHostEvent;
-  }
+pi_native_handle event_impl::getNative() {
+  ensureContextInitialized();
+
   auto Plugin = getPlugin();
   if (!MIsInitialized) {
     MIsInitialized = true;

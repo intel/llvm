@@ -28,6 +28,7 @@
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/bit.h"
 
@@ -2193,12 +2194,9 @@ LogicalResult spirv::UConvertOp::verify() {
 //===----------------------------------------------------------------------===//
 
 ParseResult spirv::FuncOp::parse(OpAsmParser &parser, OperationState &state) {
-  SmallVector<OpAsmParser::UnresolvedOperand> entryArgs;
-  SmallVector<NamedAttrList> argAttrs;
-  SmallVector<NamedAttrList> resultAttrs;
-  SmallVector<Type> argTypes;
+  SmallVector<OpAsmParser::Argument> entryArgs;
+  SmallVector<DictionaryAttr> resultAttrs;
   SmallVector<Type> resultTypes;
-  SmallVector<Location> argLocations;
   auto &builder = parser.getBuilder();
 
   // Parse the name as a symbol.
@@ -2210,10 +2208,13 @@ ParseResult spirv::FuncOp::parse(OpAsmParser &parser, OperationState &state) {
   // Parse the function signature.
   bool isVariadic = false;
   if (function_interface_impl::parseFunctionSignature(
-          parser, /*allowVariadic=*/false, entryArgs, argTypes, argAttrs,
-          argLocations, isVariadic, resultTypes, resultAttrs))
+          parser, /*allowVariadic=*/false, entryArgs, isVariadic, resultTypes,
+          resultAttrs))
     return failure();
 
+  SmallVector<Type> argTypes;
+  for (auto &arg : entryArgs)
+    argTypes.push_back(arg.type);
   auto fnType = builder.getFunctionType(argTypes, resultTypes);
   state.addAttribute(FunctionOpInterface::getTypeAttrName(),
                      TypeAttr::get(fnType));
@@ -2228,15 +2229,13 @@ ParseResult spirv::FuncOp::parse(OpAsmParser &parser, OperationState &state) {
     return failure();
 
   // Add the attributes to the function arguments.
-  assert(argAttrs.size() == argTypes.size());
   assert(resultAttrs.size() == resultTypes.size());
-  function_interface_impl::addArgAndResultAttrs(builder, state, argAttrs,
+  function_interface_impl::addArgAndResultAttrs(builder, state, entryArgs,
                                                 resultAttrs);
 
   // Parse the optional function body.
   auto *body = state.addRegion();
-  OptionalParseResult result = parser.parseOptionalRegion(
-      *body, entryArgs, entryArgs.empty() ? ArrayRef<Type>() : argTypes);
+  OptionalParseResult result = parser.parseOptionalRegion(*body, entryArgs);
   return failure(result.hasValue() && failed(*result));
 }
 
@@ -2842,6 +2841,58 @@ void spirv::GroupNonUniformUMinOp::print(OpAsmPrinter &p) {
 }
 
 //===----------------------------------------------------------------------===//
+// spv.ISubBorrowOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult spirv::ISubBorrowOp::verify() {
+  auto resultType = getType().cast<spirv::StructType>();
+  if (resultType.getNumElements() != 2)
+    return emitOpError("expected result struct type containing two members");
+
+  SmallVector<Type, 4> types;
+  types.push_back(operand1().getType());
+  types.push_back(operand2().getType());
+  types.push_back(resultType.getElementType(0));
+  types.push_back(resultType.getElementType(1));
+  if (!llvm::is_splat(types))
+    return emitOpError(
+        "expected all operand types and struct member types are the same");
+
+  return success();
+}
+
+ParseResult spirv::ISubBorrowOp::parse(OpAsmParser &parser,
+                                       OperationState &state) {
+  SmallVector<OpAsmParser::UnresolvedOperand, 2> operands;
+  if (parser.parseOptionalAttrDict(state.attributes) ||
+      parser.parseOperandList(operands) || parser.parseColon())
+    return failure();
+
+  Type resultType;
+  auto loc = parser.getCurrentLocation();
+  if (parser.parseType(resultType))
+    return failure();
+
+  auto structType = resultType.dyn_cast<spirv::StructType>();
+  if (!structType || structType.getNumElements() != 2)
+    return parser.emitError(loc, "expected spv.struct type with two members");
+
+  SmallVector<Type, 2> operandTypes(2, structType.getElementType(0));
+  if (parser.resolveOperands(operands, operandTypes, loc, state.operands))
+    return failure();
+
+  state.addTypes(resultType);
+  return success();
+}
+
+void spirv::ISubBorrowOp::print(OpAsmPrinter &printer) {
+  printer << ' ';
+  printer.printOptionalAttrDict((*this)->getAttrs());
+  printer.printOperands((*this)->getOperands());
+  printer << " : " << getType();
+}
+
+//===----------------------------------------------------------------------===//
 // spv.LoadOp
 //===----------------------------------------------------------------------===//
 
@@ -3117,7 +3168,7 @@ ParseResult spirv::ModuleOp::parse(OpAsmParser &parser, OperationState &state) {
 
   // If the name is present, parse it.
   StringAttr nameAttr;
-  parser.parseOptionalSymbolName(
+  (void)parser.parseOptionalSymbolName(
       nameAttr, mlir::SymbolTable::getSymbolAttrName(), state.attributes);
 
   // Parse attributes
@@ -3135,10 +3186,8 @@ ParseResult spirv::ModuleOp::parse(OpAsmParser &parser, OperationState &state) {
       return failure();
   }
 
-  if (parser.parseOptionalAttrDictWithKeyword(state.attributes))
-    return failure();
-
-  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
+  if (parser.parseOptionalAttrDictWithKeyword(state.attributes) ||
+      parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
     return failure();
 
   // Make sure we have at least one block.

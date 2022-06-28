@@ -102,7 +102,7 @@ static void foreachKernelArgMD(
         Func) {
   for (unsigned I = 0, E = MD->getNumOperands(); I != E; ++I) {
     SPIRVFunctionParameter *BA = BF->getArgument(I);
-    Func(getMDOperandAsString(MD, I), BA);
+    Func(getMDOperandAsString(MD, I).str(), BA);
   }
 }
 
@@ -363,7 +363,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
       }
       if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
         assert(AddrSpc == SPIRAS_Global);
-        auto SPIRVImageTy = getSPIRVImageTypeFromOCL(M, T);
+        auto *SPIRVImageTy =
+            PointerType::get(adaptSPIRVImageType(M, ST), SPIRAS_Global);
         return mapType(T, transType(SPIRVImageTy));
       }
       if (STName == kSPR2TypeName::Sampler)
@@ -394,7 +395,7 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
         }
       }
 
-      if (isPointerToOpaqueStructType(T)) {
+      if (ST->isOpaque()) {
         return mapType(
             T, BM->addPointerType(SPIRSPIRVAddrSpaceMap::map(
                                       static_cast<SPIRAddressSpace>(AddrSpc)),
@@ -619,17 +620,17 @@ SPIRVType *LLVMToSPIRVBase::transSPIRVOpaqueType(Type *T) {
                                     static_cast<spv::AccessQualifier>(Ops[6])));
   } else if (TN == kSPIRVTypeName::SampledImg) {
     return mapType(
-        T, BM->addSampledImageType(static_cast<SPIRVTypeImage *>(
-               transType(getSPIRVTypeByChangeBaseTypeName(
-                   M, T, kSPIRVTypeName::SampledImg, kSPIRVTypeName::Image)))));
+        T,
+        BM->addSampledImageType(static_cast<SPIRVTypeImage *>(
+            transType(getSPIRVTypeByChangeBaseTypeName(
+                M, ST, kSPIRVTypeName::SampledImg, kSPIRVTypeName::Image)))));
   } else if (TN == kSPIRVTypeName::VmeImageINTEL) {
     // This type is the same as SampledImageType, but consumed by Subgroup AVC
     // Intel extension instructions.
-    return mapType(
-        T,
-        BM->addVmeImageINTELType(static_cast<SPIRVTypeImage *>(
-            transType(getSPIRVTypeByChangeBaseTypeName(
-                M, T, kSPIRVTypeName::VmeImageINTEL, kSPIRVTypeName::Image)))));
+    return mapType(T, BM->addVmeImageINTELType(static_cast<SPIRVTypeImage *>(
+                          transType(getSPIRVTypeByChangeBaseTypeName(
+                              M, ST, kSPIRVTypeName::VmeImageINTEL,
+                              kSPIRVTypeName::Image)))));
   } else if (TN == kSPIRVTypeName::Sampler)
     return mapType(T, BM->addSamplerType());
   else if (TN == kSPIRVTypeName::DeviceEvent)
@@ -1249,7 +1250,7 @@ LLVMToSPIRVBase::getLoopControl(const BranchInst *Branch,
 
   for (const MDOperand &MDOp : LoopMD->operands()) {
     if (MDNode *Node = dyn_cast<MDNode>(MDOp)) {
-      std::string S = getMDOperandAsString(Node, 0);
+      StringRef S = getMDOperandAsString(Node, 0);
       // Set the loop control bits. Parameters are set in the order described
       // in 3.23 SPIR-V Spec. rev. 1.4:
       // Bits that are set can indicate whether an additional operand follows,
@@ -1649,10 +1650,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<SPIRVWord> MemoryAccess(1, 0);
     if (ST->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
-    if (ST->getAlignment()) {
-      MemoryAccess[0] |= MemoryAccessAlignedMask;
-      MemoryAccess.push_back(ST->getAlignment());
-    }
+    MemoryAccess[0] |= MemoryAccessAlignedMask;
+    MemoryAccess.push_back(ST->getAlign().value());
     if (ST->getMetadata(LLVMContext::MD_nontemporal))
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = ST->getMetadata(LLVMContext::MD_alias_scope))
@@ -1680,10 +1679,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     std::vector<uint32_t> MemoryAccess(1, 0);
     if (LD->isVolatile())
       MemoryAccess[0] |= MemoryAccessVolatileMask;
-    if (LD->getAlignment()) {
-      MemoryAccess[0] |= MemoryAccessAlignedMask;
-      MemoryAccess.push_back(LD->getAlignment());
-    }
+    MemoryAccess[0] |= MemoryAccessAlignedMask;
+    MemoryAccess.push_back(LD->getAlign().value());
     if (LD->getMetadata(LLVMContext::MD_nontemporal))
       MemoryAccess[0] |= MemoryAccessNontemporalMask;
     if (MDNode *AliasingListMD = LD->getMetadata(LLVMContext::MD_alias_scope))
@@ -2376,7 +2373,7 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
 
 bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
   if (auto AL = dyn_cast<AllocaInst>(V)) {
-    BM->setAlignment(BV, AL->getAlignment());
+    BM->setAlignment(BV, AL->getAlign().value());
     return true;
   }
   if (auto GV = dyn_cast<GlobalVariable>(V)) {
@@ -2505,9 +2502,13 @@ SPIRVValue *LLVMToSPIRVBase::oclTransSpvcCastSampler(CallInst *CI,
   auto FT = F->getFunctionType();
   auto RT = FT->getReturnType();
   assert(FT->getNumParams() == 1);
-  assert((isSPIRVType(RT, kSPIRVTypeName::Sampler) ||
-          isPointerToOpaqueStructType(RT, kSPR2TypeName::Sampler)) &&
-         FT->getParamType(0)->isIntegerTy() && "Invalid sampler type");
+  if (!RT->isOpaquePointerTy()) {
+    StructType *ST = dyn_cast<StructType>(RT->getNonOpaquePointerElementType());
+    (void)ST;
+    assert(isSPIRVStructType(ST, kSPIRVTypeName::Sampler) ||
+           (ST->isOpaque() && ST->getName() == kSPR2TypeName::Sampler));
+  }
+  assert(FT->getParamType(0)->isIntegerTy() && "Invalid sampler type");
   auto Arg = CI->getArgOperand(0);
 
   auto GetSamplerConstant = [&](uint64_t SamplerValue) {
@@ -4638,9 +4639,9 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // for this call, because there is no support for type corresponding to
     // OpTypeSampledImage. So, in this case, we create the required type here.
     Value *Image = CI->getArgOperand(0);
-    Type *ImageTy = Image->getType();
-    if (isOCLImageType(ImageTy))
-      ImageTy = getSPIRVImageTypeFromOCL(M, ImageTy);
+    SmallVector<StructType *, 4> ParamTys;
+    getParameterTypes(CI, ParamTys);
+    Type *ImageTy = adaptSPIRVImageType(M, ParamTys[0]);
     Type *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
         M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
     Value *Sampler = CI->getArgOperand(1);
@@ -4680,7 +4681,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
+      ResTy = CI->getParamStructRetType(0);
       OpItr++;
     }
 
@@ -4771,7 +4772,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
+      ResTy = CI->getParamStructRetType(0);
       OpItr++;
     }
 
@@ -4848,7 +4849,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     // the original return type.
     if (CI->hasStructRetAttr()) {
       assert(ResTy->isVoidTy() && "Return type is not void");
-      ResTy = cast<PointerType>(OpItr->getType())->getPointerElementType();
+      ResTy = CI->getParamStructRetType(0);
       OpItr++;
     }
 
@@ -4953,7 +4954,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       if (!RetTy->isVoidTy()) {
         SPRetTy = transType(RetTy);
       } else if (Args.size() > 0 && F->arg_begin()->hasStructRetAttr()) {
-        SPRetTy = transType(F->arg_begin()->getType()->getPointerElementType());
+        SPRetTy = transType(F->getParamStructRetType(0));
         Args.erase(Args.begin());
       }
       auto *SPI = SPIRVInstTemplateBase::create(OC);
@@ -5039,8 +5040,6 @@ void addPassesForSPIRV(legacy::PassManager &PassMgr,
   if (Opts.isSPIRVMemToRegEnabled())
     PassMgr.add(createPromoteMemoryToRegisterPass());
   PassMgr.add(createPreprocessMetadataLegacy());
-  PassMgr.add(createSPIRVLowerSPIRBlocksLegacy());
-  PassMgr.add(createOCLTypeToSPIRVLegacy());
   PassMgr.add(createSPIRVLowerOCLBlocksLegacy());
   PassMgr.add(createOCLToSPIRVLegacy());
   PassMgr.add(createSPIRVRegularizeLLVMLegacy());
@@ -5066,6 +5065,41 @@ bool isValidLLVMModule(Module *M, SPIRVErrorLog &ErrorLog) {
   return true;
 }
 
+namespace {
+
+bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
+                          const SPIRV::TranslatorOpts &Opts) {
+  // Perform the conversion and write the resulting SPIR-V if an ostream has
+  // been given; otherwise only perform regularization.
+  bool WriteSpirv = OS != nullptr;
+
+  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule(Opts));
+  if (!isValidLLVMModule(M, BM->getErrorLog()))
+    return false;
+
+  legacy::PassManager PassMgr;
+  addPassesForSPIRV(PassMgr, Opts);
+  if (WriteSpirv) {
+    // Run loop simplify pass in order to avoid duplicate OpLoopMerge
+    // instruction. It can happen in case of continue operand in the loop.
+    if (hasLoopMetadata(M))
+      PassMgr.add(createLoopSimplifyPass());
+    PassMgr.add(createLLVMToSPIRVLegacy(BM.get()));
+  }
+
+  PassMgr.run(*M);
+
+  if (BM->getError(ErrMsg) != SPIRVEC_Success)
+    return false;
+
+  if (WriteSpirv)
+    *OS << *BM;
+
+  return true;
+}
+
+} // namespace
+
 bool llvm::writeSpirv(Module *M, std::ostream &OS, std::string &ErrMsg) {
   SPIRV::TranslatorOpts DefaultOpts;
   // To preserve old behavior of the translator, let's enable all extensions
@@ -5076,23 +5110,7 @@ bool llvm::writeSpirv(Module *M, std::ostream &OS, std::string &ErrMsg) {
 
 bool llvm::writeSpirv(Module *M, const SPIRV::TranslatorOpts &Opts,
                       std::ostream &OS, std::string &ErrMsg) {
-  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule(Opts));
-  if (!isValidLLVMModule(M, BM->getErrorLog()))
-    return false;
-
-  legacy::PassManager PassMgr;
-  addPassesForSPIRV(PassMgr, Opts);
-  // Run loop simplify pass in order to avoid duplicate OpLoopMerge
-  // instruction. It can happen in case of continue operand in the loop.
-  if (hasLoopMetadata(M))
-    PassMgr.add(createLoopSimplifyPass());
-  PassMgr.add(createLLVMToSPIRVLegacy(BM.get()));
-  PassMgr.run(*M);
-
-  if (BM->getError(ErrMsg) != SPIRVEC_Success)
-    return false;
-  OS << *BM;
-  return true;
+  return runSpirvWriterPasses(M, &OS, ErrMsg, Opts);
 }
 
 bool llvm::regularizeLlvmForSpirv(Module *M, std::string &ErrMsg) {
@@ -5105,12 +5123,5 @@ bool llvm::regularizeLlvmForSpirv(Module *M, std::string &ErrMsg) {
 
 bool llvm::regularizeLlvmForSpirv(Module *M, std::string &ErrMsg,
                                   const SPIRV::TranslatorOpts &Opts) {
-  std::unique_ptr<SPIRVModule> BM(SPIRVModule::createSPIRVModule());
-  if (!isValidLLVMModule(M, BM->getErrorLog()))
-    return false;
-
-  legacy::PassManager PassMgr;
-  addPassesForSPIRV(PassMgr, Opts);
-  PassMgr.run(*M);
-  return true;
+  return runSpirvWriterPasses(M, nullptr, ErrMsg, Opts);
 }

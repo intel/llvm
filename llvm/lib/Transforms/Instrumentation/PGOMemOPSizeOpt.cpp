@@ -20,7 +20,6 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
-#include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/BasicBlock.h"
@@ -34,9 +33,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Type.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
-#include "llvm/PassRegistry.h"
 #include "llvm/ProfileData/InstrProf.h"
 #define INSTR_PROF_VALUE_PROF_MEMOP_API
 #include "llvm/ProfileData/InstrProfData.inc"
@@ -45,7 +41,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cassert>
@@ -61,8 +56,7 @@ STATISTIC(NumOfPGOMemOPAnnotate, "Number of memop intrinsics annotated.");
 
 // The minimum call count to optimize memory intrinsic calls.
 static cl::opt<unsigned>
-    MemOPCountThreshold("pgo-memop-count-threshold", cl::Hidden, cl::ZeroOrMore,
-                        cl::init(1000),
+    MemOPCountThreshold("pgo-memop-count-threshold", cl::Hidden, cl::init(1000),
                         cl::desc("The minimum count to optimize memory "
                                  "intrinsic calls"));
 
@@ -74,14 +68,13 @@ static cl::opt<bool> DisableMemOPOPT("disable-memop-opt", cl::init(false),
 // The percent threshold to optimize memory intrinsic calls.
 static cl::opt<unsigned>
     MemOPPercentThreshold("pgo-memop-percent-threshold", cl::init(40),
-                          cl::Hidden, cl::ZeroOrMore,
+                          cl::Hidden,
                           cl::desc("The percentage threshold for the "
                                    "memory intrinsic calls optimization"));
 
 // Maximum number of versions for optimizing memory intrinsic call.
 static cl::opt<unsigned>
     MemOPMaxVersion("pgo-memop-max-version", cl::init(3), cl::Hidden,
-                    cl::ZeroOrMore,
                     cl::desc("The max version for the optimized memory "
                              " intrinsic calls"));
 

@@ -34,6 +34,8 @@ struct [[]] S1 {
   int [[]] : 0; // OK, attribute applies to the type.
   int p, [[]] : 0; // expected-error {{an attribute list cannot appear here}}
   int q, [[]] r; // expected-error {{an attribute list cannot appear here}}
+  [[]] int; // expected-error {{an attribute list cannot appear here}} \
+            // expected-warning {{declaration does not declare anything}}
 };
 
 [[]] struct S2 { int a; }; // expected-error {{misplaced attributes}}
@@ -60,7 +62,8 @@ void f4(void) [[]];
 void f5(int i [[]], [[]] int j, int [[]] k);
 
 void f6(a, b) [[]] int a; int b; { // notc2x-error {{an attribute list cannot appear here}} \
-                                      c2x-warning 2 {{type specifier missing, defaults to 'int'}} \
+                                      c2x-error {{unknown type name 'a'}} \
+                                      c2x-error {{unknown type name 'b'}} \
                                       c2x-error {{expected ';' after top level declarator}} \
                                       c2x-error {{expected identifier or '('}}
 }
@@ -70,7 +73,8 @@ void f6(a, b) [[]] int a; int b; { // notc2x-error {{an attribute list cannot ap
 // behavior given that we *don't* want to parse it as part of the K&R parameter
 // declarations. It is disallowed to avoid a parsing ambiguity we already
 // handle well.
-int (*f7(a, b))(int, int) [[]] int a; int b; { // c2x-warning 2 {{type specifier missing, defaults to 'int'}} \
+int (*f7(a, b))(int, int) [[]] int a; int b; { // c2x-error {{unknown type name 'a'}} \
+                                                  c2x-error {{unknown type name 'b'}} \
                                                   c2x-error {{expected ';' after top level declarator}} \
                                                   c2x-error {{expected identifier or '('}}
 

@@ -662,20 +662,21 @@ size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC) {
   return 1;
 }
 
-// atomic_fetch_[add, min, max] and atomic_fetch_[add, min, max]_explicit
-// functions declared in clang headers should be translated to corresponding
-// FP-typed Atomic Instructions
+// atomic_fetch_[add, sub, min, max] and atomic_fetch_[add, sub, min,
+// max]_explicit functions declared in clang headers should be translated
+// to corresponding FP-typed Atomic Instructions
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
   if (!DemangledName.startswith(kOCLBuiltinName::AtomicPrefix) &&
       !DemangledName.startswith(kOCLBuiltinName::AtomPrefix))
     return false;
 
   return llvm::StringSwitch<bool>(DemangledName)
-      .EndsWith("sub", true)
       .EndsWith("atomic_add", true)
+      .EndsWith("atomic_sub", true)
       .EndsWith("atomic_min", true)
       .EndsWith("atomic_max", true)
       .EndsWith("atom_add", true)
+      .EndsWith("atom_sub", true)
       .EndsWith("atom_min", true)
       .EndsWith("atom_max", true)
       .EndsWith("inc", true)
@@ -684,7 +685,6 @@ bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
       .EndsWith("and", true)
       .EndsWith("or", true)
       .EndsWith("xor", true)
-      .EndsWith("sub_explicit", true)
       .EndsWith("or_explicit", true)
       .EndsWith("xor_explicit", true)
       .EndsWith("and_explicit", true)
@@ -1252,22 +1252,18 @@ public:
       else
         addUnsignedArg(1);
     } else if (NameRef.startswith("intel_sub_group_block_write")) {
-      // distinguish write to image and other data types as position
-      // of uint argument is different though name is the same.
-      auto *Arg0Ty = getArgTy(0);
-      if (Arg0Ty->isPointerTy() &&
-          Arg0Ty->getPointerElementType()->isIntegerTy()) {
+      // distinguish write to image and other data types based on number of
+      // arguments--images have one more argument.
+      if (F->getFunctionType()->getNumParams() == 2) {
         addUnsignedArg(0);
         addUnsignedArg(1);
       } else {
         addUnsignedArg(2);
       }
     } else if (NameRef.startswith("intel_sub_group_block_read")) {
-      // distinguish read from image and other data types as position
-      // of uint argument is different though name is the same.
-      auto *Arg0Ty = getArgTy(0);
-      if (Arg0Ty->isPointerTy() &&
-          Arg0Ty->getPointerElementType()->isIntegerTy()) {
+      // distinguish read from image and other data types based on number of
+      // arguments--images have one more argument.
+      if (F->getFunctionType()->getNumParams() == 1) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
@@ -1365,12 +1361,7 @@ bool isSpecialTypeInitializer(Instruction *Inst) {
   return isSamplerInitializer(Inst) || isPipeStorageInitializer(Inst);
 }
 
-bool isSamplerTy(Type *Ty) {
-  auto PTy = dyn_cast<PointerType>(Ty);
-  if (!PTy)
-    return false;
-
-  auto *STy = dyn_cast<StructType>(PTy->getPointerElementType());
+bool isSamplerStructTy(StructType *STy) {
   return STy && STy->hasName() && STy->getName() == kSPR2TypeName::Sampler;
 }
 

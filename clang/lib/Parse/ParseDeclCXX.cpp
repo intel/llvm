@@ -10,15 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Parse/Parser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
+#include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/OperatorKinds.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Parse/ParseDiagnostic.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ParsedTemplate.h"
@@ -354,8 +355,8 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
                 getCurScope(), DS.getSourceRange().getBegin(), Lang.get(),
                 Tok.is(tok::l_brace) ? Tok.getLocation() : SourceLocation());
 
-  ParsedAttributes attrs(AttrFactory);
-  MaybeParseCXX11Attributes(attrs);
+  ParsedAttributes DeclAttrs(AttrFactory);
+  MaybeParseCXX11Attributes(DeclAttrs);
 
   if (Tok.isNot(tok::l_brace)) {
     // Reset the source range in DS, as the leading "extern"
@@ -364,7 +365,7 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
     DS.SetRangeEnd(SourceLocation());
     // ... but anyway remember that such an "extern" was seen.
     DS.setExternInLinkageSpec(true);
-    ParseExternalDeclaration(attrs, &DS);
+    ParseExternalDeclaration(DeclAttrs, &DS);
     return LinkageSpec ? Actions.ActOnFinishLinkageSpecification(
                              getCurScope(), LinkageSpec, SourceLocation())
                        : nullptr;
@@ -372,7 +373,7 @@ Decl *Parser::ParseLinkage(ParsingDeclSpec &DS, DeclaratorContext Context) {
 
   DS.abort();
 
-  ProhibitAttributes(attrs);
+  ProhibitAttributes(DeclAttrs);
 
   BalancedDelimiterTracker T(*this, tok::l_brace);
   T.consumeOpen();
@@ -438,7 +439,6 @@ Decl *Parser::ParseExportDeclaration() {
     // FIXME: Factor out a ParseExternalDeclarationWithAttrs.
     ParsedAttributes Attrs(AttrFactory);
     MaybeParseCXX11Attributes(Attrs);
-    MaybeParseMicrosoftAttributes(Attrs);
     ParseExternalDeclaration(Attrs);
     return Actions.ActOnFinishExportDecl(getCurScope(), ExportDecl,
                                          SourceLocation());
@@ -458,7 +458,6 @@ Decl *Parser::ParseExportDeclaration() {
          Tok.isNot(tok::eof)) {
     ParsedAttributes Attrs(AttrFactory);
     MaybeParseCXX11Attributes(Attrs);
-    MaybeParseMicrosoftAttributes(Attrs);
     ParseExternalDeclaration(Attrs);
   }
 
@@ -1218,7 +1217,8 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
 
     EndLocation = ParseDecltypeSpecifier(DS);
 
-    Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
+    Declarator DeclaratorInfo(DS, ParsedAttributesView::none(),
+                              DeclaratorContext::TypeName);
     return Actions.ActOnTypeName(getCurScope(), DeclaratorInfo);
   }
 
@@ -1310,7 +1310,8 @@ TypeResult Parser::ParseBaseTypeSpecifier(SourceLocation &BaseLoc,
   DS.SetTypeSpecType(TST_typename, IdLoc, PrevSpec, DiagID, Type,
                      Actions.getASTContext().getPrintingPolicy());
 
-  Declarator DeclaratorInfo(DS, DeclaratorContext::TypeName);
+  Declarator DeclaratorInfo(DS, ParsedAttributesView::none(),
+                            DeclaratorContext::TypeName);
   return Actions.ActOnTypeName(getCurScope(), DeclaratorInfo);
 }
 
@@ -1753,11 +1754,13 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
-  if (isDefiningTypeSpecifierContext(DSC) == AllowDefiningTypeSpec::No ||
+  if (isDefiningTypeSpecifierContext(DSC, getLangOpts().CPlusPlus) ==
+          AllowDefiningTypeSpec::No ||
       (getLangOpts().OpenMP && OpenMPDirectiveParsing))
     TUK = Sema::TUK_Reference;
   else if (Tok.is(tok::l_brace) ||
-           (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
+           (DSC != DeclSpecContext::DSC_association &&
+            getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
            (isClassCompatibleKeyword() &&
             (NextToken().is(tok::l_brace) || NextToken().is(tok::colon)))) {
     if (DS.isFriendSpecified()) {
@@ -2170,8 +2173,11 @@ BaseResult Parser::ParseBaseSpecifier(Decl *ClassDecl) {
 
   // Parse an (optional) access specifier.
   AccessSpecifier Access = getAccessSpecifierIfPresent();
-  if (Access != AS_none)
+  if (Access != AS_none) {
     ConsumeToken();
+    if (getLangOpts().HLSL)
+      Diag(Tok.getLocation(), diag::ext_hlsl_access_specifiers);
+  }
 
   CheckMisplacedCXX11Attribute(Attributes, StartLoc);
 
@@ -2676,23 +2682,15 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
                                           TemplateInfo, TemplateDiags);
   }
 
-  ParsedAttributes attrs(AttrFactory);
-  ParsedAttributesView FnAttrs;
+  ParsedAttributes DeclAttrs(AttrFactory);
   // Optional C++11 attribute-specifier
-  MaybeParseCXX11Attributes(attrs);
+  MaybeParseCXX11Attributes(DeclAttrs);
 
   // The next token may be an OpenMP pragma annotation token. That would
   // normally be handled from ParseCXXClassMemberDeclarationWithPragmas, but in
   // this case, it came from an *attribute* rather than a pragma. Handle it now.
   if (Tok.is(tok::annot_attr_openmp))
-    return ParseOpenMPDeclarativeDirectiveWithExtDecl(AS, attrs);
-
-  // We need to keep these attributes for future diagnostic
-  // before they are taken over by declaration specifier.
-  FnAttrs.addAll(attrs.begin(), attrs.end());
-  FnAttrs.Range = attrs.Range;
-
-  MaybeParseMicrosoftAttributes(attrs);
+    return ParseOpenMPDeclarativeDirectiveWithExtDecl(AS, DeclAttrs);
 
   if (Tok.is(tok::kw_using)) {
     // Eat 'using'.
@@ -2713,8 +2711,11 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     SourceLocation DeclEnd;
     // Otherwise, it must be a using-declaration or an alias-declaration.
     return ParseUsingDeclaration(DeclaratorContext::Member, TemplateInfo,
-                                 UsingLoc, DeclEnd, attrs, AS);
+                                 UsingLoc, DeclEnd, DeclAttrs, AS);
   }
+
+  ParsedAttributes DeclSpecAttrs(AttrFactory);
+  MaybeParseMicrosoftAttributes(DeclSpecAttrs);
 
   // Hold late-parsed attributes so we can attach a Decl to them later.
   LateParsedAttrList CommonLateParsedAttrs;
@@ -2722,7 +2723,8 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
   // decl-specifier-seq:
   // Parse the common declaration-specifiers piece.
   ParsingDeclSpec DS(*this, TemplateDiags);
-  DS.takeAttributesFrom(attrs);
+  DS.takeAttributesFrom(DeclSpecAttrs);
+
   if (MalformedTypeSpec)
     DS.SetTypeSpecError();
 
@@ -2760,7 +2762,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
 
   if (TryConsumeToken(tok::semi)) {
     if (DS.isFriendSpecified())
-      ProhibitAttributes(FnAttrs);
+      ProhibitAttributes(DeclAttrs);
 
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(
@@ -2773,7 +2775,8 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
 
-  ParsingDeclarator DeclaratorInfo(*this, DS, DeclaratorContext::Member);
+  ParsingDeclarator DeclaratorInfo(*this, DS, DeclAttrs,
+                                   DeclaratorContext::Member);
   if (TemplateInfo.TemplateParams)
     DeclaratorInfo.setTemplateParameterLists(TemplateParams);
   VirtSpecifiers VS;
@@ -2865,7 +2868,7 @@ Parser::ParseCXXClassMemberDeclaration(AccessSpecifier AS,
         DS.isFriendSpecified()) {
       // Diagnose attributes that appear before decl specifier:
       // [[]] friend int foo();
-      ProhibitAttributes(FnAttrs);
+      ProhibitAttributes(DeclAttrs);
     }
 
     if (DefinitionKind != FunctionDefinitionKind::Declaration) {
@@ -3270,6 +3273,8 @@ Parser::DeclGroupPtrTy Parser::ParseCXXClassMemberDeclarationWithPragmas(
     LLVM_FALLTHROUGH;
   case tok::kw_public:
   case tok::kw_protected: {
+    if (getLangOpts().HLSL)
+      Diag(Tok.getLocation(), diag::ext_hlsl_access_specifiers);
     AccessSpecifier NewAS = getAccessSpecifierIfPresent();
     assert(NewAS != AS_none);
     // Current token is a C++ access specifier.
@@ -3509,8 +3514,9 @@ void Parser::ParseCXXMemberSpecification(SourceLocation RecordLoc,
   // C++ 11p3: Members of a class defined with the keyword class are private
   // by default. Members of a class defined with the keywords struct or union
   // are public by default.
+  // HLSL: In HLSL members of a class are public by default.
   AccessSpecifier CurAS;
-  if (TagType == DeclSpec::TST_class)
+  if (TagType == DeclSpec::TST_class && !getLangOpts().HLSL)
     CurAS = AS_private;
   else
     CurAS = AS_public;
@@ -4304,16 +4310,17 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
 
   // Try parsing microsoft attributes
   if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {
-    if (hasAttribute(AttrSyntax::Microsoft, ScopeName, AttrName,
-                     getTargetInfo(), getLangOpts()))
+    if (hasAttribute(AttributeCommonInfo::Syntax::AS_Microsoft, ScopeName,
+                     AttrName, getTargetInfo(), getLangOpts()))
       Syntax = ParsedAttr::AS_Microsoft;
   }
 
   // If the attribute isn't known, we will not attempt to parse any
   // arguments.
   if (Syntax != ParsedAttr::AS_Microsoft &&
-      !hasAttribute(LO.CPlusPlus ? AttrSyntax::CXX : AttrSyntax::C, ScopeName,
-                    AttrName, getTargetInfo(), getLangOpts())) {
+      !hasAttribute(LO.CPlusPlus ? AttributeCommonInfo::Syntax::AS_CXX11
+                                 : AttributeCommonInfo::Syntax::AS_C2x,
+                    ScopeName, AttrName, getTargetInfo(), getLangOpts())) {
     if (getLangOpts().MicrosoftExt || getLangOpts().HLSL) {}
     // Eat the left paren, then skip to the ending right paren.
     ConsumeParen();

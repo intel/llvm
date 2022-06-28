@@ -132,10 +132,6 @@ Dialect Attribute::getDialect() const {
   return Dialect(nullptr);
 }
 
-StringRef Attribute::getDescription() const {
-  return def->getValueAsString("description");
-}
-
 ConstantAttr::ConstantAttr(const DefInit *init) : def(init->getDef()) {
   assert(def->isSubClassOf("ConstantAttr") &&
          "must be subclass of TableGen 'ConstantAttr' class");
@@ -237,6 +233,10 @@ llvm::Record *EnumAttr::getBaseAttrClass() const {
 
 StringRef EnumAttr::getSpecializedAttrClassName() const {
   return def->getValueAsString("specializedAttrClassName");
+}
+
+bool EnumAttr::printBitEnumPrimaryGroups() const {
+  return def->getValueAsBit("printBitEnumPrimaryGroups");
 }
 
 StructFieldAttr::StructFieldAttr(const llvm::Record *record) : def(record) {

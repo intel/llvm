@@ -7,7 +7,6 @@ add_sycl_unittest(PiCudaTests OBJECT
   test_kernels.cpp
   test_mem_obj.cpp
   test_primary_context.cpp
-  test_queue.cpp
   test_sampler_properties.cpp
 )
 

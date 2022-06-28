@@ -51,7 +51,6 @@
 #include "lldb/Utility/ReproducerProvider.h"
 #include "lldb/Utility/State.h"
 #include "lldb/Utility/Stream.h"
-#include "lldb/Utility/StreamCallback.h"
 #include "lldb/Utility/StreamString.h"
 
 #if defined(_WIN32)
@@ -66,6 +65,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -669,9 +669,9 @@ void Debugger::Destroy(DebuggerSP &debugger_sp) {
     CommandReturnObject result(debugger_sp->GetUseColor());
     cmd_interpreter.SaveTranscript(result);
     if (result.Succeeded())
-      debugger_sp->GetOutputStream() << result.GetOutputData() << '\n';
+      (*debugger_sp->GetAsyncOutputStream()) << result.GetOutputData() << '\n';
     else
-      debugger_sp->GetErrorStream() << result.GetErrorData() << '\n';
+      (*debugger_sp->GetAsyncErrorStream()) << result.GetErrorData() << '\n';
   }
 
   debugger_sp->Clear();
@@ -757,8 +757,8 @@ Debugger::Debugger(lldb::LogOutputCallback log_callback, void *baton)
       m_forward_listener_sp(), m_clear_once() {
   m_instance_name.SetString(llvm::formatv("debugger_{0}", GetID()).str());
   if (log_callback)
-    m_log_callback_stream_sp =
-        std::make_shared<StreamCallback>(log_callback, baton);
+    m_callback_handler_sp =
+        std::make_shared<CallbackLogHandler>(log_callback, baton);
   m_command_interpreter_up->Initialize();
   // Always add our default platform to the platform list
   PlatformSP default_platform_sp(Platform::GetHostPlatform());
@@ -1291,8 +1291,8 @@ void Debugger::SetLoggingCallback(lldb::LogOutputCallback log_callback,
   // For simplicity's sake, I am not going to deal with how to close down any
   // open logging streams, I just redirect everything from here on out to the
   // callback.
-  m_log_callback_stream_sp =
-      std::make_shared<StreamCallback>(log_callback, baton);
+  m_callback_handler_sp =
+      std::make_shared<CallbackLogHandler>(log_callback, baton);
 }
 
 static void PrivateReportProgress(Debugger &debugger, uint64_t progress_id,
@@ -1411,22 +1411,21 @@ bool Debugger::EnableLog(llvm::StringRef channel,
                          llvm::StringRef log_file, uint32_t log_options,
                          llvm::raw_ostream &error_stream) {
   const bool should_close = true;
-  const bool unbuffered = true;
 
-  std::shared_ptr<llvm::raw_ostream> log_stream_sp;
-  if (m_log_callback_stream_sp) {
-    log_stream_sp = m_log_callback_stream_sp;
+  std::shared_ptr<LogHandler> log_handler_sp;
+  if (m_callback_handler_sp) {
+    log_handler_sp = m_callback_handler_sp;
     // For now when using the callback mode you always get thread & timestamp.
     log_options |=
         LLDB_LOG_OPTION_PREPEND_TIMESTAMP | LLDB_LOG_OPTION_PREPEND_THREAD_NAME;
   } else if (log_file.empty()) {
-    log_stream_sp = std::make_shared<llvm::raw_fd_ostream>(
-        GetOutputFile().GetDescriptor(), !should_close, unbuffered);
+    log_handler_sp = std::make_shared<StreamLogHandler>(
+        GetOutputFile().GetDescriptor(), !should_close);
   } else {
-    auto pos = m_log_streams.find(log_file);
-    if (pos != m_log_streams.end())
-      log_stream_sp = pos->second.lock();
-    if (!log_stream_sp) {
+    auto pos = m_stream_handlers.find(log_file);
+    if (pos != m_stream_handlers.end())
+      log_handler_sp = pos->second.lock();
+    if (!log_handler_sp) {
       File::OpenOptions flags =
           File::eOpenOptionWriteOnly | File::eOpenOptionCanCreate;
       if (log_options & LLDB_LOG_OPTION_APPEND)
@@ -1441,18 +1440,18 @@ bool Debugger::EnableLog(llvm::StringRef channel,
         return false;
       }
 
-      log_stream_sp = std::make_shared<llvm::raw_fd_ostream>(
-          (*file)->GetDescriptor(), should_close, unbuffered);
-      m_log_streams[log_file] = log_stream_sp;
+      log_handler_sp = std::make_shared<StreamLogHandler>(
+          (*file)->GetDescriptor(), should_close);
+      m_stream_handlers[log_file] = log_handler_sp;
     }
   }
-  assert(log_stream_sp);
+  assert(log_handler_sp);
 
   if (log_options == 0)
     log_options =
         LLDB_LOG_OPTION_PREPEND_THREAD_NAME | LLDB_LOG_OPTION_THREADSAFE;
 
-  return Log::EnableLogChannel(log_stream_sp, log_options, channel, categories,
+  return Log::EnableLogChannel(log_handler_sp, log_options, channel, categories,
                                error_stream);
 }
 
@@ -1851,20 +1850,26 @@ void Debugger::HandleProgressEvent(const lldb::EventSP &event_sp) {
     return;
   }
 
+  // Trim the progress message if it exceeds the window's width and print it.
+  std::string message = data->GetMessage();
+  if (data->IsFinite())
+    message = llvm::formatv("[{0}/{1}] {2}", data->GetCompleted(),
+                            data->GetTotal(), message)
+                  .str();
+
+  // Trim the progress message if it exceeds the window's width and print it.
+  const uint32_t term_width = GetTerminalWidth();
+  const uint32_t ellipsis = 3;
+  if (message.size() + ellipsis >= term_width)
+    message = message.substr(0, term_width - ellipsis);
+
   const bool use_color = GetUseColor();
   llvm::StringRef ansi_prefix = GetShowProgressAnsiPrefix();
   if (!ansi_prefix.empty())
     output->Printf(
         "%s", ansi::FormatAnsiTerminalCodes(ansi_prefix, use_color).c_str());
 
-  // Print the progress message.
-  std::string message = data->GetMessage();
-  if (data->GetTotal() != UINT64_MAX) {
-    output->Printf("[%" PRIu64 "/%" PRIu64 "] %s...", data->GetCompleted(),
-                   data->GetTotal(), message.c_str());
-  } else {
-    output->Printf("%s...", message.c_str());
-  }
+  output->Printf("%s...", message.c_str());
 
   llvm::StringRef ansi_suffix = GetShowProgressAnsiSuffix();
   if (!ansi_suffix.empty())
@@ -1969,4 +1974,14 @@ Status Debugger::RunREPL(LanguageType language, const char *repl_options) {
   repl_sp->RunLoop();
 
   return err;
+}
+
+llvm::ThreadPool &Debugger::GetThreadPool() {
+  // NOTE: intentional leak to avoid issues with C++ destructor chain
+  static llvm::ThreadPool *g_thread_pool = nullptr;
+  static llvm::once_flag g_once_flag;
+  llvm::call_once(g_once_flag, []() {
+    g_thread_pool = new llvm::ThreadPool(llvm::optimal_concurrency());
+  });
+  return *g_thread_pool;
 }

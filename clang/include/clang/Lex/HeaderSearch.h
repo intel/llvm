@@ -20,8 +20,6 @@
 #include "clang/Lex/ModuleMap.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -118,14 +116,6 @@ struct HeaderFileInfo {
   /// If this header came from a framework include, this is the name
   /// of the framework.
   StringRef Framework;
-
-  /// List of aliases that this header is known as.
-  /// Most headers should only have at most one alias, but a handful
-  /// have two.
-  llvm::SetVector<llvm::SmallString<32>,
-                  llvm::SmallVector<llvm::SmallString<32>, 2>,
-                  llvm::SmallSet<llvm::SmallString<32>, 2>>
-      Aliases;
 
   HeaderFileInfo()
       : isImport(false), isPragmaOnce(false), DirInfo(SrcMgr::C_User),
@@ -324,6 +314,9 @@ class HeaderSearch {
   /// Set of module map files we've already loaded, and a flag indicating
   /// whether they were valid or not.
   llvm::DenseMap<const FileEntry *, bool> LoadedModuleMaps;
+
+  // A map of discovered headers with their associated include file name.
+  llvm::DenseMap<const FileEntry *, llvm::SmallString<64>> IncludeNames;
 
   /// Uniqued set of framework names, which is used to track which
   /// headers were included as framework headers.
@@ -526,10 +519,6 @@ public:
   /// \#pragma GCC system_header.
   void MarkFileSystemHeader(const FileEntry *File) {
     getFileInfo(File).DirInfo = SrcMgr::C_System;
-  }
-
-  void AddFileAlias(const FileEntry *File, StringRef Alias) {
-    getFileInfo(File).Aliases.insert(Alias);
   }
 
   /// Mark the specified file as part of a module.
@@ -738,8 +727,7 @@ private:
   /// frameworks.
   ///
   /// \returns The module, if found; otherwise, null.
-  Module *loadFrameworkModule(StringRef Name,
-                              const DirectoryEntry *Dir,
+  Module *loadFrameworkModule(StringRef Name, DirectoryEntryRef Dir,
                               bool IsSystem);
 
   /// Load all of the module maps within the immediate subdirectories
@@ -838,6 +826,13 @@ public:
   /// Retrieve a uniqued framework name.
   StringRef getUniqueFrameworkName(StringRef Framework);
 
+  /// Retrieve the include name for the header.
+  ///
+  /// \param File The entry for a given header.
+  /// \returns The name of how the file was included when the header's location
+  /// was resolved.
+  StringRef getIncludeNameForHeader(const FileEntry *File) const;
+
   /// Suggest a path by which the specified file could be found, for use in
   /// diagnostics to suggest a #include. Returned path will only contain forward
   /// slashes as separators. MainFile is the absolute path of the file that we
@@ -888,7 +883,7 @@ private:
 
   LoadModuleMapResult loadModuleMapFileImpl(const FileEntry *File,
                                             bool IsSystem,
-                                            const DirectoryEntry *Dir,
+                                            DirectoryEntryRef Dir,
                                             FileID ID = FileID(),
                                             unsigned *Offset = nullptr);
 
@@ -912,8 +907,8 @@ private:
   ///
   /// \returns The result of attempting to load the module map file from the
   /// named directory.
-  LoadModuleMapResult loadModuleMapFile(const DirectoryEntry *Dir,
-                                        bool IsSystem, bool IsFramework);
+  LoadModuleMapResult loadModuleMapFile(DirectoryEntryRef Dir, bool IsSystem,
+                                        bool IsFramework);
 };
 
 /// Apply the header search options to get given HeaderSearch object.

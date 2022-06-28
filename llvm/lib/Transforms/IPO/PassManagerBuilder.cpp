@@ -18,12 +18,10 @@
 #include "llvm/Analysis/CFLAndersAliasAnalysis.h"
 #include "llvm/Analysis/CFLSteensAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
-#include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Target/CGPassBuilderOption.h"
@@ -46,8 +44,7 @@
 using namespace llvm;
 
 namespace llvm {
-cl::opt<bool> RunPartialInlining("enable-partial-inlining", cl::init(false),
-                                 cl::Hidden, cl::ZeroOrMore,
+cl::opt<bool> RunPartialInlining("enable-partial-inlining", cl::Hidden,
                                  cl::desc("Run Partial inlinining pass"));
 
 static cl::opt<bool>
@@ -105,8 +102,8 @@ static cl::opt<bool>
     EnablePerformThinLTO("perform-thinlto", cl::init(false), cl::Hidden,
                          cl::desc("Enable performing ThinLTO."));
 
-cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false),
-    cl::ZeroOrMore, cl::desc("Enable hot-cold splitting pass"));
+cl::opt<bool> EnableHotColdSplit("hot-cold-split",
+                                 cl::desc("Enable hot-cold splitting pass"));
 
 cl::opt<bool> EnableIROutliner("ir-outliner", cl::init(false), cl::Hidden,
     cl::desc("Enable ir outliner pass"));
@@ -120,12 +117,12 @@ cl::opt<bool>
                       cl::desc("Disable pre-instrumentation inliner"));
 
 cl::opt<int> PreInlineThreshold(
-    "preinline-threshold", cl::Hidden, cl::init(75), cl::ZeroOrMore,
+    "preinline-threshold", cl::Hidden, cl::init(75),
     cl::desc("Control the amount of inlining in pre-instrumentation inliner "
              "(default = 75)"));
 
 cl::opt<bool>
-    EnableGVNHoist("enable-gvn-hoist", cl::init(false), cl::ZeroOrMore,
+    EnableGVNHoist("enable-gvn-hoist",
                    cl::desc("Enable the GVN hoisting pass (default = off)"));
 
 static cl::opt<bool>
@@ -133,13 +130,8 @@ static cl::opt<bool>
                               cl::Hidden,
                               cl::desc("Disable shrink-wrap library calls"));
 
-static cl::opt<bool> EnableSimpleLoopUnswitch(
-    "enable-simple-loop-unswitch", cl::init(false), cl::Hidden,
-    cl::desc("Enable the simple loop unswitch pass. Also enables independent "
-             "cleanup passes integrated into the loop pass manager pipeline."));
-
 cl::opt<bool>
-    EnableGVNSink("enable-gvn-sink", cl::init(false), cl::ZeroOrMore,
+    EnableGVNSink("enable-gvn-sink",
                   cl::desc("Enable the GVN sinking pass (default = off)"));
 
 // This option is used in simplifying testing SampleFDO optimizations for
@@ -387,60 +379,56 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (EnableMatrix)
     MPM.add(createVectorCombinePass());
 
-  // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
-  // optimizations rely on TTI, which is not accurate for SPIR target.
-  if (!SYCLOptimizationMode) {
-    // Begin the loop pass pipeline.
-    if (EnableSimpleLoopUnswitch) {
-      // The simple loop unswitch pass relies on separate cleanup passes.
-      // Schedule them first so when we re-process a loop they run before other
-      // loop passes.
-      MPM.add(createLoopInstSimplifyPass());
-      MPM.add(createLoopSimplifyCFGPass());
-    }
-    // Try to remove as much code from the loop header as possible,
-    // to reduce amount of IR that will have to be duplicated. However,
-    // do not perform speculative hoisting the first time as LICM
-    // will destroy metadata that may not need to be destroyed if run
-    // after loop rotation.
-    // TODO: Investigate promotion cap for O1.
-    MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
-                           /*AllowSpeculation=*/false));
-    // Rotate Loop - disable header duplication at -Oz
-    MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, PrepareForLTO));
-    // TODO: Investigate promotion cap for O1.
-    MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
-                           /*AllowSpeculation=*/true));
-    if (EnableSimpleLoopUnswitch)
-      MPM.add(createSimpleLoopUnswitchLegacyPass());
-    else
-      MPM.add(
-          createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
-    // FIXME: We break the loop pass pipeline here in order to do full
-    // simplifycfg. Eventually loop-simplifycfg should be enhanced to replace
-    // the need for this.
-    MPM.add(createCFGSimplificationPass(
-        SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
-    MPM.add(createInstructionCombiningPass());
-    // We resume loop passes creating a second loop pipeline here.
-    if (EnableLoopFlatten) {
-      MPM.add(createLoopFlattenPass()); // Flatten loops
-      MPM.add(createLoopSimplifyCFGPass());
-    }
-    MPM.add(createLoopIdiomPass());      // Recognize idioms like memset.
-    MPM.add(createIndVarSimplifyPass()); // Canonicalize indvars
-    addExtensionsToPM(EP_LateLoopOptimizations, MPM);
-    MPM.add(createLoopDeletionPass()); // Delete dead loops
+// Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
+// optimizations rely on TTI, which is not accurate for SPIR target.
+if (!SYCLOptimizationMode) { // broken formatting to simplify pulldown
 
-    if (EnableLoopInterchange)
-      MPM.add(createLoopInterchangePass()); // Interchange loops
+  // The simple loop unswitch pass relies on separate cleanup passes. Schedule
+  // them first so when we re-process a loop they run before other loop
+  // passes.
+  MPM.add(createLoopInstSimplifyPass());
+  MPM.add(createLoopSimplifyCFGPass());
 
-    // Unroll small loops and perform peeling.
-    MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
-                                       ForgetAllSCEVInLoopUnroll));
-    addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
-    // This ends the loop pass pipelines.
+  // Try to remove as much code from the loop header as possible,
+  // to reduce amount of IR that will have to be duplicated. However,
+  // do not perform speculative hoisting the first time as LICM
+  // will destroy metadata that may not need to be destroyed if run
+  // after loop rotation.
+  // TODO: Investigate promotion cap for O1.
+  MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
+                         /*AllowSpeculation=*/false));
+  // Rotate Loop - disable header duplication at -Oz
+  MPM.add(createLoopRotatePass(SizeLevel == 2 ? 0 : -1, PrepareForLTO));
+  // TODO: Investigate promotion cap for O1.
+  MPM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
+                         /*AllowSpeculation=*/true));
+  MPM.add(createSimpleLoopUnswitchLegacyPass(OptLevel == 3));
+  // FIXME: We break the loop pass pipeline here in order to do full
+  // simplifycfg. Eventually loop-simplifycfg should be enhanced to replace
+  // the need for this.
+  MPM.add(createCFGSimplificationPass(
+      SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+  MPM.add(createInstructionCombiningPass());
+  // We resume loop passes creating a second loop pipeline here.
+  if (EnableLoopFlatten) {
+    MPM.add(createLoopFlattenPass()); // Flatten loops
+    MPM.add(createLoopSimplifyCFGPass());
   }
+  MPM.add(createLoopIdiomPass());      // Recognize idioms like memset.
+  MPM.add(createIndVarSimplifyPass()); // Canonicalize indvars
+  addExtensionsToPM(EP_LateLoopOptimizations, MPM);
+  MPM.add(createLoopDeletionPass()); // Delete dead loops
+
+  if (EnableLoopInterchange)
+    MPM.add(createLoopInterchangePass()); // Interchange loops
+
+  // Unroll small loops and perform peeling.
+  MPM.add(createSimpleLoopUnrollPass(OptLevel, DisableUnrollLoops,
+                                     ForgetAllSCEVInLoopUnroll));
+  addExtensionsToPM(EP_LoopOptimizerEnd, MPM);
+  // This ends the loop pass pipelines.
+
+} // broken formatting on this line to simplify pulldown
 
   // Break up allocas that may now be splittable after loop unrolling.
   MPM.add(createSROAPass());
@@ -543,7 +531,7 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
     PM.add(createInstructionCombiningPass());
     PM.add(createLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
                           /*AllowSpeculation=*/true));
-    PM.add(createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
+    PM.add(createSimpleLoopUnswitchLegacyPass());
     PM.add(createCFGSimplificationPass(
         SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
     PM.add(createInstructionCombiningPass());
@@ -1038,7 +1026,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
   // The IPO passes may leave cruft around.  Clean up after them.
   PM.add(createInstructionCombiningPass());
   addExtensionsToPM(EP_Peephole, PM);
-  PM.add(createJumpThreadingPass(/*FreezeSelectCond*/ true));
+  PM.add(createJumpThreadingPass());
 
   // Break up allocas
   PM.add(createSROAPass());
@@ -1083,7 +1071,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
 
   addExtensionsToPM(EP_Peephole, PM);
 
-  PM.add(createJumpThreadingPass(/*FreezeSelectCond*/ true));
+  PM.add(createJumpThreadingPass());
 }
 
 void PassManagerBuilder::addLateLTOOptimizationPasses(

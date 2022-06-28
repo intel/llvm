@@ -934,8 +934,9 @@ Corrected:
       //   appeared.
       //
       // We also allow this in C99 as an extension. However, this is not
-      // allowed in C2x as there are no functions without prototypes there.
-      if (!getLangOpts().C2x) {
+      // allowed in all language modes as functions without prototypes may not
+      // be supported.
+      if (getLangOpts().implicitFunctionsAllowed()) {
         if (NamedDecl *D = ImplicitlyDefineFunction(NameLoc, *Name, S))
           return NameClassification::NonType(D);
       }
@@ -1114,18 +1115,14 @@ Corrected:
 
       UsingShadowDecl *FoundUsingShadow =
           dyn_cast<UsingShadowDecl>(*Result.begin());
-
-      if (SS.isNotEmpty()) {
-        // FIXME: support using shadow-declaration in qualified template name.
-        Template =
-            Context.getQualifiedTemplateName(SS.getScopeRep(),
-                                             /*TemplateKeyword=*/false, TD);
-      } else {
-        assert(!FoundUsingShadow ||
-               TD == cast<TemplateDecl>(FoundUsingShadow->getTargetDecl()));
-        Template = FoundUsingShadow ? TemplateName(FoundUsingShadow)
-                                    : TemplateName(TD);
-      }
+      assert(!FoundUsingShadow ||
+             TD == cast<TemplateDecl>(FoundUsingShadow->getTargetDecl()));
+      Template =
+          FoundUsingShadow ? TemplateName(FoundUsingShadow) : TemplateName(TD);
+      if (SS.isNotEmpty())
+        Template = Context.getQualifiedTemplateName(SS.getScopeRep(),
+                                                    /*TemplateKeyword=*/false,
+                                                    Template);
     } else {
       // All results were non-template functions. This is a function template
       // name.
@@ -2860,6 +2857,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *NT = dyn_cast<HLSLNumThreadsAttr>(Attr))
     NewAttr =
         S.mergeHLSLNumThreadsAttr(D, *NT, NT->getX(), NT->getY(), NT->getZ());
+  else if (const auto *SA = dyn_cast<HLSLShaderAttr>(Attr))
+    NewAttr = S.mergeHLSLShaderAttr(D, *SA, SA->getType());
   else if (Attr->shouldInheritEvenIfAlreadyPresent() || !DeclHasAttr(D, Attr))
     NewAttr = cast<InheritableAttr>(Attr->clone(S.Context));
 
@@ -3962,6 +3961,8 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
     // ASTContext::typesAreCompatible().
     if (Old->hasPrototype() && !New->hasWrittenPrototype() && NewDeclIsDefn &&
         Old->getNumParams() != New->getNumParams()) {
+      if (Old->hasInheritedPrototype())
+        Old = Old->getCanonicalDecl();
       Diag(New->getLocation(), diag::err_conflicting_types) << New;
       Diag(Old->getLocation(), PrevDiag) << Old << Old->getType();
       return true;
@@ -3989,59 +3990,29 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD, Scope *S,
       }
 
       if (WithProto->getNumParams() != 0) {
-        // The function definition has parameters, so this will change
-        // behavior in C2x.
-        //
-        // If we already warned about about the function without a prototype
-        // being deprecated, add a note that it also changes behavior. If we
-        // didn't warn about it being deprecated (because the diagnostic is
-        // not enabled), warn now that it is deprecated and changes behavior.
-        bool AddNote = false;
-        if (Diags.isIgnored(diag::warn_strict_prototypes,
-                            WithoutProto->getLocation())) {
-          if (WithoutProto->getBuiltinID() == 0 &&
-              !WithoutProto->isImplicit() &&
-              SourceMgr.isBeforeInTranslationUnit(WithoutProto->getLocation(),
-                                                  WithProto->getLocation())) {
-            PartialDiagnostic PD =
-                PDiag(diag::warn_non_prototype_changes_behavior);
-            if (TypeSourceInfo *TSI = WithoutProto->getTypeSourceInfo()) {
-              if (auto FTL = TSI->getTypeLoc().getAs<FunctionNoProtoTypeLoc>())
-                PD << FixItHint::CreateInsertion(FTL.getRParenLoc(), "void");
-            }
-            Diag(WithoutProto->getLocation(), PD);
-          }
-        } else {
-          AddNote = true;
-        }
-
-        // Because the function with a prototype has parameters but a previous
-        // declaration had none, the function with the prototype will also
-        // change behavior in C2x.
-        if (WithProto->getBuiltinID() == 0 && !WithProto->isImplicit()) {
-          if (SourceMgr.isBeforeInTranslationUnit(
-                  WithProto->getLocation(), WithoutProto->getLocation())) {
-            // If the function with the prototype comes before the function
-            // without the prototype, we only want to diagnose the one without
-            // the prototype.
-            Diag(WithoutProto->getLocation(),
-                 diag::warn_non_prototype_changes_behavior);
-          } else {
-            // Otherwise, diagnose the one with the prototype, and potentially
-            // attach a note to the one without a prototype if needed.
-            Diag(WithProto->getLocation(),
-                 diag::warn_non_prototype_changes_behavior);
-            if (AddNote && WithoutProto->getBuiltinID() == 0)
-              Diag(WithoutProto->getLocation(),
-                   diag::note_func_decl_changes_behavior);
-          }
-        } else if (AddNote && WithoutProto->getBuiltinID() == 0 &&
-                   !WithoutProto->isImplicit()) {
-          // If we were supposed to add a note but the function with a
-          // prototype is a builtin or was implicitly declared, which means we
-          // have nothing to attach the note to, so we issue a warning instead.
+        if (WithoutProto->getBuiltinID() == 0 && !WithoutProto->isImplicit()) {
+          // The one without the prototype will be changing behavior in C2x, so
+          // warn about that one so long as it's a user-visible declaration.
+          bool IsWithoutProtoADef = false, IsWithProtoADef = false;
+          if (WithoutProto == New)
+            IsWithoutProtoADef = NewDeclIsDefn;
+          else
+            IsWithProtoADef = NewDeclIsDefn;
           Diag(WithoutProto->getLocation(),
-               diag::warn_non_prototype_changes_behavior);
+               diag::warn_non_prototype_changes_behavior)
+              << IsWithoutProtoADef << (WithoutProto->getNumParams() ? 0 : 1)
+              << (WithoutProto == Old) << IsWithProtoADef;
+
+          // The reason the one without the prototype will be changing behavior
+          // is because of the one with the prototype, so note that so long as
+          // it's a user-visible declaration. There is one exception to this:
+          // when the new declaration is a definition without a prototype, the
+          // old declaration with a prototype is not the cause of the issue,
+          // and that does not need to be noted because the one with a
+          // prototype will not change behavior in C2x.
+          if (WithProto->getBuiltinID() == 0 && !WithProto->isImplicit() &&
+              !IsWithoutProtoADef)
+            Diag(WithProto->getLocation(), diag::note_conflicting_prototype);
         }
       }
     }
@@ -4587,15 +4558,15 @@ void Sema::MergeVarDecl(VarDecl *New, LookupResult &Previous) {
   }
 
   // C++ doesn't have tentative definitions, so go right ahead and check here.
-  if (getLangOpts().CPlusPlus &&
-      New->isThisDeclarationADefinition() == VarDecl::Definition) {
+  if (getLangOpts().CPlusPlus) {
     if (Old->isStaticDataMember() && Old->getCanonicalDecl()->isInline() &&
         Old->getCanonicalDecl()->isConstexpr()) {
       // This definition won't be a definition any more once it's been merged.
       Diag(New->getLocation(),
            diag::warn_deprecated_redundant_constexpr_static_def);
-    } else if (VarDecl *Def = Old->getDefinition()) {
-      if (checkVarDeclRedefinition(Def, New))
+    } else if (New->isThisDeclarationADefinition() == VarDecl::Definition) {
+      VarDecl *Def = Old->getDefinition();
+      if (Def && checkVarDeclRedefinition(Def, New))
         return;
     }
   }
@@ -5540,7 +5511,7 @@ Decl *Sema::BuildAnonymousStructOrUnion(Scope *S, DeclSpec &DS,
     Diag(DS.getBeginLoc(), diag::ext_no_declarators) << DS.getSourceRange();
 
   // Mock up a declarator.
-  Declarator Dc(DS, DeclaratorContext::Member);
+  Declarator Dc(DS, ParsedAttributesView::none(), DeclaratorContext::Member);
   TypeSourceInfo *TInfo = GetTypeForDeclarator(Dc, S);
   assert(TInfo && "couldn't build declarator info for anonymous struct/union");
 
@@ -5637,7 +5608,7 @@ Decl *Sema::BuildMicrosoftCAnonymousStruct(Scope *S, DeclSpec &DS,
   assert(Record && "expected a record!");
 
   // Mock up a declarator.
-  Declarator Dc(DS, DeclaratorContext::TypeName);
+  Declarator Dc(DS, ParsedAttributesView::none(), DeclaratorContext::TypeName);
   TypeSourceInfo *TInfo = GetTypeForDeclarator(Dc, S);
   assert(TInfo && "couldn't build declarator info for anonymous struct");
 
@@ -5846,7 +5817,7 @@ static bool hasSimilarParameters(ASTContext &Context,
   return true;
 }
 
-/// NeedsRebuildingInCurrentInstantiation - Checks whether the given
+/// RebuildDeclaratorInCurrentInstantiation - Checks whether the given
 /// declarator needs to be rebuilt in the current instantiation.
 /// Any bits of declarator which appear before the name are valid for
 /// consideration here.  That's specifically the type in the decl spec
@@ -7079,7 +7050,8 @@ static bool hasParsedAttr(Scope *S, const Declarator &PD,
   }
 
   // Finally, check attributes on the decl itself.
-  return PD.getAttributes().hasAttribute(Kind);
+  return PD.getAttributes().hasAttribute(Kind) ||
+         PD.getDeclarationAttributes().hasAttribute(Kind);
 }
 
 /// Adjust the \c DeclContext for a function or variable that might be a
@@ -10283,10 +10255,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // marking the function.
   AddCFAuditedAttribute(NewFD);
 
-  // If this is a function definition, check if we have to apply optnone due to
-  // a pragma.
-  if(D.isFunctionDefinition())
+  // If this is a function definition, check if we have to apply any
+  // attributes (i.e. optnone and no_builtin) due to a pragma.
+  if (D.isFunctionDefinition()) {
     AddRangeBasedOptnone(NewFD);
+    AddImplicitMSFunctionNoBuiltinAttr(NewFD);
+    AddSectionMSAllocText(NewFD);
+  }
 
   // If this is the first declaration of an extern C variable, update
   // the map of such variables.
@@ -11453,6 +11428,15 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
 
       if (Method->isStatic())
         checkThisInStaticMemberFunctionType(Method);
+    }
+
+    // C++20: dcl.decl.general p4:
+    // The optional requires-clause ([temp.pre]) in an init-declarator or
+    // member-declarator shall be present only if the declarator declares a
+    // templated function ([dcl.fct]).
+    if (Expr *TRC = NewFD->getTrailingRequiresClause()) {
+      if (!NewFD->isTemplated() && !NewFD->isTemplateInstantiation())
+        Diag(TRC->getBeginLoc(), diag::err_constrained_non_templated_function);
     }
 
     if (CXXConversionDecl *Conversion = dyn_cast<CXXConversionDecl>(NewFD))
@@ -13257,7 +13241,6 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     if (Type->isReferenceType()) {
       Diag(Var->getLocation(), diag::err_reference_var_requires_init)
           << Var << SourceRange(Var->getLocation(), Var->getLocation());
-      Var->setInvalidDecl();
       return;
     }
 
@@ -13426,7 +13409,7 @@ StmtResult Sema::ActOnCXXForRangeIdentifier(Scope *S, SourceLocation IdentLoc,
   DS.SetTypeSpecType(DeclSpec::TST_auto, IdentLoc, PrevSpec, DiagID,
                      getPrintingPolicy());
 
-  Declarator D(DS, DeclaratorContext::ForInit);
+  Declarator D(DS, ParsedAttributesView::none(), DeclaratorContext::ForInit);
   D.SetIdentifier(Ident, IdentLoc);
   D.takeAttributes(Attrs);
 
@@ -14393,18 +14376,28 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
                                            SourceLocation LocAfterDecls) {
   DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
 
-  // Verify 6.9.1p6: 'every identifier in the identifier list shall be declared'
-  // for a K&R function.
+  // C99 6.9.1p6 "If a declarator includes an identifier list, each declaration
+  // in the declaration list shall have at least one declarator, those
+  // declarators shall only declare identifiers from the identifier list, and
+  // every identifier in the identifier list shall be declared.
+  //
+  // C89 3.7.1p5 "If a declarator includes an identifier list, only the
+  // identifiers it names shall be declared in the declaration list."
+  //
+  // This is why we only diagnose in C99 and later. Note, the other conditions
+  // listed are checked elsewhere.
   if (!FTI.hasPrototype) {
     for (int i = FTI.NumParams; i != 0; /* decrement in loop */) {
       --i;
       if (FTI.Params[i].Param == nullptr) {
-        SmallString<256> Code;
-        llvm::raw_svector_ostream(Code)
-            << "  int " << FTI.Params[i].Ident->getName() << ";\n";
-        Diag(FTI.Params[i].IdentLoc, diag::ext_param_not_declared)
-            << FTI.Params[i].Ident
-            << FixItHint::CreateInsertion(LocAfterDecls, Code);
+        if (getLangOpts().C99) {
+          SmallString<256> Code;
+          llvm::raw_svector_ostream(Code)
+              << "  int " << FTI.Params[i].Ident->getName() << ";\n";
+          Diag(FTI.Params[i].IdentLoc, diag::ext_param_not_declared)
+              << FTI.Params[i].Ident
+              << FixItHint::CreateInsertion(LocAfterDecls, Code);
+        }
 
         // Implicitly declare the argument as type 'int' for lack of a better
         // type.
@@ -14417,7 +14410,8 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
         // Use the identifier location for the type source range.
         DS.SetRangeStart(FTI.Params[i].IdentLoc);
         DS.SetRangeEnd(FTI.Params[i].IdentLoc);
-        Declarator ParamD(DS, DeclaratorContext::KNRTypeList);
+        Declarator ParamD(DS, ParsedAttributesView::none(),
+                          DeclaratorContext::KNRTypeList);
         ParamD.SetIdentifier(FTI.Params[i].Ident, FTI.Params[i].IdentLoc);
         FTI.Params[i].Param = ActOnParamDeclarator(S, ParamD);
       }
@@ -15110,29 +15104,22 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
         // deprecated, add a note that it also changes behavior. If we didn't
         // warn about it being deprecated (because the diagnostic is not
         // enabled), warn now that it is deprecated and changes behavior.
-        bool AddNote = false;
-        if (PossiblePrototype) {
-          if (Diags.isIgnored(diag::warn_strict_prototypes,
-                              PossiblePrototype->getLocation())) {
 
-            PartialDiagnostic PD =
-                PDiag(diag::warn_non_prototype_changes_behavior);
-            if (TypeSourceInfo *TSI = PossiblePrototype->getTypeSourceInfo()) {
-              if (auto FTL = TSI->getTypeLoc().getAs<FunctionNoProtoTypeLoc>())
-                PD << FixItHint::CreateInsertion(FTL.getRParenLoc(), "void");
-            }
-            Diag(PossiblePrototype->getLocation(), PD);
-          } else {
-            AddNote = true;
-          }
-        }
+        // This K&R C function definition definitely changes behavior in C2x,
+        // so diagnose it.
+        Diag(FD->getLocation(), diag::warn_non_prototype_changes_behavior)
+            << /*definition*/ 1 << /* not supported in C2x */ 0;
 
-        // Because this function definition has no prototype and it has
-        // parameters, it will definitely change behavior in C2x.
-        Diag(FD->getLocation(), diag::warn_non_prototype_changes_behavior);
-        if (AddNote)
+        // If we have a possible prototype for the function which is a user-
+        // visible declaration, we already tested that it has no prototype.
+        // This will change behavior in C2x. This gets a warning rather than a
+        // note because it's the same behavior-changing problem as with the
+        // definition.
+        if (PossiblePrototype)
           Diag(PossiblePrototype->getLocation(),
-               diag::note_func_decl_changes_behavior);
+               diag::warn_non_prototype_changes_behavior)
+              << /*declaration*/ 0 << /* conflicting */ 1 << /*subsequent*/ 1
+              << /*definition*/ 1;
       }
 
       // Warn on CPUDispatch with an actual body.
@@ -15354,7 +15341,8 @@ void Sema::ActOnFinishDelayedAttribute(Scope *S, Decl *D,
 NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                           IdentifierInfo &II, Scope *S) {
   // It is not valid to implicitly define a function in C2x.
-  assert(!LangOpts.C2x && "Cannot implicitly define a function in C2x");
+  assert(LangOpts.implicitFunctionsAllowed() &&
+         "Implicit function declarations aren't allowed in this language mode");
 
   // Find the scope in which the identifier is injected and the corresponding
   // DeclContext.
@@ -15399,8 +15387,6 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   if (II.getName().startswith("__builtin_"))
     diag_id = diag::warn_builtin_unknown;
   // OpenCL v2.0 s6.9.u - Implicit function declaration is not supported.
-  else if (getLangOpts().OpenCL)
-    diag_id = diag::err_opencl_implicit_function_decl;
   else if (getLangOpts().C99)
     diag_id = diag::ext_implicit_function_decl_c99;
   else
@@ -15447,7 +15433,7 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   (void)Error; // Silence warning.
   assert(!Error && "Error setting up implicit decl!");
   SourceLocation NoLoc;
-  Declarator D(DS, DeclaratorContext::Block);
+  Declarator D(DS, ParsedAttributesView::none(), DeclaratorContext::Block);
   D.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/false,
                                              /*IsAmbiguous=*/false,
                                              /*LParenLoc=*/NoLoc,
@@ -17047,14 +17033,10 @@ bool Sema::ActOnDuplicateDefinition(Decl *Prev, SkipBodyInfo &SkipBody) {
   return true;
 }
 
-Decl *Sema::ActOnObjCContainerStartDefinition(Decl *IDecl) {
-  assert(isa<ObjCContainerDecl>(IDecl) &&
-         "ActOnObjCContainerStartDefinition - Not ObjCContainerDecl");
-  DeclContext *OCD = cast<DeclContext>(IDecl);
-  assert(OCD->getLexicalParent() == CurContext &&
+void Sema::ActOnObjCContainerStartDefinition(ObjCContainerDecl *IDecl) {
+  assert(IDecl->getLexicalParent() == CurContext &&
       "The next DeclContext should be lexically contained in the current one.");
-  CurContext = OCD;
-  return IDecl;
+  CurContext = IDecl;
 }
 
 void Sema::ActOnStartCXXMemberDeclarations(Scope *S, Decl *TagD,
@@ -17162,14 +17144,14 @@ void Sema::ActOnObjCContainerFinishDefinition() {
   PopDeclContext();
 }
 
-void Sema::ActOnObjCTemporaryExitContainerContext(DeclContext *DC) {
-  assert(DC == CurContext && "Mismatch of container contexts");
-  OriginalLexicalContext = DC;
+void Sema::ActOnObjCTemporaryExitContainerContext(ObjCContainerDecl *ObjCCtx) {
+  assert(ObjCCtx == CurContext && "Mismatch of container contexts");
+  OriginalLexicalContext = ObjCCtx;
   ActOnObjCContainerFinishDefinition();
 }
 
-void Sema::ActOnObjCReenterContainerContext(DeclContext *DC) {
-  ActOnObjCContainerStartDefinition(cast<Decl>(DC));
+void Sema::ActOnObjCReenterContainerContext(ObjCContainerDecl *ObjCCtx) {
+  ActOnObjCContainerStartDefinition(ObjCCtx);
   OriginalLexicalContext = nullptr;
 }
 
@@ -17193,16 +17175,11 @@ void Sema::ActOnTagDefinitionError(Scope *S, Decl *TagD) {
 
 // Note that FieldName may be null for anonymous bitfields.
 ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
-                                IdentifierInfo *FieldName,
-                                QualType FieldTy, bool IsMsStruct,
-                                Expr *BitWidth, bool *ZeroWidth) {
+                                IdentifierInfo *FieldName, QualType FieldTy,
+                                bool IsMsStruct, Expr *BitWidth) {
   assert(BitWidth);
   if (BitWidth->containsErrors())
     return ExprError();
-
-  // Default to true; that shouldn't confuse checks for emptiness
-  if (ZeroWidth)
-    *ZeroWidth = true;
 
   // C99 6.7.2.1p4 - verify the field type.
   // C++ 9.6p3: A bit-field shall have integral or enumeration type.
@@ -17230,9 +17207,6 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
   if (ICE.isInvalid())
     return ICE;
   BitWidth = ICE.get();
-
-  if (Value != 0 && ZeroWidth)
-    *ZeroWidth = false;
 
   // Zero-width bitfield is ok for anonymous field.
   if (Value == 0 && FieldName)
@@ -17486,17 +17460,15 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
                                              AbstractFieldType))
     InvalidDecl = true;
 
-  bool ZeroWidth = false;
   if (InvalidDecl)
     BitWidth = nullptr;
   // If this is declared as a bit-field, check the bit-field.
   if (BitWidth) {
-    BitWidth = VerifyBitField(Loc, II, T, Record->isMsStruct(Context), BitWidth,
-                              &ZeroWidth).get();
+    BitWidth =
+        VerifyBitField(Loc, II, T, Record->isMsStruct(Context), BitWidth).get();
     if (!BitWidth) {
       InvalidDecl = true;
       BitWidth = nullptr;
-      ZeroWidth = false;
     }
   }
 
@@ -18138,16 +18110,31 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
     // Handle attributes before checking the layout.
     ProcessDeclAttributeList(S, Record, Attrs);
 
-    // Maybe randomize the field order.
-    if (!getLangOpts().CPlusPlus && Record->hasAttr<RandomizeLayoutAttr>() &&
+    // Check to see if a FieldDecl is a pointer to a function.
+    auto IsFunctionPointer = [&](const Decl *D) {
+      const FieldDecl *FD = dyn_cast<FieldDecl>(D);
+      if (!FD)
+        return false;
+      QualType FieldType = FD->getType().getDesugaredType(Context);
+      if (isa<PointerType>(FieldType)) {
+        QualType PointeeType = cast<PointerType>(FieldType)->getPointeeType();
+        return PointeeType.getDesugaredType(Context)->isFunctionType();
+      }
+      return false;
+    };
+
+    // Maybe randomize the record's decls. We automatically randomize a record
+    // of function pointers, unless it has the "no_randomize_layout" attribute.
+    if (!getLangOpts().CPlusPlus &&
+        (Record->hasAttr<RandomizeLayoutAttr>() ||
+         (!Record->hasAttr<NoRandomizeLayoutAttr>() &&
+          llvm::all_of(Record->decls(), IsFunctionPointer))) &&
         !Record->isUnion() && !getLangOpts().RandstructSeed.empty() &&
         !Record->isRandomized()) {
-      SmallVector<Decl *, 32> OrigFieldOrdering(Record->fields());
-      SmallVector<Decl *, 32> NewFieldOrdering;
-      if (randstruct::randomizeStructureLayout(
-              Context, Record->getNameAsString(), OrigFieldOrdering,
-              NewFieldOrdering))
-        Record->reorderFields(NewFieldOrdering);
+      SmallVector<Decl *, 32> NewDeclOrdering;
+      if (randstruct::randomizeStructureLayout(Context, Record,
+                                               NewDeclOrdering))
+        Record->reorderDecls(NewDeclOrdering);
     }
 
     // We may have deferred checking for a deleted destructor. Check now.
@@ -18768,7 +18755,7 @@ bool Sema::IsValueInFlagEnum(const EnumDecl *ED, const llvm::APInt &Val,
       const auto &EVal = E->getInitVal();
       // Only single-bit enumerators introduce new flag values.
       if (EVal.isPowerOf2())
-        FlagBits = FlagBits.zextOrSelf(EVal.getBitWidth()) | EVal;
+        FlagBits = FlagBits.zext(EVal.getBitWidth()) | EVal;
     }
   }
 
@@ -19080,7 +19067,7 @@ void Sema::ActOnPragmaWeakAlias(IdentifierInfo* Name,
   }
 }
 
-Decl *Sema::getObjCDeclContext() const {
+ObjCContainerDecl *Sema::getObjCDeclContext() const {
   return (dyn_cast_or_null<ObjCContainerDecl>(CurContext));
 }
 

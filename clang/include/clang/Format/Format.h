@@ -398,7 +398,7 @@ struct FormatStyle {
   /// This option is **deprecated**. See ``NextLine`` of
   /// ``PackConstructorInitializers``.
   /// \version 9
-  bool AllowAllConstructorInitializersOnNextLine;
+  // bool AllowAllConstructorInitializersOnNextLine;
 
   /// If the function declaration doesn't fit on a line,
   /// allow putting all parameters of a function declaration onto
@@ -600,7 +600,7 @@ struct FormatStyle {
   };
 
   /// Dependent on the value, ``if (a) return;`` can be put on a single line.
-  /// \version 9
+  /// \version 3.3
   ShortIfStyle AllowShortIfStatementsOnASingleLine;
 
   /// Different styles for merging short lambdas containing at most one
@@ -1886,7 +1886,7 @@ struct FormatStyle {
   /// This option is **deprecated**. See ``CurrentLine`` of
   /// ``PackConstructorInitializers``.
   /// \version 3.7
-  bool ConstructorInitializerAllOnOneLineOrOnePerLine;
+  // bool ConstructorInitializerAllOnOneLineOrOnePerLine;
 
   /// The number of characters to use for indentation of constructor
   /// initializer lists as well as inheritance lists.

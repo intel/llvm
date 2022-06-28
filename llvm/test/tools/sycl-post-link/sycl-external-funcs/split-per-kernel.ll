@@ -3,17 +3,17 @@
 
 ; RUN: sycl-post-link -split=kernel -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR0
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR1
-; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-IR2
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM0
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR1
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM1
+; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-IR2
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYM2
 
 ; RUN: sycl-post-link -split=kernel -emit-only-kernels-as-entry-points -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR1
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR2
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM1
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM2
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR1
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM1
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR0
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM0
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
 
 ; CHECK-TABLE: [Code|Properties|Symbols]
@@ -38,13 +38,13 @@ define dso_local spir_kernel void @kernel2() #0 {
 
 attributes #0 = { "sycl-module-id"="a.cpp" }
 
-; CHECK-IR0: define dso_local spir_func void @externalDeviceFunc()
+; CHECK-IR2: define dso_local spir_func void @externalDeviceFunc()
 ; CHECK-IR1: define dso_local spir_kernel void @kernel1()
-; CHECK-IR2: define dso_local spir_kernel void @kernel2()
+; CHECK-IR0: define dso_local spir_kernel void @kernel2()
 
-; CHECK-SYM0: externalDeviceFunc
-; CHECK-SYM0-EMPTY:
+; CHECK-SYM2: externalDeviceFunc
+; CHECK-SYM2-EMPTY:
 ; CHECK-SYM1: kernel1
 ; CHECK-SYM1-EMPTY:
-; CHECK-SYM2: kernel2
-; CHECK-SYM2-EMPTY:
+; CHECK-SYM0: kernel2
+; CHECK-SYM0-EMPTY:

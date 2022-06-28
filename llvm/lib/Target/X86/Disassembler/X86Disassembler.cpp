@@ -493,16 +493,15 @@ static int readPrefixes(struct InternalInstruction *insn) {
     insn->displacementSize = (insn->hasAdSize ? 2 : 4);
     insn->immediateSize = (insn->hasOpSize ? 2 : 4);
   } else if (insn->mode == MODE_64BIT) {
+    insn->displacementSize = 4;
     if (insn->rexPrefix && wFromREX(insn->rexPrefix)) {
       insn->registerSize = 8;
       insn->addressSize = (insn->hasAdSize ? 4 : 8);
-      insn->displacementSize = 4;
       insn->immediateSize = 4;
       insn->hasOpSize = false;
     } else {
       insn->registerSize = (insn->hasOpSize ? 2 : 4);
       insn->addressSize = (insn->hasAdSize ? 4 : 8);
-      insn->displacementSize = (insn->hasOpSize ? 2 : 4);
       insn->immediateSize = (insn->hasOpSize ? 2 : 4);
     }
   }
@@ -1874,8 +1873,7 @@ static void translateImmediate(MCInst &mcInst, uint64_t immediate,
   uint64_t pcrel = 0;
   if (type == TYPE_REL) {
     isBranch = true;
-    pcrel = insn.startLocation +
-            insn.immediateOffset + insn.immediateSize;
+    pcrel = insn.startLocation + insn.length;
     switch (operand.encoding) {
     default:
       break;
@@ -1950,9 +1948,9 @@ static void translateImmediate(MCInst &mcInst, uint64_t immediate,
     break;
   }
 
-  if (!Dis->tryAddingSymbolicOperand(mcInst, immediate + pcrel,
-                                     insn.startLocation, isBranch,
-                                     insn.immediateOffset, insn.immediateSize))
+  if (!Dis->tryAddingSymbolicOperand(
+          mcInst, immediate + pcrel, insn.startLocation, isBranch,
+          insn.immediateOffset, insn.immediateSize, insn.length))
     mcInst.addOperand(MCOperand::createImm(immediate));
 
   if (type == TYPE_MOFFS) {
@@ -2089,8 +2087,7 @@ static bool translateRMMemory(MCInst &mcInst, InternalInstruction &insn,
         return true;
       }
       if (insn.mode == MODE_64BIT){
-        pcrel = insn.startLocation +
-                insn.displacementOffset + insn.displacementSize;
+        pcrel = insn.startLocation + insn.length;
         Dis->tryAddingPcLoadReferenceComment(insn.displacement + pcrel,
                                              insn.startLocation +
                                                  insn.displacementOffset);
@@ -2153,9 +2150,13 @@ static bool translateRMMemory(MCInst &mcInst, InternalInstruction &insn,
   mcInst.addOperand(baseReg);
   mcInst.addOperand(scaleAmount);
   mcInst.addOperand(indexReg);
+
+  const uint8_t dispSize =
+      (insn.eaDisplacement == EA_DISP_NONE) ? 0 : insn.displacementSize;
+
   if (!Dis->tryAddingSymbolicOperand(
           mcInst, insn.displacement + pcrel, insn.startLocation, false,
-          insn.displacementOffset, insn.displacementSize))
+          insn.displacementOffset, dispSize, insn.length))
     mcInst.addOperand(displacement);
   mcInst.addOperand(segmentReg);
   return false;

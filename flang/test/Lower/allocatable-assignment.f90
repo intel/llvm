@@ -116,7 +116,7 @@ subroutine test_deferred_char_scalar(x)
 
 ! character assignment ...
 ! CHECK:  %[[VAL_24:.*]] = fir.convert %[[VAL_8]]#1 : (!fir.heap<!fir.char<1,?>>) -> !fir.ref<i8>
-! CHECK:  fir.call @llvm.memmove.p0i8.p0i8.i64(%[[VAL_24]], %{{.*}}, %{{.*}}, %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
+! CHECK:  fir.call @llvm.memmove.p0.p0.i64(%[[VAL_24]], %{{.*}}, %{{.*}}, %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
 ! character assignment ...
 
 ! CHECK:  fir.if %[[VAL_8]]#0 {
@@ -158,7 +158,7 @@ subroutine test_cst_char_scalar(x)
 
 ! character assignment ...
 ! CHECK:  %[[VAL_24:.*]] = fir.convert %[[VAL_9]]#1 : (!fir.heap<!fir.char<1,10>>) -> !fir.ref<i8>
-! CHECK:  fir.call @llvm.memmove.p0i8.p0i8.i64(%[[VAL_24]], %{{.*}}, %{{.*}}, %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
+! CHECK:  fir.call @llvm.memmove.p0.p0.i64(%[[VAL_24]], %{{.*}}, %{{.*}}, %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
 ! character assignment ...
 
 ! CHECK:  fir.if %[[VAL_9]]#0 {
@@ -207,7 +207,7 @@ subroutine test_dyn_char_scalar(x, n)
 
 ! character assignment ...
 ! CHECK:  %[[VAL_24:.*]] = fir.convert %[[VAL_10]]#1 : (!fir.heap<!fir.char<1,?>>) -> !fir.ref<i8>
-! CHECK:  fir.call @llvm.memmove.p0i8.p0i8.i64(%[[VAL_24]], %{{.*}}, %{{.*}}, %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
+! CHECK:  fir.call @llvm.memmove.p0.p0.i64(%[[VAL_24]], %{{.*}}, %{{.*}}, %{{.*}}) : (!fir.ref<i8>, !fir.ref<i8>, i64, i1) -> ()
 ! character assignment ...
 
 ! CHECK:  fir.if %[[VAL_10]]#0 {
@@ -249,7 +249,8 @@ subroutine test_derived_scalar(x, s)
 ! CHECK:  }
 ! CHECK:  %[[VAL_14:.*]] = fir.field_index i, !fir.type<_QMalloc_assignTt{i:i32}>
 ! CHECK:  %[[VAL_15:.*]] = fir.coordinate_of %[[VAL_1]], %[[VAL_14]] : (!fir.ref<!fir.type<_QMalloc_assignTt{i:i32}>>, !fir.field) -> !fir.ref<i32>
-! CHECK:  %[[VAL_16:.*]] = fir.coordinate_of %[[VAL_7]]#1, %[[VAL_14]] : (!fir.heap<!fir.type<_QMalloc_assignTt{i:i32}>>, !fir.field) -> !fir.ref<i32>
+! CHECK:  %[[VAL_14b:.*]] = fir.field_index i, !fir.type<_QMalloc_assignTt{i:i32}>
+! CHECK:  %[[VAL_16:.*]] = fir.coordinate_of %[[VAL_7]]#1, %[[VAL_14b]] : (!fir.heap<!fir.type<_QMalloc_assignTt{i:i32}>>, !fir.field) -> !fir.ref<i32>
 ! CHECK:  %[[VAL_17:.*]] = fir.load %[[VAL_15]] : !fir.ref<i32>
 ! CHECK:  fir.store %[[VAL_17]] to %[[VAL_16]] : !fir.ref<i32
 ! CHECK:  fir.if %[[VAL_7]]#0 {

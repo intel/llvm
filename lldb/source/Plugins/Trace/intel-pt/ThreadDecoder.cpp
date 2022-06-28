@@ -38,12 +38,12 @@ DecodedThreadSP ThreadDecoder::DoDecode() {
 
         Error err = m_trace.OnThreadBufferRead(
             m_thread_sp->GetID(), [&](llvm::ArrayRef<uint8_t> data) {
-              DecodeTrace(*decoded_thread_sp, m_trace, data);
+              DecodeSingleTraceForThread(*decoded_thread_sp, m_trace, data);
               return Error::success();
             });
 
         if (err)
-          decoded_thread_sp->AppendError(std::move(err));
+          decoded_thread_sp->SetAsFailed(std::move(err));
         return decoded_thread_sp;
       });
 }

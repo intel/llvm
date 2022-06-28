@@ -88,6 +88,7 @@ LANGOPT(C11               , 1, 0, "C11")
 LANGOPT(C17               , 1, 0, "C17")
 LANGOPT(C2x               , 1, 0, "C2x")
 LANGOPT(MSVCCompat        , 1, 0, "Microsoft Visual C++ full compatibility mode")
+LANGOPT(Kernel            , 1, 0, "Kernel mode")
 LANGOPT(MicrosoftExt      , 1, 0, "Microsoft C++ extensions")
 LANGOPT(AsmBlocks         , 1, 0, "Microsoft inline asm blocks")
 LANGOPT(Borland           , 1, 0, "Borland extensions")
@@ -120,7 +121,6 @@ BENIGN_LANGOPT(AsmPreprocessor, 1, 0, "preprocessor in asm mode")
 LANGOPT(GNUMode           , 1, 1, "GNU extensions")
 LANGOPT(GNUKeywords       , 1, 1, "GNU keywords")
 VALUE_LANGOPT(GNUCVersion , 32, 0, "GNU C compatibility version")
-BENIGN_LANGOPT(ImplicitInt, 1, 0, "C89 implicit 'int'")
 LANGOPT(DisableKNRFunctions, 1, 0, "require function types to have a prototype")
 LANGOPT(Digraphs          , 1, 0, "digraphs")
 BENIGN_LANGOPT(HexFloats  , 1, 0, "C99 hexadecimal float constants")
@@ -253,6 +253,7 @@ LANGOPT(OpenMPThreadSubscription  , 1, 0, "Assume work-shared loops do not have 
 LANGOPT(OpenMPTeamSubscription  , 1, 0, "Assume distributed loops do not have more iterations than participating teams.")
 LANGOPT(OpenMPNoThreadState  , 1, 0, "Assume that no thread in a parallel region will modify an ICV.")
 LANGOPT(OpenMPOffloadMandatory  , 1, 0, "Assert that offloading is mandatory and do not create a host fallback.")
+LANGOPT(NoGPULib  , 1, 0, "Indicate a build without the standard GPU libraries.")
 LANGOPT(RenderScript      , 1, 0, "RenderScript")
 
 LANGOPT(HLSL, 1, 0, "HLSL")
@@ -267,12 +268,15 @@ LANGOPT(GPUAllowDeviceInit, 1, 0, "allowing device side global init functions fo
 LANGOPT(GPUMaxThreadsPerBlock, 32, 1024, "default max threads per block for kernel launch bounds for HIP")
 LANGOPT(GPUDeferDiag, 1, 0, "defer host/device related diagnostic messages for CUDA/HIP")
 LANGOPT(GPUExcludeWrongSideOverloads, 1, 0, "always exclude wrong side overloads in overloading resolution for CUDA/HIP")
+LANGOPT(OffloadingNewDriver, 1, 0, "use the new driver for generating offloading code.")
 
 LANGOPT(SYCLIsDevice      , 1, 0, "Generate code for SYCL device")
 LANGOPT(SYCLIsHost        , 1, 0, "SYCL host compilation")
+LANGOPT(IntelFPGA         , 1, 0, "Perform ahead-of-time compilation for FPGA")
 LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
 LANGOPT(SYCLStdLayoutKernelParams, 1, 0, "Enable standard layout requirement for SYCL kernel parameters")
 LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
+LANGOPT(SYCLESIMDForceStatelessMem, 1, 0, "Make accessors use USM memory in ESIMD kernels")
 ENUM_LANGOPT(SYCLVersion  , SYCLMajorVersion, 2, SYCL_None, "Version of the SYCL standard used")
 LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
 LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
@@ -292,7 +296,6 @@ LANGOPT(SizedDeallocation , 1, 0, "sized deallocation")
 LANGOPT(AlignedAllocation , 1, 0, "aligned allocation")
 LANGOPT(AlignedAllocationUnavailable, 1, 0, "aligned allocation functions are unavailable")
 LANGOPT(NewAlignOverride  , 32, 0, "maximum alignment guaranteed by '::operator new(size_t)'")
-LANGOPT(ConceptSatisfactionCaching , 1, 1, "enable satisfaction caching for C++20 Concepts")
 BENIGN_LANGOPT(ModulesCodegen , 1, 0, "Modules code generation")
 BENIGN_LANGOPT(ModulesDebugInfo , 1, 0, "Modules debug info")
 BENIGN_LANGOPT(ElideConstructors , 1, 1, "C++ copy constructor elision")
@@ -303,6 +306,7 @@ BENIGN_LANGOPT(DumpRecordLayoutsComplete , 1, 0, "dumping the AST layout of all 
 BENIGN_LANGOPT(DumpVTableLayouts , 1, 0, "dumping the layouts of emitted vtables")
 LANGOPT(NoConstantCFStrings , 1, 0, "no constant CoreFoundation strings")
 BENIGN_LANGOPT(InlineVisibilityHidden , 1, 0, "hidden visibility for inline C++ methods")
+BENIGN_ENUM_LANGOPT(DefaultVisibilityExportMapping, DefaultVisiblityExportMapping, 2, DefaultVisiblityExportMapping::None, "controls mapping of default visibility to dllexport")
 BENIGN_LANGOPT(IgnoreXCOFFVisibility, 1, 0, "All the visibility attributes that are specified in the source code are ignored in aix XCOFF.")
 BENIGN_LANGOPT(VisibilityInlinesHiddenStaticLocalVar, 1, 0,
                "hidden visibility for static local variables in inline C++ "
@@ -466,6 +470,11 @@ ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32,
              "to unprototyped and varargs functions")
 
 VALUE_LANGOPT(FuchsiaAPILevel, 32, 0, "Fuchsia API level")
+
+// This option will be removed in the future once the backend
+// supports all operations (like division or float-to-integer conversion)
+// on large _BitInts.
+BENIGN_VALUE_LANGOPT(MaxBitIntWidth, 32, 128, "Maximum width of a _BitInt")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

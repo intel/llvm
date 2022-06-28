@@ -94,6 +94,13 @@ public:
   bool match(llvm::StringRef symbolName) const;
 };
 
+enum class SymtabPresence {
+  All,
+  None,
+  SelectivelyIncluded,
+  SelectivelyExcluded,
+};
+
 struct Configuration {
   Symbol *entry = nullptr;
   bool hasReexports = false;
@@ -123,6 +130,9 @@ struct Configuration {
   bool dedupLiterals = true;
   bool omitDebugInfo = false;
   bool warnDylibInstallName = false;
+  // Temporary config flag that will be removed once we have fully implemented
+  // support for __eh_frame.
+  bool parseEhFrames = false;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
@@ -151,6 +161,7 @@ struct Configuration {
   bool deadStrip = false;
   bool errorForArchMismatch = false;
   PlatformInfo platformInfo;
+  llvm::Optional<PlatformInfo> secondaryPlatformInfo;
   NamespaceKind namespaceKind = NamespaceKind::twolevel;
   UndefinedSymbolTreatment undefinedSymbolTreatment =
       UndefinedSymbolTreatment::error;
@@ -174,9 +185,13 @@ struct Configuration {
   SectionRenameMap sectionRenameMap;
   SegmentRenameMap segmentRenameMap;
 
+  bool hasExplicitExports = false;
   SymbolPatterns exportedSymbols;
   SymbolPatterns unexportedSymbols;
   SymbolPatterns whyLive;
+
+  SymtabPresence localSymbolsPresence = SymtabPresence::All;
+  SymbolPatterns localSymbolPatterns;
 
   bool zeroModTime = false;
 

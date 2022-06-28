@@ -193,9 +193,9 @@
 // RUN: %clang -target x86_64-linux-android -fsanitize=memtag -fno-rtti %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-BAD-ARCH
 // CHECK-SANMT-BAD-ARCH: unsupported option '-fsanitize=memtag' for target
 
-// RUN: %clang -target aarch64-linux -fsanitize=memtag -march=armv8-a+memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-MT
+// RUN: %clang -target aarch64-linux-android31 -fsanitize=memtag -march=armv8-a+memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-MT
 // CHECK-SANMT-MT: "-target-feature" "+mte"
-// CHECK-SANMT-MT-SAME: "-fsanitize=memtag-stack,memtag-heap"
+// CHECK-SANMT-MT-SAME: "-fsanitize=memtag-stack,memtag-heap,memtag-globals"
 
 // RUN: %clang -target aarch64-linux -fsanitize=memtag %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANMT-NOMT-0
 // CHECK-SANMT-NOMT-0: '-fsanitize=memtag-stack' requires hardware support (+memtag)
@@ -245,6 +245,7 @@
 // RUN: %clang_cl --target=x86_64-windows-msvc -fsanitize=address -fsanitize-address-globals-dead-stripping -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
 // RUN: %clang_cl --target=x86_64-windows-msvc -fsanitize=address -### -- %s 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
 // RUN: %clang -target x86_64-scei-ps4  -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
+// RUN: %clang -target x86_64-sie-ps5  -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-GLOBALS
 // CHECK-ASAN-GLOBALS: -cc1{{.*}}-fsanitize-address-globals-dead-stripping
 // CHECK-NO-ASAN-GLOBALS-NOT: -cc1{{.*}}-fsanitize-address-globals-dead-stripping
 
@@ -583,6 +584,8 @@
 // RUN: %clang -target arm-linux-android -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
 // RUN: %clang -target aarch64-linux-android -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
 // RUN: %clang -target aarch64_be -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
+// RUN: %clang -target riscv32 -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
+// RUN: %clang -target riscv64 -fvisibility=hidden -fsanitize=cfi -flto -c %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-CFI
 // CHECK-CFI: -emit-llvm-bc{{.*}}-fsanitize=cfi-derived-cast,cfi-icall,cfi-mfcall,cfi-unrelated-cast,cfi-nvcall,cfi-vcall
 // CHECK-CFI-NOMFCALL: -emit-llvm-bc{{.*}}-fsanitize=cfi-derived-cast,cfi-icall,cfi-unrelated-cast,cfi-nvcall,cfi-vcall
 // CHECK-CFI-DCAST: -emit-llvm-bc{{.*}}-fsanitize=cfi-derived-cast
@@ -783,6 +786,29 @@
 // RUN: %clang -target x86_64-scei-ps4 -fsanitize=address -nodefaultlibs -nostdlib  %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS4
 // CHECK-ASAN-NOLIB-PS4-NOT: SceDbgAddressSanitizer_stub_weak
 
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-PS5
+// Make sure there are no *.{o,bc} or -l passed before the ASan library.
+// CHECK-ASAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceAddressSanitizer_nosubmission_stub_weak}}
+// CHECK-ASAN-PS5: --dependent-lib=libSceAddressSanitizer_nosubmission_stub_weak.a
+// CHECK-ASAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceAddressSanitizer_nosubmission_stub_weak}}
+// CHECK-ASAN-PS5: -lSceAddressSanitizer_nosubmission_stub_weak
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address -nostdlib %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address -nodefaultlibs %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=address -nodefaultlibs -nostdlib  %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-NOLIB-PS5
+// CHECK-ASAN-NOLIB-PS5-NOT: SceAddressSanitizer_nosubmission_stub_weak
+
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-PS5
+// Make sure there are no *.{o,bc} or -l passed before the TSan library.
+// CHECK-TSAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceThreadSanitizer_nosubmission_stub_weak}}
+// CHECK-TSAN-PS5: --dependent-lib=libSceThreadSanitizer_nosubmission_stub_weak.a
+// CHECK-TSAN-PS5-NOT: {{(\.(o|bc)"? |-l).*-lSceThreadSanitizer_nosubmission_stub_weak}}
+// CHECK-TSAN-PS5: -lSceThreadSanitizer_nosubmission_stub_weak
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread -nostdlib %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread -nodefaultlibs %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-NOLIB-PS5
+// RUN: %clang -target x86_64-sie-ps5 -fsanitize=thread -nodefaultlibs -nostdlib  %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-TSAN-NOLIB-PS5
+// CHECK-TSAN-NOLIB-PS5-NOT: SceThreadSanitizer_nosubmission_stub_weak
+
+
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-ASAN-MINIMAL
 // CHECK-ASAN-MINIMAL: error: invalid argument '-fsanitize-minimal-runtime' not allowed with '-fsanitize=address'
 
@@ -801,7 +827,7 @@
 // CHECK-INTSAN-MINIMAL: "-fsanitize-minimal-runtime"
 
 // RUN: %clang -target aarch64-linux-android -march=armv8-a+memtag -fsanitize=memtag -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-MEMTAG-MINIMAL
-// CHECK-MEMTAG-MINIMAL: "-fsanitize=memtag-stack,memtag-heap"
+// CHECK-MEMTAG-MINIMAL: "-fsanitize=memtag-stack,memtag-heap,memtag-globals"
 // CHECK-MEMTAG-MINIMAL: "-fsanitize-minimal-runtime"
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=undefined -fsanitize=function -fsanitize-minimal-runtime %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-UBSAN-FUNCTION-MINIMAL

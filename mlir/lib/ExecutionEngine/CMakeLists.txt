@@ -7,11 +7,42 @@ set(LLVM_OPTIONAL_SOURCES
   CudaRuntimeWrappers.cpp
   SparseTensorUtils.cpp
   ExecutionEngine.cpp
+  Float16bits.cpp
   RocmRuntimeWrappers.cpp
   RunnerUtils.cpp
   OptUtils.cpp
   JitRunner.cpp
   )
+
+# Use a separate library for OptUtils, to avoid pulling in the entire JIT and
+# codegen infrastructure. Unlike MLIRExecutionEngine, this is part of
+# libMLIR.so.
+add_mlir_library(MLIRExecutionEngineUtils
+  OptUtils.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/ExecutionEngine
+
+  DEPENDS
+  intrinsics_gen
+
+  LINK_COMPONENTS
+  Analysis
+  Core
+  Coroutines
+  AggressiveInstCombine
+  InstCombine
+  ScalarOpts
+  Vectorize
+  TransformUtils
+  IPO
+  Passes
+  )
+
+# Only enable the ExecutionEngine if the native target is configured in.
+if(NOT TARGET ${LLVM_NATIVE_ARCH})
+  return()
+endif()
 
 if(LLVM_USE_INTEL_JITEVENTS)
   set(LLVM_JIT_LISTENER_LIB
@@ -25,7 +56,6 @@ endif(LLVM_USE_PERF)
 
 add_mlir_library(MLIRExecutionEngine
   ExecutionEngine.cpp
-  OptUtils.cpp
 
   EXCLUDE_FROM_LIBMLIR
 
@@ -56,7 +86,8 @@ add_mlir_library(MLIRExecutionEngine
   ${LLVM_JIT_LISTENER_LIB}
 
   LINK_LIBS PUBLIC
-  MLIRLLVMIR
+  MLIRExecutionEngineUtils
+  MLIRLLVMDialect
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport
   )
@@ -78,7 +109,7 @@ add_mlir_library(MLIRJitRunner
   LINK_LIBS PUBLIC
   ${dialect_libs}
   MLIRExecutionEngine
-  MLIRFunc
+  MLIRFuncDialect
   MLIRFuncToLLVM
   MLIRIR
   MLIRParser
@@ -91,6 +122,7 @@ add_mlir_library(MLIRJitRunner
 add_mlir_library(mlir_c_runner_utils
   SHARED
   CRunnerUtils.cpp
+  Float16bits.cpp
   SparseTensorUtils.cpp
 
   EXCLUDE_FROM_LIBMLIR

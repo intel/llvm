@@ -483,6 +483,9 @@ def exported_symbols_list : Separate<["-"], "exported_symbols_list">,
     MetaVarName<"<file>">,
     HelpText<"Symbols specified in <file> remain global, while others become private externs">,
     Group<grp_resolve>;
+def no_exported_symbols : Flag<["-"], "no_exported_symbols">,
+    HelpText<"Don't export any symbols from the binary, useful for main executables that don't have plugins">,
+    Group<grp_resolve>;
 def unexported_symbol : Separate<["-"], "unexported_symbol">,
     MetaVarName<"<symbol>">,
     HelpText<"Global <symbol> becomes private extern">,
@@ -581,17 +584,14 @@ def S : Flag<["-"], "S">,
     Group<grp_symtab>;
 def x : Flag<["-"], "x">,
     HelpText<"Exclude non-global symbols from the output symbol table">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def non_global_symbols_strip_list : Separate<["-"], "non_global_symbols_strip_list">,
     MetaVarName<"<path>">,
     HelpText<"Specify in <path> the non-global symbols that should be removed from the output symbol table">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def non_global_symbols_no_strip_list : Separate<["-"], "non_global_symbols_no_strip_list">,
     MetaVarName<"<path>">,
     HelpText<"Specify in <path> the non-global symbols that should remain in the output symbol table">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def oso_prefix : Separate<["-"], "oso_prefix">,
     MetaVarName<"<path>">,
@@ -890,7 +890,6 @@ def e : Separate<["-"], "e">,
     Group<grp_rare>;
 def w : Flag<["-"], "w">,
     HelpText<"Suppress all warnings">,
-    Flags<[HelpHidden]>,
     Group<grp_rare>;
 def final_output : Separate<["-"], "final_output">,
     MetaVarName<"<name>">,

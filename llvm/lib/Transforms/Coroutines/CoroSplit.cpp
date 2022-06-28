@@ -29,7 +29,6 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/CallGraph.h"
-#include "llvm/Analysis/CallGraphSCCPass.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -52,13 +51,10 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -2068,7 +2064,7 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
   // Find coroutines for processing.
   SmallVector<LazyCallGraph::Node *> Coroutines;
   for (LazyCallGraph::Node &N : C)
-    if (N.getFunction().hasFnAttribute(CORO_PRESPLIT_ATTR))
+    if (N.getFunction().isPresplitCoroutine())
       Coroutines.push_back(&N);
 
   if (Coroutines.empty() && PrepareFns.empty())
@@ -2084,10 +2080,8 @@ PreservedAnalyses CoroSplitPass::run(LazyCallGraph::SCC &C,
   for (LazyCallGraph::Node *N : Coroutines) {
     Function &F = N->getFunction();
     LLVM_DEBUG(dbgs() << "CoroSplit: Processing coroutine '" << F.getName()
-                      << "' state: "
-                      << F.getFnAttribute(CORO_PRESPLIT_ATTR).getValueAsString()
                       << "\n");
-    F.removeFnAttr(CORO_PRESPLIT_ATTR);
+    F.setSplittedCoroutine();
 
     SmallVector<Function *, 4> Clones;
     const coro::Shape Shape = splitCoroutine(F, Clones, OptimizeFrame);

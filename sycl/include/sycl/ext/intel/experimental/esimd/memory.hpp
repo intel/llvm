@@ -36,6 +36,10 @@ __ESIMD_API void split_barrier(split_barrier_action flag) {
 
 /// @} sycl_esimd_memory
 
+// sycl_esimd_raw_send intrinsics are not available when stateless memory
+// accesses are enforced.
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+
 /// @addtogroup sycl_esimd_raw_send
 /// @{
 
@@ -194,6 +198,8 @@ __ESIMD_API void raw_send_store(__ESIMD_NS::simd<T1, n1> msgSrc0,
 }
 
 /// @} sycl_esimd_raw_send
+
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @defgroup sycl_esimd_memory_nbarrier Named barrier APIs.
 /// @ingroup sycl_esimd_memory
@@ -374,6 +380,9 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N * NElts>>
 lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
            __ESIMD_NS::simd_mask<N> pred = 1) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_gather<T, N, DS, L1H>(acc.get_pointer().get(), offsets, pred);
+#else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
@@ -390,6 +399,7 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
       __esimd_lsc_load_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
+#endif
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -416,6 +426,10 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, uint32_t offset) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_block_load<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
+#else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
@@ -433,6 +447,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset) {
   auto si = __ESIMD_GET_SURF_HANDLE(acc);
   return __esimd_lsc_load_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                               _Transposed, N>(pred.data(), offsets.data(), si);
+#endif
 }
 
 /// USM pointer gather.
@@ -542,6 +557,10 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
              __ESIMD_NS::simd_mask<N> pred = 1) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_prefetch<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
+#else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
@@ -556,6 +575,7 @@ lsc_prefetch(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   auto si = __ESIMD_GET_SURF_HANDLE(acc);
   __esimd_lsc_prefetch_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), offsets.data(), si);
+#endif
 }
 
 /// Accessor-based transposed prefetch gather with 1 channel.
@@ -579,6 +599,10 @@ template <typename T, uint8_t NElts = 1,
           typename AccessorTy>
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_prefetch(AccessorTy acc, uint32_t offset) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  lsc_prefetch<T, NElts, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset));
+#else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
@@ -597,6 +621,7 @@ lsc_prefetch(AccessorTy acc, uint32_t offset) {
   auto si = __ESIMD_GET_SURF_HANDLE(acc);
   __esimd_lsc_prefetch_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                            _Transposed, N>(pred.data(), offsets.data(), si);
+#endif
 }
 
 /// USM pointer prefetch gather.
@@ -772,6 +797,10 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
             __ESIMD_NS::simd<T, N * NElts> vals,
             __ESIMD_NS::simd_mask<N> pred = 1) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  lsc_scatter<T, NElts, DS, L1H>(__ESIMD_DNS::accessorToPointer<T>(acc),
+                                 offsets, pred);
+#else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
@@ -789,6 +818,7 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
   __esimd_lsc_store_bti<_MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                         _Transposed, N>(pred.data(), offsets.data(), Tmp.data(),
                                         si);
+#endif
 }
 
 /// Accessor-based transposed scatter with 1 channel.
@@ -814,6 +844,10 @@ template <typename T, uint8_t NElts = 1,
 __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value>
 lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  lsc_block_store<T, NElts, DS, L1H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, offset), vals);
+#else
   detail::check_lsc_vector_size<NElts>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
@@ -832,6 +866,7 @@ lsc_block_store(AccessorTy acc, uint32_t offset,
   __esimd_lsc_store_bti<T, L1H, L3H, _AddressScale, _ImmOffset, _DS, _VS,
                         _Transposed, N>(pred.data(), offsets.data(),
                                         vals.data(), si);
+#endif
 }
 
 /// USM pointer scatter.
@@ -915,6 +950,51 @@ __ESIMD_API void lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals) {
                                               vals.data());
 }
 
+namespace detail {
+// Compile-time checks for lsc_load2d/store2d restrictions.
+template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
+          bool Transposed, bool Transformed, bool IsStore = false>
+constexpr void check_lsc_block_2d_restrictions() {
+  constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
+  static_assert(!IsStore || GRFByteSize <= 512,
+                "2D store supports 512 bytes max");
+  static_assert(IsStore || GRFByteSize <= 2048,
+                "2D load supports 2048 bytes max");
+  static_assert(!Transposed || !Transformed,
+                "Transposed and transformed is not supported");
+  if constexpr (Transposed) {
+    static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
+    static_assert(sizeof(T) == 4 || sizeof(T) == 8,
+                  "Transposed load is supported only for data size u32 or u64");
+    static_assert(sizeof(T) == 64 ? BlockHeight == 8
+                                  : BlockHeight >= 1 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(sizeof(T) == 64 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
+                                  : BlockWidth >= 1 && BlockWidth <= 8,
+                  "Unsupported block width");
+  } else if constexpr (Transformed) {
+    static_assert(sizeof(T) == 1 || sizeof(T) == 2,
+                  "VNNI transform is supported only for data size u8 or u16");
+    static_assert(__ESIMD_DNS::isPowerOf2(NBlocks, 4),
+                  "Unsupported number of blocks");
+    static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(BlockWidth * sizeof(T) >= 4 &&
+                      BlockWidth * NBlocks * sizeof(T) <= 64,
+                  "Unsupported block width");
+  } else {
+    static_assert(
+        __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
+        "Unsupported number of blocks");
+    static_assert(BlockHeight >= 1 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(BlockWidth * sizeof(T) >= 4 &&
+                      BlockWidth * NBlocks * sizeof(T) <= 64,
+                  "Unsupported block width");
+  }
+}
+} // namespace detail
+
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
@@ -953,11 +1033,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
            unsigned SurfacePitch, int X, int Y) {
-  static_assert(!Transposed || !Transformed,
-                "Transposed and transformed is not supported");
-  static_assert(!Transposed || (Transposed && NBlocks == 1),
-                "Transposed expected to be 1 block only");
   detail::check_lsc_cache_hint<detail::lsc_action::load, L1H, L3H>();
+  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
+                                          Transposed, Transformed>();
   constexpr int ElemsPerDword = 4 / sizeof(T);
   constexpr int GRFRowSize = Transposed ? BlockHeight : BlockWidth;
   constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
@@ -971,12 +1049,6 @@ lsc_load2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
       "These parameters require unpadding. It is not implemented yet");
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
-  static_assert(!Transformed ||
-                    (DS == lsc_data_size::u8 || DS == lsc_data_size::u16),
-                "VNNI transform is supported only for data size U8 or U16");
-  static_assert(!Transposed ||
-                    (DS == lsc_data_size::u32 || DS == lsc_data_size::u64),
-                "Transposed load is supported only for data size u32 or u64");
   __ESIMD_NS::simd_mask<N> pred = 1;
   uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr detail::lsc_data_order _Transposed =
@@ -1017,6 +1089,8 @@ __ESIMD_API void lsc_prefetch2d(const T *Ptr, unsigned SurfaceWidth,
                                 unsigned SurfaceHeight, unsigned SurfacePitch,
                                 int X, int Y) {
   detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
+  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
+                                          false, false>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -1060,6 +1134,8 @@ __ESIMD_API void lsc_store2d(T *Ptr, unsigned SurfaceWidth,
                              unsigned SurfaceHeight, unsigned SurfacePitch,
                              int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
   detail::check_lsc_cache_hint<detail::lsc_action::store, L1H, L3H>();
+  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, 1, false,
+                                          false, true /*IsStore*/>();
   constexpr lsc_data_size DS =
       detail::finalize_data_size<T, lsc_data_size::default_size>();
   __ESIMD_NS::simd_mask<N> pred = 1;
@@ -1207,6 +1283,10 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd_mask<N> pred) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
+#else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 0>();
@@ -1226,6 +1306,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                                 _DS, _VS, _Transposed, N>(pred.data(),
                                                           offsets.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
+#endif
 }
 
 /// Accessor-based atomic.
@@ -1252,6 +1333,10 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
                              __ESIMD_NS::simd<T, N>>
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd_mask<N> pred) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, pred);
+#else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 1>();
@@ -1271,6 +1356,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                                 _DS, _VS, _Transposed, N>(
           pred.data(), offsets.data(), src0.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
+#endif
 }
 
 /// Accessor-based atomic.
@@ -1299,6 +1385,10 @@ __ESIMD_API std::enable_if_t<!std::is_pointer<AccessorTy>::value,
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return lsc_atomic_update<Op, T, N, DS, L1H, L3H>(
+      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
+#else
   detail::check_lsc_vector_size<1>();
   detail::check_lsc_data_size<T, DS>();
   detail::check_lsc_atomic<Op, 2>();
@@ -1318,6 +1408,7 @@ lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
                                 _DS, _VS, _Transposed, N>(
           pred.data(), offsets.data(), src0.data(), src1.data(), si);
   return detail::lsc_format_ret<T>(Tmp);
+#endif
 }
 
 /// USM pointer atomic.

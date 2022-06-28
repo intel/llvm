@@ -23,6 +23,7 @@ include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/CopyOpInterface.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
+include "mlir/Interfaces/InferIntRangeInterface.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -214,16 +215,6 @@ def I64EnumAttrOp : TEST_Op<"i64_enum_attr"> {
   let results = (outs I32:$val);
 }
 
-def SomeStructAttr : StructAttr<"SomeStructAttr", Test_Dialect, [
-  StructFieldAttr<"some_field", I64Attr>,
-  StructFieldAttr<"some_other_field", I64Attr>
-]> {}
-
-def StructAttrOp : TEST_Op<"struct_attr"> {
-  let arguments = (ins SomeStructAttr:$the_struct_attr);
-  let results = (outs);
-}
-
 def IntAttrOp : TEST_Op<"int_attrs"> {
   let arguments = (ins
     AnyI32Attr:$any_i32_attr,
@@ -310,6 +301,57 @@ def : Pat<(OpWithEnum ConstantAttr<TestEnumAttr,
           (OpWithEnum ConstantAttr<TestEnumAttr,
                                    "::test::TestEnum::Second">,
                       ConstantAttr<I32Attr, "1">)>;
+
+//===----------------------------------------------------------------------===//
+// Test Bit Enum Attributes
+//===----------------------------------------------------------------------===//
+
+// Define the C++ enum.
+def TestBitEnum
+    : I32BitEnumAttr<"TestBitEnum", "a test bit enum", [
+        I32BitEnumAttrCaseBit<"Read", 0, "read">,
+        I32BitEnumAttrCaseBit<"Write", 1, "write">,
+        I32BitEnumAttrCaseBit<"Execute", 2, "execute">,
+      ]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "test";
+  let separator = ", ";
+}
+
+// Define the enum attribute.
+def TestBitEnumAttr : EnumAttr<Test_Dialect, TestBitEnum, "bit_enum"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+// Define an op that contains the enum attribute.
+def OpWithBitEnum : TEST_Op<"op_with_bit_enum"> {
+  let arguments = (ins TestBitEnumAttr:$value, OptionalAttr<AnyAttr>:$tag);
+  let assemblyFormat = "$value (`tag` $tag^)? attr-dict";
+}
+
+// Define an enum with a different separator
+def TestBitEnumVerticalBar
+    : I32BitEnumAttr<"TestBitEnumVerticalBar", "another test bit enum", [
+        I32BitEnumAttrCaseBit<"User", 0, "user">,
+        I32BitEnumAttrCaseBit<"Group", 1, "group">,
+        I32BitEnumAttrCaseBit<"Other", 2, "other">,
+      ]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "test";
+  let separator = " | ";
+}
+
+def TestBitEnumVerticalBarAttr
+    : EnumAttr<Test_Dialect, TestBitEnumVerticalBar, "bit_enum_vbar"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+// Define an op that contains the enum attribute.
+def OpWithBitEnumVerticalBar : TEST_Op<"op_with_bit_enum_vbar"> {
+  let arguments = (ins TestBitEnumVerticalBarAttr:$value,
+                   OptionalAttr<AnyAttr>:$tag);
+  let assemblyFormat = "$value (`tag` $tag^)? attr-dict";
+}
 
 //===----------------------------------------------------------------------===//
 // Test Attribute Constraints
@@ -732,6 +774,19 @@ def StringAttrPrettyNameOp
   let hasCustomAssemblyFormat = 1;
 }
 
+
+// This is used to test encoding of a string attribute into an SSA name of a
+// pretty printed value name.
+def CustomResultsNameOp
+ : TEST_Op<"custom_result_name",
+           [DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>]> {
+  let arguments = (ins
+    Variadic<AnyInteger>:$optional,
+    StrArrayAttr:$names
+  );
+  let results = (outs Variadic<AnyInteger>:$r);
+}
+
 // This is used to test the OpAsmOpInterface::getDefaultDialect() feature:
 // operations nested in a region under this op will drop the "test." dialect
 // prefix.
@@ -744,6 +799,12 @@ def DefaultDialectOp : TEST_Op<"default_dialect", [OpAsmOpInterface]> {
     void getAsmResultNames(::llvm::function_ref<void(::mlir::Value, ::llvm::StringRef)> setNameFn) {}
   }];
   let assemblyFormat = "regions attr-dict-with-keyword";
+}
+
+// This is used to test that the default dialect is not elided when printing an
+// op with dots in the name to avoid parsing ambiguity.
+def OpWithDotInNameOp : TEST_Op<"op.with_dot_in_name"> {
+  let assemblyFormat = "attr-dict";
 }
 
 // This is used to test the OpAsmOpInterface::getAsmBlockName() feature:
@@ -1726,7 +1787,7 @@ def GraphRegionOp : TEST_Op<"graph_region",  [
   }];
 
   let regions = (region AnyRegion:$region);
-  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "attr-dict-with-keyword $region";
 }
 
 def AffineScopeOp : TEST_Op<"affine_scope", [AffineScope]> {
@@ -2183,6 +2244,12 @@ def FormatCustomDirectiveAttrDict
   }];
 }
 
+def FormatLiteralFollowingOptionalGroup
+    : TEST_Op<"format_literal_following_optional_group"> {
+  let arguments = (ins TypeAttr:$type, OptionalAttr<AnyAttr>:$value);
+  let assemblyFormat = "(`(` $value^ `)`)? `:` $type attr-dict";
+}
+
 //===----------------------------------------------------------------------===//
 // AllTypesMatch type inference
 
@@ -2472,7 +2539,8 @@ def RegionIfOp : TEST_Op<"region_if",
     ::mlir::Block::BlockArgListType getJoinArgs() {
       return getBody(2)->getArguments();
     }
-    ::mlir::OperandRange getSuccessorEntryOperands(unsigned index);
+    ::mlir::OperandRange getSuccessorEntryOperands(
+        ::llvm::Optional<unsigned> index);
   }];
   let hasCustomAssemblyFormat = 1;
 }
@@ -2544,15 +2612,9 @@ class TableGenBuildInferReturnTypeBaseOp<string mnemonic,
    }];
 }
 
-// Single variadic arg with SameOperandsAndResultType and InferTypeOpInterface.
-// Tests suppression of ambiguous build methods for operations with
-// SameOperandsAndResultType and InferTypeOpInterface.
-def TableGenBuildOp5 : TableGenBuildInferReturnTypeBaseOp<
-    "tblgen_build_5", [SameOperandsAndResultType]>;
-
 // Op with InferTypeOpInterface and regions.
-def TableGenBuildOp6 : TableGenBuildInferReturnTypeBaseOp<
-    "tblgen_build_6", [InferTypeOpInterface]> {
+def TableGenBuildOp5 : TableGenBuildInferReturnTypeBaseOp<
+    "tblgen_build_5", [InferTypeOpInterface]> {
   let regions = (region AnyRegion:$body);
 }
 
@@ -2815,4 +2877,51 @@ def TestGraphLoopOp : TEST_Op<"graph_loop",
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// Test InferIntRangeInterface
+//===----------------------------------------------------------------------===//
+def TestWithBoundsOp : TEST_Op<"with_bounds",
+                          [DeclareOpInterfaceMethods<InferIntRangeInterface>,
+                           NoSideEffect]> {
+  let arguments = (ins IndexAttr:$umin,
+                       IndexAttr:$umax,
+                       IndexAttr:$smin,
+                       IndexAttr:$smax);
+  let results = (outs Index:$fakeVal);
+
+  let assemblyFormat = "attr-dict";
+}
+
+def TestWithBoundsRegionOp : TEST_Op<"with_bounds_region",
+                          [DeclareOpInterfaceMethods<InferIntRangeInterface>,
+                           SingleBlock, NoTerminator]> {
+  let arguments = (ins IndexAttr:$umin,
+                       IndexAttr:$umax,
+                       IndexAttr:$smin,
+                       IndexAttr:$smax);
+  // The region has one argument of index type
+  let regions = (region SizedRegion<1>:$region);
+  let hasCustomAssemblyFormat = 1;
+}
+
+def TestIncrementOp : TEST_Op<"increment",
+                         [DeclareOpInterfaceMethods<InferIntRangeInterface>,
+                         NoSideEffect]> {
+  let arguments = (ins Index:$value);
+  let results = (outs Index:$result);
+
+  let assemblyFormat = "attr-dict $value";
+}
+
+def TestReflectBoundsOp : TEST_Op<"reflect_bounds",
+                         [DeclareOpInterfaceMethods<InferIntRangeInterface>]> {
+  let arguments = (ins Index:$value,
+                       OptionalAttr<IndexAttr>:$umin,
+                       OptionalAttr<IndexAttr>:$umax,
+                       OptionalAttr<IndexAttr>:$smin,
+                       OptionalAttr<IndexAttr>:$smax);
+  let results = (outs Index:$result);
+
+  let assemblyFormat = "attr-dict $value";
+}
 #endif // TEST_OPS

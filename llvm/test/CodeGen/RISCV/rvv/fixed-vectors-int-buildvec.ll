@@ -459,9 +459,9 @@ define void @buildvec_seq_v16i8_v2i64(<16 x i8>* %x) {
 ; RV64-LABEL: buildvec_seq_v16i8_v2i64:
 ; RV64:       # %bb.0:
 ; RV64-NEXT:    lui a1, %hi(.LCPI24_0)
-; RV64-NEXT:    ld a1, %lo(.LCPI24_0)(a1)
+; RV64-NEXT:    addi a1, a1, %lo(.LCPI24_0)
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
-; RV64-NEXT:    vmv.v.x v8, a1
+; RV64-NEXT:    vlse64.v v8, (a1), zero
 ; RV64-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
 ; RV64-NEXT:    vse8.v v8, (a0)
 ; RV64-NEXT:    ret
@@ -744,4 +744,19 @@ define <4 x i8> @buildvec_not_vid_v4i8_2() {
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    ret
   ret <4 x i8> <i8 3, i8 3, i8 1, i8 0>
+}
+
+; We match this as a VID sequence (-3 / 8) + 5 but choose not to introduce
+; division to compute it.
+define <16 x i8> @buildvec_not_vid_v16i8() {
+; CHECK-LABEL: buildvec_not_vid_v16i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    li a0, 3
+; CHECK-NEXT:    vsetivli zero, 16, e8, m1, ta, mu
+; CHECK-NEXT:    vmv.s.x v9, a0
+; CHECK-NEXT:    vmv.v.i v8, 0
+; CHECK-NEXT:    vsetivli zero, 7, e8, m1, tu, mu
+; CHECK-NEXT:    vslideup.vi v8, v9, 6
+; CHECK-NEXT:    ret
+  ret <16 x i8> <i8 undef, i8 undef, i8 undef, i8 undef, i8 undef, i8 undef, i8 3, i8 undef, i8 undef, i8 undef, i8 undef, i8 undef, i8 undef, i8 undef, i8 0, i8 0>
 }

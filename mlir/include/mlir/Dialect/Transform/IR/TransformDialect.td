@@ -64,6 +64,15 @@ def Transform_Dialect : Dialect {
     correspond to groups of outer and inner loops, respectively, produced by
     the tiling transformation.
 
+    Overall, Transform IR ops are expected to be contained in a single top-level
+    op. Such top-level ops specify how to apply the transformations described
+    by the operations they contain, e.g., `transform.sequence` executes
+    transformations one by one and fails if any of them fails. Such ops are
+    expected to have the `PossibleTopLevelTransformOpTrait` and may be used
+    without arguments.
+
+    ## Dialect Extension Mechanism
+
     This dialect is designed to be extensible, that is, clients of this dialect
     are allowed to inject additional operations into this dialect using the
     `TransformDialectExtension` mechanism. This allows the dialect to avoid a
@@ -83,6 +92,127 @@ def Transform_Dialect : Dialect {
     include the prefix in their name, e.g., `AffineTransformDialectExtension` or
     `LoopTransformDialectExtension` in the cases above. Unprefixed operation
     names are reserved for ops defined directly in the Transform dialect.
+
+    Operations injected into the dialect must:
+
+      * Implement the `TransformOpInterface` to execute the corresponding
+        transformation on the payload IR.
+
+      * Implement the `MemoryEffectsOpInterface` to annotate the effects of
+        the transform IR operation on the payload IR as well as on the mapping
+        between transform IR values and payload IR operations. See below for
+        the description of available effects.
+
+    The presence of interface implementations is checked at runtime when the
+    dialect is loaded to allow for those implementations to be supplied by
+    separate dialect extensions if desired.
+
+    ## Side Effects
+
+    The Transform dialect relies on MLIR side effect modelling to enable
+    optimization of the transform IR. More specifically, it provides several
+    side effect resource objects and expects operations to describe their
+    effects on these resources.
+
+      * `TransformMappingResource` - side effect resource corresponding to the
+        mapping between transform IR values and payload IR operations.
+        
+        - An `Allocate` effect from this resource means creating a new mapping
+          entry, it is always accompanied by a `Write` effect.
+          
+        - A `Read` effect from this resource means accessing the mapping.
+        
+        - A `Free` effect on this resource indicates the removal of the mapping
+          entry, typically after a transformation that modifies the payload IR
+          operations associated with one of the transform IR operation's
+          operands. It is always accompanied by a `Read` effect.
+
+      * `PayloadIRResource` - side effect resource corresponding to the payload
+        IR itself.
+
+        - A `Read` effect from this resource means accessing the payload IR.
+
+        - A `Write` effect on this resource means mutating the payload IR. It is
+          almost always accompanied by a `Read`.
+
+    The typical flow of values in the transform IR is as follows. Most
+    operations produce new transform IR values and immediately associate them
+    with a list of payload IR operations. This corresponds to `Allocate` and
+    `Write` effects on the `TransformMappingResource`, and often requires at
+    least a `Read` effect on the `PayloadIRResource`. Transform operations that
+    only inspect the payload IR to produce new handles are usually limited to
+    these effects on their operands. Transform operations that mutate the
+    payload IR are thought to _consume_ the handles provided as operands, that
+    is have the `Read` and `Free` effects on them. As with the usual memory
+    effects, using a value after it was freed is incorrect. In case of the
+    transform IR, this value is likely associated with payload IR operations
+    that were modified or even removed by the transformation, so it is
+    meaningless to refer to them. When further transformations are desired, the
+    transform operations can return _new_ handles that can be read or consumed
+    by subsequent operations.
+
+    ## Execution Model
+
+    The transformation starts at the specifed top-level transform IR operation
+    and applies to some payload IR scope, identified by the payload IR op that
+    contains the IR to transform. It is the responsibility of the user to
+    properly select the scope and/or to avoid the transformations to modify the
+    IR outside of the given scope. The top-level transform IR operation may
+    contain further transform operations and execute them in the desired order.
+
+    Transformation application functions produce a tri-state status:
+
+    - success;
+    - recoverable (silencable) failure;
+    - irrecoverable failure.
+
+    Transformation container operations may intercept recoverable failures and
+    perform the required recovery steps thus succeeding themselves. On
+    the other hand, they must propagate irrecoverable failures. For such
+    failures, the diagnostics are emitted immediately whereas their emission is
+    postponed for recoverable failures. Transformation container operations may
+    also fail to recover from a theoretically recoverable failure, in which case
+    they are expected to emit the diagnostic and turn the failure into an
+    irrecoverable one. A recoverable failure produced by applying the top-level
+    transform IR operation is considered irrecoverable.
+
+    Transformation container operations are allowed to "step over" some nested
+    operations if the application of some previous operation produced a failure.
+    This can be conceptually thought of as having a global "recoverable error
+    register" that is read/write accessed by each transform operation as a side
+    effect. The transformation is skipped if the register already contains an
+    error description, and the control flow proceeds to the following operation.
+
+    ## Handle Invalidation
+
+    The execution model of the transform dialect expects that a payload IR
+    operation is associated with _at most one_ transform IR handle. This avoids
+    the situation when a handle to an operation outlives the operation itself
+    that can be erased during a transformation triggered through another handle.
+
+    Handles pointing to operations nested in each other are allowed to co-exist
+    in the transform IR. However, a transform IR operation that consumes such a
+    handle automatically _invalidates_ all the other handles that are associated
+    with operations nested in the operations associated with the consumed
+    handle. Any use of the invalidated handle results in undefined behavior
+    since the payload IR operations associated with it are likely to have been
+    mutated or erased. The mere fact of the handle being invalidated does _not_
+    trigger undefined behavior, only its appearance as an operand does.
+    Invalidation applies to the entire handle, even if some of the payload IR
+    operations associated with it are not nested in payload IR operations
+    associated with another, consumed handle.
+
+    Note: the restriction on two handles not pointing to the same operation may
+    be relaxed in the future to follow the invalidation model for nested
+    operation.
+
+    The Transform dialect infrastructure has the capability of checking whether
+    the transform IR op operand is invalidated before applying the
+    transformation. However, such a check is computationally expensive and
+    must be enabled explicitly through `TransformOptions`. Additionally, the
+    `transform-dialect-check-uses` pass emits warnings when a handle may be used
+    after it has been consumed, but does so abstractly, without processing the
+    payload IR.
 
     ## Intended Use and Integrations
 
@@ -117,7 +247,7 @@ def Transform_Dialect : Dialect {
     differentiate between the parts of the loop produced by the previous pass
     (both are the same operation, and it is likely undesirable to pollute the
     operation with pass-specific information). Implementing passes that run the
-    combined transfomration would have run into the combinatorial explosion
+    combined transformation would have run into the combinatorial explosion
     issue due to multiple possible transform compositions or into the need for
     deep pass parameterization, the ultimate form of which is an ad-hoc dialect
     to specify which transformations the pass should run. The transform dialect
@@ -133,7 +263,7 @@ def Transform_Dialect : Dialect {
     takes care of bookkeeping. As such, the transform dialect does not provide
     the interpreter pass. Instead, it provides a set of utilities that can be
     used by clients to define their own interpreter passes or as part of a more
-    complex pass. For example, the mapping between values in the tranfsorm IR
+    complex pass. For example, the mapping between values in the transform IR
     and operations in the payload IR, or the function that applies the
     transformations specified by ops in the given block sequentially. Note that
     a transform op may have regions with further transform ops in them, with
@@ -163,13 +293,60 @@ def Transform_Dialect : Dialect {
   let cppNamespace = "::mlir::transform";
   let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 
+  let dependentDialects = [
+    "::mlir::pdl::PDLDialect",
+    "::mlir::pdl_interp::PDLInterpDialect",
+  ];
+
   let extraClassDeclaration = [{
-    // Make addOperations available to the TransformDialectExtension class.
+      /// Returns the named PDL constraint functions available in the dialect
+      /// as a map from their name to the function.
+      const ::llvm::StringMap<::mlir::PDLConstraintFunction> &
+      getPDLConstraintHooks() const;
+
     private:
-      using ::mlir::Dialect::addOperations;
+      template <typename OpTy>
+      void addOperationIfNotRegistered() {
+        Optional<RegisteredOperationName> opName =
+            RegisteredOperationName::lookup(OpTy::getOperationName(),
+                                            getContext());
+        if (!opName)
+          return addOperations<OpTy>();
+
+        if (opName->getTypeID() == TypeID::get<OpTy>())
+          return;
+
+        llvm::errs() << "error: extensible dialect operation '"
+                     << OpTy::getOperationName()
+                     << "' is already registered with a mismatching TypeID";
+        abort();
+      }
+
+      /// Registers operations specified as template parameters with this
+      /// dialect. Checks that they implement the required interfaces.
+      template <typename... OpTys>
+      void addOperationsChecked() {
+        (void)std::initializer_list<int>{(addOperationIfNotRegistered<OpTys>(),
+                                          0)...};
+
+        #ifndef NDEBUG
+        (void)std::initializer_list<int>{
+          (detail::checkImplementsTransformInterface<OpTys>(getContext()),
+           0)...};
+        #endif // NDEBUG
+      }
 
       template <typename, typename...>
       friend class TransformDialectExtension;
+
+      /// Takes ownership of the named PDL constraint function from the given
+      /// map and makes them available for use by the operations in the dialect.
+      void mergeInPDLMatchHooks(
+          ::llvm::StringMap<::mlir::PDLConstraintFunction> &&constraintFns);
+
+      /// A container for PDL constraint function that can be used by
+      /// operations in this dialect.
+      PDLPatternModule pdlMatchHooks;
   }];
 }
 
@@ -177,5 +354,13 @@ def Transform_Dialect : Dialect {
 // extensions of this dialect may also use this.
 class TransformDialectOp<string mnemonic, list<Trait> traits = []>
     : Op<Transform_Dialect, mnemonic, traits>;
+
+// Trait for operations that may be top-level operations in Transform IR.
+// Operations must have one single-block region and must be usable without
+// operands. See the C++ definition of the trait for more information.
+def PossibleTopLevelTransformOpTrait
+    : NativeOpTrait<"PossibleTopLevelTransformOpTrait"> {
+  let cppNamespace = "::mlir::transform";
+}
 
 #endif // MLIR_DIALECT_TRANSFORM_IR_TRANSFORMDIALECT

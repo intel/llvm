@@ -163,6 +163,25 @@ def OMPC_MemoryOrder : Clause<"memory_order"> {
   ];
 }
 
+def OMP_CANCELLATION_CONSTRUCT_Parallel : ClauseVal<"parallel", 1, 1> {}
+def OMP_CANCELLATION_CONSTRUCT_Loop : ClauseVal<"loop", 2, 1> {}
+def OMP_CANCELLATION_CONSTRUCT_Sections : ClauseVal<"sections", 3, 1> {}
+def OMP_CANCELLATION_CONSTRUCT_Taskgroup : ClauseVal<"taskgroup", 4, 1> {}
+def OMP_CANCELLATION_CONSTRUCT_None : ClauseVal<"none", 5, 0> {
+  let isDefault = 1;
+}
+
+def OMPC_CancellationConstructType : Clause<"cancellation_construct_type"> {
+  let enumClauseValue = "CancellationConstructType";
+  let allowedClauseValues = [
+    OMP_CANCELLATION_CONSTRUCT_Parallel,
+    OMP_CANCELLATION_CONSTRUCT_Loop,
+    OMP_CANCELLATION_CONSTRUCT_Sections,
+    OMP_CANCELLATION_CONSTRUCT_Taskgroup,
+    OMP_CANCELLATION_CONSTRUCT_None
+  ];
+}
+
 def OMPC_Ordered : Clause<"ordered"> {
   let clangClass = "OMPOrderedClause";
   let flangClass = "ScalarIntConstantExpr";
@@ -264,6 +283,7 @@ def OMPC_TaskReduction : Clause<"task_reduction"> {
 }
 def OMPC_InReduction : Clause<"in_reduction"> {
   let clangClass = "OMPInReductionClause";
+  let flangClass = "OmpInReductionClause";
 }
 def OMPC_UnifiedAddress : Clause<"unified_address"> {
   let clangClass = "OMPUnifiedAddressClause";
@@ -608,6 +628,7 @@ def OMP_Requires : Directive<"requires"> {
     VersionedClause<OMPC_AtomicDefaultMemOrder>
   ];
 }
+def OMP_Nothing : Directive<"nothing"> {}
 def OMP_TargetData : Directive<"target data"> {
   let allowedClauses = [
     VersionedClause<OMPC_UseDevicePtr>,
@@ -839,6 +860,21 @@ def OMP_ParallelMaster : Directive<"parallel master"> {
     VersionedClause<OMPC_Reduction>,
     VersionedClause<OMPC_ProcBind>,
     VersionedClause<OMPC_Allocate>
+  ];
+}
+def OMP_ParallelMasked : Directive<"parallel masked"> {
+  let allowedClauses = [
+    VersionedClause<OMPC_If>,
+    VersionedClause<OMPC_NumThreads>,
+    VersionedClause<OMPC_Default>,
+    VersionedClause<OMPC_Private>,
+    VersionedClause<OMPC_FirstPrivate>,
+    VersionedClause<OMPC_Shared>,
+    VersionedClause<OMPC_Copyin>,
+    VersionedClause<OMPC_Reduction>,
+    VersionedClause<OMPC_ProcBind>,
+    VersionedClause<OMPC_Allocate>,
+    VersionedClause<OMPC_Filter>
   ];
 }
 def OMP_ParallelSections : Directive<"parallel sections"> {

@@ -14,14 +14,22 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/ExtensibleDialect.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Reducer/ReductionPatternInterface.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 
 // Include this before the using namespace lines below to
@@ -208,6 +216,58 @@ public:
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// Dynamic operations
+//===----------------------------------------------------------------------===//
+
+std::unique_ptr<DynamicOpDefinition> getDynamicGenericOp(TestDialect *dialect) {
+  return DynamicOpDefinition::get(
+      "dynamic_generic", dialect, [](Operation *op) { return success(); },
+      [](Operation *op) { return success(); });
+}
+
+std::unique_ptr<DynamicOpDefinition>
+getDynamicOneOperandTwoResultsOp(TestDialect *dialect) {
+  return DynamicOpDefinition::get(
+      "dynamic_one_operand_two_results", dialect,
+      [](Operation *op) {
+        if (op->getNumOperands() != 1) {
+          op->emitOpError()
+              << "expected 1 operand, but had " << op->getNumOperands();
+          return failure();
+        }
+        if (op->getNumResults() != 2) {
+          op->emitOpError()
+              << "expected 2 results, but had " << op->getNumResults();
+          return failure();
+        }
+        return success();
+      },
+      [](Operation *op) { return success(); });
+}
+
+std::unique_ptr<DynamicOpDefinition>
+getDynamicCustomParserPrinterOp(TestDialect *dialect) {
+  auto verifier = [](Operation *op) {
+    if (op->getNumOperands() == 0 && op->getNumResults() == 0)
+      return success();
+    op->emitError() << "operation should have no operands and no results";
+    return failure();
+  };
+  auto regionVerifier = [](Operation *op) { return success(); };
+
+  auto parser = [](OpAsmParser &parser, OperationState &state) {
+    return parser.parseKeyword("custom_keyword");
+  };
+
+  auto printer = [](Operation *op, OpAsmPrinter &printer, llvm::StringRef) {
+    printer << op->getName() << " custom_keyword";
+  };
+
+  return DynamicOpDefinition::get("dynamic_custom_parser_printer", dialect,
+                                  verifier, regionVerifier, parser, printer);
+}
+
+//===----------------------------------------------------------------------===//
 // TestDialect
 //===----------------------------------------------------------------------===//
 
@@ -241,6 +301,10 @@ void TestDialect::initialize() {
 #define GET_OP_LIST
 #include "TestOps.cpp.inc"
       >();
+  registerDynamicOp(getDynamicGenericOp(this));
+  registerDynamicOp(getDynamicOneOperandTwoResultsOp(this));
+  registerDynamicOp(getDynamicCustomParserPrinterOp(this));
+
   addInterfaces<TestOpAsmInterface, TestDialectFoldInterface,
                 TestInlinerInterface, TestReductionPatternInterface>();
   allowUnknownOperations();
@@ -311,6 +375,11 @@ TestDialect::getParseOperationHook(StringRef opName) const {
   if (opName == "test.dialect_custom_format_fallback") {
     return ParseOpHook{[](OpAsmParser &parser, OperationState &state) {
       return parser.parseKeyword("custom_format_fallback");
+    }};
+  }
+  if (opName == "test.dialect_custom_printer.with.dot") {
+    return ParseOpHook{[](OpAsmParser &parser, OperationState &state) {
+      return ParseResult::success();
     }};
   }
   return None;
@@ -633,18 +702,16 @@ static void printCustomDirectiveOptionalOperandRef(OpAsmPrinter &printer,
 
 ParseResult IsolatedRegionOp::parse(OpAsmParser &parser,
                                     OperationState &result) {
-  OpAsmParser::UnresolvedOperand argInfo;
-  Type argType = parser.getBuilder().getIndexType();
-
   // Parse the input operand.
-  if (parser.parseOperand(argInfo) ||
-      parser.resolveOperand(argInfo, argType, result.operands))
+  OpAsmParser::Argument argInfo;
+  argInfo.type = parser.getBuilder().getIndexType();
+  if (parser.parseOperand(argInfo.ssaName) ||
+      parser.resolveOperand(argInfo.ssaName, argInfo.type, result.operands))
     return failure();
 
   // Parse the body region, and reuse the operand info as the argument info.
   Region *body = result.addRegion();
-  return parser.parseRegion(*body, argInfo, argType, /*argLocations=*/{},
-                            /*enableNameShadowing=*/true);
+  return parser.parseRegion(*body, argInfo, /*enableNameShadowing=*/true);
 }
 
 void IsolatedRegionOp::print(OpAsmPrinter &p) {
@@ -666,17 +733,6 @@ RegionKind SSACFGRegionOp::getRegionKind(unsigned index) {
 //===----------------------------------------------------------------------===//
 // Test GraphRegionOp
 //===----------------------------------------------------------------------===//
-
-ParseResult GraphRegionOp::parse(OpAsmParser &parser, OperationState &result) {
-  // Parse the body region, and reuse the operand info as the argument info.
-  Region *body = result.addRegion();
-  return parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{});
-}
-
-void GraphRegionOp::print(OpAsmPrinter &p) {
-  p << "test.graph_region ";
-  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
-}
 
 RegionKind GraphRegionOp::getRegionKind(unsigned index) {
   return RegionKind::Graph;
@@ -872,16 +928,16 @@ void PrettyPrintedRegionOp::print(OpAsmPrinter &p) {
 //===----------------------------------------------------------------------===//
 
 ParseResult PolyForOp::parse(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::UnresolvedOperand, 4> ivsInfo;
+  SmallVector<OpAsmParser::Argument, 4> ivsInfo;
   // Parse list of region arguments without a delimiter.
-  if (parser.parseRegionArgumentList(ivsInfo))
+  if (parser.parseArgumentList(ivsInfo, OpAsmParser::Delimiter::None))
     return failure();
 
   // Parse the body region.
   Region *body = result.addRegion();
-  auto &builder = parser.getBuilder();
-  SmallVector<Type, 4> argTypes(ivsInfo.size(), builder.getIndexType());
-  return parser.parseRegion(*body, ivsInfo, argTypes);
+  for (auto &iv : ivsInfo)
+    iv.type = parser.getBuilder().getIndexType();
+  return parser.parseRegion(*body, ivsInfo);
 }
 
 void PolyForOp::print(OpAsmPrinter &p) { p.printGenericOp(*this); }
@@ -1168,6 +1224,15 @@ void StringAttrPrettyNameOp::getAsmResultNames(
         setNameFn(getResult(i), str.getValue());
 }
 
+void CustomResultsNameOp::getAsmResultNames(
+    function_ref<void(Value, StringRef)> setNameFn) {
+  ArrayAttr value = getNames();
+  for (size_t i = 0, e = value.size(); i != e; ++i)
+    if (auto str = value[i].dyn_cast<StringAttr>())
+      if (!str.getValue().empty())
+        setNameFn(getResult(i), str.getValue());
+}
+
 //===----------------------------------------------------------------------===//
 // ResultTypeWithTraitOp
 //===----------------------------------------------------------------------===//
@@ -1236,8 +1301,8 @@ ParseResult RegionIfOp::parse(OpAsmParser &parser, OperationState &result) {
                                 parser.getCurrentLocation(), result.operands);
 }
 
-OperandRange RegionIfOp::getSuccessorEntryOperands(unsigned index) {
-  assert(index < 2 && "invalid region index");
+OperandRange RegionIfOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+  assert(index && *index < 2 && "invalid region index");
   return getOperands();
 }
 
@@ -1274,7 +1339,7 @@ void AnyCondOp::getSuccessorRegions(Optional<unsigned> index,
                                     SmallVectorImpl<RegionSuccessor> &regions) {
   // The parent op branches into the only region, and the region branches back
   // to the parent op.
-  if (index)
+  if (!index)
     regions.emplace_back(&getRegion());
   else
     regions.emplace_back(getResults());
@@ -1335,6 +1400,67 @@ LogicalResult TestVerifiersOp::verifyRegions() {
   emitRemark("success run of region verifier");
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Test InferIntRangeInterface
+//===----------------------------------------------------------------------===//
+
+void TestWithBoundsOp::inferResultRanges(ArrayRef<ConstantIntRanges> argRanges,
+                                         SetIntRangeFn setResultRanges) {
+  setResultRanges(getResult(), {getUmin(), getUmax(), getSmin(), getSmax()});
+}
+
+ParseResult TestWithBoundsRegionOp::parse(OpAsmParser &parser,
+                                          OperationState &result) {
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+
+  // Parse the input argument
+  OpAsmParser::Argument argInfo;
+  argInfo.type = parser.getBuilder().getIndexType();
+  if (failed(parser.parseArgument(argInfo)))
+    return failure();
+
+  // Parse the body region, and reuse the operand info as the argument info.
+  Region *body = result.addRegion();
+  return parser.parseRegion(*body, argInfo, /*enableNameShadowing=*/false);
+}
+
+void TestWithBoundsRegionOp::print(OpAsmPrinter &p) {
+  p.printOptionalAttrDict((*this)->getAttrs());
+  p << ' ';
+  p.printRegionArgument(getRegion().getArgument(0), /*argAttrs=*/{},
+                        /*omitType=*/true);
+  p << ' ';
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
+}
+
+void TestWithBoundsRegionOp::inferResultRanges(
+    ArrayRef<ConstantIntRanges> argRanges, SetIntRangeFn setResultRanges) {
+  Value arg = getRegion().getArgument(0);
+  setResultRanges(arg, {getUmin(), getUmax(), getSmin(), getSmax()});
+}
+
+void TestIncrementOp::inferResultRanges(ArrayRef<ConstantIntRanges> argRanges,
+                                        SetIntRangeFn setResultRanges) {
+  const ConstantIntRanges &range = argRanges[0];
+  APInt one(range.umin().getBitWidth(), 1);
+  setResultRanges(getResult(),
+                  {range.umin().uadd_sat(one), range.umax().uadd_sat(one),
+                   range.smin().sadd_sat(one), range.smax().sadd_sat(one)});
+}
+
+void TestReflectBoundsOp::inferResultRanges(
+    ArrayRef<ConstantIntRanges> argRanges, SetIntRangeFn setResultRanges) {
+  const ConstantIntRanges &range = argRanges[0];
+  MLIRContext *ctx = getContext();
+  Builder b(ctx);
+  setUminAttr(b.getIndexAttr(range.umin().getZExtValue()));
+  setUmaxAttr(b.getIndexAttr(range.umax().getZExtValue()));
+  setSminAttr(b.getIndexAttr(range.smin().getSExtValue()));
+  setSmaxAttr(b.getIndexAttr(range.smax().getSExtValue()));
+  setResultRanges(getResult(), range);
 }
 
 #include "TestOpEnums.cpp.inc"

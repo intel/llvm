@@ -35,6 +35,7 @@
 #include <detail/platform_impl.hpp>
 
 #include <functional>
+#include <optional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -133,14 +134,26 @@ public:
     MPiPluginMockPtr = &NewPluginPtr->getPiPlugin();
     // Save a copy of the platform resource
     MPlatform = OriginalPlatform;
+    OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
   }
 
   /// Explicit construction from a host_selector is forbidden.
   PiMock(const cl::sycl::host_selector &HostSelector) = delete;
 
+  PiMock(PiMock &&Other) {
+    MPlatform = std::move(Other.MPlatform);
+    OrigFuncTable = std::move(Other.OrigFuncTable);
+    Other.OrigFuncTable = {}; // Move above doesn't reset the optional.
+    MPiPluginMockPtr = std::move(Other.MPiPluginMockPtr);
+  }
   PiMock(const PiMock &) = delete;
   PiMock &operator=(const PiMock &) = delete;
-  ~PiMock() = default;
+  ~PiMock() {
+    if (!OrigFuncTable)
+      return;
+
+    MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
+  }
 
   /// Returns a handle to the SYCL platform instance.
   ///
@@ -184,6 +197,7 @@ public:
 
 private:
   cl::sycl::platform MPlatform;
+  std::optional<pi_plugin::FunctionPointers> OrigFuncTable;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
   RT::PiPlugin *MPiPluginMockPtr;

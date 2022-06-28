@@ -13,6 +13,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
@@ -997,6 +998,7 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
       Action = TLI.getOperationAction(Node->getOpcode(), MVT::Other);
     break;
   case ISD::FP_TO_FP16:
+  case ISD::FP_TO_BF16:
   case ISD::SINT_TO_FP:
   case ISD::UINT_TO_FP:
   case ISD::EXTRACT_VECTOR_ELT:
@@ -1193,6 +1195,7 @@ void SelectionDAGLegalize::LegalizeOp(SDNode *Node) {
   case ISD::VECREDUCE_UMIN:
   case ISD::VECREDUCE_FMAX:
   case ISD::VECREDUCE_FMIN:
+  case ISD::IS_FPCLASS:
     Action = TLI.getOperationAction(
         Node->getOpcode(), Node->getOperand(0).getValueType());
     break;
@@ -1729,16 +1732,14 @@ SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
 SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
                                                EVT DestVT, const SDLoc &dl,
                                                SDValue Chain) {
-  unsigned SrcSize = SrcOp.getValueSizeInBits();
-  unsigned SlotSize = SlotVT.getSizeInBits();
-  unsigned DestSize = DestVT.getSizeInBits();
+  EVT SrcVT = SrcOp.getValueType();
   Type *DestType = DestVT.getTypeForEVT(*DAG.getContext());
   Align DestAlign = DAG.getDataLayout().getPrefTypeAlign(DestType);
 
   // Don't convert with stack if the load/store is expensive.
-  if ((SrcSize > SlotSize &&
+  if ((SrcVT.bitsGT(SlotVT) &&
        !TLI.isTruncStoreLegalOrCustom(SrcOp.getValueType(), SlotVT)) ||
-      (SlotSize < DestSize &&
+      (SlotVT.bitsLT(DestVT) &&
        !TLI.isLoadExtLegalOrCustom(ISD::EXTLOAD, DestVT, SlotVT)))
     return SDValue();
 
@@ -1756,20 +1757,19 @@ SDValue SelectionDAGLegalize::EmitStackConvert(SDValue SrcOp, EVT SlotVT,
   // later than DestVT.
   SDValue Store;
 
-  if (SrcSize > SlotSize)
+  if (SrcVT.bitsGT(SlotVT))
     Store = DAG.getTruncStore(Chain, dl, SrcOp, FIPtr, PtrInfo,
                               SlotVT, SrcAlign);
   else {
-    assert(SrcSize == SlotSize && "Invalid store");
-    Store =
-        DAG.getStore(Chain, dl, SrcOp, FIPtr, PtrInfo, SrcAlign);
+    assert(SrcVT.bitsEq(SlotVT) && "Invalid store");
+    Store = DAG.getStore(Chain, dl, SrcOp, FIPtr, PtrInfo, SrcAlign);
   }
 
   // Result is a load from the stack slot.
-  if (SlotSize == DestSize)
+  if (SlotVT.bitsEq(DestVT))
     return DAG.getLoad(DestVT, dl, Store, FIPtr, PtrInfo, DestAlign);
 
-  assert(SlotSize < DestSize && "Unknown extension!");
+  assert(SlotVT.bitsLT(DestVT) && "Unknown extension!");
   return DAG.getExtLoad(ISD::EXTLOAD, dl, DestVT, Store, FIPtr, PtrInfo, SlotVT,
                         DestAlign);
 }
@@ -2905,6 +2905,18 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
                                  Node->getValueType(0), dl)))
       Results.push_back(Tmp1);
     break;
+  case ISD::BF16_TO_FP: {
+    // Always expand bf16 to f32 casts, they lower to ext + shift.
+    SDValue Op = DAG.getNode(ISD::BITCAST, dl, MVT::i16, Node->getOperand(0));
+    Op = DAG.getNode(ISD::ANY_EXTEND, dl, MVT::i32, Op);
+    Op = DAG.getNode(
+        ISD::SHL, dl, MVT::i32, Op,
+        DAG.getConstant(16, dl,
+                        TLI.getShiftAmountTy(MVT::i32, DAG.getDataLayout())));
+    Op = DAG.getNode(ISD::BITCAST, dl, MVT::f32, Op);
+    Results.push_back(Op);
+    break;
+  }
   case ISD::SIGN_EXTEND_INREG: {
     EVT ExtraVT = cast<VTSDNode>(Node->getOperand(1))->getVT();
     EVT VT = Node->getValueType(0);
@@ -2916,7 +2928,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     // SIGN_EXTEND_INREG does not guarantee that the high bits are already zero.
 
     // TODO: Do this for vectors too?
-    if (ExtraVT.getSizeInBits() == 1) {
+    if (ExtraVT.isScalarInteger() && ExtraVT.getSizeInBits() == 1) {
       SDValue One = DAG.getConstant(1, dl, VT);
       SDValue And = DAG.getNode(ISD::AND, dl, VT, Node->getOperand(0), One);
       SDValue Zero = DAG.getConstant(0, dl, VT);
@@ -3147,6 +3159,15 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   case ISD::FABS:
     Results.push_back(ExpandFABS(Node));
     break;
+  case ISD::IS_FPCLASS: {
+    auto CNode = cast<ConstantSDNode>(Node->getOperand(1));
+    auto Test = static_cast<FPClassTest>(CNode->getZExtValue());
+    if (SDValue Expanded =
+            TLI.expandIS_FPCLASS(Node->getValueType(0), Node->getOperand(0),
+                                 Test, Node->getFlags(), SDLoc(Node), DAG))
+      Results.push_back(Expanded);
+    break;
+  }
   case ISD::SMIN:
   case ISD::SMAX:
   case ISD::UMIN:
@@ -4087,12 +4108,25 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
     assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unexpected fpowi.");
     if (!TLI.getLibcallName(LC)) {
       // Some targets don't have a powi libcall; use pow instead.
-      SDValue Exponent = DAG.getNode(ISD::SINT_TO_FP, SDLoc(Node),
-                                     Node->getValueType(0),
-                                     Node->getOperand(1));
-      Results.push_back(DAG.getNode(ISD::FPOW, SDLoc(Node),
-                                    Node->getValueType(0), Node->getOperand(0),
-                                    Exponent));
+      if (Node->isStrictFPOpcode()) {
+        SDValue Exponent =
+            DAG.getNode(ISD::STRICT_SINT_TO_FP, SDLoc(Node),
+                        {Node->getValueType(0), Node->getValueType(1)},
+                        {Node->getOperand(0), Node->getOperand(2)});
+        SDValue FPOW =
+            DAG.getNode(ISD::STRICT_FPOW, SDLoc(Node),
+                        {Node->getValueType(0), Node->getValueType(1)},
+                        {Exponent.getValue(1), Node->getOperand(1), Exponent});
+        Results.push_back(FPOW);
+        Results.push_back(FPOW.getValue(1));
+      } else {
+        SDValue Exponent =
+            DAG.getNode(ISD::SINT_TO_FP, SDLoc(Node), Node->getValueType(0),
+                        Node->getOperand(1));
+        Results.push_back(DAG.getNode(ISD::FPOW, SDLoc(Node),
+                                      Node->getValueType(0),
+                                      Node->getOperand(0), Exponent));
+      }
       break;
     }
     unsigned Offset = Node->isStrictFPOpcode() ? 1 : 0;
@@ -4192,6 +4226,13 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
     RTLIB::Libcall LC =
         RTLIB::getFPROUND(Node->getOperand(0).getValueType(), MVT::f16);
     assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unable to expand fp_to_fp16");
+    Results.push_back(ExpandLibCall(LC, Node, false));
+    break;
+  }
+  case ISD::FP_TO_BF16: {
+    RTLIB::Libcall LC =
+        RTLIB::getFPROUND(Node->getOperand(0).getValueType(), MVT::bf16);
+    assert(LC != RTLIB::UNKNOWN_LIBCALL && "Unable to expand fp_to_bf16");
     Results.push_back(ExpandLibCall(LC, Node, false));
     break;
   }

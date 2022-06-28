@@ -2216,7 +2216,13 @@ bool ShuffleVectorInst::isIdentityMask(ArrayRef<int> Mask) {
 bool ShuffleVectorInst::isReverseMask(ArrayRef<int> Mask) {
   if (!isSingleSourceMask(Mask))
     return false;
-  for (int i = 0, NumElts = Mask.size(); i < NumElts; ++i) {
+
+  // The number of elements in the mask must be at least 2.
+  int NumElts = Mask.size();
+  if (NumElts < 2)
+    return false;
+
+  for (int i = 0; i < NumElts; ++i) {
     if (Mask[i] == -1)
       continue;
     if (Mask[i] != (NumElts - 1 - i) && Mask[i] != (NumElts + NumElts - 1 - i))
@@ -3082,16 +3088,18 @@ unsigned CastInst::isEliminableCastPair(
       return 0;
     }
     case 8: {
-      // ext, trunc -> bitcast,    if the SrcTy and DstTy are same size
+      // ext, trunc -> bitcast,    if the SrcTy and DstTy are the same
       // ext, trunc -> ext,        if sizeof(SrcTy) < sizeof(DstTy)
       // ext, trunc -> trunc,      if sizeof(SrcTy) > sizeof(DstTy)
       unsigned SrcSize = SrcTy->getScalarSizeInBits();
       unsigned DstSize = DstTy->getScalarSizeInBits();
-      if (SrcSize == DstSize)
+      if (SrcTy == DstTy)
         return Instruction::BitCast;
-      else if (SrcSize < DstSize)
+      if (SrcSize < DstSize)
         return firstOp;
-      return secondOp;
+      if (SrcSize > DstSize)
+        return secondOp;
+      return 0;
     }
     case 9:
       // zext, sext -> zext, because sext can't sign extend after zext

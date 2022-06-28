@@ -24,7 +24,7 @@ names to attribute values.
 Every SSA value, such as operation results or block arguments, in MLIR has a type
 defined by the type system. MLIR has an open type system with no fixed list of types,
 and there are no restrictions on the abstractions they represent. For example, take
-the following [Arithemetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
+the following [Arithmetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
 
 ```mlir
   %result = arith.addi %lhs, %rhs : i64
@@ -295,7 +295,7 @@ documentation for more information on defining and using interfaces.
 
 For each attribute or type, there are a few builders(`get`/`getChecked`)
 automatically generated based on the parameters of the type. These are used to
-construct instances of the correpsonding attribute or type. For example, given
+construct instances of the corresponding attribute or type. For example, given
 the following definition:
 
 ```tablegen
@@ -519,7 +519,7 @@ assembly format consists of literals, variables, and directives.
 
 - A literal is a keyword or valid punctuation enclosed in backticks, e.g.
   `` `keyword` `` or `` `<` ``.
-- A variable is a parameter name preceeded by a dollar sign, e.g. `$param0`,
+- A variable is a parameter name preceded by a dollar sign, e.g. `$param0`,
   which captures one attribute or type parameter.
 - A directive is a keyword followed by an optional argument list that defines
   special parser and printer behaviour.
@@ -584,7 +584,7 @@ template <> struct FieldParser<MyParameter> {
 
 Example of using ODS parameter classes:
 
-```
+```tablegen
 def MyParameter : TypeParameter<"std::pair<int, int>", "pair of ints"> {
   let printer = [{ $_printer << $_self.first << " * " << $_self.second }];
   let parser = [{ [&] -> FailureOr<std::pair<int, int>> {
@@ -655,7 +655,7 @@ the equality operator is used.
 
 For example:
 
-```
+```tablegen
 let parameters = (ins DefaultValuedParameter<"Optional<int>", "5">:$a)
 let mnemonic = "default_valued";
 let assemblyFormat = "(`<` $a^ `>`)?";
@@ -663,7 +663,7 @@ let assemblyFormat = "(`<` $a^ `>`)?";
 
 Which will look like:
 
-```
+```mlir
 !test.default_valued     // a = 5
 !test.default_valued<10> // a = 10
 ```
@@ -671,7 +671,7 @@ Which will look like:
 For optional `Attribute` or `Type` parameters, the current MLIR context is
 available through `$_ctx`. E.g.
 
-```
+```tablegen
 DefaultValuedParameter<"IntegerType", "IntegerType::get($_ctx, 32)">
 ```
 

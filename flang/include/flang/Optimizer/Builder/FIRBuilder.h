@@ -377,10 +377,10 @@ public:
   }
 
   /// Generate code testing \p addr is not a null address.
-  mlir::Value genIsNotNull(mlir::Location loc, mlir::Value addr);
+  mlir::Value genIsNotNullAddr(mlir::Location loc, mlir::Value addr);
 
   /// Generate code testing \p addr is a null address.
-  mlir::Value genIsNull(mlir::Location loc, mlir::Value addr);
+  mlir::Value genIsNullAddr(mlir::Location loc, mlir::Value addr);
 
   /// Compute the extent of (lb:ub:step) as max((ub-lb+step)/step, 0). See
   /// Fortran 2018 9.5.3.3.2 section for more details.
@@ -426,12 +426,6 @@ llvm::SmallVector<mlir::Value> readExtents(fir::FirOpBuilder &builder,
                                            mlir::Location loc,
                                            const fir::BoxValue &box);
 
-/// Get extents from \p box. For fir::BoxValue and
-/// fir::MutableBoxValue, this will generate code to read the extents.
-llvm::SmallVector<mlir::Value> getExtents(fir::FirOpBuilder &builder,
-                                          mlir::Location loc,
-                                          const fir::ExtendedValue &box);
-
 /// Read a fir::BoxValue into an fir::UnboxValue, a fir::ArrayBoxValue or a
 /// fir::CharArrayBoxValue. This should only be called if the fir::BoxValue is
 /// known to be contiguous given the context (or if the resulting address will
@@ -440,8 +434,8 @@ llvm::SmallVector<mlir::Value> getExtents(fir::FirOpBuilder &builder,
 fir::ExtendedValue readBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
                                 const fir::BoxValue &box);
 
-/// Get non default (not all ones) lower bounds of \p exv. Returns empty
-/// vector if the lower bounds are all ones.
+/// Get the lower bounds of \p exv. NB: returns an empty vector if the lower
+/// bounds are all ones, which is the default in Fortran.
 llvm::SmallVector<mlir::Value>
 getNonDefaultLowerBounds(fir::FirOpBuilder &builder, mlir::Location loc,
                          const fir::ExtendedValue &exv);
@@ -547,6 +541,10 @@ mlir::Value createZeroValue(fir::FirOpBuilder &builder, mlir::Location loc,
 
 /// Unwrap integer constant from an mlir::Value.
 llvm::Optional<std::int64_t> getIntIfConstant(mlir::Value value);
+
+/// Generate max(\p value, 0) where \p value is a scalar integer.
+mlir::Value genMaxWithZero(fir::FirOpBuilder &builder, mlir::Location loc,
+                           mlir::Value value);
 
 } // namespace fir::factory
 

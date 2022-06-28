@@ -61,9 +61,17 @@ CompilerInvocation ModuleDepCollector::makeInvocationForModuleBuildWithoutPaths(
   CI.getLangOpts()->ModuleName = Deps.ID.ModuleName;
   CI.getFrontendOpts().IsSystemModule = Deps.IsSystem;
 
+  // Disable implicit modules and canonicalize options that are only used by
+  // implicit modules.
   CI.getLangOpts()->ImplicitModules = false;
   CI.getHeaderSearchOpts().ImplicitModuleMaps = false;
   CI.getHeaderSearchOpts().ModuleCachePath.clear();
+  CI.getHeaderSearchOpts().ModulesValidateOncePerBuildSession = false;
+  CI.getHeaderSearchOpts().BuildSessionTimestamp = 0;
+  // The specific values we canonicalize to for pruning don't affect behaviour,
+  /// so use the default values so they will be dropped from the command-line.
+  CI.getHeaderSearchOpts().ModuleCachePruneInterval = 7 * 24 * 60 * 60;
+  CI.getHeaderSearchOpts().ModuleCachePruneAfter = 31 * 24 * 60 * 60;
 
   // Report the prebuilt modules this module uses.
   for (const auto &PrebuiltModule : Deps.PrebuiltModuleDeps)
@@ -199,7 +207,7 @@ void ModuleDepCollectorPP::EndOfMainFile() {
   MDC.Consumer.handleDependencyOutputOpts(*MDC.Opts);
 
   for (auto &&I : MDC.ModularDeps)
-    MDC.Consumer.handleModuleDependency(I.second);
+    MDC.Consumer.handleModuleDependency(*I.second);
 
   for (auto &&I : MDC.FileDeps)
     MDC.Consumer.handleFileDependency(I);
@@ -212,11 +220,12 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   assert(M == M->getTopLevelModule() && "Expected top level module!");
 
   // If this module has been handled already, just return its ID.
-  auto ModI = MDC.ModularDeps.insert({M, ModuleDeps{}});
+  auto ModI = MDC.ModularDeps.insert({M, nullptr});
   if (!ModI.second)
-    return ModI.first->second.ID;
+    return ModI.first->second->ID;
 
-  ModuleDeps &MD = ModI.first->second;
+  ModI.first->second = std::make_unique<ModuleDeps>();
+  ModuleDeps &MD = *ModI.first->second;
 
   MD.ID.ModuleName = M->getFullModuleName();
   MD.ImportedByMainFile = DirectModularDeps.contains(M);

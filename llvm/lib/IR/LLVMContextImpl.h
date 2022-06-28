@@ -17,6 +17,7 @@
 #include "ConstantsContext.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/Any.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
@@ -1502,6 +1503,9 @@ public:
   /// Collection of per-GlobalValue partitions used in this context.
   DenseMap<const GlobalValue *, StringRef> GlobalValuePartitions;
 
+  DenseMap<const GlobalValue *, GlobalValue::SanitizerMetadata>
+      GlobalValueSanitizerMetadata;
+
   /// DiscriminatorTable - This table maps file:line locations to an
   /// integer representing the next DWARF path discriminator to assign to
   /// instructions in different blocks at the same location.
@@ -1566,6 +1570,8 @@ public:
   bool getOpaquePointers();
   bool hasOpaquePointersValue();
   void setOpaquePointers(bool OP);
+
+  llvm::Any TargetDataStorage;
 
 private:
   Optional<bool> OpaquePointers;

@@ -44,9 +44,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
-#include "llvm/PassRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -150,7 +147,7 @@ static cl::opt<bool> ClGenerateTagsWithCalls(
     cl::init(false));
 
 static cl::opt<bool> ClGlobals("hwasan-globals", cl::desc("Instrument globals"),
-                               cl::Hidden, cl::init(false), cl::ZeroOrMore);
+                               cl::Hidden, cl::init(false));
 
 static cl::opt<int> ClMatchAllTag(
     "hwasan-match-all-tag",
@@ -196,17 +193,16 @@ static cl::opt<bool>
 static cl::opt<bool>
     ClInstrumentLandingPads("hwasan-instrument-landing-pads",
                             cl::desc("instrument landing pads"), cl::Hidden,
-                            cl::init(false), cl::ZeroOrMore);
+                            cl::init(false));
 
 static cl::opt<bool> ClUseShortGranules(
     "hwasan-use-short-granules",
     cl::desc("use short granules in allocas and outlined checks"), cl::Hidden,
-    cl::init(false), cl::ZeroOrMore);
+    cl::init(false));
 
 static cl::opt<bool> ClInstrumentPersonalityFunctions(
     "hwasan-instrument-personality-functions",
-    cl::desc("instrument personality functions"), cl::Hidden, cl::init(false),
-    cl::ZeroOrMore);
+    cl::desc("instrument personality functions"), cl::Hidden);
 
 static cl::opt<bool> ClInlineAllChecks("hwasan-inline-all-checks",
                                        cl::desc("inline all checks"),
@@ -389,92 +385,7 @@ private:
   GlobalValue *ThreadPtrGlobal = nullptr;
 };
 
-class HWAddressSanitizerLegacyPass : public FunctionPass {
-public:
-  // Pass identification, replacement for typeid.
-  static char ID;
-
-  explicit HWAddressSanitizerLegacyPass(bool CompileKernel = false,
-                                        bool Recover = false,
-                                        bool DisableOptimization = false)
-      : FunctionPass(ID), CompileKernel(CompileKernel), Recover(Recover),
-        DisableOptimization(DisableOptimization) {
-    initializeHWAddressSanitizerLegacyPassPass(
-        *PassRegistry::getPassRegistry());
-  }
-
-  StringRef getPassName() const override { return "HWAddressSanitizer"; }
-
-  bool doInitialization(Module &M) override {
-    HWASan = std::make_unique<HWAddressSanitizer>(M, CompileKernel, Recover,
-                                                  /*SSI=*/nullptr);
-    return true;
-  }
-
-  bool runOnFunction(Function &F) override {
-    auto TargetTriple = Triple(F.getParent()->getTargetTriple());
-    if (shouldUseStackSafetyAnalysis(TargetTriple, DisableOptimization)) {
-      // We cannot call getAnalysis in doInitialization, that would cause a
-      // crash as the required analyses are not initialized yet.
-      HWASan->setSSI(
-          &getAnalysis<StackSafetyGlobalInfoWrapperPass>().getResult());
-    }
-    return HWASan->sanitizeFunction(
-        F,
-        [&]() -> const DominatorTree & {
-          return getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-        },
-        [&]() -> const PostDominatorTree & {
-          return getAnalysis<PostDominatorTreeWrapperPass>().getPostDomTree();
-        });
-  }
-
-  bool doFinalization(Module &M) override {
-    HWASan.reset();
-    return false;
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    // This is an over-estimation of, in case we are building for an
-    // architecture that doesn't allow stack tagging we will still load the
-    // analysis.
-    // This is so we don't need to plumb TargetTriple all the way to here.
-    if (mightUseStackSafetyAnalysis(DisableOptimization))
-      AU.addRequired<StackSafetyGlobalInfoWrapperPass>();
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addRequired<PostDominatorTreeWrapperPass>();
-  }
-
-private:
-  std::unique_ptr<HWAddressSanitizer> HWASan;
-  bool CompileKernel;
-  bool Recover;
-  bool DisableOptimization;
-};
-
 } // end anonymous namespace
-
-char HWAddressSanitizerLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(
-    HWAddressSanitizerLegacyPass, "hwasan",
-    "HWAddressSanitizer: detect memory bugs using tagged addressing.", false,
-    false)
-INITIALIZE_PASS_DEPENDENCY(StackSafetyGlobalInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(PostDominatorTreeWrapperPass)
-INITIALIZE_PASS_END(
-    HWAddressSanitizerLegacyPass, "hwasan",
-    "HWAddressSanitizer: detect memory bugs using tagged addressing.", false,
-    false)
-
-FunctionPass *
-llvm::createHWAddressSanitizerLegacyPassPass(bool CompileKernel, bool Recover,
-                                             bool DisableOptimization) {
-  assert(!CompileKernel || Recover);
-  return new HWAddressSanitizerLegacyPass(CompileKernel, Recover,
-                                          DisableOptimization);
-}
 
 PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
@@ -803,7 +714,7 @@ bool HWAddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
 void HWAddressSanitizer::getInterestingMemoryOperands(
     Instruction *I, SmallVectorImpl<InterestingMemoryOperand> &Interesting) {
   // Skip memory accesses inserted by another instrumentation.
-  if (I->hasMetadata("nosanitize"))
+  if (I->hasMetadata(LLVMContext::MD_nosanitize))
     return;
 
   // Do not instrument the load fetching the dynamic shadow address.

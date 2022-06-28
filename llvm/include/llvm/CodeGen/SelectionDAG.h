@@ -58,7 +58,7 @@ class Pass;
 class Type;
 template <class GraphType> struct GraphTraits;
 template <typename T, unsigned int N> class SmallSetVector;
-template <typename T> struct FoldingSetTrait;
+template <typename T, typename Enable> struct FoldingSetTrait;
 class AAResults;
 class BlockAddress;
 class BlockFrequencyInfo;
@@ -452,6 +452,9 @@ public:
   const DataLayout &getDataLayout() const { return MF->getDataLayout(); }
   const TargetMachine &getTarget() const { return TM; }
   const TargetSubtargetInfo &getSubtarget() const { return MF->getSubtarget(); }
+  template <typename STC> const STC &getSubtarget() const {
+    return MF->getSubtarget<STC>();
+  }
   const TargetLowering &getTargetLoweringInfo() const { return *TLI; }
   const TargetLibraryInfo &getLibInfo() const { return *LibInfo; }
   const SelectionDAGTargetInfo &getSelectionDAGInfo() const { return *TSI; }
@@ -1049,25 +1052,26 @@ public:
                      const AAMDNodes &AAInfo = AAMDNodes());
 
   SDValue getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst, SDValue Src,
-                    SDValue Size, Align Alignment, bool isVol, bool isTailCall,
+                    SDValue Size, Align Alignment, bool isVol,
+                    bool AlwaysInline, bool isTailCall,
                     MachinePointerInfo DstPtrInfo,
                     const AAMDNodes &AAInfo = AAMDNodes());
 
   SDValue getAtomicMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst,
-                          unsigned DstAlign, SDValue Src, unsigned SrcAlign,
-                          SDValue Size, Type *SizeTy, unsigned ElemSz,
-                          bool isTailCall, MachinePointerInfo DstPtrInfo,
+                          SDValue Src, SDValue Size, Type *SizeTy,
+                          unsigned ElemSz, bool isTailCall,
+                          MachinePointerInfo DstPtrInfo,
                           MachinePointerInfo SrcPtrInfo);
 
   SDValue getAtomicMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst,
-                           unsigned DstAlign, SDValue Src, unsigned SrcAlign,
-                           SDValue Size, Type *SizeTy, unsigned ElemSz,
-                           bool isTailCall, MachinePointerInfo DstPtrInfo,
+                           SDValue Src, SDValue Size, Type *SizeTy,
+                           unsigned ElemSz, bool isTailCall,
+                           MachinePointerInfo DstPtrInfo,
                            MachinePointerInfo SrcPtrInfo);
 
   SDValue getAtomicMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
-                          unsigned DstAlign, SDValue Value, SDValue Size,
-                          Type *SizeTy, unsigned ElemSz, bool isTailCall,
+                          SDValue Value, SDValue Size, Type *SizeTy,
+                          unsigned ElemSz, bool isTailCall,
                           MachinePointerInfo DstPtrInfo);
 
   /// Helper function to make it easier to build SetCC's if you just have an
@@ -1103,10 +1107,8 @@ public:
   /// operands and don't want to check for vector.
   SDValue getSelect(const SDLoc &DL, EVT VT, SDValue Cond, SDValue LHS,
                     SDValue RHS) {
-    assert(LHS.getValueType() == RHS.getValueType() &&
+    assert(LHS.getValueType() == VT && RHS.getValueType() == VT &&
            "Cannot use select on differing types");
-    assert(VT.isVector() == LHS.getValueType().isVector() &&
-           "Cannot mix vectors and scalars");
     auto Opcode = Cond.getValueType().isVector() ? ISD::VSELECT : ISD::SELECT;
     return getNode(Opcode, DL, VT, Cond, LHS, RHS);
   }
@@ -2135,11 +2137,6 @@ public:
 
   /// Compute the default alignment value for the given type.
   Align getEVTAlign(EVT MemoryVT) const;
-  /// Compute the default alignment value for the given type.
-  /// FIXME: Remove once transition to Align is over.
-  inline unsigned getEVTAlignment(EVT MemoryVT) const {
-    return getEVTAlign(MemoryVT).value();
-  }
 
   /// Test whether the given value is a constant int or similar node.
   SDNode *isConstantIntBuildVectorOrConstantInt(SDValue N) const;

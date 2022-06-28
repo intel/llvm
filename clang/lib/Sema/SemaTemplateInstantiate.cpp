@@ -213,6 +213,7 @@ bool Sema::CodeSynthesisContext::isInstantiationRecord() const {
   case RewritingOperatorAsSpaceship:
   case InitializingStructuredBinding:
   case MarkingClassDllexported:
+  case BuildingBuiltinDumpStructCall:
     return false;
 
   // This function should never be called when Kind's value is Memoization.
@@ -480,6 +481,19 @@ void Sema::InstantiatingTemplate::Clear() {
     SemaRef.popCodeSynthesisContext();
     Invalid = true;
   }
+}
+
+static std::string convertCallArgsToString(Sema &S,
+                                           llvm::ArrayRef<const Expr *> Args) {
+  std::string Result;
+  llvm::raw_string_ostream OS(Result);
+  llvm::ListSeparator Comma;
+  for (const Expr *Arg : Args) {
+    OS << Comma;
+    Arg->IgnoreParens()->printPretty(OS, nullptr,
+                                     S.Context.getPrintingPolicy());
+  }
+  return Result;
 }
 
 bool Sema::InstantiatingTemplate::CheckInstantiationDepth(
@@ -770,6 +784,14 @@ void Sema::PrintInstantiationStack() {
           << cast<CXXRecordDecl>(Active->Entity) << !getLangOpts().CPlusPlus11;
       break;
 
+    case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
+      Diags.Report(Active->PointOfInstantiation,
+                   diag::note_building_builtin_dump_struct_call)
+          << convertCallArgsToString(
+                 *this,
+                 llvm::makeArrayRef(Active->CallArgs, Active->NumCallArgs));
+      break;
+
     case CodeSynthesisContext::Memoization:
       break;
 
@@ -874,6 +896,7 @@ Optional<TemplateDeductionInfo *> Sema::isSFINAEContext() const {
     case CodeSynthesisContext::DefiningSynthesizedFunction:
     case CodeSynthesisContext::InitializingStructuredBinding:
     case CodeSynthesisContext::MarkingClassDllexported:
+    case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
       // This happens in a context unrelated to template instantiation, so
       // there is no SFINAE.
       return None;
@@ -1087,6 +1110,8 @@ namespace {
         const SYCLIntelFPGASpeculatedIterationsAttr *SI);
     const SYCLIntelFPGALoopCountAttr *
     TransformSYCLIntelFPGALoopCountAttr(const SYCLIntelFPGALoopCountAttr *SI);
+    const SYCLIntelFPGAPipelineAttr *
+    TransformSYCLIntelFPGAPipelineAttr(const SYCLIntelFPGAPipelineAttr *SI);
 
     ExprResult TransformPredefinedExpr(PredefinedExpr *E);
     ExprResult TransformDeclRefExpr(DeclRefExpr *E);
@@ -1576,6 +1601,13 @@ const LoopUnrollHintAttr *TemplateInstantiator::TransformLoopUnrollHintAttr(
   Expr *TransformedExpr =
       getDerived().TransformExpr(LU->getUnrollHintExpr()).get();
   return getSema().BuildLoopUnrollHintAttr(*LU, TransformedExpr);
+}
+
+const SYCLIntelFPGAPipelineAttr *
+TemplateInstantiator::TransformSYCLIntelFPGAPipelineAttr(
+    const SYCLIntelFPGAPipelineAttr *PA) {
+  Expr *TransformedExpr = getDerived().TransformExpr(PA->getValue()).get();
+  return getSema().BuildSYCLIntelFPGAPipelineAttr(*PA, TransformedExpr);
 }
 
 ExprResult TemplateInstantiator::transformNonTypeTemplateParmRef(

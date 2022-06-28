@@ -113,9 +113,6 @@ public:
 
   // Returns the dialect for the attribute if defined.
   Dialect getDialect() const;
-
-  // Returns the description of the attribute.
-  StringRef getDescription() const;
 };
 
 // Wrapper class providing helper methods for accessing MLIR constant attribute
@@ -206,6 +203,7 @@ public:
   bool genSpecializedAttr() const;
   llvm::Record *getBaseAttrClass() const;
   StringRef getSpecializedAttrClassName() const;
+  bool printBitEnumPrimaryGroups() const;
 };
 
 class StructFieldAttr {

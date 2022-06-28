@@ -3,7 +3,6 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   BufferizableOpInterfaceImpl.cpp
   Bufferize.cpp
   CodegenStrategy.cpp
-  ComprehensiveBufferizePass.cpp
   ConstantFold.cpp
   Detensorize.cpp
   DropUnitDims.cpp
@@ -14,6 +13,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   Generalization.cpp
   Hoisting.cpp
   HoistPadding.cpp
+  InitTensorToAllocTensor.cpp
   InlineScalarOperands.cpp
   Interchange.cpp
   Loops.cpp
@@ -24,6 +24,7 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   SparseTensorRewriting.cpp
   SplitReduction.cpp
   Tiling.cpp
+  TilingInterfaceImpl.cpp
   Transforms.cpp
   Vectorization.cpp
 
@@ -34,34 +35,34 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRLinalgPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffine
+  MLIRAffineDialect
   MLIRAffineUtils
   MLIRAnalysis
-  MLIRArithmetic
+  MLIRArithmeticDialect
   MLIRArithmeticTransforms
-  MLIRBufferization
-  MLIRComplex
-  MLIRFunc
+  MLIRBufferizationDialect
+  MLIRBufferizationTransforms
+  MLIRComplexDialect
+  MLIRFuncDialect
   MLIRFuncToLLVM
   MLIRFuncTransforms
   MLIRInferTypeOpInterface
   MLIRIR
-  MLIRMemRef
-  MLIRLinalg
+  MLIRMemRefDialect
+  MLIRLinalgDialect
   MLIRLinalgAnalysis
   MLIRLinalgUtils
-  MLIRModuleBufferization
-  MLIRSCF
+  MLIRSCFDialect
   MLIRSCFTransforms
   MLIRSCFUtils
   MLIRPass
-  MLIRSparseTensor
-  MLIRTensor
+  MLIRSparseTensorDialect
+  MLIRTensorDialect
   MLIRTensorTilingInterfaceImpl
   MLIRTensorTransforms
   MLIRTransforms
   MLIRTransformUtils
-  MLIRVector
+  MLIRVectorDialect
   MLIRVectorTransforms
   MLIRVectorUtils
   MLIRX86VectorTransforms

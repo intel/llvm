@@ -86,6 +86,7 @@ class CGOpenCLRuntime;
 class CGOpenMPRuntime;
 class CGCUDARuntime;
 class CGSYCLRuntime;
+class CGHLSLRuntime;
 class CoverageMappingModuleGen;
 class TargetCodeGenInfo;
 
@@ -321,6 +322,7 @@ private:
   std::unique_ptr<CGOpenMPRuntime> OpenMPRuntime;
   std::unique_ptr<CGCUDARuntime> CUDARuntime;
   std::unique_ptr<CGSYCLRuntime> SYCLRuntime;
+  std::unique_ptr<CGHLSLRuntime> HLSLRuntime;
   std::unique_ptr<CGDebugInfo> DebugInfo;
   std::unique_ptr<ObjCEntrypoints> ObjCData;
   llvm::MDNode *NoObjCARCExceptionsMetadata = nullptr;
@@ -524,6 +526,7 @@ private:
   void createOpenMPRuntime();
   void createCUDARuntime();
   void createSYCLRuntime();
+  void createHLSLRuntime();
 
   bool isTriviallyRecursive(const FunctionDecl *F);
   bool shouldEmitFunction(GlobalDecl GD);
@@ -628,6 +631,12 @@ public:
   CGSYCLRuntime &getSYCLRuntime() {
     assert(SYCLRuntime != nullptr);
     return *SYCLRuntime;
+  }
+
+  /// Return a reference to the configured HLSL runtime.
+  CGHLSLRuntime &getHLSLRuntime() {
+    assert(HLSLRuntime != nullptr);
+    return *HLSLRuntime;
   }
 
   ObjCEntrypoints &getObjCEntrypoints() const {
@@ -809,6 +818,14 @@ public:
 
   void setDSOLocal(llvm::GlobalValue *GV) const;
 
+  bool shouldMapVisibilityToDLLExport(const NamedDecl *D) const {
+    return getLangOpts().hasDefaultVisibilityExportMapping() && D &&
+           (D->getLinkageAndVisibility().getVisibility() ==
+            DefaultVisibility) &&
+           (getLangOpts().isAllDefaultVisibilityExportMapping() ||
+            (getLangOpts().isExplicitDefaultVisibilityExportMapping() &&
+             D->getLinkageAndVisibility().isVisibilityExplicit()));
+  }
   void setDLLImportDLLExport(llvm::GlobalValue *GV, GlobalDecl D) const;
   void setDLLImportDLLExport(llvm::GlobalValue *GV, const NamedDecl *D) const;
   /// Set visibility, dllimport/dllexport and dso_local.
@@ -1333,8 +1350,9 @@ public:
   bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
                           SourceLocation Loc) const;
 
-  bool isInNoSanitizeList(llvm::GlobalVariable *GV, SourceLocation Loc,
-                          QualType Ty, StringRef Category = StringRef()) const;
+  bool isInNoSanitizeList(SanitizerMask Kind, llvm::GlobalVariable *GV,
+                          SourceLocation Loc, QualType Ty,
+                          StringRef Category = StringRef()) const;
 
   /// Imbue XRay attributes to a function, applying the always/never attribute
   /// lists in the process. Returns true if we did imbue attributes this way,
@@ -1392,15 +1410,18 @@ public:
   /// \param D The allocate declaration
   void EmitOMPAllocateDecl(const OMPAllocateDecl *D);
 
+  /// Return the alignment specified in an allocate directive, if present.
+  llvm::Optional<CharUnits> getOMPAllocateAlignment(const VarDecl *VD);
+
   /// Returns whether the given record has hidden LTO visibility and therefore
   /// may participate in (single-module) CFI and whole-program vtable
   /// optimization.
   bool HasHiddenLTOVisibility(const CXXRecordDecl *RD);
 
-  /// Returns whether the given record has public std LTO visibility
-  /// and therefore may not participate in (single-module) CFI and whole-program
-  /// vtable optimization.
-  bool HasLTOVisibilityPublicStd(const CXXRecordDecl *RD);
+  /// Returns whether the given record has public LTO visibility (regardless of
+  /// -lto-whole-program-visibility) and therefore may not participate in
+  /// (single-module) CFI and whole-program vtable optimization.
+  bool AlwaysHasLTOVisibilityPublic(const CXXRecordDecl *RD);
 
   /// Returns the vcall visibility of the given type. This is the scope in which
   /// a virtual function call could be made which ends up being dispatched to a
@@ -1494,7 +1515,10 @@ public:
   bool stopAutoInit();
 
   /// Print the postfix for externalized static variable or kernels for single
-  /// source offloading languages CUDA and HIP.
+  /// source offloading languages CUDA and HIP. The unique postfix is created
+  /// using either the CUID argument, or the file's UniqueID and active macros.
+  /// The fallback method without a CUID requires that the offloading toolchain
+  /// does not define separate macros via the -cc1 options.
   void printPostfixForExternalizedDecl(llvm::raw_ostream &OS,
                                        const Decl *D) const;
 

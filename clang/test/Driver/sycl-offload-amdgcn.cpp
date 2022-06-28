@@ -1,5 +1,4 @@
 /// Tests specific to `-fsycl-targets=amdgcn-amd-amdhsa`
-// REQUIRES: clang-driver
 
 // UNSUPPORTED: system-windows
 

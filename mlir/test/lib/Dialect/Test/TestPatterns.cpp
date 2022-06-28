@@ -151,6 +151,9 @@ struct TestPatternDriver
     : public PassWrapper<TestPatternDriver, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestPatternDriver)
 
+  TestPatternDriver() = default;
+  TestPatternDriver(const TestPatternDriver &other) : PassWrapper(other) {}
+
   StringRef getArgument() const final { return "test-patterns"; }
   StringRef getDescription() const final { return "Run test dialect patterns"; }
   void runOnOperation() override {
@@ -162,9 +165,102 @@ struct TestPatternDriver
                  FolderInsertBeforePreviouslyFoldedConstantPattern,
                  FolderCommutativeOp2WithConstant>(&getContext());
 
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+    GreedyRewriteConfig config;
+    config.useTopDownTraversal = this->useTopDownTraversal;
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                       config);
   }
+
+  Option<bool> useTopDownTraversal{
+      *this, "top-down",
+      llvm::cl::desc("Seed the worklist in general top-down order"),
+      llvm::cl::init(GreedyRewriteConfig().useTopDownTraversal)};
 };
+
+struct TestStrictPatternDriver
+    : public PassWrapper<TestStrictPatternDriver, OperationPass<func::FuncOp>> {
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestStrictPatternDriver)
+
+  TestStrictPatternDriver() = default;
+  TestStrictPatternDriver(const TestStrictPatternDriver &other)
+      : PassWrapper(other) {}
+
+  StringRef getArgument() const final { return "test-strict-pattern-driver"; }
+  StringRef getDescription() const final {
+    return "Run strict mode of pattern driver";
+  }
+
+  void runOnOperation() override {
+    mlir::RewritePatternSet patterns(&getContext());
+    patterns.add<InsertSameOp, ReplaceWithSameOp, EraseOp>(&getContext());
+    SmallVector<Operation *> ops;
+    getOperation()->walk([&](Operation *op) {
+      StringRef opName = op->getName().getStringRef();
+      if (opName == "test.insert_same_op" ||
+          opName == "test.replace_with_same_op" || opName == "test.erase_op") {
+        ops.push_back(op);
+      }
+    });
+
+    // Check if these transformations introduce visiting of operations that
+    // are not in the `ops` set (The new created ops are valid). An invalid
+    // operation will trigger the assertion while processing.
+    (void)applyOpPatternsAndFold(makeArrayRef(ops), std::move(patterns),
+                                 /*strict=*/true);
+  }
+
+private:
+  // New inserted operation is valid for further transformation.
+  class InsertSameOp : public RewritePattern {
+  public:
+    InsertSameOp(MLIRContext *context)
+        : RewritePattern("test.insert_same_op", /*benefit=*/1, context) {}
+
+    LogicalResult matchAndRewrite(Operation *op,
+                                  PatternRewriter &rewriter) const override {
+      if (op->hasAttr("skip"))
+        return failure();
+
+      Operation *newOp =
+          rewriter.create(op->getLoc(), op->getName().getIdentifier(),
+                          op->getOperands(), op->getResultTypes());
+      op->setAttr("skip", rewriter.getBoolAttr(true));
+      newOp->setAttr("skip", rewriter.getBoolAttr(true));
+
+      return success();
+    }
+  };
+
+  // Replace an operation may introduce the re-visiting of its users.
+  class ReplaceWithSameOp : public RewritePattern {
+  public:
+    ReplaceWithSameOp(MLIRContext *context)
+        : RewritePattern("test.replace_with_same_op", /*benefit=*/1, context) {}
+
+    LogicalResult matchAndRewrite(Operation *op,
+                                  PatternRewriter &rewriter) const override {
+      Operation *newOp =
+          rewriter.create(op->getLoc(), op->getName().getIdentifier(),
+                          op->getOperands(), op->getResultTypes());
+      rewriter.replaceOp(op, newOp->getResults());
+      return success();
+    }
+  };
+
+  // Remove an operation may introduce the re-visiting of its opreands.
+  class EraseOp : public RewritePattern {
+  public:
+    EraseOp(MLIRContext *context)
+        : RewritePattern("test.erase_op", /*benefit=*/1, context) {}
+    LogicalResult matchAndRewrite(Operation *op,
+                                  PatternRewriter &rewriter) const override {
+      rewriter.eraseOp(op);
+      return success();
+    }
+  };
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -956,6 +1052,60 @@ struct TestUnknownRootOpDriver
 } // namespace
 
 //===----------------------------------------------------------------------===//
+// Test patterns that uses operations and types defined at runtime
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// This pattern matches dynamic operations 'test.one_operand_two_results' and
+/// replace them with dynamic operations 'test.generic_dynamic_op'.
+struct RewriteDynamicOp : public RewritePattern {
+  RewriteDynamicOp(MLIRContext *context)
+      : RewritePattern("test.dynamic_one_operand_two_results", /*benefit=*/1,
+                       context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    assert(op->getName().getStringRef() ==
+               "test.dynamic_one_operand_two_results" &&
+           "rewrite pattern should only match operations with the right name");
+
+    OperationState state(op->getLoc(), "test.dynamic_generic",
+                         op->getOperands(), op->getResultTypes(),
+                         op->getAttrs());
+    auto *newOp = rewriter.create(state);
+    rewriter.replaceOp(op, newOp->getResults());
+    return success();
+  }
+};
+
+struct TestRewriteDynamicOpDriver
+    : public PassWrapper<TestRewriteDynamicOpDriver,
+                         OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestRewriteDynamicOpDriver)
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<TestDialect>();
+  }
+  StringRef getArgument() const final { return "test-rewrite-dynamic-op"; }
+  StringRef getDescription() const final {
+    return "Test rewritting on dynamic operations";
+  }
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    patterns.add<RewriteDynamicOp>(&getContext());
+
+    ConversionTarget target(getContext());
+    target.addIllegalOp(
+        OperationName("test.dynamic_one_operand_two_results", &getContext()));
+    target.addLegalOp(OperationName("test.dynamic_generic", &getContext()));
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
+      signalPassFailure();
+  }
+};
+} // end anonymous namespace
+
+//===----------------------------------------------------------------------===//
 // Test type conversions
 //===----------------------------------------------------------------------===//
 
@@ -1406,6 +1556,7 @@ void registerPatternsTestPass() {
   PassRegistration<TestDerivedAttributeDriver>();
 
   PassRegistration<TestPatternDriver>();
+  PassRegistration<TestStrictPatternDriver>();
 
   PassRegistration<TestLegalizePatternDriver>([] {
     return std::make_unique<TestLegalizePatternDriver>(legalizerConversionMode);
@@ -1417,6 +1568,8 @@ void registerPatternsTestPass() {
 
   PassRegistration<TestTypeConversionDriver>();
   PassRegistration<TestTargetMaterializationWithNoUses>();
+
+  PassRegistration<TestRewriteDynamicOpDriver>();
 
   PassRegistration<TestMergeBlocksPatternDriver>();
   PassRegistration<TestSelectiveReplacementPatternDriver>();

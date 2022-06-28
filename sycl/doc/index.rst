@@ -1,4 +1,4 @@
-Data Parallel C++ Documentation
+DPC++ Documentation
 ===============================
 
 Using oneAPI DPC++ for Application Development

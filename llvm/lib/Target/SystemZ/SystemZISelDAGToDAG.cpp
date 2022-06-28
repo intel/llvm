@@ -968,7 +968,7 @@ bool SystemZDAGToDAGISel::tryRISBGZero(SDNode *N) {
     if (RISBG.Input.getOpcode() != ISD::ANY_EXTEND &&
         RISBG.Input.getOpcode() != ISD::TRUNCATE)
       Count += 1;
-  if (Count == 0)
+  if (Count == 0 || isa<ConstantSDNode>(RISBG.Input))
     return false;
 
   // Prefer to use normal shift instructions over RISBG, since they can handle
@@ -1472,7 +1472,7 @@ bool SystemZDAGToDAGISel::storeLoadIsAligned(SDNode *N) const {
   assert(MMO && "Expected a memory operand.");
 
   // The memory access must have a proper alignment and no index register.
-  if (MemAccess->getAlignment() < StoreSize ||
+  if (MemAccess->getAlign().value() < StoreSize ||
       !MemAccess->getOffset().isUndef())
     return false;
 
