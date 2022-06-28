@@ -1008,21 +1008,12 @@ struct _pi_queue : _pi_object {
     return PI_SUCCESS;
   }
 
-  // Inserts a barrier into the queue. This will result in one or more barrier
-  // commands being inserted into one or more command lists. An event will be
-  // inserted into ActiveBarriers signalling the convergent barrier.
-  // If NumEventsInWaitList > 0 the convergent barrier will result in barriers
-  // blocking for the supplied events, while NumEventsInWaitList == 0 will
-  // result in barriers blocking for all previous work submitted to the queue.
-  pi_result insertBarrier(pi_uint32 NumEventsInWaitList,
-                          const pi_event *EventWaitList, pi_event *Event);
-
   // Inserts a barrier waiting for all unfinished events in ActiveBarriers into
   // CmdList. Any finished events will be removed from ActiveBarriers.
   pi_result insertActiveBarriers(pi_command_list_ptr_t &CmdList,
                                  bool UseCopyEngine);
 
-  // A collection of currently active barriers inserted through insertBarrier.
+  // A collection of currently active barriers.
   // These should be inserted into a command list whenever an available command
   // list is needed for a command.
   std::vector<pi_event> ActiveBarriers;
