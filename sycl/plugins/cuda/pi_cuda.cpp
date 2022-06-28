@@ -5112,15 +5112,6 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
 
-  unsigned int is_managed;
-  PI_CHECK_ERROR(cuPointerGetAttribute(
-      &is_managed, CU_POINTER_ATTRIBUTE_IS_MANAGED, (CUdeviceptr)ptr));
-  if (!is_managed) {
-    setErrorMessage("Prefetch hint ignored as mem advise only works with USM",
-                    PI_SUCCESS);
-    return PI_PLUGIN_SPECIFIC_ERROR;
-  }
-
   try {
     ScopedContext active(queue->get_context());
 
