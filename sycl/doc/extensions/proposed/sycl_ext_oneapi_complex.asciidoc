@@ -118,23 +118,23 @@ namespace oneapi {
             /*Complex operators*/
 
             // operator=
-            template<X>
+            template<typename X>
             complex& operator+=(const complex<X>&);
 
             // operator+=
-            template<X>
+            template<typename X>
             complex& operator+=(const complex<X>&);
 
             // operator-=
-            template<X>
+            template<typename X>
             complex& operator-=(const complex<X>&);
 
             // operator*=
-            template<X>
+            template<typename X>
             complex& operator*=(const complex<X>&);
 
             // operator/=
-            template<X>
+            template<typename X>
             complex& operator/=(const complex<X>&);
 
             /*Scalar operators*/
