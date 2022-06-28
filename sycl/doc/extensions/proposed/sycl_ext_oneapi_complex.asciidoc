@@ -242,14 +242,14 @@ namespace oneapi {
 ```
 
 The `sycl::oneapi::ext::complex` specializations can be generalised similar
-to existing sycl arithmetic types. The generic type `gencomplex` is defined as
+to existing SYCL arithmetic types. The generic type `gencomplex` is defined as
 types `complex<double>`, `complex<float>`, `complex<sycl::half>`.
 
 The table belows shows the operators defined by the SYCL complex interface
 along with a description of its operation.
 
-Note: When performing operations between complex numbers and decimal's.
-The decimal is treated as a complex number with a real component equal to
+Note: When performing operations between complex numbers and decimals,
+the decimal is treated as a complex number with a real component equal to
 the decimal and an imaginary component equal to 0.
 
 
@@ -321,7 +321,7 @@ the decimal and an imaginary component equal to 0.
 
 === Mathematical operations
 
-This proposal adds `ext::oneapi` namespace math functions accepting
+This proposal adds `sycl::ext::oneapi` namespace math functions accepting
 `gencomplex` for the SYCL math functions, `abs`, `acos`, `asin`, `atan`,
 `acosh`, `asinh`, `atanh`, `arg`, `conj`, `cos`, `cosh`, `exp`, `log`, `log10`,
 `norm`, `polar`, `pow`, `proj`, `sin`, `sinh`, `sqrt`, `tan`, and `tanh`.
@@ -450,7 +450,7 @@ mathematical operation.
 
 The complex mathematical operations can all be defined using SYCL built-ins.
 Therefore, implementing complex with SYCL built-ins would allow any backend
-with SYCL built-ins to support `ext::oneapi::complex`. The current
+with SYCL built-ins to support `sycl::ext::oneapi::complex`. The current
 implementation of `std::complex` relies on `libdevice`, which requires
 adjusting and altering the clang driver. This additional work would not be
 necessary for adding complex support with this extension.
