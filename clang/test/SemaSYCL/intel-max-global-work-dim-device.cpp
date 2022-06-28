@@ -174,9 +174,9 @@ template <typename Ty>
 
 struct S {};
 void test() {
-  //expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<S>' requested here}}
   func<S>();
-  //expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<float>' requested here}}
   func<float>();
   // no error expected
   func<int>(); // OK
@@ -202,7 +202,7 @@ public:
 };
 
 int kernel() {
-  //expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
+  // expected-note@+1{{in instantiation of template class 'KernelFunctor<-1>' requested here}}
   KernelFunctor<-1>();
   // no error expected
   KernelFunctor<2>();
