@@ -109,11 +109,11 @@ namespace oneapi {
 
             operator std::complex();
 
-            T real() const {return re;}
-            T imag() const {return im;}
+            T real();
+            T imag();
 
-            void real(T _re) {re = _re;}
-            void imag(T _im) {im = _im;}
+            void real(T _re);
+            void imag(T _im);
 
             /*Complex operators*/
 
