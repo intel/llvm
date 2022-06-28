@@ -696,6 +696,9 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   }
 
   // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Our sub-sub-device representation is currently [Level-Zero sub-device
+  // handle + Level-Zero compute group/engine index]. As we have a single queue
+  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
