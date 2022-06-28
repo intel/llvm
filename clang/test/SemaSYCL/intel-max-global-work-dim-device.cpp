@@ -304,5 +304,5 @@ int check() {
   return 0;
 }
 
-// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+// No diagnostic is emitted because the arguments match.
 [[intel::max_global_work_dim(2)]] [[intel::max_global_work_dim(2)]] void func17() {}
