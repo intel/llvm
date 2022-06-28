@@ -19,7 +19,6 @@ struct State {
 // CHECK: [[ANN5:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:100}{target-anchor:0}{type:0}{cycle:0}
 // CHECK: [[ANN6:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:128}{anchor-id:4}{target-anchor:7}{type:8}{cycle:0}
 
-
 // CHECK: define {{.*}}spir_func void @{{.*}}(float addrspace(4)* noundef %A, i32 addrspace(4)* noundef %B, [[STRUCT]] addrspace(4)* noundef %C, [[STRUCT]] addrspace(4)*{{.*}}%D)
 void foo(float *A, int *B, State *C, State &D) {
   float *x;
