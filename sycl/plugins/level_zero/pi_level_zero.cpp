@@ -6101,7 +6101,8 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       return Res;
     CmdLists.push_back(CmdList);
   } else {
-    // Get an available command list for all queues.
+    // Get an available command list tied to each command queue. We need these
+    // so a queue-wide barrier can be inserted into each command queue.
     CmdLists.reserve(Queue->ComputeQueueGroup.ZeQueues.size() +
                      Queue->CopyQueueGroup.ZeQueues.size());
     for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
