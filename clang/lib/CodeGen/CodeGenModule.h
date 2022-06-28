@@ -579,6 +579,8 @@ private:
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
 
+  llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
+
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
 
 public:
@@ -1477,6 +1479,9 @@ public:
   /// including C itself, that does not have any bases.
   std::vector<const CXXRecordDecl *>
   getMostBaseClasses(const CXXRecordDecl *RD);
+
+  llvm::GlobalVariable *
+  GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr);
 
   /// Get the declaration of std::terminate for the platform.
   llvm::FunctionCallee getTerminateFn();
