@@ -51,6 +51,7 @@ int ver() {
 // CHECK-NEXT: ConstantExpr {{.*}} 'int'
 // CHECK-NEXT: value: Int 2
 // CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+// CHECK-NOT: SYCLIntelNumSimdWorkItemsAttr
 [[intel::num_simd_work_items(2)]] [[intel::num_simd_work_items(2)]] void funccc() {}
 
 [[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
