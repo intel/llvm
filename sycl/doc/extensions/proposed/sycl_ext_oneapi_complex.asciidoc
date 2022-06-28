@@ -96,6 +96,7 @@ The complex type is trivially copyable and type trait `is_device_copyable`
 should resolve to `std::true_type`.
 
 ```C++
+namespace sycl {
 namespace ext {
 namespace oneapi {
 
@@ -224,12 +225,14 @@ namespace oneapi {
 
 } // namespace oneapi
 } // namespace ext
+} // namespace sycl
 ```
 
 The class `sycl::oneapi::complex` class, has specializations
 of `T`; `float`, `double`, and `sycl::half` defined.
 
 ```C++
+namespace sycl {
 namespace ext {
 namespace oneapi {
 
@@ -239,6 +242,7 @@ namespace oneapi {
 
 } // namespace oneapi
 } // namespace ext
+} // namespace sycl
 ```
 
 The `sycl::oneapi::ext::complex` specializations can be generalised similar
@@ -329,6 +333,7 @@ Each math function should follow the C++ standard for handling NaN's and Inf
 values.
 
 ```C++
+namespace sycl {
 namespace ext {
 namespace oneapi {
 
@@ -384,6 +389,7 @@ namespace oneapi {
 
 } // namespace oneapi
 } // namespace ext
+} // namespace sycl
 ```
 
 The table below shows each function along with a description of its
