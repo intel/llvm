@@ -8363,17 +8363,55 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                           LastDeviceWithValidAllocation));
       // Copy valid buffer data to this allocation.
       // TODO: see if we should better use peer's device allocation used
-      // directly,
-      //       if that capability is reported with zeDeviceCanAccessPeer,
-      //       instead of maintaining a separate allocation and performing this
-      //       explciit copy.
+      // directly, if that capability is reported with zeDeviceCanAccessPeer,
+      // instead of maintaining a separate allocation and performing
+      // explciit copies.
       //
       // zeCommandListAppendMemoryCopy must not be called from simultaneous
       // threads with the same command list handle, so we need exclusive lock.
-      std::scoped_lock Lock(Context->ImmediateCommandListMutex);
-      ZE_CALL(zeCommandListAppendMemoryCopy,
-              (Context->ZeCommandListInit, ZeHandle /* Dst */, ZeHandleSrc,
-               Size, nullptr, 0, nullptr));
+      ze_bool_t P2P;
+      ZE_CALL(
+          zeDeviceCanAccessPeer,
+          (Device->ZeDevice, LastDeviceWithValidAllocation->ZeDevice, &P2P));
+      if (!P2P) {
+        // P2P copy is not possible, so copy through the host.
+        auto &HostAllocation = Allocations[nullptr];
+        // The host allocation may already exists, e.g. with imported
+        // host ptr, or in case of interop buffer.
+        if (!HostAllocation.ZeHandle) {
+          void *ZeHandleHost;
+          if (enableBufferPooling()) {
+            HostAllocation.ReleaseAction = allocation_t::free;
+            PI_CALL(piextUSMHostAlloc(&ZeHandleHost, Context, nullptr, Size,
+                                      getAlignment()));
+          } else {
+            HostAllocation.ReleaseAction = allocation_t::free_native;
+            PI_CALL(ZeHostMemAllocHelper(&ZeHandleHost, Context, Size));
+          }
+          HostAllocation.ZeHandle = pi_cast<char *>(ZeHandleHost);
+          HostAllocation.Valid = false;
+        }
+        std::scoped_lock Lock(Context->ImmediateCommandListMutex);
+        if (!HostAllocation.Valid) {
+          ZE_CALL(zeCommandListAppendMemoryCopy,
+                  (Context->ZeCommandListInit,
+                   HostAllocation.ZeHandle /* Dst */, ZeHandleSrc, Size,
+                   nullptr, 0, nullptr));
+          // Mark the host allocation data  as valid so it can be reused.
+          // It will be invalidated below if the current access is not
+          // read-only.
+          HostAllocation.Valid = true;
+        }
+        ZE_CALL(zeCommandListAppendMemoryCopy,
+                (Context->ZeCommandListInit, ZeHandle /* Dst */,
+                 HostAllocation.ZeHandle, Size, nullptr, 0, nullptr));
+      } else {
+        // Perform P2P copy.
+        std::scoped_lock Lock(Context->ImmediateCommandListMutex);
+        ZE_CALL(zeCommandListAppendMemoryCopy,
+                (Context->ZeCommandListInit, ZeHandle /* Dst */, ZeHandleSrc,
+                 Size, nullptr, 0, nullptr));
+      }
     }
   }
 
