@@ -41,7 +41,7 @@ device::device(cl_device_id DeviceId) {
   auto Platform =
       detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  clRetainDevice(DeviceId);
+  Plugin.call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {

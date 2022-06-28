@@ -889,7 +889,8 @@ _DEFINE_SAMPLED_LOADS(half, 16)
     /* Sampling algorithms are implemented assu__spirv_ocl_s_ming an                                                                              \
      * unnormalized floating point coordinate as input. Need to transform as                                                                      \
      * appropriate. */                                                                                                                            \
-    sampling_coord_t sampling_coord = as_##sampling_coord_t(input_coord);                                                                         \
+    sampling_coord_t sampling_coord =                                                                                                             \
+        cast_##input_coord_t##_to_##sampling_coord_t(input_coord);                                                                                \
     if (is_normalized_coords(sampler)) {                                                                                                          \
       sampling_coord = unnormalized_coord_##dims##d(sampling_coord, image);                                                                       \
     }                                                                                                                                             \

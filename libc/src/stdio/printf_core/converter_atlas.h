@@ -20,8 +20,11 @@
 #include "src/stdio/printf_core/char_converter.h"
 
 // defines convert_int
+#include "src/stdio/printf_core/int_converter.h"
+
 // defines convert_oct
 // defines convert_hex
+#include "src/stdio/printf_core/hex_converter.h"
 
 // TODO(michaelrj): add a flag to disable float point values here
 // defines convert_float_decimal
