@@ -23,6 +23,12 @@ std::vector<RT::PiEvent> getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
   std::vector<RT::PiEvent> Events;
   for (auto SyclEvent : DepEvents) {
     auto SyclEventImplPtr = detail::getSyclObjImpl(SyclEvent);
+    // throwaway events created with default constructor will not have a context
+    // (which is set lazily) calling is_host(), getContextImpl() would set that
+    // context, which we wish to avoid as it is expensive.
+    if (SyclEventImplPtr->MIsContextInitialized == false) {
+      continue;
+    }
     if (SyclEventImplPtr->is_host() ||
         SyclEventImplPtr->getContextImpl() != Context) {
       SyclEventImplPtr->waitInternal();
