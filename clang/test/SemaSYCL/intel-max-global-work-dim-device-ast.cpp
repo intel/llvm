@@ -51,7 +51,7 @@ template <int N>
 [[intel::max_global_work_dim(N)]] void func1() {}
 
 int ver() {
-  func1<3>();  // OK
+  func1<3>(); // OK
   return 0;
 }
 
@@ -68,52 +68,42 @@ struct FuncObj {
 // they hold equal values (1, 1, 1).
 
 struct TRIFuncObjGood1 {
-  [[intel::max_global_work_dim(0)]]
-  [[intel::max_work_group_size(1, 1, 1)]]
-  [[sycl::reqd_work_group_size(1, 1, 1)]] void
+  [[intel::max_global_work_dim(0)]] [[intel::max_work_group_size(1, 1, 1)]] [[sycl::reqd_work_group_size(1, 1, 1)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  [[intel::max_global_work_dim(3)]]
-  [[intel::max_work_group_size(8, 1, 1)]]
-  [[sycl::reqd_work_group_size(4, 1, 1)]] void
+  [[intel::max_global_work_dim(3)]] [[intel::max_work_group_size(8, 1, 1)]] [[sycl::reqd_work_group_size(4, 1, 1)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood3 {
-  [[sycl::reqd_work_group_size(1)]]
-  [[intel::max_global_work_dim(0)]] void
+  [[sycl::reqd_work_group_size(1)]] [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood4 {
-  [[sycl::reqd_work_group_size(1, 1, 1)]]
-  [[intel::max_global_work_dim(0)]] void
+  [[sycl::reqd_work_group_size(1, 1, 1)]] [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood5 {
-  [[intel::max_work_group_size(1, 1, 1)]]
-  [[intel::max_global_work_dim(0)]] void
+  [[intel::max_work_group_size(1, 1, 1)]] [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood6 {
-  [[sycl::reqd_work_group_size(4, 1, 1)]]
-  [[intel::max_global_work_dim(3)]] void
+  [[sycl::reqd_work_group_size(4, 1, 1)]] [[intel::max_global_work_dim(3)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood7 {
-  [[sycl::reqd_work_group_size(4, 1, 1)]]
-  [[intel::max_global_work_dim(3)]] void
+  [[sycl::reqd_work_group_size(4, 1, 1)]] [[intel::max_global_work_dim(3)]] void
   operator()() const {}
 };
 
 struct TRIFuncObjGood8 {
-  [[intel::max_work_group_size(8, 1, 1)]]
-  [[intel::max_global_work_dim(3)]] void
+  [[intel::max_work_group_size(8, 1, 1)]] [[intel::max_global_work_dim(3)]] void
   operator()() const {}
 };
 
@@ -139,7 +129,7 @@ int main() {
     // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class test_kernel2>(
-        []() [[intel::max_global_work_dim(2)]]{});
+        []() [[intel::max_global_work_dim(2)]] {});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
@@ -331,7 +321,7 @@ int main() {
         // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
         // CHECK-NOT: SYCLIntelMaxGlobalWorkDimAttr
         []() [[intel::max_global_work_dim(3),
-               intel::max_global_work_dim(3)]]{}); // Ok
+               intel::max_global_work_dim(3)]] {}); // Ok
   });
   return 0;
 }
