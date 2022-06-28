@@ -5,6 +5,7 @@
 
 #include <sycl/ext/intel/experimental/esimd/common.hpp>
 
+using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
 void foo() SYCL_ESIMD_FUNCTION {
@@ -14,5 +15,4 @@ void foo() SYCL_ESIMD_FUNCTION {
   x = static_cast<int>(split_barrier_action::wait);
   x = static_cast<int>(atomic_op::add);
   x = static_cast<int>(rgba_channel_mask::R);
-  x = static_cast<int>(saturation::off);
 }

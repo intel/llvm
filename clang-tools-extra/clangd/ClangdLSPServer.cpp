@@ -9,9 +9,8 @@
 #include "ClangdLSPServer.h"
 #include "ClangdServer.h"
 #include "CodeComplete.h"
+#include "CompileCommands.h"
 #include "Diagnostics.h"
-#include "DraftStore.h"
-#include "DumpAST.h"
 #include "Feature.h"
 #include "GlobalCompilationDatabase.h"
 #include "LSPBinder.h"
@@ -21,22 +20,20 @@
 #include "TUScheduler.h"
 #include "URI.h"
 #include "refactor/Tweak.h"
+#include "support/Cancellation.h"
 #include "support/Context.h"
 #include "support/MemoryTree.h"
 #include "support/Trace.h"
-#include "clang/AST/ASTContext.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/iterator_range.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/raw_ostream.h"
@@ -71,8 +68,8 @@ llvm::Optional<int64_t> decodeVersion(llvm::StringRef Encoded) {
   return llvm::None;
 }
 
-const llvm::StringLiteral APPLY_FIX_COMMAND = "clangd.applyFix";
-const llvm::StringLiteral APPLY_TWEAK_COMMAND = "clangd.applyTweak";
+const llvm::StringLiteral ApplyFixCommand = "clangd.applyFix";
+const llvm::StringLiteral ApplyTweakCommand = "clangd.applyTweak";
 
 /// Transforms a tweak into a code action that would apply it if executed.
 /// EXPECTS: T.prepare() was called and returned true.
@@ -88,7 +85,7 @@ CodeAction toCodeAction(const ClangdServer::TweakRef &T, const URIForFile &File,
   //        directly.
   CA.command.emplace();
   CA.command->title = T.Title;
-  CA.command->command = std::string(APPLY_TWEAK_COMMAND);
+  CA.command->command = std::string(ApplyTweakCommand);
   TweakArgs Args;
   Args.file = File;
   Args.tweakID = T.ID;
@@ -578,6 +575,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
        llvm::json::Object{{"automaticReload", true}}},
       {"callHierarchyProvider", true},
       {"clangdInlayHintsProvider", true},
+      {"inlayHintProvider", true},
   };
 
   {
@@ -950,7 +948,7 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
   if (Action.command) {
     Cmd = *Action.command;
   } else if (Action.edit) {
-    Cmd.command = std::string(APPLY_FIX_COMMAND);
+    Cmd.command = std::string(ApplyFixCommand);
     Cmd.argument = *Action.edit;
   } else {
     return None;
@@ -986,8 +984,8 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
 
   // Now enumerate the semantic code actions.
   auto ConsumeActions =
-      [Reply = std::move(Reply), File, Selection = Params.range,
-       FixIts = std::move(FixIts), this](
+      [Diags = Params.context.diagnostics, Reply = std::move(Reply), File,
+       Selection = Params.range, FixIts = std::move(FixIts), this](
           llvm::Expected<std::vector<ClangdServer::TweakRef>> Tweaks) mutable {
         if (!Tweaks)
           return Reply(Tweaks.takeError());
@@ -1003,12 +1001,16 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
         for (auto &Action : Actions) {
           if (Action.kind && *Action.kind == CodeAction::QUICKFIX_KIND) {
             if (OnlyFix) {
-              OnlyFix->isPreferred = false;
+              OnlyFix = nullptr;
               break;
             }
-            Action.isPreferred = true;
             OnlyFix = &Action;
           }
+        }
+        if (OnlyFix) {
+          OnlyFix->isPreferred = true;
+          if (Diags.size() == 1 && Diags.front().range == Selection)
+            OnlyFix->diagnostics = {Diags.front()};
         }
 
         if (SupportsCodeAction)
@@ -1207,8 +1209,41 @@ void ClangdLSPServer::onCallHierarchyIncomingCalls(
   Server->incomingCalls(Params.item, std::move(Reply));
 }
 
-void ClangdLSPServer::onInlayHints(const InlayHintsParams &Params,
-                                   Callback<std::vector<InlayHint>> Reply) {
+void ClangdLSPServer::onClangdInlayHints(const InlayHintsParams &Params,
+                                         Callback<llvm::json::Value> Reply) {
+  // Our extension has a different representation on the wire than the standard.
+  // We have a "range" property and "kind" is represented as a string, not as an
+  // enum value.
+  // https://clangd.llvm.org/extensions#inlay-hints
+  auto Serialize = [Reply = std::move(Reply)](
+                       llvm::Expected<std::vector<InlayHint>> Hints) mutable {
+    if (!Hints) {
+      Reply(Hints.takeError());
+      return;
+    }
+    llvm::json::Array Result;
+    Result.reserve(Hints->size());
+    for (auto &Hint : *Hints) {
+      Result.emplace_back(llvm::json::Object{
+          {"kind", llvm::to_string(Hint.kind)},
+          {"range", Hint.range},
+          {"position", Hint.position},
+          // Extension doesn't have paddingLeft/Right so adjust the label
+          // accordingly.
+          {"label",
+           ((Hint.paddingLeft ? " " : "") + llvm::StringRef(Hint.label) +
+            (Hint.paddingRight ? " " : ""))
+               .str()},
+      });
+    }
+    Reply(std::move(Result));
+  };
+  Server->inlayHints(Params.textDocument.uri.file(), Params.range,
+                     std::move(Serialize));
+}
+
+void ClangdLSPServer::onInlayHint(const InlayHintsParams &Params,
+                                  Callback<std::vector<InlayHint>> Reply) {
   Server->inlayHints(Params.textDocument.uri.file(), Params.range,
                      std::move(Reply));
 }
@@ -1491,12 +1526,13 @@ void ClangdLSPServer::bindMethods(LSPBinder &Bind,
   Bind.method("textDocument/documentLink", this, &ClangdLSPServer::onDocumentLink);
   Bind.method("textDocument/semanticTokens/full", this, &ClangdLSPServer::onSemanticTokens);
   Bind.method("textDocument/semanticTokens/full/delta", this, &ClangdLSPServer::onSemanticTokensDelta);
-  Bind.method("clangd/inlayHints", this, &ClangdLSPServer::onInlayHints);
+  Bind.method("clangd/inlayHints", this, &ClangdLSPServer::onClangdInlayHints);
+  Bind.method("textDocument/inlayHint", this, &ClangdLSPServer::onInlayHint);
   Bind.method("$/memoryUsage", this, &ClangdLSPServer::onMemoryUsage);
   if (Opts.FoldingRanges)
     Bind.method("textDocument/foldingRange", this, &ClangdLSPServer::onFoldingRange);
-  Bind.command(APPLY_FIX_COMMAND, this, &ClangdLSPServer::onCommandApplyEdit);
-  Bind.command(APPLY_TWEAK_COMMAND, this, &ClangdLSPServer::onCommandApplyTweak);
+  Bind.command(ApplyFixCommand, this, &ClangdLSPServer::onCommandApplyEdit);
+  Bind.command(ApplyTweakCommand, this, &ClangdLSPServer::onCommandApplyTweak);
 
   ApplyWorkspaceEdit = Bind.outgoingMethod("workspace/applyEdit");
   PublishDiagnostics = Bind.outgoingNotification("textDocument/publishDiagnostics");

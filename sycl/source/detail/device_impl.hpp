@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/aspects.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>
@@ -63,7 +64,7 @@ public:
   RT::PiDevice &getHandleRef() {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_ERROR_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -76,7 +77,7 @@ public:
   const RT::PiDevice &getHandleRef() const {
     if (MIsHostDevice)
       throw invalid_object_error("This instance of device is a host instance",
-                                 PI_INVALID_DEVICE);
+                                 PI_ERROR_INVALID_DEVICE);
 
     return MDevice;
   }
@@ -226,6 +227,8 @@ public:
 
   bool isAssertFailSupported() const;
 
+  bool isRootDevice() const { return MRootDevice == nullptr; }
+
   std::string getDeviceName() const;
 
 private:
@@ -233,7 +236,7 @@ private:
                        PlatformImplPtr Platform, const plugin &Plugin);
   RT::PiDevice MDevice = 0;
   RT::PiDeviceType MType;
-  bool MIsRootDevice = false;
+  RT::PiDevice MRootDevice = nullptr;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;

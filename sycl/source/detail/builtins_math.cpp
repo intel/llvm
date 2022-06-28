@@ -42,7 +42,7 @@ template <typename T> inline T __cospi(T x) { return std::cos(M_PI * x); }
 template <typename T> T inline __fract(T x, T *iptr) {
   T f = std::floor(x);
   *(iptr) = f;
-  return std::fmin(x - f, nextafter(T(1.0), T(0.0)));
+  return std::fmin(x - f, std::nextafter(T(1.0), T(0.0)));
 }
 
 template <typename T> inline T __lgamma_r(T x, s::cl_int *signp) {

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin -emit-llvm -o - %s | FileCheck %s
 
 // PR14355: don't crash
 // Keep this test in its own file because CodeGenTypes has global state.
@@ -7,7 +7,7 @@ struct test10_B;
 typedef struct test10_B test10_F3(double);
 void test10_foo(test10_F3 p1);
 struct test10_B test10_b(double);
-void test10_bar() {
+void test10_bar(void) {
   test10_foo(test10_b);
 }
 struct test10_B {};

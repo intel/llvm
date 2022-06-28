@@ -16,6 +16,7 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
@@ -23,6 +24,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/StreamString.h"
 #include "lldb/Utility/Timer.h"
@@ -30,7 +32,9 @@
 #include "llvm/BinaryFormat/COFF.h"
 
 #include "llvm/Object/COFFImportFile.h"
+#include "llvm/Support/CRC.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #define IMAGE_DOS_SIGNATURE 0x5A4D    // MZ
@@ -43,10 +47,95 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(ObjectFilePECOFF)
 
+namespace {
+
+static constexpr OptionEnumValueElement g_abi_enums[] = {
+    {
+        llvm::Triple::UnknownEnvironment,
+        "default",
+        "Use default target (if it is Windows) or MSVC",
+    },
+    {
+        llvm::Triple::MSVC,
+        "msvc",
+        "MSVC ABI",
+    },
+    {
+        llvm::Triple::GNU,
+        "gnu",
+        "MinGW / Itanium ABI",
+    },
+};
+
+#define LLDB_PROPERTIES_objectfilepecoff
+#include "ObjectFilePECOFFProperties.inc"
+
+enum {
+#define LLDB_PROPERTIES_objectfilepecoff
+#include "ObjectFilePECOFFPropertiesEnum.inc"
+};
+
+class PluginProperties : public Properties {
+public:
+  static ConstString GetSettingName() {
+    return ConstString(ObjectFilePECOFF::GetPluginNameStatic());
+  }
+
+  PluginProperties() {
+    m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
+    m_collection_sp->Initialize(g_objectfilepecoff_properties);
+  }
+
+  llvm::Triple::EnvironmentType ABI() const {
+    return (llvm::Triple::EnvironmentType)
+        m_collection_sp->GetPropertyAtIndexAsEnumeration(
+            nullptr, ePropertyABI, llvm::Triple::UnknownEnvironment);
+  }
+};
+
+static PluginProperties &GetGlobalPluginProperties() {
+  static PluginProperties g_settings;
+  return g_settings;
+}
+
+} // namespace
+
+static bool GetDebugLinkContents(const llvm::object::COFFObjectFile &coff_obj,
+                                 std::string &gnu_debuglink_file,
+                                 uint32_t &gnu_debuglink_crc) {
+  static ConstString g_sect_name_gnu_debuglink(".gnu_debuglink");
+  for (const auto &section : coff_obj.sections()) {
+    auto name = section.getName();
+    if (!name) {
+      llvm::consumeError(name.takeError());
+      continue;
+    }
+    if (*name == g_sect_name_gnu_debuglink.GetStringRef()) {
+      auto content = section.getContents();
+      if (!content) {
+        llvm::consumeError(content.takeError());
+        return false;
+      }
+      DataExtractor data(
+          content->data(), content->size(),
+          coff_obj.isLittleEndian() ? eByteOrderLittle : eByteOrderBig, 4);
+      lldb::offset_t gnu_debuglink_offset = 0;
+      gnu_debuglink_file = data.GetCStr(&gnu_debuglink_offset);
+      // Align to the next 4-byte offset
+      gnu_debuglink_offset = llvm::alignTo(gnu_debuglink_offset, 4);
+      data.GetU32(&gnu_debuglink_offset, &gnu_debuglink_crc, 1);
+      return true;
+    }
+  }
+  return false;
+}
+
 static UUID GetCoffUUID(llvm::object::COFFObjectFile &coff_obj) {
   const llvm::codeview::DebugInfo *pdb_info = nullptr;
   llvm::StringRef pdb_file;
 
+  // First, prefer to use the PDB build id. LLD generates this even for mingw
+  // targets without PDB output, and it does not get stripped either.
   if (!coff_obj.getDebugPDBInfo(pdb_info, pdb_file) && pdb_info) {
     if (pdb_info->PDB70.CVSignature == llvm::OMF::Signature::PDB70) {
       UUID::CvRecordPdb70 info;
@@ -56,15 +145,46 @@ static UUID GetCoffUUID(llvm::object::COFFObjectFile &coff_obj) {
     }
   }
 
-  return UUID();
+  std::string gnu_debuglink_file;
+  uint32_t gnu_debuglink_crc;
+
+  // The GNU linker normally does not write a PDB build id (unless requested
+  // with the --build-id option), so we should fall back to using the crc
+  // from .gnu_debuglink if it exists, just like how ObjectFileELF does it.
+  if (!GetDebugLinkContents(coff_obj, gnu_debuglink_file, gnu_debuglink_crc)) {
+    // If there is no .gnu_debuglink section, then this may be an object
+    // containing DWARF debug info for .gnu_debuglink, so calculate the crc of
+    // the object itself.
+    auto raw_data = coff_obj.getData();
+    LLDB_SCOPED_TIMERF(
+        "Calculating module crc32 %s with size %" PRIu64 " KiB",
+        FileSpec(coff_obj.getFileName()).GetLastPathComponent().AsCString(),
+        static_cast<lldb::offset_t>(raw_data.size()) / 1024);
+    gnu_debuglink_crc = llvm::crc32(0, llvm::arrayRefFromStringRef(raw_data));
+  }
+  // Use 4 bytes of crc from the .gnu_debuglink section.
+  llvm::support::ulittle32_t data(gnu_debuglink_crc);
+  return UUID::fromData(&data, sizeof(data));
 }
 
 char ObjectFilePECOFF::ID;
 
 void ObjectFilePECOFF::Initialize() {
-  PluginManager::RegisterPlugin(
-      GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance,
-      CreateMemoryInstance, GetModuleSpecifications, SaveCore);
+  PluginManager::RegisterPlugin(GetPluginNameStatic(),
+                                GetPluginDescriptionStatic(), CreateInstance,
+                                CreateMemoryInstance, GetModuleSpecifications,
+                                SaveCore, DebuggerInitialize);
+}
+
+void ObjectFilePECOFF::DebuggerInitialize(Debugger &debugger) {
+  if (!PluginManager::GetSettingForObjectFilePlugin(
+          debugger, PluginProperties::GetSettingName())) {
+    const bool is_global_setting = true;
+    PluginManager::CreateSettingForObjectFilePlugin(
+        debugger, GetGlobalPluginProperties().GetValueProperties(),
+        ConstString("Properties for the PE/COFF object-file plug-in."),
+        is_global_setting);
+  }
 }
 
 void ObjectFilePECOFF::Terminate() {
@@ -76,12 +196,10 @@ llvm::StringRef ObjectFilePECOFF::GetPluginDescriptionStatic() {
          "(32 and 64 bit)";
 }
 
-ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
-                                             DataBufferSP &data_sp,
-                                             lldb::offset_t data_offset,
-                                             const lldb_private::FileSpec *file_p,
-                                             lldb::offset_t file_offset,
-                                             lldb::offset_t length) {
+ObjectFile *ObjectFilePECOFF::CreateInstance(
+    const lldb::ModuleSP &module_sp, DataBufferSP data_sp,
+    lldb::offset_t data_offset, const lldb_private::FileSpec *file_p,
+    lldb::offset_t file_offset, lldb::offset_t length) {
   FileSpec file = file_p ? *file_p : FileSpec();
   if (!data_sp) {
     data_sp = MapFileData(file, length, file_offset);
@@ -112,7 +230,7 @@ ObjectFile *ObjectFilePECOFF::CreateInstance(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFile *ObjectFilePECOFF::CreateMemoryInstance(
-    const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
+    const lldb::ModuleSP &module_sp, lldb::WritableDataBufferSP data_sp,
     const lldb::ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return nullptr;
@@ -132,7 +250,7 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!data_sp || !ObjectFilePECOFF::MagicBytesMatch(data_sp))
     return initial_count;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
 
   if (data_sp->GetByteSize() < length)
     if (DataBufferSP full_sp = MapFileData(file, -1, file_offset))
@@ -156,23 +274,41 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!uuid.IsValid())
     uuid = GetCoffUUID(*COFFObj);
 
+  static llvm::Triple::EnvironmentType default_env = [] {
+    auto def_target = llvm::Triple(
+        llvm::Triple::normalize(llvm::sys::getDefaultTargetTriple()));
+    if (def_target.getOS() == llvm::Triple::Win32 &&
+        def_target.getEnvironment() != llvm::Triple::UnknownEnvironment)
+      return def_target.getEnvironment();
+    return llvm::Triple::MSVC;
+  }();
+
+  llvm::Triple::EnvironmentType env = GetGlobalPluginProperties().ABI();
+  if (env == llvm::Triple::UnknownEnvironment)
+    env = default_env;
+
   switch (COFFObj->getMachine()) {
   case MachineAmd64:
     spec.SetTriple("x86_64-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   case MachineX86:
     spec.SetTriple("i386-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     spec.SetTriple("i686-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   case MachineArmNt:
     spec.SetTriple("armv7-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   case MachineArm64:
     spec.SetTriple("aarch64-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   default:
@@ -190,7 +326,7 @@ bool ObjectFilePECOFF::SaveCore(const lldb::ProcessSP &process_sp,
   return SaveMiniDump(process_sp, outfile, error);
 }
 
-bool ObjectFilePECOFF::MagicBytesMatch(DataBufferSP &data_sp) {
+bool ObjectFilePECOFF::MagicBytesMatch(DataBufferSP data_sp) {
   DataExtractor data(data_sp, eByteOrderLittle, 4);
   lldb::offset_t offset = 0;
   uint16_t magic = data.GetU16(&offset);
@@ -212,7 +348,7 @@ bool ObjectFilePECOFF::CreateBinary() {
   if (m_binary)
     return true;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
 
   auto binary = llvm::object::createBinary(llvm::MemoryBufferRef(
       toStringRef(m_data.GetData()), m_file.GetFilename().GetStringRef()));
@@ -235,7 +371,7 @@ bool ObjectFilePECOFF::CreateBinary() {
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
-                                   DataBufferSP &data_sp,
+                                   DataBufferSP data_sp,
                                    lldb::offset_t data_offset,
                                    const FileSpec *file,
                                    lldb::offset_t file_offset,
@@ -248,7 +384,7 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
-                                   DataBufferSP &header_data_sp,
+                                   WritableDataBufferSP header_data_sp,
                                    const lldb::ProcessSP &process_sp,
                                    addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
@@ -871,6 +1007,14 @@ UUID ObjectFilePECOFF::GetUUID() {
   return m_uuid;
 }
 
+llvm::Optional<FileSpec> ObjectFilePECOFF::GetDebugLink() {
+  std::string gnu_debuglink_file;
+  uint32_t gnu_debuglink_crc;
+  if (GetDebugLinkContents(*m_binary, gnu_debuglink_file, gnu_debuglink_crc))
+    return FileSpec(gnu_debuglink_file);
+  return llvm::None;
+}
+
 uint32_t ObjectFilePECOFF::ParseDependentModules() {
   ModuleSP module_sp(GetModule());
   if (!module_sp)
@@ -884,7 +1028,7 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
   if (!CreateBinary())
     return 0;
 
-  Log *log(GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
+  Log *log = GetLog(LLDBLog::Object);
   LLDB_LOG(log, "this = {0}, module = {1} ({2}), file = {3}, binary = {4}",
            this, GetModule().get(), GetModule()->GetSpecificationDescription(),
            m_file.GetPath(), m_binary.get());

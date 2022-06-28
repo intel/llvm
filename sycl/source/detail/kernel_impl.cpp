@@ -50,7 +50,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   if (ContextImpl->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
 
   MIsInterop = MProgramImpl->isInterop();
 }

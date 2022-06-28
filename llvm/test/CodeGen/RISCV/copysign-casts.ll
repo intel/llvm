@@ -133,7 +133,7 @@ define double @fold_promote_d_h(double %a, half %b) nounwind {
 ; RV32IFD-NEXT:    fsd fs0, 0(sp) # 8-byte Folded Spill
 ; RV32IFD-NEXT:    fmv.d fs0, fa0
 ; RV32IFD-NEXT:    fmv.x.w a0, fa1
-; RV32IFD-NEXT:    call __gnu_h2f_ieee@plt
+; RV32IFD-NEXT:    call __extendhfsf2@plt
 ; RV32IFD-NEXT:    fcvt.d.s ft0, fa0
 ; RV32IFD-NEXT:    fsgnj.d fa0, fs0, ft0
 ; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
@@ -148,7 +148,7 @@ define double @fold_promote_d_h(double %a, half %b) nounwind {
 ; RV64IFD-NEXT:    fsd fs0, 0(sp) # 8-byte Folded Spill
 ; RV64IFD-NEXT:    fmv.d fs0, fa0
 ; RV64IFD-NEXT:    fmv.x.w a0, fa1
-; RV64IFD-NEXT:    call __gnu_h2f_ieee@plt
+; RV64IFD-NEXT:    call __extendhfsf2@plt
 ; RV64IFD-NEXT:    fcvt.d.s ft0, fa0
 ; RV64IFD-NEXT:    fsgnj.d fa0, fs0, ft0
 ; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
@@ -211,7 +211,7 @@ define float @fold_promote_f_h(float %a, half %b) nounwind {
 ; RV32IF-NEXT:    fsw fs0, 8(sp) # 4-byte Folded Spill
 ; RV32IF-NEXT:    fmv.s fs0, fa0
 ; RV32IF-NEXT:    fmv.x.w a0, fa1
-; RV32IF-NEXT:    call __gnu_h2f_ieee@plt
+; RV32IF-NEXT:    call __extendhfsf2@plt
 ; RV32IF-NEXT:    fsgnj.s fa0, fs0, fa0
 ; RV32IF-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IF-NEXT:    flw fs0, 8(sp) # 4-byte Folded Reload
@@ -225,7 +225,7 @@ define float @fold_promote_f_h(float %a, half %b) nounwind {
 ; RV32IFD-NEXT:    fsd fs0, 0(sp) # 8-byte Folded Spill
 ; RV32IFD-NEXT:    fmv.s fs0, fa0
 ; RV32IFD-NEXT:    fmv.x.w a0, fa1
-; RV32IFD-NEXT:    call __gnu_h2f_ieee@plt
+; RV32IFD-NEXT:    call __extendhfsf2@plt
 ; RV32IFD-NEXT:    fsgnj.s fa0, fs0, fa0
 ; RV32IFD-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32IFD-NEXT:    fld fs0, 0(sp) # 8-byte Folded Reload
@@ -239,7 +239,7 @@ define float @fold_promote_f_h(float %a, half %b) nounwind {
 ; RV64IFD-NEXT:    fsd fs0, 0(sp) # 8-byte Folded Spill
 ; RV64IFD-NEXT:    fmv.s fs0, fa0
 ; RV64IFD-NEXT:    fmv.x.w a0, fa1
-; RV64IFD-NEXT:    call __gnu_h2f_ieee@plt
+; RV64IFD-NEXT:    call __extendhfsf2@plt
 ; RV64IFD-NEXT:    fsgnj.s fa0, fs0, fa0
 ; RV64IFD-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64IFD-NEXT:    fld fs0, 0(sp) # 8-byte Folded Reload
@@ -280,12 +280,11 @@ define float @fold_demote_s_d(float %a, double %b) nounwind {
 ;
 ; RV64I-LABEL: fold_demote_s_d:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a2, -1
-; RV64I-NEXT:    slli a2, a2, 63
-; RV64I-NEXT:    and a1, a1, a2
-; RV64I-NEXT:    srli a1, a1, 32
 ; RV64I-NEXT:    slli a0, a0, 33
 ; RV64I-NEXT:    srli a0, a0, 33
+; RV64I-NEXT:    srli a1, a1, 63
+; RV64I-NEXT:    slli a1, a1, 63
+; RV64I-NEXT:    srli a1, a1, 32
 ; RV64I-NEXT:    or a0, a0, a1
 ; RV64I-NEXT:    ret
 ;
@@ -431,12 +430,11 @@ define half @fold_demote_h_d(half %a, double %b) nounwind {
 ;
 ; RV64I-LABEL: fold_demote_h_d:
 ; RV64I:       # %bb.0:
-; RV64I-NEXT:    li a2, -1
-; RV64I-NEXT:    slli a2, a2, 63
-; RV64I-NEXT:    and a1, a1, a2
-; RV64I-NEXT:    srli a1, a1, 48
 ; RV64I-NEXT:    slli a0, a0, 49
 ; RV64I-NEXT:    srli a0, a0, 49
+; RV64I-NEXT:    srli a1, a1, 63
+; RV64I-NEXT:    slli a1, a1, 63
+; RV64I-NEXT:    srli a1, a1, 48
 ; RV64I-NEXT:    or a0, a0, a1
 ; RV64I-NEXT:    ret
 ;
@@ -474,15 +472,14 @@ define half @fold_demote_h_d(half %a, double %b) nounwind {
 ;
 ; RV64IFD-LABEL: fold_demote_h_d:
 ; RV64IFD:       # %bb.0:
-; RV64IFD-NEXT:    fmv.x.w a0, fa0
-; RV64IFD-NEXT:    fmv.x.d a1, fa1
-; RV64IFD-NEXT:    li a2, -1
-; RV64IFD-NEXT:    slli a2, a2, 63
-; RV64IFD-NEXT:    and a1, a1, a2
-; RV64IFD-NEXT:    srli a1, a1, 48
-; RV64IFD-NEXT:    slli a0, a0, 49
-; RV64IFD-NEXT:    srli a0, a0, 49
-; RV64IFD-NEXT:    or a0, a0, a1
+; RV64IFD-NEXT:    fmv.x.d a0, fa1
+; RV64IFD-NEXT:    fmv.x.w a1, fa0
+; RV64IFD-NEXT:    slli a1, a1, 49
+; RV64IFD-NEXT:    srli a1, a1, 49
+; RV64IFD-NEXT:    srli a0, a0, 63
+; RV64IFD-NEXT:    slli a0, a0, 63
+; RV64IFD-NEXT:    srli a0, a0, 48
+; RV64IFD-NEXT:    or a0, a1, a0
 ; RV64IFD-NEXT:    lui a1, 1048560
 ; RV64IFD-NEXT:    or a0, a0, a1
 ; RV64IFD-NEXT:    fmv.w.x fa0, a0

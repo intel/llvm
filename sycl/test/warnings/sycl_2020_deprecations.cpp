@@ -179,5 +179,14 @@ int main() {
   // expected-warning@+1 {{'atomic<int, sycl::access::address_space::global_space>' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
   cl::sycl::atomic<int> b(a);
 
+  cl::sycl::group<1> group =
+      cl::sycl::detail::Builder::createGroup<1>({8}, {4}, {1});
+  // expected-warning@+1{{'get_id' is deprecated: use sycl::group::get_group_id() instead}}
+  group.get_id();
+  // expected-warning@+1{{'get_id' is deprecated: use sycl::group::get_group_id() instead}}
+  group.get_id(1);
+  // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
+  group.get_linear_id();
+
   return 0;
 }

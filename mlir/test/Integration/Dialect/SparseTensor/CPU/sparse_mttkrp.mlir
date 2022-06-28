@@ -1,9 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/mttkrp_b.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -12,19 +7,14 @@
 //
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparsification="vectorization-strategy=2 vl=4" --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=4" | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/mttkrp_b.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
-!Filename = type !llvm.ptr<i8>
+!Filename = !llvm.ptr<i8>
 
 #SparseTensor = #sparse_tensor.encoding<{
   dimLevelType = [ "compressed", "compressed", "compressed" ]
@@ -51,7 +41,7 @@ module {
   // Computes Matricized Tensor Times Khatri-Rao Product (MTTKRP) kernel. See
   // http://tensor-compiler.org/docs/data_analytics/index.html.
   //
-  func @kernel_mttkrp(%argb: tensor<?x?x?xf64, #SparseTensor>,
+  func.func @kernel_mttkrp(%argb: tensor<?x?x?xf64, #SparseTensor>,
                       %argc: tensor<?x?xf64>,
                       %argd: tensor<?x?xf64>,
                       %arga: tensor<?x?xf64> {linalg.inplaceable = true})
@@ -69,12 +59,12 @@ module {
     return %0 : tensor<?x?xf64>
   }
 
-  func private @getTensorFilename(index) -> (!Filename)
+  func.func private @getTensorFilename(index) -> (!Filename)
 
   //
   // Main driver that reads matrix from file and calls the sparse kernel.
   //
-  func @entry() {
+  func.func @entry() {
     %f0 = arith.constant 0.0 : f64
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index

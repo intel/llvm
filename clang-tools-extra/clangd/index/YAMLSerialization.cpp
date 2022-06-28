@@ -12,20 +12,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Index.h"
-#include "Relation.h"
-#include "Serialization.h"
-#include "SymbolLocation.h"
-#include "SymbolOrigin.h"
-#include "dex/Dex.h"
-#include "support/Logger.h"
-#include "support/Trace.h"
+#include "Headers.h"
+#include "index/Ref.h"
+#include "index/Relation.h"
+#include "index/Serialization.h"
+#include "index/Symbol.h"
+#include "index/SymbolLocation.h"
+#include "index/SymbolOrigin.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Errc.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -161,19 +158,19 @@ template <> struct MappingTraits<SymbolLocation> {
 };
 
 template <> struct MappingTraits<SymbolInfo> {
-  static void mapping(IO &io, SymbolInfo &SymInfo) {
+  static void mapping(IO &IO, SymbolInfo &SymInfo) {
     // FIXME: expose other fields?
-    io.mapRequired("Kind", SymInfo.Kind);
-    io.mapRequired("Lang", SymInfo.Lang);
+    IO.mapRequired("Kind", SymInfo.Kind);
+    IO.mapRequired("Lang", SymInfo.Lang);
   }
 };
 
 template <>
 struct MappingTraits<clang::clangd::Symbol::IncludeHeaderWithReferences> {
-  static void mapping(IO &io,
+  static void mapping(IO &IO,
                       clang::clangd::Symbol::IncludeHeaderWithReferences &Inc) {
-    io.mapRequired("Header", Inc.IncludeHeader);
-    io.mapRequired("References", Inc.References);
+    IO.mapRequired("Header", Inc.IncludeHeader);
+    IO.mapRequired("References", Inc.References);
   }
 };
 

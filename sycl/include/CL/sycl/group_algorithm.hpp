@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <complex>
+
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
@@ -63,12 +65,12 @@ get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
 
 // ---- get_local_linear_id
 template <typename Group>
-typename Group::linear_id_type get_local_linear_id(Group g);
+inline typename Group::linear_id_type get_local_linear_id(Group g);
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
   template <>                                                                  \
-  group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {           \
+  inline group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {    \
     nd_item<D> it = cl::sycl::detail::Builder::getNDItem<D>();                 \
     return it.get_local_linear_id();                                           \
   }
@@ -97,6 +99,50 @@ template <typename T, typename BinaryOperation> struct is_native_op {
       is_contained<BinaryOperation, native_op_list<void>>::value;
 };
 
+// ---- is_plus
+template <typename T, typename BinaryOperation>
+using is_plus = std::integral_constant<
+    bool, std::is_same<BinaryOperation, sycl::plus<T>>::value ||
+              std::is_same<BinaryOperation, sycl::plus<void>>::value>;
+
+// ---- is_complex
+// NOTE: std::complex<long double> not yet supported by group algorithms.
+template <typename T>
+struct is_complex
+    : std::integral_constant<bool,
+                             std::is_same<T, std::complex<float>>::value ||
+                                 std::is_same<T, std::complex<double>>::value> {
+};
+
+// ---- is_arithmetic_or_complex
+template <typename T>
+using is_arithmetic_or_complex =
+    std::integral_constant<bool, sycl::detail::is_complex<T>::value ||
+                                     sycl::detail::is_arithmetic<T>::value>;
+// ---- is_plus_if_complex
+template <typename T, typename BinaryOperation>
+using is_plus_if_complex =
+    std::integral_constant<bool, (is_complex<T>::value
+                                      ? is_plus<T, BinaryOperation>::value
+                                      : std::true_type::value)>;
+
+// ---- identity_for_ga_op
+//   the group algorithms support std::complex, limited to sycl::plus operation
+//   get the correct identity for group algorithm operation.
+// TODO: identiy_for_ga_op should be replaced with known_identity once the other
+// callers of known_identity support complex numbers.
+template <typename T, class BinaryOperation>
+constexpr detail::enable_if_t<
+    (is_complex<T>::value && is_plus<T, BinaryOperation>::value), T>
+identity_for_ga_op() {
+  return {0, 0};
+}
+
+template <typename T, class BinaryOperation>
+constexpr detail::enable_if_t<!is_complex<T>::value, T> identity_for_ga_op() {
+  return sycl::known_identity_v<BinaryOperation, T>;
+}
+
 // ---- for_each
 template <typename Group, typename Ptr, class Function>
 Function for_each(Group g, Ptr first, Ptr last, Function f) {
@@ -113,12 +159,15 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
   (void)last;
   (void)f;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 } // namespace detail
 
 // ---- reduce_over_group
+//        three argument variant is specialized thrice:
+//        scalar arithmetic, complex (plus only), and vector arithmetic
+
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -137,7 +186,30 @@ reduce_over_group(Group, T x, BinaryOperation binary_op) {
       typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
+// complex specialization. T is std::complex<float> or similar.
+//   binary op is  sycl::plus<std::complex<float>>
+template <typename Group, typename T, class BinaryOperation>
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                     detail::is_complex<T>::value &&
+                     detail::is_native_op<T, sycl::plus<T>>::value &&
+                     detail::is_plus<T, BinaryOperation>::value),
+                    T>
+reduce_over_group(Group g, T x, BinaryOperation binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  result.real(reduce_over_group(g, x.real(), sycl::plus<>()));
+  result.imag(reduce_over_group(g, x.imag(), sycl::plus<>()));
+  return result;
+#else
+  (void)g;
+  (void)x;
+  (void)binary_op;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -161,13 +233,18 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   return result;
 }
 
+//   four argument variant of reduce_over_group specialized twice
+//       (scalar arithmetic || complex), and vector_arithmetic
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<V>::value &&
-                     detail::is_scalar_arithmetic<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
+     detail::is_native_op<V, BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<V, BinaryOperation>::value),
+    T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(
@@ -180,7 +257,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -208,7 +285,7 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -216,37 +293,37 @@ reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 template <typename Group, typename Ptr, class BinaryOperation>
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
-     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value),
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<Ptr>::type>::value &&
+     detail::is_plus_if_complex<typename detail::remove_pointer<Ptr>::type,
+                                BinaryOperation>::value),
     typename detail::remove_pointer<Ptr>::type>
 joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
-  using T = typename detail::remove_pointer<Ptr>::type;
-  // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same<decltype(binary_op(*first, *first)), T>::value ||
-          (std::is_same<T, half>::value &&
-           std::is_same<decltype(binary_op(*first, *first)), float>::value),
-      "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = sycl::known_identity_v<BinaryOperation, T>;
-  sycl::detail::for_each(g, first, last,
-                         [&](const T &x) { partial = binary_op(partial, x); });
-  return reduce_over_group(g, partial, binary_op);
+  using T = typename detail::remove_pointer<Ptr>::type;
+  T init = detail::identity_for_ga_op<T, BinaryOperation>();
+  return joint_reduce(g, first, last, init, binary_op);
 #else
   (void)g;
+  (void)first;
   (void)last;
   (void)binary_op;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
 template <typename Group, typename Ptr, typename T, class BinaryOperation>
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<Ptr>::value &&
-     detail::is_arithmetic<typename detail::remove_pointer<Ptr>::type>::value &&
-     detail::is_arithmetic<T>::value &&
+     detail::is_arithmetic_or_complex<
+         typename detail::remove_pointer<Ptr>::type>::value &&
+     detail::is_arithmetic_or_complex<T>::value &&
      detail::is_native_op<typename detail::remove_pointer<Ptr>::type,
                           BinaryOperation>::value &&
+     detail::is_plus_if_complex<typename detail::remove_pointer<Ptr>::type,
+                                BinaryOperation>::value &&
+     detail::is_plus_if_complex<T, BinaryOperation>::value &&
      detail::is_native_op<T, BinaryOperation>::value),
     T>
 joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
@@ -257,7 +334,7 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
            std::is_same<decltype(binary_op(init, *first)), float>::value),
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  T partial = sycl::known_identity_v<BinaryOperation, T>;
+  T partial = detail::identity_for_ga_op<T, BinaryOperation>();
   sycl::detail::for_each(
       g, first, last, [&](const typename detail::remove_pointer<Ptr>::type &x) {
         partial = binary_op(partial, x);
@@ -267,7 +344,7 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
   (void)g;
   (void)last;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -280,7 +357,7 @@ any_of_group(Group, bool pred) {
 #else
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -306,7 +383,7 @@ joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)last;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -319,7 +396,7 @@ all_of_group(Group, bool pred) {
 #else
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -345,7 +422,7 @@ joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)last;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -358,7 +435,7 @@ none_of_group(Group, bool pred) {
 #else
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -381,7 +458,7 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)last;
   (void)pred;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -400,7 +477,7 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
   (void)x;
   (void)delta;
   throw runtime_error("Sub-groups are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -419,7 +496,7 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
   (void)x;
   (void)delta;
   throw runtime_error("Sub-groups are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -438,7 +515,7 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
   (void)x;
   (void)mask;
   throw runtime_error("Sub-groups are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -457,7 +534,7 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
   (void)x;
   (void)local_id;
   throw runtime_error("Sub-groups are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -476,7 +553,7 @@ group_broadcast(Group, T x, typename Group::id_type local_id) {
   (void)x;
   (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -495,7 +572,7 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   (void)x;
   (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -511,11 +588,14 @@ group_broadcast(Group g, T x) {
   (void)g;
   (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
 // ---- exclusive_scan_over_group
+//   this function has two overloads, one with three arguments and one with four
+//   the three argument version is specialized thrice: scalar, complex, and
+//   vector
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_scalar_arithmetic<T>::value &&
@@ -533,7 +613,30 @@ exclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
       typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
+// complex specialization. T is std::complex<float> or similar.
+//   binary op is  sycl::plus<std::complex<float>>
+template <typename Group, typename T, class BinaryOperation>
+detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                     detail::is_complex<T>::value &&
+                     detail::is_native_op<T, sycl::plus<T>>::value &&
+                     detail::is_plus<T, BinaryOperation>::value),
+                    T>
+exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  result.real(exclusive_scan_over_group(g, x.real(), sycl::plus<>()));
+  result.imag(exclusive_scan_over_group(g, x.imag(), sycl::plus<>()));
+  return result;
+#else
+  (void)g;
+  (void)x;
+  (void)binary_op;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -557,6 +660,8 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   return result;
 }
 
+// four argument version of exclusive_scan_over_group is specialized twice
+// once for vector_arithmetic, once for (scalar_arithmetic || complex)
 template <typename Group, typename V, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<V>::value &&
@@ -580,12 +685,15 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 }
 
 template <typename Group, typename V, typename T, class BinaryOperation>
-detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<V>::value &&
-                     detail::is_scalar_arithmetic<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
-                    T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
+     detail::is_native_op<V, BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<V, BinaryOperation>::value &&
+     detail::is_plus_if_complex<T, BinaryOperation>::value),
+    T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
@@ -606,7 +714,7 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -616,12 +724,15 @@ template <typename Group, typename InPtr, typename OutPtr, typename T,
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
-     detail::is_arithmetic<
+     detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
-     detail::is_arithmetic<T>::value &&
+     detail::is_arithmetic_or_complex<T>::value &&
      detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
                           BinaryOperation>::value &&
-     detail::is_native_op<T, BinaryOperation>::value),
+     detail::is_native_op<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<typename detail::remove_pointer<InPtr>::type,
+                                BinaryOperation>::value &&
+     detail::is_plus_if_complex<T, BinaryOperation>::value),
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      BinaryOperation binary_op) {
@@ -661,7 +772,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   (void)result;
   (void)init;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -670,10 +781,12 @@ template <typename Group, typename InPtr, typename OutPtr,
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
-     detail::is_arithmetic<
+     detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
-                          BinaryOperation>::value),
+                          BinaryOperation>::value &&
+     detail::is_plus_if_complex<typename detail::remove_pointer<InPtr>::type,
+                                BinaryOperation>::value),
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
@@ -685,14 +798,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                         half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
-  return joint_exclusive_scan(
-      g, first, last, result,
-      sycl::known_identity_v<BinaryOperation,
-                             typename detail::remove_pointer<OutPtr>::type>,
-      binary_op);
+  using T = typename detail::remove_pointer<InPtr>::type;
+  T init = detail::identity_for_ga_op<T, BinaryOperation>();
+  return joint_exclusive_scan(g, first, last, result, init, binary_op);
 }
 
 // ---- inclusive_scan_over_group
+//   this function has two overloads, one with three arguments and one with four
+//   the three argument version is specialized thrice: vector, scalar, and
+//   complex
 template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                      detail::is_vector_arithmetic<T>::value &&
@@ -730,17 +844,44 @@ inclusive_scan_over_group(Group, T x, BinaryOperation binary_op) {
       typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
-template <typename Group, typename V, class BinaryOperation, typename T>
+// complex specializaiton
+template <typename Group, typename T, class BinaryOperation>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<V>::value &&
-                     detail::is_scalar_arithmetic<T>::value &&
-                     detail::is_native_op<V, BinaryOperation>::value &&
-                     detail::is_native_op<T, BinaryOperation>::value),
+                     detail::is_complex<T>::value &&
+                     detail::is_native_op<T, sycl::plus<T>>::value &&
+                     detail::is_plus<T, BinaryOperation>::value),
                     T>
+inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
+#ifdef __SYCL_DEVICE_ONLY__
+  T result;
+  result.real(inclusive_scan_over_group(g, x.real(), sycl::plus<>()));
+  result.imag(inclusive_scan_over_group(g, x.imag(), sycl::plus<>()));
+  return result;
+#else
+  (void)g;
+  (void)x;
+  (void)binary_op;
+  throw runtime_error("Group algorithms are not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+}
+
+// four argument version of inclusive_scan_over_group is specialized twice
+// once for (scalar_arithmetic || complex) and once for vector_arithmetic
+template <typename Group, typename V, class BinaryOperation, typename T>
+detail::enable_if_t<
+    (is_group_v<std::decay_t<Group>> &&
+     (detail::is_scalar_arithmetic<V>::value || detail::is_complex<V>::value) &&
+     (detail::is_scalar_arithmetic<T>::value || detail::is_complex<T>::value) &&
+     detail::is_native_op<V, BinaryOperation>::value &&
+     detail::is_native_op<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<V, BinaryOperation>::value),
+    T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
   // FIXME: Do not special-case for half precision
   static_assert(std::is_same<decltype(binary_op(init, x)), T>::value ||
@@ -755,7 +896,7 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -786,12 +927,15 @@ template <typename Group, typename InPtr, typename OutPtr,
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
-     detail::is_arithmetic<
+     detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
-     detail::is_arithmetic<T>::value &&
+     detail::is_arithmetic_or_complex<T>::value &&
      detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
                           BinaryOperation>::value &&
-     detail::is_native_op<T, BinaryOperation>::value),
+     detail::is_native_op<T, BinaryOperation>::value &&
+     detail::is_plus_if_complex<typename detail::remove_pointer<InPtr>::type,
+                                BinaryOperation>::value &&
+     detail::is_plus_if_complex<T, BinaryOperation>::value),
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op, T init) {
@@ -830,7 +974,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   (void)last;
   (void)result;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -839,10 +983,12 @@ template <typename Group, typename InPtr, typename OutPtr,
 detail::enable_if_t<
     (is_group_v<std::decay_t<Group>> && detail::is_pointer<InPtr>::value &&
      detail::is_pointer<OutPtr>::value &&
-     detail::is_arithmetic<
+     detail::is_arithmetic_or_complex<
          typename detail::remove_pointer<InPtr>::type>::value &&
      detail::is_native_op<typename detail::remove_pointer<InPtr>::type,
-                          BinaryOperation>::value),
+                          BinaryOperation>::value &&
+     detail::is_plus_if_complex<typename detail::remove_pointer<InPtr>::type,
+                                BinaryOperation>::value),
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
@@ -854,10 +1000,10 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                         half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
-  return joint_inclusive_scan(
-      g, first, last, result, binary_op,
-      sycl::known_identity_v<BinaryOperation,
-                             typename detail::remove_pointer<OutPtr>::type>);
+
+  using T = typename detail::remove_pointer<InPtr>::type;
+  T init = detail::identity_for_ga_op<T, BinaryOperation>();
+  return joint_inclusive_scan(g, first, last, result, binary_op, init);
 }
 
 namespace detail {
@@ -887,7 +1033,7 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 #else
   throw sycl::runtime_error("Barriers are not supported on host device",
-                            PI_INVALID_DEVICE);
+                            PI_ERROR_INVALID_DEVICE);
 #endif
 }
 

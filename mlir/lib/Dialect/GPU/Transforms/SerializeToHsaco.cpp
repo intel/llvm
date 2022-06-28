@@ -10,7 +10,8 @@
 // adds that blob as a string attribute of the module.
 //
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/GPU/Passes.h"
+
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
 
@@ -31,15 +32,18 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileUtilities.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
@@ -50,8 +54,6 @@
 
 #include "llvm/Transforms/IPO/Internalize.h"
 
-#include "lld/Common/Driver.h"
-
 #include <mutex>
 
 using namespace mlir;
@@ -60,6 +62,8 @@ namespace {
 class SerializeToHsacoPass
     : public PassWrapper<SerializeToHsacoPass, gpu::SerializeToBlobPass> {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SerializeToHsacoPass)
+
   SerializeToHsacoPass(StringRef triple, StringRef arch, StringRef features,
                        int optLevel);
   SerializeToHsacoPass(const SerializeToHsacoPass &other);
@@ -238,6 +242,7 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
     constant->setAlignment(llvm::MaybeAlign(bitwidth / 8));
   };
 
+  // Set up control variables in the module instead of linking in tiny bitcode
   if (needOcml) {
     // TODO(kdrewnia): Enable math optimizations once we have support for
     // `-ffast-math`-like options
@@ -257,6 +262,10 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
                          .getZExtValue();
     uint32_t isaNumber = minor + 1000 * major;
     addControlConstant("__oclc_ISA_version", isaNumber, 32);
+
+    // This constant must always match the default code object ABI version
+    // of the AMDGPU backend.
+    addControlConstant("__oclc_ABI_version", 400, 32);
   }
 
   // Determine libraries we need to link - order matters due to dependencies
@@ -270,13 +279,13 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
 
   Optional<SmallVector<std::unique_ptr<llvm::Module>, 3>> mbModules;
   std::string theRocmPath = getRocmPath();
-  llvm::SmallString<32> bitcodePath(std::move(theRocmPath));
+  llvm::SmallString<32> bitcodePath(theRocmPath);
   llvm::sys::path::append(bitcodePath, "amdgcn", "bitcode");
   mbModules = loadLibraries(bitcodePath, libraries, llvmContext);
 
   if (!mbModules) {
     getOperation()
-            .emitWarning("Could not load required device labraries")
+            .emitWarning("Could not load required device libraries")
             .attachNote()
         << "This will probably cause link-time or run-time failures";
     return ret; // We can still abort here
@@ -307,11 +316,6 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
     }
   }
 
-  // Set amdgpu_hostcall if host calls have been linked, as needed by newer LLVM
-  // FIXME: Is there a way to set this during printf() lowering that makes sense
-  if (ret->getFunction("__ockl_hostcall_internal"))
-    if (!ret->getModuleFlag("amdgpu_hostcall"))
-      ret->addModuleFlag(llvm::Module::Override, "amdgpu_hostcall", 1);
   return ret;
 }
 
@@ -381,7 +385,7 @@ SerializeToHsacoPass::assembleIsa(const std::string &isa) {
   std::unique_ptr<llvm::MCStreamer> mcStreamer;
   std::unique_ptr<llvm::MCInstrInfo> mcii(target->createMCInstrInfo());
 
-  llvm::MCCodeEmitter *ce = target->createMCCodeEmitter(*mcii, *mri, ctx);
+  llvm::MCCodeEmitter *ce = target->createMCCodeEmitter(*mcii, ctx);
   llvm::MCAsmBackend *mab = target->createMCAsmBackend(*sti, *mri, mcOptions);
   mcStreamer.reset(target->createMCObjectStreamer(
       triple, ctx, std::unique_ptr<llvm::MCAsmBackend>(mab),
@@ -433,16 +437,15 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
   }
   llvm::FileRemover cleanupHsaco(tempHsacoFilename);
 
-  {
-    static std::mutex mutex;
-    const std::lock_guard<std::mutex> lock(mutex);
-    // Invoke lld. Expect a true return value from lld.
-    if (!lld::elf::link({"ld.lld", "-shared", tempIsaBinaryFilename.c_str(),
-                         "-o", tempHsacoFilename.c_str()},
-                        /*canEarlyExit=*/false, llvm::outs(), llvm::errs())) {
-      emitError(loc, "lld invocation error");
-      return {};
-    }
+  std::string theRocmPath = getRocmPath();
+  llvm::SmallString<32> lldPath(theRocmPath);
+  llvm::sys::path::append(lldPath, "llvm", "bin", "ld.lld");
+  int lldResult = llvm::sys::ExecuteAndWait(
+      lldPath,
+      {"ld.lld", "-shared", tempIsaBinaryFilename, "-o", tempHsacoFilename});
+  if (lldResult != 0) {
+    emitError(loc, "lld invocation error");
+    return {};
   }
 
   // Load the HSA code object.

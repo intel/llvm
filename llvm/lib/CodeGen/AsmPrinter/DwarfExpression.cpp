@@ -287,9 +287,17 @@ bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
   // expression representing a value, rather than a location.
   if ((!isParameterValue() && !isMemoryLocation() && !HasComplexExpression) ||
       isEntryValue()) {
+    auto FragmentInfo = ExprCursor.getFragmentInfo();
+    unsigned RegSize = 0;
     for (auto &Reg : DwarfRegs) {
+      RegSize += Reg.SubRegSize;
       if (Reg.DwarfRegNo >= 0)
         addReg(Reg.DwarfRegNo, Reg.Comment);
+      if (FragmentInfo)
+        if (RegSize > FragmentInfo->SizeInBits)
+          // If the register is larger than the current fragment stop
+          // once the fragment is covered.
+          break;
       addOpPiece(Reg.SubRegSize);
     }
 
@@ -321,7 +329,16 @@ bool DwarfExpression::addMachineRegExpression(const TargetRegisterInfo &TRI,
       return false;
     }
 
-  assert(DwarfRegs.size() == 1);
+  // TODO: We should not give up here but the following code needs to be changed
+  //       to deal with multiple (sub)registers first.
+  if (DwarfRegs.size() > 1) {
+    LLVM_DEBUG(dbgs() << "TODO: giving up on debug information due to "
+                         "multi-register usage.\n");
+    DwarfRegs.clear();
+    LocationKind = Unknown;
+    return false;
+  }
+
   auto Reg = DwarfRegs[0];
   bool FBReg = isFrameRegister(TRI, MachineReg);
   int SignedOffset = 0;

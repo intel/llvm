@@ -2222,11 +2222,11 @@ int __kmp_fork_call(ident_t *loc, int gtid,
       } else
 // only one notification scheme (either "submit" or "forking/joined", not both)
 #endif /* USE_ITT_NOTIFY */
-          if ((__itt_frame_begin_v3_ptr || KMP_ITT_DEBUG) &&
-              __kmp_forkjoin_frames && !__kmp_forkjoin_frames_mode) {
-        // Mark start of "parallel" region for Intel(R) VTune(TM) analyzer.
-        __kmp_itt_region_forking(gtid, team->t.t_nproc, 0);
-      }
+        if ((__itt_frame_begin_v3_ptr || KMP_ITT_DEBUG) &&
+            __kmp_forkjoin_frames && !__kmp_forkjoin_frames_mode) {
+          // Mark start of "parallel" region for Intel(R) VTune(TM) analyzer.
+          __kmp_itt_region_forking(gtid, team->t.t_nproc, 0);
+        }
     }
 #endif /* USE_ITT_BUILD */
 
@@ -3276,7 +3276,7 @@ static void __kmp_initialize_root(kmp_root_t *root) {
                           __kmp_nested_proc_bind.bind_types[0], &r_icvs,
                           0 // argc
                           USE_NESTED_HOT_ARG(NULL) // primary thread is unknown
-                          );
+      );
 #if USE_DEBUGGER
   // Non-NULL value should be assigned to make the debugger display the root
   // team.
@@ -3313,7 +3313,7 @@ static void __kmp_initialize_root(kmp_root_t *root) {
                           __kmp_nested_proc_bind.bind_types[0], &r_icvs,
                           0 // argc
                           USE_NESTED_HOT_ARG(NULL) // primary thread is unknown
-                          );
+      );
   KF_TRACE(10, ("__kmp_initialize_root: after hot_team = %p\n", hot_team));
 
   root->r.r_hot_team = hot_team;
@@ -8707,7 +8707,8 @@ __kmp_determine_reduction_method(
   KMP_DEBUG_ASSERT(lck); // it would be nice to test ( lck != 0 )
 
 #define FAST_REDUCTION_ATOMIC_METHOD_GENERATED                                 \
-  ((loc->flags & (KMP_IDENT_ATOMIC_REDUCE)) == (KMP_IDENT_ATOMIC_REDUCE))
+  (loc &&                                                                      \
+   ((loc->flags & (KMP_IDENT_ATOMIC_REDUCE)) == (KMP_IDENT_ATOMIC_REDUCE)))
 #define FAST_REDUCTION_TREE_METHOD_GENERATED ((reduce_data) && (reduce_func))
 
   retval = critical_reduce_block;
@@ -8953,19 +8954,16 @@ void __kmp_resize_dist_barrier(kmp_team_t *team, int old_nthreads,
     KMP_DEBUG_ASSERT(team->t.t_threads[f]->th.th_used_in_team.load() == 2);
   }
   // Release all the workers
-  kmp_uint64 new_value; // new value for go
-  new_value = team->t.b->go_release();
+  team->t.b->go_release();
 
   KMP_MFENCE();
 
   // Workers should see transition status 2 and move to 0; but may need to be
   // woken up first
-  size_t my_go_index;
   int count = old_nthreads - 1;
   while (count > 0) {
     count = old_nthreads - 1;
     for (int f = 1; f < old_nthreads; ++f) {
-      my_go_index = f / team->t.b->threads_per_go;
       if (other_threads[f]->th.th_used_in_team.load() != 0) {
         if (__kmp_dflt_blocktime != KMP_MAX_BLOCKTIME) { // Wake up the workers
           kmp_atomic_flag_64<> *flag = (kmp_atomic_flag_64<> *)CCAST(

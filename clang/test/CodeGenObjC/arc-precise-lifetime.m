@@ -1,9 +1,9 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -emit-llvm -fblocks -fobjc-arc -fobjc-runtime-has-weak -O2 -disable-llvm-passes -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin10 -emit-llvm -fblocks -fobjc-arc -fobjc-runtime-has-weak -O2 -disable-llvm-passes -o - %s | FileCheck %s
 
 #define PRECISE_LIFETIME __attribute__((objc_precise_lifetime))
 
 id test0_helper(void) __attribute__((ns_returns_retained));
-void test0() {
+void test0(void) {
   PRECISE_LIFETIME id x = test0_helper();
   x = 0;
   // CHECK:      [[X:%.*]] = alloca i8*

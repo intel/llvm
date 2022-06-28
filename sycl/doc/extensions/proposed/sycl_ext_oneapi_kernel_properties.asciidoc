@@ -1,0 +1,505 @@
+= sycl_ext_oneapi_kernel_properties
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension introduces a replacement for the kernel attributes defined in
+Section 5.8.1 of the SYCL 2020 specification, in the form of a property list
+accepting properties with compile-time constant values.
+
+== Notice
+
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. Shipping software products should not
+rely on APIs defined in this specification.
+
+== Version
+
+Revision: 1
+
+== Contributors
+
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Greg Lueck, Intel +
+John Pennycook, Intel +
+Roland Schulz, Intel
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4 and
+the following extensions:
+
+- link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_KERNEL_PROPERTIES` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+== Overview
+
+SYCL 2020 allows for attributes to be applied to the function-type of kernel
+function declarations. These attributes are often used to pass information
+to a backend device compiler.
+
+There are several known disadvantages to relying on attributes for such
+information, including:
+
+- Host {cpp} compilers are free to ignore unrecognized attributes, implying
+  that attributes should not be employed to convey information that cannot be
+  ignored. Many of the attributes in SYCL 2020 convey information that cannot
+  be ignored (e.g. a kernel may only execute correctly with a specific
+  sub-group size, or on devices which have specific aspects).
+
+- Library-only implementations of SYCL cannot reason about attributes at all.
+
+- SMCP implementations of SYCL must ensure that the host and device compiler
+  both understand and agree upon the meaning of each attribute.
+
+- It is complicated (although not impossible) to generate multiple variants of
+  a kernel with different combinations of attributes.
+
+- There is no way to inspect the properties associated with a kernel at
+  compile-time (e.g. via type traits or similar); any such inspection must be
+  performed at run-time and *after* compiling the kernel.
+
+This extension proposes a replacement for these kernel attributes, in the form
+of a property list accepting properties with compile-time constant
+values, to address several of these issues.
+
+== Kernel Properties
+
+The kernel properties below correspond to kernel attributes defined in
+Section 5.8.1 of the SYCL 2020 specification.  Note that deprecated attributes
+(such as `vec_type_hint`) are not included.
+
+```c++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+// Corresponds to reqd_work_group_size
+struct work_group_size_key {
+  template <size_t... Dims>
+  using value_t = property_value<work_group_size_key, std::integral_constant<size_t, Dims>...>;
+}; // work_group_size_key
+
+// Corresponds to work_group_size_hint
+struct work_group_size_hint_key {
+  template <size_t... Dims>
+  using value_t = property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...>;
+}; // work_group_size_hint_key
+
+// Corresponds to reqd_sub_group_size
+struct sub_group_size_key {
+  template <uint32_t Size>
+  using value_t = property_value<sub_group_size_key, std::integral_constant<uint32_t, Size>>;
+}; // sub_group_size_key
+
+// Corresponds to device_has
+struct device_has_key {
+  template <sycl::aspect... Aspects>
+  using value_t = property_value<device_has_key, std::integral_constant<sycl::aspect, Aspects>...>;
+}; // device_has_key
+
+template <size_t... Dims>
+struct property_value<work_group_size_key, std::integral_constant<size_t, Dims>...> {
+  constexpr size_t operator[](int dim);
+};
+
+template <size_t... Dims>
+struct property_value<work_group_size_hint_key, std::integral_constant<size_t, Dims>...> {
+  constexpr size_t operator[](int dim);
+};
+
+template <sycl::aspect... Aspects>
+struct property_value<device_has_key, std::integral_constant<sycl::aspect, Aspects>...> {
+  static constexpr std::array<sycl::aspect, sizeof...(Aspects)> value;
+};
+
+template <size_t... Dims>
+inline constexpr work_group_size_key::value_t<Dims...> work_group_size;
+
+template <size_t... Dims>
+inline constexpr work_group_size_hint_key::value_t<Dims...> work_group_size_hint;
+
+template <uint32_t Size>
+inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
+
+template <sycl::aspect... Aspects>
+inline constexpr device_has_key::value_t<Aspects...> device_has;
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+|===
+|Property|Description
+
+|`work_group_size`
+|The `work_group_size` property adds the requirement that the kernel must be
+ launched with the specified work-group size. The number of template arguments
+ in the `Dims` parameter pack must match the dimensionality of the work-group
+ used to invoke the kernel. The order of the template arguments matches the
+ constructor of the `range` class. An implementation may throw an exception
+ for certain combinations of property values, devices and launch configurations,
+ as described for the `reqd_work_group_size` attribute in Table 180 of the
+ SYCL 2020 specification.
+
+|`work_group_size_hint`
+|The `work_group_size_hint` property hints to the compiler that the kernel is
+ likely to be launched with the specified work-group size. The number of
+ template arguments in the `Dims` parameter pack must match the dimensionality
+ of the work-group used to invoke the kernel. The order of the template
+ arguments matches the constructor of the `range` class.
+
+|`sub_group_size`
+|The `sub_group_size` property adds the requirement that the kernel must be
+ compiled and executed with the specified sub-group size. An implementation may
+ throw an exception for certain combinations of property values, devices and
+ launch configurations, as described for the `reqd_sub_group_size` attribute
+ in Table 180 of the SYCL 2020 specification.
+
+|`device_has`
+|The `device_has` property adds the requirement that the kernel must be
+ launched on a device that has all of the aspects listed in the `Aspects`
+ parameter pack. An implementation may throw an exception or issue a
+ diagnostic for certain combinations of aspects, devices and kernel functions,
+ as described for the `device_has` attribute in Table 180 of the SYCL 2020
+ specification.
+
+|===
+
+SYCL implementations may introduce additional kernel properties. If any
+combinations of kernel attributes are invalid, this must be clearly documented
+as part of the new kernel property definition.
+
+== Adding a Property List to a Kernel Launch
+
+To enable properties to be associated with kernels, this extension adds
+new overloads to each of the variants of `single_task`, `parallel_for` and
+`parallel_for_work_group` defined in the `queue` and `handler` classes. These
+new overloads accept a `sycl::ext::oneapi::experimental::properties` argument. For
+variants accepting a parameter pack, the `sycl::ext::oneapi::experimental::properties`
+argument is inserted immediately prior to the parameter pack; for variants not
+accepting a parameter pack, the `sycl::ext::oneapi::experimental::properties` argument is
+inserted immediately prior to the kernel function.
+
+The overloads introduced by this extension are listed below:
+```c++
+namespace sycl {
+class queue {
+ public:
+  template <typename KernelName, typename KernelType, typename PropertyList>
+  event single_task(PropertyList properties, const KernelType &kernelFunc);
+
+  template <typename KernelName, typename KernelType, typename PropertyList>
+  event single_task(event depEvent, PropertyList properties,
+                    const KernelType &kernelFunc);
+
+  template <typename KernelName, typename KernelType, typename PropertyList>
+  event single_task(const std::vector<event> &depEvents,
+                    PropertyList properties,
+                    const KernelType &kernelFunc);
+
+  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
+  event parallel_for(range<Dims> numWorkItems,
+                     Rest&&... rest);
+
+  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
+  event parallel_for(range<Dims> numWorkItems, event depEvent,
+                     PropertyList properties,
+                     Rest&&... rest);
+
+  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
+  event parallel_for(range<Dims> numWorkItems,
+                     const std::vector<event> &depEvents,
+                     PropertyList properties,
+                     Rest&&... rest);
+
+  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
+  event parallel_for(nd_range<Dims> executionRange,
+                     PropertyList properties,
+                     Rest&&... rest);
+
+  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
+  event parallel_for(nd_range<Dims> executionRange,
+                     event depEvent,
+                     PropertyList properties,
+                     Rest&&... rest);
+
+  template <typename KernelName, int Dims, typename PropertyList, typename... Rest>
+  event parallel_for(nd_range<Dims> executionRange,
+                     const std::vector<event> &depEvents,
+                     PropertyList properties,
+                     Rest&&... rest);
+}
+}
+
+namespace sycl {
+class handler {
+ public:
+  template <typename KernelName, typename KernelType, typename PropertyList>
+  void single_task(PropertyList properties, const KernelType &kernelFunc);
+
+  template <typename KernelName, int dimensions, typename PropertyList, typename... Rest>
+  void parallel_for(range<dimensions> numWorkItems,
+                    PropertyList properties,
+                    Rest&&... rest);
+
+  template <typename KernelName, int dimensions, typename PropertyList, typename... Rest>
+  void parallel_for(nd_range<dimensions> executionRange,
+                    PropertyList properties,
+                    Rest&&... rest);
+
+  template <typename KernelName, typename WorkgroupFunctionType, int dimensions, typename PropertyList>
+  void parallel_for_work_group(range<dimensions> numWorkGroups,
+                               PropertyList properties,
+                               const WorkgroupFunctionType &kernelFunc);
+
+  template <typename KernelName, typename WorkgroupFunctionType, int dimensions, typename PropertyList>
+  void parallel_for_work_group(range<dimensions> numWorkGroups,
+                               range<dimensions> workGroupSize,
+                               PropertyList properties,
+                               const WorkgroupFunctionType &kernelFunc);
+}
+}
+```
+
+Passing a property list as an argument in this way allows properties to be
+associated with a kernel function without modifying its type. This enables
+the same kernel function (e.g. a lambda) to be submitted multiple times with
+different properties, or for libraries building on SYCL to add properties
+(e.g. for performance reasons) to user-provided kernel functions.
+
+All the properties defined in this extension have compile-time values. However,
+an implementation may support additional properties which could have run-time
+values. When this occurs, the `properties` parameter may be a property list
+containing a mix of both run-time and compile-time values, and a SYCL
+implementation should respect both run-time and compile-time information when
+determining the correct way to launch a kernel. However, only compile-time
+information can modify the compilation of the kernel function itself.
+
+A simple example of using this extension to set a required work-group size
+and required sub-group size is given below:
+
+```c++
+sycl::ext::oneapi::experimental::properties properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
+                                                       sycl::ext::oneapi::experimental::sub_group_size<8>};
+q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
+  a[i] = b[i] + c[i];
+}).wait();
+```
+
+== Embedding Properties into a Kernel
+
+In other situations it may be useful to embed a kernel's properties directly
+into its type, to ensure that a kernel cannot be launched without a property
+that it depends upon for correctness.
+
+To enable this use-case, this extension adds a mechanism for implementations to
+extract a property list from a kernel functor, if a kernel functor declares
+a member function named `get` accepting a `sycl::ext::oneapi::experimental::properties_tag`
+tag type and returning an instance of `sycl::ext::oneapi::experimental::properties`.
+
+```c++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+struct properties_tag {};
+
+}
+}
+}
+}
+```
+
+NOTE: https://wg21.link/p1895[P1895] proposes a function called `tag_invoke`
+ as a general mechanism for customization points that could be used as a
+replacement for the `get` function proposed here. If `tag_invoke` becomes
+a feature in a future version of {cpp}, a future version of this extension
+may expose a new interface compatible with `tag_invoke`.
+
+NOTE: The attribute mechanism in SYCL 2020 allows for different kernel
+attributes to be applied to different call operators within the same
+functor. An embedded property list applies to all call operators in
+the functor.
+
+The example below shows how the kernel from the previous section could be
+rewritten to leverage an embedded property list:
+
+```c++
+struct KernelFunctor {
+
+  KernelFunctor(sycl::accessor<int, 2> a,
+                sycl::accessor<int, 2> b,
+                sycl::accessor<int, 2> c) : a(a), b(b), c(c)
+  {}
+
+  void operator()(id<2> i) const {
+    a[i] = b[i] + c[i];
+  }
+
+  auto get(sycl::ext::oneapi::experimental::properties_tag) {
+    return sycl::ext::oneapi::experimental::properties{sycl::ext::oneapi::experimental::work_group_size<8, 8>,
+                                                       sycl::ext::oneapi::experimental::sub_group_size<8>};
+  }
+
+  sycl::accessor<int, 2> a;
+  sycl::accessor<int, 2> b;
+  sycl::accessor<int, 2> c;
+
+};
+
+...
+
+q.parallel_for(range<2>{16, 16}, KernelFunctor(a, b, c)).wait();
+```
+
+If a kernel functor with embedded properties is enqueued for execution using an
+invocation function with a property list argument, the kernel is launched as-if
+the embedded properties and argument were combined. If the combined list
+contains any invalid combinations of properties, then this is an error: invalid
+combinations that can be detected at compile-time should be reported via a
+diagnostic; invalid combinations that can only be detected at run-time should
+result in an implementation throwing an `exception` with the `errc::invalid`
+error code.
+
+== Querying Properties in a Compiled Kernel
+
+Any properties embedded into a kernel type via a property list are reflected
+in the results of a call to `kernel::get_info` with the
+`info::kernel::attributes` information descriptor, as if the corresponding
+attribute from the SYCL 2020 specification had been applied to the kernel
+function.
+
+== Device Functions
+
+The SYCL 2020 `sycl::device_has` attribute can be applied to the declaration
+of a non-kernel device function, to assert that the device function uses a
+specific set of optional features. This extension provides a mechanism exposing
+similar behavior, allowing for kernel properties to be associated with
+a function via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro.  Each instance of
+the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro accepts one argument,
+corresponding to a single property value.
+
+NOTE: Due to limitations of the C preprocessor, property value expressions
+containing commas (e.g. due to template arguments) must be enclosed in
+parentheses to avoid being interpreted as multiple arguments.
+
+The example below shows a function that uses two optional features,
+corresponding to the `fp16` and `atomic64` aspects.
+
+```c++
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::device_has<aspect::fp16, aspect::atomic64>))
+void foo();
+```
+
+The table below describes the effects of associating each kernel property
+with a non-kernel device function via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`
+macro.
+
+|===
+|Property|Description
+
+|`device_has`
+|The `device_has` property asserts that the device function uses optional
+ features corresponding to the aspects listed in the `Aspects` parameter pack.
+ The effects of this property are identical to those described for the
+ `device_has` attribute in Table 181 of the SYCL 2020 specification.
+
+|===
+
+The `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro can be used alongside the
+`SYCL_EXTERNAL` macro, and the macros may be specified in any order.
+Whenever `SYCL_EXTERNAL` is used, there are two relevant translation units: the
+translation unit that _defines_ the function and the translation unit that
+_calls_ the function.  If a given `SYCL_EXTERNAL` function _F_ is defined in
+one translation unit with a set of properties _P_, then all other translation
+units that declare that same function _F_ must list the same set of properties
+_P_ via the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro. Programs which fail to do this
+are ill-formed, but no diagnostic is required.
+
+== Issues
+
+. How should we handle kernels supporting more than one set of device aspects?
++
+--
+*UNRESOLVED*: A compiler can evaluate complex Boolean expressions in an
+attribute, but this is non-trivial to emulate using only the {cpp} type system.
+A simple alternative may be to introduce an additional level of indirection via
+new properties, for example `device_has_all_of` and `device_has_any_of`:
+`device_has_all_of<device_has<aspect::atomic64>,
+device_has_any_of<device_has<aspect::fp16, device_has<aspect::fp64>>`.
+--
+
+. How should an embedded property list behave with inheritance?
++
+--
+*RESOLVED*: The specification currently allows for a class to inspect the
+property list embedded into its base class(es) and construct a new property
+list that applies to all call operators. Associating different properties with
+different call operators via inheritance has the potential to be confusing and
+would increase implementation complexity.
+--
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-06|John Pennycook|*Initial public working draft*
+|========================================

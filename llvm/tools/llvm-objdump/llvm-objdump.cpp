@@ -33,6 +33,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
+#include "llvm/DebugInfo/Symbolize/SymbolizableModule.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -52,6 +53,7 @@
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/COFFImportFile.h"
 #include "llvm/Object/ELFObjectFile.h"
+#include "llvm/Object/ELFTypes.h"
 #include "llvm/Object/FaultMapParser.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/MachOUniversal.h"
@@ -440,8 +442,13 @@ static bool isArmElf(const ObjectFile *Obj) {
   return Elf && Elf->getEMachine() == ELF::EM_ARM;
 }
 
+static bool isCSKYElf(const ObjectFile *Obj) {
+  const auto *Elf = dyn_cast<ELFObjectFileBase>(Obj);
+  return Elf && Elf->getEMachine() == ELF::EM_CSKY;
+}
+
 static bool hasMappingSymbols(const ObjectFile *Obj) {
-  return isArmElf(Obj) || isAArch64Elf(Obj);
+  return isArmElf(Obj) || isAArch64Elf(Obj) || isCSKYElf(Obj) ;
 }
 
 static void printRelocation(formatted_raw_ostream &OS, StringRef FileName,
@@ -957,6 +964,9 @@ SymbolInfoTy objdump::createSymbolInfo(const ObjectFile *Obj,
         getXCOFFSymbolCsectSMC(XCOFFObj, Symbol);
     return SymbolInfoTy(Addr, Name, Smc, SymbolIndex,
                         isLabel(XCOFFObj, Symbol));
+  } else if (Obj->isXCOFF()) {
+    const SymbolRef::Type SymType = unwrapOrError(Symbol.getType(), FileName);
+    return SymbolInfoTy(Addr, Name, SymType, true);
   } else
     return SymbolInfoTy(Addr, Name,
                         Obj->isELF() ? getElfSymbolType(Obj, Symbol)
@@ -973,11 +983,29 @@ static SymbolInfoTy createDummySymbolInfo(const ObjectFile *Obj,
 }
 
 static void
-collectLocalBranchTargets(ArrayRef<uint8_t> Bytes, const MCInstrAnalysis *MIA,
-                          MCDisassembler *DisAsm, MCInstPrinter *IP,
-                          const MCSubtargetInfo *STI, uint64_t SectionAddr,
-                          uint64_t Start, uint64_t End,
-                          std::unordered_map<uint64_t, std::string> &Labels) {
+collectBBAddrMapLabels(const std::unordered_map<uint64_t, BBAddrMap> &AddrToBBAddrMap,
+                       uint64_t SectionAddr, uint64_t Start, uint64_t End,
+                       std::unordered_map<uint64_t, std::vector<std::string>> &Labels) {
+  if (AddrToBBAddrMap.empty())
+    return;
+  Labels.clear();
+  uint64_t StartAddress = SectionAddr + Start;
+  uint64_t EndAddress = SectionAddr + End;
+  auto Iter = AddrToBBAddrMap.find(StartAddress);
+  if (Iter == AddrToBBAddrMap.end())
+    return;
+  for (unsigned I = 0, Size = Iter->second.BBEntries.size(); I < Size; ++I) {
+    uint64_t BBAddress = Iter->second.BBEntries[I].Offset + Iter->second.Addr;
+    if (BBAddress >= EndAddress)
+      continue;
+    Labels[BBAddress].push_back(("BB" + Twine(I)).str());
+  }
+}
+
+static void collectLocalBranchTargets(
+    ArrayRef<uint8_t> Bytes, const MCInstrAnalysis *MIA, MCDisassembler *DisAsm,
+    MCInstPrinter *IP, const MCSubtargetInfo *STI, uint64_t SectionAddr,
+    uint64_t Start, uint64_t End, std::unordered_map<uint64_t, std::string> &Labels) {
   // So far only supports PowerPC and X86.
   if (!STI->getTargetTriple().isPPC() && !STI->getTargetTriple().isX86())
     return;
@@ -1006,7 +1034,6 @@ collectLocalBranchTargets(ArrayRef<uint8_t> Bytes, const MCInstrAnalysis *MIA,
           !(STI->getTargetTriple().isPPC() && Target == Index))
         Labels[Target] = ("L" + Twine(LabelCount++)).str();
     }
-
     Index += Size;
   }
 }
@@ -1241,6 +1268,20 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
     if (!SectSize)
       continue;
 
+    std::unordered_map<uint64_t, BBAddrMap> AddrToBBAddrMap;
+    if (SymbolizeOperands) {
+      if (auto *Elf = dyn_cast<ELFObjectFileBase>(Obj)) {
+        // Read the BB-address-map corresponding to this section, if present.
+        auto SectionBBAddrMapsOrErr = Elf->readBBAddrMap(Section.getIndex());
+        if (!SectionBBAddrMapsOrErr)
+          reportWarning(toString(SectionBBAddrMapsOrErr.takeError()),
+                        Obj->getFileName());
+        for (auto &FunctionBBAddrMap : *SectionBBAddrMapsOrErr)
+          AddrToBBAddrMap.emplace(FunctionBBAddrMap.Addr,
+                                  std::move(FunctionBBAddrMap));
+      }
+    }
+
     // Get the list of all the symbols in this section.
     SectionSymbolsTy &Symbols = AllSymbols[Section];
     std::vector<MappingSymbolPair> MappingSymbols;
@@ -1404,9 +1445,13 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
       formatted_raw_ostream FOS(outs());
 
       std::unordered_map<uint64_t, std::string> AllLabels;
-      if (SymbolizeOperands)
+      std::unordered_map<uint64_t, std::vector<std::string>> BBAddrMapLabels;
+      if (SymbolizeOperands) {
         collectLocalBranchTargets(Bytes, MIA, DisAsm, IP, PrimarySTI,
                                   SectionAddr, Index, End, AllLabels);
+        collectBBAddrMapLabels(AddrToBBAddrMap, SectionAddr, Index, End,
+                               BBAddrMapLabels);
+      }
 
       while (Index < End) {
         // ARM and AArch64 ELF binaries can interleave data and text in the
@@ -1450,9 +1495,15 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
           }
 
           // Print local label if there's any.
-          auto Iter = AllLabels.find(SectionAddr + Index);
-          if (Iter != AllLabels.end())
-            FOS << "<" << Iter->second << ">:\n";
+          auto Iter1 = BBAddrMapLabels.find(SectionAddr + Index);
+          if (Iter1 != BBAddrMapLabels.end()) {
+            for (StringRef Label : Iter1->second)
+              FOS << "<" << Label << ">:\n";
+          } else {
+            auto Iter2 = AllLabels.find(SectionAddr + Index);
+            if (Iter2 != AllLabels.end())
+              FOS << "<" << Iter2->second << ">:\n";
+          }
 
           // Disassemble a real instruction or a data when disassemble all is
           // provided
@@ -1547,6 +1598,7 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
               }
 
               // Print the labels corresponding to the target if there's any.
+              bool BBAddrMapLabelAvailable = BBAddrMapLabels.count(Target);
               bool LabelAvailable = AllLabels.count(Target);
               if (TargetSym != nullptr) {
                 uint64_t TargetAddress = TargetSym->Addr;
@@ -1560,14 +1612,18 @@ static void disassembleObject(const Target *TheTarget, const ObjectFile *Obj,
                   // Always Print the binary symbol precisely corresponding to
                   // the target address.
                   *TargetOS << TargetName;
-                } else if (!LabelAvailable) {
+                } else if (BBAddrMapLabelAvailable) {
+                  *TargetOS << BBAddrMapLabels[Target].front();
+                } else if (LabelAvailable) {
+                  *TargetOS << AllLabels[Target];
+                } else {
                   // Always Print the binary symbol plus an offset if there's no
                   // local label corresponding to the target address.
                   *TargetOS << TargetName << "+0x" << Twine::utohexstr(Disp);
-                } else {
-                  *TargetOS << AllLabels[Target];
                 }
                 *TargetOS << ">";
+              } else if (BBAddrMapLabelAvailable) {
+                *TargetOS << " <" << BBAddrMapLabels[Target].front() << ">";
               } else if (LabelAvailable) {
                 *TargetOS << " <" << AllLabels[Target] << ">";
               }
@@ -2757,11 +2813,11 @@ int main(int argc, char **argv) {
       !DynamicRelocations && !FileHeaders && !PrivateHeaders && !RawClangAST &&
       !Relocations && !SectionHeaders && !SectionContents && !SymbolTable &&
       !DynamicSymbolTable && !UnwindInfo && !FaultMapSection &&
-      !(MachOOpt &&
-        (Bind || DataInCode || DylibId || DylibsUsed || ExportsTrie ||
-         FirstPrivateHeader || FunctionStarts || IndirectSymbols || InfoPlist ||
-         LazyBind || LinkOptHints || ObjcMetaData || Rebase || Rpaths ||
-         UniversalHeaders || WeakBind || !FilterSections.empty()))) {
+      !(MachOOpt && (Bind || DataInCode || DyldInfo || DylibId || DylibsUsed ||
+                     ExportsTrie || FirstPrivateHeader || FunctionStarts ||
+                     IndirectSymbols || InfoPlist || LazyBind || LinkOptHints ||
+                     ObjcMetaData || Rebase || Rpaths || UniversalHeaders ||
+                     WeakBind || !FilterSections.empty()))) {
     T->printHelp(ToolName);
     return 2;
   }

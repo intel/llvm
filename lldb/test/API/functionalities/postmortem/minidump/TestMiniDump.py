@@ -120,10 +120,10 @@ class MiniDumpTestCase(TestBase):
             breakpoint = target.BreakpointCreateByName("bar")
             process = target.LaunchSimple(
                 None, None, self.get_process_working_directory())
-            self.assertEqual(process.GetState(), lldb.eStateStopped)
+            self.assertState(process.GetState(), lldb.eStateStopped)
             self.assertTrue(process.SaveCore(core))
             self.assertTrue(os.path.isfile(core))
-            self.assertTrue(process.Kill().Success())
+            self.assertSuccess(process.Kill())
 
             # Launch with the mini dump, and inspect the stack.
             target = self.dbg.CreateTarget(None)
@@ -156,10 +156,10 @@ class MiniDumpTestCase(TestBase):
             breakpoint = target.BreakpointCreateByName("bar")
             process = target.LaunchSimple(
                 None, None, self.get_process_working_directory())
-            self.assertEqual(process.GetState(), lldb.eStateStopped)
+            self.assertState(process.GetState(), lldb.eStateStopped)
             self.assertTrue(process.SaveCore(core))
             self.assertTrue(os.path.isfile(core))
-            self.assertTrue(process.Kill().Success())
+            self.assertSuccess(process.Kill())
 
             # Launch with the mini dump, and inspect a local variable.
             target = self.dbg.CreateTarget(None)

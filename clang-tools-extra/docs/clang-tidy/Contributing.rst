@@ -364,6 +364,11 @@ other support classes by writing a unit test than by writing a ``FileCheck`` int
 test.  The ``ASTMatchersTests`` target contains unit tests for the public AST matcher
 classes and is a good source of testing idioms for matchers.
 
+You can build the Clang-tidy unit tests by building the ``ClangTidyTests`` target.
+Test targets in LLVM and Clang are excluded from the "build all" style action of
+IDE-based CMake generators, so you need to explicitly build the target for the unit
+tests to be built.
+
 Making your check robust
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -634,6 +639,26 @@ This keeps the test directory from getting cluttered.
 .. _FileCheck: https://llvm.org/docs/CommandGuide/FileCheck.html
 .. _test/clang-tidy/google-readability-casting.cpp: https://reviews.llvm.org/diffusion/L/browse/clang-tools-extra/trunk/test/clang-tidy/google-readability-casting.cpp
 
+Out-of-tree check plugins
+-------------------------
+
+Developing an out-of-tree check as a plugin largely follows the steps
+outlined above. The plugin is a shared library whose code lives outside
+the clang-tidy build system. Build and link this shared library against
+LLVM as done for other kinds of Clang plugins.
+
+The plugin can be loaded by passing `-load` to `clang-tidy` in addition to the
+names of the checks to enable.
+
+.. code-block:: console
+
+  $ clang-tidy --checks=-*,my-explicit-constructor -list-checks -load myplugin.so
+
+There is no expectations regarding ABI and API stability, so the plugin must be
+compiled against the version of clang-tidy that will be loading the plugin.
+
+The plugins can use threads, TLS, or any other facilities available to in-tree
+code which is accessible from the external headers.
 
 Running clang-tidy on LLVM
 --------------------------

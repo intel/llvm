@@ -13,7 +13,7 @@
 
 // CHECK-LABEL: func @func_with_ops
 // CHECK-SAME: %[[ARG:.*]]: f32
-func @func_with_ops(f32) {
+func.func @func_with_ops(f32) {
 ^bb0(%a : f32):
   // CHECK: %[[T:.*]] = "getTensor"() : () -> tensor<4x4x?xf32>
   %t = "getTensor"() : () -> tensor<4x4x?xf32>
@@ -31,7 +31,7 @@ func @func_with_ops(f32) {
 }
 
 // CHECK-LABEL: func @standard_instrs(%arg0: tensor<4x4x?xf32>, %arg1: f32, %arg2: i32, %arg3: index, %arg4: i64, %arg5: f16) {
-func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
+func.func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
 ^bb42(%t: tensor<4x4x?xf32>, %f: f32, %i: i32, %idx : index, %j: i64, %half: f16):
   // CHECK: %[[C2:.*]] = arith.constant 2 : index
   // CHECK: %[[A2:.*]] = tensor.dim %arg0, %[[C2]] : tensor<4x4x?xf32>
@@ -61,20 +61,20 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
   %tci1 = arith.constant dense<1> : tensor<42xi1>
   %vci1 = arith.constant dense<1> : vector<42xi1>
 
-  // CHECK: %{{.*}} = select %{{.*}}, %arg3, %arg3 : index
-  %21 = select %true, %idx, %idx : index
+  // CHECK: %{{.*}} = arith.select %{{.*}}, %arg3, %arg3 : index
+  %21 = arith.select %true, %idx, %idx : index
 
-  // CHECK: %{{.*}} = select %{{.*}}, %{{.*}}, %{{.*}} : tensor<42xi1>, tensor<42xi32>
-  %22 = select %tci1, %tci32, %tci32 : tensor<42 x i1>, tensor<42 x i32>
+  // CHECK: %{{.*}} = arith.select %{{.*}}, %{{.*}}, %{{.*}} : tensor<42xi1>, tensor<42xi32>
+  %22 = arith.select %tci1, %tci32, %tci32 : tensor<42 x i1>, tensor<42 x i32>
 
-  // CHECK: %{{.*}} = select %{{.*}}, %{{.*}}, %{{.*}} : vector<42xi1>, vector<42xi32>
-  %23 = select %vci1, %vci32, %vci32 : vector<42 x i1>, vector<42 x i32>
+  // CHECK: %{{.*}} = arith.select %{{.*}}, %{{.*}}, %{{.*}} : vector<42xi1>, vector<42xi32>
+  %23 = arith.select %vci1, %vci32, %vci32 : vector<42 x i1>, vector<42 x i32>
 
-  // CHECK: %{{.*}} = select %{{.*}}, %arg3, %arg3 : index
-  %24 = "std.select"(%true, %idx, %idx) : (i1, index, index) -> index
+  // CHECK: %{{.*}} = arith.select %{{.*}}, %arg3, %arg3 : index
+  %24 = "arith.select"(%true, %idx, %idx) : (i1, index, index) -> index
 
-  // CHECK: %{{.*}} = select %{{.*}}, %{{.*}}, %{{.*}} : tensor<42xi32>
-  %25 = std.select %true, %tci32, %tci32 : tensor<42 x i32>
+  // CHECK: %{{.*}} = arith.select %{{.*}}, %{{.*}}, %{{.*}} : tensor<42xi32>
+  %25 = arith.select %true, %tci32, %tci32 : tensor<42 x i32>
 
   %64 = arith.constant dense<0.> : vector<4 x f32>
   %tcf32 = arith.constant dense<0.> : tensor<42 x f32>
@@ -98,9 +98,6 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
 
   // CHECK: %{{.*}} = arith.cmpf oeq, %{{.*}}, %{{.*}}: vector<4xf32>
   %70 = arith.cmpf oeq, %vcf32, %vcf32 : vector<4 x f32>
-
-  // CHECK: = constant unit
-  %73 = constant unit
 
   // CHECK: arith.constant true
   %74 = arith.constant true
@@ -163,7 +160,7 @@ func @standard_instrs(tensor<4x4x?xf32>, f32, i32, index, i64, f16) {
 }
 
 // CHECK-LABEL: func @affine_apply() {
-func @affine_apply() {
+func.func @affine_apply() {
   %i = "arith.constant"() {value = 0: index} : () -> index
   %j = "arith.constant"() {value = 1: index} : () -> index
 
@@ -178,7 +175,7 @@ func @affine_apply() {
 }
 
 // CHECK-LABEL: func @load_store_prefetch
-func @load_store_prefetch(memref<4x4xi32>, index) {
+func.func @load_store_prefetch(memref<4x4xi32>, index) {
 ^bb0(%0: memref<4x4xi32>, %1: index):
   // CHECK: %0 = memref.load %arg0[%arg1, %arg1] : memref<4x4xi32>
   %2 = "memref.load"(%0, %1, %1) : (memref<4x4xi32>, index, index)->i32
@@ -197,7 +194,7 @@ func @load_store_prefetch(memref<4x4xi32>, index) {
 
 // Test with zero-dimensional operands using no index in load/store.
 // CHECK-LABEL: func @zero_dim_no_idx
-func @zero_dim_no_idx(%arg0 : memref<i32>, %arg1 : memref<i32>, %arg2 : memref<i32>) {
+func.func @zero_dim_no_idx(%arg0 : memref<i32>, %arg1 : memref<i32>, %arg2 : memref<i32>) {
   %0 = memref.load %arg0[] : memref<i32>
   memref.store %0, %arg1[] : memref<i32>
   return
@@ -206,19 +203,19 @@ func @zero_dim_no_idx(%arg0 : memref<i32>, %arg1 : memref<i32>, %arg2 : memref<i
 }
 
 // CHECK-LABEL: func @return_op(%arg0: i32) -> i32 {
-func @return_op(%a : i32) -> i32 {
+func.func @return_op(%a : i32) -> i32 {
   // CHECK: return %arg0 : i32
-  "std.return" (%a) : (i32)->()
+  "func.return" (%a) : (i32)->()
 }
 
 // CHECK-LABEL: func @calls(%arg0: i32) {
-func @calls(%arg0: i32) {
+func.func @calls(%arg0: i32) {
   // CHECK: %0 = call @return_op(%arg0) : (i32) -> i32
   %x = call @return_op(%arg0) : (i32) -> i32
   // CHECK: %1 = call @return_op(%0) : (i32) -> i32
   %y = call @return_op(%x) : (i32) -> i32
   // CHECK: %2 = call @return_op(%0) : (i32) -> i32
-  %z = "std.call"(%x) {callee = @return_op} : (i32) -> i32
+  %z = "func.call"(%x) {callee = @return_op} : (i32) -> i32
 
   // CHECK: %f = constant @affine_apply : () -> ()
   %f = constant @affine_apply : () -> ()
@@ -233,13 +230,13 @@ func @calls(%arg0: i32) {
   %2 = call_indirect %f_0(%arg0) : (i32) -> i32
 
   // CHECK: %4 = call_indirect %f_0(%arg0) : (i32) -> i32
-  %3 = "std.call_indirect"(%f_0, %arg0) : ((i32) -> i32, i32) -> i32
+  %3 = "func.call_indirect"(%f_0, %arg0) : ((i32) -> i32, i32) -> i32
 
   return
 }
 
 // CHECK-LABEL: func @memref_cast(%arg0
-func @memref_cast(%arg0: memref<4xf32>, %arg1 : memref<?xf32>, %arg2 : memref<64x16x4xf32, offset: 0, strides: [64, 4, 1]>) {
+func.func @memref_cast(%arg0: memref<4xf32>, %arg1 : memref<?xf32>, %arg2 : memref<64x16x4xf32, offset: 0, strides: [64, 4, 1]>) {
   // CHECK: %0 = memref.cast %arg0 : memref<4xf32> to memref<?xf32>
   %0 = memref.cast %arg0 : memref<4xf32> to memref<?xf32>
 
@@ -263,10 +260,10 @@ func @memref_cast(%arg0: memref<4xf32>, %arg1 : memref<?xf32>, %arg2 : memref<64
 // Check that unranked memrefs with non-default memory space roundtrip
 // properly.
 // CHECK-LABEL: @unranked_memref_roundtrip(memref<*xf32, 4>)
-func private @unranked_memref_roundtrip(memref<*xf32, 4>)
+func.func private @unranked_memref_roundtrip(memref<*xf32, 4>)
 
 // CHECK-LABEL: func @memref_view(%arg0
-func @memref_view(%arg0 : index, %arg1 : index, %arg2 : index) {
+func.func @memref_view(%arg0 : index, %arg1 : index, %arg2 : index) {
   %0 = memref.alloc() : memref<2048xi8>
   // Test two dynamic sizes and dynamic offset.
   // CHECK: %{{.*}} = memref.view %0[%arg2][%arg0, %arg1] : memref<2048xi8> to memref<?x?xf32>
@@ -285,7 +282,7 @@ func @memref_view(%arg0 : index, %arg1 : index, %arg2 : index) {
 
 // CHECK-LABEL: func @test_dimop
 // CHECK-SAME: %[[ARG:.*]]: tensor<4x4x?xf32>
-func @test_dimop(%arg0: tensor<4x4x?xf32>) {
+func.func @test_dimop(%arg0: tensor<4x4x?xf32>) {
   // CHECK: %[[C2:.*]] = arith.constant 2 : index
   // CHECK: %{{.*}} = tensor.dim %[[ARG]], %[[C2]] : tensor<4x4x?xf32>
   %c2 = arith.constant 2 : index
@@ -295,20 +292,8 @@ func @test_dimop(%arg0: tensor<4x4x?xf32>) {
   return
 }
 
-// CHECK-LABEL: func @test_splat_op
-// CHECK-SAME: [[S:%arg[0-9]+]]: f32
-func @test_splat_op(%s : f32) {
-  %v = splat %s : vector<8xf32>
-  // CHECK: splat [[S]] : vector<8xf32>
-  %t = splat %s : tensor<8xf32>
-  // CHECK: splat [[S]] : tensor<8xf32>
-  %u = "std.splat"(%s) : (f32) -> vector<4xf32>
-  // CHECK: splat [[S]] : vector<4xf32>
-  return
-}
-
 // CHECK-LABEL: func @tensor_load_store
-func @tensor_load_store(%0 : memref<4x4xi32>, %1 : tensor<4x4xi32>) {
+func.func @tensor_load_store(%0 : memref<4x4xi32>, %1 : tensor<4x4xi32>) {
   // CHECK-SAME: (%[[MEMREF:.*]]: memref<4x4xi32>,
   // CHECK-SAME:  %[[TENSOR:.*]]: tensor<4x4xi32>)
   // CHECK: memref.tensor_store %[[TENSOR]], %[[MEMREF]] : memref<4x4xi32>
@@ -317,7 +302,7 @@ func @tensor_load_store(%0 : memref<4x4xi32>, %1 : tensor<4x4xi32>) {
 }
 
 // CHECK-LABEL: func @unranked_tensor_load_store
-func @unranked_tensor_load_store(%0 : memref<*xi32>, %1 : tensor<*xi32>) {
+func.func @unranked_tensor_load_store(%0 : memref<*xi32>, %1 : tensor<*xi32>) {
   // CHECK-SAME: (%[[MEMREF:.*]]: memref<*xi32>,
   // CHECK-SAME:  %[[TENSOR:.*]]: tensor<*xi32>)
   // CHECK: memref.tensor_store %[[TENSOR]], %[[MEMREF]] : memref<*xi32>
@@ -327,7 +312,7 @@ func @unranked_tensor_load_store(%0 : memref<*xi32>, %1 : tensor<*xi32>) {
 
 // CHECK-LABEL: func @assume_alignment
 // CHECK-SAME: %[[MEMREF:.*]]: memref<4x4xf16>
-func @assume_alignment(%0: memref<4x4xf16>) {
+func.func @assume_alignment(%0: memref<4x4xf16>) {
   // CHECK: memref.assume_alignment %[[MEMREF]], 16 : memref<4x4xf16>
   memref.assume_alignment %0, 16 : memref<4x4xf16>
   return

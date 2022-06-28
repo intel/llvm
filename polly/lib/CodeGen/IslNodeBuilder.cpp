@@ -86,7 +86,7 @@ enum class OpenMPBackend { GNU, LLVM };
 static cl::opt<bool> PollyGenerateRTCPrint(
     "polly-codegen-emit-rtc-print",
     cl::desc("Emit code that prints the runtime check result dynamically."),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 // If this option is set we always use the isl AST generator to regenerate
 // memory accesses. Without this option set we regenerate expressions using the
@@ -95,12 +95,12 @@ static cl::opt<bool> PollyGenerateRTCPrint(
 static cl::opt<bool> PollyGenerateExpressions(
     "polly-codegen-generate-expressions",
     cl::desc("Generate AST expressions for unmodified and modified accesses"),
-    cl::Hidden, cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::cat(PollyCategory));
 
 static cl::opt<int> PollyTargetFirstLevelCacheLineSize(
     "polly-target-first-level-cache-line-size",
     cl::desc("The size of the first level cache line size specified in bytes."),
-    cl::Hidden, cl::init(64), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(64), cl::cat(PollyCategory));
 
 static cl::opt<OpenMPBackend> PollyOmpBackend(
     "polly-omp-backend", cl::desc("Choose the OpenMP library to use:"),
@@ -246,7 +246,7 @@ static void findReferencesInStmt(ScopStmt *Stmt, SetVector<Value *> &Values,
 
 void polly::addReferencesFromStmt(ScopStmt *Stmt, void *UserPtr,
                                   bool CreateScalarRefs) {
-  auto &References = *static_cast<struct SubtreeReferences *>(UserPtr);
+  auto &References = *static_cast<SubtreeReferences *>(UserPtr);
 
   findReferencesInStmt(Stmt, References.Values, References.GlobalMap,
                        References.SCEVs);
@@ -284,8 +284,7 @@ void polly::addReferencesFromStmt(ScopStmt *Stmt, void *UserPtr,
 /// @param Set     A set which references the ScopStmt we are interested in.
 /// @param UserPtr A void pointer that can be casted to a SubtreeReferences
 ///                structure.
-static void addReferencesFromStmtSet(isl::set Set,
-                                     struct SubtreeReferences *UserPtr) {
+static void addReferencesFromStmtSet(isl::set Set, SubtreeReferences *UserPtr) {
   isl::id Id = Set.get_tuple_id();
   auto *Stmt = static_cast<ScopStmt *>(Id.get_user());
   addReferencesFromStmt(Stmt, UserPtr);
@@ -304,9 +303,8 @@ static void addReferencesFromStmtSet(isl::set Set,
 /// @param References The SubtreeReferences data structure through which
 ///                   results are returned and further information is
 ///                   provided.
-static void
-addReferencesFromStmtUnionSet(isl::union_set USet,
-                              struct SubtreeReferences &References) {
+static void addReferencesFromStmtUnionSet(isl::union_set USet,
+                                          SubtreeReferences &References) {
 
   for (isl::set Set : USet.get_set_list())
     addReferencesFromStmtSet(Set, &References);
@@ -321,7 +319,7 @@ void IslNodeBuilder::getReferencesInSubtree(const isl::ast_node &For,
                                             SetVector<Value *> &Values,
                                             SetVector<const Loop *> &Loops) {
   SetVector<const SCEV *> SCEVs;
-  struct SubtreeReferences References = {
+  SubtreeReferences References = {
       LI, SE, S, ValueMap, Values, SCEVs, getBlockGenerator(), nullptr};
 
   for (const auto &I : IDToValue)
@@ -1058,7 +1056,7 @@ void IslNodeBuilder::create(__isl_take isl_ast_node *Node) {
   llvm_unreachable("Unknown isl_ast_node type");
 }
 
-bool IslNodeBuilder::materializeValue(isl_id *Id) {
+bool IslNodeBuilder::materializeValue(__isl_take isl_id *Id) {
   // If the Id is already mapped, skip it.
   if (!IDToValue.count(Id)) {
     auto *ParamSCEV = (const SCEV *)isl_id_get_user(Id);
@@ -1122,7 +1120,7 @@ bool IslNodeBuilder::materializeValue(isl_id *Id) {
   return true;
 }
 
-bool IslNodeBuilder::materializeParameters(isl_set *Set) {
+bool IslNodeBuilder::materializeParameters(__isl_take isl_set *Set) {
   for (unsigned i = 0, e = isl_set_dim(Set, isl_dim_param); i < e; ++i) {
     if (!isl_set_involves_dims(Set, isl_dim_param, i, 1))
       continue;
@@ -1142,7 +1140,7 @@ bool IslNodeBuilder::materializeParameters() {
   return true;
 }
 
-Value *IslNodeBuilder::preloadUnconditionally(isl_set *AccessRange,
+Value *IslNodeBuilder::preloadUnconditionally(__isl_take isl_set *AccessRange,
                                               isl_ast_build *Build,
                                               Instruction *AccInst) {
   isl_pw_multi_aff *PWAccRel = isl_pw_multi_aff_from_set(AccessRange);
@@ -1173,7 +1171,7 @@ Value *IslNodeBuilder::preloadUnconditionally(isl_set *AccessRange,
 }
 
 Value *IslNodeBuilder::preloadInvariantLoad(const MemoryAccess &MA,
-                                            isl_set *Domain) {
+                                            __isl_take isl_set *Domain) {
   isl_set *AccessRange = isl_map_range(MA.getAddressFunction().release());
   AccessRange = isl_set_gist_params(AccessRange, S.getContext().release());
 

@@ -1,26 +1,26 @@
-// RUN: %clang_cc1 -triple powerpc-ibm-aix-xcoff -emit-llvm \
+// RUN: %clang_cc1 -no-opaque-pointers -triple powerpc-ibm-aix-xcoff -emit-llvm \
 // RUN:     -fno-use-cxa-atexit < %s | \
 // RUN:   FileCheck --check-prefix=NO-REGISTER %s
-// RUN: %clang_cc1 -triple powerpc64-ibm-aix-xcoff -emit-llvm \
+// RUN: %clang_cc1 -no-opaque-pointers -triple powerpc64-ibm-aix-xcoff -emit-llvm \
 // RUN:     -fno-use-cxa-atexit < %s | \
 // RUN:   FileCheck --check-prefix=NO-REGISTER %s
 
-// RUN: %clang_cc1 -triple powerpc-ibm-aix-xcoff -emit-llvm \
+// RUN: %clang_cc1 -no-opaque-pointers -triple powerpc-ibm-aix-xcoff -emit-llvm \
 // RUN:     -fno-use-cxa-atexit -fregister-global-dtors-with-atexit < %s | \
 // RUN:   FileCheck --check-prefix=REGISTER %s
-// RUN: %clang_cc1 -triple powerpc64-ibm-aix-xcoff -emit-llvm \
+// RUN: %clang_cc1 -no-opaque-pointers -triple powerpc64-ibm-aix-xcoff -emit-llvm \
 // RUN:     -fno-use-cxa-atexit -fregister-global-dtors-with-atexit < %s | \
 // RUN:   FileCheck --check-prefix=REGISTER %s
 
-int bar() __attribute__((destructor(100)));
-int bar2() __attribute__((destructor(65535)));
+int bar(void) __attribute__((destructor(100)));
+int bar2(void) __attribute__((destructor(65535)));
 int bar3(int) __attribute__((destructor(65535)));
 
-int bar() {
+int bar(void) {
   return 1;
 }
 
-int bar2() {
+int bar2(void) {
   return 2;
 }
 

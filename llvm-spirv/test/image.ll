@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -8,9 +8,10 @@
 ; RUN: llvm-spirv %t.rev.bc -o %t.rev.spv
 ; RUN: spirv-val %t.rev.spv
 
-; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} 6 1 0 0 0 0 0 0
-; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} 6 1 0 0 0 0 0 1
-; CHECK-SPIRV-NOT: 10 TypeImage {{[0-9]*}} 6 1 0 0 0 0 0 0
+; CHECK-SPIRV: 2 TypeVoid [[VOID_TY:[0-9]+]]
+; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 0
+; CHECK-SPIRV-DAG: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 1
+; CHECK-SPIRV-NOT: 10 TypeImage {{[0-9]*}} [[VOID_TY]] 1 0 0 0 0 0 0
 ; CHECK-SPIRV: ImageSampleExplicitLod
 ; CHECK-SPIRV: ImageWrite
 

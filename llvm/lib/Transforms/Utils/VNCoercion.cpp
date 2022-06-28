@@ -2,6 +2,7 @@
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "vncoerce"
@@ -276,7 +277,7 @@ static unsigned getLoadLoadClobberFullWidthSize(const Value *MemLocBase,
   // looking at an i8 load on x86-32 that is known 1024 byte aligned, we can
   // widen it up to an i32 load.  If it is known 2-byte aligned, we can widen it
   // to i16.
-  unsigned LoadAlign = LI->getAlignment();
+  unsigned LoadAlign = LI->getAlign().value();
 
   int64_t MemLocEnd = MemLocOffs + MemLocSize;
 

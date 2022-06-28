@@ -264,6 +264,8 @@ bool mingw::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     add("-filealign:" + StringRef(a->getValue()));
   if (auto *a = args.getLastArg(OPT_section_alignment))
     add("-align:" + StringRef(a->getValue()));
+  if (auto *a = args.getLastArg(OPT_heap))
+    add("-heap:" + StringRef(a->getValue()));
 
   if (auto *a = args.getLastArg(OPT_o))
     add("-out:" + StringRef(a->getValue()));
@@ -320,6 +322,9 @@ bool mingw::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     add("-nxcompat:no");
   if (args.hasFlag(OPT_disable_tsaware, OPT_tsaware, false))
     add("-tsaware:no");
+
+  if (args.hasFlag(OPT_disable_reloc_section, OPT_enable_reloc_section, false))
+    add("-fixed");
 
   if (args.hasFlag(OPT_no_insert_timestamp, OPT_insert_timestamp, false))
     add("-timestamp:0");

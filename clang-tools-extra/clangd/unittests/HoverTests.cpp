@@ -14,7 +14,6 @@
 #include "TestTU.h"
 #include "index/MemIndex.h"
 #include "clang/AST/Attr.h"
-#include "clang/Basic/Specifiers.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
@@ -1224,7 +1223,6 @@ TEST(Hover, NoHover) {
           )cpp",
       // literals
       "auto x = t^rue;",
-      "auto x = '^A';",
       "auto x = ^(int){42};",
       "auto x = ^42.;",
       "auto x = ^42.0i;",
@@ -1250,6 +1248,12 @@ TEST(Hover, All) {
     const char *const Code;
     const std::function<void(HoverInfo &)> ExpectedBuilder;
   } Cases[] = {
+      {"auto x = [['^A']]; // character literal",
+       [](HoverInfo &HI) {
+         HI.Name = "expression";
+         HI.Type = "char";
+         HI.Value = "65 (0x41)";
+       }},
       {
           R"cpp(// Local variable
             int main() {
@@ -2517,6 +2521,22 @@ TEST(Hover, All) {
             HI.Definition = "@property(nonatomic, assign, unsafe_unretained, "
                             "readwrite) int prop1;";
           }},
+      {
+          R"cpp(
+          @protocol MYProtocol
+          @end
+          @interface MYObject
+          @end
+
+          @interface MYObject (Ext) <[[MYProt^ocol]]>
+          @end
+          )cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "MYProtocol";
+            HI.Kind = index::SymbolKind::Protocol;
+            HI.NamespaceScope = "";
+            HI.Definition = "@protocol MYProtocol\n@end";
+          }},
       {R"objc(
         @interface Foo
         @end
@@ -3185,6 +3205,30 @@ TEST(Hover, HideBigInitializers) {
 
   ASSERT_TRUE(H);
   EXPECT_EQ(H->Definition, "int arr[]");
+}
+
+TEST(Hover, Typedefs) {
+  Annotations T(R"cpp(
+  template <bool X, typename T, typename F>
+  struct cond { using type = T; };
+  template <typename T, typename F>
+  struct cond<false, T, F> { using type = F; };
+
+  template <bool X, typename T, typename F>
+  using type = typename cond<X, T, F>::type;
+
+  void foo() {
+    using f^oo = type<true, int, double>;
+  }
+  )cpp");
+
+  TestTU TU = TestTU::withCode(T.code());
+  auto AST = TU.build();
+  auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+
+  ASSERT_TRUE(H && H->Type);
+  EXPECT_EQ(H->Type->Type, "int");
+  EXPECT_EQ(H->Definition, "using foo = type<true, int, double>");
 }
 } // namespace
 } // namespace clangd

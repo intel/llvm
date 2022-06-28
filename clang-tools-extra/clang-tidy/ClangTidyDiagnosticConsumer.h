@@ -20,14 +20,7 @@
 namespace clang {
 
 class ASTContext;
-class CompilerInstance;
 class SourceManager;
-namespace ast_matchers {
-class MatchFinder;
-} // namespace ast_matchers
-namespace tooling {
-class CompilationDatabase;
-} // namespace tooling
 
 namespace tidy {
 class CachedGlobList;
@@ -194,6 +187,10 @@ public:
     return AllowEnablingAnalyzerAlphaCheckers;
   }
 
+  void setSelfContainedDiags(bool Value) { SelfContainedDiags = Value; }
+
+  bool areDiagsSelfContained() const { return SelfContainedDiags; }
+
   using DiagLevelAndFormatString = std::pair<DiagnosticIDs::Level, std::string>;
   DiagLevelAndFormatString getDiagLevelAndFormatString(unsigned DiagnosticID,
                                                        SourceLocation Loc) {
@@ -229,6 +226,8 @@ private:
   std::string ProfilePrefix;
 
   bool AllowEnablingAnalyzerAlphaCheckers;
+
+  bool SelfContainedDiags;
 
   NoLintDirectiveHandler NoLintHandler;
 };

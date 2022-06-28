@@ -13,8 +13,8 @@ include "mlir/IR/OpBase.td"
 
 def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
   let description = [{
-    An op interface for Comprehensive Bufferization. Ops that implement this
-    interface can be bufferized using Comprehensive Bufferization.
+    An op interface for One-Shot Bufferize. Ops that implement this interface
+    interface can be analyzed and bufferized using One-Shot Bufferize.
   }];
   let cppNamespace = "::mlir::bufferization";
   let methods = [
@@ -26,14 +26,14 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
 
           Note: It is always safe to consider an OpOperand as a memory read,
           even if it does actually not read; however, this can introduce
-          unnecessary out-of-place bufferization decisions. The analysis of
-          Comprehensive Bufferize considers OpOperands of unknown ops (that do
-          not implement this interface) as reading OpOperands.
+          unnecessary out-of-place bufferization decisions. One-Shot Analysis
+          considers OpOperands of unknown ops (that do not implement this
+          interface) as reading OpOperands.
         }],
         /*retType=*/"bool",
         /*methodName=*/"bufferizesToMemoryRead",
         /*args=*/(ins "OpOperand &":$opOperand,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpOperands.
@@ -55,14 +55,14 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
 
           Note: It is always safe to consider an OpOperand as a memory write,
           even if it does actually not write; however, this can introduce
-          unnecessary out-of-place bufferization decisions. The analysis of
-          Comprehensive Bufferize considers OpOperands of unknown ops (that do
-          not implement this interface) as writing OpOperands.
+          unnecessary out-of-place bufferization decisions. One-Shot Analysis
+          considers OpOperands of unknown ops (that do not implement this
+          interface) as writing OpOperands.
         }],
         /*retType=*/"bool",
         /*methodName=*/"bufferizesToMemoryWrite",
         /*args=*/(ins "OpOperand &":$opOperand,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpOperands.
@@ -85,7 +85,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           /*retType=*/"bool",
           /*methodName=*/"isMemoryWrite",
           /*args=*/(ins "OpResult":$opResult,
-                        "const BufferizationState &":$state),
+                        "const AnalysisState &":$state),
           /*methodBody=*/"",
           /*defaultImplementation=*/[{
             auto bufferizableOp =
@@ -112,7 +112,7 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*retType=*/"bool",
         /*methodName=*/"mustBufferizeInPlace",
         /*args=*/(ins "OpOperand &":$opOperand,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           return false;
@@ -124,10 +124,10 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           bufferized in-place. This method will never be called on OpOperands
           that do not have a tensor type.
         }],
-        /*retType=*/"OpResult",
+        /*retType=*/"SmallVector<OpResult>",
         /*methodName=*/"getAliasingOpResult",
         /*args=*/(ins "OpOperand &":$opOperand,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpOperands.
@@ -146,12 +146,12 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
 
           Note: This method can return multiple OpOperands, indicating that the
           given OpResult may at runtime alias with any of the OpOperands. This
-          is useful for branches and for ops such as `std.select`.
+          is useful for branches and for ops such as `arith.select`.
         }],
         /*retType=*/"SmallVector<OpOperand *>",
         /*methodName=*/"getAliasingOpOperand",
         /*args=*/(ins "OpResult":$opResult,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           assert(opResult.getType().isa<TensorType>() &&
@@ -162,8 +162,9 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
           for (OpOperand &opOperand : $_op.getOperation()->getOpOperands()) {
             if (!opOperand.get().getType().isa<TensorType>())
               continue;
-            if (bufferizableOp.getAliasingOpResult(opOperand, state) ==
-                    opResult)
+            SmallVector<OpResult> aliasingOpResults =
+                bufferizableOp.getAliasingOpResult(opOperand, state);
+            if (llvm::is_contained(aliasingOpResults, opResult))
               result.push_back(&opOperand);
           }
           return result;
@@ -183,12 +184,38 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*retType=*/"BufferRelation",
         /*methodName=*/"bufferRelation",
         /*args=*/(ins "OpResult":$opResult,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           // Does not have to be implemented for ops without tensor OpResults
           // that have an aliasing OpOperand.
           llvm_unreachable("bufferRelation not implemented");
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Resolve all inplacability conflicts by inserting explicit
+          `bufferization.alloc_tensor` ops. Examples of inplacability conflicts
+          are read-after-write conflicts or writes into non-writable buffers.
+
+          This method should rewrite the IR in such a way that for each tensor
+          OpOperand t, buffer(t) can be directly used when during bufferization.
+          The bufferization does no longer have to care about inplacability
+          conflicts.
+
+          This method can query analysis information from the given analysis
+          state.
+        }],
+        /*retType=*/"LogicalResult",
+        /*methodName=*/"resolveConflicts",
+        /*args=*/(ins "RewriterBase &":$rewriter,
+                      "const AnalysisState &":$state),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          auto bufferizableOp =
+              cast<BufferizableOpInterface>($_op.getOperation());
+          return bufferizableOp.resolveTensorOpOperandConflicts(
+              rewriter, state);
         }]
       >,
       InterfaceMethod<
@@ -214,11 +241,18 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
 
           This method will never be called on ops that do not have at least one
           tensor operand/result.
+
+          The return value of this method indicates whether there was an error
+          while bufferizing this op (such as failing to create a new buffer
+          allocation op). The bufferization driver immediately stops bufferizing
+          the input IR and returns `failure` in that case. If this op is
+          expected to survive bufferization, `success` should be returned
+          (together with `allow-unknown-ops` enabled).
         }],
         /*retType=*/"LogicalResult",
         /*methodName=*/"bufferize",
         /*args=*/(ins "RewriterBase &":$rewriter,
-                      "const BufferizationState &":$state),
+                      "BufferizationState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           llvm_unreachable("bufferize not implemented");
@@ -244,26 +278,10 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*retType=*/"bool",
         /*methodName=*/"isWritable",
         /*args=*/(ins "Value":$value,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           return value.isa<OpResult>();
-        }]
-      >,
-      InterfaceMethod<
-        /*desc=*/[{
-          Return `true` if the op is an allocation hoisting barrier. Buffer
-          allocations will never be beyond such ops. E.g., ops with certain
-          parallel semantics may be allocation hoisting barriers. The majority
-          of ops, however, is not a barrier. Therefore, this method returns
-          `false` by default.
-        }],
-        /*retType=*/"bool",
-        /*methodName=*/"isAllocationHoistingBarrier",
-        /*args=*/(ins),
-        /*methodBody=*/"",
-        /*defaultImplementation=*/[{
-          return false;
         }]
       >,
       InterfaceMethod<
@@ -283,15 +301,37 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
         /*methodName=*/"isNotConflicting",
         /*args=*/(ins "OpOperand *":$uRead,
                       "OpOperand *":$uWrite,
-                      "const BufferizationState &":$state),
+                      "const AnalysisState &":$state),
         /*methodBody=*/"",
         /*defaultImplementation=*/[{
           return false;
+        }]
+      >,
+      InterfaceMethod<
+        /*desc=*/[{
+          Return `failure` if this op does not pass the analysis. This method
+          is run during One-Shot Bufferize (after all post-analysis steps). If
+          the op does not pass the analysis, bufferization is aborted.
+
+          This method can be used to check expected invariants and limitations
+          of the current bufferization implementation.
+        }],
+        /*retType=*/"LogicalResult",
+        /*methodName=*/"verifyAnalysis",
+        /*args=*/(ins "const AnalysisState &":$state),
+        /*methodBody=*/"",
+        /*defaultImplementation=*/[{
+          return success();
         }]
       >
   ];
 
   let extraClassDeclaration = [{
+    /// Resolve out-of-place tensor OpOperands with explicit allocations in the
+    /// form of `bufferization.alloc_tensor` ops.
+    LogicalResult resolveTensorOpOperandConflicts(
+        RewriterBase &rewriter, const AnalysisState &state);
+
     /// Return `true` if the given OpOperand creates an alias but does neither
     /// read nor write. This implies that `bufferizesToMemoryRead` and
     /// `bufferizesToMemoryWrite` must return `false`. This method will never
@@ -299,26 +339,20 @@ def BufferizableOpInterface : OpInterface<"BufferizableOpInterface"> {
     ///
     /// Examples of such ops are `tensor.extract_slice` and `tensor.cast`.
     bool bufferizesToAliasOnly(OpOperand &opOperand,
-                               const BufferizationState &state) {
+                               const AnalysisState &state) {
       auto bufferizableOp =
           cast<BufferizableOpInterface>(getOperation());
       return !bufferizableOp.bufferizesToMemoryRead(opOperand, state)
           && !bufferizableOp.bufferizesToMemoryWrite(opOperand, state)
-          && static_cast<bool>(
-              bufferizableOp.getAliasingOpResult(opOperand, state));
+          && !bufferizableOp.getAliasingOpResult(opOperand, state).empty();
     }
 
-    // TODO: The following two attributes should belong to the tensor dialect.
-    // The corresponding verifier should also be in the tensor dialect.
+    // TODO: This attribute is deprecated. Use `bufferization.writable` or add
+    // a new attribute in a different dialect.
     /// Attribute name used to mark region arguments that can be bufferized
     /// in-place during one-shot bufferization.
     constexpr const static ::llvm::StringLiteral
-      kInplaceableAttrName = "linalg.inplaceable";
-
-    /// Attribute name used to mark the bufferization layout for region
-    /// arguments during one-shot bufferization.
-    constexpr const static ::llvm::StringLiteral
-      kBufferLayoutAttrName = "linalg.buffer_layout";
+        kInplaceableAttrName = "linalg.inplaceable";
   }];
 }
 

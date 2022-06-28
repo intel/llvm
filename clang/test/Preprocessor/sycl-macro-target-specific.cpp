@@ -20,7 +20,7 @@
 // RUN: %clang_cc1 %s -fsycl-is-device -triple spir64_fpga-unknown-unknown -E -dM \
 // RUN: | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS-NEG %s
 // RUN: %clang_cc1 %s -fsycl-is-device -triple nvptx64-nvidia-nvcl -E -dM \
-// RUN: | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS-NEG %s
+// RUN: | FileCheck --check-prefix=CHECK-SYCL-FP-ATOMICS %s
 // CHECK-SYCL-FP-ATOMICS: #define SYCL_USE_NATIVE_FP_ATOMICS
 // CHECK-SYCL-FP-ATOMICS-NEG-NOT: #define SYCL_USE_NATIVE_FP_ATOMICS
 

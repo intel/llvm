@@ -1673,8 +1673,8 @@ void ConversionPatternRewriter::cancelRootUpdate(Operation *op) {
 }
 
 LogicalResult ConversionPatternRewriter::notifyMatchFailure(
-    Operation *op, function_ref<void(Diagnostic &)> reasonCallback) {
-  return impl->notifyMatchFailure(op->getLoc(), reasonCallback);
+    Location loc, function_ref<void(Diagnostic &)> reasonCallback) {
+  return impl->notifyMatchFailure(loc, reasonCallback);
 }
 
 detail::ConversionPatternRewriterImpl &ConversionPatternRewriter::getImpl() {
@@ -2588,6 +2588,11 @@ static void computeNecessaryMaterializations(
         return !necessaryMaterializations.count(matIt->second);
       return rewriterImpl.isOpIgnored(user);
     };
+    // This value may be replacing another value that has a live user.
+    for (Value inv : inverseMapping.lookup(value))
+      if (llvm::find_if_not(inv.getUsers(), findFn) != inv.user_end())
+        return true;
+    // Or have live users itself.
     return llvm::find_if_not(value.getUsers(), findFn) != value.user_end();
   };
 
@@ -3069,7 +3074,7 @@ struct FunctionOpInterfaceSignatureConversion : public ConversionPattern {
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     FunctionOpInterface funcOp = cast<FunctionOpInterface>(op);
-    FunctionType type = funcOp.getType().cast<FunctionType>();
+    FunctionType type = funcOp.getFunctionType().cast<FunctionType>();
 
     // Convert the original function types.
     TypeConverter::SignatureConversion result(type.getNumInputs());

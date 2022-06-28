@@ -37,8 +37,8 @@
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -84,7 +84,7 @@ EnableNoAliasConversion("enable-noalias-to-md-conversion", cl::init(true),
 
 static cl::opt<bool>
     UseNoAliasIntrinsic("use-noalias-intrinsic-during-inlining", cl::Hidden,
-                        cl::ZeroOrMore, cl::init(true),
+                        cl::init(true),
                         cl::desc("Use the llvm.experimental.noalias.scope.decl "
                                  "intrinsic during inlining."));
 
@@ -671,12 +671,9 @@ static void HandleInlinedEHPad(InvokeInst *II, BasicBlock *FirstNewBlock,
   // edge from this block.
   SmallVector<Value *, 8> UnwindDestPHIValues;
   BasicBlock *InvokeBB = II->getParent();
-  for (Instruction &I : *UnwindDest) {
+  for (PHINode &PHI : UnwindDest->phis()) {
     // Save the value to use for this edge.
-    PHINode *PHI = dyn_cast<PHINode>(&I);
-    if (!PHI)
-      break;
-    UnwindDestPHIValues.push_back(PHI->getIncomingValueForBlock(InvokeBB));
+    UnwindDestPHIValues.push_back(PHI.getIncomingValueForBlock(InvokeBB));
   }
 
   // Add incoming-PHI values to the unwind destination block for the given basic
@@ -1791,6 +1788,13 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   BasicBlock *OrigBB = CB.getParent();
   Function *Caller = OrigBB->getParent();
 
+  // Do not inline strictfp function into non-strictfp one. It would require
+  // conversion of all FP operations in host function to constrained intrinsics.
+  if (CalledFunc->getAttributes().hasFnAttr(Attribute::StrictFP) &&
+      !Caller->getAttributes().hasFnAttr(Attribute::StrictFP)) {
+    return InlineResult::failure("incompatible strictfp attributes");
+  }
+
   // GC poses two hazards to inlining, which only occur when the callee has GC:
   //  1. If the caller has no GC, then the callee's GC must be propagated to the
   //     caller.
@@ -2646,7 +2650,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
     AssumptionCache *AC =
         IFI.GetAssumptionCache ? &IFI.GetAssumptionCache(*Caller) : nullptr;
     auto &DL = Caller->getParent()->getDataLayout();
-    if (Value *V = SimplifyInstruction(PHI, {DL, nullptr, nullptr, AC})) {
+    if (Value *V = simplifyInstruction(PHI, {DL, nullptr, nullptr, AC})) {
       PHI->replaceAllUsesWith(V);
       PHI->eraseFromParent();
     }

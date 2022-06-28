@@ -93,14 +93,38 @@ protected:
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
       throw sycl::invalid_object_error("The property is not found",
-                                       PI_INVALID_VALUE);
+                                       PI_ERROR_INVALID_VALUE);
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
     throw sycl::invalid_object_error("The property is not found",
-                                     PI_INVALID_VALUE);
+                                     PI_ERROR_INVALID_VALUE);
+  }
+
+  void add_or_replace_accessor_properties_helper(
+      const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {
+    for (auto &Prop : PropsWithData) {
+      if (Prop->isSame(sycl::detail::PropWithDataKind::AccPropBufferLocation)) {
+        delete_accessor_property_helper(
+            sycl::detail::PropWithDataKind::AccPropBufferLocation);
+        MPropsWithData.push_back(Prop);
+        break;
+      }
+    }
+  }
+
+  void delete_accessor_property_helper(const PropWithDataKind &Kind) {
+    auto It = MPropsWithData.begin();
+    for (; It != MPropsWithData.end(); ++It) {
+      if ((*It)->isSame(Kind))
+        break;
+    }
+    if (It != MPropsWithData.end()) {
+      std::iter_swap(It, MPropsWithData.end() - 1);
+      MPropsWithData.pop_back();
+    }
   }
 
   // Stores enabled/disabled for simple properties

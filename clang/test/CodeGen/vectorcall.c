@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -emit-llvm %s -o - -ffreestanding -triple=i386-pc-win32       | FileCheck %s --check-prefix=X32
-// RUN: %clang_cc1 -emit-llvm %s -o - -ffreestanding -triple=x86_64-pc-win32     | FileCheck %s --check-prefix=X64
+// RUN: %clang_cc1 -no-opaque-pointers -emit-llvm %s -o - -ffreestanding -triple=i386-pc-win32       | FileCheck %s --check-prefix=X32
+// RUN: %clang_cc1 -no-opaque-pointers -emit-llvm %s -o - -ffreestanding -triple=x86_64-pc-win32     | FileCheck %s --check-prefix=X64
 
 void __vectorcall v1(int a, int b) {}
 // X32: define dso_local x86_vectorcallcc void @"\01v1@@8"(i32 inreg noundef %a, i32 inreg noundef %b)
@@ -85,7 +85,7 @@ struct HVA4 __vectorcall hva6(struct HVA4 a, struct HVA4 b) { return b;}
 // X32: define dso_local x86_vectorcallcc %struct.HVA4 @"\01hva6@@128"(%struct.HVA4 inreg %a.coerce, %struct.HVA4* inreg noundef %b)
 // X64: define dso_local x86_vectorcallcc %struct.HVA4 @"\01hva6@@128"(%struct.HVA4 inreg %a.coerce, %struct.HVA4* noundef %b)
 
-struct HVA5 __vectorcall hva7() {struct HVA5 a = {}; return a;}
+struct HVA5 __vectorcall hva7(void) {struct HVA5 a = {}; return a;}
 // X32: define dso_local x86_vectorcallcc void @"\01hva7@@0"(%struct.HVA5* inreg noalias sret(%struct.HVA5) align 16 %agg.result)
 // X64: define dso_local x86_vectorcallcc void @"\01hva7@@0"(%struct.HVA5* noalias sret(%struct.HVA5) align 16 %agg.result)
 

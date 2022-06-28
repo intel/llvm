@@ -376,6 +376,13 @@ public:
     ExportedSymbols.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
     return ExportedSymbols;
   }
+  const PropertyRange getDeviceGlobals() const {
+    // We can't have this variable as a class member, since it would break
+    // the ABI backwards compatibility.
+    DeviceBinaryImage::PropertyRange DeviceGlobals;
+    DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
+    return DeviceGlobals;
+  }
   virtual ~DeviceBinaryImage() {}
 
 protected:
@@ -413,15 +420,19 @@ template <class To, class From> inline To cast(From value) {
   return (To)(value);
 }
 
-// These conversions should use PI interop API.
-template <> inline pi::PiProgram cast(cl_program) {
-  RT::assertion(false, "pi::cast -> use piextCreateProgramWithNativeHandle");
-  return {};
-}
+// Helper traits for identifying std::vector with arbitrary element type.
+template <typename T> struct IsStdVector : std::false_type {};
+template <typename T> struct IsStdVector<std::vector<T>> : std::true_type {};
 
-template <> inline pi::PiDevice cast(cl_device_id) {
-  RT::assertion(false, "pi::cast -> use piextCreateDeviceWithNativeHandle");
-  return {};
+// Overload for vectors that applies the cast to all elements. This
+// creates a new vector.
+template <class To, class FromE> To cast(std::vector<FromE> Values) {
+  static_assert(IsStdVector<To>::value, "Return type must be a vector.");
+  To ResultVec;
+  ResultVec.reserve(Values.size());
+  for (FromE &Val : Values)
+    ResultVec.push_back(cast<typename To::value_type>(Val));
+  return ResultVec;
 }
 
 } // namespace pi

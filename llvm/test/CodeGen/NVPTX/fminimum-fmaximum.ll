@@ -1,5 +1,7 @@
 ; RUN: llc < %s -march=nvptx | FileCheck %s --check-prefixes=CHECK,CHECK-NONAN
 ; RUN: llc < %s -march=nvptx -mcpu=sm_80 | FileCheck %s --check-prefixes=CHECK,CHECK-NAN
+; RUN: %if ptxas %{ llc < %s -march=nvptx | %ptxas-verify %}
+; RUN: %if ptxas-11.0 %{ llc < %s -march=nvptx -mcpu=sm_80 | %ptxas-verify -arch=sm_80 %}
 
 ; ---- minimum ----
 
@@ -25,9 +27,8 @@ define float @minimum_float(float %a) #0 {
 
 ; CHECK-LABEL: minimum_double
 define double @minimum_double(double %a) #0 {
-  ; CHECK-NONAN: setp
-  ; CHECK-NONAN: selp.f64
-  ; CHECK-NAN: min.NaN.f64
+  ; CHECK: setp
+  ; CHECK: selp.f64
   %p = fcmp ult double %a, 0.0
   %x = select i1 %p, double %a, double 0.0
   ret double %x
@@ -69,9 +70,8 @@ define float @maximum_float(float %a) #0 {
 
 ; CHECK-LABEL: maximum_double
 define double @maximum_double(double %a) #0 {
-  ; CHECK-NONAN: setp
-  ; CHECK-NONAN: selp.f64
-  ; CHECK-NAN: max.NaN.f64
+  ; CHECK: setp
+  ; CHECK: selp.f64
   %p = fcmp ugt double %a, 0.0
   %x = select i1 %p, double %a, double 0.0
   ret double %x

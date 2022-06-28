@@ -285,6 +285,17 @@ features that are required for the function to be called. The result of this is
 that future processors execute the most restrictive version of the function the
 new processor can execute.
 
+In addition, unlike the ICC implementation of this feature, the selection of the
+version does not consider the manufacturer or microarchitecture of the processor.
+It tests solely the list of features that are both supported by the specified
+processor and present in the compiler-rt library. This can be surprising at times,
+as the runtime processor may be from a completely different manufacturer, as long
+as it supports the same feature set.
+
+This can additionally be surprising, as some processors are indistringuishable from
+others based on the list of testable features. When this happens, the variant
+is selected in an unspecified manner.
+
 Function versions are defined with ``cpu_specific``, which takes one or more CPU
 names as a parameter. For example:
 
@@ -540,10 +551,14 @@ pointer type.
 
 def CXX11NoReturnDocs : Documentation {
   let Category = DocCatFunction;
+  let Heading = "noreturn, _Noreturn";
   let Content = [{
 A function declared as ``[[noreturn]]`` shall not return to its caller. The
 compiler will generate a diagnostic for a function declared as ``[[noreturn]]``
 that appears to be capable of returning to its caller.
+
+The ``[[_Noreturn]]`` spelling is deprecated and only exists to ease code
+migration for code using ``[[noreturn]]`` after including ``<stdnoreturn.h>``.
   }];
 }
 
@@ -562,6 +577,33 @@ over the tradeoff between code size and debug information precision.
 ``nomerge`` attribute can also be used as function attribute to prevent all 
 calls to the specified function from merging. It has no effect on indirect 
 calls.
+  }];
+}
+
+def NoInlineDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This function attribute suppresses the inlining of a function at the call sites
+of the function.
+
+``[[clang::noinline]]`` spelling can be used as a statement attribute; other
+spellings of the attribute are not supported on statements. If a statement is
+marked ``[[clang::noinline]]`` and contains calls, those calls inside the
+statement will not be inlined by the compiler.
+
+``__noinline__`` can be used as a keyword in CUDA/HIP languages. This is to
+avoid diagnostics due to usage of ``__attribute__((__noinline__))``
+with ``__noinline__`` defined as a macro as ``__attribute__((noinline))``.
+
+.. code-block:: c
+
+  int example(void) {
+    int r;
+    [[clang::noinline]] foo();
+    [[clang::noinline]] r = bar();
+    return r;
+  }
+
   }];
 }
 
@@ -1566,6 +1608,10 @@ attributes are ignored. Supported platforms are:
 ``watchos``
   Apple's watchOS operating system. The minimum deployment target is specified by
   the ``-mwatchos-version-min=*version*`` command-line argument.
+  
+``driverkit``
+  Apple's DriverKit userspace kernel extensions. The minimum deployment target
+  is specified as part of the triple.
 
 A declaration can typically be used even when deploying back to a platform
 version prior to when the declaration was introduced. When this happens, the
@@ -2844,77 +2890,23 @@ The GNU spelling is deprecated in SYCL mode.
     [[sycl::work_group_size_hint(2, 2, 2)]] void operator()() const {}
   };
 
-The arguments to ``reqd_work_group_size`` are ordered based on which index
+The arguments to ``work_group_size_hint`` are ordered based on which index
 increments the fastest. In OpenCL, the first argument is the index that
 increments the fastest, and in SYCL, the last argument is the index that
 increments the fastest.
 
-In OpenCL, all three arguments are required.
+In OpenCL C, this attribute is available with the GNU spelling
+(``__attribute__((work_group_size_hint(X, Y, Z)))``) and all 
+three arguments are required.
 
 In SYCL, the attribute accepts either one, two, or three arguments; in each
 form, the last (or only) argument is the index that increments fastest. The
 number of arguments passed to the attribute must match the dimensionality of
 the kernel the attribute is applied to.
 
-If the ``reqd_work_group_size attribute`` is specified on a declaration along
-with ``num_simd_work_items``, the required work group size specified by
-``num_simd_work_items`` must evenly divide the index that increments fastest
-in the ``reqd_work_group_size`` attribute.
-
-.. code-block:: c++
-
-  // Note, '64' is evenly divisible by '4'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct func {
-    [[intel::num_simd_work_items(4)]]
-    [[sycl::reqd_work_group_size(7, 4, 64)]]
-    void operator()() const {}
-  };
-
-  // Note, '8' is evenly divisible by '8'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct bar {
-    [[sycl::reqd_work_group_size(1, 1, 8)]]
-    [[intel::num_simd_work_items(8)]]
-    void operator()() const {}
-  };
-
-  // Note, '10' is evenly divisible by '5'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  [[cl::reqd_work_group_size(7, 5, 10)]]
-  [[intel::num_simd_work_items(5)]] void fun2() {}
-
-  // Note, '8' is evenly divisible by '4'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  [[intel::num_simd_work_items(4)]]
-  [[cl::reqd_work_group_size(5, 4, 8)]] void fun3() {}
-
-  // Note, '8' is evenly divisible by '8'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct func1 {
-    [[intel::num_simd_work_items(8)]]
-    [[cl::reqd_work_group_size(1, 1, 8)]]
-    void operator()() const {}
-  };
-  
-  // Note, '8' is evenly divisible by '4'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  struct bar1 {
-    [[cl::reqd_work_group_size(7, 4, 8)]]
-    [[intel::num_simd_work_items(4)]]
-    void operator()() const {}
-  };
-
-  // Note, '4' is evenly divisible by '2'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  [[intel::num_simd_work_items(2)]]
-  __attribute__((reqd_work_group_size(3, 2, 4))) void test();
- 
-  // Note, '8' is evenly divisible by '2'; in SYCL, the last
-  // argument to the attribute is the one which increments fastest.
-  __attribute__((reqd_work_group_size(3, 2, 8)))
-  [intel::num_simd_work_items(2)]] void test();
-
+In SYCL 1.2.1 mode, the ``sycl::work_group_size_hint`` attribute is propagated 
+from the function it is applied to onto the kernel which calls the function. 
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
@@ -3083,6 +3075,49 @@ function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
+def SYCLDeviceGlobalAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::device_global";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::device_global]] attribute is used for checking restrictions
+on variable declarations using the device_global type instead of the class name.
+Global or static variables of type decorated with this attribute have
+`sycl-unique-id`, an LLVM IR attribute, added to the definition of each such
+variable, which provides a unique string identifier using
+__builtin_sycl_unique_stable_id.
+We do not intend to support this as a general attribute that user code can use,
+so we have this attribute in sycl_detail namespace.
+
+.. code-block:: c++
+
+  template<typename T>
+  struct [[__sycl_detail__::device_global]] device_global {}
+
+  device_global<int> Foo;
+  }];
+}
+
+def SYCLGlobalVariableAllowedAttrDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "__sycl_detail__::global_variable_allowed";
+  let Content = [{
+This attribute is part of support for SYCL device_global feature.
+[[__sycl_detail__::global_variable_allowed]] attribute is used to avoid
+diagnosing an error when global or static variables of type decorated with this
+attribute are referenced in device code. We do not intend to support this as a
+general attribute that user code can use, therefore it is wrapped in
+sycl_detail namespace.
+
+.. code-block:: c++
+  
+  template<typename T>
+  struct [[__sycl_detail__::global_variable_allowed]] device_global {}
+  
+  device_global<int> Foo;
+  }];
+}
+
 def SYCLFPGAPipeDocs : Documentation {
   let Category = DocCatStmt;
   let Heading = "pipe (read_only, write_only)";
@@ -3126,6 +3161,9 @@ is unspecified and is therefore considered infinite.
 In case of ivdep being applied both w/o an array variable and for a particular
 array, the array variables that were not designated a separate ivdep will receive
 the no-array ivdep's safelen, with the correspondent treatment by the backend.
+The ``[[intel::ivdep]]`` attribute applies a safelen value of 0 or 1 that has
+no effect on the loop and emits a suppressible warning when safelen value of 0
+or 1 is used.
 
 .. code-block:: c++
 
@@ -3256,6 +3294,9 @@ function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
 
+The ``[[intel::disable_loop_pipelining]]`` attribute spelling is a deprecated
+synonym for ``[[[intel::fpga_pipeline]]`` and will be removed in the future.
+
 .. code-block:: c++
 
   void foo() {
@@ -3268,9 +3309,61 @@ or ``ivdep``.
   }];
 }
 
+def SYCLIntelFPGAPipelineAttrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "intel::fpga_pipeline";
+  let Content = [{
+The ``intel::fpga_pipeline(N)`` attribute applies to a loop and it allows users
+to disable or enable pipelining iterations of a loop. The attribute optionally
+accepts an integer constant expression that is converted to `bool`. A `true`
+value enables pipelining while a `false` value disables pipelining. The
+optional argument defaults to `true`. This attribute cannot be applied to a
+loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
+``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
+
+.. code-block:: c++
+
+  // Disable loop pipelining
+  void bar() {
+    int a[10];
+    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+  }
+
+  // Enable loop pipelining
+  void foo() {
+    int var = 0;
+    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
+  }
+
+  void Array(int *array, size_t n) {
+    // identical to [[intel::fpga_pipeline(1)]]
+    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
+  void count () {
+  int a1[10], int i = 0;
+  [[intel::fpga_pipeline(1)]] while (i < 10) {
+    a1[i] += 3;
+  }
+
+  void check() {
+    int a = 10;
+    [[intel::fpga_pipeline(1)]] do {
+      a = a + 1;
+    } while (a < 20);
+  }
+
+  template<int A>
+  void func() {
+    [[intel::fpga_pipeline(A)]] for(;;) { }
+  }
+
+  }];
+}
+
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
-  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg";
+  let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
   let Content = [{
 The loop count attributes specify the minimum, maximum, or average number of
 iterations for a ``for`` loop. These are hints that the user specify that can be
@@ -3288,10 +3381,15 @@ using PGO.
     [[intel::loop_count_max(10)]] for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
+  void count(int *array, size_t n) {
+    [[intel::loop_count(20)]] for (int i = 0; i < n; ++i) array[i] = 0;
+  }
+
   void goo(int *array, size_t n) {
     [[intel::loop_count_min(3)]]
     [[intel::loop_count_max(10)]]
     [[intel::loop_count_avg(5)]]
+    [[intel::loop_count(20)]]
     for (int i = 0; i < n; ++i) array[i] = 0;
   }
 
@@ -3300,6 +3398,10 @@ using PGO.
     [[intel::loop_count_avg(N)]] for(;;) { }
   }
 
+  template<int A>
+  void func() {
+    [[intel::loop_count(A)]] for(;;) { }
+  }
   }];
 }
 
@@ -3403,6 +3505,254 @@ safety analysis can ignore negative-distance dependences between these loops.
 parameter that is a constant unsigned integer expression. The parameter N may be a template
 parameter.
 
+  }];
+}
+
+def SYCLAddIRAttributesFunctionDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "add_ir_attributes_function";
+  let Content = [{
+This attribute can be applied to a function declaration or a function definition
+to add LLVM IR attributes to the resulting LLVM IR function.
+The attribute must contain N*2 arguments where N is the number of IR attributes
+to add to the resulting LLVM IR function declaration. Each of the first N of
+these arguments must be either string literals or ``constexpr const char *``.
+These will be the names of the added LLVM IR attributes. The following N
+arguments are the values of the LLVM IR attributes and must be integer, floating
+point, character, boolean, ``const char *``, or an enumeration as either a
+literal or ``constexpr`` value.
+No LLVM IR attribute is generated if the attribute name is an empty string.
+
+.. code-block:: c++
+
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", "Attr2", true, 1)]]
+  void foo() {}
+  // Resulting LLVM IR function definition of foo will have the attributes
+  // "Attr1"="true" and "Attr2"="1".
+
+Optionally, the first argument of the attribute can be an initializer list
+containing only string literals. This initializer list acts as a filter,
+allowing only attributes with names in the initializer list to be generated.
+If this intializer list is present, the attribute must have N*2+1 arguments,
+where the last N*2 are as described above.
+
+.. code-block:: c++
+
+  [[__sycl_detail__::add_ir_attributes_function(
+      {"Attr2"}, "Attr1", "Attr2", true, 1)]]
+  void foo() {}
+  // Resulting LLVM IR function definition of foo will only have the
+  // "Attr2"="1" attribute.
+
+.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
+  code.
+
+.. Note:: This attribute is not currently allowed on virtual, overridden, final,
+  defaulted, and deleted functions.
+
+.. Note:: This attribute is intended as an internal implementation detail and is
+  not intended to be used by external users.
+  }];
+}
+
+def SYCLAddIRAttributesKernelParameterDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "add_ir_attributes_kernel_parameter";
+  let Content = [{
+This attribute can be applied to parameters of the ``__init`` member function
+associated with a class with the ``__attribute__((sycl_special_class))``. If a
+parameter of a kernel function was adopted from an ``__init`` member function,
+the attribute will cause the corresponding parameter in the generated LLVM IR to
+have the LLVM IR attributes specified by the arguments of the attribute.
+The attribute must contain N*2 arguments where N is the number of IR attributes
+to add to the resulting LLVM IR function parameter declaration. Each of the
+first N of these arguments must be either string literals or
+``constexpr const char *``. These will be the names of the added LLVM IR
+attributes. The following N arguments are the values of the LLVM IR attributes
+and must be integer, floating point, character, boolean, ``const char *``, or
+an enumeration as either a literal or ``constexpr`` value.
+No LLVM IR attribute is generated if the attribute name is an empty string.
+
+.. code-block:: c++
+
+  class __attribute__((sycl_special_class)) Foo {
+  public:
+    ...
+
+  #ifdef __SYCL_DEVICE_ONLY__
+    void __init(
+        [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+            "Attr1", "Attr2", "Attribute value", 3.14)]]
+        int x) {
+      ...
+    }
+  #endif
+  };
+  // Resulting LLVM IR kernel function using Foo will have a parameter for x
+  // with attributes "Attr1"="Attribute value" and "Attr2"="3.14".
+
+Optionally, the first argument of the attribute can be an initializer list
+containing only string literals. This initializer list acts as a filter,
+allowing only attributes with names in the initializer list to be generated.
+If this intializer list is present, the attribute must have N*2+1 arguments,
+where the last N*2 are as described above.
+
+.. code-block:: c++
+
+  class __attribute__((sycl_special_class)) Foo {
+  public:
+    ...
+
+  #ifdef __SYCL_DEVICE_ONLY__
+    void __init(
+        [[__sycl_detail__::add_ir_attributes_kernel_parameter(
+            {"Attr1"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
+        int x) {
+      ...
+    }
+  #endif
+  };
+  // Resulting LLVM IR kernel function using Foo will have a parameter for x
+  // with only the "Attr1"="Attribute value" attribute.
+
+.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
+  code.
+
+.. Note:: This attribute is intended as an internal implementation detail and is
+  not intended to be used by external users.
+  }];
+}
+
+def SYCLAddIRAttributesGlobalVariableDocs : Documentation {
+  let Category = DocCatDecl;
+  let Heading = "add_ir_attributes_global_variable";
+  let Content = [{
+This attribute can be applied to a class definition. Global variables of a class
+with this attribute will have the LLVM IR attributes specified by the arguments
+of the attribute.
+The attribute must contain N*2 arguments where N is the number of IR attributes
+to add to the resulting LLVM IR global variable declaration. Each of the first N
+of these arguments must be either string literals or ``constexpr const char *``.
+These will be the names of the added LLVM IR attributes. The following N
+arguments are the values of the LLVM IR attributes and must be integer, floating
+point, character, boolean, ``const char *``, or an enumeration as either a
+literal or ``constexpr`` value.
+No LLVM IR attribute is generated if the attribute name is an empty string.
+
+.. code-block:: c++
+
+  template <typename... NameValues> struct
+  #ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_attributes_global_variable(
+          "Attr1", "Attr2", "Attr3", false, 1.234, true)]]
+  #endif
+      Foo {...};
+  Foo a;
+  // Resulting LLVM IR global variable for a will have the attributes
+  // "Attr1"="false", "Attr2"="1.234", and "Attr3"="true".
+
+Optionally, the first argument of the attribute can be an initializer list
+containing only string literals. This initializer list acts as a filter,
+allowing only attributes with names in the initializer list to be generated.
+If this intializer list is present, the attribute must have N*2+1 arguments,
+where the last N*2 are as described above.
+
+.. code-block:: c++
+
+  template <typename... NameValues> struct
+  #ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_attributes_global_variable(
+          {"Attr1", "Attr3"}, "Attr1", "Attr2", "Attr3", false, 1.234, true)]]
+  #endif
+      Foo {...};
+  Foo a;
+  // Resulting LLVM IR global variable for a will have the attributes
+  // "Attr1"="false" and "Attr3"="true".
+
+.. Note:: This attribute will only generate LLVM IR attributes in SYCL device
+  code.
+
+.. Note:: This attribute is intended as an internal implementation detail and is
+  not intended to be used by external users.
+  }];
+}
+
+def SYCLAddIRAnnotationsMemberDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "add_ir_annotations_member";
+  let Content = [{
+This attribute can be applied to a non-static field. Access to a field with this
+attribute will generate a call to ``llvm.ptr.annotation`` with the arguments
+paired.
+The attribute must contain N*2 arguments. Each of the first N of these arguments
+must be either string literals or ``constexpr const char *``. The following N
+must be integer, floating point, character, boolean, ``const char *``, or an
+enumeration as either a literal or ``constexpr`` value. The first N arguments
+and the second N arguments are zipped into pairs when creating the call to
+``llvm.ptr.annotation``, i.e. in the constant global variable pointed to by the
+generated annotation intrinsic call, the N+1'th argument of the attribute will
+occur after the first argument of the attribute, the N+2'th argument of the
+attribute will occur after the second argument of the attribute, etc.
+The generated call to ``llvm.ptr.annotation`` will have the following arguments
+in this order:
+
+  * First argument is a pointer to the field.
+  * A pointer to a string literal in a constant global variable. This will
+    always be "sycl-properties".
+  * A pointer to a string literal in a constant global variable with the name of
+    the source file.
+  * The line number of the field declaration in the source file.
+  * A pointer to a constant global variable containing pointers to string
+    literals in constant global variables. These pointers to string literals
+    occur in pairs. If the second value of a pair was a ``nullptr`` or an empty
+    string then the pointer will be a null-pointer.
+
+A pair will not be in the call to ``llvm.ptr.annotation`` if the first value of
+the pair is an empty string.
+
+.. code-block:: c++
+
+  struct Foo {
+    int *ptr
+  #ifdef __SYCL_DEVICE_ONLY__
+        [[__sycl_detail__::add_ir_annotations_member(
+            "Attr1", "Attr2", "Attribute value", 3.14)]]
+  #endif
+        ;
+  };
+  // Accessing the 'ptr' field of 'Foo' will result in a call to
+  // 'llvm.ptr.annotation' with the second argument pointing to a constant
+  // global variable containing "sycl-properties" and the fifth argument
+  // pointing to a constant global variable with pointers to string literals
+  // "Attr1", "Attribute value", "Attr2", "3.14" in that order.
+
+Optionally, the first argument of the attribute can be an initializer list
+containing only string literals. This initializer list acts as a filter,
+allowing only pairs with the first value in the initializer list to be
+generated. If this intializer list is present, the attribute must have N*2+1
+arguments, where the last N*2 are as described above.
+
+.. code-block:: c++
+
+  struct Foo {
+    int *ptr
+  #ifdef __SYCL_DEVICE_ONLY__
+        [[__sycl_detail__::add_ir_annotations_member(
+            {"Attr2"}, "Attr1", "Attr2", "Attribute value", 3.14)]]
+  #endif
+        ;
+  };
+  // Accessing the 'ptr' field of 'Foo' will result in a call to
+  // 'llvm.ptr.annotation' with the second argument pointing to a constant
+  // global variable containing "sycl-properties" and the fifth argument
+  // pointing to a constant global variable with pointers to string literals
+  // "Attr2", "3.14" in that order.
+
+.. Note:: This attribute will only generate a call to ``llvm.ptr.annotation`` in
+  SYCL device code.
+
+.. Note:: This attribute is intended as an internal implementation detail and is
+  not intended to be used by external users.
   }];
 }
 
@@ -3746,6 +4096,32 @@ For more information, see the documentation for `aarch64_vector_pcs`_ on
 the Arm Developer website.
 
 .. _`aarch64_vector_pcs`: https://developer.arm.com/products/software-development-tools/hpc/arm-compiler-for-hpc/vector-function-abi
+  }];
+}
+
+def AArch64SVEPcsDocs : Documentation {
+  let Category = DocCatCallingConvs;
+  let Content = [{
+On AArch64 targets, this attribute changes the calling convention of a
+function to preserve additional Scalable Vector registers and Scalable
+Predicate registers relative to the default calling convention used for
+AArch64.
+
+This means it is more efficient to call such functions from code that performs
+extensive scalable vector and scalable predicate calculations, because fewer
+live SVE registers need to be saved. This property makes it well-suited for SVE
+math library functions, which are typically leaf functions that require a small
+number of registers.
+
+However, using this attribute also means that it is more expensive to call
+a function that adheres to the default calling convention from within such
+a function. Therefore, it is recommended that this attribute is only used
+for leaf functions.
+
+For more information, see the documentation for `aarch64_sve_pcs` in the
+ARM C Language Extension (ACLE) documentation.
+
+.. _`aarch64_sve_pcs`: https://github.com/ARM-software/acle/blob/main/main/acle.md#scalable-vector-extension-procedure-call-standard-attribute
   }];
 }
 
@@ -4535,6 +4911,9 @@ If a type is trivial for the purposes of calls, has a non-trivial destructor,
 and is passed as an argument by value, the convention is that the callee will
 destroy the object before returning.
 
+If a type is trivial for the purpose of calls, it is assumed to be trivially
+relocatable for the purpose of ``__is_trivially_relocatable``.
+
 Attribute ``trivial_abi`` has no effect in the following cases:
 
 - The class directly declares a virtual base or virtual methods.
@@ -5145,10 +5524,10 @@ completion handler in a Swift async method. For instance, here:
 This method asynchronously calls ``completionHandler`` when the data is
 available, or calls it with an error. ``_Nullable_result`` indicates to the
 Swift importer that this is the uncommon case where ``result`` can get ``nil``
-even if no error has occured, and will therefore import it as a Swift optional
+even if no error has occurred, and will therefore import it as a Swift optional
 type. Otherwise, if ``result`` was annotated with ``_Nullable``, the Swift
 importer will assume that ``result`` will always be non-nil unless an error
-occured.
+occurred.
 }];
 }
 
@@ -7090,6 +7469,15 @@ attribute can also be written using C++11 syntax: ``[[mig::server_routine]]``.
 }];
 }
 
+def MinSizeDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This function attribute indicates that optimization passes and code generator passes
+make choices that keep the function code size as small as possible. Optimizations may
+also sacrifice runtime performance in order to minimize the size of the generated code.
+  }];
+}
+
 def MSAllocatorDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -7257,9 +7645,6 @@ attribute `clang_builtin_alias`.
 def NoBuiltinDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-.. Note:: This attribute is not yet fully implemented, it is validated but has
-          no effect on the generated code.
-
 The ``__attribute__((no_builtin))`` is similar to the ``-fno-builtin`` flag
 except it is specific to the body of a function. The attribute may also be
 applied to a virtual function but has no effect on the behavior of overriding
@@ -7532,7 +7917,36 @@ def AlwaysInlineDocs : Documentation {
 Inlining heuristics are disabled and inlining is always attempted regardless of
 optimization level.
 
-Does not guarantee that inline substitution actually occurs.
+``[[clang::always_inline]]`` spelling can be used as a statement attribute; other
+spellings of the attribute are not supported on statements. If a statement is
+marked ``[[clang::always_inline]]`` and contains calls, the compiler attempts
+to inline those calls.
+
+.. code-block:: c
+
+  int example(void) {
+    int i;
+    [[clang::always_inline]] foo(); // attempts to inline foo
+    [[clang::always_inline]] i = bar(); // attempts to inline bar
+    [[clang::always_inline]] return f(42, baz(bar())); // attempts to inline everything
+  }
+
+A declaration statement, which is a statement, is not a statement that can have an
+attribute associated with it (the attribute applies to the declaration, not the
+statement in that case). So this use case will not work:
+
+.. code-block:: c
+
+  int example(void) {
+    [[clang::always_inline]] int i = bar();
+    return i;
+  }
+
+This attribute does not guarantee that inline substitution actually occurs.
+
+<ins>Note: applying this attribute to a coroutine at the `-O0` optimization level
+has no effect; other optimization levels may only partially inline and result in a
+diagnostic.</ins>
 
 See also `the Microsoft Docs on Inline Functions`_, `the GCC Common Function
 Attribute docs`_, and `the GCC Inline docs`_.
@@ -7593,5 +8007,218 @@ pointing to precise locations of the call site in the source.
       dontcall(); // No Warning
     sizeof(dontcall()); // No Warning
   }
+  }];
+}
+
+def ZeroCallUsedRegsDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+This attribute, when attached to a function, causes the compiler to zero a
+subset of all call-used registers before the function returns. It's used to
+increase program security by either mitigating `Return-Oriented Programming`_
+(ROP) attacks or preventing information leakage through registers.
+
+The term "call-used" means registers which are not guaranteed to be preserved
+unchanged for the caller by the current calling convention. This could also be
+described as "caller-saved" or "not callee-saved".
+
+The `choice` parameters gives the programmer flexibility to choose the subset
+of the call-used registers to be zeroed:
+
+- ``skip`` doesn't zero any call-used registers. This choice overrides any
+  command-line arguments.
+- ``used`` only zeros call-used registers used in the function. By ``used``, we
+  mean a register whose contents have been set or referenced in the function.
+- ``used-gpr`` only zeros call-used GPR registers used in the funciton.
+- ``used-arg`` only zeros call-used registers used to pass arguments to the
+  function.
+- ``used-gpr-arg`` only zeros call-used GPR registers used to pass arguments to
+  the function.
+- ``all`` zeros all call-used registers.
+- ``all-gpr`` zeros all call-used GPR registers.
+- ``all-arg`` zeros all call-used registers used to pass arguments to the
+  function.
+- ``all-gpr-arg`` zeros all call-used GPR registers used to pass arguments to
+  the function.
+
+The default for the attribute is contolled by the ``-fzero-call-used-regs``
+flag.
+
+.. _Return-Oriented Programming: https://en.wikipedia.org/wiki/Return-oriented_programming
+  }];
+}
+
+def NumThreadsDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``numthreads`` attribute applies to HLSL shaders where explcit thread counts
+are required. The ``X``, ``Y``, and ``Z`` values provided to the attribute
+dictate the thread id. Total number of threads executed is ``X * Y * Z``.
+
+The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sm5-attributes-numthreads
+  }];
+}
+
+def HLSLSV_ShaderTypeAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``shader`` type attribute applies to HLSL shader entry functions to
+identify the shader type for the entry function.
+The syntax is:
+
+.. code-block:: text
+
+  ``[shader(string-literal)]``
+
+where the string literal is one of: "pixel", "vertex", "geometry", "hull",
+"domain", "compute", "raygeneration", "intersection", "anyhit", "closesthit",
+"miss", "callable", "mesh", "amplification". Normally the shader type is set
+by shader target with the ``-T`` option like ``-Tps_6_1``. When compiling to a
+library target like ``lib_6_3``, the shader type attribute can help the
+compiler to identify the shader type. It is mostly used by Raytracing shaders
+where shaders must be compiled into a library and linked at runtime.
+  }];
+}
+
+def ClangRandomizeLayoutDocs : Documentation {
+  let Category = DocCatDecl;
+  let Heading = "randomize_layout, no_randomize_layout";
+  let Content = [{
+The attribute ``randomize_layout``, when attached to a C structure, selects it
+for structure layout field randomization; a compile-time hardening technique. A
+"seed" value, is specified via the ``-frandomize-layout-seed=`` command line flag.
+For example:
+
+.. code-block:: bash
+
+  SEED=`od -A n -t x8 -N 32 /dev/urandom | tr -d ' \n'`
+  make ... CFLAGS="-frandomize-layout-seed=$SEED" ...
+
+You can also supply the seed in a file with ``-frandomize-layout-seed-file=``.
+For example:
+
+.. code-block:: bash
+
+  od -A n -t x8 -N 32 /dev/urandom | tr -d ' \n' > /tmp/seed_file.txt
+  make ... CFLAGS="-frandomize-layout-seed-file=/tmp/seed_file.txt" ...
+
+The randomization is deterministic based for a given seed, so the entire
+program should be compiled with the same seed, but keep the seed safe
+otherwise.
+
+The attribute ``no_randomize_layout``, when attached to a C structure,
+instructs the compiler that this structure should not have its field layout
+randomized.
+  }];
+}
+
+def HLSLSV_GroupIndexDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The ``SV_GroupIndex`` semantic, when applied to an input parameter, specifies a
+data binding to map the group index to the specified parameter. This attribute
+is only supported in compute shaders.
+
+The full documentation is available here: https://docs.microsoft.com/en-us/windows/win32/direct3dhlsl/sv-groupindex
+  }];
+}
+
+def AnnotateTypeDocs : Documentation {
+  let Category = DocCatType;
+  let Heading = "annotate_type";
+  let Content = [{
+This attribute is used to add annotations to types, typically for use by static
+analysis tools that are not integrated into the core Clang compiler (e.g.,
+Clang-Tidy checks or out-of-tree Clang-based tools). It is a counterpart to the
+`annotate` attribute, which serves the same purpose, but for declarations.
+
+The attribute takes a mandatory string literal argument specifying the
+annotation category and an arbitrary number of optional arguments that provide
+additional information specific to the annotation category. The optional
+arguments must be constant expressions of arbitrary type.
+
+For example:
+
+.. code-block:: c++
+
+  int* [[clang::annotate("category1", "foo", 1)]] f(int[[clang::annotate("category2")]] *);
+
+The attribute does not have any effect on the semantics of the type system,
+neither type checking rules, nor runtime semantics. In particular:
+
+- ``std::is_same<T, T [[clang::annotate_type("foo")]]>`` is true for all types
+  ``T``.
+
+- It is not permissible for overloaded functions or template specializations
+  to differ merely by an ``annotate_type`` attribute.
+
+- The presence of an ``annotate_type`` attribute will not affect name
+  mangling.
+  }];
+}
+
+def WeakDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+
+In supported output formats the ``weak`` attribute can be used to
+specify that a variable or function should be emitted as a symbol with
+``weak`` (if a definition) or ``extern_weak`` (if a declaration of an
+external symbol) `linkage
+<https://llvm.org/docs/LangRef.html#linkage-types>`_.
+
+If there is a non-weak definition of the symbol the linker will select
+that over the weak. They must have same type and alignment (variables
+must also have the same size), but may have a different value.
+
+If there are multiple weak definitions of same symbol, but no non-weak
+definition, they should have same type, size, alignment and value, the
+linker will select one of them (see also selectany_ attribute).
+
+If the ``weak`` attribute is applied to a ``const`` qualified variable
+definition that variable is no longer consider a compiletime constant
+as its value can change during linking (or dynamic linking). This
+means that it can e.g no longer be part of an initializer expression.
+
+.. code-block:: c
+
+  const int ANSWER __attribute__ ((weak)) = 42;
+
+  /* This function may be replaced link-time */
+  __attribute__ ((weak)) void debug_log(const char *msg)
+  {
+      fprintf(stderr, "DEBUG: %s\n", msg);
+  }
+
+  int main(int argc, const char **argv)
+  {
+      debug_log ("Starting up...");
+
+      /* This may print something else than "6 * 7 = 42",
+         if there is a non-weak definition of "ANSWER" in
+	 an object linked in */
+      printf("6 * 7 = %d\n", ANSWER);
+
+      return 0;
+   }
+
+If an external declaration is marked weak and that symbol does not
+exist during linking (possibly dynamic) the address of the symbol will
+evaluate to NULL.
+
+.. code-block:: c
+
+  void may_not_exist(void) __attribute__ ((weak));
+
+  int main(int argc, const char **argv)
+  {
+      if (may_not_exist) {
+          may_not_exist();
+      } else {
+          printf("Function did not exist\n");
+      }
+      return 0;
+  }
+
   }];
 }

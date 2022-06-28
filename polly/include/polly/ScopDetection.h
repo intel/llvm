@@ -56,8 +56,6 @@
 
 namespace llvm {
 class AAResults;
-
-void initializeScopDetectionWrapperPassPass(PassRegistry &);
 } // namespace llvm
 
 namespace polly {
@@ -408,16 +406,6 @@ private:
   /// @return True if the memory access is valid, false otherwise.
   bool isValidMemoryAccess(MemAccInst Inst, DetectionContext &Context) const;
 
-  /// Check if an instruction has any non trivial scalar dependencies as part of
-  /// a Scop.
-  ///
-  /// @param Inst The instruction to check.
-  /// @param RefRegion The region in respect to which we check the access
-  ///                  function.
-  ///
-  /// @return True if the instruction has scalar dependences, false otherwise.
-  bool hasScalarDependency(Instruction &Inst, Region &RefRegion) const;
-
   /// Check if an instruction can be part of a Scop.
   ///
   /// @param Inst The instruction to check.
@@ -562,9 +550,6 @@ public:
   /// Return the set of rejection causes for @p R.
   const RejectLog *lookupRejectionLog(const Region *R) const;
 
-  /// Return true if @p SubR is a non-affine subregion in @p ScopR.
-  bool isNonAffineSubRegion(const Region *SubR, const Region *ScopR) const;
-
   /// Get a message why a region is invalid
   ///
   /// @param R The region for which we get the error message
@@ -642,7 +627,7 @@ private:
   OptimizationRemarkEmitter &ORE;
 };
 
-struct ScopAnalysis : public AnalysisInfoMixin<ScopAnalysis> {
+struct ScopAnalysis : AnalysisInfoMixin<ScopAnalysis> {
   static AnalysisKey Key;
 
   using Result = ScopDetection;
@@ -652,7 +637,7 @@ struct ScopAnalysis : public AnalysisInfoMixin<ScopAnalysis> {
   Result run(Function &F, FunctionAnalysisManager &FAM);
 };
 
-struct ScopAnalysisPrinterPass : public PassInfoMixin<ScopAnalysisPrinterPass> {
+struct ScopAnalysisPrinterPass final : PassInfoMixin<ScopAnalysisPrinterPass> {
   ScopAnalysisPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM);
@@ -660,22 +645,30 @@ struct ScopAnalysisPrinterPass : public PassInfoMixin<ScopAnalysisPrinterPass> {
   raw_ostream &OS;
 };
 
-struct ScopDetectionWrapperPass : public FunctionPass {
-  static char ID;
+class ScopDetectionWrapperPass final : public FunctionPass {
   std::unique_ptr<ScopDetection> Result;
 
+public:
   ScopDetectionWrapperPass();
 
   /// @name FunctionPass interface
-  //@{
+  ///@{
+  static char ID;
   void getAnalysisUsage(AnalysisUsage &AU) const override;
   void releaseMemory() override;
   bool runOnFunction(Function &F) override;
-  void print(raw_ostream &OS, const Module *) const override;
-  //@}
+  void print(raw_ostream &OS, const Module *M = nullptr) const override;
+  ///@}
 
   ScopDetection &getSD() const { return *Result; }
 };
+
+llvm::Pass *createScopDetectionPrinterLegacyPass(llvm::raw_ostream &OS);
 } // namespace polly
+
+namespace llvm {
+void initializeScopDetectionWrapperPassPass(llvm::PassRegistry &);
+void initializeScopDetectionPrinterLegacyPassPass(llvm::PassRegistry &);
+} // namespace llvm
 
 #endif // POLLY_SCOPDETECTION_H

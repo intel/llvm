@@ -207,6 +207,10 @@ static void performChecks() {
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
+  if (!Dev.has(sycl::aspect::online_compiler)) {
+    std::cerr << "aspect::online_compiler is required for this test.";
+    return;
+  }
 
   sycl::queue Queue{Dev};
 

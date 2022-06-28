@@ -15,6 +15,8 @@
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/DebugInfo/DIContext.h"
+#include "llvm/DebugInfo/DWARF/DWARFAcceleratorTable.h"
+#include "llvm/DebugInfo/DWARF/DWARFCompileUnit.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/MachOUniversal.h"
@@ -119,7 +121,7 @@ using namespace cl;
 OptionCategory DwarfDumpCategory("Specific Options");
 static list<std::string>
     InputFilenames(Positional, desc("<input object files or .dSYM bundles>"),
-                   ZeroOrMore, cat(DwarfDumpCategory));
+                   cat(DwarfDumpCategory));
 
 cl::OptionCategory SectionCategory("Section-specific Dump Options",
                                    "These control which sections are dumped. "

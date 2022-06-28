@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -std=c++11 -emit-llvm %s -o - -triple=i386-pc-win32 -mconstructor-aliases -fexceptions -fcxx-exceptions -fno-rtti | FileCheck -check-prefix WIN32 -check-prefix WIN32-O0 %s
-// RUN: %clang_cc1 -std=c++11 -emit-llvm -O3 -disable-llvm-passes %s -o - -triple=i386-pc-win32 -mconstructor-aliases -fexceptions -fcxx-exceptions -fno-rtti | FileCheck -check-prefix WIN32 -check-prefix WIN32-O3 -check-prefix WIN32-LIFETIME %s
+// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -emit-llvm %s -o - -triple=i386-pc-win32 -mconstructor-aliases -fexceptions -fcxx-exceptions -fno-rtti | FileCheck -check-prefix WIN32 -check-prefix WIN32-O0 %s
+// RUN: %clang_cc1 -no-opaque-pointers -std=c++11 -emit-llvm -O3 -disable-llvm-passes %s -o - -triple=i386-pc-win32 -mconstructor-aliases -fexceptions -fcxx-exceptions -fno-rtti | FileCheck -check-prefix WIN32 -check-prefix WIN32-O3 -check-prefix WIN32-LIFETIME %s
 
 struct A {
   A();
@@ -31,6 +31,28 @@ void HasEHCleanup() {
 // WIN32:   call x86_thiscallcc void @"??1A@@QAE@XZ"({{.*}})
 // WIN32-NOT: @"??1A@@QAE@XZ"
 // WIN32: }
+
+
+// This test verifies the fix for a crash that occurred after
+// fa87fa97fb79.
+void HasEHCleanupNoexcept() noexcept {
+  TakesTwo(getA(), getA());
+}
+
+// With exceptions, we need to clean up at least one of these temporaries.
+// WIN32-LABEL: define dso_local void @"?HasEHCleanupNoexcept@@YAXXZ"() {{.*}} {
+// WIN32:   %[[base:.*]] = call i8* @llvm.stacksave()
+// WIN32:   invoke void @"?getA@@YA?AUA@@XZ"(%struct.A* sret(%struct.A) align 4 %{{.*}})
+// WIN32:   invoke void @"?getA@@YA?AUA@@XZ"(%struct.A* sret(%struct.A) align 4 %{{.*}})
+// WIN32:   invoke noundef i32 @"?TakesTwo@@YAHUA@@0@Z"
+// WIN32:   call void @llvm.stackrestore
+// WIN32:   ret void
+//
+//    Since all the calls terminate, there should be no dtors on the unwind
+// WIN32:   cleanuppad
+// WIN32-NOT: @"??1A@@QAE@XZ"
+// WIN32: }
+
 
 void TakeRef(const A &a);
 int HasDeactivatedCleanups() {

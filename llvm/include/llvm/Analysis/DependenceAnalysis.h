@@ -76,7 +76,7 @@ namespace llvm {
   public:
     Dependence(Instruction *Source, Instruction *Destination)
         : Src(Source), Dst(Destination) {}
-    virtual ~Dependence() {}
+    virtual ~Dependence() = default;
 
     /// Dependence::DVEntry - Each level in the distance/direction vector
     /// has a direction (or perhaps a union of several directions), and
@@ -927,9 +927,9 @@ namespace llvm {
     bool tryDelinearize(Instruction *Src, Instruction *Dst,
                         SmallVectorImpl<Subscript> &Pair);
 
-    /// Tries to delinearize access function for a fixed size multi-dimensional
-    /// array, by deriving subscripts from GEP instructions. Returns true upon
-    /// success and false otherwise.
+    /// Tries to delinearize \p Src and \p Dst access functions for a fixed size
+    /// multi-dimensional array. Calls tryDelinearizeFixedSizeImpl() to
+    /// delinearize \p Src and \p Dst separately,
     bool tryDelinearizeFixedSize(Instruction *Src, Instruction *Dst,
                                  const SCEV *SrcAccessFn,
                                  const SCEV *DstAccessFn,

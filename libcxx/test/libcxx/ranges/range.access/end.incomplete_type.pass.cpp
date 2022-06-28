@@ -7,15 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // Test the libc++-specific behavior that we handle the IFNDR case for ranges::end
 // by being SFINAE-friendly.
 
-#include <ranges>
 #include <cassert>
+#include <ranges>
 #include <type_traits>
+#include <utility>
 
 struct Incomplete;
 

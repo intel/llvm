@@ -100,6 +100,12 @@ constexpr TypeBuilderFunc getModel<const char32_t *>() {
   };
 }
 template <>
+constexpr TypeBuilderFunc getModel<char>() {
+  return [](mlir::MLIRContext *context) -> mlir::Type {
+    return mlir::IntegerType::get(context, 8 * sizeof(char));
+  };
+}
+template <>
 constexpr TypeBuilderFunc getModel<signed char>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
     return mlir::IntegerType::get(context, 8 * sizeof(signed char));
@@ -385,8 +391,8 @@ struct RuntimeTableEntry<RuntimeTableKey<KT>, RuntimeIdentifier<Cs...>> {
 /// Get (or generate) the MLIR FuncOp for a given runtime function. Its template
 /// argument is intended to be of the form: <mkRTKey(runtime function name)>.
 template <typename RuntimeEntry>
-static mlir::FuncOp getRuntimeFunc(mlir::Location loc,
-                                   fir::FirOpBuilder &builder) {
+static mlir::func::FuncOp getRuntimeFunc(mlir::Location loc,
+                                         fir::FirOpBuilder &builder) {
   using namespace Fortran::runtime;
   auto name = RuntimeEntry::name;
   auto func = builder.getNamedFunction(name);

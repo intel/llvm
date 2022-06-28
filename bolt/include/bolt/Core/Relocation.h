@@ -49,13 +49,16 @@ struct Relocation {
   /// Used to validate relocation correctness.
   uint64_t Value;
 
-  /// Return size of the given relocation \p Type.
+  /// Return size in bytes of the given relocation \p Type.
   static size_t getSizeForType(uint64_t Type);
 
   /// Return size of this relocation.
   size_t getSize() const { return getSizeForType(Type); }
 
-  /// Handle special cases when relocation should not be processed by bolt
+  /// Skip relocations that we don't want to handle in BOLT
+  static bool skipRelocationType(uint64_t Type);
+
+  /// Handle special cases when relocation should not be processed by BOLT
   static bool skipRelocationProcess(uint64_t Type, uint64_t Contents);
 
   // Adjust value depending on relocation type (make it PC relative or not)
@@ -77,6 +80,9 @@ struct Relocation {
   /// Return true if relocation type implies the creation of a GOT entry
   static bool isGOT(uint64_t Type);
 
+  /// Special relocation type that allows the linker to modify the instruction.
+  static bool isX86GOTPCRELX(uint64_t Type);
+
   /// Return true if relocation type is NONE
   static bool isNone(uint64_t Type);
 
@@ -89,6 +95,9 @@ struct Relocation {
   /// Return true if relocation type is for thread local storage.
   static bool isTLS(uint64_t Type);
 
+  /// Return code for a NONE relocation
+  static uint64_t getNone();
+
   /// Return code for a PC-relative 4-byte relocation
   static uint64_t getPC32();
 
@@ -97,6 +106,10 @@ struct Relocation {
 
   /// Return true if this relocation is PC-relative. Return false otherwise.
   bool isPCRelative() const { return isPCRelative(Type); }
+
+  /// Return true if this relocation is R_*_RELATIVE type. Return false
+  /// otherwise.
+  bool isRelative() const { return isRelative(Type); }
 
   /// Emit relocation at a current \p Streamer' position. The caller is
   /// responsible for setting the position correctly.

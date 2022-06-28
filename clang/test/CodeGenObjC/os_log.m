@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 %s -emit-llvm -o - -triple x86_64-darwin-apple -fobjc-arc -O2 -disable-llvm-passes | FileCheck %s --check-prefixes=CHECK,CHECK-O2
-// RUN: %clang_cc1 %s -emit-llvm -o - -triple x86_64-darwin-apple -fobjc-arc -O0 | FileCheck %s --check-prefixes=CHECK,CHECK-O0
-// RUN: %clang_cc1 %s -emit-llvm -o - -triple x86_64-darwin-apple -O2 -disable-llvm-passes | FileCheck %s --check-prefix=CHECK-MRR
+// RUN: %clang_cc1 -no-opaque-pointers %s -emit-llvm -o - -triple x86_64-darwin-apple -fobjc-arc -O2 -disable-llvm-passes | FileCheck %s --check-prefixes=CHECK,CHECK-O2
+// RUN: %clang_cc1 -no-opaque-pointers %s -emit-llvm -o - -triple x86_64-darwin-apple -fobjc-arc -O0 | FileCheck %s --check-prefixes=CHECK,CHECK-O0
+// RUN: %clang_cc1 -no-opaque-pointers %s -emit-llvm -o - -triple x86_64-darwin-apple -O2 -disable-llvm-passes | FileCheck %s --check-prefix=CHECK-MRR
 
 // Make sure we emit clang.arc.use before calling objc_release as part of the
 // cleanup. This way we make sure the object will not be released until the
@@ -16,7 +16,7 @@
 C *c;
 
 @class NSString;
-extern __attribute__((visibility("default"))) NSString *GenString();
+extern __attribute__((visibility("default"))) NSString *GenString(void);
 void os_log_pack_send(void *);
 
 // CHECK-LABEL: define{{.*}} void @test_builtin_os_log1(
@@ -26,8 +26,8 @@ void os_log_pack_send(void *);
 // CHECK-O2: %[[V0:.*]] = call i8* @llvm.objc.retain(
 // CHECK-O2: store i8* %[[V0]], i8** %[[A_ADDR]], align 8,
 // CHECK-O0: call void @llvm.objc.storeStrong(i8** %[[A_ADDR]], i8* %{{.*}})
-// CHECK-O2: %[[V4:.*]] = call %{{.*}}* (...) @GenString() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
-// CHECK-O0: %[[CALL:.*]] = call %{{.*}}* (...) @GenString()
+// CHECK-O2: %[[V4:.*]] = call %{{.*}}* @GenString() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+// CHECK-O0: %[[CALL:.*]] = call %{{.*}}* @GenString()
 // CHECK-O0: %[[V2:.*]] = bitcast %{{.*}}* %[[CALL]] to i8*
 // CHECK-O0: %[[V3:.*]] = notail call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %[[V2]])
 // CHECK-O0: %[[V4:.*]] = bitcast i8* %[[V3]] to %{{.*}}*
@@ -72,8 +72,8 @@ void test_builtin_os_log2(void *buf, id __unsafe_unretained a) {
 // CHECK-LABEL: define{{.*}} void @test_builtin_os_log3(
 // CHECK: alloca i8*, align 8
 // CHECK: %[[OS_LOG_ARG:.*]] = alloca i8*, align 8
-// CHECK-O2: %[[V3:.*]] = call %{{.*}}* (...) @GenString() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
-// CHECK-O0: %[[CALL:.*]] = call %{{.*}}* (...) @GenString()
+// CHECK-O2: %[[V3:.*]] = call %{{.*}}* @GenString() [ "clang.arc.attachedcall"(i8* (i8*)* @llvm.objc.retainAutoreleasedReturnValue) ]
+// CHECK-O0: %[[CALL:.*]] = call %{{.*}}* @GenString()
 // CHECK-O0: %[[V1:.*]] = bitcast %{{.*}}* %[[CALL]] to i8*
 // CHECK-O0: %[[V2:.*]] = notail call i8* @llvm.objc.retainAutoreleasedReturnValue(i8* %[[V1]])
 // CHECK-O0: %[[V3:.*]] = bitcast i8* %[[V2]] to %{{.*}}*

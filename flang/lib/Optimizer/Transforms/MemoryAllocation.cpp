@@ -11,7 +11,7 @@
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -37,11 +37,13 @@ struct MemoryAllocationOptions {
 
 class ReturnAnalysis {
 public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ReturnAnalysis)
+
   ReturnAnalysis(mlir::Operation *op) {
-    if (auto func = mlir::dyn_cast<mlir::FuncOp>(op))
+    if (auto func = mlir::dyn_cast<mlir::func::FuncOp>(op))
       for (mlir::Block &block : func)
         for (mlir::Operation &i : block)
-          if (mlir::isa<mlir::ReturnOp>(i)) {
+          if (mlir::isa<mlir::func::ReturnOp>(i)) {
             returnMap[op].push_back(&i);
             break;
           }
@@ -115,10 +117,11 @@ public:
         return *opt;
       return {};
     };
-    auto uniqName = unpackName(alloca.uniq_name());
-    auto bindcName = unpackName(alloca.bindc_name());
+    auto uniqName = unpackName(alloca.getUniqName());
+    auto bindcName = unpackName(alloca.getBindcName());
     auto heap = rewriter.create<fir::AllocMemOp>(
-        loc, varTy, uniqName, bindcName, alloca.typeparams(), alloca.shape());
+        loc, varTy, uniqName, bindcName, alloca.getTypeparams(),
+        alloca.getShape());
     auto insPt = rewriter.saveInsertionPoint();
     for (mlir::Operation *retOp : returnOps) {
       rewriter.setInsertionPoint(retOp);
@@ -188,7 +191,7 @@ public:
     const auto &analysis = getAnalysis<ReturnAnalysis>();
 
     target.addLegalDialect<fir::FIROpsDialect, mlir::arith::ArithmeticDialect,
-                           mlir::StandardOpsDialect>();
+                           mlir::func::FuncDialect>();
     target.addDynamicallyLegalOp<fir::AllocaOp>([&](fir::AllocaOp alloca) {
       return keepStackAllocation(alloca, &func.front(), options);
     });

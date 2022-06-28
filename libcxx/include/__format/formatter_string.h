@@ -10,6 +10,7 @@
 #ifndef _LIBCPP___FORMAT_FORMATTER_STRING_H
 #define _LIBCPP___FORMAT_FORMATTER_STRING_H
 
+#include <__assert>
 #include <__config>
 #include <__format/format_error.h>
 #include <__format/format_fwd.h>
@@ -19,21 +20,12 @@
 #include <string_view>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#  pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER > 17
-
-// TODO FMT Remove this once we require compilers with proper C++20 support.
-// If the compiler has no concepts support, the format header will be disabled.
-// Without concepts support enable_if needs to be used and that too much effort
-// to support compilers with partial C++20 support.
-#if !defined(_LIBCPP_HAS_NO_CONCEPTS)
 
 namespace __format_spec {
 
@@ -109,6 +101,18 @@ struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT
   }
 };
 
+// Formatter char[].
+template <__formatter::__char_type _CharT, size_t _Size>
+struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<_CharT[_Size], _CharT>
+    : public __format_spec::__formatter_string<_CharT> {
+  static_assert(!is_const_v<_CharT>);
+  using _Base = __format_spec::__formatter_string<_CharT>;
+
+  _LIBCPP_HIDE_FROM_ABI auto format(_CharT __str[_Size], auto& __ctx) -> decltype(__ctx.out()) {
+    return _Base::format(basic_string_view<_CharT>(__str, _Size), __ctx);
+  }
+};
+
 // Formatter const char[].
 template <__formatter::__char_type _CharT, size_t _Size>
 struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT
@@ -151,12 +155,8 @@ struct _LIBCPP_TEMPLATE_VIS _LIBCPP_AVAILABILITY_FORMAT formatter<basic_string_v
   }
 };
 
-#endif // !defined(_LIBCPP_HAS_NO_CONCEPTS)
-
 #endif //_LIBCPP_STD_VER > 17
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___FORMAT_FORMATTER_STRING_H

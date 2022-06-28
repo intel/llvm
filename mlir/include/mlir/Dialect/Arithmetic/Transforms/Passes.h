@@ -17,11 +17,18 @@ namespace arith {
 /// Create a pass to bufferize Arithmetic ops.
 std::unique_ptr<Pass> createArithmeticBufferizePass();
 
+/// Create a pass to bufferize arith.constant ops.
+std::unique_ptr<Pass> createConstantBufferizePass(uint64_t alignment = 0);
+
 /// Add patterns to expand Arithmetic ops for LLVM lowering.
 void populateArithmeticExpandOpsPatterns(RewritePatternSet &patterns);
 
 /// Create a pass to legalize Arithmetic ops for LLVM lowering.
 std::unique_ptr<Pass> createArithmeticExpandOpsPass();
+
+/// Create a pass to replace signed ops with unsigned ones where they are proven
+/// equivalent.
+std::unique_ptr<Pass> createArithmeticUnsignedWhenEquivalentPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

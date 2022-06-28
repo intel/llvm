@@ -82,6 +82,7 @@ class PlatformPythonTestCase(TestBase):
 
     @add_test_categories(['pyapi'])
     @no_debug_info_test
+    @skipIfRemote
     def test_shell_interpreter(self):
         """ Test a shell with a custom interpreter """
         platform = self.dbg.GetSelectedPlatform()
@@ -94,5 +95,5 @@ class PlatformPythonTestCase(TestBase):
         self.build()
         sh_cmd.SetShell(self.getBuildArtifact('a.out'))
         err = platform.Run(sh_cmd)
-        self.assertTrue(err.Success())
+        self.assertSuccess(err)
         self.assertIn("SUCCESS", sh_cmd.GetOutput())

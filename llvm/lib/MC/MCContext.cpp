@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCContext.h"
+#include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
@@ -15,21 +16,24 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/BinaryFormat/Wasm.h"
 #include "llvm/BinaryFormat/XCOFF.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCCodeView.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFragment.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCLabel.h"
-#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCSectionCOFF.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSectionGOFF.h"
 #include "llvm/MC/MCSectionMachO.h"
+#include "llvm/MC/MCSectionSPIRV.h"
 #include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCSectionXCOFF.h"
 #include "llvm/MC/MCStreamer.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolCOFF.h"
 #include "llvm/MC/MCSymbolELF.h"
@@ -37,13 +41,14 @@
 #include "llvm/MC/MCSymbolMachO.h"
 #include "llvm/MC/MCSymbolWasm.h"
 #include "llvm/MC/MCSymbolXCOFF.h"
+#include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/Signals.h"
+#include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
@@ -67,10 +72,10 @@ static void defaultDiagHandler(const SMDiagnostic &SMD, bool, const SourceMgr &,
 MCContext::MCContext(const Triple &TheTriple, const MCAsmInfo *mai,
                      const MCRegisterInfo *mri, const MCSubtargetInfo *msti,
                      const SourceMgr *mgr, MCTargetOptions const *TargetOpts,
-                     bool DoAutoReset)
-    : TT(TheTriple), SrcMgr(mgr), InlineSrcMgr(nullptr),
-      DiagHandler(defaultDiagHandler), MAI(mai), MRI(mri), MSTI(msti),
-      Symbols(Allocator), UsedNames(Allocator),
+                     bool DoAutoReset, StringRef Swift5ReflSegmentName)
+    : Swift5ReflectionSegmentName(Swift5ReflSegmentName), TT(TheTriple),
+      SrcMgr(mgr), InlineSrcMgr(nullptr), DiagHandler(defaultDiagHandler),
+      MAI(mai), MRI(mri), MSTI(msti), Symbols(Allocator), UsedNames(Allocator),
       InlineAsmUsedLabelNames(Allocator),
       CurrentDwarfLoc(0, 0, 0, DWARF2_FLAG_IS_STMT, 0, 0),
       AutoReset(DoAutoReset), TargetOptions(TargetOpts) {
@@ -102,6 +107,12 @@ MCContext::MCContext(const Triple &TheTriple, const MCAsmInfo *mai,
     break;
   case Triple::GOFF:
     Env = IsGOFF;
+    break;
+  case Triple::DXContainer:
+    Env = IsDXContainer;
+    break;
+  case Triple::SPIRV:
+    Env = IsSPIRV;
     break;
   case Triple::UnknownObjectFormat:
     report_fatal_error("Cannot initialize MC for unknown object file format.");
@@ -137,8 +148,10 @@ void MCContext::reset() {
   ELFAllocator.DestroyAll();
   GOFFAllocator.DestroyAll();
   MachOAllocator.DestroyAll();
+  WasmAllocator.DestroyAll();
   XCOFFAllocator.DestroyAll();
   MCInstAllocator.DestroyAll();
+  SPIRVAllocator.DestroyAll();
 
   MCSubtargetAllocator.DestroyAll();
   InlineAsmUsedLabelNames.clear();
@@ -243,6 +256,11 @@ MCSymbol *MCContext::createSymbolImpl(const StringMapEntry<bool> *Name,
     return new (Name, *this) MCSymbolWasm(Name, IsTemporary);
   case MCContext::IsXCOFF:
     return createXCOFFSymbolImpl(Name, IsTemporary);
+  case MCContext::IsDXContainer:
+    break;
+  case MCContext::IsSPIRV:
+    return new (Name, *this)
+        MCSymbol(MCSymbol::SymbolKindUnset, Name, IsTemporary);
   }
   return new (Name, *this) MCSymbol(MCSymbol::SymbolKindUnset, Name,
                                     IsTemporary);
@@ -616,11 +634,14 @@ Optional<unsigned> MCContext::getELFUniqueIDForEntsize(StringRef SectionName,
   return (I != ELFEntrySizeMap.end()) ? Optional<unsigned>(I->second) : None;
 }
 
-MCSectionGOFF *MCContext::getGOFFSection(StringRef Section, SectionKind Kind) {
+MCSectionGOFF *MCContext::getGOFFSection(StringRef Section, SectionKind Kind,
+                                         MCSection *Parent,
+                                         const MCExpr *SubsectionId) {
   // Do the lookup. If we don't have a hit, return a new section.
   auto &GOFFSection = GOFFUniquingMap[Section.str()];
   if (!GOFFSection)
-    GOFFSection = new (GOFFAllocator.Allocate()) MCSectionGOFF(Section, Kind);
+    GOFFSection = new (GOFFAllocator.Allocate())
+        MCSectionGOFF(Section, Kind, Parent, SubsectionId);
 
   return GOFFSection;
 }
@@ -732,6 +753,12 @@ MCSectionWasm *MCContext::getWasmSection(const Twine &Section, SectionKind Kind,
   return Result;
 }
 
+bool MCContext::hasXCOFFSection(StringRef Section,
+                                XCOFF::CsectProperties CsectProp) const {
+  return XCOFFUniquingMap.count(
+             XCOFFSectionKey(Section.str(), CsectProp.MappingClass)) != 0;
+}
+
 MCSectionXCOFF *MCContext::getXCOFFSection(
     StringRef Section, SectionKind Kind,
     Optional<XCOFF::CsectProperties> CsectProp, bool MultiSymbolsAllowed,
@@ -796,6 +823,21 @@ MCSectionXCOFF *MCContext::getXCOFFSection(
   return Result;
 }
 
+MCSectionSPIRV *MCContext::getSPIRVSection() {
+  MCSymbol *Begin = nullptr;
+  MCSectionSPIRV *Result = new (SPIRVAllocator.Allocate())
+      MCSectionSPIRV(SectionKind::getText(), Begin);
+
+  auto *F = new MCDataFragment();
+  Result->getFragmentList().insert(Result->begin(), F);
+  F->setParent(Result);
+
+  if (Begin)
+    Begin->setFragment(F);
+
+  return Result;
+}
+
 MCSubtargetInfo &MCContext::getSubtargetCopy(const MCSubtargetInfo &STI) {
   return *new (MCSubtargetAllocator.Allocate()) MCSubtargetInfo(STI);
 }
@@ -834,6 +876,12 @@ void MCContext::RemapDebugPaths() {
 //===----------------------------------------------------------------------===//
 // Dwarf Management
 //===----------------------------------------------------------------------===//
+
+EmitDwarfUnwindType MCContext::emitDwarfUnwindInfo() const {
+  if (!TargetOptions)
+    return EmitDwarfUnwindType::Default;
+  return TargetOptions->EmitDwarfUnwind;
+}
 
 void MCContext::setGenDwarfRootFile(StringRef InputFileName, StringRef Buffer) {
   // MCDwarf needs the root file as well as the compilation directory.
@@ -906,9 +954,9 @@ void MCContext::finalizeDwarfSections(MCStreamer &MCOS) {
 }
 
 CodeViewContext &MCContext::getCVContext() {
-  if (!CVContext.get())
+  if (!CVContext)
     CVContext.reset(new CodeViewContext);
-  return *CVContext.get();
+  return *CVContext;
 }
 
 //===----------------------------------------------------------------------===//

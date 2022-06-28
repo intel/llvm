@@ -30,9 +30,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenDAGPatterns.h"
+#include "CodeGenInstruction.h"
 #include "SubtargetFeatureInfo.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/CodeGenCoverage.h"
 #include "llvm/Support/CommandLine.h"
@@ -668,7 +668,6 @@ MatchTable &operator<<(MatchTable &Table, const MatchTableRecord &Value) {
 class OperandMatcher;
 class MatchAction;
 class PredicateMatcher;
-class RuleMatcher;
 
 class Matcher {
 public:
@@ -3817,12 +3816,15 @@ Expected<InstructionMatcher &> GlobalISelEmitter::addBuiltinPredicates(
       if (!ParsedAddrSpaces.empty()) {
         InsnMatcher.addPredicate<MemoryAddressSpacePredicateMatcher>(
             0, ParsedAddrSpaces);
+        return InsnMatcher;
       }
     }
 
     int64_t MinAlign = Predicate.getMinAlignment();
-    if (MinAlign > 0)
+    if (MinAlign > 0) {
       InsnMatcher.addPredicate<MemoryAlignmentPredicateMatcher>(0, MinAlign);
+      return InsnMatcher;
+    }
   }
 
   // G_LOAD is used for both non-extending and any-extending loads.
@@ -5535,6 +5537,7 @@ std::vector<Matcher *> GlobalISelEmitter::optimizeRules(
   ProcessCurrentGroup();
 
   LLVM_DEBUG(dbgs() << "NumGroups: " << NumGroups << "\n");
+  (void) NumGroups;
   assert(CurrentGroup->empty() && "The last group wasn't properly processed");
   return OptRules;
 }

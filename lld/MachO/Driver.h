@@ -49,7 +49,8 @@ std::string createResponseFile(const llvm::opt::InputArgList &args);
 llvm::Optional<StringRef> resolveDylibPath(llvm::StringRef path);
 
 DylibFile *loadDylib(llvm::MemoryBufferRef mbref, DylibFile *umbrella = nullptr,
-                     bool isBundleLoader = false);
+                     bool isBundleLoader = false,
+                     bool explicitlyLinked = false);
 void resetLoadedDylibs();
 
 // Search for all possible combinations of `{root}/{name}.{extension}`.
@@ -81,9 +82,8 @@ public:
       notFounds.insert(path.str());
   }
 
-  // Writes the dependencies to specified path.
-  // The content is sorted by its Op Code, then within each section,
-  // alphabetical order.
+  // Writes the dependencies to specified path. The content is first sorted by
+  // OpCode and then by the filename (in alphabetical order).
   void write(llvm::StringRef version,
              const llvm::SetVector<InputFile *> &inputs,
              llvm::StringRef output);

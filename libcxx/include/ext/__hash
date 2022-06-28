@@ -10,9 +10,9 @@
 #ifndef _LIBCPP_EXT_HASH
 #define _LIBCPP_EXT_HASH
 
-#pragma GCC system_header
+#  pragma GCC system_header
 
-#include <__string>
+#include <__config>
 #include <cstring>
 #include <string>
 

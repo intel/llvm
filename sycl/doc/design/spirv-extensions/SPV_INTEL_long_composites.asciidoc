@@ -1,0 +1,258 @@
+SPV_INTEL_long_composites
+=========================
+
+Name Strings
+------------
+
+SPV_INTEL_long_composites
+
+Contact
+-------
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Headers
+
+Contributors
+------------
+
+- Mariya Podchishchaeva, Intel
+- Alexey Sotkin, Intel
+- Ben Ashbaugh, Intel
+- Alexey Sachkov, Intel
+
+Notice
+------
+
+Copyright (c) 2020 Intel Corporation. All rights reserved.
+
+Status
+------
+
+Draft.
+
+Version
+-------
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2021-01-15
+| Revision           | 8
+|========================================
+
+Dependencies
+------------
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 4, Unified
+
+This extension requires SPIR-V 1.0.
+
+Overview
+--------
+
+This extension adds new capability and instructions to allow to represent
+composites with number of Constituents greater than the maximum
+possible WordCount.
+
+Extension Name
+--------------
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_long_composites"
+----
+
+Modifications to the SPIR-V Specification, Version 1.5
+------------------------------------------------------
+Capabilities
+~~~~~~~~~~~~
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| 6089 | *CapabilityLongCompositesINTEL* +
+Allow to use *OpTypeStructContinuedINTEL*, *OpConstantCompositeContinuedINTEL*,
+*OpCompositeConstructContinuedINTEL* and *OpSpecConstantCompositeContinuedINTEL* instructions |
+|====
+--
+
+Instructions
+~~~~~~~~~~~~
+In section 3.37.6. Type-Declaration Instructions add the new instruction
+[cols="3", width="100%"]
+|=====
+2+^|*OpTypeStructContinuedINTEL* +
+
+Continue specifying an *OpTypeStruct* with number of _Member types_
+greater than the maximum possible WordCount.
+
+The previous instruction must be an *OpTypeStruct* or an
+*OpTypeStructContinuedINTEL* instruction.
+
+_Member types_ follow the same rules as defined for _Member types_ of
+*OpTypeStruct*.
+
+| Capability:
+*CapabilityLongCompositesINTEL*
+
+| 2 + variable | 6090 | _<id>, <id>, ... Member N type, member N + 1 type_|
+|=====
+
+Modify the description of *OpTypeStruct* instruction, adding the
+following sentence to the end:
+In case if it is not possible to specify all the _member types_ of the structure
+by one *OpTypeStruct* instruction, i.e. if number of members of the
+_Result type_ is greater than the maximum possible WordCount, the remaining
+_member types_ are specified by the following *OpTypeStructContinuedINTEL*
+instructions.
+
+In section 3.37.7. Constant-Creation Instructions, add the new instructions
+[cols="3", width="100%"]
+|=====
+2+^|*OpConstantCompositeContinuedINTEL* +
+
+Continue specifying an *OpConstantComposite* instruction with number of
+_Constituents_ greater than the maximum possible WordCount.
+
+The previous instruction must be an *OpConstantComposite* or an
+*OpConstantCompositeContinuedINTEL* instruction.
+
+_Constituents_ follow the same rules as defined for _Constituents_ of
+*OpConstantComposite* instruction and specify members of a structure, or
+elements of an array, or components of a vector, or columns of a matrix.
+
+| Capability:
+*CapabilityLongCompositesINTEL*
+
+| 2 + variable | 6091 | _<id>, <id>, ... Constituents_ |
+|=====
+[cols="3", width="100%"]
+|=====
+2+^|*OpSpecConstantCompositeContinuedINTEL* +
+
+Continue specifying an *OpSpecConstantComposite* instruction with number of
+_Constituents_ greater than the maximum possible WordCount.
+
+The previous instruction must be an *OpSpecConstantComposite* or an
+*OpSpecConstantCompositeContinuedINTEL* instruction.
+
+_Constituents_ follow the same rules as defined for _Constituents_ of
+*OpSpecConstantComposite* instruction and specify members of a structure, or
+elements of an array, or components of a vector, or columns of a matrix.
+
+This instruction will be specialized to an *OpConstantCompositeContinuedINTEL*
+instruction.
+
+See <<Specialization, Specialization>>.
+
+| Capability:
+*CapabilityLongCompositesINTEL*
+
+| 2 + variable | 6092 | _<id>, <id>, ... Constituents_ |
+|=====
+
+Modify the description of *OpConstantComposite* instruction, adding the
+following sentence to the end:
+In case if it is not possible to specify all the _Constituents_ by one
+*OpConstantComposite* instruction, i.e. if number of members of the
+_Result type_ and corresponding _Constituents_ is greater than the maximum
+possible WordCount, the remaining _Constituents_ are specified by the following
+*OpConstantCompositeContinuedINTEL* instructions.
+
+Modify the description of *OpSpecConstantComposite* instruction, adding the
+following sentence to the end:
+In case if it is not possible to specify all the _Constituents_ by one
+*OpSpecConstantComposite* instruction, i.e. if number of members of the
+_Result type_ and corresponding _Constituents_ is greater than the maximum
+possible WordCount, the remaining _Constituents_ are specified by the following
+*OpSpecConstantCompositeContinuedINTEL* instructions.
+
+In Section 3.37.8. Memory Instructions, modify the description of the
+*OpAccessChain* instruction, adding the following sentence to the end:
+In case _Base_ is an *OpConstantComposite* instruction followed by one or
+more *OpConstantCompositeContinuedINTEL* instructions, the bounds must be bounds
+of *OpConstantComposite* and the following *OpConstantCompositeContinuedINTEL*
+instructions together. Same is applicable in case _Base_ is an
+*OpSpecConstantComposite* instruction followed by one or more
+*OpSpecConstantCompositeContinuedINTEL* instructions.
+
+In section 3.37.12. Composite Instructions, add the new instruction
+[cols="3", width="100%"]
+|=====
+2+^|*OpCompositeConstructContinuedINTEL* +
+
+Continue specifying an *OpCompositeConstruct* instruction with number of
+_Constituents_ greater than the maximum possible WordCount.
+
+The previous instruction must be an *OpCompositeConstruct* or an
+*OpCompositeConstructContinuedINTEL* instruction.
+
+_Constituents_ follow the same rules as defined for _Constituents_ of
+*OpCompositeConstruct* instruction and specify members of a structure, or
+elements of an array, or components of a vector, or columns of a matrix.
+
+| Capability:
+*CapabilityLongCompositesINTEL*
+
+| 2 + variable | 6096 | _<id>, <id>, ... Constituents_ |
+|=====
+
+Issues
+------
+
+1) Do we need to define additional validation rules?
+
+Resolution:
+
+No.
+
+2) Do we need modifications of the OpConstantComposite/OpSpecConstantComposite
+instruction description?
+
+Resolution:
+
+Yes, it seems that description of these instructions defines one to one match
+between composite type members and Constituents by the sentence:
+"There must be exactly one Constituent for each top-level
+member/element/component/column of the result." Done.
+
+3) We also might want to modify OpAccessChain to clarify how it works on large
+constants.
+
+Resolution:
+
+Yes. Added statement clarifying bounds of OpAccessChain instruction in case when
+long composite constant is accessed.
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2020-11-09|Mariya Podchishchaeva|Initial revision
+|2|2020-11-13|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and
+Alexey Sachkov +
+- Add OpTypeStructContinuedINTEL +
+- Add OpSpecConstantCompositeContinuedINTEL +
+- Remove type and id from "continued" instructions since they are not necessary +
+- Fix several typos
+|3|2020-11-16|Mariya Podchishchaeva|Modify description of the
+OpConstantComposite and OpSpecConstantComposite instructions
+|4|2020-11-23|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and Alexey
+Sachkov
+|5|2020-11-26|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and Alexey
+Sachkov
+|6|2020-12-07|Mariya Podchishchaeva|Apply comments from Alexey Sotkin and
+Mikhail Lychkov
+|7|2021-01-14|Mariya Podchishchaeva|Add OpCompositeConstructContinuedINTEL
+|8|2021-01-15|Mariya Podchishchaeva|Rename extension to SPV_INTEL_long_composites
+|========================================

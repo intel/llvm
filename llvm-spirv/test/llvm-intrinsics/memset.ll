@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -68,7 +68,7 @@ define spir_func void @_Z5foo11v(%struct.S1 addrspace(4)* noalias nocapture sret
   %x.bc = bitcast [4 x i8]* %x to i8*
   %1 = bitcast %struct.S1 addrspace(4)* %agg.result to i8 addrspace(4)*
   tail call void @llvm.memset.p4i8.i32(i8 addrspace(4)* align 4 %1, i8 0, i32 12, i1 false)
-; CHECK-LLVM: call void @llvm.memset.p4i8.i32(i8 addrspace(4)* align 4 %1, i8 0, i32 12, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p4i8.p2i8.i32(i8 addrspace(4)* align 4 %1, i8 addrspace(2)* align 4 %2, i32 12, i1 false)
   tail call void @llvm.memset.p0i8.i32(i8* align 4 %x.bc, i8 21, i32 4, i1 false)
 ; CHECK-LLVM: call void @llvm.memcpy.p0i8.p2i8.i32(i8* align 4 %x.bc, i8 addrspace(2)* align 4 %3, i32 4, i1 false)
 

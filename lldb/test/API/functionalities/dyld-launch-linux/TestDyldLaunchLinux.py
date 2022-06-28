@@ -40,20 +40,20 @@ class TestLinux64LaunchingViaDynamicLoader(TestBase):
         launch_info.SetWorkingDirectory(self.get_process_working_directory())
         error = lldb.SBError()
         process = target.Launch(launch_info, error)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
         # Stopped on main here.
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         thread = process.GetSelectedThread()
         self.assertIn("main", thread.GetFrameAtIndex(0).GetDisplayFunctionName())
         process.Continue()
 
         # Stopped on get_signal_crash function here.
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         self.assertIn("get_signal_crash", thread.GetFrameAtIndex(0).GetDisplayFunctionName())
         process.Continue()
 
         # Stopped because of generated signal.
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         self.assertIn("raise", thread.GetFrameAtIndex(0).GetDisplayFunctionName())
         self.assertIn("get_signal_crash", thread.GetFrameAtIndex(1).GetDisplayFunctionName())

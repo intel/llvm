@@ -50,6 +50,7 @@ extern "C" {
 
 DEFINE_C_API_STRUCT(MlirContext, void);
 DEFINE_C_API_STRUCT(MlirDialect, void);
+DEFINE_C_API_STRUCT(MlirDialectRegistry, void);
 DEFINE_C_API_STRUCT(MlirOperation, void);
 DEFINE_C_API_STRUCT(MlirOpPrintingFlags, void);
 DEFINE_C_API_STRUCT(MlirBlock, void);
@@ -61,7 +62,6 @@ DEFINE_C_API_STRUCT(MlirIdentifier, const void);
 DEFINE_C_API_STRUCT(MlirLocation, const void);
 DEFINE_C_API_STRUCT(MlirModule, const void);
 DEFINE_C_API_STRUCT(MlirType, const void);
-DEFINE_C_API_STRUCT(MlirTypeID, const void);
 DEFINE_C_API_STRUCT(MlirValue, const void);
 
 #undef DEFINE_C_API_STRUCT
@@ -108,6 +108,11 @@ mlirContextGetAllowUnregisteredDialects(MlirContext context);
 MLIR_CAPI_EXPORTED intptr_t
 mlirContextGetNumRegisteredDialects(MlirContext context);
 
+/// Append the contents of the given dialect registry to the registry associated
+/// with the context.
+MLIR_CAPI_EXPORTED void
+mlirContextAppendDialectRegistry(MlirContext ctx, MlirDialectRegistry registry);
+
 /// Returns the number of dialects loaded by the context.
 
 MLIR_CAPI_EXPORTED intptr_t
@@ -121,7 +126,7 @@ mlirContextGetNumLoadedDialects(MlirContext context);
 MLIR_CAPI_EXPORTED MlirDialect mlirContextGetOrLoadDialect(MlirContext context,
                                                            MlirStringRef name);
 
-/// Set threading mode (must be set to false to print-ir-after-all).
+/// Set threading mode (must be set to false to mlir-print-ir-after-all).
 MLIR_CAPI_EXPORTED void mlirContextEnableMultithreading(MlirContext context,
                                                         bool enable);
 
@@ -151,6 +156,22 @@ MLIR_CAPI_EXPORTED bool mlirDialectEqual(MlirDialect dialect1,
 
 /// Returns the namespace of the given dialect.
 MLIR_CAPI_EXPORTED MlirStringRef mlirDialectGetNamespace(MlirDialect dialect);
+
+//===----------------------------------------------------------------------===//
+// DialectRegistry API.
+//===----------------------------------------------------------------------===//
+
+/// Creates a dialect registry and transfers its ownership to the caller.
+MLIR_CAPI_EXPORTED MlirDialectRegistry mlirDialectRegistryCreate();
+
+/// Checks if the dialect registry is null.
+static inline bool mlirDialectRegistryIsNull(MlirDialectRegistry registry) {
+  return !registry.ptr;
+}
+
+/// Takes a dialect registry owned by the caller and destroys it.
+MLIR_CAPI_EXPORTED void
+mlirDialectRegistryDestroy(MlirDialectRegistry registry);
 
 //===----------------------------------------------------------------------===//
 // Location API.
@@ -537,6 +558,9 @@ MLIR_CAPI_EXPORTED MlirBlock mlirBlockCreate(intptr_t nArgs,
 /// Takes a block owned by the caller and destroys it.
 MLIR_CAPI_EXPORTED void mlirBlockDestroy(MlirBlock block);
 
+/// Detach a block from the owning region and assume ownership.
+MLIR_CAPI_EXPORTED void mlirBlockDetach(MlirBlock block);
+
 /// Checks whether a block is null.
 static inline bool mlirBlockIsNull(MlirBlock block) { return !block.ptr; }
 
@@ -734,19 +758,6 @@ MLIR_CAPI_EXPORTED bool mlirIdentifierEqual(MlirIdentifier ident,
 
 /// Gets the string value of the identifier.
 MLIR_CAPI_EXPORTED MlirStringRef mlirIdentifierStr(MlirIdentifier ident);
-
-//===----------------------------------------------------------------------===//
-// TypeID API.
-//===----------------------------------------------------------------------===//
-
-/// Checks whether a type id is null.
-static inline bool mlirTypeIDIsNull(MlirTypeID typeID) { return !typeID.ptr; }
-
-/// Checks if two type ids are equal.
-MLIR_CAPI_EXPORTED bool mlirTypeIDEqual(MlirTypeID typeID1, MlirTypeID typeID2);
-
-/// Returns the hash value of the type id.
-MLIR_CAPI_EXPORTED size_t mlirTypeIDHashValue(MlirTypeID typeID);
 
 //===----------------------------------------------------------------------===//
 // Symbol and SymbolTable API.

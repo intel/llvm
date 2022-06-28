@@ -5,10 +5,10 @@
 int i = 0;
 int j = 0;
 
-void foo();
+void foo(void);
 
 // PR4806
-void pr4806() {
+void pr4806(void) {
   1,foo();          // expected-warning {{left operand of comma operator has no effect}}
 
   // other
@@ -58,10 +58,10 @@ void pr4806() {
 }
 
 // Don't warn about unused '||', '&&' expressions that contain assignments.
-int test_logical_foo1();
-int test_logical_foo2();
-int test_logical_foo3();
-int test_logical_bar() {
+int test_logical_foo1(void);
+int test_logical_foo2(void);
+int test_logical_foo3(void);
+int test_logical_bar(void) {
   int x = 0;
   (x = test_logical_foo1()) ||  // no-warning
   (x = test_logical_foo2()) ||  // no-warning
@@ -99,10 +99,14 @@ void unevaluated_operands(void) {
   (void)_Generic(val++, default : 0); // expected-warning {{expression with side effects has no effect in an unevaluated context}}
   (void)_Alignof(val++);  // expected-warning {{expression with side effects has no effect in an unevaluated context}} expected-warning {{'_Alignof' applied to an expression is a GNU extension}}
 
-  // VLAs can have side effects so long as it's part of the type and not
-  // an expression.
+  // VLAs can have side effects so long as it's part of the type and not an
+  // expression, except for sizeof() where it can also have a side effect if
+  // the operand is of VLA type.
   (void)sizeof(int[++val]); // Ok
   (void)_Alignof(int[++val]); // Ok
+
+  int GH48010[val];
+  (void)sizeof(*(val = 1, &GH48010)); // Ok
 
   // Side effects as part of macro expansion are ok.
   GenTest(val++);

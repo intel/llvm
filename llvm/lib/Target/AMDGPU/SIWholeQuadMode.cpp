@@ -969,7 +969,7 @@ MachineInstr *SIWholeQuadMode::lowerKillI1(MachineBasicBlock &MBB,
   MachineInstr *WQMMaskMI = nullptr;
   Register LiveMaskWQM;
   if (IsDemote) {
-    // Demotes deactive quads with only helper lanes
+    // Demote - deactivate quads with only helper lanes
     LiveMaskWQM = MRI->createVirtualRegister(TRI->getBoolRC());
     WQMMaskMI =
         BuildMI(MBB, MI, DL, TII->get(WQMOpc), LiveMaskWQM).addReg(LiveMaskReg);
@@ -977,7 +977,7 @@ MachineInstr *SIWholeQuadMode::lowerKillI1(MachineBasicBlock &MBB,
                   .addReg(Exec)
                   .addReg(LiveMaskWQM);
   } else {
-    // Kills deactivate lanes
+    // Kill - deactivate lanes no longer in live mask
     if (Op.isImm()) {
       unsigned MovOpc = ST->isWave32() ? AMDGPU::S_MOV_B32 : AMDGPU::S_MOV_B64;
       NewTerm = BuildMI(MBB, &MI, DL, TII->get(MovOpc), Exec).addImm(0);
@@ -1453,7 +1453,7 @@ void SIWholeQuadMode::lowerCopyInstrs() {
       }
       int Index = MI->findRegisterUseOperandIdx(AMDGPU::EXEC);
       while (Index >= 0) {
-        MI->RemoveOperand(Index);
+        MI->removeOperand(Index);
         Index = MI->findRegisterUseOperandIdx(AMDGPU::EXEC);
       }
       MI->setDesc(TII->get(AMDGPU::COPY));
@@ -1468,7 +1468,7 @@ void SIWholeQuadMode::lowerCopyInstrs() {
       // an undef input so it is being replaced by a simple copy.
       // There should be a second undef source that we should remove.
       assert(MI->getOperand(2).isUndef());
-      MI->RemoveOperand(2);
+      MI->removeOperand(2);
       MI->untieRegOperand(1);
     } else {
       assert(MI->getNumExplicitOperands() == 2);
@@ -1588,11 +1588,11 @@ bool SIWholeQuadMode::runOnMachineFunction(MachineFunction &MF) {
   // Physical registers like SCC aren't tracked by default anyway, so just
   // removing the ranges we computed is the simplest option for maintaining
   // the analysis results.
-  LIS->removeRegUnit(*MCRegUnitIterator(MCRegister::from(AMDGPU::SCC), TRI));
+  LIS->removeAllRegUnitsForPhysReg(AMDGPU::SCC);
 
   // If we performed any kills then recompute EXEC
   if (!KillInstrs.empty())
-    LIS->removeRegUnit(*MCRegUnitIterator(AMDGPU::EXEC, TRI));
+    LIS->removeAllRegUnitsForPhysReg(AMDGPU::EXEC);
 
   return true;
 }

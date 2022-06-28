@@ -1,9 +1,8 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple spir64 -fsycl-is-device -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 
 // Validates address space conversions for SYCL mode.
 // See clang/docs/SYCLSupport.rst#address-space-handling for allowed
 // conversions.
-
 void bar(int &Data) {}
 // CHECK-DAG: define{{.*}} spir_func void @[[RAW_REF:[a-zA-Z0-9_]+]](i32 addrspace(4)* noundef align 4 dereferenceable(4) %
 void bar2(int &Data) {}
@@ -40,7 +39,7 @@ __attribute__((sycl_device)) void usages() {
   __attribute__((opencl_global_host)) int *GLOBHOST;
 
   // Explicit conversions
-  // From names address spaces to default address space
+  // From named address spaces to default address space
   // CHECK-DAG: [[GLOB_LOAD:%[a-zA-Z0-9]+]] = load i32 addrspace(1)*, i32 addrspace(1)* addrspace(4)* [[GLOB]].ascast
   // CHECK-DAG: [[GLOB_CAST:%[a-zA-Z0-9]+]] = addrspacecast i32 addrspace(1)* [[GLOB_LOAD]] to i32 addrspace(4)*
   // CHECK-DAG: store i32 addrspace(4)* [[GLOB_CAST]], i32 addrspace(4)* addrspace(4)* [[NoAS]].ascast

@@ -58,11 +58,32 @@ struct Subsection {
 };
 
 using Subsections = std::vector<Subsection>;
+class InputFile;
 
-struct Section {
-  uint64_t address = 0;
+class Section {
+public:
+  InputFile *file;
+  StringRef segname;
+  StringRef name;
+  uint32_t flags;
+  uint64_t addr;
   Subsections subsections;
-  Section(uint64_t addr) : address(addr){};
+
+  Section(InputFile *file, StringRef segname, StringRef name, uint32_t flags,
+          uint64_t addr)
+      : file(file), segname(segname), name(name), flags(flags), addr(addr) {}
+  // Ensure pointers to Sections are never invalidated.
+  Section(const Section &) = delete;
+  Section &operator=(const Section &) = delete;
+  Section(Section &&) = delete;
+  Section &operator=(Section &&) = delete;
+
+private:
+  // Whether we have already split this section into individual subsections.
+  // For sections that cannot be split (e.g. literal sections), this is always
+  // false.
+  bool doneSplitting = false;
+  friend class ObjFile;
 };
 
 // Represents a call graph profile edge.
@@ -73,6 +94,9 @@ struct CallGraphEntry {
   uint32_t toIndex;
   // Number of calls from callee to caller in the profile.
   uint64_t count;
+
+  CallGraphEntry(uint32_t fromIndex, uint32_t toIndex, uint64_t count)
+      : fromIndex(fromIndex), toIndex(toIndex), count(count) {}
 };
 
 class InputFile {
@@ -93,7 +117,7 @@ public:
   MemoryBufferRef mb;
 
   std::vector<Symbol *> symbols;
-  std::vector<Section> sections;
+  std::vector<Section *> sections;
 
   // If not empty, this stores the name of the archive containing this file.
   // We use this string for creating error messages.
@@ -119,6 +143,12 @@ private:
   static int idCount;
 };
 
+struct FDE {
+  uint32_t funcLength;
+  Symbol *personality;
+  InputSection *lsda;
+};
+
 // .o file
 class ObjFile final : public InputFile {
 public:
@@ -130,13 +160,13 @@ public:
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
   llvm::DWARFUnit *compileUnit = nullptr;
+  Section *addrSigSection = nullptr;
   const uint32_t modTime;
   std::vector<ConcatInputSection *> debugSections;
   std::vector<CallGraphEntry> callGraph;
+  llvm::DenseMap<ConcatInputSection *, FDE> fdes;
 
 private:
-  Section *compactUnwindSection = nullptr;
-
   template <class LP> void parseLazy();
   template <class SectionHeader> void parseSections(ArrayRef<SectionHeader>);
   template <class LP>
@@ -147,9 +177,11 @@ private:
   Symbol *parseNonSectionSymbol(const NList &sym, StringRef name);
   template <class SectionHeader>
   void parseRelocations(ArrayRef<SectionHeader> sectionHeaders,
-                        const SectionHeader &, Subsections &);
+                        const SectionHeader &, Section &);
   void parseDebugInfo();
-  void registerCompactUnwind();
+  void splitEhFrames(ArrayRef<uint8_t> dataArr, Section &ehFrameSection);
+  void registerCompactUnwind(Section &compactUnwindSection);
+  void registerEhFrames(Section &ehFrameSection);
 };
 
 // command-line -sectcreate file
@@ -170,13 +202,14 @@ public:
   // to the root. On the other hand, if a dylib is being directly loaded
   // (through an -lfoo flag), then `umbrella` should be a nullptr.
   explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
-                     bool isBundleLoader = false);
+                     bool isBundleLoader, bool explicitlyLinked);
   explicit DylibFile(const llvm::MachO::InterfaceFile &interface,
-                     DylibFile *umbrella = nullptr,
-                     bool isBundleLoader = false);
+                     DylibFile *umbrella, bool isBundleLoader,
+                     bool explicitlyLinked);
 
   void parseLoadCommands(MemoryBufferRef mb);
   void parseReexports(const llvm::MachO::InterfaceFile &interface);
+  bool isReferenced() const { return numReferencedSymbols > 0; }
 
   static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
@@ -187,21 +220,17 @@ public:
   uint32_t compatibilityVersion = 0;
   uint32_t currentVersion = 0;
   int64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
+  unsigned numReferencedSymbols = 0;
   RefState refState;
   bool reexport = false;
   bool forceNeeded = false;
   bool forceWeakImport = false;
   bool deadStrippable = false;
   bool explicitlyLinked = false;
-
-  unsigned numReferencedSymbols = 0;
-
-  bool isReferenced() const { return numReferencedSymbols > 0; }
-
   // An executable can be used as a bundle loader that will load the output
   // file being linked, and that contains symbols referenced, but not
   // implemented in the bundle. When used like this, it is very similar
-  // to a Dylib, so we re-used the same class to represent it.
+  // to a dylib, so we've used the same class to represent it.
   bool isBundleLoader;
 
 private:
@@ -294,6 +323,7 @@ std::vector<const CommandType *> findCommands(const void *anyHdr,
 } // namespace macho
 
 std::string toString(const macho::InputFile *file);
+std::string toString(const macho::Section &);
 } // namespace lld
 
 #endif

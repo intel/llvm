@@ -10,6 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
@@ -44,6 +45,7 @@ public:
 
   std::unique_ptr<detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
+    std::shared_ptr<detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<detail::CG> CommandGroup;
     switch (CGH->MCGType) {
     case detail::CG::Kernel:
@@ -55,12 +57,12 @@ public:
           std::move(CGH->MRequirements), std::move(CGH->MEvents),
           std::move(CGH->MArgs), std::move(CGH->MKernelName),
           std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          CGH->MCGType, CGH->MCodeLoc));
+          std::move(Impl->MAuxiliaryResources), CGH->MCGType, CGH->MCodeLoc));
       break;
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                PI_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
     }
 
     return CommandGroup;
@@ -79,7 +81,7 @@ static bool ValidateDepCommandsTree(const detail::Command *Cmd,
                                     size_t Depth = 0) {
   if (!Cmd || Depth >= DepCmdsTypes.size())
     throw sycl::runtime_error("Command parameters are invalid",
-                              PI_INVALID_VALUE);
+                              PI_ERROR_INVALID_VALUE);
 
   for (const detail::DepDesc &Dep : Cmd->MDeps) {
     if (Dep.MDepCommand &&

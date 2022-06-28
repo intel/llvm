@@ -13,6 +13,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/cg_types.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/handler_proxy.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -143,7 +144,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
+    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
 }
 #endif
 
@@ -240,9 +241,9 @@ private:
 namespace ext {
 namespace oneapi {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-          access::placeholder IsPlaceholder>
-class reduction_impl;
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          class Algorithm>
+class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
@@ -404,7 +405,7 @@ private:
       throw sycl::runtime_error("Attempt to set multiple actions for the "
                                 "command group. Command group must consist of "
                                 "a single kernel or explicit memory operation.",
-                                CL_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
   }
 
   /// Extracts and prepares kernel arguments from the lambda using integration
@@ -472,12 +473,9 @@ private:
   /// Saves buffers created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
-  /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(const std::shared_ptr<const void> &ReduObj) {
-    MSharedPtrStorage.push_back(ReduObj);
-  }
+  void addReduction(const std::shared_ptr<const void> &ReduObj);
 
   ~handler() = default;
 
@@ -553,11 +551,11 @@ private:
     if (is_host()) {
       throw invalid_object_error(
           "This kernel invocation method cannot be used on the host",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
     }
     if (Kernel.is_host()) {
       throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_INVALID_KERNEL);
+                                 PI_ERROR_INVALID_KERNEL);
     }
   }
 
@@ -660,16 +658,29 @@ private:
         KernelFunc);
   }
 
-  /* 'wrapper'-based approach using 'NormalizedKernelType' struct is
-   * not applied for 'void(void)' type kernel and
-   * 'void(sycl::group<Dims>)'. This is because 'void(void)' type does
-   * not have argument to normalize and 'void(sycl::group<Dims>)' is
-   * not supported in ESIMD.
-   */
-  // For 'void' and 'sycl::group<Dims>' kernel argument
+  // For 'void' kernel argument (single_task)
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, void>::value ||
-                              std::is_same<ArgT, sycl::group<Dims>>::value,
+  typename std::enable_if_t<std::is_same<ArgT, void>::value, KernelType *>
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        (void)Arg;
+        detail::runKernelWithoutArg(MKernelFunc);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::group<Dims>' kernel argument
+  // 'wrapper'-based approach using 'NormalizedKernelType' struct is not used
+  // for 'void(sycl::group<Dims>)' since 'void(sycl::group<Dims>)' is not
+  // supported in ESIMD.
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::group<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
@@ -704,7 +715,7 @@ private:
     if (IsCallableWithKernelHandler && MIsHost) {
       throw cl::sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
     }
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
@@ -1264,6 +1275,7 @@ private:
   }
 
   std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
+  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
@@ -1435,7 +1447,7 @@ public:
     // known constant.
     MNDRDesc.set(range<1>{1});
 
-    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif
   }
@@ -1756,7 +1768,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
@@ -1775,7 +1787,7 @@ public:
                                 "The maximal work group size depends on the "
                                 "device and the size of the objects passed to "
                                 "the reduction.",
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
       handler AuxHandler(QueueCopy, MIsHost);
@@ -1854,7 +1866,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
                                                 ReduTuple, ReduIndices);
@@ -2043,7 +2055,7 @@ public:
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
-      StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
@@ -2411,8 +2423,11 @@ public:
                   "Invalid source accessor mode for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
                   "Invalid destination accessor mode for the copy method.");
-    assert(Dst.get_size() >= Src.get_size() &&
-           "The destination accessor does not fit the copied memory.");
+    if (Dst.get_size() < Src.get_size())
+      throw sycl::invalid_object_error(
+          "The destination accessor size is too small to copy the memory into.",
+          PI_ERROR_INVALID_OPERATION);
+
     if (copyAccToAccHelper(Src, Dst))
       return;
     setType(detail::CG::CopyAccToAcc);
@@ -2668,13 +2683,14 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
-  // Make reduction_impl friend to store buffers and arrays created for it
-  // in handler from reduction_impl methods.
-  template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-            access::placeholder IsPlaceholder>
-  friend class ext::oneapi::detail::reduction_impl;
+  // Make reduction friends to store buffers and arrays created for it
+  // in handler from reduction methods.
+  template <typename T, class BinaryOperation, int Dims, size_t Extent,
+            class Algorithm>
+  friend class ext::oneapi::detail::reduction_impl_algo;
 
-  // This method needs to call the method finalize().
+  // This method needs to call the method finalize() and also access to private
+  // ctor/dtor.
   template <typename Reduction, typename... RestT>
   std::enable_if_t<!Reduction::is_usm> friend ext::oneapi::detail::
       reduSaveFinalResultToUserMemHelper(

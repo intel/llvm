@@ -1,7 +1,7 @@
-// RUN: %clang_cc1 -triple x86_64-pc-win32 -emit-llvm  -target-cpu skylake-avx512 < %s | FileCheck %s --check-prefixes=CHECK,AVX
-// RUN: %clang_cc1 -triple x86_64-linux -emit-llvm  -target-cpu skylake-avx512 < %s | FileCheck %s --check-prefixes=CHECK,AVX
-// RUN: %clang_cc1 -triple x86_64-pc-win32 -emit-llvm < %s | FileCheck %s --check-prefixes=CHECK,NOAVX
-// RUN: %clang_cc1 -triple x86_64-linux -emit-llvm < %s | FileCheck %s --check-prefixes=CHECK,NOAVX
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-pc-win32 -emit-llvm  -target-cpu skylake-avx512 < %s | FileCheck %s --check-prefixes=CHECK,AVX
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-linux -emit-llvm  -target-cpu skylake-avx512 < %s | FileCheck %s --check-prefixes=CHECK,AVX
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-pc-win32 -emit-llvm < %s | FileCheck %s --check-prefixes=CHECK,NOAVX
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-linux -emit-llvm < %s | FileCheck %s --check-prefixes=CHECK,NOAVX
 
 #define SYSV_CC __attribute__((sysv_abi))
 
@@ -13,7 +13,7 @@ struct StringRef {
 };
 extern volatile char gc;
 void SYSV_CC take_stringref(struct StringRef s);
-void callit() {
+void callit(void) {
   struct StringRef s = {"asdf", 4};
   take_stringref(s);
 }
@@ -31,7 +31,7 @@ void SYSV_CC take_m256(my_m256);
 my_m512 SYSV_CC get_m512(void);
 void SYSV_CC take_m512(my_m512);
 
-void use_vectors() {
+void use_vectors(void) {
   my_m256 v1 = get_m256();
   take_m256(v1);
   my_m512 v2 = get_m512();

@@ -138,9 +138,9 @@ attributes #0 = { minsize noinline norecurse nounwind optsize readnone uwtable }
 
 !llvm.module.flags = !{!0, !1, !2}
 
-!0 = !{i32 1, !"branch-target-enforcement", i32 0}
-!1 = !{i32 1, !"sign-return-address", i32 1}
-!2 = !{i32 1, !"sign-return-address-all", i32 0}
+!0 = !{i32 8, !"branch-target-enforcement", i32 0}
+!1 = !{i32 8, !"sign-return-address", i32 1}
+!2 = !{i32 8, !"sign-return-address-all", i32 0}
 
 
 ; UNWIND-LABEL: FunctionAddress: 0x4
@@ -154,8 +154,9 @@ attributes #0 = { minsize noinline norecurse nounwind optsize readnone uwtable }
 ; UNWIND-NEXT:  0xAA      ; pop {r4, r5, r6, lr}
 
 ; UNWIND-LABEL: FunctionAddress: 0x5C
-; UNWIND:       Model: CantUnwind
-
+; UNWIND:       0xB4      ; pop ra_auth_code
+; UNWIND:       0x84 0x00 ; pop {lr}
+ 
 ; UNWIND-LABEL: 0000005d {{.*}} OUTLINED_FUNCTION_0
 ; UNWIND-LABEL: 00000005 {{.*}} f
 ; UNWIND-LABEL: 00000031 {{.*}} g

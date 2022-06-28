@@ -20,3 +20,30 @@
     if (!(Cond))                                                               \
       llvm::report_fatal_error(llvm::Twine(__FILE__ " ") + (Msg));             \
   } while (false)
+
+#define CHECK_AND_EXIT(E)                                                      \
+  {                                                                            \
+    Error LocE = std::move(E);                                                 \
+    if (LocE) {                                                                \
+      logAllUnhandledErrors(std::move(LocE), WithColor::error(errs()));        \
+      exit(1);                                                                 \
+    }                                                                          \
+  }
+
+namespace llvm {
+
+inline void error(const Twine &Msg) {
+  errs() << "sycl-post-link: " << Msg << '\n';
+  exit(1);
+}
+
+inline void warning(const Twine &Msg) {
+  errs() << "sycl-post-link WARNING: " << Msg << '\n';
+}
+
+inline void checkError(std::error_code EC, const Twine &Prefix) {
+  if (EC)
+    error(Prefix + ": " + EC.message());
+}
+
+} // namespace llvm

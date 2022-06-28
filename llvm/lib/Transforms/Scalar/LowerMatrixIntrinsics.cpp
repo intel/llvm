@@ -18,11 +18,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LowerMatrixIntrinsics.h"
-#include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/DomTreeUpdater.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -704,10 +704,10 @@ public:
         // We may remove II.  By default continue on the next/prev instruction.
         ++II;
         // If we were to erase II, move again.
-        auto EraseFromParent = [&II](Value *V) {
+        auto EraseFromParent = [&II, &BB](Value *V) {
           auto *Inst = cast<Instruction>(V);
           if (Inst->use_empty()) {
-            if (Inst == &*II) {
+            if (II != BB.rend() && Inst == &*II) {
               ++II;
             }
             Inst->eraseFromParent();
@@ -718,7 +718,7 @@ public:
         Instruction *NewInst = nullptr;
 
         IRBuilder<> IB(&I);
-        MatrixBuilder<IRBuilder<>> Builder(IB);
+        MatrixBuilder Builder(IB);
 
         Value *TA, *TAMA, *TAMB;
         ConstantInt *R, *K, *C;
@@ -766,28 +766,25 @@ public:
     // If we have a TT matmul, lift the transpose.  We may be able to fold into
     // consuming multiply.
     for (BasicBlock &BB : Func) {
-      for (BasicBlock::iterator II = BB.begin(); II != BB.end();) {
-        Instruction *I = &*II;
-        // We may remove I.
-        ++II;
+      for (Instruction &I : llvm::make_early_inc_range(BB)) {
         Value *A, *B, *AT, *BT;
         ConstantInt *R, *K, *C;
         // A^t * B ^t -> (B * A)^t
-        if (match(&*I, m_Intrinsic<Intrinsic::matrix_multiply>(
-                           m_Value(A), m_Value(B), m_ConstantInt(R),
-                           m_ConstantInt(K), m_ConstantInt(C))) &&
+        if (match(&I, m_Intrinsic<Intrinsic::matrix_multiply>(
+                          m_Value(A), m_Value(B), m_ConstantInt(R),
+                          m_ConstantInt(K), m_ConstantInt(C))) &&
             match(A, m_Intrinsic<Intrinsic::matrix_transpose>(m_Value(AT))) &&
             match(B, m_Intrinsic<Intrinsic::matrix_transpose>(m_Value((BT))))) {
-          IRBuilder<> IB(&*I);
-          MatrixBuilder<IRBuilder<>> Builder(IB);
+          IRBuilder<> IB(&I);
+          MatrixBuilder Builder(IB);
           Value *M = Builder.CreateMatrixMultiply(
               BT, AT, C->getZExtValue(), K->getZExtValue(), R->getZExtValue());
           setShapeInfo(M, {C, R});
           Instruction *NewInst = Builder.CreateMatrixTranspose(
               M, C->getZExtValue(), R->getZExtValue());
-          ReplaceAllUsesWith(*I, NewInst);
-          if (I->use_empty())
-            I->eraseFromParent();
+          ReplaceAllUsesWith(I, NewInst);
+          if (I.use_empty())
+            I.eraseFromParent();
           if (A->use_empty())
             cast<Instruction>(A)->eraseFromParent();
           if (A != B && B->use_empty())
@@ -1339,16 +1336,21 @@ public:
 
     // Copy load operand to new alloca.
     Builder.SetInsertPoint(Copy, Copy->begin());
-    AllocaInst *NewLd =
-        Builder.CreateAlloca(Load->getType(), Load->getPointerAddressSpace());
-    Builder.CreateMemCpy(NewLd, NewLd->getAlign(),
-                         Load->getPointerOperand(), Load->getAlign(),
-                         LoadLoc.Size.getValue());
+    auto *VT = cast<FixedVectorType>(Load->getType());
+    // Use an array type for the alloca, to avoid potentially huge alignment
+    // requirements for large vector types.
+    auto *ArrayTy = ArrayType::get(VT->getElementType(), VT->getNumElements());
+    AllocaInst *Alloca =
+        Builder.CreateAlloca(ArrayTy, Load->getPointerAddressSpace());
+    Value *BC = Builder.CreateBitCast(Alloca, VT->getPointerTo());
+
+    Builder.CreateMemCpy(BC, Alloca->getAlign(), Load->getPointerOperand(),
+                         Load->getAlign(), LoadLoc.Size.getValue());
     Builder.SetInsertPoint(Fusion, Fusion->begin());
     PHINode *PHI = Builder.CreatePHI(Load->getPointerOperandType(), 3);
     PHI->addIncoming(Load->getPointerOperand(), Check0);
     PHI->addIncoming(Load->getPointerOperand(), Check1);
-    PHI->addIncoming(NewLd, Copy);
+    PHI->addIncoming(BC, Copy);
 
     // Adjust DT.
     DTUpdates.push_back({DT->Insert, Check0, Check1});

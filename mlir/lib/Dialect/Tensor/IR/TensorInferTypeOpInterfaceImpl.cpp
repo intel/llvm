@@ -8,7 +8,7 @@
 
 #include "mlir/Dialect/Tensor/IR/TensorInferTypeOpInterfaceImpl.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Utils/Utils.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 
@@ -205,11 +205,11 @@ struct ReifyPadOp
 
 void mlir::tensor::registerInferTypeOpInterfaceExternalModels(
     DialectRegistry &registry) {
-  registry
-      .addOpInterface<tensor::ExpandShapeOp,
-                      ReifyExpandOrCollapseShapeOp<tensor::ExpandShapeOp>>();
-  registry
-      .addOpInterface<tensor::CollapseShapeOp,
-                      ReifyExpandOrCollapseShapeOp<tensor::CollapseShapeOp>>();
-  registry.addOpInterface<tensor::PadOp, ReifyPadOp>();
+  registry.addExtension(+[](MLIRContext *ctx, TensorDialect *dialect) {
+    ExpandShapeOp::attachInterface<
+        ReifyExpandOrCollapseShapeOp<tensor::ExpandShapeOp>>(*ctx);
+    CollapseShapeOp::attachInterface<
+        ReifyExpandOrCollapseShapeOp<tensor::CollapseShapeOp>>(*ctx);
+    PadOp::attachInterface<ReifyPadOp>(*ctx);
+  });
 }

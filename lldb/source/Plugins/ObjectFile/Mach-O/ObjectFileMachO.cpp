@@ -36,6 +36,7 @@
 #include "lldb/Utility/ArchSpec.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/FileSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RangeMap.h"
 #include "lldb/Utility/RegisterValue.h"
@@ -816,7 +817,7 @@ void ObjectFileMachO::Terminate() {
 }
 
 ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
-                                            DataBufferSP &data_sp,
+                                            DataBufferSP data_sp,
                                             lldb::offset_t data_offset,
                                             const FileSpec *file,
                                             lldb::offset_t file_offset,
@@ -847,7 +848,7 @@ ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFile *ObjectFileMachO::CreateMemoryInstance(
-    const lldb::ModuleSP &module_sp, DataBufferSP &data_sp,
+    const lldb::ModuleSP &module_sp, WritableDataBufferSP data_sp,
     const ProcessSP &process_sp, lldb::addr_t header_addr) {
   if (ObjectFileMachO::MagicBytesMatch(data_sp, 0, data_sp->GetByteSize())) {
     std::unique_ptr<ObjectFile> objfile_up(
@@ -928,7 +929,7 @@ ConstString ObjectFileMachO::GetSectionNameEHFrame() {
   return g_section_name_eh_frame;
 }
 
-bool ObjectFileMachO::MagicBytesMatch(DataBufferSP &data_sp,
+bool ObjectFileMachO::MagicBytesMatch(DataBufferSP data_sp,
                                       lldb::addr_t data_offset,
                                       lldb::addr_t data_length) {
   DataExtractor data;
@@ -939,7 +940,7 @@ bool ObjectFileMachO::MagicBytesMatch(DataBufferSP &data_sp,
 }
 
 ObjectFileMachO::ObjectFileMachO(const lldb::ModuleSP &module_sp,
-                                 DataBufferSP &data_sp,
+                                 DataBufferSP data_sp,
                                  lldb::offset_t data_offset,
                                  const FileSpec *file,
                                  lldb::offset_t file_offset,
@@ -953,7 +954,7 @@ ObjectFileMachO::ObjectFileMachO(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFileMachO::ObjectFileMachO(const lldb::ModuleSP &module_sp,
-                                 lldb::DataBufferSP &header_data_sp,
+                                 lldb::WritableDataBufferSP header_data_sp,
                                  const lldb::ProcessSP &process_sp,
                                  lldb::addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
@@ -1666,7 +1667,7 @@ void ObjectFileMachO::ProcessSegmentCommand(
     // addresses will differ from what the ObjectFile had originally,
     // and what the dSYM has.
     if (is_dsym && unified_section_sp->GetFileAddress() != load_cmd.vmaddr) {
-      Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYMBOLS));
+      Log *log = GetLog(LLDBLog::Symbols);
       if (log) {
         log->Printf(
             "Installing dSYM's %s segment file address over ObjectFile's "
@@ -2174,7 +2175,7 @@ UUID ObjectFileMachO::GetSharedCacheUUID(FileSpec dyld_shared_cache,
     dsc_uuid = UUID::fromOptionalData(
         dsc_header_data.GetData(&offset, sizeof(uuid_t)), sizeof(uuid_t));
   }
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYMBOLS));
+  Log *log = GetLog(LLDBLog::Symbols);
   if (log && dsc_uuid.IsValid()) {
     LLDB_LOGF(log, "Shared cache %s has UUID %s",
               dyld_shared_cache.GetPath().c_str(),
@@ -2200,19 +2201,20 @@ ParseNList(DataExtractor &nlist_data, lldb::offset_t &nlist_data_offset,
 enum { DebugSymbols = true, NonDebugSymbols = false };
 
 void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
-  LLDB_SCOPED_TIMERF("ObjectFileMachO::ParseSymtab () module = %s",
-                     m_file.GetFilename().AsCString(""));
   ModuleSP module_sp(GetModule());
   if (!module_sp)
     return;
 
-  Progress progress(llvm::formatv("Parsing symbol table for {0}",
-                                  m_file.GetFilename().AsCString("<Unknown>")));
+  const FileSpec &file = m_file ? m_file : module_sp->GetFileSpec();
+  const char *file_name = file.GetFilename().AsCString("<Unknown>");
+  LLDB_SCOPED_TIMERF("ObjectFileMachO::ParseSymtab () module = %s", file_name);
+  Progress progress(llvm::formatv("Parsing symbol table for {0}", file_name));
 
   llvm::MachO::symtab_command symtab_load_command = {0, 0, 0, 0, 0, 0};
   llvm::MachO::linkedit_data_command function_starts_load_command = {0, 0, 0, 0};
   llvm::MachO::linkedit_data_command exports_trie_load_command = {0, 0, 0, 0};
   llvm::MachO::dyld_info_command dyld_info = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  llvm::MachO::dysymtab_command dysymtab = m_dysymtab;
   // The data element of type bool indicates that this entry is thumb
   // code.
   typedef AddressDataArray<lldb::addr_t, bool, 100> FunctionStarts;
@@ -2235,7 +2237,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
   lldb::offset_t offset = MachHeaderSizeFromMagic(m_header.magic);
   uint32_t i;
   FileSpecList dylib_files;
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_SYMBOLS));
+  Log *log = GetLog(LLDBLog::Symbols);
   llvm::StringRef g_objc_v2_prefix_class("_OBJC_CLASS_$_");
   llvm::StringRef g_objc_v2_prefix_metaclass("_OBJC_METACLASS_$_");
   llvm::StringRef g_objc_v2_prefix_ivar("_OBJC_IVAR_$_");
@@ -2393,12 +2395,12 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
               ReadMemory(process_sp, symoff_addr, nlist_data_byte_size));
           if (nlist_data_sp)
             nlist_data.SetData(nlist_data_sp, 0, nlist_data_sp->GetByteSize());
-          if (m_dysymtab.nindirectsyms != 0) {
+          if (dysymtab.nindirectsyms != 0) {
             const addr_t indirect_syms_addr = linkedit_load_addr +
-                                              m_dysymtab.indirectsymoff -
+                                              dysymtab.indirectsymoff -
                                               linkedit_file_offset;
             DataBufferSP indirect_syms_data_sp(ReadMemory(
-                process_sp, indirect_syms_addr, m_dysymtab.nindirectsyms * 4));
+                process_sp, indirect_syms_addr, dysymtab.nindirectsyms * 4));
             if (indirect_syms_data_sp)
               indirect_symbol_index_data.SetData(
                   indirect_syms_data_sp, 0,
@@ -2451,7 +2453,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
       symtab_load_command.symoff += linkedit_slide;
       symtab_load_command.stroff += linkedit_slide;
       dyld_info.export_off += linkedit_slide;
-      m_dysymtab.indirectsymoff += linkedit_slide;
+      dysymtab.indirectsymoff += linkedit_slide;
       function_starts_load_command.dataoff += linkedit_slide;
       exports_trie_load_command.dataoff += linkedit_slide;
     }
@@ -2473,9 +2475,9 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
                              exports_trie_load_command.datasize);
     }
 
-    if (m_dysymtab.nindirectsyms != 0) {
-      indirect_symbol_index_data.SetData(m_data, m_dysymtab.indirectsymoff,
-                                         m_dysymtab.nindirectsyms * 4);
+    if (dysymtab.nindirectsyms != 0) {
+      indirect_symbol_index_data.SetData(m_data, dysymtab.indirectsymoff,
+                                         dysymtab.nindirectsyms * 4);
     }
     if (function_starts_load_command.cmd) {
       function_starts_data.SetData(m_data, function_starts_load_command.dataoff,
@@ -2593,8 +2595,7 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
   // sections - we should not make any assumptions about them based on that.
   if (function_starts_count == 0 && CalculateStrata() == eStrataUser) {
     m_allow_assembly_emulation_unwind_plans = false;
-    Log *unwind_or_symbol_log(lldb_private::GetLogIfAnyCategoriesSet(
-        LIBLLDB_LOG_SYMBOLS | LIBLLDB_LOG_UNWIND));
+    Log *unwind_or_symbol_log(GetLog(LLDBLog::Symbols | LLDBLog::Unwind));
 
     if (unwind_or_symbol_log)
       module_sp->LogMessage(
@@ -4908,8 +4909,7 @@ struct OSEnv {
           llvm::Triple::getEnvironmentTypeName(llvm::Triple::Simulator);
       return;
     default: {
-      Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_SYMBOLS |
-                                                      LIBLLDB_LOG_PROCESS));
+      Log *log(GetLog(LLDBLog::Symbols | LLDBLog::Process));
       LLDB_LOGF(log, "unsupported platform in LC_BUILD_VERSION");
     }
     }
@@ -5838,8 +5838,7 @@ void ObjectFileMachO::GetProcessSharedCacheUUID(Process *process,
     dl->GetSharedCacheInformation(base_addr, uuid, using_shared_cache,
                                   private_shared_cache);
   }
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_SYMBOLS |
-                                                  LIBLLDB_LOG_PROCESS));
+  Log *log(GetLog(LLDBLog::Symbols | LLDBLog::Process));
   LLDB_LOGF(
       log,
       "inferior process shared cache has a UUID of %s, base address 0x%" PRIx64,
@@ -5933,8 +5932,7 @@ void ObjectFileMachO::GetLLDBSharedCacheUUID(addr_t &base_addr, UUID &uuid) {
       }
     }
   }
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_SYMBOLS |
-                                                  LIBLLDB_LOG_PROCESS));
+  Log *log(GetLog(LLDBLog::Symbols | LLDBLog::Process));
   if (log && uuid.IsValid())
     LLDB_LOGF(log,
               "lldb's in-memory shared cache has a UUID of %s base address of "
@@ -6103,6 +6101,15 @@ Section *ObjectFileMachO::GetMachHeaderSection() {
     if (section->GetFileOffset() == 0 && SectionIsLoadable(section))
       return section;
   }
+
+  // We may have a binary in the shared cache that has a non-zero
+  // file address for its first segment, traditionally the __TEXT segment.
+  // Search for it by name and return it as our next best guess.
+  SectionSP text_segment_sp =
+      GetSectionList()->FindSectionByName(GetSegmentNameTEXT());
+  if (text_segment_sp.get() && SectionIsLoadable(text_segment_sp.get()))
+    return text_segment_sp.get();
+
   return nullptr;
 }
 
@@ -6942,7 +6949,7 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
 
 bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
   MachOCorefileAllImageInfos image_infos = GetCorefileAllImageInfos();
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER));
+  Log *log = GetLog(LLDBLog::DynamicLoader);
 
   ModuleList added_modules;
   for (const MachOCorefileImageEntry &image : image_infos.all_image_infos) {
@@ -6960,7 +6967,8 @@ bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
       module_spec.GetFileSpec() = FileSpec(image.filename.c_str());
     }
     if (image.currently_executing) {
-      Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+      Status error;
+      Symbols::DownloadObjectAndSymbolFile(module_spec, error, true);
       if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
         process.GetTarget().GetOrCreateModule(module_spec, false);
       }

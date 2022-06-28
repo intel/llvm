@@ -19,6 +19,8 @@
 #include "TestRunner.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/CodeGen/CommandFlags.h"
+#include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRReader/IRReader.h"
@@ -28,52 +30,51 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/WithColor.h"
-#include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/raw_ostream.h"
 #include <system_error>
 #include <vector>
 
 using namespace llvm;
 
-static cl::OptionCategory Options("llvm-reduce options");
+cl::OptionCategory LLVMReduceOptions("llvm-reduce options");
 
 static cl::opt<bool> Help("h", cl::desc("Alias for -help"), cl::Hidden,
-                          cl::cat(Options));
+                          cl::cat(LLVMReduceOptions));
 static cl::opt<bool> Version("v", cl::desc("Alias for -version"), cl::Hidden,
-                             cl::cat(Options));
+                             cl::cat(LLVMReduceOptions));
 
 static cl::opt<bool>
     PrintDeltaPasses("print-delta-passes",
                      cl::desc("Print list of delta passes, passable to "
                               "--delta-passes as a comma separated list"),
-                     cl::cat(Options));
+                     cl::cat(LLVMReduceOptions));
 
 static cl::opt<std::string> InputFilename(cl::Positional, cl::Required,
                                           cl::desc("<input llvm ll/bc file>"),
-                                          cl::cat(Options));
+                                          cl::cat(LLVMReduceOptions));
 
 static cl::opt<std::string>
     TestFilename("test", cl::Required,
                  cl::desc("Name of the interesting-ness test to be run"),
-                 cl::cat(Options));
+                 cl::cat(LLVMReduceOptions));
 
 static cl::list<std::string>
-    TestArguments("test-arg", cl::ZeroOrMore,
+    TestArguments("test-arg",
                   cl::desc("Arguments passed onto the interesting-ness test"),
-                  cl::cat(Options));
+                  cl::cat(LLVMReduceOptions));
 
 static cl::opt<std::string> OutputFilename(
     "output", cl::desc("Specify the output file. default: reduced.ll|mir"));
 static cl::alias OutputFileAlias("o", cl::desc("Alias for -output"),
                                  cl::aliasopt(OutputFilename),
-                                 cl::cat(Options));
+                                 cl::cat(LLVMReduceOptions));
 
 static cl::opt<bool>
     ReplaceInput("in-place",
                  cl::desc("WARNING: This option will replace your input file "
                           "with the reduced version!"),
-                 cl::cat(Options));
+                 cl::cat(LLVMReduceOptions));
 
 enum class InputLanguages { None, IR, MIR };
 
@@ -83,19 +84,22 @@ static cl::opt<InputLanguages>
                   cl::init(InputLanguages::None),
                   cl::values(clEnumValN(InputLanguages::IR, "ir", ""),
                              clEnumValN(InputLanguages::MIR, "mir", "")),
-                  cl::cat(Options));
-
-static cl::opt<std::string> TargetTriple("mtriple",
-                                         cl::desc("Set the target triple"),
-                                         cl::cat(Options));
+                  cl::cat(LLVMReduceOptions));
 
 static cl::opt<int>
     MaxPassIterations("max-pass-iterations",
                       cl::desc("Maximum number of times to run the full set "
                                "of delta passes (default=1)"),
-                      cl::init(1), cl::cat(Options));
+                      cl::init(1), cl::cat(LLVMReduceOptions));
 
 static codegen::RegisterCodeGenFlags CGF;
+
+static void initializeTargetInfo() {
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllAsmParsers();
+}
 
 void writeOutput(ReducerWorkItem &M, StringRef Message) {
   if (ReplaceInput) // In-place
@@ -112,30 +116,10 @@ void writeOutput(ReducerWorkItem &M, StringRef Message) {
   errs() << Message << OutputFilename << "\n";
 }
 
-static std::unique_ptr<LLVMTargetMachine> createTargetMachine() {
-  InitializeAllTargets();
-  InitializeAllTargetMCs();
-  InitializeAllAsmPrinters();
-  InitializeAllAsmParsers();
-
-  if (TargetTriple == "")
-    TargetTriple = sys::getDefaultTargetTriple();
-  auto TT(Triple::normalize(TargetTriple));
-  std::string CPU(codegen::getCPUStr());
-  std::string FS(codegen::getFeaturesStr());
-
-  std::string Error;
-  const Target *TheTarget = TargetRegistry::lookupTarget(TT, Error);
-
-  return std::unique_ptr<LLVMTargetMachine>(
-      static_cast<LLVMTargetMachine *>(TheTarget->createTargetMachine(
-          TT, CPU, FS, TargetOptions(), None, None, CodeGenOpt::Default)));
-}
-
 int main(int Argc, char **Argv) {
   InitLLVM X(Argc, Argv);
 
-  cl::HideUnrelatedOptions({&Options, &getColorCategory()});
+  cl::HideUnrelatedOptions({&LLVMReduceOptions, &getColorCategory()});
   cl::ParseCommandLineOptions(Argc, Argv, "LLVM automatic testcase reducer.\n");
 
   bool ReduceModeMIR = false;
@@ -151,21 +135,21 @@ int main(int Argc, char **Argv) {
     return 0;
   }
 
+  if (ReduceModeMIR)
+    initializeTargetInfo();
+
   LLVMContext Context;
-  std::unique_ptr<LLVMTargetMachine> TM;
-  std::unique_ptr<MachineModuleInfo> MMI;
-  std::unique_ptr<ReducerWorkItem> OriginalProgram;
-  if (ReduceModeMIR) {
-    TM = createTargetMachine();
-    MMI = std::make_unique<MachineModuleInfo>(TM.get());
-  }
-  OriginalProgram = parseReducerWorkItem(InputFilename, Context, MMI.get());
+  std::unique_ptr<TargetMachine> TM;
+
+  std::unique_ptr<ReducerWorkItem> OriginalProgram =
+      parseReducerWorkItem(Argv[0], InputFilename, Context, TM, ReduceModeMIR);
   if (!OriginalProgram) {
     return 1;
   }
 
   // Initialize test environment
-  TestRunner Tester(TestFilename, TestArguments, std::move(OriginalProgram));
+  TestRunner Tester(TestFilename, TestArguments, std::move(OriginalProgram),
+                    std::move(TM));
 
   // Try to reduce code
   runDeltaPasses(Tester, MaxPassIterations);

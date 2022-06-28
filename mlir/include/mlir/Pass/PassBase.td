@@ -92,9 +92,8 @@ class PassBase<string passArg, string base> {
 class Pass<string passArg, string operation = "">
   : PassBase<passArg, "::mlir::OperationPass<" # operation # ">">;
 
-/// NOTICE: This class is deprecated in favor of `Pass<..., "mlir::FuncOp">`
-/// and will be removed soon.
-// This class represents an mlir::FunctionPass.
-class FunctionPass<string passArg> : PassBase<passArg, "::mlir::FunctionPass">;
+// This class represents an mlir::InterfacePass.
+class InterfacePass<string passArg, string interface>
+  : PassBase<passArg, "::mlir::InterfacePass<" # interface # ">">;
 
 #endif // MLIR_PASS_PASSBASE

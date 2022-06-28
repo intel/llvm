@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -allow-unregistered-dialect -pass-pipeline="builtin.func(linalg-detensorize)" | FileCheck %s
+// RUN: mlir-opt %s -split-input-file -allow-unregistered-dialect -pass-pipeline="func.func(linalg-detensorize)" | FileCheck %s
 
 #map0 = affine_map<() -> ()>
 
@@ -7,12 +7,12 @@
   iterator_types = []
 }
 
-func @main() -> (tensor<i32>) attributes {} {
+func.func @main() -> (tensor<i32>) attributes {} {
   %c0 = arith.constant 0 : i32
   %0 = tensor.from_elements %c0 : tensor<i32>
   %c10 = arith.constant 10 : i32
   %1 = tensor.from_elements %c10 : tensor<i32>
-  br ^bb1(%0 : tensor<i32>)
+  cf.br ^bb1(%0 : tensor<i32>)
 
 ^bb1(%2: tensor<i32>):  // 2 preds: ^bb0, ^bb2
   %3 = linalg.init_tensor [] : tensor<i1>
@@ -24,7 +24,7 @@ func @main() -> (tensor<i32>) attributes {} {
       linalg.yield %8 : i1
   } -> tensor<i1>
   %5 = tensor.extract %4[] : tensor<i1>
-  cond_br %5, ^bb2(%2 : tensor<i32>), ^bb3(%2 : tensor<i32>)
+  cf.cond_br %5, ^bb2(%2 : tensor<i32>), ^bb3(%2 : tensor<i32>)
 
 ^bb2(%6: tensor<i32>):  // pred: ^bb1
   %7 = linalg.init_tensor [] : tensor<i32>
@@ -35,22 +35,22 @@ func @main() -> (tensor<i32>) attributes {} {
       %9 = arith.addi %arg0, %arg1 : i32
       linalg.yield %9 : i32
   } -> tensor<i32>
-  br ^bb3(%8 : tensor<i32>)
+  cf.br ^bb3(%8 : tensor<i32>)
 
 ^bb3(%10: tensor<i32>):  // pred: ^bb1
   return %10 : tensor<i32>
 }
 
 // CHECK-LABEL:  func @main()
-// CHECK-NEXT:     arith.constant 0
-// CHECK-NEXT:     arith.constant 10
-// CHECK-NEXT:     br ^[[bb1:.*]](%{{.*}}: i32)
+// CHECK-DAG:     arith.constant 0
+// CHECK-DAG:     arith.constant 10
+// CHECK:         cf.br ^[[bb1:.*]](%{{.*}}: i32)
 // CHECK-NEXT:   ^[[bb1]](%{{.*}}: i32):
 // CHECK-NEXT:     arith.cmpi slt, %{{.*}}, %{{.*}}
-// CHECK-NEXT:     cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^bb3(%{{.*}} : i32)
+// CHECK-NEXT:     cf.cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^bb3(%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb2]](%{{.*}}: i32)
 // CHECK-NEXT:     arith.addi %{{.*}}, %{{.*}}
-// CHECK-NEXT:     br ^[[bb3:.*]](%{{.*}} : i32)
+// CHECK-NEXT:     cf.br ^[[bb3:.*]](%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb3]](%{{.*}}: i32)
 // CHECK-NEXT:     tensor.from_elements %{{.*}} : tensor<i32>
 // CHECK-NEXT:     return %{{.*}}
@@ -68,12 +68,12 @@ func @main() -> (tensor<i32>) attributes {} {
   iterator_types = []
 }
 
-func @main() -> (tensor<i32>) attributes {} {
+func.func @main() -> (tensor<i32>) attributes {} {
   %c0 = arith.constant 0 : i32
   %0 = tensor.from_elements %c0 : tensor<i32>
   %c10 = arith.constant 10 : i32
   %1 = tensor.from_elements %c10 : tensor<i32>
-  br ^bb1(%0 : tensor<i32>)
+  cf.br ^bb1(%0 : tensor<i32>)
 
 ^bb1(%2: tensor<i32>):  // 2 preds: ^bb0, ^bb2
   %3 = linalg.init_tensor [] : tensor<i1>
@@ -85,7 +85,7 @@ func @main() -> (tensor<i32>) attributes {} {
       linalg.yield %8 : i1
   } -> tensor<i1>
   %5 = tensor.extract %4[] : tensor<i1>
-  cond_br %5, ^bb2(%2 : tensor<i32>), ^bb3(%2 : tensor<i32>)
+  cf.cond_br %5, ^bb2(%2 : tensor<i32>), ^bb3(%2 : tensor<i32>)
 
 ^bb2(%6: tensor<i32>):  // pred: ^bb1
   %7 = linalg.init_tensor [] : tensor<i32>
@@ -96,27 +96,27 @@ func @main() -> (tensor<i32>) attributes {} {
       %9 = arith.addi %arg0, %arg1 : i32
       linalg.yield %9 : i32
   } -> tensor<i32>
-  br ^bb3(%8 : tensor<i32>)
+  cf.br ^bb3(%8 : tensor<i32>)
 
 ^bb3(%10: tensor<i32>):  // pred: ^bb1
-  br ^bb4(%10 : tensor<i32>)
+  cf.br ^bb4(%10 : tensor<i32>)
 
 ^bb4(%11: tensor<i32>):  // pred: ^bb1
   return %11 : tensor<i32>
 }
 
 // CHECK-LABEL:  func @main()
-// CHECK-NEXT:     arith.constant 0
-// CHECK-NEXT:     arith.constant 10
-// CHECK-NEXT:     br ^[[bb1:.*]](%{{.*}}: i32)
+// CHECK-DAG:     arith.constant 0
+// CHECK-DAG:     arith.constant 10
+// CHECK:         cf.br ^[[bb1:.*]](%{{.*}}: i32)
 // CHECK-NEXT:   ^[[bb1]](%{{.*}}: i32):
 // CHECK-NEXT:     arith.cmpi slt, %{{.*}}, %{{.*}}
-// CHECK-NEXT:     cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^bb3(%{{.*}} : i32)
+// CHECK-NEXT:     cf.cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^bb3(%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb2]](%{{.*}}: i32)
 // CHECK-NEXT:     arith.addi %{{.*}}, %{{.*}}
-// CHECK-NEXT:     br ^[[bb3:.*]](%{{.*}} : i32)
+// CHECK-NEXT:     cf.br ^[[bb3:.*]](%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb3]](%{{.*}}: i32)
-// CHECK-NEXT:     br ^[[bb4:.*]](%{{.*}} : i32)
+// CHECK-NEXT:     cf.br ^[[bb4:.*]](%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb4]](%{{.*}}: i32)
 // CHECK-NEXT:     tensor.from_elements %{{.*}} : tensor<i32>
 // CHECK-NEXT:     return %{{.*}}
@@ -131,12 +131,12 @@ func @main() -> (tensor<i32>) attributes {} {
   iterator_types = []
 }
 
-func @main() -> (tensor<i32>) attributes {} {
+func.func @main() -> (tensor<i32>) attributes {} {
   %c0 = arith.constant 0 : i32
   %0 = tensor.from_elements %c0 : tensor<i32>
   %c10 = arith.constant 10 : i32
   %1 = tensor.from_elements %c10 : tensor<i32>
-  br ^bb1(%0 : tensor<i32>)
+  cf.br ^bb1(%0 : tensor<i32>)
 
 ^bb1(%2: tensor<i32>):  // 2 preds: ^bb0, ^bb2
   %3 = linalg.init_tensor [] : tensor<i1>
@@ -148,11 +148,11 @@ func @main() -> (tensor<i32>) attributes {} {
       linalg.yield %8 : i1
   } -> tensor<i1>
   %5 = tensor.extract %4[] : tensor<i1>
-  // This cond_br intentionally has bb2 as it's target for both branches. This
+  // This cf.cond_br intentionally has bb2 as it's target for both branches. This
   // is to make sure that the "forward phase" of the cost-model correctly adds
   // the users of a block argument (in this case bb2's argument) to the work
   // list.
-  cond_br %5, ^bb2(%2 : tensor<i32>), ^bb2(%2 : tensor<i32>)
+  cf.cond_br %5, ^bb2(%2 : tensor<i32>), ^bb2(%2 : tensor<i32>)
 
 ^bb2(%6: tensor<i32>):  // pred: ^bb1
   %12 = tensor.from_elements %c10 : tensor<i32>
@@ -164,22 +164,22 @@ func @main() -> (tensor<i32>) attributes {} {
       %9 = arith.addi %arg0, %arg1 : i32
       linalg.yield %9 : i32
   } -> tensor<i32>
-  br ^bb3(%8 : tensor<i32>)
+  cf.br ^bb3(%8 : tensor<i32>)
 
 ^bb3(%10: tensor<i32>):  // pred: ^bb1
   return %10 : tensor<i32>
 }
 
 // CHECK-LABEL:  func @main()
-// CHECK-NEXT:     arith.constant 0
-// CHECK-NEXT:     arith.constant 10
-// CHECK-NEXT:     br ^[[bb1:.*]](%{{.*}}: i32)
+// CHECK-DAG:     arith.constant 0
+// CHECK-DAG:     arith.constant 10
+// CHECK:         cf.br ^[[bb1:.*]](%{{.*}}: i32)
 // CHECK-NEXT:   ^[[bb1]](%{{.*}}: i32):
 // CHECK-NEXT:     arith.cmpi slt, %{{.*}}, %{{.*}}
-// CHECK-NEXT:     cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^bb2(%{{.*}} : i32)
+// CHECK-NEXT:     cf.cond_br %{{.*}}, ^[[bb2:.*]](%{{.*}} : i32), ^bb2(%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb2]](%{{.*}}: i32)
 // CHECK-NEXT:     arith.addi %{{.*}}, %{{.*}}
-// CHECK-NEXT:     br ^[[bb3:.*]](%{{.*}} : i32)
+// CHECK-NEXT:     cf.br ^[[bb3:.*]](%{{.*}} : i32)
 // CHECK-NEXT:   ^[[bb3]](%{{.*}}: i32)
 // CHECK-NEXT:     tensor.from_elements %{{.*}} : tensor<i32>
 // CHECK-NEXT:     return %{{.*}}

@@ -10,6 +10,7 @@
 #include "AST.h"
 #include "support/Logger.h"
 #include "support/Trace.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
@@ -30,6 +31,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <set>
 #include <string>
 
 namespace clang {
@@ -305,6 +307,14 @@ public:
         &ExpandedTokens.back() < &MaybeSelectedExpanded.front()) {
       return SelectionTree::Unselected;
     }
+
+    // The eof token is used as a sentinel.
+    // In general, source range from an AST node should not claim the eof token,
+    // but it could occur for unmatched-bracket cases.
+    // FIXME: fix it in TokenBuffer, expandedTokens(SourceRange) should not
+    // return the eof token.
+    if (ExpandedTokens.back().kind() == tok::eof)
+      ExpandedTokens = ExpandedTokens.drop_back();
 
     SelectionTree::Selection Result = NoTokens;
     while (!ExpandedTokens.empty()) {
@@ -676,6 +686,9 @@ public:
     return traverseNode<TypeLoc>(
         &QX, [&] { return TraverseTypeLoc(QX.getUnqualifiedLoc()); });
   }
+  bool TraverseObjCProtocolLoc(ObjCProtocolLoc PL) {
+    return traverseNode(&PL, [&] { return Base::TraverseObjCProtocolLoc(PL); });
+  }
   // Uninteresting parts of the AST that don't have locations within them.
   bool TraverseNestedNameSpecifier(NestedNameSpecifier *) { return true; }
   bool TraverseType(QualType) { return true; }
@@ -696,6 +709,15 @@ public:
   // We only want to traverse the *syntactic form* to understand the selection.
   bool TraversePseudoObjectExpr(PseudoObjectExpr *E) {
     return traverseNode(E, [&] { return TraverseStmt(E->getSyntacticForm()); });
+  }
+  bool TraverseTypeConstraint(const TypeConstraint *C) {
+    if (auto *E = C->getImmediatelyDeclaredConstraint()) {
+      // Technically this expression is 'implicit' and not traversed by the RAV.
+      // However, the range is correct, so we visit expression to avoid adding
+      // an extra kind to 'DynTypeNode' that hold 'TypeConstraint'.
+      return TraverseStmt(E);
+    }
+    return Base::TraverseTypeConstraint(C);
   }
 
 private:

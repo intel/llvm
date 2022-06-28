@@ -18,8 +18,6 @@ set( LLVM_LINK_COMPONENTS
   Vectorize
   )
 
-option(CLANG_PLUGIN_SUPPORT "Build clang with plugin support" ON)
-
 # Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
   set(support_plugins SUPPORT_PLUGINS)
@@ -34,6 +32,7 @@ add_clang_tool(clang
   DEPENDS
   intrinsics_gen
   ${support_plugins}
+  GENERATE_DRIVER
   )
 
 clang_target_link_libraries(clang

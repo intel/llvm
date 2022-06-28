@@ -3,7 +3,7 @@
 ;; // cl-types.cl
 ;; // CL source code for generating LLVM IR.
 ;; // Command for compilation:
-;; //  clang -cc1 -x cl -cl-std=CL2.0 -triple spir-unknonw-unknown -emit-llvm cl-types.cl
+;; //  clang -cc1 -x cl -cl-std=CL2.0 -triple spir-unknown-unknown -emit-llvm cl-types.cl
 ;; void kernel foo(
 ;;  read_only pipe int a,
 ;;  write_only pipe int b,
@@ -18,7 +18,7 @@
 ;; ){
 ;; }
 
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv

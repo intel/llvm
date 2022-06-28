@@ -29,7 +29,7 @@ class UnwindSignalTestCase(TestBase):
         process = target.LaunchSimple(
             None, None, self.get_process_working_directory())
         self.assertTrue(process, PROCESS_IS_VALID)
-        self.assertEqual(process.GetState(), lldb.eStateStopped)
+        self.assertState(process.GetState(), lldb.eStateStopped)
         signo = process.GetUnixSignals().GetSignalNumberFromName("SIGILL")
 
         thread = lldbutil.get_stopped_thread(process, lldb.eStopReasonSignal)
@@ -64,8 +64,7 @@ class UnwindSignalTestCase(TestBase):
                 for i in range(31):
                   name = 'x{}'.format(i)
                   value = regs.GetChildMemberWithName(name).GetValueAsUnsigned(err)
-                  self.assertTrue(err.Success(), "Failed to get register {}: {}".format(
-                                      name, err))
+                  self.assertSuccess(err, "Failed to get register {}".format(name))
                   self.assertEqual(value, i, "Unexpected value for register {}".format(
                                       name))
 

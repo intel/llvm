@@ -764,6 +764,9 @@ def int_arm_neon_sha256h: SHA_3Arg_v4i32_Intrinsic;
 def int_arm_neon_sha256h2: SHA_3Arg_v4i32_Intrinsic;
 def int_arm_neon_sha256su1: SHA_3Arg_v4i32_Intrinsic;
 
+def int_arm_neon_vqrdmlah : Neon_3Arg_Intrinsic;
+def int_arm_neon_vqrdmlsh : Neon_3Arg_Intrinsic;
+
 // Armv8.2-A dot product instructions
 class Neon_Dot_Intrinsic
   : Intrinsic<[llvm_anyvector_ty],
@@ -1155,7 +1158,7 @@ defm int_arm_mve_vabav: MVEPredicated<
   [llvm_i32_ty],
   [llvm_i32_ty, llvm_i32_ty, llvm_anyvector_ty, LLVMMatchType<0>], llvm_anyvector_ty>;
 
-// The following 3 instrinsics are MVE vector reductions with two vector
+// The following 3 intrinsics are MVE vector reductions with two vector
 // operands.
 // The first 3 operands are boolean flags (must be compile-time constants):
 // * unsigned - the instruction operates on vectors of unsigned values and

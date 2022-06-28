@@ -184,6 +184,10 @@ public:
   /// A vector of operation info specifically for registered operations.
   llvm::StringMap<RegisteredOperationName> registeredOperations;
 
+  /// This is a sorted container of registered operations for a deterministic
+  /// and efficient `getRegisteredOperations` implementation.
+  SmallVector<RegisteredOperationName, 0> sortedRegisteredOperations;
+
   /// A mutex used when accessing operation information.
   llvm::sys::SmartRWMutex<true> operationInfoMutex;
 
@@ -351,11 +355,16 @@ DiagnosticEngine &MLIRContext::getDiagEngine() { return getImpl().diagEngine; }
 //===----------------------------------------------------------------------===//
 
 void MLIRContext::appendDialectRegistry(const DialectRegistry &registry) {
+  if (registry.isSubsetOf(impl->dialectsRegistry))
+    return;
+
+  assert(impl->multiThreadedExecutionContext == 0 &&
+         "appending to the MLIRContext dialect registry while in a "
+         "multi-threaded execution context");
   registry.appendTo(impl->dialectsRegistry);
 
-  // For the already loaded dialects, register the interfaces immediately.
-  for (const auto &kvp : impl->loadedDialects)
-    registry.registerDelayedInterfaces(kvp.second.get());
+  // For the already loaded dialects, apply any possible extensions immediately.
+  registry.applyExtensions(this);
 }
 
 const DialectRegistry &MLIRContext::getDialectRegistry() {
@@ -433,8 +442,8 @@ MLIRContext::getOrLoadDialect(StringRef dialectNamespace, TypeID dialectID,
       impl.dialectReferencingStrAttrs.erase(stringAttrsIt);
     }
 
-    // Actually register the interfaces with delayed registration.
-    impl.dialectsRegistry.registerDelayedInterfaces(dialect.get());
+    // Apply any extensions to this newly loaded dialect.
+    impl.dialectsRegistry.applyExtensions(dialect.get());
     return dialect.get();
   }
 
@@ -467,6 +476,9 @@ bool MLIRContext::allowsUnregisteredDialects() {
 }
 
 void MLIRContext::allowUnregisteredDialects(bool allowing) {
+  assert(impl->multiThreadedExecutionContext == 0 &&
+         "changing MLIRContext `allow-unregistered-dialects` configuration "
+         "while in a multi-threaded execution context");
   impl->allowUnregisteredDialects = allowing;
 }
 
@@ -481,6 +493,9 @@ void MLIRContext::disableMultithreading(bool disable) {
   // --mlir-disable-threading
   if (isThreadingGloballyDisabled())
     return;
+  assert(impl->multiThreadedExecutionContext == 0 &&
+         "changing MLIRContext `disable-threading` configuration while "
+         "in a multi-threaded execution context");
 
   impl->threadingIsEnabled = !disable;
 
@@ -554,6 +569,9 @@ bool MLIRContext::shouldPrintOpOnDiagnostic() {
 /// Set the flag specifying if we should attach the operation to diagnostics
 /// emitted via Operation::emit.
 void MLIRContext::printOpOnDiagnostic(bool enable) {
+  assert(impl->multiThreadedExecutionContext == 0 &&
+         "changing MLIRContext `print-op-on-diagnostic` configuration while in "
+         "a multi-threaded execution context");
   impl->printOpOnDiagnostic = enable;
 }
 
@@ -566,27 +584,15 @@ bool MLIRContext::shouldPrintStackTraceOnDiagnostic() {
 /// Set the flag specifying if we should attach the current stacktrace when
 /// emitting diagnostics.
 void MLIRContext::printStackTraceOnDiagnostic(bool enable) {
+  assert(impl->multiThreadedExecutionContext == 0 &&
+         "changing MLIRContext `print-stacktrace-on-diagnostic` configuration "
+         "while in a multi-threaded execution context");
   impl->printStackTraceOnDiagnostic = enable;
 }
 
-/// Return information about all registered operations.  This isn't very
-/// efficient, typically you should ask the operations about their properties
-/// directly.
-std::vector<RegisteredOperationName> MLIRContext::getRegisteredOperations() {
-  // We just have the operations in a non-deterministic hash table order. Dump
-  // into a temporary array, then sort it by operation name to get a stable
-  // ordering.
-  auto unwrappedNames = llvm::make_second_range(impl->registeredOperations);
-  std::vector<RegisteredOperationName> result(unwrappedNames.begin(),
-                                              unwrappedNames.end());
-  llvm::array_pod_sort(result.begin(), result.end(),
-                       [](const RegisteredOperationName *lhs,
-                          const RegisteredOperationName *rhs) {
-                         return lhs->getIdentifier().compare(
-                             rhs->getIdentifier());
-                       });
-
-  return result;
+/// Return information about all registered operations.
+ArrayRef<RegisteredOperationName> MLIRContext::getRegisteredOperations() {
+  return impl->sortedRegisteredOperations;
 }
 
 bool MLIRContext::isOperationRegistered(StringRef name) {
@@ -704,7 +710,8 @@ RegisteredOperationName::parseAssembly(OpAsmParser &parser,
 void RegisteredOperationName::insert(
     StringRef name, Dialect &dialect, TypeID typeID,
     ParseAssemblyFn &&parseAssembly, PrintAssemblyFn &&printAssembly,
-    VerifyInvariantsFn &&verifyInvariants, FoldHookFn &&foldHook,
+    VerifyInvariantsFn &&verifyInvariants,
+    VerifyRegionInvariantsFn &&verifyRegionInvariants, FoldHookFn &&foldHook,
     GetCanonicalizationPatternsFn &&getCanonicalizationPatterns,
     detail::InterfaceMap &&interfaceMap, HasTraitFn &&hasTrait,
     ArrayRef<StringRef> attrNames) {
@@ -736,8 +743,19 @@ void RegisteredOperationName::insert(
                  << "' is already registered.\n";
     abort();
   }
-  ctxImpl.registeredOperations.try_emplace(name,
-                                           RegisteredOperationName(&impl));
+  auto emplaced = ctxImpl.registeredOperations.try_emplace(
+      name, RegisteredOperationName(&impl));
+  assert(emplaced.second && "operation name registration must be successful");
+
+  // Add emplaced operation name to the sorted operations container.
+  RegisteredOperationName &value = emplaced.first->getValue();
+  ctxImpl.sortedRegisteredOperations.insert(
+      llvm::upper_bound(ctxImpl.sortedRegisteredOperations, value,
+                        [](auto &lhs, auto &rhs) {
+                          return lhs.getIdentifier().compare(
+                              rhs.getIdentifier());
+                        }),
+      value);
 
   // Update the registered info for this operation.
   impl.dialect = &dialect;
@@ -749,6 +767,7 @@ void RegisteredOperationName::insert(
   impl.parseAssemblyFn = std::move(parseAssembly);
   impl.printAssemblyFn = std::move(printAssembly);
   impl.verifyInvariantsFn = std::move(verifyInvariants);
+  impl.verifyRegionInvariantsFn = std::move(verifyRegionInvariants);
   impl.attributeNames = cachedAttrNames;
 }
 
