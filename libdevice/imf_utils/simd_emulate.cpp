@@ -10,6 +10,17 @@
 #include "../device_imf.hpp"
 #ifdef __LIBDEVICE_IMF_ENABLED__
 
+template <typename Tp> struct __twice_size;
+template <typename Tp> using __twice_size_t = typename __twice_size<Tp>::type;
+template <typename Tp> struct __twice_size_tag {
+  using type = Tp;
+};
+
+template <> struct __twice_size<int8_t> : __twice_size_tag<int16_t> {};
+template <> struct __twice_size<int16_t> : __twice_size_tag<int32_t> {};
+template <> struct __twice_size<uint8_t> : __twice_size_tag<uint16_t> {};
+template <> struct __twice_size<uint16_t> : __twice_size_tag<uint32_t> {};
+
 template <typename Tp> class __abs_op {
   typedef typename std::make_unsigned<Tp>::type UTp;
 
@@ -47,246 +58,6 @@ static inline unsigned int __internal_v_unary_op(unsigned int x) {
     res_buf[idx] = u_op(x_tmp);
   }
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabs2(unsigned int x) {
-  return __internal_v_unary_op<int16_t, 2, __abs_op>(x);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabs4(unsigned int x) {
-  return __internal_v_unary_op<int8_t, 4, __abs_op>(x);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabsss2(unsigned int x) {
-  return __internal_v_unary_op<int16_t, 2, __abss_op>(x);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabsss4(unsigned int x) {
-  return __internal_v_unary_op<int8_t, 4, __abss_op>(x);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabsdiffs2(unsigned int x, unsigned int y) {
-  uint16_t res_buf[2] = {
-      0,
-  };
-  int32_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 2; ++idx) {
-    x_tmp = static_cast<int32_t>(__bit_cast<int16_t>(
-        __get_bytes_by_index<unsigned int, uint16_t>(x, idx)));
-    y_tmp = static_cast<int32_t>(__bit_cast<int16_t>(
-        __get_bytes_by_index<unsigned int, uint16_t>(y, idx)));
-    x_tmp -= y_tmp;
-    res_buf[idx] = static_cast<uint16_t>(__abs(x_tmp));
-  }
-  return __assemble_integral_value<unsigned int, uint16_t, 2>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabsdiffs4(unsigned int x, unsigned int y) {
-  uint8_t res_buf[4] = {
-      0,
-  };
-  int16_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 4; ++idx) {
-    x_tmp = static_cast<int16_t>(__bit_cast<int8_t>(
-        __get_bytes_by_index<unsigned int, uint8_t>(x, idx)));
-    y_tmp = static_cast<int16_t>(__bit_cast<int8_t>(
-        __get_bytes_by_index<unsigned int, uint8_t>(y, idx)));
-    x_tmp -= y_tmp;
-    res_buf[idx] = static_cast<uint8_t>(__abs(x_tmp));
-  }
-  return __assemble_integral_value<unsigned int, uint8_t, 4>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabsdiffu2(unsigned int x, unsigned int y) {
-  uint16_t res_buf[2] = {
-      0,
-  };
-  uint16_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 2; ++idx) {
-    x_tmp = __get_bytes_by_index<unsigned int, uint16_t>(x, idx);
-    y_tmp = __get_bytes_by_index<unsigned int, uint16_t>(y, idx);
-    if (x_tmp < y_tmp)
-      __swap(x_tmp, y_tmp);
-    x_tmp -= y_tmp;
-    res_buf[idx] = x_tmp;
-  }
-  return __assemble_integral_value<unsigned int, uint16_t, 2>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vabsdiffu4(unsigned int x, unsigned int y) {
-  uint8_t res_buf[4] = {
-      0,
-  };
-  uint8_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 4; ++idx) {
-    x_tmp = __get_bytes_by_index<unsigned int, uint8_t>(x, idx);
-    y_tmp = __get_bytes_by_index<unsigned int, uint8_t>(y, idx);
-    if (x_tmp < y_tmp)
-      __swap(x_tmp, y_tmp);
-    x_tmp -= y_tmp;
-    res_buf[idx] = x_tmp;
-  }
-  return __assemble_integral_value<unsigned int, uint8_t, 4>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vadd2(unsigned int x, unsigned int y) {
-  uint16_t res_buf[2] = {
-      0,
-  };
-
-  uint32_t tmp;
-  uint16_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 2; ++idx) {
-    x_tmp = __get_bytes_by_index<unsigned int, uint16_t>(x, idx);
-    y_tmp = __get_bytes_by_index<unsigned int, uint16_t>(y, idx);
-    tmp = x_tmp + y_tmp;
-    res_buf[idx] = __get_bytes_by_index<uint32_t, uint16_t>(tmp, 0);
-  }
-  return __assemble_integral_value<unsigned int, uint16_t, 2>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vadd4(unsigned int x, unsigned int y) {
-  uint8_t res_buf[4] = {
-      0,
-  };
-
-  uint16_t tmp;
-  uint8_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 4; ++idx) {
-    x_tmp = __get_bytes_by_index<unsigned int, uint8_t>(x, idx);
-    y_tmp = __get_bytes_by_index<unsigned int, uint8_t>(y, idx);
-    tmp = x_tmp + y_tmp;
-    res_buf[idx] = __get_bytes_by_index<uint16_t, uint8_t>(tmp, 0);
-  }
-  return __assemble_integral_value<unsigned int, uint8_t, 4>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vaddss2(unsigned int x, unsigned int y) {
-  uint16_t res_buf[2] = {
-      0,
-  };
-
-  int32_t tmp;
-  int16_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 2; ++idx) {
-    x_tmp = __bit_cast<int16_t>(
-        __get_bytes_by_index<unsigned int, uint16_t>(x, idx));
-    y_tmp = __bit_cast<int16_t>(
-        __get_bytes_by_index<unsigned int, uint16_t>(y, idx));
-    tmp = x_tmp + y_tmp;
-    if (tmp > 32767)
-      res_buf[idx] = 0x7FFF;
-    else if (tmp < -32768)
-      res_buf[idx] = 0x8000;
-    else
-      res_buf[idx] = __get_bytes_by_index<uint32_t, uint16_t>(tmp, 0);
-  }
-  return __assemble_integral_value<unsigned int, uint16_t, 2>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vaddss4(unsigned int x, unsigned int y) {
-  uint8_t res_buf[4] = {
-      0,
-  };
-
-  int16_t tmp;
-  int8_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 4; ++idx) {
-    x_tmp =
-        __bit_cast<int8_t>(__get_bytes_by_index<unsigned int, uint8_t>(x, idx));
-    y_tmp =
-        __bit_cast<int8_t>(__get_bytes_by_index<unsigned int, uint8_t>(y, idx));
-    tmp = x_tmp + y_tmp;
-    if (tmp > 127)
-      res_buf[idx] = 0x7F;
-    else if (tmp < -128)
-      res_buf[idx] = 0x80;
-    else
-      res_buf[idx] = __get_bytes_by_index<uint16_t, uint8_t>(tmp, 0);
-  }
-  return __assemble_integral_value<unsigned int, uint8_t, 4>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vaddus2(unsigned int x, unsigned int y) {
-  uint16_t res_buf[2] = {
-      0,
-  };
-  uint32_t tmp;
-  uint16_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 2; ++idx) {
-    x_tmp = __get_bytes_by_index<unsigned int, uint16_t>(x, idx);
-    y_tmp = __get_bytes_by_index<unsigned int, uint16_t>(y, idx);
-    tmp = x_tmp + y_tmp;
-    if (tmp > 65535)
-      res_buf[idx] = 0xFFFF;
-    else
-      res_buf[idx] = static_cast<uint16_t>(tmp);
-  }
-  return __assemble_integral_value<unsigned, uint16_t, 2>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vaddus4(unsigned int x, unsigned int y) {
-  uint8_t res_buf[4] = {
-      0,
-  };
-  uint16_t tmp;
-  uint8_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 4; ++idx) {
-    x_tmp = __get_bytes_by_index<unsigned int, uint8_t>(x, idx);
-    y_tmp = __get_bytes_by_index<unsigned int, uint8_t>(y, idx);
-    tmp = x_tmp + y_tmp;
-    if (tmp > 255)
-      res_buf[idx] = 0xFF;
-    else
-      res_buf[idx] = static_cast<uint8_t>(tmp);
-  }
-  return __assemble_integral_value<unsigned, uint8_t, 4>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vavgs2(unsigned int x, unsigned int y) {
-  uint16_t res_buf[2] = {
-      0,
-  };
-  int16_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 2; ++idx) {
-    x_tmp = __bit_cast<int16_t>(
-        __get_bytes_by_index<unsigned int, uint16_t>(x, idx));
-    y_tmp = __bit_cast<int16_t>(
-        __get_bytes_by_index<unsigned int, uint16_t>(y, idx));
-    res_buf[idx] = __bit_cast<uint16_t>(__shadd(x_tmp, y_tmp));
-  }
-  return __assemble_integral_value<unsigned, uint16_t, 2>(res_buf);
-}
-
-DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_vavgs4(unsigned int x, unsigned int y) {
-  uint8_t res_buf[4] = {
-      0,
-  };
-  int8_t x_tmp, y_tmp;
-  for (size_t idx = 0; idx < 4; ++idx) {
-    x_tmp =
-        __bit_cast<int8_t>(__get_bytes_by_index<unsigned int, uint8_t>(x, idx));
-    y_tmp =
-        __bit_cast<int8_t>(__get_bytes_by_index<unsigned int, uint8_t>(y, idx));
-    res_buf[idx] = __bit_cast<uint8_t>(__shadd(x_tmp, y_tmp));
-  }
-  return __assemble_integral_value<unsigned, uint8_t, 4>(res_buf);
 }
 
 template <typename Tp> class __min_op {
@@ -395,6 +166,88 @@ public:
   UTp operator()(const Tp &x, const Tp &y) { return ((x <= y) ? 1 : 0); }
 };
 
+template <typename Tp> class __abs_diff_s_op {
+  static_assert(std::is_same<int8_t, Tp>::value ||
+                    std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int8_t, int16_t for __abs_diff_s_op");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    __twice_size_t<Tp> tx = x, ty = y;
+    tx -= ty;
+    return static_cast<UTp>(__abs(tx));
+  }
+};
+
+template <typename Tp> class __abs_diff_u_op {
+  static_assert(std::is_same<uint8_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept uint8_t, uint16_t for __abs_diff_u_op");
+
+public:
+  Tp operator()(Tp &x, Tp &y) {
+    if (x < y)
+      __swap(x, y);
+    x -= y;
+    return x;
+  }
+};
+
+template <typename Tp> class __add_op {
+public:
+  Tp operator()(const Tp &x, const Tp &y) { return x + y; }
+};
+
+template <typename Tp> class __add_us_op {
+  static_assert(std::is_same<uint8_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept uint8_t, uint16_t for __add_us_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    __twice_size_t<Tp> z = x + y;
+    if (z > std::numeric_limits<Tp>::max())
+      return std::numeric_limits<Tp>::max();
+    else
+      return static_cast<Tp>(z);
+  }
+};
+
+// Clang will optimize this function with llvm.sadd.sat intrinsic which
+// can't be handled by llvm-spirv translator, so using turn off clang
+// optimization for this function to avoid llvm-spirv crash.
+#pragma clang optimize off
+template <typename Tp> class __add_ss_op {
+  static_assert(std::is_same<int8_t, Tp>::value ||
+                    std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int8_t, int16_t for __add_ss_op");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    __twice_size_t<Tp> z = x + y;
+    __max_op<__twice_size_t<Tp>> __max_val;
+    __min_op<__twice_size_t<Tp>> __min_val;
+    return static_cast<UTp>(
+        __min_val(__max_val(z, std::numeric_limits<Tp>::min()),
+                  std::numeric_limits<Tp>::max()));
+  }
+};
+#pragma clang optimize on
+
+template <typename Tp> class __avgs_op {
+  static_assert(std::is_same<int8_t, Tp>::value ||
+                    std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int8_t, int16_t for __avgs_op");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    return static_cast<UTp>(__srhadd(x, y));
+  }
+};
+
 template <typename Tp, size_t N, template <typename> class BinaryOp>
 static inline unsigned int __internal_v_binary_op(unsigned int x,
                                                   unsigned int y) {
@@ -415,6 +268,86 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
     res_buf[idx] = b_op(x_tmp, y_tmp);
   }
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabs2(unsigned int x) {
+  return __internal_v_unary_op<int16_t, 2, __abs_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabs4(unsigned int x) {
+  return __internal_v_unary_op<int8_t, 4, __abs_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabsss2(unsigned int x) {
+  return __internal_v_unary_op<int16_t, 2, __abss_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabsss4(unsigned int x) {
+  return __internal_v_unary_op<int8_t, 4, __abss_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabsdiffs2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __abs_diff_s_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabsdiffs4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int8_t, 4, __abs_diff_s_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabsdiffu2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __abs_diff_u_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vabsdiffu4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __abs_diff_u_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vadd2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __add_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vadd4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __add_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vaddss2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __add_ss_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vaddss4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int8_t, 4, __add_ss_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vaddus2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __add_us_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vaddus4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __add_us_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vavgs2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __avgs_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vavgs4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int8_t, 4, __avgs_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
