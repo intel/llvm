@@ -7,6 +7,15 @@
 using namespace cl::sycl;
 queue q;
 
+// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+// CHECK: FunctionDecl {{.*}} {{.*}} funccc 'void ()'
+// CHECK: SYCLIntelNumSimdWorkItemsAttr
+// CHECK-NEXT: ConstantExpr {{.*}} 'int'
+// CHECK-NEXT: value: Int 2
+// CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
+// CHECK-NOT: SYCLIntelNumSimdWorkItemsAttr
+[[intel::num_simd_work_items(2)]] [[intel::num_simd_work_items(2)]] void funccc() {}
+
 // Test that checks template parameter support on member function of class template.
 template <int SIZE>
 class KernelFunctor {
@@ -44,15 +53,6 @@ int ver() {
   funcc<8>();
   return 0;
 }
-
-// No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
-// CHECK: FunctionDecl {{.*}} {{.*}} funccc 'void ()'
-// CHECK: SYCLIntelNumSimdWorkItemsAttr
-// CHECK-NEXT: ConstantExpr {{.*}} 'int'
-// CHECK-NEXT: value: Int 2
-// CHECK-NEXT: IntegerLiteral{{.*}}2{{$}}
-// CHECK-NOT: SYCLIntelNumSimdWorkItemsAttr
-[[intel::num_simd_work_items(2)]] [[intel::num_simd_work_items(2)]] void funccc() {}
 
 [[intel::num_simd_work_items(2)]] void func_do_not_ignore() {}
 
