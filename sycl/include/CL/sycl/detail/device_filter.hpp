@@ -65,6 +65,9 @@ inline device_filter::operator std::string() const {
   case info::device_type::accelerator:
     Out += "accelerator";
     break;
+  case info::device_type::all:
+    Out += "*";
+    break;
   default:
     Out += "unknown";
     break;

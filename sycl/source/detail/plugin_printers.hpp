@@ -11,7 +11,7 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
-
+#include <iostream>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -24,9 +24,7 @@ namespace pi {
 template <typename T>
 inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
 print(T val) {
-  printf("<unknown> : ");
-  printf("%lu", (unsigned long)val);
-  printf("\n");
+  std::cout << "<unknown> : " << val <<std::endl;
 }
 template <typename T>
 inline typename std::enable_if<std::is_pointer<T>::value, void>::type
