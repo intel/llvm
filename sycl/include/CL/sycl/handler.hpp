@@ -1853,7 +1853,7 @@ public:
     if (CopyEvent)
       MLastEvent = *CopyEvent;
   }
-#endif
+#endif // __cplusplus >= 201703L
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
   /// encoding the body of each work-group to launch.
