@@ -980,7 +980,7 @@ public:
   reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, Span.data()) {}
-#endif
+#endif // __cplusplus >= 201703L
 };
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
@@ -2462,7 +2462,7 @@ void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
   // Reductions initialized with USM pointer currently do not require copying
-  // because the last kernel write directly to USM memory.
+  // because the last kernel writes directly to the USM memory.
   if constexpr (!Reduction::is_usm)
     if (Redu.hasUserDiscardWriteAccessor()) {
       event CopyEvent =
