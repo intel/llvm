@@ -21050,6 +21050,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   // Arguments
   const Expr *PtrArg = E->getArg(0);
   Value *PtrVal = EmitScalarExpr(PtrArg);
+  ASTContext &Ctx = getContext();
 
   // Create the pointer annotation
   Function *F =
@@ -21057,15 +21058,28 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
 
-  Optional<llvm::APSInt> Params =
-      E->getArg(1)->getIntegerConstantExpr(getContext());
-  assert(Params.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{params:" << toString(*Params, 10) << "}";
+  auto AddArgValue = [&E, &Ctx, &Out](unsigned NumOfArg, StringRef StringToAdd,
+                                      int DefaultValue = INT_MIN) {
+    Optional<llvm::APSInt> IntVal =
+        (E->getNumArgs() > NumOfArg)
+            ? E->getArg(NumOfArg)->getIntegerConstantExpr(Ctx)
+            : APSInt::get(DefaultValue);
+    assert(IntVal.hasValue() && "Constant arg isn't actually constant?");
+    Out << "{" << StringToAdd << ":" << toString(*IntVal, 10) << "}";
+  };
 
-  Optional<llvm::APSInt> CacheSize =
-      E->getArg(2)->getIntegerConstantExpr(getContext());
-  assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
-  Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
+  AddArgValue(1, "params");
+  AddArgValue(2, "cache-size");
+  // There are four optional arguments with the following default values:
+  // const int32_t AnchorID = -1
+  // const int32_t TargetAnchor = 0
+  // const int32_t Type = 0
+  // const int32_t Cycle = 0
+  // Emit default values or use provided.
+  AddArgValue(3, "anchor-id", -1);
+  AddArgValue(4, "target-anchor", 0);
+  AddArgValue(5, "type", 0);
+  AddArgValue(6, "cycle", 0);
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 
