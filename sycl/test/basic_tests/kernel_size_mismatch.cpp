@@ -11,9 +11,9 @@ int main() {
   Q.single_task([=]() {
 #ifdef __SYCL_DEVICE_ONLY__
      (void)A;
-     // expected-no-diagnostics
+    // expected-no-diagnostics
 #else
-     // expected-error-re@CL/sycl/handler.hpp:* {{static_assert failed due to requirement '{{.*}}' "Unexpected kernel lambda size. This can be caused by an external host compiler producing a lambda with an unexpected layout. This is a limitation of the compiler."}}
+  // expected-error-re@CL/sycl/handler.hpp:* {{static_assert failed due to requirement '{{.*}}' "Unexpected kernel lambda size. This can be caused by an external host compiler producing a lambda with an unexpected layout. This is a limitation of the compiler."}}
 #endif
    }).wait();
 }
