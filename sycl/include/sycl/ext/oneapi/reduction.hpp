@@ -1043,8 +1043,7 @@ void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
   });
 }
 
-template <class KernelName>
-struct MainRangeFastReduce;
+template <class KernelName> struct MainRangeFastReduce;
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
                                   const range<Dims> &Range,
@@ -1123,8 +1122,7 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   });
 }
 
-template <class KernelName>
-struct MainRangeBasic;
+template <class KernelName> struct MainRangeBasic;
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
                              const range<Dims> &Range,
@@ -1259,8 +1257,7 @@ void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   }
 }
 
-template <class KernelName>
-struct MainNDRangeBothFastReduceAndAtomics;
+template <class KernelName> struct MainNDRangeBothFastReduceAndAtomics;
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
@@ -1292,8 +1289,7 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(
   });
 }
 
-template <class KernelName>
-struct MainNDRangeFastAtomicsOnly;
+template <class KernelName> struct MainNDRangeFastAtomicsOnly;
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
@@ -1368,8 +1364,7 @@ void reduCGFuncForNDRangeFastAtomicsOnly(
   });
 }
 
-template <class KernelName>
-struct MainNDRangeBothFastReduceOnly;
+template <class KernelName> struct MainNDRangeBothFastReduceOnly;
 /// Implements a command group function that enqueues a kernel that
 /// calls user's lambda function and does one iteration of reduction
 /// of elements in each of work-groups.
@@ -1410,8 +1405,7 @@ void reduCGFuncForNDRangeFastReduceOnly(
   });
 }
 
-template <class KernelName>
-struct MainNDRangeBasic;
+template <class KernelName> struct MainNDRangeBasic;
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function \param KernelFunc and does one iteration of
 /// reduction of elements in each of work-groups.
@@ -1490,8 +1484,7 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
   });
 }
 
-template <class KernelName>
-struct AuxFastReduce;
+template <class KernelName> struct AuxFastReduce;
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
 /// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
@@ -1532,8 +1525,7 @@ void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
   });
 }
 
-template <class KernelName>
-struct AuxNoFastReduceNorAtomic;
+template <class KernelName> struct AuxNoFastReduceNorAtomic;
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
 /// This version uses tree-reduction algorithm to reduce elements in each
@@ -2050,8 +2042,7 @@ void reduCGFuncImplArray(
    ...);
 }
 
-template <class KernelName, class Accessor>
-struct MainNDRangeMulti;
+template <class KernelName, class Accessor> struct MainNDRangeMulti;
 template <typename KernelName, typename KernelType, int Dims,
           typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2126,8 +2117,7 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
     Rest(createReduOutAccs<false>(NWorkGroups, CGH, ReduTuple, ReduIndices));
 }
 
-template <class KernelName>
-struct MainNDRangeAtomic64;
+template <class KernelName> struct MainNDRangeAtomic64;
 // Specialization for devices with the atomic64 aspect, which guarantees 64 (and
 // temporarily 32) bit floating point support for atomic add.
 // TODO 32 bit floating point atomics are eventually expected to be supported by
@@ -2384,8 +2374,7 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   }
 }
 
-template <class KernelName, class Accessor>
-struct AuxMulti;
+template <class KernelName, class Accessor> struct AuxMulti;
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
