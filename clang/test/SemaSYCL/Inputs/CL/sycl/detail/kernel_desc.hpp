@@ -35,6 +35,17 @@ __SYCL_INLINE_NAMESPACE(cl) {
     int offset;
   };
 
+  template <bool Cond, typename TrueT, typename FalseT>
+  struct conditional {
+    using type = TrueT;
+  };
+  template <typename TrueT, typename FalseT>
+  struct conditional<false, TrueT, FalseT> {
+    using type = FalseT;
+  };
+
+  using int64_t = conditional<sizeof(long) == 8, long, long long>::type;
+
   template <class KernelNameType> struct KernelInfo {
     static constexpr unsigned getNumParams() { return 0; }
     static const kernel_param_desc_t &getParamDesc(int) {
@@ -43,7 +54,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
     }
     static constexpr const char *getName() { return ""; }
     static constexpr bool isESIMD() { return 0; }
-    static constexpr long getKernelSize() { return 0; }
+    static constexpr int64_t getKernelSize() { return 0; }
   };
   } // namespace detail
   } // namespace sycl

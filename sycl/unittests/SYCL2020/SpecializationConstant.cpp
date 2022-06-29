@@ -35,7 +35,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {

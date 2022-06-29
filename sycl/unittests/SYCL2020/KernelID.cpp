@@ -32,7 +32,7 @@ template <> struct KernelInfo<TestKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernel2> {
@@ -45,7 +45,7 @@ template <> struct KernelInfo<TestKernel2> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernel3> {
@@ -58,7 +58,7 @@ template <> struct KernelInfo<TestKernel3> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<ServiceKernel1> {
@@ -73,7 +73,7 @@ template <> struct KernelInfo<ServiceKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 } // namespace detail
 } // namespace sycl

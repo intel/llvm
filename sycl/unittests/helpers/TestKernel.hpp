@@ -25,7 +25,7 @@ template <size_t KernelSize> struct KernelInfo<TestKernel<KernelSize>> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return KernelSize; }
+  static constexpr int64_t getKernelSize() { return KernelSize; }
 };
 
 } // namespace detail

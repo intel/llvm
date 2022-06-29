@@ -33,7 +33,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return true; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail

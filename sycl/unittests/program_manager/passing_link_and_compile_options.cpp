@@ -37,7 +37,7 @@ template <> struct KernelInfo<EAMTestKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<EAMTestKernel2> {
@@ -50,7 +50,7 @@ template <> struct KernelInfo<EAMTestKernel2> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
-  static constexpr long getKernelSize() { return 1; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
