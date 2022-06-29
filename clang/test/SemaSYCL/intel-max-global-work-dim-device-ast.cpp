@@ -98,9 +98,11 @@ struct TRIFuncObjGood6 {
 };
 
 struct TRIFuncObjGood7 {
-  [[sycl::reqd_work_group_size(4, 1, 1)]] [[intel::max_global_work_dim(3)]] void
-  operator()() const {}
+  [[sycl::reqd_work_group_size(4, 4, 4)]] void // OK
+  operator()() const;
 };
+
+[[intel::max_global_work_dim(1)]] void TRIFuncObjGood7::operator()() const {}
 
 struct TRIFuncObjGood8 {
   [[intel::max_work_group_size(8, 1, 1)]] [[intel::max_global_work_dim(3)]] void
@@ -268,15 +270,15 @@ int main() {
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
+    // CHECK-NEXT:  value: Int 4
+    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 3
-    // CHECK-NEXT:  IntegerLiteral{{.*}}3{{$}}
+    // CHECK-NEXT:  value: Int 1
+    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 
     h.single_task<class test_kernel10>(TRIFuncObjGood8());
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel10
