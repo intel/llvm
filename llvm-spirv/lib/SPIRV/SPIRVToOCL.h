@@ -272,8 +272,10 @@ private:
 
   std::string translateOpaqueType(StringRef STName);
 
-  /// Mutate the argument list based on (optional) image operands.
-  void mutateArgsForImageOperands(std::vector<Value *> &Args);
+  /// Mutate the argument list based on (optional) image operands at position
+  /// ImOpArgIndex.
+  void mutateArgsForImageOperands(std::vector<Value *> &Args,
+                                  unsigned ImOpArgIndex);
 
 protected:
   Module *M;

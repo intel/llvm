@@ -765,21 +765,22 @@ static char getTypeSuffix(Type *T) {
   return Suffix;
 }
 
-void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args) {
-  if (Args.size() > 3) {
-    ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[3]);
+void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args,
+                                                unsigned ImOpArgIndex) {
+  if (Args.size() > ImOpArgIndex) {
+    ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[ImOpArgIndex]);
     uint64_t ImOpValue = 0;
     if (ImOp)
       ImOpValue = ImOp->getZExtValue();
     // Drop "Image Operands" argument.
-    Args.erase(Args.begin() + 3, Args.begin() + 4);
+    Args.erase(Args.begin() + ImOpArgIndex);
 
-    if (Args.size() > 3) {
-      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[3]);
+    if (Args.size() > ImOpArgIndex) {
+      ConstantFP *LodVal = dyn_cast<ConstantFP>(Args[ImOpArgIndex]);
       // If the image operand is LOD and its value is zero, drop it too.
       if (LodVal && LodVal->isNullValue() &&
           ImOpValue == ImageOperandsMask::ImageOperandsLodMask)
-        Args.erase(Args.begin() + 3, Args.end());
+        Args.erase(Args.begin() + ImOpArgIndex, Args.end());
     }
   }
 }
@@ -806,7 +807,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
     auto Sampler = CallSampledImg->getArgOperand(1);
     Args[0] = Img;
     Args.insert(Args.begin() + 1, Sampler);
-    mutateArgsForImageOperands(Args);
+    mutateArgsForImageOperands(Args, 3);
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           UndefValue::get(CallSampledImg->getType()));
@@ -841,7 +842,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         llvm::Type *T = Args[2]->getType();
-        mutateArgsForImageOperands(Args);
+        mutateArgsForImageOperands(Args, 3);
         if (Args.size() > 3) {
           std::swap(Args[2], Args[3]);
         }
@@ -856,10 +857,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageReadBuiltIn(CallInst *CI, Op OC) {
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        // Drop "Image operands" argument
-        if (Args.size() > 2)
-          Args.erase(Args.begin() + 2);
-
+        mutateArgsForImageOperands(Args, 2);
         llvm::Type *T = CI->getType();
         return std::string(kOCLBuiltinName::ReadImage) + getTypeSuffix(T);
       },
