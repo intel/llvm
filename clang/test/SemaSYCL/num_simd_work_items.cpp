@@ -43,7 +43,8 @@ struct TRIFuncObjBad2 {
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
 // (one, two, and three argument) can be used instead of assuming default
-// values. This will prevent to redeclare the function with a different dimensionality.
+// values. This prevents redeclaring the function with a different
+// dimensionality.
 struct TRIFuncObjBad3 {
   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
@@ -56,7 +57,8 @@ struct TRIFuncObjBad3 {
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
 // (one, two, and three argument) can be used instead of assuming default
-// values. This will prevent to redeclare the function with a different dimensionality.
+// values. This prevents redeclaring the function with a different
+// dimensionality.
 struct TRIFuncObjBad4 {
   [[sycl::reqd_work_group_size(3)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(3)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
@@ -69,7 +71,8 @@ struct TRIFuncObjBad4 {
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
 // (one, two, and three argument) can be used instead of assuming default
-// values. This will prevent to redeclare the function with a different dimensionality.
+// values. This prevents redeclaring the function with a different
+// dimensionality.
 struct TRIFuncObjBad5 {
   [[intel::num_simd_work_items(4)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
   [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
@@ -82,7 +85,8 @@ struct TRIFuncObjBad5 {
 // aren't really any default values. The dimensionality of the attribute
 // must match the kernel, so three different forms of the attribute
 // (one, two, and three argument) can be used instead of assuming default
-// values. This will prevent to redeclare the function with a different dimensionality.
+// values. This prevents redeclaring the function with a different
+// dimensionality.
 struct TRIFuncObjBad6 {
   [[sycl::reqd_work_group_size(4, 64)]] // expected-note{{conflicting attribute is here}}
   [[intel::num_simd_work_items(4)]]     // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
@@ -122,8 +126,8 @@ func4(); // expected-error@-1{{'num_simd_work_items' attribute must evenly divid
 
 // If the declaration has a __attribute__((reqd_work_group_size()))
 // attribute, tests that check if the work group size attribute argument
-// (the last argument) can be evenly divided by the [[intel::num_simd_work_items()]]
-// attribute.
+// (the last argument) can be evenly divided by the
+// [[intel::num_simd_work_items()]] attribute.
 [[intel::num_simd_work_items(2)]] // expected-error{{'num_simd_work_items' attribute must evenly divide the work-group size for the 'reqd_work_group_size' attribute}}
 __attribute__((reqd_work_group_size(4, 2, 5))) void
 func5(); // expected-note@-1{{conflicting attribute is here}} expected-warning@-1 {{attribute 'reqd_work_group_size' is deprecated}} expected-note@-1 {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
@@ -260,8 +264,6 @@ int main() {
   });
   return 0;
 }
-
-// Test that checkes template parameter support for 'num_simd_work_items' attribute on sycl device.
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
