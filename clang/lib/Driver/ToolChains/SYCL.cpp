@@ -168,8 +168,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
           C.getDriver().IsCLMode())
         LibPostfix = ".obj";
-      StringRef InputFilename = llvm::sys::path::filename(
-          StringRef(this->getToolChain().getInputFilename(II)));
+      std::string FileName = this->getToolChain().getInputFilename(II);
+      StringRef InputFilename = llvm::sys::path::filename(FileName);
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.startswith(LibSyclPrefix) ||
           !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
