@@ -272,6 +272,7 @@ def OMPMasterTaskLoopSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPParallelMasterTaskLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPParallelMasterTaskLoopSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPMaskedTaskLoopDirective : StmtNode<OMPLoopDirective>;
+def OMPMaskedTaskLoopSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPDistributeDirective : StmtNode<OMPLoopDirective>;
 def OMPDistributeParallelForDirective : StmtNode<OMPLoopDirective>;
 def OMPDistributeParallelForSimdDirective : StmtNode<OMPLoopDirective>;
