@@ -60,6 +60,11 @@ add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers)
 
 if(SYCL_BUILD_PI_CUDA)
 
+  target_compile_definitions(sycl_pi_trace_collector
+    PRIVATE
+      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
+  )
+
   find_package(CUDAToolkit 10.1 REQUIRED)
   target_include_directories(sycl_pi_trace_collector
     PRIVATE
@@ -71,16 +76,28 @@ if(SYCL_BUILD_PI_CUDA)
       cudadrv
       ${CUDA_cupti_LIBRARY}
   )
-  
+
+  find_path (GEN_CUDA_META_H_DIR generated_cuda_meta.h
+    PATH
+      ${CUDAToolkit_INCLUDE_DIRS}
+      "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+  )
+
+  if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )
   add_custom_target(cuda-pretty-printers
     COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/generate_cuda_pretty_printers.py
-#    ${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include/generated_cuda_meta.h
-/usr/local/cuda/targets/x86_64-linux/include/generated_cuda_meta.h
+    ${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h
     DEPENDS pi_cuda
     BYPRODUCTS
       ${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def
     )
+  else()
+    message(WARNING "generated_cuda_meta.h not FOUND!")
+    message(WARNING "CUDA printer definitions cannot be generated.")
+    file(TOUCH "${CMAKE_CURRENT_BINARY_DIR}/cuda_printers.def")
+    add_custom_target(cuda-pretty-printers)
+  endif()
 
   add_dependencies(sycl_pi_trace_collector cuda-pretty-printers)
 
