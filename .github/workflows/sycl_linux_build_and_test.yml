@@ -264,6 +264,10 @@ jobs:
         mkdir toolchain
         tar -xf llvm_sycl.tar.xz -C toolchain
         rm -f llvm_sycl.tar.xz
+    - uses: ./actions/cached_checkout
+      with:
+        path: llvm
+        cache_path: "/__w/repo_cache/"
     - uses: actions/checkout@v2
       with:
         repository: 'KhronosGroup/SYCL-CTS'
