@@ -983,36 +983,12 @@ public:
 #endif
 };
 
-/// These are the forward declaration for the classes that help to create
-/// names for additional kernels. It is used only when there are
-/// more then 1 kernels in one parallel_for() implementing SYCL reduction.
-template <typename T1, bool B1, bool B2, typename T2>
-class __sycl_reduction_main_kernel;
-template <typename T1, bool B1, bool B2, typename T2>
-class __sycl_reduction_aux_kernel;
-
-/// Helper structs to get additional kernel name types based on given
-/// \c Name and additional template parameters helping to distinguish kernels.
-/// If \c Name is undefined (is \c auto_name) leave it that way to take
-/// advantage of unnamed kernels being named after their functor.
-template <typename Name, typename Type, bool B1, bool B2, typename T3 = void>
-struct get_reduction_main_kernel_name_t {
-  using name = __sycl_reduction_main_kernel<Name, B1, B2, T3>;
-};
-template <typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_main_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
-                                        T3> {
-  using name = sycl::detail::auto_name;
-};
-template <typename Name, typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_aux_kernel_name_t {
-  using name = __sycl_reduction_aux_kernel<Name, B1, B2, T3>;
-};
-template <typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
-                                       T3> {
-  using name = sycl::detail::auto_name;
-};
+/// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
+/// must do that to avoid name collisions.
+template <template <typename...> class Namer, class KernelName, class... Ts>
+using __sycl_reduction_kernel =
+    std::conditional_t<std::is_same<KernelName, sycl::detail::auto_name>::value,
+                       sycl::detail::auto_name, Namer<KernelName, Ts...>>;
 
 /// Called in device code. This function iterates through the index space
 /// \p Range using stride equal to the global range specified in \p NdId,
@@ -1029,6 +1005,7 @@ void reductionLoop(const range<Dims> &Range, ReducerT &Reducer,
     F(sycl::detail::getDelinearizedId(Range, I), Reducer);
 }
 
+template <class KernelName> struct MainRangeFastAtomics;
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
                                    const range<Dims> &Range,
@@ -1037,9 +1014,7 @@ void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
   constexpr size_t NElements = Reduction::num_elements;
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   auto GroupSum = Reduction::getReadWriteLocalAcc(NElements, CGH);
-  using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                Reduction::is_usm, false>::name;
+  using Name = __sycl_reduction_kernel<MainRangeFastAtomics, KernelName>;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1068,6 +1043,8 @@ void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
   });
 }
 
+template <class KernelName>
+struct MainRangeFastReduce;
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
                                   const range<Dims> &Range,
@@ -1087,9 +1064,7 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   auto DoReducePartialSumsInLastWG =
       Reduction::template getReadWriteLocalAcc<int>(1, CGH);
 
-  using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                Reduction::is_usm, false>::name;
+  using Name = __sycl_reduction_kernel<MainRangeFastReduce, KernelName>;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1148,6 +1123,8 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   });
 }
 
+template <class KernelName>
+struct MainRangeBasic;
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
                              const range<Dims> &Range,
@@ -1170,9 +1147,7 @@ void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
 
   auto Identity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
-  using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                Reduction::is_usm, false>::name;
+  using Name = __sycl_reduction_kernel<MainRangeBasic, KernelName>;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
@@ -1284,6 +1259,8 @@ void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   }
 }
 
+template <class KernelName>
+struct MainNDRangeBothFastReduceAndAtomics;
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
@@ -1298,8 +1275,8 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(
     handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     Reduction &, typename Reduction::rw_accessor_type Out) {
   constexpr size_t NElements = Reduction::num_elements;
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, false /* FIXME */>::name;
+  using Name =
+      __sycl_reduction_kernel<MainNDRangeBothFastReduceAndAtomics, KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1315,6 +1292,8 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(
   });
 }
 
+template <class KernelName>
+struct MainNDRangeFastAtomicsOnly;
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
@@ -1338,8 +1317,7 @@ void reduCGFuncForNDRangeFastAtomicsOnly(
   size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
   auto LocalReds = Reduction::getReadWriteLocalAcc(NLocalElements, CGH);
 
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, false /* FIXME */>::name;
+  using Name = __sycl_reduction_kernel<MainNDRangeFastAtomicsOnly, KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1390,6 +1368,8 @@ void reduCGFuncForNDRangeFastAtomicsOnly(
   });
 }
 
+template <class KernelName>
+struct MainNDRangeBothFastReduceOnly;
 /// Implements a command group function that enqueues a kernel that
 /// calls user's lambda function and does one iteration of reduction
 /// of elements in each of work-groups.
@@ -1407,8 +1387,8 @@ void reduCGFuncForNDRangeFastReduceOnly(
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, false /* FIXME  */>::name;
+  using Name =
+      __sycl_reduction_kernel<MainNDRangeBothFastReduceOnly, KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1430,6 +1410,8 @@ void reduCGFuncForNDRangeFastReduceOnly(
   });
 }
 
+template <class KernelName>
+struct MainNDRangeBasic;
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function \param KernelFunc and does one iteration of
 /// reduction of elements in each of work-groups.
@@ -1457,8 +1439,7 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
   size_t NumLocalElements = WGSize + (IsPow2WG ? 0 : 1);
   auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, false /* FIXME */>::name;
+  using Name = __sycl_reduction_kernel<MainNDRangeBasic, KernelName>;
   auto BOp = Redu.getBinaryOperation();
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
@@ -1509,6 +1490,8 @@ void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
   });
 }
 
+template <class KernelName>
+struct AuxFastReduce;
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
 /// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
@@ -1524,9 +1507,7 @@ void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
                                  size_t WGSize, Reduction &Redu, InputT In,
                                  OutputT Out) {
   constexpr size_t NElements = Reduction::num_elements;
-  using Name = typename get_reduction_aux_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, false /* FIXME  */,
-      OutputT>::name;
+  using Name = __sycl_reduction_kernel<AuxFastReduce, KernelName>;
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
   range<1> GlobalRange = {UniformWG ? NWorkItems : NWorkGroups * WGSize};
@@ -1551,6 +1532,8 @@ void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
   });
 }
 
+template <class KernelName>
+struct AuxNoFastReduceNorAtomic;
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
 /// This version uses tree-reduction algorithm to reduce elements in each
@@ -1578,9 +1561,7 @@ void reduAuxCGFuncNoFastReduceNorAtomicImpl(handler &CGH, bool UniformPow2WG,
 
   auto ReduIdentity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
-  using Name = typename get_reduction_aux_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, false /* FIXME  */,
-      OutputT>::name;
+  using Name = __sycl_reduction_kernel<AuxNoFastReduceNorAtomic, KernelName>;
   range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
   nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
@@ -2069,6 +2050,8 @@ void reduCGFuncImplArray(
    ...);
 }
 
+template <class KernelName, class Accessor>
+struct MainNDRangeMulti;
 template <typename KernelName, typename KernelType, int Dims,
           typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2109,10 +2092,8 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
     auto InitToIdentityProps =
         getInitToIdentityProperties(ReduTuple, ReduIndices);
 
-    using Name =
-        typename get_reduction_main_kernel_name_t<KernelName, KernelType, false,
-                                                  false, /* FIXME */
-                                                  decltype(OutAccsTuple)>::name;
+    using Name = __sycl_reduction_kernel<MainNDRangeMulti, KernelName,
+                                         decltype(OutAccsTuple)>;
     CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
       // Pass all reductions to user's lambda in the same order as supplied
       // Each reducer initializes its own storage
@@ -2145,6 +2126,8 @@ void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
     Rest(createReduOutAccs<false>(NWorkGroups, CGH, ReduTuple, ReduIndices));
 }
 
+template <class KernelName>
+struct MainNDRangeAtomic64;
 // Specialization for devices with the atomic64 aspect, which guarantees 64 (and
 // temporarily 32) bit floating point support for atomic add.
 // TODO 32 bit floating point atomics are eventually expected to be supported by
@@ -2158,10 +2141,7 @@ void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
   static_assert(Reduction::has_atomic_add_float64,
                 "Only suitable for reductions that have FP64 atomic add.");
   constexpr size_t NElements = Reduction::num_elements;
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm,
-      Reduction::has_atomic_add_float64,
-      typename Reduction::rw_accessor_type>::name;
+  using Name = __sycl_reduction_kernel<MainNDRangeAtomic64, KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -2404,6 +2384,8 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
   }
 }
 
+template <class KernelName, class Accessor>
+struct AuxMulti;
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
@@ -2441,9 +2423,7 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
         getInitToIdentityProperties(ReduTuple, ReduIndices);
 
     using Name =
-        typename get_reduction_aux_kernel_name_t<KernelName, KernelType, false,
-                                                 false, /* FIXME  */
-                                                 decltype(OutAccsTuple)>::name;
+        __sycl_reduction_kernel<AuxMulti, KernelName, decltype(OutAccsTuple)>;
     // TODO: Opportunity to parallelize across number of elements
     range<1> GlobalRange = {Pow2WG ? NWorkItems : NWorkGroups * WGSize};
     nd_range<1> Range{GlobalRange, range<1>(WGSize)};
