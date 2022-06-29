@@ -1353,7 +1353,9 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
-        // TODO: Remove once fixed on GPU side
+        // TODO: GPU runtime may handle scatter of 16 byte elements incorrectly.
+        // The code below is a workaround which must be deleted once GPU runtime
+        // is fixed.
         if constexpr (sizeof(T) == 1 && RemN == 16) {
           if constexpr (Align % OperandSize::DWORD > 0) {
             ForHelper<RemN>::unroll([Addr, &Tmp](unsigned Index) {
@@ -1369,9 +1371,9 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
                     NumChunks * ChunkSize);
 
             simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
-            scatter<int32_t, 8>(reinterpret_cast<int32_t *>(Addr) +
-                                    (NumChunks * ChunkSize),
-                                Offsets, Vals, Pred);
+            scatter<int32_t, 8>(
+                reinterpret_cast<int32_t *>(Addr + (NumChunks * ChunkSize)),
+                Offsets, Vals, Pred);
           }
         } else {
           simd<uint32_t, RemN> Offsets(0u, sizeof(T));
