@@ -64,10 +64,6 @@ on:
         type: number
         required: false
         default: 4
-      cts_config:
-        type: string
-        required: false
-        default: ""
 
 jobs:
   build:
@@ -248,10 +244,11 @@ jobs:
 
   build_cts:
     name: Build SYCL CTS
-    needs: [build, configure]
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
+    needs: [build]
+    runs-on: [Linux, build]
     container:
-      image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
+      image: ${{ inputs.build_image }}
+      options: -u 1001:1001
     steps:
     # TODO these must be in the container
     - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
@@ -261,17 +258,13 @@ jobs:
     - name: Download compiler toolchain
       uses: actions/download-artifact@v2
       with:
-        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_linux_${{ inputs.build_artifact_suffix }}
     - name: Extract SYCL toolchain
       shell: bash
       run: |
         mkdir toolchain
         tar -xf llvm_sycl.tar.xz -C toolchain
         rm -f llvm_sycl.tar.xz
-    - uses: ./actions/cached_checkout
-      with:
-        path: llvm
-        cache_path: "/__w/repo_cache/"
     - uses: actions/checkout@v2
       with:
         repository: 'KhronosGroup/SYCL-CTS'
@@ -294,7 +287,7 @@ jobs:
     - name: Pack built CTS
       uses: actions/upload-artifact@v2
       with:
-        name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_cts_${{ inputs.build_artifact_suffix }}
         path: |
           cts/build/bin/test_all
           cts/build/build_times.log
@@ -306,12 +299,12 @@ jobs:
         include:
         - config: ocl_x64
           name: OCL x64 SYCL CTS
-          image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
-          container_opts: -u 1001
-          runner: x64
+          image: ${{ inputs.intel_drivers_image }}
+          container_opts: -u 1001:1001
+          runner: Linux
           device_filter: 'opencl:cpu'
     name: ${{ matrix.name }}
-    needs: [build_cts, configure]
+    needs: [build_cts]
     runs-on: ${{ matrix.runner }}
     container:
       image: ${{ matrix.image }}
@@ -320,12 +313,12 @@ jobs:
     - name: Get CTS
       uses: actions/download-artifact@v2
       with:
-        name: sycl_cts_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_cts_${{ inputs.build_artifact_suffix }}
         path: cts
     - name: Get compiler toolchain
       uses: actions/download-artifact@v2
       with:
-        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_linux_${{ inputs.build_artifact_suffix }}
     - name: Extract SYCL toolchain
       shell: bash
       run: |
@@ -344,7 +337,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v2
       with:
-        name: sycl_cts_results_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        name: sycl_cts_results_${{ inputs.build_artifact_suffix }}
         path: |
           console_${{ matrix.config }}.txt
           junit_${{ matrix.config }}.xml
