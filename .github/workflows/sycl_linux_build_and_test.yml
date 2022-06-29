@@ -248,7 +248,6 @@ jobs:
     runs-on: [Linux, build]
     container:
       image: ${{ inputs.build_image }}
-      options: -u 1001:1001
     steps:
     # TODO these must be in the container
     - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
