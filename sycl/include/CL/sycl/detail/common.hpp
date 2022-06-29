@@ -122,8 +122,8 @@ static inline std::string codeToString(cl_int code) {
   {                                                                            \
     auto code = expr;                                                          \
     if (code != CL_SUCCESS) {                                                  \
-      fprintf(stderr,"%s%s\n",__SYCL_OCL_ERROR_REPORT                                     \
-                , cl::sycl::detail::codeToString(code).c_str());          \
+      fprintf(stderr,"%s%s\n",__SYCL_OCL_ERROR_REPORT                                      \
+                , cl::sycl::detail::codeToString(code).c_str());               \
     }                                                                          \
   }
 #endif

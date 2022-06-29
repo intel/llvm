@@ -47,13 +47,13 @@ static void initValue(const char *Key, const char *Value) {
 #undef CONFIG
 }
 
-void file_ignore(FILE* file,size_t n, int delim)
+ void file_ignore(FILE* file,size_t n, int delim)
 {
     while (n--) {
-        const int c = fgetc(stdin);
+        const int c = fgetc(file);
         if (c == EOF)
            break;
-        if (delim != EOF && delim == c) {
+        if (delim != EOF && delim == c) 
            break;
     }
 }
@@ -86,7 +86,7 @@ void readConfig(bool ForceInitialization) {
     file= fopen(ConfigFile, "r");
   else {
     const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
-    file = fopen(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME,"r");
+    file = fopen(((std::string)(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME)).c_str(),"r");
   }
 
   if (file) {
@@ -100,12 +100,12 @@ void readConfig(bool ForceInitialization) {
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
 
-      //Note: A line is expected to be less than 150 characters, otherwise increase tempString size
-      char tempString[SYCL_CONFIG_FILE_BUFFER_SIZE +1]={0};
-      fgets(tempString,SYCL_CONFIG_FILE_BUFFER_SIZE+1,file);
+      //Note: A line from the file is expected to be the combined max length of Key and Value string
+      char tempString[MAX_CONFIG_NAME + MAX_CONFIG_VALUE]={0};
+      fgets(tempString,MAX_CONFIG_NAME + MAX_CONFIG_VALUE,file);
 
       int nI;
-      if((nI=newLineIndexR(tempString,0,SYCL_CONFIG_FILE_BUFFER_SIZE)) != -1){
+      if((nI=newLineIndexR(tempString,0,MAX_CONFIG_NAME + MAX_CONFIG_VALUE)) != -1){
           tempString[nI]='\0';
       }
       if (ferror(file) && !feof(file)) {

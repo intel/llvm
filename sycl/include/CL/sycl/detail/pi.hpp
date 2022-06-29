@@ -88,7 +88,6 @@ void handleUnknownParamName(const char *functionName, T parameter) {
   string+=" passed to ";
   string+=functionName;
   string+= "\n";
-  auto str = string.c_str();
   auto msg = string.c_str();
   die(msg);
 }

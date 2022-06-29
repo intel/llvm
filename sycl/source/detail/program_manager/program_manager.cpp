@@ -1367,8 +1367,8 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
     }
     if (!Img->supportsSpecConstants()) {
       if (DbgProgMgr > 0)
-        fprintf(stderr,">>> ProgramManager::flushSpecConstants: binary image %s"
-                       " doesn't support spec constants\n",&Img->getRawData());
+        fprintf(stderr,">>> ProgramManager::flushSpecConstants: binary image %p"
+                       " doesn't support spec constants\n",(void*)&Img->getRawData());
         // std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
         //           << &Img->getRawData() << " doesn't support spec constants\n";
       // This device binary image does not support runtime setting of

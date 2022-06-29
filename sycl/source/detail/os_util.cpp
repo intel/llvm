@@ -87,12 +87,18 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 
 bool procMapsAddressInRange(FILE* file, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
+  char next_char= 0;
+
   fscanf(file, "%p",&Start);
-  assert(!ferror(file) && fgetc(file) == '-' &&
+  assert(!ferror(file) && "Couldn't read /proc/self/maps correctly");
+  next_char=fgetc(file);
+  assert(next_char == '-' &&
          "Couldn't read /proc/self/maps correctly");
 
   fscanf(file,"%p",&End);
-  assert(!ferror(file) && fgetc(file) == ' ' &&
+  assert(!ferror(file) && "Couldn't read /proc/self/maps correctly");
+  next_char=fgetc(file);
+  assert(next_char == ' ' &&
          "Couldn't read /proc/self/maps correctly");
 
   return Addr >= Start && Addr < End;
@@ -135,7 +141,9 @@ std::string OSUtil::getCurrentDSODir() {
     fgets(Perm,sizeof(Perm),file);
     assert(Perm[0] == 'r' && Perm[2] == 'x' &&
            "Invalid flags in /proc/self/maps");
-    assert(fgetc(file) == ' ');
+    
+    char next_char_getCurrentDSODir=fgetc(file);
+    assert(next_char_getCurrentDSODir == ' ');
 
     // Read and ignore the following:
     // offset
@@ -153,7 +161,10 @@ std::string OSUtil::getCurrentDSODir() {
 
     // Now read the path: it is padded with whitespaces, so we skip them
     // first.
-    while (fgetc(file) == ' ');
+    do {
+      next_char_getCurrentDSODir=fgetc(file);
+      } while (next_char_getCurrentDSODir == ' ');
+    ungetc(next_char_getCurrentDSODir,file);
     char Path[PATH_MAX];
     fgets(Path,PATH_MAX,file);
     return OSUtil::getDirName(Path);
