@@ -130,7 +130,9 @@ set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp
                            imf/imf_inline_fp64.cpp)
 set(imf_fp32_fallback_src ${imf_fallback_src_dir}/imf_fp32_fallback.cpp)
 set(imf_fp64_fallback_src ${imf_fallback_src_dir}/imf_fp64_fallback.cpp)
-
+set(imf_host_cxx_flags -c
+  -D__LIBDEVICE_HOST_IMPL__
+)
 add_custom_command(OUTPUT ${imf_fp32_fallback_src}
                    COMMAND ${CMAKE_COMMAND} -D SRC_DIR=${imf_src_dir}
                                             -D DEST_DIR=${imf_fallback_src_dir}
@@ -163,7 +165,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf.${lib-suffix}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
-                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__
+                   COMMAND ${clang} ${imf_host_cxx_flags}
                            -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp32_fallback_src}
                            -o ${obj_binary_dir}/fallback-imf-fp32-host.${lib-suffix}
@@ -188,7 +190,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-imf-fp64.${lib-suff
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
-                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__
+                   COMMAND ${clang} ${imf_host_cxx_flags}
                            -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
                            ${imf_fp64_fallback_src}
                            -o ${obj_binary_dir}/fallback-imf-fp64-host.${lib-suffix}
@@ -208,7 +210,7 @@ add_dependencies(libsycldevice-spv imf_fallback_fp64_spv)
 add_dependencies(libsycldevice-obj imf_fallback_fp64_obj)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
-                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__
+                   COMMAND ${clang} ${imf_host_cxx_flags}
                            ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
                            -o ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper.cpp
@@ -216,7 +218,7 @@ add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp32-host.${lib-suffix}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
-                   COMMAND ${clang} -c -D__LIBDEVICE_HOST_IMPL__
+                   COMMAND ${clang} ${imf_host_cxx_flags}
                            ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
                            -o ${obj_binary_dir}/imf-fp64-host.${lib-suffix}
                    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/imf_wrapper_fp64.cpp
