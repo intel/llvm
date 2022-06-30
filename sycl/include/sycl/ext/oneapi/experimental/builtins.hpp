@@ -161,7 +161,7 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmin(T x, T y) {
   return bfloat16::from_bits(__clc_fmin(x.raw(), y.raw()));
 #else
   std::ignore = x;
-  (void)y;
+  std::ignore = y;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -187,7 +187,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   return res;
 #else
   std::ignore = x;
-  (void)y;
+  std::ignore = y;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -199,7 +199,7 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fmax(T x, T y) {
   return bfloat16::from_bits(__clc_fmax(x.raw(), y.raw()));
 #else
   std::ignore = x;
-  (void)y;
+  std::ignore = y;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -224,7 +224,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   return res;
 #else
   std::ignore = x;
-  (void)y;
+  std::ignore = y;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -236,8 +236,8 @@ std::enable_if_t<std::is_same<T, bfloat16>::value, T> fma(T x, T y, T z) {
   return bfloat16::from_bits(__clc_fma(x.raw(), y.raw(), z.raw()));
 #else
   std::ignore = x;
-  (void)y;
-  (void)z;
+  std::ignore = y;
+  std::ignore = z;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -264,7 +264,8 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
   return res;
 #else
   std::ignore = x;
-  (void)y;
+  std::ignore = y;
+  std::ignore = z;
   throw runtime_error("bfloat16 is not currently supported on the host device.",
                       PI_ERROR_INVALID_DEVICE);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
