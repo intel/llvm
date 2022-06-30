@@ -35,13 +35,13 @@
 using namespace llvm;
 
 #if ENABLE_OPAQUE_POINTERS
-static cl::opt<bool>
-    OpaquePointersCL("opaque-pointers", cl::desc("Use opaque pointers"),
-                     cl::init(true));
+static cl::opt<bool> OpaquePointersCL("opaque-pointers",
+                                      cl::desc("Use opaque pointers"),
+                                      cl::init(true));
 #else
-static cl::opt<bool>
-    OpaquePointersCL("opaque-pointers", cl::desc("Use opaque pointers"),
-                     cl::init(false));
+static cl::opt<bool> OpaquePointersCL("opaque-pointers",
+                                      cl::desc("Use opaque pointers"),
+                                      cl::init(false));
 #endif
 
 LLVMContextImpl::LLVMContextImpl(LLVMContext &C)

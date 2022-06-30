@@ -1,7 +1,7 @@
 // REQUIRES: x86-registered-target
 
 // FIXME: enable opaque pointers support
-UNSUPPORTED: enable-opaque-pointers
+// UNSUPPORTED: enable-opaque-pointers
 
 //
 // Check help message.
