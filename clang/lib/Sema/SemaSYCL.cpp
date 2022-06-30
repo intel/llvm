@@ -3649,6 +3649,17 @@ void Sema::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
     return;
 
   {
+    // Emit an error if SYCL kernel lambda or operator() are not fully
+    // instantiated.
+    QualType KernelNameType =
+        calculateKernelNameType(Context, KernelCallerFunc);
+    if (auto *lambda = KernelNameType->getAsCXXRecordDecl()) {
+      if (lambda->isGenericLambda())
+        Diag(KernelObj->getLocation(),
+             diag::err_sycl_kernel_generic_lambda_unsupported)
+            << KernelObj;
+    }
+
     // Do enough to calculate the StableName for the purposes of the hackery
     // below for __pf_kernel_wrapper. Placed in a scope so that we don't
     // accidentially use these values below, before the names are stabililzed.

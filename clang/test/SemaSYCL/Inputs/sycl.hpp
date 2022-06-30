@@ -109,6 +109,27 @@ struct _ImplT {
   id<dim> Offset;
 };
 
+template <int dim = 1>
+class nd_range {
+  range<dim> globalSize;
+  range<dim> localSize;
+  id<dim> offset;
+
+public:
+  nd_range(range<dim> globalSize, range<dim> localSize,
+           id<dim> offset)
+      : globalSize(globalSize), localSize(localSize), offset(offset) {}
+
+  nd_range(range<dim> globalSize, range<dim> localSize)
+      : globalSize(globalSize), localSize(localSize), offset(id<dim>()) {
+  }
+  nd_range(const nd_range<dim> &rhs) = default;
+  nd_range(nd_range<dim> &&rhs) = default;
+  nd_range<dim> &operator=(const nd_range<dim> &rhs) = default;
+  nd_range<dim> &operator=(nd_range<dim> &&rhs) = default;
+  nd_range() = default;
+};
+
 template <typename dataT, access::target accessTarget>
 struct DeviceValueType;
 
