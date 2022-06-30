@@ -134,9 +134,9 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
-      FILE *dummy = fopen(FullFileName.c_str(), "rb");
-      fprintf(stderr, "Dummy write open:%p\n", dummy);
-      fclose(dummy);
+      // FILE *dummy = fopen(FullFileName.c_str(), "rb");
+      // fprintf(stderr, "Dummy write open:%p\n", dummy);
+      // fclose(dummy);
     }
   } catch (...) {
     // If a problem happens on storing cache item, do nothing
@@ -202,7 +202,7 @@ std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
  */
 void PersistentDeviceCodeCache::writeBinaryDataToFile(
     const std::string &FileName, const std::vector<std::vector<char>> &Data) {
-  // FILE* file=fopen(FileName.c_str(),"wb");
+  FILE *file = fopen(FileName.c_str(), "wb");
   // fprintf(stderr,"writeBinaryDataToFile filepath:%s file:%p\n
   // ",FileName.c_str(),file);
   size_t Size = Data.size();

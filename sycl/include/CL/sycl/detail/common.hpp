@@ -126,7 +126,7 @@ static inline std::string codeToString(pi_int32 code) {
                                                                                \
       fprintf(stderr, __SYCL_PI_ERROR_REPORT "%s\n",                           \
               cl::sycl::detail::codeToString(code).c_str());                   \
-    }
+    }                                                                          \
   }
 #endif
 
