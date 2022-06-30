@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <iostream>
 #include <type_traits>
-
+#include <iostream>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

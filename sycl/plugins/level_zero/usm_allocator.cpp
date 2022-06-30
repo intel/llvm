@@ -284,33 +284,23 @@ public:
     if (PoolTrace < 1)
       return;
 
-    std::cout << "USM Pool Settings (Built-in or Adjusted by Environment "
-                 "Variable)"
-              << std::endl;
-
-    std::cout << std::setw(15) << "Parameter" << std::setw(12) << "Host"
-              << std::setw(12) << "Device" << std::setw(12) << "Shared RW"
-              << std::setw(12) << "Shared RO" << std::endl;
-    std::cout << std::setw(15) << "SlabMinSize" << std::setw(12)
-              << SlabMinSize[MemType::Host] << std::setw(12)
-              << SlabMinSize[MemType::Device] << std::setw(12)
-              << SlabMinSize[MemType::Shared] << std::setw(12)
-              << SlabMinSize[MemType::SharedReadOnly] << std::endl;
-    std::cout << std::setw(15) << "MaxPoolableSize" << std::setw(12)
-              << MaxPoolableSize[MemType::Host] << std::setw(12)
-              << MaxPoolableSize[MemType::Device] << std::setw(12)
-              << MaxPoolableSize[MemType::Shared] << std::setw(12)
-              << MaxPoolableSize[MemType::SharedReadOnly] << std::endl;
-    std::cout << std::setw(15) << "Capacity" << std::setw(12)
-              << Capacity[MemType::Host] << std::setw(12)
-              << Capacity[MemType::Device] << std::setw(12)
-              << Capacity[MemType::Shared] << std::setw(12)
-              << Capacity[MemType::SharedReadOnly] << std::endl;
-    std::cout << std::setw(15) << "MaxPoolSize" << std::setw(12) << MaxPoolSize
-              << std::endl;
-    std::cout << std::setw(15) << "EnableBuffers" << std::setw(12)
-              << EnableBuffers << std::endl
-              << std::endl;
+    printf("USM Pool Settings (Built-in or Adjusted by Environment "
+                 "Variable)\n");
+    printf("%15s%12s%12s%12s%12s\n","Parameter", "Host",  "Device", "Shared RW",  "Shared RO");
+    printf("%15s%12lu%12lu%12lu%12lu\n","SlabMinSize",SlabMinSize[MemType::Host],
+                                                      SlabMinSize[MemType::Device],
+                                                      SlabMinSize[MemType::Shared],
+                                                      SlabMinSize[MemType::SharedReadOnly]);
+    printf("%15s%12lu%12lu%12lu%12lu\n","MaxPoolableSize",MaxPoolableSize[MemType::Host],
+                                                          MaxPoolableSize[MemType::Device],
+                                                          MaxPoolableSize[MemType::Shared],
+                                                          MaxPoolableSize[MemType::SharedReadOnly]);
+    printf("%15s%12lu%12lu%12lu%12lu\n","Capacity",Capacity[MemType::Host],
+                                                   Capacity[MemType::Device],
+                                                   Capacity[MemType::Shared],
+                                                   Capacity[MemType::SharedReadOnly]);
+    printf("%15s%12lu\n","MaxPoolSize",MaxPoolSize);
+    printf("%15s%12lu\n\n","EnableBuffers",EnableBuffers);
   }
 } USMSettings;
 } // namespace settings
@@ -921,11 +911,10 @@ void Bucket::printStats(bool &TitlePrinted, MemType MT) {
     if (!TitlePrinted) {
 
       auto Label = USMSettings.MemTypeNames[MT];
-      std::cout << Label << " memory statistics\n";
-      std::cout << std::setw(14) << "Bucket Size" << std::setw(12) << "Allocs"
-                << std::setw(12) << "Frees" << std::setw(18)
-                << "Allocs from Pool" << std::setw(20) << "Peak Slabs in Use"
-                << std::setw(21) << "Peak Slabs in Pool" << std::endl;
+      printf("%s memory statistics\n",Label);
+      printf("%14s%12s%12s%18s%20s%21s\n","Bucket Size","Allocs",
+              "Frees","Allocs from Pool","Peak Slabs in Use",
+              "Peak Slabs in Pool");
       TitlePrinted = true;
     }
     printf("%14lu%12lu%12lu%18lu%20lu%21lu\n", getSize(), allocCount, freeCount,
@@ -1060,9 +1049,8 @@ void *USMAllocContext::allocate(size_t size) {
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
 
-    std::cout << "Allocated " << std::setw(8) << size << " "
-              << USMSettings.MemTypeNames[MT] << " USM bytes from "
-              << (FromPool ? "Pool" : "USM") << " ->" << Ptr << std::endl;
+     printf("Allocated %8lu %s USM bytes from %s ->%p\n",size,USMSettings.MemTypeNames[MT],
+            (FromPool ? "Pool" : "USM"),Ptr);
   }
   return Ptr;
 }
@@ -1074,10 +1062,8 @@ void *USMAllocContext::allocate(size_t size, size_t alignment) {
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
 
-    std::cout << "Allocated " << std::setw(8) << size << " "
-              << USMSettings.MemTypeNames[MT] << " USM bytes aligned at "
-              << alignment << " from " << (FromPool ? "Pool" : "USM") << " ->"
-              << Ptr << std::endl;
+    printf("Allocated %8lu %s USM bytes aligned at %lu from %s ->%p\n",
+            size,USMSettings.MemTypeNames[MT],alignment,(FromPool ? "Pool" : "USM"),Ptr);
   }
   return Ptr;
 }
@@ -1089,14 +1075,13 @@ void USMAllocContext::deallocate(void *ptr, bool OwnZeMemHandle) {
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
 
-    std::cout << "Freed " << USMSettings.MemTypeNames[MT] << " USM " << ptr
-              << " to " << (ToPool ? "Pool" : "USM")
-              << ", Current total pool size " << USMSettings.CurPoolSize
-              << ", Current pool sizes ["
-              << USMSettings.CurPoolSizes[MemType::Host] << ", "
-              << USMSettings.CurPoolSizes[MemType::Device] << ", "
-              << USMSettings.CurPoolSizes[MemType::Shared] << ", "
-              << USMSettings.CurPoolSizes[MemType::SharedReadOnly] << "]\n";
+     printf("Freed %s USM %p to %s, Current total pool size %lu, Current pool sizes ["
+            "%lu, %lu, %lu, %lu]\n ",USMSettings.MemTypeNames[MT],ptr,(ToPool ? "Pool" : "USM"),
+            USMSettings.CurPoolSize,
+            USMSettings.CurPoolSizes[MemType::Host],
+            USMSettings.CurPoolSizes[MemType::Device],
+            USMSettings.CurPoolSizes[MemType::Shared],
+            USMSettings.CurPoolSizes[MemType::SharedReadOnly]);
   }
   return;
 }
@@ -1110,13 +1095,11 @@ USMAllocContext::~USMAllocContext() {
     MemType MT = pImpl->getMemHandle().getMemType();
     pImpl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse, MT);
     if (TitlePrinted) {
-
-      std::cout << "Current Pool Size " << USMSettings.CurPoolSize << std::endl;
+      printf("Current Pool Size %lu\n",USMSettings.CurPoolSize);
       const char *Label = USMSettings.MemTypeNames[MT];
-      std::cout << "Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;"
-                << std::string(1, tolower(*Label)) << std::string(Label + 1)
-                << ":" << HighBucketSize << "," << HighPeakSlabsInUse << ",64K"
-                << std::endl;
+      printf("Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;%s%s:%lu,%lu,64K\n",
+               std::string(1, tolower(*Label)).c_str(),std::string(Label + 1).c_str(),
+               HighBucketSize,HighPeakSlabsInUse);
     }
   }
 }

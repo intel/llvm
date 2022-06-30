@@ -19,6 +19,10 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+//This is the size of the buffer when reading a line from the config file.
+//If a line can have more characters, increase size
+#define SYCL_CONFIG_FILE_BUFFER_SIZE 150
+
 #ifndef SYCL_CONFIG_FILE_NAME
 #define SYCL_CONFIG_FILE_NAME "sycl.conf"
 #endif // SYCL_CONFIG_FILE_NAME
@@ -44,41 +48,78 @@ static void initValue(const char *Key, const char *Value) {
 #undef CONFIG
 }
 
+ void file_ignore(FILE* file,size_t n, int delim)
+{
+    while (n--) {
+        const int c = fgetc(file);
+        if (c == EOF)
+           break;
+        if (delim != EOF && delim == c) 
+           break;
+    }
+}
+//Finds index of the newline character in char array
+int newLineIndexR(const char* string,int lowerBound, int upperBound){
+  int currentIndex=(upperBound+lowerBound)/2;
+  int c= string[currentIndex];
+  if(c== '\n'){
+      return currentIndex;
+  }
+  if(currentIndex ==lowerBound){
+    return string[upperBound]=='\n'? upperBound: -1;
+  }
+
+  if(c== '\0'){
+    return newLineIndexR(string,lowerBound,currentIndex);
+  }
+
+  return newLineIndexR(string,currentIndex,upperBound);
+}
+
 void readConfig(bool ForceInitialization) {
   static bool Initialized = false;
   if (!ForceInitialization && Initialized) {
     return;
   }
 
-  std::fstream File;
+  FILE* file;
   if (const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME"))
-    File.open(ConfigFile, std::ios::in);
+    file= fopen(ConfigFile, "r");
   else {
     const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
-    File.open(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME,
-              std::ios::in);
+    file = fopen(((std::string)(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME)).c_str(),"r");
   }
 
-  if (File.is_open()) {
+  if (file) {
     char Key[MAX_CONFIG_NAME] = {0}, Value[MAX_CONFIG_VALUE] = {0};
     std::string BufString;
     std::size_t Position = std::string::npos;
-    while (!File.eof()) {
+    while (!feof(file)) {
       // Expected format:
       // ConfigName=Value\r
       // ConfigName=Value #comment
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
-      std::getline(File, BufString);
-      if (File.fail() && !File.eof()) {
+
+      //Note: A line from the file is expected to be the combined max length of Key and Value string
+      char tempString[MAX_CONFIG_NAME + MAX_CONFIG_VALUE]={0};
+      fgets(tempString,MAX_CONFIG_NAME + MAX_CONFIG_VALUE,file);
+
+      int nI;
+      if((nI=newLineIndexR(tempString,0,MAX_CONFIG_NAME + MAX_CONFIG_VALUE)) != -1){
+          tempString[nI]='\0';
+      }
+      if (ferror(file) && !feof(file)) {
         // Fail to process the line.
-        File.clear(File.rdstate() & ~std::ios_base::failbit);
-        File.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+        clearerr(file);
+        file_ignore(file,std::numeric_limits<size_t>::max(),'\n');
         throw sycl::exception(
             make_error_code(errc::runtime),
             "An error occurred while attempting to read a line");
       }
       // Handle '\r'
+      BufString = tempString;
       if ((BufString.length() > 0) &&
           (BufString[BufString.length() - 1] == '\r')) {
         BufString.pop_back();
@@ -138,7 +179,7 @@ void readConfig(bool ForceInitialization) {
 
       initValue(Key, Value);
     }
-    File.close();
+    fclose(file);
   }
   Initialized = true;
 }

@@ -127,6 +127,7 @@ if (code != PI_SUCCESS) {                                                      \
   fprintf(stderr, __SYCL_PI_ERROR_REPORT "%s\n",                            \
           cl::sycl::detail::codeToString(code).c_str());                       \
 }                                                                              \
+
   }
 #endif
 
