@@ -4027,7 +4027,8 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
       } else if (getLangOpts().SYCLIsDevice) {
         /* Emit a warning if double precision arithmetic is used in device
          * kernel code */
-        Diag(Tok.getLocation(), diag::warn_on_double_precision_use);
+        SYCLDiagIfDeviceCode(Tok.getLocation(),
+                             diag::warn_on_double_precision_use);
       }
     }
   } else if (!Literal.isIntegerLiteral()) {
