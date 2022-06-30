@@ -22,6 +22,7 @@ permissions:
 
 jobs:
   lint:
+    if: false # TEMPORARY CHANGE. DO NOT MERGE.
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
@@ -46,7 +47,8 @@ jobs:
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
     needs: [lint, resolve_matrix]
-    if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+    #if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
+    if: false # TEMPORARY CHANGE. DO NOT MERGE.
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     secrets: inherit
     with:
@@ -57,3 +59,10 @@ jobs:
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
       lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}
+
+  windows_default:
+    name: Windows
+    if: always()
+    uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    with:
+      build_cache_suffix: "default"

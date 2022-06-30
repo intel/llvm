@@ -14,9 +14,6 @@ jobs:
     runs-on: [Windows, build]
     # TODO use cached checkout
     steps:
-    - uses: ilammy/msvc-dev-cmd@9f8ae839b01883414208f29e3e24524387f48e1f
-      with:
-        arch: amd64
     - name: Set env
       run: |
         git config --system core.longpaths true
@@ -33,7 +30,13 @@ jobs:
       shell: cmd
       # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
       run: |
+        "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -products * -prerelease -property installationPath
+        for /f "tokens=*" %%i in ('"c:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -products * -latest -prerelease -property installationPath') do set VSDIR=%%i
+        echo AAAA
+        "%VSDIR%"\VC\Auxiliary\Build\vcvars64.bat
+        echo BBBB
         mkdir build
+        echo CCCC
         mkdir install
         IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
         IF NOT EXIST D:\github\_work\cache\sycl_${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
