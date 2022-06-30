@@ -3,7 +3,7 @@
 // Builtins must be declared as overloadable, so Clang mangles their names,
 // and LLVM-SPIRV translator can recognize them.
 
-// RUN: %clang_cc1 %s -emit-llvm -triple spir-unknown-unknown -O0 -cl-std=CL2.0 -include opencl-c.h -o - | FileCheck %s
+// RUN: %clang_cc1 %s -emit-llvm -triple spir-unknown-unknown -no-opaque-pointers -O0 -cl-std=CL2.0 -include opencl-c.h -o - | FileCheck %s
 
 // CHECK: %[[CALL_USEREVENT:[a-z0-9]+]] = call spir_func %opencl.clk_event_t* @_Z17create_user_eventv()
 // CHECK: store %opencl.clk_event_t* %[[CALL_USEREVENT]], %opencl.clk_event_t** %e, align 4

@@ -1,12 +1,12 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -no-opaque-pointers -fsycl-is-device \
 // RUN: -S -emit-llvm %s -o %temp.ll
 // RUN: FileCheck -check-prefix=CHECK-SPIR --input-file %temp.ll %s
 
-// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \
+// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -no-opaque-pointers -fsycl-is-device \
 // RUN: -S -emit-llvm %s -o %temp.ll
 // RUN: FileCheck -check-prefix=CHECK-NVPTX --input-file %temp.ll %s
 
-// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -fsycl-is-device \
+// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -no-opaque-pointers -fsycl-is-device \
 // RUN: -S -emit-llvm %s -o %temp.ll
 // RUN: FileCheck -check-prefix=CHECK-AMDGCN --input-file %temp.ll %s
 

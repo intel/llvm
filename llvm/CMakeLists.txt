@@ -803,6 +803,12 @@ if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
                       " no longer supported.")
 endif()
 
+set(LLVM_ENABLE_OPAQUE_POINTERS FALSE CACHE BOOL
+   "Enable opaque pointers by default.")
+if (LLVM_ENABLE_OPAQUE_POINTERS)
+  add_definitions("-DENABLE_OPAQUE_POINTERS=1")
+endif(LLVM_ENABLE_OPAQUE_POINTERS)
+
 include(HandleLLVMOptions)
 
 find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION} REQUIRED

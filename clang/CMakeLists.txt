@@ -252,7 +252,7 @@ set(CLANG_SPAWN_CC1 OFF CACHE BOOL
 option(CLANG_DEFAULT_PIE_ON_LINUX "Default to -fPIE and -pie on linux-gnu" OFF)
 
 # Manually handle default so we can change the meaning of a cached default.
-set(CLANG_ENABLE_OPAQUE_POINTERS "DEFAULT" CACHE STRING
+set(CLANG_ENABLE_OPAQUE_POINTERS ${LLVM_ENABLE_OPAQUE_POINTERS} CACHE STRING
     "Enable opaque pointers by default")
 if(CLANG_ENABLE_OPAQUE_POINTERS STREQUAL "DEFAULT")
   set(CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL ON)
