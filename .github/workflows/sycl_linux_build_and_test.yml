@@ -267,11 +267,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         path: llvm
-    - name: GIT HISTORY
-      run: |
-        cd llvm
-        git log -3
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: 'KhronosGroup/SYCL-CTS'
         ref: 'SYCL-2020'
@@ -338,6 +334,7 @@ jobs:
         export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
         export PATH=$PWD/toolchain/bin/:$PATH
         chmod +x ./cts/bin/test_all
+        sleep 3h
         ./cts/bin/test_all --reporter console::console_${{ matrix.config }}.txt --reporter compact::- --reporter JUnit::junit_${{ matrix.config }}.xml
     - name: Upload test results
       if: always()
