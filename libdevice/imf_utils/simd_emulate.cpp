@@ -40,6 +40,31 @@ public:
   }
 };
 
+template <typename Tp> class __neg_op {
+  static_assert(std::is_same<int8_t, Tp>::value ||
+                    std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int8_t, int16_t for __neg_op");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x) { return static_cast<UTp>(-x); }
+};
+
+template <typename Tp> class __negss_op {
+  static_assert(std::is_same<int8_t, Tp>::value ||
+                    std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int8_t, int16_t for __negss_op");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x) {
+    UTp tx = static_cast<UTp>(-x);
+    if (x == std::numeric_limits<Tp>::min())
+      tx = static_cast<UTp>(std::numeric_limits<Tp>::max());
+    return tx;
+  }
+};
+
 template <typename Tp, size_t N, template <typename> class UnaryOp>
 static inline unsigned int __internal_v_unary_op(unsigned int x) {
   static_assert(std::is_integral<Tp>::value &&
@@ -288,6 +313,26 @@ unsigned int __devicelib_imf_vabsss2(unsigned int x) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsss4(unsigned int x) {
   return __internal_v_unary_op<int8_t, 4, __abss_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vneg2(unsigned int x) {
+  return __internal_v_unary_op<int16_t, 2, __neg_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vneg4(unsigned int x) {
+  return __internal_v_unary_op<int8_t, 4, __neg_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vnegss2(unsigned int x) {
+  return __internal_v_unary_op<int16_t, 2, __negss_op>(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vnegss4(unsigned int x) {
+  return __internal_v_unary_op<int8_t, 4, __negss_op>(x);
 }
 
 DEVICE_EXTERN_C_INLINE
@@ -588,5 +633,46 @@ unsigned int __devicelib_imf_vsetltu2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetltu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_lt_op>(x, y);
+}
+
+template <typename Tp, size_t N>
+static inline unsigned int __internal_v_sad_op(unsigned int x, unsigned int y) {
+  static_assert(std::is_integral<Tp>::value &&
+                    (sizeof(Tp) == 1 || sizeof(Tp) == 2),
+                "__internal_v_sad_op accepts 1/2 byte integer type.");
+  static_assert(sizeof(Tp) * N == sizeof(unsigned int),
+                "__internal_v_sad_op size mismatch");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+  unsigned int res = 0;
+  typedef __twice_size_t<Tp> __TwiceTp;
+  Tp x_tmp, y_tmp;
+  for (size_t idx = 0; idx < N; ++idx) {
+    x_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(x, idx));
+    y_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
+    if (x_tmp < y_tmp)
+      __swap(x_tmp, y_tmp);
+    res += static_cast<unsigned int>(static_cast<__TwiceTp>(x_tmp - y_tmp));
+  }
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsads2(unsigned int x, unsigned int y) {
+  return __internal_v_sad_op<int16_t, 2>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsads4(unsigned int x, unsigned int y) {
+  return __internal_v_sad_op<int8_t, 4>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsadu2(unsigned int x, unsigned int y) {
+  return __internal_v_sad_op<uint16_t, 2>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsadu4(unsigned int x, unsigned int y) {
+  return __internal_v_sad_op<uint8_t, 4>(x, y);
 }
 #endif

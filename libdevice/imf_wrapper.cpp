@@ -635,6 +635,18 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabs4(unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vneg2(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vneg4(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vnegss2(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vnegss4(unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsdiffs2(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
@@ -821,10 +833,38 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetltu4(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsads2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsads4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsadu2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsadu4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs4(unsigned int x) { return __devicelib_imf_vabs4(x); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vneg2(unsigned int x) { return __devicelib_imf_vneg2(x); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vneg4(unsigned int x) { return __devicelib_imf_vneg4(x); }
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vnegss2(unsigned int x) {
+  return __devicelib_imf_vnegss2(x);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vnegss4(unsigned int x) {
+  return __devicelib_imf_vnegss4(x);
+}
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabsdiffs2(unsigned int x, unsigned int y) {
@@ -1134,5 +1174,25 @@ unsigned int __imf_vsetltu2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vsetltu4(unsigned int x, unsigned int y) {
   return __devicelib_imf_vsetltu4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsads2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsads2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsads4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsads4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsadu2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsadu2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsadu4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsadu4(x, y);
 }
 #endif // __LIBDEVICE_IMF_ENABLED__
