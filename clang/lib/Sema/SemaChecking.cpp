@@ -5489,11 +5489,8 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
 
   // Make sure we have the minimum number of provided arguments.
-  if (NumArgs < MinNumArgs)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_few_args_at_least)
-           << 0 /* function call */ << MinNumArgs << NumArgs
-           << TheCall->getSourceRange();
+  if (checkArgCountAtLeast(*this, TheCall, MinNumArgs))
+    return true;
 
   // Make sure we don't have too many arguments.
   if (NumArgs > MaxNumArgs)
