@@ -48,13 +48,16 @@ enum class address_space : int {
   constant_space = 2,
   local_space = 3,
   ext_intel_global_device_space = 4,
-  ext_intel_host_device_space = 5,
+  ext_intel_global_host_space = 5,
   global_device_space __SYCL2020_DEPRECATED(
       "use 'ext_intel_global_device_space' instead") =
       ext_intel_global_device_space,
   global_host_space __SYCL2020_DEPRECATED(
-      "use 'ext_intel_host_device_space' instead") =
-      ext_intel_host_device_space,
+      "use 'ext_intel_global_host_space' instead") =
+      ext_intel_global_host_space,
+  ext_intel_host_device_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_global_host_space' instead") =
+      ext_intel_global_host_space,
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
@@ -141,7 +144,7 @@ template <access::target accessTarget> struct TargetToAS {
 #ifdef __ENABLE_USM_ADDR_SPACE__
 template <> struct TargetToAS<access::target::device> {
   constexpr static access::address_space AS =
-      access::address_space::global_device_space;
+      access::address_space::ext_intel_global_device_space;
 };
 #endif // __ENABLE_USM_ADDR_SPACE__
 
@@ -174,12 +177,14 @@ struct DecoratedType<ElementType, access::address_space::global_space> {
 };
 
 template <typename ElementType>
-struct DecoratedType<ElementType, access::address_space::global_device_space> {
+struct DecoratedType<ElementType,
+                     access::address_space::ext_intel_global_device_space> {
   using type = __OPENCL_GLOBAL_DEVICE_AS__ ElementType;
 };
 
 template <typename ElementType>
-struct DecoratedType<ElementType, access::address_space::global_host_space> {
+struct DecoratedType<ElementType,
+                     access::address_space::ext_intel_global_host_space> {
   using type = __OPENCL_GLOBAL_HOST_AS__ ElementType;
 };
 
@@ -222,12 +227,12 @@ template <class T> struct remove_AS<__OPENCL_GLOBAL_HOST_AS__ T> {
 
 template <class T> struct deduce_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
   static const access::address_space value =
-      access::address_space::global_device_space;
+      access::address_space::ext_intel_global_device_space;
 };
 
 template <class T> struct deduce_AS<__OPENCL_GLOBAL_HOST_AS__ T> {
   static const access::address_space value =
-      access::address_space::global_host_space;
+      access::address_space::ext_intel_global_host_space;
 };
 #endif // __ENABLE_USM_ADDR_SPACE__
 

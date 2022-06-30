@@ -35,8 +35,11 @@ static const plugin &getPlugin(backend Backend) {
     return pi::getPlugin<backend::opencl>();
   case backend::ext_oneapi_level_zero:
     return pi::getPlugin<backend::ext_oneapi_level_zero>();
+  case backend::ext_oneapi_cuda:
+    return pi::getPlugin<backend::ext_oneapi_cuda>();
   default:
-    throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
+    throw sycl::runtime_error{"Unsupported backend",
+                              PI_ERROR_INVALID_OPERATION};
   }
 }
 
@@ -179,7 +182,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
         // TODO SYCL2020 exception
         throw sycl::runtime_error(errc::invalid,
                                   "Program and kernel_bundle state mismatch",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
       if (State == bundle_state::executable)
         Plugin.call<errc::build, PiApiKind::piProgramLink>(
             ContextImpl->getHandleRef(), 1, &Dev, nullptr, 1, &PiProgram,
@@ -190,7 +193,7 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
         // TODO SYCL2020 exception
         throw sycl::runtime_error(errc::invalid,
                                   "Program and kernel_bundle state mismatch",
-                                  PI_INVALID_VALUE);
+                                  PI_ERROR_INVALID_VALUE);
       break;
     }
   }
@@ -246,7 +249,7 @@ kernel make_kernel(const context &TargetContext,
     if (KernelBundleImpl->size() != 1)
       throw sycl::runtime_error{
           "make_kernel: kernel_bundle must have single program image",
-          PI_INVALID_PROGRAM};
+          PI_ERROR_INVALID_PROGRAM};
 
     const device_image<bundle_state::executable> &DeviceImage =
         *KernelBundle.begin();

@@ -204,7 +204,9 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
           AdaptedTy.count(SamplerArg) != 0) // Already traced this, move on.
         continue;
 
-      if (isSPIRVType(SamplerArg->getType(), kSPIRVTypeName::Sampler))
+      if (SamplerArg->getType()->isPointerTy() &&
+          isSPIRVStructType(SamplerArg->getType()->getPointerElementType(),
+                            kSPIRVTypeName::Sampler))
         return;
 
       addAdaptedType(SamplerArg, getSamplerType(&M));
@@ -263,19 +265,15 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
   if (!TypeMD)
     return;
   bool Changed = false;
-  auto FT = F->getFunctionType();
-  auto PI = FT->param_begin();
   auto Arg = F->arg_begin();
-  for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++PI, ++Arg) {
+  for (unsigned I = 0, E = TypeMD->getNumOperands(); I != E; ++I, ++Arg) {
     auto OCLTyStr = getMDOperandAsString(TypeMD, I);
-    auto NewTy = *PI;
-    if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T && !NewTy->isStructTy()) {
+    if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T) {
       addAdaptedType(&(*Arg), getSamplerType(M));
       Changed = true;
-    } else if (isPointerToOpaqueStructType(NewTy)) {
-      auto STName = NewTy->getPointerElementType()->getStructName();
-      if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
-        auto Ty = STName.str();
+    } else if (OCLTyStr.startswith("image") && OCLTyStr.endswith("_t")) {
+      auto Ty = (Twine("opencl.") + OCLTyStr).str();
+      if (StructType::getTypeByName(F->getContext(), Ty)) {
         auto AccMD = F->getMetadata(SPIR_MD_KERNEL_ARG_ACCESS_QUAL);
         assert(AccMD && "Invalid access qualifier metadata");
         auto AccStr = getMDOperandAsString(AccMD, I);
@@ -328,6 +326,8 @@ Type *OCLTypeToSPIRVBase::getAdaptedType(Value *V) {
 }
 
 } // namespace SPIRV
+
+AnalysisKey OCLTypeToSPIRVPass::Key;
 
 INITIALIZE_PASS(OCLTypeToSPIRVLegacy, "cltytospv", "Adapt OCL types for SPIR-V",
                 false, true)

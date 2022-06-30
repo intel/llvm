@@ -97,6 +97,8 @@ public:
   std::optional<std::string> SYCLCachePersistentBefore;
   bool SYCLCachePersistentChanged = false;
 
+  std::string RootSYCLCacheDir;
+
   // Caches the initial value of the SYCL_CACHE_PERSISTENT environment variable
   // before overwriting it with the new value.
   // Tear-down will reset the environment variable.
@@ -116,34 +118,64 @@ public:
     // persistent cache.
     set_env("SYCL_CACHE_PERSISTENT", NewValue);
     sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_PERSISTENT>::reset();
-    detail::PersistentDeviceCodeCache::reparseConfig();
     SYCLCachePersistentChanged = true;
   }
 
-  virtual void SetUp() {
-    EXPECT_NE(getenv("SYCL_CACHE_DIR"), nullptr)
-        << "Please set SYCL_CACHE_DIR environment variable pointing to cache "
-           "location.";
-    // Set binary format from parameter.
-    BinStruct.Format = GetParam();
+  void AppendToSYCLCacheDirEnv(const char *SubDir) {
+    std::string NewSYCLCacheDirPath{RootSYCLCacheDir};
+    if (NewSYCLCacheDirPath.back() != '\\' && NewSYCLCacheDirPath.back() != '/')
+      NewSYCLCacheDirPath += '/';
+    NewSYCLCacheDirPath += SubDir;
+    set_env("SYCL_CACHE_DIR", NewSYCLCacheDirPath.c_str());
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
   }
 
-  virtual void TearDown() {
+  void ResetSYCLCacheDirEnv() {
+    set_env("SYCL_CACHE_DIR", RootSYCLCacheDir.c_str());
+    sycl::detail::SYCLConfig<sycl::detail::SYCL_CACHE_DIR>::reset();
+  }
+
+  void SetUp() override {
+    if (Plt.is_host() || Plt.get_backend() != backend::opencl)
+      GTEST_SKIP();
+
+    if (RootSYCLCacheDir == "")
+      FAIL() << "Please set SYCL_CACHE_DIR environment variable pointing to "
+                "cache location.";
+
+    // Append the test name to the cache dir to prevent conflicts with other
+    // tests running in parallel.
+    AppendToSYCLCacheDirEnv(
+        ::testing::UnitTest::GetInstance()->current_test_info()->name());
+
+    // Enable persistent cache
+    SetSYCLCachePersistentEnv("1");
+  }
+
+  void TearDown() override {
     // If we changed the cache, set it back to the old value.
     if (SYCLCachePersistentChanged)
       SetSYCLCachePersistentEnv(SYCLCachePersistentBefore
                                     ? SYCLCachePersistentBefore->c_str()
                                     : nullptr);
+    ResetSYCLCacheDirEnv();
   }
 
   PersistentDeviceCodeCache() : Plt{default_selector()} {
-
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
       std::clog << "This test is only supported on OpenCL devices\n";
       std::clog << "Current platform is "
                 << Plt.get_info<info::platform::name>();
       return;
     }
+
+    char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
+    if (!SYCLCacheDir) {
+      std::clog << "This test requires the SYCL_CACHE_DIR environment variable "
+                   "to be set.";
+      return;
+    }
+    RootSYCLCacheDir = SYCLCacheDir;
 
     Mock = std::make_unique<unittest::PiMock>(Plt);
     Dev = Plt.get_devices()[0];
@@ -157,12 +189,6 @@ public:
    *              vector above.
    *  ThreadCount - number of parallel executors used for the test*/
   void ConcurentReadWriteCache(unsigned char ProgramID, size_t ThreadCount) {
-    if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      return;
-    }
-
-    SetSYCLCachePersistentEnv("1");
-
     std::string BuildOptions{"--concurrent-access=" +
                              std::to_string(ThreadCount)};
     DeviceCodeID = ProgramID;
@@ -202,10 +228,9 @@ protected:
   detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   platform Plt;
   device Dev;
-  // NOTE: Format is a parameter of the test so use none and set in SetUp.
   pi_device_binary_struct BinStruct{/*Version*/ 1,
                                     /*Kind*/ 4,
-                                    /*Format*/ PI_DEVICE_BINARY_TYPE_NONE,
+                                    /*Format*/ GetParam(),
                                     /*DeviceTargetSpec*/ nullptr,
                                     /*CompileOptions*/ nullptr,
                                     /*LinkOptions*/ nullptr,
@@ -226,12 +251,6 @@ protected:
 /* Checks that key values with \0 symbols are processed correctly
  */
 TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
-  SetSYCLCachePersistentEnv("1");
-
   std::string Key{'1', '\0', '3', '4', '\0'};
   std::vector<unsigned char> SpecConst(Key.begin(), Key.end());
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
@@ -284,12 +303,6 @@ TEST_P(PersistentDeviceCodeCache, ConcurentReadWriteCacheBigItem) {
  *  - binary file is corrupted.
  */
 TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
-  SetSYCLCachePersistentEnv("1");
-
   std::string BuildOptions{"--corrupted-file"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -354,12 +367,6 @@ TEST_P(PersistentDeviceCodeCache, CorruptedCacheFiles) {
  *  - cache miss happens on read operation.
  */
 TEST_P(PersistentDeviceCodeCache, LockFile) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
-  SetSYCLCachePersistentEnv("1");
-
   std::string BuildOptions{"--obsolete-lock"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);
@@ -410,12 +417,6 @@ TEST_P(PersistentDeviceCodeCache, LockFile) {
 /* Checks cache behavior when filesystem read/write operations fail
  */
 TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
-  }
-
-  SetSYCLCachePersistentEnv("1");
-
   std::string BuildOptions{"--build-options"};
   std::string ItemDir = detail::PersistentDeviceCodeCache::getCacheItemPath(
       Dev, Img, {}, BuildOptions);

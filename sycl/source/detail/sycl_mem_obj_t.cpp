@@ -41,7 +41,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     throw cl::sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
         "not allowed",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
 
   RT::PiContext Context = nullptr;
   const plugin &Plugin = getPlugin();
@@ -60,7 +60,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
   if (MInteropContext->getHandleRef() != Context)
     throw cl::sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
 
   if (Plugin.getBackend() == backend::opencl)
     Plugin.call<PiApiKind::piMemRetain>(MInteropMemObject);

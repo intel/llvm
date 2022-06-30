@@ -17,18 +17,18 @@ namespace detail {
 
 /// Profiling info for the host execution.
 class __SYCL_EXPORT HostProfilingInfo {
-  cl_ulong StartTime = 0;
-  cl_ulong EndTime = 0;
+  uint64_t StartTime = 0;
+  uint64_t EndTime = 0;
 
 public:
   /// Returns event's start time.
   ///
   /// \return event's start time in nanoseconds.
-  cl_ulong getStartTime() const { return StartTime; }
+  uint64_t getStartTime() const { return StartTime; }
   /// Returns event's end time.
   ///
   /// \return event's end time in nanoseconds.
-  cl_ulong getEndTime() const { return EndTime; }
+  uint64_t getEndTime() const { return EndTime; }
 
   /// Measures event's start time.
   void start();

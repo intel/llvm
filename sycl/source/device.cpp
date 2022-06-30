@@ -24,7 +24,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
     throw cl::sycl::invalid_parameter_error("No device of forced type.",
-                                            PI_INVALID_OPERATION);
+                                            PI_ERROR_INVALID_OPERATION);
   }
 }
 } // namespace detail
@@ -41,7 +41,7 @@ device::device(cl_device_id DeviceId) {
   auto Platform =
       detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  clRetainDevice(DeviceId);
+  Plugin.call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {

@@ -52,6 +52,10 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
+      cuda_image:
+        type: string
+        required: false
+        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       lts_ref:
         type: string
         required: false

@@ -180,10 +180,8 @@ struct OneShotBufferizePass
     if (!options) {
       // Make new bufferization options if none were provided when creating the
       // pass.
-      opt.dropEquivalentFuncResults = dropEquivalentFuncResults;
       opt.allowReturnAllocs = allowReturnAllocs;
       opt.allowUnknownOps = allowUnknownOps;
-      opt.alwaysAliasingWithDest = alwaysAliasingWithDest;
       opt.analysisFuzzerSeed = analysisFuzzerSeed;
       opt.createDeallocs = createDeallocs;
       opt.functionBoundaryTypeConversion =
@@ -191,16 +189,14 @@ struct OneShotBufferizePass
       opt.printConflicts = printConflicts;
       opt.testAnalysisOnly = testAnalysisOnly;
       opt.bufferizeFunctionBoundaries = bufferizeFunctionBoundaries;
-      opt.promoteBufferResultsToOutParams = promoteBufferResultsToOutParams;
       opt.unknownTypeConversion = parseLayoutMapOption(unknownTypeConversion);
 
       OpFilter::Entry::FilterFn filterFn =
           [&](Operation *op) {
             // Filter may be specified via options.
             if (this->dialectFilter.hasValue())
-              return llvm::find(this->dialectFilter,
-                                op->getDialect()->getNamespace()) !=
-                     this->dialectFilter.end();
+              return llvm::is_contained(this->dialectFilter,
+                                        op->getDialect()->getNamespace());
             // No filter specified: All other ops are allowed.
             return true;
           };
@@ -292,37 +288,6 @@ static bool hasTensorSemantics(Operation *op) {
   return hasTensorResult || hasTensorOperand;
 }
 
-LogicalResult
-bufferization::finalizeBuffers(Operation *op,
-                               const BufferizationOptions &options) {
-  // Create allocation ops for "leaking buffers", i.e., buffer allocations that
-  // escape block boundaries. If there are no leaking allocs, `hasLeakingAllocs`
-  // is set to `false`.
-  bool hasLeakingAllocs = false;
-  if (failed(createAllocDeallocOps(op, options, /*onlyLeakingAllocs=*/true,
-                                   &hasLeakingAllocs)))
-    return failure();
-
-  // Promote returned buffers to "out" parameters.
-  // TODO: Pass options to support custom dealloc ops.
-  if (options.promoteBufferResultsToOutParams && isa<ModuleOp>(op) &&
-      failed(promoteBufferResultsToOutParams(cast<ModuleOp>(op))))
-    return failure();
-
-  // Create deallocation ops for all "leaking buffers" and all buffer
-  // allocations that were added during the above promotion process.
-  // TODO: Pass options to support custom dealloc ops.
-  if (hasLeakingAllocs && options.createDeallocs &&
-      failed(deallocateBuffers(op)))
-    return failure();
-
-  // Deallocate all remaining buffers at the end of their parent blocks.
-  if (failed(createAllocDeallocOps(op, options)))
-    return failure();
-
-  return success();
-}
-
 LogicalResult bufferization::bufferizeOp(Operation *op,
                                          const AnalysisState &analysisState) {
   // Catch incorrect API usage.
@@ -333,8 +298,6 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
 
   BufferizationState bufferizationState(analysisState);
   if (failed(bufferizeOp(op, bufferizationState)))
-    return failure();
-  if (failed(finalizeBuffers(op, analysisState.getOptions())))
     return failure();
   return success();
 }
@@ -486,63 +449,9 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
   return success();
 }
 
-namespace {
-/// This a "no analysis, always copy" AnalysisState. In the absence of an
-/// analysis, a buffer must be copied each time it is written to. Therefore, all
-/// OpOperands that bufferize to a memory write must bufferize out-of-place.
-class AlwaysCopyAnalysisState : public AnalysisState {
-public:
-  AlwaysCopyAnalysisState(const BufferizationOptions &options)
-      : AnalysisState(options) {
-    // Note: Allocations must be deallocated with a subsequent run of the buffer
-    // deallocation pass.
-    assert(!options.createDeallocs &&
-           "cannot create deallocs with AlwaysCopyBufferizationState");
-  }
-
-  AlwaysCopyAnalysisState(const AlwaysCopyAnalysisState &) = delete;
-
-  virtual ~AlwaysCopyAnalysisState() = default;
-
-  /// Return `true` if the given OpResult has been decided to bufferize inplace.
-  bool isInPlace(OpOperand &opOperand) const override {
-    // OpOperands that bufferize to a memory write are out-of-place, i.e., an
-    // alloc and copy is inserted.
-    return !bufferizesToMemoryWrite(opOperand);
-  }
-
-  /// Return true if `v1` and `v2` bufferize to equivalent buffers.
-  bool areEquivalentBufferizedValues(Value v1, Value v2) const override {
-    // There is no analysis, so we do not know if the values are equivalent. The
-    // conservative answer is "false".
-    return false;
-  }
-
-  /// Return true if `v1` and `v2` may bufferize to aliasing buffers.
-  bool areAliasingBufferizedValues(Value v1, Value v2) const override {
-    // There is no analysis, so we do not know if the values are equivalent. The
-    // conservative answer is "true".
-    return true;
-  }
-
-  /// Return `true` if the given tensor has undefined contents.
-  bool hasUndefinedContents(OpOperand *opOperand) const override {
-    // There is no analysis, so the conservative answer is "false".
-    return false;
-  }
-
-  /// Return true if the given tensor (or an aliasing tensor) is yielded from
-  /// the containing block. Also include all aliasing tensors in the same block.
-  bool isTensorYielded(Value tensor) const override {
-    // There is no analysis, so conservatively answer "true".
-    return true;
-  }
-};
-} // namespace
-
 LogicalResult bufferization::bufferizeOp(Operation *op,
                                          const BufferizationOptions &options) {
-  AlwaysCopyAnalysisState state(options);
+  AnalysisState state(options);
   return bufferizeOp(op, state);
 }
 
