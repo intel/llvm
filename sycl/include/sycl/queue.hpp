@@ -234,8 +234,7 @@ public:
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <info::queue param>
-  typename info::param_traits<info::queue, param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker

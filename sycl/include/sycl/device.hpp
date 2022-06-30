@@ -157,9 +157,7 @@ public:
   /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <info::device param>
-  typename info::param_traits<info::device, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Check SYCL extension support by device
   ///

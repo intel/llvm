@@ -444,9 +444,9 @@ private:
   static_assert(Dimensions > 0 && Dimensions <= 3,
                 "Dimensions can be 1/2/3 for image accessor.");
 
-  template <info::device param>
+  template <typename Param>
   void checkDeviceFeatureSupported(const device &Device) {
-    if (!Device.get_info<param>())
+    if (!Device.get_info<Param>())
       throw feature_not_supported("Images are not supported by this device.",
                                   PI_ERROR_INVALID_OPERATION);
   }

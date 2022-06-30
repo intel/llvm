@@ -111,9 +111,9 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
     // TODO: implement extension management for host device;
     return false;
 
-  std::string AllExtensionNames =
-      get_device_info<std::string, info::device::extensions>::get(
-          this->getHandleRef(), this->getPlugin());
+  std::string AllExtensionNames = get_device_info_string(
+      this->getHandleRef(), PiInfoCode<info::device::extensions>::value,
+      this->getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -297,20 +297,15 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::usm_host_allocations:
     return get_info<info::device::usm_host_allocations>();
   case aspect::usm_atomic_host_allocations:
-    return is_host() ||
-           (get_device_info<
-                pi_usm_capabilities,
-                info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
+    return is_host() || (get_device_info<info::device::usm_host_allocations>(
+                             MDevice, getPlugin()) &
+                         PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return is_host() ||
-           (get_device_info<
-                pi_usm_capabilities,
-                info::device::usm_shared_allocations>::get(MDevice,
-                                                           getPlugin()) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
+    return is_host() || (get_device_info<info::device::usm_shared_allocations>(
+                             MDevice, getPlugin()) &
+                         PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:

@@ -105,8 +105,7 @@ public:
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   /// Queries this SYCL event for profiling information.
   ///
@@ -119,9 +118,8 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info() const;
+  template <typename Param>
+  typename Param::return_type get_profiling_info() const;
 
   /// Returns the backend associated with this platform.
   ///

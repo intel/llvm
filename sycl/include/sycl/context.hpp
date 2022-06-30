@@ -159,9 +159,7 @@ public:
   /// Queries this SYCL context for information.
   ///
   /// The return type depends on information being queried.
-  template <info::context param>
-  typename info::param_traits<info::context, param>::return_type
-  get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   context(const context &rhs) = default;
 
