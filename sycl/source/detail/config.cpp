@@ -19,8 +19,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-//This is the size of the buffer when reading a line from the config file.
-//If a line can have more characters, increase size
+// This is the size of the buffer when reading a line from the config file.
+// If a line can have more characters, increase size
 #define SYCL_CONFIG_FILE_BUFFER_SIZE 150
 
 #ifndef SYCL_CONFIG_FILE_NAME
@@ -48,32 +48,31 @@ static void initValue(const char *Key, const char *Value) {
 #undef CONFIG
 }
 
- void file_ignore(FILE* file,size_t n, int delim)
-{
-    while (n--) {
-        const int c = fgetc(file);
-        if (c == EOF)
-           break;
-        if (delim != EOF && delim == c) 
-           break;
-    }
+void file_ignore(FILE *file, size_t n, int delim) {
+  while (n--) {
+    const int c = fgetc(file);
+    if (c == EOF)
+      break;
+    if (delim != EOF && delim == c)
+      break;
+  }
 }
-//Finds index of the newline character in char array
-int newLineIndexR(const char* string,int lowerBound, int upperBound){
-  int currentIndex=(upperBound+lowerBound)/2;
-  int c= string[currentIndex];
-  if(c== '\n'){
-      return currentIndex;
+// Finds index of the newline character in char array
+int newLineIndexR(const char *string, int lowerBound, int upperBound) {
+  int currentIndex = (upperBound + lowerBound) / 2;
+  int c = string[currentIndex];
+  if (c == '\n') {
+    return currentIndex;
   }
-  if(currentIndex ==lowerBound){
-    return string[upperBound]=='\n'? upperBound: -1;
-  }
-
-  if(c== '\0'){
-    return newLineIndexR(string,lowerBound,currentIndex);
+  if (currentIndex == lowerBound) {
+    return string[upperBound] == '\n' ? upperBound : -1;
   }
 
-  return newLineIndexR(string,currentIndex,upperBound);
+  if (c == '\0') {
+    return newLineIndexR(string, lowerBound, currentIndex);
+  }
+
+  return newLineIndexR(string, currentIndex, upperBound);
 }
 
 void readConfig(bool ForceInitialization) {
@@ -82,12 +81,15 @@ void readConfig(bool ForceInitialization) {
     return;
   }
 
-  FILE* file;
+  FILE *file;
   if (const char *ConfigFile = getenv("SYCL_CONFIG_FILE_NAME"))
-    file= fopen(ConfigFile, "r");
+    file = fopen(ConfigFile, "r");
   else {
     const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
-    file = fopen(((std::string)(LibSYCLDir + sycl::detail::OSUtil::DirSep + SYCL_CONFIG_FILE_NAME)).c_str(),"r");
+    file = fopen(((std::string)(LibSYCLDir + sycl::detail::OSUtil::DirSep +
+                                SYCL_CONFIG_FILE_NAME))
+                     .c_str(),
+                 "r");
   }
 
   if (file) {
@@ -101,19 +103,21 @@ void readConfig(bool ForceInitialization) {
       // ConfigName=Value
       // TODO: Skip spaces before and after '='
 
-      //Note: A line from the file is expected to be the combined max length of Key and Value string
-      char tempString[MAX_CONFIG_NAME + MAX_CONFIG_VALUE]={0};
-      fgets(tempString,MAX_CONFIG_NAME + MAX_CONFIG_VALUE,file);
+      // Note: A line from the file is expected to be the combined max length of
+      // Key and Value string
+      char tempString[MAX_CONFIG_NAME + MAX_CONFIG_VALUE] = {0};
+      fgets(tempString, MAX_CONFIG_NAME + MAX_CONFIG_VALUE, file);
 
       int nI;
-      if((nI=newLineIndexR(tempString,0,MAX_CONFIG_NAME + MAX_CONFIG_VALUE)) != -1){
-          tempString[nI]='\0';
+      if ((nI = newLineIndexR(tempString, 0,
+                              MAX_CONFIG_NAME + MAX_CONFIG_VALUE)) != -1) {
+        tempString[nI] = '\0';
       }
       if (ferror(file) && !feof(file)) {
         // Fail to process the line.
 
         clearerr(file);
-        file_ignore(file,std::numeric_limits<size_t>::max(),'\n');
+        file_ignore(file, std::numeric_limits<size_t>::max(), '\n');
         throw sycl::exception(
             make_error_code(errc::runtime),
             "An error occurred while attempting to read a line");

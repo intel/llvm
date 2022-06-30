@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <iostream>
 #include <type_traits>
-#include <iostream>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -24,7 +23,7 @@ namespace pi {
 template <typename T>
 inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
 print(T val) {
-  std::cout << "<unknown> : " << val <<std::endl;
+  std::cout << "<unknown> : " << val << std::endl;
 }
 template <typename T>
 inline typename std::enable_if<std::is_pointer<T>::value, void>::type

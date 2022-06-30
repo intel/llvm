@@ -85,26 +85,24 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   return reinterpret_cast<OSModuleHandle>(Res.Handle);
 }
 
-bool procMapsAddressInRange(FILE* file, uintptr_t Addr) {
+bool procMapsAddressInRange(FILE *file, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
-  char next_char= 0;
+  char next_char = 0;
 
-  fscanf(file, "%p",&Start);
+  fscanf(file, "%p", &Start);
   assert(!ferror(file) && "Couldn't read /proc/self/maps correctly");
-  next_char=fgetc(file);
-  assert(next_char == '-' &&
-         "Couldn't read /proc/self/maps correctly");
+  next_char = fgetc(file);
+  assert(next_char == '-' && "Couldn't read /proc/self/maps correctly");
 
-  fscanf(file,"%p",&End);
+  fscanf(file, "%p", &End);
   assert(!ferror(file) && "Couldn't read /proc/self/maps correctly");
-  next_char=fgetc(file);
-  assert(next_char == ' ' &&
-         "Couldn't read /proc/self/maps correctly");
+  next_char = fgetc(file);
+  assert(next_char == ' ' && "Couldn't read /proc/self/maps correctly");
 
   return Addr >= Start && Addr < End;
 }
 
-extern void file_ignore(FILE* file,size_t n, int delim);
+extern void file_ignore(FILE *file, size_t n, int delim);
 
 /// Returns an absolute path to a directory where the object was found.
 std::string OSUtil::getCurrentDSODir() {
@@ -129,44 +127,44 @@ std::string OSUtil::getCurrentDSODir() {
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
   uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
-  FILE* file= fopen("/proc/self/maps","r");
+  FILE *file = fopen("/proc/self/maps", "r");
   while (!feof(file)) {
     if (!procMapsAddressInRange(file, CurrentFunc)) {
       // Skip the rest until an EOL and check the next line
-      file_ignore(file, std::numeric_limits<size_t>::max(),'\n');
+      file_ignore(file, std::numeric_limits<size_t>::max(), '\n');
       continue;
     }
 
     char Perm[5];
-    fgets(Perm,sizeof(Perm),file);
+    fgets(Perm, sizeof(Perm), file);
     assert(Perm[0] == 'r' && Perm[2] == 'x' &&
            "Invalid flags in /proc/self/maps");
-    
-    char next_char_getCurrentDSODir=fgetc(file);
+
+    char next_char_getCurrentDSODir = fgetc(file);
     assert(next_char_getCurrentDSODir == ' ');
 
     // Read and ignore the following:
     // offset
-    file_ignore(file, std::numeric_limits<size_t>::max(),' ');
+    file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
     fgetc(file);
     // dev major
-    file_ignore(file, std::numeric_limits<size_t>::max(),':');
+    file_ignore(file, std::numeric_limits<size_t>::max(), ':');
     fgetc(file);
     // dev minor
-    file_ignore(file, std::numeric_limits<size_t>::max(),' ');
+    file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
     fgetc(file);
     // inode
-    file_ignore(file, std::numeric_limits<size_t>::max(),' ');
+    file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
     fgetc(file);
 
     // Now read the path: it is padded with whitespaces, so we skip them
     // first.
     do {
-      next_char_getCurrentDSODir=fgetc(file);
-      } while (next_char_getCurrentDSODir == ' ');
-    ungetc(next_char_getCurrentDSODir,file);
+      next_char_getCurrentDSODir = fgetc(file);
+    } while (next_char_getCurrentDSODir == ' ');
+    ungetc(next_char_getCurrentDSODir, file);
     char Path[PATH_MAX];
-    fgets(Path,PATH_MAX,file);
+    fgets(Path, PATH_MAX, file);
     return OSUtil::getDirName(Path);
   }
   assert(false && "Unable to find the current function in /proc/self/maps");

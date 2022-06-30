@@ -134,14 +134,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
-      FILE* dummy= fopen(FullFileName.c_str(),"rb");
-      fprintf(stderr,"Dummy write open:%p\n",dummy);
+      FILE *dummy = fopen(FullFileName.c_str(), "rb");
+      fprintf(stderr, "Dummy write open:%p\n", dummy);
       fclose(dummy);
     }
   } catch (...) {
     // If a problem happens on storing cache item, do nothing
   }
-
 }
 
 /* Program binaries built for one or more devices are read from persistent
@@ -171,9 +170,9 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
       try {
-      // FILE* dummy= fopen((FileName +".bin").c_str(),"rb");
-      // fprintf(stderr,"Dummy read open:%p\n",dummy);
-      // fclose(dummy);
+        // FILE* dummy= fopen((FileName +".bin").c_str(),"rb");
+        // fprintf(stderr,"Dummy read open:%p\n",dummy);
+        // fclose(dummy);
         std::string FullFileName = FileName + ".bin";
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
@@ -204,16 +203,18 @@ std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
 void PersistentDeviceCodeCache::writeBinaryDataToFile(
     const std::string &FileName, const std::vector<std::vector<char>> &Data) {
   // FILE* file=fopen(FileName.c_str(),"wb");
-  // fprintf(stderr,"writeBinaryDataToFile filepath:%s file:%p\n ",FileName.c_str(),file);
+  // fprintf(stderr,"writeBinaryDataToFile filepath:%s file:%p\n
+  // ",FileName.c_str(),file);
   size_t Size = Data.size();
-  fwrite(&Size,sizeof(Size),1,file);
+  fwrite(&Size, sizeof(Size), 1, file);
   // fprintf(stderr,"writeBinaryDataToFile size:%ld \n",Size);
 
   for (size_t i = 0; i < Data.size(); ++i) {
     Size = Data[i].size();
-    fwrite(&Size,sizeof(Size),1,file);
-    fwrite(Data[i].data(),sizeof(char),Size,file);
-    // fprintf(stderr,"writeBinaryDataToFile size loop:%ld %p \n",Size,Data[i].data());
+    fwrite(&Size, sizeof(Size), 1, file);
+    fwrite(Data[i].data(), sizeof(char), Size, file);
+    // fprintf(stderr,"writeBinaryDataToFile size loop:%ld %p
+    // \n",Size,Data[i].data());
   }
   fclose(file);
 
@@ -226,22 +227,24 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
  */
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
-  FILE* file= fopen(FileName.c_str(),"rb");
+  FILE *file = fopen(FileName.c_str(), "rb");
   // if(file == nullptr){
   //   perror("Error reading file from readBinaryData:");
   // }
   size_t ImgNum = 0, ImgSize = 0;
-  // fprintf(stderr,"readBinaryDataFromFile filepath:%s file:%p\n ",FileName.c_str(),file);
-  fread(&ImgNum,sizeof(ImgNum),1,file);
+  // fprintf(stderr,"readBinaryDataFromFile filepath:%s file:%p\n
+  // ",FileName.c_str(),file);
+  fread(&ImgNum, sizeof(ImgNum), 1, file);
   // fprintf(stderr,"readBinaryDataFromFile size:%ld \n",ImgNum);
 
   std::vector<std::vector<char>> Res(ImgNum);
   for (size_t i = 0; i < ImgNum; ++i) {
-    fread(&ImgSize,sizeof(ImgSize),1,file);
+    fread(&ImgSize, sizeof(ImgSize), 1, file);
 
     std::vector<char> ImgData(ImgSize);
-    fread(ImgData.data(),sizeof(char),ImgSize,file);
-    // fprintf(stderr,"readBinaryDataFromFile size loop:%ld %p \n",ImgSize,ImgData.data());
+    fread(ImgData.data(), sizeof(char), ImgSize, file);
+    // fprintf(stderr,"readBinaryDataFromFile size loop:%ld %p
+    // \n",ImgSize,ImgData.data());
     Res[i] = std::move(ImgData);
   }
   fclose(file);
@@ -263,25 +266,26 @@ void PersistentDeviceCodeCache::writeSourceItem(
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
 
-  FILE* file= fopen(FileName.c_str(),"wb");
+  FILE *file = fopen(FileName.c_str(), "wb");
 
   std::string DeviceString{getDeviceIDString(Device)};
 
   size_t Size = DeviceString.size();
-  fwrite(&Size,sizeof(Size),1,file);
-  fwrite(DeviceString.data(),sizeof(char),Size,file);
+  fwrite(&Size, sizeof(Size), 1, file);
+  fwrite(DeviceString.data(), sizeof(char), Size, file);
 
   Size = BuildOptionsString.size();
-  fwrite(&Size,sizeof(Size),1,file);
-  fwrite(BuildOptionsString.data(),sizeof(char),Size,file);
+  fwrite(&Size, sizeof(Size), 1, file);
+  fwrite(BuildOptionsString.data(), sizeof(char), Size, file);
 
   Size = SpecConsts.size();
-  fwrite(&Size,sizeof(Size),1,file);
-  fwrite(SpecConsts.data(),sizeof(SpecConsts.data()[0]),Size,file);
+  fwrite(&Size, sizeof(Size), 1, file);
+  fwrite(SpecConsts.data(), sizeof(SpecConsts.data()[0]), Size, file);
 
   Size = Img.getSize();
-  fwrite(&Size,sizeof(Size),1,file);
-  fwrite(Img.getRawData().BinaryStart,sizeof(Img.getRawData().BinaryStart[0]),Size,file);
+  fwrite(&Size, sizeof(Size), 1, file);
+  fwrite(Img.getRawData().BinaryStart, sizeof(Img.getRawData().BinaryStart[0]),
+         Size, file);
   fclose(file);
 
   if (ferror(file)) {
@@ -296,7 +300,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
-  FILE* file= fopen(FileName.c_str(),"rb");
+  FILE *file = fopen(FileName.c_str(), "rb");
   // if(file == nullptr){
   //   perror("Error reading file from is CacheItem:");
   // }
@@ -306,27 +310,27 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
                                SpecConsts.size()};
 
   size_t Size = 0;
-  fread(&Size,sizeof(Size),1,file);
+  fread(&Size, sizeof(Size), 1, file);
   std::string res(Size, '\0');
-  fread(&res[0],sizeof(char),Size,file);
+  fread(&res[0], sizeof(char), Size, file);
   if (getDeviceIDString(Device).compare(res))
     return false;
 
-  fread(&Size, sizeof(Size),1,file);
+  fread(&Size, sizeof(Size), 1, file);
   res.resize(Size);
-  fread(&res[0],sizeof(char),Size,file);
+  fread(&res[0], sizeof(char), Size, file);
   if (BuildOptionsString.compare(res))
     return false;
 
-  fread(&Size, sizeof(Size),1,file);
+  fread(&Size, sizeof(Size), 1, file);
   res.resize(Size);
-  fread(&res[0],sizeof(char),Size,file);
+  fread(&res[0], sizeof(char), Size, file);
   if (SpecConstsString.compare(res))
     return false;
 
-  fread(&Size, sizeof(Size),1,file);
+  fread(&Size, sizeof(Size), 1, file);
   res.resize(Size);
-  fread(&res[0],sizeof(char),Size,file);
+  fread(&res[0], sizeof(char), Size, file);
   if (ImgString.compare(res))
     return false;
 

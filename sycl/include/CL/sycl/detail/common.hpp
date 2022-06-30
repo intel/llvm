@@ -122,12 +122,11 @@ static inline std::string codeToString(pi_int32 code) {
   {                                                                            \
     auto code = expr;                                                          \
                                                                                \
-if (code != PI_SUCCESS) {                                                      \
+    if (code != PI_SUCCESS) {                                                  \
                                                                                \
-  fprintf(stderr, __SYCL_PI_ERROR_REPORT "%s\n",                            \
-          cl::sycl::detail::codeToString(code).c_str());                       \
-}                                                                              \
-
+      fprintf(stderr, __SYCL_PI_ERROR_REPORT "%s\n",                           \
+              cl::sycl::detail::codeToString(code).c_str());                   \
+    }
   }
 #endif
 

@@ -285,22 +285,21 @@ public:
       return;
 
     printf("USM Pool Settings (Built-in or Adjusted by Environment "
-                 "Variable)\n");
-    printf("%15s%12s%12s%12s%12s\n","Parameter", "Host",  "Device", "Shared RW",  "Shared RO");
-    printf("%15s%12lu%12lu%12lu%12lu\n","SlabMinSize",SlabMinSize[MemType::Host],
-                                                      SlabMinSize[MemType::Device],
-                                                      SlabMinSize[MemType::Shared],
-                                                      SlabMinSize[MemType::SharedReadOnly]);
-    printf("%15s%12lu%12lu%12lu%12lu\n","MaxPoolableSize",MaxPoolableSize[MemType::Host],
-                                                          MaxPoolableSize[MemType::Device],
-                                                          MaxPoolableSize[MemType::Shared],
-                                                          MaxPoolableSize[MemType::SharedReadOnly]);
-    printf("%15s%12lu%12lu%12lu%12lu\n","Capacity",Capacity[MemType::Host],
-                                                   Capacity[MemType::Device],
-                                                   Capacity[MemType::Shared],
-                                                   Capacity[MemType::SharedReadOnly]);
-    printf("%15s%12lu\n","MaxPoolSize",MaxPoolSize);
-    printf("%15s%12lu\n\n","EnableBuffers",EnableBuffers);
+           "Variable)\n");
+    printf("%15s%12s%12s%12s%12s\n", "Parameter", "Host", "Device", "Shared RW",
+           "Shared RO");
+    printf("%15s%12lu%12lu%12lu%12lu\n", "SlabMinSize",
+           SlabMinSize[MemType::Host], SlabMinSize[MemType::Device],
+           SlabMinSize[MemType::Shared], SlabMinSize[MemType::SharedReadOnly]);
+    printf("%15s%12lu%12lu%12lu%12lu\n", "MaxPoolableSize",
+           MaxPoolableSize[MemType::Host], MaxPoolableSize[MemType::Device],
+           MaxPoolableSize[MemType::Shared],
+           MaxPoolableSize[MemType::SharedReadOnly]);
+    printf("%15s%12lu%12lu%12lu%12lu\n", "Capacity", Capacity[MemType::Host],
+           Capacity[MemType::Device], Capacity[MemType::Shared],
+           Capacity[MemType::SharedReadOnly]);
+    printf("%15s%12lu\n", "MaxPoolSize", MaxPoolSize);
+    printf("%15s%12lu\n\n", "EnableBuffers", EnableBuffers);
   }
 } USMSettings;
 } // namespace settings
@@ -911,10 +910,9 @@ void Bucket::printStats(bool &TitlePrinted, MemType MT) {
     if (!TitlePrinted) {
 
       auto Label = USMSettings.MemTypeNames[MT];
-      printf("%s memory statistics\n",Label);
-      printf("%14s%12s%12s%18s%20s%21s\n","Bucket Size","Allocs",
-              "Frees","Allocs from Pool","Peak Slabs in Use",
-              "Peak Slabs in Pool");
+      printf("%s memory statistics\n", Label);
+      printf("%14s%12s%12s%18s%20s%21s\n", "Bucket Size", "Allocs", "Frees",
+             "Allocs from Pool", "Peak Slabs in Use", "Peak Slabs in Pool");
       TitlePrinted = true;
     }
     printf("%14lu%12lu%12lu%18lu%20lu%21lu\n", getSize(), allocCount, freeCount,
@@ -1049,8 +1047,8 @@ void *USMAllocContext::allocate(size_t size) {
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
 
-     printf("Allocated %8lu %s USM bytes from %s ->%p\n",size,USMSettings.MemTypeNames[MT],
-            (FromPool ? "Pool" : "USM"),Ptr);
+    printf("Allocated %8lu %s USM bytes from %s ->%p\n", size,
+           USMSettings.MemTypeNames[MT], (FromPool ? "Pool" : "USM"), Ptr);
   }
   return Ptr;
 }
@@ -1062,8 +1060,9 @@ void *USMAllocContext::allocate(size_t size, size_t alignment) {
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
 
-    printf("Allocated %8lu %s USM bytes aligned at %lu from %s ->%p\n",
-            size,USMSettings.MemTypeNames[MT],alignment,(FromPool ? "Pool" : "USM"),Ptr);
+    printf("Allocated %8lu %s USM bytes aligned at %lu from %s ->%p\n", size,
+           USMSettings.MemTypeNames[MT], alignment, (FromPool ? "Pool" : "USM"),
+           Ptr);
   }
   return Ptr;
 }
@@ -1075,13 +1074,14 @@ void USMAllocContext::deallocate(void *ptr, bool OwnZeMemHandle) {
   if (USMSettings.PoolTrace > 2) {
     auto MT = pImpl->getMemHandle().getMemType();
 
-     printf("Freed %s USM %p to %s, Current total pool size %lu, Current pool sizes ["
-            "%lu, %lu, %lu, %lu]\n ",USMSettings.MemTypeNames[MT],ptr,(ToPool ? "Pool" : "USM"),
-            USMSettings.CurPoolSize,
-            USMSettings.CurPoolSizes[MemType::Host],
-            USMSettings.CurPoolSizes[MemType::Device],
-            USMSettings.CurPoolSizes[MemType::Shared],
-            USMSettings.CurPoolSizes[MemType::SharedReadOnly]);
+    printf("Freed %s USM %p to %s, Current total pool size %lu, Current pool "
+           "sizes ["
+           "%lu, %lu, %lu, %lu]\n ",
+           USMSettings.MemTypeNames[MT], ptr, (ToPool ? "Pool" : "USM"),
+           USMSettings.CurPoolSize, USMSettings.CurPoolSizes[MemType::Host],
+           USMSettings.CurPoolSizes[MemType::Device],
+           USMSettings.CurPoolSizes[MemType::Shared],
+           USMSettings.CurPoolSizes[MemType::SharedReadOnly]);
   }
   return;
 }
@@ -1095,11 +1095,13 @@ USMAllocContext::~USMAllocContext() {
     MemType MT = pImpl->getMemHandle().getMemType();
     pImpl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse, MT);
     if (TitlePrinted) {
-      printf("Current Pool Size %lu\n",USMSettings.CurPoolSize);
+      printf("Current Pool Size %lu\n", USMSettings.CurPoolSize);
       const char *Label = USMSettings.MemTypeNames[MT];
-      printf("Suggested Setting: SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;%s%s:%lu,%lu,64K\n",
-               std::string(1, tolower(*Label)).c_str(),std::string(Label + 1).c_str(),
-               HighBucketSize,HighPeakSlabsInUse);
+      printf("Suggested Setting: "
+             "SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=;%s%s:%lu,%lu,64K\n",
+             std::string(1, tolower(*Label)).c_str(),
+             std::string(Label + 1).c_str(), HighBucketSize,
+             HighPeakSlabsInUse);
     }
   }
 }

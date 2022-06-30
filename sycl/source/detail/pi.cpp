@@ -453,11 +453,12 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
 
-      fprintf(stderr,"SYCL_PI_TRACE[basic]: "
-                     "Plugin found and successfully loaded: %s"
-                     " [ PluginVersion: %s ]\n",
-                     PluginNames[I].first.c_str(),
-                     NewPlugin.getPiPlugin().PluginVersion);
+      fprintf(stderr,
+              "SYCL_PI_TRACE[basic]: "
+              "Plugin found and successfully loaded: %s"
+              " [ PluginVersion: %s ]\n",
+              PluginNames[I].first.c_str(),
+              NewPlugin.getPiPlugin().PluginVersion);
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -592,7 +593,6 @@ DeviceBinaryProperty::operator std::string() const {
   }
   return Out;
 }
-
 
 void DeviceBinaryImage::print() const {
   fprintf(stderr, "  --- Image %p\n", (void *)Bin);
