@@ -261,6 +261,47 @@ public:
 };
 #pragma clang optimize on
 
+template <typename Tp> class __sub_op {
+public:
+  Tp operator()(const Tp &x, const Tp &y) { return x - y; }
+};
+
+template <typename Tp> class __sub_us_op {
+  static_assert(std::is_same<uint8_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept uint8_t, uint16_t for __add_us_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    if (x < y)
+      return 0;
+    else
+      return x - y;
+  }
+};
+
+// Clang will optimize this function with llvm.sadd.sat intrinsic which
+// can't be handled by llvm-spirv translator, so using turn off clang
+// optimization for this function to avoid llvm-spirv crash.
+#pragma clang optimize off
+template <typename Tp> class __sub_ss_op {
+  static_assert(std::is_same<int8_t, Tp>::value ||
+                    std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int8_t, int16_t for __add_ss_op");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+
+public:
+  UTp operator()(const Tp &x, const Tp &y) {
+    __twice_size_t<Tp> z = x - y;
+    __max_op<__twice_size_t<Tp>> __max_val;
+    __min_op<__twice_size_t<Tp>> __min_val;
+    return static_cast<UTp>(
+        __min_val(__max_val(z, std::numeric_limits<Tp>::min()),
+                  std::numeric_limits<Tp>::max()));
+  }
+};
+#pragma clang optimize on
+
 template <typename Tp> class __avgs_op {
   static_assert(std::is_same<int8_t, Tp>::value ||
                     std::is_same<int16_t, Tp>::value,
@@ -270,6 +311,28 @@ template <typename Tp> class __avgs_op {
 public:
   UTp operator()(const Tp &x, const Tp &y) {
     return static_cast<UTp>(__srhadd(x, y));
+  }
+};
+
+template <typename Tp> class __avgu_op {
+  static_assert(std::is_same<uint8_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept uint8_t, uint16_t for __avgu_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    return __urhadd(x, y);
+  }
+};
+
+template <typename Tp> class __uhadd_op {
+  static_assert(std::is_same<uint8_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept uint8_t, uint16_t for __uhadd_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    return __uhadd(x, y);;
   }
 };
 
@@ -386,6 +449,36 @@ unsigned int __devicelib_imf_vaddus4(unsigned int x, unsigned int y) {
 }
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsub2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __sub_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsub4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __sub_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubss2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __sub_ss_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubss4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int8_t, 4, __sub_ss_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubus2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __sub_us_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubus4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __sub_us_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgs2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __avgs_op>(x, y);
 }
@@ -393,6 +486,26 @@ unsigned int __devicelib_imf_vavgs2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgs4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __avgs_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vavgu2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __avgu_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vavgu4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __avgu_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_haddu2(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint16_t, 2, __uhadd_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_haddu4(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<uint8_t, 4, __uhadd_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE

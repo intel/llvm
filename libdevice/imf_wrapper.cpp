@@ -683,10 +683,40 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vaddus4(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsub2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsub4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubss2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubss4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubus2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vsubus4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vhaddu2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vhaddu4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgs2(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgs4(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vavgu2(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vavgu4(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpeq2(unsigned int, unsigned int);
@@ -927,6 +957,46 @@ unsigned int __imf_vaddus4(unsigned int x, unsigned int y) {
 }
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsub2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsub2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsub4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsub4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsubss2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsubss2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsubss4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsubss4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsubus2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsubus2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vsubus4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vsubus4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vhaddu2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vhaddu2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vhaddu4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vhaddu4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vavgs2(unsigned int x, unsigned int y) {
   return __devicelib_imf_vavgs2(x, y);
 }
@@ -934,6 +1004,16 @@ unsigned int __imf_vavgs2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vavgs4(unsigned int x, unsigned int y) {
   return __devicelib_imf_vavgs4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vavgu2(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vavgu2(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vavgu4(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vavgu4(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
