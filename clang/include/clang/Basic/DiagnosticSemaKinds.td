@@ -11699,6 +11699,9 @@ def err_sycl_kernel_incorrectly_named : Error<
   "'-fsycl-unnamed-lambda' to enable unnamed kernel lambdas"
   "}0">;
 
+def err_sycl_kernel_generic_lambda_unsupported: Error<
+  "generic lambda cannot be used to name a kernel">;
+
 def err_sycl_kernel_not_function_object
     : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<
