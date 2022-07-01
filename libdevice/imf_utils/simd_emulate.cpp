@@ -320,9 +320,7 @@ template <typename Tp> class __avgu_op {
                 "Tp can only accept uint8_t, uint16_t for __avgu_op");
 
 public:
-  Tp operator()(const Tp &x, const Tp &y) {
-    return __urhadd(x, y);
-  }
+  Tp operator()(const Tp &x, const Tp &y) { return __urhadd(x, y); }
 };
 
 template <typename Tp> class __uhadd_op {
@@ -331,9 +329,7 @@ template <typename Tp> class __uhadd_op {
                 "Tp can only accept uint8_t, uint16_t for __uhadd_op");
 
 public:
-  Tp operator()(const Tp &x, const Tp &y) {
-    return __uhadd(x, y);;
-  }
+  Tp operator()(const Tp &x, const Tp &y) { return __uhadd(x, y); }
 };
 
 template <typename Tp, size_t N, template <typename> class BinaryOp>
