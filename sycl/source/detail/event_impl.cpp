@@ -37,15 +37,17 @@ void event_impl::ensureContextInitialized() {
   if (MIsContextInitialized)
     return;
 
-  const device &SyclDevice = default_selector().select_device();
-  this->setContextImpl(
-      detail::queue_impl::getDefaultOrNew(detail::getSyclObjImpl(SyclDevice)));
+  if (MHostEvent) {
+    QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
+    this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
+  } else {
+    const device &SyclDevice = default_selector().select_device();
+    this->setContextImpl(detail::queue_impl::getDefaultOrNew(
+        detail::getSyclObjImpl(SyclDevice)));
+  }
 }
 
 bool event_impl::is_host() {
-  // We'll need a context before we can answer is_host question.
-  // setting it may adjust the values of MHostEvent and MOpenCLInterop
-  ensureContextInitialized();
   // Treat all devices that don't support interoperability as host devices to
   // avoid attempts to call method get on such events.
   return MHostEvent || !MOpenCLInterop;
@@ -125,6 +127,10 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
   MIsContextInitialized = true;
 }
+
+event_impl::event_impl(bool)
+    : MIsInitialized(false), MHostEvent(false), MIsFlushed(true),
+      MState(HES_Complete) {}
 
 event_impl::event_impl(HostEventState State)
     : MIsInitialized(false), MIsFlushed(true), MState(State) {}
