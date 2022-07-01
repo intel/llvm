@@ -11,7 +11,7 @@
 ; With the following options:
 ; -emit-llvm -fno-discard-value-names -O2 -g0 -ftrapv -target spir
 
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv -s %t.bc -o - | llvm-dis -o - | FileCheck %s
 
 ; CHECK: call { i32, i1 } @llvm_sadd_with_overflow_i32

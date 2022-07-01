@@ -2,7 +2,7 @@
 ; TODO need to figure out how to translate the alias.scope/noalias metadata
 ; in a case when it attached to a call to lifetime intrinsic. Now just skip it.
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_memory_access_aliasing -o %t.spv
 
 ; ModuleID = 'main'

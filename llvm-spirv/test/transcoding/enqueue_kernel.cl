@@ -26,7 +26,6 @@
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt8:[0-9]+]] 8
 // CHECK-SPIRV: Constant [[Int32Ty]] [[ConstInt20:[0-9]+]] 24
 
-// CHECK-SPIRV: TypePointer {{[0-9]+}} 7 {{[0-9]+}}
 // CHECK-SPIRV: TypePointer [[Int8PtrGenTy:[0-9]+]] 8 [[Int8Ty]]
 // CHECK-SPIRV: TypeVoid [[VoidTy:[0-9]+]]
 // CHECK-SPIRV: TypePointer [[Int32LocPtrTy:[0-9]+]] 7 [[Int32Ty]]

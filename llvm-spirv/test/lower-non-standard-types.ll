@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv -s %t.bc -o - | llvm-dis -o - | FileCheck %s --implicit-check-not="<6 x i32>"
 
 ; CHECK: [[ASCastInst:%.*]] = addrspacecast <3 x i64> addrspace(1)* @Id to <3 x i64> addrspace(4)*
