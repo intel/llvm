@@ -22,6 +22,10 @@ string(CONCAT sycl_targets_opt
   "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown")
 
+if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
+endif()
+
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
   # a function with a raw pointer parameter.
