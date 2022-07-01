@@ -7,11 +7,11 @@
 // supported for the Nvidia matrix extension, although some JIT optimizations
 // are performed at the level of the PTX assembly code.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
+using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using sycl::ext::oneapi::experimental::bfloat16;
 constexpr float bf16_eps = 0.00390625;
 
 // Example usage of Nvidia matrix multiply.

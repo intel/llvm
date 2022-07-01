@@ -6,14 +6,14 @@
 //
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend --cuda-gpu-arch=sm_80
 // RUN: %t.out
-
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/sycl.hpp>
 
 #include <cmath>
 #include <vector>
 
-using namespace cl::sycl;
-using sycl::ext::oneapi::experimental::bfloat16;
+using namespace sycl;
+using namespace sycl::ext::oneapi::experimental;
 
 constexpr int N = 60; // divisible by all tested array sizes
 constexpr float bf16_eps = 0.00390625;

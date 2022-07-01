@@ -12,7 +12,8 @@
 // CHECK: Constant addrspace literal
 // CHECK: Generic addrspace literal
 
-#include <CL/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/sycl.hpp>
 
 #include "helper.hpp"
 

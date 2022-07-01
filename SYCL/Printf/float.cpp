@@ -31,7 +31,8 @@
 
 #include <iostream>
 
-#include <CL/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/sycl.hpp>
 
 #include "helper.hpp"
 
