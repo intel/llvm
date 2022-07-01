@@ -126,8 +126,7 @@ static bool checkArgCountAtLeast(Sema &S, CallExpr *Call,
 /// Checks that a call expression's argument count is at most the desired
 /// number. This is useful when doing custom type-checking on a variadic
 /// function. Returns true on error.
-static bool checkArgCountAtMost(Sema &S, CallExpr *Call,
-                                unsigned MaxArgCount) {
+static bool checkArgCountAtMost(Sema &S, CallExpr *Call, unsigned MaxArgCount) {
   unsigned ArgCount = Call->getNumArgs();
   if (ArgCount <= MaxArgCount)
     return false;
