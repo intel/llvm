@@ -1,12 +1,12 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -no-opaque-pointers -fsycl-is-device \
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN: -S -emit-llvm %s -o %temp.ll
 // RUN: FileCheck -check-prefix=CHECK-SPIR --input-file %temp.ll %s
 
-// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -no-opaque-pointers -fsycl-is-device \
+// RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \
 // RUN: -S -emit-llvm %s -o %temp.ll
 // RUN: FileCheck -check-prefix=CHECK-NVPTX --input-file %temp.ll %s
 
-// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -no-opaque-pointers -fsycl-is-device \
+// RUN: %clang_cc1 -triple amdgcn-unknown-unknown -fsycl-is-device \
 // RUN: -S -emit-llvm %s -o %temp.ll
 // RUN: FileCheck -check-prefix=CHECK-AMDGCN --input-file %temp.ll %s
 
@@ -25,12 +25,12 @@ public:
 // CHECK-SPIR-NOT: annotations =
 
 // CHECK-NVPTX: nvvm.annotations = !{[[FIRST:![0-9]]], [[SECOND:![0-9]]]}
-// CHECK-NVPTX: [[FIRST]] = !{void ()* @_ZTS7Functor, !"kernel", i32 1}
-// CHECK-NVPTX: [[SECOND]] = !{void ()* @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E5foo_2, !"kernel", i32 1}
+// CHECK-NVPTX: [[FIRST]] = !{ptr @_ZTS7Functor, !"kernel", i32 1}
+// CHECK-NVPTX: [[SECOND]] = !{ptr @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E5foo_2, !"kernel", i32 1}
 
 // CHECK-AMDGCN: amdgcn.annotations = !{[[FIRST:![0-9]]], [[SECOND:![0-9]]]}
-// CHECK-AMDGCN: [[FIRST]] = !{void ()* @_ZTS7Functor, !"kernel", i32 1}
-// CHECK-AMDGCN: [[SECOND]] = !{void ()* @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E5foo_2, !"kernel", i32 1}
+// CHECK-AMDGCN: [[FIRST]] = !{ptr @_ZTS7Functor, !"kernel", i32 1}
+// CHECK-AMDGCN: [[SECOND]] = !{ptr @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_E5foo_2, !"kernel", i32 1}
 
 int main() {
   sycl::queue q;
