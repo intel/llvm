@@ -5,13 +5,14 @@
 
 // Tests that we do not issue errors for _Bitints of size greater than 128
 // when -fintelfpga is enabled.  The backend is expected to be able to handle
-// this.  When -fintelfpga is not passed, we continue to diagnose.
+// this, upto a maximum size of 4096.  When -fintelfpga is not passed,
+// we continue to diagnose size greater than 128.
 
-// device-intelfpga-error@+4 3{{signed _BitInt of bit sizes greater than 2048 not supported}}
-// host-intelfpga-error@+3 3{{signed _BitInt of bit sizes greater than 2048 not supported}}
+// device-intelfpga-error@+4 3{{signed _BitInt of bit sizes greater than 4096 not supported}}
+// host-intelfpga-error@+3 3{{signed _BitInt of bit sizes greater than 4096 not supported}}
 // device-error@+2 3{{signed _BitInt of bit sizes greater than 128 not supported}}
 // host-error@+1 3{{signed _BitInt of bit sizes greater than 128 not supported}}
-signed _BitInt(2049) foo(signed _BitInt(2049) a, signed _BitInt(2049) b) {
+signed _BitInt(4097) foo(signed _BitInt(4097) a, signed _BitInt(4097) b) {
   return a / b;
 }
 // device-error@+4 3{{signed _BitInt of bit sizes greater than 128 not supported}}
