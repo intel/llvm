@@ -495,12 +495,12 @@ unsigned int __devicelib_imf_vavgu4(unsigned int x, unsigned int y) {
 }
 
 DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_haddu2(unsigned int x, unsigned int y) {
+unsigned int __devicelib_imf_vhaddu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __uhadd_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
-unsigned int __devicelib_imf_haddu4(unsigned int x, unsigned int y) {
+unsigned int __devicelib_imf_vhaddu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __uhadd_op>(x, y);
 }
 
