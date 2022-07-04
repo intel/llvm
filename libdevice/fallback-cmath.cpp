@@ -10,7 +10,7 @@
 
 #ifdef __NVPTX__
 DEVICE_EXTERN_C_INLINE
-int __devicelib_abs(int x) { return x < 0 ? -x : x; }
+int __devicelib_abs(int x) { return -999; } // x < 0 ? -x : x; }
 #endif
 
 #ifdef __SPIR__
