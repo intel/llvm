@@ -773,7 +773,7 @@ private:
     Fortran::lower::SymbolBox resultSymBox = lookupSymbol(resultSym);
     mlir::Location loc = toLocation();
     if (!resultSymBox) {
-      mlir::emitError(loc, "failed lowering function return");
+      mlir::emitError(loc, "internal error when processing function return");
       return;
     }
     mlir::Value resultVal = resultSymBox.match(
@@ -1482,7 +1482,7 @@ private:
         auto lp = builder->create<fir::DoLoopOp>(
             loc, lb, ub, by, /*unordered=*/true,
             /*finalCount=*/false, explicitIterSpace.getInnerArgs());
-        if (!loops.empty() || !outermost)
+        if ((!loops.empty() || !outermost) && !lp.getRegionIterArgs().empty())
           builder->create<fir::ResultOp>(loc, lp.getResults());
         explicitIterSpace.setInnerArgs(lp.getRegionIterArgs());
         builder->setInsertionPointToStart(lp.getBody());
@@ -1749,8 +1749,11 @@ private:
     // Generate a sequence of case value comparisons and branches.
     auto caseValue = valueList.begin();
     auto caseBlock = blockList.begin();
-    for (mlir::Attribute attr : attrList) {
-      if (attr.isa<mlir::UnitAttr>()) {
+    bool skipFinalization = false;
+    for (const auto &attr : llvm::enumerate(attrList)) {
+      if (attr.value().isa<mlir::UnitAttr>()) {
+        if (attrList.size() == 1)
+          stmtCtx.finalize();
         genFIRBranch(*caseBlock++);
         break;
       }
@@ -1767,16 +1770,30 @@ private:
             charHelper.createUnboxChar(rhs);
         mlir::Value &rhsAddr = rhsVal.first;
         mlir::Value &rhsLen = rhsVal.second;
-        return fir::runtime::genCharCompare(*builder, loc, pred, lhsAddr,
-                                            lhsLen, rhsAddr, rhsLen);
+        mlir::Value result = fir::runtime::genCharCompare(
+            *builder, loc, pred, lhsAddr, lhsLen, rhsAddr, rhsLen);
+        if (stmtCtx.workListIsEmpty() || skipFinalization)
+          return result;
+        if (attr.index() == attrList.size() - 2) {
+          stmtCtx.finalize();
+          return result;
+        }
+        fir::IfOp ifOp = builder->create<fir::IfOp>(loc, result,
+                                                    /*withElseRegion=*/false);
+        builder->setInsertionPointToStart(&ifOp.getThenRegion().front());
+        stmtCtx.finalizeAndKeep();
+        builder->setInsertionPointAfter(ifOp);
+        return result;
       };
       mlir::Block *newBlock = insertBlock(*caseBlock);
-      if (attr.isa<fir::ClosedIntervalAttr>()) {
+      if (attr.value().isa<fir::ClosedIntervalAttr>()) {
         mlir::Block *newBlock2 = insertBlock(*caseBlock);
+        skipFinalization = true;
         mlir::Value cond =
             genCond(*caseValue++, mlir::arith::CmpIPredicate::sge);
         genFIRConditionalBranch(cond, newBlock, newBlock2);
         builder->setInsertionPointToEnd(newBlock);
+        skipFinalization = false;
         mlir::Value cond2 =
             genCond(*caseValue++, mlir::arith::CmpIPredicate::sle);
         genFIRConditionalBranch(cond2, *caseBlock++, newBlock2);
@@ -1784,12 +1801,13 @@ private:
         continue;
       }
       mlir::arith::CmpIPredicate pred;
-      if (attr.isa<fir::PointIntervalAttr>()) {
+      if (attr.value().isa<fir::PointIntervalAttr>()) {
         pred = mlir::arith::CmpIPredicate::eq;
-      } else if (attr.isa<fir::LowerBoundAttr>()) {
+      } else if (attr.value().isa<fir::LowerBoundAttr>()) {
         pred = mlir::arith::CmpIPredicate::sge;
       } else {
-        assert(attr.isa<fir::UpperBoundAttr>() && "unexpected predicate");
+        assert(attr.value().isa<fir::UpperBoundAttr>() &&
+               "unexpected predicate");
         pred = mlir::arith::CmpIPredicate::sle;
       }
       mlir::Value cond = genCond(*caseValue++, pred);
@@ -1798,12 +1816,7 @@ private:
     }
     assert(caseValue == valueList.end() && caseBlock == blockList.end() &&
            "select case list mismatch");
-    // Clean-up the selector at the end of the construct if it is a temporary
-    // (which is possible with characters).
-    mlir::OpBuilder::InsertPoint insertPt = builder->saveInsertionPoint();
-    builder->setInsertionPointToEnd(eval.parentConstruct->constructExit->block);
-    stmtCtx.finalize();
-    builder->restoreInsertionPoint(insertPt);
+    assert(stmtCtx.workListIsEmpty() && "statement context must be empty");
   }
 
   fir::ExtendedValue
@@ -1844,56 +1857,56 @@ private:
 
   void genFIR(const Fortran::parser::BlockConstruct &blockConstruct) {
     setCurrentPositionAt(blockConstruct);
-    TODO(toLocation(), "BlockConstruct lowering");
+    TODO(toLocation(), "BlockConstruct implementation");
   }
   void genFIR(const Fortran::parser::BlockStmt &) {
-    TODO(toLocation(), "BlockStmt lowering");
+    TODO(toLocation(), "BlockStmt implementation");
   }
   void genFIR(const Fortran::parser::EndBlockStmt &) {
-    TODO(toLocation(), "EndBlockStmt lowering");
+    TODO(toLocation(), "EndBlockStmt implementation");
   }
 
   void genFIR(const Fortran::parser::ChangeTeamConstruct &construct) {
-    TODO(toLocation(), "ChangeTeamConstruct lowering");
+    TODO(toLocation(), "ChangeTeamConstruct implementation");
   }
   void genFIR(const Fortran::parser::ChangeTeamStmt &stmt) {
-    TODO(toLocation(), "ChangeTeamStmt lowering");
+    TODO(toLocation(), "ChangeTeamStmt implementation");
   }
   void genFIR(const Fortran::parser::EndChangeTeamStmt &stmt) {
-    TODO(toLocation(), "EndChangeTeamStmt lowering");
+    TODO(toLocation(), "EndChangeTeamStmt implementation");
   }
 
   void genFIR(const Fortran::parser::CriticalConstruct &criticalConstruct) {
     setCurrentPositionAt(criticalConstruct);
-    TODO(toLocation(), "CriticalConstruct lowering");
+    TODO(toLocation(), "CriticalConstruct implementation");
   }
   void genFIR(const Fortran::parser::CriticalStmt &) {
-    TODO(toLocation(), "CriticalStmt lowering");
+    TODO(toLocation(), "CriticalStmt implementation");
   }
   void genFIR(const Fortran::parser::EndCriticalStmt &) {
-    TODO(toLocation(), "EndCriticalStmt lowering");
+    TODO(toLocation(), "EndCriticalStmt implementation");
   }
 
   void genFIR(const Fortran::parser::SelectRankConstruct &selectRankConstruct) {
     setCurrentPositionAt(selectRankConstruct);
-    TODO(toLocation(), "SelectRankConstruct lowering");
+    TODO(toLocation(), "SelectRankConstruct implementation");
   }
   void genFIR(const Fortran::parser::SelectRankStmt &) {
-    TODO(toLocation(), "SelectRankStmt lowering");
+    TODO(toLocation(), "SelectRankStmt implementation");
   }
   void genFIR(const Fortran::parser::SelectRankCaseStmt &) {
-    TODO(toLocation(), "SelectRankCaseStmt lowering");
+    TODO(toLocation(), "SelectRankCaseStmt implementation");
   }
 
   void genFIR(const Fortran::parser::SelectTypeConstruct &selectTypeConstruct) {
     setCurrentPositionAt(selectTypeConstruct);
-    TODO(toLocation(), "SelectTypeConstruct lowering");
+    TODO(toLocation(), "SelectTypeConstruct implementation");
   }
   void genFIR(const Fortran::parser::SelectTypeStmt &) {
-    TODO(toLocation(), "SelectTypeStmt lowering");
+    TODO(toLocation(), "SelectTypeStmt implementation");
   }
   void genFIR(const Fortran::parser::TypeGuardStmt &) {
-    TODO(toLocation(), "TypeGuardStmt lowering");
+    TODO(toLocation(), "TypeGuardStmt implementation");
   }
 
   //===--------------------------------------------------------------------===//
@@ -2185,7 +2198,7 @@ private:
                     lengthParams.push_back(charBox->getLen());
                   else if (fir::isDerivedWithLenParameters(rhs))
                     TODO(loc, "assignment to derived type allocatable with "
-                              "length parameters");
+                              "LEN parameters");
                   lhsRealloc = fir::factory::genReallocIfNeeded(
                       *builder, loc, *lhsMutableBox,
                       /*shape=*/llvm::None, lengthParams);

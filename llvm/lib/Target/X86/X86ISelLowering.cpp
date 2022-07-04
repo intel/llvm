@@ -1122,6 +1122,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::STORE,              MVT::v4i16, Custom);
     setOperationAction(ISD::STORE,              MVT::v8i8,  Custom);
 
+    // Add 32-bit vector stores to help vectorization opportunities.
+    setOperationAction(ISD::STORE,              MVT::v2i16, Custom);
+    setOperationAction(ISD::STORE,              MVT::v4i8,  Custom);
+
     setOperationAction(ISD::BITCAST,            MVT::v2i32, Custom);
     setOperationAction(ISD::BITCAST,            MVT::v4i16, Custom);
     setOperationAction(ISD::BITCAST,            MVT::v8i8,  Custom);
@@ -25519,6 +25523,9 @@ static SDValue LowerStore(SDValue Op, const X86Subtarget &Subtarget,
       return splitVectorStore(St, DAG);
     return SDValue();
   }
+
+  if (StoreVT.is32BitVector())
+    return SDValue();
 
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   assert(StoreVT.is64BitVector() && "Unexpected VT");
@@ -50974,19 +50981,8 @@ static SDValue combineAndnp(SDNode *N, SelectionDAG &DAG,
   if (SDValue Not = IsNOT(N0, DAG))
     return DAG.getNode(ISD::AND, SDLoc(N), VT, DAG.getBitcast(VT, Not), N1);
 
-  // Constant fold NOT(N0) to allow us to use AND.
+  // TODO: Constant fold NOT(N0) to allow us to use AND.
   // TODO: Do this in IsNOT with suitable oneuse checks?
-  if (getTargetConstantFromNode(N0) && N0->hasOneUse()) {
-    APInt UndefElts;
-    SmallVector<APInt, 32> EltBits;
-    if (getTargetConstantBitsFromNode(N0, VT.getScalarSizeInBits(), UndefElts,
-                                      EltBits)) {
-      for (APInt &Elt : EltBits)
-        Elt = ~Elt;
-      SDValue Not = getConstVector(EltBits, UndefElts, VT, DAG, SDLoc(N));
-      return DAG.getNode(ISD::AND, SDLoc(N), VT, Not, N1);
-    }
-  }
 
   // Attempt to recursively combine a bitmask ANDNP with shuffles.
   if (VT.isVector() && (VT.getScalarSizeInBits() % 8) == 0) {

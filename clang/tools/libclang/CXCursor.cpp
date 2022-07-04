@@ -786,8 +786,14 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
     K = CXCursor_OMPParallelMasterTaskLoopDirective;
     break;
+  case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
+    K = CXCursor_OMPParallelMaskedTaskLoopDirective;
+    break;
   case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
     K = CXCursor_OMPParallelMasterTaskLoopSimdDirective;
+    break;
+  case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
+    K = CXCursor_OMPParallelMaskedTaskLoopSimdDirective;
     break;
   case Stmt::OMPDistributeDirectiveClass:
     K = CXCursor_OMPDistributeDirective;

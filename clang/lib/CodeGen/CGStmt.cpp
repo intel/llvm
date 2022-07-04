@@ -328,9 +328,16 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     EmitOMPParallelMasterTaskLoopDirective(
         cast<OMPParallelMasterTaskLoopDirective>(*S));
     break;
+  case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
+    llvm_unreachable("parallel masked taskloop directive not supported yet.");
+    break;
   case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
     EmitOMPParallelMasterTaskLoopSimdDirective(
         cast<OMPParallelMasterTaskLoopSimdDirective>(*S));
+    break;
+  case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
+    llvm_unreachable(
+        "parallel masked taskloop simd directive not supported yet.");
     break;
   case Stmt::OMPDistributeDirectiveClass:
     EmitOMPDistributeDirective(cast<OMPDistributeDirective>(*S));

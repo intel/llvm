@@ -329,13 +329,14 @@ def SIfptrunc_round_downward : SDNode<"AMDGPUISD::FPTRUNC_ROUND_DOWNWARD",
 //===----------------------------------------------------------------------===//
 
 // Returns 1 if the source arguments have modifiers, 0 if they do not.
-// XXX - do f16 instructions?
 class isFloatType<ValueType SrcVT> {
   bit ret = !or(!eq(SrcVT.Value, f16.Value),
                 !eq(SrcVT.Value, f32.Value),
                 !eq(SrcVT.Value, f64.Value),
                 !eq(SrcVT.Value, v2f16.Value),
                 !eq(SrcVT.Value, v4f16.Value),
+                !eq(SrcVT.Value, v8f16.Value),
+                !eq(SrcVT.Value, v16f16.Value),
                 !eq(SrcVT.Value, v2f32.Value),
                 !eq(SrcVT.Value, v4f32.Value),
                 !eq(SrcVT.Value, v8f32.Value),
@@ -343,10 +344,14 @@ class isFloatType<ValueType SrcVT> {
                 !eq(SrcVT.Value, v4f64.Value));
 }
 
+// XXX - do v2i16 instructions?
 class isIntType<ValueType SrcVT> {
   bit ret = !or(!eq(SrcVT.Value, i16.Value),
                 !eq(SrcVT.Value, i32.Value),
                 !eq(SrcVT.Value, i64.Value),
+                !eq(SrcVT.Value, v4i16.Value),
+                !eq(SrcVT.Value, v8i16.Value),
+                !eq(SrcVT.Value, v16i16.Value),
                 !eq(SrcVT.Value, v2i32.Value),
                 !eq(SrcVT.Value, v4i32.Value),
                 !eq(SrcVT.Value, v8i32.Value));
@@ -1497,6 +1502,7 @@ def VOP3PMods  : ComplexPattern<untyped, 2, "SelectVOP3PMods">;
 
 def VOP3PModsDOT  : ComplexPattern<untyped, 2, "SelectVOP3PModsDOT">;
 def DotIUVOP3PMods  : ComplexPattern<untyped, 1, "SelectDotIUVOP3PMods">;
+def WMMAOpSelVOP3PMods  : ComplexPattern<untyped, 1, "SelectWMMAOpSelVOP3PMods">;
 
 def VOP3OpSel  : ComplexPattern<untyped, 2, "SelectVOP3OpSel">;
 
@@ -1732,10 +1738,16 @@ class isModifierType<ValueType SrcVT> {
                 !eq(SrcVT.Value, v2i16.Value),
                 !eq(SrcVT.Value, v2f32.Value),
                 !eq(SrcVT.Value, v2i32.Value),
+                !eq(SrcVT.Value, v4f16.Value),
+                !eq(SrcVT.Value, v4i16.Value),
                 !eq(SrcVT.Value, v4f32.Value),
                 !eq(SrcVT.Value, v4i32.Value),
+                !eq(SrcVT.Value, v8f16.Value),
+                !eq(SrcVT.Value, v8i16.Value),
                 !eq(SrcVT.Value, v8f32.Value),
-                !eq(SrcVT.Value, v8i32.Value));
+                !eq(SrcVT.Value, v8i32.Value),
+                !eq(SrcVT.Value, v16f16.Value),
+                !eq(SrcVT.Value, v16i16.Value));
 }
 
 // Return type of input modifiers operand for specified input operand
@@ -2475,6 +2487,7 @@ class VOPProfile <list<ValueType> _ArgVT, bit _EnableF32SrcMods = 0,
   field bit IsVOP3P = 0;
   field bit IsDOT = 0;
   field bit IsSingle = 0;
+  field bit IsWMMA = 0;
 
   field Operand Src0PackedMod = !if(HasSrc0FloatMods, PackedF16InputMods, PackedI16InputMods);
   field Operand Src1PackedMod = !if(HasSrc1FloatMods, PackedF16InputMods, PackedI16InputMods);

@@ -738,6 +738,13 @@ sizeof...($TemplateParameter[[Elements]]);
       )cpp",
       // Modifier for variables passed as non-const references
       R"cpp(
+        struct $Class_decl[[ClassWithOp]] {
+            void operator()(int);
+            void operator()(int, int &);
+            void operator()(int, int, const int &);
+            int &operator[](int &);
+            int operator[](int) const;
+        };
         void $Function_decl[[fun]](int, const int,
                                    int*, const int*,
                                    int&, const int&,
@@ -759,6 +766,16 @@ sizeof...($TemplateParameter[[Elements]]);
                            $LocalVariable[[array]], $LocalVariable_usedAsMutableReference[[array]], 
                            $LocalVariable[[array]]
                            );
+          [](int){}($LocalVariable[[val]]);
+          [](int&){}($LocalVariable_usedAsMutableReference[[val]]);
+          [](const int&){}($LocalVariable[[val]]);
+          $Class[[ClassWithOp]] $LocalVariable_decl[[c]];
+          const $Class[[ClassWithOp]] $LocalVariable_decl_readonly[[c2]];
+          $LocalVariable[[c]]($LocalVariable[[val]]);
+          $LocalVariable[[c]](0, $LocalVariable_usedAsMutableReference[[val]]);
+          $LocalVariable[[c]](0, 0, $LocalVariable[[val]]);
+          $LocalVariable[[c]][$LocalVariable_usedAsMutableReference[[val]]];
+          $LocalVariable_readonly[[c2]][$LocalVariable[[val]]];
         }
         struct $Class_decl[[S]] {
           $Class_decl[[S]](int&) {

@@ -54,6 +54,12 @@ TEST(DwarfStringPoolEntryRefTest, TestFullEntry) {
   EXPECT_TRUE(Ref1 != Ref3);
 }
 
+bool isEntryEqual(const DwarfStringPoolEntry &LHS,
+                  const DwarfStringPoolEntry &RHS) {
+  return LHS.Symbol == RHS.Symbol && LHS.Offset == RHS.Offset &&
+         LHS.Index == RHS.Index;
+}
+
 TEST(DwarfStringPoolEntryRefTest, TestShortEntry) {
   BumpPtrAllocator Allocator;
   DwarfStringPoolEntry DwarfEntry1 = {nullptr, 0, 0};
@@ -70,14 +76,12 @@ TEST(DwarfStringPoolEntryRefTest, TestShortEntry) {
   EXPECT_TRUE(Ref1.getString() == "Key1");
   EXPECT_TRUE(Ref1.getOffset() == 0);
   EXPECT_TRUE(Ref1.getIndex() == 0);
-  EXPECT_TRUE(memcmp(&Ref1.getEntry(), &DwarfEntry1,
-                     sizeof(DwarfStringPoolEntry)) == 0);
+  EXPECT_TRUE(isEntryEqual(Ref1.getEntry(), DwarfEntry1));
 
   DwarfStringPoolEntryRef Ref2(*StringEntry1);
   EXPECT_TRUE(Ref2.getString() == "Key1");
   EXPECT_TRUE(Ref2.getOffset() == 0);
-  EXPECT_TRUE(memcmp(&Ref2.getEntry(), &DwarfEntry1,
-                     sizeof(DwarfStringPoolEntry)) == 0);
+  EXPECT_TRUE(isEntryEqual(Ref2.getEntry(), DwarfEntry1));
   EXPECT_TRUE(Ref1 == Ref2);
   EXPECT_FALSE(Ref1 != Ref2);
 
@@ -94,8 +98,7 @@ TEST(DwarfStringPoolEntryRefTest, TestShortEntry) {
   EXPECT_TRUE(Ref3.getString() == "Key2");
   EXPECT_TRUE(Ref3.getOffset() == 0x1000);
   EXPECT_TRUE(Ref3.getIndex() == 1);
-  EXPECT_TRUE(memcmp(&Ref3.getEntry(), &DwarfEntry2,
-                     sizeof(DwarfStringPoolEntry)) == 0);
+  EXPECT_TRUE(isEntryEqual(Ref3.getEntry(), DwarfEntry2));
   EXPECT_TRUE(Ref1 != Ref3);
 }
 

@@ -3900,7 +3900,8 @@ static Value *simplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
 
   if (Constant *CLHS = dyn_cast<Constant>(LHS)) {
     if (Constant *CRHS = dyn_cast<Constant>(RHS))
-      return ConstantFoldCompareInstOperands(Pred, CLHS, CRHS, Q.DL, Q.TLI);
+      return ConstantFoldCompareInstOperands(Pred, CLHS, CRHS, Q.DL, Q.TLI,
+                                             Q.CxtI);
 
     // If we have a constant, make sure it is on the RHS.
     std::swap(LHS, RHS);
@@ -4208,14 +4209,6 @@ static Value *simplifyWithOpReplaced(Value *V, Value *Op, Value *RepOp,
   // refinement.
   if (!AllowRefinement && canCreatePoison(cast<Operator>(I)))
     return nullptr;
-
-  if (CmpInst *C = dyn_cast<CmpInst>(I))
-    return ConstantFoldCompareInstOperands(C->getPredicate(), ConstOps[0],
-                                           ConstOps[1], Q.DL, Q.TLI);
-
-  if (LoadInst *LI = dyn_cast<LoadInst>(I))
-    if (!LI->isVolatile())
-      return ConstantFoldLoadFromConstPtr(ConstOps[0], LI->getType(), Q.DL);
 
   return ConstantFoldInstOperands(I, ConstOps, Q.DL, Q.TLI);
 }
