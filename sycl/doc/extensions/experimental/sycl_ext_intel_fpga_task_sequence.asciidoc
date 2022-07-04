@@ -52,6 +52,8 @@ Revision: C
 
 This extension is written against the SYCL 2020 specification, revision 3.
 
+It depends on the link:./sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties] extension.
+
 == Overview
 
 Although SYCL supports task-level parallelism through device kernels, there is no specific mechanism to express parallelism at a sub-kernel level or to invoke additional kernels without involving the host program. In OpenCL 2.0 and beyond, kernel invocations can be initiated without host program interaction through device side enqueue. C++11 also introduced `std::async()` for task-level parallelism. However, neither of these approaches is a good fit for spatial compute platforms, which require a clear mapping of parallel constructs to spatial instances in the hardware.
@@ -210,7 +212,7 @@ inline constexpr response_capacity::value_t<Size> response_capacity_v;
 
 | invocation_capacity | The `invocation_capacity` property defines the minimum required number `Size` of `async` invocations that must be invokable without any `get` being called on that same set.  This number of `async` invocations without a `get` call is the minimum number that will be supported before the `async` member function blocks.
 
-| response_capacity | The `response_capacity` property tells the compiler the required simultaneous capacity `Size` of get calls. The compiler must guarantee storage capacity for results of up to `Size` `async` calls.
+| response_capacity | The `response_capacity` property defines the maximum number `Size` of outstanding `async` invocations such that all outstanding invocations are guaranteed to make forward progress. Further `async` invocations beyond `Size` may block until enough `get` calls are invoked such that the number of outstanding `async` invocations is reduced to `Size`.
 |===
 --
 
@@ -228,8 +230,6 @@ Applying this framework to `task_sequence`, `async` tasks belonging to the same 
 Tasks belonging to different `task_sequence` objects provide a http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee] with respect to each other. That is, tasks belonging to different `task_sequence` objects are guaranteed to make forward progress with respect to each other once they have been initiated.
 
 Tasks belonging to a `task_sequence` object provide a http://eel.is/c++draft/intro.progress#9[parallel forward progress guarantee] with respect to their caller. That is, a `task_sequence`'s tasks are guaranteed to make forward progress with respect to their caller (that invoked `async`).
-
-When invoked through any call(s) to `async`, callable `f` behaves as if it is a SYCL kernel invoked via `single_task` in execution and memory model terminology.  One consequence of this is that a global memory synchronization point exists on invocation completion equivalently to kernel completion.
 
 == `task_sequence` Example Implementation 
 
