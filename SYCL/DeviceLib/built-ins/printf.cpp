@@ -7,12 +7,13 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
-#include <CL/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdint>
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // According to OpenCL C spec, the format string must be in constant address
 // space

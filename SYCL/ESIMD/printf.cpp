@@ -20,13 +20,14 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdint>
 #include <iostream>
 
-using namespace cl::sycl::ext;
+using namespace sycl::ext;
 
 // According to OpenCL C spec, the format string must be in constant address
 // space
