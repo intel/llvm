@@ -359,7 +359,7 @@ awidth<width>
 ----
 a|
 Specifies the width of the memory-mapped address bus in bits. The default is
-set to 64.
+determined by the implementation.
 
 This property is only meaningful for pointer kernel arguments and only
 when the `buffer_location` property is specified.
@@ -468,7 +468,7 @@ using sycl::ext::oneapi::experimental;
   // Add properties
   auto arg_a = annotated_ptr(ptr_a, properties{
     register_map, buffer_location<1>, awidth<18>, dwidth<64>});
-  auto arg_n = annotated_ptr(kN, properties{register_map, stable});
+  auto arg_n = annotated_arg(kN, properties{register_map, stable});
 
   q.single_task([=] {
     for (int i=0; i<arg_n; i++)

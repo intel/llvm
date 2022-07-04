@@ -140,12 +140,10 @@ To code that looks like:
 }
 ```
 
-This mechanism does not meet requirement (1) listed above because:
+This mechanism does not meet requirement (1) listed above because users have to
+replace all their pointer read/write code with special function calls.
 
-  * Users have to replace all their pointer read/write code with special
-  function calls.
-
-Another mechanism could be that the compiler provide attributes which can be
+Another mechanism could be that the compiler provides attributes which can be
 applied to the pointer declaration to convey some compile-time constant
 information. In this case users would change their code to:
 ```cpp
@@ -343,7 +341,7 @@ annotated_ptr(annotated_ptr const &) noexcept = default;
 ----
 |
 Constructs an `annotated_ptr` object from another `annotated_ptr` with the same
-template parameterization object.
+type and properties.
 
 // --- ROW BREAK ---
 a|
@@ -476,7 +474,7 @@ template<typename propertyT>
 static constexpr bool has_property();
 ----
 | 
-Returns true if the property list contains the property with property key class
+Returns true if `PropertyListT` contains the property with property key class
 `propertyT`. Returns false if it does not.
 
 Available only when `propertyT` is a property key class.
@@ -489,9 +487,9 @@ template<typename propertyT>
 static constexpr auto get_property();
 ----
 | 
-Returns a copy of the property value contained in the property list
-`PropertyListT`. Must produce a compile error if `PropertyListT` does not
-contain a property with the `propertyT` key.
+Returns a copy of the property value contained in `PropertyListT`. Must produce
+a compile error if `PropertyListT` does not contain a property with the
+`propertyT` key.
 
 Available only if `propertyT` is the property key class of a compile-time
 constant property.
@@ -560,8 +558,9 @@ applying the annotations when the object is stored to memory.
 === Properties
 
 Below is a list of compile-time constant properties supported with
-`annotated_ptr`. Other extensions can define additional compile-time constant or
-runtime properties that can be supported with `annotated_ptr`.
+`annotated_ptr`. Other extensions can define additional compile-time constant
+properties that can be supported with `annotated_ptr`. Runtime properties
+are not supported.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -570,32 +569,22 @@ struct alignment_key {
   using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
 };
 
-struct restrict_key {
-  using value_t = property_value<restrict_key>;
-};
-
 struct runtime_aligned_key {
   using value_t = property_value<runtime_aligned_key>;
 };
 
 template<int K>
 inline constexpr alignment_key::value_t<K> alignment;
-inline constexpr restrict_key::value_t restrict;
 inline constexpr runtime_aligned_key::value_t runtime_aligned;
 
 template<>
 struct is_property_key<alignment_key> : std::true_type {};
-template<>
-struct is_property_key<restrict_key> : std::true_type {};
 template<>
 struct is_property_key<runtime_aligned_key> : std::true_type {};
 
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
   alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
-template<typename T, typename PropertyListT>
-struct is_property_key_of<
-  restrict_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
   runtime_aligned_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
@@ -608,11 +597,6 @@ struct is_property_key_of<
 |`alignment`
 |
 Indicates the alignment of the pointer in bytes.
-
-|`restrict`
-|
-Informs the compiler that writes to the address pointed to by this pointer
-are only done by this pointer or pointers derived from it.
 
 |`runtime_aligned`
 |

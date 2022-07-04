@@ -202,8 +202,8 @@ class annotated_arg {
     // Available if the operator() is valid for objects of type T, return
     // type will match the return type of
     //   template<typename... Args> T::operator()(Args... args)
-    template<typename... Args> /* unspecified */ operator()(Args... args) noexcept;
-    template<typename... Args> /* unspecified */ operator()(Args... args) const noexcept;
+    template<typename... Args> /* ... */ operator()(Args... args) noexcept;
+    template<typename... Args> /* ... */ operator()(Args... args) const noexcept;
 
     template<typename propertyT>
     static constexpr bool has_property();
@@ -251,7 +251,7 @@ operator const T&() const noexcept;
 a|
 [source,c++]
 ----
-/* unspecified */ operator[](std::ptrdiff_t idx) const noexcept;
+/* ... */ operator[](std::ptrdiff_t idx) const noexcept;
 ----
 |
 Available if the `operator[]` is valid for objects of type `T`. This function
@@ -261,8 +261,8 @@ will call the subscript operator defined for `T`.
 a|
 [source,c++]
 ----
-template<typename... Args> /* unspecified */ operator()(Args... args) noexcept;
-template<typename... Args> /* unspecified */ operator()(Args... args) const noexcept;
+template<typename... Args> /* ... */ operator()(Args... args) noexcept;
+template<typename... Args> /* ... */ operator()(Args... args) const noexcept;
 ----
 |
 Available if the `operator()` is valid for objects of type `T`. This function
@@ -276,7 +276,7 @@ template<typename propertyT>
 static constexpr bool has_property();
 ----
 |
-Returns true if the property list contains the property with property key class
+Returns true if `PropertyListT` contains the property with property key class
 `propertyT`. Returns false if it does not.
 
 Available only when `propertyT` is a property key class.
@@ -289,9 +289,9 @@ template<typename propertyT>
 static constexpr /* unspecified */ get_property();
 ----
 |
-Returns a copy of the property value contained in the property list
-`PropertyListT`. Must produce a compile error if `PropertyListT` does not
-contain a property with the `propertyT` key.
+Returns a copy of the property value contained in `PropertyListT`. Must produce
+a compile error if `PropertyListT` does not contain a property with the
+`propertyT` key.
 
 Available only if `propertyT` is the property key class of a compile-time
 constant property.
