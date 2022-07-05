@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s -verify-ignore-unexpected=note
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s
 
 #include "sycl.hpp"
 class kernelA;
@@ -9,9 +9,9 @@ int main() {
   queue q;
   float *dst;
   q.submit([&](handler &h) {
+    // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<kernelA, (lambda}}
     h.single_task<class kernelA>([=]() {
       dst[0] = 1.1; // expected-warning {{double precision arithmetic used in device code; may cause reduced performance on GPU}}
-      dst[1] = 0.0; // expected-warning {{double precision arithmetic used in device code; may cause reduced performance on GPU}}
       // Forgot F suffix. Default arugument promotion to double type.
       float x = 1 * 2.0;                // expected-warning {{double precision arithmetic used in device code; may cause reduced performance on GPU}}
       double x1 = __builtin_fabs(-2.0); // expected-warning {{double precision arithmetic used in device code; may cause reduced performance on GPU}}
