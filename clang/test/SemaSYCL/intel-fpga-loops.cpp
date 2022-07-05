@@ -139,7 +139,7 @@ void goo() {
   // no diagnostics are expected
   [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
+  // expected-warning@+1 {{'ivdep' attribute with value 0 has no effect; attribute ignored}}
   [[intel::ivdep(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'initiation_interval' attribute requires a positive integral compile time constant expression}}
@@ -418,10 +418,11 @@ void ivdep_dependent() {
   [[intel::ivdep(5)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  // expected-warning@+1 {{'ivdep' attribute with value 1 has no effect; attribute ignored}}
   [[intel::ivdep(C)]]
-  // expected-error@-1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
+  // expected-error@-1 {{'ivdep' attribute requires a non-negative integral compile time constant expression}}
   for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // expected-warning@+3 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}

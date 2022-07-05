@@ -545,24 +545,8 @@ implementation conformance to Khronos\* SYCL\* specification. DPC++ compiler is
 expected to pass significant number of tests, and it keeps improving.
 
 Follow Khronos\* SYCL\* CTS instructions from
-[README](https://github.com/KhronosGroup/SYCL-CTS#sycl-121-conformance-test-suite)
+[README](https://github.com/KhronosGroup/SYCL-CTS#configuration--compilation)
 file to obtain test sources and instructions how build and execute the tests.
-
-To configure testing of DPC++ toochain set
-`SYCL_IMPLEMENTATION=Intel_SYCL` and
-`Intel_SYCL_ROOT=<path to the SYCL installation>` CMake variables.
-
-**Linux**:
-
-```bash
-cmake -DIntel_SYCL_ROOT=$DPCPP_HOME/deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
-```
-
-**Windows (64-bit)**:
-
-```bat
-cmake -DIntel_SYCL_ROOT=%DPCPP_HOME%\deploy -DSYCL_IMPLEMENTATION=Intel_SYCL ...
-```
 
 ### Run simple DPC++ application
 

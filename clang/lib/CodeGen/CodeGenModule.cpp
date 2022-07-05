@@ -1961,8 +1961,6 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
                     llvm::MDNode::get(VMContext, argBaseTypeNames));
     Fn->setMetadata("kernel_arg_type_qual",
                     llvm::MDNode::get(VMContext, argTypeQuals));
-    // FIXME: What is the purpose of this metadata for ESIMD? Can we
-    // reuse kernel_arg_exclusive_ptr or kernel_arg_runtime_aligned ?
     if (IsEsimdFunction)
       Fn->setMetadata("kernel_arg_accessor_ptr",
                       llvm::MDNode::get(VMContext, argSYCLAccessorPtrs));
