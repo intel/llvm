@@ -2160,10 +2160,6 @@ void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                         const nd_range<Dims> &Range, Reduction &Redu) {
-  // static_assert(
-  //     Reduction::has_atomic_add_float64,
-  //     "Expected to be called for reductions with atomic add FP64 support!");
-
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
       CGH, KernelFunc, Range, Redu, Out);
@@ -2452,7 +2448,7 @@ void reduSaveFinalResultToUserMemHelper(
     bool IsHost, Reduction &Redu, RestT... Rest) {
   // Reductions initialized with USM pointer currently do not require copying
   // because the last kernel writes directly to the USM memory.
-  if constexpr (!Reduction::is_usm)
+  if constexpr (!Reduction::is_usm) {
     if (Redu.hasUserDiscardWriteAccessor()) {
       event CopyEvent =
           handler::withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
@@ -2465,6 +2461,7 @@ void reduSaveFinalResultToUserMemHelper(
           });
       Events.push_back(CopyEvent);
     }
+  }
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
 

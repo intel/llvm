@@ -462,7 +462,7 @@ private:
     MStreamStorage.push_back(Stream);
   }
 
-  /// Helper utility for operation widely used throught different reduction
+  /// Helper utility for operation widely used through different reduction
   /// implementations.
   /// @{
   template <class FunctorTy>
@@ -1654,7 +1654,7 @@ public:
     if constexpr (!Reduction::has_fast_atomics &&
                   !Reduction::has_atomic_add_float64) {
       // The most basic implementation.
-      parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+      parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
       return;
     } else { // Can't "early" return for "if constexpr".
       std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
@@ -1672,7 +1672,7 @@ public:
                                                               Range, Redu);
         } else {
           // Resort to basic implementation as well.
-          parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+          parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
           return;
         }
       } else {
@@ -1702,7 +1702,7 @@ public:
 
   template <typename KernelName, typename KernelType, int Dims,
             typename Reduction>
-  void parallel_for_Impl(nd_range<Dims> Range, Reduction Redu,
+  void parallel_for_impl(nd_range<Dims> Range, Reduction Redu,
                          KernelType KernelFunc) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
