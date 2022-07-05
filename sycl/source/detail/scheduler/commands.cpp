@@ -836,8 +836,8 @@ AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      AllocaCommandBase *LinkedAllocaCmd,
                                      bool IsConst)
     : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
-      MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MRequirement(std::move(Req)),
-      MReleaseCmd(Queue, this), MIsConst(IsConst) {
+      MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MIsConst(IsConst),
+      MRequirement(std::move(Req)), MReleaseCmd(Queue, this) {
   MRequirement.MAccessMode = access::mode::read_write;
   emitInstrumentationDataProxy();
 }
