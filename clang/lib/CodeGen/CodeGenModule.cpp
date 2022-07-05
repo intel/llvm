@@ -2708,6 +2708,14 @@ void CodeGenModule::EmitDeferred() {
   CurDeclsToEmit.swap(DeferredDeclsToEmit);
 
   for (GlobalDecl &D : CurDeclsToEmit) {
+    if (LangOpts.CUDA && LangOpts.SYCLIsHost) {
+      GlobalDecl OtherD;
+      if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
+          (D.getCanonicalDecl().getDecl() !=
+           OtherD.getCanonicalDecl().getDecl())) {
+        continue;
+      }
+    }
     const ValueDecl *VD = cast<ValueDecl>(D.getDecl());
     // If emitting for SYCL device, emit the deferred alias
     // as well as what it aliases.
@@ -3330,9 +3338,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
       // So device-only functions are the only things we skip.
       if (isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
-          Global->hasAttr<CUDADeviceAttr>())
+          Global->hasAttr<CUDADeviceAttr>()) {
+        if (LangOpts.SYCLIsHost && MustBeEmitted(Global) &&
+            MayBeEmittedEagerly(Global))
+          addDeferredDeclToEmit(GD);
         return;
-
+      }
       assert((isa<FunctionDecl>(Global) || isa<VarDecl>(Global)) &&
              "Expected Variable or Function");
     }
