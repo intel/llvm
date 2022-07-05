@@ -504,10 +504,11 @@ map to SPIR-V variable with private storage class. Private globals can be bound
 to a specific byte offset within the GRF. To mark a file scope variable as
 private global, the `ESIMD_PRIVATE` attribute is used,
 `ESIMD_REGISTER(n)` is used to bind it the register file, where `n` is a byte
-offset within the register file.
+offset within the register file. The offset `n` must be multiple to the register
+size on the target device.
 
 ```cpp
-ESIMD_PRIVATE ESIMD_REGISTER(32) simd<int, 16> vc;
+ESIMD_PRIVATE ESIMD_REGISTER(64) simd<int, 16> vc;
 ```
 <br>
 
