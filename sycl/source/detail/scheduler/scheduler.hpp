@@ -618,7 +618,8 @@ protected:
     /// Searches for suitable alloca in memory record.
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
-                                        const ContextImplPtr &Context);
+                                        const ContextImplPtr &Context,
+                                        bool allowConst = true);
 
     friend class Command;
 
