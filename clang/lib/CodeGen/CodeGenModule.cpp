@@ -2710,7 +2710,7 @@ void CodeGenModule::EmitDeferred() {
   for (GlobalDecl &D : CurDeclsToEmit) {
     // Emit a dummy __host__ function if a legit one is not already present in
     // case of SYCL compilation of CUDA sources.
-    if (LangOpts.CUDA && LangOpts.SYCLIsHost) {
+    if (LangOpts.CUDA && !LangOpts.CUDAIsDevice && LangOpts.SYCLIsHost) {
       GlobalDecl OtherD;
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
