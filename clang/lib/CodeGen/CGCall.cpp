@@ -16,6 +16,7 @@
 #include "CGBlocks.h"
 #include "CGCXXABI.h"
 #include "CGCleanup.h"
+#include "CGOpenCLRuntime.h"
 #include "CGRecordLayout.h"
 #include "CodeGenFunction.h"
 #include "CodeGenModule.h"
@@ -2458,10 +2459,14 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
         Attrs.addAttribute(llvm::Attribute::get(
             getLLVMContext(), llvm::Attribute::ElementType,
             getTypes().ConvertTypeForMem(PtrType->getPointeeType())));
-      else if (ParamType->isOpenCLSpecificType())
-        Attrs.addAttribute(
-            llvm::Attribute::get(getLLVMContext(), llvm::Attribute::ElementType,
-                                 getTypes().ConvertTypeForMem(ParamType)));
+      else if (ParamType->isOpenCLSpecificType()) {
+        llvm::Type *IRType =
+            getOpenCLRuntime()
+                .getOpenCLSpecificPointeeType(ParamType.getTypePtr())
+                .first;
+        Attrs.addAttribute(llvm::Attribute::get(
+            getLLVMContext(), llvm::Attribute::ElementType, IRType));
+      }
     }
 
     // 'restrict' -> 'noalias' is done in EmitFunctionProlog when we

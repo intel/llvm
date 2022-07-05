@@ -53,7 +53,7 @@ protected:
 
   virtual llvm::Type *getPipeType(const PipeType *T, StringRef Name,
                                   llvm::Type *&PipeTy);
-  llvm::PointerType *getPointerType(const Type *T, StringRef Name);
+  llvm::PointerType *getPointerType(const Type *T);
 
 public:
   CGOpenCLRuntime(CodeGenModule &CGM) : CGM(CGM),
@@ -66,6 +66,8 @@ public:
   virtual void EmitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
                                          const VarDecl &D);
 
+  virtual std::pair<llvm::Type *, llvm::StringRef>
+  getOpenCLSpecificPointeeType(const Type *T);
   virtual llvm::Type *convertOpenCLSpecificType(const Type *T);
 
   virtual llvm::Type *getPipeType(const PipeType *T);
