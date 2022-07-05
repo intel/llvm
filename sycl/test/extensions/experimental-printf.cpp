@@ -16,7 +16,6 @@
 // CHECK: Constant [[#TYPE]] [[#CONST:]]
 // CHECK: ExtInst [[#]] [[#]] [[#]] printf [[#]] [[#CONST]]
 
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/sycl.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
