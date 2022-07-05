@@ -8,6 +8,4 @@
 
 #pragma once
 
-#warning "<sycl/sycl.hpp> is deprecated, use <sycl/sycl.hpp>!"
-
 #include <sycl/sycl.hpp>
