@@ -1,10 +1,10 @@
 // The following runs use -Wno-sycl-strict to bypass SYCL_EXTERNAL applied to
 // funtion with raw pointer parameter
-// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -fsyntax-only %s -verify-ignore-unexpected=warning,note
-// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -fsyntax-only -DPRINTF_INVALID_DEF %s -verify-ignore-unexpected=warning,note
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_INVALID_DECL %s -verify-ignore-unexpected=warning,note
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_VALID1 %s -verify-ignore-unexpected=warning,note
-// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -DPRINTF_VALID2 %s -verify-ignore-unexpected=warning,note
+// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -Wno-double-in-device -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -Wno-sycl-strict -Wno-double-in-device -fsyntax-only -DPRINTF_INVALID_DEF %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -Wno-double-in-device -DPRINTF_INVALID_DECL %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -Wno-double-in-device -DPRINTF_VALID1 %s
+// RUN: %clang_cc1 -fsycl-is-device -verify -fsyntax-only -Wno-sycl-strict -Wno-double-in-device -DPRINTF_VALID2 %s
 
 #if defined(PRINTF_INVALID_DECL)
 extern "C" SYCL_EXTERNAL int __spirv_ocl_printf(const char *__format, ...);

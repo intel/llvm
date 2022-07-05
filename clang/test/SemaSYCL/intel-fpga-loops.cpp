@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -fsyntax-only -verify -pedantic %s -verify-ignore-unexpected=warning,note
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-double-in-device -sycl-std=2020 -fsyntax-only -verify -pedantic %s
 
 #include "sycl.hpp"
 

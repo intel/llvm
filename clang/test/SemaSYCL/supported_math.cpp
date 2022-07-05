@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-strict -verify %s -verify-ignore-unexpected=warning,note
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-strict -Wno-double-in-device -verify %s
 // expected-no-diagnostics
 extern "C" float sinf(float);
 extern "C" float cosf(float);

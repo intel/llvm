@@ -127,7 +127,7 @@ def warn_double_const_requires_fp64 : Warning<
   "casting to single precision">;
 def warn_on_double_precision_use : Warning<
   "double precision arithmetic used in device code; may cause reduced performance on GPU">,
-  InGroup<DoubleInDevice>;
+  InGroup<DiagGroup<"double-in-device">>;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 

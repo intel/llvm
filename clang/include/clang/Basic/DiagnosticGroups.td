@@ -1387,6 +1387,3 @@ def BranchProtection : DiagGroup<"branch-protection">;
 // HLSL diagnostic groups
 // Warnings for HLSL Clang extensions
 def HLSLExtension : DiagGroup<"hlsl-extensions">;
-
-// Warnings about double precision arithmetic in device code
-def DoubleInDevice : DiagGroup<"double-in-device">;

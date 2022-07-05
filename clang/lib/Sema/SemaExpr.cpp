@@ -4025,8 +4025,8 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
             << (getLangOpts().getOpenCLCompatibleVersion() >= 300);
         Res = ImpCastExprToType(Res, Context.FloatTy, CK_FloatingCast).get();
       } else if (getLangOpts().SYCLIsDevice) {
-        /* Emit a warning if double precision arithmetic is used in device
-         * kernel code */
+        // Emit a warning if double precision arithmetic is used in device
+        // kernel code.
         SYCLDiagIfDeviceCode(Tok.getLocation(),
                              diag::warn_on_double_precision_use);
       }
