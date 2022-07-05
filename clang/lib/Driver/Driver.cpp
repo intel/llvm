@@ -5581,9 +5581,8 @@ public:
 
   void pushForeignAction(Action *A) {
     for (auto *SB : SpecializedBuilders) {
-      if (SB->isValid()) {
+      if (SB->isValid())
         SB->pushForeignAction(A);
-      }
     }
   }
 
