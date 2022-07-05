@@ -480,6 +480,13 @@ private:
   /// \return True iff the device or its parent is a member of the context.
   static bool contextContainsDevice(const ContextImplPtr &Context,
                                     DeviceImplPtr Device) {
+    // OpenCL does not support creating a queue with a subdevice of a device
+    // from the given context yet.
+    // TODO remove once this limitation is lifted
+    if (!Context->is_host() &&
+        Context->getPlugin().getBackend() == backend::opencl)
+      return Context->hasDevice(Device);
+
     while (!Context->hasDevice(Device)) {
       if (Device->isRootDevice())
         return false;
