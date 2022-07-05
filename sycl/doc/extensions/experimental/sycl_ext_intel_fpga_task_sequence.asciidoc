@@ -88,7 +88,7 @@ public:
 
   task_sequence();
 
-  task_sequence(const propertyListT &);
+  task_sequence(const propertiesT &);
 
   void async(ArgsT... args);
 
@@ -258,17 +258,17 @@ public:
     task_sequence() {
       id = __create_task_sequence(this, &f);
     }
-    task_sequence(const propertyListT &) {
+    task_sequence(const propertiesT &) {
       task_sequence();
     }
     void async(ArgsT... args) {
       ++outstanding;
-      constexpr auto capacity = properties::get_property<invocation_capacity>().invocation_capacity_v;
+      constexpr auto capacity = propertiesT::get_property<invocation_capacity>().invocation_capacity_v;
       __async(this, &f, id, capacity, args...);
     }
     ReturnT get() {
       --outstanding;
-      constexpr auto capacity = properties::get_property<response_capacity>().response_capacity_v;
+      constexpr auto capacity = propertiesT::get_property<response_capacity>().response_capacity_v;
       return __get(this, id, &f, capacity);
     }
     template <typename propertyT>
