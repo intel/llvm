@@ -5832,6 +5832,13 @@ defm opaque_pointers : BoolOption<"",
   PosFlag<SetTrue, [], "Enable">,
   NegFlag<SetFalse, [], "Disable">,
   BothFlags<[], " opaque pointers">>;
+defm element_type_attrs : BoolOption<"",
+  "element-type-attrs",
+  CodeGenOpts<"EnableElementTypeAttrs">,
+  DefaultFalse,
+  PosFlag<SetTrue, [], "Enable">,
+  NegFlag<SetFalse, [], "Disable">,
+  BothFlags<[], " emitting `elementtype` attributes on function parameters">>;
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;

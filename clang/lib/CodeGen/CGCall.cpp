@@ -1938,6 +1938,9 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
     FuncAttrs.addAttribute(llvm::Attribute::Convergent);
   }
 
+  // TODO: NoUnwind attribute should be added for other GPU modes OpenCL, HIP,
+  // SYCL, OpenMP offload. AFAIK, none of them support exceptions in device
+  // code.
   if (getLangOpts().CUDA && getLangOpts().CUDAIsDevice) {
     // Exceptions aren't supported in CUDA device code.
     FuncAttrs.addAttribute(llvm::Attribute::NoUnwind);
@@ -2448,6 +2451,17 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
     if (CodeGenOpts.EnableNoundefAttrs &&
         DetermineNoUndef(ParamType, getTypes(), DL, AI)) {
       Attrs.addAttribute(llvm::Attribute::NoUndef);
+    }
+
+    if (CodeGenOpts.EnableElementTypeAttrs) {
+      if (auto PtrType = ParamType->getAs<PointerType>())
+        Attrs.addAttribute(llvm::Attribute::get(
+            getLLVMContext(), llvm::Attribute::ElementType,
+            getTypes().ConvertTypeForMem(PtrType->getPointeeType())));
+      else if (ParamType->isOpenCLSpecificType())
+        Attrs.addAttribute(
+            llvm::Attribute::get(getLLVMContext(), llvm::Attribute::ElementType,
+                                 getTypes().ConvertTypeForMem(ParamType)));
     }
 
     // 'restrict' -> 'noalias' is done in EmitFunctionProlog when we

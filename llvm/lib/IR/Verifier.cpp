@@ -1949,11 +1949,11 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
     if (!IsIntrinsic) {
       Check(!ArgAttrs.hasAttribute(Attribute::ImmArg),
             "immarg attribute only applies to intrinsics", V);
-      if (!IsInlineAsm)
-        Check(!ArgAttrs.hasAttribute(Attribute::ElementType),
-              "Attribute 'elementtype' can only be applied to intrinsics"
-              " and inline asm.",
-              V);
+      // if (!IsInlineAsm)
+      //   Check(!ArgAttrs.hasAttribute(Attribute::ElementType),
+      //         "Attribute 'elementtype' can only be applied to intrinsics"
+      //         " and inline asm.",
+      //         V);
     }
 
     verifyParameterAttrs(ArgAttrs, Ty, V);
@@ -2455,8 +2455,8 @@ void Verifier::visitFunction(const Function &F) {
   Check(!Attrs.hasFnAttr(Attribute::Builtin),
         "Attribute 'builtin' can only be applied to a callsite.", &F);
 
-  Check(!Attrs.hasAttrSomewhere(Attribute::ElementType),
-        "Attribute 'elementtype' can only be applied to a callsite.", &F);
+  // Check(!Attrs.hasAttrSomewhere(Attribute::ElementType),
+  //       "Attribute 'elementtype' can only be applied to a callsite.", &F);
 
   // Check that this function meets the restrictions on this calling convention.
   // Sometimes varargs is used for perfectly forwarding thunks, so some of these
