@@ -73,14 +73,12 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-template<auto& f>
+template<auto& f, class propertiesT = decltype(oneapi::experimental::properties{})>
 struct task_sequence{};
 
 template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
-          typename propertyListT = property_list<>>
-class task_sequence<f, property_list> {
-
-  typedef ReturnT (*f_t)(ArgsT...);
+          class propertiesT>
+class task_sequence<f, propertiesT> {
 
 public:
   task_sequence(const task_sequence &) = delete;
@@ -95,6 +93,12 @@ public:
   void async(ArgsT... args);
 
   ReturnT get();
+  
+  template <typename propertyT>
+  static constexpr bool has_property();
+  
+  template <typename propertyT>
+  static constexpr auto get_property();
 
   ~task_sequence();
 };
@@ -237,16 +241,14 @@ In this section, we document a possible implementation of `task_sequence` that d
 
 [source,c++,linenums]
 ----
-template<auto &f>
-struct task_sequence {};
+template<auto &f, class propertiesT = decltype(oneapi::experimental::properties{})>
+class task_sequence {};
 
-template<typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...), typename propertyListT = property_list<>>
-class task_sequence<f, property_list> {
+template<typename ReturnT, typename ... ArgsT, ReturnT(&f) (ArgsT...), class propertiesT>
+class task_sequence<f, propertiesT> {
 
     unsigned outstanding = 0;
     size_t id;
-
-    typedef ReturnT (*f_t)(ArgsT...);
 
 public:
     task_sequence(const task_sequence&) =delete;
@@ -259,17 +261,23 @@ public:
     task_sequence(const propertyListT &) {
       task_sequence();
     }
-    template <typename property>
-    void async(ArgsT... args, property P) {
+    void async(ArgsT... args) {
       ++outstanding;
-      constexpr auto capacity = property::get_property<invocation_capacity>().invocation_capacity_v;
+      constexpr auto capacity = properties::get_property<invocation_capacity>().invocation_capacity_v;
       __async(this, &f, id, capacity, args...);
     }
-    template <typename property>
-    ReturnT get(property P) {
+    ReturnT get() {
       --outstanding;
-      constexpr auto capacity = property::get_property<response_capacity>().response_capacity_v;
+      constexpr auto capacity = properties::get_property<response_capacity>().response_capacity_v;
       return __get(this, id, &f, capacity);
+    }
+    template <typename propertyT>
+    static constexpr bool has_property() {
+      return propertiesT::has_property<propertyT>();
+    }
+    template <typename propertyT>
+    static constexpr auto get_property() {
+      return propertiesT::get_property<propertyT>();
     }
 
     ~task_sequence() {
