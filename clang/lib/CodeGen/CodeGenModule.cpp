@@ -3341,7 +3341,7 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       // So device-only functions are the only things we skip, except for SYCL.
       if (isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
           Global->hasAttr<CUDADeviceAttr>()) {
-        // In SYCL, every (CUDA) __device__ function needs to have an __host__
+        // In SYCL, every (CUDA) __device__ function needs to have a __host__
         // counterpart that will be emitted in case of it is not already
         // present.
         if (LangOpts.SYCLIsHost && MustBeEmitted(Global) &&

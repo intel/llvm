@@ -4529,9 +4529,8 @@ class OffloadingActionBuilder final {
     void pushForeignAction(Action *A) override {
       // Accept a foreign action from the CudaActionBuilder for compiling CUDA
       // sources
-      if (A->getOffloadingDeviceKind() == Action::OFK_Cuda) {
+      if (A->getOffloadingDeviceKind() == Action::OFK_Cuda)
         ExternalCudaAction = A;
-      }
     }
 
     ActionBuilderReturnCode
@@ -4570,9 +4569,8 @@ class OffloadingActionBuilder final {
       if (CurPhase == phases::Compile && !SYCLTargetInfoList.empty()) {
         // TODO: handle stubfile handling when mix and matching programming
         // model.
-        if (SYCLDeviceActions.empty()) {
+        if (SYCLDeviceActions.empty())
           return ABRT_Success;
-        }
 
         Action *DeviceCompilerInput = nullptr;
         for (Action *&A : SYCLDeviceActions) {
