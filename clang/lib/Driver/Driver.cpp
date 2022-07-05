@@ -3520,6 +3520,9 @@ class OffloadingActionBuilder final {
     Action::OffloadKind getAssociatedOffloadKind() {
       return AssociatedOffloadKind;
     }
+
+    /// Push an action from a different DeviceActionBuilder (i.e., foreign
+    /// action) in the current one
     virtual void pushForeignAction(Action *A) {}
   };
 
@@ -4524,6 +4527,8 @@ class OffloadingActionBuilder final {
     }
 
     void pushForeignAction(Action *A) override {
+      // Accept a foreign action from the CudaActionBuilder for compiling CUDA
+      // sources
       if (A->getOffloadingDeviceKind() == Action::OFK_Cuda) {
         ExternalCudaAction = A;
       }
@@ -5579,6 +5584,8 @@ public:
       delete SB;
   }
 
+  /// Push an action coming from a specialized DeviceActionBuilder (i.e.,
+  /// foreign action) to the other ones
   void pushForeignAction(Action *A) {
     for (auto *SB : SpecializedBuilders) {
       if (SB->isValid())
