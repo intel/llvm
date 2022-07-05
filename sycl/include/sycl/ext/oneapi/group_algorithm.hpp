@@ -10,11 +10,11 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/group_algorithm.hpp>
-#include <CL/sycl/nd_item.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/nd_item.hpp>
 #include <sycl/ext/oneapi/atomic.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>

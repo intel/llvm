@@ -8,23 +8,23 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/cg_types.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/interop_handle.hpp>
-#include <CL/sycl/interop_handler.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/group.hpp>
+#include <sycl/id.hpp>
+#include <sycl/interop_handle.hpp>
+#include <sycl/interop_handler.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp>
 
 #include <memory>
 #include <string>

@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

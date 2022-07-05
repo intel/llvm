@@ -12,7 +12,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 #include <cstdint>
 #include <type_traits>
 #include <utility>

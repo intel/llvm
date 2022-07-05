@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/properties/all_properties.hpp>
-#include <CL/sycl/stream.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 
@@ -69,7 +69,7 @@ bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
   __SYCL_EXPORT bool stream::has_property<param_type>() const noexcept {       \
     return impl->has_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -78,7 +78,7 @@ bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
   __SYCL_EXPORT param_type stream::get_property<param_type>() const {          \
     return impl->get_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

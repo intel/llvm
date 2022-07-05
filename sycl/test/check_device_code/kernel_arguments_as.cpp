@@ -16,7 +16,7 @@
 //
 // CHECK-NOT: define weak_odr dso_local spir_kernel void @"{{.*}}check_adress_space"({{.*}}addrspace(4){{.*}})
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

@@ -5,7 +5,7 @@
 
 // This test performs basic check of the SYCL property_list class.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 
 namespace sycl_property = cl::sycl::property;

@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_WARNING("CL/sycl/backend/level_zero.hpp usage is deprecated, include "
+__SYCL_WARNING("sycl/backend/level_zero.hpp usage is deprecated, include "
                "sycl/ext/oneapi/backend/level_zero.hpp instead")
 
 #include <sycl/ext/oneapi/backend/level_zero.hpp>

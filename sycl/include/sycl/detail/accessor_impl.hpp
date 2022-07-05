@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/sycl_mem_obj_i.hpp>
+#include <sycl/id.hpp>
+#include <sycl/range.hpp>
+#include <sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

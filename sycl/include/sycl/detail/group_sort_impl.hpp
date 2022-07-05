@@ -11,7 +11,7 @@
 #pragma once
 
 #if __cplusplus >= 201703L
-#include <CL/sycl/detail/helpers.hpp>
+#include <sycl/detail/helpers.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 

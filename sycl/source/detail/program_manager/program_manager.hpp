@@ -7,15 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_binary_image.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/device_binary_image.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/stl.hpp>
 #include <detail/device_global_map_entry.hpp>
 #include <detail/spec_constant_impl.hpp>
 

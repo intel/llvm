@@ -6,17 +6,17 @@
 //
 // ===--------------------------------------------------------------------=== //
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/platform.hpp>
+#include <sycl/properties/context_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/context_info.hpp>
 #include <detail/platform_impl.hpp>

@@ -5,7 +5,7 @@
 // This test performs basic checks of has_known_identity and known_identity
 // type traits.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 #include <cstddef>
 

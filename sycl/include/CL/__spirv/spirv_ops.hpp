@@ -8,9 +8,9 @@
 
 #pragma once
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 #include <cstddef>
 #include <cstdint>
 

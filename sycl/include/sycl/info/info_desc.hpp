@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/id.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/id.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -325,26 +325,26 @@ template <typename T, T param> struct compatibility_param_traits {};
     using input_type = in_type;                                                \
   };
 
-#include <CL/sycl/info/device_traits.def>
+#include <sycl/info/device_traits.def>
 
-#include <CL/sycl/info/context_traits.def>
+#include <sycl/info/context_traits.def>
 
-#include <CL/sycl/info/event_traits.def>
+#include <sycl/info/event_traits.def>
 
-#include <CL/sycl/info/event_profiling_traits.def>
+#include <sycl/info/event_profiling_traits.def>
 
-#include <CL/sycl/info/kernel_device_specific_traits.def>
-#include <CL/sycl/info/kernel_sub_group_traits.def>
-#include <CL/sycl/info/kernel_traits.def>
-#include <CL/sycl/info/kernel_work_group_traits.def>
+#include <sycl/info/kernel_device_specific_traits.def>
+#include <sycl/info/kernel_sub_group_traits.def>
+#include <sycl/info/kernel_traits.def>
+#include <sycl/info/kernel_work_group_traits.def>
 
-#include <CL/sycl/info/platform_traits.def>
+#include <sycl/info/platform_traits.def>
 
 #ifdef __SYCL_INTERNAL_API
-#include <CL/sycl/info/program_traits.def>
+#include <sycl/info/program_traits.def>
 #endif
 
-#include <CL/sycl/info/queue_traits.def>
+#include <sycl/info/queue_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
@@ -362,8 +362,8 @@ template <typename T, T param> struct compatibility_param_traits {};
     static constexpr auto value = kernel_device_specific::param;               \
   };
 
-#include <CL/sycl/info/kernel_sub_group_traits.def>
-#include <CL/sycl/info/kernel_work_group_traits.def>
+#include <sycl/info/kernel_sub_group_traits.def>
+#include <sycl/info/kernel_work_group_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT

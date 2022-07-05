@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/properties/property_traits.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/property_helper.hpp>
+#include <sycl/properties/property_traits.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <type_traits>
 

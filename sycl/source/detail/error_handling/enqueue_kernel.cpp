@@ -12,8 +12,8 @@
 
 #include "error_handling.hpp"
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

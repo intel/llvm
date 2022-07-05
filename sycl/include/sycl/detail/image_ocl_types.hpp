@@ -28,8 +28,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
 
 #include <CL/__spirv/spirv_ops.hpp>
 

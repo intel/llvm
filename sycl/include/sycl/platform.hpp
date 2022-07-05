@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/aspects.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/backend_traits.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/aspects.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/backend_traits.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
 #include <utility>

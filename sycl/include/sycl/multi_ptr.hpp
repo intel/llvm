@@ -8,9 +8,9 @@
 
 #pragma once
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <cassert>
 #include <cstddef>
 

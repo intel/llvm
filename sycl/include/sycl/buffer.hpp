@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/buffer_impl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/buffer_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 #include <iostream>
 

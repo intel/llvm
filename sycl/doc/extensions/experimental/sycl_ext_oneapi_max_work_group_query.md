@@ -76,9 +76,9 @@ gpu_queue.submit(work_range, ...);
 Right now, DPC++ does not support templated device descriptors as they are defined in the SYCL specification section 4.6.4.2 "Device information descriptors". When the implementation supports this syntax, `ext_oneapi_max_work_groups_[1,2,3]d` should be replaced by the templated syntax: `ext_oneapi_max_work_groups<[1,2,3]>`.
 ### Consistency with existing checks
 
-The implementation already checks when enqueuing a kernel that the global and per dimension work-group number is smaller than `std::numeric_limits<int>::max`. This check is implemented in `sycl/include/CL/sycl/handler.hpp`. For consistency, values returned by the two device descriptors are bound by this limit.
+The implementation already checks when enqueuing a kernel that the global and per dimension work-group number is smaller than `std::numeric_limits<int>::max`. This check is implemented in `sycl/include/sycl/handler.hpp`. For consistency, values returned by the two device descriptors are bound by this limit.
 
 ### Example of returned values
 
-- If the device is the host or has an OpenCL back-end, the values returned - as they are not applicable - are the maximum values accepted at kernel submission (see `sycl/include/CL/sycl/handler.hpp`) which are currently `std::numeric_limits<int>::max`.
+- If the device is the host or has an OpenCL back-end, the values returned - as they are not applicable - are the maximum values accepted at kernel submission (see `sycl/include/sycl/handler.hpp`) which are currently `std::numeric_limits<int>::max`.
 - CUDA: Back-end query using `CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_[X,Y,Z]`.

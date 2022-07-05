@@ -6,7 +6,7 @@
 // - emit an error if some of the restrictions on template parameters are
 //   violated
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
 #include <utility>

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/util.hpp>
+#include <sycl/detail/util.hpp>
 #include <detail/global_handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

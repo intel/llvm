@@ -9,8 +9,8 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/feature_test.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/feature_test.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

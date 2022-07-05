@@ -4,7 +4,7 @@
 ; --- Source code ---
 ; Generated with "intel/llvm/clang++ -fsycl-device-only  -emit-llvm -S"
 ;
-;#include <CL/sycl.hpp>
+;#include <sycl/sycl.hpp>
 ;
 ;class CustomClass {
 ;public:

@@ -12,12 +12,12 @@
 #pragma once
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <CL/sycl/builtins.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/image.hpp>
-#include <CL/sycl/sampler.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/image.hpp>
+#include <sycl/sampler.hpp>
+#include <sycl/types.hpp>
 
 #include <cmath>
 #include <iostream>

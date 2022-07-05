@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/array.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/detail/array.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/range.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -12,13 +12,13 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/functional.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/known_identity.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/sub_group.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/functional.hpp>
+#include <sycl/group.hpp>
+#include <sycl/known_identity.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/sub_group.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 

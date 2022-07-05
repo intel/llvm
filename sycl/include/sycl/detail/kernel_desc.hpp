@@ -10,8 +10,8 @@
 
 // This header file must not include any standard C++ header files.
 
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <cstdint>
 

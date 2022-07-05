@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/generic_type_lists.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/detail/type_list.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/generic_type_lists.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/type_list.hpp>
 
 #include <array>
 #include <tuple>

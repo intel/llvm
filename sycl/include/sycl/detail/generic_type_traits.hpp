@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/aliases.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/generic_type_lists.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/half_type.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/generic_type_lists.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/half_type.hpp>
 
 #include <limits>
 

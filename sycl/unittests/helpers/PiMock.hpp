@@ -27,11 +27,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/queue.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/platform.hpp>
+#include <sycl/queue.hpp>
 #include <detail/platform_impl.hpp>
 
 #include <functional>
@@ -58,7 +58,7 @@ namespace RT = detail::pi;
                                                  decltype(&::api) FuncPtr) {   \
     MPlugin->PiFunctionTable.api = FuncPtr;                                    \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
 /// The PiMock class wraps an instance of a SYCL platform class,

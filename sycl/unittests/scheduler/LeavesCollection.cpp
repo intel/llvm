@@ -8,7 +8,7 @@
 
 #include "SchedulerTestUtils.hpp"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
 #include <memory>

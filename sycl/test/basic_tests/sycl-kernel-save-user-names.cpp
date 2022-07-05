@@ -8,7 +8,7 @@
 // names. (It is a copy of clang/test/CodeGenSYCL/save-user-names.cpp with just
 // additional compilation steps).
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct NestedSimple {
   int NestedSimpleField;

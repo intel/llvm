@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/detail/aligned_allocator.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_t.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/aligned_allocator.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/sycl_mem_obj_t.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
+#include <sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

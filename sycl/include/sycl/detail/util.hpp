@@ -10,8 +10,8 @@
 
 #ifndef __SYCL_DEVICE_ONLY
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/stl.hpp>
 
 #include <cstring>
 #include <mutex>

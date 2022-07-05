@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
 
 #include <type_traits>

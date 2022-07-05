@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
 
 // Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
 // extension even if the host compiler supports it. The same can be
@@ -46,14 +46,14 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif // __HAS_EXT_VECTOR_TYPE__
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/aliases.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/half_type.hpp>
-#include <CL/sycl/marray.hpp>
-#include <CL/sycl/multi_ptr.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #include <array>
 #include <cmath>

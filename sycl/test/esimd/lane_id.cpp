@@ -3,7 +3,7 @@
 // This test checks the codegen for the basic usage of __ESIMD_SIMT_BEGIN -
 // __ESIMD_SIMT_END construct.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 using namespace cl::sycl;

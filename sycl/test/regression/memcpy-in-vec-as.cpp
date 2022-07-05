@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -D_FORTIFY_SOURCE=2 %s -o %t.out
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 
 int main() {

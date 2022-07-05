@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/property_helper.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 
 #include <bitset>
 #include <memory>

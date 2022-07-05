@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
+#include <sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <iostream>

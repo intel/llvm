@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/os_util.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/os_util.hpp>
 #include <detail/config.hpp>
 
 #include <cstring>

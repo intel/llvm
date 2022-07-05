@@ -3,7 +3,7 @@
 
 // This test performs basic check of the SYCL device class.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 #include <iostream>
 #include <utility>

@@ -81,7 +81,7 @@
 // match is required.
 // TODO: We should consider re-implementing PI enums and constants and only
 // perform a mapping of PI to OpenCL in the pi_opencl backend.
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -105,7 +105,7 @@ using pi_native_handle = uintptr_t;
 typedef enum {
 #define _PI_ERRC(NAME, VAL) NAME = VAL,
 #define _PI_ERRC_WITH_MSG(NAME, VAL, MSG) NAME = VAL,
-#include <CL/sycl/detail/pi_error.def>
+#include <sycl/detail/pi_error.def>
 #undef _PI_ERRC
 #undef _PI_ERRC_WITH_MSG
 } _pi_result;
@@ -1787,7 +1787,7 @@ struct _pi_plugin {
   char *Targets;
   struct FunctionPointers {
 #define _PI_API(api) decltype(::api) *api;
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
   } PiFunctionTable;
 };
 

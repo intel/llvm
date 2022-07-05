@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/kernel_bundle_enums.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 
 #include <cassert>
 #include <memory>

@@ -9,6 +9,6 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_WARNING("CL/sycl/backend/cuda.hpp is deprecated and no required anymore")
+__SYCL_WARNING("sycl/backend/cuda.hpp is deprecated and no required anymore")

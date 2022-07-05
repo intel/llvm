@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/id.hpp>
+#include <sycl/range.hpp>
 #include <stdexcept>
 #include <type_traits>
 

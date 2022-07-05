@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/half_type.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/half_type.hpp>
 #include <cassert>
 #include <iostream>
 

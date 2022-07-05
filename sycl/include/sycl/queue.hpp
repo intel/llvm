@@ -8,19 +8,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/assert_happened.hpp>
-#include <CL/sycl/detail/backend_traits.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/service_kernel_names.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/assert_happened.hpp>
+#include <sycl/detail/backend_traits.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/service_kernel_names.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 // Explicitly request format macros
 #ifndef __STDC_FORMAT_MACROS

@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_i.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/properties/buffer_properties.hpp>
-#include <CL/sycl/properties/image_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>
+#include <sycl/detail/sycl_mem_obj_i.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/event.hpp>
+#include <sycl/properties/buffer_properties.hpp>
+#include <sycl/properties/image_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <cstring>
 #include <memory>

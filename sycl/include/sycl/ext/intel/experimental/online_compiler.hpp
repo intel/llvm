@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
-#include <CL/sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <CL/sycl/device.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/device.hpp>
 
 #include <string>
 #include <vector>

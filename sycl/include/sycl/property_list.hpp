@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_list_base.hpp>
-#include <CL/sycl/properties/property_traits.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/property_list_base.hpp>
+#include <sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -15,15 +15,15 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/backend_traits.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/queue.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/backend_traits.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/queue.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

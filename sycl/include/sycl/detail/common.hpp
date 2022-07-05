@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 
 #include <cstdint>
 #include <string>
@@ -129,7 +129,7 @@ static inline std::string codeToString(pi_int32 code) {
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
-#include <CL/sycl/exception.hpp>
+#include <sycl/exception.hpp>
 // SYCL 1.2.1 exceptions
 #define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
   {                                                                            \

@@ -3,7 +3,7 @@
 // This test performs basic type check for sycl::id that is used in result type.
 // Check that sycl::id is converted from sycl::item.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 
 int main() {

@@ -1,6 +1,6 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct TriviallyCopyable {
   int a;

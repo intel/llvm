@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -D__ENABLE_USM_ADDR_SPACE__ -fsycl-targets=%sycl_triple %s -c
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 
 using namespace cl::sycl;

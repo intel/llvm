@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/kernel_bundle_enums.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
+#include <sycl/stl.hpp>
 
 #include <memory>
 

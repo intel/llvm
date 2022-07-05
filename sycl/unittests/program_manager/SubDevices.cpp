@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/program.hpp>
+#include <sycl/program.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>

@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/aliases.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/half_type.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/half_type.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

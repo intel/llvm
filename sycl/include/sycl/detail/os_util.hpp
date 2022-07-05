@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <cstdint>
 #include <cstdlib>

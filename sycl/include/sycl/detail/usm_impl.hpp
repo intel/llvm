@@ -7,9 +7,9 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/usm/usm_enums.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

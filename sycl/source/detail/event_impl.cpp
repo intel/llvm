@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/context.hpp>
+#include <sycl/device_selector.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/plugin.hpp>

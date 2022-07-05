@@ -6,7 +6,7 @@
 // from the module and go through sycl-post-link. This test also checks that
 // ESIMD lowering happens for such functions as well.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 constexpr unsigned VL = 8;

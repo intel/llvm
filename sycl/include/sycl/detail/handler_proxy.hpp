@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/export.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/property_list.hpp>
+#include <sycl/property_list.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
 

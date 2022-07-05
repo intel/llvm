@@ -1,7 +1,7 @@
 // Basic ESIMD test which checks that ESIMD invocation syntax can get compiled.
 // RUN: %clangxx -fsycl -fsycl-device-only -c %s -o %t.bc
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 

@@ -8,7 +8,7 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 

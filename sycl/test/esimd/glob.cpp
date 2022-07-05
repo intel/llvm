@@ -6,7 +6,7 @@
 // mode, can be accessed in functions and correct LLVM IR is generated
 // (including translation of the register attribute)
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 

@@ -9,15 +9,15 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/item.hpp>
-#include <CL/sycl/nd_range.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/sub_group.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/group.hpp>
+#include <sycl/id.hpp>
+#include <sycl/item.hpp>
+#include <sycl/nd_range.hpp>
+#include <sycl/range.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <cstddef>
 #include <stdexcept>

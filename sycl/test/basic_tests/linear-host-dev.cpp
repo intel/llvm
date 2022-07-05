@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out | FileCheck %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>

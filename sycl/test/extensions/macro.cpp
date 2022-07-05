@@ -2,7 +2,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 int main() {
 #if SYCL_BACKEND_OPENCL == 1

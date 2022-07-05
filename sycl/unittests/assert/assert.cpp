@@ -21,8 +21,8 @@
 #define SYCL_FALLBACK_ASSERT 1
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
+#include <sycl/backend/opencl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>

@@ -5,7 +5,7 @@
 // This test checks that both host and device compilers can
 // successfully compile simd_mask APIs.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
 #include <utility>

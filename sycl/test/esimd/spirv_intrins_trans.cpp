@@ -6,7 +6,7 @@
 // are correctly translated into GenX counterparts (implemented in
 // LowerESIMD.cpp)
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 template <typename name, typename Func>

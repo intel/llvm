@@ -11,16 +11,16 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/device_event.hpp>
-#include <CL/sycl/h_item.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/memory_enums.hpp>
-#include <CL/sycl/pointers.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/device_event.hpp>
+#include <sycl/h_item.hpp>
+#include <sycl/id.hpp>
+#include <sycl/memory_enums.hpp>
+#include <sycl/pointers.hpp>
+#include <sycl/range.hpp>
 #include <stdexcept>
 #include <type_traits>
 

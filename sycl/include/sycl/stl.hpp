@@ -10,9 +10,9 @@
 
 // 4.5 C++ Standard library classes required for the interface
 
-#include <CL/sycl/bit_cast.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/sycl_span.hpp>
+#include <sycl/bit_cast.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/sycl_span.hpp>
 
 #include <exception>
 #include <functional>

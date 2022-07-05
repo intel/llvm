@@ -12,7 +12,7 @@
  * distinct binary executable.
  */
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>

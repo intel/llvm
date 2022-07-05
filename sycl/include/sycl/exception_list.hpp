@@ -10,9 +10,9 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/stl.hpp>
 
 #include <cstddef>
 

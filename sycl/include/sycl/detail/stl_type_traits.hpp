@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 #include <iterator>
 #include <memory>
 #include <type_traits>

@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/interop_handle.hpp>
-#include <CL/sycl/interop_handler.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/kernel_handler.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/group.hpp>
+#include <sycl/id.hpp>
+#include <sycl/interop_handle.hpp>
+#include <sycl/interop_handler.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/kernel_handler.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

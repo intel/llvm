@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/array.hpp>
-#include <CL/sycl/detail/helpers.hpp>
+#include <sycl/detail/array.hpp>
+#include <sycl/detail/helpers.hpp>
 
 #include <stdexcept>
 #include <type_traits>

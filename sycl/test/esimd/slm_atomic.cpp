@@ -2,7 +2,7 @@
 
 // This test checks compilation of ESIMD slm atomic APIs.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
 #include <utility>

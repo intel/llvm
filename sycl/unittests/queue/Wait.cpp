@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/scheduler/commands.hpp>

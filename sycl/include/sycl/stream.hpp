@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/builtins.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/handler.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

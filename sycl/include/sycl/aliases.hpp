@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
 
 #include <cstddef>
 #include <cstdint>

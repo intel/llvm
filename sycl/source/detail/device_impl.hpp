@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/aspects.hpp>
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/aspects.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/stl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
 

@@ -2,7 +2,7 @@
 
 // This test checks basic APIs of the std::simd and std::simd_mask.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <std/experimental/simd.hpp>
 
 #include <type_traits>

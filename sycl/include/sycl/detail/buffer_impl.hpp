@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include "CL/sycl/detail/pi.h"
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_t.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
-#include <CL/sycl/types.hpp>
+#include "sycl/detail/pi.h"
+#include <sycl/access/access.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/sycl_mem_obj_t.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
+#include <sycl/types.hpp>
 
 #include <cstdint>
 #include <functional>

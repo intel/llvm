@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <memory>
 

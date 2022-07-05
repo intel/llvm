@@ -9,11 +9,11 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

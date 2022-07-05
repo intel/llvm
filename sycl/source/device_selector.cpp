@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>

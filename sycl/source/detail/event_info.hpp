@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
 

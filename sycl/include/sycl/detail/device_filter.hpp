@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <iostream>
 #include <string>

@@ -10,7 +10,7 @@
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -fno-legacy-pass-manager \
 // RUN: -fsycl-instrument-device-code
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 #include <string>
 #include <sycl/ext/intel/esimd.hpp>

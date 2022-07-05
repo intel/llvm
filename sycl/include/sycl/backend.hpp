@@ -8,38 +8,38 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/buffer.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/backend_traits.hpp>
-#include <CL/sycl/feature_test.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/buffer.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/backend_traits.hpp>
+#include <sycl/feature_test.hpp>
 #if SYCL_BACKEND_OPENCL
-#include <CL/sycl/detail/backend_traits_opencl.hpp>
+#include <sycl/detail/backend_traits_opencl.hpp>
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_CUDA
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 #include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 #else
-#include <CL/sycl/detail/backend_traits_cuda.hpp>
+#include <sycl/detail/backend_traits_cuda.hpp>
 #endif
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
-#include <CL/sycl/detail/backend_traits_hip.hpp>
+#include <sycl/detail/backend_traits_hip.hpp>
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-#include <CL/sycl/detail/backend_traits_level_zero.hpp>
+#include <sycl/detail/backend_traits_level_zero.hpp>
 #endif
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/queue.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/platform.hpp>
+#include <sycl/queue.hpp>
 
 #include <type_traits>
 

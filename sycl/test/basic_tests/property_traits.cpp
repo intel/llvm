@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cassert>
 
 #define CHECK_IS_PROPERTY(PROP)                                                \

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/access/access.hpp>
+#include <sycl/access/access.hpp>
 
 
 __SYCL_INLINE_NAMESPACE(cl) {

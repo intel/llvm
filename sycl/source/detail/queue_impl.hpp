@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/assert_happened.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/properties/queue_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/assert_happened.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/properties/context_properties.hpp>
+#include <sycl/properties/queue_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>

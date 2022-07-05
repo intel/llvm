@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/plugin_printers.hpp>
 #include <memory>
@@ -40,7 +40,7 @@ template <PiApiKind Kind> struct PiApiArgTuple;
     using type = typename function_traits<decltype(api)>::args_type;           \
   };
 
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
 template <PiApiKind Kind, size_t Idx, typename T>

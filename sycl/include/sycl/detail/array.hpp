@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <functional>
 #include <stdexcept>
 

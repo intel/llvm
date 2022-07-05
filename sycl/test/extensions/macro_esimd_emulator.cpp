@@ -2,7 +2,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 // REQUIRES: esimd_emulator_be
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 int main() {
 #if SYCL_EXT_INTEL_BACKEND_ESIMD_EMULATOR == 1

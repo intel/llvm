@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -152,7 +152,7 @@ device::get_info() const {
   template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
       const;
 
-#include <CL/sycl/info/device_traits.def>
+#include <sycl/info/device_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/export.hpp>
 
 // 4.6.1 Device selection class
 

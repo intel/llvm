@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

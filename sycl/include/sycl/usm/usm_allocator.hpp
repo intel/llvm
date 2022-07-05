@@ -7,13 +7,13 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/queue.hpp>
-#include <CL/sycl/usm/usm_enums.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <cstdlib>
 #include <memory>

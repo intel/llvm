@@ -2,7 +2,7 @@
 // found in https://github.com/intel/llvm-test-suite/tree/intel/SYCL/InlineAsm
 // RUN: %clangxx -fsycl %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <cmath>
 #include <iostream>
 #include <vector>

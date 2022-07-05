@@ -8,13 +8,13 @@
 
 #include <detail/error_handling/error_handling.hpp>
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/cg_types.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/sampler.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/memory_manager.hpp>
+#include <sycl/program.hpp>
+#include <sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>

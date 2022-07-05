@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -o query %s
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <iostream>
 
 using namespace sycl;

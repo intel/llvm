@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/backend_traits.hpp>
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/backend_traits.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <memory>
 

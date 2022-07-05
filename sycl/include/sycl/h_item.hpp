@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/item.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/id.hpp>
+#include <sycl/item.hpp>
+#include <sycl/range.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

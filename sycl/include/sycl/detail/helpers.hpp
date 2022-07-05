@@ -10,11 +10,11 @@
 
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/type_traits.hpp>
 
 #include <memory>
 #include <stdexcept>
