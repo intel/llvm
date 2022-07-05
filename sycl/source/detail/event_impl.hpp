@@ -40,13 +40,12 @@ public:
     HES_Discarded
   };
 
-  /// Construct empty SYCL event
-  event_impl(bool);
-
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl(HostEventState State = HES_Complete);
+  /// Normally constructs a host event, use std::nullopt to instead instantiate
+  /// a device event.
+  event_impl(std::optional<HostEventState> State = HES_Complete);
 
   /// Constructs an event instance from a plug-in event handle.
   ///
