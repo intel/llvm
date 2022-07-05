@@ -581,7 +581,7 @@ unsigned int __devicelib_imf_vcmplts2(unsigned int x, unsigned int y) {
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmplts4(unsigned int x, unsigned int y) {
-  return __internal_v_binary_op<int8_t, 4, __le_op>(x, y);
+  return __internal_v_binary_op<int8_t, 4, __lt_op>(x, y);
 }
 
 DEVICE_EXTERN_C_INLINE
