@@ -8,11 +8,6 @@
 
 #include "device_math.h"
 
-#ifdef __NVPTX__
-DEVICE_EXTERN_C_INLINE
-int __devicelib_abs(int x) { return -999; } // x < 0 ? -x : x; }
-#endif
-
 #ifdef __SPIR__
 
 // To support fallback device libraries on-demand loading, please update the
@@ -172,3 +167,158 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_atanhf(float x) { return __spirv_ocl_atanh(x); }
 
 #endif // __SPIR__
+
+#ifdef __NVPTX__
+#include "include/nv_libdevice.h"
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_abs(int x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C_INLINE
+long int __devicelib_labs(long int x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_llabs(long long int x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C_INLINE
+div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
+
+DEVICE_EXTERN_C_INLINE
+ldiv_t __devicelib_ldiv(long x, long y) { return {x / y, x % y}; }
+
+DEVICE_EXTERN_C_INLINE
+lldiv_t __devicelib_lldiv(long long x, long long y) { return {x / y, x % y}; }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_scalbnf(float x, int n) { return __nv_ldexpf(x, n); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_logf(float x) { return __nv_log(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_expf(float x) { return __nv_exp(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_frexpf(float x, int *exp) {
+  return __nv_frexpf(x, exp);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_ldexpf(float x, int exp) { return __nv_ldexp(x, exp); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_log10f(float x) { return __nv_log10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_modff(float x, float *intpart) {
+  return __nv_modff(x, intpart);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_exp2f(float x) { return __nv_exp2f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_expm1f(float x) { return __nv_expm1f(x); }
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_ilogbf(float x) { return __nv_ilogbf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_log1pf(float x) { return __nv_log1pf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_log2f(float x) { return __nv_log2f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_logbf(float x) { return __nv_logbf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_sqrtf(float x) { return __nv_sqrtf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_cbrtf(float x) { return __nv_cbrtf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_hypotf(float x, float y) { return __nv_hypotf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_erff(float x) { return __nv_erff(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_erfcf(float x) { return __nv_erfcf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_tgammaf(float x) { return __nv_tgammaf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_lgammaf(float x) { return __nv_lgammaf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_fmodf(float x, float y) { return __nv_fmodf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_remainderf(float x, float y) {
+  return __nv_remainderf(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_remquof(float x, float y, int *q) {
+  return __nv_remquof(x, y, q);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_nextafterf(float x, float y) {
+  return __nv_nextafterf(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_fdimf(float x, float y) { return __nv_fdimf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_fmaf(float x, float y, float z) {
+  return __nv_fmaf(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_sinf(float x) { return __nv_sinf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_cosf(float x) { return __nv_cosf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_tanf(float x) { return __nv_tanf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_powf(float x, float y) { return __nv_powf(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_acosf(float x) { return __nv_acosf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_asinf(float x) { return __nv_asinf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_atanf(float x) { return __nv_atanf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_atan2f(float x, float y) { return __nv_atan2f(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_coshf(float x) { return __nv_coshf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_sinhf(float x) { return __nv_sinhf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_tanhf(float x) { return __nv_tanhf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_acoshf(float x) { return __nv_acoshf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_asinhf(float x) { return __nv_asinhf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_atanhf(float x) { return __nv_atanhf(x); }
+
+#endif // __NVPTX__
