@@ -627,12 +627,11 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 
 // The function searches for the alloca command matching context and
 // requirement.
-AllocaCommandBase *
-Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
-                                          const Requirement *Req,
-                                          const ContextImplPtr &Context,
-                                          bool allowConst) {
-  auto IsSuitableAlloca = [&Context, Req, allowConst](AllocaCommandBase *AllocaCmd) {
+AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
+    MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
+    bool allowConst) {
+  auto IsSuitableAlloca = [&Context, Req,
+                           allowConst](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
@@ -724,7 +723,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 Scheduler::getInstance().getDefaultHostQueue();
             AllocaCommand *HostAllocaCmd = new AllocaCommand(
                 DefaultHostQueue, FullReq, true /* InitFromUserData */,
-                nullptr /* LinkedAllocaCmd */, MemObj->isHostPointerReadOnly() /* IsConst */);
+                nullptr /* LinkedAllocaCmd */,
+                MemObj->isHostPointerReadOnly() /* IsConst */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
             Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);

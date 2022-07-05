@@ -833,10 +833,11 @@ const char *Command::getBlockReason() const {
 
 AllocaCommandBase::AllocaCommandBase(CommandType Type, QueueImplPtr Queue,
                                      Requirement Req,
-                                     AllocaCommandBase *LinkedAllocaCmd, bool IsConst)
+                                     AllocaCommandBase *LinkedAllocaCmd,
+                                     bool IsConst)
     : Command(Type, Queue), MLinkedAllocaCmd(LinkedAllocaCmd),
       MIsLeaderAlloca(nullptr == LinkedAllocaCmd), MRequirement(std::move(Req)),
-      MReleaseCmd(Queue, this), MIsConst(IsConst)  {
+      MReleaseCmd(Queue, this), MIsConst(IsConst) {
   MRequirement.MAccessMode = access::mode::read_write;
   emitInstrumentationDataProxy();
 }
