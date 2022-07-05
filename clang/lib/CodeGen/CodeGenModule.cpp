@@ -2708,6 +2708,8 @@ void CodeGenModule::EmitDeferred() {
   CurDeclsToEmit.swap(DeferredDeclsToEmit);
 
   for (GlobalDecl &D : CurDeclsToEmit) {
+    // Emit a dummy __host__ function if a legit one is not already present in
+    // case of SYCL compilation of CUDA sources.
     if (LangOpts.CUDA && LangOpts.SYCLIsHost) {
       GlobalDecl OtherD;
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
@@ -3336,9 +3338,12 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       // size and host-side address in order to provide access to
       // their device-side incarnations.
 
-      // So device-only functions are the only things we skip.
+      // So device-only functions are the only things we skip, except for SYCL.
       if (isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
           Global->hasAttr<CUDADeviceAttr>()) {
+        // In SYCL, every (CUDA) __device__ function needs to have an __host__
+        // counterpart that will be emitted in case of it is not already
+        // present.
         if (LangOpts.SYCLIsHost && MustBeEmitted(Global) &&
             MayBeEmittedEagerly(Global))
           addDeferredDeclToEmit(GD);

@@ -1,5 +1,7 @@
 // RUN: %clang++ -ccc-print-phases -target x86_64-unknown-linux-gnu  -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
 
+// Test the correct placement of the offloading actions for compiling CUDA sources (*.cu) in SYCL.
+
 // DEFAULT-PHASES:         +- 0: input, "{{.*}}", cuda, (device-cuda, sm_80)
 // DEFAULT-PHASES:      +- 1: preprocessor, {0}, cuda-cpp-output, (device-cuda, sm_80)
 // DEFAULT-PHASES:   +- 2: compiler, {1}, ir, (device-cuda, sm_80)

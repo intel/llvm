@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-host -emit-llvm %s -o - | FileCheck %s
 
+// Test if a dummy __host__ function (returning undef) is generated for every __device__ function without an host counterpart.
+
 #include "../CodeGenCUDA/Inputs/cuda.h"
 #include "Inputs/sycl.hpp"
 
