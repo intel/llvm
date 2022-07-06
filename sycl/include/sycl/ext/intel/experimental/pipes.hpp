@@ -75,7 +75,9 @@ public:
 #else
     (void)Success;
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -122,7 +124,9 @@ public:
     (void)Success;
     (void)Data;
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -169,7 +173,9 @@ public:
     return TempData;
 #else
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -212,7 +218,9 @@ public:
 #else
     (void)Data;
     (void)Properties;
-    assert(!"Pipes are not supported on a host device!");
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Pipes are not supported on a host device.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 

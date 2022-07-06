@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>

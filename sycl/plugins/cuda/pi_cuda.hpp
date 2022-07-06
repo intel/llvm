@@ -485,7 +485,7 @@ struct _pi_queue {
   bool can_reuse_stream(pi_uint32 stream_token) {
     // stream token not associated with one of the compute streams
     if (stream_token == std::numeric_limits<pi_uint32>::max()) {
-      return true;
+      return false;
     }
     // If the command represented by the stream token was not the last command
     // enqueued to the stream we can not reuse the stream - we need to allow for
@@ -560,7 +560,7 @@ struct _pi_queue {
       } else {
         start %= size;
         end %= size;
-        if (start < end) {
+        if (start <= end) {
           sync_compute(start, end);
         } else {
           sync_compute(start, size);
@@ -582,7 +582,7 @@ struct _pi_queue {
         } else {
           start %= size;
           end %= size;
-          if (start < end) {
+          if (start <= end) {
             sync_transfer(start, end);
           } else {
             sync_transfer(start, size);

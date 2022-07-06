@@ -159,7 +159,7 @@ program_impl::program_impl(ContextImplPtr Context,
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
-  if (BinaryType == CL_PROGRAM_BINARY_TYPE_NONE) {
+  if (BinaryType == PI_PROGRAM_BINARY_TYPE_NONE) {
     throw invalid_object_error(
         "The native program passed to the program constructor has to be either "
         "compiled or linked",
@@ -174,16 +174,16 @@ program_impl::program_impl(ContextImplPtr Context,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
-  case CL_PROGRAM_BINARY_TYPE_NONE:
+  case PI_PROGRAM_BINARY_TYPE_NONE:
     assert(false);
     break;
-  case CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
+  case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
     MCompileOptions = Options;
     MBuildOptions = Options;
     break;
-  case CL_PROGRAM_BINARY_TYPE_LIBRARY:
-  case CL_PROGRAM_BINARY_TYPE_EXECUTABLE:
+  case PI_PROGRAM_BINARY_TYPE_LIBRARY:
+  case PI_PROGRAM_BINARY_TYPE_EXECUTABLE:
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
@@ -498,7 +498,7 @@ void program_impl::create_pi_program_with_kernel_name(
 }
 
 template <>
-cl_uint program_impl::get_info<info::program::reference_count>() const {
+uint32_t program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance",
                                PI_ERROR_INVALID_PROGRAM);
