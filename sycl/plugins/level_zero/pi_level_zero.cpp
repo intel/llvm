@@ -6055,8 +6055,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   if (NumEventsInWaitList) {
     // Get an arbitrary command-list in the queue.
     pi_command_list_ptr_t CmdList;
-    if (auto Res =
-            Queue->Context->getAvailableCommandList(Queue, CmdList, OkToBatch))
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CmdList,
+            /*UseCopyEngine=*/false, OkToBatch))
       return Res;
 
     // Retain the events as they will be owned by the result event.
@@ -6100,8 +6101,9 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
              Queue->CopyQueueGroup.ZeQueues.empty()) {
     // If there are no queues, we get any available command list.
     pi_command_list_ptr_t CmdList;
-    if (auto Res =
-            Queue->Context->getAvailableCommandList(Queue, CmdList, OkToBatch))
+    if (auto Res = Queue->Context->getAvailableCommandList(
+            Queue, CmdList,
+            /*UseCopyEngine=*/false, OkToBatch))
       return Res;
     CmdLists.push_back(CmdList);
   } else {
