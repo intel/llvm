@@ -354,391 +354,621 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
 }
 
+// Split 32-bit into 2 parts, each consisting of 16 bits, compute absolute
+// value for each part and assemble the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabs2(unsigned int x) {
   return __internal_v_unary_op<int16_t, 2, __abs_op>(x);
 }
 
+// Split 32-bit into 4 parts, each consisting of 8 bits, compute absolute
+// value for each part and assemble the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabs4(unsigned int x) {
   return __internal_v_unary_op<int8_t, 4, __abs_op>(x);
 }
 
+// Split 32-bit into 2 parts, each consisting of 16 bits, compute absolute
+// value with signed saturation for each part and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsss2(unsigned int x) {
   return __internal_v_unary_op<int16_t, 2, __abss_op>(x);
 }
 
+// Split 32-bit into 4 parts, each consisting of 8 bits, compute absolute
+// value with signed saturation for each part and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsss4(unsigned int x) {
   return __internal_v_unary_op<int8_t, 4, __abss_op>(x);
 }
 
+// Split 32-bit into 2 parts, each consisting of 16 bits, compute negative
+// value for each part and assemble the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vneg2(unsigned int x) {
   return __internal_v_unary_op<int16_t, 2, __neg_op>(x);
 }
 
+// Split 32-bit into 4 parts, each consisting of 8 bits, compute negative
+// value for each part and assemble the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vneg4(unsigned int x) {
   return __internal_v_unary_op<int8_t, 4, __neg_op>(x);
 }
 
+// Split 32-bit into 2 parts, each consisting of 16 bits, compute negative
+// value with signed saturation for each part and assemble the results into
+// 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vnegss2(unsigned int x) {
   return __internal_v_unary_op<int16_t, 2, __negss_op>(x);
 }
 
+// Split 32-bit into 4 parts, each consisting of 8 bits, compute negative
+// value with signed saturation for each part and assemble the results into
+// 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vnegss4(unsigned int x) {
   return __internal_v_unary_op<int8_t, 4, __negss_op>(x);
 }
 
+// Split 32-bit into 2 parts, each part is sigend 16-bit int, compute absolute
+// difference for corresponding parts and assemble the results into 32-bit
+// unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsdiffs2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __abs_diff_s_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is sigend 8-bit int, compute absolute
+// difference for corresponding parts and assemble the results into 32-bit
+// unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsdiffs4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __abs_diff_s_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is unsigend 16-bit int, compute
+// absolute difference for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsdiffu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __abs_diff_u_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is unsigend 8-bit int, compute
+// absolute difference for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vabsdiffu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __abs_diff_u_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// unsigned addition for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vadd2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __add_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// unsigned addition for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vadd4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __add_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// addition with signed saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vaddss2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __add_ss_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// addition with signed saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vaddss4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __add_ss_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// addition with unsigned saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vaddus2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __add_us_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// addition with unsigned saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vaddus4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __add_us_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// subtraction with wrap-round for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsub2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __sub_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// subtraction with wrap-round for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsub4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __sub_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// subtraction with signed saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsubss2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __sub_ss_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// subtraction with signed saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsubss4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __sub_ss_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// subtraction with unsigned saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsubus2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __sub_us_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// subtraction with unsigned saturation for corresponding parts and assemble
+// the results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsubus4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __sub_us_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// signed rounded average for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgs2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __avgs_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// signed rounded average for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgs4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __avgs_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// unsigned rounded average for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __avgu_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// unsigned rounded average for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vavgu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __avgu_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits, compute
+// unsigned average for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vhaddu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __uhadd_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits, compute
+// unsigned average for corresponding parts and assemble the results
+// into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vhaddu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __uhadd_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits. Compare
+// corresponding parts, return 0xFFFF if they are equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpeq2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __eq_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. Compare
+// corresponding parts, return 0xFF if they are equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpeq4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __eq_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 0xFFFF if x >= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpges2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __ge_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 0xFF if x >= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpges4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __ge_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 0xFFFF if x >= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgeu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __ge_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 0xFF if x >= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgeu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __ge_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 0xFFFF if x > y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgts2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __gt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 0xFF if x > y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgts4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __gt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 0xFFFF if x > y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgtu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __gt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 0xFF if x > y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpgtu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __gt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 0xFFFF if x <= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmples2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __le_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 0xFF if x <= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmples4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __le_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 0xFFFF if x <= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpleu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __le_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 0xFF if x <= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpleu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __le_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 0xFFFF if x < y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmplts2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __lt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 0xFF if x < y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmplts4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __lt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 0xFFFF if x < y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpltu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __lt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 0xFF if x < y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpltu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __lt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits. Compare
+// corresponding parts, return 0xFFFF if they are not equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpne2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __neq_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. Compare
+// corresponding parts, return 0xFF if they are not equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vcmpne4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __neq_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits.
+// For corresponding parts, compute signed maximum value and assemble partial
+// results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vmaxs2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __max_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. For corresponding
+// parts, compute signed maximum value and assemble partial results into 32-bit
+// unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vmaxs4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __max_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits.
+// For corresponding parts, compute unsigned maximum value and assemble partial
+// results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vmaxu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __max_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. For corresponding
+// parts, compute unsigned maximum value and assemble partial results into
+// 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vmaxu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __max_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits.
+// For corresponding parts, compute signed minimum value and assemble partial
+// results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vmins2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __min_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. For corresponding
+// parts, compute signed minimum value and assemble partial results into 32-bit
+// unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vmins4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __min_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits.
+// For corresponding parts, compute unsigned minimum value and assemble partial
+// results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vminu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __min_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. For corresponding
+// parts, compute unsigned minimum value and assemble partial results into
+// 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vminu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __min_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits. Compare
+// corresponding parts, return 1 if they are equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vseteq2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __set_eq_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. Compare
+// corresponding parts, return 1 if they are equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vseteq4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_eq_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part consisting of 16 bits. Compare
+// corresponding parts, return 1 if they are not equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetne2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __set_neq_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part consisting of 8 bits. Compare
+// corresponding parts, return 1 if they are not equal, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetne4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_neq_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 1 if x >= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetges2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __set_ge_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 1 if x >= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetges4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __set_ge_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 1 if x >= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetgeu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __set_ge_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 1 if x >= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetgeu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_ge_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 1 if x > y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetgts2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __set_gt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 1 if x > y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetgts4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __set_gt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 1 if x > y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetgtu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __set_gt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 1 if x > y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetgtu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_gt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 1 if x <= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetles2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __set_le_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 1 if x <= y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetles4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __set_le_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 1 if x <= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetleu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __set_le_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 1 if x <= y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetleu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_le_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// part from x and y, return 1 if x < y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetlts2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int16_t, 2, __set_lt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// part from x and y, return 1 if x < y, otherwise return 0. Assemble
+// partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetlts4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<int8_t, 4, __set_lt_op>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding part from x and y, return 1 if x < y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetltu2(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint16_t, 2, __set_lt_op>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding part from x and y, return 1 if x < y, otherwise return 0.
+// Assemble partial results into 32-bit unsigned int.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsetltu4(unsigned int x, unsigned int y) {
   return __internal_v_binary_op<uint8_t, 4, __set_lt_op>(x, y);
@@ -765,21 +995,29 @@ static inline unsigned int __internal_v_sad_op(unsigned int x, unsigned int y) {
   return res;
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit signed int. For corresponding
+// parts, compute absolute difference and sum them up.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsads2(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<int16_t, 2>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit signed int. For corresponding
+// parts, compute absolute difference and sum them up.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsads4(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<int8_t, 4>(x, y);
 }
 
+// Split 32-bit into 2 parts, each part is 16-bit unsigned int. For
+// corresponding parts, compute absolute difference and sum them up.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsadu2(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<uint16_t, 2>(x, y);
 }
 
+// Split 32-bit into 4 parts, each part is 8-bit unsigned int. For
+// corresponding parts, compute absolute difference and sum them up.
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsadu4(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<uint8_t, 4>(x, y);
