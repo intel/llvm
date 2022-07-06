@@ -31,7 +31,7 @@
 
 #include <esimdemu_support.h>
 
-#include "pi_esimd_emulator.hpp"
+
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -43,6 +43,8 @@
 #include <string>
 #include <thread>
 #include <utility>
+
+#include "pi_esimd_emulator.hpp"
 
 #define ARG_UNUSED(x) (void)x
 

@@ -134,9 +134,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
-      // FILE *dummy = fopen(FullFileName.c_str(), "rb");
-      // fprintf(stderr, "Dummy write open:%p\n", dummy);
-      // fclose(dummy);
     }
   } catch (...) {
     // If a problem happens on storing cache item, do nothing
@@ -170,12 +167,6 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
       try {
-        // FILE *dummy = fopen((FileName + ".bin").c_str(), "rb");
-        // fprintf(stderr, "Dummy read open:%p\n", dummy);
-        // if (!dummy) {
-        //   perror("Dummy file failed");
-        // }
-        // fclose(dummy);
         std::string FullFileName = FileName + ".bin";
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
@@ -206,18 +197,13 @@ std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
 void PersistentDeviceCodeCache::writeBinaryDataToFile(
     const std::string &FileName, const std::vector<std::vector<char>> &Data) {
   FILE *file = fopen(FileName.c_str(), "wb");
-  // fprintf(stderr,"writeBinaryDataToFile filepath:%s file:%p\n
-  // ",FileName.c_str(),file);
   size_t Size = Data.size();
   fwrite(&Size, sizeof(Size), 1, file);
-  // fprintf(stderr,"writeBinaryDataToFile size:%ld \n",Size);
-
+  
   for (size_t i = 0; i < Data.size(); ++i) {
     Size = Data[i].size();
     fwrite(&Size, sizeof(Size), 1, file);
     fwrite(Data[i].data(), sizeof(char), Size, file);
-    // fprintf(stderr,"writeBinaryDataToFile size loop:%ld %p
-    // \n",Size,Data[i].data());
   }
   fclose(file);
 
@@ -231,14 +217,12 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   FILE *file = fopen(FileName.c_str(), "rb");
-  // if(file == nullptr){
-  //   perror("Error reading file from readBinaryData:");
-  // }
+  if(file == nullptr){
+    trace("Failed to open binary file from " + FileName);
+    return {};
+  }
   size_t ImgNum = 0, ImgSize = 0;
-  // fprintf(stderr,"readBinaryDataFromFile filepath:%s file:%p\n
-  // ",FileName.c_str(),file);
   fread(&ImgNum, sizeof(ImgNum), 1, file);
-  // fprintf(stderr,"readBinaryDataFromFile size:%ld \n",ImgNum);
 
   std::vector<std::vector<char>> Res(ImgNum);
   for (size_t i = 0; i < ImgNum; ++i) {
@@ -246,8 +230,6 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
 
     std::vector<char> ImgData(ImgSize);
     fread(ImgData.data(), sizeof(char), ImgSize, file);
-    // fprintf(stderr,"readBinaryDataFromFile size loop:%ld %p
-    // \n",ImgSize,ImgData.data());
     Res[i] = std::move(ImgData);
   }
   fclose(file);
@@ -304,9 +286,11 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
   FILE *file = fopen(FileName.c_str(), "rb");
-  // if(file == nullptr){
-  //   perror("Error reading file from is CacheItem:");
-  // }
+
+   if(file == nullptr){
+    trace("Failed to open source file from " + FileName);
+    return false;
+   }
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
