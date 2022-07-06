@@ -16,7 +16,8 @@
 // CHECK: Constant [[#TYPE]] [[#CONST:]]
 // CHECK: ExtInst [[#]] [[#]] [[#]] printf [[#]] [[#CONST]]
 
-#include <CL/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/sycl.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_CONSTANT_AS __attribute__((opencl_constant))
