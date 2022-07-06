@@ -31,7 +31,6 @@
 
 #include <esimdemu_support.h>
 
-
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>

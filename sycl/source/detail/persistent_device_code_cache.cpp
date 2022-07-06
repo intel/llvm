@@ -199,7 +199,7 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
   FILE *file = fopen(FileName.c_str(), "wb");
   size_t Size = Data.size();
   fwrite(&Size, sizeof(Size), 1, file);
-  
+
   for (size_t i = 0; i < Data.size(); ++i) {
     Size = Data[i].size();
     fwrite(&Size, sizeof(Size), 1, file);
@@ -217,7 +217,7 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   FILE *file = fopen(FileName.c_str(), "rb");
-  if(file == nullptr){
+  if (file == nullptr) {
     trace("Failed to open binary file from " + FileName);
     return {};
   }
@@ -287,10 +287,10 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &BuildOptionsString) {
   FILE *file = fopen(FileName.c_str(), "rb");
 
-   if(file == nullptr){
+  if (file == nullptr) {
     trace("Failed to open source file from " + FileName);
     return false;
-   }
+  }
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
