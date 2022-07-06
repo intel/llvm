@@ -6119,8 +6119,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
         pi_command_list_ptr_t CmdList;
         if (auto Res = Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, OkToBatch,
-                &ZeQueue))
+                Queue, CmdList, UseCopyEngine, OkToBatch, &ZeQueue))
           return Res;
         CmdLists.push_back(CmdList);
       }
