@@ -416,6 +416,9 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle_relative
   _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
   _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
+  // cl_khr_subgroup_rotate
+  _SPIRV_OP(group_rotate, GroupNonUniformRotateKHR)
+  _SPIRV_OP(group_clustered_rotate, GroupNonUniformRotateKHR)
   // cl_khr_extended_bit_ops
   _SPIRV_OP(bitfield_insert, BitFieldInsert)
   _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
@@ -1279,6 +1282,8 @@ public:
         else if (NameRef.contains("bit_extract")) {
           addUnsignedArgs(0, 1);
         }
+      } else if (NameRef.startswith("sub_group_clustered_rotate")) {
+        addUnsignedArg(2);
       } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
     } else if (NameRef.startswith("bitfield_insert")) {
@@ -1318,47 +1323,30 @@ Instruction *mutateCallInstOCL(
                         TakeFuncName);
 }
 
-static std::pair<StringRef, StringRef>
-getSrcAndDstElememntTypeName(BitCastInst *BIC) {
-  if (!BIC)
-    return std::pair<StringRef, StringRef>("", "");
-
-  Type *SrcTy = BIC->getSrcTy();
-  Type *DstTy = BIC->getDestTy();
-  if (SrcTy->isPointerTy())
-    SrcTy = SrcTy->getPointerElementType();
-  if (DstTy->isPointerTy())
-    DstTy = DstTy->getPointerElementType();
-  auto SrcST = dyn_cast<StructType>(SrcTy);
-  auto DstST = dyn_cast<StructType>(DstTy);
-  if (!DstST || !DstST->hasName() || !SrcST || !SrcST->hasName())
-    return std::pair<StringRef, StringRef>("", "");
-
-  return std::make_pair(SrcST->getName(), DstST->getName());
+static StringRef getStructName(Type *Ty) {
+  if (auto *STy = dyn_cast<StructType>(Ty))
+    return STy->isLiteral() ? "" : Ty->getStructName();
+  return "";
 }
 
-bool isSamplerInitializer(Instruction *Inst) {
-  BitCastInst *BIC = dyn_cast<BitCastInst>(Inst);
-  auto Names = getSrcAndDstElememntTypeName(BIC);
-  if (Names.second == getSPIRVTypeName(kSPIRVTypeName::Sampler) &&
-      Names.first == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
-    return true;
-
-  return false;
-}
-
-bool isPipeStorageInitializer(Instruction *Inst) {
-  BitCastInst *BIC = dyn_cast<BitCastInst>(Inst);
-  auto Names = getSrcAndDstElememntTypeName(BIC);
-  if (Names.second == getSPIRVTypeName(kSPIRVTypeName::PipeStorage) &&
-      Names.first == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
-    return true;
-
-  return false;
-}
-
-bool isSpecialTypeInitializer(Instruction *Inst) {
-  return isSamplerInitializer(Inst) || isPipeStorageInitializer(Inst);
+Value *unwrapSpecialTypeInitializer(Value *V) {
+  if (auto *BC = dyn_cast<BitCastOperator>(V)) {
+    Type *DestTy = BC->getDestTy();
+    Type *SrcTy = BC->getSrcTy();
+    if (SrcTy->isPointerTy() && !SrcTy->isOpaquePointerTy()) {
+      StringRef SrcName =
+          getStructName(SrcTy->getNonOpaquePointerElementType());
+      StringRef DestName =
+          getStructName(DestTy->getNonOpaquePointerElementType());
+      if (DestName == getSPIRVTypeName(kSPIRVTypeName::PipeStorage) &&
+          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
+        return BC->getOperand(0);
+      if (DestName == getSPIRVTypeName(kSPIRVTypeName::Sampler) &&
+          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
+        return BC->getOperand(0);
+    }
+  }
+  return nullptr;
 }
 
 bool isSamplerStructTy(StructType *STy) {

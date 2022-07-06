@@ -211,7 +211,7 @@ MCSymbol *WebAssemblyAsmPrinter::getOrCreateWasmSymbol(StringRef Name) {
   auto *WasmSym = cast<MCSymbolWasm>(GetExternalSymbolSymbol(Name));
 
   // May be called multiple times, so early out.
-  if (WasmSym->getType().hasValue())
+  if (WasmSym->getType())
     return WasmSym;
 
   const WebAssemblySubtarget &Subtarget = getSubtarget();
@@ -276,7 +276,7 @@ void WebAssemblyAsmPrinter::emitSymbolType(const MCSymbolWasm *Sym) {
   if (!WasmTy)
     return;
 
-  switch (WasmTy.getValue()) {
+  switch (*WasmTy) {
   case wasm::WASM_SYMBOL_TYPE_GLOBAL:
     getTargetStreamer()->emitGlobalType(Sym);
     break;

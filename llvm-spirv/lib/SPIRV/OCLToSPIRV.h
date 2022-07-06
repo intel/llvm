@@ -52,7 +52,8 @@ class OCLTypeToSPIRVBase;
 
 class OCLToSPIRVBase : public InstVisitor<OCLToSPIRVBase> {
 public:
-  OCLToSPIRVBase() : M(nullptr), Ctx(nullptr), CLVer(0) {}
+  OCLToSPIRVBase()
+      : M(nullptr), Ctx(nullptr), CLVer(0), OCLTypeToSPIRVPtr(nullptr) {}
   virtual ~OCLToSPIRVBase() {}
   bool runOCLToSPIRV(Module &M);
 

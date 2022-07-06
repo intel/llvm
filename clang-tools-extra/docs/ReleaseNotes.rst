@@ -110,6 +110,11 @@ Improvements to clang-tidy
   from suppressing diagnostics associated with macro arguments. This fixes
   `Issue 55134 <https://github.com/llvm/llvm-project/issues/55134>`_.
 
+- Added an option -verify-config which will check the config file to ensure each
+  `Checks` and `CheckOptions` entries are recognised.
+
+- .clang-tidy files can now use the more natural dictionary syntax for specifying `CheckOptions`.
+
 New checks
 ^^^^^^^^^^
 
@@ -120,8 +125,12 @@ New checks
 - New :doc:`bugprone-unchecked-optional-access
   <clang-tidy/checks/bugprone/unchecked-optional-access>` check.
 
-   Warns when the code is unwrapping a `std::optional<T>`, `absl::optional<T>`,
-   or `base::Optional<T>` object without assuring that it contains a value.
+  Warns when the code is unwrapping a `std::optional<T>`, `absl::optional<T>`,
+  or `base::Optional<T>` object without assuring that it contains a value.
+
+- New :doc:`misc-confusable-identifiers <clang-tidy/checks/misc/confusable-identifiers>` check.
+
+  Detects confusable Unicode identifiers.
 
 - New :doc:`modernize-macro-to-enum
   <clang-tidy/checks/modernize/macro-to-enum>` check.
@@ -165,17 +174,28 @@ Changes in existing checks
   Fixed an issue when there was already an initializer in the constructor and
   the check would try to create another initializer for the same member.
 
+- Fixed a false positive in :doc:`cppcoreguidelines-virtual-class-destructor
+  <clang-tidy/checks/cppcoreguidelines/virtual-class-destructor>` involving
+  ``final`` classes. The check will not diagnose classes marked ``final``, since
+  those cannot be used as base classes, consequently, they can not violate the
+  rule.
+
 - Fixed a crash in :doc:`llvmlibc-callee-namespace
   <clang-tidy/checks/llvmlibc/callee-namespace>` when executing for C++ code
   that contain calls to advanced constructs, e.g. overloaded operators.
 
-- Fixed a false positive in :doc:`misc-redundant-expression
-  <clang-tidy/checks/misc/redundant-expression>` involving overloaded
-  comparison operators.
+- Fixed false positives in :doc:`misc-redundant-expression
+  <clang-tidy/checks/misc/redundant-expression>`:
 
-- Fixed a false positive in :doc:`misc-redundant-expression
-  <clang-tidy/checks/misc/redundant-expression>` involving assignments in
-  conditions. This fixes `Issue 35853 <https://github.com/llvm/llvm-project/issues/35853>`_.
+  - Fixed a false positive involving overloaded comparison operators.
+
+  - Fixed a false positive involving assignments in
+    conditions. This fixes `Issue 35853 <https://github.com/llvm/llvm-project/issues/35853>`_.
+
+- Fixed a false positive in :doc:`misc-unused-parameters
+  <clang-tidy/checks/misc/unused-parameters>`
+  where invalid parameters were implicitly being treated as being unused. 
+  This fixes `Issue 56152 <https://github.com/llvm/llvm-project/issues/56152>`_.
 
 - Fixed a false positive in :doc:`modernize-deprecated-headers
   <clang-tidy/checks/modernize/deprecated-headers>` involving including

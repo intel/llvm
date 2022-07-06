@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/ExecutionEngine/Float16bits.h"
+#include <cmath>
 
 namespace {
 
@@ -106,6 +107,9 @@ const uint32_t kF32BfMantiBitDiff = 16;
 // Constructs the 16 bit representation for a bfloat value from a float value.
 // This implementation is adapted from Eigen.
 uint16_t float2bfloat(float floatValue) {
+  if (std::isnan(floatValue))
+    return std::signbit(floatValue) ? 0xFFC0 : 0x7FC0;
+
   Float32Bits floatBits;
   floatBits.f = floatValue;
   uint16_t bfloatBits;
@@ -140,4 +144,32 @@ std::ostream &operator<<(std::ostream &os, const f16 &f) {
 std::ostream &operator<<(std::ostream &os, const bf16 &d) {
   os << bfloat2float(d.bits);
   return os;
+}
+
+// Provide a float->bfloat conversion routine in case the runtime doesn't have
+// one.
+extern "C" uint16_t
+#ifdef __has_attribute
+#if __has_attribute(weak) && !defined(__MINGW32__) && !defined(__CYGWIN__) &&  \
+    !defined(_WIN32)
+    __attribute__((__weak__))
+#endif
+#endif
+    __truncsfbf2(float f) {
+  return float2bfloat(f);
+}
+
+// Provide a double->bfloat conversion routine in case the runtime doesn't have
+// one.
+extern "C" uint16_t
+#ifdef __has_attribute
+#if __has_attribute(weak) && !defined(__MINGW32__) && !defined(__CYGWIN__) &&  \
+    !defined(_WIN32)
+    __attribute__((__weak__))
+#endif
+#endif
+    __truncdfbf2(double d) {
+  // This does a double rounding step, but it's precise enough for our use
+  // cases.
+  return __truncsfbf2(static_cast<float>(d));
 }
