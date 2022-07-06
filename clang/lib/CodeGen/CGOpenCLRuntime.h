@@ -56,8 +56,8 @@ protected:
   llvm::StringRef getOpenCLTypeName(const Type *T);
 
 public:
-  CGOpenCLRuntime(CodeGenModule &CGM) : CGM(CGM),
-    PipeROTy(nullptr), PipeWOTy(nullptr) {}
+  CGOpenCLRuntime(CodeGenModule &CGM)
+      : CGM(CGM), PipeROTy(nullptr), PipeWOTy(nullptr) {}
   virtual ~CGOpenCLRuntime();
 
   /// Emit the IR required for a work-group-local variable declaration, and add

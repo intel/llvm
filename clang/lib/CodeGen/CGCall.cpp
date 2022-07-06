@@ -2460,9 +2460,8 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
             getLLVMContext(), llvm::Attribute::ElementType,
             getTypes().ConvertTypeForMem(PtrType->getPointeeType())));
       else if (ParamType->isOpenCLSpecificType()) {
-        llvm::Type *IRType =
-            getOpenCLRuntime()
-                .getOpenCLSpecificPointeeType(ParamType.getTypePtr());
+        llvm::Type *IRType = getOpenCLRuntime().getOpenCLSpecificPointeeType(
+            ParamType.getTypePtr());
         Attrs.addAttribute(llvm::Attribute::get(
             getLLVMContext(), llvm::Attribute::ElementType, IRType));
       }
