@@ -442,6 +442,10 @@ void loop_attrs_compatibility() {
   // expected-note@+1 {{conflicting attribute is here}}
   [[intel::ivdep]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::disable_loop_pipelining]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 template<int A, int B, int C>
