@@ -22,9 +22,6 @@ string(CONCAT sycl_targets_opt
   "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown")
 
-if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
-endif()
 
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
@@ -35,6 +32,11 @@ set(compile_opts
   -Wno-undefined-internal
   -sycl-std=2020
   )
+
+if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt ",nvptx64-nvidia-cuda")
+  list(APPEND compile_opts "-fno-sycl-libspirv")
+endif()
 
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
