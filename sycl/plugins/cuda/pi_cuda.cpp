@@ -617,7 +617,7 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
 }
 
 _pi_program::_pi_program(pi_context ctxt)
-    : modules_{ctxt->get_devices().size(), nullptr}, binary_{0}, binarySizeInBytes_{0}, refCount_{1},
+    : modules_{ctxt->get_devices().size(), nullptr}, build_results_{ctxt->get_devices().size(), CUDA_ERROR_UNKNOWN}, binary_{0}, binarySizeInBytes_{0}, refCount_{1},
       context_{ctxt}, kernelReqdWorkGroupSizeMD_{} {
   cuda_piContextRetain(context_);
 }
@@ -695,20 +695,49 @@ pi_result _pi_program::build_program(const char *build_options) {
   optionVals[3] = (void *)(long)MAX_LOG_SIZE;
 
   auto native_ctxts = get_context()->get();
-  bool success = true;
+  // we count the build as successful if it succeeds on at least one device
+  bool success = false;
+  CUresult res1 = CUDA_ERROR_NO_DEVICE;
   for(size_t i=0;i<native_ctxts.size();i++){
     ScopedContext ctx(native_ctxts[i]);
-    success &= PI_SUCCESS == PI_CHECK_ERROR(
-        cuModuleLoadDataEx(&modules_[i], static_cast<const void *>(binary_),
-                          numberOfOptions, options, optionVals));
+    res1 = cuModuleLoadDataEx(&modules_[i], static_cast<const void *>(binary_),
+                          numberOfOptions, options, optionVals);
+    build_results_[i] = res1;
+    success |= CUDA_SUCCESS == res1;
   }
 
-  buildStatus_ =
-      success ? PI_PROGRAM_BUILD_STATUS_SUCCESS : PI_PROGRAM_BUILD_STATUS_ERROR;
-
   // If no exception, result is correct
-  return success ? PI_SUCCESS : PI_ERROR_BUILD_PROGRAM_FAILURE;
+  if(success){
+    buildStatus_ = PI_PROGRAM_BUILD_STATUS_SUCCESS;
+    return PI_SUCCESS;
+  } else {
+    PI_CHECK_ERROR(res1);
+    buildStatus_ = PI_PROGRAM_BUILD_STATUS_ERROR;
+    return PI_ERROR_BUILD_PROGRAM_FAILURE;
+  }
 }
+
+  CUfunction _pi_kernel::get(pi_device device) const noexcept {
+    const auto& devices = context_->get_devices();
+    for(size_t i=0;i<devices.size();i++){
+      if(devices[i]==device){
+        PI_CHECK_ERROR(program_->build_results_[i]);
+        return functions_[i];
+      }
+    }
+    assert(false);
+  }
+
+  CUfunction _pi_kernel::get_with_offset_parameter(pi_device device) const noexcept {
+    const auto& devices = context_->get_devices();
+    for(size_t i=0;i<devices.size();i++){
+      if(devices[i]==device){
+        PI_CHECK_ERROR(program_->build_results_[i]);
+        return functionsWithOffsetParam_[i];
+      }
+    }
+    assert(false);
+  }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
 /// CUDA driver API doesn't expose an operation for this.
@@ -2769,6 +2798,12 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
       CUmodule module = modules[i];
       ScopedContext active(program->get_context()->get()[i]);
 
+      if(program->build_results_[i] != CUDA_SUCCESS){
+        cuFuncs[i] = nullptr;
+        cuFuncsWithOffsetParam[i] = nullptr;
+        continue;
+      }
+
       retErr = PI_CHECK_ERROR(
           cuModuleGetFunction(&cuFuncs[i], module, kernel_name));
 
@@ -3555,8 +3590,10 @@ pi_result cuda_piProgramRelease(pi_program program) {
     try {
       const auto& modules = program->get();
       for(size_t i=0;i<modules.size();i++){
-        ScopedContext active(program->get_context()->get()[i]);
-        result = PI_CHECK_ERROR(cuModuleUnload(modules[i]));
+        if(program->build_results_[i] == CUDA_SUCCESS){
+          ScopedContext active(program->get_context()->get()[i]);
+          result = PI_CHECK_ERROR(cuModuleUnload(modules[i]));
+        }
       }
     } catch (...) {
       result = PI_ERROR_OUT_OF_RESOURCES;

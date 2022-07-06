@@ -745,6 +745,7 @@ private:
 struct _pi_program {
   using native_type = CUmodule;
   std::vector<native_type> modules_;
+  std::vector<CUresult> build_results_;
   const char * binary_;
   size_t binarySizeInBytes_;
   std::atomic_uint32_t refCount_;
@@ -925,29 +926,13 @@ struct _pi_kernel {
 
   pi_uint32 get_reference_count() const noexcept { return refCount_; }
 
-  std::vector<native_type> get() const noexcept { return functions_; };
-  native_type get(pi_device device) const noexcept {
-    const auto& devices = context_->get_devices();
-    for(size_t i=0;i<devices.size();i++){
-      if(devices[i]==device){ 
-        return functions_[i];
-      }
-    }
-    assert(false);
-  };
+  std::vector<native_type> get() const noexcept { return functions_; }
+  native_type get(pi_device device) const noexcept;
 
   std::vector<native_type> get_with_offset_parameter() const noexcept {
     return functionsWithOffsetParam_;
-  };
-  native_type get_with_offset_parameter(pi_device device) const noexcept {
-    const auto& devices = context_->get_devices();
-    for(size_t i=0;i<devices.size();i++){
-      if(devices[i]==device){ 
-        return functionsWithOffsetParam_[i];
-      }
-    }
-    assert(false);
   }
+  native_type get_with_offset_parameter(pi_device device) const noexcept;
 
   /*bool has_with_offset_parameter() const noexcept {
     return functionWithOffsetParam_ != nullptr;
