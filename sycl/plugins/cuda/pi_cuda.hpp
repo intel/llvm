@@ -466,7 +466,7 @@ struct _pi_queue {
   bool can_reuse_stream(pi_uint32 stream_token) {
     // stream token not associated with one of the compute streams
     if (stream_token == std::numeric_limits<pi_uint32>::max()) {
-      return true;
+      return false;
     }
     // If the command represented by the stream token was not the last command
     // enqueued to the stream we can not reuse the stream - we need to allow for
