@@ -231,6 +231,16 @@ Enabling this flag requires an installation of
 ROCm on the system, for instruction on how to install this refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
+The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it
+is installed somewhere else, the directory must be provided through
+the CMake variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed
+using the `--cmake-opt` option of `configure.py` as follows:
+
+```
+python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
+  --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
+```
+
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0 and
 using the MI50 (gfx906) and MI100 (gfx908) devices.
 
@@ -239,26 +249,6 @@ The AMDGPU backend generates a standard ELF [ELF] relocatable code object that c
 produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target.
 The LLD project is enabled by default when configuring for HIP. For more details
 on building LLD refer to [LLD Build Guide](https://lld.llvm.org/).
-
-The following CMake variables can be updated to change where CMake is looking
-for the HIP installation:
-
-* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`: Path to HIP include directory (default
-  `/opt/rocm/hip/include`).
-* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`: Path to HSA include directory (default
-  `/opt/rocm/hsa/include`).
-* `SYCL_BUILD_PI_HIP_AMD_LIBRARY`: Path to HIP runtime library (default
-  `/opt/rocm/hip/lib/libamdhip64.so`).
-
-These variables can be passed to `configure.py` using `--cmake-opt`, for example
-with a ROCm installation in `/usr/local`:
-
-```
-python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
-  --cmake-opt=-DSYCL_BUILD_PI_HIP_INCLUDE_DIR=/usr/local/rocm/hip/include \
-  --cmake-opt=-DSYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR=/usr/local/rocm/hsa/include \
-  --cmake-opt=-DSYCL_BUILD_PI_HIP_AMD_LIBRARY=/usr/local/rocm/hip/lib/libamdhip64.so
-```
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
