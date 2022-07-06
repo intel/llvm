@@ -2320,10 +2320,15 @@ QualType Sema::BuildBitIntType(bool IsUnsigned, Expr *BitWidth,
     return QualType();
   }
 
-  const TargetInfo &TI = getASTContext().getTargetInfo();
-  if (NumBits > TI.getMaxBitIntWidth()) {
+  // If the number of bits exceed the maximum bit width supported on
+  // both host and device, issue an error diagnostic.
+  const TargetInfo *AuxTargetInfo = getASTContext().getAuxTargetInfo();
+  size_t MaxBitIntWidth = std::max(
+      (AuxTargetInfo == nullptr) ? 0 : AuxTargetInfo->getMaxBitIntWidth(),
+      getASTContext().getTargetInfo().getMaxBitIntWidth());
+  if (NumBits > MaxBitIntWidth) {
     Diag(Loc, diag::err_bit_int_max_size)
-        << IsUnsigned << static_cast<uint64_t>(TI.getMaxBitIntWidth());
+        << IsUnsigned << static_cast<uint64_t>(MaxBitIntWidth);
     return QualType();
   }
 

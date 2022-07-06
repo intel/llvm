@@ -694,19 +694,93 @@ DeviceBinaryImage::getProperty(const char *PropName) const {
   return *It;
 }
 
+// Reads an integer value from ELF data.
+template <typename ResT>
+static ResT readELFValue(const unsigned char *Data, size_t NumBytes,
+                         bool IsBigEndian) {
+  assert(NumBytes <= sizeof(ResT));
+  ResT Result = 0;
+  if (IsBigEndian) {
+    for (size_t I = 0; I < NumBytes; ++I) {
+      Result = (Result << 8) | static_cast<ResT>(Data[I]);
+    }
+  } else {
+    std::copy(Data, Data + NumBytes, reinterpret_cast<char *>(&Result));
+  }
+  return Result;
+}
+
+// Checks if an ELF image contains a section with a specified name.
+static bool checkELFSectionPresent(const std::string &ExpectedSectionName,
+                                   const unsigned char *ImgData,
+                                   size_t ImgSize) {
+  // Check for 64bit and big-endian.
+  bool Is64bit = ImgData[4] == 2;
+  bool IsBigEndian = ImgData[5] == 2;
+
+  // Make offsets based on whether the ELF file is 64bit or not.
+  size_t SectionHeaderOffsetInfoOffset = Is64bit ? 0x28 : 0x20;
+  size_t SectionHeaderSizeInfoOffset = Is64bit ? 0x3A : 0x2E;
+  size_t SectionHeaderNumInfoOffset = Is64bit ? 0x3C : 0x30;
+  size_t SectionStringsHeaderIndexInfoOffset = Is64bit ? 0x3E : 0x32;
+
+  // if the image doesn't contain enough data for the header values, end early.
+  if (ImgSize < SectionStringsHeaderIndexInfoOffset + 2)
+    return false;
+
+  // Read the e_shoff, e_shentsize, e_shnum, and e_shstrndx entries in the
+  // header.
+  uint64_t SectionHeaderOffset = readELFValue<uint64_t>(
+      ImgData + SectionHeaderOffsetInfoOffset, Is64bit ? 8 : 4, IsBigEndian);
+  uint16_t SectionHeaderSize = readELFValue<uint16_t>(
+      ImgData + SectionHeaderSizeInfoOffset, 2, IsBigEndian);
+  uint16_t SectionHeaderNum = readELFValue<uint16_t>(
+      ImgData + SectionHeaderNumInfoOffset, 2, IsBigEndian);
+  uint16_t SectionStringsHeaderIndex = readELFValue<uint16_t>(
+      ImgData + SectionStringsHeaderIndexInfoOffset, 2, IsBigEndian);
+
+  // End early if we do not have the expected number of section headers or
+  // if the read section string header index is out-of-range.
+  if (ImgSize < SectionHeaderOffset + SectionHeaderNum * SectionHeaderSize ||
+      SectionStringsHeaderIndex >= SectionHeaderNum)
+    return false;
+
+  // Get the location of the section string data.
+  size_t SectionStringsInfoOffset = Is64bit ? 0x18 : 0x10;
+  const unsigned char *SectionStringsHeaderData =
+      ImgData + SectionHeaderOffset +
+      SectionStringsHeaderIndex * SectionHeaderSize;
+  uint64_t SectionStrings = readELFValue<uint64_t>(
+      SectionStringsHeaderData + SectionStringsInfoOffset, Is64bit ? 8 : 4,
+      IsBigEndian);
+  const unsigned char *SectionStringsData = ImgData + SectionStrings;
+
+  // For each section, check the name against the expected section and return
+  // true if we find it.
+  for (size_t I = 0; I < SectionHeaderNum; ++I) {
+    // Get the offset into the section string data of this sections name.
+    const unsigned char *HeaderData =
+        ImgData + SectionHeaderOffset + I * SectionHeaderSize;
+    uint32_t SectionNameOffset =
+        readELFValue<uint32_t>(HeaderData, 4, IsBigEndian);
+
+    // Read the section name and check if it is the same as the name we are
+    // looking for.
+    const char *SectionName =
+        reinterpret_cast<const char *>(SectionStringsData + SectionNameOffset);
+    if (SectionName == ExpectedSectionName)
+      return true;
+  }
+  return false;
+}
+
 // Returns the e_type field from an ELF image.
 static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
   (void)ImgSize;
   assert(ImgSize >= 18 && "Not enough bytes to have an ELF header type.");
 
   bool IsBigEndian = ImgData[5] == 2;
-  if (IsBigEndian)
-    return (static_cast<uint16_t>(ImgData[16]) << 8) |
-           static_cast<uint16_t>(ImgData[17]);
-  uint16_t HdrType = 0;
-  std::copy(ImgData + 16, ImgData + 16 + sizeof(HdrType),
-            reinterpret_cast<char *>(&HdrType));
-  return HdrType;
+  return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
 RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
@@ -745,6 +819,10 @@ RT::PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
         if (HdrType == ELFFmt.Magic)
           return ELFFmt.Fmt;
       }
+      // Newer ZEBIN format does not have a special header type, but can instead
+      // be identified by having a required .ze_info section.
+      if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
+        return PI_DEVICE_BINARY_TYPE_NATIVE;
     }
   }
   return PI_DEVICE_BINARY_TYPE_NONE;
