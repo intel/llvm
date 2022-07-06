@@ -38,7 +38,6 @@ protected:
   CodeGenModule &CGM;
   llvm::Type *PipeROTy;
   llvm::Type *PipeWOTy;
-  llvm::PointerType *SamplerTy;
   llvm::StringMap<llvm::PointerType *> CachedTys;
 
   /// Structure for enqueued block information.
@@ -53,11 +52,12 @@ protected:
 
   virtual llvm::Type *getPipeType(const PipeType *T, StringRef Name,
                                   llvm::Type *&PipeTy);
-  llvm::PointerType *getPointerType(const Type *T);
+  llvm::PointerType *getPointerToOpaqueType(llvm::StringRef Name, uint32_t AS);
+  llvm::StringRef getOpenCLTypeName(const Type *T);
 
 public:
   CGOpenCLRuntime(CodeGenModule &CGM) : CGM(CGM),
-    PipeROTy(nullptr), PipeWOTy(nullptr), SamplerTy(nullptr) {}
+    PipeROTy(nullptr), PipeWOTy(nullptr) {}
   virtual ~CGOpenCLRuntime();
 
   /// Emit the IR required for a work-group-local variable declaration, and add
@@ -66,8 +66,7 @@ public:
   virtual void EmitWorkGroupLocalVarDecl(CodeGenFunction &CGF,
                                          const VarDecl &D);
 
-  virtual std::pair<llvm::Type *, llvm::StringRef>
-  getOpenCLSpecificPointeeType(const Type *T);
+  virtual llvm::Type *getOpenCLSpecificPointeeType(const Type *T);
   virtual llvm::Type *convertOpenCLSpecificType(const Type *T);
 
   virtual llvm::Type *getPipeType(const PipeType *T);

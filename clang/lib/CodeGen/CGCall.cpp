@@ -2462,8 +2462,7 @@ void CodeGenModule::ConstructAttributeList(StringRef Name,
       else if (ParamType->isOpenCLSpecificType()) {
         llvm::Type *IRType =
             getOpenCLRuntime()
-                .getOpenCLSpecificPointeeType(ParamType.getTypePtr())
-                .first;
+                .getOpenCLSpecificPointeeType(ParamType.getTypePtr());
         Attrs.addAttribute(llvm::Attribute::get(
             getLLVMContext(), llvm::Attribute::ElementType, IRType));
       }
