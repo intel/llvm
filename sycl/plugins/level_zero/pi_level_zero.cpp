@@ -6046,13 +6046,17 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
         return PI_SUCCESS;
       };
 
+  // Indicator for whether batching is allowed. This may be changed later in
+  // this function, but allow it by default.
+  bool OkToBatch = true;
+
   // If we have a list of events to make the barrier from, then we can create a
   // barrier on these and use the resulting event as our future barrier.
   if (NumEventsInWaitList) {
     // Get an arbitrary command-list in the queue.
     pi_command_list_ptr_t CmdList;
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, CmdList, /*AllowBatching=*/true))
+    if (auto Res =
+            Queue->Context->getAvailableCommandList(Queue, CmdList, OkToBatch))
       return Res;
 
     // Retain the events as they will be owned by the result event.
@@ -6065,7 +6069,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     // Insert the barrier into the command-list and execute.
     if (auto Res = insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event))
       return Res;
-    if (auto Res = Queue->executeCommandList(CmdList))
+    if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
     // Retain and save the resulting event for future commands.
@@ -6096,25 +6100,26 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
              Queue->CopyQueueGroup.ZeQueues.empty()) {
     // If there are no queues, we get any available command list.
     pi_command_list_ptr_t CmdList;
-    if (auto Res = Queue->Context->getAvailableCommandList(
-            Queue, CmdList, /*AllowBatching=*/true))
+    if (auto Res =
+            Queue->Context->getAvailableCommandList(Queue, CmdList, OkToBatch))
       return Res;
     CmdLists.push_back(CmdList);
   } else {
-    // Get an available command list tied to each command queue. We need these
-    // so a queue-wide barrier can be inserted into each command queue.
     size_t NumQueues = Queue->ComputeQueueGroup.ZeQueues.size() +
                        Queue->CopyQueueGroup.ZeQueues.size();
+    // Only allow batching if there is only a single queue as otherwise the
+    // following availability command list lookups will prematurely push
+    // open batch command lists out.
+    OkToBatch = NumQueues == 1;
+    // Get an available command list tied to each command queue. We need these
+    // so a queue-wide barrier can be inserted into each command queue.
     CmdLists.reserve(NumQueues);
     for (auto QueueGroup : {Queue->ComputeQueueGroup, Queue->CopyQueueGroup}) {
       bool UseCopyEngine = QueueGroup.Type != _pi_queue::queue_type::Compute;
       for (ze_command_queue_handle_t ZeQueue : QueueGroup.ZeQueues) {
-        // Only allow batching if there is only a single queue as otherwise the
-        // following availability command list lookups will prematurely push
-        // open batch command lists out.
         pi_command_list_ptr_t CmdList;
         if (auto Res = Queue->Context->getAvailableCommandList(
-                Queue, CmdList, UseCopyEngine, /*AllowBatching=*/NumQueues == 1,
+                Queue, CmdList, UseCopyEngine, OkToBatch,
                 &ZeQueue))
           return Res;
         CmdLists.push_back(CmdList);
@@ -6162,7 +6167,7 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   // Execute each command list so the barriers can be encountered.
   for (pi_command_list_ptr_t &CmdList : CmdLists)
-    if (auto Res = Queue->executeCommandList(CmdList))
+    if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
   // We must keep the event internally to use if new command lists are created.
