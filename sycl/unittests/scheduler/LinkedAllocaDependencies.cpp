@@ -73,7 +73,7 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
                       std::vector<cl::sycl::detail::Command *> &) {};
 
   std::shared_ptr<cl::sycl::detail::MemObjRecord> Record{
-      new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(),
+      new cl::sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(), DefaultHostQueue->getDeviceImplPtr(),
                                          10, AllocaDep)};
 
   MemObjMock MemObj(Record);

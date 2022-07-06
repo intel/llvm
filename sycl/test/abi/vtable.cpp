@@ -32,7 +32,7 @@ void foo(sycl::detail::SYCLMemObjI &MemObj) { (void)MemObj.getType(); }
 // CHECK-NEXT:   2 | sycl::detail::SYCLMemObjI::~SYCLMemObjI() [complete]
 // CHECK-NEXT:   3 | sycl::detail::SYCLMemObjI::~SYCLMemObjI() [deleting]
 // CHECK-NEXT:   4 | sycl::detail::SYCLMemObjI::MemObjType sycl::detail::SYCLMemObjI::getType() const [pure]
-// CHECK-NEXT:   5 | void *sycl::detail::SYCLMemObjI::allocateMem(sycl::detail::ContextImplPtr, bool, void *, RT::PiEvent &) [pure]
+// CHECK-NEXT:   5 | void *sycl::detail::SYCLMemObjI::allocateMem(sycl::detail::ContextImplPtr, sycl::detail::DeviceImplPtr, bool, void *, RT::PiEvent &) [pure]
 // CHECK-NEXT:   6 | void *sycl::detail::SYCLMemObjI::allocateHostMem() [pure]
 // CHECK-NEXT:   7 | void sycl::detail::SYCLMemObjI::releaseMem(sycl::detail::ContextImplPtr, void *) [pure]
 // CHECK-NEXT:   8 | void sycl::detail::SYCLMemObjI::releaseHostMem(void *) [pure]
