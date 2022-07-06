@@ -48,6 +48,7 @@ struct property_value
   using key_t = PropertyT;
 };
 
+#if __cplusplus >= 201703L // pack fold expressions
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
                            bool>
@@ -63,6 +64,7 @@ operator!=(const property_value<PropertyT, A...> &,
            const property_value<PropertyT, B...> &) {
   return (!std::is_same<A, B>::value || ...);
 }
+#endif // __cplusplus >= 201703L
 
 template <typename V, typename = void> struct is_property_value {
   static constexpr bool value =

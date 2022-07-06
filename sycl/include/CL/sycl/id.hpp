@@ -118,6 +118,11 @@ public:
 // OP is: ==, !=
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   using detail::array<dimensions>::operator==;
+  // Needed for C++20 as the above operator== would be ambigious between
+  // regular/reversed call for "Id == Id" case.
+  bool operator==(const id<dimensions> &rhs) const {
+    return this->detail::array<dimensions>::operator==(rhs);
+  }
 #if __cpp_impl_three_way_comparison < 201907
   using detail::array<dimensions>::operator!=;
 #endif
