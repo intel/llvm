@@ -1034,7 +1034,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     Optional<unsigned> IndexOptional = TranslateIndex(Index);
     if (!IndexOptional)
       return llvm::None;
-    unsigned NewIndex = IndexOptional.getValue();
+    unsigned NewIndex = *IndexOptional;
     Expr::EvalResult Result;
     Expr *SizeArg = TheCall->getArg(NewIndex);
     if (!SizeArg->EvaluateAsInt(Result, getASTContext()))
@@ -1059,7 +1059,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     Optional<unsigned> IndexOptional = TranslateIndex(Index);
     if (!IndexOptional)
       return llvm::None;
-    unsigned NewIndex = IndexOptional.getValue();
+    unsigned NewIndex = *IndexOptional;
 
     const Expr *ObjArg = TheCall->getArg(NewIndex);
     uint64_t Result;
@@ -1074,7 +1074,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     Optional<unsigned> IndexOptional = TranslateIndex(Index);
     if (!IndexOptional)
       return llvm::None;
-    unsigned NewIndex = IndexOptional.getValue();
+    unsigned NewIndex = *IndexOptional;
 
     const Expr *ObjArg = TheCall->getArg(NewIndex);
     uint64_t Result;
@@ -1284,8 +1284,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   }
 
   if (!SourceSize || !DestinationSize ||
-      llvm::APSInt::compareValues(SourceSize.getValue(),
-                                  DestinationSize.getValue()) <= 0)
+      llvm::APSInt::compareValues(*SourceSize, *DestinationSize) <= 0)
     return;
 
   StringRef FunctionName = GetFunctionName();
@@ -16833,7 +16832,7 @@ void Sema::DiagnoseEmptyLoopBody(const Stmt *S,
     Body = FS->getBody();
     DiagID = diag::warn_empty_for_body;
   } else if (const WhileStmt *WS = dyn_cast<WhileStmt>(S)) {
-    StmtLoc = WS->getCond()->getSourceRange().getEnd();
+    StmtLoc = WS->getRParenLoc();
     Body = WS->getBody();
     DiagID = diag::warn_empty_while_body;
   } else

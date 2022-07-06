@@ -253,6 +253,9 @@ public:
   /// example: GroupNonUniformBallotBitCount(Reduce) =>
   /// group_ballot_bit_count_iadd => sub_group_ballot_bit_count
   std::string getBallotBuiltinName(CallInst *CI, Op OC);
+  /// Transform OpGroupNonUniformRotateKHR to corresponding OpenCL function
+  /// name.
+  std::string getRotateBuiltinName(CallInst *CI, Op OC);
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
   /// Transform SPV-IR image opaque type into OpenCL representation,
