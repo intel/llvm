@@ -46,9 +46,11 @@ namespace property {
 namespace queue {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::queue' instead") cuda {
-  class use_default_stream : public ::cl::sycl::ext::oneapi::cuda::property::
-                                 queue::use_default_stream {};
+class use_default_stream : public ::cl::sycl::ext::oneapi::cuda::property::
+                               queue::use_default_stream {};
+// clang-format off
 } // namespace cuda
+// clang-format on
 } // namespace queue
 } // namespace property
 
