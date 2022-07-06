@@ -31,17 +31,18 @@
 
 #include <esimdemu_support.h>
 
+#include "pi_esimd_emulator.hpp"
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
-
-#include "pi_esimd_emulator.hpp"
 
 #define ARG_UNUSED(x) (void)x
 
@@ -373,26 +374,26 @@ extern "C" {
 
 #define DIE_NO_IMPLEMENTATION                                                  \
   if (PrintPiTrace) {                                                          \
-    fprintf(stderr, "Not Implemented : " __FUNCTION__ " - File : " __FILE__);  \
-    fprintf(stderr, " / Line : "__LINE__                                       \
-                    "\n");                                                     \
+    fprintf(stderr, "Not Implemented : %s - File : %s", __FUNCTION__,          \
+            __FILE__);                                                         \
+    fprintf(stderr, " / Line : %d\n", __LINE__);                               \
   }                                                                            \
   return PI_ERROR_INVALID_OPERATION;
 
 #define CONTINUE_NO_IMPLEMENTATION                                             \
   if (PrintPiTrace) {                                                          \
-    fprintf(                                                                   \
-        stderr,                                                                \
-        "Warning : Not Implemented : " __FUNCTION__ " - File : " __FILE__);    \
-    fprintf(stderr, " / Line : " __LINE__ "\n");                               \
+    fprintf(stderr, "Warning : Not Implemented : %s - File : %s",              \
+            __FUNCTION__, __FILE__);                                           \
+    fprintf(stderr, " / Line : %d\n", __LINE__);                               \
   }                                                                            \
   return PI_SUCCESS;
 
 #define CASE_PI_UNSUPPORTED(not_supported)                                     \
   case not_supported:                                                          \
     if (PrintPiTrace) {                                                        \
-      fprintf(stderr, "\nUnsupported PI case : " #not_supported                \
-                      " in " __FUNCTION__ ":" __LINE__ "(" __FILE__ ")\n");    \
+      fprintf(stderr,                                                          \
+              "\nUnsupported PI case : " #not_supported " in %s:%d(%s)\n",     \
+              __FUNCTION__, __LINE__, __FILE__);                               \
     }                                                                          \
     return PI_ERROR_INVALID_OPERATION;
 
@@ -560,11 +561,12 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
     return PI_ERROR_INVALID_DEVICE;
   }
 
-  std::ostringstream StrFormat;
-  StrFormat << (int)(Version / 100) << "." << (int)(Version % 10);
+  std::string StrFormat{};
+  StrFormat = std::to_string((int)(Version / 100));
+  StrFormat += '.';
+  StrFormat += std::to_string((int)(Version % 10));
 
-  std::unique_ptr<_pi_device> Device(
-      new _pi_device(this, CmDevice, StrFormat.str()));
+  std::unique_ptr<_pi_device> Device(new _pi_device(this, CmDevice, StrFormat));
   PiDeviceCache = std::move(Device);
   DeviceCachePopulated = true;
   return PI_SUCCESS;

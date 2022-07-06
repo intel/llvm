@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <regex>
+#include <sstream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

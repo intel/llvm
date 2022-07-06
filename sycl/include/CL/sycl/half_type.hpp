@@ -143,7 +143,7 @@ public:
 
   half &operator=(const half &rhs) = default;
   // string operator
-  inline operator std::string() const;
+  operator std::string() const;
   // Operator +=, -=, *=, /=
   half &operator+=(const half &rhs);
 
@@ -704,6 +704,20 @@ inline FILE *operator>>(FILE *file, cl::sycl::half &rhs) {
   fscanf(file, "%f", &ValFloat);
   rhs = ValFloat;
   return file;
+}
+
+// Almost a replacement for std::istream except it takes and returns a string
+// parameter
+inline std::string &operator>>(std::string &str, cl::sycl::half &rhs) {
+  float ValFloat = 0.0f;
+  std::string::size_type sz = 0;
+
+  if (str[0] >= '0' && str[0] <= '9') {
+    ValFloat = std::stof(str, &sz);
+    str.erase(0, sz);
+  }
+  rhs = ValFloat;
+  return str;
 }
 
 #undef __SYCL_CONSTEXPR_HALF

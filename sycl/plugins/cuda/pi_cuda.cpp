@@ -24,6 +24,7 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <sstream>
 
 namespace {
 std::string getCudaVersionString() {

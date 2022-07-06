@@ -86,11 +86,13 @@ template <typename T1>
 void check_half_stream_operator_type(sycl::queue &Queue) {
 
   // Host only stream test
-  std::istringstream iss;
   std::ostringstream oss;
   sycl::half val;
-  static_assert(is_same_v<decltype(iss >> val), std::istream &>);
+
   static_assert(is_same_v<decltype(oss << val), std::ostream &>);
+
+  std::string iss;
+  static_assert(is_same_v<decltype(iss >> val), std::string &>);
 }
 
 int main() {

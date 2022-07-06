@@ -23,6 +23,7 @@
 #include <memory>
 #include <mutex>
 #include <regex>
+#include <sstream>
 #include <string.h>
 
 namespace {

@@ -170,8 +170,11 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
                             BuildOptionsString)) {
       try {
-        // FILE* dummy= fopen((FileName +".bin").c_str(),"rb");
-        // fprintf(stderr,"Dummy read open:%p\n",dummy);
+        // FILE *dummy = fopen((FileName + ".bin").c_str(), "rb");
+        // fprintf(stderr, "Dummy read open:%p\n", dummy);
+        // if (!dummy) {
+        //   perror("Dummy file failed");
+        // }
         // fclose(dummy);
         std::string FullFileName = FileName + ".bin";
         std::vector<std::vector<char>> res =
