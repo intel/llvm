@@ -402,14 +402,12 @@ void loop_attrs_compatibility() {
   // no diagnostics are expected
   [[intel::disable_loop_pipelining]] [[intel::loop_count_avg(8)]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  [[intel::loop_count_min(8)]]
-  for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  [[intel::loop_count_max(8)]]
-  for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::loop_count_min(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  [[intel::loop_count_max(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   [[intel::loop_count(8)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // no diagnostics are expected
   [[intel::fpga_pipeline]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
