@@ -33,6 +33,7 @@
 #include <cuda.h>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <numeric>
 #include <stdint.h>

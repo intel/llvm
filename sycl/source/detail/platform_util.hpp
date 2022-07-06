@@ -9,6 +9,9 @@
 #pragma once
 
 #include <cstdint>
+
+#include <stddef.h> // for ::size_t
+
 #include <sycl/detail/defines.hpp>
 
 #ifdef _MSC_VER
