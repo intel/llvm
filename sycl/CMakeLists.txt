@@ -403,6 +403,12 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
+
+  # On AMD platform lld is also needed
+  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    add_dependencies(sycl-toolchain lld)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS lld)
+  endif()
 endif()
 
 if("esimd_emulator" IN_LIST SYCL_ENABLE_PLUGINS)
