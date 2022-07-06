@@ -16,11 +16,11 @@
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/id.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/range.hpp>
 #include <sycl/types.hpp>
-#include <sycl/ext/oneapi/functional.hpp>
 
 #include <type_traits>
 

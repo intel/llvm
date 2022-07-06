@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/device_impl.hpp>
+#include <detail/kernel_program_cache.hpp>
+#include <detail/platform_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
@@ -14,10 +18,6 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
-#include <detail/device_impl.hpp>
-#include <detail/kernel_program_cache.hpp>
-#include <detail/platform_impl.hpp>
-#include <detail/program_manager/program_manager.hpp>
 
 #include <map>
 #include <memory>

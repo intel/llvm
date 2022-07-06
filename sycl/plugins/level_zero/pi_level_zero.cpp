@@ -12,7 +12,6 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
-#include <sycl/detail/spinlock.hpp>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -21,6 +20,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <sycl/detail/spinlock.hpp>
 #include <thread>
 #include <utility>
 

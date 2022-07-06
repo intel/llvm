@@ -25,6 +25,7 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/atomic.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
@@ -56,7 +57,6 @@
 #include <sycl/types.hpp>
 #include <sycl/usm.hpp>
 #include <sycl/version.hpp>
-#include <sycl/ext/oneapi/atomic.hpp>
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif

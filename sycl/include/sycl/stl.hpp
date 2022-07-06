@@ -48,7 +48,7 @@ namespace sycl {
 #endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 
 template <typename T, typename... ArgsT>
-std::unique_ptr<T> make_unique_ptr(ArgsT &&... Args) {
+std::unique_ptr<T> make_unique_ptr(ArgsT &&...Args) {
   return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
 }
 

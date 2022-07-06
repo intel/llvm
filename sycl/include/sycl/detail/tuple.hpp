@@ -37,7 +37,7 @@ template <typename... Ts> constexpr tuple<Ts...> make_tuple(Ts... Args) {
   return sycl::detail::tuple<Ts...>{Args...};
 }
 
-template <typename... Ts> auto tie(Ts &... Args) {
+template <typename... Ts> auto tie(Ts &...Args) {
   return sycl::detail::tuple<Ts &...>(Args...);
 }
 
@@ -82,8 +82,8 @@ template <> struct get<0> {
   }
 
   template <typename... Ts>
-  constexpr ret_type<Ts...> const &operator()(const tuple<Ts...> &Tuple) const
-      noexcept {
+  constexpr ret_type<Ts...> const &
+  operator()(const tuple<Ts...> &Tuple) const noexcept {
     return Tuple.holder.value;
   }
 };
@@ -124,7 +124,7 @@ template <typename T, typename... Ts> struct tuple<T, Ts...> {
   tuple(const tuple<UT, UTs...> &RHS)
       : holder(RHS.holder.value), next(RHS.next) {}
 
-  tuple(const T &Value, const Ts &... Next) : holder(Value), next(Next...) {}
+  tuple(const T &Value, const Ts &...Next) : holder(Value), next(Next...) {}
 
   // required to convert std::tuple to inner tuple in user-provided functor
   tuple(const std::tuple<T, Ts...> &RHS)

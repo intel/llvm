@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/memory_manager.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/memory_manager.hpp>
 
 #include <algorithm>
 #include <cassert>

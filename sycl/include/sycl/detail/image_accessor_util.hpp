@@ -799,8 +799,8 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
 template <typename DataT>
 DataT ReadPixelData(const cl_int4 PixelCoord, const id<3> ImgPitch,
                     const image_channel_type ImageChannelType,
-                    const image_channel_order ImageChannelOrder,
-                    void *BasePtr, const uint8_t ElementSize) {
+                    const image_channel_order ImageChannelOrder, void *BasePtr,
+                    const uint8_t ElementSize) {
   DataT Color(0);
   auto Ptr = static_cast<unsigned char *>(BasePtr) +
              getImageOffset(PixelCoord, ImgPitch,
@@ -925,29 +925,28 @@ DataT ReadPixelDataLinearFiltMode(const cl_int8 CoordValues,
   cl_int i0 = CoordValues.s0(), j0 = CoordValues.s1(), k0 = CoordValues.s2(),
          i1 = CoordValues.s4(), j1 = CoordValues.s5(), k1 = CoordValues.s6();
 
-  auto getColorInFloat =
-      [&](cl_int4 V) {
-        DataT Res = getColor<DataT>(V, SmplAddrMode,
-                                    ImgRange, ImgPitch, ImgChannelType,
-                                    ImgChannelOrder, BasePtr, ElementSize);
-        return Res.template convert<cl_float>();
-      };
+  auto getColorInFloat = [&](cl_int4 V) {
+    DataT Res =
+        getColor<DataT>(V, SmplAddrMode, ImgRange, ImgPitch, ImgChannelType,
+                        ImgChannelOrder, BasePtr, ElementSize);
+    return Res.template convert<cl_float>();
+  };
 
   // Get Color Values at each Coordinate.
   cl_float4 Ci0j0k0 = getColorInFloat(cl_int4{i0, j0, k0, 0});
-  
+
   cl_float4 Ci1j0k0 = getColorInFloat(cl_int4{i1, j0, k0, 0});
-  
+
   cl_float4 Ci0j1k0 = getColorInFloat(cl_int4{i0, j1, k0, 0});
-  
+
   cl_float4 Ci1j1k0 = getColorInFloat(cl_int4{i1, j1, k0, 0});
-  
+
   cl_float4 Ci0j0k1 = getColorInFloat(cl_int4{i0, j0, k1, 0});
-  
+
   cl_float4 Ci1j0k1 = getColorInFloat(cl_int4{i1, j0, k1, 0});
-  
+
   cl_float4 Ci0j1k1 = getColorInFloat(cl_int4{i0, j1, k1, 0});
-  
+
   cl_float4 Ci1j1k1 = getColorInFloat(cl_int4{i1, j1, k1, 0});
 
   cl_float a = abc.x();

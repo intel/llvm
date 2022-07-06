@@ -6,13 +6,13 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/aligned_allocator.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/usm.hpp>
-#include <detail/queue_impl.hpp>
 
 #include <array>
 #include <cassert>

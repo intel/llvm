@@ -9,9 +9,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
 #include <cstring>
 #include <gtest/gtest.h>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>

@@ -12,9 +12,9 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/stl_type_traits.hpp> // to define C++14,17 extensions
-#include <sycl/half_type.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/region.hpp>
+#include <sycl/half_type.hpp>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
 #define __esimd_dbg_print(a) std::cout << ">>> " << #a << "\n"

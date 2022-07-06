@@ -12,8 +12,8 @@
 #include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/types.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
+#include <sycl/types.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

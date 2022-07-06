@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/device_filter.hpp>
-#include <sycl/info/info_desc.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <cstring>
 #include <string_view>

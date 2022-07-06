@@ -12,11 +12,11 @@
 
 #include "CudaUtils.hpp"
 #include "TestGetPlugin.hpp"
-#include <sycl/sycl.hpp>
-#include <sycl/detail/cuda_definitions.hpp>
-#include <sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

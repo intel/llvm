@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/group.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
+#include <sycl/group.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -206,7 +206,9 @@ template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::local_space> {
   using type = __OPENCL_LOCAL_AS__ ElementType;
 };
-template <class T> struct remove_AS { typedef T type; };
+template <class T> struct remove_AS {
+  typedef T type;
+};
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <class T> struct deduce_AS {
@@ -214,7 +216,9 @@ template <class T> struct deduce_AS {
                 "Only types with address space attributes are supported");
 };
 
-template <class T> struct remove_AS<__OPENCL_GLOBAL_AS__ T> { typedef T type; };
+template <class T> struct remove_AS<__OPENCL_GLOBAL_AS__ T> {
+  typedef T type;
+};
 
 #ifdef __ENABLE_USM_ADDR_SPACE__
 template <class T> struct remove_AS<__OPENCL_GLOBAL_DEVICE_AS__ T> {
@@ -240,7 +244,9 @@ template <class T> struct remove_AS<__OPENCL_PRIVATE_AS__ T> {
   typedef T type;
 };
 
-template <class T> struct remove_AS<__OPENCL_LOCAL_AS__ T> { typedef T type; };
+template <class T> struct remove_AS<__OPENCL_LOCAL_AS__ T> {
+  typedef T type;
+};
 
 template <class T> struct remove_AS<__OPENCL_CONSTANT_AS__ T> {
   typedef T type;

@@ -8,14 +8,6 @@
 
 #include <algorithm>
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/event.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/stream.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
@@ -24,6 +16,14 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/event.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stream.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

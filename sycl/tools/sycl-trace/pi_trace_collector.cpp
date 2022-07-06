@@ -14,8 +14,8 @@
 #include "pi_arguments_handler.hpp"
 #include "pi_structs.hpp"
 
-#include <sycl/detail/spinlock.hpp>
 #include <detail/plugin_printers.hpp>
+#include <sycl/detail/spinlock.hpp>
 
 #include <iostream>
 #include <mutex>

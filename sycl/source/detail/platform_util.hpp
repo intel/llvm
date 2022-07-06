@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
 #include <cstdint>
+#include <sycl/detail/defines.hpp>
 
 #ifdef _MSC_VER
 // This feature is not supported in MSVC.

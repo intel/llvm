@@ -8,15 +8,15 @@
 
 #pragma once
 
+#include <detail/context_impl.hpp>
+#include <detail/device_impl.hpp>
+#include <detail/kernel_info.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/program.hpp>
-#include <detail/context_impl.hpp>
-#include <detail/device_impl.hpp>
-#include <detail/kernel_info.hpp>
 
 #include <cassert>
 #include <memory>

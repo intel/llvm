@@ -9,9 +9,9 @@
 #include "gtest/gtest.h"
 
 #include "TestGetPlugin.hpp"
-#include <sycl/sycl.hpp>
-#include <sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
 
 #include <vector>
 

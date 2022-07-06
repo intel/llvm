@@ -172,9 +172,7 @@ public:
     if (!FinalData)
       MUploadDataFunctor = nullptr;
     else
-      MUploadDataFunctor = [this, FinalData]() {
-        updateHostMemory(FinalData);
-      };
+      MUploadDataFunctor = [this, FinalData]() { updateHostMemory(FinalData); };
   }
 
   template <typename Destination>

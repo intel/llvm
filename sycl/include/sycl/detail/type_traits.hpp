@@ -90,7 +90,9 @@ struct vector_alignment
 template <typename T> struct vector_element_impl;
 template <typename T>
 using vector_element_impl_t = typename vector_element_impl<T>::type;
-template <typename T> struct vector_element_impl { using type = T; };
+template <typename T> struct vector_element_impl {
+  using type = T;
+};
 template <typename T, int N> struct vector_element_impl<vec<T, N>> {
   using type = T;
 };
@@ -100,7 +102,9 @@ template <typename T> struct vector_element {
 template <class T> using vector_element_t = typename vector_element<T>::type;
 
 // change_base_type_t
-template <typename T, typename B> struct change_base_type { using type = B; };
+template <typename T, typename B> struct change_base_type {
+  using type = B;
+};
 
 template <typename T, int N, typename B> struct change_base_type<vec<T, N>, B> {
   using type = vec<B, N>;
@@ -260,9 +264,13 @@ struct is_pointer_impl<multi_ptr<T, Space>> : std::true_type {};
 template <typename T> struct is_pointer : is_pointer_impl<remove_cv_t<T>> {};
 
 // remove_pointer_t
-template <typename T> struct remove_pointer_impl { using type = T; };
+template <typename T> struct remove_pointer_impl {
+  using type = T;
+};
 
-template <typename T> struct remove_pointer_impl<T *> { using type = T; };
+template <typename T> struct remove_pointer_impl<T *> {
+  using type = T;
+};
 
 template <typename T, access::address_space Space>
 struct remove_pointer_impl<multi_ptr<T, Space>> {

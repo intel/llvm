@@ -20,6 +20,7 @@
 #include <sycl/detail/image_accessor_util.hpp>
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
 #include <sycl/pointers.hpp>
@@ -27,7 +28,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/property_list_conversion.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 #include <type_traits>
 

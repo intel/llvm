@@ -8,14 +8,14 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include "sycl/detail/pi.h"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
-#include <sycl/sycl.hpp>
+#include "sycl/detail/pi.h"
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 

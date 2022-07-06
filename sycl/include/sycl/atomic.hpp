@@ -219,8 +219,8 @@ public:
 #endif // __ENABLE_USM_ADDR_SPACE__
 
   void store(T Operand, memory_order Order = memory_order::relaxed) {
-    __spirv_AtomicStore(
-        Ptr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order), Operand);
+    __spirv_AtomicStore(Ptr, SpirvScope,
+                        detail::getSPIRVMemorySemanticsMask(Order), Operand);
   }
 
 #ifdef __SYCL_DEVICE_ONLY__

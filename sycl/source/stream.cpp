@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/properties/all_properties.hpp>
-#include <sycl/stream.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

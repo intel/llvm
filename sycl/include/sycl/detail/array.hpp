@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
 #include <functional>
 #include <stdexcept>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

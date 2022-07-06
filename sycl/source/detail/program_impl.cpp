@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/config.hpp>
+#include <detail/kernel_impl.hpp>
+#include <detail/program_impl.hpp>
+#include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
-#include <detail/config.hpp>
-#include <detail/kernel_impl.hpp>
-#include <detail/program_impl.hpp>
-#include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
 #include <fstream>

@@ -12,9 +12,9 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

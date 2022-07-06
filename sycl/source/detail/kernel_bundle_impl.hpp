@@ -8,15 +8,15 @@
 
 #pragma once
 
+#include <detail/device_image_impl.hpp>
+#include <detail/kernel_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <detail/device_image_impl.hpp>
-#include <detail/kernel_impl.hpp>
-#include <detail/program_manager/program_manager.hpp>
 
 #include <algorithm>
 #include <cassert>

@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
 #include <iterator>
 #include <memory>
+#include <sycl/detail/defines.hpp>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

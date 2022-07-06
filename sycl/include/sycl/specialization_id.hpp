@@ -19,7 +19,7 @@ public:
   using value_type = T;
 
   template <class... Args>
-  explicit constexpr specialization_id(Args &&... args)
+  explicit constexpr specialization_id(Args &&...args)
       : MDefaultValue(std::forward<Args>(args)...) {}
 
   specialization_id(const specialization_id &rhs) = delete;

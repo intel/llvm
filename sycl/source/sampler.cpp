@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/sampler_impl.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
-#include <detail/sampler_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

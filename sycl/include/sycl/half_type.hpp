@@ -289,14 +289,14 @@ class half;
 // - VecNStorageT - representation of N-element vector of halfs. Follows the
 //   same logic as StorageT
 #ifdef __SYCL_DEVICE_ONLY__
-  using StorageT = _Float16;
-  using BIsRepresentationT = _Float16;
+using StorageT = _Float16;
+using BIsRepresentationT = _Float16;
 
-  using Vec2StorageT = StorageT __attribute__((ext_vector_type(2)));
-  using Vec3StorageT = StorageT __attribute__((ext_vector_type(3)));
-  using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
-  using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
-  using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
+using Vec2StorageT = StorageT __attribute__((ext_vector_type(2)));
+using Vec3StorageT = StorageT __attribute__((ext_vector_type(3)));
+using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
+using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
+using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
 #else
 using StorageT = detail::host_half_impl::half_v2;
 // No need to extract underlying data type for built-in functions operating on
@@ -319,11 +319,11 @@ template <int NumElements> struct half_vec {
   }
 };
 
-  using Vec2StorageT = half_vec<2>;
-  using Vec3StorageT = half_vec<3>;
-  using Vec4StorageT = half_vec<4>;
-  using Vec8StorageT = half_vec<8>;
-  using Vec16StorageT = half_vec<16>;
+using Vec2StorageT = half_vec<2>;
+using Vec3StorageT = half_vec<3>;
+using Vec4StorageT = half_vec<4>;
+using Vec8StorageT = half_vec<8>;
+using Vec16StorageT = half_vec<16>;
 #endif
 
 class half {

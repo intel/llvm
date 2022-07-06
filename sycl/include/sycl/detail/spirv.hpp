@@ -10,12 +10,12 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <cstring>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/id.hpp>
 #include <sycl/memory_enums.hpp>
-#include <cstring>
 
 #ifdef __SYCL_DEVICE_ONLY__
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -133,7 +133,9 @@ using WidenOpenCLTypeTo32_t = conditional_t<
 // Broadcast with scalar local index
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
-template <typename Group> struct GroupId { using type = size_t; };
+template <typename Group> struct GroupId {
+  using type = size_t;
+};
 template <> struct GroupId<::cl::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };

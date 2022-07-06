@@ -22,12 +22,12 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/range.hpp>
-#include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
 
 #include <esimdemu_support.h>
 

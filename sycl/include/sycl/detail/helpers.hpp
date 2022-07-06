@@ -43,7 +43,6 @@ inline void memcpy(void *Dst, const void *Src, size_t Size) {
   }
 }
 
-
 class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
@@ -234,16 +233,16 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
              ? static_cast<uint32_t>(
                    __spv::MemorySemanticsMask::SequentiallyConsistent |
                    __spv::MemorySemanticsMask::CrossWorkgroupMemory)
-             : (AccessSpace == access::fence_space::local_space)
-                   ? static_cast<uint32_t>(
-                         __spv::MemorySemanticsMask::SequentiallyConsistent |
-                         LocalScopeMask)
-                   : /* default: (AccessSpace ==
-                        access::fence_space::global_and_local) */
-                   static_cast<uint32_t>(
-                       __spv::MemorySemanticsMask::SequentiallyConsistent |
-                       __spv::MemorySemanticsMask::CrossWorkgroupMemory |
-                       LocalScopeMask);
+         : (AccessSpace == access::fence_space::local_space)
+             ? static_cast<uint32_t>(
+                   __spv::MemorySemanticsMask::SequentiallyConsistent |
+                   LocalScopeMask)
+             : /* default: (AccessSpace ==
+                  access::fence_space::global_and_local) */
+             static_cast<uint32_t>(
+                 __spv::MemorySemanticsMask::SequentiallyConsistent |
+                 __spv::MemorySemanticsMask::CrossWorkgroupMemory |
+                 LocalScopeMask);
 }
 
 } // namespace detail

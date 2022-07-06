@@ -8,11 +8,11 @@
 
 #pragma once
 #include <CL/__spirv/spirv_ops.hpp>
+#include <cassert>
+#include <cstddef>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <cassert>
-#include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -30,8 +30,8 @@ template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =
       detail::conditional_t<std::is_same<ElementType, half>::value,
-                    cl::sycl::detail::half_impl::BIsRepresentationT,
-                    ElementType>;
+                            cl::sycl::detail::half_impl::BIsRepresentationT,
+                            ElementType>;
   using difference_type = std::ptrdiff_t;
 
   // Implementation defined pointer and reference types that correspond to
@@ -461,8 +461,7 @@ private:
 };
 
 // Specialization of multi_ptr for const void
-template <access::address_space Space>
-class multi_ptr<const void, Space> {
+template <access::address_space Space> class multi_ptr<const void, Space> {
 public:
   using element_type = const void;
   using difference_type = std::ptrdiff_t;
@@ -563,7 +562,7 @@ public:
   pointer_t get() const { return m_Pointer; }
 
   // Implicit conversion to the underlying pointer type
-  operator const void*() const {
+  operator const void *() const {
     return reinterpret_cast<const void *>(m_Pointer);
   };
 
@@ -592,12 +591,12 @@ template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
 multi_ptr(accessor<T, dimensions, Mode, access::target::constant_buffer,
                    isPlaceholder, PropertyListT>)
-    ->multi_ptr<T, access::address_space::constant_space>;
+    -> multi_ptr<T, access::address_space::constant_space>;
 template <int dimensions, access::mode Mode, access::placeholder isPlaceholder,
           typename PropertyListT, class T>
 multi_ptr(accessor<T, dimensions, Mode, access::target::local, isPlaceholder,
                    PropertyListT>)
-    ->multi_ptr<T, access::address_space::local_space>;
+    -> multi_ptr<T, access::address_space::local_space>;
 #endif
 
 template <typename ElementType, access::address_space Space>

@@ -10,8 +10,8 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/stl.hpp>
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
+#include <sycl/stl.hpp>
 #include <tuple>
 
 __SYCL_INLINE_NAMESPACE(cl) {

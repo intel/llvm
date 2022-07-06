@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/device_global_map_entry.hpp>
+#include <detail/spec_constant_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_binary_image.hpp>
 #include <sycl/detail/export.hpp>
@@ -16,8 +18,6 @@
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/stl.hpp>
-#include <detail/device_global_map_entry.hpp>
-#include <detail/spec_constant_impl.hpp>
 
 #include <cstdint>
 #include <map>

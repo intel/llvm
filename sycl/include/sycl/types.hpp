@@ -567,14 +567,15 @@ template <typename Type, int NumElements> class vec {
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate args.
   template <int Counter, int MaxValue, class...>
-  struct SizeChecker: detail::conditional_t<Counter == MaxValue,
-      std::true_type, std::false_type> {};
+  struct SizeChecker : detail::conditional_t<Counter == MaxValue,
+                                             std::true_type, std::false_type> {
+  };
 
   template <int Counter, int MaxValue, typename DataT_, class... tail>
   struct SizeChecker<Counter, MaxValue, DataT_, tail...>
       : detail::conditional_t<Counter + 1 <= MaxValue,
-                      SizeChecker<Counter + 1, MaxValue, tail...>,
-                      std::false_type> {};
+                              SizeChecker<Counter + 1, MaxValue, tail...>,
+                              std::false_type> {};
 
 #define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
   template <int Counter, int MaxValue, typename DataT_, class... tail>         \
@@ -818,7 +819,7 @@ public:
   // base types are match and that the NumElements == sum of lengths of args.
   template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
             typename = EnableIfSuitableNumElements<argTN...>>
-  constexpr vec(const argTN &... args) {
+  constexpr vec(const argTN &...args) {
     vaargCtorHelper(0, args...);
   }
 
@@ -921,8 +922,7 @@ private:
   // function would activate a bug in MSVC that is fixed only in v19.20.
   // Until then MSVC does not recognize such constexpr functions as const and
   // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index>
-  struct Indexer {
+  template <int Index> struct Indexer {
     static constexpr int value = Index;
   };
 
@@ -1148,8 +1148,7 @@ public:
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec{
-      (typename vec::DataType)~m_Data};
+    return vec{(typename vec::DataType) ~m_Data};
 #else
     vec Ret;
     for (size_t I = 0; I < NumElements; ++I) {
@@ -1164,7 +1163,7 @@ public:
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
     return vec<rel_t, NumElements>{
-      (typename vec<rel_t, NumElements>::DataType)!m_Data};
+        (typename vec<rel_t, NumElements>::DataType) !m_Data};
 #else
     vec<rel_t, NumElements> Ret;
     for (size_t I = 0; I < NumElements; ++I) {
@@ -1350,15 +1349,14 @@ private:
   }
 
   template <typename T1, typename... argTN>
-  constexpr void vaargCtorHelper(int Idx, const T1 &arg,
-                                 const argTN &... args) {
+  constexpr void vaargCtorHelper(int Idx, const T1 &arg, const argTN &...args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
 
   template <typename DataT_, int NumElements_, typename... argTN>
   constexpr void vaargCtorHelper(int Idx, const vec<DataT_, NumElements_> &arg,
-                                 const argTN &... args) {
+                                 const argTN &...args) {
     int NewIdx = vaargCtorHelper(Idx, arg);
     vaargCtorHelper(NewIdx, args...);
   }
@@ -1384,7 +1382,7 @@ private:
 // all compilers supporting deduction guides also support fold expressions
 template <class T, class... U,
           class = detail::enable_if_t<(std::is_same<T, U>::value && ...)>>
-vec(T, U...)->vec<T, sizeof...(U) + 1>;
+vec(T, U...) -> vec<T, sizeof...(U) + 1>;
 #endif
 
 namespace detail {
@@ -1856,8 +1854,7 @@ private:
   // function would activate a bug in MSVC that is fixed only in v19.20.
   // Until then MSVC does not recognize such constexpr functions as const and
   // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index>
-  struct Indexer {
+  template <int Index> struct Indexer {
     static constexpr int IDXs[sizeof...(Indexes)] = {Indexes...};
     static constexpr int value = IDXs[Index >= getNumElements() ? 0 : Index];
   };
@@ -2083,7 +2080,6 @@ __SYCL_RELLOGOP(||)
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
 #define __SYCL_DECLARE_TYPE_VIA_CL_T(type)                                     \
   using __##type##_t = cl::sycl::cl_##type;                                    \
@@ -2152,10 +2148,10 @@ namespace detail {
 // sizeof(IN).  expected to handle scalar types in IN.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
 using select_apply_cl_t =
-  conditional_t<sizeof(T) == 1, T8,
-  conditional_t<sizeof(T) == 2, T16,
-  conditional_t<sizeof(T) == 4, T32, T64>>>;
-} // detail
+    conditional_t<sizeof(T) == 1, T8,
+                  conditional_t<sizeof(T) == 2, T16,
+                                conditional_t<sizeof(T) == 4, T32, T64>>>;
+} // namespace detail
 
 #define __SYCL_DECLARE_CONVERTER(base, num)                                    \
   template <> class BaseCLTypeConverter<base, num> {                           \

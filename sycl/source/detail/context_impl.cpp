@@ -6,6 +6,9 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <detail/context_impl.hpp>
+#include <detail/context_info.hpp>
+#include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.hpp>
@@ -17,9 +20,6 @@
 #include <sycl/properties/context_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
-#include <detail/context_impl.hpp>
-#include <detail/context_info.hpp>
-#include <detail/platform_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

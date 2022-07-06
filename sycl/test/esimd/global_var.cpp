@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 
-#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

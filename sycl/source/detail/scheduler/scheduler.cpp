@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "sycl/detail/sycl_mem_obj_i.hpp"
-#include <sycl/device_selector.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <chrono>
 #include <cstdio>

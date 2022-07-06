@@ -1,7 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
-#include <sycl/sycl.hpp>
 #include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

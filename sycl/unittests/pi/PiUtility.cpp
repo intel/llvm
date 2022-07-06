@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <CL/opencl.h>
-#include <sycl/sycl.hpp>
 #include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 

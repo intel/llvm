@@ -12,12 +12,12 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/group.hpp>
-#include <sycl/group_algorithm.hpp>
-#include <sycl/nd_item.hpp>
 #include <sycl/ext/oneapi/atomic.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
+#include <sycl/group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/nd_item.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

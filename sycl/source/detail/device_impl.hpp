@@ -8,13 +8,13 @@
 
 #pragma once
 
+#include <detail/device_info.hpp>
+#include <detail/platform_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/kernel_bundle.hpp>
 #include <sycl/stl.hpp>
-#include <detail/device_info.hpp>
-#include <detail/platform_impl.hpp>
 
 #include <memory>
 #include <mutex>

@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/device_impl.hpp>
+#include <detail/filter_selector_impl.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/stl.hpp>
-#include <detail/device_impl.hpp>
-#include <detail/filter_selector_impl.hpp>
 
 #include <cctype>
 #include <regex>

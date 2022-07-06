@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/device.hpp>
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -14,6 +13,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <sycl/device.hpp>
 
 #include <algorithm>
 #include <cstring>

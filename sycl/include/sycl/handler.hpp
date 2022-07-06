@@ -501,7 +501,7 @@ private:
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
-  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&... Args) {
+  void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
     set_arg(ArgIndex, std::move(Arg));
     setArgsHelper(++ArgIndex, std::move(Args)...);
   }
@@ -817,15 +817,15 @@ private:
       return false;
 
     range<1> LinearizedRange(Src.size());
-    parallel_for<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
-                                     TDst, DimDst, ModeDst, TargetDst,
-                                     IsPHSrc, IsPHDst>>
-                                     (LinearizedRange, [=](id<1> Id) {
-      size_t Index = Id[0];
-      id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
-      id<DimDst> DstId = detail::getDelinearizedId(Dst.get_range(), Index);
-      Dst[DstId] = Src[SrcId];
-    });
+    parallel_for<
+        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+        LinearizedRange, [=](id<1> Id) {
+          size_t Index = Id[0];
+          id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
+          id<DimDst> DstId = detail::getDelinearizedId(Dst.get_range(), Index);
+          Dst[DstId] = Src[SrcId];
+        });
     return true;
   }
 
@@ -846,11 +846,10 @@ private:
     if (!MIsHost)
       return false;
 
-    single_task<class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc,
-                                    TDst, DimDst, ModeDst, TargetDst,
-                                    IsPHSrc, IsPHDst>> ([=]() {
-      *(Dst.get_pointer()) = *(Src.get_pointer());
-    });
+    single_task<
+        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+        [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
     return true;
   }
 
@@ -866,12 +865,13 @@ private:
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     range<Dim> Range = Src.get_range();
-    parallel_for<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
-        (Range, [=](id<Dim> Index) {
-      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-      using TSrcNonConst = typename detail::remove_const_t<TSrc>;
-      (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
-    });
+    parallel_for<
+        class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+        Range, [=](id<Dim> Index) {
+          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
+          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
+        });
   }
 
   /// Copies 1 element accessed by 0-dimensional accessor Src into the memory
@@ -884,11 +884,11 @@ private:
   detail::enable_if_t<Dim == 0>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
-    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
-        ([=]() {
-      using TSrcNonConst = typename detail::remove_const_t<TSrc>;
-      *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
-    });
+    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+        [=]() {
+          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
+        });
   }
 
   /// Copies the memory pointed by Src into the memory accessed by Dst.
@@ -901,11 +901,12 @@ private:
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
-    parallel_for<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
-        (Range, [=](id<Dim> Index) {
-      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-      Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
-    });
+    parallel_for<
+        class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+        Range, [=](id<Dim> Index) {
+          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
+          Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
+        });
   }
 
   /// Copies 1 element pointed by Src to memory accessed by 0-dimensional
@@ -918,10 +919,10 @@ private:
   detail::enable_if_t<Dim == 0>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>
-        ([=]() {
-      *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
-    });
+    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+        [=]() {
+          *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
+        });
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1446,7 +1447,7 @@ public:
   /// Registers pack of arguments(Args) with indexes starting from 0.
   ///
   /// \param Args are argument values to be set.
-  template <typename... Ts> void set_args(Ts &&... Args) {
+  template <typename... Ts> void set_args(Ts &&...Args) {
     setArgsHelper(0, std::move(Args)...);
   }
 
@@ -2487,10 +2488,9 @@ public:
       // TODO: Temporary implementation for host. Should be handled by memory
       // manger.
       range<Dims> Range = Dst.get_range();
-      parallel_for<class __fill<T, Dims, AccessMode, AccessTarget,
-                                IsPlaceholder>>(Range, [=](id<Dims> Index) {
-        Dst[Index] = Pattern;
-      });
+      parallel_for<
+          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+          Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
 

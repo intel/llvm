@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/functional.hpp>
 #include <functional>
 #include <limits>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/functional.hpp>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

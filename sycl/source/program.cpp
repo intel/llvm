@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/backend_impl.hpp>
+#include <detail/program_impl.hpp>
 #include <sycl/program.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <detail/backend_impl.hpp>
-#include <detail/program_impl.hpp>
 
 #include <vector>
 

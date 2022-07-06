@@ -5,9 +5,9 @@
 // Checks ESIMD intrinsic translation.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
-#include <sycl/sycl.hpp>
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
 

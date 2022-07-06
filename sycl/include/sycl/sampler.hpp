@@ -120,7 +120,8 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
   template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-            cl::sycl::access::target AccessTarget, access::placeholder IsPlaceholder>
+            cl::sycl::access::target AccessTarget,
+            access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
 } // namespace sycl

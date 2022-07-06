@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "ThreadUtils.h"
-#include <sycl/sycl.hpp>
 #include <gtest/gtest.h>
 #include <mutex>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 namespace {

@@ -16,11 +16,11 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/os_util.hpp>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
-#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

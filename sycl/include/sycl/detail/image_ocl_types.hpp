@@ -133,7 +133,7 @@ inline int getSPIRVNumChannels(int ImageChannelOrder) {
   case 3:  // RA
   case 11: // RGx
     return 2;
-  case 4:  // RGB
+  case 4: // RGB
     return 3;
   case 5:  // RGBA
   case 6:  // BGRA
@@ -145,8 +145,8 @@ inline int getSPIRVNumChannels(int ImageChannelOrder) {
   case 13: // Depth
   case 14: // DepthStencil
   case 18: // sBGRA
-    // TODO: Enable the below assert after assert is supported for device
-    // compiler. assert(!"Unhandled image channel order in sycl.");
+           // TODO: Enable the below assert after assert is supported for device
+           // compiler. assert(!"Unhandled image channel order in sycl.");
   default:
     return 0;
   }
@@ -268,4 +268,4 @@ __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 #undef __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 #undef __SYCL_IMAGETY_READ_2_DIM_IARRAY
 #undef __SYCL_IMAGETY_WRITE_2_DIM_IARRAY
-#endif //#ifdef __SYCL_DEVICE_ONLY__
+#endif // #ifdef __SYCL_DEVICE_ONLY__

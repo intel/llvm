@@ -16,24 +16,19 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-  /// Represents a reference to value with appropriate lock acquired.
-  /// Employed for acquire/release logic. Acquire action is construction
-  /// of instance of locked<>. Release action is destruction of instance of
-  /// locked<>.
-  template <typename T>
-  class Locked {
-    std::reference_wrapper<T> m_Value;
-    std::unique_lock<std::mutex> m_Lock;
+/// Represents a reference to value with appropriate lock acquired.
+/// Employed for acquire/release logic. Acquire action is construction
+/// of instance of locked<>. Release action is destruction of instance of
+/// locked<>.
+template <typename T> class Locked {
+  std::reference_wrapper<T> m_Value;
+  std::unique_lock<std::mutex> m_Lock;
 
-  public:
-    Locked(T &v, std::mutex &mutex)
-      : m_Value{v}, m_Lock{mutex}
-    {}
+public:
+  Locked(T &v, std::mutex &mutex) : m_Value{v}, m_Lock{mutex} {}
 
-    T& get() const {
-      return m_Value.get();
-    }
-  };
-}
-}
-}
+  T &get() const { return m_Value.get(); }
+};
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

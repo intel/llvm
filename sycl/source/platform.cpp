@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/device.hpp>
-#include <sycl/device_selector.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/platform.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/platform.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

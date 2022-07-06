@@ -11,10 +11,10 @@
 ///
 /// \ingroup sycl_pi_cuda
 
+#include <pi_cuda.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/pi.hpp>
-#include <pi_cuda.hpp>
 
 #include <algorithm>
 #include <cassert>

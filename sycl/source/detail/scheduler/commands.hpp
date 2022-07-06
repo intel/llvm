@@ -17,11 +17,11 @@
 #include <unordered_set>
 #include <vector>
 
+#include <detail/event_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/accessor_impl.hpp>
 #include <sycl/detail/cg.hpp>
-#include <detail/event_impl.hpp>
-#include <detail/program_manager/program_manager.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

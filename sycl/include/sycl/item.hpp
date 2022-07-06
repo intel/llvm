@@ -25,7 +25,7 @@ template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel;
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH;
-}
+} // namespace detail
 template <int dimensions> class id;
 template <int dimensions> class range;
 

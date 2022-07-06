@@ -11,8 +11,8 @@
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
-#include <sycl/sycl.hpp>
 #include <sycl/accessor.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 

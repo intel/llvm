@@ -31,9 +31,10 @@ namespace property {
 namespace context {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::context' instead") cuda {
-  class use_primary_context : public ::cl::sycl::ext::oneapi::cuda::property::
-                                  context::use_primary_context {};
-} // namespace cuda
+class use_primary_context : public ::cl::sycl::ext::oneapi::cuda::property::
+                                context::use_primary_context {};
+} // namespace __SYCL2020_DEPRECATED("use
+  // 'sycl::ext::oneapi::cuda::property::context' instead")cuda
 } // namespace context
 } // namespace property
 

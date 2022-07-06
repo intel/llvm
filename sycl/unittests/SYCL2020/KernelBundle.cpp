@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>

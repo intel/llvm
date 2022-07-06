@@ -14,13 +14,13 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/known_identity.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/sub_group.hpp>
-#include <sycl/ext/oneapi/experimental/group_sort.hpp>
-#include <sycl/ext/oneapi/functional.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

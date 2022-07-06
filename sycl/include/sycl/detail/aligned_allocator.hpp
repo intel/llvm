@@ -23,13 +23,15 @@ namespace detail {
 template <typename T> class aligned_allocator {
 public:
   using value_type = T;
-  using pointer = T*;
-  using const_pointer = const T*;
-  using reference = T&;
-  using const_reference = const T&;
+  using pointer = T *;
+  using const_pointer = const T *;
+  using reference = T &;
+  using const_reference = const T &;
 
 public:
-  template <typename U> struct rebind { typedef aligned_allocator<U> other; };
+  template <typename U> struct rebind {
+    typedef aligned_allocator<U> other;
+  };
 
   aligned_allocator() = default;
   ~aligned_allocator() = default;

@@ -1,6 +1,6 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -o - %s
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 int main() {
   {
     int varA = 42;

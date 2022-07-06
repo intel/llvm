@@ -595,7 +595,7 @@ join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles);
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 join_impl(const std::vector<detail::KernelBundleImplPtr> &Bundles,
           bundle_state State);
-}
+} // namespace detail
 
 /// \returns a new kernel bundle that represents the union of all the device
 /// images in the input bundles with duplicates removed.

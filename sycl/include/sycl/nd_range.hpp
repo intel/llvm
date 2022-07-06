@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include <stdexcept>
 #include <sycl/id.hpp>
 #include <sycl/range.hpp>
-#include <stdexcept>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

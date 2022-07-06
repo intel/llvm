@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/backend_impl.hpp>
+#include <detail/context_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
@@ -15,8 +17,6 @@
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/stl.hpp>
-#include <detail/backend_impl.hpp>
-#include <detail/context_impl.hpp>
 
 #include <algorithm>
 #include <memory>

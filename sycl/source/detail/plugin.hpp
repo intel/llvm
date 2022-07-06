@@ -7,15 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <detail/config.hpp>
+#include <detail/plugin_printers.hpp>
+#include <memory>
+#include <mutex>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/stl.hpp>
-#include <detail/config.hpp>
-#include <detail/plugin_printers.hpp>
-#include <memory>
-#include <mutex>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework

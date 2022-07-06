@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/backend_impl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/event.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
-#include <detail/backend_impl.hpp>
-#include <detail/event_impl.hpp>
-#include <detail/scheduler/scheduler.hpp>
 
 #include <memory>
 #include <unordered_set>

@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/backend_impl.hpp>
+#include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/kernel.hpp>
 #include <sycl/program.hpp>
-#include <detail/backend_impl.hpp>
-#include <detail/kernel_bundle_impl.hpp>
-#include <detail/kernel_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -10,8 +10,8 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/feature_test.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/feature_test.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

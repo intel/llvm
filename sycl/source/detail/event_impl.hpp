@@ -8,13 +8,13 @@
 
 #pragma once
 
+#include <detail/plugin.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
-#include <detail/plugin.hpp>
 
 #include <atomic>
 #include <cassert>

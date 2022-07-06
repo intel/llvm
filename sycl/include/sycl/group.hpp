@@ -11,6 +11,7 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
+#include <stdexcept>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -21,7 +22,6 @@
 #include <sycl/memory_enums.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/range.hpp>
-#include <stdexcept>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -390,8 +390,7 @@ public:
     return async_work_group_copy(dest, src, numElements, 1);
   }
 
-  template <typename... eventTN>
-  void wait_for(eventTN... Events) const {
+  template <typename... eventTN> void wait_for(eventTN... Events) const {
     waitForHelper(Events...);
   }
 
@@ -508,9 +507,7 @@ private:
 
   void waitForHelper() const {}
 
-  void waitForHelper(device_event Event) const {
-    Event.wait();
-  }
+  void waitForHelper(device_event Event) const { Event.wait(); }
 
   template <typename T, typename... Ts>
   void waitForHelper(T E, Ts... Es) const {

@@ -25,7 +25,6 @@
 #define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
   _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
 
-#include <sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <cstring>
@@ -37,6 +36,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <sycl/detail/pi.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

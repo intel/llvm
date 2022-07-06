@@ -27,7 +27,7 @@ class device_selector;
 namespace detail {
 class device_impl;
 auto getDeviceComparisonLambda();
-}
+} // namespace detail
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.

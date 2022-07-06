@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsyntax-only %fsycl-host-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // RUN: %clangxx -fsyntax-only -fsycl -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 class mod_image;

@@ -11,8 +11,8 @@
 #include "fpga_utils.hpp"
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
-#include <sycl/stl.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/stl.hpp>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

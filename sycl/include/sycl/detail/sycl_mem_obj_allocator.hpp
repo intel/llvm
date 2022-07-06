@@ -12,8 +12,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-template <typename T>
-class aligned_allocator;
+template <typename T> class aligned_allocator;
 
 template <typename DataT>
 using sycl_memory_object_allocator = aligned_allocator<DataT>;
@@ -89,4 +88,4 @@ private:
 };
 } // namespace detail
 } // namespace sycl
-}
+} // __SYCL_INLINE_NAMESPACE(cl)

@@ -21,10 +21,10 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
-#include <sycl/kernel_bundle.hpp>
-#include <sycl/queue.hpp>
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/queue.hpp>
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_context_handle_t *ze_context_handle_t;

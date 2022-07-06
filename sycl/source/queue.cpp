@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/backend_impl.hpp>
+#include <detail/event_impl.hpp>
+#include <detail/queue_impl.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
-#include <detail/backend_impl.hpp>
-#include <detail/event_impl.hpp>
-#include <detail/queue_impl.hpp>
 
 #include <algorithm>
 

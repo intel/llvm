@@ -8,14 +8,14 @@
 
 #pragma once
 
+#include <cstddef>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/image_impl.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/stl.hpp>
 #include <sycl/types.hpp>
-#include <cstddef>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

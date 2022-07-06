@@ -12,9 +12,9 @@
 
 #include "error_handling.hpp"
 
+#include <detail/plugin.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/pi.hpp>
-#include <detail/plugin.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

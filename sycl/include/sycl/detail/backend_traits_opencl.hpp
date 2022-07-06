@@ -126,7 +126,9 @@ template <> struct BackendReturn<backend::opencl, event> {
   using value_type = cl_event;
 };
 #else
-template <> struct interop<backend::opencl, event> { using type = cl_event; };
+template <> struct interop<backend::opencl, event> {
+  using type = cl_event;
+};
 template <> struct BackendInput<backend::opencl, event> {
   using type = cl_event;
 };

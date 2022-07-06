@@ -29,7 +29,7 @@ __SYCL_DEPRECATED("use sycl::ext::oneapi::group_local_memory instead")
 std::enable_if_t<
     std::is_trivially_destructible<T>::value && detail::is_group<Group>::value,
     multi_ptr<T, access::address_space::local_space>> __SYCL_ALWAYS_INLINE
-    group_local_memory(Group g, Args &&... args) {
+    group_local_memory(Group g, Args &&...args) {
   return sycl::ext::oneapi::group_local_memory<T, Group, Args...>(
       g, std::forward<Args>(args)...);
 }

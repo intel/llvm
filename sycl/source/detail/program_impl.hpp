@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/context_impl.hpp>
+#include <detail/program_manager/program_manager.hpp>
+#include <detail/spec_constant_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common_info.hpp>
 #include <sycl/detail/kernel_desc.hpp>
@@ -14,9 +17,6 @@
 #include <sycl/program.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
-#include <detail/context_impl.hpp>
-#include <detail/program_manager/program_manager.hpp>
-#include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
 #include <cassert>

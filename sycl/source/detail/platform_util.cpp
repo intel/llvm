@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/platform_util.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/exception.hpp>
-#include <detail/platform_util.hpp>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <errno.h>

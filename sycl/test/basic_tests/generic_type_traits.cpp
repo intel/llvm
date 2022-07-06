@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 
-#include <sycl/sycl.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/half_type.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/detail/common.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/sycl.hpp>
 
 namespace s = cl::sycl;
 namespace d = cl::sycl::detail;

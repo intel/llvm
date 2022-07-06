@@ -45,7 +45,7 @@ public:
 private:
   friend class detail::queue_impl;
   void PushBack(const_reference Value);
-  void PushBack(value_type&& Value);
+  void PushBack(value_type &&Value);
   void Clear() noexcept;
   std::vector<std::exception_ptr> MList;
 };
