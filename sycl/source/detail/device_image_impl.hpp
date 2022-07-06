@@ -72,8 +72,8 @@ public:
                     const std::vector<unsigned char> &SpecConstsBlob)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob), MSpecConstsBuffers(MDevices.size()),
-        MSpecConstSymMap(SpecConstMap) {}
+        MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MSpecConstsBuffers(MDevices.size()), MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
     return std::binary_search(MKernelIDs->begin(), MKernelIDs->end(),
@@ -193,9 +193,9 @@ public:
 
   RT::PiMem &get_spec_const_buffer_ref(device dev) noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-    RT::PiMem* mem = nullptr;
-    for(size_t i =0;i< MDevices.size();i++){
-      if(MDevices[i]== dev){
+    RT::PiMem *mem = nullptr;
+    for (size_t i = 0; i < MDevices.size(); i++) {
+      if (MDevices[i] == dev) {
         mem = &MSpecConstsBuffers[i];
         break;
       }
@@ -208,11 +208,11 @@ public:
       // device_image_impl and, as a result, destruction of MSpecConstsBlob
       // while MSpecConstsBuffer is still in use.
       // TODO consider changing the lifetime of device_image_impl instead
-      memBufferCreateHelper(Plugin,
-                            detail::getSyclObjImpl(MContext)->getHandleRef(), detail::getSyclObjImpl(dev)->getHandleRef(),
-                            PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
-                            MSpecConstsBlob.size(), MSpecConstsBlob.data(),
-                            mem, nullptr);
+      memBufferCreateHelper(
+          Plugin, detail::getSyclObjImpl(MContext)->getHandleRef(),
+          detail::getSyclObjImpl(dev)->getHandleRef(),
+          PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,
+          MSpecConstsBlob.size(), MSpecConstsBlob.data(), mem, nullptr);
     }
     return *mem;
   }
@@ -244,7 +244,7 @@ public:
       Plugin.call<PiApiKind::piProgramRelease>(MProgram);
     }
     for (auto mem : MSpecConstsBuffers) {
-      if(mem){
+      if (mem) {
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
         const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
         memReleaseHelper(Plugin, mem);

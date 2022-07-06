@@ -916,8 +916,8 @@ cl_int AllocaCommand::enqueueImp() {
   // TODO: Check if it is correct to use std::move on stack variable and
   // delete it RawEvents below.
   MMemAllocation = MemoryManager::allocate(
-      MQueue->getContextImplPtr(), MQueue->getDeviceImplPtr(), getSYCLMemObj(), MInitFromUserData, HostPtr,
-      std::move(EventImpls), Event);
+      MQueue->getContextImplPtr(), MQueue->getDeviceImplPtr(), getSYCLMemObj(),
+      MInitFromUserData, HostPtr, std::move(EventImpls), Event);
 
   return CL_SUCCESS;
 }
@@ -2028,7 +2028,8 @@ static pi_result SetKernelParamsAndLaunch(
             PI_ERROR_INVALID_OPERATION);
       }
       assert(DeviceImageImpl != nullptr);
-      RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref(Queue->get_device());
+      RT::PiMem SpecConstsBuffer =
+          DeviceImageImpl->get_spec_const_buffer_ref(Queue->get_device());
       // Avoid taking an address of nullptr
       RT::PiMem *SpecConstsBufferArg =
           SpecConstsBuffer ? &SpecConstsBuffer : nullptr;

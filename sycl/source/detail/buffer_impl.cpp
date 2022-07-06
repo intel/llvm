@@ -19,8 +19,9 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
 #endif
-void *buffer_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device, bool InitFromUserData,
-                               void *HostPtr, RT::PiEvent &OutEventToWait) {
+void *buffer_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device,
+                               bool InitFromUserData, void *HostPtr,
+                               RT::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
@@ -28,8 +29,9 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, DeviceImplPtr Device, boo
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
   return MemoryManager::allocateMemBuffer(
-      std::move(Context), std::move(Device), this, HostPtr, HostPtrReadOnly, BaseT::getSize(),
-      BaseT::MInteropEvent, BaseT::MInteropContext, MProps, OutEventToWait);
+      std::move(Context), std::move(Device), this, HostPtr, HostPtrReadOnly,
+      BaseT::getSize(), BaseT::MInteropEvent, BaseT::MInteropContext, MProps,
+      OutEventToWait);
 }
 void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           void *UserObj, const void *HostObj,

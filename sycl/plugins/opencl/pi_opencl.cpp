@@ -701,10 +701,11 @@ pi_result piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
-pi_result piMemBufferCreate(pi_context context, pi_device device, pi_mem_flags flags, size_t size,
-                            void *host_ptr, pi_mem *ret_mem,
+pi_result piMemBufferCreate(pi_context context, pi_device device,
+                            pi_mem_flags flags, size_t size, void *host_ptr,
+                            pi_mem *ret_mem,
                             const pi_mem_properties *properties) {
-  (void) device;
+  (void)device;
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   if (properties) {
     // TODO: need to check if all properties are supported by OpenCL RT and
@@ -728,11 +729,12 @@ pi_result piMemBufferCreate(pi_context context, pi_device device, pi_mem_flags f
   return ret_err;
 }
 
-pi_result piMemImageCreate(pi_context context, pi_device device, pi_mem_flags flags,
+pi_result piMemImageCreate(pi_context context, pi_device device,
+                           pi_mem_flags flags,
                            const pi_image_format *image_format,
                            const pi_image_desc *image_desc, void *host_ptr,
                            pi_mem *ret_mem) {
-  (void) device;
+  (void)device;
   pi_result ret_err = PI_ERROR_INVALID_OPERATION;
   *ret_mem = cast<pi_mem>(
       clCreateImage(cast<cl_context>(context), cast<cl_mem_flags>(flags),
