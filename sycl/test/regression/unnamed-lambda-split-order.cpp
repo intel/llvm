@@ -7,8 +7,8 @@
 // builtin being invalidated, causing a compile error. The redesigned
 // implementation should no longer have a problem with this pattern.
 int main() {
-  auto w = [](auto i) {};
+  auto w = [](int i) {};
   sycl::queue q;
-  q.parallel_for(10, [](auto i) {});
+  q.parallel_for(10, [](int i) {});
   q.parallel_for(10, w);
 }
