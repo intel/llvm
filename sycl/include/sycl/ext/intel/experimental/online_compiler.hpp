@@ -219,13 +219,5 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-
-namespace ext {
-namespace __SYCL2020_DEPRECATED(
-    "use 'ext::intel::experimental' instead") intel {
-  using namespace ext::intel::experimental;
-} // namespace intel
-} // namespace ext
-
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
