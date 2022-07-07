@@ -949,10 +949,6 @@ struct _pi_kernel {
   }
   native_type get_with_offset_parameter(pi_device device) const noexcept;
 
-  /*bool has_with_offset_parameter() const noexcept {
-    return functionWithOffsetParam_ != nullptr;
-  }*/
-
   pi_context get_context() const noexcept { return context_; };
 
   const char *get_name() const noexcept { return name_.c_str(); }
