@@ -54,6 +54,9 @@ clang::createInvocation(ArrayRef<const char *> ArgList,
   if (!C)
     return nullptr;
 
+  if (C->getArgs().hasArg(driver::options::OPT_fdriver_only))
+    return nullptr;
+
   // Just print the cc1 options if -### was present.
   if (C->getArgs().hasArg(driver::options::OPT__HASH_HASH_HASH)) {
     C->getJobs().Print(llvm::errs(), "\n", true);
@@ -103,13 +106,4 @@ clang::createInvocation(ArrayRef<const char *> ArgList,
       !Opts.RecoverOnError)
     return nullptr;
   return CI;
-}
-
-std::unique_ptr<CompilerInvocation> clang::createInvocationFromCommandLine(
-    ArrayRef<const char *> Args, IntrusiveRefCntPtr<DiagnosticsEngine> Diags,
-    IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS, bool ShouldRecoverOnErrors,
-    std::vector<std::string> *CC1Args, bool ProbePrecompiled) {
-  return createInvocation(
-      Args, CreateInvocationOptions{Diags, VFS, ShouldRecoverOnErrors,
-                                    ProbePrecompiled, CC1Args});
 }

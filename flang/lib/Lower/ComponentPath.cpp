@@ -48,6 +48,14 @@ bool Fortran::lower::isRankedArrayAccess(const Fortran::evaluate::ArrayRef &x) {
   return false;
 }
 
+void Fortran::lower::ComponentPath::resetPC() { pc = getIdentityFunc(); }
+
 void Fortran::lower::ComponentPath::setPC(bool isImplicit) {
   pc = isImplicit ? getIdentityFunc() : getNullaryFunc();
+  resetExtendCoorRef();
+}
+
+Fortran::lower::ComponentPath::ExtendRefFunc
+Fortran::lower::ComponentPath::getExtendCoorRef() const {
+  return hasExtendCoorRef() ? *extendCoorRef : [](mlir::Value v) { return v; };
 }

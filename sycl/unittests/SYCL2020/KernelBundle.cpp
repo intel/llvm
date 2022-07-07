@@ -104,10 +104,8 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});

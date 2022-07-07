@@ -17,6 +17,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/iterator.h"
 #include "isl/isl-noexceptions.h"
+#include <algorithm>
 #include <cassert>
 
 /// In debug builds assert that the @p Size is valid, in non-debug builds
@@ -48,11 +49,11 @@ template <typename ListT>
 using list_element_type = decltype(std::declval<ListT>().get_at(0));
 
 template <typename ListT>
-struct isl_iterator
+class isl_iterator
     : public llvm::iterator_facade_base<isl_iterator<ListT>,
                                         std::forward_iterator_tag,
                                         list_element_type<ListT>> {
-
+public:
   using ElementT = list_element_type<ListT>;
 
   explicit isl_iterator(const ListT &List)

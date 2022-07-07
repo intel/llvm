@@ -6,16 +6,11 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
-// The issue is caused in __format_spec::__determine_grouping().
-// There a string iterator is modified. The string is returned
-// from the dylib's use_facet<numpunct<_CharT>>::grouping()
-// XFAIL: LIBCXX-DEBUG-FIXME
-
-// TODO FMT Evaluate gcc-11 status
-// UNSUPPORTED: gcc-11
+// TODO FMT Evaluate gcc-12 status
+// UNSUPPORTED: gcc-12
 
 // REQUIRES: locale.en_US.UTF-8
 

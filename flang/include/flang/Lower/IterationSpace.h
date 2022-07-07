@@ -500,11 +500,11 @@ public:
   }
 
   void attachLoopCleanup(std::function<void(fir::FirOpBuilder &builder)> fn) {
-    if (!loopCleanup.hasValue()) {
+    if (!loopCleanup) {
       loopCleanup = fn;
       return;
     }
-    std::function<void(fir::FirOpBuilder &)> oldFn = loopCleanup.getValue();
+    std::function<void(fir::FirOpBuilder &)> oldFn = *loopCleanup;
     loopCleanup = [=](fir::FirOpBuilder &builder) {
       oldFn(builder);
       fn(builder);

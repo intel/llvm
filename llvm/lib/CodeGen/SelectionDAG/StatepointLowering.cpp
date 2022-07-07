@@ -172,7 +172,7 @@ static Optional<int> findPreviousSpillSlot(const Value *Val,
     const auto &RelocationMap =
         Builder.FuncInfo.StatepointRelocationMaps[Relocate->getStatepoint()];
 
-    auto It = RelocationMap.find(Relocate->getDerivedPtr());
+    auto It = RelocationMap.find(Relocate);
     if (It == RelocationMap.end())
       return None;
 
@@ -280,7 +280,7 @@ static void reservePreviousStackSlotForValue(const Value *IncomingValue,
   const int LookUpDepth = 6;
   Optional<int> Index =
       findPreviousSpillSlot(IncomingValue, Builder, LookUpDepth);
-  if (!Index.hasValue())
+  if (!Index)
     return;
 
   const auto &StatepointSlots = Builder.FuncInfo.StatepointStackSlots;
@@ -953,7 +953,7 @@ SDValue SelectionDAGBuilder::LowerAsSTATEPOINT(
       if (Relocate->getParent() != StatepointInstr->getParent())
         ExportFromCurrentBlock(V);
     }
-    RelocationMap[V] = Record;
+    RelocationMap[Relocate] = Record;
   }
 
   
@@ -1169,8 +1169,8 @@ void SelectionDAGBuilder::LowerCallSiteWithDeoptBundleImpl(
   unsigned DefaultID = StatepointDirectives::DeoptBundleStatepointID;
 
   auto SD = parseStatepointDirectivesFromAttrs(Call->getAttributes());
-  SI.ID = SD.StatepointID.getValueOr(DefaultID);
-  SI.NumPatchBytes = SD.NumPatchBytes.getValueOr(0);
+  SI.ID = SD.StatepointID.value_or(DefaultID);
+  SI.NumPatchBytes = SD.NumPatchBytes.value_or(0);
 
   SI.DeoptState =
       ArrayRef<const Use>(DeoptBundle.Inputs.begin(), DeoptBundle.Inputs.end());
@@ -1231,7 +1231,7 @@ void SelectionDAGBuilder::visitGCRelocate(const GCRelocateInst &Relocate) {
   const Value *DerivedPtr = Relocate.getDerivedPtr();
   auto &RelocationMap =
     FuncInfo.StatepointRelocationMaps[Relocate.getStatepoint()];
-  auto SlotIt = RelocationMap.find(DerivedPtr);
+  auto SlotIt = RelocationMap.find(&Relocate);
   assert(SlotIt != RelocationMap.end() && "Relocating not lowered gc value");
   const RecordType &Record = SlotIt->second;
 

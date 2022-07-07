@@ -70,11 +70,9 @@ InputSectionBase::InputSectionBase(InputFile *file, uint64_t flags,
     fatal(toString(this) + ": sh_addralign is not a power of 2");
   this->alignment = v;
 
-  // In ELF, each section can be compressed by zlib, and if compressed,
-  // section name may be mangled by appending "z" (e.g. ".zdebug_info").
-  // If that's the case, demangle section name so that we can handle a
-  // section as if it weren't compressed.
-  if ((flags & SHF_COMPRESSED) || name.startswith(".zdebug")) {
+  // If SHF_COMPRESSED is set, parse the header. The legacy .zdebug format is no
+  // longer supported.
+  if (flags & SHF_COMPRESSED) {
     if (!zlib::isAvailable())
       error(toString(file) + ": contains a compressed section, " +
             "but zlib is not available");
@@ -204,29 +202,6 @@ OutputSection *SectionBase::getOutputSection() {
 // by zlib-compressed data. This function parses a header to initialize
 // `uncompressedSize` member and remove the header from `rawData`.
 template <typename ELFT> void InputSectionBase::parseCompressedHeader() {
-  // Old-style header
-  if (!(flags & SHF_COMPRESSED)) {
-    assert(name.startswith(".zdebug"));
-    if (!toStringRef(rawData).startswith("ZLIB")) {
-      error(toString(this) + ": corrupted compressed section header");
-      return;
-    }
-    rawData = rawData.slice(4);
-
-    if (rawData.size() < 8) {
-      error(toString(this) + ": corrupted compressed section header");
-      return;
-    }
-
-    uncompressedSize = read64be(rawData.data());
-    rawData = rawData.slice(8);
-
-    // Restore the original section name.
-    // (e.g. ".zdebug_info" -> ".debug_info")
-    name = saver().save("." + name.substr(2));
-    return;
-  }
-
   flags &= ~(uint64_t)SHF_COMPRESSED;
 
   // New-style header
@@ -557,8 +532,8 @@ static uint64_t getARMStaticBase(const Symbol &sym) {
 static Relocation *getRISCVPCRelHi20(const Symbol *sym, uint64_t addend) {
   const Defined *d = cast<Defined>(sym);
   if (!d->section) {
-    error("R_RISCV_PCREL_LO12 relocation points to an absolute symbol: " +
-          sym->getName());
+    errorOrWarn("R_RISCV_PCREL_LO12 relocation points to an absolute symbol: " +
+                sym->getName());
     return nullptr;
   }
   InputSection *isec = cast<InputSection>(d->section);
@@ -582,8 +557,9 @@ static Relocation *getRISCVPCRelHi20(const Symbol *sym, uint64_t addend) {
         it->type == R_RISCV_TLS_GD_HI20 || it->type == R_RISCV_TLS_GOT_HI20)
       return &*it;
 
-  error("R_RISCV_PCREL_LO12 relocation points to " + isec->getObjMsg(d->value) +
-        " without an associated R_RISCV_PCREL_HI20 relocation");
+  errorOrWarn("R_RISCV_PCREL_LO12 relocation points to " +
+              isec->getObjMsg(d->value) +
+              " without an associated R_RISCV_PCREL_HI20 relocation");
   return nullptr;
 }
 
@@ -1376,15 +1352,15 @@ void MergeInputSection::splitStrings(StringRef s, size_t entSize) {
   if (entSize == 1) {
     // Optimize the common case.
     do {
-      size_t size = strlen(p) + 1;
+      size_t size = strlen(p);
       pieces.emplace_back(p - s.begin(), xxHash64(StringRef(p, size)), live);
-      p += size;
+      p += size + 1;
     } while (p != end);
   } else {
     do {
-      size_t size = findNull(StringRef(p, end - p), entSize) + entSize;
+      size_t size = findNull(StringRef(p, end - p), entSize);
       pieces.emplace_back(p - s.begin(), xxHash64(StringRef(p, size)), live);
-      p += size;
+      p += size + entSize;
     } while (p != end);
   }
 }

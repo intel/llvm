@@ -10,8 +10,8 @@
 
 // iterator insert(const_iterator p, size_type n, charT c);
 
-// UNSUPPORTED: libcxx-no-debug-mode, c++03, windows
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DEBUG=1
+// REQUIRES: has-unix-headers
+// UNSUPPORTED: !libcpp-has-debug-mode, c++03
 
 #include <string>
 

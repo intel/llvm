@@ -314,7 +314,7 @@ static bool checkLanguageOptions(const LangOptions &LangOpts,
 
 #define BENIGN_LANGOPT(Name, Bits, Default, Description)
 #define BENIGN_ENUM_LANGOPT(Name, Type, Bits, Default, Description)
-#define BENIGN_VALUE_LANGOPT(Name, Type, Bits, Default, Description)
+#define BENIGN_VALUE_LANGOPT(Name, Bits, Default, Description)
 #include "clang/Basic/LangOptions.def"
 
   if (ExistingLangOpts.ModuleFeatures != LangOpts.ModuleFeatures) {
@@ -1589,14 +1589,13 @@ bool ASTReader::ReadSLocEntry(int ID) {
   }
 
   case SM_SLOC_EXPANSION_ENTRY: {
-    SourceLocation SpellingLoc = ReadSourceLocation(*F, Record[1]);
-    SourceMgr.createExpansionLoc(SpellingLoc,
-                                     ReadSourceLocation(*F, Record[2]),
-                                     ReadSourceLocation(*F, Record[3]),
-                                     Record[5],
-                                     Record[4],
-                                     ID,
-                                     BaseOffset + Record[0]);
+    LocSeq::State Seq;
+    SourceLocation SpellingLoc = ReadSourceLocation(*F, Record[1], Seq);
+    SourceLocation ExpansionBegin = ReadSourceLocation(*F, Record[2], Seq);
+    SourceLocation ExpansionEnd = ReadSourceLocation(*F, Record[3], Seq);
+    SourceMgr.createExpansionLoc(SpellingLoc, ExpansionBegin, ExpansionEnd,
+                                 Record[5], Record[4], ID,
+                                 BaseOffset + Record[0]);
     break;
   }
   }
@@ -2227,7 +2226,7 @@ bool ASTReader::shouldDisableValidationForFile(
 
   // If a PCH is loaded and validation is disabled for PCH then disable
   // validation for the PCH and the modules it loads.
-  ModuleKind K = CurrentDeserializingModuleKind.getValueOr(M.Kind);
+  ModuleKind K = CurrentDeserializingModuleKind.value_or(M.Kind);
 
   switch (K) {
   case MK_MainFile:
@@ -2441,8 +2440,8 @@ InputFile ASTReader::getInputFile(ModuleFile &F, unsigned ID, bool Complain) {
           << Filename << moduleKindForDiagnostic(ImportStack.back()->Kind)
           << TopLevelPCHName << FileChange.Kind
           << (FileChange.Old && FileChange.New)
-          << llvm::itostr(FileChange.Old.getValueOr(0))
-          << llvm::itostr(FileChange.New.getValueOr(0));
+          << llvm::itostr(FileChange.Old.value_or(0))
+          << llvm::itostr(FileChange.New.value_or(0));
 
       // Print the import stack.
       if (ImportStack.size() > 1) {
@@ -2898,6 +2897,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
 
     case ORIGINAL_PCH_DIR:
       F.OriginalDir = std::string(Blob);
+      ResolveImportedPath(F, F.OriginalDir);
       break;
 
     case MODULE_NAME:
@@ -5637,9 +5637,12 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       // them here.
       break;
 
-    case SUBMODULE_TOPHEADER:
-      CurrentModule->addTopHeaderFilename(Blob);
+    case SUBMODULE_TOPHEADER: {
+      std::string HeaderName(Blob);
+      ResolveImportedPath(F, HeaderName);
+      CurrentModule->addTopHeaderFilename(HeaderName);
       break;
+    }
 
     case SUBMODULE_UMBRELLA_DIR: {
       // See comments in SUBMODULE_UMBRELLA_HEADER
@@ -6462,11 +6465,13 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
 namespace clang {
 
 class TypeLocReader : public TypeLocVisitor<TypeLocReader> {
-  ASTRecordReader &Reader;
+  using LocSeq = SourceLocationSequence;
 
-  SourceLocation readSourceLocation() {
-    return Reader.readSourceLocation();
-  }
+  ASTRecordReader &Reader;
+  LocSeq *Seq;
+
+  SourceLocation readSourceLocation() { return Reader.readSourceLocation(Seq); }
+  SourceRange readSourceRange() { return Reader.readSourceRange(Seq); }
 
   TypeSourceInfo *GetTypeSourceInfo() {
     return Reader.readTypeSourceInfo();
@@ -6481,7 +6486,8 @@ class TypeLocReader : public TypeLocVisitor<TypeLocReader> {
   }
 
 public:
-  TypeLocReader(ASTRecordReader &Reader) : Reader(Reader) {}
+  TypeLocReader(ASTRecordReader &Reader, LocSeq *Seq)
+      : Reader(Reader), Seq(Seq) {}
 
   // We want compile-time assurance that we've enumerated all of
   // these, so unfortunately we have to declare them first, then
@@ -6578,7 +6584,7 @@ void TypeLocReader::VisitDependentAddressSpaceTypeLoc(
     DependentAddressSpaceTypeLoc TL) {
 
     TL.setAttrNameLoc(readSourceLocation());
-    TL.setAttrOperandParensRange(Reader.readSourceRange());
+    TL.setAttrOperandParensRange(readSourceRange());
     TL.setAttrExprOperand(Reader.readExpr());
 }
 
@@ -6602,7 +6608,7 @@ void TypeLocReader::VisitExtVectorTypeLoc(ExtVectorTypeLoc TL) {
 
 void TypeLocReader::VisitConstantMatrixTypeLoc(ConstantMatrixTypeLoc TL) {
   TL.setAttrNameLoc(readSourceLocation());
-  TL.setAttrOperandParensRange(Reader.readSourceRange());
+  TL.setAttrOperandParensRange(readSourceRange());
   TL.setAttrRowOperand(Reader.readExpr());
   TL.setAttrColumnOperand(Reader.readExpr());
 }
@@ -6610,7 +6616,7 @@ void TypeLocReader::VisitConstantMatrixTypeLoc(ConstantMatrixTypeLoc TL) {
 void TypeLocReader::VisitDependentSizedMatrixTypeLoc(
     DependentSizedMatrixTypeLoc TL) {
   TL.setAttrNameLoc(readSourceLocation());
-  TL.setAttrOperandParensRange(Reader.readSourceRange());
+  TL.setAttrOperandParensRange(readSourceRange());
   TL.setAttrRowOperand(Reader.readExpr());
   TL.setAttrColumnOperand(Reader.readExpr());
 }
@@ -6619,7 +6625,7 @@ void TypeLocReader::VisitFunctionTypeLoc(FunctionTypeLoc TL) {
   TL.setLocalRangeBegin(readSourceLocation());
   TL.setLParenLoc(readSourceLocation());
   TL.setRParenLoc(readSourceLocation());
-  TL.setExceptionSpecRange(Reader.readSourceRange());
+  TL.setExceptionSpecRange(readSourceRange());
   TL.setLocalRangeEnd(readSourceLocation());
   for (unsigned i = 0, e = TL.getNumParams(); i != e; ++i) {
     TL.setParam(i, Reader.readDeclAs<ParmVarDecl>());
@@ -6822,9 +6828,9 @@ void TypeLocReader::VisitDependentBitIntTypeLoc(
   TL.setNameLoc(readSourceLocation());
 }
 
-
-void ASTRecordReader::readTypeLoc(TypeLoc TL) {
-  TypeLocReader TLR(*this);
+void ASTRecordReader::readTypeLoc(TypeLoc TL, LocSeq *ParentSeq) {
+  LocSeq::State Seq(ParentSeq);
+  TypeLocReader TLR(*this, Seq);
   for (; !TL.isNull(); TL = TL.getNextTypeLoc())
     TLR.Visit(TL);
 }
@@ -8998,11 +9004,10 @@ ASTRecordReader::readNestedNameSpecifierLoc() {
   return Builder.getWithLocInContext(Context);
 }
 
-SourceRange
-ASTReader::ReadSourceRange(ModuleFile &F, const RecordData &Record,
-                           unsigned &Idx) {
-  SourceLocation beg = ReadSourceLocation(F, Record, Idx);
-  SourceLocation end = ReadSourceLocation(F, Record, Idx);
+SourceRange ASTReader::ReadSourceRange(ModuleFile &F, const RecordData &Record,
+                                       unsigned &Idx, LocSeq *Seq) {
+  SourceLocation beg = ReadSourceLocation(F, Record, Idx, Seq);
+  SourceLocation end = ReadSourceLocation(F, Record, Idx, Seq);
   return SourceRange(beg, end);
 }
 
@@ -12492,6 +12497,7 @@ void OMPClauseReader::VisitOMPDependClause(OMPDependClause *C) {
       static_cast<OpenMPDependClauseKind>(Record.readInt()));
   C->setDependencyLoc(Record.readSourceLocation());
   C->setColonLoc(Record.readSourceLocation());
+  C->setOmpAllMemoryLoc(Record.readSourceLocation());
   unsigned NumVars = C->varlist_size();
   SmallVector<Expr *, 16> Vars;
   Vars.reserve(NumVars);

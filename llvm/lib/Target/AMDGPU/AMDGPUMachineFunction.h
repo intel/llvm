@@ -15,7 +15,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/Module.h"
+#include "llvm/IR/Function.h"
 
 namespace llvm {
 
@@ -69,7 +69,7 @@ public:
     return ExplicitKernArgSize;
   }
 
-  unsigned getMaxKernArgAlign() const { return MaxKernArgAlign.value(); }
+  Align getMaxKernArgAlign() const { return MaxKernArgAlign; }
 
   uint32_t getLDSSize() const {
     return LDSSize;

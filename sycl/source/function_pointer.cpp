@@ -27,10 +27,10 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
   // if the function exists or not. If the return address is not valid throw
   // error.
   if (Result != PI_SUCCESS) {
-    if (Result == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+    if (Result == PI_ERROR_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
       throw runtime_error("Function exists but address is not available",
                           Result);
-    if (Result == PI_INVALID_KERNEL_NAME)
+    if (Result == PI_ERROR_INVALID_KERNEL_NAME)
       throw runtime_error("Function name is not valid", Result);
     else
       throw runtime_error("piextGetDeviceFunctionPointer returned error when "

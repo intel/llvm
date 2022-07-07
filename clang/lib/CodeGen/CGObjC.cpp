@@ -442,7 +442,7 @@ CodeGen::RValue CGObjCRuntime::GeneratePossiblySpecializedMessageSend(
   if (Optional<llvm::Value *> SpecializedResult =
           tryGenerateSpecializedMessageSend(CGF, ResultType, Receiver, Args,
                                             Sel, Method, isClassMessage)) {
-    return RValue::get(SpecializedResult.getValue());
+    return RValue::get(*SpecializedResult);
   }
   return GenerateMessageSend(CGF, Return, ResultType, Sel, Receiver, Args, OID,
                              Method);
@@ -3895,6 +3895,8 @@ static unsigned getBaseMachOPlatformID(const llvm::Triple &TT) {
     return llvm::MachO::PLATFORM_TVOS;
   case llvm::Triple::WatchOS:
     return llvm::MachO::PLATFORM_WATCHOS;
+  case llvm::Triple::DriverKit:
+    return llvm::MachO::PLATFORM_DRIVERKIT;
   default:
     return /*Unknown platform*/ 0;
   }
@@ -3913,8 +3915,8 @@ static llvm::Value *emitIsPlatformVersionAtLeast(CodeGenFunction &CGF,
     Args.push_back(
         llvm::ConstantInt::get(CGM.Int32Ty, getBaseMachOPlatformID(TT)));
     Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()));
-    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Min.getValueOr(0)));
-    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, SMin.getValueOr(0)));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, Min.value_or(0)));
+    Args.push_back(llvm::ConstantInt::get(CGM.Int32Ty, SMin.value_or(0)));
   };
 
   assert(!Version.empty() && "unexpected empty version");
@@ -3950,9 +3952,8 @@ CodeGenFunction::EmitBuiltinAvailable(const VersionTuple &Version) {
   Optional<unsigned> Min = Version.getMinor(), SMin = Version.getSubminor();
   llvm::Value *Args[] = {
       llvm::ConstantInt::get(CGM.Int32Ty, Version.getMajor()),
-      llvm::ConstantInt::get(CGM.Int32Ty, Min.getValueOr(0)),
-      llvm::ConstantInt::get(CGM.Int32Ty, SMin.getValueOr(0))
-  };
+      llvm::ConstantInt::get(CGM.Int32Ty, Min.value_or(0)),
+      llvm::ConstantInt::get(CGM.Int32Ty, SMin.value_or(0))};
 
   llvm::Value *CallRes =
       EmitNounwindRuntimeCall(CGM.IsOSVersionAtLeastFn, Args);
@@ -3975,6 +3976,9 @@ static bool isFoundationNeededForDarwinAvailabilityCheck(
   case llvm::Triple::MacOSX:
     FoundationDroppedInVersion = VersionTuple(/*Major=*/10, /*Minor=*/15);
     break;
+  case llvm::Triple::DriverKit:
+    // DriverKit doesn't need Foundation.
+    return false;
   default:
     llvm_unreachable("Unexpected OS");
   }

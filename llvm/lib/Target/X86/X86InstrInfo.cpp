@@ -25,13 +25,16 @@
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
+#include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
+#include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/StackMaps.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
@@ -762,6 +765,7 @@ bool X86InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
   case X86::AVX_SET0:
   case X86::FsFLD0SD:
   case X86::FsFLD0SS:
+  case X86::FsFLD0SH:
   case X86::FsFLD0F128:
   case X86::KSET0D:
   case X86::KSET0Q:
@@ -964,6 +968,102 @@ inline static bool isTruncatedShiftCountForLEA(unsigned ShAmt) {
   return ShAmt < 4 && ShAmt > 0;
 }
 
+static bool findRedundantFlagInstr(MachineInstr &CmpInstr,
+                                   MachineInstr &CmpValDefInstr,
+                                   const MachineRegisterInfo *MRI,
+                                   MachineInstr **AndInstr,
+                                   const TargetRegisterInfo *TRI,
+                                   bool &NoSignFlag, bool &ClearsOverflowFlag) {
+  if (CmpValDefInstr.getOpcode() != X86::SUBREG_TO_REG)
+    return false;
+
+  if (CmpInstr.getOpcode() != X86::TEST64rr)
+    return false;
+
+  // CmpInstr is a TEST64rr instruction, and `X86InstrInfo::analyzeCompare`
+  // guarantees that it's analyzable only if two registers are identical.
+  assert(
+      (CmpInstr.getOperand(0).getReg() == CmpInstr.getOperand(1).getReg()) &&
+      "CmpInstr is an analyzable TEST64rr, and `X86InstrInfo::analyzeCompare` "
+      "requires two reg operands are the same.");
+
+  // Caller (`X86InstrInfo::optimizeCompareInstr`) guarantees that
+  // `CmpValDefInstr` defines the value that's used by `CmpInstr`; in this case
+  // if `CmpValDefInstr` sets the EFLAGS, it is likely that `CmpInstr` is
+  // redundant.
+  assert(
+      (MRI->getVRegDef(CmpInstr.getOperand(0).getReg()) == &CmpValDefInstr) &&
+      "Caller guarantees that TEST64rr is a user of SUBREG_TO_REG.");
+
+  // As seen in X86 td files, CmpValDefInstr.getOperand(1).getImm() is typically
+  // 0.
+  if (CmpValDefInstr.getOperand(1).getImm() != 0)
+    return false;
+
+  // As seen in X86 td files, CmpValDefInstr.getOperand(3) is typically
+  // sub_32bit or sub_xmm.
+  if (CmpValDefInstr.getOperand(3).getImm() != X86::sub_32bit)
+    return false;
+
+  MachineInstr *VregDefInstr =
+      MRI->getVRegDef(CmpValDefInstr.getOperand(2).getReg());
+
+  assert(VregDefInstr && "Must have a definition (SSA)");
+
+  // Requires `CmpValDefInstr` and `VregDefInstr` are from the same MBB
+  // to simplify the subsequent analysis.
+  //
+  // FIXME: If `VregDefInstr->getParent()` is the only predecessor of
+  // `CmpValDefInstr.getParent()`, this could be handled.
+  if (VregDefInstr->getParent() != CmpValDefInstr.getParent())
+    return false;
+
+  if (X86::isAND(VregDefInstr->getOpcode())) {
+    // Get a sequence of instructions like
+    //   %reg = and* ...                    // Set EFLAGS
+    //   ...                                // EFLAGS not changed
+    //   %extended_reg = subreg_to_reg 0, %reg, %subreg.sub_32bit
+    //   test64rr %extended_reg, %extended_reg, implicit-def $eflags
+    //
+    // If subsequent readers use a subset of bits that don't change
+    // after `and*` instructions, it's likely that the test64rr could
+    // be optimized away.
+    for (const MachineInstr &Instr :
+         make_range(std::next(MachineBasicBlock::iterator(VregDefInstr)),
+                    MachineBasicBlock::iterator(CmpValDefInstr))) {
+      // There are instructions between 'VregDefInstr' and
+      // 'CmpValDefInstr' that modifies EFLAGS.
+      if (Instr.modifiesRegister(X86::EFLAGS, TRI))
+        return false;
+    }
+
+    *AndInstr = VregDefInstr;
+
+    // AND instruction will essentially update SF and clear OF, so
+    // NoSignFlag should be false in the sense that SF is modified by `AND`.
+    //
+    // However, the implementation artifically sets `NoSignFlag` to true
+    // to poison the SF bit; that is to say, if SF is looked at later, the
+    // optimization (to erase TEST64rr) will be disabled.
+    //
+    // The reason to poison SF bit is that SF bit value could be different
+    // in the `AND` and `TEST` operation; signed bit is not known for `AND`,
+    // and is known to be 0 as a result of `TEST64rr`.
+    //
+    // FIXME: As opposed to poisoning the SF bit directly, consider peeking into
+    // the AND instruction and using the static information to guide peephole
+    // optimization if possible. For example, it's possible to fold a
+    // conditional move into a copy if the relevant EFLAG bits could be deduced
+    // from an immediate operand of and operation.
+    //
+    NoSignFlag = true;
+    // ClearsOverflowFlag is true for AND operation (no surprise).
+    ClearsOverflowFlag = true;
+    return true;
+  }
+  return false;
+}
+
 bool X86InstrInfo::classifyLEAReg(MachineInstr &MI, const MachineOperand &Src,
                                   unsigned Opc, bool AllowSP, Register &NewSrc,
                                   bool &isKill, MachineOperand &ImplicitOp,
@@ -1086,8 +1186,11 @@ MachineInstr *X86InstrInfo::convertToThreeAddressWithLEA(unsigned MIOpc,
   case X86::SHL8ri:
   case X86::SHL16ri: {
     unsigned ShAmt = MI.getOperand(2).getImm();
-    MIB.addReg(0).addImm(1ULL << ShAmt)
-       .addReg(InRegLEA, RegState::Kill).addImm(0).addReg(0);
+    MIB.addReg(0)
+        .addImm(1LL << ShAmt)
+        .addReg(InRegLEA, RegState::Kill)
+        .addImm(0)
+        .addReg(0);
     break;
   }
   case X86::INC8r:
@@ -1250,7 +1353,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
     NewMI = BuildMI(MF, MI.getDebugLoc(), get(X86::LEA64r))
                 .add(Dest)
                 .addReg(0)
-                .addImm(1ULL << ShAmt)
+                .addImm(1LL << ShAmt)
                 .add(Src)
                 .addImm(0)
                 .addReg(0);
@@ -1274,7 +1377,7 @@ MachineInstr *X86InstrInfo::convertToThreeAddress(MachineInstr &MI,
         BuildMI(MF, MI.getDebugLoc(), get(Opc))
             .add(Dest)
             .addReg(0)
-            .addImm(1ULL << ShAmt)
+            .addImm(1LL << ShAmt)
             .addReg(SrcReg, getKillRegState(isKill))
             .addImm(0)
             .addReg(0);
@@ -2940,8 +3043,7 @@ bool X86InstrInfo::AnalyzeBranchImpl(
       }
 
       // If the block has any instructions after a JMP, delete them.
-      while (std::next(I) != MBB.end())
-        std::next(I)->eraseFromParent();
+      MBB.erase(std::next(I), MBB.end());
 
       Cond.clear();
       FBB = nullptr;
@@ -3482,10 +3584,6 @@ static unsigned getLoadStoreRegOpcode(Register Reg,
   case 2:
     if (X86::VK16RegClass.hasSubClassEq(RC))
       return load ? X86::KMOVWkm : X86::KMOVWmk;
-    if (X86::FR16XRegClass.hasSubClassEq(RC)) {
-      assert(STI.hasFP16());
-      return load ? X86::VMOVSHZrm_alt : X86::VMOVSHZmr;
-    }
     assert(X86::GR16RegClass.hasSubClassEq(RC) && "Unknown 2-byte regclass");
     return load ? X86::MOV16rm : X86::MOV16mr;
   case 4:
@@ -3513,6 +3611,10 @@ static unsigned getLoadStoreRegOpcode(Register Reg,
         X86::VK8PAIRRegClass.hasSubClassEq(RC) ||
         X86::VK16PAIRRegClass.hasSubClassEq(RC))
       return load ? X86::MASKPAIR16LOAD : X86::MASKPAIR16STORE;
+    if ((X86::FR16RegClass.hasSubClassEq(RC) ||
+         X86::FR16XRegClass.hasSubClassEq(RC)) &&
+        STI.hasFP16())
+      return load ? X86::VMOVSHZrm_alt : X86::VMOVSHZmr;
     llvm_unreachable("Unknown 4-byte regclass");
   case 8:
     if (X86::GR64RegClass.hasSubClassEq(RC))
@@ -3752,12 +3854,12 @@ void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineRegisterInfo &RegInfo = MBB.getParent()->getRegInfo();
   assert(MFI.getObjectSize(FrameIdx) >= TRI->getSpillSize(*RC) &&
          "Stack slot too small for store");
   if (RC->getID() == X86::TILERegClassID) {
     unsigned Opc = X86::TILESTORED;
     // tilestored %tmm, (%sp, %idx)
-    MachineRegisterInfo &RegInfo = MBB.getParent()->getRegInfo();
     Register VirtReg = RegInfo.createVirtualRegister(&X86::GR64_NOSPRegClass);
     BuildMI(MBB, MI, DebugLoc(), get(X86::MOV64ri), VirtReg).addImm(64);
     MachineInstr *NewMI =
@@ -3766,6 +3868,14 @@ void X86InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     MachineOperand &MO = NewMI->getOperand(2);
     MO.setReg(VirtReg);
     MO.setIsKill(true);
+  } else if ((RC->getID() == X86::FR16RegClassID ||
+              RC->getID() == X86::FR16XRegClassID) &&
+             !Subtarget.hasFP16()) {
+    unsigned Opc = Subtarget.hasAVX512() ? X86::VMOVSSZmr
+                   : Subtarget.hasAVX()  ? X86::VMOVSSmr
+                                         : X86::MOVSSmr;
+    addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc)), FrameIdx)
+        .addReg(SrcReg, getKillRegState(isKill));
   } else {
     unsigned Alignment = std::max<uint32_t>(TRI->getSpillSize(*RC), 16);
     bool isAligned =
@@ -3794,6 +3904,14 @@ void X86InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     MachineOperand &MO = NewMI->getOperand(3);
     MO.setReg(VirtReg);
     MO.setIsKill(true);
+  } else if ((RC->getID() == X86::FR16RegClassID ||
+              RC->getID() == X86::FR16XRegClassID) &&
+             !Subtarget.hasFP16()) {
+    unsigned Opc = Subtarget.hasAVX512() ? X86::VMOVSSZrm
+                   : Subtarget.hasAVX()  ? X86::VMOVSSrm
+                                         : X86::MOVSSrm;
+    addFrameReference(BuildMI(MBB, MI, DebugLoc(), get(Opc), DestReg),
+                      FrameIdx);
   } else {
     const MachineFunction &MF = *MBB.getParent();
     const MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -4226,6 +4344,23 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
           MI = &Inst;
           break;
         }
+
+        // Look back for the following pattern, in which case the test64rr
+        // instruction could be erased.
+        //
+        // Example:
+        //  %reg = and32ri %in_reg, 5
+        //  ...                         // EFLAGS not changed.
+        //  %src_reg = subreg_to_reg 0, %reg, %subreg.sub_index
+        //  test64rr %src_reg, %src_reg, implicit-def $eflags
+        MachineInstr *AndInstr = nullptr;
+        if (IsCmpZero &&
+            findRedundantFlagInstr(CmpInstr, Inst, MRI, &AndInstr, TRI,
+                                   NoSignFlag, ClearsOverflowFlag)) {
+          assert(AndInstr != nullptr && X86::isAND(AndInstr->getOpcode()));
+          MI = AndInstr;
+          break;
+        }
         // Cannot find other candidates before definition of SrcReg.
         return false;
       }
@@ -4327,6 +4462,11 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
         return false;
       case X86::COND_G: case X86::COND_GE:
       case X86::COND_L: case X86::COND_LE:
+        // If SF is used, but the instruction doesn't update the SF, then we
+        // can't do the optimization.
+        if (NoSignFlag)
+          return false;
+        LLVM_FALLTHROUGH;
       case X86::COND_O: case X86::COND_NO:
         // If OF is used, the instruction needs to clear it like CmpZero does.
         if (!ClearsOverflowFlag)
@@ -4752,6 +4892,7 @@ bool X86InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case X86::V_SET0:
   case X86::FsFLD0SS:
   case X86::FsFLD0SD:
+  case X86::FsFLD0SH:
   case X86::FsFLD0F128:
     return Expand2AddrUndef(MIB, get(HasAVX ? X86::VXORPSrr : X86::XORPSrr));
   case X86::AVX_SET0: {
@@ -6487,6 +6628,7 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
     case X86::AVX512_FsFLD0SS:
       Alignment = Align(4);
       break;
+    case X86::FsFLD0SH:
     case X86::AVX512_FsFLD0SH:
       Alignment = Align(2);
       break;
@@ -6525,6 +6667,7 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
   case X86::AVX512_256_SET0:
   case X86::AVX512_512_SET0:
   case X86::AVX512_512_SETALLONES:
+  case X86::FsFLD0SH:
   case X86::AVX512_FsFLD0SH:
   case X86::FsFLD0SD:
   case X86::AVX512_FsFLD0SD:
@@ -6564,7 +6707,7 @@ MachineInstr *X86InstrInfo::foldMemoryOperandImpl(
       Ty = Type::getDoubleTy(MF.getFunction().getContext());
     else if (Opc == X86::FsFLD0F128 || Opc == X86::AVX512_FsFLD0F128)
       Ty = Type::getFP128Ty(MF.getFunction().getContext());
-    else if (Opc == X86::AVX512_FsFLD0SH)
+    else if (Opc == X86::FsFLD0SH || Opc == X86::AVX512_FsFLD0SH)
       Ty = Type::getHalfTy(MF.getFunction().getContext());
     else if (Opc == X86::AVX512_512_SET0 || Opc == X86::AVX512_512_SETALLONES)
       Ty = FixedVectorType::get(Type::getInt32Ty(MF.getFunction().getContext()),
@@ -7244,7 +7387,7 @@ bool X86InstrInfo::isSchedulingBoundary(const MachineInstr &MI,
   // ENDBR instructions should not be scheduled around.
   unsigned Opcode = MI.getOpcode();
   if (Opcode == X86::ENDBR64 || Opcode == X86::ENDBR32 ||
-      Opcode == X86::LDTILECFG)
+      Opcode == X86::PLDTILECFGV)
     return true;
 
   return TargetInstrInfo::isSchedulingBoundary(MI, MBB, MF);
@@ -9372,12 +9515,10 @@ outliner::OutlinedFunction X86InstrInfo::getOutliningCandidateInfo(
   // We check to see if CFI Instructions are present, and if they are
   // we find the number of CFI Instructions in the candidates.
   unsigned CFICount = 0;
-  MachineBasicBlock::iterator MBBI = RepeatedSequenceLocs[0].front();
-  for (unsigned Loc = RepeatedSequenceLocs[0].getStartIdx();
-       Loc < RepeatedSequenceLocs[0].getEndIdx() + 1; Loc++) {
-    if (MBBI->isCFIInstruction())
+  for (auto &I : make_range(RepeatedSequenceLocs[0].front(),
+                            std::next(RepeatedSequenceLocs[0].back()))) {
+    if (I.isCFIInstruction())
       CFICount++;
-    MBBI++;
   }
 
   // We compare the number of found CFI Instructions to  the number of CFI

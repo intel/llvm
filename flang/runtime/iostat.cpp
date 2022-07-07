@@ -83,6 +83,32 @@ const char *IostatErrorString(int iostat) {
     return "Bad REAL input value";
   case IostatBadScaleFactor:
     return "Bad REAL output scale factor (kP)";
+  case IostatBadAsynchronous:
+    return "READ/WRITE(ASYNCHRONOUS='YES') on unit without "
+           "OPEN(ASYNCHRONOUS='YES')";
+  case IostatBadWaitUnit:
+    return "WAIT(UNIT=) for a bad or unconnected unit number";
+  case IostatBOZInputOverflow:
+    return "B/O/Z input value overflows variable";
+  case IostatIntegerInputOverflow:
+    return "Integer input value overflows variable";
+  case IostatRealInputOverflow:
+    return "Real or complex input value overflows type";
+  case IostatCannotReposition:
+    return "Attempt to reposition a unit which is connected to a file that can "
+           "only be processed sequentially";
+  case IostatOpenAlreadyConnected:
+    return "OPEN of file already connected to another unit";
+  case IostatBadWaitId:
+    return "WAIT(ID=nonzero) for an ID value that is not a pending operation";
+  case IostatTooManyAsyncOps:
+    return "Too many asynchronous operations pending on unit";
+  case IostatBadBackspaceUnit:
+    return "BACKSPACE on unconnected unit";
+  case IostatBadUnitNumber:
+    return "Negative unit number is not allowed";
+  case IostatBadFlushUnit:
+    return "FLUSH attempted on a bad or unconnected unit number";
   default:
     return nullptr;
   }

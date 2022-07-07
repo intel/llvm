@@ -66,11 +66,28 @@ declare_mlir_dialect_python_bindings(
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/BufferizationOps.td
+  SOURCES
+    dialects/bufferization.py
+    dialects/_bufferization_ops_ext.py
+  DIALECT_NAME bufferization)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
   TD_FILE dialects/BuiltinOps.td
   SOURCES
     dialects/builtin.py
     dialects/_builtin_ops_ext.py
   DIALECT_NAME builtin)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/ComplexOps.td
+  SOURCES
+    dialects/complex.py
+  DIALECT_NAME complex)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -110,6 +127,35 @@ declare_mlir_dialect_python_bindings(
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/TransformOps.td
+  SOURCES
+    dialects/_transform_ops_ext.py
+    dialects/transform/__init__.py
+  DIALECT_NAME transform)
+
+declare_mlir_dialect_extension_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/SCFLoopTransformOps.td
+  SOURCES
+    dialects/_loop_transform_ops_ext.py
+    dialects/transform/loop.py
+  DIALECT_NAME transform
+  EXTENSION_NAME loop_transform)
+
+declare_mlir_dialect_extension_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/LinalgStructuredTransformOps.td
+  SOURCES
+    dialects/_structured_transform_ops_ext.py
+    dialects/transform/structured.py
+  DIALECT_NAME transform
+  EXTENSION_NAME structured_transform)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
   TD_FILE dialects/MathOps.td
   SOURCES dialects/math.py
   DIALECT_NAME math)
@@ -131,6 +177,15 @@ declare_mlir_dialect_python_bindings(
     dialects/memref.py
     dialects/_memref_ops_ext.py
   DIALECT_NAME memref)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/MLProgramOps.td
+  SOURCES
+    dialects/ml_program.py
+    dialects/_ml_program_ops_ext.py
+  DIALECT_NAME ml_program)
 
 declare_mlir_python_sources(
   MLIRPythonSources.Dialects.quant

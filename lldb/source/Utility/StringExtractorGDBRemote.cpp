@@ -126,6 +126,8 @@ StringExtractorGDBRemote::GetServerPacketType() const {
         return eServerPacketType_QSetWorkingDir;
       if (PACKET_STARTS_WITH("QSetLogging:"))
         return eServerPacketType_QSetLogging;
+      if (PACKET_STARTS_WITH("QSetIgnoredExceptions"))
+        return eServerPacketType_QSetIgnoredExceptions;
       if (PACKET_STARTS_WITH("QSetMaxPacketSize:"))
         return eServerPacketType_QSetMaxPacketSize;
       if (PACKET_STARTS_WITH("QSetMaxPayloadSize:"))
@@ -146,6 +148,11 @@ StringExtractorGDBRemote::GetServerPacketType() const {
     case 'M':
       if (PACKET_STARTS_WITH("QMemTags"))
         return eServerPacketType_QMemTags;
+      break;
+
+    case 'N':
+      if (PACKET_STARTS_WITH("QNonStop:"))
+        return eServerPacketType_QNonStop;
       break;
 
     case 'R':
@@ -367,6 +374,12 @@ StringExtractorGDBRemote::GetServerPacketType() const {
         return eServerPacketType_vCont_actions;
       if (PACKET_STARTS_WITH("vRun;"))
         return eServerPacketType_vRun;
+      if (PACKET_MATCHES("vStopped"))
+        return eServerPacketType_vStopped;
+      if (PACKET_MATCHES("vCtrlC"))
+        return eServerPacketType_vCtrlC;
+      break;
+
     }
     break;
   case '_':

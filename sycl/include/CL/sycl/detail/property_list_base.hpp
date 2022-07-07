@@ -93,14 +93,14 @@ protected:
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
       throw sycl::invalid_object_error("The property is not found",
-                                       PI_INVALID_VALUE);
+                                       PI_ERROR_INVALID_VALUE);
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
     throw sycl::invalid_object_error("The property is not found",
-                                     PI_INVALID_VALUE);
+                                     PI_ERROR_INVALID_VALUE);
   }
 
   void add_or_replace_accessor_properties_helper(

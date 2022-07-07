@@ -14,15 +14,21 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/ExtensibleDialect.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Reducer/ReductionPatternInterface.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 
@@ -371,6 +377,11 @@ TestDialect::getParseOperationHook(StringRef opName) const {
       return parser.parseKeyword("custom_format_fallback");
     }};
   }
+  if (opName == "test.dialect_custom_printer.with.dot") {
+    return ParseOpHook{[](OpAsmParser &parser, OperationState &state) {
+      return ParseResult::success();
+    }};
+  }
   return None;
 }
 
@@ -605,7 +616,7 @@ static ParseResult parseCustomDirectiveOptionalOperandRef(
   if (parser.parseInteger(operandCount))
     return failure();
   bool expectedOptionalOperand = operandCount == 0;
-  return success(expectedOptionalOperand != optOperand.hasValue());
+  return success(expectedOptionalOperand != optOperand.has_value());
 }
 
 //===----------------------------------------------------------------------===//
@@ -722,17 +733,6 @@ RegionKind SSACFGRegionOp::getRegionKind(unsigned index) {
 //===----------------------------------------------------------------------===//
 // Test GraphRegionOp
 //===----------------------------------------------------------------------===//
-
-ParseResult GraphRegionOp::parse(OpAsmParser &parser, OperationState &result) {
-  // Parse the body region, and reuse the operand info as the argument info.
-  Region *body = result.addRegion();
-  return parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{});
-}
-
-void GraphRegionOp::print(OpAsmPrinter &p) {
-  p << "test.graph_region ";
-  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
-}
 
 RegionKind GraphRegionOp::getRegionKind(unsigned index) {
   return RegionKind::Graph;
@@ -865,7 +865,7 @@ ParseResult PrettyPrintedRegionOp::parse(OpAsmParser &parser,
 
   // If location of the op is explicitly provided, then use it; Else use
   // the parser's current location.
-  Location opLoc = explicitLoc.getValueOr(currLocation);
+  Location opLoc = explicitLoc.value_or(currLocation);
 
   // Derive the SSA-values for op's operands.
   if (parser.resolveOperands(operands, opFntype.getInputs(), loc,
@@ -1301,8 +1301,8 @@ ParseResult RegionIfOp::parse(OpAsmParser &parser, OperationState &result) {
                                 parser.getCurrentLocation(), result.operands);
 }
 
-OperandRange RegionIfOp::getSuccessorEntryOperands(unsigned index) {
-  assert(index < 2 && "invalid region index");
+OperandRange RegionIfOp::getSuccessorEntryOperands(Optional<unsigned> index) {
+  assert(index && *index < 2 && "invalid region index");
   return getOperands();
 }
 
@@ -1339,7 +1339,7 @@ void AnyCondOp::getSuccessorRegions(Optional<unsigned> index,
                                     SmallVectorImpl<RegionSuccessor> &regions) {
   // The parent op branches into the only region, and the region branches back
   // to the parent op.
-  if (index)
+  if (!index)
     regions.emplace_back(&getRegion());
   else
     regions.emplace_back(getResults());
@@ -1402,9 +1402,69 @@ LogicalResult TestVerifiersOp::verifyRegions() {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// Test InferIntRangeInterface
+//===----------------------------------------------------------------------===//
+
+void TestWithBoundsOp::inferResultRanges(ArrayRef<ConstantIntRanges> argRanges,
+                                         SetIntRangeFn setResultRanges) {
+  setResultRanges(getResult(), {getUmin(), getUmax(), getSmin(), getSmax()});
+}
+
+ParseResult TestWithBoundsRegionOp::parse(OpAsmParser &parser,
+                                          OperationState &result) {
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+
+  // Parse the input argument
+  OpAsmParser::Argument argInfo;
+  argInfo.type = parser.getBuilder().getIndexType();
+  if (failed(parser.parseArgument(argInfo)))
+    return failure();
+
+  // Parse the body region, and reuse the operand info as the argument info.
+  Region *body = result.addRegion();
+  return parser.parseRegion(*body, argInfo, /*enableNameShadowing=*/false);
+}
+
+void TestWithBoundsRegionOp::print(OpAsmPrinter &p) {
+  p.printOptionalAttrDict((*this)->getAttrs());
+  p << ' ';
+  p.printRegionArgument(getRegion().getArgument(0), /*argAttrs=*/{},
+                        /*omitType=*/true);
+  p << ' ';
+  p.printRegion(getRegion(), /*printEntryBlockArgs=*/false);
+}
+
+void TestWithBoundsRegionOp::inferResultRanges(
+    ArrayRef<ConstantIntRanges> argRanges, SetIntRangeFn setResultRanges) {
+  Value arg = getRegion().getArgument(0);
+  setResultRanges(arg, {getUmin(), getUmax(), getSmin(), getSmax()});
+}
+
+void TestIncrementOp::inferResultRanges(ArrayRef<ConstantIntRanges> argRanges,
+                                        SetIntRangeFn setResultRanges) {
+  const ConstantIntRanges &range = argRanges[0];
+  APInt one(range.umin().getBitWidth(), 1);
+  setResultRanges(getResult(),
+                  {range.umin().uadd_sat(one), range.umax().uadd_sat(one),
+                   range.smin().sadd_sat(one), range.smax().sadd_sat(one)});
+}
+
+void TestReflectBoundsOp::inferResultRanges(
+    ArrayRef<ConstantIntRanges> argRanges, SetIntRangeFn setResultRanges) {
+  const ConstantIntRanges &range = argRanges[0];
+  MLIRContext *ctx = getContext();
+  Builder b(ctx);
+  setUminAttr(b.getIndexAttr(range.umin().getZExtValue()));
+  setUmaxAttr(b.getIndexAttr(range.umax().getZExtValue()));
+  setSminAttr(b.getIndexAttr(range.smin().getSExtValue()));
+  setSmaxAttr(b.getIndexAttr(range.smax().getSExtValue()));
+  setResultRanges(getResult(), range);
+}
+
 #include "TestOpEnums.cpp.inc"
 #include "TestOpInterfaces.cpp.inc"
-#include "TestOpStructs.cpp.inc"
 #include "TestTypeInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES

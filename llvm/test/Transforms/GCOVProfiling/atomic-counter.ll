@@ -1,10 +1,10 @@
 ;; -fsanitize=thread requires the (potentially concurrent) counter updates to be atomic.
 ; RUN: mkdir -p %t && cd %t
-; RUN: opt < %s -S -passes=insert-gcov-profiling -gcov-atomic-counter | FileCheck %s
+; RUN: opt -opaque-pointers < %s -S -passes=insert-gcov-profiling -gcov-atomic-counter | FileCheck %s
 
 ; CHECK-LABEL: void @empty()
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    %0 = atomicrmw add i64* getelementptr inbounds ([1 x i64], [1 x i64]* @__llvm_gcov_ctr, i64 0, i64 0), i64 1 monotonic, align 8, !dbg [[DBG:![0-9]+]]
+; CHECK-NEXT:    %0 = atomicrmw add ptr @__llvm_gcov_ctr, i64 1 monotonic, align 8, !dbg [[DBG:![0-9]+]]
 ; CHECK-NEXT:    ret void, !dbg [[DBG]]
 
 define dso_local void @empty() !dbg !5 {

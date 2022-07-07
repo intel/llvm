@@ -308,8 +308,7 @@ private:
   SDValue PromoteIntRes_VECTOR_SHUFFLE(SDNode *N);
   SDValue PromoteIntRes_VECTOR_SPLICE(SDNode *N);
   SDValue PromoteIntRes_BUILD_VECTOR(SDNode *N);
-  SDValue PromoteIntRes_SCALAR_TO_VECTOR(SDNode *N);
-  SDValue PromoteIntRes_SPLAT_VECTOR(SDNode *N);
+  SDValue PromoteIntRes_ScalarOp(SDNode *N);
   SDValue PromoteIntRes_STEP_VECTOR(SDNode *N);
   SDValue PromoteIntRes_EXTEND_VECTOR_INREG(SDNode *N);
   SDValue PromoteIntRes_INSERT_VECTOR_ELT(SDNode *N);
@@ -377,12 +376,12 @@ private:
   SDValue PromoteIntOp_EXTRACT_SUBVECTOR(SDNode *N);
   SDValue PromoteIntOp_INSERT_SUBVECTOR(SDNode *N);
   SDValue PromoteIntOp_CONCAT_VECTORS(SDNode *N);
-  SDValue PromoteIntOp_SCALAR_TO_VECTOR(SDNode *N);
-  SDValue PromoteIntOp_SPLAT_VECTOR(SDNode *N);
+  SDValue PromoteIntOp_ScalarOp(SDNode *N);
   SDValue PromoteIntOp_SELECT(SDNode *N, unsigned OpNo);
   SDValue PromoteIntOp_SELECT_CC(SDNode *N, unsigned OpNo);
   SDValue PromoteIntOp_SETCC(SDNode *N, unsigned OpNo);
   SDValue PromoteIntOp_Shift(SDNode *N);
+  SDValue PromoteIntOp_FunnelShift(SDNode *N);
   SDValue PromoteIntOp_SIGN_EXTEND(SDNode *N);
   SDValue PromoteIntOp_SINT_TO_FP(SDNode *N);
   SDValue PromoteIntOp_STRICT_SINT_TO_FP(SDNode *N);

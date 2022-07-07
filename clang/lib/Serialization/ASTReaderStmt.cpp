@@ -155,7 +155,7 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
   while (NumStmts--)
     Stmts.push_back(Record.readSubStmt());
   S->setStmts(Stmts);
-  S->CompoundStmtBits.LBraceLoc = readSourceLocation();
+  S->LBraceLoc = readSourceLocation();
   S->RBraceLoc = readSourceLocation();
 }
 
@@ -2403,6 +2403,12 @@ void ASTStmtReader::VisitOMPParallelMasterDirective(
   VisitOMPExecutableDirective(D);
 }
 
+void ASTStmtReader::VisitOMPParallelMaskedDirective(
+    OMPParallelMaskedDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+}
+
 void ASTStmtReader::VisitOMPParallelSectionsDirective(
     OMPParallelSectionsDirective *D) {
   VisitStmt(D);
@@ -2463,6 +2469,7 @@ void ASTStmtReader::VisitOMPAtomicDirective(OMPAtomicDirective *D) {
   VisitOMPExecutableDirective(D);
   D->Flags.IsXLHSInRHSPart = Record.readBool() ? 1 : 0;
   D->Flags.IsPostfixUpdate = Record.readBool() ? 1 : 0;
+  D->Flags.IsFailOnly = Record.readBool() ? 1 : 0;
 }
 
 void ASTStmtReader::VisitOMPTargetDirective(OMPTargetDirective *D) {
@@ -3329,6 +3336,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_PARALLEL_MASTER_DIRECTIVE:
       S = OMPParallelMasterDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
+      break;
+
+    case STMT_OMP_PARALLEL_MASKED_DIRECTIVE:
+      S = OMPParallelMaskedDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 

@@ -8,7 +8,6 @@
 //
 // NetBSD does not support LC_TIME at the moment
 // XFAIL: netbsd
-// XFAIL: LIBCXX-AIX-FIXME
 
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_FR.UTF-8
@@ -61,7 +60,7 @@ int main(int, char**)
     }
     {
         const my_facet f(LOCALE_fr_FR_UTF_8, 1);
-#if defined(_WIN32) || defined(TEST_HAS_GLIBC)
+#if defined(_WIN32) || defined(TEST_HAS_GLIBC) || defined(_AIX)
         const char in[] = "10/06/2009";
 #else
         const char in[] = "10.06.2009";
@@ -102,6 +101,58 @@ int main(int, char**)
         assert(t.tm_mon == 5);
         assert(t.tm_mday == 10);
         assert(t.tm_year == 109);
+        assert(err == std::ios_base::eofbit);
+    }
+    // Months must be > 0 and <= 12.
+    {
+        const my_facet f(LOCALE_en_US_UTF_8, 1);
+        const char in[] = "00/21/2022";
+        err = std::ios_base::goodbit;
+        t = std::tm();
+        I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
+#if _LIBCPP_VERSION
+          // libc++ points to the '/' after the month.
+          assert(base(i) == in+2);
+#else
+          // libstdc++ points to the second character.
+          assert(base(i) == in+1);
+#endif
+        // tm is not modified.
+        assert(t.tm_mon == 0);
+        assert(t.tm_mday == 0);
+        assert(t.tm_year == 0);
+        assert(err == std::ios_base::failbit);
+    }
+    {
+        const my_facet f(LOCALE_en_US_UTF_8, 1);
+        const char in[] = "13/21/2022";
+        err = std::ios_base::goodbit;
+        t = std::tm();
+        I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
+#if _LIBCPP_VERSION
+          // libc++ points to the '/' after the month.
+          assert(base(i) == in+2);
+#else
+          // libstdc++ points to the second character.
+          assert(base(i) == in+1);
+#endif
+        assert(base(i) == in+2);
+        assert(t.tm_mon == 0);
+        assert(t.tm_mday == 0);
+        assert(t.tm_year == 0);
+        assert(err == std::ios_base::failbit);
+    }
+    // Leading zero is allowed.
+    {
+        const my_facet f(LOCALE_en_US_UTF_8, 1);
+        const char in[] = "03/21/2022";
+        err = std::ios_base::goodbit;
+        t = std::tm();
+        I i = f.get_date(I(in), I(in+sizeof(in)/sizeof(in[0])-1), ios, err, &t);
+        assert(base(i) == in+sizeof(in)/sizeof(in[0])-1);
+        assert(t.tm_mon == 2);
+        assert(t.tm_mday == 21);
+        assert(t.tm_year == 122);
         assert(err == std::ios_base::eofbit);
     }
   return 0;

@@ -408,8 +408,10 @@ defm threads
          "Number of threads. '1' disables multi-threading. By default all "
          "available hardware threads are used">;
 
-def time_trace: FF<"time-trace">, HelpText<"Record time trace">;
-def time_trace_file_eq: JJ<"time-trace-file=">, HelpText<"Specify time trace output file">;
+def time_trace_eq: JJ<"time-trace=">, MetaVarName<"<file>">,
+  HelpText<"Record time trace to <file>">;
+def : FF<"time-trace">, Alias<time_trace_eq>,
+  HelpText<"Record time trace to file next to output">;
 
 defm time_trace_granularity: EEq<"time-trace-granularity",
   "Minimum time granularity (in microseconds) traced by time profiler">;
@@ -582,8 +584,6 @@ def opt_remarks_with_hotness: FF<"opt-remarks-with-hotness">,
   HelpText<"Include hotness information in the optimization remarks file">;
 def opt_remarks_format: Separate<["--"], "opt-remarks-format">,
   HelpText<"The format used for serializing remarks (default: YAML)">;
-def opt_stats_filename: JJ<"stats-file=">,
-  HelpText<"Filename to write statistics to">;
 def save_temps: F<"save-temps">, HelpText<"Save intermediate LTO compilation results">;
 def lto_basic_block_sections: JJ<"lto-basic-block-sections=">,
   HelpText<"Enable basic block sections for LTO">;
@@ -598,6 +598,7 @@ def thinlto_cache_dir: JJ<"thinlto-cache-dir=">,
   HelpText<"Path to ThinLTO cached object file directory">;
 defm thinlto_cache_policy: EEq<"thinlto-cache-policy", "Pruning policy for the ThinLTO cache">;
 def thinlto_emit_imports_files: FF<"thinlto-emit-imports-files">;
+def thinlto_emit_index_files: FF<"thinlto-emit-index-files">;
 def thinlto_index_only: FF<"thinlto-index-only">;
 def thinlto_index_only_eq: JJ<"thinlto-index-only=">;
 def thinlto_jobs: JJ<"thinlto-jobs=">,
@@ -628,6 +629,10 @@ def: J<"plugin-opt=cs-profile-path=">,
 def: J<"plugin-opt=obj-path=">,
   Alias<lto_obj_path_eq>,
   HelpText<"Alias for --lto-obj-path=">;
+def plugin_opt_opaque_pointers: F<"plugin-opt=opaque-pointers">,
+  HelpText<"Use opaque pointers in IR during LTO (default)">;
+def plugin_opt_no_opaque_pointers: F<"plugin-opt=no-opaque-pointers">,
+  HelpText<"Use typed pointers in IR during LTO">;
 def: J<"plugin-opt=opt-remarks-filename=">,
   Alias<opt_remarks_filename>,
   HelpText<"Alias for --opt-remarks-filename">;
@@ -646,6 +651,8 @@ def: J<"plugin-opt=opt-remarks-hotness-threshold=">,
 def: J<"plugin-opt=sample-profile=">,
   Alias<lto_sample_profile>, HelpText<"Alias for --lto-sample-profile">;
 def: F<"plugin-opt=save-temps">, Alias<save_temps>, HelpText<"Alias for --save-temps">;
+def plugin_opt_stats_file: J<"plugin-opt=stats-file=">,
+  HelpText<"Filename to write LTO statistics to">;
 def: F<"plugin-opt=thinlto-emit-imports-files">,
   Alias<thinlto_emit_imports_files>,
   HelpText<"Alias for --thinlto-emit-imports-files">;

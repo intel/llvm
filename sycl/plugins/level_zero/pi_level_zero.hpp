@@ -18,6 +18,13 @@
 #ifndef PI_LEVEL_ZERO_HPP
 #define PI_LEVEL_ZERO_HPP
 
+// This version should be incremented for any change made to this file or its
+// corresponding .cpp file.
+#define _PI_LEVEL_ZERO_PLUGIN_VERSION 1
+
+#define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
+  _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
+
 #include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
@@ -174,32 +181,6 @@ template <class T> struct ZesStruct : public T {
   }
 };
 
-// The wrapper for immutable Level-Zero data.
-// The data is initialized only once at first access (via ->) with the
-// initialization function provided in Init. All subsequent access to
-// the data just returns the already stored data.
-//
-template <class T> struct ZeCache : private T {
-  // The initialization function takes a reference to the data
-  // it is going to initialize, since it is private here in
-  // order to disallow access other than through "->".
-  //
-  typedef std::function<void(T &)> InitFunctionType;
-  InitFunctionType Compute{nullptr};
-  bool Computed{false};
-
-  ZeCache() : T{} {}
-
-  // Access to the fields of the original T data structure.
-  T *operator->() {
-    if (!Computed) {
-      Compute(*this);
-      Computed = true;
-    }
-    return this;
-  }
-};
-
 // A single-threaded app has an opportunity to enable this mode to avoid
 // overhead from mutex locking. Default value is 0 which means that single
 // thread mode is disabled.
@@ -239,13 +220,97 @@ public:
   }
 };
 
+// Class which acts like std::mutex if SingleThreadMode variable is not set.
+// If SingleThreadMode variable is set then mutex operations are turned into
+// nop.
+class pi_mutex : public std::mutex {
+public:
+  void lock() {
+    if (!SingleThreadMode)
+      std::mutex::lock();
+  }
+  bool try_lock() { return SingleThreadMode ? true : std::mutex::try_lock(); }
+  void unlock() {
+    if (!SingleThreadMode)
+      std::mutex::unlock();
+  }
+};
+
+// The wrapper for immutable Level-Zero data.
+// The data is initialized only once at first access (via ->) with the
+// initialization function provided in Init. All subsequent access to
+// the data just returns the already stored data.
+//
+template <class T> struct ZeCache : private T {
+  // The initialization function takes a reference to the data
+  // it is going to initialize, since it is private here in
+  // order to disallow access other than through "->".
+  //
+  typedef std::function<void(T &)> InitFunctionType;
+  InitFunctionType Compute{nullptr};
+  bool Computed{false};
+  pi_mutex ZeCacheMutex;
+
+  ZeCache() : T{} {}
+
+  // Access to the fields of the original T data structure.
+  T *operator->() {
+    std::unique_lock<pi_mutex> Lock(ZeCacheMutex);
+    if (!Computed) {
+      Compute(*this);
+      Computed = true;
+    }
+    return this;
+  }
+};
+
+// This wrapper around std::atomic is created to limit operations with reference
+// counter and to make allowed operations more transparent in terms of
+// thread-safety in the plugin. increment() and load() operations do not need a
+// mutex guard around them since the underlying data is already atomic.
+// decrementAndTest() method is used to guard a code which needs to be
+// executed when object's ref count becomes zero after release. This method also
+// doesn't need a mutex guard because decrement operation is atomic and only one
+// thread can reach ref count equal to zero, i.e. only a single thread can pass
+// through this check.
+struct ReferenceCounter {
+  ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
+
+  // Used when retaining an object.
+  void increment() { RefCount++; }
+
+  // Supposed to be used in pi*GetInfo* methods where ref count value is
+  // requested.
+  pi_uint32 load() { return RefCount.load(); }
+
+  // This method allows to guard a code which needs to be executed when object's
+  // ref count becomes zero after release. It is important to notice that only a
+  // single thread can pass through this check. This is true because of several
+  // reasons:
+  //   1. Decrement operation is executed atomically.
+  //   2. It is not allowed to retain an object after its refcount reaches zero.
+  //   3. It is not allowed to release an object more times than the value of
+  //   the ref count.
+  // 2. and 3. basically means that we can't use an object at all as soon as its
+  // refcount reaches zero. Using this check guarantees that code for deleting
+  // an object and releasing its resources is executed once by a single thread
+  // and we don't need to use any mutexes to guard access to this object in the
+  // scope after this check. Of course if we access another objects in this code
+  // (not the one which is being deleted) then access to these objects must be
+  // guarded, for example with a mutex.
+  bool decrementAndTest() { return --RefCount == 0; }
+
+private:
+  std::atomic<pi_uint32> RefCount;
+};
+
 // Base class to store common data
 struct _pi_object {
   _pi_object() : RefCount{1} {}
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
-  std::atomic<pi_uint32> RefCount;
+  ReferenceCounter RefCount;
 
   // This mutex protects accesses to all the non-const member variables.
   // Exclusive access is required to modify any of these members.
@@ -261,8 +326,6 @@ struct _pi_object {
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
   //   std::scoped_lock LockAll(Obj1->Mutex, Obj2->Mutex, Obj3Lock);
   pi_shared_mutex Mutex;
-
-  void retain() { ++RefCount; }
 };
 
 // Record for a memory allocation. This structure is used to keep information
@@ -304,7 +367,7 @@ struct _pi_platform {
 
   // Cache pi_devices for reuse
   std::vector<std::unique_ptr<_pi_device>> PiDevicesCache;
-  std::mutex PiDevicesCacheMutex;
+  pi_shared_mutex PiDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.
@@ -314,17 +377,13 @@ struct _pi_platform {
   // If not found, then nullptr is returned.
   pi_device getDeviceFromNativeHandle(ze_device_handle_t);
 
-  // Current number of L0 Command Lists created on this platform.
-  // this number must not exceed ZeMaxCommandListCache.
-  std::atomic<int> ZeGlobalCommandListCount{0};
-
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels
   // with indirect access.
   // TODO: should be deleted when memory isolation in the context is implemented
   // in the driver.
   std::list<pi_context> Contexts;
-  std::mutex ContextsMutex;
+  pi_shared_mutex ContextsMutex;
 };
 
 // Implements memory allocation via L0 RT for USM allocator interface.
@@ -364,7 +423,7 @@ class USMSharedReadOnlyMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
-  MemType getMemTypeImpl() override { return SystemMemory::SharedReadOnly; }
+  MemType getMemTypeImpl() override { return MemType::SharedReadOnly; }
 
 public:
   USMSharedReadOnlyMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -454,7 +513,9 @@ struct _pi_device : _pi_object {
                        int SubSubDeviceIndex = -1);
 
   // Level Zero device handle.
-  ze_device_handle_t ZeDevice;
+  // This field is only set at _pi_device creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_device.
+  const ze_device_handle_t ZeDevice;
 
   // Keep the subdevices that are partitioned from this pi_device for reuse
   // The order of sub-devices in this vector is repeated from the
@@ -463,10 +524,15 @@ struct _pi_device : _pi_object {
   std::vector<pi_device> SubDevices;
 
   // PI platform to which this device belongs.
-  pi_platform Platform;
+  // This field is only set at _pi_device creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_device.
+  const pi_platform Platform;
 
   // Root-device of a sub-device, null if this is not a sub-device.
-  pi_device RootDevice;
+  // This field is only set at _pi_device creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_device.
+  const pi_device RootDevice;
+
   bool isSubDevice() { return RootDevice != nullptr; }
 
   // Cache of the immutable device properties.
@@ -494,7 +560,7 @@ struct pi_command_list_info_t {
   // was not yet signaled at the time all events in that list were already
   // completed (we are polling the fence at events completion). The fence
   // may be still "in-use" due to sporadic delay in HW.
-  bool InUse{false};
+  bool ZeFenceInUse{false};
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};
@@ -522,8 +588,9 @@ typedef pi_command_list_map_t::iterator pi_command_list_ptr_t;
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
-        Devices{Devs, Devs + NumDevices}, ZeCommandListInit{nullptr} {
+      : ZeContext{ZeContext},
+        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
+        SingleRootDevice(getRootDevice()), ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
 
@@ -548,31 +615,6 @@ struct _pi_context : _pi_object {
     // we don't need a map with device as key.
     HostMemAllocContext = std::make_unique<USMAllocContext>(
         std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
-
-    if (NumDevices == 1) {
-      SingleRootDevice = Devices[0];
-    } else {
-
-      // Check if we have context with subdevices of the same device (context
-      // may include root device itself as well)
-      SingleRootDevice =
-          Devices[0]->RootDevice ? Devices[0]->RootDevice : Devices[0];
-
-      // For context with sub subdevices, the SingleRootDevice might still
-      // not be the root device.
-      // Check whether the SingleRootDevice is the subdevice or root device.
-      if (SingleRootDevice->isSubDevice()) {
-        SingleRootDevice = SingleRootDevice->RootDevice;
-      }
-
-      for (auto &Device : Devices) {
-        if ((!Device->RootDevice && Device != SingleRootDevice) ||
-            (Device->RootDevice && Device->RootDevice != SingleRootDevice)) {
-          SingleRootDevice = nullptr;
-          break;
-        }
-      }
-    }
 
     // We may allocate memory to this root device so create allocators.
     if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
@@ -599,18 +641,24 @@ struct _pi_context : _pi_object {
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
-  ze_context_handle_t ZeContext;
+  // This field is only set at _pi_context creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_context.
+  const ze_context_handle_t ZeContext;
 
   // Indicates if we own the ZeContext or it came from interop that
   // asked to not transfer the ownership to SYCL RT.
   bool OwnZeContext;
 
   // Keep the PI devices this PI context was created for.
-  std::vector<pi_device> Devices;
+  // This field is only set at _pi_context creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_context.
+  const std::vector<pi_device> Devices;
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
-  pi_device SingleRootDevice = nullptr;
+  // This field is only set at _pi_context creation time, and cannot change.
+  // Therefore it can be accessed without holding a lock on this _pi_context.
+  const pi_device SingleRootDevice = nullptr;
 
   // Immediate Level Zero command list for the device in this context, to be
   // used for initializations. To be created as:
@@ -622,9 +670,14 @@ struct _pi_context : _pi_object {
   // support of the multiple devices per context will be added.
   ze_command_list_handle_t ZeCommandListInit;
 
+  // Mutex for the immediate command list. Per the Level Zero spec memory copy
+  // operations submitted to an immediate command list are not allowed to be
+  // called from simultaneous threads.
+  pi_mutex ImmediateCommandListMutex;
+
   // Mutex Lock for the Command List Cache. This lock is used to control both
   // compute and copy command list caches.
-  std::mutex ZeCommandListCacheMutex;
+  pi_mutex ZeCommandListCacheMutex;
   // Cache of all currently available/completed command/copy lists.
   // Note that command-list can only be re-used on the same device.
   //
@@ -657,7 +710,7 @@ struct _pi_context : _pi_object {
   // once for each SYCL Queue and after that they are reused.
   pi_result getAvailableCommandList(pi_queue Queue,
                                     pi_command_list_ptr_t &CommandList,
-                                    bool UseCopyEngine = false,
+                                    bool UseCopyEngine,
                                     bool AllowBatching = false);
 
   // Get index of the free slot in the available pool. If there is no available
@@ -695,6 +748,15 @@ struct _pi_context : _pi_object {
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
 private:
+  // If context contains one device then return this device.
+  // If context contains sub-devices of the same device, then return this parent
+  // device. Return nullptr if context consists of several devices which are not
+  // sub-devices of the same device. We call returned device the root device of
+  // a context.
+  // TODO: get rid of this when contexts with multiple devices are supported for
+  // images.
+  pi_device getRootDevice() const;
+
   // Following member variables are used to manage assignment of events
   // to event pools.
   //
@@ -732,7 +794,7 @@ private:
 
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
-  std::mutex ZeEventPoolCacheMutex;
+  pi_mutex ZeEventPoolCacheMutex;
 };
 
 struct _pi_queue : _pi_object {
@@ -889,13 +951,11 @@ struct _pi_queue : _pi_object {
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
-  // fence have been signalled.
+  // fence have been signalled. The EventListToCleanup contains a list of events
+  // from the command list which need to be cleaned up.
   pi_result resetCommandList(pi_command_list_ptr_t CommandList,
-                             bool MakeAvailable);
-
-  // Reset signalled command lists in the queue and put them to the cache of
-  // command lists. A caller must not lock the queue mutex.
-  pi_result resetCommandLists();
+                             bool MakeAvailable,
+                             std::vector<_pi_event *> &EventListToCleanup);
 
   // Returns true if an OpenCommandList has commands that need to be submitted.
   // If IsCopy is 'true', then the OpenCommandList containing copy commands is
@@ -927,8 +987,8 @@ struct _pi_queue : _pi_object {
   // executed.
   pi_result executeOpenCommandList(bool IsCopy);
 
-  // Execute the open command containing the event.
-  pi_result executeOpenCommandListWithEvent(pi_event Event);
+  // Gets the open command containing the event, or CommandListMap.end()
+  pi_command_list_ptr_t eventOpenCommandList(pi_event Event);
 
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
@@ -947,7 +1007,12 @@ struct _pi_queue : _pi_object {
   // references. This way we are able to tell when the queue is being finished
   // externally, and can wait for internal references to complete, and do proper
   // cleanup of the queue.
-  std::atomic<pi_uint32> RefCountExternal{1};
+  // This counter doesn't track the lifetime of a queue object, it only tracks
+  // the number of external references. I.e. even if it reaches zero a queue
+  // object may not be destroyed and can be used internally in the plugin.
+  // That's why we intentionally don't use atomic type for this counter to
+  // enforce guarding with a mutex all the work involving this counter.
+  pi_uint32 RefCountExternal{1};
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
@@ -1162,16 +1227,20 @@ struct _pi_ze_event_list_t {
   // when an event is initially created.  However, it might be
   // possible to have multiple threads racing to destroy the list,
   // so this will be used to make list destruction thread-safe.
-  std::mutex PiZeEventListMutex;
+  pi_mutex PiZeEventListMutex;
 
   // Initialize this using the array of events in EventList, and retain
   // all the pi_events in the created data structure.
   // CurQueue is the pi_queue that the command with this event wait
   // list is going to be added to.  That is needed to flush command
   // batches for wait events that are in other queues.
+  // UseCopyEngine indicates if the next command (the one that this
+  // event wait-list is for) is going to go to copy or compute
+  // queue. This is used to properly submit the dependent open
+  // command-lists.
   pi_result createAndRetainPiZeEventList(pi_uint32 EventListLength,
                                          const pi_event *EventList,
-                                         pi_queue CurQueue);
+                                         pi_queue CurQueue, bool UseCopyEngine);
 
   // Add all the events in this object's PiEventList to the end
   // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
@@ -1194,8 +1263,7 @@ struct _pi_event : _pi_object {
   _pi_event(ze_event_handle_t ZeEvent, ze_event_pool_handle_t ZeEventPool,
             pi_context Context, pi_command_type CommandType, bool OwnZeEvent)
       : ZeEvent{ZeEvent}, OwnZeEvent{OwnZeEvent}, ZeEventPool{ZeEventPool},
-        ZeCommandList{nullptr}, CommandType{CommandType}, Context{Context},
-        CommandData{nullptr} {}
+        CommandType{CommandType}, Context{Context}, CommandData{nullptr} {}
 
   // Level Zero event handle.
   ze_event_handle_t ZeEvent;
@@ -1229,11 +1297,6 @@ struct _pi_event : _pi_object {
            (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
   }
 
-  // Level Zero command list where the command signaling this event was appended
-  // to. This is currently used to remember/destroy the command list after all
-  // commands in it are completed, i.e. this event signaled.
-  ze_command_list_handle_t ZeCommandList;
-
   // Keeps the command-queue and command associated with the event.
   // These are NULL for the user events.
   pi_queue Queue = {nullptr};
@@ -1252,8 +1315,6 @@ struct _pi_event : _pi_object {
   // This list must be destroyed once the event has signalled.
   _pi_ze_event_list_t WaitList;
 
-  // Performs the cleanup of a completed event.
-  pi_result cleanup(pi_queue LockedQueue = nullptr);
   // Tracks if the needed cleanup was already performed for
   // a completed event. This allows to control that some cleanup
   // actions are performed only once.
@@ -1395,13 +1456,6 @@ struct _pi_kernel : _pi_object {
     return true;
   }
 
-  // The caller must lock access to the kernel and program.
-  void retain() {
-    ++RefCount;
-    // When retaining a kernel, you are also retaining the program it is part
-    // of.
-    Program->retain();
-  }
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
 

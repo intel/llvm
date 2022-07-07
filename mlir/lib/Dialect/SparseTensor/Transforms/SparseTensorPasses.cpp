@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -91,9 +92,9 @@ struct SparseTensorConversionPass
     ConversionTarget target(*ctx);
     // Everything in the sparse dialect must go!
     target.addIllegalDialect<SparseTensorDialect>();
-    // All dynamic rules below accept new function, call, return, and tensor
-    // dim and cast operations as legal output of the rewriting provided that
-    // all sparse tensor types have been fully rewritten.
+    // All dynamic rules below accept new function, call, return, and various
+    // tensor and bufferization operations as legal output of the rewriting
+    // provided that all sparse tensor types have been fully rewritten.
     target.addDynamicallyLegalOp<func::FuncOp>([&](func::FuncOp op) {
       return converter.isSignatureLegal(op.getFunctionType());
     });
@@ -109,10 +110,15 @@ struct SparseTensorConversionPass
     target.addDynamicallyLegalOp<tensor::CastOp>([&](tensor::CastOp op) {
       return converter.isLegal(op.getOperand().getType());
     });
+    target.addDynamicallyLegalOp<bufferization::AllocTensorOp>(
+        [&](bufferization::AllocTensorOp op) {
+          return converter.isLegal(op.getType());
+        });
     // The following operations and dialects may be introduced by the
     // rewriting rules, and are therefore marked as legal.
     target.addLegalOp<arith::CmpFOp, arith::CmpIOp, arith::ConstantOp,
-                      arith::IndexCastOp, linalg::FillOp, linalg::YieldOp,
+                      arith::IndexCastOp, complex::ConstantOp,
+                      complex::NotEqualOp, linalg::FillOp, linalg::YieldOp,
                       tensor::ExtractOp>();
     target
         .addLegalDialect<bufferization::BufferizationDialect, LLVM::LLVMDialect,

@@ -52,6 +52,10 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
+      cuda_image:
+        type: string
+        required: false
+        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       lts_ref:
         type: string
         required: false
@@ -147,8 +151,6 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-cov
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-profdata
         cmake --build $GITHUB_WORKSPACE/build --target install-compiler-rt
-        # TODO this should be resolved in CMakeLists.txt
-        cmake --build $GITHUB_WORKSPACE/build --target install-lld || echo "skipped"
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .

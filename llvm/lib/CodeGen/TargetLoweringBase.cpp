@@ -201,7 +201,7 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
     setLibcallName(RTLIB::SINCOS_PPCF128, "sincosl");
   }
 
-  if (TT.isPS4()) {
+  if (TT.isPS()) {
     setLibcallName(RTLIB::SINCOS_F32, "sincosf");
     setLibcallName(RTLIB::SINCOS_F64, "sincos");
   }
@@ -274,6 +274,11 @@ RTLIB::Libcall RTLIB::getFPROUND(EVT OpVT, EVT RetVT) {
       return FPROUND_F128_F16;
     if (OpVT == MVT::ppcf128)
       return FPROUND_PPCF128_F16;
+  } else if (RetVT == MVT::bf16) {
+    if (OpVT == MVT::f32)
+      return FPROUND_F32_BF16;
+    if (OpVT == MVT::f64)
+      return FPROUND_F64_BF16;
   } else if (RetVT == MVT::f32) {
     if (OpVT == MVT::f64)
       return FPROUND_F64_F32;
@@ -738,6 +743,30 @@ void TargetLoweringBase::initActions() {
   std::fill(std::begin(RegClassForVT), std::end(RegClassForVT), nullptr);
   std::fill(std::begin(TargetDAGCombineArray),
             std::end(TargetDAGCombineArray), 0);
+
+  // We're somewhat special casing MVT::i2 and MVT::i4. Ideally we want to
+  // remove this and targets should individually set these types if not legal.
+  for (ISD::NodeType NT : enum_seq(ISD::DELETED_NODE, ISD::BUILTIN_OP_END,
+                                   force_iteration_on_noniterable_enum)) {
+    for (MVT VT : {MVT::i2, MVT::i4})
+      OpActions[(unsigned)VT.SimpleTy][NT] = Expand;
+  }
+  for (MVT AVT : MVT::all_valuetypes()) {
+    for (MVT VT : {MVT::i2, MVT::i4, MVT::v128i2, MVT::v64i4}) {
+      setTruncStoreAction(AVT, VT, Expand);
+      setLoadExtAction(ISD::EXTLOAD, AVT, VT, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, AVT, VT, Expand);
+    }
+  }
+  for (unsigned IM = (unsigned)ISD::PRE_INC;
+       IM != (unsigned)ISD::LAST_INDEXED_MODE; ++IM) {
+    for (MVT VT : {MVT::i2, MVT::i4}) {
+      setIndexedLoadAction(IM, VT, Expand);
+      setIndexedStoreAction(IM, VT, Expand);
+      setIndexedMaskedLoadAction(IM, VT, Expand);
+      setIndexedMaskedStoreAction(IM, VT, Expand);
+    }
+  }
 
   for (MVT VT : MVT::fp_valuetypes()) {
     MVT IntVT = MVT::getIntegerVT(VT.getFixedSizeInBits());
@@ -1349,6 +1378,16 @@ void TargetLoweringBase::computeRegisterProperties(
     }
   }
 
+  // Decide how to handle bf16. If the target does not have native bf16 support,
+  // promote it to f32, because there are no bf16 library calls (except for
+  // converting from f32 to bf16).
+  if (!isTypeLegal(MVT::bf16)) {
+    NumRegistersForVT[MVT::bf16] = NumRegistersForVT[MVT::f32];
+    RegisterTypeForVT[MVT::bf16] = RegisterTypeForVT[MVT::f32];
+    TransformToType[MVT::bf16] = MVT::f32;
+    ValueTypeActions.setTypeAction(MVT::bf16, TypePromoteFloat);
+  }
+
   // Loop over all of the vector value types to see which need transformations.
   for (unsigned i = MVT::FIRST_VECTOR_VALUETYPE;
        i <= (unsigned)MVT::LAST_VECTOR_VALUETYPE; ++i) {
@@ -1600,6 +1639,11 @@ bool TargetLoweringBase::isSuitableForJumpTable(const SwitchInst *SI,
   // the range is dense enough for a jump table.
   return (OptForSize || Range <= MaxJumpTableSize) &&
          (NumCases * 100 >= Range * MinDensity);
+}
+
+MVT TargetLoweringBase::getPreferredSwitchConditionType(LLVMContext &Context,
+                                                        EVT ConditionVT) const {
+  return getRegisterType(Context, ConditionVT);
 }
 
 /// Get the EVTs and ArgFlags collections that represent the legalized return

@@ -33,6 +33,7 @@
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/CopyOpInterface.h"
 #include "mlir/Interfaces/DerivedAttributeOpInterface.h"
+#include "mlir/Interfaces/InferIntRangeInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -44,7 +45,6 @@ class RewritePatternSet;
 } // namespace mlir
 
 #include "TestOpInterfaces.h.inc"
-#include "TestOpStructs.h.inc"
 #include "TestOpsDialect.h.inc"
 
 #define GET_OP_CLASSES

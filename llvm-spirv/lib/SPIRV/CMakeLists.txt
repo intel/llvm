@@ -16,7 +16,6 @@ if(LLVM_LINK_LLVM_DYLIB)
     SPIRVLowerMemmove.cpp
     SPIRVLowerOCLBlocks.cpp
     SPIRVLowerSaddWithOverflow.cpp
-    SPIRVLowerSPIRBlocks.cpp
     SPIRVReader.cpp
     SPIRVRegularizeLLVM.cpp
     SPIRVToLLVMDbgTran.cpp
@@ -39,13 +38,14 @@ if(LLVM_LINK_LLVM_DYLIB)
     libSPIRV/SPIRVValue.cpp
     DEPENDS
       intrinsics_gen
-	  LLVMAnalysis
+      LLVMAnalysis
       LLVMBitWriter
       LLVMCodeGen
       LLVMCore
       LLVMDemangle
       LLVMIRReader
       LLVMLinker
+      LLVMPasses
       LLVMSupport
       LLVMTransformUtils
   )
@@ -67,7 +67,6 @@ else()
     SPIRVLowerMemmove.cpp
     SPIRVLowerOCLBlocks.cpp
     SPIRVLowerSaddWithOverflow.cpp
-    SPIRVLowerSPIRBlocks.cpp
     SPIRVReader.cpp
     SPIRVRegularizeLLVM.cpp
     SPIRVToLLVMDbgTran.cpp
@@ -96,6 +95,7 @@ else()
       Demangle
       IRReader
       Linker
+      Passes
       Support
       TransformUtils
   DEPENDS

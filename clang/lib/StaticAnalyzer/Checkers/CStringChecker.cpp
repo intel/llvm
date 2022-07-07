@@ -355,8 +355,8 @@ ProgramStateRef CStringChecker::CheckLocation(CheckerContext &C,
   // Get the index of the accessed element.
   DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
 
-  ProgramStateRef StInBound = state->assumeInBound(Idx, Size, true);
-  ProgramStateRef StOutBound = state->assumeInBound(Idx, Size, false);
+  ProgramStateRef StInBound, StOutBound;
+  std::tie(StInBound, StOutBound) = state->assumeInBoundDual(Idx, Size);
   if (StOutBound && !StInBound) {
     // These checks are either enabled by the CString out-of-bounds checker
     // explicitly or implicitly by the Malloc checker.
@@ -696,7 +696,7 @@ ProgramStateRef CStringChecker::checkAdditionOverflow(CheckerContext &C,
   NonLoc maxVal = svalBuilder.makeIntVal(maxValInt);
 
   SVal maxMinusRight;
-  if (right.getAs<nonloc::ConcreteInt>()) {
+  if (isa<nonloc::ConcreteInt>(right)) {
     maxMinusRight = svalBuilder.evalBinOpNN(state, BO_Sub, maxVal, right,
                                                  sizeTy);
   } else {
@@ -1675,7 +1675,7 @@ void CStringChecker::evalStrcpyCommon(CheckerContext &C, const CallExpr *CE,
         // amountCopied = min (size - dstLen - 1 , srcLen)
         SVal freeSpace = svalBuilder.evalBinOpNN(state, BO_Sub, *lenValNL,
                                                  *dstStrLengthNL, sizeTy);
-        if (!freeSpace.getAs<NonLoc>())
+        if (!isa<NonLoc>(freeSpace))
           return;
         freeSpace =
             svalBuilder.evalBinOp(state, BO_Sub, freeSpace,

@@ -1067,7 +1067,7 @@ public:
     C.ScaleCost = 0;
   }
 
-  bool isLess(Cost &Other);
+  bool isLess(const Cost &Other);
 
   void Lose();
 
@@ -1355,6 +1355,8 @@ void Cost::RateFormula(const Formula &F,
                        const DenseSet<const SCEV *> &VisitedRegs,
                        const LSRUse &LU,
                        SmallPtrSetImpl<const SCEV *> *LoserRegs) {
+  if (isLoser())
+    return;
   assert(F.isCanonical(*L) && "Cost is accurate only for canonical formula");
   // Tally up the registers.
   unsigned PrevAddRecCost = C.AddRecCost;
@@ -1464,7 +1466,7 @@ void Cost::Lose() {
 }
 
 /// Choose the lower cost.
-bool Cost::isLess(Cost &Other) {
+bool Cost::isLess(const Cost &Other) {
   if (InsnsCost.getNumOccurrences() > 0 && InsnsCost &&
       C.Insns != Other.C.Insns)
     return C.Insns < Other.C.Insns;
@@ -4078,23 +4080,24 @@ void LSRInstance::GenerateScales(LSRUse &LU, unsigned LUIdx, Formula Base) {
           continue;
         // Divide out the factor, ignoring high bits, since we'll be
         // scaling the value back up in the end.
-        if (const SCEV *Quotient = getExactSDiv(AR, FactorS, SE, true)) {
-          // TODO: This could be optimized to avoid all the copying.
-          Formula F = Base;
-          F.ScaledReg = Quotient;
-          F.deleteBaseReg(F.BaseRegs[i]);
-          // The canonical representation of 1*reg is reg, which is already in
-          // Base. In that case, do not try to insert the formula, it will be
-          // rejected anyway.
-          if (F.Scale == 1 && (F.BaseRegs.empty() ||
-                               (AR->getLoop() != L && LU.AllFixupsOutsideLoop)))
-            continue;
-          // If AllFixupsOutsideLoop is true and F.Scale is 1, we may generate
-          // non canonical Formula with ScaledReg's loop not being L.
-          if (F.Scale == 1 && LU.AllFixupsOutsideLoop)
-            F.canonicalize(*L);
-          (void)InsertFormula(LU, LUIdx, F);
-        }
+        if (const SCEV *Quotient = getExactSDiv(AR, FactorS, SE, true))
+          if (!Quotient->isZero()) {
+            // TODO: This could be optimized to avoid all the copying.
+            Formula F = Base;
+            F.ScaledReg = Quotient;
+            F.deleteBaseReg(F.BaseRegs[i]);
+            // The canonical representation of 1*reg is reg, which is already in
+            // Base. In that case, do not try to insert the formula, it will be
+            // rejected anyway.
+            if (F.Scale == 1 && (F.BaseRegs.empty() ||
+                                 (AR->getLoop() != L && LU.AllFixupsOutsideLoop)))
+              continue;
+            // If AllFixupsOutsideLoop is true and F.Scale is 1, we may generate
+            // non canonical Formula with ScaledReg's loop not being L.
+            if (F.Scale == 1 && LU.AllFixupsOutsideLoop)
+              F.canonicalize(*L);
+            (void)InsertFormula(LU, LUIdx, F);
+          }
       }
     }
   }

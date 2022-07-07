@@ -11,9 +11,11 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
 
 using namespace llvm;
+using namespace PatternMatch;
 
 static void
 extractOperandsFromModule(Oracle &O, Module &Program,
@@ -39,6 +41,12 @@ static bool isZero(Use &Op) {
   return C && C->isNullValue();
 }
 
+static bool isZeroOrOneFP(Value *Op) {
+  const APFloat *C;
+  return match(Op, m_APFloat(C)) &&
+         ((C->isZero() && !C->isNegative()) || C->isExactlyValue(1.0));
+}
+
 static bool shouldReduceOperand(Use &Op) {
   Type *Ty = Op->getType();
   if (Ty->isLabelTy() || Ty->isMetadataTy())
@@ -54,30 +62,30 @@ static bool shouldReduceOperand(Use &Op) {
   return true;
 }
 
-void llvm::reduceOperandsUndefDeltaPass(TestRunner &Test) {
-  errs() << "*** Reducing Operands to undef...\n";
-  auto ReduceValue = [](Use &Op) -> Value * {
-    if (!shouldReduceOperand(Op))
-      return nullptr;
-    // Don't replace existing ConstantData Uses.
-    return isa<ConstantData>(*Op) ? nullptr : UndefValue::get(Op->getType());
-  };
-  runDeltaPass(Test, [ReduceValue](Oracle &O, Module &Program) {
-    extractOperandsFromModule(O, Program, ReduceValue);
-  });
-}
-
 void llvm::reduceOperandsOneDeltaPass(TestRunner &Test) {
   errs() << "*** Reducing Operands to one...\n";
   auto ReduceValue = [](Use &Op) -> Value * {
-    // TODO: support floats
     if (!shouldReduceOperand(Op))
       return nullptr;
-    auto *Ty = dyn_cast<IntegerType>(Op->getType());
-    if (!Ty)
-      return nullptr;
-    // Don't replace existing ones and zeroes.
-    return (isOne(Op) || isZero(Op)) ? nullptr : ConstantInt::get(Ty, 1);
+
+    Type *Ty = Op->getType();
+    if (auto *IntTy = dyn_cast<IntegerType>(Ty)) {
+      // Don't replace existing ones and zeroes.
+      return (isOne(Op) || isZero(Op)) ? nullptr : ConstantInt::get(IntTy, 1);
+    }
+
+    if (Ty->isFloatingPointTy())
+      return isZeroOrOneFP(Op) ? nullptr : ConstantFP::get(Ty, 1.0);
+
+    if (VectorType *VT = dyn_cast<VectorType>(Ty)) {
+      if (isZeroOrOneFP(Op))
+        return nullptr;
+
+      return ConstantVector::getSplat(
+          VT->getElementCount(), ConstantFP::get(VT->getElementType(), 1.0));
+    }
+
+    return nullptr;
   };
   runDeltaPass(Test, [ReduceValue](Oracle &O, Module &Program) {
     extractOperandsFromModule(O, Program, ReduceValue);

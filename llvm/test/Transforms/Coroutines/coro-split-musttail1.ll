@@ -1,6 +1,6 @@
 ; Tests that coro-split will convert coro.resume followed by a suspend to a
 ; musttail call.
-; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split<optimizing>),simplifycfg,early-cse' -S | FileCheck %s
 
 define void @f() #0 {
 entry:
@@ -98,7 +98,7 @@ declare i8 @switch_result()
 declare i8* @g()
 declare i8* @h()
 
-attributes #0 = { "coroutine.presplit"="1" }
+attributes #0 = { presplitcoroutine }
 attributes #1 = { argmemonly nounwind readonly }
 attributes #2 = { nounwind }
 attributes #3 = { nounwind readnone }
