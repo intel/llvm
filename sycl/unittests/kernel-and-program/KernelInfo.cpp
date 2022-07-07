@@ -136,11 +136,4 @@ TEST_F(KernelInfoTest, GetPrivateMemUsage) {
   EXPECT_EQ(TestContext->PrivateMemSizeCalled, true)
       << "Expect piKernelGetGroupInfo to be "
       << "called with PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
-
-  TestContext->PrivateMemSizeCalled = false;
-  Ker.get_work_group_info<info::kernel_work_group::private_mem_size>(
-      Ctx.get_devices()[0]);
-  EXPECT_EQ(TestContext->PrivateMemSizeCalled, true)
-      << "Expect piKernelGetGroupInfo to be "
-      << "called with PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
 }
