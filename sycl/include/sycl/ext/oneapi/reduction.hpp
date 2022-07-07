@@ -1392,7 +1392,7 @@ void reduCGFuncForNDRangeFastAtomicsOnly(
 
 namespace reduction {
 namespace main_krn {
-template <class KernelName> struct NDRangeBothFastReduceOnly;
+template <class KernelName> struct NDRangeFastReduceOnly;
 } // namespace main_krn
 } // namespace reduction
 /// Implements a command group function that enqueues a kernel that
@@ -1413,7 +1413,7 @@ void reduCGFuncForNDRangeFastReduceOnly(
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
   using Name =
-      __sycl_reduction_kernel<reduction::main_krn::NDRangeBothFastReduceOnly,
+      __sycl_reduction_kernel<reduction::main_krn::NDRangeFastReduceOnly,
                               KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
