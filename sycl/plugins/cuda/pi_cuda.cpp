@@ -270,15 +270,15 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
 void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
-                        const size_t maxThreadsPerBlock[3], pi_kernel kernel,
+                        const size_t maxThreadsPerBlock[3], CUfunction native_kernel,
                         pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
-  assert(kernel != nullptr);
+  assert(native_kernel != nullptr);
   int recommendedBlockSize, minGrid;
 
   PI_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
-      &minGrid, &recommendedBlockSize, kernel->get()[0], NULL, local_size,
+      &minGrid, &recommendedBlockSize, native_kernel, NULL, local_size,
       maxThreadsPerBlock[0]));
 
   (void)minGrid; // Not used, avoid warnings
@@ -724,26 +724,16 @@ pi_result _pi_program::build_program(const char *build_options) {
 }
 
 CUfunction _pi_kernel::get(pi_device device) const noexcept {
-  const auto &devices = context_->get_devices();
-  for (size_t i = 0; i < devices.size(); i++) {
-    if (devices[i] == device) {
-      PI_CHECK_ERROR(program_->build_results_[i]);
-      return functions_[i];
-    }
-  }
-  assert(false);
+  size_t i = context_->device_index(device);
+  PI_CHECK_ERROR(program_->build_results_[i]);
+  return functions_[i];
 }
 
 CUfunction
 _pi_kernel::get_with_offset_parameter(pi_device device) const noexcept {
-  const auto &devices = context_->get_devices();
-  for (size_t i = 0; i < devices.size(); i++) {
-    if (devices[i] == device) {
-      PI_CHECK_ERROR(program_->build_results_[i]);
-      return functionsWithOffsetParam_[i];
-    }
-  }
-  assert(false);
+  size_t i = context_->device_index(device);
+  PI_CHECK_ERROR(program_->build_results_[i]);
+  return functionsWithOffsetParam_[i];
 }
 
 /// Finds kernel names by searching for entry points in the PTX source, as the
@@ -1103,18 +1093,7 @@ pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
                                              const char *func_name,
                                              pi_uint64 *func_pointer_ret) {
   assert(func_pointer_ret != nullptr);
-  // Check if device passed is the same the device bound to the context
-  const auto &devices = program->get_context()->get_devices();
-  const auto &modules = program->get();
-  assert(devices.size() == modules.size());
-  CUmodule module = nullptr;
-  for (size_t i = 0; i < devices.size(); i++) {
-    if (devices[i] == device) {
-      module = modules[i];
-      break;
-    }
-  }
-  assert(module);
+  CUmodule module = program->get()[program->get_context()->device_index(device)];
 
   CUfunction func;
   CUresult ret = cuModuleGetFunction(&func, module, func_name);
@@ -2928,7 +2907,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&max_threads,
                              CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             kernel->get()[0]) == CUDA_SUCCESS);
+                             kernel->get(device)) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      size_t(max_threads));
     }
@@ -2951,7 +2930,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                             kernel->get()[0]) == CUDA_SUCCESS);
+                             kernel->get(device)) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
@@ -2969,7 +2948,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int bytes = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                             kernel->get()[0]) == CUDA_SUCCESS);
+                             kernel->get(device)) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
@@ -2977,7 +2956,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       int numRegs = 0;
       cl::sycl::detail::pi::assertion(
           cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
-                             kernel->get()[0]) == CUDA_SUCCESS);
+                             kernel->get(device)) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint32(numRegs));
     }
@@ -3055,7 +3034,7 @@ pi_result cuda_piEnqueueKernelLaunch(
         }
       } else {
         guessLocalWorkSize(threadsPerBlock, global_work_size,
-                           maxThreadsPerBlock, kernel, local_size);
+                           maxThreadsPerBlock, kernel->get(command_queue->get_device()), local_size);
       }
     }
 
@@ -3390,18 +3369,18 @@ pi_result cuda_piProgramCreateWithBinary(
   assert(binaries != nullptr);
   assert(program != nullptr);
   assert(device_list != nullptr);
-  /*for(size_t i=0;i<num_devices;i++){
+  for(size_t i=0;i<num_devices;i++){
     bool found_device = false;
     for(pi_device context_device : context->get_devices()){
       if(device_list[i] == context_device){
         found_device = true;
         break;
       }
-      assert(found_device &&
-            "Mismatch between devices context and passed context when creating "
-            "program from binary");
     }
-  }*/
+    assert(found_device &&
+          "Mismatch between devices context and passed context when creating "
+          "program from binary");
+  }
 
   pi_result retError = PI_SUCCESS;
 
