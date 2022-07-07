@@ -130,7 +130,7 @@ public:
   /// TODO: implemented for host code only.
   operator std::string() const
 #ifdef __SYCL_DEVICE_ONLY__
-       {}
+      {}
 #else
   {
     std::string OS;
