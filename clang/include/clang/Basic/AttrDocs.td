@@ -3294,9 +3294,6 @@ function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
 
-The ``[[intel::disable_loop_pipelining]]`` attribute spelling is a deprecated
-synonym for ``[[[intel::fpga_pipeline]]`` and will be removed in the future.
-
 .. code-block:: c++
 
   void foo() {
