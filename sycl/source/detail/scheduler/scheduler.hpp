@@ -211,7 +211,7 @@ struct MemObjRecord {
   // The context which has the latest state of the memory object.
   ContextImplPtr MCurContext;
 
-  // The context which has the latest state of the memory object.
+  // The device which has the latest state of the memory object.
   DeviceImplPtr MCurDevice;
 
   // The mode this object can be accessed with from the host context.
