@@ -46,7 +46,8 @@ spec_constant_impl::operator std::string() const {
   char tempString[50];
   for (unsigned I = 0; I < this->getSize(); ++I) {
     Out += (I == 0 ? "" : " ");
-    sprintf(tempString, "%x", static_cast<int>(*(this->getValuePtr() + I)));
+    snprintf(tempString, 50, "%x",
+             static_cast<int>(*(this->getValuePtr() + I)));
     Out += tempString;
   }
   Out += "]";

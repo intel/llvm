@@ -74,8 +74,7 @@ inline device_filter::operator std::string() const {
   }
 
   if (this->HasDeviceNum) {
-    Out += ":";
-    Out += this->DeviceNum;
+    Out += ":" + std::to_string(this->DeviceNum);
   }
   return Out;
 }

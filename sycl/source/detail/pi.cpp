@@ -580,7 +580,7 @@ DeviceBinaryProperty::operator std::string() const {
     ByteArray BA = this->asByteArray();
     char string[30];
     for (const auto &Byte : BA) {
-      sprintf(string, "0x%x", static_cast<unsigned>(Byte));
+      snprintf(string, 30, "0x%x", static_cast<unsigned>(Byte));
       Out += string;
     }
     break;

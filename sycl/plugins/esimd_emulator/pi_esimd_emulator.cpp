@@ -413,7 +413,6 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (NumEntries == 0) {
     /// Runtime queries number of Platforms
     if (Platforms != nullptr) {
-
       PiTrace("Invalid Arguments for piPlatformsGet of "
               "esimd_emulator (Platforms!=nullptr) "
               "while querying number of platforms");
@@ -502,7 +501,6 @@ pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
   if (NumEntries == 0) {
     /// Runtime queries number of devices
     if (Devices != nullptr) {
-
       PiTrace("Invalid Arguments for piDevicesGet of esimd_emultor "
               "(Devices!=nullptr) while querying number of platforms");
       return PI_ERROR_INVALID_VALUE;
@@ -553,7 +551,6 @@ pi_result _pi_platform::populateDeviceCacheIfNeeded() {
   // e.g. CM version 7.3 => Device version = 703
 
   if (((Version / 10) % 10) != 0) {
-
     PiTrace("Invalid Arguments for piPlatformsGet of "
             "esimd_emulator (Platforms!=nullptr) "
             "while querying number of platforms");
@@ -916,7 +913,6 @@ bool _pi_context::checkSurfaceArgument(pi_mem_flags Flags, void *HostPtr) {
     // COPY and USE are mutually exclusive
     if ((Flags & (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) ==
         (PI_MEM_FLAGS_HOST_PTR_USE | PI_MEM_FLAGS_HOST_PTR_COPY)) {
-
       PiTrace("PI_MEM_FLAGS_HOST_PTR_USE and _COPY cannot be used together");
       return false;
     }
@@ -1007,7 +1003,6 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   ARG_UNUSED(properties);
 
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-
     PiTrace("Invalid memory attribute for piMemBufferCreate");
     return PI_ERROR_INVALID_OPERATION;
   }
@@ -1159,7 +1154,6 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
-
     PiTrace("Invalid memory attribute for piMemImageCreate");
     return PI_ERROR_INVALID_OPERATION;
   }
@@ -1621,7 +1615,6 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem MemObj,
     // False as the second value in pair means that mapping was not inserted
     // because mapping already exists.
     if (!Res.second) {
-
       ret = PI_ERROR_INVALID_VALUE;
       PiTrace("piEnqueueMemBufferMap: duplicate mapping detected");
     }
@@ -1656,7 +1649,6 @@ pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem MemObj, void *MappedPtr,
     std::lock_guard<std::mutex> Lock(MemObj->MappingsMutex);
     auto It = MemObj->Mappings.find(MappedPtr);
     if (It == MemObj->Mappings.end()) {
-
       ret = PI_ERROR_INVALID_VALUE;
       PiTrace("piEnqueueMemUnmap: unknown memory mapping");
     }
@@ -1956,7 +1948,6 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
   /// TODO : Support multiple images and enable selection algorithm
   /// for the images
   if (RawImgSize != 1) {
-
     PiTrace("Only single device binary image is supported in ESIMD_EMULATOR");
     return PI_ERROR_INVALID_VALUE;
   }

@@ -21,7 +21,6 @@ namespace pi {
 template <typename T>
 inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
 print(T val) {
-  // std::cout << "<unknown> : " << val << std::endl;
   printf("<unknown> : %s\n", std::to_string(val).c_str());
 }
 template <typename T>
