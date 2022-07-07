@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <regex>
-#include <sstream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -382,9 +381,10 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     uint32_t DeviceVendorIdUInt =
         sycl::detail::get_device_info<uint32_t, info::device::vendor_id>::get(
             Device, Plugin);
-    std::stringstream DeviceVendorIdHexStringStream;
-    DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
-    const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
+
+    char DeviceVendorIdHexString[15];
+    snprintf(DeviceVendorIdHexString, 15, "0x%x", DeviceVendorIdUInt);
+    const std::string DeviceVendorIdValue = DeviceVendorIdHexString;
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const auto &DriverVersionValue = sycl::detail::get_device_info<

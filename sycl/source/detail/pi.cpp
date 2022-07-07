@@ -27,9 +27,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <iostream>
 #include <map>
-#include <sstream>
 #include <stddef.h>
 #include <string>
 
@@ -212,30 +210,31 @@ std::string memFlagToString(pi_mem_flags Flag) {
   assertion(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
             "More than one bit set");
 
-  std::stringstream Sstream;
+  std::string flagString{};
 
   switch (Flag) {
   case pi_mem_flags{0}:
-    Sstream << "pi_mem_flags(0)";
+    flagString += "pi_mem_flags(0)";
     break;
   case PI_MEM_FLAGS_ACCESS_RW:
-    Sstream << "PI_MEM_FLAGS_ACCESS_RW";
+    flagString += "PI_MEM_FLAGS_ACCESS_RW";
     break;
   case PI_MEM_FLAGS_HOST_PTR_USE:
-    Sstream << "PI_MEM_FLAGS_HOST_PTR_USE";
+    flagString += "PI_MEM_FLAGS_HOST_PTR_USE";
     break;
   case PI_MEM_FLAGS_HOST_PTR_COPY:
-    Sstream << "PI_MEM_FLAGS_HOST_PTR_COPY";
+    flagString += "PI_MEM_FLAGS_HOST_PTR_COPY";
     break;
   default:
-    Sstream << "unknown pi_mem_flags bit == " << Flag;
+    flagString += "unknown pi_mem_flags bit == ";
+    flagString += std::to_string(Flag);
   }
 
-  return Sstream.str();
+  return flagString;
 }
 
 std::string memFlagsToString(pi_mem_flags Flags) {
-  std::stringstream Sstream;
+  std::string flagString{};
   bool FoundFlag = false;
 
   auto FlagSeparator = [](bool FoundFlag) { return FoundFlag ? "|" : ""; };
@@ -245,11 +244,12 @@ std::string memFlagsToString(pi_mem_flags Flags) {
                                PI_MEM_FLAGS_HOST_PTR_COPY};
 
   if (Flags == 0u) {
-    Sstream << "pi_mem_flags(0)";
+    flagString += "pi_mem_flags(0)";
   } else {
     for (const auto Flag : ValidFlags) {
       if (Flag & Flags) {
-        Sstream << FlagSeparator(FoundFlag) << memFlagToString(Flag);
+        flagString += FlagSeparator(FoundFlag);
+        flagString += memFlagToString(Flag);
         FoundFlag = true;
       }
     }
@@ -258,12 +258,13 @@ std::string memFlagsToString(pi_mem_flags Flags) {
                                          PI_MEM_FLAGS_HOST_PTR_USE |
                                          PI_MEM_FLAGS_HOST_PTR_COPY));
     if (UnkownBits.any()) {
-      Sstream << FlagSeparator(FoundFlag)
-              << "unknown pi_mem_flags bits == " << UnkownBits;
+      flagString += FlagSeparator(FoundFlag);
+      flagString += "unknown pi_mem_flags bits == ";
+      flagString += UnkownBits.to_string();
     }
   }
 
-  return Sstream.str();
+  return flagString;
 }
 
 // GlobalPlugin is a global Plugin used with Interoperability constructors that

@@ -29,13 +29,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <iostream>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -738,18 +736,18 @@ std::string ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
 static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           RT::PiProgram &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
-  std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
-                     std::ifstream::in | std::ifstream::binary);
-  if (!File.good()) {
+
+  FILE *File = fopen((LibSyclDir + OSUtil::DirSep + Name).c_str(), "rb");
+
+  if (File == nullptr || !fseek(File, 0, SEEK_END)) {
     return false;
   }
 
-  File.seekg(0, std::ios::end);
-  size_t FileSize = File.tellg();
-  File.seekg(0, std::ios::beg);
+  size_t FileSize = ftell(File);
+  fseek(File, 0, SEEK_SET);
   std::vector<char> FileContent(FileSize);
-  File.read(&FileContent[0], FileSize);
-  File.close();
+  fread(&FileContent[0], sizeof(char), FileSize, File);
+  fclose(File);
 
   Prog =
       createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
@@ -852,22 +850,23 @@ ProgramManager::ProgramManager() {
     m_UseSpvFile = true;
     // The env var requests that the program is loaded from a SPIR-V file on
     // disk
-    std::ifstream File(SpvFile, std::ios::binary);
+    FILE *File = fopen(SpvFile, "rb");
 
-    if (!File.is_open())
+    if (File == nullptr)
       throw runtime_error(std::string("Can't open file specified via ") +
                               UseSpvEnv + ": " + SpvFile,
                           PI_ERROR_INVALID_VALUE);
-    File.seekg(0, std::ios::end);
-    size_t Size = File.tellg();
+    fseek(File, 0, SEEK_END);
+    size_t Size = ftell(File);
     std::unique_ptr<char[]> Data(new char[Size]);
-    File.seekg(0);
-    File.read(Data.get(), Size);
-    File.close();
-    if (!File.good())
+    fseek(File, 0, SEEK_SET);
+    fread(Data.get(), sizeof(char), Size, File);
+    fclose(File);
+    if (ferror(File))
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
                           PI_ERROR_INVALID_VALUE);
+
     auto ImgPtr = make_unique_ptr<DynRTDeviceBinaryImage>(
         std::move(Data), Size, OSUtil::DummyModuleHandle);
 
@@ -1380,9 +1379,7 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
         fprintf(stderr,
                 ">>> ProgramManager::flushSpecConstants: binary image %p"
                 " doesn't support spec constants\n",
-                (void *)&Img->getRawData());
-      // std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
-      //           << &Img->getRawData() << " doesn't support spec constants\n";
+                (const void *)&Img->getRawData());
       // This device binary image does not support runtime setting of
       // specialization constants; compiler must have generated default values.
       // NOTE: Can't throw here, as it would always take place with AOT

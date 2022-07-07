@@ -23,7 +23,6 @@
 #include <memory>
 #include <mutex>
 #include <regex>
-#include <sstream>
 #include <string.h>
 
 namespace {
@@ -88,10 +87,13 @@ std::string getHipVersionString() {
     return "";
   }
   // The version is returned as (1000 major + 10 minor).
-  std::stringstream stream;
-  stream << "HIP " << driver_version / 1000 << "."
-         << driver_version % 1000 / 10;
-  return stream.str();
+  std::string versionString;
+  versionString = "HIP ";
+  versionString += std::to_string(driver_version / 1000);
+  versionString += ".";
+  versionString += std::to_string(driver_version % 1000 / 10);
+
+  return versionString;
 }
 
 pi_result map_error(hipError_t result) {

@@ -13,7 +13,6 @@
 #include <cctype>
 #include <cstdio>
 #include <iomanip>
-#include <iostream>
 #include <list>
 #include <memory>
 #include <mutex>

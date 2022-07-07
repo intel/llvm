@@ -130,8 +130,7 @@ public:
   /// TODO: implemented for host code only.
   operator std::string() const
 #ifdef __SYCL_DEVICE_ONLY__
-  {
-  }
+       {}
 #else
   {
     std::string OS;
@@ -148,7 +147,8 @@ public:
 
   /// Prefix increment, increments elements of this object.
   /// @return Reference to this object.
-  simd &operator++() {
+  simd &
+  operator++() {
     *this += 1;
     return *this;
   }

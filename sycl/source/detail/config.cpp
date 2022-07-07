@@ -13,7 +13,6 @@
 
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <limits>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

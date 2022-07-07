@@ -24,17 +24,18 @@
 #include <memory>
 #include <mutex>
 #include <regex>
-#include <sstream>
 
 namespace {
 std::string getCudaVersionString() {
   int driver_version = 0;
   cuDriverGetVersion(&driver_version);
   // The version is returned as (1000 major + 10 minor).
-  std::stringstream stream;
-  stream << "CUDA " << driver_version / 1000 << "."
-         << driver_version % 1000 / 10;
-  return stream.str();
+  std::string versionString;
+  versionString = "CUDA ";
+  versionString += std::to_string(driver_version / 1000);
+  versionString += ".";
+  versionString += std::to_string(driver_version % 1000 / 10);
+  return versionString;
 }
 
 pi_result map_error(CUresult result) {

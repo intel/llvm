@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cstdio>
+#include <fstream>
 #include <optional>
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -125,6 +126,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
   Plugin.call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
                                            sizeof(char *) * Pointers.size(),
                                            Pointers.data(), nullptr);
+
   try {
     OSUtil::makeDir(DirName.c_str());
     LockCacheItem Lock{FileName};
@@ -160,7 +162,7 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   int i = 0;
 
   std::string FileName{Path + "/" + std::to_string(i)};
-  while (OSUtil::isPathPresent(FileName + ".bin") &&
+  while (OSUtil::isPathPresent(FileName + ".bin") ||
          OSUtil::isPathPresent(FileName + ".src")) {
 
     if (!LockCacheItem::isLocked(FileName) &&
@@ -196,18 +198,18 @@ std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
  */
 void PersistentDeviceCodeCache::writeBinaryDataToFile(
     const std::string &FileName, const std::vector<std::vector<char>> &Data) {
-  FILE *file = fopen(FileName.c_str(), "wb");
+  std::ofstream FileStream{FileName, std::ios::binary};
+
   size_t Size = Data.size();
-  fwrite(&Size, sizeof(Size), 1, file);
+  FileStream.write((char *)&Size, sizeof(Size));
 
   for (size_t i = 0; i < Data.size(); ++i) {
     Size = Data[i].size();
-    fwrite(&Size, sizeof(Size), 1, file);
-    fwrite(Data[i].data(), sizeof(char), Size, file);
+    FileStream.write((char *)&Size, sizeof(Size));
+    FileStream.write(Data[i].data(), Size);
   }
-  fclose(file);
-
-  if (ferror(file))
+  FileStream.close();
+  if (FileStream.fail())
     trace("Failed to write binary file " + FileName);
 }
 
@@ -216,25 +218,22 @@ void PersistentDeviceCodeCache::writeBinaryDataToFile(
  */
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
-  FILE *file = fopen(FileName.c_str(), "rb");
-  if (file == nullptr) {
-    trace("Failed to open binary file from " + FileName);
-    return {};
-  }
+  std::ifstream FileStream{FileName, std::ios::binary};
   size_t ImgNum = 0, ImgSize = 0;
-  fread(&ImgNum, sizeof(ImgNum), 1, file);
+  FileStream.read((char *)&ImgNum, sizeof(ImgNum));
 
   std::vector<std::vector<char>> Res(ImgNum);
   for (size_t i = 0; i < ImgNum; ++i) {
-    fread(&ImgSize, sizeof(ImgSize), 1, file);
+    FileStream.read((char *)&ImgSize, sizeof(ImgSize));
 
     std::vector<char> ImgData(ImgSize);
-    fread(ImgData.data(), sizeof(char), ImgSize, file);
+    FileStream.read(ImgData.data(), ImgSize);
+
     Res[i] = std::move(ImgData);
   }
-  fclose(file);
+  FileStream.close();
 
-  if (ferror(file) && !feof(file)) {
+  if (FileStream.fail()) {
     trace("Failed to read binary file from " + FileName);
     return {};
   }
@@ -250,30 +249,27 @@ void PersistentDeviceCodeCache::writeSourceItem(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
-
-  FILE *file = fopen(FileName.c_str(), "wb");
+  std::ofstream FileStream{FileName, std::ios::binary};
 
   std::string DeviceString{getDeviceIDString(Device)};
-
   size_t Size = DeviceString.size();
-  fwrite(&Size, sizeof(Size), 1, file);
-  fwrite(DeviceString.data(), sizeof(char), Size, file);
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write(DeviceString.data(), Size);
 
   Size = BuildOptionsString.size();
-  fwrite(&Size, sizeof(Size), 1, file);
-  fwrite(BuildOptionsString.data(), sizeof(char), Size, file);
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write(BuildOptionsString.data(), Size);
 
   Size = SpecConsts.size();
-  fwrite(&Size, sizeof(Size), 1, file);
-  fwrite(SpecConsts.data(), sizeof(SpecConsts.data()[0]), Size, file);
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write((const char *)SpecConsts.data(), Size);
 
   Size = Img.getSize();
-  fwrite(&Size, sizeof(Size), 1, file);
-  fwrite(Img.getRawData().BinaryStart, sizeof(Img.getRawData().BinaryStart[0]),
-         Size, file);
-  fclose(file);
+  FileStream.write((char *)&Size, sizeof(Size));
+  FileStream.write((const char *)Img.getRawData().BinaryStart, Size);
+  FileStream.close();
 
-  if (ferror(file)) {
+  if (FileStream.fail()) {
     trace("Failed to write source file to " + FileName);
   }
 }
@@ -285,45 +281,41 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
     const std::string &BuildOptionsString) {
-  FILE *file = fopen(FileName.c_str(), "rb");
+  std::ifstream FileStream{FileName, std::ios::binary};
 
-  if (file == nullptr) {
-    trace("Failed to open source file from " + FileName);
-    return false;
-  }
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
                         Img.getSize()};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
 
   size_t Size = 0;
-  fread(&Size, sizeof(Size), 1, file);
+  FileStream.read((char *)&Size, sizeof(Size));
   std::string res(Size, '\0');
-  fread(&res[0], sizeof(char), Size, file);
+  FileStream.read(&res[0], Size);
   if (getDeviceIDString(Device).compare(res))
     return false;
 
-  fread(&Size, sizeof(Size), 1, file);
+  FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
-  fread(&res[0], sizeof(char), Size, file);
+  FileStream.read(&res[0], Size);
   if (BuildOptionsString.compare(res))
     return false;
 
-  fread(&Size, sizeof(Size), 1, file);
+  FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
-  fread(&res[0], sizeof(char), Size, file);
+  FileStream.read(&res[0], Size);
   if (SpecConstsString.compare(res))
     return false;
 
-  fread(&Size, sizeof(Size), 1, file);
+  FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
-  fread(&res[0], sizeof(char), Size, file);
+  FileStream.read(&res[0], Size);
   if (ImgString.compare(res))
     return false;
 
-  fclose(file);
+  FileStream.close();
 
-  if (ferror(file) && !feof(file)) {
+  if (FileStream.fail()) {
     trace("Failed to read source file from " + FileName);
   }
 

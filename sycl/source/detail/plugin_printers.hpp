@@ -11,19 +11,18 @@
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
-#include <iostream>
+#include <cstdio>
 #include <type_traits>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 namespace pi {
 
-// Note:Casting val to unsigned long may not work for all function
-// specializations
 template <typename T>
 inline typename std::enable_if<!std::is_pointer<T>::value, void>::type
 print(T val) {
-  std::cout << "<unknown> : " << val << std::endl;
+  // std::cout << "<unknown> : " << val << std::endl;
+  printf("<unknown> : %s\n", std::to_string(val).c_str());
 }
 template <typename T>
 inline typename std::enable_if<std::is_pointer<T>::value, void>::type
