@@ -371,7 +371,7 @@ convertOmpCritical(Operation &opInst, llvm::IRBuilderBase &builder,
                                static_cast<int>(criticalDeclareOp.hint_val()));
   }
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createCritical(
-      ompLoc, bodyGenCB, finiCB, criticalOp.name().getValueOr(""), hint));
+      ompLoc, bodyGenCB, finiCB, criticalOp.name().value_or(""), hint));
   return success();
 }
 
@@ -536,7 +536,7 @@ convertOmpOrdered(Operation &opInst, llvm::IRBuilderBase &builder,
 
   omp::ClauseDepend dependType = *orderedOp.depend_type_val();
   bool isDependSource = dependType == omp::ClauseDepend::dependsource;
-  unsigned numLoops = orderedOp.num_loops_val().getValue();
+  unsigned numLoops = *orderedOp.num_loops_val();
   SmallVector<llvm::Value *> vecValues =
       moduleTranslation.lookupValues(orderedOp.depend_vec_vars());
 
@@ -687,8 +687,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
     return failure();
 
   // Static is the default.
-  auto schedule =
-      loop.schedule_val().getValueOr(omp::ClauseScheduleKind::Static);
+  auto schedule = loop.schedule_val().value_or(omp::ClauseScheduleKind::Static);
 
   // Find the loop configuration.
   llvm::Value *step = moduleTranslation.lookupValue(loop.step()[0]);
@@ -817,7 +816,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   allocaIP = findAllocaInsertPoint(builder, moduleTranslation);
 
   // TODO: Handle doacross loops when the ordered clause has a parameter.
-  bool isOrdered = loop.ordered_val().hasValue();
+  bool isOrdered = loop.ordered_val().has_value();
   Optional<omp::ScheduleModifier> scheduleModifier = loop.schedule_modifier();
   bool isSimd = loop.simd_modifier();
 

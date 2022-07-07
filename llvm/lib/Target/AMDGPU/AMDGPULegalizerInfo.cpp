@@ -795,13 +795,24 @@ AMDGPULegalizerInfo::AMDGPULegalizerInfo(const GCNSubtarget &ST_,
     .narrowScalarFor({{S64, S16}}, changeTo(0, S32))
     .scalarize(0);
 
-  getActionDefinitionsBuilder(G_FSUB)
+  auto &FSubActions = getActionDefinitionsBuilder(G_FSUB);
+  if (ST.has16BitInsts()) {
+    FSubActions
+      // Use actual fsub instruction
+      .legalFor({S32, S16})
+      // Must use fadd + fneg
+      .lowerFor({S64, V2S16});
+  } else {
+    FSubActions
       // Use actual fsub instruction
       .legalFor({S32})
       // Must use fadd + fneg
-      .lowerFor({S64, S16, V2S16})
-      .scalarize(0)
-      .clampScalar(0, S32, S64);
+      .lowerFor({S64, S16, V2S16});
+  }
+
+  FSubActions
+    .scalarize(0)
+    .clampScalar(0, S32, S64);
 
   // Whether this is legal depends on the floating point mode for the function.
   auto &FMad = getActionDefinitionsBuilder(G_FMAD);
@@ -5727,7 +5738,8 @@ bool AMDGPULegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
   case Intrinsic::amdgcn_raw_buffer_atomic_fadd:
   case Intrinsic::amdgcn_struct_buffer_atomic_fadd: {
     Register DstReg = MI.getOperand(0).getReg();
-    if (!MRI.use_empty(DstReg) && !ST.hasGFX90AInsts()) {
+    if (!MRI.use_empty(DstReg) &&
+        !AMDGPU::hasAtomicFaddRtnForTy(ST, MRI.getType(DstReg))) {
       Function &F = B.getMF().getFunction();
       DiagnosticInfoUnsupported NoFpRet(
           F, "return versions of fp atomics not supported", B.getDebugLoc(),
