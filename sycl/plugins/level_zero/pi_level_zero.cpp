@@ -89,6 +89,16 @@ static const bool UseImmediateCommandLists = [] {
   return std::stoi(ImmediateFlag) > 0;
 }();
 
+// This is an experimental option that allows the use of multiple command lists
+// when submitting barriers. The default is 0.
+static const bool UseMultipleCmdlistBarriers = [] {
+  const char *UseMultipleCmdlistBarriersFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS");
+  if (!UseMultipleCmdlistBarriersFlag)
+    return false;
+  return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -1649,7 +1659,6 @@ pi_command_list_ptr_t &_pi_queue::pi_queue_group_t::getImmCmdList() {
           .insert(std::pair<ze_command_list_handle_t, pi_command_list_info_t>{
               ZeCommandList, {nullptr, true, nullptr, QueueOrdinal}})
           .first;
-  Queue->insertActiveBarriers(ImmCmdLists[Index], isCopy());
   // Add this commandlist to the cache so it can be destroyed as part of
   // piQueueReleaseInternal
   auto QueueType = Type;
@@ -6052,19 +6061,22 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
 
   // If we have a list of events to make the barrier from, then we can create a
   // barrier on these and use the resulting event as our future barrier.
-  if (NumEventsInWaitList) {
+  // We use the same approach if
+  // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS is not set to a
+  // positive value.
+  if (NumEventsInWaitList || !UseMultipleCmdlistBarriers) {
+    // Retain the events as they will be owned by the result event.
+    _pi_ze_event_list_t TmpWaitList;
+    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
+            NumEventsInWaitList, EventWaitList, Queue,
+            /*UseCopyEngine=*/false))
+      return Res;
+
     // Get an arbitrary command-list in the queue.
     pi_command_list_ptr_t CmdList;
     if (auto Res = Queue->Context->getAvailableCommandList(
             Queue, CmdList,
             /*UseCopyEngine=*/false, OkToBatch))
-      return Res;
-
-    // Retain the events as they will be owned by the result event.
-    _pi_ze_event_list_t TmpWaitList;
-    if (auto Res = TmpWaitList.createAndRetainPiZeEventList(
-            NumEventsInWaitList, EventWaitList, Queue,
-            CmdList->second.isCopy(Queue)))
       return Res;
 
     // Insert the barrier into the command-list and execute.
@@ -6073,9 +6085,11 @@ pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
     if (auto Res = Queue->executeCommandList(CmdList, false, OkToBatch))
       return Res;
 
-    // Retain and save the resulting event for future commands.
-    PI_CALL(piEventRetain(*Event));
-    Queue->ActiveBarriers.push_back(*Event);
+    if (UseMultipleCmdlistBarriers) {
+      // Retain and save the resulting event for future commands.
+      PI_CALL(piEventRetain(*Event));
+      Queue->ActiveBarriers.push_back(*Event);
+    }
     return PI_SUCCESS;
   }
 
