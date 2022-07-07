@@ -146,7 +146,7 @@ pi_result check_error(CUresult result, const char *function, int line,
           "\n\tDescription:     %s"
           "\n\tFunction:        %s"
           "\n\tSource Location: %s:%s\n\n",
-          result , errorName, errorString, function, file, line);
+          result, errorName, errorString, function, file, line);
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
