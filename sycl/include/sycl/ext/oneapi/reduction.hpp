@@ -226,7 +226,7 @@ private:
   }
 
   template <class _T, access::address_space Space, class BinaryOperation>
-  static inline constexpr bool BasicCheck =
+  static constexpr bool BasicCheck =
       std::is_same<typename remove_AS<_T>::type, T>::value &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
@@ -2089,6 +2089,7 @@ void reduCGFuncImplArrayHelper(nd_item<Dims> NDIt, LocalAccT LocalReds,
   }
 }
 
+#if __cplusplus >= 201703L // pack fold expressions
 template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
           typename... LocalAccT, typename... OutAccT, typename... ReducerT,
           typename... Ts, typename... BOPsT, size_t... Is>
@@ -2169,6 +2170,7 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
         BOPsTuple, InitToIdentityProps, ArrayIs);
   });
 }
+#endif // __cplusplus >= 201703L
 
 template <typename KernelName, typename KernelType, int Dims,
           typename... Reductions, size_t... Is>
@@ -2391,6 +2393,9 @@ void reduAuxCGFuncImplArrayHelper(nd_item<Dims> NDIt, size_t LID, size_t GID,
   }
 }
 
+// Pack fold expressions are used either in the function itself or down its
+// callstack.
+#if __cplusplus >= 201703L
 template <bool UniformPow2WG, bool IsOneWG, typename... Reductions, int Dims,
           typename... LocalAccT, typename... InAccT, typename... OutAccT,
           typename... Ts, typename... BOPsT, size_t... Is>
@@ -2466,6 +2471,7 @@ void reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
         OutAccsTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps, ArrayIs);
   });
 }
+#endif // __cplusplus >= 201703L
 
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
