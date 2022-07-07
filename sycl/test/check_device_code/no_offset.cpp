@@ -16,9 +16,7 @@ int main() {
             sycl::accessor acc_a(a, cgh, sycl::write_only, PL);
             sycl::accessor acc_b{b, cgh, sycl::read_only};
             // CHECK: define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_EUliE_(i32 addrspace(1)* {{.*}}, i32 addrspace(1)* noundef readonly {{.*}}, %"class.cl::sycl::id"* noundef byval(%"class.cl::sycl::id") align 8 {{.*}})
-            cgh.parallel_for(size, [=](int i) {
-                acc_a[i] = acc_b[i];
-            });
+            cgh.parallel_for(size, [=](int i) { acc_a[i] = acc_b[i]; });
         });
 
         q.wait();
@@ -34,9 +32,7 @@ int main() {
             sycl::accessor acc_a(a, cgh, sycl::write_only);
             sycl::accessor acc_b{b, cgh, sycl::read_only};
             // CHECK: define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE0_clES2_EUliE_(i32 addrspace(1)* {{.*}}, %"class.cl::sycl::id"* noundef byval(%"class.cl::sycl::id") align 8 {{.*}}, i32 addrspace(1)* noundef readonly {{.*}}, %"class.cl::sycl::id"* noundef byval(%"class.cl::sycl::id") align 8 {{.*}})
-            cgh.parallel_for(size, [=](int i) {
-                acc_a[i] = acc_b[i];
-            });
+            cgh.parallel_for(size, [=](int i) { acc_a[i] = acc_b[i]; });
         });
 
         q.wait();
