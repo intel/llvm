@@ -8,6 +8,9 @@
 
 #pragma once
 
+#if __cplusplus >= 201703L
+// Entire feature is dependent on C++17.
+
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/detail/tuple.hpp>
@@ -226,7 +229,7 @@ private:
   }
 
   template <class _T, access::address_space Space, class BinaryOperation>
-  static inline constexpr bool BasicCheck =
+  static constexpr bool BasicCheck =
       std::is_same<typename remove_AS<_T>::type, T>::value &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
@@ -954,7 +957,6 @@ public:
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, VarPtr) {}
 
-#if __cplusplus >= 201703L
   /// Constructs reduction_impl when the identity value is statically known
   template <
       typename _T = T,
@@ -980,7 +982,6 @@ public:
   reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, Span.data()) {}
-#endif // __cplusplus >= 201703L
 };
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
@@ -2656,3 +2657,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 #endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#endif // __cplusplus >= 201703L
