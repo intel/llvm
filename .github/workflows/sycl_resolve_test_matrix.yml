@@ -18,16 +18,17 @@ on:
       lts_config:
         type: string
         required: true
+        default: ""
     outputs:
-      lts:
+      lts_matrix:
         description: "Generated Matrix"
-        value: ${{ jobs.resolve_matrix.outputs.lts }}
+        value: ${{ jobs.resolve_matrix.outputs.lts_matrix }}
 jobs:
   resolve_matrix:
     name: Resolve Test Matrix
     runs-on: ubuntu-latest
     outputs:
-      lts: ${{ steps.work.outputs.lts }}
+      lts_matrix: ${{ steps.work.outputs.lts_matrix }}
     steps:
     - name: Download scripts and configs
       shell: bash

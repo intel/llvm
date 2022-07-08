@@ -36,7 +36,7 @@ on:
       build_artifact_suffix:
         type: string
         required: true
-      lts:
+      lts_matrix:
         type: string
         required: false
         default: ""
@@ -159,12 +159,12 @@ jobs:
 
   llvm_test_suite:
     needs: build
-    if: ${{ inputs.lts != '' }}
+    if: ${{ inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
       matrix:
-        include: ${{ fromJSON(inputs.lts) }}
+        include: ${{ fromJSON(inputs.lts_matrix) }}
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runs-on }}
     env: ${{ matrix.env }}
