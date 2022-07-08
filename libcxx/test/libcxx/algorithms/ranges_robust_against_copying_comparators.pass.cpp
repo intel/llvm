@@ -189,8 +189,8 @@ constexpr bool all_the_algorithms()
     //(void)std::ranges::push_heap(a, Less(&copies)); assert(copies == 0);
     //(void)std::ranges::remove_copy_if(first, last, first2, UnaryTrue(&copies)); assert(copies == 0);
     //(void)std::ranges::remove_copy_if(a, first2, UnaryTrue(&copies)); assert(copies == 0);
-    //(void)std::ranges::remove_if(first, last, UnaryTrue(&copies)); assert(copies == 0);
-    //(void)std::ranges::remove_if(a, UnaryTrue(&copies)); assert(copies == 0);
+    (void)std::ranges::remove_if(first, last, UnaryTrue(&copies)); assert(copies == 0);
+    (void)std::ranges::remove_if(a, UnaryTrue(&copies)); assert(copies == 0);
     //(void)std::ranges::replace_copy_if(first, last, first2, UnaryTrue(&copies), value); assert(copies == 0);
     //(void)std::ranges::replace_copy_if(a, first2, UnaryTrue(&copies), value); assert(copies == 0);
     (void)std::ranges::replace_if(first, last, UnaryTrue(&copies), value); assert(copies == 0);
@@ -199,8 +199,8 @@ constexpr bool all_the_algorithms()
     //(void)std::ranges::search(a, b, Equal(&copies)); assert(copies == 0);
     //(void)std::ranges::search_n(first, last, count, value, Equal(&copies)); assert(copies == 0);
     //(void)std::ranges::search_n(a, count, value, Equal(&copies)); assert(copies == 0);
-    //(void)std::ranges::set_difference(first, mid, mid, last, first2, Less(&copies)); assert(copies == 0);
-    //(void)std::ranges::set_difference(a, b, first2, Less(&copies)); assert(copies == 0);
+    (void)std::ranges::set_difference(first, mid, mid, last, first2, Less(&copies)); assert(copies == 0);
+    (void)std::ranges::set_difference(a, b, first2, Less(&copies)); assert(copies == 0);
     //(void)std::ranges::set_intersection(first, mid, mid, last, first2, Less(&copies)); assert(copies == 0);
     //(void)std::ranges::set_intersection(a, b, first2, Less(&copies)); assert(copies == 0);
     //(void)std::ranges::set_symmetric_difference(first, mid, mid, last, first2, Less(&copies)); assert(copies == 0);

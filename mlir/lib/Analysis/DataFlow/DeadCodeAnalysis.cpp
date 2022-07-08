@@ -59,6 +59,23 @@ void PredecessorState::print(raw_ostream &os) const {
     os << "  " << *op << "\n";
 }
 
+ChangeResult PredecessorState::join(Operation *predecessor) {
+  return knownPredecessors.insert(predecessor) ? ChangeResult::Change
+                                               : ChangeResult::NoChange;
+}
+
+ChangeResult PredecessorState::join(Operation *predecessor, ValueRange inputs) {
+  ChangeResult result = join(predecessor);
+  if (!inputs.empty()) {
+    ValueRange &curInputs = successorInputs[predecessor];
+    if (curInputs != inputs) {
+      curInputs = inputs;
+      result |= ChangeResult::Change;
+    }
+  }
+  return result;
+}
+
 //===----------------------------------------------------------------------===//
 // CFGEdge
 //===----------------------------------------------------------------------===//
@@ -153,10 +170,18 @@ void DeadCodeAnalysis::initializeSymbolCallables(Operation *top) {
                                 walkFn);
 }
 
+/// Returns true if the operation is a returning terminator in region
+/// control-flow or the terminator of a callable region.
+static bool isRegionOrCallableReturn(Operation *op) {
+  return !op->getNumSuccessors() &&
+         isa<RegionBranchOpInterface, CallableOpInterface>(op->getParentOp()) &&
+         op->getBlock()->getTerminator() == op;
+}
+
 LogicalResult DeadCodeAnalysis::initializeRecursively(Operation *op) {
   // Initialize the analysis by visiting every op with control-flow semantics.
   if (op->getNumRegions() || op->getNumSuccessors() ||
-      op->hasTrait<OpTrait::IsTerminator>() || isa<CallOpInterface>(op)) {
+      isRegionOrCallableReturn(op) || isa<CallOpInterface>(op)) {
     // When the liveness of the parent block changes, make sure to re-invoke the
     // analysis on the op.
     if (op->getBlock())
@@ -226,7 +251,7 @@ LogicalResult DeadCodeAnalysis::visit(ProgramPoint point) {
     }
   }
 
-  if (op->hasTrait<OpTrait::IsTerminator>() && !op->getNumSuccessors()) {
+  if (isRegionOrCallableReturn(op)) {
     if (auto branch = dyn_cast<RegionBranchOpInterface>(op->getParentOp())) {
       // Visit the exiting terminator of a region.
       visitRegionTerminator(op, branch);
@@ -333,14 +358,18 @@ void DeadCodeAnalysis::visitRegionBranchOperation(
   SmallVector<RegionSuccessor> successors;
   branch.getSuccessorRegions(/*index=*/{}, *operands, successors);
   for (const RegionSuccessor &successor : successors) {
+    // The successor can be either an entry block or the parent operation.
+    ProgramPoint point = successor.getSuccessor()
+                             ? &successor.getSuccessor()->front()
+                             : ProgramPoint(branch);
     // Mark the entry block as executable.
-    Region *region = successor.getSuccessor();
-    assert(region && "expected a region successor");
-    auto *state = getOrCreate<Executable>(&region->front());
+    auto *state = getOrCreate<Executable>(point);
     propagateIfChanged(state, state->setToLive());
     // Add the parent op as a predecessor.
-    auto *predecessors = getOrCreate<PredecessorState>(&region->front());
-    propagateIfChanged(predecessors, predecessors->join(branch));
+    auto *predecessors = getOrCreate<PredecessorState>(point);
+    propagateIfChanged(
+        predecessors,
+        predecessors->join(branch, successor.getSuccessorInputs()));
   }
 }
 
@@ -366,7 +395,8 @@ void DeadCodeAnalysis::visitRegionTerminator(Operation *op,
       // Add this terminator as a predecessor to the parent op.
       predecessors = getOrCreate<PredecessorState>(branch);
     }
-    propagateIfChanged(predecessors, predecessors->join(op));
+    propagateIfChanged(predecessors,
+                       predecessors->join(op, successor.getSuccessorInputs()));
   }
 }
 
