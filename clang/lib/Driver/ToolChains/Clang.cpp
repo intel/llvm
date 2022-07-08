@@ -8854,7 +8854,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
-        !Dep.DependentBoundArch.empty()) {
+        !Dep.DependentBoundArch.empty() &&
+        !TCArgs.hasArg(options::OPT_fbundle_no_offload_arch)) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
     }

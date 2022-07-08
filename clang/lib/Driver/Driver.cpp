@@ -1,3 +1,4 @@
+#include <iostream>
 //===--- Driver.cpp - Clang GCC Compatible Driver -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -4776,7 +4777,7 @@ class OffloadingActionBuilder final {
            llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
         Action *A = std::get<0>(TargetActionInfo);
         DeviceTargetInfo &TargetInfo = std::get<1>(TargetActionInfo);
-
+        
         OffloadAction::DeviceDependences Dep;
         Dep.add(*A, *TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
         AL.push_back(C.MakeAction<OffloadAction>(Dep, A->getType()));
@@ -4883,8 +4884,17 @@ class OffloadingActionBuilder final {
               auto *SYCLDeviceLibsUnbundleAction =
                   C.MakeAction<OffloadUnbundlingJobAction>(
                       SYCLDeviceLibsInputAction);
-              addDeviceDepences(SYCLDeviceLibsUnbundleAction);
-              DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+
+              OffloadAction::DeviceDependences Dep;
+              //Dep.add(*SYCLDeviceLibsInputAction, *TC, /*BoundArch=*/nullptr,
+              //        Action::OFK_SYCL);
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/nullptr,
+                      Action::OFK_SYCL);
+              auto *SYCLDeviceLibsDependenciesAction =
+                  C.MakeAction<OffloadAction>(
+                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
               if (!LibLocSelected)
                 LibLocSelected = !LibLocSelected;
             }
@@ -7778,6 +7788,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // be returned for the current depending action.
       std::pair<const Action *, std::string> ActionTC = {
           A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
+      std::cerr << "ActionTC.second " << ActionTC.second << std::endl;
       assert(CachedResults.find(ActionTC) != CachedResults.end() &&
              "Result does not exist??");
       Result = CachedResults[ActionTC].front();
