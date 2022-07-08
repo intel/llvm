@@ -23,7 +23,7 @@ jobs:
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_cache_root: "/__w/llvm"
-      build_artifact_suffix: default
+      build_artifact_suffix: "post_commit"
       lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
   linux_no_assert:
     name: Linux (no assert)
