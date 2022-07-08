@@ -887,7 +887,7 @@ ASTContext::getCanonicalTemplateTemplateParmDecl(
 
 TargetCXXABI::Kind ASTContext::getCXXABIKind() const {
   auto Kind = getTargetInfo().getCXXABI().getKind();
-  return getLangOpts().CXXABI.getValueOr(Kind);
+  return getLangOpts().CXXABI.value_or(Kind);
 }
 
 CXXABI *ASTContext::createCXXABI(const TargetInfo &T) {
@@ -1712,8 +1712,17 @@ const llvm::fltSemantics &ASTContext::getFloatTypeSemantics(QualType T) const {
   case BuiltinType::BFloat16:
     return Target->getBFloat16Format();
   case BuiltinType::Float16:
-  case BuiltinType::Half:
     return Target->getHalfFormat();
+  case BuiltinType::Half:
+    // For HLSL, when the native half type is disabled, half will be treat as
+    // float.
+    if (getLangOpts().HLSL)
+      if (getLangOpts().NativeHalfType)
+        return Target->getHalfFormat();
+      else
+        return Target->getFloatFormat();
+    else
+      return Target->getHalfFormat();
   case BuiltinType::Float:      return Target->getFloatFormat();
   case BuiltinType::Double:     return Target->getDoubleFormat();
   case BuiltinType::Ibm128:
@@ -2845,8 +2854,7 @@ bool ASTContext::hasUniqueObjectRepresentations(QualType Ty) const {
     Optional<int64_t> StructSize =
         structHasUniqueObjectRepresentations(*this, Record);
 
-    return StructSize &&
-           StructSize.getValue() == static_cast<int64_t>(getTypeSize(Ty));
+    return StructSize && *StructSize == static_cast<int64_t>(getTypeSize(Ty));
   }
 
   // FIXME: More cases to handle here (list by rsmith):
@@ -11799,6 +11807,8 @@ QualType ASTContext::getRealTypeForBitwidth(unsigned DestWidth,
   FloatModeKind Ty =
       getTargetInfo().getRealTypeByWidth(DestWidth, ExplicitType);
   switch (Ty) {
+  case FloatModeKind::Half:
+    return HalfTy;
   case FloatModeKind::Float:
     return FloatTy;
   case FloatModeKind::Double:

@@ -314,7 +314,7 @@ ElementCount VPIntrinsic::getStaticVectorLength() const {
 
 Value *VPIntrinsic::getMaskParam() const {
   if (auto MaskPos = getMaskParamPos(getIntrinsicID()))
-    return getArgOperand(MaskPos.getValue());
+    return getArgOperand(*MaskPos);
   return nullptr;
 }
 
@@ -325,7 +325,7 @@ void VPIntrinsic::setMaskParam(Value *NewMask) {
 
 Value *VPIntrinsic::getVectorLengthParam() const {
   if (auto EVLPos = getVectorLengthParamPos(getIntrinsicID()))
-    return getArgOperand(EVLPos.getValue());
+    return getArgOperand(*EVLPos);
   return nullptr;
 }
 
@@ -617,7 +617,7 @@ CmpInst::Predicate VPCmpIntrinsic::getPredicate() const {
 #define END_REGISTER_VP_INTRINSIC(VPID) break;
 #include "llvm/IR/VPIntrinsics.def"
   }
-  assert(CCArgIdx.hasValue() && "Unexpected vector-predicated comparison");
+  assert(CCArgIdx && "Unexpected vector-predicated comparison");
   return IsFP ? getFPPredicateFromMD(getArgOperand(*CCArgIdx))
               : getIntPredicateFromMD(getArgOperand(*CCArgIdx));
 }

@@ -1381,9 +1381,34 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
-                          Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+        // TODO: GPU runtime may handle scatter of 16 byte elements incorrectly.
+        // The code below is a workaround which must be deleted once GPU runtime
+        // is fixed.
+        if constexpr (sizeof(T) == 1 && RemN == 16) {
+          if constexpr (Align % OperandSize::DWORD > 0) {
+            ForHelper<RemN>::unroll([Addr, &Tmp](unsigned Index) {
+              Addr[Index + NumChunks * ChunkSize] =
+                  Tmp[Index + NumChunks * ChunkSize];
+            });
+          } else {
+            simd_mask_type<8> Pred(0);
+            simd<int32_t, 8> Vals;
+            Pred.template select<4, 1>() = 1;
+            Vals.template select<4, 1>() =
+                Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
+                    NumChunks * ChunkSize);
+
+            simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
+            scatter<int32_t, 8>(
+                reinterpret_cast<int32_t *>(Addr + (NumChunks * ChunkSize)),
+                Offsets, Vals, Pred);
+          }
+        } else {
+          simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+          scatter<UT, RemN>(
+              Addr + (NumChunks * ChunkSize), Offsets,
+              Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+        }
       } else {
         constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
         simd_mask_type<N1> Pred(0);

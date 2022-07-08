@@ -83,9 +83,6 @@
 #    define _LIBCPP_ABI_BAD_FUNCTION_CALL_GOOD_WHAT_MESSAGE
 // Enable optimized version of __do_get_(un)signed which avoids redundant copies.
 #    define _LIBCPP_ABI_OPTIMIZED_LOCALE_NUM_GET
-// In C++20 and later, don't derive std::plus from std::binary_function,
-// nor std::negate from std::unary_function.
-#    define _LIBCPP_ABI_NO_BINDER_BASES
 // Give reverse_iterator<T> one data member of type T, not two.
 // Also, in C++17 and later, don't derive iterator types from std::iterator.
 #    define _LIBCPP_ABI_NO_ITERATOR_BASES
@@ -208,8 +205,8 @@
 #    define _LIBCPP_COMPILER_MSVC
 #  endif
 
-#  if defined(_LIBCPP_COMPILER_GCC) && __cplusplus < 201103L
-#    error "libc++ does not support using GCC with C++03. Please enable C++11"
+#  if !defined(_LIBCPP_COMPILER_CLANG_BASED) && __cplusplus < 201103L
+#    error "libc++ only supports C++03 with Clang-based compilers. Please enable C++11"
 #  endif
 
 // FIXME: ABI detection should be done via compiler builtin macros. This
@@ -390,11 +387,32 @@
 #  endif
 
 #  ifndef _LIBCPP_CXX03_LANG
+
 #    define _LIBCPP_ALIGNOF(_Tp) alignof(_Tp)
-#  elif defined(_LIBCPP_COMPILER_CLANG_BASED)
-#    define _LIBCPP_ALIGNOF(_Tp) _Alignof(_Tp)
+#    define _ALIGNAS_TYPE(x) alignas(x)
+#    define _ALIGNAS(x) alignas(x)
+#    define _LIBCPP_NORETURN [[noreturn]]
+#    define _NOEXCEPT noexcept
+#    define _NOEXCEPT_(x) noexcept(x)
+
 #  else
-#    error "We don't know a correct way to implement alignof(T) in C++03 outside of Clang"
+
+#    define _LIBCPP_ALIGNOF(_Tp) _Alignof(_Tp)
+#    define _ALIGNAS_TYPE(x) __attribute__((__aligned__(_LIBCPP_ALIGNOF(x))))
+#    define _ALIGNAS(x) __attribute__((__aligned__(x)))
+#    define _LIBCPP_NORETURN __attribute__((noreturn))
+#    define _LIBCPP_HAS_NO_NOEXCEPT
+#    define nullptr __nullptr
+#    define _NOEXCEPT throw()
+#    define _NOEXCEPT_(x)
+
+typedef __char16_t char16_t;
+typedef __char32_t char32_t;
+
+#  endif
+
+#  if !defined(__cpp_exceptions) || __cpp_exceptions < 199711L
+#    define _LIBCPP_NO_EXCEPTIONS
 #  endif
 
 #  define _LIBCPP_PREFERRED_ALIGNOF(_Tp) __alignof(_Tp)
@@ -403,33 +421,6 @@
 
 #    if defined(__APPLE__) && !defined(__i386__) && !defined(__x86_64__) && (!defined(__arm__) || __ARM_ARCH_7K__ >= 2)
 #      define _LIBCPP_ABI_ALTERNATE_STRING_LAYOUT
-#    endif
-
-#    if __has_feature(cxx_alignas)
-#      define _ALIGNAS_TYPE(x) alignas(x)
-#      define _ALIGNAS(x) alignas(x)
-#    else
-#      define _ALIGNAS_TYPE(x) __attribute__((__aligned__(_LIBCPP_ALIGNOF(x))))
-#      define _ALIGNAS(x) __attribute__((__aligned__(x)))
-#    endif
-
-#    if __cplusplus < 201103L
-typedef __char16_t char16_t;
-typedef __char32_t char32_t;
-#    endif
-
-#    if !__has_feature(cxx_exceptions)
-#      define _LIBCPP_NO_EXCEPTIONS
-#    endif
-
-#    if __has_feature(cxx_attributes)
-#      define _LIBCPP_NORETURN [[noreturn]]
-#    else
-#      define _LIBCPP_NORETURN __attribute__((noreturn))
-#    endif
-
-#    ifdef _LIBCPP_CXX03_LANG
-#      define nullptr __nullptr
 #    endif
 
 // Objective-C++ features (opt-in)
@@ -449,10 +440,6 @@ typedef __char32_t char32_t;
 #      define _LIBCPP_HAS_BLOCKS_RUNTIME
 #    endif
 
-#    if !(__has_feature(cxx_noexcept))
-#      define _LIBCPP_HAS_NO_NOEXCEPT
-#    endif
-
 #    if !__has_feature(address_sanitizer)
 #      define _LIBCPP_HAS_NO_ASAN
 #    endif
@@ -467,15 +454,6 @@ typedef __char32_t char32_t;
 #    define _LIBCPP_DISABLE_EXTENSION_WARNING __extension__
 
 #  elif defined(_LIBCPP_COMPILER_GCC)
-
-#    define _ALIGNAS(x) __attribute__((__aligned__(x)))
-#    define _ALIGNAS_TYPE(x) __attribute__((__aligned__(_LIBCPP_ALIGNOF(x))))
-
-#    define _LIBCPP_NORETURN __attribute__((noreturn))
-
-#    if !defined(__EXCEPTIONS)
-#      define _LIBCPP_NO_EXCEPTIONS
-#    endif
 
 #    if !defined(__SANITIZE_ADDRESS__)
 #      define _LIBCPP_HAS_NO_ASAN
@@ -493,10 +471,7 @@ typedef __char32_t char32_t;
 #      error "MSVC versions prior to Visual Studio 2015 are not supported"
 #    endif
 
-#    define __alignof__ __alignof
 #    define _LIBCPP_NORETURN __declspec(noreturn)
-#    define _ALIGNAS(x) __declspec(align(x))
-#    define _ALIGNAS_TYPE(x) alignas(x)
 
 #    define _LIBCPP_WEAK
 
@@ -552,42 +527,31 @@ typedef __char32_t char32_t;
 #    define _LIBCPP_TEMPLATE_DATA_VIS
 #    define _LIBCPP_ENUM_VIS
 
-#  endif // defined(_LIBCPP_OBJECT_FORMAT_COFF)
+#  else
 
-#  ifndef _LIBCPP_HIDDEN
 #    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_HIDDEN __attribute__((__visibility__("hidden")))
+#      define _LIBCPP_VISIBILITY(vis) __attribute__((__visibility__(vis)))
 #    else
-#      define _LIBCPP_HIDDEN
+#      define _LIBCPP_VISIBILITY(vis)
 #    endif
-#  endif
 
-#  ifndef _LIBCPP_METHOD_TEMPLATE_IMPLICIT_INSTANTIATION_VIS
+#    define _LIBCPP_HIDDEN _LIBCPP_VISIBILITY("hidden")
+#    define _LIBCPP_FUNC_VIS _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_TYPE_VIS _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_TEMPLATE_DATA_VIS _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_EXPORTED_FROM_ABI _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_OVERRIDABLE_FUNC_VIS _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_EXCEPTION_ABI _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS _LIBCPP_VISIBILITY("default")
+#    define _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS
+
 #    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
 // The inline should be removed once PR32114 is resolved
 #      define _LIBCPP_METHOD_TEMPLATE_IMPLICIT_INSTANTIATION_VIS inline _LIBCPP_HIDDEN
 #    else
 #      define _LIBCPP_METHOD_TEMPLATE_IMPLICIT_INSTANTIATION_VIS
 #    endif
-#  endif
 
-#  ifndef _LIBCPP_FUNC_VIS
-#    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_FUNC_VIS __attribute__((__visibility__("default")))
-#    else
-#      define _LIBCPP_FUNC_VIS
-#    endif
-#  endif
-
-#  ifndef _LIBCPP_TYPE_VIS
-#    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_TYPE_VIS __attribute__((__visibility__("default")))
-#    else
-#      define _LIBCPP_TYPE_VIS
-#    endif
-#  endif
-
-#  ifndef _LIBCPP_TEMPLATE_VIS
 #    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
 #      if __has_attribute(__type_visibility__)
 #        define _LIBCPP_TEMPLATE_VIS __attribute__((__type_visibility__("default")))
@@ -597,55 +561,14 @@ typedef __char32_t char32_t;
 #    else
 #      define _LIBCPP_TEMPLATE_VIS
 #    endif
-#  endif
 
-#  ifndef _LIBCPP_TEMPLATE_DATA_VIS
-#    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_TEMPLATE_DATA_VIS __attribute__((__visibility__("default")))
-#    else
-#      define _LIBCPP_TEMPLATE_DATA_VIS
-#    endif
-#  endif
-
-#  ifndef _LIBCPP_EXPORTED_FROM_ABI
-#    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_EXPORTED_FROM_ABI __attribute__((__visibility__("default")))
-#    else
-#      define _LIBCPP_EXPORTED_FROM_ABI
-#    endif
-#  endif
-
-#  ifndef _LIBCPP_OVERRIDABLE_FUNC_VIS
-#    define _LIBCPP_OVERRIDABLE_FUNC_VIS _LIBCPP_FUNC_VIS
-#  endif
-
-#  ifndef _LIBCPP_EXCEPTION_ABI
-#    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_EXCEPTION_ABI __attribute__((__visibility__("default")))
-#    else
-#      define _LIBCPP_EXCEPTION_ABI
-#    endif
-#  endif
-
-#  ifndef _LIBCPP_ENUM_VIS
 #    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS) && __has_attribute(__type_visibility__)
 #      define _LIBCPP_ENUM_VIS __attribute__((__type_visibility__("default")))
 #    else
 #      define _LIBCPP_ENUM_VIS
 #    endif
-#  endif
 
-#  ifndef _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS
-#    if !defined(_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS)
-#      define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS __attribute__((__visibility__("default")))
-#    else
-#      define _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS
-#    endif
-#  endif
-
-#  ifndef _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS
-#    define _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS
-#  endif
+#  endif // defined(_LIBCPP_OBJECT_FORMAT_COFF)
 
 #  if __has_attribute(internal_linkage)
 #    define _LIBCPP_INTERNAL_LINKAGE __attribute__((internal_linkage))
@@ -714,14 +637,6 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 
 #  if __has_attribute(__enable_if__)
 #    define _LIBCPP_PREFERRED_OVERLOAD __attribute__((__enable_if__(true, "")))
-#  endif
-
-#  ifndef _LIBCPP_HAS_NO_NOEXCEPT
-#    define _NOEXCEPT noexcept
-#    define _NOEXCEPT_(x) noexcept(x)
-#  else
-#    define _NOEXCEPT throw()
-#    define _NOEXCEPT_(x)
 #  endif
 
 #  ifndef __SIZEOF_INT128__
@@ -819,13 +734,17 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  if !defined(_LIBCPP_DISABLE_DEPRECATION_WARNINGS)
 #    if __has_attribute(deprecated)
 #      define _LIBCPP_DEPRECATED __attribute__((deprecated))
+#      define _LIBCPP_DEPRECATED_(m) __attribute__((deprected(m)))
 #    elif _LIBCPP_STD_VER > 11
 #      define _LIBCPP_DEPRECATED [[deprecated]]
+#      define _LIBCPP_DEPRECATED_(m) [[deprecated(m)]]
 #    else
 #      define _LIBCPP_DEPRECATED
+#      define _LIBCPP_DEPRECATED_(m)
 #    endif
 #  else
 #    define _LIBCPP_DEPRECATED
+#    define _LIBCPP_DEPRECATED_(m)
 #  endif
 
 #  if !defined(_LIBCPP_CXX03_LANG)
@@ -925,16 +844,12 @@ _LIBCPP_BEGIN_NAMESPACE_STD _LIBCPP_END_NAMESPACE_STD
 #  endif
 
 #  ifndef _LIBCPP_HAS_NO_ASAN
-extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(const void*, const void*, const void*,
-                                                                           const void*);
+    extern "C" _LIBCPP_FUNC_VIS void
+    __sanitizer_annotate_contiguous_container(const void*, const void*, const void*, const void*);
 #  endif
 
 // Try to find out if RTTI is disabled.
-#  if defined(_LIBCPP_COMPILER_CLANG_BASED) && !__has_feature(cxx_rtti)
-#    define _LIBCPP_NO_RTTI
-#  elif defined(__GNUC__) && !defined(__GXX_RTTI)
-#    define _LIBCPP_NO_RTTI
-#  elif defined(_LIBCPP_COMPILER_MSVC) && !defined(_CPPRTTI)
+#  if !defined(__cpp_rtti) || __cpp_rtti < 199711L
 #    define _LIBCPP_NO_RTTI
 #  endif
 
@@ -1099,10 +1014,8 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(const
 #  endif
 
 // Use a function like macro to imply that it must be followed by a semicolon
-#  if _LIBCPP_STD_VER > 14 && __has_cpp_attribute(fallthrough)
+#  if __has_cpp_attribute(fallthrough)
 #    define _LIBCPP_FALLTHROUGH() [[fallthrough]]
-#  elif __has_cpp_attribute(clang::fallthrough)
-#    define _LIBCPP_FALLTHROUGH() [[clang::fallthrough]]
 #  elif __has_attribute(__fallthrough__)
 #    define _LIBCPP_FALLTHROUGH() __attribute__((__fallthrough__))
 #  else
@@ -1148,6 +1061,7 @@ extern "C" _LIBCPP_FUNC_VIS void __sanitizer_annotate_contiguous_container(const
 #    define _LIBCPP_ENABLE_CXX17_REMOVED_BINDERS
 #    define _LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE
 #    define _LIBCPP_ENABLE_CXX17_REMOVED_UNEXPECTED_FUNCTIONS
+#    define _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
 #  endif // _LIBCPP_ENABLE_CXX17_REMOVED_FEATURES
 
 #  if defined(_LIBCPP_ENABLE_CXX20_REMOVED_FEATURES)

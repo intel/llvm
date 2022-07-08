@@ -2,7 +2,7 @@
 
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_72 -DSYCL_EXT_ONEAPI_MATRIX=3 -S -Xclang -emit-llvm %s -o -| FileCheck %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -19,10 +19,18 @@ int main() {
   queue q;
 
   q.submit([&](handler &cgh) {
-    auto accC = bufC.get_access<access::mode::read_write>(cgh);
-    auto accA = bufA.get_access<access::mode::read_write>(cgh);
-    auto accB = bufB.get_access<access::mode::read_write>(cgh);
-    auto accD = bufD.get_access<access::mode::read_write>(cgh);
+    sycl::accessor<int8_t, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accA(bufA, cgh);
+    sycl::accessor<int8_t, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accB(bufB, cgh);
+    sycl::accessor<int32_t, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accC(bufC, cgh);
+    sycl::accessor<int32_t, 1, sycl::access::mode::read_write,
+                   sycl::target::device>
+        accD(bufD, cgh);
 
     cgh.parallel_for<class row_row_m16n16k16>(
         nd_range<2>({1, 32}, {1, 32}),

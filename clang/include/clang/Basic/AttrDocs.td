@@ -3161,6 +3161,9 @@ is unspecified and is therefore considered infinite.
 In case of ivdep being applied both w/o an array variable and for a particular
 array, the array variables that were not designated a separate ivdep will receive
 the no-array ivdep's safelen, with the correspondent treatment by the backend.
+The ``[[intel::ivdep]]`` attribute applies a safelen value of 0 or 1 that has
+no effect on the loop and emits a suppressible warning when safelen value of 0
+or 1 is used.
 
 .. code-block:: c++
 
@@ -3290,9 +3293,6 @@ or function to be executed serially. Cannot be used on the same loop or
 function, or in conjunction with ``max_interleaving``,
 ``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
 or ``ivdep``.
-
-The ``[[intel::disable_loop_pipelining]]`` attribute spelling is a deprecated
-synonym for ``[[[intel::fpga_pipeline]]`` and will be removed in the future.
 
 .. code-block:: c++
 

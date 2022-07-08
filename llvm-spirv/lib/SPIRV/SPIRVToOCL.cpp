@@ -481,7 +481,23 @@ std::string SPIRVToOCLBase::getBallotBuiltinName(CallInst *CI, Op OC) {
   return Prefix + kSPIRVName::GroupPrefix + "ballot_" + GroupOp;
 }
 
+std::string SPIRVToOCLBase::getRotateBuiltinName(CallInst *CI, Op OC) {
+  assert((OC == OpGroupNonUniformRotateKHR) &&
+         "Not intended to handle other opcodes");
+  std::string Prefix = getGroupBuiltinPrefix(CI);
+  assert((Prefix == kOCLBuiltinName::SubPrefix) &&
+         "Workgroup scope is not supported for OpGroupNonUniformRotateKHR");
+
+  std::string OptionalClustered;
+  if (CI->arg_size() == 4)
+    OptionalClustered = "clustered_";
+  return Prefix + kSPIRVName::GroupPrefix + OptionalClustered + "rotate";
+}
+
 std::string SPIRVToOCLBase::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
+  if (OC == OpGroupNonUniformRotateKHR)
+    return getRotateBuiltinName(CI, OC);
+
   auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
   assert(FuncName.find(kSPIRVName::GroupPrefix) == 0);
 

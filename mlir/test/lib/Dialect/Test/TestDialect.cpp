@@ -616,7 +616,7 @@ static ParseResult parseCustomDirectiveOptionalOperandRef(
   if (parser.parseInteger(operandCount))
     return failure();
   bool expectedOptionalOperand = operandCount == 0;
-  return success(expectedOptionalOperand != optOperand.hasValue());
+  return success(expectedOptionalOperand != optOperand.has_value());
 }
 
 //===----------------------------------------------------------------------===//
@@ -865,7 +865,7 @@ ParseResult PrettyPrintedRegionOp::parse(OpAsmParser &parser,
 
   // If location of the op is explicitly provided, then use it; Else use
   // the parser's current location.
-  Location opLoc = explicitLoc.getValueOr(currLocation);
+  Location opLoc = explicitLoc.value_or(currLocation);
 
   // Derive the SSA-values for op's operands.
   if (parser.resolveOperands(operands, opFntype.getInputs(), loc,
@@ -1465,7 +1465,6 @@ void TestReflectBoundsOp::inferResultRanges(
 
 #include "TestOpEnums.cpp.inc"
 #include "TestOpInterfaces.cpp.inc"
-#include "TestOpStructs.cpp.inc"
 #include "TestTypeInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES

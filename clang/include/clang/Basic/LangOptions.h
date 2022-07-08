@@ -264,10 +264,6 @@ public:
     FPM_FastHonorPragmas
   };
 
-  /// Alias for RoundingMode::NearestTiesToEven.
-  static constexpr unsigned FPR_ToNearest =
-      static_cast<unsigned>(llvm::RoundingMode::NearestTiesToEven);
-
   /// Possible floating point exception behavior.
   enum FPExceptionModeKind {
     /// Assume that floating-point exceptions are masked.
@@ -275,7 +271,9 @@ public:
     /// Transformations do not cause new exceptions but may hide some.
     FPE_MayTrap,
     /// Strictly preserve the floating-point exception semantics.
-    FPE_Strict
+    FPE_Strict,
+    /// Used internally to represent initial unspecified value.
+    FPE_Default
   };
 
   /// Possible float expression evaluation method choices.
@@ -632,6 +630,18 @@ public:
 
   /// Remap path prefix according to -fmacro-prefix-path option.
   void remapPathPrefix(SmallVectorImpl<char> &Path) const;
+
+  RoundingMode getDefaultRoundingMode() const {
+    return RoundingMath ? RoundingMode::Dynamic
+                        : RoundingMode::NearestTiesToEven;
+  }
+
+  FPExceptionModeKind getDefaultExceptionMode() const {
+    FPExceptionModeKind EM = getFPExceptionMode();
+    if (EM == FPExceptionModeKind::FPE_Default)
+      return FPExceptionModeKind::FPE_Ignore;
+    return EM;
+  }
 };
 
 /// Floating point control options
@@ -639,7 +649,7 @@ class FPOptionsOverride;
 class FPOptions {
 public:
   // We start by defining the layout.
-  using storage_type = uint16_t;
+  using storage_type = uint32_t;
 
   using RoundingMode = llvm::RoundingMode;
 
@@ -668,8 +678,8 @@ private:
 public:
   FPOptions() : Value(0) {
     setFPContractMode(LangOptions::FPM_Off);
-    setRoundingMode(static_cast<RoundingMode>(LangOptions::FPR_ToNearest));
-    setFPExceptionMode(LangOptions::FPE_Ignore);
+    setConstRoundingMode(RoundingMode::Dynamic);
+    setSpecifiedExceptionMode(LangOptions::FPE_Default);
   }
   explicit FPOptions(const LangOptions &LO) {
     Value = 0;
@@ -680,8 +690,9 @@ public:
     if (LangOptContractMode == LangOptions::FPM_FastHonorPragmas)
       LangOptContractMode = LangOptions::FPM_Fast;
     setFPContractMode(LangOptContractMode);
-    setRoundingMode(LO.getFPRoundingMode());
-    setFPExceptionMode(LO.getFPExceptionMode());
+    setRoundingMath(LO.RoundingMath);
+    setConstRoundingMode(LangOptions::RoundingMode::Dynamic);
+    setSpecifiedExceptionMode(LO.getFPExceptionMode());
     setAllowFPReassociate(LO.AllowFPReassoc);
     setNoHonorNaNs(LO.NoHonorNaNs);
     setNoHonorInfs(LO.NoHonorInfs);
@@ -690,7 +701,7 @@ public:
     setAllowApproxFunc(LO.ApproxFunc);
     if (getFPContractMode() == LangOptions::FPM_On &&
         getRoundingMode() == llvm::RoundingMode::Dynamic &&
-        getFPExceptionMode() == LangOptions::FPE_Strict)
+        getExceptionMode() == LangOptions::FPE_Strict)
       // If the FP settings are set to the "strict" model, then
       // FENV access is set to true. (ffp-model=strict)
       setAllowFEnvAccess(true);
@@ -714,8 +725,31 @@ public:
 
   bool isFPConstrained() const {
     return getRoundingMode() != llvm::RoundingMode::NearestTiesToEven ||
-           getFPExceptionMode() != LangOptions::FPE_Ignore ||
+           getExceptionMode() != LangOptions::FPE_Ignore ||
            getAllowFEnvAccess();
+  }
+
+  RoundingMode getRoundingMode() const {
+    RoundingMode RM = getConstRoundingMode();
+    if (RM == RoundingMode::Dynamic) {
+      // C2x: 7.6.2p3  If the FE_DYNAMIC mode is specified and FENV_ACCESS is
+      // "off", the translator may assume that the default rounding mode is in
+      // effect.
+      if (!getAllowFEnvAccess() && !getRoundingMath())
+        RM = RoundingMode::NearestTiesToEven;
+    }
+    return RM;
+  }
+
+  LangOptions::FPExceptionModeKind getExceptionMode() const {
+    LangOptions::FPExceptionModeKind EM = getSpecifiedExceptionMode();
+    if (EM == LangOptions::FPExceptionModeKind::FPE_Default) {
+      if (getAllowFEnvAccess())
+        return LangOptions::FPExceptionModeKind::FPE_Strict;
+      else
+        return LangOptions::FPExceptionModeKind::FPE_Ignore;
+    }
+    return EM;
   }
 
   bool operator==(FPOptions other) const { return Value == other.Value; }
@@ -765,7 +799,7 @@ public:
 
   /// The type suitable for storing values of FPOptionsOverride. Must be twice
   /// as wide as bit size of FPOption.
-  using storage_type = uint32_t;
+  using storage_type = uint64_t;
   static_assert(sizeof(storage_type) >= 2 * sizeof(FPOptions::storage_type),
                 "Too short type for FPOptionsOverride");
 

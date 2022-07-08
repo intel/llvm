@@ -476,7 +476,9 @@ _pi_event::_pi_event(pi_context context, CUevent eventNative)
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
       evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
-                                                                  context} {}
+                                                                  context} {
+  cuda_piContextRetain(context_);
+}
 
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {
