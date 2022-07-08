@@ -107,12 +107,20 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!contextContainsDevice(Context, Device))
+    if (!contextContainsDevice(Context, Device)) {
+      if (!Context->is_host() &&
+          Context->getPlugin().getBackend() == backend::opencl)
+        throw sycl::invalid_object_error(
+            "Queue cannot be constructed with the given context and device "
+            "since the device is not a member of the context (descendants of "
+            "devices from the context are not supported on OpenCL yet).",
+            PI_ERROR_INVALID_DEVICE);
       throw sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
           "since the device is neither a member of the context nor a "
-          "subdevice of its member",
+          "descendant of its member.",
           PI_ERROR_INVALID_DEVICE);
+    }
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
@@ -476,11 +484,11 @@ protected:
 
 private:
   /// Helper function for checking whether a device is either a member of a
-  /// context or a subdevice of its member.
+  /// context or a descendnant of its member.
   /// \return True iff the device or its parent is a member of the context.
   static bool contextContainsDevice(const ContextImplPtr &Context,
                                     DeviceImplPtr Device) {
-    // OpenCL does not support creating a queue with a subdevice of a device
+    // OpenCL does not support creating a queue with a descendant of a device
     // from the given context yet.
     // TODO remove once this limitation is lifted
     if (!Context->is_host() &&
