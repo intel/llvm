@@ -1607,6 +1607,13 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
                          diag::err_sycl_device_global_incorrect_scope);
             return nullptr;
           }
+          if (auto decl = dyn_cast<Decl>(DC)) {
+            if (decl->getAccess() != AS_public) {
+              SemaRef.Diag(
+                  D->getLocation(),
+                  diag::err_sycl_device_global_not_publicly_accessible);
+            }
+          }
           DC = DC->getParent();
         }
       }
@@ -1703,15 +1710,12 @@ Decl *TemplateDeclInstantiator::VisitFieldDecl(FieldDecl *D) {
   // Static members are not processed here, so error out if we have a device
   // global without checking access modifier.
   if (SemaRef.getLangOpts().SYCLIsDevice) {
-    if (const auto *Value = dyn_cast<ValueDecl>(Field)) {
-      if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-              Value->getType())) {
-        SemaRef.Diag(D->getLocation(),
-                     diag::err_sycl_device_global_incorrect_scope)
-            << Value;
-        Field->setInvalidDecl();
-        return nullptr;
-      }
+    if (SemaRef.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+            Field->getType())) {
+      SemaRef.Diag(D->getLocation(),
+                   diag::err_sycl_device_global_incorrect_scope);
+      Field->setInvalidDecl();
+      return nullptr;
     }
   }
   Owner->addDecl(Field);
