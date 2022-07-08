@@ -202,7 +202,7 @@ inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
 #endif
 
 namespace detail {
-// Helper for default properties when deduction guides are not enabled
+// Helper for default properties when deduction guides are not enabled.
 using empty_properties_t = properties<std::tuple<>>;
 
 // Helper for reconstructing a properties type. This assumes that

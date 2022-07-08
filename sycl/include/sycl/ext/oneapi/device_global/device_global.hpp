@@ -32,14 +32,6 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
-// Type-trait for checking if a type defines the [] operator.
-template <typename T, typename I, typename = void>
-struct HasSubscriptOperator : std::false_type {};
-template <typename T, typename I>
-struct HasSubscriptOperator<
-    T, I, sycl::detail::void_t<decltype(std::declval<T>()[std::declval<I>()])>>
-    : std::true_type {};
-
 // Type-trait for checking if a type defines `operator->`.
 template <typename T, typename = void>
 struct HasArrowOperator : std::false_type {};
@@ -54,7 +46,7 @@ class device_global_base {
 protected:
   T *usmptr;
   T *get_ptr() noexcept { return usmptr; }
-  T *get_ptr() const noexcept { return usmptr; }
+  const T *get_ptr() const noexcept { return usmptr; }
 };
 
 // Specialization of device_global base class for when device_image_scope is in
@@ -67,7 +59,7 @@ class device_global_base<
 protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
-  T *get_ptr() const noexcept { return &val; }
+  const T *get_ptr() const noexcept { return &val; }
 };
 } // namespace detail
 
@@ -88,8 +80,8 @@ class
 #ifdef __SYCL_DEVICE_ONLY__
     [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
       __sycl_detail__::add_ir_attributes_global_variable(
-          "sycl-device-global-size", detail::PropertyMetaName<Props>::value...,
-          sizeof(T), detail::PropertyMetaValue<Props>::value...)]]
+          "sycl-device-global-size", detail::PropertyMetaInfo<Props>::name...,
+          sizeof(T), detail::PropertyMetaInfo<Props>::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>>
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
@@ -154,8 +146,7 @@ public:
   }
 
   template <class RelayT = T>
-  std::enable_if_t<
-      detail::HasSubscriptOperator<RelayT, std::ptrdiff_t>::value,
+  std::remove_reference_t<
       decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
       &operator[](std::ptrdiff_t idx) noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
@@ -163,8 +154,7 @@ public:
   }
 
   template <class RelayT = T>
-  const std::enable_if_t<
-      detail::HasSubscriptOperator<RelayT, std::ptrdiff_t>::value,
+  const std::remove_reference_t<
       decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
       &operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
@@ -183,7 +173,7 @@ public:
   template <class RelayT = T>
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
                        std::is_pointer<RelayT>::value,
-                   RelayT>
+                   const RelayT>
       &operator->() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();

@@ -30,19 +30,18 @@
 //     new property key class. This specialization should derive from
 //     `std::true_type`.
 //  7. If the property needs an LLVM IR attribute, specialize
-//     `sycl::ext::oneapi::experimental::detail::PropertyMetaName` for the new
+//     `sycl::ext::oneapi::experimental::detail::PropertyMetaInfo` for the new
 //     `value_t` of the property key class. The specialization must have a
-//     `static constexpr const char *value` member with a value equal to the
+//     `static constexpr const char *name` member with a value equal to the
 //     expected LLVM IR attribute name. The common naming scheme for these is
 //     the name of the property with "_" replaced with "-" and "sycl-" appended,
 //     for example a property `foo_bar` would have an LLVM IR attribute name
-//     "sycl-foo-bar".
-//     Likewise, if the corresponding LLVM IR attribute should have a value,
-//     specialize `sycl::ext::oneapi::experimental::detail::PropertyMetaValue`
-//     for `value_t` of the property key class. The specialization must have a
-//     `static constexpr T value` member where `T` is either an integer, a
-//     floating point, a boolean, an enum, a char, or a `const char *`. This
-//     will be the value of the generated LLVM IR attribute.
+//     "sycl-foo-bar". Likewise, the specialization must have a `static
+//     constexpr T value` member where `T` is either an integer, a floating
+//     point, a boolean, an enum, a char, or a `const char *`, or a
+//     `std::nullptr_t`. This will be the value of the generated LLVM IR
+//     attribute. If `std::nullptr_t` is used the attribute will not have a
+//     value.
 /******************************** EXAMPLE **************************************
 ------------- sycl/include/sycl/ext/oneapi/properties/property.hpp -------------
 // (1.)
@@ -78,10 +77,8 @@ template <> struct PropertyToKind<bar_key> {
 template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 
 // (7.)
-template <> struct PropertyMetaName<bar_key::value_t> {
+template <> struct PropertyMetaInfo<bar_key::value_t> {
   static constexpr const char *value = "sycl-bar";
-};
-template <> struct PropertyMetaValue<bar_key::value_t> {
   static constexpr int value = 5;
 };
 
@@ -191,13 +188,9 @@ template <typename PropertyT> struct IsRuntimeProperty : std::false_type {};
 // Trait for identifying compile-time properties.
 template <typename PropertyT> struct IsCompileTimeProperty : std::false_type {};
 
-// Trait for property compile-time meta-names.
-template <typename PropertyT> struct PropertyMetaName {
-  static constexpr const char *value = "";
-};
-
-// Trait for property compile-time meta-values.
-template <typename PropertyT> struct PropertyMetaValue {
+// Trait for property compile-time meta names and values.
+template <typename PropertyT> struct PropertyMetaInfo {
+  static constexpr const char *name = "";
   static constexpr std::nullptr_t value = nullptr;
 };
 

@@ -17,7 +17,6 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-// Forward declaration.
 template <typename T, typename PropertyListT> class device_global;
 
 struct device_image_scope_key {
@@ -113,32 +112,23 @@ template <> struct IsCompileTimeProperty<init_mode_key> : std::true_type {};
 template <>
 struct IsCompileTimeProperty<implement_in_csr_key> : std::true_type {};
 
-template <> struct PropertyMetaName<device_image_scope_key::value_t> {
-  static constexpr const char *value = "sycl-device-image-scope";
+template <> struct PropertyMetaInfo<device_image_scope_key::value_t> {
+  static constexpr const char *name = "sycl-device-image-scope";
+  static constexpr std::nullptr_t value = nullptr;
 };
 template <host_access_enum Access>
-struct PropertyMetaName<host_access_key::value_t<Access>> {
-  static constexpr const char *value = "sycl-host-access";
-};
-template <init_mode_enum Trigger>
-struct PropertyMetaName<init_mode_key::value_t<Trigger>> {
-  static constexpr const char *value = "sycl-init-mode";
-};
-template <bool Enable>
-struct PropertyMetaName<implement_in_csr_key::value_t<Enable>> {
-  static constexpr const char *value = "sycl-implement-in-csr";
-};
-
-template <host_access_enum Access>
-struct PropertyMetaValue<host_access_key::value_t<Access>> {
+struct PropertyMetaInfo<host_access_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-host-access";
   static constexpr host_access_enum value = Access;
 };
 template <init_mode_enum Trigger>
-struct PropertyMetaValue<init_mode_key::value_t<Trigger>> {
+struct PropertyMetaInfo<init_mode_key::value_t<Trigger>> {
+  static constexpr const char *name = "sycl-init-mode";
   static constexpr init_mode_enum value = Trigger;
 };
 template <bool Enable>
-struct PropertyMetaValue<implement_in_csr_key::value_t<Enable>> {
+struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
+  static constexpr const char *name = "sycl-implement-in-csr";
   static constexpr bool value = Enable;
 };
 
