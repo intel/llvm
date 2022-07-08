@@ -9298,7 +9298,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_arbitrary_precision_floating_point"
         ",+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode"
         ",+SPV_INTEL_long_constant_composite"
-        ",+SPV_INTEL_arithmetic_fence";
+        ",+SPV_INTEL_arithmetic_fence"
+        ",+SPV_INTEL_global_variable_decorations";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (!C.getDriver().isFPGAEmulationMode())
       // Enable several extensions on FPGA H/W exclusively
@@ -9514,6 +9515,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
   else
     addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
+
+  // Process device-globals.
+  addArgs(CmdArgs, TCArgs, {"-device-globals"});
 
   // Make ESIMD accessors use stateless memory accesses.
   if (TCArgs.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
