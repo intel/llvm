@@ -300,7 +300,7 @@ public:
   void setDefaultConstrainedExcept(fp::ExceptionBehavior NewExcept) {
 #ifndef NDEBUG
     Optional<StringRef> ExceptStr = convertExceptionBehaviorToStr(NewExcept);
-    assert(ExceptStr.hasValue() && "Garbage strict exception behavior!");
+    assert(ExceptStr && "Garbage strict exception behavior!");
 #endif
     DefaultConstrainedExcept = NewExcept;
   }
@@ -309,7 +309,7 @@ public:
   void setDefaultConstrainedRounding(RoundingMode NewRounding) {
 #ifndef NDEBUG
     Optional<StringRef> RoundingStr = convertRoundingModeToStr(NewRounding);
-    assert(RoundingStr.hasValue() && "Garbage strict rounding mode!");
+    assert(RoundingStr && "Garbage strict rounding mode!");
 #endif
     DefaultConstrainedRounding = NewRounding;
   }
@@ -577,6 +577,12 @@ public:
                          bool isVolatile = false, MDNode *TBAATag = nullptr,
                          MDNode *ScopeTag = nullptr,
                          MDNode *NoAliasTag = nullptr);
+
+  CallInst *CreateMemSetInline(Value *Dst, MaybeAlign DstAlign, Value *Val,
+                               Value *Size, bool IsVolatile = false,
+                               MDNode *TBAATag = nullptr,
+                               MDNode *ScopeTag = nullptr,
+                               MDNode *NoAliasTag = nullptr);
 
   /// Create and insert an element unordered-atomic memset of the region of
   /// memory starting at the given pointer to the given value.

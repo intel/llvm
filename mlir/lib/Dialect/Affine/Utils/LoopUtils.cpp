@@ -20,7 +20,7 @@
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Support/MathExtras.h"
@@ -130,7 +130,7 @@ static void replaceIterArgsAndYieldResults(AffineForOp forOp) {
 // TODO: extend this for arbitrary affine bounds.
 LogicalResult mlir::promoteIfSingleIteration(AffineForOp forOp) {
   Optional<uint64_t> tripCount = getConstantTripCount(forOp);
-  if (!tripCount || tripCount.getValue() != 1)
+  if (!tripCount || *tripCount != 1)
     return failure();
 
   if (forOp.getLowerBoundMap().getNumResults() != 1)
@@ -246,11 +246,11 @@ LogicalResult mlir::affineForOpBodySkew(AffineForOp forOp,
   // better way to pipeline for such loops is to first tile them and extract
   // constant trip count "full tiles" before applying this.
   auto mayBeConstTripCount = getConstantTripCount(forOp);
-  if (!mayBeConstTripCount.hasValue()) {
+  if (!mayBeConstTripCount) {
     LLVM_DEBUG(forOp.emitRemark("non-constant trip count loop not handled"));
     return success();
   }
-  uint64_t tripCount = mayBeConstTripCount.getValue();
+  uint64_t tripCount = *mayBeConstTripCount;
 
   assert(isOpwiseShiftValid(forOp, shifts) &&
          "shifts will lead to an invalid transformation\n");
@@ -1096,8 +1096,7 @@ LogicalResult mlir::loopUnrollByFactor(
 
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
   if (unrollFactor == 1) {
-    if (mayBeConstantTripCount.hasValue() &&
-        mayBeConstantTripCount.getValue() == 1 &&
+    if (mayBeConstantTripCount && *mayBeConstantTripCount == 1 &&
         failed(promoteIfSingleIteration(forOp)))
       return failure();
     return success();
@@ -1109,8 +1108,7 @@ LogicalResult mlir::loopUnrollByFactor(
 
   // If the trip count is lower than the unroll factor, no unrolled body.
   // TODO: option to specify cleanup loop unrolling.
-  if (mayBeConstantTripCount.hasValue() &&
-      mayBeConstantTripCount.getValue() < unrollFactor)
+  if (mayBeConstantTripCount && *mayBeConstantTripCount < unrollFactor)
     return failure();
 
   // Generate the cleanup loop if trip count isn't a multiple of unrollFactor.
@@ -1206,8 +1204,7 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
 
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
   if (unrollJamFactor == 1) {
-    if (mayBeConstantTripCount.hasValue() &&
-        mayBeConstantTripCount.getValue() == 1 &&
+    if (mayBeConstantTripCount && *mayBeConstantTripCount == 1 &&
         failed(promoteIfSingleIteration(forOp)))
       return failure();
     return success();
@@ -1218,8 +1215,7 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
     return success();
 
   // If the trip count is lower than the unroll jam factor, no unroll jam.
-  if (mayBeConstantTripCount.hasValue() &&
-      mayBeConstantTripCount.getValue() < unrollJamFactor) {
+  if (mayBeConstantTripCount && *mayBeConstantTripCount < unrollJamFactor) {
     LLVM_DEBUG(llvm::dbgs() << "[failed] trip count < unroll-jam factor\n");
     return failure();
   }
@@ -1440,8 +1436,8 @@ static bool checkLoopInterchangeDependences(
     // This iterates through loops in the desired order.
     for (unsigned j = 0; j < maxLoopDepth; ++j) {
       unsigned permIndex = loopPermMapInv[j];
-      assert(depComps[permIndex].lb.hasValue());
-      int64_t depCompLb = depComps[permIndex].lb.getValue();
+      assert(depComps[permIndex].lb);
+      int64_t depCompLb = *depComps[permIndex].lb;
       if (depCompLb > 0)
         break;
       if (depCompLb < 0)
@@ -2094,12 +2090,12 @@ static LogicalResult generateCopy(
   lbs.reserve(rank);
   Optional<int64_t> numElements = region.getConstantBoundingSizeAndShape(
       &fastBufferShape, &lbs, &lbDivisors);
-  if (!numElements.hasValue()) {
+  if (!numElements) {
     LLVM_DEBUG(llvm::dbgs() << "Non-constant region size not supported\n");
     return failure();
   }
 
-  if (numElements.getValue() == 0) {
+  if (*numElements == 0) {
     LLVM_DEBUG(llvm::dbgs() << "Nothing to copy\n");
     *sizeInBytes = 0;
     return success();
@@ -2177,7 +2173,7 @@ static LogicalResult generateCopy(
     // Record it.
     fastBufferMap[memref] = fastMemRef;
     // fastMemRefType is a constant shaped memref.
-    *sizeInBytes = getMemRefSizeInBytes(fastMemRefType).getValue();
+    *sizeInBytes = *getMemRefSizeInBytes(fastMemRefType);
     LLVM_DEBUG(emitRemarkForBlock(*block)
                << "Creating fast buffer of type " << fastMemRefType
                << " and size " << llvm::divideCeil(*sizeInBytes, 1024)
@@ -2188,8 +2184,7 @@ static LogicalResult generateCopy(
     *sizeInBytes = 0;
   }
 
-  auto numElementsSSA =
-      top.create<arith::ConstantIndexOp>(loc, numElements.getValue());
+  auto numElementsSSA = top.create<arith::ConstantIndexOp>(loc, *numElements);
 
   Value dmaStride = nullptr;
   Value numEltPerDmaStride = nullptr;

@@ -783,6 +783,8 @@ def Wa_COMMA : CommaJoined<["-"], "Wa,">,
   MetaVarName<"<arg>">;
 def Wall : Flag<["-"], "Wall">, Group<W_Group>, Flags<[CC1Option, HelpHidden]>;
 def WCL4 : Flag<["-"], "WCL4">, Group<W_Group>, Flags<[CC1Option, HelpHidden]>;
+def Wsystem_headers : Flag<["-"], "Wsystem-headers">, Group<W_Group>, Flags<[CC1Option, HelpHidden]>;
+def Wno_system_headers : Flag<["-"], "Wno-system-headers">, Group<W_Group>, Flags<[CC1Option, HelpHidden]>;
 def Wdeprecated : Flag<["-"], "Wdeprecated">, Group<W_Group>, Flags<[CC1Option]>,
   HelpText<"Enable warnings for deprecated constructs and define __DEPRECATED">;
 def Wno_deprecated : Flag<["-"], "Wno-deprecated">, Group<W_Group>, Flags<[CC1Option]>;
@@ -855,7 +857,7 @@ def Xlinker : Separate<["-"], "Xlinker">, Flags<[LinkerInput, RenderAsInput]>,
   HelpText<"Pass <arg> to the linker">, MetaVarName<"<arg>">,
   Group<Link_Group>;
 def Xoffload_linker : JoinedAndSeparate<["-"], "Xoffload-linker">,
-  HelpText<"Pass <arg> to the offload linkers or the ones idenfied by -<triple>">, 
+  HelpText<"Pass <arg> to the offload linkers or the ones idenfied by -<triple>">,
   MetaVarName<"<triple> <arg>">, Group<Link_Group>;
 def Xpreprocessor : Separate<["-"], "Xpreprocessor">, Group<Preprocessor_Group>,
   HelpText<"Pass <arg> to the preprocessor">, MetaVarName<"<arg>">;
@@ -1384,8 +1386,11 @@ def fclang_abi_compat_EQ : Joined<["-"], "fclang-abi-compat=">, Group<f_clang_Gr
   Flags<[CC1Option]>, MetaVarName<"<version>">, Values<"<major>.<minor>,latest">,
   HelpText<"Attempt to match the ABI of Clang <version>">;
 def fclasspath_EQ : Joined<["-"], "fclasspath=">, Group<f_Group>;
-defm color_diagnostics : OptInCC1FFlag<"color-diagnostics", "Enable", "Disable", " colors in diagnostics",
-  [CoreOption, FlangOption]>;
+def fcolor_diagnostics : Flag<["-"], "fcolor-diagnostics">, Group<f_Group>,
+  Flags<[CoreOption, CC1Option, FlangOption, FC1Option]>,
+  HelpText<"Enable colors in diagnostics">;
+def fno_color_diagnostics : Flag<["-"], "fno-color-diagnostics">, Group<f_Group>,
+  Flags<[CoreOption, FlangOption]>, HelpText<"Disable colors in diagnostics">;
 def : Flag<["-"], "fdiagnostics-color">, Group<f_Group>, Flags<[CoreOption]>, Alias<fcolor_diagnostics>;
 def : Flag<["-"], "fno-diagnostics-color">, Group<f_Group>, Flags<[CoreOption]>, Alias<fno_color_diagnostics>;
 def fdiagnostics_color_EQ : Joined<["-"], "fdiagnostics-color=">, Group<f_Group>;
@@ -1573,7 +1578,7 @@ def ffp_exception_behavior_EQ : Joined<["-"], "ffp-exception-behavior=">, Group<
   HelpText<"Specifies the exception behavior of floating-point operations.">,
   Values<"ignore,maytrap,strict">, NormalizedValuesScope<"LangOptions">,
   NormalizedValues<["FPE_Ignore", "FPE_MayTrap", "FPE_Strict"]>,
-  MarshallingInfoEnum<LangOpts<"FPExceptionMode">, "FPE_Ignore">;
+  MarshallingInfoEnum<LangOpts<"FPExceptionMode">, "FPE_Default">;
 defm fast_math : BoolFOption<"fast-math",
   LangOpts<"FastMath">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option, CoreOption], "Allow aggressive, lossy floating-point optimizations",
@@ -1895,7 +1900,7 @@ def fno_honor_infinities : Flag<["-"], "fno-honor-infinities">, Group<f_Group>;
 def : Flag<["-"], "fhonor-infinites">, Alias<fhonor_infinities>;
 def : Flag<["-"], "fno-honor-infinites">, Alias<fno_honor_infinities>;
 def frounding_math : Flag<["-"], "frounding-math">, Group<f_Group>, Flags<[CC1Option]>,
-  MarshallingInfoFlag<LangOpts<"FPRoundingMode">, "llvm::RoundingMode::NearestTiesToEven">,
+  MarshallingInfoFlag<LangOpts<"RoundingMath">>,
   Normalizer<"makeFlagToValueNormalizer(llvm::RoundingMode::Dynamic)">;
 def fno_rounding_math : Flag<["-"], "fno-rounding-math">, Group<f_Group>, Flags<[CC1Option]>;
 def ftrapping_math : Flag<["-"], "ftrapping-math">, Group<f_Group>;
@@ -2784,10 +2789,21 @@ defm strict_vtable_pointers : BoolFOption<"strict-vtable-pointers",
             " overwriting polymorphic C++ objects">,
   NegFlag<SetFalse>>;
 def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
+def fdriver_only : Flag<["-"], "fdriver-only">, Flags<[NoXarchOption, CoreOption]>,
+  Group<Action_Group>, HelpText<"Only run the driver.">;
 def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
-  Flags<[CC1Option, CoreOption]>, HelpText<"Perform ahead of time compilation for FPGA">;
+  Flags<[CC1Option, CoreOption]>, MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
+  HelpText<"Perform ahead-of-time compilation for FPGA">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Flags<[CoreOption]>,
   HelpText<"Compile SYCL kernels for device">;
+defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
+    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
+    PosFlag<SetTrue, [], "Enforce using stateless memory accesses. "
+            "Convert stateful accesses via SYCL accessors to stateless within ESIMD kernels. "
+            "Disabled by default. (experimental)">,
+    NegFlag<SetFalse, [], "Do not enforce using stateless memory accesses. (experimental)">,
+    BothFlags<[CC1Option, CoreOption], "">>;
+
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption, CC1Option, CoreOption]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
 def fsycl_add_targets_EQ : CommaJoined<["-"], "fsycl-add-targets=">,
@@ -3040,6 +3056,13 @@ def fvisibility_ms_compat : Flag<["-"], "fvisibility-ms-compat">, Group<f_Group>
 def fvisibility_global_new_delete_hidden : Flag<["-"], "fvisibility-global-new-delete-hidden">, Group<f_Group>,
   HelpText<"Give global C++ operator new and delete declarations hidden visibility">, Flags<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"GlobalAllocationFunctionVisibilityHidden">>;
+def mdefault_visibility_export_mapping_EQ : Joined<["-"], "mdefault-visibility-export-mapping=">,
+  Values<"none,explicit,all">,
+  NormalizedValuesScope<"LangOptions::DefaultVisiblityExportMapping">,
+  NormalizedValues<["None", "Explicit", "All"]>,
+  HelpText<"Mapping between default visibility and export">,
+  Group<m_Group>, Flags<[CC1Option]>,
+  MarshallingInfoEnum<LangOpts<"DefaultVisibilityExportMapping">,"None">;
 defm new_infallible : BoolFOption<"new-infallible",
   LangOpts<"NewInfallible">, DefaultFalse,
   PosFlag<SetTrue, [], "Enable">, NegFlag<SetFalse, [], "Disable">,
@@ -3168,6 +3191,13 @@ def fmacro_prefix_map_EQ
 defm force_dwarf_frame : BoolFOption<"force-dwarf-frame",
   CodeGenOpts<"ForceDwarfFrameSection">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Always emit a debug frame section">, NegFlag<SetFalse>>;
+def femit_dwarf_unwind_EQ : Joined<["-"], "femit-dwarf-unwind=">,
+  Group<f_Group>, Flags<[CC1Option, CC1AsOption]>,
+  HelpText<"When to emit DWARF unwind (EH frame) info">,
+  Values<"always,no-compact-unwind,default">,
+  NormalizedValues<["Always", "NoCompactUnwind", "Default"]>,
+  NormalizedValuesScope<"llvm::EmitDwarfUnwindType">,
+  MarshallingInfoEnum<CodeGenOpts<"EmitDwarfUnwind">, "Default">;
 def g_Flag : Flag<["-"], "g">, Group<g_Group>,
   HelpText<"Generate source-level debug information">;
 def gline_tables_only : Flag<["-"], "gline-tables-only">, Group<gN_Group>,
@@ -4292,7 +4322,8 @@ def why_load : Flag<["-"], "why_load">;
 def whyload : Flag<["-"], "whyload">, Alias<why_load>;
 def w : Flag<["-"], "w">, HelpText<"Suppress all warnings">, Flags<[CC1Option]>,
   MarshallingInfoFlag<DiagnosticOpts<"IgnoreWarnings">>;
-def x : JoinedOrSeparate<["-"], "x">, Flags<[NoXarchOption,CC1Option]>,
+def x : JoinedOrSeparate<["-"], "x">,
+Flags<[NoXarchOption,CC1Option,FlangOption,FC1Option]>,
   HelpText<"Treat subsequent input files as having type <language>">,
   MetaVarName<"<language>">;
 def y : Joined<["-"], "y">;
@@ -5156,8 +5187,9 @@ def analysis_UnoptimizedCFG : Flag<["-"], "unoptimized-cfg">,
 def analysis_CFGAddImplicitDtors : Flag<["-"], "cfg-add-implicit-dtors">,
   HelpText<"Add C++ implicit destructors to CFGs for all analyses">;
 
+// We should remove this option in clang-16 release.
 def analyzer_store : Separate<["-"], "analyzer-store">,
-  HelpText<"Source Code Analysis - Abstract Memory Store Models">;
+  HelpText<"Source Code Analysis - Abstract Memory Store Models [DEPRECATED, removing in clang-16]">;
 def analyzer_store_EQ : Joined<["-"], "analyzer-store=">, Alias<analyzer_store>;
 
 def analyzer_constraints : Separate<["-"], "analyzer-constraints">,
@@ -5177,9 +5209,9 @@ def analyzer_purge_EQ : Joined<["-"], "analyzer-purge=">, Alias<analyzer_purge>;
 def analyzer_opt_analyze_headers : Flag<["-"], "analyzer-opt-analyze-headers">,
   HelpText<"Force the static analyzer to analyze functions defined in header files">,
   MarshallingInfoFlag<AnalyzerOpts<"AnalyzeAll">>;
+// We should remove this option in clang-16 release.
 def analyzer_opt_analyze_nested_blocks : Flag<["-"], "analyzer-opt-analyze-nested-blocks">,
-  HelpText<"Analyze the definitions of blocks in addition to functions">,
-  MarshallingInfoFlag<AnalyzerOpts<"AnalyzeNestedBlocks">>;
+  HelpText<"Analyze the definitions of blocks in addition to functions [DEPRECATED, removing in clang-16]">;
 def analyzer_display_progress : Flag<["-"], "analyzer-display-progress">,
   HelpText<"Emit verbose output about the analyzer's progress">,
   MarshallingInfoFlag<AnalyzerOpts<"AnalyzerDisplayProgress">>;
@@ -5372,11 +5404,6 @@ def mrelocation_model : Separate<["-"], "mrelocation-model">,
 def fno_math_builtin : Flag<["-"], "fno-math-builtin">,
   HelpText<"Disable implicit builtin knowledge of math functions">,
   MarshallingInfoFlag<LangOpts<"NoMathBuiltin">>;
-def fno_use_ctor_homing: Flag<["-"], "fno-use-ctor-homing">,
-    HelpText<"Don't use constructor homing for debug info">;
-def fuse_ctor_homing: Flag<["-"], "fuse-ctor-homing">,
-    HelpText<"Use constructor homing if we are using limited debug info already">;
-
 } // let Flags = [CC1Option, CC1AsOption, NoDriverOption]
 
 let Flags = [CC1Option, NoDriverOption] in {
@@ -6671,6 +6698,11 @@ def _SLASH_validate_charset : CLFlag<"validate-charset">,
   Alias<W_Joined>, AliasArgs<["invalid-source-encoding"]>;
 def _SLASH_validate_charset_ : CLFlag<"validate-charset-">,
   Alias<W_Joined>, AliasArgs<["no-invalid-source-encoding"]>;
+def _SLASH_external_W0 : CLFlag<"external:W0">, HelpText<"Ignore warnings from system headers (default)">, Alias<Wno_system_headers>;
+def _SLASH_external_W1 : CLFlag<"external:W1">, HelpText<"Enable -Wsystem-headers">, Alias<Wsystem_headers>;
+def _SLASH_external_W2 : CLFlag<"external:W2">, HelpText<"Enable -Wsystem-headers">, Alias<Wsystem_headers>;
+def _SLASH_external_W3 : CLFlag<"external:W3">, HelpText<"Enable -Wsystem-headers">, Alias<Wsystem_headers>;
+def _SLASH_external_W4 : CLFlag<"external:W4">, HelpText<"Enable -Wsystem-headers">, Alias<Wsystem_headers>;
 def _SLASH_W0 : CLFlag<"W0">, HelpText<"Disable all warnings">, Alias<w>;
 def _SLASH_W1 : CLFlag<"W1">, HelpText<"Enable -Wall">, Alias<Wall>;
 def _SLASH_W2 : CLFlag<"W2">, HelpText<"Enable -Wall">, Alias<Wall>;
@@ -6771,7 +6803,7 @@ def _SLASH_EP : CLFlag<"EP">,
 def _SLASH_external_env : CLJoined<"external:env:">,
   HelpText<"Add dirs in env var <var> to include search path with warnings suppressed">,
   MetaVarName<"<var>">;
-def _SLASH_FA : CLFlag<"FA">,
+def _SLASH_FA : CLJoined<"FA">,
   HelpText<"Output assembly code file during compilation">;
 def _SLASH_Fa : CLJoined<"Fa">,
   HelpText<"Set assembly output file name (with /FA)">,
@@ -6939,7 +6971,6 @@ def _SLASH_doc : CLJoined<"doc">;
 def _SLASH_experimental : CLJoined<"experimental:">;
 def _SLASH_exportHeader : CLFlag<"exportHeader">;
 def _SLASH_external : CLJoined<"external:">;
-def _SLASH_FA_joined : CLJoined<"FA">;
 def _SLASH_favor : CLJoined<"favor">;
 def _SLASH_fsanitize_address_use_after_return : CLJoined<"fsanitize-address-use-after-return">;
 def _SLASH_fno_sanitize_address_vcasan_lib : CLJoined<"fno-sanitize-address-vcasan-lib">;
@@ -7036,3 +7067,6 @@ def emit_pristine_llvm : DXCFlag<"emit-pristine-llvm">,
   HelpText<"Emit pristine LLVM IR from the frontend by not running any LLVM passes at all."
            "Same as -S + -emit-llvm + -disable-llvm-passes.">;
 def fcgl : DXCFlag<"fcgl">, Alias<emit_pristine_llvm>;
+def enable_16bit_types : DXCFlag<"enable-16bit-types">, Alias<fnative_half_type>,
+  HelpText<"Enable 16-bit types and disable min precision types."
+           "Available in HLSL 2018 and shader model 6.2.">;

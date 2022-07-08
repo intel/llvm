@@ -286,11 +286,8 @@ def LLVM_ICmpOp : LLVM_Op<"icmp", [NoSideEffect]> {
     $res = builder.CreateICmp(getLLVMCmpPredicate($predicate), $lhs, $rhs);
   }];
   let builders = [
-    OpBuilder<(ins "ICmpPredicate":$predicate, "Value":$lhs, "Value":$rhs),
-    [{
-      build($_builder, $_state, IntegerType::get(lhs.getType().getContext(), 1),
-            predicate, lhs, rhs);
-    }]>];
+    OpBuilder<(ins "ICmpPredicate":$predicate, "Value":$lhs, "Value":$rhs)>
+  ];
   let hasCustomAssemblyFormat = 1;
 }
 
@@ -1243,7 +1240,7 @@ def LLVM_GlobalOp : LLVM_Op<"mlir.global",
     }
     /// Return the initializer attribute if it exists, or a null attribute.
     Attribute getValueOrNull() {
-      return getValue().getValueOr(Attribute());
+      return getValue().value_or(Attribute());
     }
     /// Return the initializer region. This may be empty, but if it is not it
     /// terminates in an `llvm.return` op with the initializer value.

@@ -1298,8 +1298,7 @@ bool SwingSchedulerDAG::Circuits::circuit(int V, int S, NodeSetType &NodeSets,
     for (auto W : AdjK[V]) {
       if (W < S)
         continue;
-      if (B[W].count(SV) == 0)
-        B[W].insert(SV);
+      B[W].insert(SV);
     }
   }
   Stack.pop_back();
@@ -2757,7 +2756,7 @@ bool SMSchedule::normalizeNonPipelinedInstructions(
     if (OldCycle != NewCycle) {
       InstrToCycle[&SU] = NewCycle;
       auto &OldS = getInstructions(OldCycle);
-      OldS.erase(std::remove(OldS.begin(), OldS.end(), &SU), OldS.end());
+      llvm::erase_value(OldS, &SU);
       getInstructions(NewCycle).emplace_back(&SU);
       LLVM_DEBUG(dbgs() << "SU(" << SU.NodeNum
                         << ") is not pipelined; moving from cycle " << OldCycle

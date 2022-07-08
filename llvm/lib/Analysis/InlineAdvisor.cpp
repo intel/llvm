@@ -153,7 +153,7 @@ llvm::Optional<llvm::InlineCost> static getDefaultInlineAdvice(
   };
   return llvm::shouldInline(
       CB, GetInlineCost, ORE,
-      Params.EnableDeferral.getValueOr(EnableInlineDeferral));
+      Params.EnableDeferral.value_or(EnableInlineDeferral));
 }
 
 std::unique_ptr<InlineAdvice>
@@ -508,7 +508,9 @@ void llvm::emitInlinedIntoBasedOnCost(
 
 InlineAdvisor::InlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
                              Optional<InlineContext> IC)
-    : M(M), FAM(FAM), IC(IC) {
+    : M(M), FAM(FAM), IC(IC),
+      AnnotatedInlinePassName(IC ? llvm::AnnotateInlinePassName(*IC)
+                                 : DEBUG_TYPE) {
   if (InlinerFunctionImportStats != InlinerFunctionImportStatsOpts::No) {
     ImportedFunctionsStats =
         std::make_unique<ImportedFunctionsInliningStatistics>();
@@ -572,18 +574,6 @@ std::string llvm::AnnotateInlinePassName(InlineContext IC) {
          std::string(getInlineAdvisorContext(IC.Pass));
 }
 
-const char *InlineAdvisor::getAnnotatedInlinePassName() {
-  if (!IC.hasValue())
-    return DEBUG_TYPE;
-
-  // IC is constant and initialized in constructor, so compute the annotated
-  // name only once.
-  static const std::string PassName =
-      llvm::AnnotateInlinePassName(IC.getValue());
-
-  return PassName.c_str();
-}
-
 InlineAdvisor::MandatoryInliningKind
 InlineAdvisor::getMandatoryKind(CallBase &CB, FunctionAnalysisManager &FAM,
                                 OptimizationRemarkEmitter &ORE) {
@@ -598,7 +588,7 @@ InlineAdvisor::getMandatoryKind(CallBase &CB, FunctionAnalysisManager &FAM,
   auto TrivialDecision =
       llvm::getAttributeBasedInliningDecision(CB, &Callee, TIR, GetTLI);
 
-  if (TrivialDecision.hasValue()) {
+  if (TrivialDecision) {
     if (TrivialDecision->isSuccess())
       return MandatoryInliningKind::Always;
     else
@@ -624,6 +614,25 @@ OptimizationRemarkEmitter &InlineAdvisor::getCallerORE(CallBase &CB) {
 PreservedAnalyses
 InlineAdvisorAnalysisPrinterPass::run(Module &M, ModuleAnalysisManager &MAM) {
   const auto *IA = MAM.getCachedResult<InlineAdvisorAnalysis>(M);
+  if (!IA)
+    OS << "No Inline Advisor\n";
+  else
+    IA->getAdvisor()->print(OS);
+  return PreservedAnalyses::all();
+}
+
+PreservedAnalyses InlineAdvisorAnalysisPrinterPass::run(
+    LazyCallGraph::SCC &InitialC, CGSCCAnalysisManager &AM, LazyCallGraph &CG,
+    CGSCCUpdateResult &UR) {
+  const auto &MAMProxy =
+      AM.getResult<ModuleAnalysisManagerCGSCCProxy>(InitialC, CG);
+
+  if (InitialC.size() == 0) {
+    OS << "SCC is empty!\n";
+    return PreservedAnalyses::all();
+  }
+  Module &M = *InitialC.begin()->getFunction().getParent();
+  const auto *IA = MAMProxy.getCachedResult<InlineAdvisorAnalysis>(M);
   if (!IA)
     OS << "No Inline Advisor\n";
   else

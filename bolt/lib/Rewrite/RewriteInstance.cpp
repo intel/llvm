@@ -1686,11 +1686,6 @@ void RewriteInstance::adjustCommandLineOptions() {
     opts::SplitEH = false;
   }
 
-  if (opts::SplitEH && !BC->HasFixedLoadAddress) {
-    errs() << "BOLT-WARNING: disabling -split-eh for shared object\n";
-    opts::SplitEH = false;
-  }
-
   if (opts::StrictMode && !BC->HasRelocations) {
     errs() << "BOLT-WARNING: disabling strict mode (-strict) in non-relocation "
               "mode\n";
@@ -2332,7 +2327,7 @@ void RewriteInstance::readRelocations(const SectionRef &Section) {
     SmallString<16> TypeName;
     Rel.getTypeName(TypeName);
     uint64_t RType = Rel.getType();
-    if (Relocation::isNone(RType))
+    if (Relocation::skipRelocationType(RType))
       continue;
 
     // Adjust the relocation type as the linker might have skewed it.
@@ -2903,6 +2898,7 @@ void RewriteInstance::disassembleFunctions() {
     BC->processInterproceduralReferences(Function);
   }
 
+  BC->clearJumpTableOffsets();
   BC->populateJumpTables();
   BC->skipMarkedFragments();
 
@@ -2925,7 +2921,8 @@ void RewriteInstance::disassembleFunctions() {
       continue;
 
     if (!Function.isSimple()) {
-      assert((!BC->HasRelocations || Function.getSize() == 0) &&
+      assert((!BC->HasRelocations || Function.getSize() == 0 ||
+              Function.hasSplitJumpTable()) &&
              "unexpected non-simple function in relocation mode");
       continue;
     }
@@ -5204,8 +5201,6 @@ uint64_t RewriteInstance::getNewFunctionAddress(uint64_t OldAddress) {
   const BinaryFunction *Function = BC->getBinaryFunctionAtAddress(OldAddress);
   if (!Function)
     return 0;
-
-  assert(!Function->isFragment() && "cannot get new address for a fragment");
 
   return Function->getOutputAddress();
 }

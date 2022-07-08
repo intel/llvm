@@ -194,13 +194,14 @@ Driver::Driver(StringRef ClangExecutable, StringRef TargetTriple,
                IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS)
     : Diags(Diags), VFS(std::move(VFS)), Mode(GCCMode),
       SaveTemps(SaveTempsNone), BitcodeEmbed(EmbedNone),
-      CXX20HeaderType(HeaderMode_None), ModulesModeCXX20(false),
-      LTOMode(LTOK_None), ClangExecutable(ClangExecutable),
-      SysRoot(DEFAULT_SYSROOT), DriverTitle(Title), CCCPrintBindings(false),
-      CCPrintOptions(false), CCPrintHeaders(false), CCLogDiagnostics(false),
-      CCGenDiagnostics(false), CCPrintProcessStats(false),
-      TargetTriple(TargetTriple), Saver(Alloc), CheckInputsExist(true),
-      ProbePrecompiled(true), SuppressMissingInputWarning(false) {
+      Offload(OffloadHostDevice), CXX20HeaderType(HeaderMode_None),
+      ModulesModeCXX20(false), LTOMode(LTOK_None),
+      ClangExecutable(ClangExecutable), SysRoot(DEFAULT_SYSROOT),
+      DriverTitle(Title), CCCPrintBindings(false), CCPrintOptions(false),
+      CCPrintHeaders(false), CCLogDiagnostics(false), CCGenDiagnostics(false),
+      CCPrintProcessStats(false), TargetTriple(TargetTriple), Saver(Alloc),
+      CheckInputsExist(true), ProbePrecompiled(true),
+      SuppressMissingInputWarning(false) {
   // Provide a sane fallback if no VFS is specified.
   if (!this->VFS)
     this->VFS = llvm::vfs::getRealFileSystem();
@@ -1521,7 +1522,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       StringRef TargetProfile = A->getValue();
       if (auto Triple =
               toolchains::HLSLToolChain::parseTargetProfile(TargetProfile))
-        TargetTriple = Triple.getValue();
+        TargetTriple = *Triple;
       else
         Diag(diag::err_drv_invalid_directx_shader_module) << TargetProfile;
 
@@ -1564,6 +1565,17 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Default(SaveTempsCwd);
   }
 
+  if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
+                                     options::OPT_offload_device_only,
+                                     options::OPT_offload_host_device)) {
+    if (A->getOption().matches(options::OPT_offload_host_only))
+      Offload = OffloadHost;
+    else if (A->getOption().matches(options::OPT_offload_device_only))
+      Offload = OffloadDevice;
+    else
+      Offload = OffloadHostDevice;
+  }
+
   setLTOMode(Args);
 
   // Process -fembed-bitcode= flags.
@@ -1581,6 +1593,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
     } else
       BitcodeEmbed = static_cast<BitcodeEmbedMode>(Model);
   }
+
+  // Remove existing compilation database so that each job can append to it.
+  if (Arg *A = Args.getLastArg(options::OPT_MJ))
+    llvm::sys::fs::remove(A->getValue());
 
   // Setting up the jobs for some precompile cases depends on whether we are
   // treating them as PCH, implicit modules or C++20 ones.
@@ -2000,6 +2016,19 @@ void Driver::setUpResponseFiles(Compilation &C, Command &Cmd) {
 int Driver::ExecuteCompilation(
     Compilation &C,
     SmallVectorImpl<std::pair<int, const Command *>> &FailingCommands) {
+  if (C.getArgs().hasArg(options::OPT_fdriver_only)) {
+    if (C.getArgs().hasArg(options::OPT_v))
+      C.getJobs().Print(llvm::errs(), "\n", true);
+
+    C.ExecuteJobs(C.getJobs(), FailingCommands, /*LogOnly=*/true);
+
+    // If there were errors building the compilation, quit now.
+    if (!FailingCommands.empty() || Diags.hasErrorOccurred())
+      return 1;
+
+    return 0;
+  }
+
   // Just print if -### was present.
   if (C.getArgs().hasArg(options::OPT__HASH_HASH_HASH)) {
     C.getJobs().Print(llvm::errs(), "\n", true);
@@ -3715,15 +3744,8 @@ class OffloadingActionBuilder final {
               ? C.getSingleOffloadToolChain<Action::OFK_Cuda>()
               : C.getSingleOffloadToolChain<Action::OFK_HIP>());
 
-      Arg *PartialCompilationArg = Args.getLastArg(
-          options::OPT_offload_host_only, options::OPT_offload_device_only,
-          options::OPT_offload_host_device);
-      CompileHostOnly =
-          PartialCompilationArg && PartialCompilationArg->getOption().matches(
-                                       options::OPT_offload_host_only);
-      CompileDeviceOnly =
-          PartialCompilationArg && PartialCompilationArg->getOption().matches(
-                                       options::OPT_offload_device_only);
+      CompileHostOnly = C.getDriver().offloadHostOnly();
+      CompileDeviceOnly = C.getDriver().offloadDeviceOnly();
       EmitLLVM = Args.getLastArg(options::OPT_emit_llvm);
       EmitAsm = Args.getLastArg(options::OPT_S);
       FixedCUID = Args.getLastArgValue(options::OPT_cuid_EQ);
@@ -3750,7 +3772,7 @@ class OffloadingActionBuilder final {
                                                              << "--offload";
       }
 
-      // Collect all cuda_gpu_arch parameters, removing duplicates.
+      // Collect all offload arch parameters, removing duplicates.
       std::set<StringRef> GpuArchs;
       bool Error = false;
       for (Arg *A : Args) {
@@ -3759,28 +3781,28 @@ class OffloadingActionBuilder final {
           continue;
         A->claim();
 
-        StringRef ArchStr = A->getValue();
-        if (A->getOption().matches(options::OPT_no_offload_arch_EQ) &&
-            ArchStr == "all") {
-          GpuArchs.clear();
-          continue;
+        for (StringRef ArchStr : llvm::split(A->getValue(), ",")) {
+          if (A->getOption().matches(options::OPT_no_offload_arch_EQ) &&
+              ArchStr == "all") {
+            GpuArchs.clear();
+          } else {
+            ArchStr = getCanonicalOffloadArch(ArchStr);
+            if (ArchStr.empty()) {
+              Error = true;
+            } else if (A->getOption().matches(options::OPT_offload_arch_EQ))
+              GpuArchs.insert(ArchStr);
+            else if (A->getOption().matches(options::OPT_no_offload_arch_EQ))
+              GpuArchs.erase(ArchStr);
+            else
+              llvm_unreachable("Unexpected option.");
+          }
         }
-        ArchStr = getCanonicalOffloadArch(ArchStr);
-        if (ArchStr.empty()) {
-          Error = true;
-        } else if (A->getOption().matches(options::OPT_offload_arch_EQ))
-          GpuArchs.insert(ArchStr);
-        else if (A->getOption().matches(options::OPT_no_offload_arch_EQ))
-          GpuArchs.erase(ArchStr);
-        else
-          llvm_unreachable("Unexpected option.");
       }
 
       auto &&ConflictingArchs = getConflictOffloadArchCombination(GpuArchs);
       if (ConflictingArchs) {
         C.getDriver().Diag(clang::diag::err_drv_bad_offload_arch_combo)
-            << ConflictingArchs.getValue().first
-            << ConflictingArchs.getValue().second;
+            << ConflictingArchs->first << ConflictingArchs->second;
         C.setContainsError();
         return true;
       }
@@ -3968,7 +3990,7 @@ class OffloadingActionBuilder final {
         C.setContainsError();
         return StringRef();
       }
-      auto CanId = getCanonicalTargetID(ArchStr.getValue(), Features);
+      auto CanId = getCanonicalTargetID(*ArchStr, Features);
       return Args.MakeArgStringRef(CanId);
     };
 
@@ -4055,8 +4077,7 @@ class OffloadingActionBuilder final {
               DDep, CudaDeviceActions[I]->getType());
         }
 
-        if (!CompileDeviceOnly || !BundleOutput.hasValue() ||
-            BundleOutput.getValue()) {
+        if (!CompileDeviceOnly || !BundleOutput || *BundleOutput) {
           // Create HIP fat binary with a special "link" action.
           CudaFatBinary = C.MakeAction<LinkJobAction>(CudaDeviceActions,
                                                       types::TY_HIP_FATBIN);
@@ -4156,8 +4177,7 @@ class OffloadingActionBuilder final {
       // in a fat binary for mixed host-device compilation. For device-only
       // compilation, creates a fat binary.
       OffloadAction::DeviceDependences DDeps;
-      if (!CompileDeviceOnly || !BundleOutput.hasValue() ||
-          BundleOutput.getValue()) {
+      if (!CompileDeviceOnly || !BundleOutput || *BundleOutput) {
         auto *TopDeviceLinkAction = C.MakeAction<LinkJobAction>(
             Actions,
             CompileDeviceOnly ? types::TY_HIP_FATBIN : types::TY_Object);
@@ -6445,11 +6465,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // Claim ignored clang-cl options.
   Args.ClaimAllArgs(options::OPT_cl_ignored_Group);
-
-  // Claim --offload-host-only and --offload-compile-host-device, which may be
-  // passed to non-CUDA compilations and should not trigger warnings there.
-  Args.ClaimAllArgs(options::OPT_offload_host_only);
-  Args.ClaimAllArgs(options::OPT_offload_host_device);
 }
 
 /// Returns the canonical name for the offloading architecture when using a HIP
@@ -6487,8 +6502,7 @@ static StringRef getCanonicalArchString(Compilation &C,
       C.setContainsError();
       return StringRef();
     }
-    return Args.MakeArgStringRef(
-        getCanonicalTargetID(Arch.getValue(), Features));
+    return Args.MakeArgStringRef(getCanonicalTargetID(*Arch, Features));
   }
 
   // If the input isn't CUDA or HIP just return the architecture.
@@ -6531,21 +6545,21 @@ Driver::getOffloadArchs(Compilation &C, const llvm::opt::DerivedArgList &Args,
   llvm::DenseSet<StringRef> Archs;
   for (auto &Arg : Args) {
     if (Arg->getOption().matches(options::OPT_offload_arch_EQ)) {
-      Archs.insert(
-          getCanonicalArchString(C, Args, Arg->getValue(), TC->getTriple()));
+      for (StringRef Arch : llvm::split(Arg->getValue(), ","))
+        Archs.insert(getCanonicalArchString(C, Args, Arch, TC->getTriple()));
     } else if (Arg->getOption().matches(options::OPT_no_offload_arch_EQ)) {
-      if (Arg->getValue() == StringRef("all"))
-        Archs.clear();
-      else
-        Archs.erase(
-            getCanonicalArchString(C, Args, Arg->getValue(), TC->getTriple()));
+      for (StringRef Arch : llvm::split(Arg->getValue(), ",")) {
+        if (Arch == StringRef("all"))
+          Archs.clear();
+        else
+          Archs.erase(getCanonicalArchString(C, Args, Arch, TC->getTriple()));
+      }
     }
   }
 
   if (auto ConflictingArchs = getConflictOffloadArchCombination(Archs, Kind)) {
     C.getDriver().Diag(clang::diag::err_drv_bad_offload_arch_combo)
-        << ConflictingArchs.getValue().first
-        << ConflictingArchs.getValue().second;
+        << ConflictingArchs->first << ConflictingArchs->second;
     C.setContainsError();
   }
 
@@ -6568,18 +6582,10 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
                                        llvm::opt::DerivedArgList &Args,
                                        const InputTy &Input,
                                        Action *HostAction) const {
-  const Arg *Mode = Args.getLastArg(options::OPT_offload_host_only,
-                                    options::OPT_offload_device_only,
-                                    options::OPT_offload_host_device);
-  const bool HostOnly =
-      Mode && Mode->getOption().matches(options::OPT_offload_host_only);
-  const bool DeviceOnly =
-      Mode && Mode->getOption().matches(options::OPT_offload_device_only);
-
   // Don't build offloading actions if explicitly disabled or we do not have a
   // valid source input and compile action to embed it in. If preprocessing only
   // ignore embedding.
-  if (HostOnly || !types::isSrcFile(Input.first) ||
+  if (offloadHostOnly() || !types::isSrcFile(Input.first) ||
       !(isa<CompileJobAction>(HostAction) ||
         getFinalPhase(Args) == phases::Preprocess))
     return HostAction;
@@ -6641,17 +6647,6 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
           OffloadAction::DeviceDependences DDep;
           DDep.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
           A = C.MakeAction<OffloadAction>(HDep, DDep);
-        } else if (isa<AssembleJobAction>(A) && Kind == Action::OFK_Cuda) {
-          // The Cuda toolchain uses fatbinary as the linker phase to bundle the
-          // PTX and Cubin output.
-          ActionList FatbinActions;
-          for (Action *A : {A, A->getInputs()[0]}) {
-            OffloadAction::DeviceDependences DDep;
-            DDep.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
-            FatbinActions.emplace_back(
-                C.MakeAction<OffloadAction>(DDep, A->getType()));
-          }
-          A = C.MakeAction<LinkJobAction>(FatbinActions, types::TY_CUDA_FATBIN);
         }
         ++TCAndArch;
       }
@@ -6667,7 +6662,7 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     }
   }
 
-  if (DeviceOnly)
+  if (offloadDeviceOnly())
     return C.MakeAction<OffloadAction>(DDeps, types::TY_Nothing);
 
   Action *OffloadPackager =
@@ -6972,6 +6967,8 @@ void Driver::BuildJobs(Compilation &C) const {
       C.getArgs().hasArg(options::OPT_Qunused_arguments))
     return;
 
+  // Claim -fdriver-only here.
+  (void)C.getArgs().hasArg(options::OPT_fdriver_only);
   // Claim -### here.
   (void)C.getArgs().hasArg(options::OPT__HASH_HASH_HASH);
 
@@ -7829,8 +7826,9 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // top-level action.
       OffloadingPrefix = Action::GetOffloadingFileNamePrefix(
         A->getOffloadingDeviceKind(), TC->getTriple().normalize(),
-        /*CreatePrefixForHost=*/!!A->getOffloadingHostActiveKinds() &&
-            !AtTopLevel);
+        /*CreatePrefixForHost=*/isa<OffloadPackagerJobAction>(A) ||
+            !(A->getOffloadingHostActiveKinds() == Action::OFK_None ||
+              AtTopLevel));
     }
     if (isa<OffloadWrapperJobAction>(JA)) {
       if (Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o))
@@ -8107,7 +8105,8 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       bool IsHIPNoRDC = JA.getOffloadingDeviceKind() == Action::OFK_HIP &&
                         !C.getArgs().hasFlag(options::OPT_fgpu_rdc,
                                              options::OPT_fno_gpu_rdc, false);
-      if (IsHIPNoRDC) {
+      bool UseOutExtension = IsHIPNoRDC || isa<OffloadPackagerJobAction>(JA);
+      if (UseOutExtension) {
         Output = BaseName;
         llvm::sys::path::replace_extension(Output, "");
       }
@@ -8116,7 +8115,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         Output += "-";
         Output.append(BoundArch);
       }
-      if (IsHIPNoRDC)
+      if (UseOutExtension)
         Output += ".out";
       NamedOutput = C.getArgs().MakeArgString(Output.c_str());
     }

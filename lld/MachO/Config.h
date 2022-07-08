@@ -43,8 +43,8 @@ struct PlatformInfo {
 
 inline uint32_t encodeVersion(const llvm::VersionTuple &version) {
   return ((version.getMajor() << 020) |
-          (version.getMinor().getValueOr(0) << 010) |
-          version.getSubminor().getValueOr(0));
+          (version.getMinor().value_or(0) << 010) |
+          version.getSubminor().value_or(0));
 }
 
 enum class NamespaceKind {
@@ -130,6 +130,9 @@ struct Configuration {
   bool dedupLiterals = true;
   bool omitDebugInfo = false;
   bool warnDylibInstallName = false;
+  // Temporary config flag that will be removed once we have fully implemented
+  // support for __eh_frame.
+  bool parseEhFrames = false;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
@@ -182,6 +185,7 @@ struct Configuration {
   SectionRenameMap sectionRenameMap;
   SegmentRenameMap segmentRenameMap;
 
+  bool hasExplicitExports = false;
   SymbolPatterns exportedSymbols;
   SymbolPatterns unexportedSymbols;
   SymbolPatterns whyLive;

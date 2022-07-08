@@ -2804,8 +2804,7 @@ static bool unswitchBestCondition(
       PartialIVInfo = *Info;
       PartialIVCondBranch = L.getHeader()->getTerminator();
       TinyPtrVector<Value *> ValsToDuplicate;
-      for (auto *Inst : Info->InstToDuplicate)
-        ValsToDuplicate.push_back(Inst);
+      llvm::append_range(ValsToDuplicate, Info->InstToDuplicate);
       UnswitchCandidates.push_back(
           {L.getHeader()->getTerminator(), std::move(ValsToDuplicate)});
     }
@@ -3152,8 +3151,7 @@ PreservedAnalyses SimpleLoopUnswitchPass::run(Loop &L, LoopAnalysisManager &AM,
       AR.MSSA->verifyMemorySSA();
   }
   if (!unswitchLoop(L, AR.DT, AR.LI, AR.AC, AR.AA, AR.TTI, Trivial, NonTrivial,
-                    UnswitchCB, &AR.SE,
-                    MSSAU.hasValue() ? MSSAU.getPointer() : nullptr,
+                    UnswitchCB, &AR.SE, MSSAU ? MSSAU.getPointer() : nullptr,
                     DestroyLoopCB))
     return PreservedAnalyses::all();
 

@@ -2056,7 +2056,7 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
     return false;
 
   // Bail if the value is never zero.
-  Value *Op = CountZeros->getOperand(0);
+  Use &Op = CountZeros->getOperandUse(0);
   if (isKnownNonZero(Op, *DL))
     return false;
 
@@ -2078,7 +2078,7 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
   // Replace the unconditional branch that was created by the first split with
   // a compare against zero and a conditional branch.
   Value *Zero = Constant::getNullValue(Ty);
-  // Avoid introducing branch on poison.
+  // Avoid introducing branch on poison. This also replaces the ctz operand.
   if (!isGuaranteedNotToBeUndefOrPoison(Op))
     Op = Builder.CreateFreeze(Op, Op->getName() + ".fr");
   Value *Cmp = Builder.CreateICmpEQ(Op, Zero, "cmpz");
@@ -2124,7 +2124,8 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
 
   // Align the pointer arguments to this call if the target thinks it's a good
   // idea
-  unsigned MinSize, PrefAlign;
+  unsigned MinSize;
+  Align PrefAlign;
   if (TLI->shouldAlignPointerArgs(CI, MinSize, PrefAlign)) {
     for (auto &Arg : CI->args()) {
       // We want to align both objects whose address is used directly and
@@ -2138,12 +2139,12 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
                    0);
       Value *Val = Arg->stripAndAccumulateInBoundsConstantOffsets(*DL, Offset);
       uint64_t Offset2 = Offset.getLimitedValue();
-      if ((Offset2 & (PrefAlign-1)) != 0)
+      if (!isAligned(PrefAlign, Offset2))
         continue;
       AllocaInst *AI;
-      if ((AI = dyn_cast<AllocaInst>(Val)) && AI->getAlignment() < PrefAlign &&
+      if ((AI = dyn_cast<AllocaInst>(Val)) && AI->getAlign() < PrefAlign &&
           DL->getTypeAllocSize(AI->getAllocatedType()) >= MinSize + Offset2)
-        AI->setAlignment(Align(PrefAlign));
+        AI->setAlignment(PrefAlign);
       // Global variables can only be aligned if they are defined in this
       // object (i.e. they are uniquely initialized in this object), and
       // over-aligning global variables that have an explicit section is
@@ -2153,7 +2154,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
           GV->getPointerAlignment(*DL) < PrefAlign &&
           DL->getTypeAllocSize(GV->getValueType()) >=
               MinSize + Offset2)
-        GV->setAlignment(MaybeAlign(PrefAlign));
+        GV->setAlignment(PrefAlign);
     }
     // If this is a memcpy (or similar) then we may be able to improve the
     // alignment
@@ -3394,7 +3395,7 @@ public:
       if (!Visited.insert(P).second)
         continue;
       if (auto *PI = dyn_cast<Instruction>(P))
-        if (Value *V = SimplifyInstruction(cast<Instruction>(PI), SQ)) {
+        if (Value *V = simplifyInstruction(cast<Instruction>(PI), SQ)) {
           for (auto *U : PI->users())
             WorkList.push_back(cast<Value>(U));
           Put(PI, V);
@@ -6019,31 +6020,25 @@ bool CodeGenPrepare::optimizePhiType(
       for (Value *V : Phi->incoming_values()) {
         if (auto *OpPhi = dyn_cast<PHINode>(V)) {
           if (!PhiNodes.count(OpPhi)) {
-            if (Visited.count(OpPhi))
+            if (!Visited.insert(OpPhi).second)
               return false;
             PhiNodes.insert(OpPhi);
-            Visited.insert(OpPhi);
             Worklist.push_back(OpPhi);
           }
         } else if (auto *OpLoad = dyn_cast<LoadInst>(V)) {
           if (!OpLoad->isSimple())
             return false;
-          if (!Defs.count(OpLoad)) {
-            Defs.insert(OpLoad);
+          if (Defs.insert(OpLoad).second)
             Worklist.push_back(OpLoad);
-          }
         } else if (auto *OpEx = dyn_cast<ExtractElementInst>(V)) {
-          if (!Defs.count(OpEx)) {
-            Defs.insert(OpEx);
+          if (Defs.insert(OpEx).second)
             Worklist.push_back(OpEx);
-          }
         } else if (auto *OpBC = dyn_cast<BitCastInst>(V)) {
           if (!ConvertTy)
             ConvertTy = OpBC->getOperand(0)->getType();
           if (OpBC->getOperand(0)->getType() != ConvertTy)
             return false;
-          if (!Defs.count(OpBC)) {
-            Defs.insert(OpBC);
+          if (Defs.insert(OpBC).second) {
             Worklist.push_back(OpBC);
             AnyAnchored |= !isa<LoadInst>(OpBC->getOperand(0)) &&
                            !isa<ExtractElementInst>(OpBC->getOperand(0));
@@ -7877,7 +7872,7 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool &ModifiedDT) {
     // It is possible for very late stage optimizations (such as SimplifyCFG)
     // to introduce PHI nodes too late to be cleaned up.  If we detect such a
     // trivial PHI, go ahead and zap it here.
-    if (Value *V = SimplifyInstruction(P, {*DL, TLInfo})) {
+    if (Value *V = simplifyInstruction(P, {*DL, TLInfo})) {
       LargeOffsetGEPMap.erase(P);
       P->replaceAllUsesWith(V);
       P->eraseFromParent();

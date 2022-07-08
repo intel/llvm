@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   AllTargetsCodeGens
   AllTargetsDescs
   AllTargetsInfos
+  Analysis
   BitReader
   BitWriter
   CodeGen
@@ -20,6 +21,7 @@ add_llvm_tool(llvm-reduce
   ReducerWorkItem.cpp
   TestRunner.cpp
   deltas/Delta.cpp
+  deltas/Utils.cpp
   deltas/ReduceAliases.cpp
   deltas/ReduceArguments.cpp
   deltas/ReduceAttributes.cpp
@@ -43,6 +45,7 @@ add_llvm_tool(llvm-reduce
   deltas/ReduceIRReferences.cpp
   deltas/ReduceVirtualRegisters.cpp
   deltas/ReduceRegisterUses.cpp
+  deltas/SimplifyInstructions.cpp
   llvm-reduce.cpp
 
   DEPENDS

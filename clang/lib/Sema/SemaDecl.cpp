@@ -5511,7 +5511,7 @@ Decl *Sema::BuildAnonymousStructOrUnion(Scope *S, DeclSpec &DS,
     Diag(DS.getBeginLoc(), diag::ext_no_declarators) << DS.getSourceRange();
 
   // Mock up a declarator.
-  Declarator Dc(DS, DeclaratorContext::Member);
+  Declarator Dc(DS, ParsedAttributesView::none(), DeclaratorContext::Member);
   TypeSourceInfo *TInfo = GetTypeForDeclarator(Dc, S);
   assert(TInfo && "couldn't build declarator info for anonymous struct/union");
 
@@ -5608,7 +5608,7 @@ Decl *Sema::BuildMicrosoftCAnonymousStruct(Scope *S, DeclSpec &DS,
   assert(Record && "expected a record!");
 
   // Mock up a declarator.
-  Declarator Dc(DS, DeclaratorContext::TypeName);
+  Declarator Dc(DS, ParsedAttributesView::none(), DeclaratorContext::TypeName);
   TypeSourceInfo *TInfo = GetTypeForDeclarator(Dc, S);
   assert(TInfo && "couldn't build declarator info for anonymous struct");
 
@@ -7050,7 +7050,8 @@ static bool hasParsedAttr(Scope *S, const Declarator &PD,
   }
 
   // Finally, check attributes on the decl itself.
-  return PD.getAttributes().hasAttribute(Kind);
+  return PD.getAttributes().hasAttribute(Kind) ||
+         PD.getDeclarationAttributes().hasAttribute(Kind);
 }
 
 /// Adjust the \c DeclContext for a function or variable that might be a
@@ -8919,6 +8920,10 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
           SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
           /*isImplicitlyDeclared=*/false, ConstexprKind,
           TrailingRequiresClause);
+      // User defined destructors start as not selected if the class definition is still
+      // not done.
+      if (Record->isBeingDefined())
+        NewDD->setIneligibleOrNotSelected(true);
 
       // If the destructor needs an implicit exception specification, set it
       // now. FIXME: It'd be nice to be able to create the right type to start
@@ -13408,7 +13413,7 @@ StmtResult Sema::ActOnCXXForRangeIdentifier(Scope *S, SourceLocation IdentLoc,
   DS.SetTypeSpecType(DeclSpec::TST_auto, IdentLoc, PrevSpec, DiagID,
                      getPrintingPolicy());
 
-  Declarator D(DS, DeclaratorContext::ForInit);
+  Declarator D(DS, ParsedAttributesView::none(), DeclaratorContext::ForInit);
   D.SetIdentifier(Ident, IdentLoc);
   D.takeAttributes(Attrs);
 
@@ -14409,7 +14414,8 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
         // Use the identifier location for the type source range.
         DS.SetRangeStart(FTI.Params[i].IdentLoc);
         DS.SetRangeEnd(FTI.Params[i].IdentLoc);
-        Declarator ParamD(DS, DeclaratorContext::KNRTypeList);
+        Declarator ParamD(DS, ParsedAttributesView::none(),
+                          DeclaratorContext::KNRTypeList);
         ParamD.SetIdentifier(FTI.Params[i].Ident, FTI.Params[i].IdentLoc);
         FTI.Params[i].Param = ActOnParamDeclarator(S, ParamD);
       }
@@ -15431,7 +15437,7 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   (void)Error; // Silence warning.
   assert(!Error && "Error setting up implicit decl!");
   SourceLocation NoLoc;
-  Declarator D(DS, DeclaratorContext::Block);
+  Declarator D(DS, ParsedAttributesView::none(), DeclaratorContext::Block);
   D.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/false,
                                              /*IsAmbiguous=*/false,
                                              /*LParenLoc=*/NoLoc,
@@ -17788,6 +17794,75 @@ void Sema::ActOnLastBitfield(SourceLocation DeclLoc,
   AllIvarDecls.push_back(Ivar);
 }
 
+namespace {
+/// [class.dtor]p4:
+///   At the end of the definition of a class, overload resolution is
+///   performed among the prospective destructors declared in that class with
+///   an empty argument list to select the destructor for the class, also
+///   known as the selected destructor.
+///
+/// We do the overload resolution here, then mark the selected constructor in the AST.
+/// Later CXXRecordDecl::getDestructor() will return the selected constructor.
+void ComputeSelectedDestructor(Sema &S, CXXRecordDecl *Record) {
+  if (!Record->hasUserDeclaredDestructor()) {
+    return;
+  }
+
+  SourceLocation Loc = Record->getLocation();
+  OverloadCandidateSet OCS(Loc, OverloadCandidateSet::CSK_Normal);
+
+  for (auto *Decl : Record->decls()) {
+    if (auto *DD = dyn_cast<CXXDestructorDecl>(Decl)) {
+      if (DD->isInvalidDecl())
+        continue;
+      S.AddOverloadCandidate(DD, DeclAccessPair::make(DD, DD->getAccess()), {},
+                             OCS);
+      assert(DD->isIneligibleOrNotSelected() && "Selecting a destructor but a destructor was already selected.");
+    }
+  }
+
+  if (OCS.empty()) {
+    return;
+  }
+  OverloadCandidateSet::iterator Best;
+  unsigned Msg = 0;
+  OverloadCandidateDisplayKind DisplayKind;
+
+  switch (OCS.BestViableFunction(S, Loc, Best)) {
+  case OR_Success:
+  case OR_Deleted:
+    Record->addedSelectedDestructor(dyn_cast<CXXDestructorDecl>(Best->Function));
+    break;
+
+  case OR_Ambiguous:
+    Msg = diag::err_ambiguous_destructor;
+    DisplayKind = OCD_AmbiguousCandidates;
+    break;
+
+  case OR_No_Viable_Function:
+    Msg = diag::err_no_viable_destructor;
+    DisplayKind = OCD_AllCandidates;
+    break;
+  }
+
+  if (Msg) {
+    // OpenCL have got their own thing going with destructors. It's slightly broken,
+    // but we allow it.
+    if (!S.LangOpts.OpenCL) {
+      PartialDiagnostic Diag = S.PDiag(Msg) << Record;
+      OCS.NoteCandidates(PartialDiagnosticAt(Loc, Diag), S, DisplayKind, {});
+      Record->setInvalidDecl();
+    }
+    // It's a bit hacky: At this point we've raised an error but we want the
+    // rest of the compiler to continue somehow working. However almost
+    // everything we'll try to do with the class will depend on there being a
+    // destructor. So let's pretend the first one is selected and hope for the
+    // best.
+    Record->addedSelectedDestructor(dyn_cast<CXXDestructorDecl>(OCS.begin()->Function));
+  }
+}
+} // namespace
+
 void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
                        ArrayRef<Decl *> Fields, SourceLocation LBrac,
                        SourceLocation RBrac,
@@ -17813,6 +17888,9 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
 
   RecordDecl *Record = dyn_cast<RecordDecl>(EnclosingDecl);
   CXXRecordDecl *CXXRecord = dyn_cast<CXXRecordDecl>(EnclosingDecl);
+
+  if (CXXRecord && !CXXRecord->isDependentType())
+    ComputeSelectedDestructor(*this, CXXRecord);
 
   // Start counting up the number of named members; make sure to include
   // members of anonymous structs and unions in the total.
@@ -19136,7 +19214,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // be ommitted.
     Optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
         OMPDeclareTargetDeclAttr::getDeviceType(FD->getCanonicalDecl());
-    if (DevTy.hasValue())
+    if (DevTy)
       if (*DevTy == OMPDeclareTargetDeclAttr::DT_NoHost)
         return FunctionEmissionStatus::OMPDiscarded;
   }

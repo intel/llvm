@@ -53,10 +53,11 @@ CompilerInvocationBase::~CompilerInvocationBase() = default;
 //===----------------------------------------------------------------------===//
 // Deserialization (from args)
 //===----------------------------------------------------------------------===//
-static bool parseShowColorsArgs(
-    const llvm::opt::ArgList &args, bool defaultColor) {
-  // Color diagnostics default to auto ("on" if terminal supports) in the driver
-  // but default to off in cc1, needing an explicit OPT_fdiagnostics_color.
+static bool parseShowColorsArgs(const llvm::opt::ArgList &args,
+                                bool defaultColor = true) {
+  // Color diagnostics default to auto ("on" if terminal supports) in the
+  // compiler driver `flang-new` but default to off in the frontend driver
+  // `flang-new -fc1`, needing an explicit OPT_fdiagnostics_color.
   // Support both clang's -f[no-]color-diagnostics and gcc's
   // -f[no-]diagnostics-colors[=never|always|auto].
   enum {
@@ -88,9 +89,8 @@ static bool parseShowColorsArgs(
 }
 
 bool Fortran::frontend::parseDiagnosticArgs(clang::DiagnosticOptions &opts,
-                                            llvm::opt::ArgList &args,
-                                            bool defaultDiagColor) {
-  opts.ShowColors = parseShowColorsArgs(args, defaultDiagColor);
+                                            llvm::opt::ArgList &args) {
+  opts.ShowColors = parseShowColorsArgs(args);
 
   return true;
 }
@@ -263,13 +263,18 @@ static bool parseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     llvm::StringRef xValue = a->getValue();
     // Principal languages.
     dashX = llvm::StringSwitch<InputKind>(xValue)
-                .Case("f90", Language::Fortran)
+                // Flang does not differentiate between pre-processed and not
+                // pre-processed inputs.
+                .Case("f95", Language::Fortran)
+                .Case("f95-cpp-input", Language::Fortran)
                 .Default(Language::Unknown);
 
-    // Some special cases cannot be combined with suffixes.
+    // Flang's intermediate representations.
     if (dashX.isUnknown())
       dashX = llvm::StringSwitch<InputKind>(xValue)
                   .Case("ir", Language::LLVM_IR)
+                  .Case("fir", Language::MLIR)
+                  .Case("mlir", Language::MLIR)
                   .Default(Language::Unknown);
 
     if (dashX.isUnknown())
@@ -496,6 +501,10 @@ static bool parseDiagArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
       diags.Report(diagID);
     }
   }
+
+  // Default to off for `flang-new -fc1`.
+  res.getFrontendOpts().showColors =
+      parseShowColorsArgs(args, /*defaultDiagColor=*/false);
 
   return diags.getNumErrors() == numErrorsBefore;
 }

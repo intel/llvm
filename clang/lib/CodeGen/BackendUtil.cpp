@@ -458,6 +458,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   }
 
   Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
+  Options.MCOptions.EmitDwarfUnwind = CodeGenOpts.getEmitDwarfUnwind();
   Options.MCOptions.MCRelaxAll = CodeGenOpts.RelaxAll;
   Options.MCOptions.MCSaveTempLabels = CodeGenOpts.SaveTempLabels;
   Options.MCOptions.MCUseDwarfDirectory =
@@ -745,7 +746,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     assert(!CodeGenOpts.hasProfileCSIRUse() &&
            "Cannot have both CSProfileUse pass and CSProfileGen pass at "
            "the same time");
-    if (PGOOpt.hasValue()) {
+    if (PGOOpt) {
       assert(PGOOpt->Action != PGOOptions::IRInstr &&
              PGOOpt->Action != PGOOptions::SampleUse &&
              "Cannot run CSProfileGen pass with ProfileGen or SampleUse "
@@ -829,8 +830,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(ESIMDVerifierPass());
+          [&](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
           });
 
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;

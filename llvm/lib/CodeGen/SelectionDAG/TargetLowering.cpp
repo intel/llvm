@@ -196,7 +196,8 @@ TargetLowering::makeLibCall(SelectionDAG &DAG, RTLIB::Libcall LC, EVT RetVT,
 bool TargetLowering::findOptimalMemOpLowering(
     std::vector<EVT> &MemOps, unsigned Limit, const MemOp &Op, unsigned DstAS,
     unsigned SrcAS, const AttributeList &FuncAttributes) const {
-  if (Op.isMemcpyWithFixedDstAlign() && Op.getSrcAlign() < Op.getDstAlign())
+  if (Limit != ~unsigned(0) && Op.isMemcpyWithFixedDstAlign() &&
+      Op.getSrcAlign() < Op.getDstAlign())
     return false;
 
   EVT VT = getOptimalMemOpType(Op, FuncAttributes);
@@ -1538,6 +1539,19 @@ bool TargetLowering::SimplifyDemandedBits(
     // Only known if known in both the LHS and RHS.
     Known = KnownBits::commonBits(Known, Known2);
     break;
+  case ISD::VSELECT:
+    if (SimplifyDemandedBits(Op.getOperand(2), DemandedBits, DemandedElts,
+                             Known, TLO, Depth + 1))
+      return true;
+    if (SimplifyDemandedBits(Op.getOperand(1), DemandedBits, DemandedElts,
+                             Known2, TLO, Depth + 1))
+      return true;
+    assert(!Known.hasConflict() && "Bits known to be one AND zero?");
+    assert(!Known2.hasConflict() && "Bits known to be one AND zero?");
+
+    // Only known if known in both the LHS and RHS.
+    Known = KnownBits::commonBits(Known, Known2);
+    break;
   case ISD::SELECT_CC:
     if (SimplifyDemandedBits(Op.getOperand(3), DemandedBits, Known, TLO,
                              Depth + 1))
@@ -1876,6 +1890,22 @@ bool TargetLowering::SimplifyDemandedBits(
       Known.Zero.lshrInPlace(IsFSHL ? (BitWidth - Amt) : Amt);
       Known.One |= Known2.One;
       Known.Zero |= Known2.Zero;
+
+      // Attempt to avoid multi-use ops if we don't need anything from them.
+      if (!Demanded0.isAllOnes() || !Demanded1.isAllOnes() ||
+          !DemandedElts.isAllOnes()) {
+        SDValue DemandedOp0 = SimplifyMultipleUseDemandedBits(
+            Op0, Demanded0, DemandedElts, TLO.DAG, Depth + 1);
+        SDValue DemandedOp1 = SimplifyMultipleUseDemandedBits(
+            Op1, Demanded1, DemandedElts, TLO.DAG, Depth + 1);
+        if (DemandedOp0 || DemandedOp1) {
+          DemandedOp0 = DemandedOp0 ? DemandedOp0 : Op0;
+          DemandedOp1 = DemandedOp1 ? DemandedOp1 : Op1;
+          SDValue NewOp = TLO.DAG.getNode(Op.getOpcode(), dl, VT, DemandedOp0,
+                                          DemandedOp1, Op2);
+          return TLO.CombineTo(Op, NewOp);
+        }
+      }
     }
 
     // For pow-2 bitwidths we only demand the bottom modulo amt bits.
@@ -2048,7 +2078,8 @@ bool TargetLowering::SimplifyDemandedBits(
     // bit is demanded.
     InputDemandedBits.setBit(ExVTBits - 1);
 
-    if (SimplifyDemandedBits(Op0, InputDemandedBits, Known, TLO, Depth + 1))
+    if (SimplifyDemandedBits(Op0, InputDemandedBits, DemandedElts, Known, TLO,
+                             Depth + 1))
       return true;
     assert(!Known.hasConflict() && "Bits known to be one AND zero?");
 
@@ -2516,24 +2547,27 @@ bool TargetLowering::SimplifyDemandedBits(
       return 0;
     };
 
-    auto foldMul = [&](SDValue X, SDValue Y, unsigned ShlAmt) {
+    auto foldMul = [&](ISD::NodeType NT, SDValue X, SDValue Y, unsigned ShlAmt) {
       EVT ShiftAmtTy = getShiftAmountTy(VT, TLO.DAG.getDataLayout());
       SDValue ShlAmtC = TLO.DAG.getConstant(ShlAmt, dl, ShiftAmtTy);
       SDValue Shl = TLO.DAG.getNode(ISD::SHL, dl, VT, X, ShlAmtC);
-      SDValue Sub = TLO.DAG.getNode(ISD::SUB, dl, VT, Y, Shl);
-      return TLO.CombineTo(Op, Sub);
+      SDValue Res = TLO.DAG.getNode(NT, dl, VT, Y, Shl);
+      return TLO.CombineTo(Op, Res);
     };
 
     if (isOperationLegalOrCustom(ISD::SHL, VT)) {
       if (Op.getOpcode() == ISD::ADD) {
         // (X * MulC) + Op1 --> Op1 - (X << log2(-MulC))
         if (unsigned ShAmt = getShiftLeftAmt(Op0))
-          return foldMul(Op0.getOperand(0), Op1, ShAmt);
+          return foldMul(ISD::SUB, Op0.getOperand(0), Op1, ShAmt);
         // Op0 + (X * MulC) --> Op0 - (X << log2(-MulC))
         if (unsigned ShAmt = getShiftLeftAmt(Op1))
-          return foldMul(Op1.getOperand(0), Op0, ShAmt);
-        // TODO:
+          return foldMul(ISD::SUB, Op1.getOperand(0), Op0, ShAmt);
+      }
+      if (Op.getOpcode() == ISD::SUB) {
         // Op0 - (X * MulC) --> Op0 + (X << log2(-MulC))
+        if (unsigned ShAmt = getShiftLeftAmt(Op1))
+          return foldMul(ISD::ADD, Op1.getOperand(0), Op0, ShAmt);
       }
     }
 
@@ -2554,7 +2588,8 @@ bool TargetLowering::SimplifyDemandedBits(
 
   // If we know the value of all of the demanded bits, return this as a
   // constant.
-  if (DemandedBits.isSubsetOf(Known.Zero | Known.One)) {
+  if (!isTargetCanonicalConstantNode(Op) &&
+      DemandedBits.isSubsetOf(Known.Zero | Known.One)) {
     // Avoid folding to a constant if any OpaqueConstant is involved.
     const SDNode *N = Op.getNode();
     for (SDNode *Op :
@@ -2870,6 +2905,25 @@ bool TargetLowering::SimplifyDemandedVectorElts(
         return true;
       KnownUndef.insertBits(SubUndef, i * NumSubElts);
       KnownZero.insertBits(SubZero, i * NumSubElts);
+    }
+
+    // Attempt to avoid multi-use ops if we don't need anything from them.
+    if (!DemandedElts.isAllOnes()) {
+      bool FoundNewSub = false;
+      SmallVector<SDValue, 2> DemandedSubOps;
+      for (unsigned i = 0; i != NumSubVecs; ++i) {
+        SDValue SubOp = Op.getOperand(i);
+        APInt SubElts = DemandedElts.extractBits(NumSubElts, i * NumSubElts);
+        SDValue NewSubOp = SimplifyMultipleUseDemandedVectorElts(
+            SubOp, SubElts, TLO.DAG, Depth + 1);
+        DemandedSubOps.push_back(NewSubOp ? NewSubOp : SubOp);
+        FoundNewSub = NewSubOp ? true : FoundNewSub;
+      }
+      if (FoundNewSub) {
+        SDValue NewOp =
+            TLO.DAG.getNode(Op.getOpcode(), SDLoc(Op), VT, DemandedSubOps);
+        return TLO.CombineTo(Op, NewOp);
+      }
     }
     break;
   }

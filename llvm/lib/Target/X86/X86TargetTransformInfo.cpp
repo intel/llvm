@@ -2623,7 +2623,7 @@ InstructionCost X86TTIImpl::getCmpSelInstrCost(unsigned Opcode, Type *ValTy,
   int ISD = TLI->InstructionOpcodeToISD(Opcode);
   assert(ISD && "Invalid opcode");
 
-  unsigned ExtraCost = 0;
+  InstructionCost ExtraCost = 0;
   if (Opcode == Instruction::ICmp || Opcode == Instruction::FCmp) {
     // Some vector comparison predicates cost extra instructions.
     // TODO: Should we invert this and assume worst case cmp costs
@@ -3654,7 +3654,7 @@ InstructionCost X86TTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
 
   assert(Val->isVectorTy() && "This must be a vector type");
   Type *ScalarType = Val->getScalarType();
-  int RegisterFileMoveCost = 0;
+  InstructionCost RegisterFileMoveCost = 0;
 
   // Non-immediate extraction/insertion can be handled as a sequence of
   // aliased loads+stores via the stack.
@@ -5339,6 +5339,39 @@ bool X86TTIImpl::isLegalMaskedGather(Type *DataTy, Align Alignment) {
 
   unsigned IntWidth = ScalarTy->getIntegerBitWidth();
   return IntWidth == 32 || IntWidth == 64;
+}
+
+bool X86TTIImpl::isLegalAltInstr(VectorType *VecTy, unsigned Opcode0,
+                                 unsigned Opcode1,
+                                 const SmallBitVector &OpcodeMask) const {
+  // ADDSUBPS  4xf32 SSE3
+  // VADDSUBPS 4xf32 AVX
+  // VADDSUBPS 8xf32 AVX2
+  // ADDSUBPD  2xf64 SSE3
+  // VADDSUBPD 2xf64 AVX
+  // VADDSUBPD 4xf64 AVX2
+
+  unsigned NumElements = cast<FixedVectorType>(VecTy)->getNumElements();
+  assert(OpcodeMask.size() == NumElements && "Mask and VecTy are incompatible");
+  if (!isPowerOf2_32(NumElements))
+    return false;
+  // Check the opcode pattern. We apply the mask on the opcode arguments and
+  // then check if it is what we expect.
+  for (int Lane : seq<int>(0, NumElements)) {
+    unsigned Opc = OpcodeMask.test(Lane) ? Opcode1 : Opcode0;
+    // We expect FSub for even lanes and FAdd for odd lanes.
+    if (Lane % 2 == 0 && Opc != Instruction::FSub)
+      return false;
+    if (Lane % 2 == 1 && Opc != Instruction::FAdd)
+      return false;
+  }
+  // Now check that the pattern is supported by the target ISA.
+  Type *ElemTy = cast<VectorType>(VecTy)->getElementType();
+  if (ElemTy->isFloatTy())
+    return ST->hasSSE3() && NumElements % 4 == 0;
+  if (ElemTy->isDoubleTy())
+    return ST->hasSSE3() && NumElements % 2 == 0;
+  return false;
 }
 
 bool X86TTIImpl::isLegalMaskedScatter(Type *DataType, Align Alignment) {

@@ -1095,7 +1095,9 @@ void ResultBuilder::MaybeAddResult(Result R, DeclContext *CurContext) {
   if (const UsingShadowDecl *Using = dyn_cast<UsingShadowDecl>(R.Declaration)) {
     CodeCompletionResult Result(Using->getTargetDecl(),
                                 getBasePriority(Using->getTargetDecl()),
-                                R.Qualifier);
+                                R.Qualifier, false,
+                                (R.Availability == CXAvailability_Available ||
+                                 R.Availability == CXAvailability_Deprecated));
     Result.ShadowDecl = Using;
     MaybeAddResult(Result, CurContext);
     return;
@@ -1268,7 +1270,9 @@ void ResultBuilder::AddResult(Result R, DeclContext *CurContext,
   if (const auto *Using = dyn_cast<UsingShadowDecl>(R.Declaration)) {
     CodeCompletionResult Result(Using->getTargetDecl(),
                                 getBasePriority(Using->getTargetDecl()),
-                                R.Qualifier);
+                                R.Qualifier, false,
+                                (R.Availability == CXAvailability_Available ||
+                                 R.Availability == CXAvailability_Deprecated));
     Result.ShadowDecl = Using;
     AddResult(Result, CurContext, Hiding);
     return;
@@ -5050,7 +5054,7 @@ static void AddRecordMembersCompletionResults(
   Results.allowNestedNameSpecifiers();
   std::vector<FixItHint> FixIts;
   if (AccessOpFixIt)
-    FixIts.emplace_back(AccessOpFixIt.getValue());
+    FixIts.emplace_back(*AccessOpFixIt);
   CodeCompletionDeclConsumer Consumer(Results, RD, BaseType, std::move(FixIts));
   SemaRef.LookupVisibleDecls(RD, Sema::LookupMemberName, Consumer,
                              SemaRef.CodeCompleter->includeGlobals(),
@@ -5641,7 +5645,7 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
       // Objective-C property reference. Bail if we're performing fix-it code
       // completion since Objective-C properties are normally backed by ivars,
       // most Objective-C fix-its here would have little value.
-      if (AccessOpFixIt.hasValue()) {
+      if (AccessOpFixIt) {
         return false;
       }
       AddedPropertiesSet AddedProperties;
@@ -5666,7 +5670,7 @@ void Sema::CodeCompleteMemberReferenceExpr(Scope *S, Expr *Base,
       // Objective-C instance variable access. Bail if we're performing fix-it
       // code completion since Objective-C properties are normally backed by
       // ivars, most Objective-C fix-its here would have little value.
-      if (AccessOpFixIt.hasValue()) {
+      if (AccessOpFixIt) {
         return false;
       }
       ObjCInterfaceDecl *Class = nullptr;

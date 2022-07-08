@@ -192,7 +192,7 @@ struct CompletionCandidate {
   // 0 indicates it's not part of any overload set.
   size_t overloadSet(const CodeCompleteOptions &Opts, llvm::StringRef FileName,
                      IncludeInserter *Inserter) const {
-    if (!Opts.BundleOverloads.getValueOr(false))
+    if (!Opts.BundleOverloads.value_or(false))
       return 0;
 
     // Depending on the index implementation, we can see different header
@@ -375,7 +375,7 @@ struct CodeCompletionBuilder {
           std::move(*Spelled),
           Includes.shouldInsertInclude(*ResolvedDeclaring, *ResolvedInserted));
     };
-    bool ShouldInsert = C.headerToInsertIfAllowed(Opts).hasValue();
+    bool ShouldInsert = C.headerToInsertIfAllowed(Opts).has_value();
     // Calculate include paths and edits for all possible headers.
     for (const auto &Inc : C.RankedIncludeHeaders) {
       if (auto ToInclude = Inserted(Inc)) {
@@ -648,7 +648,7 @@ getQueryScopes(CodeCompletionContext &CCContext, const Sema &CCSema,
   }
 
   const CXXScopeSpec *SemaSpecifier =
-      CCContext.getCXXScopeSpecifier().getValueOr(nullptr);
+      CCContext.getCXXScopeSpecifier().value_or(nullptr);
   // Case 1: unqualified completion.
   if (!SemaSpecifier) {
     // Case 2 (exception): sema saw no qualifier, but there appears to be one!
@@ -835,7 +835,7 @@ struct CompletionRecorder : public CodeCompleteConsumer {
         continue;
       // Skip injected class name when no class scope is not explicitly set.
       // E.g. show injected A::A in `using A::A^` but not in "A^".
-      if (Result.Declaration && !Context.getCXXScopeSpecifier().hasValue() &&
+      if (Result.Declaration && !Context.getCXXScopeSpecifier() &&
           isInjectedClass(*Result.Declaration))
         continue;
       // We choose to never append '::' to completion results in clangd.
@@ -1439,7 +1439,7 @@ public:
     HeuristicPrefix = guessCompletionPrefix(SemaCCInput.ParseInput.Contents,
                                             SemaCCInput.Offset);
     populateContextWords(SemaCCInput.ParseInput.Contents);
-    if (Opts.Index && SpecFuzzyFind && SpecFuzzyFind->CachedReq.hasValue()) {
+    if (Opts.Index && SpecFuzzyFind && SpecFuzzyFind->CachedReq) {
       assert(!SpecFuzzyFind->Result.valid());
       SpecReq = speculativeFuzzyFindRequestForCompletion(
           *SpecFuzzyFind->CachedReq, HeuristicPrefix);
@@ -1673,6 +1673,14 @@ private:
     return Output;
   }
 
+  bool includeSymbolFromIndex(const Symbol &Sym) {
+    if (CCContextKind == CodeCompletionContext::CCC_ObjCProtocolName) {
+      return Sym.SymInfo.Lang == index::SymbolLanguage::ObjC &&
+          Sym.SymInfo.Kind == index::SymbolKind::Protocol;
+    }
+    return true;
+  }
+
   SymbolSlab queryIndex() {
     trace::Span Tracer("Query index");
     SPAN_ATTACH(Tracer, "limit", int64_t(Opts.Limit));
@@ -1706,8 +1714,10 @@ private:
 
     // Run the query against the index.
     SymbolSlab::Builder ResultsBuilder;
-    if (Opts.Index->fuzzyFind(
-            Req, [&](const Symbol &Sym) { ResultsBuilder.insert(Sym); }))
+    if (Opts.Index->fuzzyFind(Req, [&](const Symbol &Sym) {
+          if (includeSymbolFromIndex(Sym))
+            ResultsBuilder.insert(Sym);
+        }))
       Incomplete = true;
     return std::move(ResultsBuilder).build();
   }

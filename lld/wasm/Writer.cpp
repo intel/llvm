@@ -328,8 +328,7 @@ void Writer::layoutMemory() {
     WasmSym::heapBase->setVA(memoryPtr);
   }
 
-  uint64_t maxMemorySetting = 1ULL
-                              << (config->is64.getValueOr(false) ? 48 : 32);
+  uint64_t maxMemorySetting = 1ULL << (config->is64.value_or(false) ? 48 : 32);
 
   if (config->initialMemory != 0) {
     if (config->initialMemory != alignTo(config->initialMemory, WasmPageSize))
@@ -543,8 +542,8 @@ void Writer::populateTargetFeatures() {
 done:
   // Normally we don't include bss segments in the binary.  In particular if
   // memory is not being imported then we can assume its zero initialized.
-  // In the case the memory is imported, we and we can use the memory.fill
-  // instrction than we can also avoid inluding the segments.
+  // In the case the memory is imported, and we can use the memory.fill
+  // instruction, then we can also avoid including the segments.
   if (config->importMemory && !allowed.count("bulk-memory"))
     config->emitBssSegments = true;
 
@@ -614,7 +613,7 @@ static bool shouldImport(Symbol *sym) {
   if (config->allowUndefinedSymbols.count(sym->getName()) != 0)
     return true;
 
-  return sym->importName.hasValue();
+  return sym->importName.has_value();
 }
 
 void Writer::calculateImports() {
@@ -755,7 +754,7 @@ void Writer::createCommandExportWrappers() {
     const std::string &funcName = commandExportWrapperNames.back();
 
     auto func = make<SyntheticFunction>(*f->getSignature(), funcName);
-    if (f->function->getExportName().hasValue())
+    if (f->function->getExportName())
       func->setExportName(f->function->getExportName()->str());
     else
       func->setExportName(f->getName().str());
@@ -1037,16 +1036,10 @@ void Writer::createSyntheticInitFunctions() {
     WasmSym::applyGlobalRelocs->markLive();
   }
 
-  int startCount = 0;
-  if (WasmSym::applyGlobalRelocs)
-    startCount++;
-  if (WasmSym::WasmSym::initMemory || WasmSym::applyDataRelocs)
-    startCount++;
-
   // If there is only one start function we can just use that function
   // itself as the Wasm start function, otherwise we need to synthesize
   // a new function to call them in sequence.
-  if (startCount > 1) {
+  if (WasmSym::applyGlobalRelocs && WasmSym::initMemory) {
     WasmSym::startFunction = symtab->addSyntheticFunction(
         "__wasm_start", WASM_SYMBOL_VISIBILITY_HIDDEN,
         make<SyntheticFunction>(nullSignature, "__wasm_start"));
@@ -1063,7 +1056,7 @@ void Writer::createInitMemoryFunction() {
     assert(WasmSym::initMemoryFlag);
     flagAddress = WasmSym::initMemoryFlag->getVA();
   }
-  bool is64 = config->is64.getValueOr(false);
+  bool is64 = config->is64.value_or(false);
   std::string bodyContent;
   {
     raw_string_ostream os(bodyContent);
@@ -1176,7 +1169,7 @@ void Writer::createInitMemoryFunction() {
       if (needsPassiveInitialization(s)) {
         // For passive BSS segments we can simple issue a memory.fill(0).
         // For non-BSS segments we do a memory.init.  Both these
-        // instructions take as thier first argument the destination
+        // instructions take as their first argument the destination
         // address.
         writePtrConst(os, s->startVA, is64, "destination address");
         if (config->isPic) {
@@ -1224,14 +1217,6 @@ void Writer::createInitMemoryFunction() {
       }
     }
 
-    // Memory init is now complete.  Apply data relocation if there
-    // are any.
-    if (WasmSym::applyDataRelocs) {
-      writeU8(os, WASM_OPCODE_CALL, "CALL");
-      writeUleb128(os, WasmSym::applyDataRelocs->getFunctionIndex(),
-                   "function index");
-    }
-
     if (config->sharedMemory) {
       // Set flag to 2 to mark end of initialization
       writeGetFlagAddress();
@@ -1270,7 +1255,7 @@ void Writer::createInitMemoryFunction() {
     for (const OutputSegment *s : segments) {
       if (needsPassiveInitialization(s) && !s->isBss) {
         // The TLS region should not be dropped since its is needed
-        // during the intiailizing of each thread (__wasm_init_tls).
+        // during the initialization of each thread (__wasm_init_tls).
         if (config->sharedMemory && s->isTLS())
           continue;
         // data.drop instruction
@@ -1289,27 +1274,18 @@ void Writer::createInitMemoryFunction() {
 
 void Writer::createStartFunction() {
   // If the start function exists when we have more than one function to call.
-  if (WasmSym::startFunction) {
+  if (WasmSym::initMemory && WasmSym::applyGlobalRelocs) {
+    assert(WasmSym::startFunction);
     std::string bodyContent;
     {
       raw_string_ostream os(bodyContent);
       writeUleb128(os, 0, "num locals");
-      if (WasmSym::applyGlobalRelocs) {
-        writeU8(os, WASM_OPCODE_CALL, "CALL");
-        writeUleb128(os, WasmSym::applyGlobalRelocs->getFunctionIndex(),
-                     "function index");
-      }
-      if (WasmSym::initMemory) {
-        writeU8(os, WASM_OPCODE_CALL, "CALL");
-        writeUleb128(os, WasmSym::initMemory->getFunctionIndex(),
-                     "function index");
-      } else if (WasmSym::applyDataRelocs) {
-        // When initMemory is present it calls applyDataRelocs.  If not,
-        // we must call it directly.
-        writeU8(os, WASM_OPCODE_CALL, "CALL");
-        writeUleb128(os, WasmSym::applyDataRelocs->getFunctionIndex(),
-                     "function index");
-      }
+      writeU8(os, WASM_OPCODE_CALL, "CALL");
+      writeUleb128(os, WasmSym::applyGlobalRelocs->getFunctionIndex(),
+                   "function index");
+      writeU8(os, WASM_OPCODE_CALL, "CALL");
+      writeUleb128(os, WasmSym::initMemory->getFunctionIndex(),
+                   "function index");
       writeU8(os, WASM_OPCODE_END, "END");
     }
     createFunction(WasmSym::startFunction, bodyContent);
@@ -1317,8 +1293,6 @@ void Writer::createStartFunction() {
     WasmSym::startFunction = WasmSym::initMemory;
   } else if (WasmSym::applyGlobalRelocs) {
     WasmSym::startFunction = WasmSym::applyGlobalRelocs;
-  } else if (WasmSym::applyDataRelocs) {
-    WasmSym::startFunction = WasmSym::applyDataRelocs;
   }
 }
 
@@ -1381,7 +1355,8 @@ void Writer::createCallCtorsFunction() {
   // If __wasm_call_ctors isn't referenced, there aren't any ctors, and we
   // aren't calling `__wasm_apply_data_relocs` for Emscripten-style PIC, don't
   // define the `__wasm_call_ctors` function.
-  if (!WasmSym::callCtors->isLive() && initFunctions.empty())
+  if (!WasmSym::callCtors->isLive() && !WasmSym::applyDataRelocs &&
+      initFunctions.empty())
     return;
 
   // First write the body's contents to a string.
@@ -1390,7 +1365,7 @@ void Writer::createCallCtorsFunction() {
     raw_string_ostream os(bodyContent);
     writeUleb128(os, 0, "num locals");
 
-    if (WasmSym::applyDataRelocs && !WasmSym::initMemory) {
+    if (WasmSym::applyDataRelocs) {
       writeU8(os, WASM_OPCODE_CALL, "CALL");
       writeUleb128(os, WasmSym::applyDataRelocs->getFunctionIndex(),
                    "function index");

@@ -1357,7 +1357,12 @@ void DXILBitcodeWriter::writeValueAsMetadata(
     const ValueAsMetadata *MD, SmallVectorImpl<uint64_t> &Record) {
   // Mimic an MDNode with a value as one operand.
   Value *V = MD->getValue();
-  Record.push_back(getTypeID(V->getType()));
+  Type *Ty = V->getType();
+  if (Function *F = dyn_cast<Function>(V))
+    Ty = TypedPointerType::get(F->getFunctionType(), F->getAddressSpace());
+  else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(V))
+    Ty = TypedPointerType::get(GV->getValueType(), GV->getAddressSpace());
+  Record.push_back(getTypeID(Ty));
   Record.push_back(VE.getValueID(V));
   Stream.EmitRecord(bitc::METADATA_VALUE, Record, 0);
   Record.clear();
@@ -2461,7 +2466,7 @@ void DXILBitcodeWriter::writeInstruction(const Instruction &I, unsigned InstID,
         AbbrevToUse = (unsigned)FUNCTION_INST_LOAD_ABBREV;
     }
     Vals.push_back(getTypeID(I.getType()));
-    Vals.push_back(Log2_32(cast<LoadInst>(I).getAlignment()) + 1);
+    Vals.push_back(Log2(cast<LoadInst>(I).getAlign()) + 1);
     Vals.push_back(cast<LoadInst>(I).isVolatile());
     if (cast<LoadInst>(I).isAtomic()) {
       Vals.push_back(getEncodedOrdering(cast<LoadInst>(I).getOrdering()));
@@ -2475,7 +2480,7 @@ void DXILBitcodeWriter::writeInstruction(const Instruction &I, unsigned InstID,
       Code = bitc::FUNC_CODE_INST_STORE;
     pushValueAndType(I.getOperand(1), InstID, Vals); // ptrty + ptr
     pushValueAndType(I.getOperand(0), InstID, Vals); // valty + val
-    Vals.push_back(Log2_32(cast<StoreInst>(I).getAlignment()) + 1);
+    Vals.push_back(Log2(cast<StoreInst>(I).getAlign()) + 1);
     Vals.push_back(cast<StoreInst>(I).isVolatile());
     if (cast<StoreInst>(I).isAtomic()) {
       Vals.push_back(getEncodedOrdering(cast<StoreInst>(I).getOrdering()));

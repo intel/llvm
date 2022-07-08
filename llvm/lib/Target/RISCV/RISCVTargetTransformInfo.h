@@ -105,12 +105,16 @@ public:
                                              Optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind);
 
+  bool isElementTypeLegalForScalableVector(Type *Ty) const {
+    return TLI->isLegalElementTypeForRVV(Ty);
+  }
+
   bool isLegalMaskedLoadStore(Type *DataType, Align Alignment) {
     if (!ST->hasVInstructions())
       return false;
 
     // Only support fixed vectors if we know the minimum vector size.
-    if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
+    if (isa<FixedVectorType>(DataType) && !ST->useRVVForFixedLengthVectors())
       return false;
 
     // Don't allow elements larger than the ELEN.
@@ -138,7 +142,7 @@ public:
       return false;
 
     // Only support fixed vectors if we know the minimum vector size.
-    if (isa<FixedVectorType>(DataType) && ST->getMinRVVVectorSizeInBits() == 0)
+    if (isa<FixedVectorType>(DataType) && !ST->useRVVForFixedLengthVectors())
       return false;
 
     // Don't allow elements larger than the ELEN.

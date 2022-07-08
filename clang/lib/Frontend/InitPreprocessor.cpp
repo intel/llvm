@@ -410,7 +410,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     if (TI.getTriple().getOS() == llvm::Triple::ShaderModel) {
       VersionTuple Version = TI.getTriple().getOSVersion();
       Builder.defineMacro("__SHADER_TARGET_MAJOR", Twine(Version.getMajor()));
-      unsigned Minor = Version.getMinor() ? *Version.getMinor() : 0;
+      unsigned Minor = Version.getMinor().value_or(0);
       Builder.defineMacro("__SHADER_TARGET_MINOR", Twine(Minor));
     }
     return;
@@ -834,8 +834,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       if (version >= VersionTuple(2, 0))
         Builder.defineMacro("__OBJC_GNUSTEP_RUNTIME_ABI__", "20");
       else
-        Builder.defineMacro("__OBJC_GNUSTEP_RUNTIME_ABI__",
-            "1" + Twine(std::min(8U, version.getMinor().getValueOr(0))));
+        Builder.defineMacro(
+            "__OBJC_GNUSTEP_RUNTIME_ABI__",
+            "1" + Twine(std::min(8U, version.getMinor().value_or(0))));
     }
 
     if (LangOpts.ObjCRuntime.getKind() == ObjCRuntime::ObjFW) {
@@ -1303,6 +1304,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+
+    if (LangOpts.SYCLESIMDForceStatelessMem)
+      Builder.defineMacro("__ESIMD_FORCE_STATELESS_MEM");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");

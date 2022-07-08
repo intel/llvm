@@ -13,10 +13,8 @@
 #include "mlir/Dialect/PDL/IR/PDL.h"
 #include "mlir/Dialect/PDL/IR/PDLTypes.h"
 #include "mlir/Dialect/Transform/IR/TransformDialect.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -78,7 +76,8 @@ static FailureOr<LinalgOp> tryApply(Operation *operation, Args &&...args) {
 // DecomposeOp
 //===----------------------------------------------------------------------===//
 
-FailureOr<LinalgOp> transform::DecomposeOp::applyToOne(LinalgOp target) {
+FailureOr<LinalgOp> transform::DecomposeOp::applyToOne(LinalgOp target,
+                                                       TransformState &state) {
   FailureOr<LinalgOp> windowed =
       tryApply<DownscaleSizeOneWindowed2DConvolution>(target);
   if (succeeded(windowed))
@@ -166,14 +165,14 @@ static ParseResult parseTileLikeOp(OpAsmParser &parser, OperationState &result,
   return success();
 }
 
-LogicalResult
+DiagnosedSilenceableFailure
 transform::FuseOp::apply(mlir::transform::TransformResults &transformResults,
                          mlir::transform::TransformState &state) {
   LinalgTilingAndFusionOptions fusionOptions;
   fusionOptions.tileSizes = extractI64Array(getTileSizes());
   fusionOptions.tileInterchange = extractI64Array(getTileInterchange());
 
-  return applyTilingToAll(
+  LogicalResult result = applyTilingToAll(
       getOperation(), getTarget(), fusionOptions.tileSizes, transformResults,
       state, [&](LinalgOp linalgOp) -> FailureOr<TiledLinalgOp> {
         LinalgTileAndFuseTensorOpsPattern pattern(getContext(), fusionOptions);
@@ -190,6 +189,8 @@ transform::FuseOp::apply(mlir::transform::TransformResults &transformResults,
                                tileLoopNest->getLoopOps().end()};
         return tiledLinalgOp;
       });
+  return failed(result) ? DiagnosedSilenceableFailure::definiteFailure()
+                        : DiagnosedSilenceableFailure::success();
 }
 
 ParseResult transform::FuseOp::parse(OpAsmParser &parser,
@@ -220,7 +221,8 @@ LogicalResult transform::FuseOp::verify() {
 // GeneralizeOp
 //===----------------------------------------------------------------------===//
 
-FailureOr<LinalgOp> transform::GeneralizeOp::applyToOne(LinalgOp target) {
+FailureOr<LinalgOp> transform::GeneralizeOp::applyToOne(LinalgOp target,
+                                                        TransformState &state) {
   // Exit early if no transformation is needed.
   if (isa<GenericOp>(target))
     return target;
@@ -236,7 +238,8 @@ FailureOr<LinalgOp> transform::GeneralizeOp::applyToOne(LinalgOp target) {
 // InterchangeOp
 //===----------------------------------------------------------------------===//
 
-FailureOr<LinalgOp> transform::InterchangeOp::applyToOne(LinalgOp target) {
+FailureOr<LinalgOp>
+transform::InterchangeOp::applyToOne(LinalgOp target, TransformState &state) {
   SmallVector<unsigned> interchangeVector =
       extractUIntArray(getIteratorInterchange());
   // Exit early if no transformation is needed.
@@ -272,7 +275,8 @@ LogicalResult transform::InterchangeOp::verify() {
 // PadOp
 //===---------------------------------------------------------------------===//
 
-FailureOr<LinalgOp> transform::PadOp::applyToOne(LinalgOp target) {
+FailureOr<LinalgOp> transform::PadOp::applyToOne(LinalgOp target,
+                                                 TransformState &state) {
   // Convert the integer packing flags to booleans.
   SmallVector<bool> packPaddings;
   for (int64_t packPadding : extractI64Array(getPackPaddings()))
@@ -377,7 +381,8 @@ LogicalResult transform::PadOp::verify() {
 // ScalarizeOp
 //===----------------------------------------------------------------------===//
 
-FailureOr<LinalgOp> transform::ScalarizeOp::applyToOne(LinalgOp target) {
+FailureOr<LinalgOp> transform::ScalarizeOp::applyToOne(LinalgOp target,
+                                                       TransformState &state) {
   LinalgTilingOptions tilingOptions;
   tilingOptions.scalarizeDynamicDims();
   // Tiling with "scalarize_dyn_dims" actually sets the same lambda as the tile
@@ -395,11 +400,56 @@ FailureOr<LinalgOp> transform::ScalarizeOp::applyToOne(LinalgOp target) {
 }
 
 //===----------------------------------------------------------------------===//
+// SplitReductionOp
+//===----------------------------------------------------------------------===//
+
+FailureOr<SmallVector<Operation *>>
+transform::SplitReductionOp::applyToOne(LinalgOp target,
+                                        TransformState &state) {
+  ControlSplitReductionFn splitFn = [&](LinalgOp) {
+    return std::pair<int64_t, unsigned>(getSplitFactor(),
+                                        getInsertSplitDimension());
+  };
+  SimpleRewriter rewriter(getContext());
+  rewriter.setInsertionPoint(target);
+  FailureOr<SplitReductionResult> splitResult =
+      splitReduction(rewriter, target, splitFn);
+  if (failed(splitResult))
+    return getOperation()->emitError("failed to apply");
+  return SmallVector<Operation *>{splitResult->fillOp,
+                                  splitResult->splitLinalgOp,
+                                  splitResult->resultCombiningLinalgOp};
+}
+
+//===----------------------------------------------------------------------===//
+// SplitReductionByScalingOp
+//===----------------------------------------------------------------------===//
+
+FailureOr<SmallVector<Operation *>>
+transform::SplitReductionByScalingOp::applyToOne(LinalgOp target,
+                                                 TransformState &state) {
+  ControlSplitReductionFn splitFn = [&](LinalgOp) {
+    return std::pair<int64_t, unsigned>(getSplitFactor(),
+                                        getInsertSplitDimension());
+  };
+  SimpleRewriter rewriter(getContext());
+  rewriter.setInsertionPoint(target);
+  FailureOr<SplitReductionResult> splitResult =
+      splitReductionByScaling(rewriter, target, splitFn);
+  if (failed(splitResult))
+    return getOperation()->emitError("failed to apply");
+  return SmallVector<Operation *>{splitResult->fillOp,
+                                  splitResult->splitLinalgOp,
+                                  splitResult->resultCombiningLinalgOp};
+}
+
+//===----------------------------------------------------------------------===//
 // TileOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult transform::TileOp::apply(TransformResults &transformResults,
-                                       TransformState &state) {
+DiagnosedSilenceableFailure
+transform::TileOp::apply(TransformResults &transformResults,
+                         TransformState &state) {
   LinalgTilingOptions tilingOptions;
   SmallVector<int64_t> tileSizes = extractI64Array(getSizes());
 
@@ -408,12 +458,13 @@ LogicalResult transform::TileOp::apply(TransformResults &transformResults,
   tilingOptions.setInterchange(extractUIntArray(getInterchange()));
   LinalgTilingPattern pattern(getContext(), tilingOptions);
 
-  return applyTilingToAll(getOperation(), getTarget(), tileSizes,
-                          transformResults, state, [&](LinalgOp linalgOp) {
-                            SimpleRewriter rewriter(linalgOp.getContext());
-                            return pattern.returningMatchAndRewrite(linalgOp,
-                                                                    rewriter);
-                          });
+  LogicalResult result = applyTilingToAll(
+      getOperation(), getTarget(), tileSizes, transformResults, state,
+      [&](LinalgOp linalgOp) {
+        SimpleRewriter rewriter(linalgOp.getContext());
+        return pattern.returningMatchAndRewrite(linalgOp, rewriter);
+      });
+  return DiagnosedSilenceableFailure(result);
 }
 
 ParseResult transform::TileOp::parse(OpAsmParser &parser,
@@ -432,7 +483,8 @@ void TileOp::print(OpAsmPrinter &p) {
 // VectorizeOp
 //===----------------------------------------------------------------------===//
 
-FailureOr<Operation *> VectorizeOp::applyToOne(Operation *target) {
+FailureOr<Operation *> VectorizeOp::applyToOne(Operation *target,
+                                               TransformState &state) {
   if (!target->hasTrait<OpTrait::IsIsolatedFromAbove>()) {
     InFlightDiagnostic diag = emitOpError()
                               << "applies only to isolated-from-above targets";

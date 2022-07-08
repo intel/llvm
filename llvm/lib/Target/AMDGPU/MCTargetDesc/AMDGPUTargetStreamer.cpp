@@ -301,7 +301,7 @@ bool AMDGPUTargetAsmStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.
@@ -456,7 +456,7 @@ void AMDGPUTargetAsmStreamer::EmitAmdhsaKernelDescriptor(
                 compute_pgm_rsrc1,
                 amdhsa::COMPUTE_PGM_RSRC1_FWD_PROGRESS);
     PRINT_FIELD(OS, ".amdhsa_shared_vgpr_count", KD, compute_pgm_rsrc3,
-                amdhsa::COMPUTE_PGM_RSRC3_GFX10_SHARED_VGPR_COUNT);
+                amdhsa::COMPUTE_PGM_RSRC3_GFX10_PLUS_SHARED_VGPR_COUNT);
   }
   PRINT_FIELD(
       OS, ".amdhsa_exception_fp_ieee_invalid_op", KD,
@@ -534,7 +534,7 @@ void AMDGPUTargetELFStreamer::EmitNote(
     NoteFlags = ELF::SHF_ALLOC;
 
   S.pushSection();
-  S.SwitchSection(
+  S.switchSection(
       Context.getELFSection(ElfNote::SectionName, ELF::SHT_NOTE, NoteFlags));
   S.emitInt32(NameSZ);                                        // namesz
   S.emitValue(DescSZ, 4);                                     // descz
@@ -824,7 +824,7 @@ bool AMDGPUTargetELFStreamer::EmitCodeEnd(const MCSubtargetInfo &STI) {
   uint32_t Encoded_pad = Encoded_s_code_end;
 
   // Instruction cache line size in bytes.
-  const unsigned Log2CacheLineSize = 6;
+  const unsigned Log2CacheLineSize = AMDGPU::isGFX11Plus(STI) ? 7 : 6;
   const unsigned CacheLineSize = 1u << Log2CacheLineSize;
 
   // Extra padding amount in bytes to support prefetch mode 3.

@@ -45,7 +45,8 @@ static const SanitizerMask SupportsCoverage =
     SanitizerKind::Address | SanitizerKind::HWAddress |
     SanitizerKind::KernelAddress | SanitizerKind::KernelHWAddress |
     SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap |
-    SanitizerKind::Memory | SanitizerKind::KernelMemory | SanitizerKind::Leak |
+    SanitizerKind::MemtagGlobals | SanitizerKind::Memory |
+    SanitizerKind::KernelMemory | SanitizerKind::Leak |
     SanitizerKind::Undefined | SanitizerKind::Integer | SanitizerKind::Bounds |
     SanitizerKind::ImplicitConversion | SanitizerKind::Nullability |
     SanitizerKind::DataFlow | SanitizerKind::Fuzzer |
@@ -73,7 +74,8 @@ static const SanitizerMask CFIClasses =
     SanitizerKind::CFIUnrelatedCast;
 static const SanitizerMask CompatibleWithMinimalRuntime =
     TrappingSupported | SanitizerKind::Scudo | SanitizerKind::ShadowCallStack |
-    SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap;
+    SanitizerKind::MemtagStack | SanitizerKind::MemtagHeap |
+    SanitizerKind::MemtagGlobals;
 
 enum CoverageFeature {
   CoverageFunc = 1 << 0,
@@ -646,6 +648,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         options::OPT_fno_sanitize_memory_param_retval, MsanParamRetval);
     NeedPIE |= !(TC.getTriple().isOSLinux() &&
                  TC.getTriple().getArch() == llvm::Triple::x86_64);
+  } else if (AllAddedKinds & SanitizerKind::KernelMemory) {
+    MsanUseAfterDtor = false;
+    MsanParamRetval = Args.hasFlag(
+        options::OPT_fsanitize_memory_param_retval,
+        options::OPT_fno_sanitize_memory_param_retval, MsanParamRetval);
   } else {
     MsanUseAfterDtor = false;
     MsanParamRetval = false;

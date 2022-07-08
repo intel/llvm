@@ -53,7 +53,7 @@ llvm::DenseMap<K, V> intersectDenseMaps(const llvm::DenseMap<K, V> &Map1,
 static bool areEquivalentIndirectionValues(Value *Val1, Value *Val2) {
   if (auto *IndVal1 = dyn_cast<ReferenceValue>(Val1)) {
     auto *IndVal2 = cast<ReferenceValue>(Val2);
-    return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
+    return &IndVal1->getReferentLoc() == &IndVal2->getReferentLoc();
   }
   if (auto *IndVal1 = dyn_cast<PointerValue>(Val1)) {
     auto *IndVal2 = cast<PointerValue>(Val2);
@@ -87,8 +87,13 @@ static Value *mergeDistinctValues(QualType Type, Value *Val1,
   // have mutually exclusive conditions.
   if (auto *Expr1 = dyn_cast<BoolValue>(Val1)) {
     auto *Expr2 = cast<BoolValue>(Val2);
-    return &Env1.makeOr(Env1.makeAnd(Env1.getFlowConditionToken(), *Expr1),
-                        Env1.makeAnd(Env2.getFlowConditionToken(), *Expr2));
+    auto &MergedVal = MergedEnv.makeAtomicBoolValue();
+    MergedEnv.addToFlowCondition(MergedEnv.makeOr(
+        MergedEnv.makeAnd(Env1.getFlowConditionToken(),
+                          MergedEnv.makeIff(MergedVal, *Expr1)),
+        MergedEnv.makeAnd(Env2.getFlowConditionToken(),
+                          MergedEnv.makeIff(MergedVal, *Expr2))));
+    return &MergedVal;
   }
 
   // FIXME: add unit tests that cover this statement.
@@ -457,8 +462,7 @@ Value *Environment::createValueUnlessSelfReferential(
     QualType PointeeType = Type->castAs<ReferenceType>()->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
-    if (!Visited.contains(PointeeType.getCanonicalType())) {
-      Visited.insert(PointeeType.getCanonicalType());
+    if (Visited.insert(PointeeType.getCanonicalType()).second) {
       Value *PointeeVal = createValueUnlessSelfReferential(
           PointeeType, Visited, Depth, CreatedValuesCount);
       Visited.erase(PointeeType.getCanonicalType());
@@ -475,8 +479,7 @@ Value *Environment::createValueUnlessSelfReferential(
     QualType PointeeType = Type->castAs<PointerType>()->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
-    if (!Visited.contains(PointeeType.getCanonicalType())) {
-      Visited.insert(PointeeType.getCanonicalType());
+    if (Visited.insert(PointeeType.getCanonicalType()).second) {
       Value *PointeeVal = createValueUnlessSelfReferential(
           PointeeType, Visited, Depth, CreatedValuesCount);
       Visited.erase(PointeeType.getCanonicalType());
@@ -522,7 +525,7 @@ StorageLocation &Environment::skip(StorageLocation &Loc, SkipPast SP) const {
     // References cannot be chained so we only need to skip past one level of
     // indirection.
     if (auto *Val = dyn_cast_or_null<ReferenceValue>(getValue(Loc)))
-      return Val->getPointeeLoc();
+      return Val->getReferentLoc();
     return Loc;
   case SkipPast::ReferenceThenPointer:
     StorageLocation &LocPastRef = skip(Loc, SkipPast::Reference);

@@ -10,6 +10,7 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/memory_enums.hpp>
 

@@ -17,8 +17,8 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
@@ -1163,7 +1163,7 @@ inline void ARMELFStreamer::SwitchToEHSection(StringRef Prefix,
   assert(EHSection && "Failed to get the required EH section");
 
   // Switch to .ARM.extab or .ARM.exidx section
-  SwitchSection(EHSection);
+  switchSection(EHSection);
   emitValueToAlignment(4, 0, 1, 0);
 }
 
@@ -1256,7 +1256,7 @@ void ARMELFStreamer::emitFnEnd() {
   }
 
   // Switch to the section containing FnStart
-  SwitchSection(&FnStart->getSection());
+  switchSection(&FnStart->getSection());
 
   // Clean exception handling frame information
   EHReset();

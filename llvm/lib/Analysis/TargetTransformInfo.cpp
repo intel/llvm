@@ -31,6 +31,11 @@ static cl::opt<bool> EnableReduxCost("costmodel-reduxcost", cl::init(false),
                                      cl::Hidden,
                                      cl::desc("Recognize reduction patterns."));
 
+static cl::opt<unsigned> CacheLineSize(
+    "cache-line-size", cl::init(0), cl::Hidden,
+    cl::desc("Use this to override the target cache line size when "
+             "specified by the user."));
+
 namespace {
 /// No-op implementation of the TTI interface using the utility base
 /// classes.
@@ -407,6 +412,12 @@ bool TargetTransformInfo::isLegalMaskedGather(Type *DataType,
   return TTIImpl->isLegalMaskedGather(DataType, Alignment);
 }
 
+bool TargetTransformInfo::isLegalAltInstr(
+    VectorType *VecTy, unsigned Opcode0, unsigned Opcode1,
+    const SmallBitVector &OpcodeMask) const {
+  return TTIImpl->isLegalAltInstr(VecTy, Opcode0, Opcode1, OpcodeMask);
+}
+
 bool TargetTransformInfo::isLegalMaskedScatter(Type *DataType,
                                                Align Alignment) const {
   return TTIImpl->isLegalMaskedScatter(DataType, Alignment);
@@ -654,7 +665,8 @@ bool TargetTransformInfo::shouldConsiderAddressTypePromotion(
 }
 
 unsigned TargetTransformInfo::getCacheLineSize() const {
-  return TTIImpl->getCacheLineSize();
+  return CacheLineSize.getNumOccurrences() > 0 ? CacheLineSize
+                                               : TTIImpl->getCacheLineSize();
 }
 
 llvm::Optional<unsigned>

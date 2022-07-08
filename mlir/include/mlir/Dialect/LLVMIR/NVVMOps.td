@@ -37,6 +37,8 @@ def NVVM_Dialect : Dialect {
   }];
 
   let useDefaultAttributePrinterParser = 1;
+
+  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
 }
 
 //===----------------------------------------------------------------------===//
@@ -45,6 +47,15 @@ def NVVM_Dialect : Dialect {
 
 class NVVM_Op<string mnemonic, list<Trait> traits = []> :
   LLVM_OpBase<NVVM_Dialect, mnemonic, traits> {
+}
+
+//===----------------------------------------------------------------------===//
+// NVVM attribute definitions
+//===----------------------------------------------------------------------===//
+
+class NVVM_Attr<string attrName, string attrMnemonic, list<Trait> traits = []>
+    : AttrDef<NVVM_Dialect, attrName, traits> {
+  let mnemonic = attrMnemonic;
 }
 
 //===----------------------------------------------------------------------===//
@@ -460,12 +471,10 @@ def MMAIntOverflowAttr : EnumAttr<NVVM_Dialect, MMAIntOverflow, "mma_int_overflo
 }
 
 /// Attribute to hold the MMA shape
-def NVVM_MMAShapeAttr : StructAttr<"MMAShapeAttr", NVVM_Dialect, [
-    StructFieldAttr<"m", I32Attr>,
-    StructFieldAttr<"n", I32Attr>,
-    StructFieldAttr<"k", I32Attr>
-  ]> {
+def NVVM_MMAShapeAttr : NVVM_Attr<"MMAShape", "shape"> {
   let summary = "Attribute for MMA operation shape.";
+  let parameters = (ins "int":$m, "int":$n, "int":$k);
+  let assemblyFormat = "`<` struct(params) `>`";
 }
 
 // Returns true if this combination of layout/satf for MMA ops is supported;
@@ -983,7 +992,7 @@ def NVVM_MmaOp : NVVM_Op<"mma.sync", [AttrSizedOperandSegments]> {
   string llvmBuilder = [{
     auto operands = moduleTranslation.lookupValues(opInst.getOperands());
     auto intId = mlir::NVVM::MmaOp::getIntrinsicID(
-        $shape.m().getInt(), $shape.n().getInt(), $shape.k().getInt(), 
+        $shape.getM(), $shape.getN(), $shape.getK(), 
         $b1Op, $intOverflowBehavior,
         $layoutA, $layoutB,
         $multiplicandAPtxType.getValue(), 

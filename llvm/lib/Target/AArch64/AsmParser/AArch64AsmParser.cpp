@@ -127,7 +127,7 @@ private:
       return Prefix;
     }
 
-    PrefixInfo() : Active(false), Predicated(false) {}
+    PrefixInfo() = default;
     bool isActive() const { return Active; }
     bool isPredicated() const { return Predicated; }
     unsigned getElementSize() const {
@@ -141,8 +141,8 @@ private:
     }
 
   private:
-    bool Active;
-    bool Predicated;
+    bool Active = false;
+    bool Predicated = false;
     unsigned ElementSize;
     unsigned Dst;
     unsigned Pg;
@@ -2427,7 +2427,7 @@ static Optional<std::pair<int, int>> parseVectorKind(StringRef Suffix,
 }
 
 static bool isValidVectorKind(StringRef Suffix, RegKind VectorKind) {
-  return parseVectorKind(Suffix, VectorKind).hasValue();
+  return parseVectorKind(Suffix, VectorKind).has_value();
 }
 
 static unsigned matchSVEDataVectorRegName(StringRef Name) {
@@ -2760,8 +2760,8 @@ AArch64AsmParser::tryParsePrefetch(OperandVector &Operands) {
     }
 
     auto PRFM = LookupByEncoding(MCE->getValue());
-    Operands.push_back(AArch64Operand::CreatePrefetch(
-        prfop, PRFM.getValueOr(""), S, getContext()));
+    Operands.push_back(AArch64Operand::CreatePrefetch(prfop, PRFM.value_or(""),
+                                                      S, getContext()));
     return MatchOperand_Success;
   }
 

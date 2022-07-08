@@ -321,6 +321,9 @@ public:
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
                                         Type *Ty) const override;
 
+  bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
+                               unsigned Index) const override;
+
   bool isTypeDesirableForOp(unsigned Op, EVT VT) const override;
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
@@ -391,6 +394,7 @@ public:
                               MachineBasicBlock *BB) const override;
 
   bool hasBitPreservingFPLogic(EVT VT) const override;
+  bool hasAtomicFaddRtnForTy(SDValue &Op) const;
   bool enableAggressiveFMAFusion(EVT VT) const override;
   bool enableAggressiveFMAFusion(LLT Ty) const override;
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,

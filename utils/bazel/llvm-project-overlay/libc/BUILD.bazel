@@ -86,10 +86,7 @@ cc_library(
     hdrs = [
         "src/__support/CPP/UInt.h",
     ],
-    deps = [
-        "__support_cpp_array",
-        ":libc_root",
-    ],
+    deps = [":libc_root","__support_cpp_array"],
 )
 
 cc_library(
@@ -97,10 +94,7 @@ cc_library(
     hdrs = [
         "src/__support/CPP/TypeTraits.h",
     ],
-    deps = [
-        "__support_cpp_uint",
-        ":libc_root",
-    ],
+    deps = [":libc_root","__support_cpp_uint"],
 )
 
 cc_library(
@@ -158,6 +152,7 @@ fputil_common_hdrs = [
     "src/__support/FPUtil/NearestIntegerOperations.h",
     "src/__support/FPUtil/NormalFloat.h",
     "src/__support/FPUtil/PlatformDefs.h",
+    "src/__support/FPUtil/builtin_wrappers.h",
 ]
 
 fputil_hdrs = selects.with_or({
@@ -814,7 +809,7 @@ cc_library(
         ":__support_common",
         ":__support_cpp_bitset",
         ":libc_root",
-        ":string_memory_utils"
+        ":string_memory_utils",
     ],
 )
 
@@ -832,6 +827,7 @@ libc_function(
     name = "memcpy",
     srcs = ["src/string/memcpy.cpp"],
     hdrs = ["src/string/memcpy.h"],
+    copts = ["-mllvm --tail-merge-threshold=0"],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -858,7 +854,6 @@ libc_function(
     deps = [
         ":__support_common",
         ":__support_integer_operations",
-        ":memcpy",
         ":string_memory_utils",
     ],
 )

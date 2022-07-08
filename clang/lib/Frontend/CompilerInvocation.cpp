@@ -824,18 +824,6 @@ static void GenerateAnalyzerArgs(AnalyzerOptions &Opts,
 #include "clang/Driver/Options.inc"
 #undef ANALYZER_OPTION_WITH_MARSHALLING
 
-  if (Opts.AnalysisStoreOpt != RegionStoreModel) {
-    switch (Opts.AnalysisStoreOpt) {
-#define ANALYSIS_STORE(NAME, CMDFLAG, DESC, CREATFN)                           \
-  case NAME##Model:                                                            \
-    GenerateArg(Args, OPT_analyzer_store, CMDFLAG, SA);                        \
-    break;
-#include "clang/StaticAnalyzer/Core/Analyses.def"
-    default:
-      llvm_unreachable("Tried to generate unknown analysis store.");
-    }
-  }
-
   if (Opts.AnalysisConstraintsOpt != RangeConstraintsModel) {
     switch (Opts.AnalysisConstraintsOpt) {
 #define ANALYSIS_CONSTRAINTS(NAME, CMDFLAG, DESC, CREATFN)                     \
@@ -923,20 +911,13 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
 #include "clang/Driver/Options.inc"
 #undef ANALYZER_OPTION_WITH_MARSHALLING
 
-  if (Arg *A = Args.getLastArg(OPT_analyzer_store)) {
-    StringRef Name = A->getValue();
-    AnalysisStores Value = llvm::StringSwitch<AnalysisStores>(Name)
-#define ANALYSIS_STORE(NAME, CMDFLAG, DESC, CREATFN) \
-      .Case(CMDFLAG, NAME##Model)
-#include "clang/StaticAnalyzer/Core/Analyses.def"
-      .Default(NumStores);
-    if (Value == NumStores) {
-      Diags.Report(diag::err_drv_invalid_value)
-        << A->getAsString(Args) << Name;
-    } else {
-      Opts.AnalysisStoreOpt = Value;
-    }
-  }
+  if (Args.hasArg(OPT_analyzer_store))
+    Diags.Report(diag::warn_analyzer_deprecated_option) << "-analyzer-store"
+                                                        << "clang-16";
+  if (Args.hasArg(OPT_analyzer_opt_analyze_nested_blocks))
+    Diags.Report(diag::warn_analyzer_deprecated_option)
+        << "-analyzer-opt-analyze-nested-blocks"
+        << "clang-16";
 
   if (Arg *A = Args.getLastArg(OPT_analyzer_constraints)) {
     StringRef Name = A->getValue();
@@ -1101,7 +1082,7 @@ static void initOption(AnalyzerOptions::ConfigTable &Config,
     else
       OptionField = DefaultVal;
   } else
-    OptionField = PossiblyInvalidVal.getValue();
+    OptionField = *PossiblyInvalidVal;
 }
 
 static void initOption(AnalyzerOptions::ConfigTable &Config,
@@ -1120,25 +1101,22 @@ static void initOption(AnalyzerOptions::ConfigTable &Config,
 static void parseAnalyzerConfigs(AnalyzerOptions &AnOpts,
                                  DiagnosticsEngine *Diags) {
   // TODO: There's no need to store the entire configtable, it'd be plenty
-  // enough tostore checker options.
+  // enough to store checker options.
 
 #define ANALYZER_OPTION(TYPE, NAME, CMDFLAG, DESC, DEFAULT_VAL)                \
   initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG, DEFAULT_VAL);
-
-#define ANALYZER_OPTION_DEPENDS_ON_USER_MODE(TYPE, NAME, CMDFLAG, DESC,        \
-                                           SHALLOW_VAL, DEEP_VAL)              \
-  switch (AnOpts.getUserMode()) {                                              \
-  case UMK_Shallow:                                                            \
-    initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG, SHALLOW_VAL);       \
-    break;                                                                     \
-  case UMK_Deep:                                                               \
-    initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG, DEEP_VAL);          \
-    break;                                                                     \
-  }                                                                            \
-
+#define ANALYZER_OPTION_DEPENDS_ON_USER_MODE(...)
 #include "clang/StaticAnalyzer/Core/AnalyzerOptions.def"
-#undef ANALYZER_OPTION
-#undef ANALYZER_OPTION_DEPENDS_ON_USER_MODE
+
+  assert(AnOpts.UserMode == "shallow" || AnOpts.UserMode == "deep");
+  const bool InShallowMode = AnOpts.UserMode == "shallow";
+
+#define ANALYZER_OPTION(...)
+#define ANALYZER_OPTION_DEPENDS_ON_USER_MODE(TYPE, NAME, CMDFLAG, DESC,        \
+                                             SHALLOW_VAL, DEEP_VAL)            \
+  initOption(AnOpts.Config, Diags, AnOpts.NAME, CMDFLAG,                       \
+             InShallowMode ? SHALLOW_VAL : DEEP_VAL);
+#include "clang/StaticAnalyzer/Core/AnalyzerOptions.def"
 
   // At this point, AnalyzerOptions is configured. Let's validate some options.
 
@@ -1389,9 +1367,6 @@ void CompilerInvocation::GenerateCodeGenArgs(
     break;
   case codegenoptions::DebugDirectivesOnly:
     DebugInfoVal = "line-directives-only";
-    break;
-  case codegenoptions::DebugInfoConstructor:
-    DebugInfoVal = "constructor";
     break;
   case codegenoptions::LimitedDebugInfo:
     DebugInfoVal = "limited";
@@ -1667,7 +1642,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
         llvm::StringSwitch<unsigned>(A->getValue())
             .Case("line-tables-only", codegenoptions::DebugLineTablesOnly)
             .Case("line-directives-only", codegenoptions::DebugDirectivesOnly)
-            .Case("constructor", codegenoptions::DebugInfoConstructor)
             .Case("limited", codegenoptions::LimitedDebugInfo)
             .Case("standalone", codegenoptions::FullDebugInfo)
             .Case("unused-types", codegenoptions::UnusedTypeInfo)
@@ -1677,18 +1651,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
                                                 << A->getValue();
     else
       Opts.setDebugInfo(static_cast<codegenoptions::DebugInfoKind>(Val));
-  }
-
-  // If -fuse-ctor-homing is set and limited debug info is already on, then use
-  // constructor homing, and vice versa for -fno-use-ctor-homing.
-  if (const Arg *A =
-          Args.getLastArg(OPT_fuse_ctor_homing, OPT_fno_use_ctor_homing)) {
-    if (A->getOption().matches(OPT_fuse_ctor_homing) &&
-        Opts.getDebugInfo() == codegenoptions::LimitedDebugInfo)
-      Opts.setDebugInfo(codegenoptions::DebugInfoConstructor);
-    if (A->getOption().matches(OPT_fno_use_ctor_homing) &&
-        Opts.getDebugInfo() == codegenoptions::DebugInfoConstructor)
-      Opts.setDebugInfo(codegenoptions::LimitedDebugInfo);
   }
 
   for (const auto &Arg : Args.getAllArgValues(OPT_fdebug_prefix_map_EQ)) {
@@ -3825,8 +3787,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     VersionTuple GNUCVer;
     bool Invalid = GNUCVer.tryParse(A->getValue());
     unsigned Major = GNUCVer.getMajor();
-    unsigned Minor = GNUCVer.getMinor().getValueOr(0);
-    unsigned Patch = GNUCVer.getSubminor().getValueOr(0);
+    unsigned Minor = GNUCVer.getMinor().value_or(0);
+    unsigned Patch = GNUCVer.getSubminor().value_or(0);
     if (Invalid || GNUCVer.getBuild() || Minor >= 100 || Patch >= 100) {
       Diags.Report(diag::err_drv_invalid_value)
           << A->getAsString(Args) << A->getValue();
@@ -3853,8 +3815,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args)
                                                 << A->getValue();
     Opts.MSCompatibilityVersion = VT.getMajor() * 10000000 +
-                                  VT.getMinor().getValueOr(0) * 100000 +
-                                  VT.getSubminor().getValueOr(0);
+                                  VT.getMinor().value_or(0) * 100000 +
+                                  VT.getSubminor().value_or(0);
   }
 
   // Mimicking gcc's behavior, trigraphs are only enabled if -trigraphs

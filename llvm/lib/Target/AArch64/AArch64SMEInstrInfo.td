@@ -14,6 +14,9 @@
 // Add vector elements horizontally or vertically to ZA tile.
 //===----------------------------------------------------------------------===//
 
+def SDT_AArch64RDSVL  : SDTypeProfile<1, 1, [SDTCisInt<0>, SDTCisInt<1>]>;
+def AArch64rdsvl : SDNode<"AArch64ISD::RDSVL", SDT_AArch64RDSVL>;
+
 let Predicates = [HasSME] in {
 def RDSVLI_XI  : sve_int_read_vl_a<0b0, 0b11111, "rdsvl", /*streaming_sve=*/0b1>;
 def ADDSPL_XXI : sve_int_arith_vl<0b1, "addspl", /*streaming_sve=*/0b1>;
@@ -21,6 +24,8 @@ def ADDSVL_XXI : sve_int_arith_vl<0b0, "addsvl", /*streaming_sve=*/0b1>;
 
 def ADDHA_MPPZ_S : sme_add_vector_to_tile_u32<0b0, "addha">;
 def ADDVA_MPPZ_S : sme_add_vector_to_tile_u32<0b1, "addva">;
+
+def : Pat<(AArch64rdsvl (i32 simm6_32b:$imm)), (RDSVLI_XI simm6_32b:$imm)>;
 }
 
 let Predicates = [HasSMEI64] in {
@@ -132,6 +137,12 @@ def : InstAlias<"smstart za", (MSRpstatesvcrImm1 0b010, 0b1)>;
 def : InstAlias<"smstop",     (MSRpstatesvcrImm1 0b011, 0b0)>;
 def : InstAlias<"smstop sm",  (MSRpstatesvcrImm1 0b001, 0b0)>;
 def : InstAlias<"smstop za",  (MSRpstatesvcrImm1 0b010, 0b0)>;
+
+// Read and write TPIDR2_EL0
+def : Pat<(int_aarch64_sme_set_tpidr2 i64:$val),
+          (MSR 0xde85, GPR64:$val)>;
+def : Pat<(i64 (int_aarch64_sme_get_tpidr2)),
+          (MRS 0xde85)>;
 
 //===----------------------------------------------------------------------===//
 // SVE2 instructions

@@ -18,6 +18,13 @@
 #ifndef PI_LEVEL_ZERO_HPP
 #define PI_LEVEL_ZERO_HPP
 
+// This version should be incremented for any change made to this file or its
+// corresponding .cpp file.
+#define _PI_LEVEL_ZERO_PLUGIN_VERSION 1
+
+#define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
+  _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
+
 #include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
@@ -553,7 +560,7 @@ struct pi_command_list_info_t {
   // was not yet signaled at the time all events in that list were already
   // completed (we are polling the fence at events completion). The fence
   // may be still "in-use" due to sporadic delay in HW.
-  bool InUse{false};
+  bool ZeFenceInUse{false};
 
   // Record the queue to which the command list will be submitted.
   ze_command_queue_handle_t ZeQueue{nullptr};

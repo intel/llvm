@@ -687,7 +687,7 @@ template <> struct MDNodeKeyImpl<DIFile> {
   unsigned getHashValue() const {
     return hash_combine(Filename, Directory, Checksum ? Checksum->Kind : 0,
                         Checksum ? Checksum->Value : nullptr,
-                        Source.getValueOr(nullptr));
+                        Source.value_or(nullptr));
   }
 };
 
@@ -1502,6 +1502,9 @@ public:
 
   /// Collection of per-GlobalValue partitions used in this context.
   DenseMap<const GlobalValue *, StringRef> GlobalValuePartitions;
+
+  DenseMap<const GlobalValue *, GlobalValue::SanitizerMetadata>
+      GlobalValueSanitizerMetadata;
 
   /// DiscriminatorTable - This table maps file:line locations to an
   /// integer representing the next DWARF path discriminator to assign to

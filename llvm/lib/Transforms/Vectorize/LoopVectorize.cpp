@@ -482,11 +482,6 @@ public:
   /// new unrolled loop, where UF is the unroll factor.
   using VectorParts = SmallVector<Value *, 2>;
 
-  /// Vectorize a single vector PHINode in a block in the VPlan-native path
-  /// only.
-  void widenPHIInstruction(Instruction *PN, VPWidenPHIRecipe *PhiR,
-                           VPTransformState &State);
-
   /// A helper function to scalarize a single Instruction in the innermost loop.
   /// Generates a sequence of scalar instances for each lane between \p MinLane
   /// and \p MaxLane, times each part between \p MinPart and \p MaxPart,
@@ -512,11 +507,10 @@ public:
 
   /// Set the debug location in the builder \p Ptr using the debug location in
   /// \p V. If \p Ptr is None then it uses the class member's Builder.
-  void setDebugLocFromInst(const Value *V,
-                           Optional<IRBuilderBase *> CustomBuilder = None);
+  void setDebugLocFromInst(const Value *V);
 
-  /// Fix the non-induction PHIs in the OrigPHIsToFix vector.
-  void fixNonInductionPHIs(VPTransformState &State);
+  /// Fix the non-induction PHIs in \p Plan.
+  void fixNonInductionPHIs(VPlan &Plan, VPTransformState &State);
 
   /// Returns true if the reordering of FP operations is not allowed, but we are
   /// able to vectorize with strict in-order reductions for the given RdxDesc.
@@ -741,10 +735,6 @@ protected:
   // so we can later fix-up the external users of the induction variables.
   DenseMap<PHINode *, Value *> IVEndValues;
 
-  // Vector of original scalar PHIs whose corresponding widened PHIs need to be
-  // fixed up at the end of vector code generation.
-  SmallVector<PHINode *, 8> OrigPHIsToFix;
-
   /// BFI and PSI are used to check for profile guided size optimizations.
   BlockFrequencyInfo *BFI;
   ProfileSummaryInfo *PSI;
@@ -931,8 +921,7 @@ static Instruction *getDebugLocFromInstOrOperands(Instruction *I) {
 }
 
 void InnerLoopVectorizer::setDebugLocFromInst(
-    const Value *V, Optional<IRBuilderBase *> CustomBuilder) {
-  IRBuilderBase *B = (CustomBuilder == None) ? &Builder : *CustomBuilder;
+    const Value *V) {
   if (const Instruction *Inst = dyn_cast_or_null<Instruction>(V)) {
     const DILocation *DIL = Inst->getDebugLoc();
 
@@ -944,15 +933,15 @@ void InnerLoopVectorizer::setDebugLocFromInst(
       auto NewDIL =
           DIL->cloneByMultiplyingDuplicationFactor(UF * VF.getKnownMinValue());
       if (NewDIL)
-        B->SetCurrentDebugLocation(NewDIL.getValue());
+        Builder.SetCurrentDebugLocation(*NewDIL);
       else
         LLVM_DEBUG(dbgs()
                    << "Failed to create new discriminator: "
                    << DIL->getFilename() << " Line: " << DIL->getLine());
     } else
-      B->SetCurrentDebugLocation(DIL);
+      Builder.SetCurrentDebugLocation(DIL);
   } else
-    B->SetCurrentDebugLocation(DebugLoc());
+    Builder.SetCurrentDebugLocation(DebugLoc());
 }
 
 /// Write a \p DebugMsg about vectorization to the debug output stream. If \p I
@@ -1657,15 +1646,10 @@ private:
   /// \return the maximized element count based on the targets vector
   /// registers and the loop trip-count, but limited to a maximum safe VF.
   /// This is a helper function of computeFeasibleMaxVF.
-  /// FIXME: MaxSafeVF is currently passed by reference to avoid some obscure
-  /// issue that occurred on one of the buildbots which cannot be reproduced
-  /// without having access to the properietary compiler (see comments on
-  /// D98509). The issue is currently under investigation and this workaround
-  /// will be removed as soon as possible.
   ElementCount getMaximizedVFForTarget(unsigned ConstTripCount,
                                        unsigned SmallestType,
                                        unsigned WidestType,
-                                       const ElementCount &MaxSafeVF,
+                                       ElementCount MaxSafeVF,
                                        bool FoldTailByMasking);
 
   /// \return the maximum legal scalable VF, based on the safe max number
@@ -3147,12 +3131,6 @@ void InnerLoopVectorizer::createInductionResumeValues(
     PHINode *OrigPhi = InductionEntry.first;
     InductionDescriptor II = InductionEntry.second;
 
-    // Create phi nodes to merge from the  backedge-taken check block.
-    PHINode *BCResumeVal =
-        PHINode::Create(OrigPhi->getType(), 3, "bc.resume.val",
-                        LoopScalarPreHeader->getTerminator());
-    // Copy original phi DL over to the new one.
-    BCResumeVal->setDebugLoc(OrigPhi->getDebugLoc());
     Value *&EndValue = IVEndValues[OrigPhi];
     Value *EndValueFromAdditionalBypass = AdditionalBypass.second;
     if (OrigPhi == OldInduction) {
@@ -3188,6 +3166,14 @@ void InnerLoopVectorizer::createInductionResumeValues(
         EndValueFromAdditionalBypass->setName("ind.end");
       }
     }
+
+    // Create phi nodes to merge from the  backedge-taken check block.
+    PHINode *BCResumeVal =
+        PHINode::Create(OrigPhi->getType(), 3, "bc.resume.val",
+                        LoopScalarPreHeader->getTerminator());
+    // Copy original phi DL over to the new one.
+    BCResumeVal->setDebugLoc(OrigPhi->getDebugLoc());
+
     // The new PHI merges the original incoming value, in case of a bypass,
     // or the value at the end of the vectorized loop.
     BCResumeVal->addIncoming(EndValue, LoopMiddleBlock);
@@ -3671,11 +3657,8 @@ void InnerLoopVectorizer::fixVectorizedLoop(VPTransformState &State,
     truncateToMinimalBitwidths(State);
 
   // Fix widened non-induction PHIs by setting up the PHI operands.
-  if (OrigPHIsToFix.size()) {
-    assert(EnableVPlanNativePath &&
-           "Unexpected non-induction PHIs for fixup in non VPlan-native path");
-    fixNonInductionPHIs(State);
-  }
+  if (EnableVPlanNativePath)
+    fixNonInductionPHIs(Plan, State);
 
   // At this point every instruction in the original loop is widened to a
   // vector form. Now we need to fix the recurrences in the loop. These PHI
@@ -4171,17 +4154,23 @@ void InnerLoopVectorizer::sinkScalarOperands(Instruction *PredInst) {
   } while (Changed);
 }
 
-void InnerLoopVectorizer::fixNonInductionPHIs(VPTransformState &State) {
-  for (PHINode *OrigPhi : OrigPHIsToFix) {
-    VPWidenPHIRecipe *VPPhi =
-        cast<VPWidenPHIRecipe>(State.Plan->getVPValue(OrigPhi));
-    PHINode *NewPhi = cast<PHINode>(State.get(VPPhi, 0));
-    // Make sure the builder has a valid insert point.
-    Builder.SetInsertPoint(NewPhi);
-    for (unsigned i = 0; i < VPPhi->getNumOperands(); ++i) {
-      VPValue *Inc = VPPhi->getIncomingValue(i);
-      VPBasicBlock *VPBB = VPPhi->getIncomingBlock(i);
-      NewPhi->addIncoming(State.get(Inc, 0), State.CFG.VPBB2IRBB[VPBB]);
+void InnerLoopVectorizer::fixNonInductionPHIs(VPlan &Plan,
+                                              VPTransformState &State) {
+  auto Iter = depth_first(
+      VPBlockRecursiveTraversalWrapper<VPBlockBase *>(Plan.getEntry()));
+  for (VPBasicBlock *VPBB : VPBlockUtils::blocksOnly<VPBasicBlock>(Iter)) {
+    for (VPRecipeBase &P : VPBB->phis()) {
+      VPWidenPHIRecipe *VPPhi = dyn_cast<VPWidenPHIRecipe>(&P);
+      if (!VPPhi)
+        continue;
+      PHINode *NewPhi = cast<PHINode>(State.get(VPPhi, 0));
+      // Make sure the builder has a valid insert point.
+      Builder.SetInsertPoint(NewPhi);
+      for (unsigned i = 0; i < VPPhi->getNumOperands(); ++i) {
+        VPValue *Inc = VPPhi->getIncomingValue(i);
+        VPBasicBlock *VPBB = VPPhi->getIncomingBlock(i);
+        NewPhi->addIncoming(State.get(Inc, 0), State.CFG.VPBB2IRBB[VPBB]);
+      }
     }
   }
 }
@@ -4189,23 +4178,6 @@ void InnerLoopVectorizer::fixNonInductionPHIs(VPTransformState &State) {
 bool InnerLoopVectorizer::useOrderedReductions(
     const RecurrenceDescriptor &RdxDesc) {
   return Cost->useOrderedReductions(RdxDesc);
-}
-
-void InnerLoopVectorizer::widenPHIInstruction(Instruction *PN,
-                                              VPWidenPHIRecipe *PhiR,
-                                              VPTransformState &State) {
-  assert(EnableVPlanNativePath &&
-         "Non-native vplans are not expected to have VPWidenPHIRecipes.");
-  // Currently we enter here in the VPlan-native path for non-induction
-  // PHIs where all control flow is uniform. We simply widen these PHIs.
-  // Create a vector phi with no operands - the vector phi operands will be
-  // set at the end of vector code generation.
-  Type *VecTy = (State.VF.isScalar())
-                    ? PN->getType()
-                    : VectorType::get(PN->getType(), State.VF);
-  Value *VecPhi = Builder.CreatePHI(VecTy, PN->getNumOperands(), "vec.phi");
-  State.set(PhiR, VecPhi, 0);
-  OrigPHIsToFix.push_back(cast<PHINode>(PN));
 }
 
 /// A helper function for checking whether an integer division-related
@@ -4403,7 +4375,7 @@ void LoopVectorizationCostModel::collectLoopScalars(ElementCount VF) {
     }
 
   // Insert the forced scalars.
-  // FIXME: Currently widenPHIInstruction() often creates a dead vector
+  // FIXME: Currently VPWidenPHIRecipe() often creates a dead vector
   // induction variable when the PHI user is scalarized.
   auto ForcedScalar = ForcedScalars.find(VF);
   if (ForcedScalar != ForcedScalars.end())
@@ -5166,7 +5138,7 @@ LoopVectorizationCostModel::computeMaxVF(ElementCount UserVF, unsigned UserIC) {
 
 ElementCount LoopVectorizationCostModel::getMaximizedVFForTarget(
     unsigned ConstTripCount, unsigned SmallestType, unsigned WidestType,
-    const ElementCount &MaxSafeVF, bool FoldTailByMasking) {
+    ElementCount MaxSafeVF, bool FoldTailByMasking) {
   bool ComputeScalableMaxVF = MaxSafeVF.isScalable();
   TypeSize WidestRegister = TTI.getRegisterBitWidth(
       ComputeScalableMaxVF ? TargetTransformInfo::RGK_ScalableVector
@@ -5349,7 +5321,7 @@ VectorizationFactor LoopVectorizationCostModel::selectVectorizationFactor(
 #ifndef NDEBUG
     unsigned AssumedMinimumVscale = 1;
     if (Optional<unsigned> VScale = getVScaleForTuning())
-      AssumedMinimumVscale = VScale.getValue();
+      AssumedMinimumVscale = *VScale;
     unsigned Width =
         Candidate.Width.isScalable()
             ? Candidate.Width.getKnownMinValue() * AssumedMinimumVscale
@@ -5567,7 +5539,7 @@ LoopVectorizationCostModel::selectEpilogueVectorizationFactor(
   if (MainLoopVF.isScalable()) {
     EstimatedRuntimeVF = ElementCount::getFixed(MainLoopVF.getKnownMinValue());
     if (Optional<unsigned> VScale = getVScaleForTuning())
-      EstimatedRuntimeVF *= VScale.getValue();
+      EstimatedRuntimeVF *= *VScale;
   }
 
   for (auto &NextVF : ProfitableVFs)
@@ -6818,8 +6790,6 @@ void LoopVectorizationCostModel::setCostBasedWideningDecision(ElementCount VF) {
           Cost = getGatherScatterCost(&I, VF);
           setWideningDecision(&I, VF, CM_GatherScatter, Cost);
         } else {
-          assert((isa<LoadInst>(&I) || !VF.isScalable()) &&
-                 "Cannot yet scalarize uniform stores");
           Cost = getUniformMemOpCost(&I, VF);
           setWideningDecision(&I, VF, CM_Scalarize, Cost);
         }
@@ -7177,8 +7147,13 @@ LoopVectorizationCostModel::getInstructionCost(Instruction *I, ElementCount VF,
       InstWidening Decision = getWideningDecision(I, Width);
       assert(Decision != CM_Unknown &&
              "CM decision should be taken at this point");
-      if (Decision == CM_Scalarize)
+      if (Decision == CM_Scalarize) {
+        if (VF.isScalable() && isa<StoreInst>(I))
+          // We can't scalarize a scalable vector store (even a uniform one
+          // currently), return an invalid cost so as to prevent vectorization.
+          return InstructionCost::getInvalid();
         Width = ElementCount::getFixed(1);
+      }
     }
     VectorTy = ToVectorTy(getLoadStoreType(I), Width);
     return getMemoryInstructionCost(I, VF);
@@ -8974,7 +8949,11 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
     VPBasicBlock *InsertBlock = PrevRecipe->getParent();
     auto *Region = GetReplicateRegion(PrevRecipe);
     if (Region)
-      InsertBlock = cast<VPBasicBlock>(Region->getSingleSuccessor());
+      InsertBlock = dyn_cast<VPBasicBlock>(Region->getSingleSuccessor());
+    if (!InsertBlock) {
+      InsertBlock = new VPBasicBlock(Region->getName() + ".succ");
+      VPBlockUtils::insertBlockAfter(InsertBlock, Region);
+    }
     if (Region || PrevRecipe->isPhi())
       Builder.setInsertPoint(InsertBlock, InsertBlock->getFirstNonPhi());
     else
@@ -9028,7 +9007,7 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
   VPlanTransforms::optimizeInductions(*Plan, *PSE.getSE());
   VPlanTransforms::sinkScalarOperands(*Plan);
   VPlanTransforms::mergeReplicateRegions(*Plan);
-  VPlanTransforms::removeDeadRecipes(*Plan, *OrigLoop);
+  VPlanTransforms::removeDeadRecipes(*Plan);
   VPlanTransforms::removeRedundantExpandSCEVRecipes(*Plan);
 
   std::string PlanName;
@@ -9711,13 +9690,8 @@ void VPScalarIVStepsRecipe::execute(VPTransformState &State) {
   }
 }
 
-void VPWidenPHIRecipe::execute(VPTransformState &State) {
-  State.ILV->widenPHIInstruction(cast<PHINode>(getUnderlyingValue()), this,
-                                 State);
-}
-
 void VPBlendRecipe::execute(VPTransformState &State) {
-  State.ILV->setDebugLocFromInst(Phi, &State.Builder);
+  State.ILV->setDebugLocFromInst(Phi);
   // We know that all PHIs in non-header blocks are converted into
   // selects, so we don't have to worry about the insertion order and we
   // can just use the builder.

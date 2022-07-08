@@ -1047,6 +1047,7 @@ private:
   // Set when walking DATA & array constructor implied DO loop bounds
   // to warn about use of the implied DO intex therein.
   std::optional<SourceName> checkIndexUseInOwnBounds_;
+  bool hasBindCName_{false};
 
   bool HandleAttributeStmt(Attr, const std::list<parser::Name> &);
   Symbol &HandleAttributeStmt(Attr, const parser::Name &);
@@ -1674,7 +1675,19 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
   } else {
     label = parser::ToLowerCaseLetters(symbol.name().ToString());
   }
+  // Check if a symbol has two Bind names.
+  std::string oldBindName;
+  if (symbol.GetBindName()) {
+    oldBindName = *symbol.GetBindName();
+  }
   symbol.SetBindName(std::move(*label));
+  if (!oldBindName.empty()) {
+    if (const std::string * newBindName{symbol.GetBindName()}) {
+      if (oldBindName.compare(*newBindName) != 0) {
+        Say(symbol.name(), "The entity '%s' has multiple BIND names"_err_en_US);
+      }
+    }
+  }
 }
 
 void AttrsVisitor::Post(const parser::LanguageBindingSpec &x) {
@@ -2698,15 +2711,23 @@ ModuleVisitor::SymbolRename ModuleVisitor::AddUse(
 
 // symbol must be either a Use or a Generic formed by merging two uses.
 // Convert it to a UseError with this additional location.
-static void ConvertToUseError(
+static bool ConvertToUseError(
     Symbol &symbol, const SourceName &location, const Scope &module) {
   const auto *useDetails{symbol.detailsIf<UseDetails>()};
   if (!useDetails) {
-    auto &genericDetails{symbol.get<GenericDetails>()};
-    useDetails = &genericDetails.uses().at(0)->get<UseDetails>();
+    if (auto *genericDetails{symbol.detailsIf<GenericDetails>()}) {
+      if (!genericDetails->uses().empty()) {
+        useDetails = &genericDetails->uses().at(0)->get<UseDetails>();
+      }
+    }
   }
-  symbol.set_details(
-      UseErrorDetails{*useDetails}.add_occurrence(location, module));
+  if (useDetails) {
+    symbol.set_details(
+        UseErrorDetails{*useDetails}.add_occurrence(location, module));
+    return true;
+  } else {
+    return false;
+  }
 }
 
 // If a symbol has previously been USE-associated and did not appear in a USE
@@ -2807,9 +2828,7 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
     }
   }
   if (!combine) {
-    if (localSymbol.has<UseDetails>() || localSymbol.has<GenericDetails>()) {
-      ConvertToUseError(localSymbol, location, *useModuleScope_);
-    } else {
+    if (!ConvertToUseError(localSymbol, location, *useModuleScope_)) {
       Say(location,
           "Cannot use-associate '%s'; it is already declared in this scope"_err_en_US,
           localName)
@@ -4661,12 +4680,22 @@ void DeclarationVisitor::Post(const parser::FillDecl &x) {
   }
   ClearArraySpec();
 }
-bool DeclarationVisitor::Pre(const parser::ProcedureDeclarationStmt &) {
+bool DeclarationVisitor::Pre(const parser::ProcedureDeclarationStmt &x) {
   CHECK(!interfaceName_);
+  const auto &procAttrSpec{std::get<std::list<parser::ProcAttrSpec>>(x.t)};
+  for (const parser::ProcAttrSpec &procAttr : procAttrSpec) {
+    if (auto *bindC{std::get_if<parser::LanguageBindingSpec>(&procAttr.u)}) {
+      if (bindC->v.has_value()) {
+        hasBindCName_ = true;
+        break;
+      }
+    }
+  }
   return BeginDecl();
 }
 void DeclarationVisitor::Post(const parser::ProcedureDeclarationStmt &) {
   interfaceName_ = nullptr;
+  hasBindCName_ = false;
   EndDecl();
 }
 bool DeclarationVisitor::Pre(const parser::DataComponentDefStmt &x) {
@@ -4733,6 +4762,10 @@ void DeclarationVisitor::Post(const parser::ProcDecl &x) {
   symbol.ReplaceName(name.source);
   if (dtDetails) {
     dtDetails->add_component(symbol);
+  }
+  if (hasBindCName_ && (IsPointer(symbol) || IsDummy(symbol))) {
+    Say(symbol.name(),
+        "BIND(C) procedure with NAME= specified can neither have POINTER attribute nor be a dummy procedure"_err_en_US);
   }
 }
 
@@ -5233,7 +5266,7 @@ void DeclarationVisitor::CheckSaveStmts() {
     } else if (specPartState_.saveInfo.saveAll) {
       // C889 - note that pgi, ifort, xlf do not enforce this constraint
       Say2(name,
-          "Explicit SAVE of '%s' is redundant due to global SAVE statement"_err_en_US,
+          "Explicit SAVE of '%s' is redundant due to global SAVE statement"_warn_en_US,
           *specPartState_.saveInfo.saveAll, "Global SAVE statement"_en_US);
     } else if (auto msg{CheckSaveAttr(*symbol)}) {
       Say(name, std::move(*msg));

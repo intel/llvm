@@ -4887,7 +4887,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
 
     Optional<RoundingMode> RoundMode =
         convertStrToRoundingMode(cast<MDString>(MD)->getString());
-    Check(RoundMode.hasValue() && RoundMode.getValue() != RoundingMode::Dynamic,
+    Check(RoundMode && *RoundMode != RoundingMode::Dynamic,
           "unsupported rounding mode argument", Call);
     break;
   }
@@ -4917,7 +4917,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::memcpy:
   case Intrinsic::memcpy_inline:
   case Intrinsic::memmove:
-  case Intrinsic::memset: {
+  case Intrinsic::memset:
+  case Intrinsic::memset_inline: {
     const auto *MI = cast<MemIntrinsic>(&Call);
     auto IsValidAlignment = [&](unsigned Alignment) -> bool {
       return Alignment == 0 || isPowerOf2_32(Alignment);
@@ -6066,7 +6067,7 @@ void Verifier::verifyAttachedCallBundle(const CallBase &Call,
 }
 
 void Verifier::verifySourceDebugInfo(const DICompileUnit &U, const DIFile &F) {
-  bool HasSource = F.getSource().hasValue();
+  bool HasSource = F.getSource().has_value();
   if (!HasSourceDebugInfo.count(&U))
     HasSourceDebugInfo[&U] = HasSource;
   CheckDI(HasSource == HasSourceDebugInfo[&U],

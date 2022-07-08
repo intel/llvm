@@ -1970,7 +1970,7 @@ public:
     SemaDiagnosticBuilder(const SemaDiagnosticBuilder &) = default;
     ~SemaDiagnosticBuilder();
 
-    bool isImmediate() const { return ImmediateDiag.hasValue(); }
+    bool isImmediate() const { return ImmediateDiag.has_value(); }
 
     /// Convertible to bool: True if we immediately emitted an error, false if
     /// we didn't emit an error or we created a deferred error.
@@ -4689,8 +4689,38 @@ public:
   // Helper for delayed processing of attributes.
   void ProcessDeclAttributeDelayed(Decl *D,
                                    const ParsedAttributesView &AttrList);
-  void ProcessDeclAttributeList(Scope *S, Decl *D, const ParsedAttributesView &AL,
-                             bool IncludeCXX11Attributes = true);
+
+  // Options for ProcessDeclAttributeList().
+  struct ProcessDeclAttributeOptions {
+    ProcessDeclAttributeOptions()
+        : IncludeCXX11Attributes(true), IgnoreTypeAttributes(false) {}
+
+    ProcessDeclAttributeOptions WithIncludeCXX11Attributes(bool Val) {
+      ProcessDeclAttributeOptions Result = *this;
+      Result.IncludeCXX11Attributes = Val;
+      return Result;
+    }
+
+    ProcessDeclAttributeOptions WithIgnoreTypeAttributes(bool Val) {
+      ProcessDeclAttributeOptions Result = *this;
+      Result.IgnoreTypeAttributes = Val;
+      return Result;
+    }
+
+    // Should C++11 attributes be processed?
+    bool IncludeCXX11Attributes;
+
+    // Should any type attributes encountered be ignored?
+    // If this option is false, a diagnostic will be emitted for any type
+    // attributes of a kind that does not "slide" from the declaration to
+    // the decl-specifier-seq.
+    bool IgnoreTypeAttributes;
+  };
+
+  void ProcessDeclAttributeList(Scope *S, Decl *D,
+                                const ParsedAttributesView &AttrList,
+                                const ProcessDeclAttributeOptions &Options =
+                                    ProcessDeclAttributeOptions());
   bool ProcessAccessDeclAttributeList(AccessSpecDecl *ASDecl,
                                    const ParsedAttributesView &AttrList);
 
@@ -6984,7 +7014,6 @@ public:
                                    NestedNameSpecInfo &IdInfo,
                                    bool EnteringContext,
                                    CXXScopeSpec &SS,
-                                   bool ErrorRecoveryLookup = false,
                                    bool *IsCorrectedToColon = nullptr,
                                    bool OnlyNamespace = false);
 
@@ -7898,7 +7927,7 @@ public:
     RequiredTemplateKind(TemplateNameIsRequiredTag) {}
 
     SourceLocation getTemplateKeywordLoc() const {
-      return TemplateKW.getValueOr(SourceLocation());
+      return TemplateKW.value_or(SourceLocation());
     }
     bool hasTemplateKeyword() const { return getTemplateKeywordLoc().isValid(); }
     bool isRequired() const { return TemplateKW != SourceLocation(); }
@@ -10554,7 +10583,7 @@ public:
                                LangOptions::FPExceptionModeKind);
 
   /// Called to set constant rounding mode for floating point operations.
-  void setRoundingMode(SourceLocation Loc, llvm::RoundingMode);
+  void ActOnPragmaFEnvRound(SourceLocation Loc, llvm::RoundingMode);
 
   /// Called to set exception behavior for floating point operations.
   void setExceptionMode(SourceLocation Loc, LangOptions::FPExceptionModeKind);
@@ -10768,6 +10797,13 @@ public:
   /// AddAnnotationAttr - Adds an annotation Annot with Args arguments to D.
   void AddAnnotationAttr(Decl *D, const AttributeCommonInfo &CI,
                          StringRef Annot, MutableArrayRef<Expr *> Args);
+
+  /// ConstantFoldAttrArgs - Folds attribute arguments into ConstantExprs
+  /// (unless they are value dependent or type dependent). Returns false
+  /// and emits a diagnostic if one or more of the arguments could not be
+  /// folded into a constant.
+  bool ConstantFoldAttrArgs(const AttributeCommonInfo &CI,
+                            MutableArrayRef<Expr *> Args);
 
   /// AddLaunchBoundsAttr - Adds a launch_bounds attribute to a particular
   /// declaration.
@@ -11295,6 +11331,12 @@ public:
   /// Called on well-formed '\#pragma omp parallel master' after
   /// parsing of the  associated statement.
   StmtResult ActOnOpenMPParallelMasterDirective(ArrayRef<OMPClause *> Clauses,
+                                                Stmt *AStmt,
+                                                SourceLocation StartLoc,
+                                                SourceLocation EndLoc);
+  /// Called on well-formed '\#pragma omp parallel masked' after
+  /// parsing of the associated statement.
+  StmtResult ActOnOpenMPParallelMaskedDirective(ArrayRef<OMPClause *> Clauses,
                                                 Stmt *AStmt,
                                                 SourceLocation StartLoc,
                                                 SourceLocation EndLoc);
@@ -12486,6 +12528,8 @@ public:
   bool areVectorTypesSameSize(QualType srcType, QualType destType);
   bool areLaxCompatibleVectorTypes(QualType srcType, QualType destType);
   bool isLaxVectorConversion(QualType srcType, QualType destType);
+  bool areSameVectorElemTypes(QualType srcType, QualType destType);
+  bool anyAltivecTypes(QualType srcType, QualType destType);
 
   /// type checking declaration initializers (C99 6.7.8)
   bool CheckForConstantInitializer(Expr *e, QualType t);

@@ -2215,22 +2215,35 @@ Instruction *InstCombinerImpl::foldICmpShrConstant(ICmpInst &Cmp,
   if (Cmp.isEquality() && Shr->isExact() && C.isZero())
     return new ICmpInst(Pred, X, Cmp.getOperand(1));
 
-  const APInt *ShiftVal;
-  if (Cmp.isEquality() && match(Shr->getOperand(0), m_APInt(ShiftVal)))
-    return foldICmpShrConstConst(Cmp, Shr->getOperand(1), C, *ShiftVal);
+  bool IsAShr = Shr->getOpcode() == Instruction::AShr;
+  const APInt *ShiftValC;
+  if (match(Shr->getOperand(0), m_APInt(ShiftValC))) {
+    if (Cmp.isEquality())
+      return foldICmpShrConstConst(Cmp, Shr->getOperand(1), C, *ShiftValC);
 
-  const APInt *ShiftAmt;
-  if (!match(Shr->getOperand(1), m_APInt(ShiftAmt)))
+    // If the shifted constant is a power-of-2, test the shift amount directly:
+    // (ShiftValC >> X) >u C --> X <u (LZ(C) - LZ(ShiftValC))
+    // TODO: Handle ult.
+    if (!IsAShr && Pred == CmpInst::ICMP_UGT && ShiftValC->isPowerOf2()) {
+      assert(ShiftValC->ugt(C) && "Expected simplify of compare");
+      unsigned CmpLZ = C.countLeadingZeros();
+      unsigned ShiftLZ = ShiftValC->countLeadingZeros();
+      Constant *NewC = ConstantInt::get(Shr->getType(), CmpLZ - ShiftLZ);
+      return new ICmpInst(ICmpInst::ICMP_ULT, Shr->User::getOperand(1), NewC);
+    }
+  }
+
+  const APInt *ShiftAmtC;
+  if (!match(Shr->getOperand(1), m_APInt(ShiftAmtC)))
     return nullptr;
 
   // Check that the shift amount is in range. If not, don't perform undefined
   // shifts. When the shift is visited it will be simplified.
   unsigned TypeBits = C.getBitWidth();
-  unsigned ShAmtVal = ShiftAmt->getLimitedValue(TypeBits);
+  unsigned ShAmtVal = ShiftAmtC->getLimitedValue(TypeBits);
   if (ShAmtVal >= TypeBits || ShAmtVal == 0)
     return nullptr;
 
-  bool IsAShr = Shr->getOpcode() == Instruction::AShr;
   bool IsExact = Shr->isExact();
   Type *ShrTy = Shr->getType();
   // TODO: If we could guarantee that InstSimplify would handle all of the
@@ -3496,7 +3509,7 @@ Instruction *InstCombinerImpl::foldSelectICmp(ICmpInst::Predicate Pred,
   // Try to fold the comparison into the select arms, which will cause the
   // select to be converted into a logical and/or.
   auto SimplifyOp = [&](Value *Op, bool SelectCondIsTrue) -> Value * {
-    if (Value *Res = SimplifyICmpInst(Pred, Op, RHS, SQ))
+    if (Value *Res = simplifyICmpInst(Pred, Op, RHS, SQ))
       return Res;
     if (Optional<bool> Impl = isImpliedCondition(SI->getCondition(), Pred, Op,
                                                  RHS, DL, SelectCondIsTrue))
@@ -3812,7 +3825,7 @@ foldShiftIntoShiftInAnotherHandOfAndInICmp(ICmpInst &I, const SimplifyQuery SQ,
 
   // Can we fold (XShAmt+YShAmt) ?
   auto *NewShAmt = dyn_cast_or_null<Constant>(
-      SimplifyAddInst(XShAmt, YShAmt, /*isNSW=*/false,
+      simplifyAddInst(XShAmt, YShAmt, /*isNSW=*/false,
                       /*isNUW=*/false, SQ.getWithInstruction(&I)));
   if (!NewShAmt)
     return nullptr;
@@ -4607,18 +4620,21 @@ Instruction *InstCombinerImpl::foldICmpEquality(ICmpInst &I) {
 
   // (A >> C) == (B >> C) --> (A^B) u< (1 << C)
   // For lshr and ashr pairs.
-  if ((match(Op0, m_OneUse(m_LShr(m_Value(A), m_ConstantInt(Cst1)))) &&
-       match(Op1, m_OneUse(m_LShr(m_Value(B), m_Specific(Cst1))))) ||
-      (match(Op0, m_OneUse(m_AShr(m_Value(A), m_ConstantInt(Cst1)))) &&
-       match(Op1, m_OneUse(m_AShr(m_Value(B), m_Specific(Cst1)))))) {
-    unsigned TypeBits = Cst1->getBitWidth();
-    unsigned ShAmt = (unsigned)Cst1->getLimitedValue(TypeBits);
+  const APInt *AP1, *AP2;
+  if ((match(Op0, m_OneUse(m_LShr(m_Value(A), m_APIntAllowUndef(AP1)))) &&
+       match(Op1, m_OneUse(m_LShr(m_Value(B), m_APIntAllowUndef(AP2))))) ||
+      (match(Op0, m_OneUse(m_AShr(m_Value(A), m_APIntAllowUndef(AP1)))) &&
+       match(Op1, m_OneUse(m_AShr(m_Value(B), m_APIntAllowUndef(AP2)))))) {
+    if (AP1 != AP2)
+      return nullptr;
+    unsigned TypeBits = AP1->getBitWidth();
+    unsigned ShAmt = AP1->getLimitedValue(TypeBits);
     if (ShAmt < TypeBits && ShAmt != 0) {
       ICmpInst::Predicate NewPred =
           Pred == ICmpInst::ICMP_NE ? ICmpInst::ICMP_UGE : ICmpInst::ICMP_ULT;
       Value *Xor = Builder.CreateXor(A, B, I.getName() + ".unshifted");
       APInt CmpVal = APInt::getOneBitSet(TypeBits, ShAmt);
-      return new ICmpInst(NewPred, Xor, Builder.getInt(CmpVal));
+      return new ICmpInst(NewPred, Xor, ConstantInt::get(A->getType(), CmpVal));
     }
   }
 
@@ -4836,7 +4852,7 @@ Instruction *InstCombinerImpl::foldICmpWithZextOrSext(ICmpInst &ICmp) {
   // or could not be determined to be equal (in the case of a constant
   // expression), so the constant cannot be represented in the shorter type.
   // All the cases that fold to true or false will have already been handled
-  // by SimplifyICmpInst, so only deal with the tricky case.
+  // by simplifyICmpInst, so only deal with the tricky case.
   if (IsSignedCmp || !IsSignedExt || !isa<ConstantInt>(C))
     return nullptr;
 
@@ -5543,34 +5559,22 @@ Instruction *InstCombinerImpl::foldICmpUsingKnownBits(ICmpInst &I) {
         LHS = Op0;
 
       Value *X;
-      if (match(LHS, m_Shl(m_One(), m_Value(X)))) {
-        APInt ValToCheck = Op0KnownZeroInverted;
+      const APInt *C1;
+      if (match(LHS, m_Shl(m_Power2(C1), m_Value(X)))) {
         Type *XTy = X->getType();
-        if (ValToCheck.isPowerOf2()) {
-          // ((1 << X) & 8) == 0 -> X != 3
-          // ((1 << X) & 8) != 0 -> X == 3
-          auto *CmpC = ConstantInt::get(XTy, ValToCheck.countTrailingZeros());
-          auto NewPred = ICmpInst::getInversePredicate(Pred);
-          return new ICmpInst(NewPred, X, CmpC);
-        } else if ((++ValToCheck).isPowerOf2()) {
-          // ((1 << X) & 7) == 0 -> X >= 3
-          // ((1 << X) & 7) != 0 -> X  < 3
-          auto *CmpC = ConstantInt::get(XTy, ValToCheck.countTrailingZeros());
+        unsigned Log2C1 = C1->countTrailingZeros();
+        APInt C2 = Op0KnownZeroInverted;
+        APInt C2Pow2 = (C2 & ~(*C1 - 1)) + *C1;
+        if (C2Pow2.isPowerOf2()) {
+          // iff (C1 is pow2) & ((C2 & ~(C1-1)) + C1) is pow2):
+          // ((C1 << X) & C2) == 0 -> X >= (Log2(C2+C1) - Log2(C1))
+          // ((C1 << X) & C2) != 0 -> X  < (Log2(C2+C1) - Log2(C1))
+          unsigned Log2C2 = C2Pow2.countTrailingZeros();
+          auto *CmpC = ConstantInt::get(XTy, Log2C2 - Log2C1);
           auto NewPred =
               Pred == CmpInst::ICMP_EQ ? CmpInst::ICMP_UGE : CmpInst::ICMP_ULT;
           return new ICmpInst(NewPred, X, CmpC);
         }
-      }
-
-      // Check if the LHS is 8 >>u x and the result is a power of 2 like 1.
-      const APInt *CI;
-      if (Op0KnownZeroInverted.isOne() &&
-          match(LHS, m_LShr(m_Power2(CI), m_Value(X)))) {
-        // ((8 >>u X) & 1) == 0 -> X != 3
-        // ((8 >>u X) & 1) != 0 -> X == 3
-        unsigned CmpVal = CI->countTrailingZeros();
-        auto NewPred = ICmpInst::getInversePredicate(Pred);
-        return new ICmpInst(NewPred, X, ConstantInt::get(X->getType(), CmpVal));
       }
     }
     break;
@@ -6064,7 +6068,7 @@ Instruction *InstCombinerImpl::visitICmpInst(ICmpInst &I) {
     Changed = true;
   }
 
-  if (Value *V = SimplifyICmpInst(I.getPredicate(), Op0, Op1, Q))
+  if (Value *V = simplifyICmpInst(I.getPredicate(), Op0, Op1, Q))
     return replaceInstUsesWith(I, V);
 
   // Comparing -val or val with non-zero is the same as just comparing val
@@ -6687,7 +6691,7 @@ Instruction *InstCombinerImpl::visitFCmpInst(FCmpInst &I) {
 
   const CmpInst::Predicate Pred = I.getPredicate();
   Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
-  if (Value *V = SimplifyFCmpInst(Pred, Op0, Op1, I.getFastMathFlags(),
+  if (Value *V = simplifyFCmpInst(Pred, Op0, Op1, I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 

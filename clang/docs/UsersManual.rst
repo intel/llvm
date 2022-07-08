@@ -2672,19 +2672,6 @@ below. If multiple flags are present, the last one is used.
    **-fno-standalone-debug** option can be used to get to turn on the
    vtable-based optimization described above.
 
-.. option:: -fuse-ctor-homing
-
-   This optimization is similar to the optimizations that are enabled as part
-   of -fno-standalone-debug. Here, Clang only emits type info for a
-   non-trivial, non-aggregate C++ class in the modules that contain a
-   definition of one of its constructors. This relies on the additional
-   assumption that all classes that are not trivially constructible have a
-   non-trivial constructor that is used somewhere. The negation,
-   -fno-use-ctor-homing, ensures that constructor homing is not used.
-
-   This flag is not enabled by default, and needs to be used with -cc1 or
-   -Xclang.
-
 .. option:: -g
 
   Generate complete debug info.
@@ -3625,6 +3612,23 @@ Clang expects the GCC executable "gcc.exe" compiled for
 
 `Some tests might fail <https://bugs.llvm.org/show_bug.cgi?id=9072>`_ on
 ``x86_64-w64-mingw32``.
+
+AIX
+^^^
+
+The ``-mdefault-visibility-export-mapping=`` option can be used to control
+mapping of default visibility to an explicit shared object export
+(i.e. XCOFF exported visibility). Three values are provided for the option:
+
+* ``-mdefault-visibility-export-mapping=none``: no additional export
+  information is created for entities with default visibility.
+* ``-mdefault-visibility-export-mapping=explicit``: mark entities for export
+  if they have explict (e.g. via an attribute) default visibility from the
+  source, including RTTI.
+* ``-mdefault-visibility-export-mapping=all``: set XCOFF exported visibility
+  for all entities with default visibility from any source. This gives a
+  export behavior similar to ELF platforms where all entities with default
+  visibility are exported.
 
 .. _spir-v:
 

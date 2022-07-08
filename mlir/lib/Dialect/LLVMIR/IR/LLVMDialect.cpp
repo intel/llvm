@@ -90,8 +90,28 @@ static LogicalResult verifySymbolAttrUse(FlatSymbolRefAttr symbol,
 }
 
 //===----------------------------------------------------------------------===//
-// Printing/parsing for LLVM::CmpOp.
+// Printing, parsing and builder for LLVM::CmpOp.
 //===----------------------------------------------------------------------===//
+
+void ICmpOp::build(OpBuilder &builder, OperationState &result,
+                   ICmpPredicate predicate, Value lhs, Value rhs) {
+  auto boolType = IntegerType::get(lhs.getType().getContext(), 1);
+  if (LLVM::isCompatibleVectorType(lhs.getType()) ||
+      LLVM::isCompatibleVectorType(rhs.getType())) {
+    int64_t numLHSElements = 1, numRHSElements = 1;
+    if (LLVM::isCompatibleVectorType(lhs.getType()))
+      numLHSElements =
+          LLVM::getVectorNumElements(lhs.getType()).getFixedValue();
+    if (LLVM::isCompatibleVectorType(rhs.getType()))
+      numRHSElements =
+          LLVM::getVectorNumElements(rhs.getType()).getFixedValue();
+    build(builder, result,
+          VectorType::get({std::max(numLHSElements, numRHSElements)}, boolType),
+          predicate, lhs, rhs);
+  } else {
+    build(builder, result, boolType, predicate, lhs, rhs);
+  }
+}
 
 void ICmpOp::print(OpAsmPrinter &p) {
   p << " \"" << stringifyICmpPredicate(getPredicate()) << "\" " << getOperand(0)
@@ -138,7 +158,7 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
       return parser.emitError(predicateLoc)
              << "'" << predicateAttr.getValue()
              << "' is an incorrect value of the 'predicate' attribute";
-    predicateValue = static_cast<int64_t>(predicate.getValue());
+    predicateValue = static_cast<int64_t>(*predicate);
   } else {
     Optional<FCmpPredicate> predicate =
         symbolizeFCmpPredicate(predicateAttr.getValue());
@@ -146,7 +166,7 @@ static ParseResult parseCmpOp(OpAsmParser &parser, OperationState &result) {
       return parser.emitError(predicateLoc)
              << "'" << predicateAttr.getValue()
              << "' is an incorrect value of the 'predicate' attribute";
-    predicateValue = static_cast<int64_t>(predicate.getValue());
+    predicateValue = static_cast<int64_t>(*predicate);
   }
 
   result.attributes.set("predicate",
@@ -195,7 +215,7 @@ void AllocaOp::print(OpAsmPrinter &p) {
       FunctionType::get(getContext(), {getArraySize().getType()}, {getType()});
 
   p << ' ' << getArraySize() << " x " << elemTy;
-  if (getAlignment().hasValue() && *getAlignment() != 0)
+  if (getAlignment() && *getAlignment() != 0)
     p.printOptionalAttrDict((*this)->getAttrs(), {kElemTypeAttrName});
   else
     p.printOptionalAttrDict((*this)->getAttrs(),
@@ -1020,7 +1040,7 @@ ParseResult InvokeOp::parse(OpAsmParser &parser, OperationState &result) {
 LogicalResult LandingpadOp::verify() {
   Value value;
   if (LLVMFuncOp func = (*this)->getParentOfType<LLVMFuncOp>()) {
-    if (!func.getPersonality().hasValue())
+    if (!func.getPersonality())
       return emitError(
           "llvm.landingpad needs to be in a function with a personality");
   }
@@ -2087,7 +2107,7 @@ ParseResult ShuffleVectorOp::parse(OpAsmParser &parser,
         loc, "expected LLVM IR dialect vector type for operand #1");
   auto vType =
       LLVM::getVectorType(LLVM::getVectorElementType(typeV1), maskAttr.size(),
-                          typeV1.cast<VectorType>().isScalable());
+                          LLVM::isScalableVectorType(typeV1));
   result.addTypes(vType);
   return success();
 }
@@ -2405,7 +2425,7 @@ static ParseResult parseAtomicBinOp(OpAsmParser &parser, OperationState &result,
            << "' attribute";
   }
 
-  auto value = static_cast<int64_t>(kind.getValue());
+  auto value = static_cast<int64_t>(*kind);
   auto attr = parser.getBuilder().getI64IntegerAttr(value);
   result.addAttribute(attrName, attr);
 
@@ -2432,7 +2452,7 @@ static ParseResult parseAtomicOrdering(OpAsmParser &parser,
            << "' attribute";
   }
 
-  auto value = static_cast<int64_t>(kind.getValue());
+  auto value = static_cast<int64_t>(*kind);
   auto attr = parser.getBuilder().getI64IntegerAttr(value);
   result.addAttribute(attrName, attr);
 
@@ -2728,7 +2748,7 @@ LogicalResult LLVMDialect::verifyOperationAttribute(Operation *op,
                                << "' to be a dictionary attribute";
     Optional<NamedAttribute> parallelAccessGroup =
         loopAttr.getNamed(LLVMDialect::getParallelAccessAttrName());
-    if (parallelAccessGroup.hasValue()) {
+    if (parallelAccessGroup) {
       auto accessGroups = parallelAccessGroup->getValue().dyn_cast<ArrayAttr>();
       if (!accessGroups)
         return op->emitOpError()
@@ -2757,8 +2777,7 @@ LogicalResult LLVMDialect::verifyOperationAttribute(Operation *op,
 
     Optional<NamedAttribute> loopOptions =
         loopAttr.getNamed(LLVMDialect::getLoopOptionsAttrName());
-    if (loopOptions.hasValue() &&
-        !loopOptions->getValue().isa<LoopOptionsAttr>())
+    if (loopOptions && !loopOptions->getValue().isa<LoopOptionsAttr>())
       return op->emitOpError()
              << "expected '" << LLVMDialect::getLoopOptionsAttrName()
              << "' to be a `loopopts` attribute";
@@ -2990,7 +3009,7 @@ LoopOptionsAttrBuilder &LoopOptionsAttrBuilder::setOption(LoopOptionCase tag,
   auto option = llvm::find_if(
       options, [tag](auto option) { return option.first == tag; });
   if (option != options.end()) {
-    if (value.hasValue())
+    if (value)
       option->second = *value;
     else
       options.erase(option);

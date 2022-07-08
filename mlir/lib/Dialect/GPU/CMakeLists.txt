@@ -32,10 +32,10 @@ add_mlir_dialect_library(MLIRGPUOps
   MLIRGPUOpInterfacesIncGen
 
   LINK_LIBS PUBLIC
-  MLIRArithmetic
-  MLIRDLTI
+  MLIRArithmeticDialect
+  MLIRDLTIDialect
   MLIRIR
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRSideEffectInterfaces
   MLIRSupport
   )
@@ -61,22 +61,21 @@ add_mlir_dialect_library(MLIRGPUTransforms
 
   DEPENDS
   MLIRGPUPassIncGen
-  MLIRParallelLoopMapperAttrGen
   MLIRParallelLoopMapperEnumsGen
 
   LINK_LIBS PUBLIC
   MLIRAffineUtils
-  MLIRArithmetic
-  MLIRAsync
+  MLIRArithmeticDialect
+  MLIRAsyncDialect
   MLIRDataLayoutInterfaces
   MLIRExecutionEngineUtils
   MLIRGPUOps
   MLIRIR
-  MLIRLLVMIR
+  MLIRLLVMDialect
   MLIRLLVMToLLVMIRTranslation
-  MLIRMemRef
+  MLIRMemRefDialect
   MLIRPass
-  MLIRSCF
+  MLIRSCFDialect
   MLIRSupport
   MLIRTransformUtils
   )

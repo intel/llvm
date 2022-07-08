@@ -281,8 +281,8 @@ generic-clang-14)
     check-abi-list
 ;;
 generic-gcc)
-    export CC=gcc-11
-    export CXX=g++-11
+    export CC=gcc-12
+    export CXX=g++-12
     clean
     generate-cmake -DLIBCXX_ENABLE_WERROR=NO \
                    -DLIBCXXABI_ENABLE_WERROR=NO \
@@ -290,8 +290,8 @@ generic-gcc)
     check-runtimes
 ;;
 generic-gcc-cxx11)
-    export CC=gcc-11
-    export CXX=g++-11
+    export CC=gcc-12
+    export CXX=g++-12
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/Generic-cxx11.cmake" \
                    -DLIBCXX_ENABLE_WERROR=NO \
@@ -563,13 +563,14 @@ mingw-dll-i686)
     ${NINJA} -vC "${BUILD_DIR}" check-cxx
 ;;
 aix)
-    export CC=ibm-clang
-    export CXX=ibm-clang++_r
+    export CC=clang
+    export CXX=clang++
     clean
     generate-cmake -C "${MONOREPO_ROOT}/libcxx/cmake/caches/AIX.cmake" \
                    -DLIBCXX_TEST_CONFIG="ibm-libc++-shared.cfg.in" \
                    -DLIBCXXABI_TEST_CONFIG="ibm-libc++abi-shared.cfg.in" \
                    -DLIBUNWIND_TEST_CONFIG="ibm-libunwind-shared.cfg.in"
+    check-abi-list
     check-runtimes
 ;;
 #################################################################

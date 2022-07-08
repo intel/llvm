@@ -690,6 +690,7 @@ Value *LibCallSimplifier::optimizeStringLength(CallInst *CI, IRBuilderBase &B,
   // very useful because calling strlen for a pointer of other types is
   // very uncommon.
   if (GEPOperator *GEP = dyn_cast<GEPOperator>(Src)) {
+    // TODO: Handle subobjects.
     if (!isGEPBasedOnPointerToString(GEP, CharSize))
       return nullptr;
 
@@ -1142,6 +1143,51 @@ Value *LibCallSimplifier::optimizeMemChr(CallInst *CI, IRBuilderBase &B) {
                           CI->getType());
 }
 
+// Optimize a memcmp call CI with constant arrays LHS and RHS and either
+// nonconstant Size or constant size known to be in bounds.
+static Value *optimizeMemCmpVarSize(CallInst *CI, Value *LHS, Value *RHS,
+                                    Value *Size, IRBuilderBase &B,
+                                    const DataLayout &DL) {
+  if (LHS == RHS) // memcmp(s,s,x) -> 0
+    return Constant::getNullValue(CI->getType());
+
+  StringRef LStr, RStr;
+  if (!getConstantStringInfo(LHS, LStr, 0, /*TrimAtNul=*/false) ||
+      !getConstantStringInfo(RHS, RStr, 0, /*TrimAtNul=*/false))
+    return nullptr;
+
+  // If the contents of both constant arrays are known, fold a call to
+  // memcmp(A, B, N) to
+  //   N <= Pos ? 0 : (A < B ? -1 : B < A ? +1 : 0)
+  // where Pos is the first mismatch between A and B, determined below.
+
+  Value *Zero = ConstantInt::get(CI->getType(), 0);
+
+  uint64_t MinSize = std::min(LStr.size(), RStr.size());
+  for (uint64_t Pos = 0; Pos < MinSize; ++Pos) {
+    if (LStr[Pos] != RStr[Pos]) {
+      Value *MaxSize = ConstantInt::get(Size->getType(), Pos);
+      Value *Cmp = B.CreateICmp(ICmpInst::ICMP_ULE, Size, MaxSize);
+      typedef unsigned char UChar;
+      int IRes = UChar(LStr[Pos]) < UChar(RStr[Pos]) ? -1 : 1;
+      Value *Res = ConstantInt::get(CI->getType(), IRes);
+      return B.CreateSelect(Cmp, Zero, Res);
+    }
+  }
+
+  if (auto *SizeC = dyn_cast<ConstantInt>(Size))
+    if (MinSize < SizeC->getZExtValue())
+      // Fail if the bound happens to be constant and excessive and
+      // let sanitizers catch it.
+      return nullptr;
+
+  // One array is a leading part of the other of equal or greater size.
+  // Fold the result to zero.  Nonconstant size is assumed to be in bounds,
+  // since otherwise the call would be undefined.
+  return Zero;
+}
+
+// Optimize a memcmp call CI with constant size Len.
 static Value *optimizeMemCmpConstantSize(CallInst *CI, Value *LHS, Value *RHS,
                                          uint64_t Len, IRBuilderBase &B,
                                          const DataLayout &DL) {
@@ -1196,25 +1242,6 @@ static Value *optimizeMemCmpConstantSize(CallInst *CI, Value *LHS, Value *RHS,
     }
   }
 
-  // Constant folding: memcmp(x, y, Len) -> constant (all arguments are const).
-  // TODO: This is limited to i8 arrays.
-  StringRef LHSStr, RHSStr;
-  if (getConstantStringInfo(LHS, LHSStr) &&
-      getConstantStringInfo(RHS, RHSStr)) {
-    // Make sure we're not reading out-of-bounds memory.
-    if (Len > LHSStr.size() || Len > RHSStr.size())
-      return nullptr;
-    // Fold the memcmp and normalize the result.  This way we get consistent
-    // results across multiple platforms.
-    uint64_t Ret = 0;
-    int Cmp = memcmp(LHSStr.data(), RHSStr.data(), Len);
-    if (Cmp < 0)
-      Ret = -1;
-    else if (Cmp > 0)
-      Ret = 1;
-    return ConstantInt::get(CI->getType(), Ret);
-  }
-
   return nullptr;
 }
 
@@ -1224,23 +1251,17 @@ Value *LibCallSimplifier::optimizeMemCmpBCmpCommon(CallInst *CI,
   Value *LHS = CI->getArgOperand(0), *RHS = CI->getArgOperand(1);
   Value *Size = CI->getArgOperand(2);
 
-  if (LHS == RHS) // memcmp(s,s,x) -> 0
-    return Constant::getNullValue(CI->getType());
-
   annotateNonNullAndDereferenceable(CI, {0, 1}, Size, DL);
-  // Handle constant lengths.
+
+  if (Value *Res = optimizeMemCmpVarSize(CI, LHS, RHS, Size, B, DL))
+    return Res;
+
+  // Handle constant Size.
   ConstantInt *LenC = dyn_cast<ConstantInt>(Size);
   if (!LenC)
     return nullptr;
 
-  // memcmp(d,s,0) -> 0
-  if (LenC->getZExtValue() == 0)
-    return Constant::getNullValue(CI->getType());
-
-  if (Value *Res =
-          optimizeMemCmpConstantSize(CI, LHS, RHS, LenC->getZExtValue(), B, DL))
-    return Res;
-  return nullptr;
+  return optimizeMemCmpConstantSize(CI, LHS, RHS, LenC->getZExtValue(), B, DL);
 }
 
 Value *LibCallSimplifier::optimizeMemCmp(CallInst *CI, IRBuilderBase &B) {
@@ -1295,6 +1316,7 @@ Value *LibCallSimplifier::optimizeMemCCpy(CallInst *CI, IRBuilderBase &B) {
       return Constant::getNullValue(CI->getType());
     if (!getConstantStringInfo(Src, SrcStr, /*Offset=*/0,
                                /*TrimAtNul=*/false) ||
+        // TODO: Handle zeroinitializer.
         !StopChar)
       return nullptr;
   } else {

@@ -9,7 +9,6 @@
 #pragma once
 
 #include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
 #include <CL/sycl/id.hpp>

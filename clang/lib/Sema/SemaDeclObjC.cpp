@@ -1588,7 +1588,7 @@ void Sema::actOnObjCTypeArgsOrProtocolQualifiers(
     DS.SetRangeEnd(loc);
 
     // Form the declarator.
-    Declarator D(DS, DeclaratorContext::TypeName);
+    Declarator D(DS, ParsedAttributesView::none(), DeclaratorContext::TypeName);
 
     // If we have a typedef of an Objective-C class type that is missing a '*',
     // add the '*'.
@@ -4537,7 +4537,7 @@ static QualType mergeTypeNullabilityForRedecl(Sema &S, SourceLocation loc,
   auto prevNullability = prevType->getNullability(S.Context);
 
   // Easy case: both have nullability.
-  if (nullability.hasValue() == prevNullability.hasValue()) {
+  if (nullability.has_value() == prevNullability.has_value()) {
     // Neither has nullability; continue.
     if (!nullability)
       return type;

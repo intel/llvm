@@ -485,7 +485,7 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
 
     if (auto *FPI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
       Optional<fp::ExceptionBehavior> ExBehavior = FPI->getExceptionBehavior();
-      return ExBehavior.getValue() != fp::ebStrict;
+      return *ExBehavior != fp::ebStrict;
     }
   }
 
@@ -675,7 +675,7 @@ simplifyAndDCEInstruction(Instruction *I,
     return true;
   }
 
-  if (Value *SimpleV = SimplifyInstruction(I, DL)) {
+  if (Value *SimpleV = simplifyInstruction(I, DL)) {
     // Add the users to the worklist. CAREFUL: an instruction can use itself,
     // in the case of a phi node.
     for (User *U : I->users()) {

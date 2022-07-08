@@ -41,6 +41,21 @@ enum NodeType : unsigned {
   BuildPairF64,
   SplitF64,
   TAIL,
+
+  // Add the Lo 12 bits from an address. Selected to ADDI.
+  ADD_LO,
+  // Get the Hi 20 bits from an address. Selected to LUI.
+  HI,
+
+  // Represents an AUIPC+ADDI pair. Selected to PseudoLLA.
+  LLA,
+
+  // Selected as PseudoAddTPRel. Used to emit a TP-relative relocation.
+  ADD_TPREL,
+
+  // Load address.
+  LA_TLS_GD,
+
   // Multiply high for signedxunsigned.
   MULHSU,
   // RV64I shifts, directly matching the semantics of the named RISC-V
@@ -277,8 +292,8 @@ enum NodeType : unsigned {
   VMCLR_VL,
   VMSET_VL,
 
-  // Matches the semantics of vrgather.vx and vrgather.vv with an extra operand
-  // for VL.
+  // Matches the semantics of vrgather.vx and vrgather.vv with extra operands
+  // for passthru and VL. Operands are (src, index, mask, passthru, vl).
   VRGATHER_VX_VL,
   VRGATHER_VV_VL,
   VRGATHEREI16_VV_VL,
@@ -314,6 +329,10 @@ enum NodeType : unsigned {
   // WARNING: Do not add anything in the end unless you want the node to
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
   // opcodes will be thought as target memory ops!
+
+  // Load address.
+  LA = ISD::FIRST_TARGET_MEMORY_OPCODE,
+  LA_TLS_IE,
 };
 } // namespace RISCVISD
 
@@ -400,6 +419,8 @@ public:
                                            const APInt &DemandedElts,
                                            const SelectionDAG &DAG,
                                            unsigned Depth) const override;
+
+  const Constant *getTargetConstantFromLoad(LoadSDNode *LD) const override;
 
   // This method returns the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
@@ -494,8 +515,6 @@ public:
                       SelectionDAG &DAG) const override;
   SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
-  template <class NodeTy>
-  SDValue getAddr(NodeTy *N, SelectionDAG &DAG, bool IsLocal = true) const;
 
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
                                          Type *Ty) const override {
@@ -597,6 +616,8 @@ private:
                          bool IsRet, CallLoweringInfo *CLI,
                          RISCVCCAssignFn Fn) const;
 
+  template <class NodeTy>
+  SDValue getAddr(NodeTy *N, SelectionDAG &DAG, bool IsLocal = true) const;
   SDValue getStaticTLSAddr(GlobalAddressSDNode *N, SelectionDAG &DAG,
                            bool UseGOT) const;
   SDValue getDynamicTLSAddr(GlobalAddressSDNode *N, SelectionDAG &DAG) const;

@@ -4015,7 +4015,7 @@ SDValue DAGTypeLegalizer::WidenVecRes_BinaryCanTrap(SDNode *N) {
   EVT WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
   EVT WidenEltVT = WidenVT.getVectorElementType();
   EVT VT = WidenVT;
-  unsigned NumElts =  VT.getVectorNumElements();
+  unsigned NumElts = VT.getVectorMinNumElements();
   const SDNodeFlags Flags = N->getFlags();
   while (!TLI.isTypeLegal(VT) && NumElts != 1) {
     NumElts = NumElts / 2;
@@ -4028,6 +4028,9 @@ SDValue DAGTypeLegalizer::WidenVecRes_BinaryCanTrap(SDNode *N) {
     SDValue InOp2 = GetWidenedVector(N->getOperand(1));
     return DAG.getNode(N->getOpcode(), dl, WidenVT, InOp1, InOp2, Flags);
   }
+
+  // FIXME: Improve support for scalable vectors.
+  assert(!VT.isScalableVector() && "Scalable vectors not handled yet.");
 
   // No legal vector version so unroll the vector operation and then widen.
   if (NumElts == 1)
@@ -5712,11 +5715,12 @@ SDValue DAGTypeLegalizer::WidenVecOp_BITCAST(SDNode *N) {
   SDLoc dl(N);
 
   // Check if we can convert between two legal vector types and extract.
-  unsigned InWidenSize = InWidenVT.getSizeInBits();
-  unsigned Size = VT.getSizeInBits();
+  TypeSize InWidenSize = InWidenVT.getSizeInBits();
+  TypeSize Size = VT.getSizeInBits();
   // x86mmx is not an acceptable vector element type, so don't try.
-  if (InWidenSize % Size == 0 && !VT.isVector() && VT != MVT::x86mmx) {
-    unsigned NewNumElts = InWidenSize / Size;
+  if (!VT.isVector() && VT != MVT::x86mmx &&
+      InWidenSize.hasKnownScalarFactor(Size)) {
+    unsigned NewNumElts = InWidenSize.getKnownScalarFactor(Size);
     EVT NewVT = EVT::getVectorVT(*DAG.getContext(), VT, NewNumElts);
     if (TLI.isTypeLegal(NewVT)) {
       SDValue BitOp = DAG.getNode(ISD::BITCAST, dl, NewVT, InOp);
@@ -5731,9 +5735,11 @@ SDValue DAGTypeLegalizer::WidenVecOp_BITCAST(SDNode *N) {
   // having to copy via memory.
   if (VT.isVector()) {
     EVT EltVT = VT.getVectorElementType();
-    unsigned EltSize = EltVT.getSizeInBits();
-    if (InWidenSize % EltSize == 0) {
-      unsigned NewNumElts = InWidenSize / EltSize;
+    unsigned EltSize = EltVT.getFixedSizeInBits();
+    if (InWidenSize.isKnownMultipleOf(EltSize)) {
+      ElementCount NewNumElts =
+          (InWidenVT.getVectorElementCount() * InWidenVT.getScalarSizeInBits())
+              .divideCoefficientBy(EltSize);
       EVT NewVT = EVT::getVectorVT(*DAG.getContext(), EltVT, NewNumElts);
       if (TLI.isTypeLegal(NewVT)) {
         SDValue BitOp = DAG.getNode(ISD::BITCAST, dl, NewVT, InOp);
@@ -5786,18 +5792,17 @@ SDValue DAGTypeLegalizer::WidenVecOp_CONCAT_VECTORS(SDNode *N) {
 }
 
 SDValue DAGTypeLegalizer::WidenVecOp_INSERT_SUBVECTOR(SDNode *N) {
+  EVT VT = N->getValueType(0);
   SDValue SubVec = N->getOperand(1);
   SDValue InVec = N->getOperand(0);
-
-  if (getTypeAction(InVec.getValueType()) == TargetLowering::TypeWidenVector)
-    InVec = GetWidenedVector(InVec);
 
   if (getTypeAction(SubVec.getValueType()) == TargetLowering::TypeWidenVector)
     SubVec = GetWidenedVector(SubVec);
 
-  if (SubVec.getValueType() == InVec.getValueType() && InVec.isUndef() &&
+  if (SubVec.getValueType().knownBitsLE(VT) && InVec.isUndef() &&
       N->getConstantOperandVal(2) == 0)
-    return SubVec;
+    return DAG.getNode(ISD::INSERT_SUBVECTOR, SDLoc(N), VT, InVec, SubVec,
+                       N->getOperand(2));
 
   report_fatal_error("Don't know how to widen the operands for "
                      "INSERT_SUBVECTOR");
@@ -6142,8 +6147,20 @@ SDValue DAGTypeLegalizer::WidenVecOp_VECREDUCE_SEQ(SDNode *N) {
   SDValue NeutralElem = DAG.getNeutralElement(BaseOpc, dl, ElemVT, Flags);
 
   // Pad the vector with the neutral element.
-  unsigned OrigElts = OrigVT.getVectorNumElements();
-  unsigned WideElts = WideVT.getVectorNumElements();
+  unsigned OrigElts = OrigVT.getVectorMinNumElements();
+  unsigned WideElts = WideVT.getVectorMinNumElements();
+
+  if (WideVT.isScalableVector()) {
+    unsigned GCD = greatestCommonDivisor(OrigElts, WideElts);
+    EVT SplatVT = EVT::getVectorVT(*DAG.getContext(), ElemVT,
+                                   ElementCount::getScalable(GCD));
+    SDValue SplatNeutral = DAG.getSplatVector(SplatVT, dl, NeutralElem);
+    for (unsigned Idx = OrigElts; Idx < WideElts; Idx = Idx + GCD)
+      Op = DAG.getNode(ISD::INSERT_SUBVECTOR, dl, WideVT, Op, SplatNeutral,
+                       DAG.getVectorIdxConstant(Idx, dl));
+    return DAG.getNode(Opc, dl, N->getValueType(0), AccOp, Op, Flags);
+  }
+
   for (unsigned Idx = OrigElts; Idx < WideElts; Idx++)
     Op = DAG.getNode(ISD::INSERT_VECTOR_ELT, dl, WideVT, Op, NeutralElem,
                      DAG.getVectorIdxConstant(Idx, dl));

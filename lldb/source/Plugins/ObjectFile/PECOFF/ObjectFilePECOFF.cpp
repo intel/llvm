@@ -16,6 +16,8 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Core/StreamFile.h"
+#include "lldb/Interpreter/OptionValueDictionary.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/SectionLoadList.h"
@@ -33,6 +35,7 @@
 #include "llvm/Object/COFFImportFile.h"
 #include "llvm/Support/CRC.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #define IMAGE_DOS_SIGNATURE 0x5A4D    // MZ
@@ -44,6 +47,64 @@ using namespace lldb;
 using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(ObjectFilePECOFF)
+
+namespace {
+
+static constexpr OptionEnumValueElement g_abi_enums[] = {
+    {
+        llvm::Triple::UnknownEnvironment,
+        "default",
+        "Use default target (if it is Windows) or MSVC",
+    },
+    {
+        llvm::Triple::MSVC,
+        "msvc",
+        "MSVC ABI",
+    },
+    {
+        llvm::Triple::GNU,
+        "gnu",
+        "MinGW / Itanium ABI",
+    },
+};
+
+#define LLDB_PROPERTIES_objectfilepecoff
+#include "ObjectFilePECOFFProperties.inc"
+
+enum {
+#define LLDB_PROPERTIES_objectfilepecoff
+#include "ObjectFilePECOFFPropertiesEnum.inc"
+};
+
+class PluginProperties : public Properties {
+public:
+  static ConstString GetSettingName() {
+    return ConstString(ObjectFilePECOFF::GetPluginNameStatic());
+  }
+
+  PluginProperties() {
+    m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
+    m_collection_sp->Initialize(g_objectfilepecoff_properties);
+  }
+
+  llvm::Triple::EnvironmentType ABI() const {
+    return (llvm::Triple::EnvironmentType)
+        m_collection_sp->GetPropertyAtIndexAsEnumeration(
+            nullptr, ePropertyABI, llvm::Triple::UnknownEnvironment);
+  }
+
+  OptionValueDictionary *ModuleABIMap() const {
+    return m_collection_sp->GetPropertyAtIndexAsOptionValueDictionary(
+        nullptr, ePropertyModuleABIMap);
+  }
+};
+
+static PluginProperties &GetGlobalPluginProperties() {
+  static PluginProperties g_settings;
+  return g_settings;
+}
+
+} // namespace
 
 static bool GetDebugLinkContents(const llvm::object::COFFObjectFile &coff_obj,
                                  std::string &gnu_debuglink_file,
@@ -115,9 +176,21 @@ static UUID GetCoffUUID(llvm::object::COFFObjectFile &coff_obj) {
 char ObjectFilePECOFF::ID;
 
 void ObjectFilePECOFF::Initialize() {
-  PluginManager::RegisterPlugin(
-      GetPluginNameStatic(), GetPluginDescriptionStatic(), CreateInstance,
-      CreateMemoryInstance, GetModuleSpecifications, SaveCore);
+  PluginManager::RegisterPlugin(GetPluginNameStatic(),
+                                GetPluginDescriptionStatic(), CreateInstance,
+                                CreateMemoryInstance, GetModuleSpecifications,
+                                SaveCore, DebuggerInitialize);
+}
+
+void ObjectFilePECOFF::DebuggerInitialize(Debugger &debugger) {
+  if (!PluginManager::GetSettingForObjectFilePlugin(
+          debugger, PluginProperties::GetSettingName())) {
+    const bool is_global_setting = true;
+    PluginManager::CreateSettingForObjectFilePlugin(
+        debugger, GetGlobalPluginProperties().GetValueProperties(),
+        ConstString("Properties for the PE/COFF object-file plug-in."),
+        is_global_setting);
+  }
 }
 
 void ObjectFilePECOFF::Terminate() {
@@ -207,23 +280,75 @@ size_t ObjectFilePECOFF::GetModuleSpecifications(
   if (!uuid.IsValid())
     uuid = GetCoffUUID(*COFFObj);
 
+  static llvm::Triple::EnvironmentType default_env = [] {
+    auto def_target = llvm::Triple(
+        llvm::Triple::normalize(llvm::sys::getDefaultTargetTriple()));
+    if (def_target.getOS() == llvm::Triple::Win32 &&
+        def_target.getEnvironment() != llvm::Triple::UnknownEnvironment)
+      return def_target.getEnvironment();
+    return llvm::Triple::MSVC;
+  }();
+
+  // Check for a module-specific override.
+  OptionValueSP module_env_option;
+  const auto *map = GetGlobalPluginProperties().ModuleABIMap();
+  if (map->GetNumValues() > 0) {
+    // Step 1: Try with the exact file name.
+    auto name = file.GetLastPathComponent();
+    module_env_option = map->GetValueForKey(name);
+    if (!module_env_option) {
+      // Step 2: Try with the file name in lowercase.
+      auto name_lower = name.GetStringRef().lower();
+      module_env_option =
+          map->GetValueForKey(ConstString(llvm::StringRef(name_lower)));
+    }
+    if (!module_env_option) {
+      // Step 3: Try with the file name with ".debug" suffix stripped.
+      auto name_stripped = name.GetStringRef();
+      if (name_stripped.consume_back_insensitive(".debug")) {
+        module_env_option = map->GetValueForKey(ConstString(name_stripped));
+        if (!module_env_option) {
+          // Step 4: Try with the file name in lowercase with ".debug" suffix
+          // stripped.
+          auto name_lower = name_stripped.lower();
+          module_env_option =
+              map->GetValueForKey(ConstString(llvm::StringRef(name_lower)));
+        }
+      }
+    }
+  }
+  llvm::Triple::EnvironmentType env;
+  if (module_env_option)
+    env =
+        (llvm::Triple::EnvironmentType)module_env_option->GetEnumerationValue();
+  else
+    env = GetGlobalPluginProperties().ABI();
+
+  if (env == llvm::Triple::UnknownEnvironment)
+    env = default_env;
+
   switch (COFFObj->getMachine()) {
   case MachineAmd64:
     spec.SetTriple("x86_64-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   case MachineX86:
     spec.SetTriple("i386-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     spec.SetTriple("i686-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   case MachineArmNt:
     spec.SetTriple("armv7-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   case MachineArm64:
     spec.SetTriple("aarch64-pc-windows");
+    spec.GetTriple().setEnvironment(env);
     specs.Append(module_spec);
     break;
   default:

@@ -364,14 +364,14 @@ private:
 // with the given index in the compute command group. If it is instead set
 // to negative then all available compute engines may be used.
 //
-// The default value is "0".
+// The default value is "-1".
 //
 static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
   const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
-  // If the environment variable is not set only use "0" CCS for now.
-  // TODO: allow all CCSs when HW support is complete.
+  // If the environment variable is not set, all available compute engines
+  // can be used.
   if (!EnvVar)
-    return std::pair<int, int>(0, 0);
+    return std::pair<int, int>(0, INT_MAX);
 
   auto EnvVarValue = std::atoi(EnvVar);
   if (EnvVarValue >= 0) {
@@ -684,20 +684,26 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
   ZE_CALL(zeDeviceGetCommandQueueGroupProperties,
           (ZeDevice, &numQueueGroups, QueueGroupProperties.data()));
 
-  // Initialize a sub-sub-device with its own ordinal and index
+  // Initialize ordinal and compute queue group properties
+  for (uint32_t i = 0; i < numQueueGroups; i++) {
+    if (QueueGroupProperties[i].flags &
+        ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
+      QueueGroup[queue_group_info_t::Compute].ZeOrdinal = i;
+      QueueGroup[queue_group_info_t::Compute].ZeProperties =
+          QueueGroupProperties[i];
+      break;
+    }
+  }
+
+  // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Our sub-sub-device representation is currently [Level-Zero sub-device
+  // handle + Level-Zero compute group/engine index]. As we have a single queue
+  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
-  } else { // This is a root or a sub-device
-    for (uint32_t i = 0; i < numQueueGroups; i++) {
-      if (QueueGroupProperties[i].flags &
-          ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) {
-        QueueGroup[queue_group_info_t::Compute].ZeOrdinal = i;
-        QueueGroup[queue_group_info_t::Compute].ZeProperties =
-            QueueGroupProperties[i];
-        break;
-      }
-    }
+    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
+  } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
       return PI_ERROR_UNKNOWN;
@@ -897,7 +903,7 @@ _pi_queue::resetCommandList(pi_command_list_ptr_t CommandList,
     // calls.
     ZE_CALL(zeFenceReset, (CommandList->second.ZeFence));
     ZE_CALL(zeCommandListReset, (CommandList->first));
-    CommandList->second.InUse = false;
+    CommandList->second.ZeFenceInUse = false;
   }
 
   auto &EventList = CommandList->second.EventList;
@@ -1118,7 +1124,28 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 }
 
-static pi_result CleanupCompletedEvent(pi_event);
+static pi_result CleanupCompletedEvent(pi_event Event,
+                                       bool QueueLocked = false);
+
+// Helper function to perform the necessary cleanup of the events from reset cmd
+// list.
+static pi_result
+CleanupEventListFromResetCmdList(std::vector<pi_event> &EventListToCleanup,
+                                 bool QueueLocked = false) {
+  for (auto Event : EventListToCleanup) {
+    // We don't need to synchronize the events since the fence associated with
+    // the command list was synchronized.
+    {
+      std::scoped_lock EventLock(Event->Mutex);
+      Event->Completed = true;
+    }
+    PI_CALL(CleanupCompletedEvent(Event, QueueLocked));
+    // This event was removed from the command list, so decrement ref count
+    // (it was incremented when they were added to the command list).
+    PI_CALL(piEventRelease(Event));
+  }
+  return PI_SUCCESS;
+}
 
 // Reset signalled command lists in the queue and put them to the cache of
 // command lists. A caller must not lock the queue mutex.
@@ -1140,8 +1167,8 @@ pi_result resetCommandLists(pi_queue Queue) {
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
       // It is possible that the fence was already noted as signalled and
-      // reset. In that case the InUse flag will be false.
-      if (it->second.InUse) {
+      // reset. In that case the ZeFenceInUse flag will be false.
+      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
         ze_result_t ZeResult =
             ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
         if (ZeResult == ZE_RESULT_SUCCESS) {
@@ -1150,18 +1177,7 @@ pi_result resetCommandLists(pi_queue Queue) {
       }
     }
   }
-  for (auto Event : EventListToCleanup) {
-    // We don't need to synchronize the events since the fence
-    // synchronized above already does that.
-    {
-      std::scoped_lock EventLock(Event->Mutex);
-      Event->Completed = true;
-    }
-    PI_CALL(CleanupCompletedEvent(Event));
-    // This event was removed from the command list, so decrement ref count
-    // (it was incremented when they were added to the command list).
-    PI_CALL(piEventRelease(Event));
-  }
+  CleanupEventListFromResetCmdList(EventListToCleanup);
   return PI_SUCCESS;
 }
 
@@ -1220,7 +1236,8 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
       auto it = Queue->CommandListMap.find(ZeCommandList);
       if (it != Queue->CommandListMap.end()) {
         CommandList = it;
-        CommandList->second.InUse = true;
+        if (CommandList->second.ZeFence != nullptr)
+          CommandList->second.ZeFenceInUse = true;
       } else {
         // If there is a command list available on this context, but it
         // wasn't yet used in this queue then create a new entry in this
@@ -1240,6 +1257,31 @@ _pi_context::getAvailableCommandList(pi_queue Queue,
                 .first;
       }
       ZeCommandListCache.pop_front();
+      return PI_SUCCESS;
+    }
+  }
+
+  // If there are no available command lists in the cache, then we check for
+  // command lists that have already signalled, but have not been added to the
+  // available list yet. Each command list has a fence associated which tracks
+  // if a command list has completed dispatch of its commands and is ready for
+  // reuse. If a command list is found to have been signalled, then the
+  // command list & fence are reset and we return.
+  for (auto it = Queue->CommandListMap.begin();
+       it != Queue->CommandListMap.end(); ++it) {
+    // Make sure this is the command list type needed.
+    if (UseCopyEngine != it->second.isCopy(Queue))
+      continue;
+
+    ze_result_t ZeResult =
+        ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+    if (ZeResult == ZE_RESULT_SUCCESS) {
+      std::vector<pi_event> EventListToCleanup;
+      Queue->resetCommandList(it, false, EventListToCleanup);
+      CleanupEventListFromResetCmdList(EventListToCleanup,
+                                       true /* QueueLocked */);
+      CommandList = it;
+      CommandList->second.ZeFenceInUse = true;
       return PI_SUCCESS;
     }
   }
@@ -3360,7 +3402,7 @@ pi_result piQueueRelease(pi_queue Queue) {
       // For immediate commandlists we don't need to do an L0 reset of the
       // commandlist but do need to do event cleanup which is also in the
       // resetCommandList function.
-      if (it->second.InUse) {
+      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
         Queue->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
@@ -5451,8 +5493,8 @@ pi_result piEventGetProfilingInfo(pi_event Event, pi_profiling_info ParamName,
 // This currently makes sure to release any kernel that may have been used by
 // the event, updates the last command event in the queue and cleans up all dep
 // events of the event.
-// The caller must not lock any mutexes.
-static pi_result CleanupCompletedEvent(pi_event Event) {
+// If the caller locks queue mutex then it must pass 'true' to QueueLocked.
+static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
   pi_kernel AssociatedKernel = nullptr;
   // List of dependent events.
   std::list<pi_event> EventsToBeReleased;
@@ -5488,7 +5530,9 @@ static pi_result CleanupCompletedEvent(pi_event Event) {
   if (AssociatedQueue) {
     {
       // Lock automatically releases when this goes out of scope.
-      std::scoped_lock Lock(AssociatedQueue->Mutex);
+      std::unique_lock QueueLock(AssociatedQueue->Mutex, std::defer_lock);
+      if (!QueueLocked)
+        QueueLock.lock();
 
       // If this event was the LastCommandEvent in the queue, being used
       // to make sure that commands were executed in-order, remove this.
@@ -8066,16 +8110,21 @@ pi_result piextProgramSetSpecializationConstant(pi_program Prog,
   return PI_SUCCESS;
 }
 
+const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   PI_ASSERT(PluginInit, PI_ERROR_INVALID_VALUE);
+
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
 
   // TODO: handle versioning/targets properly.
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
 
-  PI_ASSERT(strlen(_PI_H_VERSION_STRING) < PluginVersionSize,
+  PI_ASSERT(strlen(_PI_LEVEL_ZERO_PLUGIN_VERSION_STRING) < PluginVersionSize,
             PI_ERROR_INVALID_VALUE);
 
-  strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
@@ -8314,17 +8363,55 @@ pi_result _pi_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                           LastDeviceWithValidAllocation));
       // Copy valid buffer data to this allocation.
       // TODO: see if we should better use peer's device allocation used
-      // directly,
-      //       if that capability is reported with zeDeviceCanAccessPeer,
-      //       instead of maintaining a separate allocation and performing this
-      //       explciit copy.
+      // directly, if that capability is reported with zeDeviceCanAccessPeer,
+      // instead of maintaining a separate allocation and performing
+      // explciit copies.
       //
       // zeCommandListAppendMemoryCopy must not be called from simultaneous
       // threads with the same command list handle, so we need exclusive lock.
-      std::scoped_lock Lock(Context->ImmediateCommandListMutex);
-      ZE_CALL(zeCommandListAppendMemoryCopy,
-              (Context->ZeCommandListInit, ZeHandle /* Dst */, ZeHandleSrc,
-               Size, nullptr, 0, nullptr));
+      ze_bool_t P2P;
+      ZE_CALL(
+          zeDeviceCanAccessPeer,
+          (Device->ZeDevice, LastDeviceWithValidAllocation->ZeDevice, &P2P));
+      if (!P2P) {
+        // P2P copy is not possible, so copy through the host.
+        auto &HostAllocation = Allocations[nullptr];
+        // The host allocation may already exists, e.g. with imported
+        // host ptr, or in case of interop buffer.
+        if (!HostAllocation.ZeHandle) {
+          void *ZeHandleHost;
+          if (enableBufferPooling()) {
+            HostAllocation.ReleaseAction = allocation_t::free;
+            PI_CALL(piextUSMHostAlloc(&ZeHandleHost, Context, nullptr, Size,
+                                      getAlignment()));
+          } else {
+            HostAllocation.ReleaseAction = allocation_t::free_native;
+            PI_CALL(ZeHostMemAllocHelper(&ZeHandleHost, Context, Size));
+          }
+          HostAllocation.ZeHandle = pi_cast<char *>(ZeHandleHost);
+          HostAllocation.Valid = false;
+        }
+        std::scoped_lock Lock(Context->ImmediateCommandListMutex);
+        if (!HostAllocation.Valid) {
+          ZE_CALL(zeCommandListAppendMemoryCopy,
+                  (Context->ZeCommandListInit,
+                   HostAllocation.ZeHandle /* Dst */, ZeHandleSrc, Size,
+                   nullptr, 0, nullptr));
+          // Mark the host allocation data  as valid so it can be reused.
+          // It will be invalidated below if the current access is not
+          // read-only.
+          HostAllocation.Valid = true;
+        }
+        ZE_CALL(zeCommandListAppendMemoryCopy,
+                (Context->ZeCommandListInit, ZeHandle /* Dst */,
+                 HostAllocation.ZeHandle, Size, nullptr, 0, nullptr));
+      } else {
+        // Perform P2P copy.
+        std::scoped_lock Lock(Context->ImmediateCommandListMutex);
+        ZE_CALL(zeCommandListAppendMemoryCopy,
+                (Context->ZeCommandListInit, ZeHandle /* Dst */, ZeHandleSrc,
+                 Size, nullptr, 0, nullptr));
+      }
     }
   }
 

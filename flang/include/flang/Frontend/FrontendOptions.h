@@ -115,12 +115,17 @@ bool isToBePreprocessed(llvm::StringRef suffix);
 enum class Language : uint8_t {
   Unknown,
 
+  /// MLIR: we accept this so that we can run the optimizer on it, and compile
+  /// it to LLVM IR, assembly or object code.
+  MLIR,
+
   /// LLVM IR: we accept this so that we can run the optimizer on it,
   /// and compile it to assembly or object code.
   LLVM_IR,
 
   /// @{ Languages that the frontend can parse and compile.
   Fortran,
+  /// @}
 };
 
 // Source file layout
@@ -214,7 +219,7 @@ public:
 struct FrontendOptions {
   FrontendOptions()
       : showHelp(false), showVersion(false), instrumentedParse(false),
-        needProvenanceRangeToCharBlockMappings(false) {}
+        showColors(false), needProvenanceRangeToCharBlockMappings(false) {}
 
   /// Show the -help text.
   unsigned showHelp : 1;
@@ -224,6 +229,9 @@ struct FrontendOptions {
 
   /// Instrument the parse to get a more verbose log
   unsigned instrumentedParse : 1;
+
+  /// Enable color diagnostics.
+  unsigned showColors : 1;
 
   /// Enable Provenance to character-stream mapping. Allows e.g. IDEs to find
   /// symbols based on source-code location. This is not needed in regular

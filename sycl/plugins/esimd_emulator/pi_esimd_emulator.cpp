@@ -1981,16 +1981,21 @@ pi_result piTearDown(void *) {
   return PI_SUCCESS;
 }
 
+const char SupportedVersion[] = _PI_ESIMD_PLUGIN_VERSION_STRING;
+
 pi_result piPluginInit(pi_plugin *PluginInit) {
   if (PluginInit == nullptr) {
     return PI_ERROR_INVALID_VALUE;
   }
 
+  // Check that the major version matches in PiVersion and SupportedVersion
+  _PI_PLUGIN_VERSION_CHECK(PluginInit->PiVersion, SupportedVersion);
+
   size_t PluginVersionSize = sizeof(PluginInit->PluginVersion);
   if (strlen(_PI_H_VERSION_STRING) >= PluginVersionSize) {
     return PI_ERROR_INVALID_VALUE;
   }
-  strncpy(PluginInit->PluginVersion, _PI_H_VERSION_STRING, PluginVersionSize);
+  strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
 
   PiESimdDeviceAccess = new sycl::detail::ESIMDEmuPluginOpaqueData();
   // 'version' to be compared with 'ESIMD_EMULATOR_DEVICE_REQUIRED_VER' defined

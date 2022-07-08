@@ -849,7 +849,7 @@ bool NativeProcessLinux::MonitorClone(NativeThreadLinux &parent,
     auto tgid_ret = getPIDForTID(child_pid);
     if (tgid_ret != child_pid) {
       // A new thread should have PGID matching our process' PID.
-      assert(!tgid_ret || tgid_ret.getValue() == GetID());
+      assert(!tgid_ret || *tgid_ret == GetID());
 
       NativeThreadLinux &child_thread = AddThread(child_pid, /*resume*/ true);
       ThreadWasCreated(child_thread);
@@ -897,6 +897,8 @@ bool NativeProcessLinux::SupportHardwareSingleStepping() const {
 Status NativeProcessLinux::Resume(const ResumeActionList &resume_actions) {
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid {0}", GetID());
+
+  NotifyTracersProcessWillResume();
 
   bool software_single_step = !SupportHardwareSingleStepping();
 
@@ -1665,9 +1667,12 @@ void NativeProcessLinux::StopTrackingThread(NativeThreadLinux &thread) {
   SignalIfAllThreadsStopped();
 }
 
-void NativeProcessLinux::NotifyTracersProcessStateChanged(
-    lldb::StateType state) {
-  m_intel_pt_collector.OnProcessStateChanged(state);
+void NativeProcessLinux::NotifyTracersProcessDidStop() {
+  m_intel_pt_collector.ProcessDidStop();
+}
+
+void NativeProcessLinux::NotifyTracersProcessWillResume() {
+  m_intel_pt_collector.ProcessWillResume();
 }
 
 Status NativeProcessLinux::NotifyTracersOfNewThread(lldb::tid_t tid) {

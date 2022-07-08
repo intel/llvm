@@ -709,7 +709,7 @@ Argument *IRPosition::getAssociatedArgument() const {
 
       assert(ACS.getCalledFunction()->arg_size() > u &&
              "ACS mapped into var-args arguments!");
-      if (CBCandidateArg.hasValue()) {
+      if (CBCandidateArg) {
         CBCandidateArg = nullptr;
         break;
       }
@@ -1030,7 +1030,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
   // assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP)) {
     Optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
-    if (!SimplifiedV.hasValue())
+    if (!SimplifiedV)
       return llvm::None;
     if (isa_and_nonnull<Constant>(*SimplifiedV))
       return cast<Constant>(*SimplifiedV);
@@ -1044,7 +1044,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
       ValueSimplifyAA.getAssumedSimplifiedValue(*this);
   bool IsKnown = ValueSimplifyAA.isAtFixpoint();
   UsedAssumedInformation |= !IsKnown;
-  if (!SimplifiedV.hasValue()) {
+  if (!SimplifiedV) {
     recordDependence(ValueSimplifyAA, AA, DepClassTy::OPTIONAL);
     return llvm::None;
   }
@@ -1078,7 +1078,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
       ValueSimplifyAA.getAssumedSimplifiedValue(*this);
   bool IsKnown = ValueSimplifyAA.isAtFixpoint();
   UsedAssumedInformation |= !IsKnown;
-  if (!SimplifiedV.hasValue()) {
+  if (!SimplifiedV) {
     if (AA)
       recordDependence(ValueSimplifyAA, *AA, DepClassTy::OPTIONAL);
     return llvm::None;
@@ -1097,7 +1097,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
 Optional<Value *> Attributor::translateArgumentToCallSiteContent(
     Optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
     bool &UsedAssumedInformation) {
-  if (!V.hasValue())
+  if (!V)
     return V;
   if (*V == nullptr || isa<Constant>(*V))
     return V;
@@ -1642,7 +1642,7 @@ void Attributor::runTillFixpoint() {
 
   unsigned IterationCounter = 1;
   unsigned MaxIterations =
-      Configuration.MaxFixpointIterations.getValueOr(SetFixpointIterations);
+      Configuration.MaxFixpointIterations.value_or(SetFixpointIterations);
 
   SmallVector<AbstractAttribute *, 32> ChangedAAs;
   SetVector<AbstractAttribute *> Worklist, InvalidAAs;
@@ -2876,7 +2876,8 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
     getOrCreateAAFor<AAIsDead>(RetPos);
 
     // Every function might be simplified.
-    getOrCreateAAFor<AAValueSimplify>(RetPos);
+    bool UsedAssumedInformation = false;
+    getAssumedSimplified(RetPos, nullptr, UsedAssumedInformation);
 
     // Every returned value might be marked noundef.
     getOrCreateAAFor<AANoUndef>(RetPos);
@@ -2968,7 +2969,8 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
     if (!Callee->getReturnType()->isVoidTy() && !CB.use_empty()) {
 
       IRPosition CBRetPos = IRPosition::callsite_returned(CB);
-      getOrCreateAAFor<AAValueSimplify>(CBRetPos);
+      bool UsedAssumedInformation = false;
+      getAssumedSimplified(CBRetPos, nullptr, UsedAssumedInformation);
     }
 
     for (int I = 0, E = CB.arg_size(); I < E; ++I) {
@@ -3031,10 +3033,15 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       getOrCreateAAFor<AAAlign>(
           IRPosition::value(*cast<LoadInst>(I).getPointerOperand()));
       if (SimplifyAllLoads)
-        getOrCreateAAFor<AAValueSimplify>(IRPosition::value(I));
-    } else
-      getOrCreateAAFor<AAAlign>(
-          IRPosition::value(*cast<StoreInst>(I).getPointerOperand()));
+        getAssumedSimplified(IRPosition::value(I), nullptr,
+                             UsedAssumedInformation);
+    } else {
+      auto &SI = cast<StoreInst>(I);
+      getOrCreateAAFor<AAIsDead>(IRPosition::inst(I));
+      getAssumedSimplified(IRPosition::value(*SI.getValueOperand()), nullptr,
+                           UsedAssumedInformation);
+      getOrCreateAAFor<AAAlign>(IRPosition::value(*SI.getPointerOperand()));
+    }
     return true;
   };
   Success = checkForAllInstructionsImpl(
@@ -3152,7 +3159,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS,
   OS << " [" << Acc.getKind() << "] " << *Acc.getRemoteInst();
   if (Acc.getLocalInst() != Acc.getRemoteInst())
     OS << " via " << *Acc.getLocalInst();
-  if (Acc.getContent().hasValue()) {
+  if (Acc.getContent()) {
     if (*Acc.getContent())
       OS << " [" << **Acc.getContent() << "]";
     else
