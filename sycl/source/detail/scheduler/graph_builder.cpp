@@ -1295,7 +1295,7 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
   // Create empty command that is "ready" for enqueuing.
   EmptyCommand *EmptyCmd = new EmptyCommand(FailedCmd->getQueue());
   if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
   // Collect stream objects for the failed command.

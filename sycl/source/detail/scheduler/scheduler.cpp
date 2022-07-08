@@ -152,9 +152,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // resources may be in use by backend and synchronization point here is
       // at native kernel execution finish.
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (Type == CG::RunOnHostIntel)
-          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
-
         NewEvent->setCommand(nullptr);
         delete NewCmd;
       }
