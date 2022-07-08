@@ -1,19 +1,13 @@
-
-if(LLVM_LINK_LLVM_DYLIB)
-  set(LLVM_LINK_COMPONENTS
-    BinaryFormat
-    Core
-    Support
-  )
-else()
-  set(LLVM_LINK_COMPONENTS
+set(LLVM_LINK_COMPONENTS
     BinaryFormat
     Core
     Support
     SPIRVLib
-  )
+ )
+  
+if(LLVM_LINK_LLVM_DYLIB)
+  list (REMOVE_ITEM LLVM_LINK_COMPONENTS SPIRVLib)
 endif()
-
 
 include_directories(
   ${LLVM_EXTERNAL_LLVM_SPIRV_SOURCE_DIR}/include

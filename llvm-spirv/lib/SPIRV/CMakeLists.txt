@@ -1,41 +1,44 @@
+set(SRC_LIST
+  LLVMSPIRVOpts.cpp
+  LLVMToSPIRVDbgTran.cpp
+  Mangler/FunctionDescriptor.cpp
+  Mangler/Mangler.cpp
+  Mangler/ManglingUtils.cpp
+  Mangler/ParameterType.cpp
+  OCLToSPIRV.cpp
+  OCLTypeToSPIRV.cpp
+  OCLUtil.cpp
+  VectorComputeUtil.cpp
+  SPIRVLowerBitCastToNonStandardType.cpp
+  SPIRVLowerBool.cpp
+  SPIRVLowerConstExpr.cpp
+  SPIRVLowerMemmove.cpp
+  SPIRVLowerOCLBlocks.cpp
+  SPIRVLowerSaddWithOverflow.cpp
+  SPIRVReader.cpp
+  SPIRVRegularizeLLVM.cpp
+  SPIRVToLLVMDbgTran.cpp
+  SPIRVToOCL.cpp
+  SPIRVToOCL12.cpp
+  SPIRVToOCL20.cpp
+  SPIRVUtil.cpp
+  SPIRVWriter.cpp
+  SPIRVWriterPass.cpp
+  PreprocessMetadata.cpp
+  libSPIRV/SPIRVBasicBlock.cpp
+  libSPIRV/SPIRVDebug.cpp
+  libSPIRV/SPIRVDecorate.cpp
+  libSPIRV/SPIRVEntry.cpp
+  libSPIRV/SPIRVFunction.cpp
+  libSPIRV/SPIRVInstruction.cpp
+  libSPIRV/SPIRVModule.cpp
+  libSPIRV/SPIRVStream.cpp
+  libSPIRV/SPIRVType.cpp
+  libSPIRV/SPIRVValue.cpp
+)
 if(LLVM_LINK_LLVM_DYLIB)
   add_llvm_library(LLVMSPIRVLib STATIC DISABLE_LLVM_LINK_LLVM_DYLIB
-    LLVMSPIRVOpts.cpp
-    LLVMToSPIRVDbgTran.cpp
-    Mangler/FunctionDescriptor.cpp
-    Mangler/Mangler.cpp
-    Mangler/ManglingUtils.cpp
-    Mangler/ParameterType.cpp
-    OCLToSPIRV.cpp
-    OCLTypeToSPIRV.cpp
-    OCLUtil.cpp
-    VectorComputeUtil.cpp
-    SPIRVLowerBitCastToNonStandardType.cpp
-    SPIRVLowerBool.cpp
-    SPIRVLowerConstExpr.cpp
-    SPIRVLowerMemmove.cpp
-    SPIRVLowerOCLBlocks.cpp
-    SPIRVLowerSaddWithOverflow.cpp
-    SPIRVReader.cpp
-    SPIRVRegularizeLLVM.cpp
-    SPIRVToLLVMDbgTran.cpp
-    SPIRVToOCL.cpp
-    SPIRVToOCL12.cpp
-    SPIRVToOCL20.cpp
-    SPIRVUtil.cpp
-    SPIRVWriter.cpp
-    SPIRVWriterPass.cpp
-    PreprocessMetadata.cpp
-    libSPIRV/SPIRVBasicBlock.cpp
-    libSPIRV/SPIRVDebug.cpp
-    libSPIRV/SPIRVDecorate.cpp
-    libSPIRV/SPIRVEntry.cpp
-    libSPIRV/SPIRVFunction.cpp
-    libSPIRV/SPIRVInstruction.cpp
-    libSPIRV/SPIRVModule.cpp
-    libSPIRV/SPIRVStream.cpp
-    libSPIRV/SPIRVType.cpp
-    libSPIRV/SPIRVValue.cpp
+    ${SRC_LIST}
     DEPENDS
       intrinsics_gen
       LLVMAnalysis
@@ -51,42 +54,7 @@ if(LLVM_LINK_LLVM_DYLIB)
   )
 else()
   add_llvm_library(LLVMSPIRVLib
-    LLVMSPIRVOpts.cpp
-    LLVMToSPIRVDbgTran.cpp
-    Mangler/FunctionDescriptor.cpp
-    Mangler/Mangler.cpp
-    Mangler/ManglingUtils.cpp
-    Mangler/ParameterType.cpp
-    OCLToSPIRV.cpp
-    OCLTypeToSPIRV.cpp
-    OCLUtil.cpp
-    VectorComputeUtil.cpp
-    SPIRVLowerBitCastToNonStandardType.cpp
-    SPIRVLowerBool.cpp
-    SPIRVLowerConstExpr.cpp
-    SPIRVLowerMemmove.cpp
-    SPIRVLowerOCLBlocks.cpp
-    SPIRVLowerSaddWithOverflow.cpp
-    SPIRVReader.cpp
-    SPIRVRegularizeLLVM.cpp
-    SPIRVToLLVMDbgTran.cpp
-    SPIRVToOCL.cpp
-    SPIRVToOCL12.cpp
-    SPIRVToOCL20.cpp
-    SPIRVUtil.cpp
-    SPIRVWriter.cpp
-    SPIRVWriterPass.cpp
-    PreprocessMetadata.cpp
-    libSPIRV/SPIRVBasicBlock.cpp
-    libSPIRV/SPIRVDebug.cpp
-    libSPIRV/SPIRVDecorate.cpp
-    libSPIRV/SPIRVEntry.cpp
-    libSPIRV/SPIRVFunction.cpp
-    libSPIRV/SPIRVInstruction.cpp
-    libSPIRV/SPIRVModule.cpp
-    libSPIRV/SPIRVStream.cpp
-    libSPIRV/SPIRVType.cpp
-    libSPIRV/SPIRVValue.cpp
+    ${SRC_LIST}
     LINK_COMPONENTS
       Analysis
       BitWriter
