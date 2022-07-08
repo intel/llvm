@@ -701,7 +701,9 @@ inline FILE *operator<<(FILE *file, cl::sycl::half const &rhs) {
 
 inline FILE *operator>>(FILE *file, cl::sycl::half &rhs) {
   float ValFloat = 0.0f;
-  fscanf(file, "%f", &ValFloat);
+  if (!fscanf(file, "%f", &ValFloat)) {
+    throw std::runtime_error("Couldn't extract sycl::half from file\n");
+  }
   rhs = ValFloat;
   return file;
 }

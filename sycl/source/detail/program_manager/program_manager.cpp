@@ -737,16 +737,24 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           RT::PiProgram &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
 
-  FILE *File = fopen((LibSyclDir + OSUtil::DirSep + Name).c_str(), "rb");
+  std::string FileName = LibSyclDir + OSUtil::DirSep + Name;
+  FILE *File = fopen(FileName.c_str(), "rb");
 
   if (File == nullptr || !fseek(File, 0, SEEK_END)) {
     return false;
   }
 
   size_t FileSize = ftell(File);
-  fseek(File, 0, SEEK_SET);
+  (void)fseek(File, 0, SEEK_SET);
   std::vector<char> FileContent(FileSize);
-  fread(&FileContent[0], sizeof(char), FileSize, File);
+  (void)fread(&FileContent[0], sizeof(char), FileSize, File);
+
+  if (ferror(File)) {
+    fclose(File);
+    throw runtime_error("Failed to load device binary file:" + FileName,
+                        PI_ERROR_UNKNOWN);
+  }
+
   fclose(File);
 
   Prog =
@@ -856,16 +864,19 @@ ProgramManager::ProgramManager() {
       throw runtime_error(std::string("Can't open file specified via ") +
                               UseSpvEnv + ": " + SpvFile,
                           PI_ERROR_INVALID_VALUE);
-    fseek(File, 0, SEEK_END);
+    (void)fseek(File, 0, SEEK_END);
     size_t Size = ftell(File);
     std::unique_ptr<char[]> Data(new char[Size]);
-    fseek(File, 0, SEEK_SET);
-    fread(Data.get(), sizeof(char), Size, File);
-    fclose(File);
-    if (ferror(File))
+    (void)fseek(File, 0, SEEK_SET);
+    (void)fread(Data.get(), sizeof(char), Size, File);
+
+    if (ferror(File)) {
+      fclose(File);
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
                           PI_ERROR_INVALID_VALUE);
+    }
+    fclose(File);
 
     auto ImgPtr = make_unique_ptr<DynRTDeviceBinaryImage>(
         std::move(Data), Size, OSUtil::DummyModuleHandle);

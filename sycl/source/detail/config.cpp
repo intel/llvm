@@ -105,14 +105,20 @@ void readConfig(bool ForceInitialization) {
       // Note: A line from the file is expected to be the combined max length of
       // Key and Value string
       char tempString[MAX_CONFIG_NAME + MAX_CONFIG_VALUE] = {0};
-      fgets(tempString, MAX_CONFIG_NAME + MAX_CONFIG_VALUE, file);
+
+      if (!fgets(tempString, MAX_CONFIG_NAME + MAX_CONFIG_VALUE, file)) {
+        clearerr(file);
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "An error occurred while attempting to read a line");
+      }
 
       int nI;
       if ((nI = newLineIndexR(tempString, 0,
                               MAX_CONFIG_NAME + MAX_CONFIG_VALUE)) != -1) {
         tempString[nI] = '\0';
       }
-      if (ferror(file) && !feof(file)) {
+      if (ferror(file)) {
         // Fail to process the line.
 
         clearerr(file);

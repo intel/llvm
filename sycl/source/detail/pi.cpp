@@ -632,7 +632,10 @@ void DeviceBinaryImage::print() const {
 void DeviceBinaryImage::dump(FILE *file) const {
   size_t ImgSize = getSize();
   const char *aString = reinterpret_cast<const char *>(Bin->BinaryStart);
-  fwrite(aString, sizeof(char), ImgSize, file);
+  if (fwrite(aString, sizeof(char), ImgSize, file) != ImgSize * sizeof(char)) {
+    throw runtime_error("DeviceBinaryImage::dump: Failed to write on file\n",
+                        PI_ERROR_UNKNOWN);
+  }
 }
 
 static pi_uint32 asUint32(const void *Addr) {

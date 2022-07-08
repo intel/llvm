@@ -154,6 +154,12 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
   Counter++;
 
   FILE *file = fopen(FileName.c_str(), "w");
+  if (file == nullptr) {
+    throw runtime_error("Couldn't open file: " + FileName +
+                            std::string(" for write"),
+                        PI_ERROR_UNKNOWN);
+  }
+
   fprintf(file, "strict digraph {\n");
 
   MVisitedCmds.clear();
@@ -163,6 +169,11 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
       printDotRecursive(file, MVisitedCmds, AllocaCmd);
 
   fprintf(file, "}\n");
+  if (ferror(file)) {
+    fclose(file);
+    throw runtime_error("Error writing to file: " + FileName, PI_ERROR_UNKNOWN);
+  }
+  fclose(file);
 
   unmarkVisitedNodes(MVisitedCmds);
 }
