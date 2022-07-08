@@ -2712,7 +2712,16 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
         SubDemandedElts &= ScaledDemandedElts;
         if (!isSplatValue(Src, SubDemandedElts, SubUndefElts, Depth + 1))
           return false;
-        UndefElts |= APIntOps::ScaleBitMask(SubUndefElts, NumElts);
+
+        // Here we can't do "MatchAnyBits" operation merge for undef bits.
+        // Because some operation only use part value of the source.
+        // Take llvm.fshl.* for example:
+        // t1: v4i32 = Constant:i32<12>, undef:i32, Constant:i32<12>, undef:i32
+        // t2: v2i64 = bitcast t1
+        // t5: v2i64 = fshl t3, t4, t2
+        // We can not convert t2 to {i64 undef, i64 undef}
+        UndefElts |= APIntOps::ScaleBitMask(SubUndefElts, NumElts,
+                                            /*MatchAllBits=*/true);
       }
       return true;
     }
@@ -6149,6 +6158,10 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
         if (N1Op2C->getZExtValue() == N2C->getZExtValue()) {
           if (VT == N1.getOperand(1).getValueType())
             return N1.getOperand(1);
+          if (VT.isFloatingPoint()) {
+            assert(VT.getSizeInBits() > N1.getOperand(1).getValueType().getSizeInBits());
+            return getFPExtendOrRound(N1.getOperand(1), DL, VT);
+          }
           return getSExtOrTrunc(N1.getOperand(1), DL, VT);
         }
         return getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, N1.getOperand(0), N2);

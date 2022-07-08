@@ -1122,6 +1122,10 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
     setOperationAction(ISD::STORE,              MVT::v4i16, Custom);
     setOperationAction(ISD::STORE,              MVT::v8i8,  Custom);
 
+    // Add 32-bit vector stores to help vectorization opportunities.
+    setOperationAction(ISD::STORE,              MVT::v2i16, Custom);
+    setOperationAction(ISD::STORE,              MVT::v4i8,  Custom);
+
     setOperationAction(ISD::BITCAST,            MVT::v2i32, Custom);
     setOperationAction(ISD::BITCAST,            MVT::v4i16, Custom);
     setOperationAction(ISD::BITCAST,            MVT::v8i8,  Custom);
@@ -25520,6 +25524,9 @@ static SDValue LowerStore(SDValue Op, const X86Subtarget &Subtarget,
     return SDValue();
   }
 
+  if (StoreVT.is32BitVector())
+    return SDValue();
+
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   assert(StoreVT.is64BitVector() && "Unexpected VT");
   assert(TLI.getTypeAction(*DAG.getContext(), StoreVT) ==
@@ -34554,7 +34561,7 @@ X86TargetLowering::EmitLoweredCascadedSelect(MachineInstr &FirstCMOV,
 
   //  SinkMBB:
   //   %Result = phi [ %FalseValue, SecondInsertedMBB ], [ %TrueValue, ThisMBB ]
-  Register DestReg = FirstCMOV.getOperand(0).getReg();
+  Register DestReg = SecondCascadedCMOV.getOperand(0).getReg();
   Register Op1Reg = FirstCMOV.getOperand(1).getReg();
   Register Op2Reg = FirstCMOV.getOperand(2).getReg();
   MachineInstrBuilder MIB =
@@ -34567,11 +34574,6 @@ X86TargetLowering::EmitLoweredCascadedSelect(MachineInstr &FirstCMOV,
   // The second SecondInsertedMBB provides the same incoming value as the
   // FirstInsertedMBB (the True operand of the SELECT_CC/CMOV nodes).
   MIB.addReg(FirstCMOV.getOperand(2).getReg()).addMBB(FirstInsertedMBB);
-  // Copy the PHI result to the register defined by the second CMOV.
-  BuildMI(*SinkMBB, std::next(MachineBasicBlock::iterator(MIB.getInstr())), DL,
-          TII->get(TargetOpcode::COPY),
-          SecondCascadedCMOV.getOperand(0).getReg())
-      .addReg(FirstCMOV.getOperand(0).getReg());
 
   // Now remove the CMOVs.
   FirstCMOV.eraseFromParent();
@@ -50979,19 +50981,8 @@ static SDValue combineAndnp(SDNode *N, SelectionDAG &DAG,
   if (SDValue Not = IsNOT(N0, DAG))
     return DAG.getNode(ISD::AND, SDLoc(N), VT, DAG.getBitcast(VT, Not), N1);
 
-  // Constant fold NOT(N0) to allow us to use AND.
+  // TODO: Constant fold NOT(N0) to allow us to use AND.
   // TODO: Do this in IsNOT with suitable oneuse checks?
-  if (getTargetConstantFromNode(N0) && N0->hasOneUse()) {
-    APInt UndefElts;
-    SmallVector<APInt, 32> EltBits;
-    if (getTargetConstantBitsFromNode(N0, VT.getScalarSizeInBits(), UndefElts,
-                                      EltBits)) {
-      for (APInt &Elt : EltBits)
-        Elt = ~Elt;
-      SDValue Not = getConstVector(EltBits, UndefElts, VT, DAG, SDLoc(N));
-      return DAG.getNode(ISD::AND, SDLoc(N), VT, Not, N1);
-    }
-  }
 
   // Attempt to recursively combine a bitmask ANDNP with shuffles.
   if (VT.isVector() && (VT.getScalarSizeInBits() % 8) == 0) {
@@ -51663,9 +51654,13 @@ static SDValue combineVectorSizedSetCCEquality(SDNode *SetCC, SelectionDAG &DAG,
   // Use XOR (plus OR) and PTEST after SSE4.1 for 128/256-bit operands.
   // Use PCMPNEQ (plus OR) and KORTEST for 512-bit operands.
   // Otherwise use PCMPEQ (plus AND) and mask testing.
-  if ((OpSize == 128 && Subtarget.hasSSE2()) ||
-      (OpSize == 256 && Subtarget.hasAVX()) ||
-      (OpSize == 512 && Subtarget.useAVX512Regs())) {
+  bool NoImplicitFloatOps =
+      DAG.getMachineFunction().getFunction().hasFnAttribute(
+          Attribute::NoImplicitFloat);
+  if (!Subtarget.useSoftFloat() && !NoImplicitFloatOps &&
+      ((OpSize == 128 && Subtarget.hasSSE2()) ||
+       (OpSize == 256 && Subtarget.hasAVX()) ||
+       (OpSize == 512 && Subtarget.useAVX512Regs()))) {
     bool HasPT = Subtarget.hasSSE41();
 
     // PTEST and MOVMSK are slow on Knights Landing and Knights Mill and widened
@@ -53613,11 +53608,16 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
         Subs.push_back(SubOp.getOperand(I));
       return DAG.getNode(ISD::CONCAT_VECTORS, DL, VT, Subs);
     };
-    auto IsConcatFree = [](MVT VT, ArrayRef<SDValue> SubOps, unsigned I) {
-      return all_of(SubOps, [VT, I](SDValue Sub) {
-        return Sub.getOperand(I).getOpcode() == ISD::EXTRACT_SUBVECTOR &&
-               Sub.getOperand(I).getOperand(0).getValueType() == VT;
-      });
+    auto IsConcatFree = [](MVT VT, ArrayRef<SDValue> SubOps, unsigned Op) {
+      for (unsigned I = 0, E = SubOps.size(); I != E; ++I) {
+        SDValue Sub = SubOps[I].getOperand(Op);
+        unsigned NumSubElts = Sub.getValueType().getVectorNumElements();
+        if (Sub.getOpcode() != ISD::EXTRACT_SUBVECTOR ||
+            Sub.getOperand(0).getValueType() != VT ||
+            Sub.getConstantOperandAPInt(1) != (I * NumSubElts))
+          return false;
+      }
+      return true;
     };
 
     unsigned NumOps = Ops.size();

@@ -30,6 +30,16 @@ class VOP <string opName> {
   string OpName = opName;
 }
 
+// First 13 insts from VOPDY are also VOPDX. DOT2ACC_F32_BF16 is omitted
+defvar VOPDX_Max_Index = 12;
+
+class VOPD_Component<bits<5> OpIn, string vOPDName> {
+  Instruction BaseVOP = !cast<Instruction>(NAME);
+  string VOPDName = "v_dual_" # !substr(vOPDName, 2);
+  bits<5> VOPDOp = OpIn;
+  bit CanBeVOPDX = !le(VOPDOp, VOPDX_Max_Index);
+}
+
 class VOPAnyCommon <dag outs, dag ins, string asm, list<dag> pattern> :
     InstSI <outs, ins, asm, pattern> {
 
@@ -92,6 +102,7 @@ class VOP3_Pseudo <string opName, VOPProfile P, list<dag> pattern = [],
   let VOP3_OPSEL = isVop3OpSel;
   let IsPacked = P.IsPacked;
   let IsMAI = P.IsMAI;
+  let IsWMMA = P.IsWMMA;
 
   let AsmOperands = !if(isVop3OpSel,
                         P.AsmVOP3OpSel,
@@ -177,7 +188,11 @@ class VOP3_Real <VOP_Pseudo ps, int EncodingFamily, string asm_name = ps.Mnemoni
 // XXX - Is there any reason to distinguish this from regular VOP3
 // here?
 class VOP3P_Real<VOP_Pseudo ps, int EncodingFamily, string asm_name = ps.Mnemonic> :
-  VOP3_Real<ps, EncodingFamily, asm_name>;
+  VOP3_Real<ps, EncodingFamily, asm_name> {
+
+  // The v_wmma pseudos have extra constraints that we do not want to impose on the real instruction.
+  let Constraints        = !if(!eq(!substr(ps.Mnemonic,0,6), "v_wmma"), "", ps.Constraints);
+}
 
 class VOP3a<VOPProfile P> : Enc64 {
   bits<4> src0_modifiers;
@@ -1200,7 +1215,9 @@ class VOP3_Profile_Base<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VO
   let IsMAI    = !if(Features.IsMAI,    1, P.IsMAI);
   let IsPacked = !if(Features.IsPacked, 1, P.IsPacked);
 
-  let HasModifiers = !if(Features.IsMAI, 0, !or(Features.IsPacked, P.HasModifiers));
+  let HasModifiers =
+      !if (Features.IsMAI, 0,
+           !or(Features.IsPacked, Features.HasOpSel, P.HasModifiers));
 }
 
 class VOP3_Profile<VOPProfile P, VOP3Features Features = VOP3_REGULAR> : VOP3_Profile_Base<P, Features> {
@@ -1399,7 +1416,7 @@ multiclass VOP3_Realtriple_with_name_gfx11<bits<10> op, string opName,
   VOP3_Real_dpp8_with_name_gfx11<op, opName, asmName>;
 
 multiclass VOP3Only_Realtriple_with_name_gfx11<bits<10> op, string opName,
-                                           string asmName> :
+                                               string asmName> :
   VOP3_Realtriple_with_name_gfx11<op, opName, asmName, 1>;
 
 multiclass VOP3be_Realtriple_gfx11<
@@ -1417,6 +1434,7 @@ include "VOP1Instructions.td"
 include "VOP2Instructions.td"
 include "VOP3Instructions.td"
 include "VOP3PInstructions.td"
+include "VOPDInstructions.td"
 
 
 class VOPInfoTable <string Format> : GenericTable {

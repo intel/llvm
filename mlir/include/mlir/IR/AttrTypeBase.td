@@ -295,6 +295,8 @@ class AttrOrTypeParameter<string type, string desc, string accessorType = ""> {
   // The C++ storage type of of this parameter if it is a reference, e.g.
   // `std::string` for `StringRef` or `SmallVector` for `ArrayRef`.
   string cppStorageType = ?;
+  // The C++ code to convert from the storage type to the parameter type.
+  string convertFromStorage = "$_self";
   // One-line human-readable description of the argument.
   string summary = desc;
   // The format string for the asm syntax (documentation only).
@@ -317,7 +319,7 @@ class AttrOrTypeParameter<string type, string desc, string accessorType = ""> {
   // will be set to the default value. Parameters equal to their default values
   // are elided when printing. Equality is checked using the `comparator` field,
   // which by default is the C++ equality operator. The current MLIR context is
-  // made available through `$_ctx`, e.g., for constructing default values for
+  // made available through `$_ctxt`, e.g., for constructing default values for
   // attributes and types.
   string defaultValue = ?;
 }

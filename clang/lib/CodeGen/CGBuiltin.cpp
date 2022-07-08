@@ -16867,6 +16867,69 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
                                   RayInverseDir, TextureDescr});
   }
 
+  case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w64:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32:
+  case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w64: {
+
+    // These operations perform a matrix multiplication and accumulation of
+    // the form:
+    //             D = A * B + C
+    // The return type always matches the type of matrix C.
+    unsigned ArgForMatchingRetType;
+    unsigned BuiltinWMMAOp;
+
+    switch (BuiltinID) {
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_f16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_f32_16x16x16_f16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_f32_16x16x16_bf16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_f32_16x16x16_bf16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_f16_16x16x16_f16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_f16_16x16x16_f16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w64:
+      ArgForMatchingRetType = 2;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_bf16_16x16x16_bf16;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu8_w64:
+      ArgForMatchingRetType = 4;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_i32_16x16x16_iu8;
+      break;
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32:
+    case AMDGPU::BI__builtin_amdgcn_wmma_i32_16x16x16_iu4_w64:
+      ArgForMatchingRetType = 4;
+      BuiltinWMMAOp = Intrinsic::amdgcn_wmma_i32_16x16x16_iu4;
+      break;
+    }
+
+    SmallVector<Value *, 6> Args;
+    for (int i = 0, e = E->getNumArgs(); i != e; ++i)
+      Args.push_back(EmitScalarExpr(E->getArg(i)));
+
+    Function *F = CGM.getIntrinsic(BuiltinWMMAOp,
+                                   {Args[ArgForMatchingRetType]->getType()});
+
+    return Builder.CreateCall(F, Args);
+  }
+
   // amdgcn workitem
   case AMDGPU::BI__builtin_amdgcn_workitem_id_x:
     return emitRangedBuiltin(*this, Intrinsic::amdgcn_workitem_id_x, 0, 1024);
@@ -21094,8 +21157,34 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
   SmallVector<Value *, 4> Ops;
   llvm::Type *ResultType = ConvertType(E->getType());
 
-  for (unsigned i = 0, e = E->getNumArgs(); i != e; i++)
-    Ops.push_back(EmitScalarExpr(E->getArg(i)));
+  // Find out if any arguments are required to be integer constant expressions.
+  unsigned ICEArguments = 0;
+  ASTContext::GetBuiltinTypeError Error;
+  getContext().GetBuiltinType(BuiltinID, Error, &ICEArguments);
+  if (Error == ASTContext::GE_Missing_type) {
+    // Vector intrinsics don't have a type string.
+    assert(BuiltinID >= clang::RISCV::FirstRVVBuiltin &&
+           BuiltinID <= clang::RISCV::LastRVVBuiltin);
+    ICEArguments = 0;
+    if (BuiltinID == RISCVVector::BI__builtin_rvv_vget_v ||
+        BuiltinID == RISCVVector::BI__builtin_rvv_vset_v)
+      ICEArguments = 1 << 1;
+  } else {
+    assert(Error == ASTContext::GE_None && "Unexpected error");
+  }
+
+  for (unsigned i = 0, e = E->getNumArgs(); i != e; i++) {
+    // If this is a normal argument, just emit it as a scalar.
+    if ((ICEArguments & (1 << i)) == 0) {
+      Ops.push_back(EmitScalarExpr(E->getArg(i)));
+      continue;
+    }
+
+    // If this is required to be a constant, constant fold it so that we know
+    // that the generated intrinsic gets a ConstantInt.
+    Ops.push_back(llvm::ConstantInt::get(
+        getLLVMContext(), *E->getArg(i)->getIntegerConstantExpr(getContext())));
+  }
 
   Intrinsic::ID ID = Intrinsic::not_intrinsic;
   unsigned NF = 1;

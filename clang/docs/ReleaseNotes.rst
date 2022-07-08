@@ -68,6 +68,12 @@ Major New Features
 
       Randomizing structure layout is a C-only feature.
 
+- Experimental support for HLSL has been added. The implementation is
+  incomplete and highly experimental. For more information about the ongoing
+  work to support HLSL see the `documentation
+  <https://clang.llvm.org/docs/HLSLSupport.html>`_, or the `GitHub project
+  <https://github.com/orgs/llvm/projects/4>`_.
+
 Bug Fixes
 ---------
 - ``CXXNewExpr::getArraySize()`` previously returned a ``llvm::Optional``
@@ -267,6 +273,12 @@ Improvements to Clang's diagnostics
 - When using class templates without arguments, clang now tells developers
   that template arguments are missing in certain contexts.
   This fixes `Issue 55962 <https://github.com/llvm/llvm-project/issues/55962>`_.
+- Printable Unicode characters within `static_assert` messages are no longer
+  escaped.
+- The ``-Winfinite-recursion`` diagnostic no longer warns about
+  unevaluated operands of a ``typeid`` expression, as they are now
+  modeled correctly in the CFG. This fixes
+  `Issue 21668 <https://github.com/llvm/llvm-project/issues/21668>`_.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -331,6 +343,10 @@ New Pragmas in Clang
 - Added support for MSVC's ``#pragma alloc_text``. The pragma names the code
   section functions are placed in. The pragma only applies to functions with
   C linkage.
+- Added support for an empty optimization list for MSVC's ``#pragma optimize``.
+  The pragma takes a list of optimizations to turn on or off which applies to
+  all functions following the pragma. At the moment, only an empty list is
+  supported.
 
 - ...
 
@@ -368,6 +384,10 @@ Attribute Changes in Clang
   annotations to types (see documentation for details).
 
 - Added half float to types that can be represented by ``__attribute__((mode(XX)))``.
+
+- The ``format`` attribute can now be applied to non-variadic functions. The
+  format string must correctly format the fixed parameter types of the function.
+  Using the attribute this way emits a GCC compatibility diagnostic.
 
 Windows Support
 ---------------
@@ -504,6 +524,9 @@ X86 Support in Clang
 
 - Support ``-mharden-sls=[none|all|return|indirect-jmp]`` for straight-line
   speculation hardening.
+- Support for the ``_Float16`` type has been added for all targets with SSE2.
+  When AVX512-FP16 is not available, arithmetic on ``_Float16`` is emulated
+  using ``float``.
 
 DWARF Support in Clang
 ----------------------
@@ -517,6 +540,10 @@ DWARF Support in Clang
 
 Arm and AArch64 Support in Clang
 --------------------------------
+
+- clang now supports the Cortex-M85 CPU, which can be chosen with
+  `-mcpu=cortex-m85`. By default, this has PACBTI turned on, but it can be
+  disabled with `-mcpu=cortex-m85+nopacbti`.
 
 Floating Point Support in Clang
 -------------------------------
@@ -546,6 +573,9 @@ AST Matchers
 
 - Added ``forEachTemplateArgument`` matcher which creates a match every
   time a ``templateArgument`` matches the matcher supplied to it.
+  
+- Added ``objcStringLiteral`` matcher which matches ObjectiveC String
+  literal expressions.
 
 clang-format
 ------------
@@ -560,6 +590,13 @@ clang-format
 
 - Option ``InsertBraces`` has been added to insert optional braces after control
   statements.
+
+clang-extdef-mapping
+--------------------
+
+- clang-extdef-mapping now accepts .ast files as input. This is faster than to
+  recompile the files from sources when extracting method definitons. This can
+  be really beneficial when creating .ast files for input to the clang-static-analyzer.
 
 libclang
 --------

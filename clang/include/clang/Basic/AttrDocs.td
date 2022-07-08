@@ -4629,8 +4629,8 @@ def FormatDocs : Documentation {
   let Content = [{
 
 Clang supports the ``format`` attribute, which indicates that the function
-accepts a ``printf`` or ``scanf``-like format string and corresponding
-arguments or a ``va_list`` that contains these arguments.
+accepts (among other possibilities) a ``printf`` or ``scanf``-like format string
+and corresponding arguments or a ``va_list`` that contains these arguments.
 
 Please see `GCC documentation about format attribute
 <http://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html>`_ to find details
@@ -4684,6 +4684,27 @@ Clang implements two kinds of checks with this attribute.
    In this case Clang does not warn because the format string ``s`` and
    the corresponding arguments are annotated. If the arguments are
    incorrect, the caller of ``foo`` will receive a warning.
+
+As an extension to GCC's behavior, Clang accepts the ``format`` attribute on
+non-variadic functions. Clang checks non-variadic format functions for the same
+classes of issues that can be found on variadic functions, as controlled by the
+same warning flags, except that the types of formatted arguments is forced by
+the function signature. For example:
+
+.. code-block:: c
+
+  __attribute__((__format__(__printf__, 1, 2)))
+  void fmt(const char *s, const char *a, int b);
+
+  void bar(void) {
+    fmt("%s %i", "hello", 123); // OK
+    fmt("%i %g", "hello", 123); // warning: arguments don't match format
+    extern const char *fmt;
+    fmt(fmt, "hello", 123); // warning: format string is not a string literal
+  }
+
+Using the ``format`` attribute on a non-variadic function emits a GCC
+compatibility diagnostic.
   }];
 }
 
@@ -5963,6 +5984,7 @@ Clang provides the following context selector extensions, used via
     match_none
     disable_implicit_base
     allow_templates
+    bind_to_declaration
 
 The match extensions change when the *entire* context selector is considered a
 match for an OpenMP context. The default is ``all``, with ``none`` no trait in the
@@ -5978,8 +6000,9 @@ The allow extensions change when the ``begin declare variant`` effect is
 applied to a definition. If ``allow_templates`` is given, template function
 definitions are considered as specializations of existing or assumed template
 declarations with the same name. The template parameters for the base functions
-are used to instantiate the specialization.
-
+are used to instantiate the specialization. If ``bind_to_declartion`` is given,
+apply the same variant rules to function declarations. This allows the user to
+override declarations with only a function declaration.
   }];
 }
 

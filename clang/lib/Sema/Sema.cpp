@@ -250,21 +250,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   SemaPPCallbackHandler = Callbacks.get();
   PP.addPPCallbacks(std::move(Callbacks));
   SemaPPCallbackHandler->set(*this);
-  if (getLangOpts().getFPEvalMethod() == LangOptions::FEM_UnsetOnCommandLine)
-    // Use setting from TargetInfo.
-    PP.setCurrentFPEvalMethod(SourceLocation(),
-                              ctxt.getTargetInfo().getFPEvalMethod());
-  else
-    // Set initial value of __FLT_EVAL_METHOD__ from the command line.
-    PP.setCurrentFPEvalMethod(SourceLocation(),
-                              getLangOpts().getFPEvalMethod());
+
   CurFPFeatures.setFPEvalMethod(PP.getCurrentFPEvalMethod());
-  // When `-ffast-math` option is enabled, it triggers several driver math
-  // options to be enabled. Among those, only one the following two modes
-  // affect the eval-method:  reciprocal or reassociate.
-  if (getLangOpts().AllowFPReassoc || getLangOpts().AllowRecip)
-    PP.setCurrentFPEvalMethod(SourceLocation(),
-                              LangOptions::FEM_Indeterminable);
 }
 
 // Anchor Sema's type info to this TU.
@@ -2325,7 +2312,8 @@ operator()(sema::FunctionScopeInfo *Scope) const {
 }
 
 void Sema::PushCompoundScope(bool IsStmtExpr) {
-  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo(IsStmtExpr));
+  getCurFunction()->CompoundScopes.push_back(
+      CompoundScopeInfo(IsStmtExpr, getCurFPFeatures()));
 }
 
 void Sema::PopCompoundScope() {

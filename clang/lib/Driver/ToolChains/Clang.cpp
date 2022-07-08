@@ -27,7 +27,6 @@
 #include "clang/Basic/CLWarnings.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
-#include "clang/Basic/DebugInfoOptions.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/ObjCRuntime.h"
@@ -537,7 +536,7 @@ static codegenoptions::DebugInfoKind DebugLevelToInfoKind(const Arg &A) {
     return codegenoptions::DebugLineTablesOnly;
   if (A.getOption().matches(options::OPT_gline_directives_only))
     return codegenoptions::DebugDirectivesOnly;
-  return codegenoptions::LimitedDebugInfo;
+  return codegenoptions::DebugInfoConstructor;
 }
 
 static bool mustUseNonLeafFramePointerForTarget(const llvm::Triple &Triple) {
@@ -1120,6 +1119,9 @@ static void RenderDebugEnablingArgs(const ArgList &Args, ArgStringList &CmdArgs,
     break;
   case codegenoptions::DebugLineTablesOnly:
     CmdArgs.push_back("-debug-info-kind=line-tables-only");
+    break;
+  case codegenoptions::DebugInfoConstructor:
+    CmdArgs.push_back("-debug-info-kind=constructor");
     break;
   case codegenoptions::LimitedDebugInfo:
     CmdArgs.push_back("-debug-info-kind=limited");
@@ -2779,7 +2781,7 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
           CmdArgs.push_back(Value.data());
         } else {
           RenderDebugEnablingArgs(Args, CmdArgs,
-                                  codegenoptions::LimitedDebugInfo,
+                                  codegenoptions::DebugInfoConstructor,
                                   DwarfVersion, llvm::DebuggerKind::Default);
         }
       } else if (Value.startswith("-mcpu") || Value.startswith("-mfpu") ||
@@ -3859,38 +3861,49 @@ static void RenderModulesOptions(Compilation &C, const Driver &D,
   Args.AddLastArg(CmdArgs, options::OPT_fmodules_prune_interval);
   Args.AddLastArg(CmdArgs, options::OPT_fmodules_prune_after);
 
-  Args.AddLastArg(CmdArgs, options::OPT_fbuild_session_timestamp);
+  if (HaveClangModules) {
+    Args.AddLastArg(CmdArgs, options::OPT_fbuild_session_timestamp);
 
-  if (Arg *A = Args.getLastArg(options::OPT_fbuild_session_file)) {
-    if (Args.hasArg(options::OPT_fbuild_session_timestamp))
-      D.Diag(diag::err_drv_argument_not_allowed_with)
-          << A->getAsString(Args) << "-fbuild-session-timestamp";
+    if (Arg *A = Args.getLastArg(options::OPT_fbuild_session_file)) {
+      if (Args.hasArg(options::OPT_fbuild_session_timestamp))
+        D.Diag(diag::err_drv_argument_not_allowed_with)
+            << A->getAsString(Args) << "-fbuild-session-timestamp";
 
-    llvm::sys::fs::file_status Status;
-    if (llvm::sys::fs::status(A->getValue(), Status))
-      D.Diag(diag::err_drv_no_such_file) << A->getValue();
-    CmdArgs.push_back(Args.MakeArgString(
-        "-fbuild-session-timestamp=" +
-        Twine((uint64_t)std::chrono::duration_cast<std::chrono::seconds>(
-                  Status.getLastModificationTime().time_since_epoch())
-                  .count())));
-  }
+      llvm::sys::fs::file_status Status;
+      if (llvm::sys::fs::status(A->getValue(), Status))
+        D.Diag(diag::err_drv_no_such_file) << A->getValue();
+      CmdArgs.push_back(Args.MakeArgString(
+          "-fbuild-session-timestamp=" +
+          Twine((uint64_t)std::chrono::duration_cast<std::chrono::seconds>(
+                    Status.getLastModificationTime().time_since_epoch())
+                    .count())));
+    }
 
-  if (Args.getLastArg(options::OPT_fmodules_validate_once_per_build_session)) {
-    if (!Args.getLastArg(options::OPT_fbuild_session_timestamp,
-                         options::OPT_fbuild_session_file))
-      D.Diag(diag::err_drv_modules_validate_once_requires_timestamp);
+    if (Args.getLastArg(
+            options::OPT_fmodules_validate_once_per_build_session)) {
+      if (!Args.getLastArg(options::OPT_fbuild_session_timestamp,
+                           options::OPT_fbuild_session_file))
+        D.Diag(diag::err_drv_modules_validate_once_requires_timestamp);
+
+      Args.AddLastArg(CmdArgs,
+                      options::OPT_fmodules_validate_once_per_build_session);
+    }
+
+    if (Args.hasFlag(options::OPT_fmodules_validate_system_headers,
+                     options::OPT_fno_modules_validate_system_headers,
+                     ImplicitModules))
+      CmdArgs.push_back("-fmodules-validate-system-headers");
 
     Args.AddLastArg(CmdArgs,
-                    options::OPT_fmodules_validate_once_per_build_session);
+                    options::OPT_fmodules_disable_diagnostic_validation);
+  } else {
+    Args.ClaimAllArgs(options::OPT_fbuild_session_timestamp);
+    Args.ClaimAllArgs(options::OPT_fbuild_session_file);
+    Args.ClaimAllArgs(options::OPT_fmodules_validate_once_per_build_session);
+    Args.ClaimAllArgs(options::OPT_fmodules_validate_system_headers);
+    Args.ClaimAllArgs(options::OPT_fno_modules_validate_system_headers);
+    Args.ClaimAllArgs(options::OPT_fmodules_disable_diagnostic_validation);
   }
-
-  if (Args.hasFlag(options::OPT_fmodules_validate_system_headers,
-                   options::OPT_fno_modules_validate_system_headers,
-                   ImplicitModules))
-    CmdArgs.push_back("-fmodules-validate-system-headers");
-
-  Args.AddLastArg(CmdArgs, options::OPT_fmodules_disable_diagnostic_validation);
 }
 
 static void RenderCharacterOptions(const ArgList &Args, const llvm::Triple &T,
@@ -4205,7 +4218,7 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
     }
   }
   if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
-    DebugInfoKind = codegenoptions::LimitedDebugInfo;
+    DebugInfoKind = codegenoptions::DebugInfoConstructor;
 
     // If the last option explicitly specified a debug-info level, use it.
     if (checkDebugInfoOption(A, Args, D, TC) &&
@@ -4327,7 +4340,7 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
     if (checkDebugInfoOption(A, Args, D, TC)) {
       if (DebugInfoKind != codegenoptions::DebugLineTablesOnly &&
           DebugInfoKind != codegenoptions::DebugDirectivesOnly) {
-        DebugInfoKind = codegenoptions::LimitedDebugInfo;
+        DebugInfoKind = codegenoptions::DebugInfoConstructor;
         CmdArgs.push_back("-dwarf-ext-refs");
         CmdArgs.push_back("-fmodule-format=obj");
       }
@@ -4348,7 +4361,8 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
   if (const Arg *A = Args.getLastArg(options::OPT_fstandalone_debug))
     (void)checkDebugInfoOption(A, Args, D, TC);
 
-  if (DebugInfoKind == codegenoptions::LimitedDebugInfo) {
+  if (DebugInfoKind == codegenoptions::LimitedDebugInfo ||
+      DebugInfoKind == codegenoptions::DebugInfoConstructor) {
     if (Args.hasFlag(options::OPT_fno_eliminate_unused_debug_types,
                      options::OPT_feliminate_unused_debug_types, false))
       DebugInfoKind = codegenoptions::UnusedTypeInfo;
@@ -5921,7 +5935,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // This controls whether or not we perform JustMyCode instrumentation.
   if (Args.hasFlag(options::OPT_fjmc, options::OPT_fno_jmc, false)) {
     if (TC.getTriple().isOSBinFormatELF()) {
-      if (DebugInfoKind >= codegenoptions::LimitedDebugInfo)
+      if (DebugInfoKind >= codegenoptions::DebugInfoConstructor)
         CmdArgs.push_back("-fjmc");
       else
         D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo) << "-fjmc"
@@ -6784,6 +6798,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fgpu_allow_device_init,
                      options::OPT_fno_gpu_allow_device_init, false))
       CmdArgs.push_back("-fgpu-allow-device-init");
+    Args.addOptInFlag(CmdArgs, options::OPT_fhip_kernel_arg_name,
+                      options::OPT_fno_hip_kernel_arg_name);
   }
 
   if (IsCuda || IsHIP) {
@@ -8115,7 +8131,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
                                           options::OPT_gline_tables_only)) {
     *EmitCodeView = true;
     if (DebugInfoArg->getOption().matches(options::OPT__SLASH_Z7))
-      *DebugInfoKind = codegenoptions::LimitedDebugInfo;
+      *DebugInfoKind = codegenoptions::DebugInfoConstructor;
     else
       *DebugInfoKind = codegenoptions::DebugLineTablesOnly;
   } else {
@@ -8127,7 +8143,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
   // This controls whether or not we perform JustMyCode instrumentation.
   if (Args.hasFlag(options::OPT__SLASH_JMC, options::OPT__SLASH_JMC_,
                    /*Default=*/false)) {
-    if (*EmitCodeView && *DebugInfoKind >= codegenoptions::LimitedDebugInfo)
+    if (*EmitCodeView && *DebugInfoKind >= codegenoptions::DebugInfoConstructor)
       CmdArgs.push_back("-fjmc");
     else
       D.Diag(clang::diag::warn_drv_jmc_requires_debuginfo) << "/JMC"
@@ -8456,7 +8472,7 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
     // the guard for source type, however there is a test which asserts
     // that some assembler invocation receives no -debug-info-kind,
     // and it's not clear whether that test is just overly restrictive.
-    DebugInfoKind = (WantDebug ? codegenoptions::LimitedDebugInfo
+    DebugInfoKind = (WantDebug ? codegenoptions::DebugInfoConstructor
                                : codegenoptions::NoDebugInfo);
 
     addDebugPrefixMapArg(getToolChain().getDriver(), getToolChain(), Args,

@@ -302,6 +302,12 @@ extern char &SIMemoryLegalizerID;
 void initializeSIModeRegisterPass(PassRegistry&);
 extern char &SIModeRegisterID;
 
+void initializeAMDGPUReleaseVGPRsPass(PassRegistry &);
+extern char &AMDGPUReleaseVGPRsID;
+
+void initializeAMDGPUInsertDelayAluPass(PassRegistry &);
+extern char &AMDGPUInsertDelayAluID;
+
 void initializeSIInsertHardClausesPass(PassRegistry &);
 extern char &SIInsertHardClausesID;
 
@@ -313,6 +319,9 @@ extern char &SIFormMemoryClausesID;
 
 void initializeSIPostRABundlerPass(PassRegistry&);
 extern char &SIPostRABundlerID;
+
+void initializeGCNCreateVOPDPass(PassRegistry &);
+extern char &GCNCreateVOPDID;
 
 void initializeAMDGPUUnifyDivergentExitNodesPass(PassRegistry&);
 extern char &AMDGPUUnifyDivergentExitNodesID;

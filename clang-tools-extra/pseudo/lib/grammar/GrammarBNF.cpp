@@ -28,7 +28,7 @@ public:
   GrammarBuilder(std::vector<std::string> &Diagnostics)
       : Diagnostics(Diagnostics) {}
 
-  std::unique_ptr<Grammar> build(llvm::StringRef BNF) {
+  Grammar build(llvm::StringRef BNF) {
     auto Specs = eliminateOptional(parse(BNF));
 
     assert(llvm::all_of(Specs,
@@ -106,6 +106,17 @@ public:
 
     assert(T->Rules.size() < (1 << RuleBits) &&
            "Too many rules to fit in RuleID bits!");
+    // Wherever RHS contains { foo }, mark foo for brace-recovery.
+    // FIXME: this should be grammar annotations instead.
+    for (auto &Rule : T->Rules) {
+      for (unsigned I = 2; I < Rule.Size; ++I)
+        if (Rule.Sequence[I] == tokenSymbol(tok::r_brace) &&
+            Rule.Sequence[I - 2] == tokenSymbol(tok::l_brace) &&
+            !isToken(Rule.Sequence[I - 1])) {
+          Rule.Recovery = RecoveryStrategy::Braces;
+          Rule.RecoveryIndex = I - 1;
+        }
+    }
     const auto &SymbolOrder = getTopologicalOrder(T.get());
     llvm::stable_sort(
         T->Rules, [&SymbolOrder](const Rule &Left, const Rule &Right) {
@@ -122,8 +133,8 @@ public:
         ++End;
       T->Nonterminals[SID].RuleRange = {Start, End};
     }
-    auto G = std::make_unique<Grammar>(std::move(T));
-    diagnoseGrammar(*G);
+    Grammar G(std::move(T));
+    diagnoseGrammar(G);
     return G;
   }
 
@@ -341,8 +352,8 @@ private:
 };
 } // namespace
 
-std::unique_ptr<Grammar>
-Grammar::parseBNF(llvm::StringRef BNF, std::vector<std::string> &Diagnostics) {
+Grammar Grammar::parseBNF(llvm::StringRef BNF,
+                          std::vector<std::string> &Diagnostics) {
   Diagnostics.clear();
   return GrammarBuilder(Diagnostics).build(BNF);
 }

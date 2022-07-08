@@ -898,6 +898,18 @@ SuccessorOperands InvokeOp::getSuccessorOperands(unsigned index) {
                                       : getUnwindDestOperandsMutable());
 }
 
+CallInterfaceCallable InvokeOp::getCallableForCallee() {
+  // Direct call.
+  if (FlatSymbolRefAttr calleeAttr = getCalleeAttr())
+    return calleeAttr;
+  // Indirect call, callee Value is the first operand.
+  return getOperand(0);
+}
+
+Operation::operand_range InvokeOp::getArgOperands() {
+  return getOperands().drop_front(getCallee().hasValue() ? 0 : 1);
+}
+
 LogicalResult InvokeOp::verify() {
   if (getNumResults() > 1)
     return emitOpError("must have 0 or 1 result");
@@ -1124,6 +1136,18 @@ ParseResult LandingpadOp::parse(OpAsmParser &parser, OperationState &result) {
 //===----------------------------------------------------------------------===//
 // Verifying/Printing/parsing for LLVM::CallOp.
 //===----------------------------------------------------------------------===//
+
+CallInterfaceCallable CallOp::getCallableForCallee() {
+  // Direct call.
+  if (FlatSymbolRefAttr calleeAttr = getCalleeAttr())
+    return calleeAttr;
+  // Indirect call, callee Value is the first operand.
+  return getOperand(0);
+}
+
+Operation::operand_range CallOp::getArgOperands() {
+  return getOperands().drop_front(getCallee().hasValue() ? 0 : 1);
+}
 
 LogicalResult CallOp::verify() {
   if (getNumResults() > 1)
@@ -2132,7 +2156,6 @@ LogicalResult ShuffleVectorOp::verify() {
 // Add the entry block to the function.
 Block *LLVMFuncOp::addEntryBlock() {
   assert(empty() && "function already has an entry block");
-  assert(!isVarArg() && "unimplemented: non-external variadic functions");
 
   auto *entry = new Block;
   push_back(entry);
@@ -2330,9 +2353,6 @@ LogicalResult LLVMFuncOp::verify() {
                            << "' linkage";
     return success();
   }
-
-  if (isVarArg())
-    return emitOpError("only external functions can be variadic");
 
   return success();
 }

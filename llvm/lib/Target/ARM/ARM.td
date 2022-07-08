@@ -546,6 +546,16 @@ def FeatureFixCortexA57AES1742098 : SubtargetFeature<"fix-cortex-a57-aes-1742098
   "FixCortexA57AES1742098", "true",
   "Work around Cortex-A57 Erratum 1742098 / Cortex-A72 Erratum 1655431 (AES)">;
 
+def FeatureAAPCSFrameChain : SubtargetFeature<"aapcs-frame-chain",
+                                              "CreateAAPCSFrameChain", "true",
+                                              "Create an AAPCS compliant frame chain">;
+
+def FeatureAAPCSFrameChainLeaf : SubtargetFeature<"aapcs-frame-chain-leaf",
+                                                  "CreateAAPCSFrameChainLeaf", "true",
+                                                  "Create an AAPCS compliant frame chain "
+                                                  "for leaf functions",
+                                                  [FeatureAAPCSFrameChain]>;
+
 //===----------------------------------------------------------------------===//
 // ARM architecture class
 //
@@ -1439,6 +1449,13 @@ def : ProcessorModel<"cortex-m55", CortexM4Model,      [ARMv81mMainline,
                                                          FeatureHasSlowFPVMLx,
                                                          HasMVEFloatOps,
                                                          FeatureFixCMSE_CVE_2021_35465]>;
+
+def : ProcessorModel<"cortex-m85", CortexM7Model,       [ARMv81mMainline,
+                                                         FeatureDSP,
+                                                         FeatureFPARMv8_D16,
+                                                         FeaturePACBTI,
+                                                         FeatureUseMISched,
+                                                         HasMVEFloatOps]>;
 
 def : ProcNoItin<"cortex-a32",                           [ARMv8a,
                                                          FeatureHWDivThumb,

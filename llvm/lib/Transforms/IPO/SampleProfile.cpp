@@ -1073,8 +1073,7 @@ void SampleProfileLoader::findExternalInlineCandidate(
     return;
   }
 
-  ContextTrieNode *Caller =
-      ContextTracker->getContextFor(Samples->getContext());
+  ContextTrieNode *Caller = ContextTracker->getContextNodeForProfile(Samples);
   std::queue<ContextTrieNode *> CalleeList;
   CalleeList.push(Caller);
   while (!CalleeList.empty()) {
@@ -2015,7 +2014,7 @@ bool SampleProfileLoader::doInitialization(Module &M,
                               ProfileInlineReplayScope,
                               ProfileInlineReplayFallback,
                               {ProfileInlineReplayFormat}},
-        /*EmitRemarks=*/false);
+        /*EmitRemarks=*/false, InlineContext{LTOPhase, InlinePass::ReplaySampleProfileInliner});
   }
 
   // Apply tweaks if context-sensitive or probe-based profile is available.

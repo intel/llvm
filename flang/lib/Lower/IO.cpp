@@ -196,7 +196,7 @@ static mlir::Value genEndIO(Fortran::lower::AbstractConverter &converter,
                                           mlir::ValueRange{cookie});
   mlir::Value iostat = call.getResult(0);
   if (csi.bigUnitIfOp) {
-    stmtCtx.finalize(/*popScope=*/true);
+    stmtCtx.finalizeAndPop();
     builder.create<fir::ResultOp>(loc, iostat);
     builder.setInsertionPointAfter(csi.bigUnitIfOp);
     iostat = csi.bigUnitIfOp.getResult(0);
@@ -530,17 +530,17 @@ static mlir::func::FuncOp getInputFunc(mlir::Location loc,
                ? getIORuntimeFunc<mkIOKey(InputLogical)>(loc, builder)
                : getIORuntimeFunc<mkIOKey(InputInteger)>(loc, builder);
   if (auto ty = type.dyn_cast<mlir::FloatType>()) {
-    if (auto width = ty.getWidth(); width <= 32)
+    if (auto width = ty.getWidth(); width == 32)
       return getIORuntimeFunc<mkIOKey(InputReal32)>(loc, builder);
-    else if (width <= 64)
+    else if (width == 64)
       return getIORuntimeFunc<mkIOKey(InputReal64)>(loc, builder);
   }
   auto kindMap = fir::getKindMapping(builder.getModule());
   if (auto ty = type.dyn_cast<fir::ComplexType>()) {
     auto width = kindMap.getRealBitsize(ty.getFKind());
-    if (width <= 32)
+    if (width == 32)
       return getIORuntimeFunc<mkIOKey(InputComplex32)>(loc, builder);
-    else if (width <= 64)
+    else if (width == 64)
       return getIORuntimeFunc<mkIOKey(InputComplex64)>(loc, builder);
   }
   if (type.isa<fir::LogicalType>())
@@ -1538,7 +1538,7 @@ getBuffer(Fortran::lower::AbstractConverter &converter, mlir::Location loc,
     if (auto *var = std::get_if<Fortran::parser::Variable>(&iounit->u))
       if (auto *expr = Fortran::semantics::GetExpr(*var))
         return genBuffer(converter, loc, *expr, strTy, lenTy, stmtCtx);
-  llvm::report_fatal_error("failed to get IoUnit expr in lowering");
+  llvm::report_fatal_error("failed to get IoUnit expr");
 }
 
 static mlir::Value genIOUnitNumber(Fortran::lower::AbstractConverter &converter,
@@ -1764,6 +1764,11 @@ Fortran::lower::genWaitStatement(Fortran::lower::AbstractConverter &converter,
     mlir::Value id = fir::getBase(converter.genExprValue(
         loc, getExpr<Fortran::parser::IdExpr>(stmt), stmtCtx));
     args.push_back(builder.createConvert(loc, beginFuncTy.getInput(1), id));
+    args.push_back(locToFilename(converter, loc, beginFuncTy.getInput(2)));
+    args.push_back(locToLineNo(converter, loc, beginFuncTy.getInput(3)));
+  } else {
+    args.push_back(locToFilename(converter, loc, beginFuncTy.getInput(1)));
+    args.push_back(locToLineNo(converter, loc, beginFuncTy.getInput(2)));
   }
   auto cookie = builder.create<fir::CallOp>(loc, beginFunc, args).getResult(0);
   genConditionHandlerCall(converter, loc, cookie, stmt.v, csi);

@@ -5719,6 +5719,9 @@ QualType ASTContext::getAutoTypeInternal(
       !TypeConstraintConcept && !IsDependent)
     return getAutoDeductType();
 
+  if (TypeConstraintConcept)
+    TypeConstraintConcept = TypeConstraintConcept->getCanonicalDecl();
+
   // Look in the folding set for an existing type.
   void *InsertPos = nullptr;
   llvm::FoldingSetNodeID ID;
@@ -10346,11 +10349,11 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     // Allow __auto_type to match anything; it merges to the type with more
     // information.
     if (const auto *AT = LHS->getAs<AutoType>()) {
-      if (AT->isGNUAutoType())
+      if (!AT->isDeduced() && AT->isGNUAutoType())
         return RHS;
     }
     if (const auto *AT = RHS->getAs<AutoType>()) {
-      if (AT->isGNUAutoType())
+      if (!AT->isDeduced() && AT->isGNUAutoType())
         return LHS;
     }
     return {};
@@ -11942,7 +11945,7 @@ ASTContext::getPredefinedStringLiteralFromCache(StringRef Key) const {
   StringLiteral *&Result = StringLiteralCache[Key];
   if (!Result)
     Result = StringLiteral::Create(
-        *this, Key, StringLiteral::Ascii,
+        *this, Key, StringLiteral::Ordinary,
         /*Pascal*/ false, getStringLiteralArrayType(CharTy, Key.size()),
         SourceLocation());
   return Result;

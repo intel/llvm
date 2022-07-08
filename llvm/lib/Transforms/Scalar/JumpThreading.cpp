@@ -788,6 +788,7 @@ bool JumpThreadingPass::computeValueKnownInPredecessorsImpl(
     if (Preference != WantInteger)
       return false;
     if (ConstantInt *CI = dyn_cast<ConstantInt>(BO->getOperand(1))) {
+      const DataLayout &DL = BO->getModule()->getDataLayout();
       PredValueInfoTy LHSVals;
       computeValueKnownInPredecessorsImpl(BO->getOperand(0), BB, LHSVals,
                                           WantInteger, RecursionSet, CxtI);
@@ -795,7 +796,8 @@ bool JumpThreadingPass::computeValueKnownInPredecessorsImpl(
       // Try to use constant folding to simplify the binary operator.
       for (const auto &LHSVal : LHSVals) {
         Constant *V = LHSVal.first;
-        Constant *Folded = ConstantExpr::get(BO->getOpcode(), V, CI);
+        Constant *Folded =
+            ConstantFoldBinaryOpOperands(BO->getOpcode(), V, CI, DL);
 
         if (Constant *KC = getKnownConstant(Folded, WantInteger))
           Result.emplace_back(KC, LHSVal.second);
@@ -1331,10 +1333,10 @@ bool JumpThreadingPass::simplifyPartiallyRedundantLoad(LoadInst *LoadI) {
       combineMetadataForCSE(NLoadI, LoadI, false);
     };
 
-    // If the returned value is the load itself, replace with an undef. This can
+    // If the returned value is the load itself, replace with poison. This can
     // only happen in dead loops.
     if (AvailableVal == LoadI)
-      AvailableVal = UndefValue::get(LoadI->getType());
+      AvailableVal = PoisonValue::get(LoadI->getType());
     if (AvailableVal->getType() != LoadI->getType())
       AvailableVal = CastInst::CreateBitOrPointerCast(
           AvailableVal, LoadI->getType(), "", LoadI);

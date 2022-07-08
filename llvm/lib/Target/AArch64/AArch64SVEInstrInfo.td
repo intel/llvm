@@ -233,6 +233,7 @@ def AArch64rbit_mt   : SDNode<"AArch64ISD::BITREVERSE_MERGE_PASSTHRU", SDT_AArch
 def AArch64revb_mt   : SDNode<"AArch64ISD::BSWAP_MERGE_PASSTHRU", SDT_AArch64Arith>;
 def AArch64revh_mt   : SDNode<"AArch64ISD::REVH_MERGE_PASSTHRU", SDT_AArch64Arith>;
 def AArch64revw_mt   : SDNode<"AArch64ISD::REVW_MERGE_PASSTHRU", SDT_AArch64Arith>;
+def AArch64revd_mt   : SDNode<"AArch64ISD::REVD_MERGE_PASSTHRU", SDT_AArch64Arith>;
 
 // These are like the above but we don't yet have need for ISD nodes. They allow
 // a single pattern to match intrinsic and ISD operand layouts.
@@ -746,6 +747,11 @@ let Predicates = [HasSVEorSME] in {
 
   defm PUNPKLO_PP : sve_int_perm_punpk<0b0, "punpklo", int_aarch64_sve_punpklo>;
   defm PUNPKHI_PP : sve_int_perm_punpk<0b1, "punpkhi", int_aarch64_sve_punpkhi>;
+
+  // Define pattern for `nxv1i1 splat_vector(1)`.
+  // We do this here instead of in ISelLowering such that PatFrag's can still
+  // recognize a splat.
+  def : Pat<(nxv1i1 immAllOnesV), (PUNPKLO_PP (PTRUE_D 31))>;
 
   defm MOVPRFX_ZPzZ : sve_int_movprfx_pred_zero<0b000, "movprfx">;
   defm MOVPRFX_ZPmZ : sve_int_movprfx_pred_merge<0b001, "movprfx">;
@@ -1359,7 +1365,7 @@ let Predicates = [HasSVEorSME] in {
   // Contiguous prefetch (register + register)
   def PRFB_PRR : sve_mem_prfm_ss<0b001, "prfb", GPR64NoXZRshifted8>;
   def PRFH_PRR : sve_mem_prfm_ss<0b011, "prfh", GPR64NoXZRshifted16>;
-  def PRFS_PRR : sve_mem_prfm_ss<0b101, "prfw", GPR64NoXZRshifted32>;
+  def PRFW_PRR : sve_mem_prfm_ss<0b101, "prfw", GPR64NoXZRshifted32>;
   def PRFD_PRR : sve_mem_prfm_ss<0b111, "prfd", GPR64NoXZRshifted64>;
 
   multiclass sve_prefetch<SDPatternOperator prefetch, ValueType PredTy, Instruction RegImmInst, Instruction RegRegInst, ComplexPattern AddrCP> {
@@ -1382,7 +1388,7 @@ let Predicates = [HasSVEorSME] in {
 
   defm : sve_prefetch<int_aarch64_sve_prf, nxv16i1, PRFB_PRI, PRFB_PRR, am_sve_regreg_lsl0>;
   defm : sve_prefetch<int_aarch64_sve_prf, nxv8i1,  PRFH_PRI, PRFH_PRR, am_sve_regreg_lsl1>;
-  defm : sve_prefetch<int_aarch64_sve_prf, nxv4i1,  PRFW_PRI, PRFS_PRR, am_sve_regreg_lsl2>;
+  defm : sve_prefetch<int_aarch64_sve_prf, nxv4i1,  PRFW_PRI, PRFW_PRR, am_sve_regreg_lsl2>;
   defm : sve_prefetch<int_aarch64_sve_prf, nxv2i1,  PRFD_PRI, PRFD_PRR, am_sve_regreg_lsl3>;
 } // End HasSVEorSME
 
@@ -1508,6 +1514,10 @@ let Predicates = [HasSVEorSME] in {
   defm TRN2_PPP : sve_int_perm_bin_perm_pp<0b101, "trn2", AArch64trn2>;
 
   // Extract lo/hi halves of legal predicate types.
+  def : Pat<(nxv1i1 (extract_subvector (nxv2i1 PPR:$Ps), (i64 0))),
+            (PUNPKLO_PP PPR:$Ps)>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv2i1 PPR:$Ps), (i64 1))),
+            (PUNPKHI_PP PPR:$Ps)>;
   def : Pat<(nxv2i1 (extract_subvector (nxv4i1 PPR:$Ps), (i64 0))),
             (PUNPKLO_PP PPR:$Ps)>;
   def : Pat<(nxv2i1 (extract_subvector (nxv4i1 PPR:$Ps), (i64 2))),
@@ -1521,6 +1531,14 @@ let Predicates = [HasSVEorSME] in {
   def : Pat<(nxv8i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 8))),
             (PUNPKHI_PP PPR:$Ps)>;
 
+  def : Pat<(nxv1i1 (extract_subvector (nxv4i1 PPR:$Ps), (i64 0))),
+            (PUNPKLO_PP (PUNPKLO_PP PPR:$Ps))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv4i1 PPR:$Ps), (i64 1))),
+            (PUNPKHI_PP (PUNPKLO_PP PPR:$Ps))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv4i1 PPR:$Ps), (i64 2))),
+            (PUNPKLO_PP (PUNPKHI_PP PPR:$Ps))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv4i1 PPR:$Ps), (i64 3))),
+            (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps))>;
   def : Pat<(nxv2i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 0))),
             (PUNPKLO_PP (PUNPKLO_PP PPR:$Ps))>;
   def : Pat<(nxv2i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 2))),
@@ -1529,7 +1547,6 @@ let Predicates = [HasSVEorSME] in {
             (PUNPKLO_PP (PUNPKHI_PP PPR:$Ps))>;
   def : Pat<(nxv2i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 6))),
             (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps))>;
-
   def : Pat<(nxv4i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 0))),
             (PUNPKLO_PP (PUNPKLO_PP PPR:$Ps))>;
   def : Pat<(nxv4i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 4))),
@@ -1539,6 +1556,23 @@ let Predicates = [HasSVEorSME] in {
   def : Pat<(nxv4i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 12))),
             (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps))>;
 
+
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 0))),
+            (PUNPKLO_PP (PUNPKLO_PP (PUNPKLO_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 1))),
+            (PUNPKHI_PP (PUNPKLO_PP (PUNPKLO_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 2))),
+            (PUNPKLO_PP (PUNPKHI_PP (PUNPKLO_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 3))),
+            (PUNPKHI_PP (PUNPKHI_PP (PUNPKLO_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 4))),
+            (PUNPKLO_PP (PUNPKLO_PP (PUNPKHI_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 5))),
+            (PUNPKHI_PP (PUNPKLO_PP (PUNPKHI_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 6))),
+            (PUNPKLO_PP (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps)))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv8i1 PPR:$Ps), (i64 7))),
+            (PUNPKHI_PP (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps)))>;
   def : Pat<(nxv2i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 0))),
             (PUNPKLO_PP (PUNPKLO_PP (PUNPKLO_PP PPR:$Ps)))>;
   def : Pat<(nxv2i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 2))),
@@ -1555,6 +1589,39 @@ let Predicates = [HasSVEorSME] in {
             (PUNPKLO_PP (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps)))>;
   def : Pat<(nxv2i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 14))),
             (PUNPKHI_PP (PUNPKHI_PP (PUNPKHI_PP PPR:$Ps)))>;
+
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 0))),
+            (PUNPKLO_PP (PUNPKLO_PP (PUNPKLO_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 1))),
+            (PUNPKHI_PP (PUNPKLO_PP (PUNPKLO_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 2))),
+            (PUNPKLO_PP (PUNPKHI_PP (PUNPKLO_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 3))),
+            (PUNPKHI_PP (PUNPKHI_PP (PUNPKLO_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 4))),
+            (PUNPKLO_PP (PUNPKLO_PP (PUNPKHI_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 5))),
+            (PUNPKHI_PP (PUNPKLO_PP (PUNPKHI_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 6))),
+            (PUNPKLO_PP (PUNPKHI_PP (PUNPKHI_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 7))),
+            (PUNPKHI_PP (PUNPKHI_PP (PUNPKHI_PP  (PUNPKLO_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 8))),
+            (PUNPKLO_PP (PUNPKLO_PP (PUNPKLO_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 9))),
+            (PUNPKHI_PP (PUNPKLO_PP (PUNPKLO_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 10))),
+            (PUNPKLO_PP (PUNPKHI_PP (PUNPKLO_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 11))),
+            (PUNPKHI_PP (PUNPKHI_PP (PUNPKLO_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 12))),
+            (PUNPKLO_PP (PUNPKLO_PP (PUNPKHI_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 13))),
+            (PUNPKHI_PP (PUNPKLO_PP (PUNPKHI_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 14))),
+            (PUNPKLO_PP (PUNPKHI_PP (PUNPKHI_PP  (PUNPKHI_PP PPR:$Ps))))>;
+  def : Pat<(nxv1i1 (extract_subvector (nxv16i1 PPR:$Ps), (i64 15))),
+            (PUNPKHI_PP (PUNPKHI_PP (PUNPKHI_PP  (PUNPKHI_PP PPR:$Ps))))>;
 
   // Extract subvectors from FP SVE vectors
   def : Pat<(nxv2f16 (extract_subvector (nxv4f16 ZPR:$Zs), (i64 0))),
@@ -1598,6 +1665,8 @@ let Predicates = [HasSVEorSME] in {
             (UUNPKHI_ZZ_D (UUNPKHI_ZZ_S ZPR:$Zs))>;
 
   // Concatenate two predicates.
+  def : Pat<(nxv2i1 (concat_vectors nxv1i1:$p1, nxv1i1:$p2)),
+            (UZP1_PPP_D $p1, $p2)>;
   def : Pat<(nxv4i1 (concat_vectors nxv2i1:$p1, nxv2i1:$p2)),
             (UZP1_PPP_S $p1, $p2)>;
   def : Pat<(nxv8i1 (concat_vectors nxv4i1:$p1, nxv4i1:$p2)),
@@ -2297,15 +2366,23 @@ let Predicates = [HasSVEorSME] in {
   def : Pat<(nxv16i1 (reinterpret_cast (nxv8i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv16i1 (reinterpret_cast (nxv4i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv16i1 (reinterpret_cast (nxv2i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv16i1 (reinterpret_cast (nxv1i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv8i1 (reinterpret_cast (nxv16i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv8i1 (reinterpret_cast  (nxv4i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv8i1 (reinterpret_cast  (nxv2i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv8i1 (reinterpret_cast  (nxv1i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv4i1 (reinterpret_cast (nxv16i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv4i1 (reinterpret_cast  (nxv8i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv4i1 (reinterpret_cast  (nxv2i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv4i1 (reinterpret_cast  (nxv1i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv2i1 (reinterpret_cast (nxv16i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv2i1 (reinterpret_cast  (nxv8i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
   def : Pat<(nxv2i1 (reinterpret_cast  (nxv4i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv2i1 (reinterpret_cast  (nxv1i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv1i1 (reinterpret_cast (nxv16i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv1i1 (reinterpret_cast  (nxv8i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv1i1 (reinterpret_cast  (nxv4i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
+  def : Pat<(nxv1i1 (reinterpret_cast  (nxv2i1 PPR:$src))), (COPY_TO_REGCLASS PPR:$src, PPR)>;
 
   // These allow casting from/to unpacked floating-point types.
   def : Pat<(nxv2f16 (reinterpret_cast (nxv8f16 ZPR:$src))), (COPY_TO_REGCLASS ZPR:$src, ZPR)>;
@@ -3161,8 +3238,8 @@ let Predicates = [HasSVE2orSME] in {
   // SVE2 bitwise shift right and accumulate
   defm SSRA_ZZI  : sve2_int_bin_accum_shift_imm_right<0b00, "ssra",  AArch64ssra>;
   defm USRA_ZZI  : sve2_int_bin_accum_shift_imm_right<0b01, "usra",  AArch64usra>;
-  defm SRSRA_ZZI : sve2_int_bin_accum_shift_imm_right<0b10, "srsra", int_aarch64_sve_srsra>;
-  defm URSRA_ZZI : sve2_int_bin_accum_shift_imm_right<0b11, "ursra", int_aarch64_sve_ursra>;
+  defm SRSRA_ZZI : sve2_int_bin_accum_shift_imm_right<0b10, "srsra", int_aarch64_sve_srsra, int_aarch64_sve_srshr>;
+  defm URSRA_ZZI : sve2_int_bin_accum_shift_imm_right<0b11, "ursra", int_aarch64_sve_ursra, int_aarch64_sve_urshr>;
 
   // SVE2 complex integer add
   defm CADD_ZZI   : sve2_int_cadd<0b0, "cadd",   int_aarch64_sve_cadd_x>;

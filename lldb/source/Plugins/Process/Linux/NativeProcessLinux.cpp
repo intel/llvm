@@ -947,7 +947,7 @@ Status NativeProcessLinux::Resume(const ResumeActionList &resume_actions) {
 
     case eStateSuspended:
     case eStateStopped:
-      llvm_unreachable("Unexpected state");
+      break;
 
     default:
       return Status("NativeProcessLinux::%s (): unexpected state %s specified "
@@ -1227,7 +1227,8 @@ llvm::Expected<uint64_t>
 NativeProcessLinux::Syscall(llvm::ArrayRef<uint64_t> args) {
   PopulateMemoryRegionCache();
   auto region_it = llvm::find_if(m_mem_region_cache, [](const auto &pair) {
-    return pair.first.GetExecutable() == MemoryRegionInfo::eYes;
+    return pair.first.GetExecutable() == MemoryRegionInfo::eYes &&
+        pair.first.GetShared() != MemoryRegionInfo::eYes;
   });
   if (region_it == m_mem_region_cache.end())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),

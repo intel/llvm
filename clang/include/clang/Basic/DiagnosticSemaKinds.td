@@ -1025,6 +1025,8 @@ def err_pragma_expected_file_scope : Error<
   "'#pragma %0' can only appear at file scope">;
 def err_pragma_alloc_text_c_linkage: Error<
   "'#pragma alloc_text' is applicable only to functions with C linkage">;
+def err_pragma_alloc_text_not_function: Error<
+  "'#pragma alloc_text' is applicable only to functions">;
 
 def warn_pragma_unused_undeclared_var : Warning<
   "undeclared variable %0 used as an argument for '#pragma unused'">,
@@ -1560,9 +1562,9 @@ def err_static_assert_expression_is_not_constant : Error<
   "static_assert expression is not an integral constant expression">;
 def err_constexpr_if_condition_expression_is_not_constant : Error<
   "constexpr if condition is not a constant expression">;
-def err_static_assert_failed : Error<"static_assert failed%select{ %1|}0">;
+def err_static_assert_failed : Error<"static_assert failed%select{: %1|}0">;
 def err_static_assert_requirement_failed : Error<
-  "static_assert failed due to requirement '%0'%select{ %2|}1">;
+  "static_assert failed due to requirement '%0'%select{: %2|}1">;
 
 def warn_consteval_if_always_true : Warning<
   "consteval if is always true in an %select{unevaluated|immediate}0 context">,
@@ -3152,8 +3154,6 @@ def note_ownership_returns_index_mismatch : Note<
   "declared with index %0 here">;
 def err_format_strftime_third_parameter : Error<
   "strftime format attribute requires 3rd parameter to be 0">;
-def err_format_attribute_requires_variadic : Error<
-  "format attribute requires variadic function">;
 def err_format_attribute_not : Error<"format argument not a string type">;
 def err_format_attribute_result_not : Error<"function does not return %0">;
 def err_format_attribute_implicit_this_format_string : Error<
@@ -4173,6 +4173,9 @@ def err_attribute_not_supported_on_arch
 def warn_gcc_ignores_type_attr : Warning<
   "GCC does not allow the %0 attribute to be written on a type">,
   InGroup<GccCompat>;
+def warn_gcc_requires_variadic_function : Warning<
+  "GCC requires a function with the %0 attribute to be variadic">,
+  InGroup<GccCompat>;
 
 // Clang-Specific Attributes
 def warn_attribute_iboutlet : Warning<
@@ -4229,7 +4232,7 @@ def err_attribute_preferred_name_arg_invalid : Error<
   "argument %0 to 'preferred_name' attribute is not a typedef for "
   "a specialization of %1">;
 def err_attribute_builtin_alias : Error<
-  "%0 attribute can only be applied to a ARM or RISC-V builtin">;
+  "%0 attribute can only be applied to a ARM, HLSL or RISC-V builtin">;
 
 // called-once attribute diagnostics.
 def err_called_once_attribute_wrong_type : Error<

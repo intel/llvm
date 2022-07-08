@@ -874,6 +874,21 @@ func.func @contraction(%arg0: vector<2x1xf32>, %arg1: vector<1x3xf32>, %arg2: ve
 
 // -----
 
+func.func @contract_with_dim_unused_by_lhs_and_rhs(%arg0 : vector<1x2xi32>, %arg1 : vector<2xi32>, %arg2 : vector<1xi32>) -> vector<1xi32> {
+// expected-error@+1 {{'vector.contract' op expected all dimensions to be either a LHS or a RHS dimension}}
+  %result = vector.contract {
+    indexing_maps = [
+      affine_map<(d0, d1, d2) -> (d0, d2)>,
+      affine_map<(d0, d1, d2) -> (d2)>,
+      affine_map<(d0, d1, d2) -> (d1)>
+    ],
+    iterator_types = ["reduction", "parallel", "reduction"],
+    kind = #vector.kind<add>} %arg0, %arg1, %arg2 : vector<1x2xi32>, vector<2xi32> into vector<1xi32>
+  return  %result : vector<1xi32>
+}
+
+// -----
+
 func.func @create_mask_0d_no_operands() {
   %c1 = arith.constant 1 : index
   // expected-error@+1 {{must specify exactly one operand for 0-D create_mask}}
@@ -1112,27 +1127,6 @@ func.func @reduce_unsupported_attr(%arg0: vector<16xf32>) -> i32 {
 func.func @reduce_unsupported_third_argument(%arg0: vector<16xf32>, %arg1: f32) -> f32 {
   // expected-error@+1 {{'vector.reduction' unsupported number of operands}}
   %0 = vector.reduction <add>, %arg0, %arg1, %arg1 : vector<16xf32> into f32
-}
-
-// -----
-
-func.func @reduce_unsupported_accumulator_kind(%arg0: vector<16xf32>, %arg1: f32) -> f32 {
-  // expected-error@+1 {{'vector.reduction' op no accumulator for reduction kind: min}}
-  %0 = vector.reduction <minf>, %arg0, %arg1 : vector<16xf32> into f32
-}
-
-// -----
-
-func.func @reduce_unsupported_accumulator_type(%arg0: vector<16xi32>, %arg1: i32) -> i32 {
-  // expected-error@+1 {{'vector.reduction' op no accumulator for type: 'i32'}}
-  %0 = vector.reduction <add>, %arg0, %arg1 : vector<16xi32> into i32
-}
-
-// -----
-
-func.func @reduce_unsupported_type(%arg0: vector<16xf32>) -> f32 {
-  // expected-error@+1 {{'vector.reduction' op unsupported reduction type}}
-  %0 = vector.reduction <xor>, %arg0 : vector<16xf32> into f32
 }
 
 // -----

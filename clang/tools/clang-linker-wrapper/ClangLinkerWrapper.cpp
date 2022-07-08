@@ -8,9 +8,9 @@
 //
 // This tool works as a wrapper over a linking job. This tool is used to create
 // linked device images for offloading. It scans the linker's input for embedded
-// device offloading data stored in sections `.llvm.offloading.<triple>.<arch>`
-// and extracts it as a temporary file. The extracted device files will then be
-// passed to a device linking job to create a final device image.
+// device offloading data stored in sections `.llvm.offloading` and extracts it
+// as a temporary file. The extracted device files will then be passed to a
+// device linking job to create a final device image.
 //
 //===---------------------------------------------------------------------===//
 
@@ -321,10 +321,6 @@ Error extractOffloadFiles(MemoryBufferRef Contents,
       return BinaryOrErr.takeError();
     OffloadBinary &Binary = **BinaryOrErr;
 
-    if (Binary.getVersion() != 1)
-      return createStringError(inconvertibleErrorCode(),
-                               "Incompatible device image version");
-
     // Create a new owned binary with a copy of the original memory.
     std::unique_ptr<MemoryBuffer> BufferCopy = MemoryBuffer::getMemBufferCopy(
         Binary.getData().take_front(Binary.getSize()),
@@ -577,6 +573,7 @@ Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
                        "out");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
+  std::string ArchArg = ("-plugin-opt=mcpu=" + Arch).str();
 
   SmallVector<StringRef, 16> CmdArgs;
   CmdArgs.push_back(*LLDPath);
@@ -584,6 +581,8 @@ Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
   CmdArgs.push_back("gnu");
   CmdArgs.push_back("--no-undefined");
   CmdArgs.push_back("-shared");
+  CmdArgs.push_back("-plugin-opt=-amdgpu-internalize-symbols");
+  CmdArgs.push_back(ArchArg);
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*TempFileOrErr);
 
