@@ -250,6 +250,7 @@ void InterfaceGenerator::emitModelDecl(const Interface &interface) {
      << ">\n";
   os << "  class ExternalModel : public FallbackModel<ConcreteModel> {\n";
   os << "  public:\n";
+  os << "    using ConcreteEntity = " << valueTemplate << ";\n";
 
   // Emit declarations for methods that have default implementations. Other
   // methods are expected to be implemented by the concrete derived model.
@@ -413,9 +414,12 @@ void InterfaceGenerator::emitTraitDecl(const Interface &interface,
 
     tblgen::FmtContext verifyCtx;
     verifyCtx.withOp("op");
-    os << "    static ::mlir::LogicalResult verifyTrait(::mlir::Operation *op) "
-          "{\n      "
-       << tblgen::tgfmt(verify->trim(), &verifyCtx) << "\n    }\n";
+    os << llvm::formatv(
+              "    static ::mlir::LogicalResult {0}(::mlir::Operation *op) ",
+              (interface.verifyWithRegions() ? "verifyRegionTrait"
+                                             : "verifyTrait"))
+       << "{\n      " << tblgen::tgfmt(verify->trim(), &verifyCtx)
+       << "\n    }\n";
   }
   if (auto extraTraitDecls = interface.getExtraTraitClassDeclaration())
     os << tblgen::tgfmt(*extraTraitDecls, &traitMethodFmt) << "\n";

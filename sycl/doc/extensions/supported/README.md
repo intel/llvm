@@ -1,7 +1,9 @@
+# Supported Extensions
+
 This directory contains the specifications for SYCL extensions that are fully
-supported by the DPC++ implementation.  The APIs in these extensions are
-generally stable in future releases of DPC++, retaining backward compatibility
-with application code.
+supported by the DPC++ compiler.  The APIs in these extensions are generally
+stable in future releases of DPC++, retaining backward compatibility with
+application code.
 
 If support is dropped for one of these extensions, it goes through a
 deprecation process.  The APIs in the extension are first marked "deprecated",

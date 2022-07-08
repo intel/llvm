@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple x86_64 -emit-llvm %s \
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64 -emit-llvm %s \
 // RUN:   -o - | FileCheck -check-prefixes=CHECK,NATIVE %s
-// RUN: %clang_cc1 -triple riscv32 -target-feature -a -emit-llvm %s \
+// RUN: %clang_cc1 -no-opaque-pointers -triple riscv32 -target-feature -a -emit-llvm %s \
 // RUN:   -o - | FileCheck -check-prefixes=CHECK,LIBCALL %s
 
 void foo(int x)
@@ -31,7 +31,7 @@ void foo(int x)
 
 extern _Atomic _Bool b;
 
-_Bool bar() {
+_Bool bar(void) {
 // NATIVE-LABEL: @bar
 // NATIVE: %[[load:.*]] = load atomic i8, i8* @b seq_cst, align 1
 // NATIVE: %[[tobool:.*]] = trunc i8 %[[load]] to i1

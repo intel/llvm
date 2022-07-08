@@ -44,12 +44,13 @@ protected:
 
 inline WasmInitExpr intConst(uint64_t value, bool is64) {
   WasmInitExpr ie;
+  ie.Extended = false;
   if (is64) {
-    ie.Opcode = llvm::wasm::WASM_OPCODE_I64_CONST;
-    ie.Value.Int64 = static_cast<int64_t>(value);
+    ie.Inst.Opcode = llvm::wasm::WASM_OPCODE_I64_CONST;
+    ie.Inst.Value.Int64 = static_cast<int64_t>(value);
   } else {
-    ie.Opcode = llvm::wasm::WASM_OPCODE_I32_CONST;
-    ie.Value.Int32 = static_cast<int32_t>(value);
+    ie.Inst.Opcode = llvm::wasm::WASM_OPCODE_I32_CONST;
+    ie.Inst.Value.Int32 = static_cast<int32_t>(value);
   }
   return ie;
 }
@@ -63,7 +64,7 @@ public:
   const WasmInitExpr &getInitExpr() const { return initExpr; }
 
   void setPointerValue(uint64_t value) {
-    initExpr = intConst(value, config->is64.getValueOr(false));
+    initExpr = intConst(value, config->is64.value_or(false));
   }
 
 private:

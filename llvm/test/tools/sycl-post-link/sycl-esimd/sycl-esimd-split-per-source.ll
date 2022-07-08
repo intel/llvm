@@ -66,21 +66,21 @@ attributes #1 = { "sycl-module-id"="b.cpp" }
 !3 = !{}
 
 ; CHECK: [Code|Properties]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop
-; CHECK: {{.*}}_1.ll|{{.*}}_1.prop
-; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop
-; CHECK: {{.*}}_esimd_1.ll|{{.*}}_esimd_1.prop
+; CHECK-DAG: {{.*}}tmp_0.ll|{{.*}}_0.prop
+; CHECK-DAG: {{.*}}tmp_1.ll|{{.*}}_1.prop
+; CHECK-DAG: {{.*}}tmp_esimd_0.ll|{{.*}}_esimd_0.prop
+; CHECK-DAG: {{.*}}tmp_esimd_1.ll|{{.*}}_esimd_1.prop
 
-; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel1()
-; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel2()
-; CHECK-SYCL-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
-
-; CHECK-SYCL-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel3()
+; CHECK-SYCL-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel1()
+; CHECK-SYCL-IR-1-DAG: define dso_local spir_kernel void @SYCL_kernel2()
 ; CHECK-SYCL-IR-1-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
-; CHECK-ESIMD-IR-0-DAG: define dso_local spir_kernel void @ESIMD_kernel1()
-; CHECK-ESIMD-IR-0-DAG: define dso_local spir_kernel void @ESIMD_kernel2()
-; CHECK-ESIMD-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel3()
+; CHECK-SYCL-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
 
-; CHECK-ESIMD-IR-1-DAG: define dso_local spir_kernel void @ESIMD_kernel3()
+; CHECK-ESIMD-IR-1-DAG: define dso_local spir_kernel void @ESIMD_kernel1()
+; CHECK-ESIMD-IR-1-DAG: define dso_local spir_kernel void @ESIMD_kernel2()
 ; CHECK-ESIMD-IR-1-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
+
+; CHECK-ESIMD-IR-0-DAG: define dso_local spir_kernel void @ESIMD_kernel3()
+; CHECK-ESIMD-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()

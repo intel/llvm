@@ -33,8 +33,8 @@ read the [style guide](docs/C++style.md)
 and
 also review [how flang uses modern C++ features](docs/C++17.md).
 
-If you are interested in writing new documentation, follow 
-[markdown style guide from LLVM](https://github.com/llvm/llvm-project/blob/main/llvm/docs/MarkdownQuickstartTemplate.md).
+If you are interested in writing new documentation, follow
+[LLVM's Markdown style guide](https://github.com/llvm/llvm-project/blob/main/llvm/docs/MarkdownQuickstartTemplate.md).
 
 ## Building flang
 There are two ways to build flang. The first method is to build it at the same
@@ -55,7 +55,7 @@ Note that compiler-rt is only needed to access libraries that support 16 bit
 floating point numbers.  It's not needed to run the automated tests.
 
 Here's a complete set of commands to clone all of the necessary source and do
-the build.  
+the build.
 
 First clone the source:
 ```bash
@@ -79,7 +79,8 @@ cmake \
   -DLLVM_TARGETS_TO_BUILD=host \
   -DCMAKE_INSTALL_PREFIX=$INSTALLDIR
   -DLLVM_LIT_ARGS=-v \
-  -DLLVM_ENABLE_PROJECTS="clang;mlir;flang;compiler-rt"
+  -DLLVM_ENABLE_PROJECTS="clang;mlir;flang" \
+  -DLLVM_ENABLE_RUNTIMES="compiler-rt"
 
 ninja
 ```
@@ -148,9 +149,6 @@ The code has been compiled on
 AArch64, x86\_64 and ppc64le servers
 with CentOS7, Ubuntu18.04, Rhel, MacOs, Mojave, XCode and
 Apple Clang version 10.0.1.
-
-The code does not compile with Windows and a compiler that does not have
-support for C++17.
 
 ### Building flang with GCC
 

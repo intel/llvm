@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "LLVMContextImpl.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
@@ -21,7 +20,6 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 using namespace llvm;
@@ -69,6 +67,10 @@ void GlobalValue::copyAttributesFrom(const GlobalValue *Src) {
   setDLLStorageClass(Src->getDLLStorageClass());
   setDSOLocal(Src->isDSOLocal());
   setPartition(Src->getPartition());
+  if (Src->hasSanitizerMetadata())
+    setSanitizerMetadata(Src->getSanitizerMetadata());
+  else
+    removeSanitizerMetadata();
 }
 
 void GlobalValue::removeFromParent() {
@@ -219,6 +221,25 @@ void GlobalValue::setPartition(StringRef S) {
   HasPartition = !S.empty();
 }
 
+using SanitizerMetadata = GlobalValue::SanitizerMetadata;
+const SanitizerMetadata &GlobalValue::getSanitizerMetadata() const {
+  assert(hasSanitizerMetadata());
+  assert(getContext().pImpl->GlobalValueSanitizerMetadata.count(this));
+  return getContext().pImpl->GlobalValueSanitizerMetadata[this];
+}
+
+void GlobalValue::setSanitizerMetadata(SanitizerMetadata Meta) {
+  getContext().pImpl->GlobalValueSanitizerMetadata[this] = Meta;
+  HasSanitizerMetadata = true;
+}
+
+void GlobalValue::removeSanitizerMetadata() {
+  DenseMap<const GlobalValue *, SanitizerMetadata> &MetadataMap =
+      getContext().pImpl->GlobalValueSanitizerMetadata;
+  MetadataMap.erase(this);
+  HasSanitizerMetadata = false;
+}
+
 StringRef GlobalObject::getSectionImpl() const {
   assert(hasSection());
   return getContext().pImpl->GlobalObjectSections[this];
@@ -264,7 +285,7 @@ bool GlobalObject::canIncreaseAlignment() const {
   // alignment specified. (If it is assigned a section, the global
   // could be densely packed with other objects in the section, and
   // increasing the alignment could cause padding issues.)
-  if (hasSection() && getAlign().hasValue())
+  if (hasSection() && getAlign())
     return false;
 
   // On ELF platforms, we're further restricted in that we can't

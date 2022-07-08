@@ -3,7 +3,7 @@
 ; The difference between this and coro-split-musttail5.ll is that there is
 ; an extra bitcast instruction in the path, which makes it harder to
 ; optimize.
-; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split<optimizing>),simplifycfg,early-cse' -S | FileCheck %s
 
 declare void @fakeresume1(i64* align 8)
 
@@ -111,7 +111,7 @@ declare void @consume(i64*)
 declare void @llvm.lifetime.start.p0i8(i64, i8* nocapture)
 declare void @llvm.lifetime.end.p0i8(i64, i8* nocapture)
 
-attributes #0 = { "coroutine.presplit"="1" }
+attributes #0 = { presplitcoroutine }
 attributes #1 = { argmemonly nounwind readonly }
 attributes #2 = { nounwind }
 attributes #3 = { nounwind readnone }

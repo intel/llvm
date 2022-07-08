@@ -1,9 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -31,14 +26,14 @@ module {
   //
   // Output utilities.
   //
-  func @dumpf64(%arg0: memref<?xf64>) {
+  func.func @dumpf64(%arg0: memref<?xf64>) {
     %c0 = arith.constant 0 : index
     %d0 = arith.constant -1.0 : f64
     %0 = vector.transfer_read %arg0[%c0], %d0: memref<?xf64>, vector<25xf64>
     vector.print %0 : vector<25xf64>
     return
   }
-  func @dumpidx(%arg0: memref<?xindex>) {
+  func.func @dumpidx(%arg0: memref<?xindex>) {
     %c0 = arith.constant 0 : index
     %d0 = arith.constant 0 : index
     %0 = vector.transfer_read %arg0[%c0], %d0: memref<?xindex>, vector<25xindex>
@@ -49,7 +44,7 @@ module {
   //
   // Main driver.
   //
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -opaque-pointers -emit-llvm %s -o - | FileCheck %s
 
 // Accesses from the inner loop only, various global safelens for the outer and the inner loops.
 //
@@ -8,8 +8,8 @@ void ivdep_inner_loop_access() {
   int a[10];
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
     [[intel::ivdep(3)]] for (int j = 0; j != 10; ++j) {
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_ACCESS:[0-9]+]]
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_ACCESS]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_ACCESS:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_ACCESS]]
       a[i] = a[(i + j) % 10];
       // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_INNER_LOOP_INNER_ACCESS:[0-9]+]]
     }
@@ -24,12 +24,12 @@ void ivdep_embedded_global_safelen() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_GLOB_SFLN:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_GLOB_SFLN]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_GLOB_SFLN:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_GLOB_SFLN]]
     a[i] = a[i % 2];
     [[intel::ivdep]] for (int j = 0; j != 10; ++j) {
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_GLOB_SFLN:[0-9]+]]
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_GLOB_SFLN]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_GLOB_SFLN:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_GLOB_SFLN]]
       a[i] = a[(i + j) % 10];
       // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_INNER_GLOB_SFLN:[0-9]+]]
     }
@@ -44,12 +44,12 @@ void ivdep_embedded_various_safelens() {
   // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
   int a[10];
   [[intel::ivdep(a, 4)]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_VAR_SFLN:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_VAR_SFLN]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_VAR_SFLN:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_OUTER_VAR_SFLN]]
     a[i] = a[i % 2];
     [[intel::ivdep(a, 2)]] for (int j = 0; j != 10; ++j) {
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_VAR_SFLN:[0-9]+]]
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_VAR_SFLN]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_VAR_SFLN:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_INNER_VAR_SFLN]]
       a[i] = a[(i + j) % 10];
       // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_INNER_VAR_SFLN:[0-9]+]]
     }
@@ -68,15 +68,15 @@ void ivdep_embedded_multiple_arrays() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep(a, 3), intel::ivdep(b, 4)]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS]]
     a[i] = a[i % 2];
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_OUTER_MUL_ARRS:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_OUTER_MUL_ARRS]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_OUTER_MUL_ARRS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_OUTER_MUL_ARRS]]
     b[i] = b[i % 2];
     [[intel::ivdep(2)]] for (int j = 0; j != 10; ++j) {
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_INNER_MUL_ARRS:[0-9]+]]
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_INNER_MUL_ARRS:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_INNER_MUL_ARRS:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_INNER_MUL_ARRS:[0-9]+]]
       a[i] = b[(i + j) % 10];
       // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_INNER_MUL_ARRS:[0-9]+]]
     }
@@ -97,15 +97,15 @@ void ivdep_embedded_multiple_arrays_global() {
   // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
   int b[10];
   [[intel::ivdep(a)]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS_GLOB:[0-9]+]]
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS_GLOB]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS_GLOB:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_OUTER_MUL_ARRS_GLOB]]
     a[i] = a[i % 2];
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}{{[[:space:]]}}
     b[i] = b[i % 2];
     [[intel::ivdep]] for (int j = 0; j != 10; ++j) {
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_INNER_MUL_ARRS_GLOB:[0-9]+]]
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_INNER_MUL_ARRS_GLOB:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_INNER_MUL_ARRS_GLOB:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_INNER_MUL_ARRS_GLOB:[0-9]+]]
       a[i] = b[(i + j) % 10];
       // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_INNER_MUL_ARRS_GLOB:[0-9]+]]
     }
@@ -118,13 +118,13 @@ void ivdep_embedded_multiple_arrays_global() {
 void ivdep_embedded_multiple_dimensions() {
   int a[10];
   [[intel::ivdep]] for (int i = 0; i != 10; ++i) {
-    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_1_MUL_DIMS:[0-9]+]]
+    // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_1_MUL_DIMS:[0-9]+]]
     a[i] = i;
     [[intel::ivdep]] for (int j = 0; j != 10; ++j) {
-      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_2_MUL_DIMS:[0-9]+]]
+      // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_2_MUL_DIMS:[0-9]+]]
       a[j] += j;
       [[intel::ivdep]] for (int k = 0; k != 10; ++k) {
-        // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], [10 x i32] addrspace(4)* %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_3_MUL_DIMS:[0-9]+]]
+        // CHECK: %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_DIM_3_MUL_DIMS:[0-9]+]]
         a[k] += k;
         // CHECK: br label %for.cond{{[0-9]*}}, !llvm.loop ![[MD_LOOP_DIM_3_MUL_DIMS:[0-9]+]]
       }

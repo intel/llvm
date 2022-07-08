@@ -38,7 +38,9 @@ list(APPEND BOLT_TEST_DEPS
   llvm-config
   llvm-bolt
   llvm-boltdiff
+  llvm-bolt-heatmap
   llvm-dwarfdump
+  llvm-dwp
   llvm-mc
   llvm-nm
   llvm-objdump

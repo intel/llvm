@@ -82,16 +82,16 @@ __SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformIMul, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformIMul, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, NonUniformFMul, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMulKHR, sycl::multiplies<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseOr, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseOr, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseXor, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseXor, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, NonUniformBitwiseAnd, sycl::bit_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, NonUniformBitwiseAnd, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrKHR, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrKHR, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXorKHR, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorKHR, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndKHR, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 

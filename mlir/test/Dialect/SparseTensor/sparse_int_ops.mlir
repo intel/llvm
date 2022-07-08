@@ -58,7 +58,7 @@
 // CHECK:             }
 // CHECK:             %[[VAL_26:.*]] = arith.cmpi eq, %[[VAL_20]], %[[VAL_19]] : index
 // CHECK:             %[[VAL_27:.*]] = arith.addi %[[VAL_18]], %[[VAL_6]] : index
-// CHECK:             %[[VAL_28:.*]] = select %[[VAL_26]], %[[VAL_27]], %[[VAL_18]] : index
+// CHECK:             %[[VAL_28:.*]] = arith.select %[[VAL_26]], %[[VAL_27]], %[[VAL_18]] : index
 // CHECK:             %[[VAL_29:.*]] = arith.addi %[[VAL_19]], %[[VAL_6]] : index
 // CHECK:             scf.yield %[[VAL_28]], %[[VAL_29]] : index, index
 // CHECK:           }
@@ -69,7 +69,7 @@
 // CHECK:           %[[VAL_33:.*]] = bufferization.to_tensor %[[VAL_11]] : memref<32xi64>
 // CHECK:           return %[[VAL_33]] : tensor<32xi64>
 // CHECK:         }
-func @add(%arga: tensor<32xi64, #SV>,
+func.func @add(%arga: tensor<32xi64, #SV>,
           %argb: tensor<32xi64>,
           %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %0 = linalg.generic #trait2
@@ -120,7 +120,7 @@ func @add(%arga: tensor<32xi64, #SV>,
 // CHECK:             }
 // CHECK:             %[[VAL_28:.*]] = arith.cmpi eq, %[[VAL_21]], %[[VAL_20]] : index
 // CHECK:             %[[VAL_29:.*]] = arith.addi %[[VAL_19]], %[[VAL_6]] : index
-// CHECK:             %[[VAL_30:.*]] = select %[[VAL_28]], %[[VAL_29]], %[[VAL_19]] : index
+// CHECK:             %[[VAL_30:.*]] = arith.select %[[VAL_28]], %[[VAL_29]], %[[VAL_19]] : index
 // CHECK:             %[[VAL_31:.*]] = arith.addi %[[VAL_20]], %[[VAL_6]] : index
 // CHECK:             scf.yield %[[VAL_30]], %[[VAL_31]] : index, index
 // CHECK:           }
@@ -132,7 +132,7 @@ func @add(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_36:.*]] = bufferization.to_tensor %[[VAL_12]] : memref<32xi64>
 // CHECK:           return %[[VAL_36]] : tensor<32xi64>
 // CHECK:         }
-func @sub(%arga: tensor<32xi64, #SV>,
+func.func @sub(%arga: tensor<32xi64, #SV>,
           %argb: tensor<32xi64>,
           %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %0 = linalg.generic #trait2
@@ -168,7 +168,7 @@ func @sub(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_17:.*]] = bufferization.to_tensor %[[VAL_9]] : memref<32xi64>
 // CHECK:           return %[[VAL_17]] : tensor<32xi64>
 // CHECK:         }
-func @mul(%arga: tensor<32xi64, #SV>,
+func.func @mul(%arga: tensor<32xi64, #SV>,
           %argb: tensor<32xi64>,
           %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %0 = linalg.generic #trait2
@@ -202,7 +202,7 @@ func @mul(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_15:.*]] = bufferization.to_tensor %[[VAL_8]] : memref<32xi64>
 // CHECK:           return %[[VAL_15]] : tensor<32xi64>
 // CHECK:         }
-func @divsbyc(%arga: tensor<32xi64, #SV>,
+func.func @divsbyc(%arga: tensor<32xi64, #SV>,
               %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %c = arith.constant 2 : i64
   %0 = linalg.generic #traitc
@@ -236,7 +236,7 @@ func @divsbyc(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_15:.*]] = bufferization.to_tensor %[[VAL_8]] : memref<32xi64>
 // CHECK:           return %[[VAL_15]] : tensor<32xi64>
 // CHECK:         }
-func @divubyc(%arga: tensor<32xi64, #SV>,
+func.func @divubyc(%arga: tensor<32xi64, #SV>,
               %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %c = arith.constant 2 : i64
   %0 = linalg.generic #traitc
@@ -272,7 +272,7 @@ func @divubyc(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_17:.*]] = bufferization.to_tensor %[[VAL_9]] : memref<32xi64>
 // CHECK:           return %[[VAL_17]] : tensor<32xi64>
 // CHECK:         }
-func @and(%arga: tensor<32xi64, #SV>,
+func.func @and(%arga: tensor<32xi64, #SV>,
           %argb: tensor<32xi64>,
           %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %0 = linalg.generic #trait2
@@ -321,7 +321,7 @@ func @and(%arga: tensor<32xi64, #SV>,
 // CHECK:             }
 // CHECK:             %[[VAL_26:.*]] = arith.cmpi eq, %[[VAL_20]], %[[VAL_19]] : index
 // CHECK:             %[[VAL_27:.*]] = arith.addi %[[VAL_18]], %[[VAL_6]] : index
-// CHECK:             %[[VAL_28:.*]] = select %[[VAL_26]], %[[VAL_27]], %[[VAL_18]] : index
+// CHECK:             %[[VAL_28:.*]] = arith.select %[[VAL_26]], %[[VAL_27]], %[[VAL_18]] : index
 // CHECK:             %[[VAL_29:.*]] = arith.addi %[[VAL_19]], %[[VAL_6]] : index
 // CHECK:             scf.yield %[[VAL_28]], %[[VAL_29]] : index, index
 // CHECK:           }
@@ -332,7 +332,7 @@ func @and(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_33:.*]] = bufferization.to_tensor %[[VAL_11]] : memref<32xi64>
 // CHECK:           return %[[VAL_33]] : tensor<32xi64>
 // CHECK:         }
-func @or(%arga: tensor<32xi64, #SV>,
+func.func @or(%arga: tensor<32xi64, #SV>,
          %argb: tensor<32xi64>,
          %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %0 = linalg.generic #trait2
@@ -381,7 +381,7 @@ func @or(%arga: tensor<32xi64, #SV>,
 // CHECK:             }
 // CHECK:             %[[VAL_26:.*]] = arith.cmpi eq, %[[VAL_20]], %[[VAL_19]] : index
 // CHECK:             %[[VAL_27:.*]] = arith.addi %[[VAL_18]], %[[VAL_6]] : index
-// CHECK:             %[[VAL_28:.*]] = select %[[VAL_26]], %[[VAL_27]], %[[VAL_18]] : index
+// CHECK:             %[[VAL_28:.*]] = arith.select %[[VAL_26]], %[[VAL_27]], %[[VAL_18]] : index
 // CHECK:             %[[VAL_29:.*]] = arith.addi %[[VAL_19]], %[[VAL_6]] : index
 // CHECK:             scf.yield %[[VAL_28]], %[[VAL_29]] : index, index
 // CHECK:           }
@@ -392,7 +392,7 @@ func @or(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_33:.*]] = bufferization.to_tensor %[[VAL_11]] : memref<32xi64>
 // CHECK:           return %[[VAL_33]] : tensor<32xi64>
 // CHECK:         }
-func @xor(%arga: tensor<32xi64, #SV>,
+func.func @xor(%arga: tensor<32xi64, #SV>,
           %argb: tensor<32xi64>,
           %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %0 = linalg.generic #trait2
@@ -426,7 +426,7 @@ func @xor(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_15:.*]] = bufferization.to_tensor %[[VAL_8]] : memref<32xi64>
 // CHECK:           return %[[VAL_15]] : tensor<32xi64>
 // CHECK:         }
-func @ashrbyc(%arga: tensor<32xi64, #SV>,
+func.func @ashrbyc(%arga: tensor<32xi64, #SV>,
               %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %c = arith.constant 2 : i64
   %0 = linalg.generic #traitc
@@ -460,7 +460,7 @@ func @ashrbyc(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_15:.*]] = bufferization.to_tensor %[[VAL_8]] : memref<32xi64>
 // CHECK:           return %[[VAL_15]] : tensor<32xi64>
 // CHECK:         }
-func @lsrbyc(%arga: tensor<32xi64, #SV>,
+func.func @lsrbyc(%arga: tensor<32xi64, #SV>,
              %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %c = arith.constant 2 : i64
   %0 = linalg.generic #traitc
@@ -494,7 +494,7 @@ func @lsrbyc(%arga: tensor<32xi64, #SV>,
 // CHECK:           %[[VAL_15:.*]] = bufferization.to_tensor %[[VAL_8]] : memref<32xi64>
 // CHECK:           return %[[VAL_15]] : tensor<32xi64>
 // CHECK:         }
-func @lslbyc(%arga: tensor<32xi64, #SV>,
+func.func @lslbyc(%arga: tensor<32xi64, #SV>,
              %argx: tensor<32xi64> {linalg.inplaceable = true}) -> tensor<32xi64> {
   %c = arith.constant 2 : i64
   %0 = linalg.generic #traitc

@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv -s %t.bc -o - | llvm-dis -o - | FileCheck %s
 ; RUN: llvm-spirv %t.bc
 

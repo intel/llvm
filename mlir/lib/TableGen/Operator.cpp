@@ -327,15 +327,31 @@ void Operator::populateTypeInferenceInfo(
   if (getNumResults() == 0)
     return;
 
-  // Skip for ops with variadic operands/results.
-  // TODO: This can be relaxed.
-  if (isVariadic())
+  // Skip ops with variadic or optional results.
+  if (getNumVariableLengthResults() > 0)
     return;
 
   // Skip cases currently being custom generated.
   // TODO: Remove special cases.
-  if (getTrait("::mlir::OpTrait::SameOperandsAndResultType"))
+  if (getTrait("::mlir::OpTrait::SameOperandsAndResultType")) {
+    // Check for a non-variable length operand to use as the type anchor.
+    auto *operandI = llvm::find_if(arguments, [](const Argument &arg) {
+      NamedTypeConstraint *operand = arg.dyn_cast<NamedTypeConstraint *>();
+      return operand && !operand->isVariableLength();
+    });
+    if (operandI == arguments.end())
+      return;
+
+    // Map each of the result types to the anchor operation.
+    int operandIdx = operandI - arguments.begin();
+    resultTypeMapping.resize(getNumResults());
+    for (int i = 0; i < getNumResults(); ++i)
+      resultTypeMapping[i].emplace_back(operandIdx);
+
+    allResultsHaveKnownTypes = true;
+    traits.push_back(Trait::create(inferTrait->getDefInit()));
     return;
+  }
 
   // We create equivalence classes of argument/result types where arguments
   // and results are mapped into the same index space and indices corresponding
@@ -351,17 +367,13 @@ void Operator::populateTypeInferenceInfo(
     for (auto me = ecs.member_end(); mi != me; ++mi) {
       if (*mi < 0) {
         auto tc = getResultTypeConstraint(i);
-        if (tc.getBuilderCall().hasValue()) {
+        if (tc.getBuilderCall()) {
           resultTypeMapping[i].emplace_back(tc);
           found = true;
         }
         continue;
       }
 
-      if (getArg(*mi).is<NamedAttribute *>()) {
-        // TODO: Handle attributes.
-        continue;
-      }
       resultTypeMapping[i].emplace_back(*mi);
       found = true;
     }
@@ -548,14 +560,36 @@ void Operator::populateOpStructure() {
     SmallPtrSet<const llvm::Init *, 32> traitSet;
     traits.reserve(traitSet.size());
 
+    // The declaration order of traits imply the verification order of traits.
+    // Some traits may require other traits to be verified first then they can
+    // do further verification based on those verified facts. If you see this
+    // error, fix the traits declaration order by checking the `dependentTraits`
+    // field.
+    auto verifyTraitValidity = [&](Record *trait) {
+      auto *dependentTraits = trait->getValueAsListInit("dependentTraits");
+      for (auto *traitInit : *dependentTraits)
+        if (traitSet.find(traitInit) == traitSet.end())
+          PrintFatalError(
+              def.getLoc(),
+              trait->getValueAsString("trait") + " requires " +
+                  cast<DefInit>(traitInit)->getDef()->getValueAsString(
+                      "trait") +
+                  " to precede it in traits list");
+    };
+
     std::function<void(llvm::ListInit *)> insert;
     insert = [&](llvm::ListInit *traitList) {
       for (auto *traitInit : *traitList) {
         auto *def = cast<DefInit>(traitInit)->getDef();
-        if (def->isSubClassOf("OpTraitList")) {
+        if (def->isSubClassOf("TraitList")) {
           insert(def->getValueAsListInit("traits"));
           continue;
         }
+
+        // Verify if the trait has all the dependent traits declared before
+        // itself.
+        verifyTraitValidity(def);
+
         // Keep traits in the same order while skipping over duplicates.
         if (traitSet.insert(traitInit).second)
           traits.push_back(Trait::create(traitInit));
@@ -679,8 +713,7 @@ getGetterOrSetterNames(bool isGetter, const Operator &op, StringRef name) {
   // is safer).
   auto skip = [&](StringRef newName) {
     bool shouldSkip = newName == "getAttributeNames" ||
-                      newName == "getAttributes" || newName == "getOperation" ||
-                      newName == "getType";
+                      newName == "getAttributes" || newName == "getOperation";
     if (newName == "getOperands") {
       // To reduce noise, skip generating the prefixed form and the warning if
       // $operands correspond to single variadic argument.
@@ -691,6 +724,11 @@ getGetterOrSetterNames(bool isGetter, const Operator &op, StringRef name) {
     if (newName == "getRegions") {
       if (op.getNumRegions() == 1 && op.getNumVariadicRegions() == 1)
         return true;
+      shouldSkip = true;
+    }
+    if (newName == "getType") {
+      if (op.getNumResults() == 0)
+        return false;
       shouldSkip = true;
     }
     if (!shouldSkip)

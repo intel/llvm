@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fenable-matrix -triple x86_64-apple-darwin %s -emit-llvm -disable-llvm-passes -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -fenable-matrix -triple x86_64-apple-darwin %s -emit-llvm -disable-llvm-passes -o - | FileCheck %s
 
 #if !__has_extension(matrix_types)
 #error Expected extension 'matrix_types' to be enabled
@@ -162,7 +162,7 @@ void matrix_struct(Matrix *a, Matrix *b) {
 }
 
 typedef double dx4x4_t __attribute__((matrix_type(4, 4)));
-void matrix_inline_asm_memory_readwrite() {
+void matrix_inline_asm_memory_readwrite(void) {
   // CHECK-LABEL: define{{.*}} void @matrix_inline_asm_memory_readwrite()
   // CHECK-NEXT:  entry:
   // CHECK-NEXT:    [[ALLOCA:%.+]] = alloca [16 x double], align 8

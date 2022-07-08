@@ -11,7 +11,7 @@ name: Check code style
 on:
   pull_request:
     branches:
-      - master
+      - main
       - llvm_release_*
     paths-ignore: # no need to check formatting for:
       - 'docs/**' # documentation
@@ -24,7 +24,7 @@ env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 14
+  LLVM_VERSION: 15
 
 jobs:
   clang-format-and-tidy:
@@ -63,7 +63,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install -yqq \
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
-            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev
+            llvm-${{ env.LLVM_VERSION }}-dev libomp-${{ env.LLVM_VERSION }}-dev \
+            mlir-${{ env.LLVM_VERSION }}-tools \
 
     - name: Generate compile command database
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}

@@ -9,23 +9,19 @@
 #include "LTO.h"
 #include "Config.h"
 #include "InputFiles.h"
-#include "LinkerScript.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
 #include "lld/Common/Args.h"
 #include "lld/Common/ErrorHandler.h"
+#include "lld/Common/Strings.h"
 #include "lld/Common/TargetOptionsCommandFlags.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
-#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
-#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/LTO/Config.h"
 #include "llvm/LTO/LTO.h"
-#include "llvm/Object/SymbolicFile.h"
 #include "llvm/Support/Caching.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Error.h"
@@ -146,8 +142,12 @@ static lto::Config createConfig() {
   c.RemarksHotnessThreshold = config->optRemarksHotnessThreshold;
   c.RemarksFormat = std::string(config->optRemarksFormat);
 
+  // Set up output file to emit statistics.
+  c.StatsFile = std::string(config->optStatsFilename);
+
   c.SampleProfile = std::string(config->ltoSampleProfile);
-  c.UseNewPM = config->ltoNewPassManager;
+  for (StringRef pluginFn : config->passPlugins)
+    c.PassPlugins.push_back(std::string(pluginFn));
   c.DebugPassManager = config->ltoDebugPassManager;
   c.DwoDir = std::string(config->dwoDir);
 
@@ -163,6 +163,8 @@ static lto::Config createConfig() {
   c.CSIRProfile = std::string(config->ltoCSProfileFile);
   c.RunCSIRInstr = config->ltoCSProfileGenerate;
   c.PGOWarnMismatch = config->ltoPGOWarnMismatch;
+
+  c.OpaquePointers = config->opaquePointers;
 
   if (config->emitLLVM) {
     c.PostInternalizeModuleHook = [](size_t task, const Module &m) {
@@ -189,15 +191,17 @@ BitcodeCompiler::BitcodeCompiler() {
 
   // Initialize ltoObj.
   lto::ThinBackend backend;
+  auto onIndexWrite = [&](StringRef s) { thinIndices.erase(s); };
   if (config->thinLTOIndexOnly) {
-    auto onIndexWrite = [&](StringRef s) { thinIndices.erase(s); };
     backend = lto::createWriteIndexesThinBackend(
         std::string(config->thinLTOPrefixReplace.first),
         std::string(config->thinLTOPrefixReplace.second),
         config->thinLTOEmitImportsFiles, indexFile.get(), onIndexWrite);
   } else {
     backend = lto::createInProcessThinBackend(
-        llvm::heavyweight_hardware_concurrency(config->thinLTOJobs));
+        llvm::heavyweight_hardware_concurrency(config->thinLTOJobs),
+        onIndexWrite, config->thinLTOEmitIndexFiles,
+        config->thinLTOEmitImportsFiles);
   }
 
   ltoObj = std::make_unique<lto::LTO>(createConfig(), backend,
@@ -222,7 +226,7 @@ void BitcodeCompiler::add(BitcodeFile &f) {
   lto::InputFile &obj = *f.obj;
   bool isExec = !config->shared && !config->relocatable;
 
-  if (config->thinLTOIndexOnly)
+  if (config->thinLTOEmitIndexFiles)
     thinIndices.insert(obj.getName());
 
   ArrayRef<Symbol *> syms = f.getSymbols();
@@ -247,15 +251,18 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     //    for doing final link.
     // 2) Symbols that are used in regular objects.
     // 3) C named sections if we have corresponding __start_/__stop_ symbol.
-    // 4) Symbols that are defined in bitcode files and used for dynamic linking.
+    // 4) Symbols that are defined in bitcode files and used for dynamic
+    //    linking.
+    // 5) Symbols that will be referenced after linker wrapping is performed.
     r.VisibleToRegularObj = config->relocatable || sym->isUsedInRegularObj ||
+                            sym->referencedAfterWrap ||
                             (r.Prevailing && sym->includeInDynsym()) ||
                             usedStartStop.count(objSym.getSectionName());
     // Identify symbols exported dynamically, and that therefore could be
     // referenced by a shared library not visible to the linker.
-    r.ExportDynamic = sym->computeBinding() != STB_LOCAL &&
-                      (sym->isExportDynamic(sym->kind(), sym->visibility) ||
-                       sym->exportDynamic || sym->inDynamicList);
+    r.ExportDynamic =
+        sym->computeBinding() != STB_LOCAL &&
+        (config->exportDynamic || sym->exportDynamic || sym->inDynamicList);
     const auto *dr = dyn_cast<Defined>(sym);
     r.FinalDefinitionInLinkageUnit =
         (isExec || sym->visibility != STV_DEFAULT) && dr &&
@@ -267,13 +274,13 @@ void BitcodeCompiler::add(BitcodeFile &f) {
         !(dr->section == nullptr && (!sym->file || sym->file->isElf()));
 
     if (r.Prevailing)
-      sym->replace(Undefined{nullptr, sym->getName(), STB_GLOBAL, STV_DEFAULT,
-                             sym->type});
+      sym->replace(
+          Undefined{nullptr, StringRef(), STB_GLOBAL, STV_DEFAULT, sym->type});
 
     // We tell LTO to not apply interprocedural optimization for wrapped
     // (with --wrap) symbols because otherwise LTO would inline them while
     // their values are still not final.
-    r.LinkerRedefined = !sym->canInline;
+    r.LinkerRedefined = sym->scriptDefined;
   }
   checkError(ltoObj->add(std::move(f.obj), resols));
 }
@@ -292,7 +299,7 @@ static void thinLTOCreateEmptyIndexFiles() {
 
     ModuleSummaryIndex m(/*HaveGVs*/ false);
     m.setSkipModuleByDistributedBackend();
-    WriteIndexToFile(m, *os);
+    writeIndexToFile(m, *os);
     if (config->thinLTOEmitImportsFiles)
       openFile(path + ".imports");
   }
@@ -334,9 +341,10 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
     }
   }
 
-  if (config->thinLTOIndexOnly) {
+  if (config->thinLTOEmitIndexFiles)
     thinLTOCreateEmptyIndexFiles();
 
+  if (config->thinLTOIndexOnly) {
     if (!config->ltoObjPath.empty())
       saveBuffer(buf[0], config->ltoObjPath);
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple sparc-unknown-unknown -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple sparc-unknown-unknown -emit-llvm -o - %s | FileCheck %s
 
 // Ensure that we pass proper alignment to llvm in the call
 // instruction. The proper alignment for the type is sometimes known
@@ -22,6 +22,6 @@ struct s1 x1;
 // CHECK: declare void @f1_helper(%struct.s1* noundef byval(%struct.s1) align 8)
 
 void f1_helper(struct s1);
-void f1() {
+void f1(void) {
   f1_helper(x1);
 }

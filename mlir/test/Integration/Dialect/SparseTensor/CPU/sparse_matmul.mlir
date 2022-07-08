@@ -1,17 +1,7 @@
-// RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --linalg-bufferize --convert-linalg-to-loops \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm \
-// RUN:   --convert-std-to-llvm --reconcile-unrealized-casts | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
+// RUN: mlir-opt %s --sparse-compiler | \
+// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
-//
 
 #CSR = #sparse_tensor.encoding<{
   dimLevelType = [ "dense", "compressed" ],
@@ -27,7 +17,7 @@ module {
   //
   // Computes C = A x B with all matrices dense.
   //
-  func @matmul1(%A: tensor<4x8xf64>,
+  func.func @matmul1(%A: tensor<4x8xf64>,
                 %B: tensor<8x4xf64>) -> tensor<4x4xf64> {
     %C = arith.constant dense<0.0> : tensor<4x4xf64>
     %D = linalg.matmul
@@ -39,10 +29,9 @@ module {
   //
   // Computes C = A x B with all matrices sparse (SpMSpM) in CSR.
   //
-  func @matmul2(%A: tensor<4x8xf64, #CSR>,
+  func.func @matmul2(%A: tensor<4x8xf64, #CSR>,
                 %B: tensor<8x4xf64, #CSR>) -> tensor<4x4xf64, #CSR> {
-    %c4 = arith.constant 4 : index
-    %C = sparse_tensor.init [%c4, %c4] : tensor<4x4xf64, #CSR>
+    %C = bufferization.alloc_tensor() : tensor<4x4xf64, #CSR>
     %D = linalg.matmul
       ins(%A, %B: tensor<4x8xf64, #CSR>, tensor<8x4xf64, #CSR>)
          outs(%C: tensor<4x4xf64, #CSR>) -> tensor<4x4xf64, #CSR>
@@ -52,10 +41,9 @@ module {
   //
   // Computes C = A x B with all matrices sparse (SpMSpM) in DCSR.
   //
-  func @matmul3(%A: tensor<4x8xf64, #DCSR>,
+  func.func @matmul3(%A: tensor<4x8xf64, #DCSR>,
                 %B: tensor<8x4xf64, #DCSR>) -> tensor<4x4xf64, #DCSR> {
-    %c4 = arith.constant 4 : index
-    %C = sparse_tensor.init [%c4, %c4] : tensor<4x4xf64, #DCSR>
+    %C = bufferization.alloc_tensor() : tensor<4x4xf64, #DCSR>
     %D = linalg.matmul
       ins(%A, %B: tensor<4x8xf64, #DCSR>, tensor<8x4xf64, #DCSR>)
          outs(%C: tensor<4x4xf64, #DCSR>) -> tensor<4x4xf64, #DCSR>
@@ -65,7 +53,7 @@ module {
   //
   // Main driver.
   //
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %d1 = arith.constant -1.0 : f64
 

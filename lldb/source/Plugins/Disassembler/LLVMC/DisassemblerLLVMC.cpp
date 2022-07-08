@@ -10,6 +10,7 @@
 
 #include "llvm-c/Disassembler.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
@@ -22,6 +23,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/AArch64TargetParser.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ScopedPrinter.h"
 #include "llvm/Support/TargetSelect.h"
@@ -36,6 +38,7 @@
 #include "lldb/Target/StackFrame.h"
 #include "lldb/Target/Target.h"
 #include "lldb/Utility/DataExtractor.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
@@ -89,8 +92,7 @@ public:
                    AddressClass addr_class)
       : Instruction(address, addr_class),
         m_disasm_wp(std::static_pointer_cast<DisassemblerLLVMC>(
-            disasm.shared_from_this())),
-        m_using_file_addr(false) {}
+            disasm.shared_from_this())) {}
 
   ~InstructionLLVMC() override = default;
 
@@ -795,8 +797,7 @@ public:
       }
     }
 
-    if (Log *log =
-            lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_PROCESS)) {
+    if (Log *log = GetLog(LLDBLog::Process)) {
       StreamString ss;
 
       ss.Printf("[%s] expands to %zu operands:\n", operands_string,
@@ -822,7 +823,7 @@ protected:
   std::weak_ptr<DisassemblerLLVMC> m_disasm_wp;
 
   bool m_is_valid = false;
-  bool m_using_file_addr;
+  bool m_using_file_addr = false;
   bool m_has_visited_instruction = false;
 
   // Be conservative. If we didn't understand the instruction, say it:
@@ -1097,19 +1098,19 @@ DisassemblerLLVMC::DisassemblerLLVMC(const ArchSpec &arch,
       thumb_arch_name.erase(0, 3);
       thumb_arch_name.insert(0, "thumb");
     } else {
-      thumb_arch_name = "thumbv8.7a";
+      thumb_arch_name = "thumbv9.3a";
     }
     thumb_arch.GetTriple().setArchName(llvm::StringRef(thumb_arch_name));
   }
 
   // If no sub architecture specified then use the most recent arm architecture
-  // so the disassembler will return all instruction. Without it we will see a
-  // lot of unknow opcode in case the code uses instructions which are not
-  // available in the oldest arm version (used when no sub architecture is
-  // specified)
+  // so the disassembler will return all instructions. Without it we will see a
+  // lot of unknown opcodes if the code uses instructions which are not
+  // available in the oldest arm version (which is used when no sub architecture
+  // is specified).
   if (triple.getArch() == llvm::Triple::arm &&
       triple.getSubArch() == llvm::Triple::NoSubArch)
-    triple.setArchName("armv8.7a");
+    triple.setArchName("armv9.3a");
 
   std::string features_str;
   const char *triple_str = triple.getTriple().c_str();
@@ -1178,13 +1179,34 @@ DisassemblerLLVMC::DisassemblerLLVMC(const ArchSpec &arch,
       features_str += "+dspr2,";
   }
 
-  // If any AArch64 variant, enable latest ISA with any optional
-  // extensions like SVE.
+  // If any AArch64 variant, enable latest ISA with all extensions.
   if (triple.isAArch64()) {
-    features_str += "+v8.7a,+sve2,+mte";
+    features_str += "+v9.3a,";
+    std::vector<llvm::StringRef> features;
+    // Get all possible features
+    llvm::AArch64::getExtensionFeatures(-1, features);
+    features_str += llvm::join(features, ",");
 
     if (triple.getVendor() == llvm::Triple::Apple)
       cpu = "apple-latest";
+  }
+
+  if (triple.isRISCV()) {
+    uint32_t arch_flags = arch.GetFlags();
+    if (arch_flags & ArchSpec::eRISCV_rvc)
+      features_str += "+c,";
+    if (arch_flags & ArchSpec::eRISCV_rve)
+      features_str += "+e,";
+    if ((arch_flags & ArchSpec::eRISCV_float_abi_single) ==
+        ArchSpec::eRISCV_float_abi_single)
+      features_str += "+f,";
+    if ((arch_flags & ArchSpec::eRISCV_float_abi_double) ==
+        ArchSpec::eRISCV_float_abi_double)
+      features_str += "+f,+d,";
+    if ((arch_flags & ArchSpec::eRISCV_float_abi_quad) ==
+        ArchSpec::eRISCV_float_abi_quad)
+      features_str += "+f,+d,+q,";
+    // FIXME: how do we detect features such as `+a`, `+m`?
   }
 
   // We use m_disasm_up.get() to tell whether we are valid or not, so if this

@@ -59,7 +59,7 @@ filter create_filter(const std::string &Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+    throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.HasDeviceType) {
@@ -91,17 +91,17 @@ filter create_filter(const std::string &Input) {
         // We already set everything earlier or it's an error.
         throw sycl::runtime_error(
             "Cannot specify host device with non-host backend.",
-            PI_INVALID_VALUE);
+            PI_ERROR_INVALID_VALUE);
       }
     } else if (std::regex_match(Token, IntegerExpr) && !Result.HasDeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
-        throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+        throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
       }
       Result.HasDeviceNum = true;
     } else {
-      throw sycl::runtime_error(Error, PI_INVALID_VALUE);
+      throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
     }
   }
 
@@ -169,7 +169,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
     throw sycl::runtime_error(
         "Could not find a device that matches the specified filter(s)!",
-        PI_DEVICE_NOT_FOUND);
+        PI_ERROR_DEVICE_NOT_FOUND);
   }
 
   return Score;

@@ -21,12 +21,13 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IRBuilderFolder.h"
 
 namespace llvm {
 
+class Constant;
 class DataLayout;
+class Type;
 
 /// TargetFolder - Create constants with target dependent folding.
 class TargetFolder final : public IRBuilderFolder {
@@ -102,6 +103,22 @@ public:
     if (CC && TC && FC)
       return Fold(ConstantExpr::getSelect(CC, TC, FC));
 
+    return nullptr;
+  }
+
+  Value *FoldExtractValue(Value *Agg,
+                          ArrayRef<unsigned> IdxList) const override {
+    if (auto *CAgg = dyn_cast<Constant>(Agg))
+      return Fold(ConstantExpr::getExtractValue(CAgg, IdxList));
+    return nullptr;
+  };
+
+  Value *FoldInsertValue(Value *Agg, Value *Val,
+                         ArrayRef<unsigned> IdxList) const override {
+    auto *CAgg = dyn_cast<Constant>(Agg);
+    auto *CVal = dyn_cast<Constant>(Val);
+    if (CAgg && CVal)
+      return Fold(ConstantExpr::getInsertValue(CAgg, CVal, IdxList));
     return nullptr;
   }
 
@@ -269,16 +286,6 @@ public:
   Constant *CreateShuffleVector(Constant *V1, Constant *V2,
                                 ArrayRef<int> Mask) const override {
     return Fold(ConstantExpr::getShuffleVector(V1, V2, Mask));
-  }
-
-  Constant *CreateExtractValue(Constant *Agg,
-                               ArrayRef<unsigned> IdxList) const override {
-    return Fold(ConstantExpr::getExtractValue(Agg, IdxList));
-  }
-
-  Constant *CreateInsertValue(Constant *Agg, Constant *Val,
-                              ArrayRef<unsigned> IdxList) const override {
-    return Fold(ConstantExpr::getInsertValue(Agg, Val, IdxList));
   }
 };
 

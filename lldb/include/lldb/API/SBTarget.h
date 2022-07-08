@@ -321,6 +321,8 @@ public:
   uint32_t GetAddressByteSize();
 
   const char *GetTriple();
+  
+  const char *GetABIName();
 
   /// Architecture data byte width accessor
   ///
@@ -875,7 +877,6 @@ protected:
   friend class SBSection;
   friend class SBSourceManager;
   friend class SBSymbol;
-  friend class SBThread;
   friend class SBValue;
   friend class SBVariablesOptions;
 

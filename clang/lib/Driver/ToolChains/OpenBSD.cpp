@@ -113,6 +113,7 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   const toolchains::OpenBSD &ToolChain =
       static_cast<const toolchains::OpenBSD &>(getToolChain());
   const Driver &D = ToolChain.getDriver();
+  const llvm::Triple::ArchType Arch = ToolChain.getArch();
   ArgStringList CmdArgs;
 
   // Silence warning for "clang -g foo.o -o foo"
@@ -123,9 +124,12 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // handled somewhere else.
   Args.ClaimAllArgs(options::OPT_w);
 
-  if (ToolChain.getArch() == llvm::Triple::mips64)
+  if (!D.SysRoot.empty())
+    CmdArgs.push_back(Args.MakeArgString("--sysroot=" + D.SysRoot));
+
+  if (Arch == llvm::Triple::mips64)
     CmdArgs.push_back("-EB");
-  else if (ToolChain.getArch() == llvm::Triple::mips64el)
+  else if (Arch == llvm::Triple::mips64el)
     CmdArgs.push_back("-EL");
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_shared)) {
@@ -153,6 +157,9 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_nopie) || Args.hasArg(options::OPT_pg))
     CmdArgs.push_back("-nopie");
 
+  if (Arch == llvm::Triple::riscv64)
+    CmdArgs.push_back("-X");
+
   if (Output.isFilename()) {
     CmdArgs.push_back("-o");
     CmdArgs.push_back(Output.getFilename());
@@ -160,7 +167,8 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     assert(Output.isNothing() && "Invalid output.");
   }
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_r)) {
     const char *crt0 = nullptr;
     const char *crtbegin = nullptr;
     if (!Args.hasArg(options::OPT_shared)) {
@@ -191,7 +199,8 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   bool NeedsXRayDeps = addXRayRuntime(ToolChain, Args, CmdArgs);
   AddLinkerInputs(ToolChain, Inputs, Args, CmdArgs, JA);
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs,
+                   options::OPT_r)) {
     // Use the static OpenMP runtime with -static-openmp
     bool StaticOpenMP = Args.hasArg(options::OPT_static_openmp) &&
                         !Args.hasArg(options::OPT_static);
@@ -234,7 +243,8 @@ void openbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-lcompiler_rt");
   }
 
-  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles)) {
+  if (!Args.hasArg(options::OPT_nostdlib, options::OPT_nostartfiles,
+                   options::OPT_r)) {
     const char *crtend = nullptr;
     if (!Args.hasArg(options::OPT_shared))
       crtend = "crtend.o";
@@ -339,3 +349,12 @@ Tool *OpenBSD::buildAssembler() const {
 Tool *OpenBSD::buildLinker() const { return new tools::openbsd::Linker(*this); }
 
 bool OpenBSD::HasNativeLLVMSupport() const { return true; }
+
+bool OpenBSD::IsUnwindTablesDefault(const ArgList &Args) const {
+    switch (getArch()) {
+      case llvm::Triple::arm:
+        return false;
+      default:
+        return true;
+    }
+}

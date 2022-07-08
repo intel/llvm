@@ -53,8 +53,7 @@ define <4 x i16> @sabd_4h_promoted_ops(<4 x i8> %a, <4 x i8> %b) #0 {
 ; CHECK-NEXT:    shl v1.4h, v1.4h, #8
 ; CHECK-NEXT:    sshr v0.4h, v0.4h, #8
 ; CHECK-NEXT:    sshr v1.4h, v1.4h, #8
-; CHECK-NEXT:    sub v0.4h, v0.4h, v1.4h
-; CHECK-NEXT:    abs v0.4h, v0.4h
+; CHECK-NEXT:    sabd v0.4h, v0.4h, v1.4h
 ; CHECK-NEXT:    ret
   %a.sext = sext <4 x i8> %a to <4 x i16>
   %b.sext = sext <4 x i8> %b to <4 x i16>
@@ -108,8 +107,7 @@ define <2 x i32> @sabd_2s_promoted_ops(<2 x i16> %a, <2 x i16> %b) #0 {
 ; CHECK-NEXT:    shl v1.2s, v1.2s, #16
 ; CHECK-NEXT:    sshr v0.2s, v0.2s, #16
 ; CHECK-NEXT:    sshr v1.2s, v1.2s, #16
-; CHECK-NEXT:    sub v0.2s, v0.2s, v1.2s
-; CHECK-NEXT:    abs v0.2s, v0.2s
+; CHECK-NEXT:    sabd v0.2s, v0.2s, v1.2s
 ; CHECK-NEXT:    ret
   %a.sext = sext <2 x i16> %a to <2 x i32>
   %b.sext = sext <2 x i16> %b to <2 x i32>
@@ -149,21 +147,23 @@ define <2 x i64> @sabd_2d(<2 x i64> %a, <2 x i64> %b) #0 {
 ; CHECK-NEXT:    mov x8, v0.d[1]
 ; CHECK-NEXT:    fmov x10, d0
 ; CHECK-NEXT:    mov x9, v1.d[1]
-; CHECK-NEXT:    asr x11, x10, #63
-; CHECK-NEXT:    asr x12, x8, #63
-; CHECK-NEXT:    asr x13, x9, #63
+; CHECK-NEXT:    fmov x11, d1
+; CHECK-NEXT:    asr x12, x10, #63
+; CHECK-NEXT:    asr x14, x8, #63
+; CHECK-NEXT:    asr x15, x9, #63
 ; CHECK-NEXT:    subs x8, x8, x9
-; CHECK-NEXT:    fmov x9, d1
-; CHECK-NEXT:    sbcs x12, x12, x13
-; CHECK-NEXT:    asr x13, x9, #63
-; CHECK-NEXT:    subs x9, x10, x9
-; CHECK-NEXT:    sbcs x10, x11, x13
-; CHECK-NEXT:    cmp x10, #0
-; CHECK-NEXT:    cneg x9, x9, lt
-; CHECK-NEXT:    cmp x12, #0
-; CHECK-NEXT:    cneg x8, x8, lt
-; CHECK-NEXT:    fmov d0, x9
+; CHECK-NEXT:    asr x13, x11, #63
+; CHECK-NEXT:    sbc x9, x14, x15
+; CHECK-NEXT:    subs x10, x10, x11
+; CHECK-NEXT:    asr x9, x9, #63
+; CHECK-NEXT:    sbc x11, x12, x13
+; CHECK-NEXT:    eor x8, x8, x9
+; CHECK-NEXT:    asr x11, x11, #63
+; CHECK-NEXT:    sub x8, x8, x9
+; CHECK-NEXT:    eor x10, x10, x11
+; CHECK-NEXT:    sub x10, x10, x11
 ; CHECK-NEXT:    fmov d1, x8
+; CHECK-NEXT:    fmov d0, x10
 ; CHECK-NEXT:    mov v0.d[1], v1.d[0]
 ; CHECK-NEXT:    ret
   %a.sext = sext <2 x i64> %a to <2 x i128>
@@ -234,8 +234,7 @@ define <4 x i16> @uabd_4h_promoted_ops(<4 x i8> %a, <4 x i8> %b) #0 {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    bic v0.4h, #255, lsl #8
 ; CHECK-NEXT:    bic v1.4h, #255, lsl #8
-; CHECK-NEXT:    sub v0.4h, v0.4h, v1.4h
-; CHECK-NEXT:    abs v0.4h, v0.4h
+; CHECK-NEXT:    uabd v0.4h, v0.4h, v1.4h
 ; CHECK-NEXT:    ret
   %a.zext = zext <4 x i8> %a to <4 x i16>
   %b.zext = zext <4 x i8> %b to <4 x i16>
@@ -288,8 +287,7 @@ define <2 x i32> @uabd_2s_promoted_ops(<2 x i16> %a, <2 x i16> %b) #0 {
 ; CHECK-NEXT:    movi d2, #0x00ffff0000ffff
 ; CHECK-NEXT:    and v0.8b, v0.8b, v2.8b
 ; CHECK-NEXT:    and v1.8b, v1.8b, v2.8b
-; CHECK-NEXT:    sub v0.2s, v0.2s, v1.2s
-; CHECK-NEXT:    abs v0.2s, v0.2s
+; CHECK-NEXT:    uabd v0.2s, v0.2s, v1.2s
 ; CHECK-NEXT:    ret
   %a.zext = zext <2 x i16> %a to <2 x i32>
   %b.zext = zext <2 x i16> %b to <2 x i32>
@@ -329,17 +327,19 @@ define <2 x i64> @uabd_2d(<2 x i64> %a, <2 x i64> %b) #0 {
 ; CHECK-NEXT:    mov x8, v0.d[1]
 ; CHECK-NEXT:    fmov x10, d0
 ; CHECK-NEXT:    mov x9, v1.d[1]
+; CHECK-NEXT:    fmov x11, d1
 ; CHECK-NEXT:    subs x8, x8, x9
-; CHECK-NEXT:    fmov x9, d1
-; CHECK-NEXT:    ngcs x11, xzr
-; CHECK-NEXT:    subs x9, x10, x9
-; CHECK-NEXT:    ngcs x10, xzr
-; CHECK-NEXT:    cmp x10, #0
-; CHECK-NEXT:    cneg x9, x9, lt
-; CHECK-NEXT:    cmp x11, #0
-; CHECK-NEXT:    cneg x8, x8, lt
-; CHECK-NEXT:    fmov d0, x9
+; CHECK-NEXT:    ngc x9, xzr
+; CHECK-NEXT:    subs x10, x10, x11
+; CHECK-NEXT:    ngc x11, xzr
+; CHECK-NEXT:    asr x9, x9, #63
+; CHECK-NEXT:    asr x11, x11, #63
+; CHECK-NEXT:    eor x8, x8, x9
+; CHECK-NEXT:    eor x10, x10, x11
+; CHECK-NEXT:    sub x8, x8, x9
+; CHECK-NEXT:    sub x10, x10, x11
 ; CHECK-NEXT:    fmov d1, x8
+; CHECK-NEXT:    fmov d0, x10
 ; CHECK-NEXT:    mov v0.d[1], v1.d[0]
 ; CHECK-NEXT:    ret
   %a.zext = zext <2 x i64> %a to <2 x i128>

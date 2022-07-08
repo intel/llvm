@@ -134,7 +134,10 @@ IncrementalParser::IncrementalParser(std::unique_ptr<CompilerInstance> Instance,
   P->Initialize();
 }
 
-IncrementalParser::~IncrementalParser() { Act->FinalizeAction(); }
+IncrementalParser::~IncrementalParser() {
+  P.reset();
+  Act->FinalizeAction();
+}
 
 llvm::Expected<PartialTranslationUnit &>
 IncrementalParser::ParseOrWrapTopLevelDecl() {
@@ -164,8 +167,9 @@ IncrementalParser::ParseOrWrapTopLevelDecl() {
   }
 
   Parser::DeclGroupPtrTy ADecl;
-  for (bool AtEOF = P->ParseFirstTopLevelDecl(ADecl); !AtEOF;
-       AtEOF = P->ParseTopLevelDecl(ADecl)) {
+  Sema::ModuleImportState ImportState;
+  for (bool AtEOF = P->ParseFirstTopLevelDecl(ADecl, ImportState); !AtEOF;
+       AtEOF = P->ParseTopLevelDecl(ADecl, ImportState)) {
     // If we got a null return and something *was* parsed, ignore it.  This
     // is due to a top-level semicolon, an action override, or a parse error
     // skipping something.

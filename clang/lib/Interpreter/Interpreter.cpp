@@ -116,6 +116,9 @@ CreateCI(const llvm::opt::ArgStringList &Argv) {
   // times, reusing the same AST.
   Clang->getCodeGenOpts().ClearASTBeforeBackend = false;
 
+  Clang->getFrontendOpts().DisableFree = false;
+  Clang->getCodeGenOpts().DisableFree = false;
+
   return std::move(Clang);
 }
 
@@ -194,6 +197,12 @@ Interpreter::create(std::unique_ptr<CompilerInstance> CI) {
 
 const CompilerInstance *Interpreter::getCompilerInstance() const {
   return IncrParser->getCI();
+}
+
+const llvm::orc::LLJIT *Interpreter::getExecutionEngine() const {
+  if (IncrExecutor)
+    return IncrExecutor->getExecutionEngine();
+  return nullptr;
 }
 
 llvm::Expected<PartialTranslationUnit &>

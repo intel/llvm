@@ -10,7 +10,7 @@ define void @test_1_variable_constraint(i32 %x, i32 %y, i32 %z) {
 ; CHECK-NEXT:    br i1 [[C_1]], label [[BB1:%.*]], label [[BB2:%.*]]
 ; CHECK:       bb1:
 ; CHECK-NEXT:    [[T_1:%.*]] = icmp sge i32 [[X]], [[Y]]
-; CHECK-NEXT:    call void @use(i1 [[T_1]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[C_2:%.*]] = icmp sge i32 [[X]], 10
 ; CHECK-NEXT:    call void @use(i1 [[C_2]])
 ; CHECK-NEXT:    [[C_3:%.*]] = icmp sge i32 [[Y]], [[X]]
@@ -20,9 +20,9 @@ define void @test_1_variable_constraint(i32 %x, i32 %y, i32 %z) {
 ; CHECK-NEXT:    ret void
 ; CHECK:       bb2:
 ; CHECK-NEXT:    [[T_2:%.*]] = icmp sge i32 [[Y]], [[X]]
-; CHECK-NEXT:    call void @use(i1 [[T_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[F_1:%.*]] = icmp sge i32 [[X]], [[Y]]
-; CHECK-NEXT:    call void @use(i1 [[F_1]])
+; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    [[C_5:%.*]] = icmp sge i32 [[X]], 10
 ; CHECK-NEXT:    call void @use(i1 [[C_5]])
 ; CHECK-NEXT:    [[C_6:%.*]] = icmp sge i32 10, [[X]]
@@ -63,9 +63,9 @@ define void @test_1_constant_constraint(i32 %x) {
 ; CHECK-NEXT:    br i1 [[C_1]], label [[BB1:%.*]], label [[BB2:%.*]]
 ; CHECK:       bb1:
 ; CHECK-NEXT:    [[T_1:%.*]] = icmp sge i32 [[X]], 10
-; CHECK-NEXT:    call void @use(i1 [[T_1]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[T_2:%.*]] = icmp sge i32 [[X]], 9
-; CHECK-NEXT:    call void @use(i1 [[T_2]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[C_2:%.*]] = icmp sge i32 [[X]], 11
 ; CHECK-NEXT:    call void @use(i1 [[C_2]])
 ; CHECK-NEXT:    [[C_4:%.*]] = icmp sge i32 10, [[X]]
@@ -73,11 +73,11 @@ define void @test_1_constant_constraint(i32 %x) {
 ; CHECK-NEXT:    ret void
 ; CHECK:       bb2:
 ; CHECK-NEXT:    [[T_3:%.*]] = icmp sge i32 11, [[X]]
-; CHECK-NEXT:    call void @use(i1 [[T_3]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[F_1:%.*]] = icmp sge i32 [[X]], 10
-; CHECK-NEXT:    call void @use(i1 [[F_1]])
+; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    [[F_1_1:%.*]] = icmp sge i32 [[X]], 10
-; CHECK-NEXT:    call void @use(i1 [[F_1_1]])
+; CHECK-NEXT:    call void @use(i1 false)
 ; CHECK-NEXT:    [[C_5:%.*]] = icmp sge i32 [[X]], 9
 ; CHECK-NEXT:    call void @use(i1 [[C_5]])
 ; CHECK-NEXT:    [[C_6:%.*]] = icmp sge i32 1, [[X]]
@@ -125,7 +125,7 @@ define i32 @test1(i32 %x, i32 %y, i32 %z) {
 ; CHECK-NEXT:    br i1 [[C_2]], label [[BB2:%.*]], label [[EXIT]]
 ; CHECK:       bb2:
 ; CHECK-NEXT:    [[C_3:%.*]] = icmp sge i32 [[X]], [[Z]]
-; CHECK-NEXT:    br i1 [[C_3]], label [[BB3:%.*]], label [[EXIT]]
+; CHECK-NEXT:    br i1 true, label [[BB3:%.*]], label [[EXIT]]
 ; CHECK:       bb3:
 ; CHECK-NEXT:    ret i32 10
 ; CHECK:       exit:
@@ -224,7 +224,7 @@ define i32 @test4(i32 %x, i32 %y, i32 %z) {
 ; CHECK-NEXT:    br i1 [[C_2]], label [[BB2:%.*]], label [[EXIT]]
 ; CHECK:       bb2:
 ; CHECK-NEXT:    [[T_1:%.*]] = icmp sge i32 [[X]], [[Z]]
-; CHECK-NEXT:    call void @use(i1 [[T_1]])
+; CHECK-NEXT:    call void @use(i1 true)
 ; CHECK-NEXT:    [[U_1:%.*]] = icmp eq i32 [[X]], [[Z]]
 ; CHECK-NEXT:    call void @use(i1 [[U_1]])
 ; CHECK-NEXT:    ret i32 10
@@ -249,4 +249,29 @@ bb2:
 
 exit:
   ret i32 20
+}
+
+define i1 @sge_sgt(i32 %x, i32 %y, i32 %z) {
+; CHECK-LABEL: @sge_sgt(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[C_1:%.*]] = icmp sgt i32 [[X:%.*]], -1
+; CHECK-NEXT:    br i1 [[C_1]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    [[T_1:%.*]] = icmp sge i32 [[X]], 0
+; CHECK-NEXT:    ret i1 true
+; CHECK:       else:
+; CHECK-NEXT:    [[F_1:%.*]] = icmp sge i32 [[X]], 0
+; CHECK-NEXT:    ret i1 false
+;
+entry:
+  %c.1 = icmp sgt i32 %x, -1
+  br i1 %c.1, label %then, label %else
+
+then:
+  %t.1 = icmp sge i32 %x, 0
+  ret i1 %t.1
+
+else:
+  %f.1 = icmp sge i32 %x, 0
+  ret i1 %f.1
 }

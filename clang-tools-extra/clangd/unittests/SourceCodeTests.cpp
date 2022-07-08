@@ -15,7 +15,6 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Testing/Support/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
@@ -34,7 +33,7 @@ MATCHER_P2(Pos, Line, Col, "") {
   return arg.line == int(Line) && arg.character == int(Col);
 }
 
-MATCHER_P(MacroName, Name, "") { return arg.Name == Name; }
+MATCHER_P(macroName, Name, "") { return arg.Name == Name; }
 
 /// A helper to make tests easier to read.
 Position position(int Line, int Character) {
@@ -377,7 +376,7 @@ protected:
   SpelledWord word(const char *Text) {
     auto Result = tryWord(Text);
     EXPECT_TRUE(Result) << Text;
-    return Result.getValueOr(SpelledWord());
+    return Result.value_or(SpelledWord());
   }
 
   void noWord(const char *Text) { EXPECT_FALSE(tryWord(Text)) << Text; }
@@ -542,7 +541,7 @@ TEST(SourceCodeTests, GetMacros) {
   ASSERT_TRUE(Id);
   auto Result = locateMacroAt(*Id, AST.getPreprocessor());
   ASSERT_TRUE(Result);
-  EXPECT_THAT(*Result, MacroName("MACRO"));
+  EXPECT_THAT(*Result, macroName("MACRO"));
 }
 
 TEST(SourceCodeTests, WorksAtBeginOfFile) {
@@ -556,7 +555,7 @@ TEST(SourceCodeTests, WorksAtBeginOfFile) {
   ASSERT_TRUE(Id);
   auto Result = locateMacroAt(*Id, AST.getPreprocessor());
   ASSERT_TRUE(Result);
-  EXPECT_THAT(*Result, MacroName("MACRO"));
+  EXPECT_THAT(*Result, macroName("MACRO"));
 }
 
 TEST(SourceCodeTests, IsInsideMainFile) {

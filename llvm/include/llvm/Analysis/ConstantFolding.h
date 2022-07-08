@@ -19,16 +19,18 @@
 #ifndef LLVM_ANALYSIS_CONSTANTFOLDING_H
 #define LLVM_ANALYSIS_CONSTANTFOLDING_H
 
+#include <stdint.h>
+
 namespace llvm {
 class APInt;
 template <typename T> class ArrayRef;
 class CallBase;
 class Constant;
-class ConstantExpr;
 class DSOLocalEquivalent;
 class DataLayout;
 class Function;
 class GlobalValue;
+class GlobalVariable;
 class Instruction;
 class TargetLibraryInfo;
 class Type;
@@ -85,6 +87,13 @@ Constant *ConstantFoldUnaryOpOperand(unsigned Opcode, Constant *Op,
 /// operands.
 Constant *ConstantFoldBinaryOpOperands(unsigned Opcode, Constant *LHS,
                                        Constant *RHS, const DataLayout &DL);
+
+/// Attempt to constant fold a floating point binary operation with the
+/// specified operands, applying the denormal handling mod to the operands.  If
+/// it fails, it returns a constant expression of the specified operands.
+Constant *ConstantFoldFPInstOperands(unsigned Opcode, Constant *LHS,
+                                     Constant *RHS, const DataLayout &DL,
+                                     const Instruction *I);
 
 /// Attempt to constant fold a select instruction with the specified
 /// operands. The constant result is returned if successful; if not, null is
@@ -173,6 +182,8 @@ Constant *ConstantFoldLoadThroughBitcast(Constant *C, Type *DestTy,
 /// Check whether the given call has no side-effects.
 /// Specifically checks for math routimes which sometimes set errno.
 bool isMathLibCallNoop(const CallBase *Call, const TargetLibraryInfo *TLI);
+
+Constant *ReadByteArrayFromGlobal(const GlobalVariable *GV, uint64_t Offset);
 }
 
 #endif

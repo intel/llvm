@@ -111,7 +111,9 @@ private:
   };
 
   void SkipBlanks() {
-    while (offset_ < formatLength_ && format_[offset_] == ' ') {
+    while (offset_ < formatLength_ &&
+        (format_[offset_] == ' ' || format_[offset_] == '\t' ||
+            format_[offset_] == '\v')) {
       ++offset_;
     }
   }
@@ -122,8 +124,13 @@ private:
   CharType GetNextChar(IoErrorHandler &handler) {
     SkipBlanks();
     if (offset_ >= formatLength_) {
-      handler.SignalError(
-          IostatErrorInFormat, "FORMAT missing at least one ')'");
+      if (formatLength_ == 0) {
+        handler.SignalError(
+            IostatErrorInFormat, "Empty or badly assigned FORMAT");
+      } else {
+        handler.SignalError(
+            IostatErrorInFormat, "FORMAT missing at least one ')'");
+      }
       return '\n';
     }
     return format_[offset_++];

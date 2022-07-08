@@ -22,6 +22,7 @@
 #include "llvm/Support/Error.h"
 #include <map>
 #include <set>
+#include <unordered_map>
 
 namespace llvm {
 
@@ -40,15 +41,22 @@ class ProfileReaderBase;
 /// events.
 class RewriteInstance {
 public:
+  // This constructor has complex initialization that can fail during
+  // construction. Constructors can’t return errors, so clients must test \p Err
+  // after the object is constructed. Use createRewriteInstance instead.
   RewriteInstance(llvm::object::ELFObjectFileBase *File, const int Argc,
-                  const char *const *Argv, StringRef ToolPath);
+                  const char *const *Argv, StringRef ToolPath, Error &Err);
+
+  static Expected<std::unique_ptr<RewriteInstance>>
+  createRewriteInstance(llvm::object::ELFObjectFileBase *File, const int Argc,
+                        const char *const *Argv, StringRef ToolPath);
   ~RewriteInstance();
 
   /// Assign profile from \p Filename to this instance.
   Error setProfile(StringRef Filename);
 
   /// Run all the necessary steps to read, optimize and rewrite the binary.
-  void run();
+  Error run();
 
   /// Diff this instance against another one. Non-const since we may run passes
   /// to fold identical functions.
@@ -88,7 +96,7 @@ private:
 
   /// Read info from special sections. E.g. eh_frame and .gcc_except_table
   /// for exception and stack unwinding information.
-  void readSpecialSections();
+  Error readSpecialSections();
 
   /// Adjust supplied command-line options based on input data.
   void adjustCommandLineOptions();
@@ -124,7 +132,7 @@ private:
   void processLKSMPLocks();
 
   /// Read relocations from a given section.
-  void readDynamicRelocations(const object::SectionRef &Section);
+  void readDynamicRelocations(const object::SectionRef &Section, bool IsJmpRel);
 
   /// Read relocations from a given section.
   void readRelocations(const object::SectionRef &Section);
@@ -201,12 +209,16 @@ private:
   /// \p OldAddress address in the original binary.
   uint64_t getNewFunctionAddress(uint64_t OldAddress);
 
+  /// Return address of a function or moved data in the new binary
+  /// corresponding to \p OldAddress address in the original binary.
+  uint64_t getNewFunctionOrDataAddress(uint64_t OldAddress);
+
   /// Return value for the symbol \p Name in the output.
   uint64_t getNewValueForSymbol(const StringRef Name);
 
   /// Detect addresses and offsets available in the binary for allocating
   /// new sections.
-  void discoverStorage();
+  Error discoverStorage();
 
   /// Adjust function sizes and set proper maximum size values after the whole
   /// symbol table has been processed.
@@ -234,10 +246,23 @@ private:
   /// Disassemble and create function entries for PLT.
   void disassemblePLT();
 
+  /// Auxiliary function to create .plt BinaryFunction on \p EntryAddres
+  /// with the \p EntrySize size. \p TargetAddress is the .got entry
+  /// associated address.
+  void createPLTBinaryFunction(uint64_t TargetAddress, uint64_t EntryAddress,
+                               uint64_t EntrySize);
+
+  /// Disassemble aarch64-specific .plt \p Section auxiliary function
+  void disassemblePLTSectionAArch64(BinarySection &Section);
+
+  /// Disassemble X86-specific .plt \p Section auxiliary function. \p EntrySize
+  /// is the expected .plt \p Section entry function size.
+  void disassemblePLTSectionX86(BinarySection &Section, uint64_t EntrySize);
+
   /// ELF-specific part. TODO: refactor into new class.
-#define ELF_FUNCTION(FUNC)                                                     \
-  template <typename ELFT> void FUNC(object::ELFObjectFile<ELFT> *Obj);        \
-  void FUNC() {                                                                \
+#define ELF_FUNCTION(TYPE, FUNC)                                               \
+  template <typename ELFT> TYPE FUNC(object::ELFObjectFile<ELFT> *Obj);        \
+  TYPE FUNC() {                                                                \
     if (auto *ELF32LE = dyn_cast<object::ELF32LEObjectFile>(InputFile))        \
       return FUNC(ELF32LE);                                                    \
     if (auto *ELF64LE = dyn_cast<object::ELF64LEObjectFile>(InputFile))        \
@@ -252,25 +277,25 @@ private:
   void patchELFPHDRTable();
 
   /// Create section header table.
-  ELF_FUNCTION(patchELFSectionHeaderTable);
+  ELF_FUNCTION(void, patchELFSectionHeaderTable);
 
   /// Create the regular symbol table and patch dyn symbol tables.
-  ELF_FUNCTION(patchELFSymTabs);
+  ELF_FUNCTION(void, patchELFSymTabs);
 
   /// Read dynamic section/segment of ELF.
-  ELF_FUNCTION(readELFDynamic);
+  ELF_FUNCTION(Error, readELFDynamic);
 
   /// Patch dynamic section/segment of ELF.
-  ELF_FUNCTION(patchELFDynamic);
+  ELF_FUNCTION(void, patchELFDynamic);
 
   /// Patch .got
-  ELF_FUNCTION(patchELFGOT);
+  ELF_FUNCTION(void, patchELFGOT);
 
   /// Patch allocatable relocation sections.
-  ELF_FUNCTION(patchELFAllocatableRelaSections);
+  ELF_FUNCTION(void, patchELFAllocatableRelaSections);
 
   /// Finalize memory image of section header string table.
-  ELF_FUNCTION(finalizeSectionStringTable);
+  ELF_FUNCTION(void, finalizeSectionStringTable);
 
   /// Return a name of the input file section in the output file.
   template <typename ELFObjType, typename ELFShdrTy>
@@ -298,6 +323,14 @@ private:
       const typename object::ELFObjectFile<ELFT>::Elf_Shdr &SymTabSection,
       const std::vector<uint32_t> &NewSectionIndex, WriteFuncTy Write,
       StrTabFuncTy AddToStrTab);
+
+  /// Get output index in dynamic symbol table.
+  uint32_t getOutputDynamicSymbolIndex(const MCSymbol *Symbol) {
+    auto It = SymbolIndex.find(Symbol);
+    if (It != SymbolIndex.end())
+      return It->second;
+    return 0;
+  }
 
   /// Add a notes section containing the BOLT revision and command line options.
   void addBoltInfoSection();
@@ -426,10 +459,18 @@ private:
   /// Location and size of dynamic relocations.
   Optional<uint64_t> DynamicRelocationsAddress;
   uint64_t DynamicRelocationsSize{0};
+  uint64_t DynamicRelativeRelocationsCount{0};
 
   /// PLT relocations are special kind of dynamic relocations stored separately.
   Optional<uint64_t> PLTRelocationsAddress;
   uint64_t PLTRelocationsSize{0};
+
+  /// True if relocation of specified type came from .rela.plt
+  DenseMap<uint64_t, bool> IsJmpRelocation;
+
+  /// Index of specified symbol in the dynamic symbol table. NOTE Currently it
+  /// is filled and used only with the relocations-related symbols.
+  std::unordered_map<const MCSymbol *, uint32_t> SymbolIndex;
 
   /// Store all non-zero symbols in this map for a quick address lookup.
   std::map<uint64_t, llvm::object::SymbolRef> FileSymRefs;
@@ -445,7 +486,7 @@ private:
   /// multiple variants generated by different linkers.
   struct PLTSectionInfo {
     const char *Name;
-    uint64_t EntrySize;
+    uint64_t EntrySize{0};
   };
 
   /// Different types of X86-64 PLT sections.
@@ -457,10 +498,8 @@ private:
   };
 
   /// AArch64 PLT sections.
-  const PLTSectionInfo AArch64_PLTSections[2] = {
-      { ".plt", 16 },
-      { nullptr, 0 }
-  };
+  const PLTSectionInfo AArch64_PLTSections[3] = {
+      {".plt"}, {".iplt"}, {nullptr}};
 
   /// Return PLT information for a section with \p SectionName or nullptr
   /// if the section is not PLT.

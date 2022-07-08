@@ -32,28 +32,13 @@ void bar() {
 [[sycl::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
-class Functor33 {
-public:
-  // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-  [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
-};
-
+#ifdef TRIGGER_ERROR
 [[intel::reqd_work_group_size(4, 2, 9)]] void unknown() {} // expected-warning{{unknown attribute 'reqd_work_group_size' ignored}}
-
-class Functor30 {
-public:
-  // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
-  [[sycl::reqd_work_group_size(30, -30, -30)]] void operator()() const {}
-};
+#endif // TRIGGER_ERROR
 
 class Functor16 {
 public:
   [[sycl::reqd_work_group_size(16)]] void operator()() const {}
-};
-
-class Functor64 {
-public:
-  [[sycl::reqd_work_group_size(64, 64)]] void operator()() const {}
 };
 
 class Functor16x16x16 {
@@ -94,36 +79,30 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name4>(fattr);
 
-    Functor33 f33;
-    h.single_task<class kernel_name5>(f33);
-
-    Functor30 f30;
-    h.single_task<class kernel_name6>(f30);
-
-    h.single_task<class kernel_name7>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {
+    h.single_task<class kernel_name5>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {
       f32x32x32();
     });
 #ifdef TRIGGER_ERROR
     Functor8 f8;
-    h.single_task<class kernel_name8>(f8);
+    h.single_task<class kernel_name6>(f8);
 
-    h.single_task<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name7>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f4x1x1();
       f32x1x1();
     });
 
-    h.single_task<class kernel_name10>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name8>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f16x1x1();
       f16x16x1();
     });
 
-    h.single_task<class kernel_name11>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
+    h.single_task<class kernel_name9>([]() { // expected-error {{conflicting attributes applied to a SYCL kernel}}
       f32x32x32();
       f32x32x1();
     });
 
     // expected-error@+1 {{expected variable name or 'this' in lambda capture list}}
-    h.single_task<class kernel_name12>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
+    h.single_task<class kernel_name10>([[sycl::reqd_work_group_size(32, 32, 32)]][]() {
       f32x32x32();
     });
 
@@ -177,31 +156,6 @@ int main() {
 // CHECK-NEXT:  value: Int 128
 // CHECK-NEXT:  IntegerLiteral{{.*}}128{{$}}
 // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 32
-// CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -4
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 1
-// CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name6
-// CHECK: ReqdWorkGroupSizeAttr {{.*}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int 30
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -30
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK-NEXT:  ConstantExpr{{.*}}'int'
-// CHECK-NEXT:  value: Int -30
-// CHECK-NEXT:  UnaryOperator{{.*}} 'int' prefix '-'
-// CHECK-NEXT:  IntegerLiteral{{.*}}30{{$}}
-// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name7
 // CHECK: ReqdWorkGroupSizeAttr {{.*}}
 // CHECK-NEXT:  ConstantExpr{{.*}}'int'
 // CHECK-NEXT:  value: Int 32

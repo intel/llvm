@@ -28,6 +28,9 @@ CHECK : The preprocessor should not complain about Unicode characters like ©.
 
         int _;
 
+extern int X\UAAAAAAAA; // expected-error {{not allowed in an identifier}}
+int Y = '\UAAAAAAAA'; // expected-error {{invalid universal character}}
+
 #ifdef __cplusplus
 
 extern int ༀ;
@@ -55,7 +58,7 @@ extern int 👷‍♀; // expected-warning {{declaration does not declare anythi
 // A 🌹 by any other name....
 extern int 🌹;
 int 🌵(int 🌻) { return 🌻+ 1; }
-int main () {
+int main (void) {
   int 🌷 = 🌵(🌹);
   return 🌷;
 }

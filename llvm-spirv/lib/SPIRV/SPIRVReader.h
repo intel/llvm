@@ -243,6 +243,9 @@ private:
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
   void transVarDecorationsToMetadata(SPIRVValue *BV, Value *V);
   void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
+  void
+  transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,
+                                             SPIRVTypeFunction *CalledFnTy);
 }; // class SPIRVToLLVM
 
 } // namespace SPIRV

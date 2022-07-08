@@ -33,7 +33,7 @@ using namespace mlir::detail;
 ///                    | `[` (attribute-value (`,` attribute-value)*)? `]`
 ///                    | `{` (attribute-entry (`,` attribute-entry)*)? `}`
 ///                    | symbol-ref-id (`::` symbol-ref-id)*
-///                    | `dense` `<` attribute-value `>` `:`
+///                    | `dense` `<` tensor-literal `>` `:`
 ///                      (tensor-type | vector-type)
 ///                    | `sparse` `<` attribute-value `,` attribute-value `>`
 ///                      `:` (tensor-type | vector-type)
@@ -114,7 +114,8 @@ Attribute Parser::parseAttribute(Type type) {
     if (getToken().is(Token::floatliteral))
       return parseFloatAttr(type, /*isNegative=*/true);
 
-    return (emitError("expected constant integer or floating point value"),
+    return (emitWrongTokenError(
+                "expected constant integer or floating point value"),
             nullptr);
   }
 
@@ -169,8 +170,10 @@ Attribute Parser::parseAttribute(Type type) {
       const char *curPointer = getToken().getLoc().getPointer();
       consumeToken(Token::colon);
       if (!consumeIf(Token::colon)) {
-        state.lex.resetPointer(curPointer);
-        consumeToken();
+        if (getToken().isNot(Token::eof, Token::error)) {
+          state.lex.resetPointer(curPointer);
+          consumeToken();
+        }
         break;
       }
       // Parse the reference itself.
@@ -204,10 +207,13 @@ Attribute Parser::parseAttribute(Type type) {
     return builder.getUnitAttr();
 
   default:
-    // Parse a type attribute.
-    if (Type type = parseType())
-      return TypeAttr::get(type);
-    return nullptr;
+    // Parse a type attribute. We parse `Optional` here to allow for providing a
+    // better error message.
+    Type type;
+    OptionalParseResult result = parseOptionalType(type);
+    if (!result.hasValue())
+      return emitWrongTokenError("expected attribute value"), Attribute();
+    return failed(*result) ? Attribute() : TypeAttr::get(type);
   }
 }
 
@@ -270,7 +276,11 @@ ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
              getToken().isKeyword())
       nameId = builder.getStringAttr(getTokenSpelling());
     else
-      return emitError("expected attribute name");
+      return emitWrongTokenError("expected attribute name");
+
+    if (nameId->size() == 0)
+      return emitError("expected valid attribute name");
+
     if (!seenKeys.insert(*nameId).second)
       return emitError("duplicate key '")
              << nameId->getValue() << "' in dictionary attribute";
@@ -295,17 +305,14 @@ ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
     return success();
   };
 
-  if (parseCommaSeparatedList(Delimiter::Braces, parseElt,
-                              " in attribute dictionary"))
-    return failure();
-
-  return success();
+  return parseCommaSeparatedList(Delimiter::Braces, parseElt,
+                                 " in attribute dictionary");
 }
 
 /// Parse a float attribute.
 Attribute Parser::parseFloatAttr(Type type, bool isNegative) {
   auto val = getToken().getFloatingPointValue();
-  if (!val.hasValue())
+  if (!val)
     return (emitError("floating point value too large for attribute"), nullptr);
   consumeToken(Token::floatliteral);
   if (!type) {
@@ -318,7 +325,7 @@ Attribute Parser::parseFloatAttr(Type type, bool isNegative) {
   if (!type.isa<FloatType>())
     return (emitError("floating point value not valid for specified type"),
             nullptr);
-  return FloatAttr::get(type, isNegative ? -val.getValue() : val.getValue());
+  return FloatAttr::get(type, isNegative ? -*val : *val);
 }
 
 /// Construct an APint from a parsed value, a known attribute type and
@@ -510,7 +517,7 @@ DenseElementsAttr TensorLiteralParser::getAttr(SMLoc loc,
   Type eltType = type.getElementType();
 
   // Check to see if we parse the literal from a hex string.
-  if (hexStorage.hasValue() &&
+  if (hexStorage &&
       (eltType.isIntOrIndexOrFloat() || eltType.isa<ComplexType>()))
     return getHexAttr(loc, type);
 
@@ -523,7 +530,7 @@ DenseElementsAttr TensorLiteralParser::getAttr(SMLoc loc,
   }
 
   // Handle the case where no elements were parsed.
-  if (!hexStorage.hasValue() && storage.empty() && type.getNumElements()) {
+  if (!hexStorage && storage.empty() && type.getNumElements()) {
     p.emitError(loc) << "parsed zero elements, but type (" << type
                      << ") expected at least 1";
     return nullptr;
@@ -641,7 +648,7 @@ TensorLiteralParser::getFloatAttrElements(SMLoc loc, FloatType eltTy,
 
     // Build the float values from tokens.
     auto val = token.getFloatingPointValue();
-    if (!val.hasValue())
+    if (!val)
       return p.emitError("floating point value too large for attribute");
 
     APFloat apVal(isNegative ? -*val : *val);
@@ -689,7 +696,7 @@ DenseElementsAttr TensorLiteralParser::getHexAttr(SMLoc loc,
   }
 
   std::string data;
-  if (parseElementAttrHexValues(p, hexStorage.getValue(), data))
+  if (parseElementAttrHexValues(p, *hexStorage, data))
     return nullptr;
 
   ArrayRef<char> rawData(data.data(), data.size());
@@ -710,11 +717,10 @@ DenseElementsAttr TensorLiteralParser::getHexAttr(SMLoc loc,
     MutableArrayRef<char> convRawData(outDataVec);
     DenseIntOrFPElementsAttr::convertEndianOfArrayRefForBEmachine(
         rawData, convRawData, type);
-    return DenseElementsAttr::getFromRawBuffer(type, convRawData,
-                                               detectedSplat);
+    return DenseElementsAttr::getFromRawBuffer(type, convRawData);
   }
 
-  return DenseElementsAttr::getFromRawBuffer(type, rawData, detectedSplat);
+  return DenseElementsAttr::getFromRawBuffer(type, rawData);
 }
 
 ParseResult TensorLiteralParser::parseElement() {

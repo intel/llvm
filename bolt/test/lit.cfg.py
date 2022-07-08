@@ -53,15 +53,21 @@ else:
 if config.bolt_enable_runtime:
     config.available_features.add("bolt-runtime")
 
+if config.gnu_ld:
+    config.available_features.add("gnu_ld")
+
 llvm_config.use_default_substitutions()
 
 llvm_config.config.environment['CLANG'] = config.bolt_clang
-llvm_config.config.environment['LLD'] = config.bolt_lld
 llvm_config.use_clang()
-llvm_config.use_llvm_tool('lld', required=True, search_env='LLD')
 
-config.substitutions.append(('%cflags', '-no-pie -gdwarf-4'))
-config.substitutions.append(('%cxxflags', '-no-pie -gdwarf-4'))
+llvm_config.config.environment['LD_LLD'] = config.bolt_lld
+ld_lld = llvm_config.use_llvm_tool('ld.lld', required=True, search_env='LD_LLD')
+llvm_config.config.available_features.add('ld.lld')
+llvm_config.add_tool_substitutions([ToolSubst(r'ld\.lld', command=ld_lld)])
+
+config.substitutions.append(('%cflags', ''))
+config.substitutions.append(('%cxxflags', ''))
 
 link_fdata_cmd = os.path.join(config.test_source_root, 'link_fdata.py')
 
@@ -73,6 +79,7 @@ tools = [
     ToolSubst('llvm-dwarfdump', unresolved='fatal'),
     ToolSubst('llvm-bolt', unresolved='fatal'),
     ToolSubst('llvm-boltdiff', unresolved='fatal'),
+    ToolSubst('llvm-bolt-heatmap', unresolved='fatal'),
     ToolSubst('perf2bolt', unresolved='fatal'),
     ToolSubst('yaml2obj', unresolved='fatal'),
     ToolSubst('llvm-mc', unresolved='fatal'),
@@ -81,8 +88,10 @@ tools = [
     ToolSubst('llvm-objcopy', unresolved='fatal'),
     ToolSubst('llvm-strip', unresolved='fatal'),
     ToolSubst('llvm-readelf', unresolved='fatal'),
-    ToolSubst('link_fdata', command=link_fdata_cmd, unresolved='fatal'),
+    ToolSubst('link_fdata', command=sys.executable, unresolved='fatal', extra_args=[link_fdata_cmd]),
     ToolSubst('merge-fdata', unresolved='fatal'),
+    ToolSubst('llvm-readobj', unresolved='fatal'),
+    ToolSubst('llvm-dwp', unresolved='fatal'),
 ]
 llvm_config.add_tool_substitutions(tools, tool_dirs)
 
@@ -98,3 +107,5 @@ llvm_config.feature_config(
      ('--cxxflags', {r'-D_GLIBCXX_DEBUG\b': 'libstdcxx-safe-mode'}),
         ('--targets-built', calculate_arch_features)
      ])
+
+config.targets = frozenset(config.targets_to_build.split())

@@ -136,6 +136,9 @@ _PI_API(piextKernelSetArgSampler)
 
 _PI_API(piextPluginGetOpaqueData)
 
+_PI_API(piPluginGetLastError)
+
 _PI_API(piTearDown)
+
 
 #undef _PI_API

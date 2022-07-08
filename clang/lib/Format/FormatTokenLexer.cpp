@@ -28,13 +28,13 @@ FormatTokenLexer::FormatTokenLexer(
     llvm::SpecificBumpPtrAllocator<FormatToken> &Allocator,
     IdentifierTable &IdentTable)
     : FormatTok(nullptr), IsFirstToken(true), StateStack({LexerState::NORMAL}),
-      Column(Column), TrailingWhitespace(0), SourceMgr(SourceMgr), ID(ID),
+      Column(Column), TrailingWhitespace(0),
+      LangOpts(getFormattingLangOpts(Style)), SourceMgr(SourceMgr), ID(ID),
       Style(Style), IdentTable(IdentTable), Keywords(IdentTable),
       Encoding(Encoding), Allocator(Allocator), FirstInLineIndex(0),
       FormattingDisabled(false), MacroBlockBeginRegex(Style.MacroBlockBegin),
       MacroBlockEndRegex(Style.MacroBlockEnd) {
-  Lex.reset(new Lexer(ID, SourceMgr.getBufferOrFake(ID), SourceMgr,
-                      getFormattingLangOpts(Style)));
+  Lex.reset(new Lexer(ID, SourceMgr.getBufferOrFake(ID), SourceMgr, LangOpts));
   Lex->SetKeepWhitespaceMode(true);
 
   for (const std::string &ForEachMacro : Style.ForEachMacros) {
@@ -85,13 +85,14 @@ ArrayRef<FormatToken *> FormatTokenLexer::lex() {
     if (Style.Language == FormatStyle::LK_TextProto)
       tryParsePythonComment();
     tryMergePreviousTokens();
-    if (Style.isCSharp())
+    if (Style.isCSharp()) {
       // This needs to come after tokens have been merged so that C#
       // string literals are correctly identified.
       handleCSharpVerbatimAndInterpolatedStrings();
+    }
     if (Tokens.back()->NewlinesBefore > 0 || Tokens.back()->IsMultiline)
       FirstInLineIndex = Tokens.size() - 1;
-  } while (Tokens.back()->Tok.isNot(tok::eof));
+  } while (Tokens.back()->isNot(tok::eof));
   return Tokens;
 }
 
@@ -126,9 +127,8 @@ void FormatTokenLexer::tryMergePreviousTokens() {
       Tokens.back()->Tok.setKind(tok::period);
       return;
     }
-    if (tryMergeNullishCoalescingEqual()) {
+    if (tryMergeNullishCoalescingEqual())
       return;
-    }
   }
 
   if (Style.isCSharp()) {
@@ -336,8 +336,9 @@ bool FormatTokenLexer::tryMergeNullishCoalescingEqual() {
   auto &NullishCoalescing = *(Tokens.end() - 2);
   auto &Equal = *(Tokens.end() - 1);
   if (NullishCoalescing->getType() != TT_NullCoalescingOperator ||
-      !Equal->is(tok::equal))
+      !Equal->is(tok::equal)) {
     return false;
+  }
   NullishCoalescing->Tok.setKind(tok::equal); // no '??=' in clang tokens.
   NullishCoalescing->TokenText =
       StringRef(NullishCoalescing->TokenText.begin(),
@@ -501,7 +502,7 @@ bool FormatTokenLexer::canPrecedeRegexLiteral(FormatToken *Prev) {
   // `!` is an unary prefix operator, but also a post-fix operator that casts
   // away nullability, so the same check applies.
   if (Prev->isOneOf(tok::plusplus, tok::minusminus, tok::exclaim))
-    return (Tokens.size() < 3 || precedesOperand(Tokens[Tokens.size() - 3]));
+    return Tokens.size() < 3 || precedesOperand(Tokens[Tokens.size() - 3]);
 
   // The previous token must introduce an operand location where regex
   // literals can occur.
@@ -578,8 +579,9 @@ void FormatTokenLexer::handleCSharpVerbatimAndInterpolatedStrings() {
 
   // Deal with multiline strings.
   if (!(CSharpStringLiteral->TokenText.startswith(R"(@")") ||
-        CSharpStringLiteral->TokenText.startswith(R"($@")")))
+        CSharpStringLiteral->TokenText.startswith(R"($@")"))) {
     return;
+  }
 
   const char *StrBegin =
       Lex->getBufferLocation() - CSharpStringLiteral->TokenText.size();
@@ -621,9 +623,9 @@ void FormatTokenLexer::handleCSharpVerbatimAndInterpolatedStrings() {
   if (LastBreak != StringRef::npos) {
     CSharpStringLiteral->IsMultiline = true;
     unsigned StartColumn = 0;
-    CSharpStringLiteral->LastLineColumnWidth = encoding::columnWidthWithTabs(
-        LiteralText.substr(LastBreak + 1, LiteralText.size()), StartColumn,
-        Style.TabWidth, Encoding);
+    CSharpStringLiteral->LastLineColumnWidth =
+        encoding::columnWidthWithTabs(LiteralText.substr(LastBreak + 1),
+                                      StartColumn, Style.TabWidth, Encoding);
   }
 
   SourceLocation loc = Offset < Lex->getBuffer().end()
@@ -688,9 +690,9 @@ void FormatTokenLexer::handleTemplateStrings() {
   if (LastBreak != StringRef::npos) {
     BacktickToken->IsMultiline = true;
     unsigned StartColumn = 0; // The template tail spans the entire line.
-    BacktickToken->LastLineColumnWidth = encoding::columnWidthWithTabs(
-        LiteralText.substr(LastBreak + 1, LiteralText.size()), StartColumn,
-        Style.TabWidth, Encoding);
+    BacktickToken->LastLineColumnWidth =
+        encoding::columnWidthWithTabs(LiteralText.substr(LastBreak + 1),
+                                      StartColumn, Style.TabWidth, Encoding);
   }
 
   SourceLocation loc = Offset < Lex->getBuffer().end()
@@ -780,19 +782,17 @@ bool FormatTokenLexer::tryMergeConflictMarkers() {
   StringRef Buffer = SourceMgr.getBufferOrFake(ID).getBuffer();
   // Calculate the offset of the start of the current line.
   auto LineOffset = Buffer.rfind('\n', FirstInLineOffset);
-  if (LineOffset == StringRef::npos) {
+  if (LineOffset == StringRef::npos)
     LineOffset = 0;
-  } else {
+  else
     ++LineOffset;
-  }
 
   auto FirstSpace = Buffer.find_first_of(" \n", LineOffset);
   StringRef LineStart;
-  if (FirstSpace == StringRef::npos) {
+  if (FirstSpace == StringRef::npos)
     LineStart = Buffer.substr(LineOffset);
-  } else {
+  else
     LineStart = Buffer.substr(LineOffset, FirstSpace - LineOffset);
-  }
 
   TokenType Type = TT_Unknown;
   if (LineStart == "<<<<<<<" || LineStart == ">>>>") {
@@ -855,7 +855,7 @@ FormatToken *FormatTokenLexer::getNextToken() {
 
   // Consume and record whitespace until we find a significant token.
   unsigned WhitespaceLength = TrailingWhitespace;
-  while (FormatTok->Tok.is(tok::unknown)) {
+  while (FormatTok->is(tok::unknown)) {
     StringRef Text = FormatTok->TokenText;
     auto EscapesNewline = [&](int pos) {
       // A '\r' here is just part of '\r\n'. Skip it.
@@ -949,12 +949,13 @@ FormatToken *FormatTokenLexer::getNextToken() {
   while (FormatTok->TokenText.size() > 1 && FormatTok->TokenText[0] == '\\') {
     unsigned SkippedWhitespace = 0;
     if (FormatTok->TokenText.size() > 2 &&
-        (FormatTok->TokenText[1] == '\r' && FormatTok->TokenText[2] == '\n'))
+        (FormatTok->TokenText[1] == '\r' && FormatTok->TokenText[2] == '\n')) {
       SkippedWhitespace = 3;
-    else if (FormatTok->TokenText[1] == '\n')
+    } else if (FormatTok->TokenText[1] == '\n') {
       SkippedWhitespace = 2;
-    else
+    } else {
       break;
+    }
 
     ++FormatTok->NewlinesBefore;
     WhitespaceLength += SkippedWhitespace;
@@ -969,12 +970,12 @@ FormatToken *FormatTokenLexer::getNextToken() {
   FormatTok->OriginalColumn = Column;
 
   TrailingWhitespace = 0;
-  if (FormatTok->Tok.is(tok::comment)) {
+  if (FormatTok->is(tok::comment)) {
     // FIXME: Add the trimmed whitespace to Column.
     StringRef UntrimmedText = FormatTok->TokenText;
     FormatTok->TokenText = FormatTok->TokenText.rtrim(" \t\v\f");
     TrailingWhitespace = UntrimmedText.size() - FormatTok->TokenText.size();
-  } else if (FormatTok->Tok.is(tok::raw_identifier)) {
+  } else if (FormatTok->is(tok::raw_identifier)) {
     IdentifierInfo &Info = IdentTable.get(FormatTok->TokenText);
     FormatTok->Tok.setIdentifierInfo(&Info);
     FormatTok->Tok.setKind(Info.getTokenID());
@@ -989,12 +990,12 @@ FormatToken *FormatTokenLexer::getNextToken() {
       FormatTok->Tok.setKind(tok::identifier);
       FormatTok->Tok.setIdentifierInfo(nullptr);
     }
-  } else if (FormatTok->Tok.is(tok::greatergreater)) {
+  } else if (FormatTok->is(tok::greatergreater)) {
     FormatTok->Tok.setKind(tok::greater);
     FormatTok->TokenText = FormatTok->TokenText.substr(0, 1);
     ++Column;
     StateStack.push(LexerState::TOKEN_STASHED);
-  } else if (FormatTok->Tok.is(tok::lessless)) {
+  } else if (FormatTok->is(tok::lessless)) {
     FormatTok->Tok.setKind(tok::less);
     FormatTok->TokenText = FormatTok->TokenText.substr(0, 1);
     ++Column;
@@ -1040,11 +1041,10 @@ FormatToken *FormatTokenLexer::getNextToken() {
         FormatTok->Tok.setKind(tok::kw_if);
       }
     } else if (FormatTok->is(tok::identifier)) {
-      if (MacroBlockBeginRegex.match(Text)) {
+      if (MacroBlockBeginRegex.match(Text))
         FormatTok->setType(TT_MacroBlockBegin);
-      } else if (MacroBlockEndRegex.match(Text)) {
+      else if (MacroBlockEndRegex.match(Text))
         FormatTok->setType(TT_MacroBlockEnd);
-      }
     }
   }
 
@@ -1087,9 +1087,9 @@ void FormatTokenLexer::readRawToken(FormatToken &Tok) {
 
 void FormatTokenLexer::resetLexer(unsigned Offset) {
   StringRef Buffer = SourceMgr.getBufferData(ID);
-  Lex.reset(new Lexer(SourceMgr.getLocForStartOfFile(ID),
-                      getFormattingLangOpts(Style), Buffer.begin(),
-                      Buffer.begin() + Offset, Buffer.end()));
+  LangOpts = getFormattingLangOpts(Style);
+  Lex.reset(new Lexer(SourceMgr.getLocForStartOfFile(ID), LangOpts,
+                      Buffer.begin(), Buffer.begin() + Offset, Buffer.end()));
   Lex->SetKeepWhitespaceMode(true);
   TrailingWhitespace = 0;
 }

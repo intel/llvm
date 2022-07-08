@@ -18,7 +18,6 @@
 #include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -67,7 +66,7 @@ public:
     Value lhs = genericOp.getCurrentValue();
     Value rhs = op.value();
     Value cmp = bodyBuilder.create<arith::CmpFOp>(loc, predicate, lhs, rhs);
-    Value select = bodyBuilder.create<SelectOp>(loc, cmp, lhs, rhs);
+    Value select = bodyBuilder.create<arith::SelectOp>(loc, cmp, lhs, rhs);
     bodyBuilder.create<memref::AtomicYieldOp>(loc, select);
 
     rewriter.replaceOp(op, genericOp.getResult());
@@ -101,8 +100,8 @@ public:
         Value index = rewriter.create<arith::ConstantIndexOp>(loc, i);
         size = rewriter.create<memref::LoadOp>(loc, op.shape(), index);
         if (!size.getType().isa<IndexType>())
-          size = rewriter.create<arith::IndexCastOp>(loc, size,
-                                                     rewriter.getIndexType());
+          size = rewriter.create<arith::IndexCastOp>(
+              loc, rewriter.getIndexType(), size);
         sizes[i] = size;
       } else {
         sizes[i] = rewriter.getIndexAttr(op.getType().getDimSize(i));
@@ -128,8 +127,7 @@ struct ExpandOpsPass : public ExpandOpsBase<ExpandOpsPass> {
     memref::populateExpandOpsPatterns(patterns);
     ConversionTarget target(ctx);
 
-    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect,
-                           StandardOpsDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect>();
     target.addDynamicallyLegalOp<memref::AtomicRMWOp>(
         [](memref::AtomicRMWOp op) {
           return op.kind() != arith::AtomicRMWKind::maxf &&

@@ -10,6 +10,7 @@
 #define LLDB_SOURCE_PLUGINS_PROCESS_GDB_REMOTE_PROCESSGDBREMOTELOG_H
 
 #include "lldb/Utility/Log.h"
+#include "llvm/ADT/BitmaskEnum.h"
 
 namespace lldb_private {
 namespace process_gdb_remote {
@@ -28,29 +29,11 @@ enum class GDBRLog : Log::MaskType {
   Watchpoints = Log::ChannelFlag<10>,
   LLVM_MARK_AS_BITMASK_ENUM(Watchpoints)
 };
-
-#define GDBR_LOG_PROCESS ::lldb_private::process_gdb_remote::GDBRLog::Process
-#define GDBR_LOG_THREAD ::lldb_private::process_gdb_remote::GDBRLog::Thread
-#define GDBR_LOG_PACKETS ::lldb_private::process_gdb_remote::GDBRLog::Packets
-#define GDBR_LOG_MEMORY ::lldb_private::process_gdb_remote::GDBRLog::Memory
-#define GDBR_LOG_MEMORY_DATA_SHORT                                             \
-  ::lldb_private::process_gdb_remote::GDBRLog::MemoryDataShort
-#define GDBR_LOG_MEMORY_DATA_LONG                                              \
-  ::lldb_private::process_gdb_remote::GDBRLog::MemoryDataLong
-#define GDBR_LOG_BREAKPOINTS                                                   \
-  ::lldb_private::process_gdb_remote::GDBRLog::Breakpoints
-#define GDBR_LOG_WATCHPOINTS                                                   \
-  ::lldb_private::process_gdb_remote::GDBRLog::Watchpoints
-#define GDBR_LOG_STEP ::lldb_private::process_gdb_remote::GDBRLog::Step
-#define GDBR_LOG_COMM ::lldb_private::process_gdb_remote::GDBRLog::Comm
-#define GDBR_LOG_ASYNC ::lldb_private::process_gdb_remote::GDBRLog::Async
+LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 class ProcessGDBRemoteLog {
 public:
   static void Initialize();
-
-  static Log *GetLogIfAllCategoriesSet(GDBRLog mask) { return GetLog(mask); }
-  static Log *GetLogIfAnyCategoryIsSet(GDBRLog mask) { return GetLog(mask); }
 };
 
 } // namespace process_gdb_remote

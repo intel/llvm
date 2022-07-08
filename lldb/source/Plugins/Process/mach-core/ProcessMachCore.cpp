@@ -25,6 +25,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/DataBuffer.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
 
@@ -124,8 +125,7 @@ ProcessMachCore::~ProcessMachCore() {
 }
 
 bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER |
-                                                  LIBLLDB_LOG_PROCESS));
+  Log *log(GetLog(LLDBLog::DynamicLoader | LLDBLog::Process));
   llvm::MachO::mach_header header;
   Status error;
   if (DoReadMemory(addr, &header, sizeof(header), error) != sizeof(header))
@@ -198,8 +198,10 @@ static bool load_standalone_binary(UUID uuid, addr_t value,
 
     if (!module_sp.get()) {
       // Force a a dsymForUUID lookup, if that tool is available.
-      if (!module_spec.GetSymbolFileSpec())
-        Symbols::DownloadObjectAndSymbolFile(module_spec, true);
+      if (!module_spec.GetSymbolFileSpec()) {
+        Status error;
+        Symbols::DownloadObjectAndSymbolFile(module_spec, error, true);
+      }
 
       if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
         module_sp = std::make_shared<Module>(module_spec);
@@ -218,6 +220,16 @@ static bool load_standalone_binary(UUID uuid, addr_t value,
     if (module_sp.get()) {
       target.SetArchitecture(module_sp->GetObjectFile()->GetArchitecture());
       target.GetImages().AppendIfNeeded(module_sp, false);
+
+      // TODO: Instead of using the load address as a value, if we create a
+      // memory module from that address, we could get the correct segment
+      // offset values from the in-memory load commands and set them correctly.
+      // In case the load address we were given is not correct for all segments,
+      // e.g. something in the shared cache.  DynamicLoaderDarwinKernel does
+      // something similar for kexts.  In the context of a corefile, this would
+      // be an inexpensive operation.  Not all binaries in a corefile will have
+      // a Mach-O header/load commands in memory, so this will not work in all
+      // cases.
 
       bool changed = false;
       if (module_sp->GetObjectFile()) {
@@ -252,8 +264,7 @@ static bool load_standalone_binary(UUID uuid, addr_t value,
 
 // Process Control
 Status ProcessMachCore::DoLoadCore() {
-  Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER |
-                                                  LIBLLDB_LOG_PROCESS));
+  Log *log(GetLog(LLDBLog::DynamicLoader | LLDBLog::Process));
   Status error;
   if (!m_core_module_sp) {
     error.SetErrorString("invalid core module");
@@ -351,6 +362,8 @@ Status ProcessMachCore::DoLoadCore() {
     if (objfile_binary_value != LLDB_INVALID_ADDRESS &&
         !objfile_binary_value_is_offset) {
       if (type == ObjectFile::eBinaryTypeUser) {
+        load_standalone_binary(objfile_binary_uuid, objfile_binary_value,
+                               objfile_binary_value_is_offset, GetTarget());
         m_dyld_addr = objfile_binary_value;
         m_dyld_plugin_name = DynamicLoaderMacOSXDYLD::GetPluginNameStatic();
         found_main_binary_definitively = true;
@@ -659,8 +672,8 @@ size_t ProcessMachCore::DoReadMemory(addr_t addr, void *buf, size_t size,
   return bytes_read;
 }
 
-Status ProcessMachCore::GetMemoryRegionInfo(addr_t load_addr,
-                                            MemoryRegionInfo &region_info) {
+Status ProcessMachCore::DoGetMemoryRegionInfo(addr_t load_addr,
+                                              MemoryRegionInfo &region_info) {
   region_info.Clear();
   const VMRangeToPermissions::Entry *permission_entry =
       m_core_range_infos.FindEntryThatContainsOrFollows(load_addr);

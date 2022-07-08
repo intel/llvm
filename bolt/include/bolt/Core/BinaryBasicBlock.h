@@ -31,6 +31,7 @@ class MCCodeEmitter;
 namespace bolt {
 
 class BinaryFunction;
+class JumpTable;
 
 class BinaryBasicBlock {
 public:
@@ -149,11 +150,9 @@ private:
   BinaryBasicBlock &operator=(const BinaryBasicBlock &) = delete;
   BinaryBasicBlock &operator=(const BinaryBasicBlock &&) = delete;
 
-  explicit BinaryBasicBlock(BinaryFunction *Function, MCSymbol *Label,
-                            uint32_t Offset = INVALID_OFFSET)
+  explicit BinaryBasicBlock(BinaryFunction *Function, MCSymbol *Label)
       : Function(Function), Label(Label) {
     assert(Function && "Function must be non-null");
-    InputRange.first = Offset;
   }
 
   // Exclusively managed by BinaryFunction.
@@ -560,6 +559,12 @@ public:
   /// Set minimum alignment for the basic block.
   void setAlignment(uint32_t Align) { Alignment = Align; }
 
+  /// Set alignment of the block based on the alignment of its offset.
+  void setDerivedAlignment() {
+    const uint64_t DerivedAlignment = getOffset() & (1 + ~getOffset());
+    Alignment = std::min(DerivedAlignment, uint64_t(32));
+  }
+
   /// Return required alignment for the block.
   uint32_t getAlignment() const { return Alignment; }
 
@@ -622,6 +627,10 @@ public:
   /// successor is the same as the unconditional successor, we can
   /// remove the conditional successor and branch instruction.
   void removeDuplicateConditionalSuccessor(MCInst *CondBranch);
+
+  /// Update successors of the basic block based on the jump table instruction.
+  /// The block must end with a jump table instruction.
+  void updateJumpTableSuccessors();
 
   /// Test if BB is a predecessor of this block.
   bool isPredecessor(const BinaryBasicBlock *BB) const {
@@ -782,6 +791,9 @@ public:
   /// at the split point.
   BinaryBasicBlock *splitAt(iterator II);
 
+  /// Set start offset of this basic block in the input binary.
+  void setOffset(uint32_t Offset) { InputRange.first = Offset; };
+
   /// Sets address of the basic block in the output.
   void setOutputStartAddress(uint64_t Address) {
     OutputAddressRange.first = Address;
@@ -909,7 +921,12 @@ public:
     return Index;
   }
 
-  bool hasJumpTable() const;
+  /// Return jump table if the block contains a jump table instruction or
+  /// nullptr otherwise.
+  const JumpTable *getJumpTable() const;
+
+  /// Check if the block has a jump table instruction.
+  bool hasJumpTable() const { return getJumpTable() != nullptr; }
 
 private:
   void adjustNumPseudos(const MCInst &Inst, int Sign);

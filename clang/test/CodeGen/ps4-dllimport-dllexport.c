@@ -1,22 +1,18 @@
-// RUN: %clang_cc1 \
-// RUN:     -triple x86_64-scei-ps4 \
-// RUN:     -fdeclspec \
-// RUN:     -Werror \
-// RUN:     -emit-llvm %s -o - | \
-// RUN:   FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-scei-ps4 -fdeclspec -Werror -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-sie-ps5  -fdeclspec -Werror -emit-llvm %s -o - | FileCheck %s
 
 __declspec(dllexport) int export_int;
 
 __declspec(dllimport) int import_int;
 
-__declspec(dllexport) void export_declared_function();
+__declspec(dllexport) void export_declared_function(void);
 
-__declspec(dllexport) void export_implemented_function() {
+__declspec(dllexport) void export_implemented_function(void) {
 }
 
 __declspec(dllimport) void import_function(int);
 
-void call_imported_function() {
+void call_imported_function(void) {
   export_declared_function();
   return import_function(import_int);
 }

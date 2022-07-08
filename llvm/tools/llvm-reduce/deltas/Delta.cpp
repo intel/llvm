@@ -17,6 +17,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ThreadPool.h"
@@ -26,25 +27,29 @@
 
 using namespace llvm;
 
+extern cl::OptionCategory LLVMReduceOptions;
+
 static cl::opt<bool> AbortOnInvalidReduction(
     "abort-on-invalid-reduction",
-    cl::desc("Abort if any reduction results in invalid IR"));
+    cl::desc("Abort if any reduction results in invalid IR"),
+    cl::cat(LLVMReduceOptions));
 
 static cl::opt<unsigned int> StartingGranularityLevel(
     "starting-granularity-level",
-    cl::desc("Number of times to divide chunks prior to first test"));
+    cl::desc("Number of times to divide chunks prior to first test"),
+    cl::cat(LLVMReduceOptions));
 
 static cl::opt<bool> TmpFilesAsBitcode(
     "write-tmp-files-as-bitcode",
     cl::desc("Write temporary files as bitcode, instead of textual IR"),
-    cl::init(false));
+    cl::init(false), cl::cat(LLVMReduceOptions));
 
 #ifdef LLVM_ENABLE_THREADS
 static cl::opt<unsigned> NumJobs(
     "j",
     cl::desc("Maximum number of threads to use to process chunks. Set to 1 to "
              "disables parallelism."),
-    cl::init(1));
+    cl::init(1), cl::cat(LLVMReduceOptions));
 #else
 unsigned NumJobs = 1;
 #endif
@@ -128,13 +133,14 @@ static bool increaseGranularity(std::vector<Chunk> &Chunks) {
   }
   return SplitOne;
 }
+
 // Check if \p ChunkToCheckForUninterestingness is interesting. Returns the
 // modified module if the chunk resulted in a reduction.
-template <typename T>
+template <typename FuncType>
 static std::unique_ptr<ReducerWorkItem>
 CheckChunk(Chunk &ChunkToCheckForUninterestingness,
            std::unique_ptr<ReducerWorkItem> Clone, TestRunner &Test,
-           function_ref<void(Oracle &, T &)> ExtractChunksFromModule,
+           FuncType ExtractChunksFromModule,
            std::set<Chunk> &UninterestingChunks,
            std::vector<Chunk> &ChunksStillConsideredInteresting) {
   // Take all of ChunksStillConsideredInteresting chunks, except those we've
@@ -179,11 +185,10 @@ CheckChunk(Chunk &ChunkToCheckForUninterestingness,
   return Clone;
 }
 
-template <typename T>
+template <typename FuncType>
 SmallString<0> ProcessChunkFromSerializedBitcode(
     Chunk &ChunkToCheckForUninterestingness, TestRunner &Test,
-    function_ref<void(Oracle &, T &)> ExtractChunksFromModule,
-    std::set<Chunk> &UninterestingChunks,
+    FuncType ExtractChunksFromModule, std::set<Chunk> &UninterestingChunks,
     std::vector<Chunk> &ChunksStillConsideredInteresting,
     SmallString<0> &OriginalBC, std::atomic<bool> &AnyReduced) {
   LLVMContext Ctx;
@@ -213,10 +218,8 @@ SmallString<0> ProcessChunkFromSerializedBitcode(
 /// reduces the amount of chunks that are considered interesting by the
 /// given test. The number of chunks is determined by a preliminary run of the
 /// reduction pass where no change must be made to the module.
-template <typename T>
-void runDeltaPassInt(
-    TestRunner &Test,
-    function_ref<void(Oracle &, T &)> ExtractChunksFromModule) {
+void llvm::runDeltaPass(TestRunner &Test,
+                        ReductionFunc ExtractChunksFromModule) {
   assert(!verifyReducerWorkItem(Test.getProgram(), &errs()) &&
          "input module is broken before making changes");
 
@@ -246,7 +249,7 @@ void runDeltaPassInt(
     std::vector<Chunk> NoChunks;
     Oracle NoChunksCounter(NoChunks);
     std::unique_ptr<ReducerWorkItem> Clone =
-        cloneReducerWorkItem(Test.getProgram());
+        cloneReducerWorkItem(Test.getProgram(), Test.getTargetMachine());
     ExtractChunksFromModule(NoChunksCounter, *Clone);
     assert(Targets == NoChunksCounter.count() &&
            "number of chunks changes when reducing");
@@ -361,9 +364,11 @@ void runDeltaPassInt(
         // Forward I to the last chunk processed in parallel.
         I += NumChunksProcessed - 1;
       } else {
-        Result = CheckChunk(*I, cloneReducerWorkItem(Test.getProgram()), Test,
-                            ExtractChunksFromModule, UninterestingChunks,
-                            ChunksStillConsideredInteresting);
+        Result = CheckChunk(
+            *I,
+            cloneReducerWorkItem(Test.getProgram(), Test.getTargetMachine()),
+            Test, ExtractChunksFromModule, UninterestingChunks,
+            ChunksStillConsideredInteresting);
       }
 
       if (!Result)
@@ -389,16 +394,4 @@ void runDeltaPassInt(
   if (ReducedProgram)
     Test.setProgram(std::move(ReducedProgram));
   errs() << "Couldn't increase anymore.\n";
-}
-
-void llvm::runDeltaPass(
-    TestRunner &Test,
-    function_ref<void(Oracle &, Module &)> ExtractChunksFromModule) {
-  runDeltaPassInt<Module>(Test, ExtractChunksFromModule);
-}
-
-void llvm::runDeltaPass(
-    TestRunner &Test,
-    function_ref<void(Oracle &, MachineFunction &)> ExtractChunksFromModule) {
-  runDeltaPassInt<MachineFunction>(Test, ExtractChunksFromModule);
 }

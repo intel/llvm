@@ -81,7 +81,6 @@ struct FlagEntry {
 };
 
 raw_ostream &operator<<(raw_ostream &OS, const HexNumber &Value);
-std::string to_hexString(uint64_t Value, bool UpperCase = true);
 
 template <class T> std::string to_string(const T &Value) {
   std::string number;
@@ -95,7 +94,7 @@ std::string enumToString(T Value, ArrayRef<EnumEntry<TEnum>> EnumValues) {
   for (const EnumEntry<TEnum> &EnumItem : EnumValues)
     if (EnumItem.Value == Value)
       return std::string(EnumItem.AltName);
-  return to_hexString(Value, false);
+  return utohexstr(Value, true);
 }
 
 class ScopedPrinter {
@@ -107,7 +106,7 @@ public:
 
   ScopedPrinter(raw_ostream &OS,
                 ScopedPrinterKind Kind = ScopedPrinterKind::Base)
-      : OS(OS), IndentLevel(0), Kind(Kind) {}
+      : OS(OS), Kind(Kind) {}
 
   ScopedPrinterKind getKind() const { return Kind; }
 
@@ -115,7 +114,7 @@ public:
     return SP->getKind() == ScopedPrinterKind::Base;
   }
 
-  virtual ~ScopedPrinter() {}
+  virtual ~ScopedPrinter() = default;
 
   void flush() { OS.flush(); }
 
@@ -498,7 +497,7 @@ private:
   }
 
   raw_ostream &OS;
-  int IndentLevel;
+  int IndentLevel = 0;
   StringRef Prefix;
   ScopedPrinterKind Kind;
 };
@@ -792,13 +791,13 @@ private:
 struct DelimitedScope {
   DelimitedScope(ScopedPrinter &W) : W(&W) {}
   DelimitedScope() : W(nullptr) {}
-  virtual ~DelimitedScope(){};
+  virtual ~DelimitedScope() = default;
   virtual void setPrinter(ScopedPrinter &W) = 0;
   ScopedPrinter *W;
 };
 
 struct DictScope : DelimitedScope {
-  explicit DictScope() {}
+  explicit DictScope() = default;
   explicit DictScope(ScopedPrinter &W) : DelimitedScope(W) { W.objectBegin(); }
 
   DictScope(ScopedPrinter &W, StringRef N) : DelimitedScope(W) {
@@ -817,7 +816,7 @@ struct DictScope : DelimitedScope {
 };
 
 struct ListScope : DelimitedScope {
-  explicit ListScope() {}
+  explicit ListScope() = default;
   explicit ListScope(ScopedPrinter &W) : DelimitedScope(W) { W.arrayBegin(); }
 
   ListScope(ScopedPrinter &W, StringRef N) : DelimitedScope(W) {

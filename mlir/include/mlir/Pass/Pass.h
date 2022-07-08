@@ -9,8 +9,6 @@
 #ifndef MLIR_PASS_PASS_H
 #define MLIR_PASS_PASS_H
 
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/Dialect.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/LogicalResult.h"
@@ -20,6 +18,7 @@
 namespace mlir {
 namespace detail {
 class OpToOpPassAdaptor;
+struct OpPassManagerImpl;
 
 /// The state for a single execution of a pass. This provides a unified
 /// interface for accessing and initializing necessary state for pass execution.
@@ -184,6 +183,11 @@ protected:
   /// pipeline won't execute.
   virtual LogicalResult initialize(MLIRContext *context) { return success(); }
 
+  /// Indicate if the current pass can be scheduled on the given operation type.
+  /// This is useful for generic operation passes to add restrictions on the
+  /// operations they operate on.
+  virtual bool canScheduleOn(RegisteredOperationName opName) const = 0;
+
   /// Schedule an arbitrary pass pipeline on the provided operation.
   /// This can be invoke any time in a pass to dynamic schedule more passes.
   /// The provided operation must be the current one or one nested below.
@@ -313,6 +317,9 @@ private:
   /// Allow access to 'clone'.
   friend class OpPassManager;
 
+  /// Allow access to 'canScheduleOn'.
+  friend detail::OpPassManagerImpl;
+
   /// Allow access to 'passState'.
   friend detail::OpToOpPassAdaptor;
 
@@ -346,6 +353,11 @@ protected:
     return pass->getOpName() == OpT::getOperationName();
   }
 
+  /// Indicate if the current pass can be scheduled on the given operation type.
+  bool canScheduleOn(RegisteredOperationName opName) const final {
+    return opName.getStringRef() == getOpName();
+  }
+
   /// Return the current operation being transformed.
   OpT getOperation() { return cast<OpT>(Pass::getOperation()); }
 
@@ -373,35 +385,46 @@ template <> class OperationPass<void> : public Pass {
 protected:
   OperationPass(TypeID passID) : Pass(passID) {}
   OperationPass(const OperationPass &) = default;
+
+  /// Indicate if the current pass can be scheduled on the given operation type.
+  /// By default, generic operation passes can be scheduled on any operation.
+  bool canScheduleOn(RegisteredOperationName opName) const override {
+    return true;
+  }
 };
 
-/// NOTICE: This class is deprecated in favor of `OperationPass<FuncOp>`
-/// and will be removed soon.
-/// A model for providing function pass specific utilities.
+/// Pass to transform an operation that implements the given interface.
 ///
-/// Derived function passes are expected to provide the following:
-///   - A 'void runOnFunction()' method.
+/// Interface passes must not:
+///   - modify any other operations within the parent region, as other threads
+///     may be manipulating them concurrently.
+///   - modify any state within the parent operation, this includes adding
+///     additional operations.
+///
+/// Derived interface passes are expected to provide the following:
+///   - A 'void runOnOperation()' method.
 ///   - A 'StringRef getName() const' method.
 ///   - A 'std::unique_ptr<Pass> clonePass() const' method.
-class [[deprecated(
-    "Use OperationPass<FuncOp> instead: See "
-    "https://llvm.discourse.group/t/"
-    "functionpass-deprecated-in-favor-of-operationpass-funcop")]] FunctionPass
-    : public OperationPass<FuncOp> {
-public:
-  using OperationPass<FuncOp>::OperationPass;
+template <typename InterfaceT>
+class InterfacePass : public OperationPass<> {
+protected:
+  using OperationPass::OperationPass;
 
-  /// The polymorphic API that runs the pass over the currently held function.
-  virtual void runOnFunction() = 0;
-
-  /// The polymorphic API that runs the pass over the currently held operation.
-  void runOnOperation() final {
-    if (!getFunction().isExternal())
-      runOnFunction();
+  /// Indicate if the current pass can be scheduled on the given operation type.
+  /// For an InterfacePass, this checks if the operation implements the given
+  /// interface.
+  bool canScheduleOn(RegisteredOperationName opName) const final {
+    return opName.hasInterface<InterfaceT>();
   }
 
-  /// Return the current function being transformed.
-  FuncOp getFunction() { return this->getOperation(); }
+  /// Return the current operation being transformed.
+  InterfaceT getOperation() { return cast<InterfaceT>(Pass::getOperation()); }
+
+  /// Query an analysis for the current operation.
+  template <typename AnalysisT>
+  AnalysisT &getAnalysis() {
+    return Pass::getAnalysis<AnalysisT, InterfaceT>();
+  }
 };
 
 /// This class provides a CRTP wrapper around a base pass class to define

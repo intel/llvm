@@ -77,8 +77,8 @@ using has_impltype_hash_t = decltype(ImplTy::hashKey(std::declval<T>()));
 ///      one-time assignment of the mutable component.
 ///
 /// All storage classes must be registered with the uniquer via
-/// `registerStorageType` using an appropriate unique `TypeID` for the storage
-/// class.
+/// `registerParametricStorageType` or `registerSingletonStorageType`
+/// using an appropriate unique `TypeID` for the storage class.
 class StorageUniquer {
 public:
   /// This class acts as the base storage that all storage classes must derived
@@ -124,7 +124,7 @@ public:
 
     /// Returns true if this allocator allocated the provided object pointer.
     bool allocated(const void *ptr) {
-      return allocator.identifyObject(ptr).hasValue();
+      return allocator.identifyObject(ptr).has_value();
     }
 
   private:

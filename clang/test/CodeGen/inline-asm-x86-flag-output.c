@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -O2 -emit-llvm %s -o - -triple x86_64-unknown-linux-gnu | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -O2 -emit-llvm %s -o - -triple x86_64-unknown-linux-gnu | FileCheck %s
 
 int test_cca(long nr, volatile long *addr) {
   //CHECK-LABEL: @test_cca
@@ -364,7 +364,7 @@ int test_ccs(long nr, volatile long *addr) {
   return 1;
 }
 
-_Bool check_no_clobber_conflicts() {
+_Bool check_no_clobber_conflicts(void) {
   //CHECK-LABEL: @check_no_clobber_conflicts
   //CHECK:  = tail call i8 asm "", "={@cce},~{cx},~{dirflag},~{fpsr},~{flags}"()
   _Bool b;

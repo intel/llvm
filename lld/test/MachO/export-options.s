@@ -9,9 +9,26 @@
 # RUN: not %lld -dylib %t/default.o -o /dev/null \
 # RUN:         -exported_symbol a -unexported_symbol b 2>&1 | \
 # RUN:     FileCheck --check-prefix=CONFLICT %s
+#
+# RUN: not %lld -dylib %t/default.o -o /dev/null \
+# RUN:         -exported_symbols_list /dev/null -unexported_symbol b 2>&1 | \
+# RUN:     FileCheck --check-prefix=CONFLICT %s
+#
+# RUN: not %lld -dylib %t/default.o -o /dev/null \
+# RUN:         -no_exported_symbols -unexported_symbol b 2>&1 | \
+# RUN:     FileCheck --check-prefix=CONFLICT %s
+#
+# RUN: not %lld -dylib %t/default.o -o /dev/null \
+# RUN:         -no_exported_symbols -exported_symbol b 2>&1 | \
+# RUN:     FileCheck --check-prefix=CONFLICT-NO-EXPORTS %s
+#
+# RUN: not %lld -dylib %t/default.o -o /dev/null \
+# RUN:         -no_exported_symbols -exported_symbols_list %t/literals.txt 2>&1 | \
+# RUN:     FileCheck --check-prefix=CONFLICT-NO-EXPORTS %s
 
 # CONFLICT: error: cannot use both -exported_symbol* and -unexported_symbol* options
-# CONFLICT-NEXT: >>> ignoring unexports
+
+# CONFLICT-NO-EXPORTS: error: cannot use both -exported_symbol* and -no_exported_symbols options
 
 ## Check that an exported literal name with no symbol definition yields an error
 ## but that an exported glob-pattern with no matching symbol definition is OK
@@ -42,7 +59,7 @@
 # EXPORT-DAG: g     F __TEXT,__text _keep_lazy
 
 ## Check that exported symbol is global
-# RUN: %no_fatal_warnings_lld -dylib %t/default.o -o %t/hidden-export \
+# RUN: %no-fatal-warnings-lld -dylib %t/default.o -o %t/hidden-export \
 # RUN:         -exported_symbol _private_extern 2>&1 | \
 # RUN:     FileCheck --check-prefix=PRIVATE %s
 
@@ -133,7 +150,7 @@
 # RUN: llvm-nm -g %t/exp-autohide.dylib | FileCheck %s --check-prefix=EXP-AUTOHIDE
 
 # RUN: not %lld -dylib -exported_symbol "_foo" %t/autohide-private-extern.o \
-# RUN: -o /dev/null  2>&1 | FileCheck %s --check-prefix=AUTOHIDE-PRIVATE
+# RUN:   -o /dev/null  2>&1 | FileCheck %s --check-prefix=AUTOHIDE-PRIVATE
 
 # RUN: not %lld -dylib -exported_symbol "_foo" %t/autohide.o \
 # RUN:   %t/glob-private-extern.o -o /dev/null 2>&1 | \
@@ -143,9 +160,36 @@
 # RUN:   %t/weak-private-extern.o -o /dev/null 2>&1 | \
 # RUN:   FileCheck %s --check-prefix=AUTOHIDE-PRIVATE
 
-# EXP-AUTOHIDE: T _foo        
+## Test that exported hidden symbols are still treated as a liveness root.
+## This previously used to crash when enabling -dead_strip since it's unconventional
+## to add treat private extern symbols as a liveness root.
+# RUN: %no-fatal-warnings-lld -dylib -exported_symbol "_foo" %t/autohide-private-extern.o \
+# RUN:   -dead_strip -o %t/exported-hidden
+# RUN: llvm-nm -m %t/exported-hidden | FileCheck %s --check-prefix=AUTOHIDE-PRIVATE-DEAD-STRIP
+
+# RUN: %no-fatal-warnings-lld -dylib -exported_symbol "_foo" %t/autohide.o \
+# RUN:   -dead_strip %t/glob-private-extern.o -o %t/exported-hidden
+# RUN: llvm-nm -m %t/exported-hidden | FileCheck %s --check-prefix=AUTOHIDE-PRIVATE-DEAD-STRIP
+
+# RUN: %no-fatal-warnings-lld -dylib -exported_symbol "_foo" %t/autohide.o \
+# RUN:   -dead_strip %t/weak-private-extern.o -o %t/exported-hidden
+# RUN: llvm-nm -m %t/exported-hidden | FileCheck %s --check-prefix=AUTOHIDE-PRIVATE-DEAD-STRIP
+
+# EXP-AUTOHIDE: T _foo
 # AUTOHIDE-PRIVATE: error: cannot export hidden symbol _foo
-        
+# AUTOHIDE-PRIVATE-DEAD-STRIP: (__TEXT,__text) non-external (was a private external) _foo
+
+## Test not exporting any symbols
+# RUN: %lld -dylib %t/symdefs.o -o %t/noexports -exported_symbols_list /dev/null
+# RUN: llvm-objdump --macho --exports-trie %t/noexports | FileCheck --check-prefix=NOEXPORTS %s
+# RUN: %lld -dylib %t/symdefs.o -o %t/noexports -no_exported_symbols
+# RUN: llvm-objdump --macho --exports-trie %t/noexports | FileCheck --check-prefix=NOEXPORTS %s
+
+# NOEXPORTS-NOT: globby_also
+# NOEXPORTS-NOT: globby_only
+# NOEXPORTS-NOT: literal_also
+# NOEXPORTS-NOT: literal_only
+
 #--- default.s
 
 .globl _keep_globl, _hide_globl
@@ -214,6 +258,6 @@ _foo:
 #--- weak-private-extern.s
 .global _foo
 .weak_definition _foo
-.private_extern _foo        
+.private_extern _foo
 _foo:
   retq

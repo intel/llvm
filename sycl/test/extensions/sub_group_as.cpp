@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -O3 -S -emit-llvm -x c++ -Xclang -disable-noundef-analysis %s -o - | FileCheck %s --check-prefix CHECK-O3
-// RUN: %clangxx -fsycl -fsycl-device-only -O0 -S -emit-llvm -x c++ -Xclang -disable-noundef-analysis %s -o - | FileCheck %s --check-prefix CHECK-O0
+// RUN: %clangxx -fsycl -fsycl-device-only -O3 -S -emit-llvm -x c++ -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s --check-prefix CHECK-O3
+// RUN: %clangxx -fsycl -fsycl-device-only -O0 -S -emit-llvm -x c++ -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s --check-prefix CHECK-O0
 // Test compilation with -O3 when all methods are inlined in kernel function
 // and -O0 when helper methods are preserved.
 #include <CL/sycl.hpp>

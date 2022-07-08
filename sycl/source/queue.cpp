@@ -190,6 +190,11 @@ queue::has_property<property::queue::enable_profiling>() const;
 template __SYCL_EXPORT property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 
+template __SYCL_EXPORT bool
+queue::has_property<property::queue::in_order>() const;
+template __SYCL_EXPORT property::queue::in_order
+queue::get_property<property::queue::in_order>() const;
+
 bool queue::is_in_order() const {
   return impl->has_property<property::queue::in_order>();
 }

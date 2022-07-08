@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <CL/sycl/detail/common.hpp>
+
+#include <cstdlib>
 #include <functional>
 #include <stdlib.h>
 

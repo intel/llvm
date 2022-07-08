@@ -15,8 +15,10 @@
 #define MLIR_DIALECT_AFFINE_IR_AFFINEOPS_H
 
 #include "mlir/Dialect/Affine/IR/AffineMemoryOpInterfaces.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 
 namespace mlir {
@@ -24,11 +26,24 @@ class AffineApplyOp;
 class AffineBound;
 class AffineValueMap;
 
+/// TODO: These should be renamed if they are on the mlir namespace.
+///       Ideally, they should go in a mlir::affine:: namespace.
+
 /// A utility function to check if a value is defined at the top level of an
 /// op with trait `AffineScope` or is a region argument for such an op. A value
 /// of index type defined at the top level is always a valid symbol for all its
 /// uses.
 bool isTopLevelValue(Value value);
+
+/// A utility function to check if a value is defined at the top level of
+/// `region` or is an argument of `region`. A value of index type defined at the
+/// top level of a `AffineScope` region is always a valid symbol for all
+/// uses in that region.
+bool isTopLevelValue(Value value, Region *region);
+
+/// Returns the closest region enclosing `op` that is held by an operation with
+/// trait `AffineScope`; `nullptr` if there is no such region.
+Region *getAffineScope(Operation *op);
 
 /// AffineDmaStartOp starts a non-blocking DMA operation that transfers data
 /// from a source memref to a destination memref. The source and destination
@@ -73,8 +88,8 @@ bool isTopLevelValue(Value value);
 // of striding).
 class AffineDmaStartOp
     : public Op<AffineDmaStartOp, OpTrait::MemRefsNormalizable,
-                OpTrait::VariadicOperands, OpTrait::ZeroResult,
-                AffineMapAccessInterface::Trait> {
+                OpTrait::VariadicOperands, OpTrait::ZeroResults,
+                OpTrait::OpInvariants, AffineMapAccessInterface::Trait> {
 public:
   using Op::Op;
   static ArrayRef<StringRef> getAttributeNames() { return {}; }
@@ -100,7 +115,7 @@ public:
   /// Returns the affine map used to access the source memref.
   AffineMap getSrcMap() { return getSrcMapAttr().getValue(); }
   AffineMapAttr getSrcMapAttr() {
-    return (*this)->getAttr(getSrcMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getSrcMapAttrStrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the source memref affine map indices for this DMA operation.
@@ -139,7 +154,7 @@ public:
   /// Returns the affine map used to access the destination memref.
   AffineMap getDstMap() { return getDstMapAttr().getValue(); }
   AffineMapAttr getDstMapAttr() {
-    return (*this)->getAttr(getDstMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getDstMapAttrStrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the destination memref indices for this DMA operation.
@@ -168,7 +183,7 @@ public:
   /// Returns the affine map used to access the tag memref.
   AffineMap getTagMap() { return getTagMapAttr().getValue(); }
   AffineMapAttr getTagMapAttr() {
-    return (*this)->getAttr(getTagMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getTagMapAttrStrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the tag memref indices for this DMA operation.
@@ -188,14 +203,14 @@ public:
   /// Returns the AffineMapAttr associated with 'memref'.
   NamedAttribute getAffineMapAttrForMemRef(Value memref) {
     if (memref == getSrcMemRef())
-      return {StringAttr::get(getContext(), getSrcMapAttrName()),
+      return {StringAttr::get(getContext(), getSrcMapAttrStrName()),
               getSrcMapAttr()};
     if (memref == getDstMemRef())
-      return {StringAttr::get(getContext(), getDstMapAttrName()),
+      return {StringAttr::get(getContext(), getDstMapAttrStrName()),
               getDstMapAttr()};
     assert(memref == getTagMemRef() &&
            "DmaStartOp expected source, destination or tag memref");
-    return {StringAttr::get(getContext(), getTagMapAttrName()),
+    return {StringAttr::get(getContext(), getTagMapAttrStrName()),
             getTagMapAttr()};
   }
 
@@ -218,14 +233,15 @@ public:
     return isSrcMemorySpaceFaster() ? 0 : getDstMemRefOperandIndex();
   }
 
-  static StringRef getSrcMapAttrName() { return "src_map"; }
-  static StringRef getDstMapAttrName() { return "dst_map"; }
-  static StringRef getTagMapAttrName() { return "tag_map"; }
+  static StringRef getSrcMapAttrStrName() { return "src_map"; }
+  static StringRef getDstMapAttrStrName() { return "dst_map"; }
+  static StringRef getTagMapAttrStrName() { return "tag_map"; }
 
   static StringRef getOperationName() { return "affine.dma_start"; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
-  LogicalResult verify();
+  LogicalResult verifyInvariantsImpl();
+  LogicalResult verifyInvariants() { return verifyInvariantsImpl(); }
   LogicalResult fold(ArrayRef<Attribute> cstOperands,
                      SmallVectorImpl<OpFoldResult> &results);
 
@@ -265,8 +281,8 @@ public:
 //
 class AffineDmaWaitOp
     : public Op<AffineDmaWaitOp, OpTrait::MemRefsNormalizable,
-                OpTrait::VariadicOperands, OpTrait::ZeroResult,
-                AffineMapAccessInterface::Trait> {
+                OpTrait::VariadicOperands, OpTrait::ZeroResults,
+                OpTrait::OpInvariants, AffineMapAccessInterface::Trait> {
 public:
   using Op::Op;
   static ArrayRef<StringRef> getAttributeNames() { return {}; }
@@ -285,7 +301,7 @@ public:
   /// Returns the affine map used to access the tag memref.
   AffineMap getTagMap() { return getTagMapAttr().getValue(); }
   AffineMapAttr getTagMapAttr() {
-    return (*this)->getAttr(getTagMapAttrName()).cast<AffineMapAttr>();
+    return (*this)->getAttr(getTagMapAttrStrName()).cast<AffineMapAttr>();
   }
 
   /// Returns the tag memref index for this DMA operation.
@@ -303,17 +319,18 @@ public:
   /// associated with 'memref'.
   NamedAttribute getAffineMapAttrForMemRef(Value memref) {
     assert(memref == getTagMemRef());
-    return {StringAttr::get(getContext(), getTagMapAttrName()),
+    return {StringAttr::get(getContext(), getTagMapAttrStrName()),
             getTagMapAttr()};
   }
 
   /// Returns the number of elements transferred by the associated DMA op.
   Value getNumElements() { return getOperand(1 + getTagMap().getNumInputs()); }
 
-  static StringRef getTagMapAttrName() { return "tag_map"; }
+  static StringRef getTagMapAttrStrName() { return "tag_map"; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
-  LogicalResult verify();
+  LogicalResult verifyInvariantsImpl();
+  LogicalResult verifyInvariants() { return verifyInvariantsImpl(); }
   LogicalResult fold(ArrayRef<Attribute> cstOperands,
                      SmallVectorImpl<OpFoldResult> &results);
 };

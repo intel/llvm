@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -fblocks -emit-llvm -o - %s | FileCheck -check-prefix CHECK -check-prefix CHECK-NOARC %s
-// RUN: %clang_cc1 -triple x86_64-apple-darwin -fblocks -emit-llvm -fobjc-arc -o - %s | FileCheck -check-prefix CHECK -check-prefix CHECK-ARC %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin -fblocks -emit-llvm -o - %s | FileCheck -check-prefix CHECK -check-prefix CHECK-NOARC %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin -fblocks -emit-llvm -fobjc-arc -o - %s | FileCheck -check-prefix CHECK -check-prefix CHECK-ARC %s
 
 typedef void (^BlockTy)(void);
 
@@ -135,7 +135,7 @@ void test6(id a, id b) {
 // CHECK-ARC-NOT: define internal void @__Block_byref_object_copy_
 // CHECK-ARC-NOT: define internal void @__Block_byref_object_dispose_
 
-void test7() {
+void test7(void) {
   id a;
   __block id b0;
   noescapeFunc0(a, ^{ (void)b0; });
@@ -161,7 +161,7 @@ struct S0 {
   id a, b;
 };
 
-void test8() {
+void test8(void) {
   id a;
   __block struct S0 b0;
   noescapeFunc0(a, ^{ (void)b0; });

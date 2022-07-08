@@ -13,6 +13,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/cg.hpp>
 #include <CL/sycl/detail/cg_types.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/handler_proxy.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -143,7 +144,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_INVALID_VALUE);
+    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
 }
 #endif
 
@@ -240,44 +241,43 @@ private:
 namespace ext {
 namespace oneapi {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-          access::placeholder IsPlaceholder>
-class reduction_impl;
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          class Algorithm>
+class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
 using cl::sycl::detail::queue_impl;
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-                size_t MaxWGSize, uint32_t NumConcurrentWorkGroups,
-                Reduction &Redu);
+// Kernels with single reduction
 
+/// If we are given sycl::range and not sycl::nd_range we have more freedom in
+/// how to split the iteration space.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_atomic_add_float64>
-reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                   const nd_range<Dims> &Range, Reduction &Redu);
-
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu);
+void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+                        const range<Dims> &Range, size_t MaxWGSize,
+                        uint32_t NumConcurrentWorkGroups, Reduction &Redu);
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu);
+void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                        const nd_range<Dims> &Range, Reduction &Redu);
 
-template <typename KernelName, typename KernelType, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics, size_t>
-reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
-              Reduction &Redu);
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFunc(handler &CGH, KernelType KernelFunc,
+                const nd_range<Dims> &Range, Reduction &Redu);
 
+// Kernels with multiple reductions
+
+// sycl::nd_range version
 template <typename KernelName, typename KernelType, int Dims,
           typename... Reductions, size_t... Is>
-void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range,
-                std::tuple<Reductions...> &ReduTuple,
-                std::index_sequence<Is...>);
+void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
+                     const nd_range<Dims> &Range,
+                     std::tuple<Reductions...> &ReduTuple,
+                     std::index_sequence<Is...>);
+
+template <typename KernelName, typename KernelType, class Reduction>
+size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
+                     Reduction &Redu);
 
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
@@ -298,12 +298,6 @@ std::shared_ptr<event>
 reduSaveFinalResultToUserMem(std::shared_ptr<detail::queue_impl> Queue,
                              bool IsHost, std::tuple<Reduction...> &ReduTuple,
                              std::index_sequence<Is...>);
-
-template <typename Reduction, typename... RestT>
-std::enable_if_t<!Reduction::is_usm>
-reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
-                                   std::shared_ptr<detail::queue_impl> Queue,
-                                   bool IsHost, Reduction &Redu, RestT... Rest);
 
 __SYCL_EXPORT uint32_t
 reduGetMaxNumConcurrentWorkGroups(std::shared_ptr<queue_impl> Queue);
@@ -404,7 +398,7 @@ private:
       throw sycl::runtime_error("Attempt to set multiple actions for the "
                                 "command group. Command group must consist of "
                                 "a single kernel or explicit memory operation.",
-                                CL_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
   }
 
   /// Extracts and prepares kernel arguments from the lambda using integration
@@ -469,15 +463,33 @@ private:
     MStreamStorage.push_back(Stream);
   }
 
+  /// Helper utility for operation widely used through different reduction
+  /// implementations.
+  /// @{
+  template <class FunctorTy>
+  event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
+                       FunctorTy Func) {
+    handler AuxHandler(Queue, MIsHost);
+    AuxHandler.saveCodeLoc(MCodeLoc);
+    Func(AuxHandler);
+    return AuxHandler.finalize();
+  }
+
+  template <class FunctorTy>
+  static event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
+                              bool IsHost, FunctorTy Func) {
+    handler AuxHandler(Queue, IsHost);
+    Func(AuxHandler);
+    return AuxHandler.finalize();
+  }
+  /// }@
+
   /// Saves buffers created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
-  /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(const std::shared_ptr<const void> &ReduObj) {
-    MSharedPtrStorage.push_back(ReduObj);
-  }
+  void addReduction(const std::shared_ptr<const void> &ReduObj);
 
   ~handler() = default;
 
@@ -553,11 +565,11 @@ private:
     if (is_host()) {
       throw invalid_object_error(
           "This kernel invocation method cannot be used on the host",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
     }
     if (Kernel.is_host()) {
       throw invalid_object_error("Invalid kernel type, OpenCL expected",
-                                 PI_INVALID_KERNEL);
+                                 PI_ERROR_INVALID_KERNEL);
     }
   }
 
@@ -660,16 +672,29 @@ private:
         KernelFunc);
   }
 
-  /* 'wrapper'-based approach using 'NormalizedKernelType' struct is
-   * not applied for 'void(void)' type kernel and
-   * 'void(sycl::group<Dims>)'. This is because 'void(void)' type does
-   * not have argument to normalize and 'void(sycl::group<Dims>)' is
-   * not supported in ESIMD.
-   */
-  // For 'void' and 'sycl::group<Dims>' kernel argument
+  // For 'void' kernel argument (single_task)
   template <class KernelType, typename ArgT, int Dims>
-  typename std::enable_if<std::is_same<ArgT, void>::value ||
-                              std::is_same<ArgT, sycl::group<Dims>>::value,
+  typename std::enable_if_t<std::is_same<ArgT, void>::value, KernelType *>
+  ResetHostKernel(const KernelType &KernelFunc) {
+    struct NormalizedKernelType {
+      KernelType MKernelFunc;
+      NormalizedKernelType(const KernelType &KernelFunc)
+          : MKernelFunc(KernelFunc) {}
+      void operator()(const nd_item<Dims> &Arg) {
+        (void)Arg;
+        detail::runKernelWithoutArg(MKernelFunc);
+      }
+    };
+    return ResetHostKernelHelper<KernelType, struct NormalizedKernelType, Dims>(
+        KernelFunc);
+  }
+
+  // For 'sycl::group<Dims>' kernel argument
+  // 'wrapper'-based approach using 'NormalizedKernelType' struct is not used
+  // for 'void(sycl::group<Dims>)' since 'void(sycl::group<Dims>)' is not
+  // supported in ESIMD.
+  template <class KernelType, typename ArgT, int Dims>
+  typename std::enable_if<std::is_same<ArgT, sycl::group<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
     MHostKernel.reset(
@@ -704,7 +729,7 @@ private:
     if (IsCallableWithKernelHandler && MIsHost) {
       throw cl::sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
     }
     KernelType *KernelPtr =
         ResetHostKernel<KernelType, LambdaArgType, Dims>(KernelFunc);
@@ -1264,6 +1289,7 @@ private:
   }
 
   std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
+  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
@@ -1435,7 +1461,7 @@ public:
     // known constant.
     MNDRDesc.set(range<1>{1});
 
-    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif
   }
@@ -1575,6 +1601,9 @@ public:
 #endif
   }
 
+// "if constexpr" simplifies implementation/increases readability in comparison
+// with SFINAE-based approach.
+#if __cplusplus >= 201703L
   /// Defines and invokes a SYCL kernel function for the specified nd_range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -1606,123 +1635,76 @@ public:
     // for the device.
     size_t MaxWGSize =
         ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
-    ext::oneapi::detail::reduCGFunc<KernelName>(
+    ext::oneapi::detail::reduCGFuncForRange<KernelName>(
         *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
     if (Reduction::is_usm ||
         (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
         (!Reduction::has_fast_atomics && Redu.hasUserDiscardWriteAccessor())) {
       this->finalize();
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
-                                                                    Redu);
-      MLastEvent = CopyHandler.finalize();
-    }
-  }
-
-  /// Implements parallel_for() accepting nd_range \p Range and one reduction
-  /// object. This version uses fast sycl::atomic operations to update reduction
-  /// variable at the end of each work-group work.
-  //
-  // If the reduction variable must be initialized with the identity value
-  // before the kernel run, then an additional working accessor is created,
-  // initialized with the identity value and used in the kernel. That working
-  // accessor is then copied to user's accessor or USM pointer after
-  // the kernel run.
-  // For USM pointers without initialize_to_identity properties the same scheme
-  // with working accessor is used as re-using user's USM pointer in the kernel
-  // would require creation of another variant of user's kernel, which does not
-  // seem efficient.
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  detail::enable_if_t<Reduction::has_fast_atomics>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
-    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
-
-    if (Reduction::is_usm || Redu.initializeToIdentity()) {
-      this->finalize();
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
-                                                                    Redu);
-      MLastEvent = CopyHandler.finalize();
-    }
-  }
-
-  /// Implements parallel_for() accepting nd_range \p Range and one reduction
-  /// object. This version is a specialization for the add operator.
-  /// It performs runtime checks for device aspect "atomic64"; if found, fast
-  /// sycl::atomic_ref operations are used to update the reduction at the
-  /// end of each work-group work.  Otherwise the default implementation is
-  /// used.
-  //
-  // If the reduction variable must be initialized with the identity value
-  // before the kernel run, then an additional working accessor is created,
-  // initialized with the identity value and used in the kernel. That working
-  // accessor is then copied to user's accessor or USM pointer after
-  // the kernel run.
-  // For USM pointers without initialize_to_identity properties the same scheme
-  // with working accessor is used as re-using user's USM pointer in the kernel
-  // would require creation of another variant of user's kernel, which does not
-  // seem efficient.
-  template <typename KernelName = detail::auto_name, typename KernelType,
-            int Dims, typename Reduction>
-  detail::enable_if_t<Reduction::has_atomic_add_float64>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
-
-    std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
-    device D = detail::getDeviceFromHandler(*this);
-
-    if (D.has(aspect::atomic64)) {
-
-      ext::oneapi::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc,
-                                                          Range, Redu);
-
-      if (Reduction::is_usm || Redu.initializeToIdentity()) {
-        this->finalize();
-        handler CopyHandler(QueueCopy, MIsHost);
-        CopyHandler.saveCodeLoc(MCodeLoc);
+      MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
             CopyHandler, Redu);
-        MLastEvent = CopyHandler.finalize();
-      }
-    } else {
-      parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+      });
     }
   }
 
-  /// Defines and invokes a SYCL kernel function for the specified nd_range.
-  /// Performs reduction operation specified in \p Redu.
-  ///
-  /// The SYCL kernel function is defined as a lambda function or a named
-  /// function object type and given an id or item for indexing in the indexing
-  /// space defined by \p Range.
-  /// If it is a named function object and the function object type is
-  /// globally visible, there is no need for the developer to provide
-  /// a kernel name for it.
-  ///
-  /// TODO: Support HOST. The kernels called by this parallel_for() may use
-  /// some functionality that is not yet supported on HOST such as:
-  /// barrier(), and ext::oneapi::reduce() that also may be used in more
-  /// optimized implementations waiting for their turn of code-review.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename Reduction>
-  detail::enable_if_t<!Reduction::has_fast_atomics &&
-                      !Reduction::has_atomic_add_float64>
-  parallel_for(nd_range<Dims> Range, Reduction Redu,
-               _KERNELFUNCPARAM(KernelFunc)) {
+  void parallel_for(nd_range<Dims> Range, Reduction Redu,
+                    _KERNELFUNCPARAM(KernelFunc)) {
+    if constexpr (!Reduction::has_fast_atomics &&
+                  !Reduction::has_atomic_add_float64) {
+      // The most basic implementation.
+      parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
+      return;
+    } else { // Can't "early" return for "if constexpr".
+      std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
+      if constexpr (Reduction::has_atomic_add_float64) {
+        /// This version is a specialization for the add
+        /// operator. It performs runtime checks for device aspect "atomic64";
+        /// if found, fast sycl::atomic_ref operations are used to update the
+        /// reduction at the end of each work-group work. Otherwise the
+        /// default implementation is used.
+        device D = detail::getDeviceFromHandler(*this);
 
-    parallel_for_Impl<KernelName>(Range, Redu, KernelFunc);
+        if (D.has(aspect::atomic64)) {
+
+          ext::oneapi::detail::reduCGFuncAtomic64<KernelName>(*this, KernelFunc,
+                                                              Range, Redu);
+        } else {
+          // Resort to basic implementation as well.
+          parallel_for_impl<KernelName>(Range, Redu, KernelFunc);
+          return;
+        }
+      } else {
+        // Use fast sycl::atomic operations to update reduction variable at the
+        // end of each work-group work.
+        ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
+                                                    Redu);
+      }
+      // If the reduction variable must be initialized with the identity value
+      // before the kernel run, then an additional working accessor is created,
+      // initialized with the identity value and used in the kernel. That
+      // working accessor is then copied to user's accessor or USM pointer after
+      // the kernel run.
+      // For USM pointers without initialize_to_identity properties the same
+      // scheme with working accessor is used as re-using user's USM pointer in
+      // the kernel would require creation of another variant of user's kernel,
+      // which does not seem efficient.
+      if (Reduction::is_usm || Redu.initializeToIdentity()) {
+        this->finalize();
+        MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
+          ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
+              CopyHandler, Redu);
+        });
+      }
+    }
   }
 
   template <typename KernelName, typename KernelType, int Dims,
             typename Reduction>
-  detail::enable_if_t<!Reduction::has_fast_atomics>
-  parallel_for_Impl(nd_range<Dims> Range, Reduction Redu,
-                    KernelType KernelFunc) {
+  void parallel_for_impl(nd_range<Dims> Range, Reduction Redu,
+                         KernelType KernelFunc) {
     // This parallel_for() is lowered to the following sequence:
     // 1) Call a kernel that a) call user's lambda function and b) performs
     //    one iteration of reduction, storing the partial reductions/sums
@@ -1756,7 +1738,7 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
     // 1. Call the kernel that includes user's lambda function.
     ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range, Redu);
@@ -1775,23 +1757,20 @@ public:
                                 "The maximal work group size depends on the "
                                 "device and the size of the objects passed to "
                                 "the reduction.",
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
-      handler AuxHandler(QueueCopy, MIsHost);
-      AuxHandler.saveCodeLoc(MCodeLoc);
-
-      NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName, KernelType>(
-          AuxHandler, NWorkItems, MaxWGSize, Redu);
-      MLastEvent = AuxHandler.finalize();
+      MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
+        NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName, KernelType>(
+            AuxHandler, NWorkItems, MaxWGSize, Redu);
+      });
     } // end while (NWorkItems > 1)
 
     if (Reduction::is_usm || Redu.hasUserDiscardWriteAccessor()) {
-      handler CopyHandler(QueueCopy, MIsHost);
-      CopyHandler.saveCodeLoc(MCodeLoc);
-      ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(CopyHandler,
-                                                                    Redu);
-      MLastEvent = CopyHandler.finalize();
+      MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
+        ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
+            CopyHandler, Redu);
+      });
     }
   }
 
@@ -1854,22 +1833,20 @@ public:
                                 " reduction requires work group size not bigger"
                                 " than " +
                                     std::to_string(MaxWGSize),
-                                PI_INVALID_WORK_GROUP_SIZE);
+                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
 
-    ext::oneapi::detail::reduCGFunc<KernelName>(*this, KernelFunc, Range,
-                                                ReduTuple, ReduIndices);
+    ext::oneapi::detail::reduCGFuncMulti<KernelName>(*this, KernelFunc, Range,
+                                                     ReduTuple, ReduIndices);
     std::shared_ptr<detail::queue_impl> QueueCopy = MQueue;
     this->finalize();
 
     size_t NWorkItems = Range.get_group_range().size();
     while (NWorkItems > 1) {
-      handler AuxHandler(QueueCopy, MIsHost);
-      AuxHandler.saveCodeLoc(MCodeLoc);
-
-      NWorkItems =
-          ext::oneapi::detail::reduAuxCGFunc<KernelName, decltype(KernelFunc)>(
-              AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
-      MLastEvent = AuxHandler.finalize();
+      MLastEvent = withAuxHandler(QueueCopy, [&](handler &AuxHandler) {
+        NWorkItems = ext::oneapi::detail::reduAuxCGFunc<KernelName,
+                                                        decltype(KernelFunc)>(
+            AuxHandler, NWorkItems, MaxWGSize, ReduTuple, ReduIndices);
+      });
     } // end while (NWorkItems > 1)
 
     auto CopyEvent = ext::oneapi::detail::reduSaveFinalResultToUserMem(
@@ -1877,6 +1854,7 @@ public:
     if (CopyEvent)
       MLastEvent = *CopyEvent;
   }
+#endif // __cplusplus >= 201703L
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
   /// encoding the body of each work-group to launch.
@@ -2043,7 +2021,7 @@ public:
       extractArgsAndReqs();
       MKernelName = getKernelName();
     } else
-      StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+      StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(std::move(KernelFunc));
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
@@ -2411,8 +2389,11 @@ public:
                   "Invalid source accessor mode for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode_Dst),
                   "Invalid destination accessor mode for the copy method.");
-    assert(Dst.get_size() >= Src.get_size() &&
-           "The destination accessor does not fit the copied memory.");
+    if (Dst.get_size() < Src.get_size())
+      throw sycl::invalid_object_error(
+          "The destination accessor size is too small to copy the memory into.",
+          PI_ERROR_INVALID_OPERATION);
+
     if (copyAccToAccHelper(Src, Dst))
       return;
     setType(detail::CG::CopyAccToAcc);
@@ -2668,18 +2649,11 @@ private:
   // Make stream class friend to be able to keep the list of associated streams
   friend class stream;
   friend class detail::stream_impl;
-  // Make reduction_impl friend to store buffers and arrays created for it
-  // in handler from reduction_impl methods.
-  template <typename T, class BinaryOperation, int Dims, bool IsUSM,
-            access::placeholder IsPlaceholder>
-  friend class ext::oneapi::detail::reduction_impl;
-
-  // This method needs to call the method finalize().
-  template <typename Reduction, typename... RestT>
-  std::enable_if_t<!Reduction::is_usm> friend ext::oneapi::detail::
-      reduSaveFinalResultToUserMemHelper(
-          std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
-          bool IsHost, Reduction &, RestT...);
+  // Make reduction friends to store buffers and arrays created for it
+  // in handler from reduction methods.
+  template <typename T, class BinaryOperation, int Dims, size_t Extent,
+            class Algorithm>
+  friend class ext::oneapi::detail::reduction_impl_algo;
 
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,

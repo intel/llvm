@@ -9,8 +9,6 @@ import os
 
 class TestTraceExport(TraceIntelPTTestCaseBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def testErrorMessages(self):
         ctf_test_file = self.getBuildArtifact("ctf-test.json")
         # We first check the output when there are no targets
@@ -23,7 +21,7 @@ class TestTraceExport(TraceIntelPTTestCaseBase):
             os.path.join(self.getSourceDir(), "intelpt-trace", "a.out"))
 
         self.expect(f"thread trace export ctf --file {ctf_test_file}",
-            substrs=["error: invalid process"],
+            substrs=["error: Command requires a current process."],
             error=True)
 
         # Now we check the output when there's a running target without a trace
@@ -172,4 +170,3 @@ class TestTraceExport(TraceIntelPTTestCaseBase):
         data_index = index_of_first_layer_1_block
         for i in range(len(expected_block_names)):
             self.assertTrue(data[data_index + i]['name'] == expected_block_names[i])
-

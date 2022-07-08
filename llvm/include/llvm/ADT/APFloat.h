@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief
 /// This file declares a class to represent arbitrary precision floating point
 /// values and provide a variety of arithmetic operations on them.
 ///
@@ -156,7 +155,8 @@ struct APFloatBase {
     S_IEEEdouble,
     S_x87DoubleExtended,
     S_IEEEquad,
-    S_PPCDoubleDouble
+    S_PPCDoubleDouble,
+    S_MaxSemantics = S_PPCDoubleDouble
   };
 
   static const llvm::fltSemantics &EnumToSemantics(Semantics S);

@@ -28,7 +28,8 @@ namespace detail {
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(1, Device), MContext(nullptr),
-      MPlatform(), MPropList(PropList), MHostContext(Device.is_host()) {
+      MPlatform(), MPropList(PropList), MHostContext(Device.is_host()),
+      MSupportBufferLocationByDevices(NotChecked) {
   MKernelProgramCache.setContextPtr(this);
 }
 
@@ -36,7 +37,8 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
-      MPlatform(), MPropList(PropList), MHostContext(false) {
+      MPlatform(), MPropList(PropList), MHostContext(false),
+      MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<RT::PiDevice> DeviceIds;
   for (const auto &D : MDevices) {
@@ -66,7 +68,7 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
 context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
                            const plugin &Plugin)
     : MAsyncHandler(AsyncHandler), MDevices(), MContext(PiContext), MPlatform(),
-      MHostContext(false) {
+      MHostContext(false), MSupportBufferLocationByDevices(NotChecked) {
 
   std::vector<RT::PiDevice> DeviceIds;
   size_t DevicesNum = 0;
@@ -105,7 +107,7 @@ cl_context context_impl::get() const {
   if (MHostContext) {
     throw invalid_object_error(
         "This instance of context doesn't support OpenCL interoperability.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piContextRetain>(MContext);
@@ -130,7 +132,7 @@ const async_handler &context_impl::get_async_handler() const {
 }
 
 template <>
-cl_uint context_impl::get_info<info::context::reference_count>() const {
+uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
   return get_context_info<info::context::reference_count>::get(
@@ -204,6 +206,20 @@ pi_native_handle context_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+bool context_impl::isBufferLocationSupported() const {
+  if (MSupportBufferLocationByDevices != NotChecked)
+    return MSupportBufferLocationByDevices == Supported ? true : false;
+  // Check that devices within context have support of buffer location
+  MSupportBufferLocationByDevices = Supported;
+  for (auto &Device : MDevices) {
+    if (!Device.has_extension("cl_intel_mem_alloc_buffer_location")) {
+      MSupportBufferLocationByDevices = NotSupported;
+      break;
+    }
+  }
+  return MSupportBufferLocationByDevices == Supported ? true : false;
 }
 
 } // namespace detail

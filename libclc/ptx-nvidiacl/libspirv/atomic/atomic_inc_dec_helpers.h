@@ -27,8 +27,9 @@
   }
 
 #define __CLC_NVVM_ATOMIC_INCDEC(TYPE, TYPE_MANGLED, OP_MANGLED, VAL)          \
+  __attribute__((always_inline))                                               \
   __CLC_NVVM_ATOMIC_INCDEC_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, VAL, __global, \
-                                AS1)                                           \
+                                AS1) __attribute__((always_inline))            \
   __CLC_NVVM_ATOMIC_INCDEC_IMPL(TYPE, TYPE_MANGLED, OP_MANGLED, VAL, __local,  \
                                 AS3)
 

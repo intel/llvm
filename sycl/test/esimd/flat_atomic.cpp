@@ -4,10 +4,10 @@
 
 #include <CL/sycl.hpp>
 #include <limits>
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <utility>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 using namespace cl::sycl;
 
 void kernel0(uint32_t *ptr) SYCL_ESIMD_FUNCTION {

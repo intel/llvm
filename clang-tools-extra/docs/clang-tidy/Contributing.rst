@@ -364,6 +364,11 @@ other support classes by writing a unit test than by writing a ``FileCheck`` int
 test.  The ``ASTMatchersTests`` target contains unit tests for the public AST matcher
 classes and is a good source of testing idioms for matchers.
 
+You can build the Clang-tidy unit tests by building the ``ClangTidyTests`` target.
+Test targets in LLVM and Clang are excluded from the "build all" style action of
+IDE-based CMake generators, so you need to explicitly build the target for the unit
+tests to be built.
+
 Making your check robust
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -514,17 +519,15 @@ be set in a ``.clang-tidy`` file in the following way:
 .. code-block:: yaml
 
   CheckOptions:
-    - key: my-check.SomeOption1
-      value: 123
-    - key: my-check.SomeOption2
-      value: 'some other value'
+    my-check.SomeOption1: 123
+    my-check.SomeOption2: 'some other value'
 
 If you need to specify check options on a command line, you can use the inline
 YAML format:
 
 .. code-block:: console
 
-  $ clang-tidy -config="{CheckOptions: [{key: a, value: b}, {key: x, value: y}]}" ...
+  $ clang-tidy -config="{CheckOptions: {a: b, x: y}}" ...
 
 
 Testing Checks
@@ -577,7 +580,7 @@ to incorrect parts of the input. Use ``[[@LINE+X]]``/``[[@LINE-X]]``
 substitutions and distinct function and variable names in the test code.
 
 Here's an example of a test using the ``check_clang_tidy.py`` script (the full
-source code is at `test/clang-tidy/google-readability-casting.cpp`_):
+source code is at `test/clang-tidy/checkers/google/readability-casting.cpp`_):
 
 .. code-block:: c++
 
@@ -627,13 +630,39 @@ most frequent pitfalls are macros and templates:
    expansions/instantiations.
 
 If you need multiple files to exercise all the aspects of your check, it is
-recommended you place them in a subdirectory named for the check under ``Inputs``.
-This keeps the test directory from getting cluttered.
+recommended you place them in a subdirectory named for the check under the ``Inputs``
+directory for the module containing your check.  This keeps the test directory from
+getting cluttered.
+
+If you need to validate how your check interacts with system header files, a set
+of simulated system header files is located in the ``checkers/Inputs/Headers``
+directory.  The path to this directory is available in a lit test with the variable
+``%clang_tidy_headers``.
 
 .. _lit: https://llvm.org/docs/CommandGuide/lit.html
 .. _FileCheck: https://llvm.org/docs/CommandGuide/FileCheck.html
-.. _test/clang-tidy/google-readability-casting.cpp: https://reviews.llvm.org/diffusion/L/browse/clang-tools-extra/trunk/test/clang-tidy/google-readability-casting.cpp
+.. _test/clang-tidy/checkers/google/readability-casting.cpp: https://github.com/llvm/llvm-project/blob/main/clang-tools-extra/test/clang-tidy/checkers/google/readability-casting.cpp
 
+Out-of-tree check plugins
+-------------------------
+
+Developing an out-of-tree check as a plugin largely follows the steps
+outlined above. The plugin is a shared library whose code lives outside
+the clang-tidy build system. Build and link this shared library against
+LLVM as done for other kinds of Clang plugins.
+
+The plugin can be loaded by passing `-load` to `clang-tidy` in addition to the
+names of the checks to enable.
+
+.. code-block:: console
+
+  $ clang-tidy --checks=-*,my-explicit-constructor -list-checks -load myplugin.so
+
+There is no expectations regarding ABI and API stability, so the plugin must be
+compiled against the version of clang-tidy that will be loading the plugin.
+
+The plugins can use threads, TLS, or any other facilities available to in-tree
+code which is accessible from the external headers.
 
 Running clang-tidy on LLVM
 --------------------------

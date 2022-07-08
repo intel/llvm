@@ -17,7 +17,6 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Utils/LayoutUtils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
@@ -252,8 +251,7 @@ static Optional<Type> convertArrayType(spirv::ArrayType type,
   unsigned stride = type.getArrayStride();
   Type elementType = type.getElementType();
   auto sizeInBytes = elementType.cast<spirv::SPIRVType>().getSizeInBytes();
-  if (stride != 0 &&
-      !(sizeInBytes.hasValue() && sizeInBytes.getValue() == stride))
+  if (stride != 0 && !(sizeInBytes && *sizeInBytes == stride))
     return llvm::None;
 
   auto llvmElementType = converter.convertType(elementType);
@@ -541,8 +539,7 @@ public:
     ElementsAttr branchWeights = nullptr;
     if (auto weights = op.branch_weights()) {
       VectorType weightType = VectorType::get(2, rewriter.getI32Type());
-      branchWeights =
-          DenseElementsAttr::get(weightType, weights.getValue().getValue());
+      branchWeights = DenseElementsAttr::get(weightType, weights->getValue());
     }
 
     rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
@@ -898,13 +895,13 @@ public:
   LogicalResult
   matchAndRewrite(SPIRVOp op, typename SPIRVOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!op.memory_access().hasValue()) {
+    if (!op.memory_access()) {
       return replaceWithLoadOrStore(op, adaptor.getOperands(), rewriter,
                                     this->typeConverter, /*alignment=*/0,
                                     /*isVolatile=*/false,
                                     /*isNonTemporal=*/false);
     }
-    auto memoryAccess = op.memory_access().getValue();
+    auto memoryAccess = *op.memory_access();
     switch (memoryAccess) {
     case spirv::MemoryAccess::Aligned:
     case spirv::MemoryAccess::None:
@@ -1292,11 +1289,11 @@ public:
 
     // Convert function signature. At the moment LLVMType converter is enough
     // for currently supported types.
-    auto funcType = funcOp.getType();
+    auto funcType = funcOp.getFunctionType();
     TypeConverter::SignatureConversion signatureConverter(
         funcType.getNumInputs());
     auto llvmType = typeConverter.convertFunctionSignature(
-        funcOp.getType(), /*isVariadic=*/false, signatureConverter);
+        funcType, /*isVariadic=*/false, signatureConverter);
     if (!llvmType)
       return failure();
 

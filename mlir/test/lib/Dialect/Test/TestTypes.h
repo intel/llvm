@@ -61,14 +61,31 @@ struct FieldParser<test::CustomParam> {
     auto value = FieldParser<int>::parse(parser);
     if (failed(value))
       return failure();
-    return test::CustomParam{value.getValue()};
+    return test::CustomParam{*value};
   }
 };
+
 inline mlir::AsmPrinter &operator<<(mlir::AsmPrinter &printer,
                                     test::CustomParam param) {
   return printer << param.value;
 }
 
+/// Overload the attribute parameter parser for optional integers.
+template <>
+struct FieldParser<Optional<int>> {
+  static FailureOr<Optional<int>> parse(AsmParser &parser) {
+    Optional<int> value;
+    value.emplace();
+    OptionalParseResult result = parser.parseOptionalInteger(*value);
+    if (result.hasValue()) {
+      if (succeeded(*result))
+        return value;
+      return failure();
+    }
+    value.reset();
+    return value;
+  }
+};
 } // namespace mlir
 
 #include "TestTypeInterfaces.h.inc"

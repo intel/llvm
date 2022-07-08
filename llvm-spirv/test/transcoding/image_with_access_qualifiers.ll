@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -11,7 +11,8 @@
 ; CHECK-SPIRV-DAG: 2 Capability ImageBasic
 ; CHECK-SPIRV-DAG: 2 Capability ImageReadWrite
 ; CHECK-SPIRV-DAG: 2 Capability LiteralSampler
-; CHECK-SPIRV-DAG: 10 TypeImage [[TyImageID:[0-9]+]] 2 0 0 0 0 0 0 2 
+; CHECK-SPIRV-DAG: 2 TypeVoid [[TyVoid:[0-9]+]]
+; CHECK-SPIRV-DAG: 10 TypeImage [[TyImageID:[0-9]+]] [[TyVoid]] 0 0 0 0 0 0 2 
 ; CHECK-SPIRV-DAG: 3 TypeSampledImage [[TySampledImageID:[0-9]+]] [[TyImageID]]
 
 ; CHECK-SPIRV-DAG: 5 SampledImage [[TySampledImageID]] [[ResID:[0-9]+]]

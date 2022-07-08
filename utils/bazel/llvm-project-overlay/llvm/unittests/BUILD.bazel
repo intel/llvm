@@ -45,6 +45,7 @@ cc_test(
         "//llvm:Analysis",
         "//llvm:AsmParser",
         "//llvm:Core",
+        "//llvm:Passes",
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",
@@ -412,6 +413,22 @@ cc_test(
 )
 
 cc_test(
+    name = "objcopy_tests",
+    srcs = glob(
+        ["ObjCopy/*.cpp"],
+        allow_empty = False,
+    ),
+    deps = [
+        "//llvm:ObjCopy",
+        "//llvm:Object",
+        "//llvm:ObjectYAML",
+        "//llvm:TestingSupport",
+        "//llvm:gtest",
+        "//llvm:gtest_main",
+    ],
+)
+
+cc_test(
     name = "object_tests",
     size = "small",
     srcs = glob(
@@ -642,6 +659,7 @@ cc_test(
         "//llvm:AsmParser",
         "//llvm:Core",
         "//llvm:IPO",
+        "//llvm:Passes",
         "//llvm:Support",
         "//llvm:TestingSupport",
         "//llvm:TransformUtils",

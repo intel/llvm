@@ -54,7 +54,6 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUCombinerHelper.cpp
   AMDGPUCtorDtorLowering.cpp
   AMDGPUExportClustering.cpp
-  AMDGPUFixFunctionBitcasts.cpp
   AMDGPUFrameLowering.cpp
   AMDGPUGlobalISelUtils.cpp
   AMDGPUHSAMetadataStreamer.cpp
@@ -76,6 +75,7 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUMachineModuleInfo.cpp
   AMDGPUMacroFusion.cpp
   AMDGPUMCInstLower.cpp
+  AMDGPUIGroupLP.cpp
   AMDGPUMIRFormatter.cpp
   AMDGPUOpenCLEnqueuedBlockLowering.cpp
   AMDGPUPerfHintAnalysis.cpp
@@ -90,13 +90,14 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUReplaceLDSUseWithPointer.cpp
   AMDGPUResourceUsageAnalysis.cpp
   AMDGPURewriteOutArguments.cpp
+  AMDGPUSetWavePriority.cpp
   AMDGPUSubtarget.cpp
   AMDGPUTargetMachine.cpp
   AMDGPUTargetObjectFile.cpp
   AMDGPUTargetTransformInfo.cpp
   AMDGPUUnifyDivergentExitNodes.cpp
   AMDGPUUnifyMetadata.cpp
-  AMDILCFGStructurizer.cpp
+  R600MachineCFGStructurizer.cpp
   GCNDPPCombine.cpp
   GCNHazardRecognizer.cpp
   GCNILPSched.cpp

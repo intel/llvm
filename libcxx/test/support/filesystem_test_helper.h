@@ -733,4 +733,4 @@ inline fs::path GetWindowsInaccessibleDir() {
   return fs::path();
 }
 
-#endif /* FILESYSTEM_TEST_HELPER_HPP */
+#endif /* FILESYSTEM_TEST_HELPER_H */

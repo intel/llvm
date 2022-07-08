@@ -141,8 +141,8 @@ bb2:
 
 }
 
-declare dso_local x86_thiscallcc zeroext i1 @baz(i8*, i32)
-define x86_thiscallcc zeroext i1 @BlockPlacementTest(i8* %this, i32 %x) optsize {
+declare dso_local x86_thiscallcc zeroext i1 @baz(ptr, i32)
+define x86_thiscallcc zeroext i1 @BlockPlacementTest(ptr %this, i32 %x) optsize {
 ; CHECK32-LABEL: BlockPlacementTest:
 ; CHECK32:       # %bb.0: # %entry
 ; CHECK32-NEXT:    movl {{[0-9]+}}(%esp), %edx # encoding: [0x8b,0x54,0x24,0x04]
@@ -211,7 +211,7 @@ land.rhs:
   br i1 %tobool7, label %lor.rhs, label %land.end
 
 lor.rhs:
-  %call = tail call x86_thiscallcc zeroext i1 @baz(i8* %this, i32 %x) #2
+  %call = tail call x86_thiscallcc zeroext i1 @baz(ptr %this, i32 %x) #2
   br label %land.end
 
 land.end:
@@ -225,10 +225,10 @@ land.end:
 
 
 %"class.std::basic_string" = type { %"struct.std::basic_string<char, std::char_traits<char>, std::allocator<char> >::_Alloc_hider" }
-%"struct.std::basic_string<char, std::char_traits<char>, std::allocator<char> >::_Alloc_hider" = type { i8* }
-declare dso_local zeroext i1 @_Z20isValidIntegerSuffixN9__gnu_cxx17__normal_iteratorIPKcSsEES3_(i8*, i8*)
+%"struct.std::basic_string<char, std::char_traits<char>, std::allocator<char> >::_Alloc_hider" = type { ptr }
+declare dso_local zeroext i1 @_Z20isValidIntegerSuffixN9__gnu_cxx17__normal_iteratorIPKcSsEES3_(ptr, ptr)
 
-define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly dereferenceable(8) %s) minsize {
+define zeroext i1 @pr31257(ptr nocapture readonly dereferenceable(8) %s) minsize {
 ; CHECK32-LABEL: pr31257:
 ; CHECK32:       # %bb.0: # %entry
 ; CHECK32-NEXT:    pushl %ebp # encoding: [0x55]
@@ -248,7 +248,7 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; CHECK32-NEXT:    movl {{[0-9]+}}(%esp), %eax # encoding: [0x8b,0x44,0x24,0x20]
 ; CHECK32-NEXT:    movl (%eax), %eax # encoding: [0x8b,0x00]
 ; CHECK32-NEXT:    movl -24(%eax), %edx # encoding: [0x8b,0x50,0xe8]
-; CHECK32-NEXT:    leal (%eax,%edx), %ebp # encoding: [0x8d,0x2c,0x10]
+; CHECK32-NEXT:    leal (%eax,%edx), %ecx # encoding: [0x8d,0x0c,0x10]
 ; CHECK32-NEXT:    xorl %ebx, %ebx # encoding: [0x31,0xdb]
 ; CHECK32-NEXT:    pushl $2 # encoding: [0x6a,0x02]
 ; CHECK32-NEXT:    .cfi_adjust_cfa_offset 4
@@ -259,76 +259,80 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; CHECK32-NEXT:  .LBB3_1: # %for.cond
 ; CHECK32-NEXT:    # =>This Inner Loop Header: Depth=1
 ; CHECK32-NEXT:    testl %edx, %edx # encoding: [0x85,0xd2]
-; CHECK32-NEXT:    je .LBB3_13 # encoding: [0x74,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_13-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    je .LBB3_14 # encoding: [0x74,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_14-1, kind: FK_PCRel_1
 ; CHECK32-NEXT:  # %bb.2: # %for.body
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
 ; CHECK32-NEXT:    cmpl $2, %ebx # encoding: [0x83,0xfb,0x02]
-; CHECK32-NEXT:    je .LBB3_11 # encoding: [0x74,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    je .LBB3_12 # encoding: [0x74,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_12-1, kind: FK_PCRel_1
 ; CHECK32-NEXT:  # %bb.3: # %for.body
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
 ; CHECK32-NEXT:    cmpl $1, %ebx # encoding: [0x83,0xfb,0x01]
-; CHECK32-NEXT:    je .LBB3_9 # encoding: [0x74,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_9-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    je .LBB3_10 # encoding: [0x74,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
 ; CHECK32-NEXT:  # %bb.4: # %for.body
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
 ; CHECK32-NEXT:    testl %ebx, %ebx # encoding: [0x85,0xdb]
-; CHECK32-NEXT:    jne .LBB3_10 # encoding: [0x75,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    jne .LBB3_11 # encoding: [0x75,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
 ; CHECK32-NEXT:  # %bb.5: # %sw.bb
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; CHECK32-NEXT:    movzbl (%eax), %ecx # encoding: [0x0f,0xb6,0x08]
-; CHECK32-NEXT:    cmpl $43, %ecx # encoding: [0x83,0xf9,0x2b]
+; CHECK32-NEXT:    movzbl (%eax), %ebp # encoding: [0x0f,0xb6,0x28]
+; CHECK32-NEXT:    cmpl $43, %ebp # encoding: [0x83,0xfd,0x2b]
 ; CHECK32-NEXT:    movl %edi, %ebx # encoding: [0x89,0xfb]
-; CHECK32-NEXT:    je .LBB3_10 # encoding: [0x74,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    je .LBB3_11 # encoding: [0x74,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
 ; CHECK32-NEXT:  # %bb.6: # %sw.bb
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; CHECK32-NEXT:    cmpb $45, %cl # encoding: [0x80,0xf9,0x2d]
+; CHECK32-NEXT:    cmpl $45, %ebp # encoding: [0x83,0xfd,0x2d]
 ; CHECK32-NEXT:    movl %edi, %ebx # encoding: [0x89,0xfb]
-; CHECK32-NEXT:    je .LBB3_10 # encoding: [0x74,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
-; CHECK32-NEXT:    jmp .LBB3_7 # encoding: [0xeb,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_7-1, kind: FK_PCRel_1
-; CHECK32-NEXT:  .LBB3_11: # %sw.bb22
+; CHECK32-NEXT:    je .LBB3_11 # encoding: [0x74,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
+; CHECK32-NEXT:  # %bb.7: # %if.else
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; CHECK32-NEXT:    movzbl (%eax), %ecx # encoding: [0x0f,0xb6,0x08]
-; CHECK32-NEXT:    addl $-48, %ecx # encoding: [0x83,0xc1,0xd0]
-; CHECK32-NEXT:    cmpl $10, %ecx # encoding: [0x83,0xf9,0x0a]
-; CHECK32-NEXT:    movl %esi, %ebx # encoding: [0x89,0xf3]
-; CHECK32-NEXT:    jb .LBB3_10 # encoding: [0x72,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
-; CHECK32-NEXT:    jmp .LBB3_12 # encoding: [0xeb,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_12-1, kind: FK_PCRel_1
-; CHECK32-NEXT:  .LBB3_9: # %sw.bb14
-; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; CHECK32-NEXT:    movzbl (%eax), %ecx # encoding: [0x0f,0xb6,0x08]
-; CHECK32-NEXT:  .LBB3_7: # %if.else
-; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; CHECK32-NEXT:    addl $-48, %ecx # encoding: [0x83,0xc1,0xd0]
-; CHECK32-NEXT:    cmpl $10, %ecx # encoding: [0x83,0xf9,0x0a]
-; CHECK32-NEXT:    movl %esi, %ebx # encoding: [0x89,0xf3]
-; CHECK32-NEXT:    jae .LBB3_8 # encoding: [0x73,A]
+; CHECK32-NEXT:    addl $-48, %ebp # encoding: [0x83,0xc5,0xd0]
+; CHECK32-NEXT:    cmpl $10, %ebp # encoding: [0x83,0xfd,0x0a]
+; CHECK32-NEXT:    jmp .LBB3_8 # encoding: [0xeb,A]
 ; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_8-1, kind: FK_PCRel_1
-; CHECK32-NEXT:  .LBB3_10: # %for.inc
+; CHECK32-NEXT:  .LBB3_12: # %sw.bb22
+; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
+; CHECK32-NEXT:    movzbl (%eax), %ebx # encoding: [0x0f,0xb6,0x18]
+; CHECK32-NEXT:    addl $-48, %ebx # encoding: [0x83,0xc3,0xd0]
+; CHECK32-NEXT:    cmpl $10, %ebx # encoding: [0x83,0xfb,0x0a]
+; CHECK32-NEXT:    movl %esi, %ebx # encoding: [0x89,0xf3]
+; CHECK32-NEXT:    jb .LBB3_11 # encoding: [0x72,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    jmp .LBB3_13 # encoding: [0xeb,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_13-1, kind: FK_PCRel_1
+; CHECK32-NEXT:  .LBB3_10: # %sw.bb14
+; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
+; CHECK32-NEXT:    movzbl (%eax), %ebx # encoding: [0x0f,0xb6,0x18]
+; CHECK32-NEXT:    addl $-48, %ebx # encoding: [0x83,0xc3,0xd0]
+; CHECK32-NEXT:    cmpl $10, %ebx # encoding: [0x83,0xfb,0x0a]
+; CHECK32-NEXT:  .LBB3_8: # %if.else
+; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
+; CHECK32-NEXT:    movl %esi, %ebx # encoding: [0x89,0xf3]
+; CHECK32-NEXT:    jae .LBB3_9 # encoding: [0x73,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_9-1, kind: FK_PCRel_1
+; CHECK32-NEXT:  .LBB3_11: # %for.inc
 ; CHECK32-NEXT:    # in Loop: Header=BB3_1 Depth=1
 ; CHECK32-NEXT:    incl %eax # encoding: [0x40]
 ; CHECK32-NEXT:    decl %edx # encoding: [0x4a]
 ; CHECK32-NEXT:    jmp .LBB3_1 # encoding: [0xeb,A]
 ; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_1-1, kind: FK_PCRel_1
-; CHECK32-NEXT:  .LBB3_13:
+; CHECK32-NEXT:  .LBB3_14:
 ; CHECK32-NEXT:    cmpl $2, %ebx # encoding: [0x83,0xfb,0x02]
 ; CHECK32-NEXT:    sete %al # encoding: [0x0f,0x94,0xc0]
-; CHECK32-NEXT:    jmp .LBB3_14 # encoding: [0xeb,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_14-1, kind: FK_PCRel_1
-; CHECK32-NEXT:  .LBB3_8:
+; CHECK32-NEXT:    jmp .LBB3_15 # encoding: [0xeb,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_15-1, kind: FK_PCRel_1
+; CHECK32-NEXT:  .LBB3_9:
 ; CHECK32-NEXT:    xorl %eax, %eax # encoding: [0x31,0xc0]
-; CHECK32-NEXT:  .LBB3_14: # %cleanup.thread
+; CHECK32-NEXT:  .LBB3_15: # %cleanup.thread
 ; CHECK32-NEXT:    # kill: def $al killed $al killed $eax
 ; CHECK32-NEXT:    addl $12, %esp # encoding: [0x83,0xc4,0x0c]
 ; CHECK32-NEXT:    .cfi_def_cfa_offset 20
-; CHECK32-NEXT:  .LBB3_15: # %cleanup.thread
+; CHECK32-NEXT:  .LBB3_16: # %cleanup.thread
 ; CHECK32-NEXT:    popl %esi # encoding: [0x5e]
 ; CHECK32-NEXT:    .cfi_def_cfa_offset 16
 ; CHECK32-NEXT:    popl %edi # encoding: [0x5f]
@@ -338,11 +342,11 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; CHECK32-NEXT:    popl %ebp # encoding: [0x5d]
 ; CHECK32-NEXT:    .cfi_def_cfa_offset 4
 ; CHECK32-NEXT:    retl # encoding: [0xc3]
-; CHECK32-NEXT:  .LBB3_12: # %if.else28
+; CHECK32-NEXT:  .LBB3_13: # %if.else28
 ; CHECK32-NEXT:    .cfi_def_cfa_offset 32
 ; CHECK32-NEXT:    subl $8, %esp # encoding: [0x83,0xec,0x08]
 ; CHECK32-NEXT:    .cfi_adjust_cfa_offset 8
-; CHECK32-NEXT:    pushl %ebp # encoding: [0x55]
+; CHECK32-NEXT:    pushl %ecx # encoding: [0x51]
 ; CHECK32-NEXT:    .cfi_adjust_cfa_offset 4
 ; CHECK32-NEXT:    pushl %eax # encoding: [0x50]
 ; CHECK32-NEXT:    .cfi_adjust_cfa_offset 4
@@ -350,8 +354,8 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; CHECK32-NEXT:    # fixup A - offset: 1, value: _Z20isValidIntegerSuffixN9__gnu_cxx17__normal_iteratorIPKcSsEES3_-4, kind: FK_PCRel_4
 ; CHECK32-NEXT:    addl $28, %esp # encoding: [0x83,0xc4,0x1c]
 ; CHECK32-NEXT:    .cfi_adjust_cfa_offset -28
-; CHECK32-NEXT:    jmp .LBB3_15 # encoding: [0xeb,A]
-; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_15-1, kind: FK_PCRel_1
+; CHECK32-NEXT:    jmp .LBB3_16 # encoding: [0xeb,A]
+; CHECK32-NEXT:    # fixup A - offset: 1, value: .LBB3_16-1, kind: FK_PCRel_1
 ;
 ; CHECK64-LABEL: pr31257:
 ; CHECK64:       # %bb.0: # %entry
@@ -396,7 +400,7 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; CHECK64-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
 ; CHECK64-NEXT:  # %bb.6: # %sw.bb
 ; CHECK64-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; CHECK64-NEXT:    cmpb $45, %dl # encoding: [0x80,0xfa,0x2d]
+; CHECK64-NEXT:    cmpl $45, %edx # encoding: [0x83,0xfa,0x2d]
 ; CHECK64-NEXT:    movl %r8d, %ecx # encoding: [0x44,0x89,0xc1]
 ; CHECK64-NEXT:    je .LBB3_11 # encoding: [0x74,A]
 ; CHECK64-NEXT:    # fixup A - offset: 1, value: .LBB3_11-1, kind: FK_PCRel_1
@@ -478,7 +482,7 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; WIN64-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
 ; WIN64-NEXT:  # %bb.6: # %sw.bb
 ; WIN64-NEXT:    # in Loop: Header=BB3_1 Depth=1
-; WIN64-NEXT:    cmpb $45, %r9b # encoding: [0x41,0x80,0xf9,0x2d]
+; WIN64-NEXT:    cmpl $45, %r9d # encoding: [0x41,0x83,0xf9,0x2d]
 ; WIN64-NEXT:    je .LBB3_10 # encoding: [0x74,A]
 ; WIN64-NEXT:    # fixup A - offset: 1, value: .LBB3_10-1, kind: FK_PCRel_1
 ; WIN64-NEXT:    jmp .LBB3_8 # encoding: [0xeb,A]
@@ -520,18 +524,16 @@ define zeroext i1 @pr31257(%"class.std::basic_string"* nocapture readonly derefe
 ; WIN64-NEXT:    # kill: def $al killed $al killed $eax
 ; WIN64-NEXT:    retq # encoding: [0xc3]
 entry:
-  %_M_p.i.i = getelementptr inbounds %"class.std::basic_string", %"class.std::basic_string"* %s, i64 0, i32 0, i32 0
-  %0 = load i8*, i8** %_M_p.i.i, align 8
-  %arrayidx.i.i.i54 = getelementptr inbounds i8, i8* %0, i64 -24
-  %_M_length.i.i55 = bitcast i8* %arrayidx.i.i.i54 to i64*
-  %1 = load i64, i64* %_M_length.i.i55, align 8
-  %add.ptr.i56 = getelementptr inbounds i8, i8* %0, i64 %1
+  %0 = load ptr, ptr %s, align 8
+  %arrayidx.i.i.i54 = getelementptr inbounds i8, ptr %0, i64 -24
+  %1 = load i64, ptr %arrayidx.i.i.i54, align 8
+  %add.ptr.i56 = getelementptr inbounds i8, ptr %0, i64 %1
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
-  %it.sroa.0.0 = phi i8* [ %0, %entry ], [ %incdec.ptr.i, %for.inc ]
+  %it.sroa.0.0 = phi ptr [ %0, %entry ], [ %incdec.ptr.i, %for.inc ]
   %state.0 = phi i32 [ 0, %entry ], [ %state.1, %for.inc ]
-  %cmp.i = icmp eq i8* %it.sroa.0.0, %add.ptr.i56
+  %cmp.i = icmp eq ptr %it.sroa.0.0, %add.ptr.i56
   br i1 %cmp.i, label %5, label %for.body
 
 for.body:                                         ; preds = %for.cond
@@ -542,7 +544,7 @@ for.body:                                         ; preds = %for.cond
   ]
 
 sw.bb:                                            ; preds = %for.body
-  %2 = load i8, i8* %it.sroa.0.0, align 1
+  %2 = load i8, ptr %it.sroa.0.0, align 1
   switch i8 %2, label %if.else [
     i8 43, label %for.inc
     i8 45, label %for.inc
@@ -555,14 +557,14 @@ if.else:                                          ; preds = %sw.bb
   br i1 %isdigit46, label %for.inc, label %cleanup.thread.loopexit
 
 sw.bb14:                                          ; preds = %for.body
-  %3 = load i8, i8* %it.sroa.0.0, align 1
+  %3 = load i8, ptr %it.sroa.0.0, align 1
   %conv16 = zext i8 %3 to i32
   %isdigittmp43 = add nsw i32 %conv16, -48
   %isdigit44 = icmp ult i32 %isdigittmp43, 10
   br i1 %isdigit44, label %for.inc, label %cleanup.thread.loopexit
 
 sw.bb22:                                          ; preds = %for.body
-  %4 = load i8, i8* %it.sroa.0.0, align 1
+  %4 = load i8, ptr %it.sroa.0.0, align 1
   %conv24 = zext i8 %4 to i32
   %isdigittmp = add nsw i32 %conv24, -48
   %isdigit = icmp ult i32 %isdigittmp, 10
@@ -572,12 +574,12 @@ sw.bb22:                                          ; preds = %for.body
 ; thinks the conditional tail call clobbers it.
 
 if.else28:                                        ; preds = %sw.bb22
-  %call34 = tail call zeroext i1 @_Z20isValidIntegerSuffixN9__gnu_cxx17__normal_iteratorIPKcSsEES3_(i8* nonnull %it.sroa.0.0, i8* %add.ptr.i56)
+  %call34 = tail call zeroext i1 @_Z20isValidIntegerSuffixN9__gnu_cxx17__normal_iteratorIPKcSsEES3_(ptr nonnull %it.sroa.0.0, ptr %add.ptr.i56)
   br label %cleanup.thread
 
 for.inc:                                          ; preds = %sw.bb, %sw.bb, %sw.bb22, %sw.bb14, %if.else, %for.body
   %state.1 = phi i32 [ %state.0, %for.body ], [ 1, %sw.bb ], [ 2, %if.else ], [ 2, %sw.bb14 ], [ 2, %sw.bb22 ], [ 1, %sw.bb ]
-  %incdec.ptr.i = getelementptr inbounds i8, i8* %it.sroa.0.0, i64 1
+  %incdec.ptr.i = getelementptr inbounds i8, ptr %it.sroa.0.0, i64 1
   br label %for.cond
 
 ; <label>:5:                                      ; preds = %for.cond

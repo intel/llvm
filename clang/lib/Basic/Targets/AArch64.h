@@ -30,7 +30,6 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
 
   unsigned FPU;
   bool HasCRC;
-  bool HasCrypto;
   bool HasAES;
   bool HasSHA2;
   bool HasSHA3;
@@ -54,7 +53,6 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasMatmulFP32;
   bool HasLSE;
   bool HasFlagM;
-  bool HasHBC;
   bool HasMOPS;
 
   llvm::AArch64::ArchKind ArchKind;
@@ -70,8 +68,9 @@ public:
   StringRef getABI() const override;
   bool setABI(const std::string &Name) override;
 
-  bool validateBranchProtection(StringRef, BranchProtectionInfo &,
-                                StringRef &) const override;
+  bool validateBranchProtection(StringRef Spec, StringRef Arch,
+                                BranchProtectionInfo &BPI,
+                                StringRef &Err) const override;
 
   bool isValidCPUName(StringRef Name) const override;
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;

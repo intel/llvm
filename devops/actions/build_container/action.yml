@@ -36,7 +36,7 @@ runs:
     with:
       push: ${{ inputs.push }}
       tags: ${{ inputs.tags }}
-      build-args: ${{ inputs.build_args }}
+      build-args: ${{ inputs.build-args }}
       context: ${{ github.workspace }}/devops
       file: ${{ github.workspace }}/devops/containers/${{ inputs.file }}.Dockerfile
 

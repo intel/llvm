@@ -72,12 +72,16 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[2] = {
+static sycl::unittest::PiImage Imgs[3] = {
     generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    // A device image without entires
+    generateDefaultImage({},
+                         PI_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
-static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+static sycl::unittest::PiImageArray<3> ImgArray{Imgs};
 
 TEST(KernelBundle, GetKernelBundleFromKernel) {
   sycl::platform Plt{sycl::default_selector()};
@@ -100,10 +104,8 @@ TEST(KernelBundle, GetKernelBundleFromKernel) {
   setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
-
-  sycl::queue Queue{Dev};
-
-  const sycl::context Ctx = Queue.get_context();
+  sycl::context Ctx{Dev};
+  sycl::queue Queue{Ctx, Dev};
 
   sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev});

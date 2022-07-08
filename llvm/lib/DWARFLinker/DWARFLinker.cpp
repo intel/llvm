@@ -10,7 +10,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/CodeGen/NonRelocatableStringpool.h"
 #include "llvm/DWARFLinker/DWARFLinkerDeclContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
@@ -19,9 +18,11 @@
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
+#include "llvm/DebugInfo/DWARF/DWARFExpression.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/DebugInfo/DWARF/DWARFSection.h"
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/Support/DataExtractor.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -132,9 +133,9 @@ static bool isTypeTag(uint16_t Tag) {
   return false;
 }
 
-AddressesMap::~AddressesMap() {}
+AddressesMap::~AddressesMap() = default;
 
-DwarfEmitter::~DwarfEmitter() {}
+DwarfEmitter::~DwarfEmitter() = default;
 
 static Optional<StringRef> StripTemplateParameters(StringRef Name) {
   // We are looking for template parameters to strip from Name. e.g.
@@ -439,8 +440,7 @@ unsigned DWARFLinker::shouldKeepVariableDIE(AddressesMap &RelocMgr,
   // if the variable has a valid relocation, so that the DIEInfo is filled.
   // However, we don't want a static variable in a function to force us to keep
   // the enclosing function, unless requested explicitly.
-  const bool HasLiveMemoryLocation =
-      RelocMgr.hasLiveMemoryLocation(DIE, MyInfo);
+  const bool HasLiveMemoryLocation = RelocMgr.isLiveVariable(DIE, MyInfo);
   if (!HasLiveMemoryLocation || ((Flags & TF_InFunctionScope) &&
                                  !LLVM_UNLIKELY(Options.KeepFunctionForStatic)))
     return Flags;
@@ -468,8 +468,8 @@ unsigned DWARFLinker::shouldKeepSubprogramDIE(
   if (!LowPc)
     return Flags;
 
-  assert(LowPc.hasValue() && "low_pc attribute is not an address.");
-  if (!RelocMgr.hasLiveAddressRange(DIE, MyInfo))
+  assert(LowPc && "low_pc attribute is not an address.");
+  if (!RelocMgr.isLiveSubprogram(DIE, MyInfo))
     return Flags;
 
   if (Options.Verbose) {
@@ -490,7 +490,7 @@ unsigned DWARFLinker::shouldKeepSubprogramDIE(
     // generation bugs aside, this is really wrong in the case of labels, where
     // a label marking the end of a function will have a PC == CU's high_pc.
     if (dwarf::toAddress(OrigUnit.getUnitDIE().find(dwarf::DW_AT_high_pc))
-            .getValueOr(UINT64_MAX) <= LowPc)
+            .value_or(UINT64_MAX) <= LowPc)
       return Flags;
     Unit.addLabelLowPc(*LowPc, MyInfo.AddrAdjust);
     return Flags | TF_Keep;
@@ -1384,8 +1384,7 @@ DIE *DWARFLinker::DIECloner::cloneDIE(const DWARFDie &InputDIE,
       DWARFDataExtractor(DIECopy, Data.isLittleEndian(), Data.getAddressSize());
 
   // Modify the copy with relocated addresses.
-  if (ObjFile.Addresses->areRelocationsResolved() &&
-      ObjFile.Addresses->applyValidRelocs(DIECopy, Offset,
+  if (ObjFile.Addresses->applyValidRelocs(DIECopy, Offset,
                                           Data.isLittleEndian())) {
     // If we applied relocations, we store the value of high_pc that was
     // potentially stored in the input DIE. If high_pc is an address
@@ -1481,12 +1480,12 @@ DIE *DWARFLinker::DIECloner::cloneDIE(const DWARFDie &InputDIE,
     uint32_t Hash = hashFullyQualifiedName(InputDIE, Unit, File);
     uint64_t RuntimeLang =
         dwarf::toUnsigned(InputDIE.find(dwarf::DW_AT_APPLE_runtime_class))
-            .getValueOr(0);
+            .value_or(0);
     bool ObjCClassIsImplementation =
         (RuntimeLang == dwarf::DW_LANG_ObjC ||
          RuntimeLang == dwarf::DW_LANG_ObjC_plus_plus) &&
         dwarf::toUnsigned(InputDIE.find(dwarf::DW_AT_APPLE_objc_complete_type))
-            .getValueOr(0);
+            .value_or(0);
     Unit.addTypeAccelerator(Die, AttrInfo.Name, ObjCClassIsImplementation,
                             Hash);
   }
@@ -1788,16 +1787,19 @@ void DWARFLinker::patchLineTableForUnit(CompileUnit &Unit,
 
 void DWARFLinker::emitAcceleratorEntriesForUnit(CompileUnit &Unit) {
   switch (Options.TheAccelTableKind) {
-  case AccelTableKind::Apple:
+  case DwarfLinkerAccelTableKind::None:
+    // Nothing to do.
+    break;
+  case DwarfLinkerAccelTableKind::Apple:
     emitAppleAcceleratorEntriesForUnit(Unit);
     break;
-  case AccelTableKind::Dwarf:
+  case DwarfLinkerAccelTableKind::Dwarf:
     emitDwarfAcceleratorEntriesForUnit(Unit);
     break;
-  case AccelTableKind::Pub:
+  case DwarfLinkerAccelTableKind::Pub:
     emitPubAcceleratorEntriesForUnit(Unit);
     break;
-  case AccelTableKind::Default:
+  case DwarfLinkerAccelTableKind::Default:
     llvm_unreachable("The default must be updated to a concrete value.");
     break;
   }
@@ -2216,7 +2218,7 @@ uint64_t DWARFLinker::DIECloner::cloneAllCompileUnits(
 }
 
 void DWARFLinker::updateAccelKind(DWARFContext &Dwarf) {
-  if (Options.TheAccelTableKind != AccelTableKind::Default)
+  if (Options.TheAccelTableKind != DwarfLinkerAccelTableKind::Default)
     return;
 
   auto &DwarfObj = Dwarf.getDWARFObj();
@@ -2342,11 +2344,11 @@ bool DWARFLinker::link() {
   // would affect the decision. However, as they're built with the same
   // compiler and flags, it is safe to assume that they will follow the
   // decision made here.
-  if (Options.TheAccelTableKind == AccelTableKind::Default) {
+  if (Options.TheAccelTableKind == DwarfLinkerAccelTableKind::Default) {
     if (AtLeastOneDwarfAccelTable && !AtLeastOneAppleAccelTable)
-      Options.TheAccelTableKind = AccelTableKind::Dwarf;
+      Options.TheAccelTableKind = DwarfLinkerAccelTableKind::Dwarf;
     else
-      Options.TheAccelTableKind = AccelTableKind::Apple;
+      Options.TheAccelTableKind = DwarfLinkerAccelTableKind::Apple;
   }
 
   for (LinkContext &OptContext : ObjectContexts) {
@@ -2362,6 +2364,10 @@ bool DWARFLinker::link() {
 
     if (!OptContext.File.Dwarf)
       continue;
+
+    if (Options.VerifyInputDWARF)
+      verify(OptContext.File);
+
     // Look for relocations that correspond to address map entries.
 
     // there was findvalidrelocations previously ... probably we need to gather
@@ -2521,19 +2527,22 @@ bool DWARFLinker::link() {
       TheDwarfEmitter->emitAbbrevs(Abbreviations, MaxDwarfVersion);
       TheDwarfEmitter->emitStrings(OffsetsStringPool);
       switch (Options.TheAccelTableKind) {
-      case AccelTableKind::Apple:
+      case DwarfLinkerAccelTableKind::None:
+        // Nothing to do.
+        break;
+      case DwarfLinkerAccelTableKind::Apple:
         TheDwarfEmitter->emitAppleNames(AppleNames);
         TheDwarfEmitter->emitAppleNamespaces(AppleNamespaces);
         TheDwarfEmitter->emitAppleTypes(AppleTypes);
         TheDwarfEmitter->emitAppleObjc(AppleObjc);
         break;
-      case AccelTableKind::Dwarf:
+      case DwarfLinkerAccelTableKind::Dwarf:
         TheDwarfEmitter->emitDebugNames(DebugNames);
         break;
-      case AccelTableKind::Pub:
+      case DwarfLinkerAccelTableKind::Pub:
         // Already emitted by emitPubAcceleratorEntriesForUnit.
         break;
-      case AccelTableKind::Default:
+      case DwarfLinkerAccelTableKind::Default:
         llvm_unreachable("Default should have already been resolved.");
         break;
       }
@@ -2628,6 +2637,17 @@ bool DWARFLinker::link() {
               "---------------\n\n";
   }
 
+  return true;
+}
+
+bool DWARFLinker::verify(const DWARFFile &File) {
+  assert(File.Dwarf);
+
+  DIDumpOptions DumpOpts;
+  if (!File.Dwarf->verify(llvm::outs(), DumpOpts.noImplicitRecursion())) {
+    reportWarning("input verification failed", File);
+    return false;
+  }
   return true;
 }
 

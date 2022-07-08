@@ -25,6 +25,13 @@ namespace sycl {
 namespace __sycl_std = __host_std;
 #endif
 
+#ifdef __FAST_MATH__
+#define __FAST_MATH_GENFLOAT(T)                                                \
+  (detail::is_genfloatd<T>::value || detail::is_genfloath<T>::value)
+#else
+#define __FAST_MATH_GENFLOAT(T) (detail::is_genfloat<T>::value)
+#endif
+
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/
 // genfloat acos (genfloat x)
 template <typename T>
@@ -114,7 +121,7 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> copysign(T x,
 
 // genfloat cos (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> cos(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> cos(T x) __NOEXC {
   return __sycl_std::__invoke_cos<T>(x);
 }
 
@@ -144,19 +151,19 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> erf(T x) __NOEXC {
 
 // genfloat exp (genfloat x )
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> exp(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp(T x) __NOEXC {
   return __sycl_std::__invoke_exp<T>(x);
 }
 
 // genfloat exp2 (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> exp2(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp2(T x) __NOEXC {
   return __sycl_std::__invoke_exp2<T>(x);
 }
 
 // genfloat exp10 (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> exp10(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> exp10(T x) __NOEXC {
   return __sycl_std::__invoke_exp10<T>(x);
 }
 
@@ -296,19 +303,19 @@ lgamma_r(T x, T2 signp) __NOEXC {
 
 // genfloat log (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> log(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log(T x) __NOEXC {
   return __sycl_std::__invoke_log<T>(x);
 }
 
 // genfloat log2 (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> log2(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log2(T x) __NOEXC {
   return __sycl_std::__invoke_log2<T>(x);
 }
 
 // genfloat log10 (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> log10(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> log10(T x) __NOEXC {
   return __sycl_std::__invoke_log10<T>(x);
 }
 
@@ -383,7 +390,7 @@ pown(T x, T2 y) __NOEXC {
 
 // genfloat powr (genfloat x, genfloat y)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> powr(T x, T y) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> powr(T x, T y) __NOEXC {
   return __sycl_std::__invoke_powr<T>(x, y);
 }
 
@@ -426,13 +433,13 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> round(T x) __NOEXC {
 
 // genfloat rsqrt (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> rsqrt(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> rsqrt(T x) __NOEXC {
   return __sycl_std::__invoke_rsqrt<T>(x);
 }
 
 // genfloat sin (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> sin(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sin(T x) __NOEXC {
   return __sycl_std::__invoke_sin<T>(x);
 }
 
@@ -459,13 +466,13 @@ detail::enable_if_t<detail::is_genfloat<T>::value, T> sinpi(T x) __NOEXC {
 
 // genfloat sqrt (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> sqrt(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sqrt(T x) __NOEXC {
   return __sycl_std::__invoke_sqrt<T>(x);
 }
 
 // genfloat tan (genfloat x)
 template <typename T>
-detail::enable_if_t<detail::is_genfloat<T>::value, T> tan(T x) __NOEXC {
+detail::enable_if_t<__FAST_MATH_GENFLOAT(T), T> tan(T x) __NOEXC {
   return __sycl_std::__invoke_tan<T>(x);
 }
 
@@ -744,7 +751,7 @@ sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T> ctz(
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
-  using namespace ext::intel;
+using namespace ext::intel;
 }
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)
@@ -1306,6 +1313,13 @@ detail::enable_if_t<detail::is_gentype<T>::value, T> bitselect(T a, T b,
   return __sycl_std::__invoke_bitselect<T>(a, b, c);
 }
 
+// sgentype select (sgentype a, sgentype b, bool c)
+template <typename T>
+detail::enable_if_t<detail::is_sgentype<T>::value, T> select(T a, T b,
+                                                             bool c) __NOEXC {
+  return __sycl_std::__invoke_select<T>(a, b, static_cast<int>(c));
+}
+
 // geninteger select (geninteger a, geninteger b, igeninteger c)
 template <typename T, typename T2>
 detail::enable_if_t<
@@ -1554,6 +1568,82 @@ detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
 }
 
 } // namespace half_precision
+
+#ifdef __FAST_MATH__
+/* ----------------- -ffast-math functions. ---------------------------------*/
+// genfloatf cos (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> cos(T x) __NOEXC {
+  return native::cos(x);
+}
+
+// genfloatf exp (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp(T x) __NOEXC {
+  return native::exp(x);
+}
+
+// genfloatf exp2 (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp2(T x) __NOEXC {
+  return native::exp2(x);
+}
+
+// genfloatf exp10 (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> exp10(T x) __NOEXC {
+  return native::exp10(x);
+}
+
+// genfloatf log(genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> log(T x) __NOEXC {
+  return native::log(x);
+}
+
+// genfloatf log2 (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> log2(T x) __NOEXC {
+  return native::log2(x);
+}
+
+// genfloatf log10 (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> log10(T x) __NOEXC {
+  return native::log10(x);
+}
+
+// genfloatf powr (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> powr(T x, T y) __NOEXC {
+  return native::powr(x, y);
+}
+
+// genfloatf rsqrt (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> rsqrt(T x) __NOEXC {
+  return native::rsqrt(x);
+}
+
+// genfloatf sin (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> sin(T x) __NOEXC {
+  return native::sin(x);
+}
+
+// genfloatf sqrt (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> sqrt(T x) __NOEXC {
+  return native::sqrt(x);
+}
+
+// genfloatf tan (genfloatf x)
+template <typename T>
+detail::enable_if_t<detail::is_genfloatf<T>::value, T> tan(T x) __NOEXC {
+  return native::tan(x);
+}
+
+#endif // __FAST_MATH__
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
@@ -1648,6 +1738,147 @@ extern SYCL_EXTERNAL double hypot(double x, double y);
 extern SYCL_EXTERNAL void *memcpy(void *dest, const void *src, size_t n);
 extern SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
 extern SYCL_EXTERNAL int memcmp(const void *s1, const void *s2, size_t n);
+extern SYCL_EXTERNAL unsigned int __imf_brev(unsigned int x);
+extern SYCL_EXTERNAL unsigned long long int
+__imf_brevll(unsigned long long int x);
+extern SYCL_EXTERNAL unsigned int
+__imf_byte_perm(unsigned int x, unsigned int y, unsigned int s);
+extern SYCL_EXTERNAL int __imf_ffs(int x);
+extern SYCL_EXTERNAL int __imf_ffsll(long long int x);
+extern SYCL_EXTERNAL int __imf_clz(int x);
+extern SYCL_EXTERNAL int __imf_clzll(long long int x);
+extern SYCL_EXTERNAL int __imf_popc(unsigned int x);
+extern SYCL_EXTERNAL int __imf_popcll(unsigned long long int x);
+extern SYCL_EXTERNAL unsigned int __imf_sad(int x, int y, unsigned int z);
+extern SYCL_EXTERNAL unsigned int __imf_usad(unsigned int x, unsigned int y,
+                                             unsigned int z);
+extern SYCL_EXTERNAL int __imf_rhadd(int x, int y);
+extern SYCL_EXTERNAL unsigned int __imf_urhadd(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL unsigned int __imf_uhadd(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL int __imf_mul24(int x, int y);
+extern SYCL_EXTERNAL unsigned int __imf_umul24(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL int __imf_mulhi(int x, int y);
+extern SYCL_EXTERNAL unsigned int __imf_umulhi(unsigned int x, unsigned int y);
+extern SYCL_EXTERNAL long long int __imf_mul64hi(long long int x,
+                                                 long long int y);
+extern SYCL_EXTERNAL unsigned long long int
+__imf_umul64hi(unsigned long long int x, unsigned long long int y);
+extern SYCL_EXTERNAL float __imf_saturatef(float x);
+extern SYCL_EXTERNAL float __imf_fmaf(float x, float y, float z);
+extern SYCL_EXTERNAL float __imf_fabsf(float x);
+extern SYCL_EXTERNAL float __imf_floorf(float x);
+extern SYCL_EXTERNAL float __imf_ceilf(float x);
+extern SYCL_EXTERNAL float __imf_truncf(float x);
+extern SYCL_EXTERNAL float __imf_rintf(float x);
+extern SYCL_EXTERNAL float __imf_nearbyintf(float x);
+extern SYCL_EXTERNAL float __imf_sqrtf(float x);
+extern SYCL_EXTERNAL float __imf_rsqrtf(float x);
+extern SYCL_EXTERNAL float __imf_invf(float x);
+extern SYCL_EXTERNAL float __imf_fmaxf(float x, float y);
+extern SYCL_EXTERNAL float __imf_fminf(float x, float y);
+extern SYCL_EXTERNAL float __imf_copysignf(float x, float y);
+extern SYCL_EXTERNAL int __imf_float2int_rd(float x);
+extern SYCL_EXTERNAL int __imf_float2int_rn(float x);
+extern SYCL_EXTERNAL int __imf_float2int_ru(float x);
+extern SYCL_EXTERNAL int __imf_float2int_rz(float x);
+extern SYCL_EXTERNAL unsigned int __imf_float2uint_rd(float x);
+extern SYCL_EXTERNAL unsigned int __imf_float2uint_rn(float x);
+extern SYCL_EXTERNAL unsigned int __imf_float2uint_ru(float x);
+extern SYCL_EXTERNAL unsigned int __imf_float2uint_rz(float x);
+extern SYCL_EXTERNAL long long int __imf_float2ll_rd(float x);
+extern SYCL_EXTERNAL long long int __imf_float2ll_rn(float x);
+extern SYCL_EXTERNAL long long int __imf_float2ll_ru(float x);
+extern SYCL_EXTERNAL long long int __imf_float2ll_rz(float x);
+extern SYCL_EXTERNAL unsigned long long int __imf_float2ull_rd(float x);
+extern SYCL_EXTERNAL unsigned long long int __imf_float2ull_rn(float x);
+extern SYCL_EXTERNAL unsigned long long int __imf_float2ull_ru(float x);
+extern SYCL_EXTERNAL unsigned long long int __imf_float2ull_rz(float x);
+extern SYCL_EXTERNAL int __imf_float_as_int(float x);
+extern SYCL_EXTERNAL unsigned int __imf_float_as_uint(float x);
+extern SYCL_EXTERNAL float __imf_int2float_rd(int x);
+extern SYCL_EXTERNAL float __imf_int2float_rn(int x);
+extern SYCL_EXTERNAL float __imf_int2float_ru(int x);
+extern SYCL_EXTERNAL float __imf_int2float_rz(int x);
+extern SYCL_EXTERNAL float __imf_int_as_float(int x);
+extern SYCL_EXTERNAL float __imf_ll2float_rd(long long int x);
+extern SYCL_EXTERNAL float __imf_ll2float_rn(long long int x);
+extern SYCL_EXTERNAL float __imf_ll2float_ru(long long int x);
+extern SYCL_EXTERNAL float __imf_ll2float_rz(long long int x);
+extern SYCL_EXTERNAL float __imf_uint2float_rd(unsigned int x);
+extern SYCL_EXTERNAL float __imf_uint2float_rn(unsigned int x);
+extern SYCL_EXTERNAL float __imf_uint2float_ru(unsigned int x);
+extern SYCL_EXTERNAL float __imf_uint2float_rz(unsigned int x);
+extern SYCL_EXTERNAL float __imf_uint_as_float(unsigned int x);
+extern SYCL_EXTERNAL float __imf_ull2float_rd(unsigned long long int x);
+extern SYCL_EXTERNAL float __imf_ull2float_rn(unsigned long long int x);
+extern SYCL_EXTERNAL float __imf_ull2float_ru(unsigned long long int x);
+extern SYCL_EXTERNAL float __imf_ull2float_rz(unsigned long long int x);
+
+extern SYCL_EXTERNAL _Float16 __imf_fmaf16(_Float16 x, _Float16 y, _Float16 z);
+extern SYCL_EXTERNAL _Float16 __imf_fabsf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_floorf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_ceilf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_truncf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_rintf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_nearbyintf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_sqrtf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_rsqrtf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_invf16(_Float16 x);
+extern SYCL_EXTERNAL _Float16 __imf_fmaxf16(_Float16 x, _Float16 y);
+extern SYCL_EXTERNAL _Float16 __imf_fminf16(_Float16 x, _Float16 y);
+extern SYCL_EXTERNAL _Float16 __imf_copysignf16(_Float16 x, _Float16 y);
+extern SYCL_EXTERNAL float __imf_half2float(_Float16 x);
+extern SYCL_EXTERNAL double __imf_fma(double x, double y, double z);
+extern SYCL_EXTERNAL double __imf_fabs(double x);
+extern SYCL_EXTERNAL double __imf_floor(double x);
+extern SYCL_EXTERNAL double __imf_ceil(double x);
+extern SYCL_EXTERNAL double __imf_trunc(double x);
+extern SYCL_EXTERNAL double __imf_rint(double x);
+extern SYCL_EXTERNAL double __imf_nearbyint(double x);
+extern SYCL_EXTERNAL double __imf_sqrt(double x);
+extern SYCL_EXTERNAL double __imf_rsqrt(double x);
+extern SYCL_EXTERNAL double __imf_inv(double x);
+extern SYCL_EXTERNAL double __imf_fmax(double x, double y);
+extern SYCL_EXTERNAL double __imf_fmin(double x, double y);
+extern SYCL_EXTERNAL double __imf_copysign(double x, double y);
+extern SYCL_EXTERNAL float __imf_double2float_rd(double x);
+extern SYCL_EXTERNAL float __imf_double2float_rn(double x);
+extern SYCL_EXTERNAL float __imf_double2float_ru(double x);
+extern SYCL_EXTERNAL float __imf_double2float_rz(double x);
+extern SYCL_EXTERNAL int __imf_double2hiint(double x);
+extern SYCL_EXTERNAL int __imf_double2loint(double x);
+extern SYCL_EXTERNAL int __imf_double2int_rd(double x);
+extern SYCL_EXTERNAL int __imf_double2int_rn(double x);
+extern SYCL_EXTERNAL int __imf_double2int_ru(double x);
+extern SYCL_EXTERNAL int __imf_double2int_rz(double x);
+extern SYCL_EXTERNAL double __imf_int2double_rn(int x);
+extern SYCL_EXTERNAL unsigned int __imf_double2uint_rd(double x);
+extern SYCL_EXTERNAL unsigned int __imf_double2uint_rn(double x);
+extern SYCL_EXTERNAL unsigned int __imf_double2uint_ru(double x);
+extern SYCL_EXTERNAL unsigned int __imf_double2uint_rz(double x);
+extern SYCL_EXTERNAL long long int __imf_double2ll_rd(double x);
+extern SYCL_EXTERNAL long long int __imf_double2ll_rn(double x);
+extern SYCL_EXTERNAL long long int __imf_double2ll_ru(double x);
+extern SYCL_EXTERNAL long long int __imf_double2ll_rz(double x);
+extern SYCL_EXTERNAL double __imf_ll2double_rd(long long int x);
+extern SYCL_EXTERNAL double __imf_ll2double_rn(long long int x);
+extern SYCL_EXTERNAL double __imf_ll2double_ru(long long int x);
+extern SYCL_EXTERNAL double __imf_ll2double_rz(long long int x);
+extern SYCL_EXTERNAL double __imf_ull2double_rd(unsigned long long int x);
+extern SYCL_EXTERNAL double __imf_ull2double_rn(unsigned long long int x);
+extern SYCL_EXTERNAL double __imf_ull2double_ru(unsigned long long int x);
+extern SYCL_EXTERNAL double __imf_ull2double_rz(unsigned long long int x);
+extern SYCL_EXTERNAL unsigned long long int __imf_double2ull_rd(double x);
+extern SYCL_EXTERNAL unsigned long long int __imf_double2ull_rn(double x);
+extern SYCL_EXTERNAL unsigned long long int __imf_double2ull_ru(double x);
+extern SYCL_EXTERNAL unsigned long long int __imf_double2ull_rz(double x);
+extern SYCL_EXTERNAL long long int __imf_double_as_longlong(double x);
+extern SYCL_EXTERNAL double __imf_longlong_as_double(long long int x);
+extern SYCL_EXTERNAL double __imf_uint2double_rd(unsigned int x);
+extern SYCL_EXTERNAL double __imf_uint2double_rn(unsigned int x);
+extern SYCL_EXTERNAL double __imf_uint2double_ru(unsigned int x);
+extern SYCL_EXTERNAL double __imf_uint2double_rz(unsigned int x);
+extern SYCL_EXTERNAL double __imf_hiloint2double(int hi, int lo);
 }
 #ifdef __GLIBC__
 extern "C" {

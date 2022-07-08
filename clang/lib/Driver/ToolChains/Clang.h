@@ -175,6 +175,19 @@ public:
                     const char *LinkingOutput) const override;
 };
 
+/// Offload binary tool.
+class LLVM_LIBRARY_VISIBILITY OffloadPackager final : public Tool {
+public:
+  OffloadPackager(const ToolChain &TC)
+      : Tool("Offload::Packager", "clang-offload-packager", TC) {}
+
+  bool hasIntegratedCPP() const override { return false; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
 /// Offload deps tool.
 class LLVM_LIBRARY_VISIBILITY OffloadDeps final : public Tool {
   void constructJob(Compilation &C, const JobAction &JA,
@@ -275,6 +288,21 @@ public:
 
   bool hasIntegratedCPP() const override { return false; }
   bool hasGoodDiagnostics() const override { return true; }
+  void ConstructJob(Compilation &C, const JobAction &JA,
+                    const InputInfo &Output, const InputInfoList &Inputs,
+                    const llvm::opt::ArgList &TCArgs,
+                    const char *LinkingOutput) const override;
+};
+
+/// Linker wrapper tool.
+class LLVM_LIBRARY_VISIBILITY LinkerWrapper final : public Tool {
+  const Tool *Linker;
+
+public:
+  LinkerWrapper(const ToolChain &TC, const Tool *Linker)
+      : Tool("Offload::Linker", "linker", TC), Linker(Linker) {}
+
+  bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,
                     const InputInfo &Output, const InputInfoList &Inputs,
                     const llvm::opt::ArgList &TCArgs,

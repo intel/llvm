@@ -13,6 +13,7 @@
 #include "bolt/Passes/FrameAnalysis.h"
 #include "bolt/Core/ParallelUtilities.h"
 #include "bolt/Passes/CallGraphWalker.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/Timer.h"
 #include <fstream>
 #include <stack>
@@ -34,12 +35,8 @@ static cl::opt<std::string> FrameOptFunctionNamesFile(
     "funcs-file-fop",
     cl::desc("file with list of functions to frame optimize"));
 
-static cl::opt<bool>
-TimeFA("time-fa",
-  cl::desc("time frame analysis steps"),
-  cl::ReallyHidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+static cl::opt<bool> TimeFA("time-fa", cl::desc("time frame analysis steps"),
+                            cl::ReallyHidden, cl::cat(BoltOptCategory));
 
 bool shouldFrameOptimize(const llvm::bolt::BinaryFunction &Function) {
   if (Function.hasUnknownControlFlow())

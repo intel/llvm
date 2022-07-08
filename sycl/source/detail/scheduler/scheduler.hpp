@@ -514,7 +514,8 @@ protected:
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<const void>> &);
 
     /// Replaces a failed command in the subgraph with an empty command and
     /// deletes the failed command.
@@ -547,7 +548,8 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<const void>> &);
 
     /// Removes the MemObjRecord for the memory object passed.
     void removeRecordForMemObj(SYCLMemObjI *MemObject);

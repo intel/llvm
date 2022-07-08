@@ -118,7 +118,7 @@ static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
   // Static code is suitable for use in a dynamic executable; there is no
   // separate DynamicNoPIC model.
-  if (!RM.hasValue() || *RM == Reloc::DynamicNoPIC)
+  if (!RM || *RM == Reloc::DynamicNoPIC)
     return Reloc::Static;
   return *RM;
 }
@@ -334,6 +334,6 @@ TargetPassConfig *SystemZTargetMachine::createPassConfig(PassManagerBase &PM) {
 }
 
 TargetTransformInfo
-SystemZTargetMachine::getTargetTransformInfo(const Function &F) {
+SystemZTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(SystemZTTIImpl(this, F));
 }

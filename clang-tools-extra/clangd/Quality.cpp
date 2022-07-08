@@ -8,22 +8,18 @@
 
 #include "Quality.h"
 #include "AST.h"
+#include "ASTSignals.h"
 #include "CompletionModel.h"
 #include "FileDistance.h"
 #include "SourceCode.h"
-#include "URI.h"
 #include "index/Symbol.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
-#include "clang/Basic/CharInfo.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -126,6 +122,7 @@ categorize(const index::SymbolInfo &D) {
   case index::SymbolKind::TypeAlias:
   case index::SymbolKind::TemplateTypeParm:
   case index::SymbolKind::TemplateTemplateParm:
+  case index::SymbolKind::Concept:
     return SymbolQualitySignals::Type;
   case index::SymbolKind::Function:
   case index::SymbolKind::ClassMethod:
@@ -381,7 +378,7 @@ wordMatching(llvm::StringRef Name, const llvm::StringSet<> *ContextWords) {
 SymbolRelevanceSignals::DerivedSignals
 SymbolRelevanceSignals::calculateDerivedSignals() const {
   DerivedSignals Derived;
-  Derived.NameMatchesContext = wordMatching(Name, ContextWords).hasValue();
+  Derived.NameMatchesContext = wordMatching(Name, ContextWords).has_value();
   Derived.FileProximityDistance = !FileProximityMatch || SymbolURI.empty()
                                       ? FileDistance::Unreachable
                                       : FileProximityMatch->distance(SymbolURI);
@@ -495,7 +492,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   if (S.ContextWords)
     OS << llvm::formatv(
         "\tMatching context word: {0}\n",
-        wordMatching(S.Name, S.ContextWords).getValueOr("<none>"));
+        wordMatching(S.Name, S.ContextWords).value_or("<none>"));
   OS << llvm::formatv("\tForbidden: {0}\n", S.Forbidden);
   OS << llvm::formatv("\tNeedsFixIts: {0}\n", S.NeedsFixIts);
   OS << llvm::formatv("\tIsInstanceMember: {0}\n", S.IsInstanceMember);

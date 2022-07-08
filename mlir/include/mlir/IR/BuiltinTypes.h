@@ -54,6 +54,9 @@ public:
   /// Return the bitwidth of this float type.
   unsigned getWidth();
 
+  /// Return the width of the mantissa of this type.
+  unsigned getFPMantissaWidth();
+
   /// Get or create a new FloatType with bitwidth scaled by `scale`.
   /// Return null if the scaled element type cannot be represented.
   FloatType scaleElementBitwidth(unsigned scale);
@@ -242,6 +245,16 @@ public:
     if (storage.empty())
       storage.append(shape.begin(), shape.end());
     storage.erase(storage.begin() + pos);
+    shape = {storage.data(), storage.size()};
+    return *this;
+  }
+
+  /// Insert a val into shape @pos.
+  Builder &insertDim(int64_t val, unsigned pos) {
+    assert(pos <= shape.size() && "overflow");
+    if (storage.empty())
+      storage.append(shape.begin(), shape.end());
+    storage.insert(storage.begin() + pos, val);
     shape = {storage.data(), storage.size()};
     return *this;
   }

@@ -36,7 +36,7 @@ void test_across_ranges() {
     buffer<int, 3> buf_3D(v3.data(), range_3D);
 
     myQueue.submit([&](handler &cgh) {
-      auto acc_1D = buf_1D.get_access<r_w>(cgh, {count}, {10});
+      auto acc_1D = buf_1D.get_access<r_w>(cgh, {2}, {10});
       auto acc_2D = buf_2D.get_access<r_w>(cgh, {2, 2}, {1, 1});
       auto acc_3D = buf_3D.get_access<r_w>(cgh, {2, 2, 2}, {1, 1, 1});
       cgh.single_task<class task>([=] {
@@ -54,7 +54,7 @@ void test_across_ranges() {
     });
     myQueue.wait();
     // now host access - we offset by one more than the device test
-    auto acc_1D = buf_1D.get_access<r_w>({count}, {11});
+    auto acc_1D = buf_1D.get_access<r_w>({2}, {11});
     auto acc_2D = buf_2D.get_access<r_w>({2, 2}, {1, 2});
     auto acc_3D = buf_3D.get_access<r_w>({2, 2, 2}, {1, 1, 2});
     acc_1D.get_pointer()[1] = 4; // s.b. offset 1

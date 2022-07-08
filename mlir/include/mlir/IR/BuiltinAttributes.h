@@ -193,13 +193,8 @@ public:
   ///   - For bitwidth = 1: Packed into 8bit bytes with bits corresponding to
   ///     the linear order of the shape type from MSB to LSB, padded to on the
   ///     right.
-  ///
-  /// If `isSplatBuffer` is true, then the raw buffer should contain a
-  /// single element (or for the case of 1-bit, a single byte of 0 or 255),
-  /// which will be used to construct a splat.
   static DenseElementsAttr getFromRawBuffer(ShapedType type,
-                                            ArrayRef<char> rawBuffer,
-                                            bool isSplatBuffer);
+                                            ArrayRef<char> rawBuffer);
 
   /// Returns true if the given buffer is a valid raw buffer for the given type.
   /// `detectedSplat` is set if the buffer is valid and represents a splat
@@ -654,6 +649,11 @@ public:
   /// attribute, but has been reshaped to 'newType'. The new type must have the
   /// same total number of elements as well as element type.
   DenseElementsAttr reshape(ShapedType newType);
+
+  /// Return a new DenseElementsAttr that has the same data as the current
+  /// attribute, but with a different shape for a splat type. The new type must
+  /// have the same element type.
+  DenseElementsAttr resizeSplat(ShapedType newType);
 
   /// Return a new DenseElementsAttr that has the same data as the current
   /// attribute, but has bitcast elements to 'newElType'. The new type must have

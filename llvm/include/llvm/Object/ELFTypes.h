@@ -699,7 +699,7 @@ private:
     }
   }
 
-  Elf_Note_Iterator_Impl() {}
+  Elf_Note_Iterator_Impl() = default;
   explicit Elf_Note_Iterator_Impl(Error &Err) : Err(&Err) {}
   Elf_Note_Iterator_Impl(const uint8_t *Start, size_t Size, Error &Err)
       : RemainingSize(Size), Err(&Err) {
@@ -812,8 +812,20 @@ struct BBAddrMap {
         : Offset(Offset), Size(Size), HasReturn(Metadata & 1),
           HasTailCall(Metadata & (1 << 1)), IsEHPad(Metadata & (1 << 2)),
           CanFallThrough(Metadata & (1 << 3)){};
+
+    bool operator==(const BBEntry &Other) const {
+      return Offset == Other.Offset && Size == Other.Size &&
+             HasReturn == Other.HasReturn && HasTailCall == Other.HasTailCall &&
+             IsEHPad == Other.IsEHPad && CanFallThrough == Other.CanFallThrough;
+    }
   };
   std::vector<BBEntry> BBEntries; // Basic block entries for this function.
+
+  // Equality operator for unit testing.
+  bool operator==(const BBAddrMap &Other) const {
+    return Addr == Other.Addr && std::equal(BBEntries.begin(), BBEntries.end(),
+                                            Other.BBEntries.begin());
+  }
 };
 
 } // end namespace object.

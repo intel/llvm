@@ -30,6 +30,8 @@ configure_file(config.h.cmake config.h)
 # with different names
 include_directories(AFTER ${CMAKE_CURRENT_BINARY_DIR})
 
+add_subdirectory(FortranMain)
+
 add_flang_library(FortranRuntime
   ISO_Fortran_binding.cpp
   allocatable.cpp
@@ -53,6 +55,7 @@ add_flang_library(FortranRuntime
   file.cpp
   findloc.cpp
   format.cpp
+  inquiry.cpp
   internal-unit.cpp
   iostat.cpp
   io-api.cpp
@@ -81,6 +84,7 @@ add_flang_library(FortranRuntime
   type-info.cpp
   unit.cpp
   unit-map.cpp
+  utf.cpp
 
   LINK_LIBS
   FortranDecimal

@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -DUSE_64 -triple x86_64-unknown-unknown -target-feature +fxsr -target-feature +avx -target-feature +xsaveopt -target-feature +xsaves -target-feature +xsavec -target-feature +mwaitx -target-feature +clzero -target-feature +shstk -target-feature +wbnoinvd -target-feature +cldemote -emit-llvm -o %t %s
-// RUN: %clang_cc1 -DUSE_ALL -triple x86_64-unknown-unknown -target-feature +fxsr -target-feature +avx -target-feature +xsaveopt -target-feature +xsaves -target-feature +xsavec -target-feature +mwaitx -target-feature +shstk -target-feature +clzero -target-feature +wbnoinvd -target-feature +cldemote -fsyntax-only -o %t %s
+// RUN: %clang_cc1 -DUSE_64 -triple x86_64-unknown-unknown -target-feature +fxsr -target-feature +avx -target-feature +xsaveopt -target-feature +xsaves -target-feature +xsavec -target-feature +mwaitx -target-feature +clzero -target-feature +shstk -target-feature +wbnoinvd -target-feature +cldemote -Wno-implicit-function-declaration -emit-llvm -o %t %s
+// RUN: %clang_cc1 -DUSE_ALL -triple x86_64-unknown-unknown -target-feature +fxsr -target-feature +avx -target-feature +xsaveopt -target-feature +xsaves -target-feature +xsavec -target-feature +mwaitx -target-feature +shstk -target-feature +clzero -target-feature +wbnoinvd -target-feature +cldemote -Wno-implicit-function-declaration -fsyntax-only -o %t %s
 // RUN: %clang_cc1 -DUSE_64 -DOPENCL -x cl -cl-std=CL2.0 -triple x86_64-unknown-unknown -target-feature +fxsr -target-feature +avx -target-feature +xsaveopt -target-feature +xsaves -target-feature +xsavec -target-feature +mwaitx -target-feature +clzero -target-feature +shstk -target-feature +wbnoinvd -target-feature +cldemote -emit-llvm -o %t %s
 
 #ifdef USE_ALL
@@ -45,7 +45,7 @@ typedef signed long V4LLi __attribute__((vector_size(32)));
 typedef double V4d __attribute__((vector_size(32)));
 typedef float  V8f __attribute__((vector_size(32)));
 
-void f0() {
+void f0(void) {
   signed char         tmp_c;
 //  unsigned char       tmp_Uc;
   signed short        tmp_s;
@@ -212,14 +212,6 @@ void f0() {
   tmp_V2d = __builtin_ia32_maxpd(tmp_V2d, tmp_V2d);
   tmp_V2d = __builtin_ia32_minsd(tmp_V2d, tmp_V2d);
   tmp_V2d = __builtin_ia32_maxsd(tmp_V2d, tmp_V2d);
-  tmp_V16c = __builtin_ia32_paddsb128(tmp_V16c, tmp_V16c);
-  tmp_V8s = __builtin_ia32_paddsw128(tmp_V8s, tmp_V8s);
-  tmp_V16c = __builtin_ia32_psubsb128(tmp_V16c, tmp_V16c);
-  tmp_V8s = __builtin_ia32_psubsw128(tmp_V8s, tmp_V8s);
-  tmp_V16c = __builtin_ia32_paddusb128(tmp_V16c, tmp_V16c);
-  tmp_V8s = __builtin_ia32_paddusw128(tmp_V8s, tmp_V8s);
-  tmp_V16c = __builtin_ia32_psubusb128(tmp_V16c, tmp_V16c);
-  tmp_V8s = __builtin_ia32_psubusw128(tmp_V8s, tmp_V8s);
   tmp_V8s = __builtin_ia32_pmulhw128(tmp_V8s, tmp_V8s);
   tmp_V16c = __builtin_ia32_packsswb128(tmp_V8s, tmp_V8s);
   tmp_V8s = __builtin_ia32_packssdw128(tmp_V4i, tmp_V4i);

@@ -1,6 +1,6 @@
 // RUN: mlir-opt %s -test-vector-transfer-flatten-patterns -split-input-file | FileCheck %s
 
-func @transfer_read_flattenable_with_offset(
+func.func @transfer_read_flattenable_with_offset(
       %arg : memref<5x4x3x2xi8, offset:?, strides:[24, 6, 2, 1]>) -> vector<5x4x3x2xi8> {
     %c0 = arith.constant 0 : index
     %cst = arith.constant 0 : i8
@@ -18,7 +18,7 @@ func @transfer_read_flattenable_with_offset(
 
 // -----
 
-func @transfer_write_flattenable_with_offset(
+func.func @transfer_write_flattenable_with_offset(
       %arg : memref<5x4x3x2xi8, offset:?, strides:[24, 6, 2, 1]>, %vec : vector<5x4x3x2xi8>) {
     %c0 = arith.constant 0 : index
     vector.transfer_write %vec, %arg [%c0, %c0, %c0, %c0] : 
@@ -33,3 +33,29 @@ func @transfer_write_flattenable_with_offset(
 // C-HECK-DAG:     %[[VEC1D:.+]] = vector.shape_cast %[[VEC]] : vector<5x4x3x2xi8> to vector<120xi8>
 // C-HECK:         vector.transfer_write %[[VEC1D]], %[[COLLAPSED]]
 
+// -----
+
+func.func @transfer_write_0d(%arg : memref<i8>, %vec : vector<i8>) {
+      vector.transfer_write %vec, %arg[] : vector<i8>, memref<i8>
+      return
+}
+
+// CHECK-LABEL: func @transfer_write_0d
+// CHECK-SAME:       %[[ARG:.+]]: memref<i8>
+// CHECK-SAME:       %[[VEC:.+]]: vector<i8>
+// CHECK:          vector.transfer_write %[[VEC]], %[[ARG]][] : vector<i8>, memref<i8>
+// CHECK:          return
+
+// -----
+
+func.func @transfer_read_0d(%arg : memref<i8>) -> vector<i8> {
+      %cst = arith.constant 0 : i8
+      %0 = vector.transfer_read %arg[], %cst : memref<i8>, vector<i8>
+      return %0 : vector<i8>
+}
+
+// CHECK-LABEL: func @transfer_read_0d
+// CHECK-SAME:       %[[ARG:.+]]: memref<i8>
+// CHECK:            %[[CST:.+]] = arith.constant 0 : i8
+// CHECK:            %[[READ:.+]] = vector.transfer_read %[[ARG]][], %[[CST]] : memref<i8>
+// CHECK:            return %[[READ]]
