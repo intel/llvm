@@ -26,6 +26,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "loongarch-isel-lowering"
 
+static cl::opt<bool> ZeroDivCheck(
+    "loongarch-check-zero-division", cl::Hidden,
+    cl::desc("Trap on integer division by zero."),
+    cl::init(false));
+
 LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
                                                  const LoongArchSubtarget &STI)
     : TargetLowering(TM), Subtarget(STI) {
@@ -46,7 +51,7 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SRA_PARTS, GRLenVT, Custom);
   setOperationAction(ISD::SRL_PARTS, GRLenVT, Custom);
 
-  setOperationAction(ISD::GlobalAddress, GRLenVT, Custom);
+  setOperationAction({ISD::GlobalAddress, ISD::ConstantPool}, GRLenVT, Custom);
 
   if (Subtarget.is64Bit()) {
     setOperationAction(ISD::SHL, MVT::i32, Custom);
@@ -64,11 +69,16 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
   if (Subtarget.hasBasicD()) {
     setCondCodeAction(FPCCToExpand, MVT::f64, Expand);
     setOperationAction(ISD::SELECT_CC, MVT::f64, Expand);
+    setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
   }
 
   setOperationAction(ISD::BR_CC, GRLenVT, Expand);
   setOperationAction(ISD::SELECT_CC, GRLenVT, Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
+  setOperationAction({ISD::SMUL_LOHI, ISD::UMUL_LOHI}, GRLenVT, Expand);
+
+  if (!Subtarget.is64Bit())
+    setLibcallName(RTLIB::MUL_I128, nullptr);
 
   // Compute derived properties from the register classes.
   computeRegisterProperties(STI.getRegisterInfo());
@@ -105,7 +115,31 @@ SDValue LoongArchTargetLowering::LowerOperation(SDValue Op,
     assert(Op.getOperand(1).getValueType() == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     return SDValue();
+  case ISD::ConstantPool:
+    return lowerConstantPool(Op, DAG);
   }
+}
+
+SDValue LoongArchTargetLowering::lowerConstantPool(SDValue Op,
+                                                   SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT Ty = Op.getValueType();
+  ConstantPoolSDNode *N = cast<ConstantPoolSDNode>(Op);
+
+  // FIXME: Only support PC-relative addressing to access the symbol.
+  // Target flags will be added later.
+  if (!isPositionIndependent()) {
+    SDValue ConstantN = DAG.getTargetConstantPool(
+        N->getConstVal(), Ty, N->getAlign(), N->getOffset());
+    SDValue AddrHi(DAG.getMachineNode(LoongArch::PCALAU12I, DL, Ty, ConstantN),
+                   0);
+    SDValue Addr(DAG.getMachineNode(Subtarget.is64Bit() ? LoongArch::ADDI_D
+                                                        : LoongArch::ADDI_W,
+                                    DL, Ty, AddrHi, ConstantN),
+                 0);
+    return Addr;
+  }
+  report_fatal_error("Unable to lower ConstantPool");
 }
 
 SDValue LoongArchTargetLowering::lowerGlobalAddress(SDValue Op,
@@ -384,6 +418,54 @@ SDValue LoongArchTargetLowering::PerformDAGCombine(SDNode *N,
     return performSRLCombine(N, DAG, DCI, Subtarget);
   }
   return SDValue();
+}
+
+static MachineBasicBlock *insertDivByZeroTrap(MachineInstr &MI,
+                                              MachineBasicBlock &MBB,
+                                              const TargetInstrInfo &TII) {
+  if (!ZeroDivCheck)
+    return &MBB;
+
+  // Build instructions:
+  //   div(or mod)   $dst, $dividend, $divisor
+  //   bnez          $divisor, 8
+  //   break         7
+  //   fallthrough
+  MachineOperand &Divisor = MI.getOperand(2);
+  auto FallThrough = std::next(MI.getIterator());
+
+  BuildMI(MBB, FallThrough, MI.getDebugLoc(), TII.get(LoongArch::BNEZ))
+      .addReg(Divisor.getReg(), getKillRegState(Divisor.isKill()))
+      .addImm(8);
+
+  // See linux header file arch/loongarch/include/uapi/asm/break.h for the
+  // definition of BRK_DIVZERO.
+  BuildMI(MBB, FallThrough, MI.getDebugLoc(), TII.get(LoongArch::BREAK))
+      .addImm(7/*BRK_DIVZERO*/);
+
+  // Clear Divisor's kill flag.
+  Divisor.setIsKill(false);
+
+  return &MBB;
+}
+
+MachineBasicBlock *LoongArchTargetLowering::EmitInstrWithCustomInserter(
+    MachineInstr &MI, MachineBasicBlock *BB) const {
+
+  switch (MI.getOpcode()) {
+  default:
+    llvm_unreachable("Unexpected instr type to insert");
+  case LoongArch::DIV_W:
+  case LoongArch::DIV_WU:
+  case LoongArch::MOD_W:
+  case LoongArch::MOD_WU:
+  case LoongArch::DIV_D:
+  case LoongArch::DIV_DU:
+  case LoongArch::MOD_D:
+  case LoongArch::MOD_DU:
+    return insertDivByZeroTrap(MI, *BB, *Subtarget.getInstrInfo());
+    break;
+  }
 }
 
 const char *LoongArchTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -682,4 +764,15 @@ SDValue LoongArchTargetLowering::LowerReturn(
     RetOps.push_back(Glue);
 
   return DAG.getNode(LoongArchISD::RET, DL, MVT::Other, RetOps);
+}
+
+bool LoongArchTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT,
+                                           bool ForCodeSize) const {
+  assert((VT == MVT::f32 || VT == MVT::f64) && "Unexpected VT");
+
+  if (VT == MVT::f32 && !Subtarget.hasBasicF())
+    return false;
+  if (VT == MVT::f64 && !Subtarget.hasBasicD())
+    return false;
+  return (Imm.isZero() || Imm.isExactlyValue(+1.0));
 }

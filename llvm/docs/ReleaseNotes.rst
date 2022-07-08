@@ -72,6 +72,13 @@ Changes to the LLVM IR
   removed:
   * ``extractvalue``
   * ``insertvalue``
+  * ``udiv``
+  * ``sdiv``
+  * ``urem``
+  * ``srem``
+* Added the support for ``fmax`` and ``fmin`` in ``atomicrmw`` instruction. The
+  comparison is expected to match the behavior of ``llvm.maxnum.*`` and
+  ``llvm.minnum.*`` respectively.
 
 Changes to building LLVM
 ------------------------
@@ -112,6 +119,8 @@ Changes to the ARM Backend
 * Implemented generation of Windows SEH unwind information.
 * Switched the MinGW target to use SEH instead of DWARF for unwind information.
 * Added support for the Cortex-M85 CPU.
+* Added support for a new -mframe-chain=(none|aapcs|aapcs+leaf) command-line
+  option, which controls the generation of AAPCS-compliant Frame Records.
 
 Changes to the AVR Backend
 --------------------------
@@ -157,6 +166,7 @@ Changes to the X86 Backend
 --------------------------
 
 * Support ``half`` type on SSE2 and above targets.
+* Support ``rdpru`` instruction on Zen2 and above targets.
 
 Changes to the OCaml bindings
 -----------------------------
@@ -182,6 +192,15 @@ Changes to the C API
   constant fold the operands if possible and create an instruction otherwise:
   * ``LLVMConstExtractValue``
   * ``LLVMConstInsertValue``
+  * ``LLVMConstUDiv``
+  * ``LLVMConstExactUDiv``
+  * ``LLVMConstSDiv``
+  * ``LLVMConstExactSDiv``
+  * ``LLVMConstURem``
+  * ``LLVMConstSRem``
+
+* Add ``LLVMDeleteInstruction`` function which allows deleting instructions that
+  are not inserted into a basic block.
 
 Changes to the Go bindings
 --------------------------
