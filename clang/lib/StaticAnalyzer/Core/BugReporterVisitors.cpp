@@ -258,7 +258,7 @@ static bool isVarAnInterestingCondition(const Expr *CondVarExpr,
 static bool isInterestingExpr(const Expr *E, const ExplodedNode *N,
                               const PathSensitiveBugReport *B) {
   if (Optional<SVal> V = getSValForVar(E, N))
-    return B->getInterestingnessKind(*V).hasValue();
+    return B->getInterestingnessKind(*V).has_value();
   return false;
 }
 
@@ -525,11 +525,6 @@ public:
     static int Tag = 0;
     ID.AddPointer(&Tag);
     ID.AddPointer(RegionOfInterest);
-  }
-
-  void *getTag() const {
-    static int Tag = 0;
-    return static_cast<void *>(&Tag);
   }
 
 private:
@@ -919,7 +914,7 @@ public:
         const SVal V) {
     AnalyzerOptions &Options = N->getState()->getAnalysisManager().options;
     if (EnableNullFPSuppression && Options.ShouldSuppressNullReturnPaths &&
-        V.getAs<Loc>())
+        isa<Loc>(V))
       BR.addVisitor<MacroNullReturnSuppressionVisitor>(R->getAs<SubRegion>(),
                                                        V);
   }
@@ -1035,14 +1030,13 @@ public:
     if (RetE->isGLValue()) {
       if ((LValue = V.getAs<Loc>())) {
         SVal RValue = State->getRawSVal(*LValue, RetE->getType());
-        if (RValue.getAs<DefinedSVal>())
+        if (isa<DefinedSVal>(RValue))
           V = RValue;
       }
     }
 
     // Ignore aggregate rvalues.
-    if (V.getAs<nonloc::LazyCompoundVal>() ||
-        V.getAs<nonloc::CompoundVal>())
+    if (isa<nonloc::LazyCompoundVal, nonloc::CompoundVal>(V))
       return nullptr;
 
     RetE = RetE->IgnoreParenCasts();
@@ -1057,7 +1051,7 @@ public:
     bool WouldEventBeMeaningless = false;
 
     if (State->isNull(V).isConstrainedTrue()) {
-      if (V.getAs<Loc>()) {
+      if (isa<Loc>(V)) {
 
         // If we have counter-suppression enabled, make sure we keep visiting
         // future nodes. We want to emit a path note as well, in case
@@ -1087,10 +1081,7 @@ public:
         if (N->getCFG().size() == 3)
           WouldEventBeMeaningless = true;
 
-        if (V.getAs<Loc>())
-          Out << "Returning pointer";
-        else
-          Out << "Returning value";
+        Out << (isa<Loc>(V) ? "Returning pointer" : "Returning value");
       }
     }
 
@@ -1313,7 +1304,7 @@ static void showBRDiagnostics(llvm::raw_svector_ostream &OS, StoreInfo SI) {
     llvm_unreachable("Unexpected store kind");
   }
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
+  if (isa<loc::ConcreteInt>(SI.Value)) {
     OS << Action << (isObjCPointer(SI.Dest) ? "nil" : "a null pointer value");
 
   } else if (auto CVal = SI.Value.getAs<nonloc::ConcreteInt>()) {
@@ -1356,7 +1347,7 @@ static void showBRParamDiagnostics(llvm::raw_svector_ostream &OS,
 
   OS << "Passing ";
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
+  if (isa<loc::ConcreteInt>(SI.Value)) {
     OS << (isObjCPointer(Param) ? "nil object reference"
                                 : "null pointer value");
 
@@ -1387,7 +1378,7 @@ static void showBRDefaultDiagnostics(llvm::raw_svector_ostream &OS,
                                      StoreInfo SI) {
   const bool HasSuffix = SI.Dest->canPrintPretty();
 
-  if (SI.Value.getAs<loc::ConcreteInt>()) {
+  if (isa<loc::ConcreteInt>(SI.Value)) {
     OS << (isObjCPointer(SI.Dest) ? "nil object reference stored"
                                   : (HasSuffix ? "Null pointer value stored"
                                                : "Storing null pointer value"));
@@ -1685,7 +1676,7 @@ PathDiagnosticPieceRef TrackConstraintBRVisitor::VisitNode(
     SmallString<64> sbuf;
     llvm::raw_svector_ostream os(sbuf);
 
-    if (Constraint.getAs<Loc>()) {
+    if (isa<Loc>(Constraint)) {
       os << "Assuming pointer value is ";
       os << (Assumption ? "non-null" : "null");
     }
@@ -2364,7 +2355,7 @@ public:
       // well. Try to use the correct type when looking up the value.
       SVal RVal;
       if (ExplodedGraph::isInterestingLValueExpr(Inner))
-        RVal = LVState->getRawSVal(L.getValue(), Inner->getType());
+        RVal = LVState->getRawSVal(*L, Inner->getType());
       else if (CanDereference)
         RVal = LVState->getSVal(L->getRegion());
 
@@ -3086,7 +3077,7 @@ bool ConditionBRVisitor::printValue(const Expr *CondVarExpr, raw_ostream &Out,
   if (!IsAssuming)
     IntValue = getConcreteIntegerValue(CondVarExpr, N);
 
-  if (IsAssuming || !IntValue.hasValue()) {
+  if (IsAssuming || !IntValue) {
     if (Ty->isBooleanType())
       Out << (TookTrue ? "true" : "false");
     else

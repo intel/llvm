@@ -507,7 +507,7 @@ def TaskOp : OpenMP_Op<"task", [AttrSizedOperandSegments,
     default priority-value when no priority clause is specified should be
     assumed to be zero (the lowest priority).
 
-    The `allocators_vars` and `allocate_vars` parameters are a variadic list of
+    The `allocators_vars` and `allocate_vars` arguments are a variadic list of
     values that specify the memory allocator to be used to obtain storage for
     private values.
 
@@ -548,6 +548,62 @@ def TaskOp : OpenMP_Op<"task", [AttrSizedOperandSegments,
   let hasVerifier = 1;
 }
 
+def TaskGroupOp : OpenMP_Op<"taskgroup", [AttrSizedOperandSegments,
+                            ReductionClauseInterface,
+                            AutomaticAllocationScope]> {
+  let summary = "taskgroup construct";
+  let description = [{
+    The taskgroup construct specifies a wait on completion of child tasks of the
+    current task and their descendent tasks.
+
+    When a thread encounters a taskgroup construct, it starts executing the
+    region. All child tasks generated in the taskgroup region and all of their
+    descendants that bind to the same parallel region as the taskgroup region
+    are part of the taskgroup set associated with the taskgroup region. There is
+    an implicit task scheduling point at the end of the taskgroup region. The
+    current task is suspended at the task scheduling point until all tasks in
+    the taskgroup set complete execution.
+
+    The `task_reduction` clause specifies a reduction among tasks. For each list
+    item, the number of copies is unspecified. Any copies associated with the
+    reduction are initialized before they are accessed by the tasks
+    participating in the reduction. After the end of the region, the original
+    list item contains the result of the reduction.
+
+    The `allocators_vars` and `allocate_vars` arguments are a variadic list of
+    values that specify the memory allocator to be used to obtain storage for
+    private values.
+  }];
+
+  let arguments = (ins Variadic<OpenMP_PointerLikeType>:$task_reduction_vars,
+                       OptionalAttr<SymbolRefArrayAttr>:$task_reductions,
+                       Variadic<AnyType>:$allocate_vars,
+                       Variadic<AnyType>:$allocators_vars);
+
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+    oilist(`task_reduction` `(`
+              custom<ReductionVarList>(
+                $task_reduction_vars, type($task_reduction_vars), $task_reductions
+              ) `)`
+          |`allocate` `(`
+              custom<AllocateAndAllocator>(
+                $allocate_vars, type($allocate_vars),
+                $allocators_vars, type($allocators_vars)
+              ) `)`
+    ) $region attr-dict
+  }];
+
+  let extraClassDeclaration = [{
+    /// Returns the reduction variables
+    operand_range getReductionVars() { return task_reduction_vars(); }
+  }];
+
+  let hasVerifier = 1;
+
+}
+
 //===----------------------------------------------------------------------===//
 // 2.10.4 taskyield Construct
 //===----------------------------------------------------------------------===//
@@ -574,9 +630,19 @@ def FlushOp : OpenMP_Op<"flush"> {
     specified or implied.
   }];
 
-  let arguments = (ins Variadic<AnyType>:$varList);
+  let arguments = (ins Variadic<OpenMP_PointerLikeType>:$varList);
 
   let assemblyFormat = [{ ( `(` $varList^ `:` type($varList) `)` )? attr-dict}];
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      return getOperation()->getNumOperands();
+    }
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      return getOperand(i);
+    }
+  }];
 }
 //===----------------------------------------------------------------------===//
 // 2.14.5 target construct
@@ -813,6 +879,20 @@ def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>]> {
     `:` type($x) attr-dict
   }];
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      assert(x() && "expected 'x' operand");
+      assert(v() && "expected 'v' operand");
+      return 2;
+    }
+
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      assert(i < 2 && "invalid index position for an operand");
+      return i == 0 ? x() : v();
+    }
+  }];
 }
 
 def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
@@ -847,6 +927,20 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
     attr-dict
   }];
   let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      assert(address() && "expected address operand");
+      assert(value() && "expected value operand");
+      return 2;
+    }
+
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      assert(i < 2 && "invalid index position for an operand");
+      return i == 0 ? address() : value();
+    }
+  }];
 }
 
 def AtomicUpdateOp : OpenMP_Op<"atomic.update",
@@ -995,6 +1089,19 @@ def ThreadprivateOp : OpenMP_Op<"threadprivate"> {
   let results = (outs OpenMP_PointerLikeType:$tls_addr);
   let assemblyFormat = [{
     $sym_addr `:` type($sym_addr) `->` type($tls_addr) attr-dict
+  }];
+  let extraClassDeclaration = [{
+    /// The number of variable operands.
+    unsigned getNumVariableOperands() {
+      assert(sym_addr() && "expected one variable operand");
+      return 1;
+    }
+
+    /// The i-th variable operand passed.
+    Value getVariableOperand(unsigned i) {
+      assert(i == 0 && "invalid index position for an operand");
+      return sym_addr();
+    }
   }];
 }
 

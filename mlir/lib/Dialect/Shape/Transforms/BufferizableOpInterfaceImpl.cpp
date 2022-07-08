@@ -59,14 +59,15 @@ struct AssumingOpInterface
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     auto assumingOp = cast<shape::AssumingOp>(op);
 
     // Compute new result types.
     SmallVector<Type> newResultTypes;
     for (Type type : assumingOp->getResultTypes()) {
       if (auto tensorType = type.dyn_cast<TensorType>()) {
-        newResultTypes.push_back(getMemRefType(tensorType, state.getOptions()));
+        // TODO: Infer the result type instead of computing it.
+        newResultTypes.push_back(getMemRefType(tensorType, options));
       } else {
         newResultTypes.push_back(type);
       }
@@ -118,18 +119,13 @@ struct AssumingOpInterface
                                 const AnalysisState &state) const {
     return BufferRelation::Equivalent;
   }
-
-  bool isAllocationHoistingBarrier(Operation *op) const {
-    // Allocations should not be hoisted out of AssumingOps.
-    return true;
-  }
 };
 
 /// Bufferization of shape.assuming_yield. Bufferized as part of their enclosing
 /// ops, so this is for analysis only.
 struct AssumingYieldOpInterface
     : public BufferizableOpInterface::ExternalModel<AssumingYieldOpInterface,
-                                                    shape::AssumingOp> {
+                                                    shape::AssumingYieldOp> {
   bool bufferizesToMemoryRead(Operation *op, OpOperand &opOperand,
                               const AnalysisState &state) const {
     return true;
@@ -156,7 +152,7 @@ struct AssumingYieldOpInterface
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     // Op is bufferized as part of AssumingOp.
     return failure();
   }

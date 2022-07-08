@@ -224,7 +224,7 @@ func.func @tensor_cast_to_memref(%arg0 : tensor<4x6x16x32xi8>) ->
   return %1 : memref<?x?x16x32xi8>
 }
 // CHECK:   %[[M:.+]] = bufferization.to_memref %[[ARG0]] : memref<4x6x16x32xi8>
-// CHECK:   %[[M1:.+]] = memref.cast %[[M]] 
+// CHECK:   %[[M1:.+]] = memref.cast %[[M]]
 // CHECK-SAME: memref<4x6x16x32xi8> to memref<?x?x16x32xi8>
 // CHECK:   return %[[M1]] : memref<?x?x16x32xi8>
 
@@ -243,3 +243,16 @@ func.func @load_from_buffer_cast(%arg0: index, %arg1: index,
 //       CHECK: %[[RES:.*]] = tensor.extract %[[TENSOR]][%[[IDX0]], %[[IDX1]]]
 //   CHECK-NOT: memref.load
 //       CHECK: return %[[RES]] : f32
+
+
+// -----
+
+func.func @alloc_tensor_canonicalize() -> (tensor<4x5x?xf32>) {
+  %c6 = arith.constant 6 : index
+  %0 = bufferization.alloc_tensor(%c6) : tensor<4x5x?xf32>
+  return %0 : tensor<4x5x?xf32>
+}
+// CHECK: func @alloc_tensor_canonicalize
+// CHECK:   %[[T0:.+]] = bufferization.alloc_tensor() : tensor<4x5x6xf32>
+// CHECK:   %[[T1:.+]] = tensor.cast %[[T0]] : tensor<4x5x6xf32> to tensor<4x5x?xf32>
+// CHECK:   return %[[T1]]

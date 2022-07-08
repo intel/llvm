@@ -19,7 +19,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -94,11 +94,10 @@ matchSelectReduction(Block &block, ArrayRef<Predicate> lessThanPredicates,
 
   // Detect whether the comparison is less-than or greater-than, otherwise bail.
   bool isLess;
-  if (llvm::find(lessThanPredicates, compare.getPredicate()) !=
-      lessThanPredicates.end()) {
+  if (llvm::is_contained(lessThanPredicates, compare.getPredicate())) {
     isLess = true;
-  } else if (llvm::find(greaterThanPredicates, compare.getPredicate()) !=
-             greaterThanPredicates.end()) {
+  } else if (llvm::is_contained(greaterThanPredicates,
+                                compare.getPredicate())) {
     isLess = false;
   } else {
     return false;

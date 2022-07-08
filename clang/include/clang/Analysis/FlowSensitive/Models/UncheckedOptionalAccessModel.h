@@ -49,12 +49,23 @@ public:
   UncheckedOptionalAccessModel(
       ASTContext &AstContext, UncheckedOptionalAccessModelOptions Options = {});
 
+  /// Returns a matcher for the optional classes covered by this model.
+  static ast_matchers::DeclarationMatcher optionalClassDecl();
+
   static SourceLocationsLattice initialElement() {
     return SourceLocationsLattice();
   }
 
   void transfer(const Stmt *Stmt, SourceLocationsLattice &State,
                 Environment &Env);
+
+  bool compareEquivalent(QualType Type, const Value &Val1,
+                         const Environment &Env1, const Value &Val2,
+                         const Environment &Env2) override;
+
+  bool merge(QualType Type, const Value &Val1, const Environment &Env1,
+             const Value &Val2, const Environment &Env2, Value &MergedVal,
+             Environment &MergedEnv) override;
 
 private:
   MatchSwitch<TransferState<SourceLocationsLattice>> TransferMatchSwitch;

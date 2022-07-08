@@ -222,12 +222,12 @@ public:
   }
 
   /// Parse a '|' token.
-  virtual ParseResult parseVerticalBar() override {
+  ParseResult parseVerticalBar() override {
     return parser.parseToken(Token::vertical_bar, "expected '|'");
   }
 
   /// Parse a '|' token if present.
-  virtual ParseResult parseOptionalVerticalBar() override {
+  ParseResult parseOptionalVerticalBar() override {
     return success(parser.consumeIf(Token::vertical_bar));
   }
 
@@ -306,7 +306,7 @@ public:
     // Check for a floating point value.
     if (curTok.is(Token::floatliteral)) {
       auto val = curTok.getFloatingPointValue();
-      if (!val.hasValue())
+      if (!val)
         return emitError(loc, "floating point value too large");
       parser.consumeToken(Token::floatliteral);
       result = isNegative ? -*val : *val;
@@ -491,8 +491,10 @@ public:
   }
 
   ParseResult parseDimensionList(SmallVectorImpl<int64_t> &dimensions,
-                                 bool allowDynamic) override {
-    return parser.parseDimensionListRanked(dimensions, allowDynamic);
+                                 bool allowDynamic,
+                                 bool withTrailingX) override {
+    return parser.parseDimensionListRanked(dimensions, allowDynamic,
+                                           withTrailingX);
   }
 
   ParseResult parseXInDimensionList() override {

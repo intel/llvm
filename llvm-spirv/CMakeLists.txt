@@ -19,6 +19,11 @@ if (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
   endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
 
+if(LLVM_SPIRV_BUILD_EXTERNAL)
+  # Make sure llvm-spirv gets built when building outside the llvm tree.
+  set(LLVM_BUILD_TOOLS ON)
+endif(LLVM_SPIRV_BUILD_EXTERNAL)
+
 # Download spirv.hpp from the official SPIRV-Headers repository.
 # One can skip this step by manually setting
 # LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR path.
@@ -81,6 +86,7 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
       BitWriter
       CodeGen
       Core
+      Passes
       Support
       TransformUtils
       ${LLVM_TEST_COMPONENTS}

@@ -19,9 +19,10 @@
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
@@ -141,6 +142,41 @@ static void unpackRanges(ArrayRef<Range> ranges, SmallVectorImpl<Value> &lbs,
 namespace mlir {
 namespace linalg {
 
+bool allIndexingsAreProjectedPermutation(LinalgOp op) {
+  return llvm::all_of(op.getIndexingMaps(), [](AffineMap m) {
+    return m.isProjectedPermutation(/*allowZeroInResults=*/true);
+  });
+}
+
+bool hasOnlyScalarElementwiseOp(Region &r) {
+  if (!llvm::hasSingleElement(r))
+    return false;
+  for (Operation &op : r.front()) {
+    if (!(isa<arith::ConstantOp, func::ConstantOp, linalg::YieldOp,
+              linalg::IndexOp>(op) ||
+          OpTrait::hasElementwiseMappableTraits(&op)) ||
+        llvm::any_of(op.getResultTypes(),
+                     [](Type type) { return !type.isIntOrIndexOrFloat(); }))
+      return false;
+  }
+  return true;
+}
+
+bool isElementwise(LinalgOp op) {
+  if (op.getNumLoops() != op.getNumParallelLoops())
+    return false;
+
+  if (!allIndexingsAreProjectedPermutation(op))
+    return false;
+
+  // TODO: relax the restrictions on indexing map.
+  for (OpOperand *opOperand : op.getOutputOperands()) {
+    if (!op.getTiedIndexingMap(opOperand).isPermutation())
+      return false;
+  }
+  return hasOnlyScalarElementwiseOp(op->getRegion(0));
+}
+
 bool isPermutation(ArrayRef<int64_t> permutation) {
   // Count the number of appearances for all indices.
   SmallVector<int64_t> indexCounts(permutation.size(), 0);
@@ -177,7 +213,8 @@ SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b) {
 }
 
 void getUpperBoundForIndex(Value value, AffineMap &boundMap,
-                           SmallVectorImpl<Value> &boundOperands) {
+                           SmallVectorImpl<Value> &boundOperands,
+                           bool constantRequired) {
   // Initialize `boundMap` and `boundOperands` to the identity returning
   // `value`. This combination is the default result of the method if no
   // simplification is possible.
@@ -226,11 +263,13 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
     if (!(llvm::all_of(op->getResults(), findOrCreateId) &&
           llvm::all_of(op->getOperands(), findOrCreateId)))
       return;
+
     // Add AffineApplyOps to the constraints.
     if (auto applyOp = dyn_cast<AffineApplyOp>(op)) {
-      AffineValueMap valueMap(applyOp.getAffineMap(), applyOp.getOperands(),
-                              applyOp.getResult());
-      if (failed(constraints.composeMap(&valueMap)))
+      AffineMap map = constraints.computeAlignedMap(applyOp.getAffineMap(),
+                                                    applyOp.getOperands());
+      if (failed(constraints.addBound(IntegerPolyhedron::EQ,
+                                      getPosition(applyOp.getResult()), map)))
         return;
       continue;
     }
@@ -239,17 +278,29 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
     AffineMap map = constraints.computeAlignedMap(minOp.getAffineMap(),
                                                   minOp.getOperands());
     if (failed(constraints.addBound(IntegerPolyhedron::UB,
-                                    getPosition(minOp.getResult()), map)))
+                                    getPosition(minOp.getResult()), map,
+                                    /*isClosedBound=*/true)))
       return;
   }
 
   // Obtain an upper bound for the affine index computation by projecting out
   // all temporary results and expressing the upper bound for `value` in terms
   // of the terminals of the index computation.
-  SmallVector<AffineMap> lowerBounds(1), upperBounds(1);
-  constraints.getSliceBounds(getPosition(value), 1, value.getContext(),
-                             &lowerBounds, &upperBounds);
+  unsigned pos = getPosition(value);
+  if (constantRequired) {
+    auto ubConst = constraints.getConstantBound(
+        FlatAffineValueConstraints::BoundType::UB, pos);
+    if (!ubConst)
+      return;
 
+    boundMap = AffineMap::getConstantMap(*ubConst, value.getContext());
+    return;
+  }
+
+  SmallVector<AffineMap> lowerBounds(1), upperBounds(1);
+  constraints.getSliceBounds(pos, 1, value.getContext(), &lowerBounds,
+                             &upperBounds,
+                             /*getClosedUB=*/true);
   // Verify `upperBounds[0]` is valid and has at least one result.
   if (!upperBounds[0] || upperBounds[0].getNumResults() == 0)
     return;
@@ -265,7 +316,8 @@ FailureOr<int64_t> getConstantUpperBoundForIndex(Value value) {
   // Compute an upper bound for `value`.
   AffineMap boundMap;
   SmallVector<Value> boundOperands;
-  getUpperBoundForIndex(value, boundMap, boundOperands);
+  getUpperBoundForIndex(value, boundMap, boundOperands,
+                        /*constantRequired=*/true);
 
   // Search the results of `boundMap` for constant upper bounds.
   SmallVector<int64_t> constantBounds;
@@ -457,7 +509,7 @@ void GenerateLoopNest<scf::ForOp>::doit(
   // Create procInfo so it dominates loops, if appropriate.
   SmallVector<ProcInfo, 4> procInfo;
   SmallVector<DistributionMethod, 0> distributionMethod;
-  if (distributionOptions.hasValue()) {
+  if (distributionOptions) {
     // Collect loop ranges for parallel dimensions.
     SmallVector<Range, 2> parallelLoopRanges;
     for (const auto &iteratorType : enumerate(iteratorTypes))
@@ -697,7 +749,7 @@ void GenerateLoopNest<scf::ParallelOp>::doit(
   // Modify the lb, ub, and step based on the distribution options.
   SmallVector<DistributionMethod, 0> distributionMethod;
   if (distributionOptions) {
-    auto &options = distributionOptions.getValue();
+    auto &options = *distributionOptions;
     distributionMethod.assign(distributionOptions->distributionMethod.begin(),
                               distributionOptions->distributionMethod.end());
     SmallVector<Range, 2> parallelLoopRanges;
@@ -876,7 +928,7 @@ SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
   return offsets;
 }
 
-SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc, ValueRange ivs,
+SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc,
                                     ValueRange tileSizes,
                                     ArrayRef<Value> sizeBounds) {
   SmallVector<Value> sizes;
@@ -906,7 +958,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
   // that define tile subshapes.
   SmallVector<Value> lbs = computeTileOffsets(b, loc, ivs, tileSizes);
   SmallVector<Value> subShapeSizes =
-      computeTileSizes(b, loc, ivs, tileSizes, sizeBounds);
+      computeTileSizes(b, loc, tileSizes, sizeBounds);
 
   assert(static_cast<int64_t>(valuesToTile.size()) ==
              linalgOp.getNumInputsAndOutputs() &&

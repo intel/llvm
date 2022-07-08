@@ -526,12 +526,12 @@ SuspiciousCallArgumentCheck::SuspiciousCallArgumentCheck(
                        GetBoundOpt(H, BoundKind::SimilarAbove)));
   }
 
-  for (const std::string &Abbreviation : optutils::parseStringList(
+  for (StringRef Abbreviation : optutils::parseStringList(
            Options.get("Abbreviations", DefaultAbbreviations))) {
-    auto KeyAndValue = StringRef{Abbreviation}.split("=");
+    auto KeyAndValue = Abbreviation.split("=");
     assert(!KeyAndValue.first.empty() && !KeyAndValue.second.empty());
     AbbreviationDictionary.insert(
-        std::make_pair(KeyAndValue.first.str(), KeyAndValue.second.str()));
+        std::make_pair(KeyAndValue.first, KeyAndValue.second.str()));
   }
 }
 
@@ -552,7 +552,7 @@ void SuspiciousCallArgumentCheck::storeOptions(
     SmallString<32> Key = HeuristicToString[Idx];
     Key.append(BK == BoundKind::DissimilarBelow ? "DissimilarBelow"
                                                 : "SimilarAbove");
-    Options.store(Opts, Key, getBound(H, BK).getValue());
+    Options.store(Opts, Key, *getBound(H, BK));
   };
 
   for (std::size_t Idx = 0; Idx < HeuristicCount; ++Idx) {
@@ -573,7 +573,8 @@ void SuspiciousCallArgumentCheck::storeOptions(
       Abbreviations.emplace_back(EqualSignJoined.str());
   }
   Options.store(Opts, "Abbreviations",
-                optutils::serializeStringList(Abbreviations));
+                optutils::serializeStringList(std::vector<StringRef>(
+                    Abbreviations.begin(), Abbreviations.end())));
 }
 
 bool SuspiciousCallArgumentCheck::isHeuristicEnabled(Heuristic H) const {
@@ -782,7 +783,7 @@ bool SuspiciousCallArgumentCheck::areNamesSimilar(StringRef Arg,
                                                   BoundKind BK) const {
   int8_t Threshold = -1;
   if (Optional<int8_t> GotBound = getBound(H, BK))
-    Threshold = GotBound.getValue();
+    Threshold = *GotBound;
 
   switch (H) {
   case Heuristic::Equality:

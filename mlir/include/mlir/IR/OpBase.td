@@ -291,6 +291,7 @@ class DialectType<Dialect d, Pred condition, string descr = "",
 class Variadic<Type type> : TypeConstraint<type.predicate, type.summary,
                                            type.cppClassName> {
   Type baseType = type;
+  int minSize = 0;
 }
 
 // A nested variadic type constraint. It expands to zero or more variadic ranges
@@ -668,34 +669,29 @@ def AnyScalableVector : ScalableVectorOf<[AnyType]>;
 def AnyShaped: ShapedContainerType<[AnyType], IsShapedTypePred, "shaped",
                                    "::mlir::ShapedType">;
 
+//===----------------------------------------------------------------------===//
 // Tensor types.
 
-// Any tensor type whose element type is from the given `allowedTypes` list
-class TensorOf<list<Type> allowedTypes> :
-  ShapedContainerType<allowedTypes, IsTensorTypePred, "tensor",
-                      "::mlir::TensorType">;
+// Unranked tensor type whose element type is from the given
+// `allowedTypes` list.
+class UnrankedTensorOf<list<Type> allowedTypes>
+  : ShapedContainerType<allowedTypes, IsUnrankedTensorTypePred,
+      "unranked.tensor", "::mlir::UnrankedTensorType">;
 
-class RankedTensorOf<list<Type> allowedTypes> :
-  ShapedContainerType<allowedTypes, And<[IsTensorTypePred, HasRankPred]>,
-  "ranked tensor", "::mlir::TensorType">;
+// Any tensor type whose element type is from the given `allowedTypes`
+// list, and which additionally satisfies an optional list of predicates.
+//
+// TODO: use `Constraint` instead of `Pred`, so we can generate a better
+// default summary (a la `Confined`).
+class TensorOf<
+    list<Type> allowedTypes,
+    list<Pred> preds = [],
+    string summary = "tensor">
+  : ShapedContainerType<allowedTypes,
+      And<!listconcat([IsTensorTypePred], preds)>,
+      summary, "::mlir::TensorType">;
 
-def AnyTensor : TensorOf<[AnyType]>;
-
-// Unranked Memref type
-class UnrankedTensorOf<list<Type> allowedTypes> :
-    ShapedContainerType<allowedTypes,
-                        IsUnrankedTensorTypePred,
-                        "unranked.tensor", "::mlir::UnrankedTensorType">;
-
-def AnyRankedTensor : RankedTensorOf<[AnyType]>;
-
-// TODO: Have an easy way to add another constraint to a type.
-class StaticShapeTensorOf<list<Type> allowedTypes>
-    : Type<And<[TensorOf<allowedTypes>.predicate, HasStaticShapePred]>,
-           "statically shaped " # TensorOf<allowedTypes>.summary,
-           "::mlir::TensorType">;
-
-def AnyStaticShapeTensor : StaticShapeTensorOf<[AnyType]>;
+def AnyTensor  : TensorOf<[AnyType]>;
 
 def I1Tensor   : TensorOf<[I1]>;
 def I8Tensor   : TensorOf<[I8]>;
@@ -709,17 +705,33 @@ def F16Tensor  : TensorOf<[F16]>;
 def F32Tensor  : TensorOf<[F32]>;
 def F64Tensor  : TensorOf<[F64]>;
 
+class RankedTensorOf<
+    list<Type> allowedTypes,
+    list<Pred> preds = [],
+    string summary = "ranked tensor">
+  : TensorOf<allowedTypes, !listconcat([HasRankPred], preds), summary>;
+
+def AnyRankedTensor : RankedTensorOf<[AnyType]>;
+
 // Ranked tensor type with one of the specified types and ranks.
-class TensorRankOf<list<Type> allowedTypes, list<int> ranks> :
-    Type<And<[TensorOf<allowedTypes>.predicate, HasAnyRankOfPred<ranks>]>,
-         !interleave(!foreach(rank, ranks, rank # "D"), "/") # " " #
-         TensorOf<allowedTypes>.summary, "::mlir::TensorType">;
+class TensorRankOf<list<Type> allowedTypes, list<int> ranks>
+  : TensorOf<allowedTypes,
+      [HasAnyRankOfPred<ranks>],
+      !interleave(!foreach(rank, ranks, rank # "D"), "/") # " tensor">;
 
 class 0DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [0]>;
 class 1DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [1]>;
 class 2DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [2]>;
 class 3DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [3]>;
 class 4DTensorOf<list<Type> allowedTypes> : TensorRankOf<allowedTypes, [4]>;
+
+class StaticShapeTensorOf<list<Type> allowedTypes>
+  : TensorOf<allowedTypes, [HasStaticShapePred], "statically shaped tensor">;
+
+def AnyStaticShapeTensor : StaticShapeTensorOf<[AnyType]>;
+
+//===----------------------------------------------------------------------===//
+// Memref type.
 
 // Unranked Memref type
 class UnrankedMemRefOf<list<Type> allowedTypes> :
@@ -728,8 +740,6 @@ class UnrankedMemRefOf<list<Type> allowedTypes> :
                         "::mlir::UnrankedMemRefType">;
 
 def AnyUnrankedMemRef : UnrankedMemRefOf<[AnyType]>;
-
-// Memref type.
 
 // Memrefs are blocks of data with fixed type and rank.
 class MemRefOf<list<Type> allowedTypes> :
@@ -1411,6 +1421,17 @@ def I64ArrayAttr : TypedArrayAttrBase<I64Attr,
                                       "64-bit integer array attribute"> {
   let constBuilderCall = "$_builder.getI64ArrayAttr($0)";
 }
+// Variant of I64ArrayAttr whose user accessor is SmallVector<in64_t>.
+def I64SmallVectorArrayAttr :
+    TypedArrayAttrBase<I64Attr, "64-bit integer array attribute"> {
+  let returnType = [{ ::llvm::SmallVector<int64_t, 8> }];
+  let convertFromStorage = [{
+    llvm::to_vector<4>(
+      llvm::map_range($_self.getAsRange<mlir::IntegerAttr>(),
+      [](IntegerAttr attr) { return attr.getInt(); }));
+  }];
+  let constBuilderCall = "$_builder.getI64ArrayAttr($0)";
+}
 def F32ArrayAttr : TypedArrayAttrBase<F32Attr, "32-bit float array attribute"> {
   let constBuilderCall = "$_builder.getF32ArrayAttr($0)";
 }
@@ -1425,43 +1446,6 @@ def TypeArrayAttr : TypedArrayAttrBase<TypeAttr, "type array attribute"> {
 }
 def IndexListArrayAttr :
   TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
-
-// Attribute information for an Attribute field within a StructAttr.
-class StructFieldAttr<string thisName, Attr thisType> {
-  // Name of this field in the StructAttr.
-  string name = thisName;
-
-  // Attribute type wrapped by the struct attr.
-  Attr type = thisType;
-}
-
-// Structured attribute that wraps a DictionaryAttr and provides both a
-// validation method and set of accessors for a fixed set of fields. This is
-// useful when representing data that would normally be in a structure.
-class StructAttr<string name, Dialect d,
-                 list<StructFieldAttr> attributes> :
-    DictionaryAttrBase<CPred<"$_self.isa<" # d.cppNamespace
-                                           # "::" # name # ">()">,
-        "DictionaryAttr with field(s): " #
-        !interleave(!foreach(a, attributes, "'" # a.name # "'"), ", ") #
-        " (each field having its own constraints)"> {
-  // Name for this StructAttr.
-  string className = name;
-
-  // Return type should match the name of the structure.
-  let returnType = d.cppNamespace # "::" # name;
-
-  // Storage type should match the name of the structure.
-  let storageType = d.cppNamespace # "::" # name;
-
-  // The dialect this StructAttr belongs to.
-  Dialect dialect = d;
-
-  let cppNamespace = d.cppNamespace;
-
-  // List of fields that the StructAttr contains.
-  list<StructFieldAttr> fields = attributes;
-}
 
 // Attributes containing symbol references.
 def SymbolRefAttr : Attr<CPred<"$_self.isa<::mlir::SymbolRefAttr>()">,

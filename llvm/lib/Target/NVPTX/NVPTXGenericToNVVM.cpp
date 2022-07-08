@@ -83,6 +83,7 @@ bool GenericToNVVM::runOnModule(Module &M) {
           GV.hasInitializer() ? GV.getInitializer() : nullptr, "", &GV,
           GV.getThreadLocalMode(), llvm::ADDRESS_SPACE_GLOBAL);
       NewGV->copyAttributesFrom(&GV);
+      NewGV->copyMetadata(&GV, /*Offset=*/0);
       GVMap[&GV] = NewGV;
     }
   }
@@ -278,15 +279,10 @@ Value *GenericToNVVM::remapConstantExpr(Module *M, Function *F, ConstantExpr *C,
                                      C->getIndices());
   case Instruction::GetElementPtr:
     // GetElementPtrConstantExpr
-    return cast<GEPOperator>(C)->isInBounds()
-               ? Builder.CreateGEP(
-                     cast<GEPOperator>(C)->getSourceElementType(),
-                     NewOperands[0],
-                     makeArrayRef(&NewOperands[1], NumOperands - 1))
-               : Builder.CreateInBoundsGEP(
-                     cast<GEPOperator>(C)->getSourceElementType(),
-                     NewOperands[0],
-                     makeArrayRef(&NewOperands[1], NumOperands - 1));
+    return Builder.CreateGEP(cast<GEPOperator>(C)->getSourceElementType(),
+                             NewOperands[0],
+                             makeArrayRef(&NewOperands[1], NumOperands - 1), "",
+                             cast<GEPOperator>(C)->isInBounds());
   case Instruction::Select:
     // SelectConstantExpr
     return Builder.CreateSelect(NewOperands[0], NewOperands[1], NewOperands[2]);

@@ -288,7 +288,7 @@ public:
   /// profile annotations. If IncludeSynthetic is false, only return true
   /// when the profile data is real.
   bool hasProfileData(bool IncludeSynthetic = false) const {
-    return getEntryCount(IncludeSynthetic).hasValue();
+    return getEntryCount(IncludeSynthetic).has_value();
   }
 
   /// Returns the set of GUIDs that needs to be imported to the function for
@@ -484,11 +484,12 @@ public:
     return AttributeSets.getParamDereferenceableOrNullBytes(ArgNo);
   }
 
-  /// A function will have the "coroutine.presplit" attribute if it's
-  /// a coroutine and has not gone through full CoroSplit pass.
+  /// Determine if the function is presplit coroutine.
   bool isPresplitCoroutine() const {
-    return hasFnAttribute("coroutine.presplit");
+    return hasFnAttribute(Attribute::PresplitCoroutine);
   }
+  void setPresplitCoroutine() { addFnAttr(Attribute::PresplitCoroutine); }
+  void setSplittedCoroutine() { removeFnAttr(Attribute::PresplitCoroutine); }
 
   /// Determine if the function does not access memory.
   bool doesNotAccessMemory() const {

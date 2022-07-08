@@ -8,6 +8,9 @@
 
 #pragma once
 
+#if __cplusplus >= 201703L
+// Entire feature is dependent on C++17.
+
 #include <CL/sycl/known_identity.hpp>
 
 #include "sycl/ext/oneapi/reduction.hpp"
@@ -46,7 +49,7 @@ reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
   (void)PropList;
   throw runtime_error("Identity-less reductions with unknown identity are not "
                       "supported yet.",
-                      PI_INVALID_VALUE);
+                      PI_ERROR_INVALID_VALUE);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
@@ -80,7 +83,7 @@ reduction(T *, BinaryOperation, const property_list &PropList = {}) {
   (void)PropList;
   throw runtime_error("Identity-less reductions with unknown identity are not "
                       "supported yet.",
-                      PI_INVALID_VALUE);
+                      PI_ERROR_INVALID_VALUE);
 }
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
@@ -149,7 +152,7 @@ reduction(span<T, Extent>, BinaryOperation,
   (void)PropList;
   throw runtime_error("Identity-less reductions with unknown identity are not "
                       "supported yet.",
-                      PI_INVALID_VALUE);
+                      PI_ERROR_INVALID_VALUE);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
@@ -171,3 +174,5 @@ reduction(span<T, Extent> Span, const T &Identity, BinaryOperation Combiner,
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#endif // __cplusplus >= 201703L

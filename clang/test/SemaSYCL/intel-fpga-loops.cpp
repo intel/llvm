@@ -26,6 +26,8 @@ void foo() {
   [[intel::loop_count_avg(6)]] int l[10];
   // expected-error@+1{{'loop_count' attribute cannot be applied to a declaration}}
   [[intel::loop_count(8)]] int m[10];
+  // expected-error@+1{{'fpga_pipeline' attribute cannot be applied to a declaration}}
+  [[intel::fpga_pipeline(1)]] int n[10];
 }
 
 // Test for deprecated spelling of Intel FPGA loop attributes
@@ -122,6 +124,10 @@ void boo() {
   // expected-error@+1 {{'loop_count' attribute takes one argument}}
   [[intel::loop_count(6, 9)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // expected-error@+1 {{'fpga_pipeline' attribute takes no more than 1 argument}}
+  [[intel::fpga_pipeline(1, 2)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 // Test for incorrect argument value for Intel FPGA loop attributes
@@ -129,11 +135,14 @@ void goo() {
   int a[10];
   // no diagnostics are expected
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
+  // no diagnostics are expected
+  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   // no diagnostics are expected
   [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
+  // expected-warning@+1 {{'ivdep' attribute with value 0 has no effect; attribute ignored}}
   [[intel::ivdep(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'initiation_interval' attribute requires a positive integral compile time constant expression}}
@@ -216,6 +225,16 @@ void goo() {
   // expected-error@+1 {{'loop_count' attribute requires a non-negative integral compile time constant expression}}
   [[intel::loop_count(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // no diagnostics are expected
+  [[intel::fpga_pipeline(-1)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
+  [[intel::fpga_pipeline("abc")]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 // Test for Intel FPGA loop attributes duplication
@@ -256,7 +275,11 @@ void zoo() {
   [[intel::disable_loop_pipelining]]
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'disable_loop_pipelining'}}
   [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
+  [[intel::fpga_pipeline]]
+  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'fpga_pipeline'}}
+  [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   [[intel::loop_coalesce(2)]]
   // expected-error@+2 {{duplicate Intel FPGA loop attribute 'loop_coalesce'}}
   [[intel::max_interleaving(1)]]
@@ -340,43 +363,62 @@ void zoo() {
 void loop_attrs_compatibility() {
   int a[10];
   // no diagnostics are expected
-  [[intel::disable_loop_pipelining]]
-  [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  // expected-error@+3 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::disable_loop_pipelining]]
-  [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  // expected-error@+3 {{'disable_loop_pipelining' and 'speculated_iterations' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::speculated_iterations(0)]]
-  [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  // expected-error@+3 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::disable_loop_pipelining]]
-  [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  // expected-error@+3 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::initiation_interval(10)]]
-  [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
-  // expected-error@+3 {{'ivdep' and 'disable_loop_pipelining' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
-  [[intel::disable_loop_pipelining]]
-  [[intel::ivdep]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::disable_loop_pipelining]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   // no diagnostics are expected
-  [[intel::disable_loop_pipelining]]
-  [[intel::nofusion]] for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::fpga_pipeline]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::disable_loop_pipelining]] [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::disable_loop_pipelining]] [[intel::max_concurrency(0)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'disable_loop_pipelining' and 'speculated_iterations' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::speculated_iterations(0)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'fpga_pipeline' and 'speculated_iterations' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::speculated_iterations(0)]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'disable_loop_pipelining' and 'initiation_interval' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::initiation_interval(10)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'ivdep' and 'disable_loop_pipelining' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::disable_loop_pipelining]] [[intel::ivdep]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // expected-error@+2 {{'fpga_pipeline' and 'initiation_interval' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::initiation_interval(10)]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   // no diagnostics are expected
-  [[intel::disable_loop_pipelining]]
-  [[intel::loop_count_avg(8)]]
-  for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+  [[intel::disable_loop_pipelining]] [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // no diagnostics are expected
+  [[intel::disable_loop_pipelining]] [[intel::loop_count_avg(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  [[intel::loop_count_min(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  [[intel::loop_count_max(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  [[intel::loop_count(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::fpga_pipeline]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::fpga_pipeline]] [[intel::nofusion]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // no diagnostics are expected
+  [[intel::fpga_pipeline]] [[intel::loop_count_avg(8)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
   [[intel::loop_count_min(8)]]
   for (int i = 0; i != 10; ++i)
       a[i] = 0;
@@ -385,6 +427,25 @@ void loop_attrs_compatibility() {
       a[i] = 0;
   [[intel::loop_count(8)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // expected-error@+2 {{'fpga_pipeline' and 'max_concurrency' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::max_concurrency(2)]] [[intel::fpga_pipeline(1)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // expected-error@+2 {{'fpga_pipeline' and 'max_interleaving' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::max_interleaving(2)]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // expected-error@+2 {{'fpga_pipeline' and 'ivdep' attributes are not compatible}}
+  // expected-note@+1 {{conflicting attribute is here}}
+  [[intel::ivdep]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // no diagnostics are expected
+  [[intel::disable_loop_pipelining]] [[intel::fpga_pipeline]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 template<int A, int B, int C>
@@ -397,10 +458,11 @@ void ivdep_dependent() {
   [[intel::ivdep(5)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  // expected-warning@+1 {{'ivdep' attribute with value 1 has no effect; attribute ignored}}
   [[intel::ivdep(C)]]
-  // expected-error@-1 {{'ivdep' attribute requires a positive integral compile time constant expression}}
+  // expected-error@-1 {{'ivdep' attribute requires a non-negative integral compile time constant expression}}
   for (int i = 0; i != 10; ++i)
-      a[i] = 0;
+    a[i] = 0;
 
   // expected-warning@+3 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen 4 >= safelen 2}}
   // expected-note@+1 {{previous attribute is here}}
@@ -544,6 +606,17 @@ void loop_count_control_dependent() {
       a[i] = 0;
 }
 
+template <int A, int B, int C>
+void fpga_pipeline_dependent() {
+  int a[10];
+  [[intel::fpga_pipeline(C)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // expected-error@+1 {{duplicate Intel FPGA loop attribute 'fpga_pipeline'}}
+  [[intel::fpga_pipeline(A)]] [[intel::fpga_pipeline(B)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+}
+
 void check_max_concurrency_expression() {
   int a[10];
   // Test that checks expression is not a constant expression.
@@ -640,6 +713,22 @@ void check_loop_count_expression() {
       a[i] = 0;
 }
 
+void check_loop_fpga_pipeline_expression() {
+  int a[10];
+
+  // Test that checks expression is not a constant expression.
+  int foo; // expected-note {{declared here}}
+  // expected-error@+2{{expression is not an integral constant expression}}
+  // expected-note@+1{{read of non-const variable 'foo' is not allowed in a constant expression}}
+  [[intel::fpga_pipeline(foo + 1)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+
+  // Test that checks expression is a constant expression.
+  constexpr int bar = 0;
+  [[intel::fpga_pipeline(bar + 1)]] for (int i = 0; i != 10; ++i) // OK
+    a[i] = 0;
+}
+
 // Test that checks wrong template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.
 struct S {};
@@ -681,6 +770,11 @@ void check_loop_attr_template_instantiation() {
   // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
   [[intel::loop_count(Ty{})]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  // expected-error@+2 {{integral constant expression must have integral or unscoped enumeration type, not 'S'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'float'}}
+  [[intel::fpga_pipeline(Ty{})]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
 }
 
 int main() {
@@ -703,12 +797,14 @@ int main() {
       speculated_iterations_dependent<1, 8, -3, 0>(); // expected-note{{in instantiation of function template specialization 'speculated_iterations_dependent<1, 8, -3, 0>' requested here}}
       loop_coalesce_dependent<-1, 4,  0>(); // expected-note{{in instantiation of function template specialization 'loop_coalesce_dependent<-1, 4, 0>' requested here}}
       loop_count_control_dependent<3, 2, -1>(); // expected-note{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
+      fpga_pipeline_dependent<1, 1, 0>();
       check_max_concurrency_expression();
       check_max_interleaving_expression();
       check_speculated_iterations_expression();
       check_loop_coalesce_expression();
       check_initiation_interval_expression();
       check_loop_count_expression();
+      check_loop_fpga_pipeline_expression();
       check_loop_attr_template_instantiation<S>(); //expected-note{{in instantiation of function template specialization 'check_loop_attr_template_instantiation<S>' requested here}}
       check_loop_attr_template_instantiation<float>(); //expected-note{{in instantiation of function template specialization 'check_loop_attr_template_instantiation<float>' requested here}}
     });

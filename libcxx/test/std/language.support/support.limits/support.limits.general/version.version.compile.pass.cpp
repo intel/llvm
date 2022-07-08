@@ -111,13 +111,13 @@
     __cpp_lib_math_constants                       201907L [C++20]
     __cpp_lib_math_special_functions               201603L [C++17]
     __cpp_lib_memory_resource                      201603L [C++17]
-    __cpp_lib_monadic_optional                     202110L [C++2b]
     __cpp_lib_move_only_function                   202110L [C++2b]
     __cpp_lib_node_extract                         201606L [C++17]
     __cpp_lib_nonmember_container_access           201411L [C++17]
     __cpp_lib_not_fn                               201603L [C++17]
     __cpp_lib_null_iterators                       201304L [C++14]
     __cpp_lib_optional                             201606L [C++17]
+                                                   202110L [C++2b]
     __cpp_lib_out_ptr                              202106L [C++2b]
     __cpp_lib_parallel_algorithm                   201603L [C++17]
     __cpp_lib_polymorphic_allocator                201902L [C++20]
@@ -554,10 +554,6 @@
 
 # ifdef __cpp_lib_memory_resource
 #   error "__cpp_lib_memory_resource should not be defined before c++17"
-# endif
-
-# ifdef __cpp_lib_monadic_optional
-#   error "__cpp_lib_monadic_optional should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_move_only_function
@@ -1212,10 +1208,6 @@
 #   error "__cpp_lib_memory_resource should not be defined before c++17"
 # endif
 
-# ifdef __cpp_lib_monadic_optional
-#   error "__cpp_lib_monadic_optional should not be defined before c++2b"
-# endif
-
 # ifdef __cpp_lib_move_only_function
 #   error "__cpp_lib_move_only_function should not be defined before c++2b"
 # endif
@@ -1626,17 +1618,11 @@
 #   error "__cpp_lib_bounded_array_traits should not be defined before c++20"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_boyer_moore_searcher
-#     error "__cpp_lib_boyer_moore_searcher should be defined in c++17"
-#   endif
-#   if __cpp_lib_boyer_moore_searcher != 201603L
-#     error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++17"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_boyer_moore_searcher
-#     error "__cpp_lib_boyer_moore_searcher should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_boyer_moore_searcher
+#   error "__cpp_lib_boyer_moore_searcher should be defined in c++17"
+# endif
+# if __cpp_lib_boyer_moore_searcher != 201603L
+#   error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++17"
 # endif
 
 # ifndef __cpp_lib_byte
@@ -1820,16 +1806,16 @@
 #   error "__cpp_lib_generic_unordered_lookup should not be defined before c++20"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
+# if defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)
 #   ifndef __cpp_lib_hardware_interference_size
 #     error "__cpp_lib_hardware_interference_size should be defined in c++17"
 #   endif
 #   if __cpp_lib_hardware_interference_size != 201703L
 #     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++17"
 #   endif
-# else // _LIBCPP_VERSION
+# else
 #   ifdef __cpp_lib_hardware_interference_size
-#     error "__cpp_lib_hardware_interference_size should not be defined because it is unimplemented in libc++!"
+#     error "__cpp_lib_hardware_interference_size should not be defined when defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE) is not defined!"
 #   endif
 # endif
 
@@ -2028,10 +2014,6 @@
 #   ifdef __cpp_lib_memory_resource
 #     error "__cpp_lib_memory_resource should not be defined because it is unimplemented in libc++!"
 #   endif
-# endif
-
-# ifdef __cpp_lib_monadic_optional
-#   error "__cpp_lib_monadic_optional should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_move_only_function
@@ -2591,17 +2573,11 @@
 #   error "__cpp_lib_bounded_array_traits should have the value 201902L in c++20"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_boyer_moore_searcher
-#     error "__cpp_lib_boyer_moore_searcher should be defined in c++20"
-#   endif
-#   if __cpp_lib_boyer_moore_searcher != 201603L
-#     error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++20"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_boyer_moore_searcher
-#     error "__cpp_lib_boyer_moore_searcher should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_boyer_moore_searcher
+#   error "__cpp_lib_boyer_moore_searcher should be defined in c++20"
+# endif
+# if __cpp_lib_boyer_moore_searcher != 201603L
+#   error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++20"
 # endif
 
 # ifndef __cpp_lib_byte
@@ -2875,16 +2851,16 @@
 #   error "__cpp_lib_generic_unordered_lookup should have the value 201811L in c++20"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
+# if defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)
 #   ifndef __cpp_lib_hardware_interference_size
 #     error "__cpp_lib_hardware_interference_size should be defined in c++20"
 #   endif
 #   if __cpp_lib_hardware_interference_size != 201703L
 #     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++20"
 #   endif
-# else // _LIBCPP_VERSION
+# else
 #   ifdef __cpp_lib_hardware_interference_size
-#     error "__cpp_lib_hardware_interference_size should not be defined because it is unimplemented in libc++!"
+#     error "__cpp_lib_hardware_interference_size should not be defined when defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE) is not defined!"
 #   endif
 # endif
 
@@ -3140,10 +3116,6 @@
 #   ifdef __cpp_lib_memory_resource
 #     error "__cpp_lib_memory_resource should not be defined because it is unimplemented in libc++!"
 #   endif
-# endif
-
-# ifdef __cpp_lib_monadic_optional
-#   error "__cpp_lib_monadic_optional should not be defined before c++2b"
 # endif
 
 # ifdef __cpp_lib_move_only_function
@@ -3817,17 +3789,11 @@
 #   error "__cpp_lib_bounded_array_traits should have the value 201902L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_boyer_moore_searcher
-#     error "__cpp_lib_boyer_moore_searcher should be defined in c++2b"
-#   endif
-#   if __cpp_lib_boyer_moore_searcher != 201603L
-#     error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_boyer_moore_searcher
-#     error "__cpp_lib_boyer_moore_searcher should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_boyer_moore_searcher
+#   error "__cpp_lib_boyer_moore_searcher should be defined in c++2b"
+# endif
+# if __cpp_lib_boyer_moore_searcher != 201603L
+#   error "__cpp_lib_boyer_moore_searcher should have the value 201603L in c++2b"
 # endif
 
 # ifndef __cpp_lib_byte
@@ -4122,16 +4088,16 @@
 #   error "__cpp_lib_generic_unordered_lookup should have the value 201811L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
+# if defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE)
 #   ifndef __cpp_lib_hardware_interference_size
 #     error "__cpp_lib_hardware_interference_size should be defined in c++2b"
 #   endif
 #   if __cpp_lib_hardware_interference_size != 201703L
 #     error "__cpp_lib_hardware_interference_size should have the value 201703L in c++2b"
 #   endif
-# else // _LIBCPP_VERSION
+# else
 #   ifdef __cpp_lib_hardware_interference_size
-#     error "__cpp_lib_hardware_interference_size should not be defined because it is unimplemented in libc++!"
+#     error "__cpp_lib_hardware_interference_size should not be defined when defined(__GCC_DESTRUCTIVE_SIZE) && defined(__GCC_CONSTRUCTIVE_SIZE) is not defined!"
 #   endif
 # endif
 
@@ -4401,13 +4367,6 @@
 #   endif
 # endif
 
-# ifndef __cpp_lib_monadic_optional
-#   error "__cpp_lib_monadic_optional should be defined in c++2b"
-# endif
-# if __cpp_lib_monadic_optional != 202110L
-#   error "__cpp_lib_monadic_optional should have the value 202110L in c++2b"
-# endif
-
 # if !defined(_LIBCPP_VERSION)
 #   ifndef __cpp_lib_move_only_function
 #     error "__cpp_lib_move_only_function should be defined in c++2b"
@@ -4452,8 +4411,8 @@
 # ifndef __cpp_lib_optional
 #   error "__cpp_lib_optional should be defined in c++2b"
 # endif
-# if __cpp_lib_optional != 201606L
-#   error "__cpp_lib_optional should have the value 201606L in c++2b"
+# if __cpp_lib_optional != 202110L
+#   error "__cpp_lib_optional should have the value 202110L in c++2b"
 # endif
 
 # if !defined(_LIBCPP_VERSION)
@@ -4807,17 +4766,11 @@
 #   error "__cpp_lib_starts_ends_with should have the value 201711L in c++2b"
 # endif
 
-# if !defined(_LIBCPP_VERSION)
-#   ifndef __cpp_lib_stdatomic_h
-#     error "__cpp_lib_stdatomic_h should be defined in c++2b"
-#   endif
-#   if __cpp_lib_stdatomic_h != 202011L
-#     error "__cpp_lib_stdatomic_h should have the value 202011L in c++2b"
-#   endif
-# else // _LIBCPP_VERSION
-#   ifdef __cpp_lib_stdatomic_h
-#     error "__cpp_lib_stdatomic_h should not be defined because it is unimplemented in libc++!"
-#   endif
+# ifndef __cpp_lib_stdatomic_h
+#   error "__cpp_lib_stdatomic_h should be defined in c++2b"
+# endif
+# if __cpp_lib_stdatomic_h != 202011L
+#   error "__cpp_lib_stdatomic_h should have the value 202011L in c++2b"
 # endif
 
 # ifndef __cpp_lib_string_contains

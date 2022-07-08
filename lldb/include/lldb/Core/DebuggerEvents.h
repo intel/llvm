@@ -32,6 +32,7 @@ public:
 
   static const ProgressEventData *GetEventDataFromEvent(const Event *event_ptr);
   uint64_t GetID() const { return m_id; }
+  bool IsFinite() const { return m_total != UINT64_MAX; }
   uint64_t GetCompleted() const { return m_completed; }
   uint64_t GetTotal() const { return m_total; }
   const std::string &GetMessage() const { return m_message; }
@@ -56,7 +57,7 @@ public:
   DiagnosticEventData(Type type, std::string message, bool debugger_specific)
       : m_message(std::move(message)), m_type(type),
         m_debugger_specific(debugger_specific) {}
-  ~DiagnosticEventData() {}
+  ~DiagnosticEventData() override = default;
 
   const std::string &GetMessage() const { return m_message; }
   bool IsDebuggerSpecific() const { return m_debugger_specific; }

@@ -109,7 +109,7 @@ static std::string getNonReservedFixup(std::string Name) {
 static Optional<RenamerClangTidyCheck::FailureInfo>
 getFailureInfoImpl(StringRef Name, bool IsInGlobalNamespace,
                    const LangOptions &LangOpts, bool Invert,
-                   ArrayRef<std::string> AllowedIdentifiers) {
+                   ArrayRef<StringRef> AllowedIdentifiers) {
   assert(!Name.empty());
   if (llvm::is_contained(AllowedIdentifiers, Name))
     return None;
@@ -132,7 +132,7 @@ getFailureInfoImpl(StringRef Name, bool IsInGlobalNamespace,
     auto InProgressFixup = [&] {
       return Info
           .map([](const FailureInfo &Info) { return StringRef(Info.Fixup); })
-          .getValueOr(Name);
+          .value_or(Name);
     };
     if (auto Fixup = getDoubleUnderscoreFixup(InProgressFixup(), LangOpts))
       AppendFailure(DoubleUnderscoreTag, std::move(*Fixup));

@@ -304,7 +304,7 @@ private:
         MayTakeTrivial = false;
       }
       // Is this the best branch so far? (Including if it's #if 1).
-      if (TookTrivial || !C.Taken.hasValue() || BranchScore > Best) {
+      if (TookTrivial || !C.Taken || BranchScore > Best) {
         Best = BranchScore;
         C.Taken = I;
       }
@@ -345,6 +345,54 @@ private:
 
 void chooseConditionalBranches(DirectiveTree &Tree, const TokenStream &Code) {
   BranchChooser{Code}.choose(Tree);
+}
+
+namespace {
+class Preprocessor {
+  const TokenStream &In;
+  TokenStream &Out;
+
+public:
+  Preprocessor(const TokenStream &In, TokenStream &Out) : In(In), Out(Out) {}
+  ~Preprocessor() { Out.finalize(); }
+
+  void walk(const DirectiveTree &T) {
+    for (const auto &C : T.Chunks)
+      walk(C);
+  }
+
+  void walk(const DirectiveTree::Chunk &C) {
+    switch (C.kind()) {
+    case DirectiveTree::Chunk::K_Code:
+      return walk((const DirectiveTree::Code &)C);
+    case DirectiveTree::Chunk::K_Directive:
+      return walk((const DirectiveTree::Directive &)C);
+    case DirectiveTree::Chunk::K_Conditional:
+      return walk((const DirectiveTree::Conditional &)C);
+    case DirectiveTree::Chunk::K_Empty:
+      break;
+    }
+    llvm_unreachable("bad chunk kind");
+  }
+
+  void walk(const DirectiveTree::Code &C) {
+    for (const auto &Tok : In.tokens(C.Tokens))
+      Out.push(Tok);
+  }
+
+  void walk(const DirectiveTree::Directive &) {}
+
+  void walk(const DirectiveTree::Conditional &C) {
+    if (C.Taken)
+      walk(C.Branches[*C.Taken].second);
+  }
+};
+} // namespace
+
+TokenStream DirectiveTree::stripDirectives(const TokenStream &In) const {
+  TokenStream Out;
+  Preprocessor(In, Out).walk(*this);
+  return Out;
 }
 
 } // namespace pseudo

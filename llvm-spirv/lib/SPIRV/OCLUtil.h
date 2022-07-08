@@ -495,22 +495,17 @@ Instruction *mutateCallInstOCL(
     std::function<Instruction *(CallInst *)> RetMutate,
     AttributeList *Attrs = nullptr, bool TakeFuncName = false);
 
-/// Check if instruction is bitcast from spirv.ConstantSampler to spirv.Sampler
-bool isSamplerInitializer(Instruction *Inst);
-
-/// Check if instruction is bitcast from spirv.ConstantPipeStorage
-/// to spirv.PipeStorage
-bool isPipeStorageInitializer(Instruction *Inst);
-
-/// Check (isSamplerInitializer || isPipeStorageInitializer)
-bool isSpecialTypeInitializer(Instruction *Inst);
+/// If the value is a special type initializer (something that bitcasts from
+/// spirv.ConstantSampler to spirv.Sampler or likewise for PipeStorage), get the
+/// original type initializer, unwrap the bitcast. Otherwise, return nullptr.
+Value *unwrapSpecialTypeInitializer(Value *V);
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);
 bool isKernelQueryBI(const StringRef MangledName);
 
 /// Check that the type is the sampler_t
-bool isSamplerTy(Type *Ty);
+bool isSamplerStructTy(StructType *Ty);
 
 // Checks if the binary operator is an unfused fmul + fadd instruction.
 bool isUnfusedMulAdd(BinaryOperator *B);
