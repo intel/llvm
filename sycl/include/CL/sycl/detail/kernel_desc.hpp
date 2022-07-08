@@ -13,6 +13,8 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 
+#include <cstdint>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -79,6 +81,7 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
+  static constexpr int64_t getKernelSize() { return 0; }
 };
 #else
 template <char...> struct KernelInfoData {
@@ -93,6 +96,7 @@ template <char...> struct KernelInfoData {
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
+  static constexpr int64_t getKernelSize() { return 0; }
 };
 
 // C++14 like index_sequence and make_index_sequence
@@ -135,6 +139,9 @@ template <class KernelNameType> struct KernelInfo {
   static constexpr const char *getFunctionName() { return ""; }
   static constexpr unsigned getLineNumber() { return 0; }
   static constexpr unsigned getColumnNumber() { return 0; }
+  static constexpr int64_t getKernelSize() {
+    return SubKernelInfo::getKernelSize();
+  }
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 
