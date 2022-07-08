@@ -12,6 +12,7 @@
 #include <type_traits>
 
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/exception.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -19,7 +20,9 @@
 #define __SYCL_HOST_NOT_SUPPORTED(Op)
 #else
 #define __SYCL_HOST_NOT_SUPPORTED(Op)                                          \
-  assert(!(Op " is not supported on host device."));
+  throw sycl::exception(                                                       \
+      sycl::make_error_code(sycl::errc::feature_not_supported),                \
+      Op " is not supported on host device.");
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -37,11 +40,11 @@ struct HasSubscriptOperator<
     T, I, sycl::detail::void_t<decltype(std::declval<T>()[std::declval<I>()])>>
     : std::true_type {};
 
-// Type-trait for checking if a type defines the -> operator.
+// Type-trait for checking if a type defines `operator->`.
 template <typename T, typename = void>
-struct HasDerefOperator : std::false_type {};
+struct HasArrowOperator : std::false_type {};
 template <typename T>
-struct HasDerefOperator<
+struct HasArrowOperator<
     T, sycl::detail::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
@@ -66,56 +69,6 @@ protected:
   T *get_ptr() noexcept { return &val; }
   T *get_ptr() const noexcept { return &val; }
 };
-
-// Class in the device_global inheritance chain. This class will define the
-// -> operator for the device_global if the underlying type T either has the
-// operator defined or is a pointer.
-template <typename T, typename PropertyListT, typename = void>
-class device_global_deref : public device_global_base<T, PropertyListT> {};
-
-template <typename T, typename PropertyListT>
-class device_global_deref<
-    T, PropertyListT,
-    sycl::detail::enable_if_t<HasDerefOperator<T>::value ||
-                              std::is_pointer<T>::value>>
-    : public device_global_base<T, PropertyListT> {
-public:
-  T &operator->() noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Dereferencing a device_global")
-    return *this->get_ptr();
-  }
-
-  T &operator->() const noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Dereferencing a device_global")
-    return *this->get_ptr();
-  }
-};
-
-// Class in the device_global inheritance chain. This class will define the
-// subscript operator for the device_global if the underlying type T either has
-// the operator defined.
-template <typename T, typename PropertyListT, typename = void>
-class device_global_subscript : public device_global_deref<T, PropertyListT> {};
-
-template <typename T, typename PropertyListT>
-class device_global_subscript<
-    T, PropertyListT,
-    sycl::detail::enable_if_t<HasSubscriptOperator<T, std::ptrdiff_t>::value>>
-    : public device_global_deref<T, PropertyListT> {
-  using subscript_return_t =
-      decltype(std::declval<T>()[std::declval<std::ptrdiff_t>()]);
-
-public:
-  subscript_return_t &operator[](std::ptrdiff_t idx) noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
-    return (*this->get_ptr())[idx];
-  }
-
-  const subscript_return_t &operator[](std::ptrdiff_t idx) const noexcept {
-    __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
-    return (*this->get_ptr())[idx];
-  }
-};
 } // namespace detail
 
 template <typename T, typename PropertyListT = detail::empty_properties_t>
@@ -139,8 +92,7 @@ class
           sizeof(T), detail::PropertyMetaValue<Props>::value...)]]
 #endif
     device_global<T, detail::properties_t<Props...>>
-    : public detail::device_global_subscript<T,
-                                             detail::properties_t<Props...>> {
+    : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
 
@@ -199,6 +151,42 @@ public:
     __SYCL_HOST_NOT_SUPPORTED("Assignment operator")
     *this->get_ptr() = newValue;
     return *this;
+  }
+
+  template <class RelayT = T>
+  std::enable_if_t<
+      detail::HasSubscriptOperator<RelayT, std::ptrdiff_t>::value,
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
+      &operator[](std::ptrdiff_t idx) noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
+    return (*this->get_ptr())[idx];
+  }
+
+  template <class RelayT = T>
+  const std::enable_if_t<
+      detail::HasSubscriptOperator<RelayT, std::ptrdiff_t>::value,
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
+      &operator[](std::ptrdiff_t idx) const noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
+    return (*this->get_ptr())[idx];
+  }
+
+  template <class RelayT = T>
+  std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
+                       std::is_pointer<RelayT>::value,
+                   RelayT>
+      &operator->() noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
+    return *this->get_ptr();
+  }
+
+  template <class RelayT = T>
+  std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
+                       std::is_pointer<RelayT>::value,
+                   RelayT>
+      &operator->() const noexcept {
+    __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
+    return *this->get_ptr();
   }
 
   template <typename propertyT> static constexpr bool has_property() {
