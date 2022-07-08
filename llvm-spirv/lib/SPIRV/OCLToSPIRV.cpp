@@ -976,13 +976,18 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
                                                    StringRef MangledName) {
   assert(MangledName.find(kMangledName::Sampler) != StringRef::npos);
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  Function *Func = CI->getCalledFunction();
+  AttributeList Attrs = Func->getAttributes();
   bool IsRetScalar = !CI->getType()->isVectorTy();
+  SmallVector<StructType *, 3> ArgStructTys;
+  getParameterTypes(CI, ArgStructTys);
   mutateCallInstSPIRV(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args, Type *&Ret) {
         auto *ImageTy =
-            OCLTypeToSPIRVPtr->getAdaptedType(Args[0])->getPointerElementType();
+            OCLTypeToSPIRVPtr->getAdaptedArgumentType(Func, 0).second;
+        if (!ImageTy)
+          ImageTy = ArgStructTys[0];
         ImageTy = adaptSPIRVImageType(M, ImageTy);
         auto SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
             M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::SampledImg);
@@ -1696,8 +1701,12 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
           if (!isOCLImageStructType(ParamTys[I]))
             continue;
 
-          auto *ImageTy = OCLTypeToSPIRVPtr->getAdaptedType(Args[I])
-                              ->getPointerElementType();
+          auto *ImageTy =
+              OCLTypeToSPIRVPtr
+                  ->getAdaptedArgumentType(CI->getCalledFunction(), I)
+                  .second;
+          if (!ImageTy)
+            ImageTy = ParamTys[I];
           ImageTy = adaptSPIRVImageType(M, ImageTy);
           auto *SampledImgTy = getSPIRVTypeByChangeBaseTypeName(
               M, ImageTy, kSPIRVTypeName::Image, kSPIRVTypeName::VmeImageINTEL);

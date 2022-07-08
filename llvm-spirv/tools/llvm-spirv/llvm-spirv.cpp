@@ -484,7 +484,8 @@ static int parseSPVExtOption(
 
   for (unsigned i = 0; i < SPVExt.size(); ++i) {
     const std::string &ExtString = SPVExt[i];
-    if ('+' != ExtString.front() && '-' != ExtString.front()) {
+    if (ExtString.empty() ||
+        ('+' != ExtString.front() && '-' != ExtString.front())) {
       errs() << "Invalid value of --spirv-ext, expected format is:\n"
              << "\t--spirv-ext=+EXT_NAME,-EXT_NAME\n";
       return -1;
