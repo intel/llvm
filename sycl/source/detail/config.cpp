@@ -95,7 +95,9 @@ void readConfig(bool ForceInitialization) {
     char Key[MAX_CONFIG_NAME] = {0}, Value[MAX_CONFIG_VALUE] = {0};
     std::string BufString;
     std::size_t Position = std::string::npos;
-    while (!feof(file)) {
+    int next_char;
+    while ((next_char = fgetc(file)) != EOF) {
+      ungetc(next_char, file);
       // Expected format:
       // ConfigName=Value\r
       // ConfigName=Value #comment
@@ -106,8 +108,8 @@ void readConfig(bool ForceInitialization) {
       // Key and Value string
       char tempString[MAX_CONFIG_NAME + MAX_CONFIG_VALUE] = {0};
 
-      if (!fgets(tempString, MAX_CONFIG_NAME + MAX_CONFIG_VALUE, file)) {
-        clearerr(file);
+      if (fgets(tempString, MAX_CONFIG_NAME + MAX_CONFIG_VALUE, file) ==
+          nullptr) {
         throw sycl::exception(
             make_error_code(errc::runtime),
             "An error occurred while attempting to read a line");
@@ -121,7 +123,6 @@ void readConfig(bool ForceInitialization) {
       if (ferror(file)) {
         // Fail to process the line.
 
-        clearerr(file);
         file_ignore(file, std::numeric_limits<size_t>::max(), '\n');
         throw sycl::exception(
             make_error_code(errc::runtime),

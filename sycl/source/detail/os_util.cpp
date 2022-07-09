@@ -130,7 +130,9 @@ std::string OSUtil::getCurrentDSODir() {
   //
   uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
   FILE *file = fopen("/proc/self/maps", "r");
-  while (!feof(file)) {
+  int next_char;
+  while ((next_char = fgetc(file)) != EOF) {
+    ungetc(next_char, file);
     if (!procMapsAddressInRange(file, CurrentFunc)) {
       // Skip the rest until an EOL and check the next line
       file_ignore(file, std::numeric_limits<size_t>::max(), '\n');
@@ -140,8 +142,8 @@ std::string OSUtil::getCurrentDSODir() {
     char Perm[5];
 
     if (!fgets(Perm, sizeof(Perm), file)) {
-      throw std::runtime_error("Error reading flags from /proc/self/maps",
-                               PI_ERROR_UNKNOWN);
+      throw runtime_error("Error reading flags from /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
     }
 
     assert(Perm[0] == 'r' && Perm[2] == 'x' &&
@@ -172,9 +174,9 @@ std::string OSUtil::getCurrentDSODir() {
 
     (void)ungetc(next_char_getCurrentDSODir, file);
     char Path[PATH_MAX];
-    (void)fgets(Path, PATH_MAX, file)
+    (void)fgets(Path, PATH_MAX, file);
 
-        if (ferror(file)) {
+    if (ferror(file)) {
       fclose(file);
       throw runtime_error("Error parsing file /proc/self/maps\n",
                           PI_ERROR_UNKNOWN);
