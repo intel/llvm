@@ -751,43 +751,27 @@ void SPIRVToOCLBase::visitCallGroupWaitEvents(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-static std::string getTypeSuffix(Type *T, bool IsSigned) {
-  std::string Suffix;
+static char getTypeSuffix(Type *T) {
+  char Suffix;
 
   Type *ST = T->getScalarType();
   if (ST->isHalfTy())
-    Suffix = "h";
+    Suffix = 'h';
   else if (ST->isFloatTy())
-    Suffix = "f";
-  else if (IsSigned)
-    Suffix = "i";
+    Suffix = 'f';
   else
-    Suffix = "ui";
+    Suffix = 'i';
 
   return Suffix;
 }
 
 void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args,
-                                                unsigned ImOpArgIndex,
-                                                bool &IsSigned) {
-  // Default to signed.
-  IsSigned = true;
+                                                unsigned ImOpArgIndex) {
   if (Args.size() > ImOpArgIndex) {
     ConstantInt *ImOp = dyn_cast<ConstantInt>(Args[ImOpArgIndex]);
     uint64_t ImOpValue = 0;
     if (ImOp)
       ImOpValue = ImOp->getZExtValue();
-    unsigned SignZeroExtMasks = ImageOperandsMask::ImageOperandsSignExtendMask |
-                                ImageOperandsMask::ImageOperandsZeroExtendMask;
-    // If one of the SPIR-V 1.4 SignExtend/ZeroExtend operands is present, take
-    // it into account and drop the mask.
-    if (ImOpValue & SignZeroExtMasks) {
-      if (ImOpValue & ImageOperandsMask::ImageOperandsZeroExtendMask)
-        IsSigned = false;
-      ImOpValue &= ~SignZeroExtMasks;
-      Args[3] = getInt32(M, ImOpValue);
-      ImOp = cast<ConstantInt>(Args[3]);
-    }
     // Drop "Image Operands" argument.
     Args.erase(Args.begin() + ImOpArgIndex);
 
@@ -801,6 +785,7 @@ void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args,
   }
 }
 
+// TODO: Handle unsigned integer return type. May need spec change.
 void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
                                                                  Op OC) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
@@ -822,8 +807,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
     auto Sampler = CallSampledImg->getArgOperand(1);
     Args[0] = Img;
     Args.insert(Args.begin() + 1, Sampler);
-    bool IsSigned;
-    mutateArgsForImageOperands(Args, 3, IsSigned);
+    mutateArgsForImageOperands(Args, 3);
     if (CallSampledImg->hasOneUse()) {
       CallSampledImg->replaceAllUsesWith(
           UndefValue::get(CallSampledImg->getType()));
@@ -834,8 +818,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
     if (auto VT = dyn_cast<VectorType>(T))
       T = VT->getElementType();
     RetTy = IsDepthImage ? T : CI->getType();
-    return std::string(kOCLBuiltinName::SampledReadImage) +
-           getTypeSuffix(T, IsSigned);
+    return std::string(kOCLBuiltinName::SampledReadImage) + getTypeSuffix(T);
   };
 
   auto ModifyRetTy = [=](CallInst *NewCI) -> Instruction * {
@@ -859,13 +842,11 @@ void SPIRVToOCLBase::visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC) {
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
         llvm::Type *T = Args[2]->getType();
-        bool IsSigned;
-        mutateArgsForImageOperands(Args, 3, IsSigned);
+        mutateArgsForImageOperands(Args, 3);
         if (Args.size() > 3) {
           std::swap(Args[2], Args[3]);
         }
-        return std::string(kOCLBuiltinName::WriteImage) +
-               getTypeSuffix(T, IsSigned);
+        return std::string(kOCLBuiltinName::WriteImage) + getTypeSuffix(T);
       },
       &Attrs);
 }
@@ -876,11 +857,9 @@ void SPIRVToOCLBase::visitCallSPIRVImageReadBuiltIn(CallInst *CI, Op OC) {
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
-        bool IsSigned;
-        mutateArgsForImageOperands(Args, 2, IsSigned);
+        mutateArgsForImageOperands(Args, 2);
         llvm::Type *T = CI->getType();
-        return std::string(kOCLBuiltinName::ReadImage) +
-               getTypeSuffix(T, IsSigned);
+        return std::string(kOCLBuiltinName::ReadImage) + getTypeSuffix(T);
       },
       &Attrs);
 }

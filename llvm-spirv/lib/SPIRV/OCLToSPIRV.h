@@ -169,8 +169,7 @@ public:
   /// read_image(image, sampler, ...) =>
   ///   sampled_image = __spirv_SampledImage(image, sampler);
   ///   return __spirv_ImageSampleExplicitLod_R{ReturnType}(sampled_image, ...);
-  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName,
-                                     StringRef DemangledName);
+  void visitCallReadImageWithSampler(CallInst *CI, StringRef MangledName);
 
   /// Transform read_image with msaa image arguments.
   /// Sample argument must be acoded as Image Operand.
