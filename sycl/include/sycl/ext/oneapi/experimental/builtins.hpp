@@ -27,7 +27,10 @@
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::oneapi::experimental {
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
 namespace detail {
 template <size_t N>
 uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
@@ -271,7 +274,10 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace sycl::ext::oneapi::experimental
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef __SYCL_CONSTANT_AS
