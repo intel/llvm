@@ -60,16 +60,36 @@ add_dependencies(sycl_pi_trace_collector pi-pretty-printers ze-pretty-printers)
 
 if(SYCL_BUILD_PI_CUDA)
 
+  find_package(CUDA 10.1 REQUIRED)
   target_compile_definitions(sycl_pi_trace_collector
     PRIVATE
       $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
   )
 
-  find_package(CUDAToolkit 10.1 REQUIRED)
+  # The following find_path can be removed when FindCUDA -> FindCUDAToolkit, and
+  # _CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
+  find_path(_CUPTI_INCLUDE_DIR cupti.h PATHS
+      "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+      "${CUDA_INCLUDE_DIRS}/../extras/CUPTI/include"
+      "${CUDA_INCLUDE_DIRS}"
+      NO_DEFAULT_PATH)
+
   target_include_directories(sycl_pi_trace_collector
     PRIVATE
-    "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+    ${_CUPTI_INCLUDE_DIR}
   )
+
+  # The following if can be removed when FindCUDA -> FindCUDAToolkit
+  if(NOT CUDA_cupti_LIBRARY)
+    find_library(CUDA_cupti_LIBRARY
+      NAMES cupti
+      HINTS ${CUDA_TOOLKIT_ROOT_DIR}
+            ENV CUDA_PATH
+      PATH_SUFFIXES nvidia/current lib64 lib/x64 lib
+                    ../extras/CUPTI/lib64/
+                    ../extras/CUPTI/lib/
+    )
+  endif()
 
   target_link_libraries(sycl_pi_trace_collector
     PRIVATE
@@ -77,11 +97,11 @@ if(SYCL_BUILD_PI_CUDA)
       ${CUDA_cupti_LIBRARY}
   )
 
-  find_path (GEN_CUDA_META_H_DIR generated_cuda_meta.h
-    PATH
-      ${CUDAToolkit_INCLUDE_DIRS}
+  find_path(GEN_CUDA_META_H_DIR generated_cuda_meta.h PATHS
       "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
-  )
+      "${CUDA_INCLUDE_DIRS}/../extras/CUPTI/include"
+      "${CUDA_INCLUDE_DIRS}"
+      NO_DEFAULT_PATH)
 
   if( EXISTS "${GEN_CUDA_META_H_DIR}/generated_cuda_meta.h" )
   add_custom_target(cuda-pretty-printers

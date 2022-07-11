@@ -4,9 +4,7 @@ message(STATUS "Including the PI API CUDA backend.")
  # we only require the CUDA driver API to be used
  # CUDA_CUDA_LIBRARY variable defines the path to libcuda.so, the CUDA Driver API library.
 
-find_package(CUDAToolkit 10.1 REQUIRED)
-
-message(STATUS "Including the PI API CUDA backend.")
+find_package(CUDA 10.1 REQUIRED)
 
 # Make imported library global to use it within the project.
 add_library(cudadrv SHARED IMPORTED GLOBAL)
@@ -14,19 +12,30 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 if (WIN32)
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_IMPLIB               ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+      IMPORTED_IMPLIB               ${CUDA_CUDA_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 else()
   set_target_properties(
     cudadrv PROPERTIES 
-      IMPORTED_LOCATION             ${CUDA_cuda_driver_LIBRARY}
-      INTERFACE_INCLUDE_DIRECTORIES ${CUDAToolkit_INCLUDE_DIRS}
+      IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
+endif()
+
+if(NOT CUDA_cupti_LIBRARY)
+  find_library(CUDA_cupti_LIBRARY
+    NAMES cupti
+    HINTS ${CUDA_TOOLKIT_ROOT_DIR}
+          ENV CUDA_PATH
+    PATH_SUFFIXES nvidia/current lib64 lib/x64 lib
+                  ../extras/CUPTI/lib64/
+                  ../extras/CUPTI/lib/
+  )
 endif()
 
 add_sycl_plugin(cuda
@@ -51,10 +60,18 @@ if (SYCL_ENABLE_XPTI_TRACING)
   target_link_libraries(pi_cuda PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
+# The following find_path can be removed when FindCUDA -> FindCUDAToolkit, and
+# _CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
+find_path(_CUPTI_INCLUDE_DIR cupti.h PATHS
+    "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+    "${CUDA_INCLUDE_DIRS}/../extras/CUPTI/include"
+    "${CUDA_INCLUDE_DIRS}"
+    NO_DEFAULT_PATH)
+
 target_include_directories(pi_cuda
   PRIVATE
     ${sycl_inc_dir}
-    "${CUDA_TOOLKIT_ROOT_DIR}/extras/CUPTI/include"
+    ${_CUPTI_INCLUDE_DIR}
 )
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)
