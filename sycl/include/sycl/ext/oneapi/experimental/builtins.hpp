@@ -143,11 +143,8 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
     auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
-#if __cplusplus >= 201703L
-  if constexpr (N % 2)
-#else
+
   if (N % 2)
-#endif // __cplusplus >= 201703L
   {
     res[N - 1] = bfloat16::from_bits(__clc_fabs(x[N - 1].raw()));
   }
@@ -183,11 +180,8 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
-#if __cplusplus >= 201703L
-  if constexpr (N % 2)
-#else
+
   if (N % 2)
-#endif // __cplusplus >= 201703L
   {
     res[N - 1] =
         bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
@@ -226,11 +220,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
-#if __cplusplus >= 201703L
-  if constexpr (N % 2)
-#else
   if (N % 2)
-#endif // __cplusplus >= 201703L
   {
     res[N - 1] =
         bfloat16::from_bits(__clc_fmax(x[N - 1].raw(), y[N - 1].raw()));
@@ -271,11 +261,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
-#if __cplusplus >= 201703L
-  if constexpr (N % 2)
-#else
   if (N % 2)
-#endif // __cplusplus >= 201703L
   {
     res[N - 1] = bfloat16::from_bits(
         __clc_fma(x[N - 1].raw(), y[N - 1].raw(), z[N - 1].raw()));
