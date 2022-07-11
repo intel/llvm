@@ -179,7 +179,6 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
     std::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
-
   if (N % 2) {
     res[N - 1] =
         bfloat16::from_bits(__clc_fmin(x[N - 1].raw(), y[N - 1].raw()));
