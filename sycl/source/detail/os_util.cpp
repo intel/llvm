@@ -132,7 +132,12 @@ std::string OSUtil::getCurrentDSODir() {
   FILE *file = fopen("/proc/self/maps", "r");
   int next_char;
   while ((next_char = fgetc(file)) != EOF) {
-    ungetc(next_char, file);
+
+    if (ungetc(next_char, file) == EOF) {
+      throw runtime_error(
+          "Error writing to stream associated with file:/proc/self/maps",
+          PI_ERROR_UNKNOWN);
+    }
     if (!procMapsAddressInRange(file, CurrentFunc)) {
       // Skip the rest until an EOL and check the next line
       file_ignore(file, std::numeric_limits<size_t>::max(), '\n');
@@ -152,19 +157,25 @@ std::string OSUtil::getCurrentDSODir() {
     char next_char_getCurrentDSODir = fgetc(file);
     assert(next_char_getCurrentDSODir == ' ');
 
+    bool fileError = false;
     // Read and ignore the following:
     // offset
     file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
-    (void)fgetc(file);
+    fileError |= fgetc(file) == EOF;
     // dev major
     file_ignore(file, std::numeric_limits<size_t>::max(), ':');
-    (void)fgetc(file);
+    fileError |= fgetc(file) == EOF;
     // dev minor
     file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
-    (void)fgetc(file);
+    fileError |= fgetc(file) == EOF;
     // inode
     file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
-    (void)fgetc(file);
+    fileError |= fgetc(file) == EOF;
+
+    if (fileError) {
+      throw runtime_error("Error parsing file /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
+    }
 
     // Now read the path: it is padded with whitespaces, so we skip them
     // first.
@@ -172,17 +183,19 @@ std::string OSUtil::getCurrentDSODir() {
       next_char_getCurrentDSODir = fgetc(file);
     } while (next_char_getCurrentDSODir == ' ');
 
-    (void)ungetc(next_char_getCurrentDSODir, file);
+    fileError = ungetc(next_char_getCurrentDSODir, file) == EOF;
     char Path[PATH_MAX];
-    (void)fgets(Path, PATH_MAX, file);
+    fileError |= fgets(Path, PATH_MAX, file) == nullptr;
 
-    if (ferror(file)) {
-      fclose(file);
-      throw runtime_error("Error parsing file /proc/self/maps\n",
+    if (ferror(file) || fileError) {
+      throw runtime_error("Error parsing file /proc/self/maps",
                           PI_ERROR_UNKNOWN);
     }
 
-    fclose(file);
+    if (fclose(file) == EOF) {
+      throw runtime_error("Couldn't close file /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
+    }
 
     return OSUtil::getDirName(Path);
   }

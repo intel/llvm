@@ -97,7 +97,10 @@ void readConfig(bool ForceInitialization) {
     std::size_t Position = std::string::npos;
     int next_char;
     while ((next_char = fgetc(file)) != EOF) {
-      ungetc(next_char, file);
+      if (ungetc(next_char, file) == EOF) {
+        throw runtime_error("Error modifying config filestream",
+                            PI_ERROR_UNKNOWN);
+      }
       // Expected format:
       // ConfigName=Value\r
       // ConfigName=Value #comment
@@ -189,7 +192,9 @@ void readConfig(bool ForceInitialization) {
 
       initValue(Key, Value);
     }
-    fclose(file);
+    if (fclose(file) == EOF) {
+      throw runtime_error("Couldn't close config file", PI_ERROR_UNKNOWN);
+    }
   }
   Initialized = true;
 }

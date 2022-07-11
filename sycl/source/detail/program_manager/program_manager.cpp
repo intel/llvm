@@ -739,23 +739,26 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
 
   std::string FileName = LibSyclDir + OSUtil::DirSep + Name;
   FILE *File = fopen(FileName.c_str(), "rb");
+  bool fileError = false;
 
   if (File == nullptr || !fseek(File, 0, SEEK_END)) {
     return false;
   }
 
   size_t FileSize = ftell(File);
-  (void)fseek(File, 0, SEEK_SET);
+  fileError = fseek(File, 0, SEEK_SET);
   std::vector<char> FileContent(FileSize);
-  (void)fread(&FileContent[0], sizeof(char), FileSize, File);
+  fileError |= fread(&FileContent[0], sizeof(char), FileSize, File) != FileSize;
 
-  if (ferror(File)) {
-    fclose(File);
+  if (ferror(File) || fileError) {
     throw runtime_error("Failed to load device binary file:" + FileName,
                         PI_ERROR_UNKNOWN);
   }
 
-  fclose(File);
+  if (fclose(File) == EOF) {
+    throw runtime_error("Failed to close device binary file:" + FileName,
+                        PI_ERROR_UNKNOWN);
+  }
 
   Prog =
       createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
@@ -859,24 +862,27 @@ ProgramManager::ProgramManager() {
     // The env var requests that the program is loaded from a SPIR-V file on
     // disk
     FILE *File = fopen(SpvFile, "rb");
+    bool fileError = false;
 
     if (File == nullptr)
       throw runtime_error(std::string("Can't open file specified via ") +
                               UseSpvEnv + ": " + SpvFile,
                           PI_ERROR_INVALID_VALUE);
-    (void)fseek(File, 0, SEEK_END);
+    fileError = fseek(File, 0, SEEK_END);
     size_t Size = ftell(File);
     std::unique_ptr<char[]> Data(new char[Size]);
-    (void)fseek(File, 0, SEEK_SET);
-    (void)fread(Data.get(), sizeof(char), Size, File);
+    fileError |= fseek(File, 0, SEEK_SET);
+    fileError |= fread(Data.get(), sizeof(char), Size, File) != Size;
 
-    if (ferror(File)) {
-      fclose(File);
+    if (ferror(File) || fileError) {
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
                           PI_ERROR_INVALID_VALUE);
     }
-    fclose(File);
+    if (fclose(File) == EOF) {
+      throw runtime_error("Error closing file:" + std::string(SpvFile),
+                          PI_ERROR_UNKNOWN);
+    }
 
     auto ImgPtr = make_unique_ptr<DynRTDeviceBinaryImage>(
         std::move(Data), Size, OSUtil::DummyModuleHandle);
@@ -1357,7 +1363,9 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
     throw runtime_error("Can not write " + Fname, PI_ERROR_UNKNOWN);
   }
   Img.dump(F);
-  fclose(F);
+  if (fclose(F) == EOF) {
+    throw runtime_error("Error closing file:" + Fname, PI_ERROR_UNKNOWN);
+  }
 }
 
 void ProgramManager::flushSpecConstants(const program_impl &Prg,

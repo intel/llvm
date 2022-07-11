@@ -170,10 +170,12 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
 
   fprintf(file, "}\n");
   if (ferror(file)) {
-    fclose(file);
     throw runtime_error("Error writing to file: " + FileName, PI_ERROR_UNKNOWN);
   }
-  fclose(file);
+
+  if (fclose(file) == EOF) {
+    throw runtime_error("Couldn't close file: " + FileName, PI_ERROR_UNKNOWN);
+  }
 
   unmarkVisitedNodes(MVisitedCmds);
 }
