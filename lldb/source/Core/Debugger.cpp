@@ -1313,7 +1313,7 @@ void Debugger::ReportProgress(uint64_t progress_id, const std::string &message,
                               uint64_t completed, uint64_t total,
                               llvm::Optional<lldb::user_id_t> debugger_id) {
   // Check if this progress is for a specific debugger.
-  if (debugger_id.hasValue()) {
+  if (debugger_id) {
     // It is debugger specific, grab it and deliver the event if the debugger
     // still exists.
     DebuggerSP debugger_sp = FindDebuggerWithID(*debugger_id);
@@ -1409,7 +1409,7 @@ void Debugger::ReportError(std::string message,
 bool Debugger::EnableLog(llvm::StringRef channel,
                          llvm::ArrayRef<const char *> categories,
                          llvm::StringRef log_file, uint32_t log_options,
-                         llvm::raw_ostream &error_stream) {
+                         size_t buffer_size, llvm::raw_ostream &error_stream) {
   const bool should_close = true;
 
   std::shared_ptr<LogHandler> log_handler_sp;
@@ -1420,7 +1420,7 @@ bool Debugger::EnableLog(llvm::StringRef channel,
         LLDB_LOG_OPTION_PREPEND_TIMESTAMP | LLDB_LOG_OPTION_PREPEND_THREAD_NAME;
   } else if (log_file.empty()) {
     log_handler_sp = std::make_shared<StreamLogHandler>(
-        GetOutputFile().GetDescriptor(), !should_close);
+        GetOutputFile().GetDescriptor(), !should_close, buffer_size);
   } else {
     auto pos = m_stream_handlers.find(log_file);
     if (pos != m_stream_handlers.end())
@@ -1441,15 +1441,14 @@ bool Debugger::EnableLog(llvm::StringRef channel,
       }
 
       log_handler_sp = std::make_shared<StreamLogHandler>(
-          (*file)->GetDescriptor(), should_close);
+          (*file)->GetDescriptor(), should_close, buffer_size);
       m_stream_handlers[log_file] = log_handler_sp;
     }
   }
   assert(log_handler_sp);
 
   if (log_options == 0)
-    log_options =
-        LLDB_LOG_OPTION_PREPEND_THREAD_NAME | LLDB_LOG_OPTION_THREADSAFE;
+    log_options = LLDB_LOG_OPTION_PREPEND_THREAD_NAME;
 
   return Log::EnableLogChannel(log_handler_sp, log_options, channel, categories,
                                error_stream);

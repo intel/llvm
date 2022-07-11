@@ -128,4 +128,49 @@ def TestEmitRemarkAndEraseOperandOp
   let cppNamespace = "::mlir::test";
 }
 
+def TestWrongNumberOfResultsOp
+  : Op<Transform_Dialect, "test_wrong_number_of_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$a,
+                      PDL_Operation:$b,
+                      PDL_Operation:$c);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::FailureOr<::llvm::SmallVector<::mlir::Operation *>> applyToOne(
+        ::mlir::Operation *target, transform::TransformState &state);
+  }];
+}
+
+def TestWrongNumberOfMultiResultsOp
+  : Op<Transform_Dialect, "test_wrong_number_of_multi_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$result);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::FailureOr<::llvm::SmallVector<::mlir::Operation *>> applyToOne(
+        ::mlir::Operation *target, transform::TransformState &state);
+  }];
+}
+
+def TestCorrectNumberOfMultiResultsOp
+  : Op<Transform_Dialect, "test_correct_number_of_multi_results",
+    [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface, 
+     TransformEachOpTrait, TransformOpInterface]> {
+  let arguments = (ins PDL_Operation:$target);
+  let results = (outs PDL_Operation:$result1,
+                      PDL_Operation:$result2);
+  let assemblyFormat = "$target attr-dict";
+  let cppNamespace = "::mlir::test";
+  let extraClassDeclaration = [{
+    ::mlir::FailureOr<::llvm::SmallVector<::mlir::Operation *>> applyToOne(
+        ::mlir::Operation *target, transform::TransformState &state);
+  }];
+}
+
 #endif // MLIR_TESTTRANSFORMDIALECTEXTENSION_TD

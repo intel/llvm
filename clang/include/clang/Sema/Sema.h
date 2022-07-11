@@ -1970,7 +1970,7 @@ public:
     SemaDiagnosticBuilder(const SemaDiagnosticBuilder &) = default;
     ~SemaDiagnosticBuilder();
 
-    bool isImmediate() const { return ImmediateDiag.hasValue(); }
+    bool isImmediate() const { return ImmediateDiag.has_value(); }
 
     /// Convertible to bool: True if we immediately emitted an error, false if
     /// we didn't emit an error or we created a deferred error.
@@ -7927,7 +7927,7 @@ public:
     RequiredTemplateKind(TemplateNameIsRequiredTag) {}
 
     SourceLocation getTemplateKeywordLoc() const {
-      return TemplateKW.getValueOr(SourceLocation());
+      return TemplateKW.value_or(SourceLocation());
     }
     bool hasTemplateKeyword() const { return getTemplateKeywordLoc().isValid(); }
     bool isRequired() const { return TemplateKW != SourceLocation(); }
@@ -10583,7 +10583,7 @@ public:
                                LangOptions::FPExceptionModeKind);
 
   /// Called to set constant rounding mode for floating point operations.
-  void setRoundingMode(SourceLocation Loc, llvm::RoundingMode);
+  void ActOnPragmaFEnvRound(SourceLocation Loc, llvm::RoundingMode);
 
   /// Called to set exception behavior for floating point operations.
   void setExceptionMode(SourceLocation Loc, LangOptions::FPExceptionModeKind);

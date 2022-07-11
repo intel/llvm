@@ -875,7 +875,7 @@ LogicalResult ModuleTranslation::convertOneFunction(LLVMFuncOp func) {
   }
 
   // Check the personality and set it.
-  if (func.getPersonality().hasValue()) {
+  if (func.getPersonality()) {
     llvm::Type *ty = llvm::Type::getInt8PtrTy(llvmFunc->getContext());
     if (llvm::Constant *pfunc = getLLVMConstant(ty, func.getPersonalityAttr(),
                                                 func.getLoc(), *this))
@@ -1005,7 +1005,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       llvm::SmallVector<llvm::Metadata *, 2> operands;
       operands.push_back({}); // Placeholder for self-reference
       if (Optional<StringRef> description = op.getDescription())
-        operands.push_back(llvm::MDString::get(ctx, description.getValue()));
+        operands.push_back(llvm::MDString::get(ctx, *description));
       llvm::MDNode *domain = llvm::MDNode::get(ctx, operands);
       domain->replaceOperandWith(0, domain); // Self-reference for uniqueness
       aliasScopeDomainMetadataMapping.insert({op, domain});
@@ -1024,7 +1024,7 @@ LogicalResult ModuleTranslation::createAliasScopeMetadata() {
       operands.push_back({}); // Placeholder for self-reference
       operands.push_back(domain);
       if (Optional<StringRef> description = op.getDescription())
-        operands.push_back(llvm::MDString::get(ctx, description.getValue()));
+        operands.push_back(llvm::MDString::get(ctx, *description));
       llvm::MDNode *scope = llvm::MDNode::get(ctx, operands);
       scope->replaceOperandWith(0, scope); // Self-reference for uniqueness
       aliasScopeMetadataMapping.insert({op, scope});

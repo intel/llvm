@@ -367,6 +367,8 @@ Attribute Changes in Clang
 - Added the ``clang::annotate_type`` attribute, which can be used to add
   annotations to types (see documentation for details).
 
+- Added half float to types that can be represented by ``__attribute__((mode(XX)))``.
+
 Windows Support
 ---------------
 
@@ -443,6 +445,10 @@ C++20 Feature Support
   that was hoped for. C++20 since added ``extern "C++"`` semantics
   that can be used for such compatibility. The demangler now demangles
   symbols with named module attachment.
+
+- As per "Conditionally Trivial Special Member Functions" (P0848), it is
+  now possible to overload destructors using concepts. Note that the rest
+  of the paper about other special member functions is not yet implemented.
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -574,6 +580,10 @@ Static Analyzer
   from common memory copy/manipulation functions such as ``memcpy``, ``mempcpy``, ``memmove``, ``memcmp``, `
   `strcmp``, ``strncmp``, ``strcpy``, ``strlen``, ``strsep`` and many more. Although
   this checker currently is in list of alpha checkers due to a false positive.
+
+- Added a new checker ``alpha.unix.Errno``. This can find the first read
+  of ``errno`` after successful standard function calls, such use of ``errno``
+  could be unsafe.
 
 - Deprecate the ``-analyzer-store region`` and
   ``-analyzer-opt-analyze-nested-blocks`` analyzer flags.

@@ -364,14 +364,14 @@ private:
 // with the given index in the compute command group. If it is instead set
 // to negative then all available compute engines may be used.
 //
-// The default value is "0".
+// The default value is "-1".
 //
 static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
   const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
-  // If the environment variable is not set only use "0" CCS for now.
-  // TODO: allow all CCSs when HW support is complete.
+  // If the environment variable is not set, all available compute engines
+  // can be used.
   if (!EnvVar)
-    return std::pair<int, int>(0, 0);
+    return std::pair<int, int>(0, INT_MAX);
 
   auto EnvVarValue = std::atoi(EnvVar);
   if (EnvVarValue >= 0) {

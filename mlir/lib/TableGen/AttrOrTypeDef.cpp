@@ -65,7 +65,7 @@ AttrOrTypeDef::AttrOrTypeDef(const llvm::Record *def) : def(def) {
 
   // Verify the use of the mnemonic field.
   bool hasCppFormat = hasCustomAssemblyFormat();
-  bool hasDeclarativeFormat = getAssemblyFormat().hasValue();
+  bool hasDeclarativeFormat = getAssemblyFormat().has_value();
   if (getMnemonic()) {
     if (hasCppFormat && hasDeclarativeFormat) {
       PrintFatalError(getLoc(), "cannot specify both 'assemblyFormat' "
@@ -225,8 +225,7 @@ Optional<StringRef> AttrOrTypeParameter::getAllocator() const {
 }
 
 StringRef AttrOrTypeParameter::getComparator() const {
-  return getDefValue<llvm::StringInit>("comparator")
-      .getValueOr("$_lhs == $_rhs");
+  return getDefValue<llvm::StringInit>("comparator").value_or("$_lhs == $_rhs");
 }
 
 StringRef AttrOrTypeParameter::getCppType() const {
@@ -242,12 +241,11 @@ StringRef AttrOrTypeParameter::getCppType() const {
 
 StringRef AttrOrTypeParameter::getCppAccessorType() const {
   return getDefValue<llvm::StringInit>("cppAccessorType")
-      .getValueOr(getCppType());
+      .value_or(getCppType());
 }
 
 StringRef AttrOrTypeParameter::getCppStorageType() const {
-  return getDefValue<llvm::StringInit>("cppStorageType")
-      .getValueOr(getCppType());
+  return getDefValue<llvm::StringInit>("cppStorageType").value_or(getCppType());
 }
 
 Optional<StringRef> AttrOrTypeParameter::getParser() const {
@@ -265,13 +263,13 @@ Optional<StringRef> AttrOrTypeParameter::getSummary() const {
 StringRef AttrOrTypeParameter::getSyntax() const {
   if (auto *stringType = dyn_cast<llvm::StringInit>(getDef()))
     return stringType->getValue();
-  return getDefValue<llvm::StringInit>("syntax").getValueOr(getCppType());
+  return getDefValue<llvm::StringInit>("syntax").value_or(getCppType());
 }
 
 bool AttrOrTypeParameter::isOptional() const {
   // Parameters with default values are automatically optional.
-  return getDefValue<llvm::BitInit>("isOptional").getValueOr(false) ||
-         getDefaultValue().hasValue();
+  return getDefValue<llvm::BitInit>("isOptional").value_or(false) ||
+         getDefaultValue();
 }
 
 Optional<StringRef> AttrOrTypeParameter::getDefaultValue() const {

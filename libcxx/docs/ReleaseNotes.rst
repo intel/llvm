@@ -35,16 +35,17 @@ see the `releases page <https://llvm.org/releases/>`_.
 What's New in Libc++ 15.0.0?
 ============================
 
-New Features
-------------
+Implemented Papers
+------------------
 
-- Implemented P0627R6 (Function to mark unreachable code)
-
-- Implemented P1165R1 (Make stateful allocator propagation more consistent for ``operator+(basic_string)``)
-
-- Implemented P0674R1 (Support arrays in ``make_shared`` and ``allocate_shared``)
-
-- Implemented P0980R1 (Making ``std::string`` constexpr)
+- P0627R6 (Function to mark unreachable code)
+- P1165R1 (Make stateful allocator propagation more consistent for ``operator+(basic_string)``)
+- P0674R1 (Support arrays in ``make_shared`` and ``allocate_shared``)
+- P0980R1 (Making ``std::string`` constexpr)
+- P2216R3 (std::format improvements)
+- P0174R2 (Deprecating Vestigial Library Parts in C++17)
+- N4190 (Removing auto_ptr, random_shuffle(), And Old <functional> Stuff)
+- P0154R1 (Hardware inference size)
 
 - Marked the following papers as "Complete" (note that some of those might have
   been implemented in a previous release but not marked as such):
@@ -58,6 +59,9 @@ New Features
     - P1878R1 (Constraining Readable Types);
     - P1970R2 (Consistency for ``size()`` functions: Add ``ranges::ssize``);
     - P1983R0 (Wording for GB301, US296, US292, US291, and US283).
+
+New Features
+------------
 
 - `pop_heap` now uses an algorithm known as "bottom-up heapsort" or
   "heapsort with bounce" to reduce the number of comparisons, and rearranges
@@ -73,8 +77,7 @@ New Features
   moved from the dylib to the header. This means the function no longer has a
   minimum deployment target.
 
-- Implemented P2216R3 (std::format improvements). The format functions
-  (``std::format``, ``std::format_to``, ``std::format_to_n``, and
+- The format functions (``std::format``, ``std::format_to``, ``std::format_to_n``, and
   ``std::formatted_size``) now validate the format string at compile time.
   When the format string is invalid this will make the code ill-formed instead
   of throwing an exception at run-time.  (This does not affect the ``v``
@@ -141,6 +144,20 @@ API Changes
   re-enabling the ``allocator<void>`` specialization. When used in conjuction with
   ``_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS``, this ensures that the members of
   ``allocator<void>`` removed in C++20 can be accessed.
+
+- The experimental versions of ``boyer_moore_searcher`` and ``boyer_moore_horspool_searcher``
+  will be removed in LLVM 17. You can disable the deprecation warnings by defining
+  ``_LIBCPP_NO_EXPERIMENTAL_DEPRECATION_WARNING_SEARCHERS``.
+
+- ``std::function`` has been removed in C++03. If you are using it, please remove usages
+  or upgrade to C++11 or later. It is possible to re-enable ``std::function`` in C++03 by defining
+  ``_LIBCPP_ENABLE_CXX03_FUNCTION``. This option will be removed in LLVM 16.
+
+- ``unary_function`` and ``binary_function`` are no longer available in C++17 and C++20.
+  They can be re-enabled by defining ``_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION``.
+  They are also marked as ``[[deprecated]]`` in C++11 and later. To disable deprecation warnings
+  you have to define ``_LIBCPP_DISABLE_DEPRECATION_WARNINGS``. Note that this disables
+  all deprecation warnings.
 
 ABI Changes
 -----------

@@ -123,6 +123,20 @@ static bool checkArgCountAtLeast(Sema &S, CallExpr *Call,
          << Call->getSourceRange();
 }
 
+/// Checks that a call expression's argument count is at most the desired
+/// number. This is useful when doing custom type-checking on a variadic
+/// function. Returns true on error.
+static bool checkArgCountAtMost(Sema &S, CallExpr *Call, unsigned MaxArgCount) {
+  unsigned ArgCount = Call->getNumArgs();
+  if (ArgCount <= MaxArgCount)
+    return false;
+
+  return S.Diag(Call->getEndLoc(),
+                diag::err_typecheck_call_too_many_args_at_most)
+         << 0 /*function call*/ << MaxArgCount << ArgCount
+         << Call->getSourceRange();
+}
+
 /// Checks that a call expression's argument count is the desired number.
 /// This is useful when doing custom type-checking.  Returns true on error.
 static bool checkArgCount(Sema &S, CallExpr *Call, unsigned DesiredArgCount) {
@@ -1034,7 +1048,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     Optional<unsigned> IndexOptional = TranslateIndex(Index);
     if (!IndexOptional)
       return llvm::None;
-    unsigned NewIndex = IndexOptional.getValue();
+    unsigned NewIndex = *IndexOptional;
     Expr::EvalResult Result;
     Expr *SizeArg = TheCall->getArg(NewIndex);
     if (!SizeArg->EvaluateAsInt(Result, getASTContext()))
@@ -1059,7 +1073,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     Optional<unsigned> IndexOptional = TranslateIndex(Index);
     if (!IndexOptional)
       return llvm::None;
-    unsigned NewIndex = IndexOptional.getValue();
+    unsigned NewIndex = *IndexOptional;
 
     const Expr *ObjArg = TheCall->getArg(NewIndex);
     uint64_t Result;
@@ -1074,7 +1088,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     Optional<unsigned> IndexOptional = TranslateIndex(Index);
     if (!IndexOptional)
       return llvm::None;
-    unsigned NewIndex = IndexOptional.getValue();
+    unsigned NewIndex = *IndexOptional;
 
     const Expr *ObjArg = TheCall->getArg(NewIndex);
     uint64_t Result;
@@ -1284,8 +1298,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   }
 
   if (!SourceSize || !DestinationSize ||
-      llvm::APSInt::compareValues(SourceSize.getValue(),
-                                  DestinationSize.getValue()) <= 0)
+      llvm::APSInt::compareValues(*SourceSize, *DestinationSize) <= 0)
     return;
 
   StringRef FunctionName = GetFunctionName();
@@ -5490,18 +5503,12 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
 
   // Make sure we have the minimum number of provided arguments.
-  if (NumArgs < MinNumArgs)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_few_args_at_least)
-           << 0 /* function call */ << MinNumArgs << NumArgs
-           << TheCall->getSourceRange();
+  if (checkArgCountAtLeast(*this, TheCall, MinNumArgs))
+    return true;
 
   // Make sure we don't have too many arguments.
-  if (NumArgs > MaxNumArgs)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_many_args_at_most)
-           << 0 /*function call*/ << MaxNumArgs << NumArgs
-           << TheCall->getSourceRange();
+  if (checkArgCountAtMost(*this, TheCall, MaxNumArgs))
+    return true;
 
   Expr *PointerArg = TheCall->getArg(0);
   QualType PointerArgType = PointerArg->getType();
@@ -7664,10 +7671,8 @@ ExprResult Sema::SemaConvertVectorExpr(Expr *E, TypeSourceInfo *TInfo,
 bool Sema::SemaBuiltinPrefetch(CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
 
-  if (NumArgs > 3)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_many_args_at_most)
-           << 0 /*function call*/ << 3 << NumArgs << TheCall->getSourceRange();
+  if (checkArgCountAtMost(*this, TheCall, 3))
+    return true;
 
   // Argument 0 is checked for us and the remaining arguments must be
   // constant integers.
@@ -7755,10 +7760,8 @@ bool Sema::SemaBuiltinAllocaWithAlign(CallExpr *TheCall) {
 bool Sema::SemaBuiltinAssumeAligned(CallExpr *TheCall) {
   unsigned NumArgs = TheCall->getNumArgs();
 
-  if (NumArgs > 3)
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_many_args_at_most)
-           << 0 /*function call*/ << 3 << NumArgs << TheCall->getSourceRange();
+  if (checkArgCountAtMost(*this, TheCall, 3))
+    return true;
 
   // The alignment must be a constant integer.
   Expr *Arg = TheCall->getArg(1);
@@ -7802,12 +7805,8 @@ bool Sema::SemaBuiltinOSLogFormat(CallExpr *TheCall) {
            << 0 /* function call */ << NumRequiredArgs << NumArgs
            << TheCall->getSourceRange();
   }
-  if (NumArgs >= NumRequiredArgs + 0x100) {
-    return Diag(TheCall->getEndLoc(),
-                diag::err_typecheck_call_too_many_args_at_most)
-           << 0 /* function call */ << (NumRequiredArgs + 0xff) << NumArgs
-           << TheCall->getSourceRange();
-  }
+  if (checkArgCountAtMost(*this, TheCall, NumRequiredArgs + 0xff))
+    return true;
   unsigned i = 0;
 
   // For formatting call, check buffer arg.
@@ -16833,7 +16832,7 @@ void Sema::DiagnoseEmptyLoopBody(const Stmt *S,
     Body = FS->getBody();
     DiagID = diag::warn_empty_for_body;
   } else if (const WhileStmt *WS = dyn_cast<WhileStmt>(S)) {
-    StmtLoc = WS->getCond()->getSourceRange().getEnd();
+    StmtLoc = WS->getRParenLoc();
     Body = WS->getBody();
     DiagID = diag::warn_empty_while_body;
   } else

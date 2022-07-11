@@ -11,7 +11,7 @@
 
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 
@@ -31,6 +31,15 @@ class LinalgDependenceGraph;
 //===----------------------------------------------------------------------===//
 // General utilities
 //===----------------------------------------------------------------------===//
+
+/// Check if all indexing maps are projected permutations.
+bool allIndexingsAreProjectedPermutation(LinalgOp op);
+
+/// Detect whether `r` has only ConstantOp, ElementwiseMappable and YieldOp.
+bool hasOnlyScalarElementwiseOp(Region &r);
+
+/// Check if a LinalgOp is an element-wise operation.
+bool isElementwise(LinalgOp op);
 
 /// Check if `permutation` is a permutation of the range
 /// `[0, permutation.size())`.
