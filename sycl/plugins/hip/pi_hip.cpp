@@ -198,10 +198,12 @@ pi_result check_error(hipError_t result, const char *function, int line,
   errorString = hipGetErrorString(result);
   fprintf(stderr,
           "\nPI HIP ERROR:"
-          "\n\tValue:           %s",
-          result "\n\tName:            %s", errorName "\n\tDescription:     %s",
-          errorString "\n\tFunction:        %s",
-          function "\n\tSource Location: %s:%s\n\n", file, line);
+          "\n\tValue:           %d"
+          "\n\tName:            %s"
+          "\n\tDescription:     %s"
+          "\n\tFunction:        %s"
+          "\n\tSource Location: %s:%d\n\n",
+          result, errorName, errorString, function, file, line);
 
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();
