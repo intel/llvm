@@ -17,6 +17,9 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+template <typename, int, access::mode, access::target, access::placeholder,
+          typename>
+class accessor;
 
 namespace ext {
 namespace intel {
