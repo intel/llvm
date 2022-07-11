@@ -714,7 +714,6 @@ public:
     return OutAcc.get_pointer().get();
   }
 
-
 private:
   template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
   std::enable_if_t<IsPH == access::placeholder::false_t, rw_accessor_type>
@@ -1083,9 +1082,8 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
       Reduction::template getReadWriteLocalAcc<int>(1, CGH);
 
   auto Rest = [&](auto PartialSums, auto Out, auto NWorkGroupsFinished) {
-    using Name =
-        __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
-                                KernelName, decltype(Out)>;
+    using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce,
+                                         KernelName, decltype(Out)>;
     CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
       // Call user's functions. Reducer.MValue gets initialized there.
       typename Reduction::reducer_type Reducer;
