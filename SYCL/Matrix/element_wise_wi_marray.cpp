@@ -10,7 +10,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 %s -o %t.out
 // RUN: %t.out
 
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

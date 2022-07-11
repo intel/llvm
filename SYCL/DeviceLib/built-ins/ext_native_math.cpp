@@ -8,7 +8,6 @@
 // test is compiled with the -fsycl-device-code-split flag
 
 #include <cassert>
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/sycl.hpp>
 
 template <typename T> void assert_out_of_bound(T val, T lower, T upper) {

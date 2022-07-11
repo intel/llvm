@@ -21,7 +21,6 @@
 #include "esimd_test_utils.hpp"
 
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/sycl.hpp>
 
 #include <cstdint>
