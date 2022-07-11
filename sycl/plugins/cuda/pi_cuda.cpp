@@ -141,11 +141,11 @@ pi_result check_error(CUresult result, const char *function, int line,
   cuGetErrorString(result, &errorString);
   fprintf(stderr,
           "\nPI CUDA ERROR:"
-          "\n\tValue:           %s"
+          "\n\tValue:           %d"
           "\n\tName:            %s"
           "\n\tDescription:     %s"
           "\n\tFunction:        %s"
-          "\n\tSource Location: %s:%s\n\n",
+          "\n\tSource Location: %s:%d\n\n",
           result, errorName, errorString, function, file, line);
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
