@@ -88,14 +88,16 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
 bool procMapsAddressInRange(FILE *file, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
   char next_char = 0, scanf_matches = 0;
-
-  scanf_matches = fscanf(file, "%p", &Start);
+  void *dummyPtr;
+  scanf_matches = fscanf(file, "%p", &dummyPtr);
+  Start = reinterpret_cast<uintptr_t>(dummyPtr);
   assert(scanf_matches && !ferror(file) &&
          "Couldn't read /proc/self/maps correctly");
   next_char = fgetc(file);
   assert(next_char == '-' && "Couldn't read /proc/self/maps correctly");
 
-  scanf_matches = fscanf(file, "%p", &End);
+  scanf_matches = fscanf(file, "%p", &dummyPtr);
+  End = reinterpret_cast<uintptr_t>(dummyPtr);
   assert(scanf_matches && !ferror(file) &&
          "Couldn't read /proc/self/maps correctly");
   next_char = fgetc(file);
