@@ -153,17 +153,6 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
-#if ENABLE_OPAQUE_POINTERS
-constexpr bool SPIRVOpaquePointersDefault = true;
-#else
-constexpr bool SPIRVOpaquePointersDefault = false;
-#endif
-
-static cl::opt<bool> EmitOpaquePointers(
-    "emit-opaque-pointers", cl::init(SPIRVOpaquePointersDefault),
-    cl::desc(
-        "Emit opaque/typed LLVM pointers for the translation from SPIR-V."));
-
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
@@ -355,7 +344,7 @@ static bool isFileEmpty(const std::string &FileName) {
 
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
-  Context.setOpaquePointers(EmitOpaquePointers);
+  Context.setOpaquePointers(false);
 
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
