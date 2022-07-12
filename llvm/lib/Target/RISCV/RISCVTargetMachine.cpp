@@ -14,6 +14,7 @@
 #include "MCTargetDesc/RISCVBaseInfo.h"
 #include "RISCV.h"
 #include "RISCVMachineFunctionInfo.h"
+#include "RISCVMacroFusion.h"
 #include "RISCVTargetObjectFile.h"
 #include "RISCVTargetTransformInfo.h"
 #include "TargetInfo/RISCVTargetInfo.h"
@@ -63,9 +64,7 @@ static StringRef computeDataLayout(const Triple &TT) {
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
                                            Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
-    return Reloc::Static;
-  return *RM;
+  return RM.value_or(Reloc::Static);
 }
 
 RISCVTargetMachine::RISCVTargetMachine(const Target &T, const Triple &TT,
@@ -141,6 +140,28 @@ public:
 
   RISCVTargetMachine &getRISCVTargetMachine() const {
     return getTM<RISCVTargetMachine>();
+  }
+
+  ScheduleDAGInstrs *
+  createMachineScheduler(MachineSchedContext *C) const override {
+    const RISCVSubtarget &ST = C->MF->getSubtarget<RISCVSubtarget>();
+    if (ST.hasMacroFusion()) {
+      ScheduleDAGMILive *DAG = createGenericSchedLive(C);
+      DAG->addMutation(createRISCVMacroFusionDAGMutation());
+      return DAG;
+    }
+    return nullptr;
+  }
+
+  ScheduleDAGInstrs *
+  createPostMachineScheduler(MachineSchedContext *C) const override {
+    const RISCVSubtarget &ST = C->MF->getSubtarget<RISCVSubtarget>();
+    if (ST.hasMacroFusion()) {
+      ScheduleDAGMI *DAG = createGenericSchedPostRA(C);
+      DAG->addMutation(createRISCVMacroFusionDAGMutation());
+      return DAG;
+    }
+    return nullptr;
   }
 
   void addIRPasses() override;

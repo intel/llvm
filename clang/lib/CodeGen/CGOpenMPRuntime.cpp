@@ -10233,7 +10233,8 @@ void CGOpenMPRuntime::emitTargetCall(
   assert((OffloadingMandatory || OutlinedFn) && "Invalid outlined function!");
 
   const bool RequiresOuterTask = D.hasClausesOfKind<OMPDependClause>() ||
-                                 D.hasClausesOfKind<OMPNowaitClause>();
+                                 D.hasClausesOfKind<OMPNowaitClause>() ||
+                                 D.hasClausesOfKind<OMPInReductionClause>();
   llvm::SmallVector<llvm::Value *, 16> CapturedVars;
   const CapturedStmt &CS = *D.getCapturedStmt(OMPD_target);
   auto &&ArgsCodegen = [&CS, &CapturedVars](CodeGenFunction &CGF,
@@ -10788,7 +10789,7 @@ void CGOpenMPRuntime::registerTargetGlobalVariable(const VarDecl *VD,
   // If we have host/nohost variables, they do not need to be registered.
   Optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
       OMPDeclareTargetDeclAttr::getDeviceType(VD);
-  if (DevTy && DevTy.getValue() != OMPDeclareTargetDeclAttr::DT_Any)
+  if (DevTy && *DevTy != OMPDeclareTargetDeclAttr::DT_Any)
     return;
 
   llvm::Optional<OMPDeclareTargetDeclAttr::MapTypeTy> Res =
@@ -12192,8 +12193,7 @@ static llvm::Value *getAlignmentValue(CodeGenModule &CGM, const VarDecl *VD) {
   if (!AllocateAlignment)
     return nullptr;
 
-  return llvm::ConstantInt::get(CGM.SizeTy,
-                                AllocateAlignment.getValue().getQuantity());
+  return llvm::ConstantInt::get(CGM.SizeTy, AllocateAlignment->getQuantity());
 }
 
 Address CGOpenMPRuntime::getAddressOfLocalVariable(CodeGenFunction &CGF,

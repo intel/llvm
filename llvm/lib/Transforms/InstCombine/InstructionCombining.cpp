@@ -988,8 +988,8 @@ Instruction *InstCombinerImpl::foldBinopOfSextBoolToSelect(BinaryOperator &BO) {
   // bo (sext i1 X), C --> select X, (bo -1, C), (bo 0, C)
   Constant *Ones = ConstantInt::getAllOnesValue(BO.getType());
   Constant *Zero = ConstantInt::getNullValue(BO.getType());
-  Constant *TVal = ConstantExpr::get(BO.getOpcode(), Ones, C);
-  Constant *FVal = ConstantExpr::get(BO.getOpcode(), Zero, C);
+  Value *TVal = Builder.CreateBinOp(BO.getOpcode(), Ones, C);
+  Value *FVal = Builder.CreateBinOp(BO.getOpcode(), Zero, C);
   return SelectInst::Create(X, TVal, FVal);
 }
 
@@ -1019,12 +1019,6 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
   // Figure out if the constant is the left or the right argument.
   bool ConstIsRHS = isa<Constant>(I.getOperand(1));
   Constant *ConstOperand = cast<Constant>(I.getOperand(ConstIsRHS));
-
-  if (auto *SOC = dyn_cast<Constant>(SO)) {
-    if (ConstIsRHS)
-      return ConstantExpr::get(I.getOpcode(), SOC, ConstOperand);
-    return ConstantExpr::get(I.getOpcode(), ConstOperand, SOC);
-  }
 
   Value *Op0 = SO, *Op1 = ConstOperand;
   if (!ConstIsRHS)
@@ -1115,12 +1109,6 @@ static Value *foldOperationIntoPhiValue(BinaryOperator *I, Value *InV,
                                         InstCombiner::BuilderTy &Builder) {
   bool ConstIsRHS = isa<Constant>(I->getOperand(1));
   Constant *C = cast<Constant>(I->getOperand(ConstIsRHS));
-
-  if (auto *InC = dyn_cast<Constant>(InV)) {
-    if (ConstIsRHS)
-      return ConstantExpr::get(I->getOpcode(), InC, C);
-    return ConstantExpr::get(I->getOpcode(), C, InC);
-  }
 
   Value *Op0 = InV, *Op1 = C;
   if (!ConstIsRHS)
@@ -1336,6 +1324,11 @@ Instruction *InstCombinerImpl::foldBinopWithPhiOperands(BinaryOperator &BO) {
     if (!isGuaranteedToTransferExecutionToSuccessor(&*BBIter))
       return nullptr;
 
+  // Fold constants for the predecessor block with constant incoming values.
+  Constant *NewC = ConstantFoldBinaryOpOperands(BO.getOpcode(), C0, C1, DL);
+  if (!NewC)
+    return nullptr;
+
   // Make a new binop in the predecessor block with the non-constant incoming
   // values.
   Builder.SetInsertPoint(PredBlockBranch);
@@ -1344,9 +1337,6 @@ Instruction *InstCombinerImpl::foldBinopWithPhiOperands(BinaryOperator &BO) {
                                      Phi1->getIncomingValueForBlock(OtherBB));
   if (auto *NotFoldedNewBO = dyn_cast<BinaryOperator>(NewBO))
     NotFoldedNewBO->copyIRFlags(&BO);
-
-  // Fold constants for the predecessor block with constant incoming values.
-  Constant *NewC = ConstantExpr::get(BO.getOpcode(), C0, C1);
 
   // Replace the binop with a phi of the new values. The old phis are dead.
   PHINode *NewPhi = PHINode::Create(BO.getType(), 2);
@@ -2035,11 +2025,23 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
     if (!GEP.accumulateConstantOffset(DL, Offset))
       return nullptr;
 
+    APInt OffsetOld = Offset;
     // Convert the total offset back into indices.
     SmallVector<APInt> ConstIndices =
         DL.getGEPIndicesForOffset(BaseType, Offset);
-    if (!Offset.isZero() || (!IsFirstType && !ConstIndices[0].isZero()))
+    if (!Offset.isZero() || (!IsFirstType && !ConstIndices[0].isZero())) {
+      // If both GEP are constant-indexed, and cannot be merged in either way,
+      // convert them to a GEP of i8.
+      if (Src->hasAllConstantIndices())
+        return isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))
+            ? GetElementPtrInst::CreateInBounds(
+                Builder.getInt8Ty(), Src->getOperand(0),
+                Builder.getInt(OffsetOld), GEP.getName())
+            : GetElementPtrInst::Create(
+                Builder.getInt8Ty(), Src->getOperand(0),
+                Builder.getInt(OffsetOld), GEP.getName());
       return nullptr;
+    }
 
     bool IsInBounds = isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP));
     SmallVector<Value *> Indices;
@@ -3773,6 +3775,74 @@ InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
   return OrigOp;
 }
 
+Instruction *InstCombinerImpl::foldFreezeIntoRecurrence(FreezeInst &FI,
+                                                        PHINode *PN) {
+  // Detect whether this is a recurrence with a start value and some number of
+  // backedge values. We'll check whether we can push the freeze through the
+  // backedge values (possibly dropping poison flags along the way) until we
+  // reach the phi again. In that case, we can move the freeze to the start
+  // value.
+  Use *StartU = nullptr;
+  SmallVector<Value *> Worklist;
+  for (Use &U : PN->incoming_values()) {
+    if (DT.dominates(PN->getParent(), PN->getIncomingBlock(U))) {
+      // Add backedge value to worklist.
+      Worklist.push_back(U.get());
+      continue;
+    }
+
+    // Don't bother handling multiple start values.
+    if (StartU)
+      return nullptr;
+    StartU = &U;
+  }
+
+  if (!StartU || Worklist.empty())
+    return nullptr; // Not a recurrence.
+
+  Value *StartV = StartU->get();
+  BasicBlock *StartBB = PN->getIncomingBlock(*StartU);
+  bool StartNeedsFreeze = !isGuaranteedNotToBeUndefOrPoison(StartV);
+  // We can't insert freeze if the the start value is the result of the
+  // terminator (e.g. an invoke).
+  if (StartNeedsFreeze && StartBB->getTerminator() == StartV)
+    return nullptr;
+
+  SmallPtrSet<Value *, 32> Visited;
+  SmallVector<Instruction *> DropFlags;
+  while (!Worklist.empty()) {
+    Value *V = Worklist.pop_back_val();
+    if (!Visited.insert(V).second)
+      continue;
+
+    if (Visited.size() > 32)
+      return nullptr; // Limit the total number of values we inspect.
+
+    // Assume that PN is non-poison, because it will be after the transform.
+    if (V == PN || isGuaranteedNotToBeUndefOrPoison(V))
+      continue;
+
+    Instruction *I = dyn_cast<Instruction>(V);
+    if (!I || canCreateUndefOrPoison(cast<Operator>(I),
+                                     /*ConsiderFlags*/ false))
+      return nullptr;
+
+    DropFlags.push_back(I);
+    append_range(Worklist, I->operands());
+  }
+
+  for (Instruction *I : DropFlags)
+    I->dropPoisonGeneratingFlags();
+
+  if (StartNeedsFreeze) {
+    Builder.SetInsertPoint(StartBB->getTerminator());
+    Value *FrozenStartV = Builder.CreateFreeze(StartV,
+                                               StartV->getName() + ".fr");
+    replaceUse(*StartU, FrozenStartV);
+  }
+  return replaceInstUsesWith(FI, PN);
+}
+
 bool InstCombinerImpl::freezeOtherUses(FreezeInst &FI) {
   Value *Op = FI.getOperand(0);
 
@@ -3825,6 +3895,8 @@ Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
   // freeze (phi const, x) --> phi const, (freeze x)
   if (auto *PN = dyn_cast<PHINode>(Op0)) {
     if (Instruction *NV = foldOpIntoPhi(I, PN))
+      return NV;
+    if (Instruction *NV = foldFreezeIntoRecurrence(I, PN))
       return NV;
   }
 

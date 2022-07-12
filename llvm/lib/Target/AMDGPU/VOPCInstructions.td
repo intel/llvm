@@ -1091,6 +1091,8 @@ class VOPC_DPP8<bits<8> op, VOPC_Pseudo ps, string opName = ps.OpName>
 
 class VOPC64_DPP_Base<bits<10> op, string OpName, VOPProfile P>
     : VOP3_DPP_Base<OpName, P, 1>, VOP3_DPPe_Common<op, P> {
+  Instruction Opcode = !cast<Instruction>(NAME);
+
   bits<8> src0;
   bits<9> dpp_ctrl;
   bits<1> bound_ctrl;
@@ -1106,7 +1108,6 @@ class VOPC64_DPP_Base<bits<10> op, string OpName, VOPProfile P>
   // Inst{87-84} ignored by hw
   let Inst{91-88} = bank_mask;
   let Inst{95-92} = row_mask;
-
 }
 
 class VOPC64_DPP16<bits<10> op, VOP_DPP_Pseudo ps, string opName = ps.OpName>
@@ -1137,6 +1138,8 @@ class VOPC64_DPP16_NoDst<bits<10> op, VOP_DPP_Pseudo ps,
 
 class VOPC64_DPP8_Base<bits<10> op, string OpName, VOPProfile P>
     : VOP3_DPP8_Base<OpName, P>, VOP3_DPPe_Common<op, P> {
+  Instruction Opcode = !cast<Instruction>(NAME);
+
   bits<8> src0;
   bits<24> dpp8;
   bits<9> fi;
@@ -1144,7 +1147,6 @@ class VOPC64_DPP8_Base<bits<10> op, string OpName, VOPProfile P>
   let Inst{40-32} = fi;
   let Inst{71-64} = !if(P.HasSrc0, src0{7-0}, 0);
   let Inst{95-72} = dpp8{23-0};
-
 }
 
 class VOPC64_DPP8<bits<10> op, VOP_Pseudo ps, string opName = ps.OpName>
@@ -1412,14 +1414,14 @@ let AssemblerPredicate = isGFX11Only in {
             : VOPC64_DPP16_NoDst<{0, op}, psDPP>,
               SIMCInstr<psDPP.PseudoInstr, SIEncodingFamily.GFX11> {
           let AsmString = !subst("_nosdst", "", psDPP.OpName)
-                          # "{_e64} " # AsmDPP;
+                          # "{_e64_dpp} " # AsmDPP;
         }
       }
       defvar AsmDPP8 = ps64.Pfl.AsmVOP3DPP8;
       let DecoderNamespace = "DPP8GFX11" in {
         def _e64_dpp8_gfx11 : VOPC64_DPP8_NoDst<{0, op}, ps64> {
           let AsmString = !subst("_nosdst", "", ps64.OpName)
-                          # "{_e64} " # AsmDPP8;
+                          # "{_e64_dpp} " # AsmDPP8;
         }
       }
     }
@@ -1466,13 +1468,13 @@ let AssemblerPredicate = isGFX11Only in {
         def _e64_dpp_gfx11
             : VOPC64_DPP16_NoDst<{0, op}, psDPP, asm_name>,
               SIMCInstr<psDPP.PseudoInstr, SIEncodingFamily.GFX11> {
-          let AsmString = asm_name # "{_e64} " # AsmDPP;
+          let AsmString = asm_name # "{_e64_dpp} " # AsmDPP;
         }
       }
       defvar AsmDPP8 = ps64.Pfl.AsmVOP3DPP8;
       let DecoderNamespace = "DPP8GFX11" in {
         def _e64_dpp8_gfx11 : VOPC64_DPP8_NoDst<{0, op}, ps64, asm_name> {
-          let AsmString = asm_name # "{_e64} " # AsmDPP8;
+          let AsmString = asm_name # "{_e64_dpp} " # AsmDPP8;
         }
       }
     }

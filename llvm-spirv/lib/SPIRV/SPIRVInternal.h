@@ -609,7 +609,7 @@ PointerType *getOrCreateOpaquePtrType(Module *M, const std::string &Name,
                                       unsigned AddrSpace = SPIRAS_Global);
 StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name);
 PointerType *getSamplerType(Module *M);
-PointerType *getPipeStorageType(Module *M);
+Type *getSamplerStructType(Module *M);
 PointerType *getSPIRVOpaquePtrType(Module *M, Op OC);
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
                                    std::vector<Type *> &ArgTys);
@@ -647,8 +647,8 @@ Scope getArgAsScope(CallInst *CI, unsigned I);
 /// \param I argument index.
 Decoration getArgAsDecoration(CallInst *CI, unsigned I);
 
-bool isPointerToOpaqueStructType(llvm::Type *Ty);
-bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name);
+/// Check if a type is SPIRV sampler type.
+bool isSPIRVSamplerType(llvm::Type *Ty);
 
 /// Check if a type is OCL image type (if pointed to).
 /// \return type name without "opencl." prefix.
@@ -711,9 +711,6 @@ bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp = false);
 
 /// Check if a function returns void
 bool isVoidFuncTy(FunctionType *FT);
-
-/// \returns true if \p T is a function pointer type.
-bool isFunctionPointerType(Type *T);
 
 /// \returns true if function \p F has array type argument.
 bool hasArrayArg(Function *F);
@@ -921,6 +918,12 @@ bool isSPIRVConstantName(StringRef TyName);
 /// to spirv.NewName.Postfixes.
 Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
                                        StringRef NewName);
+
+/// Get SPIR-V type by changing the type name from spirv.OldName.Postfixes
+/// to spirv.NewName.Postfixes.
+Type *getSPIRVStructTypeByChangeBaseTypeName(Module *M, Type *T,
+                                             StringRef OldName,
+                                             StringRef NewName);
 
 /// Get the postfixes of SPIR-V image type name as in spirv.Image.postfixes.
 std::string getSPIRVImageTypePostfixes(StringRef SampledType,

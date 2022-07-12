@@ -49,6 +49,7 @@ class MCObjectFileInfo;
 class MCRegisterInfo;
 class MCSection;
 class MCSectionCOFF;
+class MCSectionDXContainer;
 class MCSectionELF;
 class MCSectionGOFF;
 class MCSectionMachO;
@@ -129,6 +130,7 @@ private:
   BumpPtrAllocator Allocator;
 
   SpecificBumpPtrAllocator<MCSectionCOFF> COFFAllocator;
+  SpecificBumpPtrAllocator<MCSectionDXContainer> DXCAllocator;
   SpecificBumpPtrAllocator<MCSectionELF> ELFAllocator;
   SpecificBumpPtrAllocator<MCSectionMachO> MachOAllocator;
   SpecificBumpPtrAllocator<MCSectionGOFF> GOFFAllocator;
@@ -169,6 +171,9 @@ private:
   /// GetInstance() gets the current instance of the directional local label
   /// for the LocalLabelVal and adds it to the map if needed.
   unsigned GetInstance(unsigned LocalLabelVal);
+
+  /// LLVM_BB_ADDR_MAP version to emit.
+  uint8_t BBAddrMapVersion = 1;
 
   /// The file name of the log file from the environment variable
   /// AS_SECURE_LOG_FILE.  Which must be set before the .secure_log_unique
@@ -343,6 +348,7 @@ private:
   std::map<std::string, MCSectionGOFF *> GOFFUniquingMap;
   std::map<WasmSectionKey, MCSectionWasm *> WasmUniquingMap;
   std::map<XCOFFSectionKey, MCSectionXCOFF *> XCOFFUniquingMap;
+  StringMap<MCSectionDXContainer *> DXCUniquingMap;
   StringMap<bool> RelSecNames;
 
   SpecificBumpPtrAllocator<MCSubtargetInfo> MCSubtargetAllocator;
@@ -660,6 +666,9 @@ public:
   MCSectionWasm *getWasmSection(const Twine &Section, SectionKind K,
                                 unsigned Flags, const MCSymbolWasm *Group,
                                 unsigned UniqueID, const char *BeginSymName);
+  
+  /// Get the section for the provided Section name
+  MCSectionDXContainer *getDXContainerSection(StringRef Section, SectionKind K);
 
   bool hasXCOFFSection(StringRef Section,
                        XCOFF::CsectProperties CsectProp) const;
@@ -672,6 +681,8 @@ public:
 
   // Create and save a copy of STI and return a reference to the copy.
   MCSubtargetInfo &getSubtargetCopy(const MCSubtargetInfo &STI);
+
+  uint8_t getBBAddrMapVersion() const { return BBAddrMapVersion; }
 
   /// @}
 

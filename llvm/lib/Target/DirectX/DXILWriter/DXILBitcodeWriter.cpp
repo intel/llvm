@@ -595,6 +595,10 @@ unsigned DXILBitcodeWriter::getEncodedRMWOperation(AtomicRMWInst::BinOp Op) {
     return bitc::RMW_FADD;
   case AtomicRMWInst::FSub:
     return bitc::RMW_FSUB;
+  case AtomicRMWInst::FMax:
+    return bitc::RMW_FMAX;
+  case AtomicRMWInst::FMin:
+    return bitc::RMW_FMIN;
   }
 }
 
@@ -1251,7 +1255,7 @@ void DXILBitcodeWriter::writeModuleInfo() {
                                                            //| constant
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // Initializer.
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 5)); // Linkage.
-    if (MaxAlignment == 0)                                 // Alignment.
+    if (!MaxAlignment)                                     // Alignment.
       Abbv->Add(BitCodeAbbrevOp(0));
     else {
       unsigned MaxEncAlignment = getEncodedAlign(MaxAlignment);
@@ -1357,7 +1361,12 @@ void DXILBitcodeWriter::writeValueAsMetadata(
     const ValueAsMetadata *MD, SmallVectorImpl<uint64_t> &Record) {
   // Mimic an MDNode with a value as one operand.
   Value *V = MD->getValue();
-  Record.push_back(getTypeID(V->getType()));
+  Type *Ty = V->getType();
+  if (Function *F = dyn_cast<Function>(V))
+    Ty = TypedPointerType::get(F->getFunctionType(), F->getAddressSpace());
+  else if (GlobalVariable *GV = dyn_cast<GlobalVariable>(V))
+    Ty = TypedPointerType::get(GV->getValueType(), GV->getAddressSpace());
+  Record.push_back(getTypeID(Ty));
   Record.push_back(VE.getValueID(V));
   Stream.EmitRecord(bitc::METADATA_VALUE, Record, 0);
   Record.clear();

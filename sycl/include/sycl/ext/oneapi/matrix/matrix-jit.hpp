@@ -17,7 +17,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
-namespace experimental::matrix {
+namespace experimental {
+namespace matrix {
 
 enum class matrix_layout { row_major, col_major, packed_a, packed_b };
 
@@ -171,6 +172,7 @@ joint_matrix_store(Group sg,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
+#if __cplusplus >= 201703L // if constexpr
 template <typename Group, typename T1, typename T2, typename T3, size_t M,
           size_t K, size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
@@ -202,6 +204,7 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
                       PI_ERROR_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
 }
+#endif // __cplusplus >= 201703L
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout, typename T2>
@@ -624,7 +627,8 @@ public:
   }
 };
 
-} // namespace experimental::matrix
+} // namespace matrix
+} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 } // namespace sycl

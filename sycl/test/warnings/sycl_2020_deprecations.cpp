@@ -151,10 +151,6 @@ int main() {
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
-  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
-  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
-  (void)SLExtIntel;
-
   // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
   auto LevelZeroBackend = sycl::backend::level_zero;
   (void)LevelZeroBackend;

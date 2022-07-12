@@ -11,7 +11,7 @@ function(_get_common_compile_options output_var flags)
 
   set(compile_options ${LIBC_COMPILE_OPTIONS_DEFAULT} ${ARGN})
   if(NOT ${LIBC_TARGET_OS} STREQUAL "windows")
-    set(compile_options ${compile_options} -fpie -ffreestanding)
+    set(compile_options ${compile_options} -fpie -ffreestanding -fno-builtin)
   endif()
   if(LLVM_COMPILER_IS_GCC_COMPATIBLE)
     list(APPEND compile_options "-fno-exceptions")
@@ -150,7 +150,7 @@ function(expand_flags_for_object_library target_name flags)
 
   # Only target with `flag` has `.__NO_flag` target, `flag__NO` and
   # `flag__ONLY` do not.
-  if(NOT "${modifier}")
+  if("${modifier}" STREQUAL "")
     set(TARGET_NAME "${target_name}.__NO_${flag}")
   else()
     set(TARGET_NAME "${target_name}")
@@ -466,7 +466,7 @@ function(expand_flags_for_entrypoint_object target_name flags)
 
   # Only target with `flag` has `.__NO_flag` target, `flag__NO` and
   # `flag__ONLY` do not.
-  if(NOT "${modifier}")
+  if("${modifier}" STREQUAL "")
     set(TARGET_NAME "${target_name}.__NO_${flag}")
   else()
     set(TARGET_NAME "${target_name}")

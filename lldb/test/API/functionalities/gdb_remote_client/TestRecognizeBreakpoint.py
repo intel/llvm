@@ -7,8 +7,6 @@ from lldbsuite.test.lldbgdbclient import GDBRemoteTestBase
 
 class TestRecognizeBreakpoint(GDBRemoteTestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     """ This tests the case where the gdb-remote server doesn't support any
         of the thread-info packets, and just tells which thread got the stop
         signal with:
@@ -124,7 +122,7 @@ class TestRecognizeBreakpoint(GDBRemoteTestBase):
         # Now continue and we will fake hitting a breakpoint.
         process.Continue()
 
-        self.assertEqual(process.GetState(),lldb.eStateStopped, "Process is stopped")
+        self.assertState(process.GetState(),lldb.eStateStopped, "Process is stopped")
         num_threads = len(process.threads)
 
         num_threads = len(process.threads)

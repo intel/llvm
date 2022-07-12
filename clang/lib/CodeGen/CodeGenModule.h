@@ -579,6 +579,8 @@ private:
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
 
+  llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
+
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
 
 public:
@@ -1478,6 +1480,9 @@ public:
   std::vector<const CXXRecordDecl *>
   getMostBaseClasses(const CXXRecordDecl *RD);
 
+  llvm::GlobalVariable *
+  GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr);
+
   /// Get the declaration of std::terminate for the platform.
   llvm::FunctionCallee getTerminateFn();
 
@@ -1496,7 +1501,7 @@ public:
   /// \param FN is a pointer to IR function being generated.
   /// \param FD is a pointer to function declaration if any.
   /// \param CGF is a pointer to CodeGenFunction that generates this function.
-  void GenOpenCLArgMetadata(llvm::Function *FN,
+  void GenKernelArgMetadata(llvm::Function *FN,
                             const FunctionDecl *FD = nullptr,
                             CodeGenFunction *CGF = nullptr);
 
@@ -1521,6 +1526,33 @@ public:
   /// does not define separate macros via the -cc1 options.
   void printPostfixForExternalizedDecl(llvm::raw_ostream &OS,
                                        const Decl *D) const;
+
+  /// Move some lazily-emitted states to the NewBuilder. This is especially
+  /// essential for the incremental parsing environment like Clang Interpreter,
+  /// because we'll lose all important information after each repl.
+  void moveLazyEmissionStates(CodeGenModule *NewBuilder) {
+    assert(DeferredDeclsToEmit.empty() &&
+           "Should have emitted all decls deferred to emit.");
+    assert(NewBuilder->DeferredDecls.empty() &&
+           "Newly created module should not have deferred decls");
+    NewBuilder->DeferredDecls = std::move(DeferredDecls);
+
+    assert(NewBuilder->DeferredVTables.empty() &&
+           "Newly created module should not have deferred vtables");
+    NewBuilder->DeferredVTables = std::move(DeferredVTables);
+
+    assert(NewBuilder->MangledDeclNames.empty() &&
+           "Newly created module should not have mangled decl names");
+    assert(NewBuilder->Manglings.empty() &&
+           "Newly created module should not have manglings");
+    NewBuilder->Manglings = std::move(Manglings);
+
+    assert(WeakRefReferences.empty() &&
+           "Not all WeakRefRefs have been applied");
+    NewBuilder->WeakRefReferences = std::move(WeakRefReferences);
+
+    NewBuilder->TBAA = std::move(TBAA);
+  }
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(

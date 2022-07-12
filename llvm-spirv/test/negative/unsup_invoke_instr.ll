@@ -1,6 +1,6 @@
 ;Translator does not parse some llvm instructions
 ;and emit errror message in that case.
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc 2>&1 | FileCheck %s
 
 ; CHECK: InvalidInstruction: Can't translate llvm instruction:

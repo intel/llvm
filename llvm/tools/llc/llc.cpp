@@ -520,6 +520,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   };
 
   Optional<Reloc::Model> RM = codegen::getExplicitRelocModel();
+  Optional<CodeModel::Model> CM = codegen::getExplicitCodeModel();
 
   const Target *TheTarget = nullptr;
   std::unique_ptr<TargetMachine> Target;
@@ -546,14 +547,13 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
       // On AIX, setting the relocation model to anything other than PIC is
       // considered a user error.
-      if (TheTriple.isOSAIX() && RM.hasValue() && *RM != Reloc::PIC_)
+      if (TheTriple.isOSAIX() && RM && *RM != Reloc::PIC_)
         reportError("invalid relocation model, AIX only supports PIC",
                     InputFilename);
 
       InitializeOptions(TheTriple);
       Target = std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
-          TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
-          codegen::getExplicitCodeModel(), OLvl));
+          TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM, CM, OLvl));
       assert(Target && "Could not allocate target machine!");
 
       return Target->createDataLayout().getStringRepresentation();
@@ -573,6 +573,10 @@ static int compileModule(char **argv, LLVMContext &Context) {
     }
     if (!TargetTriple.empty())
       M->setTargetTriple(Triple::normalize(TargetTriple));
+
+    Optional<CodeModel::Model> CM_IR = M->getCodeModel();
+    if (!CM && CM_IR)
+      Target->setCodeModel(CM_IR.getValue());
   } else {
     TheTriple = Triple(Triple::normalize(TargetTriple));
     if (TheTriple.getTriple().empty())
@@ -589,7 +593,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
     // On AIX, setting the relocation model to anything other than PIC is
     // considered a user error.
-    if (TheTriple.isOSAIX() && RM.hasValue() && *RM != Reloc::PIC_) {
+    if (TheTriple.isOSAIX() && RM && *RM != Reloc::PIC_) {
       WithColor::error(errs(), argv[0])
           << "invalid relocation model, AIX only supports PIC.\n";
       return 1;
@@ -597,8 +601,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
     InitializeOptions(TheTriple);
     Target = std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
-        TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM,
-        codegen::getExplicitCodeModel(), OLvl));
+        TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM, CM, OLvl));
     assert(Target && "Could not allocate target machine!");
 
     // If we don't have a module then just exit now. We do this down

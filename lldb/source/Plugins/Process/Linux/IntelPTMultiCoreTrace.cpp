@@ -20,7 +20,7 @@ using namespace llvm;
 static bool IsTotalBufferLimitReached(ArrayRef<cpu_id_t> cores,
                                       const TraceIntelPTStartRequest &request) {
   uint64_t required = cores.size() * request.ipt_trace_size;
-  uint64_t limit = request.process_buffer_size_limit.getValueOr(
+  uint64_t limit = request.process_buffer_size_limit.value_or(
       std::numeric_limits<uint64_t>::max());
   return required > limit;
 }
@@ -107,9 +107,9 @@ void IntelPTMultiCoreTrace::ProcessWillResume() {
 TraceIntelPTGetStateResponse IntelPTMultiCoreTrace::GetState() {
   TraceIntelPTGetStateResponse state;
 
-  for (size_t i = 0; m_process.GetThreadAtIndex(i); i++)
+  for (NativeThreadProtocol &thread : m_process.Threads())
     state.traced_threads.push_back(
-        TraceThreadState{m_process.GetThreadAtIndex(i)->GetID(), {}});
+        TraceThreadState{thread.GetID(), {}});
 
   state.cpus.emplace();
   ForEachCore([&](lldb::cpu_id_t cpu_id,
