@@ -1331,9 +1331,10 @@ pi_result _pi_context::getAvailableCommandList(
 // fence tracking its completion. This command list & fence are added to the
 // map of command lists in this queue with ZeFenceInUse = false.
 // The caller must hold a lock of the queue already.
-pi_result _pi_queue::createCommandList(bool UseCopyEngine,
-                                       pi_command_list_ptr_t &CommandList,
-                                       ze_command_queue_handle_t *ForcedCmdQueue) {
+pi_result
+_pi_queue::createCommandList(bool UseCopyEngine,
+                             pi_command_list_ptr_t &CommandList,
+                             ze_command_queue_handle_t *ForcedCmdQueue) {
 
   ze_fence_handle_t ZeFence;
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
@@ -1356,7 +1357,7 @@ pi_result _pi_queue::createCommandList(bool UseCopyEngine,
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
           ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
-  
+
   PI_CALL(Queue->insertActiveBarriers(CommandList, UseCopyEngine));
   return PI_SUCCESS;
 }
