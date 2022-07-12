@@ -954,6 +954,14 @@ struct _pi_queue : _pi_object {
   // For non-copy commands, IsCopy is set to 'false'.
   void adjustBatchSizeForPartialBatch(bool IsCopy);
 
+  // Helper function to create a new command-list to this queue and associated
+  // fence tracking its completion. This command list & fence are added to the
+  // map of command lists in this queue with ZeFenceInUse = false.
+  // The caller must hold a lock of the queue already.
+  pi_result createCommandList(bool UseCopyEngine,
+                              pi_command_list_ptr_t &CommandList
+                              ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
+
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
