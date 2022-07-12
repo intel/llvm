@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 < %s > %t.bc
+; RUN: llvm-as < %s > %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv

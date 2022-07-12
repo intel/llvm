@@ -18,7 +18,7 @@
 ;; }
 ;; bash$ $PATH_TO_GEN/bin/clang -cc1 -x cl -cl-std=CL2.0 -triple spir64-unknown-unknown -emit-llvm  -include opencl-20.h  BuildNDRange_2.cl -o BuildNDRange_2.ll
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -60,12 +60,12 @@
 ; CHECK-LLVM:       call spir_func void @_Z10ndrange_3DPKmS0_S0_(%struct.ndrange_t* sret(%struct.ndrange_t)
 
 ; CHECK-LLVM-SPV-LABEL: @test_ndrange_2D3D
-; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_2DPlS0_S0_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[A-Z,a-z,0-9]+}}, [2 x i64] %{{[0-9]+}}, [2 x i64] zeroinitializer, [2 x i64] zeroinitializer)
-; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_3DPlS0_S0_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[A-Z,a-z,0-9]+}}, [3 x i64] %{{[0-9]+}}, [3 x i64] zeroinitializer, [3 x i64] zeroinitializer)
+; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_2DPlS_S_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[A-Z,a-z,0-9]+}}, [2 x i64] %{{[0-9]+}}, [2 x i64] zeroinitializer, [2 x i64] zeroinitializer)
+; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_3DPlS_S_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[A-Z,a-z,0-9]+}}, [3 x i64] %{{[0-9]+}}, [3 x i64] zeroinitializer, [3 x i64] zeroinitializer)
 ; CHECK-LLVM-SPV-LABEL: @test_ndrange_const_2D3D
-; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_2DPlS0_S0_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[a-z,a-z,0-9]+}}, [2 x i64] %{{[0-9]+}}, [2 x i64] zeroinitializer, [2 x i64] zeroinitializer)
+; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_2DPlS_S_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[a-z,a-z,0-9]+}}, [2 x i64] %{{[0-9]+}}, [2 x i64] zeroinitializer, [2 x i64] zeroinitializer)
 
-; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_3DPlS0_S0_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[a-z,a-z,0-9]+}}, [3 x i64] %{{[0-9]+}}, [3 x i64] zeroinitializer, [3 x i64] zeroinitializer)
+; CHECK-LLVM-SPV:   call spir_func void @_Z23__spirv_BuildNDRange_3DPlS_S_(%struct.ndrange_t* sret(%struct.ndrange_t) %{{[a-z,a-z,0-9]+}}, [3 x i64] %{{[0-9]+}}, [3 x i64] zeroinitializer, [3 x i64] zeroinitializer)
 
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

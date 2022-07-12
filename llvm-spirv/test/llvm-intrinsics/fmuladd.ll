@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t-default.spv
 ; RUN: llvm-spirv %t.bc --spirv-replace-fmuladd-with-ocl-mad=true -o %t-replace.spv
 ; RUN: llvm-spirv %t.bc --spirv-replace-fmuladd-with-ocl-mad=false -o %t-break.spv
