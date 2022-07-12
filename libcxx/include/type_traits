@@ -517,6 +517,7 @@ namespace std
 #include <__type_traits/void_t.h>
 #include <__utility/declval.h>
 #include <cstddef>
+#include <cstdint>
 #include <version>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -527,47 +528,6 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _T1, class _T2> struct _LIBCPP_TEMPLATE_VIS pair;
 template <class _Tp> struct _LIBCPP_TEMPLATE_VIS hash;
-
-template <bool> struct _MetaBase;
-template <>
-struct _MetaBase<true> {
-  template <class _Tp, class _Up>
-  using _SelectImpl _LIBCPP_NODEBUG = _Tp;
-  template <template <class...> class _FirstFn, template <class...> class, class ..._Args>
-  using _SelectApplyImpl _LIBCPP_NODEBUG = _FirstFn<_Args...>;
-  template <class _First, class...>
-  using _FirstImpl _LIBCPP_NODEBUG = _First;
-  template <class, class _Second, class...>
-  using _SecondImpl _LIBCPP_NODEBUG = _Second;
-  template <class _Result, class _First, class ..._Rest>
-  using _OrImpl _LIBCPP_NODEBUG = typename _MetaBase<_First::value != true && sizeof...(_Rest) != 0>::template _OrImpl<_First, _Rest...>;
-};
-
-template <>
-struct _MetaBase<false> {
-  template <class _Tp, class _Up>
-  using _SelectImpl _LIBCPP_NODEBUG = _Up;
-  template <template <class...> class, template <class...> class _SecondFn, class ..._Args>
-  using _SelectApplyImpl _LIBCPP_NODEBUG = _SecondFn<_Args...>;
-  template <class _Result, class ...>
-  using _OrImpl _LIBCPP_NODEBUG = _Result;
-};
-template <bool _Cond, class _IfRes, class _ElseRes>
-using _If _LIBCPP_NODEBUG = typename _MetaBase<_Cond>::template _SelectImpl<_IfRes, _ElseRes>;
-template <class ..._Rest>
-using _Or _LIBCPP_NODEBUG = typename _MetaBase< sizeof...(_Rest) != 0 >::template _OrImpl<false_type, _Rest...>;
-template <class ..._Args>
-using _FirstType _LIBCPP_NODEBUG = typename _MetaBase<(sizeof...(_Args) >= 1)>::template _FirstImpl<_Args...>;
-template <class ..._Args>
-using _SecondType _LIBCPP_NODEBUG = typename _MetaBase<(sizeof...(_Args) >= 2)>::template _SecondImpl<_Args...>;
-
-template <class ...> using __expand_to_true = true_type;
-template <class ..._Pred>
-__expand_to_true<__enable_if_t<_Pred::value>...> __and_helper(int);
-template <class ...>
-false_type __and_helper(...);
-template <class ..._Pred>
-using _And _LIBCPP_NODEBUG = decltype(__and_helper<_Pred...>(0));
 
 template <template <class...> class _Func, class ..._Args>
 struct _Lazy : _Func<_Args...> {};
@@ -1020,6 +980,29 @@ typename make_unsigned<_Tp>::type __to_unsigned_like(_Tp __x) noexcept {
 }
 #endif
 
+template <class _Tp, class _Up>
+using __copy_unsigned_t = __conditional_t<is_unsigned<_Tp>::value, typename make_unsigned<_Up>::type, _Up>;
+
+/// Helper to promote an integral to smallest 32, 64, or 128 bit representation.
+///
+/// The restriction is the same as the integral version of to_char.
+template <class _Tp>
+#if _LIBCPP_STD_VER > 17
+  requires (is_signed_v<_Tp> || is_unsigned_v<_Tp> || is_same_v<_Tp, char>)
+#endif
+using __make_32_64_or_128_bit_t =
+  __copy_unsigned_t<_Tp,
+    __conditional_t<sizeof(_Tp) <= sizeof(int32_t),    int32_t,
+    __conditional_t<sizeof(_Tp) <= sizeof(int64_t),    int64_t,
+#ifndef _LIBCPP_HAS_NO_INT128
+    __conditional_t<sizeof(_Tp) <= sizeof(__int128_t), __int128_t,
+    /* else */                                         void>
+#else
+    /* else */                                         void
+#endif
+    > >
+  >;
+
 #if _LIBCPP_STD_VER > 17
 // Let COND_RES(X, Y) be:
 template <class _Tp, class _Up>
@@ -1130,7 +1113,6 @@ struct _LIBCPP_TEMPLATE_VIS
 template <class ..._Tp> using common_type_t = typename common_type<_Tp...>::type;
 #endif
 
-#if _LIBCPP_STD_VER > 11
 // Let COPYCV(FROM, TO) be an alias for type TO with the addition of FROM's
 // top-level cv-qualifiers.
 template <class _From, class _To>
@@ -1142,19 +1124,19 @@ struct __copy_cv
 template <class _From, class _To>
 struct __copy_cv<const _From, _To>
 {
-    using type = add_const_t<_To>;
+    using type = typename add_const<_To>::type;
 };
 
 template <class _From, class _To>
 struct __copy_cv<volatile _From, _To>
 {
-    using type = add_volatile_t<_To>;
+    using type = typename add_volatile<_To>::type;
 };
 
 template <class _From, class _To>
 struct __copy_cv<const volatile _From, _To>
 {
-    using type = add_cv_t<_To>;
+    using type = typename add_cv<_To>::type;
 };
 
 template <class _From, class _To>
@@ -1169,19 +1151,18 @@ struct __copy_cvref
 template <class _From, class _To>
 struct __copy_cvref<_From&, _To>
 {
-    using type = add_lvalue_reference_t<__copy_cv_t<_From, _To>>;
+    using type = typename add_lvalue_reference<__copy_cv_t<_From, _To> >::type;
 };
 
 template <class _From, class _To>
 struct __copy_cvref<_From&&, _To>
 {
-    using type = add_rvalue_reference_t<__copy_cv_t<_From, _To>>;
+    using type = typename add_rvalue_reference<__copy_cv_t<_From, _To> >::type;
 };
 
 template <class _From, class _To>
 using __copy_cvref_t = typename __copy_cvref<_From, _To>::type;
 
-#endif // _LIBCPP_STD_VER > 11
 
 // common_reference
 #if _LIBCPP_STD_VER > 17
@@ -1369,90 +1350,11 @@ struct __is_implicitly_default_constructible<_Tp, decltype(__test_implicit_defau
 #if _LIBCPP_STD_VER <= 17 || defined(_LIBCPP_ENABLE_CXX20_REMOVED_TYPE_TRAITS)
 template <class _Callable> class _LIBCPP_DEPRECATED_IN_CXX17 result_of;
 
-#ifndef _LIBCPP_CXX03_LANG
-
 template <class _Fp, class ..._Args>
 class _LIBCPP_TEMPLATE_VIS result_of<_Fp(_Args...)>
     : public __invoke_of<_Fp, _Args...>
 {
 };
-
-#else // C++03
-
-template <class _Fn, bool, bool>
-class __result_of
-{
-};
-
-template <class _Fn, class ..._Args>
-class __result_of<_Fn(_Args...), true, false>
-{
-public:
-    typedef decltype(declval<_Fn>()(declval<_Args>()...)) type;
-};
-
-template <class _MP, class _Tp, bool _IsMemberFunctionPtr>
-struct __result_of_mp;
-
-// member function pointer
-
-template <class _MP, class _Tp>
-struct __result_of_mp<_MP, _Tp, true>
-{
-    using type = typename __member_pointer_traits<_MP>::_ReturnType;
-};
-
-// member data pointer
-
-template <class _MP, class _Tp, bool>
-struct __result_of_mdp;
-
-template <class _Rp, class _Class, class _Tp>
-struct __result_of_mdp<_Rp _Class::*, _Tp, false>
-{
-    using type = typename __apply_cv<decltype(*declval<_Tp>()), _Rp>::type&;
-};
-
-template <class _Rp, class _Class, class _Tp>
-struct __result_of_mdp<_Rp _Class::*, _Tp, true>
-{
-    using type = typename __apply_cv<_Tp, _Rp>::type&;
-};
-
-template <class _Rp, class _Class, class _Tp>
-struct __result_of_mp<_Rp _Class::*, _Tp, false>
-    : public __result_of_mdp<_Rp _Class::*, _Tp,
-            is_base_of<_Class, typename remove_reference<_Tp>::type>::value>
-{
-};
-
-template <class _Fn, class _Tp>
-class __result_of<_Fn(_Tp), false, true>  // _Fn must be member pointer
-    : public __result_of_mp<typename remove_reference<_Fn>::type,
-                            _Tp,
-                            is_member_function_pointer<typename remove_reference<_Fn>::type>::value>
-{
-};
-
-template <class _Fn, class _Tp, class ..._Args>
-class __result_of<_Fn(_Tp, _Args...), false, true>  // _Fn must be member pointer
-    : public __result_of_mp<typename remove_reference<_Fn>::type,
-                            _Tp,
-                            is_member_function_pointer<typename remove_reference<_Fn>::type>::value>
-{
-};
-
-template <class _Fn, class ..._Args>
-class _LIBCPP_TEMPLATE_VIS result_of<_Fn(_Args...)>
-    : public __result_of<_Fn(_Args...),
-                         is_class<typename remove_reference<_Fn>::type>::value ||
-                         is_function<typename remove_pointer<typename remove_reference<_Fn>::type>::type>::value,
-                         is_member_pointer<typename remove_reference<_Fn>::type>::value
-                        >
-{
-};
-
-#endif // C++03
 
 #if _LIBCPP_STD_VER > 11
 template <class _Tp> using result_of_t _LIBCPP_DEPRECATED_IN_CXX17 = typename result_of<_Tp>::type;
@@ -1673,10 +1575,8 @@ using _IsCharLikeType = _And<is_standard_layout<_CharT>, is_trivial<_CharT> >;
 template<class _Tp>
 using __make_const_lvalue_ref = const typename remove_reference<_Tp>::type&;
 
-#if _LIBCPP_STD_VER > 17
 template<bool _Const, class _Tp>
-using __maybe_const = conditional_t<_Const, const _Tp, _Tp>;
-#endif // _LIBCPP_STD_VER > 17
+using __maybe_const = typename conditional<_Const, const _Tp, _Tp>::type;
 
 _LIBCPP_END_NAMESPACE_STD
 

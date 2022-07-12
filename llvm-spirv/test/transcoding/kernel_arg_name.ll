@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o - | llvm-spirv -o %t.spv
+; RUN: llvm-as %s -o - | llvm-spirv -o %t.spv
 ; RUN: llvm-spirv %t.spv -spirv-gen-kernel-arg-name-md -r -o - | llvm-dis -o - | FileCheck %s
 
 ; CHECK: spir_kernel void @named_arg(float %f) {{.*}} !kernel_arg_name ![[MD_named:[0-9]+]]

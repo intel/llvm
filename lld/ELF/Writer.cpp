@@ -623,7 +623,7 @@ template <class ELFT> static void markUsedLocalSymbols() {
   // See MarkLive<ELFT>::resolveReloc().
   if (config->gcSections)
     return;
-  for (ELFFileBase *file : objectFiles) {
+  for (ELFFileBase *file : ctx->objectFiles) {
     ObjFile<ELFT> *f = cast<ObjFile<ELFT>>(file);
     for (InputSectionBase *s : f->getSections()) {
       InputSection *isec = dyn_cast_or_null<InputSection>(s);
@@ -694,7 +694,7 @@ template <class ELFT> void Writer<ELFT>::copyLocalSymbols() {
   llvm::TimeTraceScope timeScope("Add local symbols");
   if (config->copyRelocs && config->discard != DiscardPolicy::None)
     markUsedLocalSymbols<ELFT>();
-  for (ELFFileBase *file : objectFiles) {
+  for (ELFFileBase *file : ctx->objectFiles) {
     for (Symbol *b : file->getLocalSymbols()) {
       assert(b->isLocal() && "should have been caught in initializeSymbols()");
       auto *dr = dyn_cast<Defined>(b);
@@ -1297,7 +1297,7 @@ static DenseMap<const InputSectionBase *, int> buildSectionOrder() {
   for (Symbol *sym : symtab->symbols())
     addSym(*sym);
 
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx->objectFiles)
     for (Symbol *sym : file->getLocalSymbols())
       addSym(*sym);
 
@@ -1630,14 +1630,17 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   if (config->emachine == EM_HEXAGON)
     hexagonTLSSymbolUpdate(outputSections);
 
-  int assignPasses = 0;
+  uint32_t pass = 0, assignPasses = 0;
   for (;;) {
-    bool changed = target->needsThunks && tc.createThunks(outputSections);
+    bool changed = target->needsThunks ? tc.createThunks(pass, outputSections)
+                                       : target->relaxOnce(pass);
+    ++pass;
 
     // With Thunk Size much smaller than branch range we expect to
     // converge quickly; if we get to 15 something has gone wrong.
-    if (changed && tc.pass >= 15) {
-      error("thunk creation not converged");
+    if (changed && pass >= 15) {
+      error(target->needsThunks ? "thunk creation not converged"
+                                : "relaxation not converged");
       break;
     }
 
@@ -1675,6 +1678,8 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
       }
     }
   }
+  if (!config->relocatable && config->emachine == EM_RISCV)
+    riscvFinalizeRelax(pass);
 
   if (config->relocatable)
     for (OutputSection *sec : outputSections)
@@ -1697,7 +1702,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
 // block sections, input sections can shrink when the jump instructions at
 // the end of the section are relaxed.
 static void fixSymbolsAfterShrinking() {
-  for (InputFile *File : objectFiles) {
+  for (InputFile *File : ctx->objectFiles) {
     parallelForEach(File->getSymbols(), [&](Symbol *Sym) {
       auto *def = dyn_cast<Defined>(Sym);
       if (!def)
@@ -1741,6 +1746,7 @@ static void fixSymbolsAfterShrinking() {
 // option is used.
 template <class ELFT> void Writer<ELFT>::optimizeBasicBlockJumps() {
   assert(config->optimizeBBJumps);
+  SmallVector<InputSection *, 0> storage;
 
   script->assignAddresses();
   // For every output section that has executable input sections, this
@@ -1752,7 +1758,7 @@ template <class ELFT> void Writer<ELFT>::optimizeBasicBlockJumps() {
   for (OutputSection *osec : outputSections) {
     if (!(osec->flags & SHF_EXECINSTR))
       continue;
-    SmallVector<InputSection *, 0> sections = getInputSections(*osec);
+    ArrayRef<InputSection *> sections = getInputSections(*osec, storage);
     size_t numDeleted = 0;
     // Delete all fall through jump instructions.  Also, check if two
     // consecutive jump instructions can be flipped so that a fall
@@ -1772,7 +1778,7 @@ template <class ELFT> void Writer<ELFT>::optimizeBasicBlockJumps() {
   fixSymbolsAfterShrinking();
 
   for (OutputSection *osec : outputSections)
-    for (InputSection *is : getInputSections(*osec))
+    for (InputSection *is : getInputSections(*osec, storage))
       is->trim();
 }
 
@@ -1947,7 +1953,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     // ld.bfd traces all DT_NEEDED to emulate the logic of the dynamic linker to
     // catch more cases. That is too much for us. Our approach resembles the one
     // used in ld.gold, achieves a good balance to be useful but not too smart.
-    for (SharedFile *file : sharedFiles) {
+    for (SharedFile *file : ctx->sharedFiles) {
       bool allNeededIsKnown =
           llvm::all_of(file->dtNeeded, [&](StringRef needed) {
             return symtab->soNames.count(CachedHashStringRef(needed));
@@ -2165,9 +2171,10 @@ template <class ELFT> void Writer<ELFT>::checkExecuteOnly() {
   if (!config->executeOnly)
     return;
 
+  SmallVector<InputSection *, 0> storage;
   for (OutputSection *osec : outputSections)
     if (osec->flags & SHF_EXECINSTR)
-      for (InputSection *isec : getInputSections(*osec))
+      for (InputSection *isec : getInputSections(*osec, storage))
         if (!(isec->flags & SHF_EXECINSTR))
           error("cannot place " + toString(isec) + " into " +
                 toString(osec->name) +
@@ -2915,7 +2922,7 @@ computeHash(llvm::MutableArrayRef<uint8_t> hashBuf,
   std::unique_ptr<uint8_t[]> hashes(new uint8_t[hashesSize]);
 
   // Compute hash values.
-  parallelForEachN(0, chunks.size(), [&](size_t i) {
+  parallelFor(0, chunks.size(), [&](size_t i) {
     hashFn(hashes.get() + i * hashBuf.size(), chunks[i]);
   });
 

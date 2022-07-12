@@ -86,14 +86,12 @@ bool WebAssemblyAsmTypeCheck::popType(SMLoc ErrorLoc,
                                       Optional<wasm::ValType> EVT) {
   if (Stack.empty()) {
     return typeError(ErrorLoc,
-                      EVT.hasValue()
-                          ? StringRef("empty stack while popping ") +
-                                WebAssembly::typeToString(EVT.getValue())
-                          : StringRef(
-                                    "empty stack while popping value"));
+                     EVT ? StringRef("empty stack while popping ") +
+                               WebAssembly::typeToString(EVT.getValue())
+                         : StringRef("empty stack while popping value"));
   }
   auto PVT = Stack.pop_back_val();
-  if (EVT.hasValue() && EVT.getValue() != PVT) {
+  if (EVT && EVT.getValue() != PVT) {
     return typeError(
         ErrorLoc, StringRef("popped ") + WebAssembly::typeToString(PVT) +
                                     ", expected " +
@@ -173,7 +171,7 @@ bool WebAssemblyAsmTypeCheck::getGlobal(SMLoc ErrorLoc, const MCInst &Inst,
   if (getSymRef(ErrorLoc, Inst, SymRef))
     return true;
   auto WasmSym = cast<MCSymbolWasm>(&SymRef->getSymbol());
-  switch (WasmSym->getType().getValueOr(wasm::WASM_SYMBOL_TYPE_DATA)) {
+  switch (WasmSym->getType().value_or(wasm::WASM_SYMBOL_TYPE_DATA)) {
   case wasm::WASM_SYMBOL_TYPE_GLOBAL:
     Type = static_cast<wasm::ValType>(WasmSym->getGlobalType().Type);
     break;
@@ -201,7 +199,7 @@ bool WebAssemblyAsmTypeCheck::getTable(SMLoc ErrorLoc, const MCInst &Inst,
   if (getSymRef(ErrorLoc, Inst, SymRef))
     return true;
   auto WasmSym = cast<MCSymbolWasm>(&SymRef->getSymbol());
-  if (WasmSym->getType().getValueOr(wasm::WASM_SYMBOL_TYPE_DATA) !=
+  if (WasmSym->getType().value_or(wasm::WASM_SYMBOL_TYPE_DATA) !=
       wasm::WASM_SYMBOL_TYPE_TABLE)
     return typeError(ErrorLoc, StringRef("symbol ") + WasmSym->getName() +
                                    " missing .tabletype");

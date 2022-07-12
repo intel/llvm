@@ -332,7 +332,7 @@ void AMDGPUAsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
 
     const DataLayout &DL = GV->getParent()->getDataLayout();
     uint64_t Size = DL.getTypeAllocSize(GV->getValueType());
-    Align Alignment = GV->getAlign().getValueOr(Align(4));
+    Align Alignment = GV->getAlign().value_or(Align(4));
 
     emitVisibility(GVSym, GV->getVisibility(), !GV->isDeclaration());
     emitLinkage(GV, GVSym);
@@ -900,8 +900,14 @@ void AMDGPUAsmPrinter::getSIProgramInfo(SIProgramInfo &ProgInfo,
   else if (MFI->hasWorkItemIDY())
     TIDIGCompCnt = 1;
 
+  // The private segment wave byte offset is the last of the system SGPRs. We
+  // initially assumed it was allocated, and may have used it. It shouldn't harm
+  // anything to disable it if we know the stack isn't used here. We may still
+  // have emitted code reading it to initialize scratch, but if that's unused
+  // reading garbage should be OK.
+  const bool EnablePrivateSegment = ProgInfo.ScratchBlocks > 0;
   ProgInfo.ComputePGMRSrc2 =
-      S_00B84C_SCRATCH_EN(ProgInfo.ScratchBlocks > 0) |
+      S_00B84C_SCRATCH_EN(EnablePrivateSegment) |
       S_00B84C_USER_SGPR(MFI->getNumUserSGPRs()) |
       // For AMDHSA, TRAP_HANDLER must be zero, as it is populated by the CP.
       S_00B84C_TRAP_HANDLER(STM.isAmdHsaOS() ? 0 : STM.isTrapHandlerEnabled()) |
@@ -977,8 +983,10 @@ void AMDGPUAsmPrinter::EmitProgramInfoSI(const MachineFunction &MF,
 
   if (MF.getFunction().getCallingConv() == CallingConv::AMDGPU_PS) {
     OutStreamer->emitInt32(R_00B02C_SPI_SHADER_PGM_RSRC2_PS);
-    OutStreamer->emitInt32(
-        S_00B02C_EXTRA_LDS_SIZE(CurrentProgramInfo.LDSBlocks));
+    unsigned ExtraLDSSize = STM.getGeneration() >= AMDGPUSubtarget::GFX11
+                                ? divideCeil(CurrentProgramInfo.LDSBlocks, 2)
+                                : CurrentProgramInfo.LDSBlocks;
+    OutStreamer->emitInt32(S_00B02C_EXTRA_LDS_SIZE(ExtraLDSSize));
     OutStreamer->emitInt32(R_0286CC_SPI_PS_INPUT_ENA);
     OutStreamer->emitInt32(MFI->getPSInputEnable());
     OutStreamer->emitInt32(R_0286D0_SPI_PS_INPUT_ADDR);
@@ -1022,7 +1030,10 @@ void AMDGPUAsmPrinter::EmitPALMetadata(const MachineFunction &MF,
   // ScratchSize is in bytes, 16 aligned.
   MD->setScratchSize(CC, alignTo(CurrentProgramInfo.ScratchSize, 16));
   if (MF.getFunction().getCallingConv() == CallingConv::AMDGPU_PS) {
-    MD->setRsrc2(CC, S_00B02C_EXTRA_LDS_SIZE(CurrentProgramInfo.LDSBlocks));
+    unsigned ExtraLDSSize = STM.getGeneration() >= AMDGPUSubtarget::GFX11
+                                ? divideCeil(CurrentProgramInfo.LDSBlocks, 2)
+                                : CurrentProgramInfo.LDSBlocks;
+    MD->setRsrc2(CC, S_00B02C_EXTRA_LDS_SIZE(ExtraLDSSize));
     MD->setSpiPsInputEna(MFI->getPSInputEnable());
     MD->setSpiPsInputAddr(MFI->getPSInputAddr());
   }

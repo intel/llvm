@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
+#include <optional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

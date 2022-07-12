@@ -109,22 +109,25 @@ func.func @warp(%laneid: index, %arg1: memref<1024xf32>, %arg2: memref<1024xf32>
 // -----
 
 // CHECK-D-LABEL: func @warp_extract(
-//       CHECK-D:   %[[WARPOP:.*]] = vector.warp_execute_on_lane_0(%{{.*}})[32] -> (vector<1xf32>)
+//       CHECK-D:   %[[WARPOP:.*]]:2 = vector.warp_execute_on_lane_0(%{{.*}})[32] -> (vector<1xf32>, vector<1x1xf32>)
 //       CHECK-D:     "test.dummy_op"
-//       CHECK-D:     vector.yield %{{.*}} : vector<1xf32>
+//       CHECK-D:     "test.dummy_op"
+//       CHECK-D:     vector.yield %{{.*}}, %{{.*}} : vector<1xf32>, vector<1x1xf32>
 //       CHECK-D:   }
 //       CHECK-D:   vector.warp_execute_on_lane_0(%{{.*}})[32] {
-//       CHECK-D:     vector.transfer_write %[[WARPOP]], %{{.*}}[%{{.*}}] {{.*}} : vector<1xf32>
+//       CHECK-D:     vector.transfer_write %[[WARPOP]]#1, %{{.*}}[%{{.*}}] {{.*}} : vector<1x1xf32>
+//       CHECK-D:   }
+//       CHECK-D:   vector.warp_execute_on_lane_0(%{{.*}})[32] {
+//       CHECK-D:     vector.transfer_write %[[WARPOP]]#0, %{{.*}}[%{{.*}}] {{.*}} : vector<1xf32>
 //       CHECK-D:   }
 
-#map2 =  affine_map<(d0)[s0] -> (d0 + s0)>
-
-func.func @warp_extract(%laneid: index, %arg1: memref<1024xf32>, %gid : index) {
+func.func @warp_extract(%laneid: index, %arg1: memref<1024x1024xf32>, %gid : index) {
   vector.warp_execute_on_lane_0(%laneid)[32] {
-    %sa = memref.subview %arg1[%gid] [128] [1] : memref<1024xf32> to memref<128xf32, #map2>
     %c0 = arith.constant 0 : index
     %v = "test.dummy_op"() : () -> (vector<1xf32>)
-    vector.transfer_write %v, %sa[%c0] : vector<1xf32>, memref<128xf32, #map2>
+    %v1 = "test.dummy_op"() : () -> (vector<1x1xf32>)
+    vector.transfer_write %v1, %arg1[%c0, %c0] : vector<1x1xf32>, memref<1024x1024xf32>
+    vector.transfer_write %v, %arg1[%c0, %c0] : vector<1xf32>, memref<1024x1024xf32>
   }
   return
 }
@@ -384,6 +387,26 @@ func.func @warp_scf_for_swap(%arg0: index) {
 
 // -----
 
+// CHECK-PROP-LABEL:   func @warp_scf_for_swap_no_yield(
+// CHECK-PROP:           scf.for %{{.*}} = %{{.*}} to %{{.*}} step %{{.*}} {
+// CHECK-PROP-NEXT:        vector.warp_execute_on_lane_0(%{{.*}})[32] {
+// CHECK-PROP-NEXT:          "some_op"() : () -> ()
+// CHECK-PROP-NEXT:        }
+// CHECK-PROP-NEXT:      }
+func.func @warp_scf_for_swap_no_yield(%arg0: index) {
+  %c128 = arith.constant 128 : index
+  %c1 = arith.constant 1 : index
+  %c0 = arith.constant 0 : index
+  vector.warp_execute_on_lane_0(%arg0)[32] {
+    scf.for %arg3 = %c0 to %c128 step %c1 {
+      "some_op"() : () -> ()
+    }
+  }
+  return
+}
+
+// -----
+
 #map = affine_map<()[s0] -> (s0 * 4)>
 #map1 = affine_map<()[s0] -> (s0 * 128 + 128)>
 #map2 = affine_map<()[s0] -> (s0 * 4 + 128)>
@@ -467,4 +490,24 @@ func.func @vector_reduction(%laneid: index) -> (f32) {
     vector.yield %1 : f32
   }
   return %r : f32
+}
+
+// -----
+
+func.func @vector_reduction(%laneid: index, %m0: memref<4x2x32xf32>, %m1: memref<f32>) {
+  %c0 = arith.constant 0: index
+  %f0 = arith.constant 0.0: f32
+  //     CHECK-D: %[[R:.*]] = vector.warp_execute_on_lane_0(%{{.*}})[32] -> (vector<f32>) {
+  //     CHECK-D: vector.warp_execute_on_lane_0(%{{.*}})[32] {
+  //     CHECK-D:   vector.transfer_write %[[R]], %{{.*}}[] : vector<f32>, memref<f32>
+  vector.warp_execute_on_lane_0(%laneid)[32] {
+    %0 = vector.transfer_read %m0[%c0, %c0, %c0], %f0 {in_bounds = [true]} : memref<4x2x32xf32>, vector<32xf32>
+    %1 = vector.transfer_read %m1[], %f0 : memref<f32>, vector<f32>
+    %2 = vector.extractelement %1[] : vector<f32>
+    %3 = vector.reduction <add>, %0 : vector<32xf32> into f32
+    %4 = arith.addf %3, %2 : f32
+    %5 = vector.broadcast %4 : f32 to vector<f32>
+    vector.transfer_write %5, %m1[] : vector<f32>, memref<f32>
+  }
+  return 
 }

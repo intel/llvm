@@ -295,7 +295,7 @@ static Optional<StringRef> findSimilarStr(
   for (StringRef C : Candidates) {
     size_t CurDist = LHS.edit_distance(C, true);
     if (CurDist <= MaxDist) {
-      if (!SimilarStr.hasValue()) {
+      if (!SimilarStr) {
         // The first similar string found.
         SimilarStr = {C, CurDist};
       } else if (CurDist < SimilarStr->second) {
@@ -305,7 +305,7 @@ static Optional<StringRef> findSimilarStr(
     }
   }
 
-  if (SimilarStr.hasValue()) {
+  if (SimilarStr) {
     return SimilarStr->first;
   } else {
     return None;
@@ -462,7 +462,7 @@ void Preprocessor::SuggestTypoedDirective(const Token &Tok,
     CharSourceRange DirectiveRange = CharSourceRange::getCharRange(
         Tok.getLocation(),
         Tok.getLocation().getLocWithOffset(Directive.size()));
-    StringRef SuggValue = Sugg.getValue();
+    StringRef SuggValue = *Sugg;
 
     auto Hint = FixItHint::CreateReplacement(DirectiveRange, SuggValue);
     Diag(Tok, diag::warn_pp_invalid_directive) << 1 << SuggValue << Hint;
@@ -1423,7 +1423,7 @@ void Preprocessor::HandleLineDirective() {
   } else {
     // Parse and validate the string, converting it into a unique ID.
     StringLiteralParser Literal(StrTok, *this);
-    assert(Literal.isAscii() && "Didn't allow wide strings in");
+    assert(Literal.isOrdinary() && "Didn't allow wide strings in");
     if (Literal.hadError) {
       DiscardUntilEndOfDirective();
       return;
@@ -1574,7 +1574,7 @@ void Preprocessor::HandleDigitDirective(Token &DigitTok) {
   } else {
     // Parse and validate the string, converting it into a unique ID.
     StringLiteralParser Literal(StrTok, *this);
-    assert(Literal.isAscii() && "Didn't allow wide strings in");
+    assert(Literal.isOrdinary() && "Didn't allow wide strings in");
     if (Literal.hadError) {
       DiscardUntilEndOfDirective();
       return;
@@ -2073,7 +2073,7 @@ Optional<FileEntryRef> Preprocessor::LookupHeaderIncludeOrImport(
   }
 
   // If the file is still not found, just go with the vanilla diagnostic
-  assert(!File.hasValue() && "expected missing file");
+  assert(!File && "expected missing file");
   Diag(FilenameTok, diag::err_pp_file_not_found)
       << OriginalFilename << FilenameRange;
   if (IsFrameworkFound) {

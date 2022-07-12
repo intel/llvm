@@ -4679,11 +4679,12 @@ bool Sema::checkVarDeclRedefinition(VarDecl *Old, VarDecl *New) {
 
 /// ParsedFreeStandingDeclSpec - This method is invoked when a declspec with
 /// no declarator (e.g. "struct foo;") is parsed.
-Decl *
-Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
-                                 RecordDecl *&AnonRecord) {
-  return ParsedFreeStandingDeclSpec(S, AS, DS, MultiTemplateParamsArg(), false,
-                                    AnonRecord);
+Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
+                                       DeclSpec &DS,
+                                       const ParsedAttributesView &DeclAttrs,
+                                       RecordDecl *&AnonRecord) {
+  return ParsedFreeStandingDeclSpec(
+      S, AS, DS, DeclAttrs, MultiTemplateParamsArg(), false, AnonRecord);
 }
 
 // The MS ABI changed between VS2013 and VS2015 with regard to numbers used to
@@ -4896,11 +4897,12 @@ static unsigned GetDiagnosticTypeSpecifierID(DeclSpec::TST T) {
 /// ParsedFreeStandingDeclSpec - This method is invoked when a declspec with
 /// no declarator (e.g. "struct foo;") is parsed. It also accepts template
 /// parameters to cope with template friend declarations.
-Decl *
-Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
-                                 MultiTemplateParamsArg TemplateParams,
-                                 bool IsExplicitInstantiation,
-                                 RecordDecl *&AnonRecord) {
+Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
+                                       DeclSpec &DS,
+                                       const ParsedAttributesView &DeclAttrs,
+                                       MultiTemplateParamsArg TemplateParams,
+                                       bool IsExplicitInstantiation,
+                                       RecordDecl *&AnonRecord) {
   Decl *TagD = nullptr;
   TagDecl *Tag = nullptr;
   if (DS.getTypeSpecType() == DeclSpec::TST_class ||
@@ -5139,7 +5141,7 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
   // Warn about ignored type attributes, for example:
   // __attribute__((aligned)) struct A;
   // Attributes should be placed after tag to apply to type declaration.
-  if (!DS.getAttributes().empty()) {
+  if (!DS.getAttributes().empty() || !DeclAttrs.empty()) {
     DeclSpec::TST TypeSpecType = DS.getTypeSpecType();
     if (TypeSpecType == DeclSpec::TST_class ||
         TypeSpecType == DeclSpec::TST_struct ||
@@ -5147,6 +5149,9 @@ Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS, DeclSpec &DS,
         TypeSpecType == DeclSpec::TST_union ||
         TypeSpecType == DeclSpec::TST_enum) {
       for (const ParsedAttr &AL : DS.getAttributes())
+        Diag(AL.getLoc(), diag::warn_declspec_attribute_ignored)
+            << AL << GetDiagnosticTypeSpecifierID(TypeSpecType);
+      for (const ParsedAttr &AL : DeclAttrs)
         Diag(AL.getLoc(), diag::warn_declspec_attribute_ignored)
             << AL << GetDiagnosticTypeSpecifierID(TypeSpecType);
     }
@@ -5913,11 +5918,24 @@ void Sema::warnOnReservedIdentifier(const NamedDecl *D) {
 
 Decl *Sema::ActOnDeclarator(Scope *S, Declarator &D) {
   D.setFunctionDefinitionKind(FunctionDefinitionKind::Declaration);
+
+  // Check if we are in an `omp begin/end declare variant` scope. Handle this
+  // declaration only if the `bind_to_declaration` extension is set.
+  SmallVector<FunctionDecl *, 4> Bases;
+  if (LangOpts.OpenMP && isInOpenMPDeclareVariantScope())
+    if (getOMPTraitInfoForSurroundingScope()->isExtensionActive(llvm::omp::TraitProperty::
+              implementation_extension_bind_to_declaration))
+    ActOnStartOfFunctionDefinitionInOpenMPDeclareVariantScope(
+        S, D, MultiTemplateParamsArg(), Bases);
+
   Decl *Dcl = HandleDeclarator(S, D, MultiTemplateParamsArg());
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer() &&
       Dcl && Dcl->getDeclContext()->isFileContext())
     Dcl->setTopLevelDeclInObjCContainer();
+
+  if (!Bases.empty())
+    ActOnFinishedFunctionDefinitionInOpenMPDeclareVariantScope(Dcl, Bases);
 
   return Dcl;
 }
@@ -8920,6 +8938,10 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
           SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
           /*isImplicitlyDeclared=*/false, ConstexprKind,
           TrailingRequiresClause);
+      // User defined destructors start as not selected if the class definition is still
+      // not done.
+      if (Record->isBeingDefined())
+        NewDD->setIneligibleOrNotSelected(true);
 
       // If the destructor needs an implicit exception specification, set it
       // now. FIXME: It'd be nice to be able to create the right type to start
@@ -10261,6 +10283,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     AddRangeBasedOptnone(NewFD);
     AddImplicitMSFunctionNoBuiltinAttr(NewFD);
     AddSectionMSAllocText(NewFD);
+    ModifyFnAttributesMSPragmaOptimize(NewFD);
   }
 
   // If this is the first declaration of an extern C variable, update
@@ -15518,7 +15541,7 @@ void Sema::AddKnownFunctionAttributesForReplaceableGlobalAllocationFunction(
   //   (3.1) If the allocation function takes an argument of type
   //         std​::​align_­val_­t, the storage will have the alignment
   //         specified by the value of this argument.
-  if (AlignmentParam.hasValue() && !FD->hasAttr<AllocAlignAttr>()) {
+  if (AlignmentParam && !FD->hasAttr<AllocAlignAttr>()) {
     FD->addAttr(AllocAlignAttr::CreateImplicit(
         Context, ParamIdx(AlignmentParam.getValue(), FD), FD->getLocation()));
   }
@@ -17790,6 +17813,75 @@ void Sema::ActOnLastBitfield(SourceLocation DeclLoc,
   AllIvarDecls.push_back(Ivar);
 }
 
+namespace {
+/// [class.dtor]p4:
+///   At the end of the definition of a class, overload resolution is
+///   performed among the prospective destructors declared in that class with
+///   an empty argument list to select the destructor for the class, also
+///   known as the selected destructor.
+///
+/// We do the overload resolution here, then mark the selected constructor in the AST.
+/// Later CXXRecordDecl::getDestructor() will return the selected constructor.
+void ComputeSelectedDestructor(Sema &S, CXXRecordDecl *Record) {
+  if (!Record->hasUserDeclaredDestructor()) {
+    return;
+  }
+
+  SourceLocation Loc = Record->getLocation();
+  OverloadCandidateSet OCS(Loc, OverloadCandidateSet::CSK_Normal);
+
+  for (auto *Decl : Record->decls()) {
+    if (auto *DD = dyn_cast<CXXDestructorDecl>(Decl)) {
+      if (DD->isInvalidDecl())
+        continue;
+      S.AddOverloadCandidate(DD, DeclAccessPair::make(DD, DD->getAccess()), {},
+                             OCS);
+      assert(DD->isIneligibleOrNotSelected() && "Selecting a destructor but a destructor was already selected.");
+    }
+  }
+
+  if (OCS.empty()) {
+    return;
+  }
+  OverloadCandidateSet::iterator Best;
+  unsigned Msg = 0;
+  OverloadCandidateDisplayKind DisplayKind;
+
+  switch (OCS.BestViableFunction(S, Loc, Best)) {
+  case OR_Success:
+  case OR_Deleted:
+    Record->addedSelectedDestructor(dyn_cast<CXXDestructorDecl>(Best->Function));
+    break;
+
+  case OR_Ambiguous:
+    Msg = diag::err_ambiguous_destructor;
+    DisplayKind = OCD_AmbiguousCandidates;
+    break;
+
+  case OR_No_Viable_Function:
+    Msg = diag::err_no_viable_destructor;
+    DisplayKind = OCD_AllCandidates;
+    break;
+  }
+
+  if (Msg) {
+    // OpenCL have got their own thing going with destructors. It's slightly broken,
+    // but we allow it.
+    if (!S.LangOpts.OpenCL) {
+      PartialDiagnostic Diag = S.PDiag(Msg) << Record;
+      OCS.NoteCandidates(PartialDiagnosticAt(Loc, Diag), S, DisplayKind, {});
+      Record->setInvalidDecl();
+    }
+    // It's a bit hacky: At this point we've raised an error but we want the
+    // rest of the compiler to continue somehow working. However almost
+    // everything we'll try to do with the class will depend on there being a
+    // destructor. So let's pretend the first one is selected and hope for the
+    // best.
+    Record->addedSelectedDestructor(dyn_cast<CXXDestructorDecl>(OCS.begin()->Function));
+  }
+}
+} // namespace
+
 void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
                        ArrayRef<Decl *> Fields, SourceLocation LBrac,
                        SourceLocation RBrac,
@@ -17815,6 +17907,9 @@ void Sema::ActOnFields(Scope *S, SourceLocation RecLoc, Decl *EnclosingDecl,
 
   RecordDecl *Record = dyn_cast<RecordDecl>(EnclosingDecl);
   CXXRecordDecl *CXXRecord = dyn_cast<CXXRecordDecl>(EnclosingDecl);
+
+  if (CXXRecord && !CXXRecord->isDependentType())
+    ComputeSelectedDestructor(*this, CXXRecord);
 
   // Start counting up the number of named members; make sure to include
   // members of anonymous structs and unions in the total.
@@ -19120,12 +19215,12 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     //  #pragma omp declare target to(*) device_type(*).
     // Therefore DevTy having no value does not imply host. The emission status
     // will be checked again at the end of compilation unit with Final = true.
-    if (DevTy.hasValue())
+    if (DevTy)
       if (*DevTy == OMPDeclareTargetDeclAttr::DT_Host)
         return FunctionEmissionStatus::OMPDiscarded;
     // If we have an explicit value for the device type, or we are in a target
     // declare context, we need to emit all extern and used symbols.
-    if (isInOpenMPDeclareTargetContext() || DevTy.hasValue())
+    if (isInOpenMPDeclareTargetContext() || DevTy)
       if (IsEmittedForExternalSymbol())
         return FunctionEmissionStatus::Emitted;
     // Device mode only emits what it must, if it wasn't tagged yet and needed,
@@ -19138,7 +19233,7 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(FunctionDecl *FD,
     // be ommitted.
     Optional<OMPDeclareTargetDeclAttr::DevTypeTy> DevTy =
         OMPDeclareTargetDeclAttr::getDeviceType(FD->getCanonicalDecl());
-    if (DevTy.hasValue())
+    if (DevTy)
       if (*DevTy == OMPDeclareTargetDeclAttr::DT_NoHost)
         return FunctionEmissionStatus::OMPDiscarded;
   }

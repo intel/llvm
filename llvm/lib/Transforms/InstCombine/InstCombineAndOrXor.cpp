@@ -1771,6 +1771,16 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
     return new ZExtInst(IsZero, Ty);
   }
 
+  // (-(X & 1)) & Y --> (X & 1) == 0 ? 0 : Y
+  Value *Neg;
+  if (match(&I,
+            m_c_And(m_CombineAnd(m_Value(Neg),
+                                 m_OneUse(m_Neg(m_And(m_Value(), m_One())))),
+                    m_Value(Y)))) {
+    Value *Cmp = Builder.CreateIsNull(Neg);
+    return SelectInst::Create(Cmp, ConstantInt::getNullValue(Ty), Y);
+  }
+
   const APInt *C;
   if (match(Op1, m_APInt(C))) {
     const APInt *XorC;
@@ -1798,7 +1808,8 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
 
     unsigned Width = Ty->getScalarSizeInBits();
     const APInt *ShiftC;
-    if (match(Op0, m_OneUse(m_SExt(m_AShr(m_Value(X), m_APInt(ShiftC)))))) {
+    if (match(Op0, m_OneUse(m_SExt(m_AShr(m_Value(X), m_APInt(ShiftC))))) &&
+        ShiftC->ult(Width)) {
       if (*C == APInt::getLowBitsSet(Width, Width - ShiftC->getZExtValue())) {
         // We are clearing high bits that were potentially set by sext+ashr:
         // and (sext (ashr X, ShiftC)), C --> lshr (sext X), ShiftC
@@ -1912,6 +1923,23 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
         Value *NewLHS = Builder.CreateAnd(X, Op1, X->getName() + ".masked");
         return BinaryOperator::Create(BinOp, NewLHS, Y);
       }
+    }
+
+    // When the mask is a power-of-2 constant and op0 is a shifted-power-of-2
+    // constant, test if the shift amount equals the offset bit index:
+    // (ShiftC << X) & C --> X == (log2(C) - log2(ShiftC)) ? C : 0
+    // (ShiftC >> X) & C --> X == (log2(ShiftC) - log2(C)) ? C : 0
+    if (C->isPowerOf2() &&
+        match(Op0, m_OneUse(m_LogicalShift(m_Power2(ShiftC), m_Value(X))))) {
+      int Log2ShiftC = ShiftC->exactLogBase2();
+      int Log2C = C->exactLogBase2();
+      bool IsShiftLeft =
+         cast<BinaryOperator>(Op0)->getOpcode() == Instruction::Shl;
+      int BitNum = IsShiftLeft ? Log2C - Log2ShiftC : Log2ShiftC - Log2C;
+      assert(BitNum >= 0 && "Expected demanded bits to handle impossible mask");
+      Value *Cmp = Builder.CreateICmpEQ(X, ConstantInt::get(Ty, BitNum));
+      return SelectInst::Create(Cmp, ConstantInt::get(Ty, *C),
+                                ConstantInt::getNullValue(Ty));
     }
 
     Constant *C1, *C2;
@@ -2626,6 +2654,39 @@ Value *InstCombinerImpl::foldAndOrOfICmps(ICmpInst *LHS, ICmpInst *RHS,
         APInt N = SmallC->zext(BigBitSize) | *BigC;
         Value *NewVal = ConstantInt::get(NewAnd->getType(), N);
         return Builder.CreateICmp(PredL, NewAnd, NewVal);
+      }
+    }
+  }
+
+  // Match naive pattern (and its inverted form) for checking if two values
+  // share same sign. An example of the pattern:
+  // (icmp slt (X & Y), 0) | (icmp sgt (X | Y), -1) -> (icmp sgt (X ^ Y), -1)
+  // Inverted form (example):
+  // (icmp slt (X | Y), 0) & (icmp sgt (X & Y), -1) -> (icmp slt (X ^ Y), 0)
+  bool TrueIfSignedL, TrueIfSignedR;
+  if (InstCombiner::isSignBitCheck(PredL, *LHSC, TrueIfSignedL) &&
+      InstCombiner::isSignBitCheck(PredR, *RHSC, TrueIfSignedR) &&
+      (RHS->hasOneUse() || LHS->hasOneUse())) {
+    Value *X, *Y;
+    if (IsAnd) {
+      if ((TrueIfSignedL && !TrueIfSignedR &&
+           match(LHS0, m_Or(m_Value(X), m_Value(Y))) &&
+           match(RHS0, m_c_And(m_Specific(X), m_Specific(Y)))) ||
+          (!TrueIfSignedL && TrueIfSignedR &&
+           match(LHS0, m_And(m_Value(X), m_Value(Y))) &&
+           match(RHS0, m_c_Or(m_Specific(X), m_Specific(Y))))) {
+        Value *NewXor = Builder.CreateXor(X, Y);
+        return Builder.CreateIsNeg(NewXor);
+      }
+    } else {
+      if ((TrueIfSignedL && !TrueIfSignedR &&
+            match(LHS0, m_And(m_Value(X), m_Value(Y))) &&
+            match(RHS0, m_c_Or(m_Specific(X), m_Specific(Y)))) ||
+          (!TrueIfSignedL && TrueIfSignedR &&
+           match(LHS0, m_Or(m_Value(X), m_Value(Y))) &&
+           match(RHS0, m_c_And(m_Specific(X), m_Specific(Y))))) {
+        Value *NewXor = Builder.CreateXor(X, Y);
+        return Builder.CreateIsNotNeg(NewXor);
       }
     }
   }

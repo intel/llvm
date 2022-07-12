@@ -8,6 +8,9 @@
 
 #pragma once
 
+#if __cplusplus >= 201703L
+// Entire feature is dependent on C++17.
+
 #include <CL/sycl/known_identity.hpp>
 
 #include "sycl/ext/oneapi/reduction.hpp"
@@ -171,3 +174,5 @@ reduction(span<T, Extent> Span, const T &Identity, BinaryOperation Combiner,
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#endif // __cplusplus >= 201703L

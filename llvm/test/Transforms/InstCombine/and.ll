@@ -1876,8 +1876,8 @@ define <3 x i16> @shl_lshr_pow2_const_case1_undef3_vec(<3 x i16> %x) {
 
 define i16 @shl_lshr_pow2_const_case2(i16 %x) {
 ; CHECK-LABEL: @shl_lshr_pow2_const_case2(
-; CHECK-NEXT:    [[TMP1:%.*]] = shl i16 2, [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = and i16 [[TMP1]], 8
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i16 [[X:%.*]], 2
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i16 8, i16 0
 ; CHECK-NEXT:    ret i16 [[R]]
 ;
   %shl = shl i16 16, %x
@@ -1886,13 +1886,10 @@ define i16 @shl_lshr_pow2_const_case2(i16 %x) {
   ret i16 %r
 }
 
-; TODO: this pattern can be transform to icmp+select
-
 define i16 @shl_lshr_pow2_not_const_case2(i16 %x) {
 ; CHECK-LABEL: @shl_lshr_pow2_not_const_case2(
-; CHECK-NEXT:    [[TMP1:%.*]] = shl i16 2, [[X:%.*]]
-; CHECK-NEXT:    [[AND:%.*]] = and i16 [[TMP1]], 8
-; CHECK-NEXT:    [[R:%.*]] = xor i16 [[AND]], 8
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i16 [[X:%.*]], 2
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i16 0, i16 8
 ; CHECK-NEXT:    ret i16 [[R]]
 ;
   %shl = shl i16 16, %x
@@ -1969,8 +1966,8 @@ define i16 @shl_lshr_pow2_const_negative_nopow2_2(i16 %x) {
 
 define i16 @lshr_lshr_pow2_const(i16 %x) {
 ; CHECK-LABEL: @lshr_lshr_pow2_const(
-; CHECK-NEXT:    [[LSHR2:%.*]] = lshr i16 32, [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = and i16 [[LSHR2]], 4
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i16 [[X:%.*]], 3
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i16 4, i16 0
 ; CHECK-NEXT:    ret i16 [[R]]
 ;
   %lshr1 = lshr i16 2048, %x
@@ -2032,8 +2029,8 @@ define i16 @lshr_lshr_pow2_const_negative_overflow(i16 %x) {
 
 define i16 @lshr_shl_pow2_const_case1(i16 %x) {
 ; CHECK-LABEL: @lshr_shl_pow2_const_case1(
-; CHECK-NEXT:    [[TMP1:%.*]] = lshr i16 1024, [[X:%.*]]
-; CHECK-NEXT:    [[R:%.*]] = and i16 [[TMP1]], 8
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i16 [[X:%.*]], 7
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i16 8, i16 0
 ; CHECK-NEXT:    ret i16 [[R]]
 ;
   %lshr1 = lshr i16 256, %x
@@ -2042,13 +2039,10 @@ define i16 @lshr_shl_pow2_const_case1(i16 %x) {
   ret i16 %r
 }
 
-; TODO: this pattern can be transform to icmp+select
-
 define i16 @lshr_shl_pow2_const_xor(i16 %x) {
 ; CHECK-LABEL: @lshr_shl_pow2_const_xor(
-; CHECK-NEXT:    [[TMP1:%.*]] = lshr i16 1024, [[X:%.*]]
-; CHECK-NEXT:    [[AND:%.*]] = and i16 [[TMP1]], 8
-; CHECK-NEXT:    [[R:%.*]] = xor i16 [[AND]], 8
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i16 [[X:%.*]], 7
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i16 0, i16 8
 ; CHECK-NEXT:    ret i16 [[R]]
 ;
   %lshr1 = lshr i16 256, %x
@@ -2172,4 +2166,64 @@ define <3 x i16> @lshr_shl_pow2_const_case1_undef3_vec(<3 x i16> %x) {
   %shl = shl <3 x i16> %lshr, <i16 6, i16 6, i16 6>
   %r = and <3 x i16> %shl, <i16 undef, i16 128, i16 128>
   ret <3 x i16> %r
+}
+
+define i8 @negate_lowbitmask(i8 %x, i8 %y) {
+; CHECK-LABEL: @negate_lowbitmask(
+; CHECK-NEXT:    [[A:%.*]] = and i8 [[X:%.*]], 1
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i8 [[A]], 0
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i8 0, i8 [[Y:%.*]]
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %a = and i8 %x, 1
+  %n = sub i8 0, %a
+  %r = and i8 %n, %y
+  ret i8 %r
+}
+
+define <2 x i5> @negate_lowbitmask_commute(<2 x i5> %x, <2 x i5> %p) {
+; CHECK-LABEL: @negate_lowbitmask_commute(
+; CHECK-NEXT:    [[Y:%.*]] = mul <2 x i5> [[P:%.*]], [[P]]
+; CHECK-NEXT:    [[A:%.*]] = and <2 x i5> [[X:%.*]], <i5 1, i5 poison>
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq <2 x i5> [[A]], <i5 poison, i5 0>
+; CHECK-NEXT:    [[R:%.*]] = select <2 x i1> [[TMP1]], <2 x i5> zeroinitializer, <2 x i5> [[Y]]
+; CHECK-NEXT:    ret <2 x i5> [[R]]
+;
+  %y = mul <2 x i5> %p, %p ; thwart complexity-based canonicalization
+  %a = and <2 x i5> %x, <i5 1, i5 poison>
+  %n = sub <2 x i5> <i5 poison, i5 0>, %a
+  %r = and <2 x i5> %y, %n
+  ret <2 x i5> %r
+}
+
+define i8 @negate_lowbitmask_use1(i8 %x, i8 %y) {
+; CHECK-LABEL: @negate_lowbitmask_use1(
+; CHECK-NEXT:    [[A:%.*]] = and i8 [[X:%.*]], 1
+; CHECK-NEXT:    call void @use8(i8 [[A]])
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq i8 [[A]], 0
+; CHECK-NEXT:    [[R:%.*]] = select i1 [[TMP1]], i8 0, i8 [[Y:%.*]]
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %a = and i8 %x, 1
+  call void @use8(i8 %a)
+  %n = sub i8 0, %a
+  %r = and i8 %n, %y
+  ret i8 %r
+}
+
+; negative test
+
+define i8 @negate_lowbitmask_use2(i8 %x, i8 %y) {
+; CHECK-LABEL: @negate_lowbitmask_use2(
+; CHECK-NEXT:    [[A:%.*]] = and i8 [[X:%.*]], 1
+; CHECK-NEXT:    [[N:%.*]] = sub nsw i8 0, [[A]]
+; CHECK-NEXT:    call void @use8(i8 [[N]])
+; CHECK-NEXT:    [[R:%.*]] = and i8 [[N]], [[Y:%.*]]
+; CHECK-NEXT:    ret i8 [[R]]
+;
+  %a = and i8 %x, 1
+  %n = sub i8 0, %a
+  call void @use8(i8 %n)
+  %r = and i8 %n, %y
+  ret i8 %r
 }

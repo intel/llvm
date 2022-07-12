@@ -131,16 +131,22 @@ END-SCRIPT
 #include <__algorithm/ranges_lower_bound.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_lower_bound.h'}}
 #include <__algorithm/ranges_max.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_max.h'}}
 #include <__algorithm/ranges_max_element.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_max_element.h'}}
+#include <__algorithm/ranges_merge.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_merge.h'}}
 #include <__algorithm/ranges_min.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_min.h'}}
 #include <__algorithm/ranges_min_element.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_min_element.h'}}
 #include <__algorithm/ranges_minmax.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_minmax.h'}}
 #include <__algorithm/ranges_minmax_element.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_minmax_element.h'}}
 #include <__algorithm/ranges_mismatch.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_mismatch.h'}}
+#include <__algorithm/ranges_move.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_move.h'}}
+#include <__algorithm/ranges_move_backward.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_move_backward.h'}}
 #include <__algorithm/ranges_none_of.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_none_of.h'}}
+#include <__algorithm/ranges_remove.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_remove.h'}}
+#include <__algorithm/ranges_remove_if.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_remove_if.h'}}
 #include <__algorithm/ranges_replace.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_replace.h'}}
 #include <__algorithm/ranges_replace_if.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_replace_if.h'}}
 #include <__algorithm/ranges_reverse.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_reverse.h'}}
 #include <__algorithm/ranges_sort.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_sort.h'}}
+#include <__algorithm/ranges_stable_sort.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_stable_sort.h'}}
 #include <__algorithm/ranges_swap_ranges.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_swap_ranges.h'}}
 #include <__algorithm/ranges_transform.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_transform.h'}}
 #include <__algorithm/ranges_upper_bound.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/ranges_upper_bound.h'}}
@@ -245,6 +251,7 @@ END-SCRIPT
 #include <__coroutine/coroutine_traits.h> // expected-error@*:* {{use of private header from outside its module: '__coroutine/coroutine_traits.h'}}
 #include <__coroutine/noop_coroutine_handle.h> // expected-error@*:* {{use of private header from outside its module: '__coroutine/noop_coroutine_handle.h'}}
 #include <__coroutine/trivial_awaitables.h> // expected-error@*:* {{use of private header from outside its module: '__coroutine/trivial_awaitables.h'}}
+#include <__debug_utils/randomize_range.h> // expected-error@*:* {{use of private header from outside its module: '__debug_utils/randomize_range.h'}}
 #include <__errc> // expected-error@*:* {{use of private header from outside its module: '__errc'}}
 #include <__filesystem/copy_options.h> // expected-error@*:* {{use of private header from outside its module: '__filesystem/copy_options.h'}}
 #include <__filesystem/directory_entry.h> // expected-error@*:* {{use of private header from outside its module: '__filesystem/directory_entry.h'}}
@@ -280,6 +287,7 @@ END-SCRIPT
 #include <__format/formatter_floating_point.h> // expected-error@*:* {{use of private header from outside its module: '__format/formatter_floating_point.h'}}
 #include <__format/formatter_integer.h> // expected-error@*:* {{use of private header from outside its module: '__format/formatter_integer.h'}}
 #include <__format/formatter_integral.h> // expected-error@*:* {{use of private header from outside its module: '__format/formatter_integral.h'}}
+#include <__format/formatter_output.h> // expected-error@*:* {{use of private header from outside its module: '__format/formatter_output.h'}}
 #include <__format/formatter_pointer.h> // expected-error@*:* {{use of private header from outside its module: '__format/formatter_pointer.h'}}
 #include <__format/formatter_string.h> // expected-error@*:* {{use of private header from outside its module: '__format/formatter_string.h'}}
 #include <__format/parser_std_format_spec.h> // expected-error@*:* {{use of private header from outside its module: '__format/parser_std_format_spec.h'}}
@@ -290,6 +298,7 @@ END-SCRIPT
 #include <__functional/bind_front.h> // expected-error@*:* {{use of private header from outside its module: '__functional/bind_front.h'}}
 #include <__functional/binder1st.h> // expected-error@*:* {{use of private header from outside its module: '__functional/binder1st.h'}}
 #include <__functional/binder2nd.h> // expected-error@*:* {{use of private header from outside its module: '__functional/binder2nd.h'}}
+#include <__functional/boyer_moore_searcher.h> // expected-error@*:* {{use of private header from outside its module: '__functional/boyer_moore_searcher.h'}}
 #include <__functional/compose.h> // expected-error@*:* {{use of private header from outside its module: '__functional/compose.h'}}
 #include <__functional/default_searcher.h> // expected-error@*:* {{use of private header from outside its module: '__functional/default_searcher.h'}}
 #include <__functional/function.h> // expected-error@*:* {{use of private header from outside its module: '__functional/function.h'}}
@@ -316,6 +325,7 @@ END-SCRIPT
 #include <__iterator/access.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/access.h'}}
 #include <__iterator/advance.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/advance.h'}}
 #include <__iterator/back_insert_iterator.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/back_insert_iterator.h'}}
+#include <__iterator/bounded_iter.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/bounded_iter.h'}}
 #include <__iterator/common_iterator.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/common_iterator.h'}}
 #include <__iterator/concepts.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/concepts.h'}}
 #include <__iterator/counted_iterator.h> // expected-error@*:* {{use of private header from outside its module: '__iterator/counted_iterator.h'}}

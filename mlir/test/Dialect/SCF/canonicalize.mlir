@@ -787,8 +787,7 @@ func.func @last_value(%t0: tensor<128x128xf32>, %t1: tensor<128x128xf32>,
   }
 
   // CHECK-NEXT: %[[R0:.*]] = bufferization.to_tensor %[[M0]] : memref<128x128xf32>
-  // CHECK-NEXT: %[[R1:.*]] = bufferization.to_tensor %[[M1]] : memref<128x128xf32>
-  // CHECK-NEXT: return %[[R0]], %[[R1]], %[[FOR_RES]] : tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>
+  // CHECK-NEXT: return %[[R0]], %[[T1]], %[[FOR_RES]] : tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>
   return %0#0, %0#1, %0#2 : tensor<128x128xf32>, tensor<128x128xf32>, tensor<128x128xf32>
 }
 
@@ -1458,28 +1457,3 @@ func.func @func_execute_region_elim_multi_yield() {
 // CHECK:   ^[[bb3]](%[[z:.+]]: i64):
 // CHECK:     "test.bar"(%[[z]])
 // CHECK:     return
-
-// -----
-
-// CHECK-LABEL: func.func @canonicalize_parallel_insert_slice_indices(
-//  CHECK-SAME:     %[[arg0:[0-9a-z]*]]: tensor<?x?xf32>, 
-//  CHECK-SAME:     %[[arg1:[0-9a-z]*]]: tensor<?x?xf32>,
-//  CHECK-SAME:     %[[num_threads:[0-9a-z]*]]: index
-func.func @canonicalize_parallel_insert_slice_indices(
-    %arg0 : tensor<?x?xf32>, %arg1: tensor<?x?xf32>,
-    %num_threads : index) -> tensor<?x?xf32>
-{
-  %cst = arith.constant 4.200000e+01 : f32
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-
-  //      CHECK: scf.foreach_thread (%[[tidx:[0-9a-z]*]]) in (%[[num_threads]]) -> (tensor<?x?xf32>) {
-  // CHECK-NEXT:   scf.foreach_thread.perform_concurrently {
-  // CHECK-NEXT:     scf.foreach_thread.parallel_insert_slice %[[arg0]] into %[[arg1]][%[[tidx]], 0] [1, 5] [1, 1]
-  %2 = scf.foreach_thread (%tidx) in (%num_threads)  -> (tensor<?x?xf32>) {
-    scf.foreach_thread.perform_concurrently {
-      scf.foreach_thread.parallel_insert_slice %arg0 into %arg1[%tidx, %c0] [%c1, 5] [%c1, %c1] : tensor<?x?xf32> into tensor<?x?xf32>
-    }
-  }
-  return %2 : tensor<?x?xf32>
-}

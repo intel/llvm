@@ -2989,6 +2989,15 @@ struct fortran_inx_info {
   kmp_int32 data;
 };
 
+// This list type exists to hold old __kmp_threads arrays so that
+// old references to them may complete while reallocation takes place when
+// expanding the array. The items in this list are kept alive until library
+// shutdown.
+typedef struct kmp_old_threads_list_t {
+  kmp_info_t **threads;
+  struct kmp_old_threads_list_t *next;
+} kmp_old_threads_list_t;
+
 /* ------------------------------------------------------------------------ */
 
 extern int __kmp_settings;
@@ -3052,6 +3061,8 @@ extern int __kmp_storage_map_verbose_specified;
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
 extern kmp_cpuinfo_t __kmp_cpuinfo;
 static inline bool __kmp_is_hybrid_cpu() { return __kmp_cpuinfo.flags.hybrid; }
+#elif KMP_OS_DARWIN && KMP_ARCH_AARCH64
+static inline bool __kmp_is_hybrid_cpu() { return true; }
 #else
 static inline bool __kmp_is_hybrid_cpu() { return false; }
 #endif
@@ -3270,6 +3281,8 @@ extern int __kmp_teams_thread_limit;
 /* the following are protected by the fork/join lock */
 /* write: lock  read: anytime */
 extern kmp_info_t **__kmp_threads; /* Descriptors for the threads */
+/* Holds old arrays of __kmp_threads until library shutdown */
+extern kmp_old_threads_list_t *__kmp_old_threads_list;
 /* read/write: lock */
 extern volatile kmp_team_t *__kmp_team_pool;
 extern volatile kmp_info_t *__kmp_thread_pool;
@@ -3877,6 +3890,11 @@ KMP_EXPORT kmp_int32 __kmpc_barrier_master_nowait(ident_t *,
 KMP_EXPORT kmp_int32 __kmpc_single(ident_t *, kmp_int32 global_tid);
 KMP_EXPORT void __kmpc_end_single(ident_t *, kmp_int32 global_tid);
 
+KMP_EXPORT kmp_int32 __kmpc_sections_init(ident_t *loc, kmp_int32 global_tid);
+KMP_EXPORT kmp_int32 __kmpc_next_section(ident_t *loc, kmp_int32 global_tid,
+                                         kmp_int32 numberOfSections);
+KMP_EXPORT void __kmpc_end_sections(ident_t *loc, kmp_int32 global_tid);
+
 KMP_EXPORT void KMPC_FOR_STATIC_INIT(ident_t *loc, kmp_int32 global_tid,
                                      kmp_int32 schedtype, kmp_int32 *plastiter,
                                      kmp_int *plower, kmp_int *pupper,
@@ -3889,6 +3907,9 @@ KMP_EXPORT void __kmpc_copyprivate(ident_t *loc, kmp_int32 global_tid,
                                    size_t cpy_size, void *cpy_data,
                                    void (*cpy_func)(void *, void *),
                                    kmp_int32 didit);
+
+KMP_EXPORT void *__kmpc_copyprivate_light(ident_t *loc, kmp_int32 gtid,
+                                          void *cpy_data);
 
 extern void KMPC_SET_NUM_THREADS(int arg);
 extern void KMPC_SET_DYNAMIC(int flag);

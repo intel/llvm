@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -286,8 +286,7 @@ struct TestLinalgTileAndFuseSequencePass
       : PassWrapper(pass){};
 
   ListOption<int64_t> tileSizes{*this, "tile-sizes",
-                                llvm::cl::desc("Tile sizes to use for ops"),
-                                llvm::cl::ZeroOrMore};
+                                llvm::cl::desc("Tile sizes to use for ops")};
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<AffineDialect, linalg::LinalgDialect, memref::MemRefDialect,

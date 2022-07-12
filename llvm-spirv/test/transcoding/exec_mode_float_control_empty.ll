@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_KHR_float_controls,+SPV_INTEL_float_controls2 %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
