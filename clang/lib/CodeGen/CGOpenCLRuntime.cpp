@@ -95,7 +95,17 @@ llvm::Type *CGOpenCLRuntime::convertOpenCLSpecificType(const Type *T) {
 }
 
 llvm::Type *CGOpenCLRuntime::getOpenCLSpecificPointeeType(const Type *T) {
-  return llvm::StructType::create(CGM.getLLVMContext(), getOpenCLTypeName(T));
+  return getOpaqueType(getOpenCLTypeName(T));
+}
+
+llvm::Type *CGOpenCLRuntime::getOpaqueType(StringRef Name) {
+  auto I = OpaqueTypes.find(Name);
+  if (I != OpaqueTypes.end())
+    return I->second;
+
+  auto *T = llvm::StructType::create(CGM.getLLVMContext(), Name);
+  OpaqueTypes[Name] = T;
+  return T;
 }
 
 llvm::PointerType *CGOpenCLRuntime::getPointerToOpaqueType(StringRef Name,
@@ -104,8 +114,7 @@ llvm::PointerType *CGOpenCLRuntime::getPointerToOpaqueType(StringRef Name,
   if (I != CachedTys.end())
     return I->second;
 
-  auto *PTy = llvm::PointerType::get(
-      llvm::StructType::create(CGM.getLLVMContext(), Name), AS);
+  auto *PTy = llvm::PointerType::get(getOpaqueType(Name), AS);
   CachedTys[Name] = PTy;
   return PTy;
 }
@@ -120,8 +129,7 @@ llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T) {
 llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T, StringRef Name,
                                          llvm::Type *&PipeTy) {
   if (!PipeTy)
-    PipeTy = llvm::PointerType::get(llvm::StructType::create(
-      CGM.getLLVMContext(), Name),
+    PipeTy = llvm::PointerType::get(getOpaqueType(Name),
       CGM.getContext().getTargetAddressSpace(
           CGM.getContext().getOpenCLTypeAddrSpace(T)));
   return PipeTy;

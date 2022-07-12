@@ -39,6 +39,7 @@ protected:
   llvm::Type *PipeROTy;
   llvm::Type *PipeWOTy;
   llvm::StringMap<llvm::PointerType *> CachedTys;
+  llvm::StringMap<llvm::Type *> OpaqueTypes;
 
   /// Structure for enqueued block information.
   struct EnqueuedBlockInfo {
@@ -52,6 +53,7 @@ protected:
 
   virtual llvm::Type *getPipeType(const PipeType *T, StringRef Name,
                                   llvm::Type *&PipeTy);
+  llvm::Type *getOpaqueType(llvm::StringRef Name);
   llvm::PointerType *getPointerToOpaqueType(llvm::StringRef Name, uint32_t AS);
   llvm::StringRef getOpenCLTypeName(const Type *T);
 
