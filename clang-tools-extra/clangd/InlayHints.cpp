@@ -14,6 +14,7 @@
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/Builtins.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/ScopeExit.h"
 
@@ -400,8 +401,9 @@ private:
     NameVec ParameterNames = chooseParameterNames(Callee, ArgCount);
 
     // Exclude setters (i.e. functions with one argument whose name begins with
-    // "set"), as their parameter name is also not likely to be interesting.
-    if (isSetter(Callee, ParameterNames))
+    // "set"), and builtins like std::move/forward/... as their parameter name
+    // is also not likely to be interesting.
+    if (isSetter(Callee, ParameterNames) || isSimpleBuiltin(Callee))
       return;
 
     for (size_t I = 0; I < ArgCount; ++I) {
@@ -411,7 +413,7 @@ private:
 
       if (NameHint || ReferenceHint) {
         addInlayHint(Args[I]->getSourceRange(), HintSide::Left,
-                     InlayHintKind::ParameterHint, ReferenceHint ? "&" : "",
+                     InlayHintKind::Parameter, ReferenceHint ? "&" : "",
                      NameHint ? Name : "", ": ");
       }
     }
@@ -438,6 +440,21 @@ private:
     // `sloppy_equals` which ignores case and also skips underscores.
     StringRef WhatItIsSetting = Name.substr(3).ltrim("_");
     return WhatItIsSetting.equals_insensitive(ParamNames[0]);
+  }
+
+  // Checks if the callee is one of the builtins
+  // addressof, as_const, forward, move(_if_noexcept)
+  static bool isSimpleBuiltin(const FunctionDecl *Callee) {
+    switch (Callee->getBuiltinID()) {
+    case Builtin::BIaddressof:
+    case Builtin::BIas_const:
+    case Builtin::BIforward:
+    case Builtin::BImove:
+    case Builtin::BImove_if_noexcept:
+      return true;
+    default:
+      return false;
+    }
   }
 
   bool shouldHintName(const Expr *Arg, StringRef ParamName) {
@@ -593,9 +610,9 @@ private:
     if (!Cfg.InlayHints.ConfigProperty)                                        \
       return;                                                                  \
     break
-      CHECK_KIND(ParameterHint, Parameters);
-      CHECK_KIND(TypeHint, DeducedTypes);
-      CHECK_KIND(DesignatorHint, Designators);
+      CHECK_KIND(Parameter, Parameters);
+      CHECK_KIND(Type, DeducedTypes);
+      CHECK_KIND(Designator, Designators);
 #undef CHECK_KIND
     }
 
@@ -614,8 +631,10 @@ private:
     // file that was included after the preamble), do not show in that case.
     if (!AST.getSourceManager().isWrittenInMainFile(FileRange->getBegin()))
       return;
-    Results.push_back(
-        InlayHint{LSPPos, LSPRange, Kind, (Prefix + Label + Suffix).str()});
+    bool PadLeft = Prefix.consume_front(" ");
+    bool PadRight = Suffix.consume_back(" ");
+    Results.push_back(InlayHint{LSPPos, (Prefix + Label + Suffix).str(), Kind,
+                                PadLeft, PadRight, LSPRange});
   }
 
   void addTypeHint(SourceRange R, QualType T, llvm::StringRef Prefix) {
@@ -629,12 +648,12 @@ private:
 
     std::string TypeName = T.getAsString(Policy);
     if (TypeName.length() < TypeNameLimit)
-      addInlayHint(R, HintSide::Right, InlayHintKind::TypeHint, Prefix,
-                   TypeName, /*Suffix=*/"");
+      addInlayHint(R, HintSide::Right, InlayHintKind::Type, Prefix, TypeName,
+                   /*Suffix=*/"");
   }
 
   void addDesignatorHint(SourceRange R, llvm::StringRef Text) {
-    addInlayHint(R, HintSide::Left, InlayHintKind::DesignatorHint,
+    addInlayHint(R, HintSide::Left, InlayHintKind::Designator,
                  /*Prefix=*/"", Text, /*Suffix=*/"=");
   }
 

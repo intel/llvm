@@ -212,9 +212,9 @@ bool ICF::equalsVariable(const ConcatInputSection *ia,
   // info matches. For simplicity, we only handle the case where there are only
   // symbols at offset zero within the section (which is typically the case with
   // .subsections_via_symbols.)
-  auto hasCU = [](Defined *d) { return d->unwindEntry != nullptr; };
-  auto itA = std::find_if(ia->symbols.begin(), ia->symbols.end(), hasCU);
-  auto itB = std::find_if(ib->symbols.begin(), ib->symbols.end(), hasCU);
+  auto hasUnwind = [](Defined *d) { return d->unwindEntry != nullptr; };
+  auto itA = std::find_if(ia->symbols.begin(), ia->symbols.end(), hasUnwind);
+  auto itB = std::find_if(ib->symbols.begin(), ib->symbols.end(), hasUnwind);
   if (itA == ia->symbols.end())
     return itB == ib->symbols.end();
   if (itB == ib->symbols.end())
@@ -270,10 +270,10 @@ void ICF::forEachClass(llvm::function_ref<void(size_t, size_t)> func) {
   size_t boundaries[shards + 1];
   boundaries[0] = 0;
   boundaries[shards] = icfInputs.size();
-  parallelForEachN(1, shards, [&](size_t i) {
+  parallelFor(1, shards, [&](size_t i) {
     boundaries[i] = findBoundary((i - 1) * step, icfInputs.size());
   });
-  parallelForEachN(1, shards + 1, [&](size_t i) {
+  parallelFor(1, shards + 1, [&](size_t i) {
     if (boundaries[i - 1] < boundaries[i]) {
       forEachClassRange(boundaries[i - 1], boundaries[i], func);
     }
@@ -373,6 +373,7 @@ void macho::markSymAsAddrSig(Symbol *s) {
 }
 
 void macho::markAddrSigSymbols() {
+  TimeTraceScope timeScope("Mark addrsig symbols");
   for (InputFile *file : inputFiles) {
     ObjFile *obj = dyn_cast<ObjFile>(file);
     if (!obj)
@@ -443,7 +444,9 @@ void macho::foldIdenticalSections() {
                               /*relocVA=*/0);
         isec->data = copy;
       }
-    } else {
+    } else if (!isEhFrameSection(isec)) {
+      // EH frames are gathered as hashables from unwindEntry above; give a
+      // unique ID to everything else.
       isec->icfEqClass[0] = ++icfUniqueID;
     }
   }

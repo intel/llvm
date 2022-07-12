@@ -71,7 +71,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
   errcode_ret = Plugin.call_nocheck<PiApiKind::piSamplerCreate>(
       getSyclObjImpl(Context)->getHandleRef(), sprops, &resultSampler);
 
-  if (errcode_ret == PI_INVALID_OPERATION)
+  if (errcode_ret == PI_ERROR_INVALID_OPERATION)
     throw feature_not_supported("Images are not supported by this device.",
                                 errcode_ret);
 

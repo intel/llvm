@@ -765,6 +765,39 @@ extern SYCL_EXTERNAL float __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 __SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
 __spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
 
+extern SYCL_EXTERNAL __SYCL_EXPORT void
+__clc_BarrierInitialize(int64_t *state, int32_t expected_count) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT void
+__clc_BarrierInvalidate(int64_t *state) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
+__clc_BarrierArrive(int64_t *state) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
+__clc_BarrierArriveAndDrop(int64_t *state) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
+__clc_BarrierArriveNoComplete(int64_t *state, int32_t count) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT int64_t
+__clc_BarrierArriveAndDropNoComplete(int64_t *state, int32_t count) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT void
+__clc_BarrierCopyAsyncArrive(int64_t *state) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT void
+__clc_BarrierCopyAsyncArriveNoInc(int64_t *state) noexcept;
+
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT void
+__clc_BarrierWait(int64_t *state, int64_t arrival) noexcept;
+
+extern SYCL_EXTERNAL __SYCL_EXPORT bool
+__clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
+
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT void
+__clc_BarrierArriveAndWait(int64_t *state) noexcept;
+
 #ifdef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
 template <typename... Args>
 extern SYCL_EXTERNAL int

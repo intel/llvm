@@ -33,7 +33,6 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 
 ; CHECK:      pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.b> = getelementptr ir<@b>, ir<0>, vp<[[STEPS]]>
@@ -50,8 +49,6 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 ; CHECK-NEXT: }
 
 ; CHECK:      loop.1:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -100,7 +97,6 @@ exit:
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 
 ; CHECK:      pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.b> = getelementptr ir<@b>, ir<0>, vp<[[STEPS]]>
@@ -120,7 +116,6 @@ exit:
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 
 ; CHECK:       pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%add> = add vp<[[PRED]]>, ir<10>
@@ -133,8 +128,6 @@ exit:
 ; CHECK-NEXT: }
 
 ; CHECK:       loop.1:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -183,7 +176,6 @@ exit:
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 
 ; CHECK:       pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.b> = getelementptr ir<@b>, ir<0>, vp<[[STEPS]]>
@@ -204,7 +196,6 @@ exit:
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 
 ; CHECK:      pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.a> = getelementptr ir<@a>, ir<0>, ir<%mul>
@@ -216,8 +207,6 @@ exit:
 ; CHECK-NEXT: }
 
 ; CHECK:      loop.1:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -270,7 +259,6 @@ define void @uniform_gep(i64 %k, i16* noalias %A, i16* noalias %B) {
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%lv> = load ir<%gep.A.uniform>
@@ -295,7 +283,6 @@ define void @uniform_gep(i64 %k, i16* noalias %A, i16* noalias %B) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK2]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK2]]> (loop.then)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.B> = getelementptr ir<%B>, vp<[[STEPS]]>
@@ -368,7 +355,6 @@ define void @pred_cfg1(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK2]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK2]]> (then.0)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.b> = getelementptr ir<@b>, ir<0>, vp<[[STEPS]]>
@@ -395,7 +381,6 @@ define void @pred_cfg1(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[OR]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[OR]]> (next.0)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.a> = getelementptr ir<@a>, ir<0>, ir<%mul>
@@ -408,8 +393,6 @@ define void @pred_cfg1(i32 %k, i32 %j) {
 ; CHECK-NEXT: Successor(s): next.0.0
 ; CHECK-EMPTY:
 ; CHECK-NEXT: next.0.0:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -474,7 +457,6 @@ define void @pred_cfg2(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK2]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK2]]> (then.0)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.b> = getelementptr ir<@b>, ir<0>, vp<[[STEPS]]>
@@ -505,7 +487,6 @@ define void @pred_cfg2(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK4]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK4]]> (then.1)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.a> = getelementptr ir<@a>, ir<0>, ir<%mul>
@@ -521,8 +502,6 @@ define void @pred_cfg2(i32 %k, i32 %j) {
 ; CHECK-NEXT: Successor(s): next.1
 ; CHECK-EMPTY:
 ; CHECK-NEXT: next.1:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -593,7 +572,6 @@ define void @pred_cfg3(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK2]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK2]]> (then.0)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.b> = getelementptr ir<@b>, ir<0>, vp<[[STEPS]]>
@@ -623,7 +601,6 @@ define void @pred_cfg3(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK5]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK5]]> (then.1)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.a> = getelementptr ir<@a>, ir<0>, ir<%mul>
@@ -639,8 +616,6 @@ define void @pred_cfg3(i32 %k, i32 %j) {
 ; CHECK-NEXT: Successor(s): next.1
 ; CHECK-EMPTY:
 ; CHECK-NEXT: next.1:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -711,7 +686,6 @@ define void @merge_3_replicate_region(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%lv.a> = load ir<%gep.a>
@@ -742,7 +716,6 @@ define void @merge_3_replicate_region(i32 %k, i32 %j) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK2]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK2]]> (then.0)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep.c.1> = getelementptr ir<@c>, ir<0>, vp<[[STEPS]]>
@@ -758,8 +731,6 @@ define void @merge_3_replicate_region(i32 %k, i32 %j) {
 ; CHECK-NEXT: Successor(s): latch
 ; CHECK-EMPTY:
 ; CHECK-NEXT: latch:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -827,7 +798,6 @@ define void @update_2_uses_in_same_recipe_in_merged_block(i32 %k) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%lv.a> = load ir<%gep.a>
@@ -843,8 +813,6 @@ define void @update_2_uses_in_same_recipe_in_merged_block(i32 %k) {
 ; CHECK-NEXT: Successor(s): loop.2
 ; CHECK-EMPTY:
 ; CHECK-NEXT: loop.2:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -893,7 +861,6 @@ define void @recipe_in_merge_candidate_used_by_first_order_recurrence(i32 %k) {
 ; CHECK-NEXT:   pred.load.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.load.if, pred.load.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.load.if:
 ; CHECK-NEXT:     REPLICATE ir<%lv.a> = load ir<%gep.a>
@@ -916,7 +883,6 @@ define void @recipe_in_merge_candidate_used_by_first_order_recurrence(i32 %k) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (vector.body)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%div> = sdiv vp<[[SPLICE]]>, vp<[[PRED]]>
@@ -930,8 +896,6 @@ define void @recipe_in_merge_candidate_used_by_first_order_recurrence(i32 %k) {
 ; CHECK-NEXT: Successor(s): loop.2
 ; CHECK-EMPTY:
 ; CHECK-NEXT: loop.2:
-; CHECK-NEXT:   CLONE ir<%large> = icmp vp<[[STEPS]]>, ir<8>
-; CHECK-NEXT:   CLONE ir<%exitcond> = icmp vp<[[STEPS]]>, ir<%k>
 ; CHECK-NEXT:   EMIT vp<[[CAN_IV_NEXT:%.+]]> = VF * UF + vp<[[CAN_IV]]>
 ; CHECK-NEXT:   EMIT branch-on-count vp<[[CAN_IV_NEXT]]> vp<[[VEC_TC]]>
 ; CHECK-NEXT: No successors
@@ -980,7 +944,6 @@ define void @update_multiple_users(i16* noalias %src, i8* noalias %dst, i1 %c) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK ir<%c>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: ir<%c>
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%l1> = load ir<%src>
@@ -997,7 +960,6 @@ define void @update_multiple_users(i16* noalias %src, i8* noalias %dst, i1 %c) {
 ; CHECK-NEXT: Successor(s): loop.then.1
 ; CHECK-EMPTY:
 ; CHECK-NEXT: loop.then.1:
-; CHECK-NEXT:   WIDEN ir<%sext.l1> = sext vp<[[PRED]]>
 ; CHECK-NEXT: Successor(s): loop.latch
 ; CHECK-EMPTY:
 ; CHECK-NEXT: loop.latch:
@@ -1059,7 +1021,6 @@ define void @sinking_requires_duplication(float* %addr) {
 ; CHECK-NEXT:   pred.store.entry:
 ; CHECK-NEXT:     BRANCH-ON-MASK vp<[[MASK]]>
 ; CHECK-NEXT:   Successor(s): pred.store.if, pred.store.continue
-; CHECK-NEXT:   CondBit: vp<[[MASK]]> (then)
 ; CHECK-EMPTY:
 ; CHECK-NEXT:   pred.store.if:
 ; CHECK-NEXT:     REPLICATE ir<%gep> = getelementptr ir<%addr>, vp<[[STEPS]]>

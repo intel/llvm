@@ -512,7 +512,7 @@ void NVPTXAsmPrinter::emitImplicitDef(const MachineInstr *MI) const {
     OutStreamer->AddComment(Twine("implicit-def: ") +
                             STI.getRegisterInfo()->getName(RegNo));
   }
-  OutStreamer->AddBlankLine();
+  OutStreamer->addBlankLine();
 }
 
 void NVPTXAsmPrinter::emitKernelFunctionDirectives(const Function &F,
@@ -1427,7 +1427,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
                                     paramIndex](Type *Ty) -> Align {
       Align TypeAlign = TLI->getFunctionParamOptimizedAlign(F, Ty, DL);
       MaybeAlign ParamAlign = PAL.getParamAlignment(paramIndex);
-      return max(TypeAlign, ParamAlign);
+      return std::max(TypeAlign, ParamAlign.valueOrOne());
     };
 
     if (!PAL.hasParamAttr(paramIndex, Attribute::ByVal)) {

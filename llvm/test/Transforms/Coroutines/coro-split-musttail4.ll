@@ -1,6 +1,6 @@
 ; Tests that coro-split will convert a call before coro.suspend to a musttail call
 ; while the user of the coro.suspend is a icmpinst.
-; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split<optimizing>),simplifycfg,early-cse' -S | FileCheck %s
 
 define void @fakeresume1(i8*)  {
 entry:
@@ -59,7 +59,7 @@ declare i8* @llvm.coro.subfn.addr(i8* nocapture readonly, i8) #1
 declare i8* @malloc(i64)
 declare void @delete(i8* nonnull) #2
 
-attributes #0 = { "coroutine.presplit"="1" }
+attributes #0 = { presplitcoroutine }
 attributes #1 = { argmemonly nounwind readonly }
 attributes #2 = { nounwind }
 attributes #3 = { nounwind readnone }

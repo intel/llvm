@@ -20,8 +20,8 @@
 #ifndef CLANG_PSEUDO_FOREST_H
 #define CLANG_PSEUDO_FOREST_H
 
-#include "clang-pseudo/Grammar.h"
 #include "clang-pseudo/Token.h"
+#include "clang-pseudo/grammar/Grammar.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Allocator.h"
@@ -43,7 +43,7 @@ namespace pseudo {
 // doesn't have parent pointers.
 class alignas(class ForestNode *) ForestNode {
 public:
-  enum Kind : uint8_t {
+  enum Kind {
     // A Terminal node is a single terminal symbol bound to a token.
     Terminal,
     // A Sequence node is a nonterminal symbol parsed from a grammar rule,

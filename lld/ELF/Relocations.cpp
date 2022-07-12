@@ -558,6 +558,7 @@ static std::string maybeReportDiscarded(Undefined &sym) {
   return msg;
 }
 
+namespace {
 // Undefined diagnostics are collected in a vector and emitted once all of
 // them are known, so that some postprocessing on the list of undefined symbols
 // can happen before lld emits diagnostics.
@@ -571,7 +572,8 @@ struct UndefinedDiag {
   bool isWarning;
 };
 
-static std::vector<UndefinedDiag> undefs;
+std::vector<UndefinedDiag> undefs;
+}
 
 // Check whether the definition name def is a mangled function name that matches
 // the reference name ref.
@@ -943,7 +945,7 @@ static bool canDefineSymbolInExecutable(Symbol &sym) {
 }
 
 // Returns true if a given relocation can be computed at link-time.
-// This only handles relocation types expected in processRelocAux.
+// This only handles relocation types expected in processAux.
 //
 // For instance, we know the offset from a relocation to its target at
 // link-time if the relocation is PC-relative and refers a

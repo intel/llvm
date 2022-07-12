@@ -162,6 +162,17 @@ def AttrC : TestAttr<"TestF"> {
   let assemblyFormat = "params";
 }
 
+/// Test attribute with self type parameter
+
+// ATTR: TestGAttr::parse
+// ATTR:   return TestGAttr::get
+// ATTR:     odsType
+def AttrD : TestAttr<"TestG"> {
+  let parameters = (ins "int":$a, AttributeSelfTypeParameter<"">:$type);
+  let mnemonic = "attr_d";
+  let assemblyFormat = "$a";
+}
+
 /// Test type parser and printer that mix variables and struct are generated
 /// correctly.
 
@@ -391,7 +402,7 @@ def TypeC : TestType<"TestE"> {
 }
 
 // TYPE: ::mlir::Type TestFType::parse(::mlir::AsmParser &odsParser) {
-// TYPE:   _result_a.getValueOr(int())
+// TYPE:   _result_a.value_or(int())
 
 // TYPE: void TestFType::print(::mlir::AsmPrinter &odsPrinter) const {
 // TYPE if (getA()) {
@@ -490,7 +501,7 @@ def TypeH : TestType<"TestJ"> {
 }
 
 // TYPE: ::mlir::Type TestKType::parse(::mlir::AsmParser &odsParser) {
-// TYPE:   _result_a.getValueOr(10)
+// TYPE:   _result_a.value_or(10)
 
 // TYPE: void TestKType::print(::mlir::AsmPrinter &odsPrinter) const {
 // TYPE:   if ((getA() && !(getA() == 10)))

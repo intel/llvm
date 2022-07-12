@@ -179,21 +179,12 @@ template <class... Types>
 #include <__utility/pair.h>
 #include <__utility/piecewise_construct.h>
 #include <__utility/swap.h>
-#include <compare>
 #include <cstddef>
 #include <type_traits>
 #include <version>
 
-// TODO: remove these headers
-#include <__functional/binary_function.h>
-#include <__functional/invoke.h>
-#include <__functional/operations.h>
-#include <__functional/reference_wrapper.h>
-#include <__functional/unary_function.h>
-#include <__functional/weak_result_type.h>
-#include <exception>
-#include <new>
-#include <typeinfo>
+// standard-mandated includes
+#include <compare>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

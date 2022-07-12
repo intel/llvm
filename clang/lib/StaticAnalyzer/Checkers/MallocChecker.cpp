@@ -927,11 +927,6 @@ public:
     ID.AddPointer(&Tag);
     ID.AddPointer(Sym);
   }
-
-  void *getTag() const {
-    static int Tag = 0;
-    return static_cast<void *>(&Tag);
-  }
 };
 
 } // end anonymous namespace
@@ -1160,7 +1155,7 @@ MallocChecker::performKernelMalloc(const CallEvent &Call, CheckerContext &C,
   ASTContext &Ctx = C.getASTContext();
   llvm::Triple::OSType OS = Ctx.getTargetInfo().getTriple().getOS();
 
-  if (!KernelZeroFlagVal.hasValue()) {
+  if (!KernelZeroFlagVal) {
     if (OS == llvm::Triple::FreeBSD)
       KernelZeroFlagVal = 0x0100;
     else if (OS == llvm::Triple::NetBSD)
@@ -1187,7 +1182,7 @@ MallocChecker::performKernelMalloc(const CallEvent &Call, CheckerContext &C,
 
   const Expr *FlagsEx = Call.getArgExpr(Call.getNumArgs() - 1);
   const SVal V = C.getSVal(FlagsEx);
-  if (!V.getAs<NonLoc>()) {
+  if (!isa<NonLoc>(V)) {
     // The case where 'V' can be a location can only be due to a bad header,
     // so in this case bail out.
     return None;
@@ -1912,12 +1907,12 @@ ProgramStateRef MallocChecker::FreeMemAux(
     return nullptr;
 
   SVal ArgVal = C.getSVal(ArgExpr);
-  if (!ArgVal.getAs<DefinedOrUnknownSVal>())
+  if (!isa<DefinedOrUnknownSVal>(ArgVal))
     return nullptr;
   DefinedOrUnknownSVal location = ArgVal.castAs<DefinedOrUnknownSVal>();
 
   // Check for null dereferences.
-  if (!location.getAs<Loc>())
+  if (!isa<Loc>(location))
     return nullptr;
 
   // The explicit NULL case, no operation is performed.
@@ -2223,7 +2218,7 @@ void MallocChecker::HandleNonHeapDealloc(CheckerContext &C, SVal ArgVal,
   }
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(Family);
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   if (ExplodedNode *N = C.generateErrorNode()) {
@@ -2356,7 +2351,7 @@ void MallocChecker::HandleOffsetFree(CheckerContext &C, SVal ArgVal,
   }
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(Family);
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   ExplodedNode *N = C.generateErrorNode();
@@ -2413,7 +2408,7 @@ void MallocChecker::HandleUseAfterFree(CheckerContext &C, SourceRange Range,
   }
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(C, Sym);
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   if (ExplodedNode *N = C.generateErrorNode()) {
@@ -2452,7 +2447,7 @@ void MallocChecker::HandleDoubleFree(CheckerContext &C, SourceRange Range,
   }
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(C, Sym);
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   if (ExplodedNode *N = C.generateErrorNode()) {
@@ -2482,7 +2477,7 @@ void MallocChecker::HandleDoubleDelete(CheckerContext &C, SymbolRef Sym) const {
   }
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(C, Sym);
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   if (ExplodedNode *N = C.generateErrorNode()) {
@@ -2510,7 +2505,7 @@ void MallocChecker::HandleUseZeroAlloc(CheckerContext &C, SourceRange Range,
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(C, Sym);
 
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   if (ExplodedNode *N = C.generateErrorNode()) {
@@ -2542,7 +2537,7 @@ void MallocChecker::HandleFunctionPtrFree(CheckerContext &C, SVal ArgVal,
   }
 
   Optional<MallocChecker::CheckKind> CheckKind = getCheckIfTracked(Family);
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   if (ExplodedNode *N = C.generateErrorNode()) {
@@ -2587,7 +2582,7 @@ MallocChecker::ReallocMemAux(CheckerContext &C, const CallEvent &Call,
 
   const Expr *arg0Expr = CE->getArg(0);
   SVal Arg0Val = C.getSVal(arg0Expr);
-  if (!Arg0Val.getAs<DefinedOrUnknownSVal>())
+  if (!isa<DefinedOrUnknownSVal>(Arg0Val))
     return nullptr;
   DefinedOrUnknownSVal arg0Val = Arg0Val.castAs<DefinedOrUnknownSVal>();
 
@@ -2603,7 +2598,7 @@ MallocChecker::ReallocMemAux(CheckerContext &C, const CallEvent &Call,
   SVal TotalSize = C.getSVal(Arg1);
   if (SuffixWithN)
     TotalSize = evalMulForBufferSize(C, Arg1, CE->getArg(2));
-  if (!TotalSize.getAs<DefinedOrUnknownSVal>())
+  if (!isa<DefinedOrUnknownSVal>(TotalSize))
     return nullptr;
 
   // Compare the size argument to 0.
@@ -2755,7 +2750,7 @@ void MallocChecker::HandleLeak(SymbolRef Sym, ExplodedNode *N,
   Optional<MallocChecker::CheckKind>
       CheckKind = getCheckIfTracked(Family, true);
 
-  if (!CheckKind.hasValue())
+  if (!CheckKind)
     return;
 
   assert(N);
@@ -2913,7 +2908,7 @@ void MallocChecker::checkPreCall(const CallEvent &Call,
   // Check arguments for being used after free.
   for (unsigned I = 0, E = Call.getNumArgs(); I != E; ++I) {
     SVal ArgSVal = Call.getArgSVal(I);
-    if (ArgSVal.getAs<Loc>()) {
+    if (isa<Loc>(ArgSVal)) {
       SymbolRef Sym = ArgSVal.getAsSymbol();
       if (!Sym)
         continue;

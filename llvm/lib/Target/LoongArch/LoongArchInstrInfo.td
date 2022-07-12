@@ -14,10 +14,24 @@
 // LoongArch specific DAG Nodes.
 //===----------------------------------------------------------------------===//
 
+// Target-dependent type requirements.
+def SDT_LoongArchIntBinOpW : SDTypeProfile<1, 2, [
+  SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>, SDTCisVT<0, i64>
+]>;
+
+def SDT_LoongArchBStrPick: SDTypeProfile<1, 3, [
+  SDTCisInt<0>, SDTCisSameAs<0, 1>, SDTCisInt<2>, SDTCisSameAs<2, 3>
+]>;
+
 // TODO: Add LoongArch specific DAG Nodes
 // Target-dependent nodes.
 def loongarch_ret : SDNode<"LoongArchISD::RET", SDTNone,
                            [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def loongarch_sll_w : SDNode<"LoongArchISD::SLL_W", SDT_LoongArchIntBinOpW>;
+def loongarch_sra_w : SDNode<"LoongArchISD::SRA_W", SDT_LoongArchIntBinOpW>;
+def loongarch_srl_w : SDNode<"LoongArchISD::SRL_W", SDT_LoongArchIntBinOpW>;
+def loongarch_bstrpick
+    : SDNode<"LoongArchISD::BSTRPICK", SDT_LoongArchBStrPick>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -52,16 +66,24 @@ def uimm3 : Operand<GRLenVT> {
   let ParserMatchClass = UImmAsmOperand<3>;
 }
 
-def uimm5 : Operand<GRLenVT> {
+def uimm5 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<5>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<5>;
 }
 
-def uimm6 : Operand<GRLenVT> {
+def uimm6 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<6>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<6>;
 }
 
-def uimm12 : Operand<GRLenVT> {
+def uimm8 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<8>;
+}
+
+def uimm12 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<12>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<12>;
+}
+
+def uimm14 : Operand<GRLenVT> {
+  let ParserMatchClass = UImmAsmOperand<14>;
 }
 
 def uimm15 : Operand<GRLenVT> {
@@ -106,6 +128,18 @@ def simm26_lsl2 : Operand<GRLenVT> {
   let EncoderMethod = "getImmOpValueAsr2";
   let DecoderMethod = "decodeSImmOperand<26, 2>";
 }
+
+// Standalone (codegen-only) immleaf patterns.
+
+// A 12-bit signed immediate plus one where the imm range will be [-2047, 2048].
+def simm12_plus1 : ImmLeaf<GRLenVT,
+  [{return (isInt<12>(Imm) && Imm != -2048) || Imm == 2048;}]>;
+
+// Return the negation of an immediate value.
+def NegImm : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(-N->getSExtValue(), SDLoc(N),
+                                   N->getValueType(0));
+}]>;
 
 //===----------------------------------------------------------------------===//
 // Instruction Formats
@@ -204,6 +238,12 @@ let mayStore = 1, Constraints = "$rd = $dst" in
 class SCBase<bits<8> op, string opstr>
     : Fmt2RI14<op, (outs GPR:$dst), (ins GPR:$rd, GPR:$rj, simm14_lsl2:$imm14),
                opstr, "$rd, $rj, $imm14">;
+
+class IOCSRRD<bits<22> op, string opstr>
+    : Fmt2R<op, (outs GPR:$rd), (ins GPR:$rj), opstr, "$rd, $rj">;
+
+class IOCSRWR<bits<22> op, string opstr>
+    : Fmt2R<op, (outs), (ins GPR:$rd, GPR:$rj), opstr, "$rd, $rj">;
 
 //===----------------------------------------------------------------------===//
 // Basic Integer Instructions
@@ -378,6 +418,7 @@ def BSTRPICK_D : FmtBSTR_D<0b0000000011, (outs GPR:$rd),
 
 // Common Memory Access Instructions for 64-bits
 def LD_WU : LOAD_2RI12<0b0010101010, "ld.wu">;
+def LD_D  : LOAD_2RI12<0b0010100011, "ld.d">;
 def ST_D : STORE_2RI12<0b0010100111, "st.d">;
 def LDX_B  : LOAD_3R<0b00111000000000000, "ldx.b">;
 def LDX_H  : LOAD_3R<0b00111000000001000, "ldx.h">;
@@ -494,9 +535,117 @@ class PatGprImm_32<SDPatternOperator OpNode, LAInst Inst, Operand ImmOpnd>
     : Pat<(sext_inreg (OpNode GPR:$rj, ImmOpnd:$imm), i32),
           (Inst GPR:$rj, ImmOpnd:$imm)>;
 
+/// Simple arithmetic operations
+
+// Match both a plain shift and one where the shift amount is masked (this is
+// typically introduced when the legalizer promotes the shift amount and
+// zero-extends it). For LoongArch, the mask is unnecessary as shifts in the
+// base ISA only read the least significant 5 bits (LA32) or 6 bits (LA64).
+def shiftMaskGRLen
+    : ComplexPattern<GRLenVT, 1, "selectShiftMaskGRLen", [], [], 0>;
+def shiftMask32 : ComplexPattern<i64, 1, "selectShiftMask32", [], [], 0>;
+
+class shiftop<SDPatternOperator operator>
+    : PatFrag<(ops node:$val, node:$count),
+              (operator node:$val, (GRLenVT (shiftMaskGRLen node:$count)))>;
+class shiftopw<SDPatternOperator operator>
+    : PatFrag<(ops node:$val, node:$count),
+              (operator node:$val, (i64 (shiftMask32 node:$count)))>;
+
+let Predicates = [IsLA32] in {
+def : PatGprGpr<add, ADD_W>;
+def : PatGprImm<add, ADDI_W, simm12>;
+def : PatGprGpr<sub, SUB_W>;
+} // Predicates = [IsLA32]
+
+let Predicates = [IsLA64] in {
+def : PatGprGpr<add, ADD_D>;
+def : PatGprGpr_32<add, ADD_W>;
+def : PatGprImm<add, ADDI_D, simm12>;
+def : PatGprImm_32<add, ADDI_W, simm12>;
+def : PatGprGpr<sub, SUB_D>;
+def : PatGprGpr_32<sub, SUB_W>;
+} // Predicates = [IsLA64]
+
 def : PatGprGpr<and, AND>;
+def : PatGprImm<and, ANDI, uimm12>;
 def : PatGprGpr<or, OR>;
+def : PatGprImm<or, ORI, uimm12>;
 def : PatGprGpr<xor, XOR>;
+def : PatGprImm<xor, XORI, uimm12>;
+
+/// Shift
+
+let Predicates = [IsLA32] in {
+def : PatGprGpr<shiftop<shl>, SLL_W>;
+def : PatGprGpr<shiftop<sra>, SRA_W>;
+def : PatGprGpr<shiftop<srl>, SRL_W>;
+def : PatGprImm<shl, SLLI_W, uimm5>;
+def : PatGprImm<sra, SRAI_W, uimm5>;
+def : PatGprImm<srl, SRLI_W, uimm5>;
+} // Predicates = [IsLA32]
+
+let Predicates = [IsLA64] in {
+def : PatGprGpr<shiftopw<loongarch_sll_w>, SLL_W>;
+def : PatGprGpr<shiftopw<loongarch_sra_w>, SRA_W>;
+def : PatGprGpr<shiftopw<loongarch_srl_w>, SRL_W>;
+def : PatGprGpr<shiftop<shl>, SLL_D>;
+def : PatGprGpr<shiftop<sra>, SRA_D>;
+def : PatGprGpr<shiftop<srl>, SRL_D>;
+def : PatGprImm<shl, SLLI_D, uimm6>;
+def : PatGprImm<sra, SRAI_D, uimm6>;
+def : PatGprImm<srl, SRLI_D, uimm6>;
+} // Predicates = [IsLA64]
+
+/// sext and zext
+
+def : Pat<(sext_inreg GPR:$rj, i8), (EXT_W_B GPR:$rj)>;
+def : Pat<(sext_inreg GPR:$rj, i16), (EXT_W_H GPR:$rj)>;
+
+let Predicates = [IsLA64] in {
+def : Pat<(sext_inreg GPR:$rj, i32), (ADDI_W GPR:$rj, 0)>;
+} // Predicates = [IsLA64]
+
+/// Setcc
+
+def : PatGprGpr<setlt, SLT>;
+def : PatGprImm<setlt, SLTI, simm12>;
+def : PatGprGpr<setult, SLTU>;
+def : PatGprImm<setult, SLTUI, simm12>;
+
+// Define pattern expansions for setcc operations that aren't directly
+// handled by a LoongArch instruction.
+def : Pat<(seteq GPR:$rj, 0), (SLTUI GPR:$rj, 1)>;
+def : Pat<(seteq GPR:$rj, GPR:$rk), (SLTUI (XOR GPR:$rj, GPR:$rk), 1)>;
+let Predicates = [IsLA32] in {
+def : Pat<(seteq GPR:$rj, simm12_plus1:$imm12),
+          (SLTUI (ADDI_W GPR:$rj, (NegImm simm12_plus1:$imm12)), 1)>;
+} // Predicates = [IsLA32]
+let Predicates = [IsLA64] in {
+def : Pat<(seteq GPR:$rj, simm12_plus1:$imm12),
+          (SLTUI (ADDI_D GPR:$rj, (NegImm simm12_plus1:$imm12)), 1)>;
+} // Predicates = [IsLA64]
+def : Pat<(setne GPR:$rj, 0), (SLTU R0, GPR:$rj)>;
+def : Pat<(setne GPR:$rj, GPR:$rk), (SLTU R0, (XOR GPR:$rj, GPR:$rk))>;
+let Predicates = [IsLA32] in {
+def : Pat<(setne GPR:$rj, simm12_plus1:$imm12),
+          (SLTU R0, (ADDI_W GPR:$rj, (NegImm simm12_plus1:$imm12)))>;
+} // Predicates = [IsLA32]
+let Predicates = [IsLA64] in {
+def : Pat<(setne GPR:$rj, simm12_plus1:$imm12),
+          (SLTU R0, (ADDI_D GPR:$rj, (NegImm simm12_plus1:$imm12)))>;
+} // Predicates = [IsLA64]
+def : Pat<(setugt GPR:$rj, GPR:$rk), (SLTU GPR:$rk, GPR:$rj)>;
+def : Pat<(setuge GPR:$rj, GPR:$rk), (XORI (SLTU GPR:$rj, GPR:$rk), 1)>;
+def : Pat<(setule GPR:$rj, GPR:$rk), (XORI (SLTU GPR:$rk, GPR:$rj), 1)>;
+def : Pat<(setgt GPR:$rj, GPR:$rk), (SLT GPR:$rk, GPR:$rj)>;
+def : Pat<(setge GPR:$rj, GPR:$rk), (XORI (SLT GPR:$rj, GPR:$rk), 1)>;
+def : Pat<(setle GPR:$rj, GPR:$rk), (XORI (SLT GPR:$rk, GPR:$rj), 1)>;
+
+/// Select
+
+def : Pat<(select GPR:$cond, GPR:$t, GPR:$f),
+          (OR (MASKEQZ GPR:$t, GPR:$cond), (MASKNEZ GPR:$f, GPR:$cond))>;
 
 /// Branches and jumps
 
@@ -504,24 +653,15 @@ let isBarrier = 1, isReturn = 1, isTerminator = 1 in
 def PseudoRET : Pseudo<(outs), (ins), [(loongarch_ret)]>,
                 PseudoInstExpansion<(JIRL R0, R1, 0)>;
 
-/// LA32 patterns
+/// BSTRPICK
 
-let Predicates = [IsLA32] in {
-def : PatGprGpr<add, ADD_W>;
-def : PatGprImm<add, ADDI_W, simm12>;
-} // Predicates = [IsLA32]
+let Predicates = [IsLA32] in
+def : Pat<(loongarch_bstrpick GPR:$rj, uimm5:$msbd, uimm5:$lsbd),
+          (BSTRPICK_W GPR:$rj, uimm5:$msbd, uimm5:$lsbd)>;
 
-/// LA64 patterns
-
-let Predicates = [IsLA64] in {
-def : Pat<(sext_inreg GPR:$rj, i32), (ADDI_W GPR:$rj, 0)>;
-
-def : PatGprGpr<add, ADD_D>;
-def : PatGprGpr_32<add, ADD_W>;
-
-def : PatGprImm<add, ADDI_D, simm12>;
-def : PatGprImm_32<add, ADDI_W, simm12>;
-} // Predicates = [IsLA64]
+let Predicates = [IsLA64] in
+def : Pat<(loongarch_bstrpick GPR:$rj, uimm6:$msbd, uimm6:$lsbd),
+          (BSTRPICK_D GPR:$rj, uimm6:$msbd, uimm6:$lsbd)>;
 
 //===----------------------------------------------------------------------===//
 // Assembler Pseudo Instructions
@@ -536,3 +676,55 @@ def : InstAlias<"move $dst, $src", (OR GPR:$dst, GPR:$src, R0)>;
 
 include "LoongArchFloat32InstrInfo.td"
 include "LoongArchFloat64InstrInfo.td"
+
+//===----------------------------------------------------------------------===//
+// Privilege Instructions
+//===----------------------------------------------------------------------===//
+
+// CSR Access Instructions
+def CSRRD : FmtCSR<0b0000010000000, (outs GPR:$rd), (ins uimm14:$csr_num),
+                   "csrrd", "$rd, $csr_num">;
+let Constraints = "$rd = $dst" in {
+def CSRWR : FmtCSR<0b0000010000001, (outs GPR:$dst),
+                   (ins GPR:$rd, uimm14:$csr_num), "csrwr", "$rd, $csr_num">;
+def CSRXCHG : FmtCSRXCHG<0b00000100, (outs GPR:$dst),
+                         (ins GPR:$rd, GPR:$rj, uimm14:$csr_num),
+                         "csrxchg", "$rd, $rj, $csr_num">;
+} // Constraints = "$rd = $dst"
+
+// IOCSR Access Instructions
+def IOCSRRD_B : IOCSRRD<0b0000011001001000000000, "iocsrrd.b">;
+def IOCSRRD_H : IOCSRRD<0b0000011001001000000001, "iocsrrd.h">;
+def IOCSRRD_W : IOCSRRD<0b0000011001001000000010, "iocsrrd.w">;
+def IOCSRWR_B : IOCSRWR<0b0000011001001000000100, "iocsrwr.b">;
+def IOCSRWR_H : IOCSRWR<0b0000011001001000000101, "iocsrwr.h">;
+def IOCSRWR_W : IOCSRWR<0b0000011001001000000110, "iocsrwr.w">;
+let Predicates = [IsLA64] in {
+def IOCSRRD_D : IOCSRRD<0b0000011001001000000011, "iocsrrd.d">;
+def IOCSRWR_D : IOCSRWR<0b0000011001001000000111, "iocsrwr.d">;
+} // Predicates = [IsLA64]
+
+// Cache Maintenance Instructions
+def CACOP : FmtCACOP<(outs), (ins uimm5:$op, GPR:$rj, simm12:$imm12), "cacop",
+                     "$op, $rj, $imm12">;
+
+// TLB Maintenance Instructions
+def TLBSRCH  : FmtI32<0b00000110010010000010100000000000, "tlbsrch">;
+def TLBRD    : FmtI32<0b00000110010010000010110000000000, "tlbrd">;
+def TLBWR    : FmtI32<0b00000110010010000011000000000000, "tlbwr">;
+def TLBFILL  : FmtI32<0b00000110010010000011010000000000, "tlbfill">;
+def TLBCLR   : FmtI32<0b00000110010010000010000000000000, "tlbclr">;
+def TLBFLUSH : FmtI32<0b00000110010010000010010000000000, "tlbflush">;
+def INVTLB : FmtINVTLB<(outs), (ins GPR:$rk, GPR:$rj, uimm5:$op), "invtlb",
+                       "$op, $rj, $rk">;
+
+// Software Page Walking Instructions
+def LDDIR : Fmt2RI8<0b00000110010000, (outs GPR:$rd),
+                    (ins GPR:$rj, uimm8:$imm8), "lddir", "$rd, $rj, $imm8">;
+def LDPTE : FmtLDPTE<(outs), (ins GPR:$rj, uimm8:$seq), "ldpte", "$rj, $seq">;
+
+
+// Other Miscellaneous Instructions
+def ERTN : FmtI32<0b00000110010010000011100000000000, "ertn">;
+def DBCL : MISC_I15<0b00000000001010101, "dbcl">;
+def IDLE : MISC_I15<0b00000110010010001, "idle">;

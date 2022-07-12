@@ -22,11 +22,16 @@
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/SHA256.h"
 
 #if defined(__APPLE__)
 #include <sys/mman.h>
+
+#define COMMON_DIGEST_FOR_OPENSSL
+#include <CommonCrypto/CommonDigest.h>
+#else
+#include "llvm/Support/SHA256.h"
 #endif
 
 #ifdef LLVM_HAVE_LIBXAR
@@ -42,6 +47,20 @@ using namespace llvm::support;
 using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::macho;
+
+// Reads `len` bytes at data and writes the 32-byte SHA256 checksum to `output`.
+static void sha256(const uint8_t *data, size_t len, uint8_t *output) {
+#if defined(__APPLE__)
+  // FIXME: Make LLVM's SHA256 faster and use it unconditionally. See PR56121
+  // for some notes on this.
+  CC_SHA256(data, len, output);
+#else
+  ArrayRef<uint8_t> block(data, len);
+  std::array<uint8_t, 32> hash = SHA256::hash(block);
+  assert(hash.size() == CodeSignatureSection::hashSize);
+  memcpy(output, hash.data(), hash.size());
+#endif
+}
 
 InStruct macho::in;
 std::vector<SyntheticSection *> macho::syntheticSections;
@@ -704,8 +723,8 @@ uint32_t LazyBindingSection::encode(const Symbol &sym) {
   OutputSegment *dataSeg = in.lazyPointers->parent;
   os << static_cast<uint8_t>(BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB |
                              dataSeg->index);
-  uint64_t offset = in.lazyPointers->addr - dataSeg->addr +
-                    sym.stubsIndex * target->wordSize;
+  uint64_t offset =
+      in.lazyPointers->addr - dataSeg->addr + sym.stubsIndex * target->wordSize;
   encodeULEB128(offset, os);
   encodeDylibOrdinal(ordinalForSymbol(sym), os);
 
@@ -834,16 +853,9 @@ SymtabSection::SymtabSection(StringTableSection &stringTableSection)
     : LinkEditSection(segment_names::linkEdit, section_names::symbolTable),
       stringTableSection(stringTableSection) {}
 
-void SymtabSection::emitBeginSourceStab(DWARFUnit *compileUnit) {
+void SymtabSection::emitBeginSourceStab(StringRef sourceFile) {
   StabsEntry stab(N_SO);
-  SmallString<261> dir(compileUnit->getCompilationDir());
-  StringRef sep = sys::path::get_separator();
-  // We don't use `path::append` here because we want an empty `dir` to result
-  // in an absolute path. `append` would give us a relative path for that case.
-  if (!dir.endswith(sep))
-    dir += sep;
-  stab.strx = stringTableSection.addString(
-      saver().save(dir + compileUnit->getUnitDIE().getShortName()));
+  stab.strx = stringTableSection.addString(saver().save(sourceFile));
   stabs.emplace_back(std::move(stab));
 }
 
@@ -890,7 +902,9 @@ void SymtabSection::emitStabs() {
     stabs.emplace_back(std::move(astStab));
   }
 
-  std::vector<Defined *> symbolsNeedingStabs;
+  // Cache the file ID for each symbol in an std::pair for faster sorting.
+  using SortingPair = std::pair<Defined *, int>;
+  std::vector<SortingPair> symbolsNeedingStabs;
   for (const SymtabEntry &entry :
        concat<SymtabEntry>(localSymbols, externalSymbols)) {
     Symbol *sym = entry.sym;
@@ -913,19 +927,21 @@ void SymtabSection::emitStabs() {
       if (!file || !file->compileUnit)
         continue;
 
-      symbolsNeedingStabs.push_back(defined);
+      symbolsNeedingStabs.emplace_back(defined, defined->isec->getFile()->id);
     }
   }
 
-  llvm::stable_sort(symbolsNeedingStabs, [&](Defined *a, Defined *b) {
-    return a->isec->getFile()->id < b->isec->getFile()->id;
-  });
+  llvm::stable_sort(symbolsNeedingStabs,
+                    [&](const SortingPair &a, const SortingPair &b) {
+                      return a.second < b.second;
+                    });
 
   // Emit STABS symbols so that dsymutil and/or the debugger can map address
   // regions in the final binary to the source and object files from which they
   // originated.
   InputFile *lastFile = nullptr;
-  for (Defined *defined : symbolsNeedingStabs) {
+  for (SortingPair &pair : symbolsNeedingStabs) {
+    Defined *defined = pair.first;
     InputSection *isec = defined->isec;
     ObjFile *file = cast<ObjFile>(isec->getFile());
 
@@ -934,7 +950,7 @@ void SymtabSection::emitStabs() {
         emitEndSourceStab();
       lastFile = file;
 
-      emitBeginSourceStab(file->compileUnit);
+      emitBeginSourceStab(file->sourceFile());
       emitObjectFileStab(file);
     }
 
@@ -963,16 +979,43 @@ void SymtabSection::finalizeContents() {
     symbols.push_back({sym, strx});
   };
 
+  std::function<void(Symbol *)> localSymbolsHandler;
+  switch (config->localSymbolsPresence) {
+  case SymtabPresence::All:
+    localSymbolsHandler = [&](Symbol *sym) { addSymbol(localSymbols, sym); };
+    break;
+  case SymtabPresence::None:
+    localSymbolsHandler = [&](Symbol *) { /* Do nothing*/ };
+    break;
+  case SymtabPresence::SelectivelyIncluded:
+    localSymbolsHandler = [&](Symbol *sym) {
+      if (config->localSymbolPatterns.match(sym->getName()))
+        addSymbol(localSymbols, sym);
+    };
+    break;
+  case SymtabPresence::SelectivelyExcluded:
+    localSymbolsHandler = [&](Symbol *sym) {
+      if (!config->localSymbolPatterns.match(sym->getName()))
+        addSymbol(localSymbols, sym);
+    };
+    break;
+  }
+
   // Local symbols aren't in the SymbolTable, so we walk the list of object
   // files to gather them.
-  for (const InputFile *file : inputFiles) {
-    if (auto *objFile = dyn_cast<ObjFile>(file)) {
-      for (Symbol *sym : objFile->symbols) {
-        if (auto *defined = dyn_cast_or_null<Defined>(sym)) {
-          if (defined->isExternal() || !defined->isLive() ||
-              !defined->includeInSymtab)
-            continue;
-          addSymbol(localSymbols, sym);
+  // But if `-x` is set, then we don't need to. localSymbolsHandler() will do
+  // the right thing regardless, but this check is a perf optimization because
+  // iterating through all the input files and their symbols is expensive.
+  if (config->localSymbolsPresence != SymtabPresence::None) {
+    for (const InputFile *file : inputFiles) {
+      if (auto *objFile = dyn_cast<ObjFile>(file)) {
+        for (Symbol *sym : objFile->symbols) {
+          if (auto *defined = dyn_cast_or_null<Defined>(sym)) {
+            if (defined->isExternal() || !defined->isLive() ||
+                !defined->includeInSymtab)
+              continue;
+            localSymbolsHandler(sym);
+          }
         }
       }
     }
@@ -981,7 +1024,7 @@ void SymtabSection::finalizeContents() {
   // __dyld_private is a local symbol too. It's linker-created and doesn't
   // exist in any object file.
   if (Defined *dyldPrivate = in.stubHelper->dyldPrivate)
-    addSymbol(localSymbols, dyldPrivate);
+    localSymbolsHandler(dyldPrivate);
 
   for (Symbol *sym : symtab->getSymbols()) {
     if (!sym->isLive())
@@ -991,7 +1034,7 @@ void SymtabSection::finalizeContents() {
         continue;
       assert(defined->isExternal());
       if (defined->privateExtern)
-        addSymbol(localSymbols, defined);
+        localSymbolsHandler(defined);
       else
         addSymbol(externalSymbols, defined);
     } else if (auto *dysym = dyn_cast<DylibSymbol>(sym)) {
@@ -1204,20 +1247,13 @@ uint64_t CodeSignatureSection::getRawSize() const {
 void CodeSignatureSection::writeHashes(uint8_t *buf) const {
   // NOTE: Changes to this functionality should be repeated in llvm-objcopy's
   // MachOWriter::writeSignatureData.
-  uint8_t *code = buf;
-  uint8_t *codeEnd = buf + fileOff;
-  uint8_t *hashes = codeEnd + allHeadersSize;
-  while (code < codeEnd) {
-    StringRef block(reinterpret_cast<char *>(code),
-                    std::min(codeEnd - code, static_cast<ssize_t>(blockSize)));
-    SHA256 hasher;
-    hasher.update(block);
-    std::array<uint8_t, 32> hash = hasher.final();
-    assert(hash.size() == hashSize);
-    memcpy(hashes, hash.data(), hashSize);
-    code += blockSize;
-    hashes += hashSize;
-  }
+  uint8_t *hashes = buf + fileOff + allHeadersSize;
+  parallelFor(0, getBlockCount(), [&](size_t i) {
+    sha256(buf + i * blockSize,
+           std::min(static_cast<size_t>(fileOff - i * blockSize),
+                    static_cast<size_t>(blockSize)),
+           hashes + i * hashSize);
+  });
 #if defined(__APPLE__)
   // This is macOS-specific work-around and makes no sense for any
   // other host OS. See https://openradar.appspot.com/FB8914231

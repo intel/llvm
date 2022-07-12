@@ -102,6 +102,19 @@ bool WebAssemblyAsmTypeCheck::popType(SMLoc ErrorLoc,
   return false;
 }
 
+bool WebAssemblyAsmTypeCheck::popRefType(SMLoc ErrorLoc) {
+  if (Stack.empty()) {
+    return typeError(ErrorLoc, StringRef("empty stack while popping reftype"));
+  }
+  auto PVT = Stack.pop_back_val();
+  if (!WebAssembly::isRefType(PVT)) {
+    return typeError(ErrorLoc, StringRef("popped ") +
+                                   WebAssembly::typeToString(PVT) +
+                                   ", expected reftype");
+  }
+  return false;
+}
+
 bool WebAssemblyAsmTypeCheck::getLocal(SMLoc ErrorLoc, const MCInst &Inst,
                                        wasm::ValType &Type) {
   auto Local = static_cast<size_t>(Inst.getOperand(0).getImm());
@@ -160,7 +173,7 @@ bool WebAssemblyAsmTypeCheck::getGlobal(SMLoc ErrorLoc, const MCInst &Inst,
   if (getSymRef(ErrorLoc, Inst, SymRef))
     return true;
   auto WasmSym = cast<MCSymbolWasm>(&SymRef->getSymbol());
-  switch (WasmSym->getType().getValueOr(wasm::WASM_SYMBOL_TYPE_DATA)) {
+  switch (WasmSym->getType().value_or(wasm::WASM_SYMBOL_TYPE_DATA)) {
   case wasm::WASM_SYMBOL_TYPE_GLOBAL:
     Type = static_cast<wasm::ValType>(WasmSym->getGlobalType().Type);
     break;
@@ -188,7 +201,7 @@ bool WebAssemblyAsmTypeCheck::getTable(SMLoc ErrorLoc, const MCInst &Inst,
   if (getSymRef(ErrorLoc, Inst, SymRef))
     return true;
   auto WasmSym = cast<MCSymbolWasm>(&SymRef->getSymbol());
-  if (WasmSym->getType().getValueOr(wasm::WASM_SYMBOL_TYPE_DATA) !=
+  if (WasmSym->getType().value_or(wasm::WASM_SYMBOL_TYPE_DATA) !=
       wasm::WASM_SYMBOL_TYPE_TABLE)
     return typeError(ErrorLoc, StringRef("symbol ") + WasmSym->getName() +
                                    " missing .tabletype");
@@ -308,6 +321,10 @@ bool WebAssemblyAsmTypeCheck::typeCheck(SMLoc ErrorLoc, const MCInst &Inst,
     Stack.insert(Stack.end(), Sig->Params.begin(), Sig->Params.end());
   } else if (Name == "unreachable") {
     Unreachable = true;
+  } else if (Name == "ref.is_null") {
+    if (popRefType(ErrorLoc))
+      return true;
+    Stack.push_back(wasm::ValType::I32);
   } else {
     // The current instruction is a stack instruction which doesn't have
     // explicit operands that indicate push/pop types, so we get those from

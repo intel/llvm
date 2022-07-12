@@ -51,7 +51,8 @@ static cl::opt<std::string>
                   cl::Hidden, cl::value_desc("File postfix"), cl::ValueRequired,
                   cl::init(""), cl::cat(PollyCategory));
 
-struct JSONExporter : public ScopPass {
+class JSONExporter : public ScopPass {
+public:
   static char ID;
   explicit JSONExporter() : ScopPass(ID) {}
 
@@ -65,7 +66,8 @@ struct JSONExporter : public ScopPass {
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 };
 
-struct JSONImporter : public ScopPass {
+class JSONImporter : public ScopPass {
+public:
   static char ID;
   std::vector<std::string> NewAccessStrings;
   explicit JSONImporter() : ScopPass(ID) {}
@@ -395,7 +397,7 @@ importAccesses(Scop &S, const json::Object &JScop, const DataLayout &DL,
                << StatementIdx << ".\n";
         return false;
       }
-      StringRef Accesses = JsonMemoryAccess->getString("relation").getValue();
+      StringRef Accesses = *JsonMemoryAccess->getString("relation");
       isl_map *NewAccessMap =
           isl_map_read_from_str(S.getIslCtx().get(), Accesses.str().c_str());
 
@@ -449,14 +451,12 @@ importAccesses(Scop &S, const json::Object &JScop, const DataLayout &DL,
         bool SpecialAlignment = true;
         if (LoadInst *LoadI = dyn_cast<LoadInst>(MA->getAccessInstruction())) {
           SpecialAlignment =
-              LoadI->getAlignment() &&
-              DL.getABITypeAlignment(LoadI->getType()) != LoadI->getAlignment();
+              DL.getABITypeAlign(LoadI->getType()) != LoadI->getAlign();
         } else if (StoreInst *StoreI =
                        dyn_cast<StoreInst>(MA->getAccessInstruction())) {
           SpecialAlignment =
-              StoreI->getAlignment() &&
-              DL.getABITypeAlignment(StoreI->getValueOperand()->getType()) !=
-                  StoreI->getAlignment();
+              DL.getABITypeAlign(StoreI->getValueOperand()->getType()) !=
+              StoreI->getAlign();
         }
 
         if (SpecialAlignment) {
@@ -566,7 +566,7 @@ static bool areArraysEqual(ScopArrayInfo *SAI, const json::Object &Array) {
     return false;
   }
 
-  if (SAI->getName() != Array.getString("name").getValue())
+  if (SAI->getName() != *Array.getString("name"))
     return false;
 
   if (SAI->getNumberOfDimensions() != Array.getArray("sizes")->size())
@@ -662,7 +662,7 @@ static bool importArrays(Scop &S, const json::Object &JScop) {
     const json::Array &SizesArray = *Array.getArray("sizes");
     std::vector<unsigned> DimSizes;
     for (unsigned i = 0; i < SizesArray.size(); i++) {
-      auto Size = std::stoi(SizesArray[i].getAsString().getValue().str());
+      auto Size = std::stoi(SizesArray[i].getAsString()->str());
 
       // Check if the size if positive.
       if (Size <= 0) {
@@ -838,7 +838,7 @@ INITIALIZE_PASS_END(JSONImporter, "polly-import-jscop",
 
 namespace {
 /// Print result from JSONImporter.
-class JSONImporterPrinterLegacyPass : public ScopPass {
+class JSONImporterPrinterLegacyPass final : public ScopPass {
 public:
   static char ID;
 

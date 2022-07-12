@@ -81,6 +81,17 @@ AnalyzerOptions::getExplorationStrategy() const {
   return K.getValue();
 }
 
+CTUPhase1InliningKind AnalyzerOptions::getCTUPhase1Inlining() const {
+  auto K = llvm::StringSwitch<llvm::Optional<CTUPhase1InliningKind>>(
+               CTUPhase1InliningMode)
+               .Case("none", CTUPhase1InliningKind::None)
+               .Case("small", CTUPhase1InliningKind::Small)
+               .Case("all", CTUPhase1InliningKind::All)
+               .Default(None);
+  assert(K.hasValue() && "CTU inlining mode is invalid.");
+  return K.getValue();
+}
+
 IPAKind AnalyzerOptions::getIPAMode() const {
   auto K = llvm::StringSwitch<llvm::Optional<IPAKind>>(IPAMode)
           .Case("none", IPAK_None)
@@ -109,7 +120,7 @@ AnalyzerOptions::mayInlineCXXMemberFunction(
     .Case("none", CIMK_None)
     .Default(None);
 
-  assert(K.hasValue() && "Invalid c++ member function inlining mode.");
+  assert(K && "Invalid c++ member function inlining mode.");
 
   return *K >= Param;
 }

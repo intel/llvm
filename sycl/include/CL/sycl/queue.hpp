@@ -1187,7 +1187,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
       if (AH->Flag == __SYCL_ASSERT_START)
         throw sycl::runtime_error(
             "Internal Error. Invalid value in assert description.",
-            PI_INVALID_VALUE);
+            PI_ERROR_INVALID_VALUE);
 #endif
 
       if (AH->Flag) {
@@ -1201,6 +1201,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                 "Assertion `%s` failed.\n",
                 File, AH->Line, Func, AH->GID0, AH->GID1, AH->GID2, AH->LID0,
                 AH->LID1, AH->LID2, Expr);
+        fflush(stderr);
         abort(); // no need to release memory as it's abort anyway
       }
     });

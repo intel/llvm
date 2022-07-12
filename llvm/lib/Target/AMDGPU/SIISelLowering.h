@@ -235,7 +235,10 @@ public:
   /// Check if EXTRACT_VECTOR_ELT/INSERT_VECTOR_ELT (<n x e>, var-idx) should be
   /// expanded into a set of cmp/select instructions.
   static bool shouldExpandVectorDynExt(unsigned EltSize, unsigned NumElem,
-                                       bool IsDivergentIdx);
+                                       bool IsDivergentIdx,
+                                       const GCNSubtarget *Subtarget);
+
+  bool shouldExpandVectorDynExt(SDNode *N) const;
 
 private:
   // Analyze a combined offset from an amdgcn_buffer_ intrinsic and store the
@@ -318,6 +321,9 @@ public:
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
                                         Type *Ty) const override;
 
+  bool isExtractSubvectorCheap(EVT ResVT, EVT SrcVT,
+                               unsigned Index) const override;
+
   bool isTypeDesirableForOp(unsigned Op, EVT VT) const override;
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
@@ -388,6 +394,7 @@ public:
                               MachineBasicBlock *BB) const override;
 
   bool hasBitPreservingFPLogic(EVT VT) const override;
+  bool hasAtomicFaddRtnForTy(SDValue &Op) const;
   bool enableAggressiveFMAFusion(EVT VT) const override;
   bool enableAggressiveFMAFusion(LLT Ty) const override;
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,

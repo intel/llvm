@@ -13,7 +13,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
@@ -110,8 +110,8 @@ struct TestLinalgTransforms
       llvm::cl::init(false)};
   Option<bool> testSwapSubTensorPadTensor{
       *this, "test-swap-subtensor-padtensor",
-      llvm::cl::desc("Test rewrite of subtensor(pad_tensor) into "
-                     "pad_tensor(subtensor)"),
+      llvm::cl::desc("Test rewrite of subtensor(tensor.pad) into "
+                     "tensor.pad(subtensor)"),
       llvm::cl::init(false)};
   Option<bool> testSplitReduction{
       *this, "test-split-reduction",

@@ -738,14 +738,15 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// gather4 scaled from a surface/SLM
-template <typename Ty, int N, typename SurfIndAliasTy,
-          __ESIMD_NS::rgba_channel_mask Mask, int16_t Scale = 0>
+// gather4 scaled masked from a surface/SLM
+template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
+          typename SurfIndAliasTy, int16_t Scale = 0>
 __ESIMD_INTRIN
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __esimd_gather4_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           SurfIndAliasTy surf_ind, int global_offset,
-                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+    __esimd_gather4_masked_scaled2(
+        SurfIndAliasTy surf_ind, int global_offset,
+        __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
         ;
 #else
@@ -1098,6 +1099,10 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// getter methods returning surface index are not available when stateless
+// memory accesses are enforced.
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getNativeImageObj(acc)
@@ -1129,5 +1134,7 @@ __ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
+
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

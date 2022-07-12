@@ -140,8 +140,7 @@ static cl::opt<bool> ProfileSampleBlockAccurate(
              "them conservatively as unknown. "));
 
 static cl::opt<bool> ProfileAccurateForSymsInList(
-    "profile-accurate-for-symsinlist", cl::Hidden, cl::ZeroOrMore,
-    cl::init(true),
+    "profile-accurate-for-symsinlist", cl::Hidden, cl::init(true),
     cl::desc("For symbols in profile symbol list, regard their profiles to "
              "be accurate. It may be overriden by profile-sample-accurate. "));
 
@@ -217,19 +216,19 @@ static cl::opt<unsigned> ProfileICPRelativeHotnessSkip(
         "Skip relative hotness check for ICP up to given number of targets."));
 
 static cl::opt<bool> CallsitePrioritizedInline(
-    "sample-profile-prioritized-inline", cl::Hidden, cl::ZeroOrMore,
-    cl::init(false),
+    "sample-profile-prioritized-inline", cl::Hidden,
+
     cl::desc("Use call site prioritized inlining for sample profile loader."
              "Currently only CSSPGO is supported."));
 
 static cl::opt<bool> UsePreInlinerDecision(
-    "sample-profile-use-preinliner", cl::Hidden, cl::ZeroOrMore,
-    cl::init(false),
+    "sample-profile-use-preinliner", cl::Hidden,
+
     cl::desc("Use the preinliner decisions stored in profile context."));
 
 static cl::opt<bool> AllowRecursiveInline(
-    "sample-profile-recursive-inline", cl::Hidden, cl::ZeroOrMore,
-    cl::init(false),
+    "sample-profile-recursive-inline", cl::Hidden,
+
     cl::desc("Allow sample loader inliner to inline recursive calls."));
 
 static cl::opt<std::string> ProfileInlineReplayFile(
@@ -285,13 +284,17 @@ static cl::opt<CallSiteFormat::Format> ProfileInlineReplayFormat(
 
 static cl::opt<unsigned>
     MaxNumPromotions("sample-profile-icp-max-prom", cl::init(3), cl::Hidden,
-                     cl::ZeroOrMore,
                      cl::desc("Max number of promotions for a single indirect "
                               "call callsite in sample profile loader"));
 
 static cl::opt<bool> OverwriteExistingWeights(
     "overwrite-existing-weights", cl::Hidden, cl::init(false),
     cl::desc("Ignore existing branch weights on IR and always overwrite."));
+
+static cl::opt<bool> AnnotateSampleProfileInlinePhase(
+    "annotate-sample-profile-inline-phase", cl::Hidden, cl::init(false),
+    cl::desc("Annotate LTO phase (prelink / postlink), or main (no LTO) for "
+             "sample-profile inline pass name."));
 
 extern cl::opt<bool> EnableExtTspBlockPlacement;
 
@@ -425,7 +428,11 @@ public:
       : SampleProfileLoaderBaseImpl(std::string(Name), std::string(RemapName)),
         GetAC(std::move(GetAssumptionCache)),
         GetTTI(std::move(GetTargetTransformInfo)), GetTLI(std::move(GetTLI)),
-        LTOPhase(LTOPhase) {}
+        LTOPhase(LTOPhase),
+        AnnotatedPassName(AnnotateSampleProfileInlinePhase
+                              ? llvm::AnnotateInlinePassName(InlineContext{
+                                    LTOPhase, InlinePass::SampleProfileInliner})
+                              : CSINLINE_DEBUG) {}
 
   bool doInitialization(Module &M, FunctionAnalysisManager *FAM = nullptr);
   bool runOnModule(Module &M, ModuleAnalysisManager *AM,
@@ -492,7 +499,8 @@ protected:
   /// We need to know the LTO phase because for example in ThinLTOPrelink
   /// phase, in annotation, we should not promote indirect calls. Instead,
   /// we will mark GUIDs that needs to be annotated to the function.
-  ThinOrFullLTOPhase LTOPhase;
+  const ThinOrFullLTOPhase LTOPhase;
+  const std::string AnnotatedPassName;
 
   /// Profle Symbol list tells whether a function name appears in the binary
   /// used to generate the current profile.
@@ -532,6 +540,11 @@ protected:
 
   // A pseudo probe helper to correlate the imported sample counts.
   std::unique_ptr<PseudoProbeManager> ProbeManager;
+
+private:
+  const char *getAnnotatedRemarkPassName() const {
+    return AnnotatedPassName.c_str();
+  }
 };
 
 class SampleProfileLoaderLegacyPass : public ModulePass {
@@ -1021,8 +1034,9 @@ void SampleProfileLoader::emitOptimizationRemarksForInlineCandidates(
   for (auto I : Candidates) {
     Function *CalledFunction = I->getCalledFunction();
     if (CalledFunction) {
-      ORE->emit(OptimizationRemarkAnalysis(CSINLINE_DEBUG, "InlineAttempt",
-                                           I->getDebugLoc(), I->getParent())
+      ORE->emit(OptimizationRemarkAnalysis(getAnnotatedRemarkPassName(),
+                                           "InlineAttempt", I->getDebugLoc(),
+                                           I->getParent())
                 << "previous inlining reattempted for "
                 << (Hot ? "hotness: '" : "size: '")
                 << ore::NV("Callee", CalledFunction) << "' into '"
@@ -1241,7 +1255,8 @@ bool SampleProfileLoader::tryInlineCandidate(
 
   InlineCost Cost = shouldInlineCandidate(Candidate);
   if (Cost.isNever()) {
-    ORE->emit(OptimizationRemarkAnalysis(CSINLINE_DEBUG, "InlineFail", DLoc, BB)
+    ORE->emit(OptimizationRemarkAnalysis(getAnnotatedRemarkPassName(),
+                                         "InlineFail", DLoc, BB)
               << "incompatible inlining");
     return false;
   }
@@ -1259,8 +1274,8 @@ bool SampleProfileLoader::tryInlineCandidate(
                                              *CalledFunction);
 
   // The call to InlineFunction erases I, so we can't pass it here.
-  emitInlinedIntoBasedOnCost(*ORE, DLoc, BB, *CalledFunction,
-                             *BB->getParent(), Cost, true, CSINLINE_DEBUG);
+  emitInlinedIntoBasedOnCost(*ORE, DLoc, BB, *CalledFunction, *BB->getParent(),
+                             Cost, true, getAnnotatedRemarkPassName());
 
   // Now populate the list of newly exposed call sites.
   if (InlinedCallSites) {
@@ -1546,11 +1561,11 @@ void SampleProfileLoader::promoteMergeNotInlinedContextSamples(
     if (!Callee || Callee->isDeclaration())
       continue;
 
-    ORE->emit(OptimizationRemarkAnalysis(CSINLINE_DEBUG, "NotInline",
-                                         I->getDebugLoc(), I->getParent())
-              << "previous inlining not repeated: '"
-              << ore::NV("Callee", Callee) << "' into '"
-              << ore::NV("Caller", &F) << "'");
+    ORE->emit(
+        OptimizationRemarkAnalysis(getAnnotatedRemarkPassName(), "NotInline",
+                                   I->getDebugLoc(), I->getParent())
+        << "previous inlining not repeated: '" << ore::NV("Callee", Callee)
+        << "' into '" << ore::NV("Caller", &F) << "'");
 
     ++NumCSNotInlined;
     const FunctionSamples *FS = Pair.getSecond();
@@ -2182,7 +2197,7 @@ bool SampleProfileLoader::runOnFunction(Function &F, ModuleAnalysisManager *AM) 
 
   // Initialize entry count when the function has no existing entry
   // count value.
-  if (!F.getEntryCount().hasValue())
+  if (!F.getEntryCount())
     F.setEntryCount(ProfileCount(initialEntryCount, Function::PCT_Real));
   std::unique_ptr<OptimizationRemarkEmitter> OwnedORE;
   if (AM) {

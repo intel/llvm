@@ -755,6 +755,8 @@ void ScalarBitSetTraits<ELFYAML::ELF_SHF>::bitset(IO &IO,
 
 void ScalarEnumerationTraits<ELFYAML::ELF_SHN>::enumeration(
     IO &IO, ELFYAML::ELF_SHN &Value) {
+  const auto *Object = static_cast<ELFYAML::Object *>(IO.getContext());
+  assert(Object && "The IO context is not initialized");
 #define ECase(X) IO.enumCase(Value, #X, ELF::X)
   ECase(SHN_UNDEF);
   ECase(SHN_LORESERVE);
@@ -767,6 +769,15 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHN>::enumeration(
   ECase(SHN_XINDEX);
   ECase(SHN_HIRESERVE);
   ECase(SHN_AMDGPU_LDS);
+
+  if (!IO.outputting() || Object->getMachine() == ELF::EM_MIPS) {
+    ECase(SHN_MIPS_ACOMMON);
+    ECase(SHN_MIPS_TEXT);
+    ECase(SHN_MIPS_DATA);
+    ECase(SHN_MIPS_SCOMMON);
+    ECase(SHN_MIPS_SUNDEFINED);
+  }
+
   ECase(SHN_HEXAGON_SCOMMON);
   ECase(SHN_HEXAGON_SCOMMON_1);
   ECase(SHN_HEXAGON_SCOMMON_2);
@@ -1324,7 +1335,7 @@ static void sectionMapping(IO &IO, ELFYAML::RawContentSection &Section) {
 
   // We also support reading a content as array of bytes using the ContentArray
   // key. obj2yaml never prints this field.
-  assert(!IO.outputting() || !Section.ContentBuf.hasValue());
+  assert(!IO.outputting() || !Section.ContentBuf);
   IO.mapOptional("ContentArray", Section.ContentBuf);
   if (Section.ContentBuf) {
     if (Section.Content)
@@ -1353,8 +1364,7 @@ static void sectionMapping(IO &IO, ELFYAML::HashSection &Section) {
 
   // obj2yaml does not dump these fields. They can be used to override nchain
   // and nbucket values for creating broken sections.
-  assert(!IO.outputting() ||
-         (!Section.NBucket.hasValue() && !Section.NChain.hasValue()));
+  assert(!IO.outputting() || (!Section.NBucket && !Section.NChain));
   IO.mapOptional("NChain", Section.NChain);
   IO.mapOptional("NBucket", Section.NBucket);
 }

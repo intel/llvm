@@ -118,11 +118,12 @@ template <> struct MappingTraits<IFSSymbol> {
     IO.mapRequired("Type", Symbol.Type);
     // The need for symbol size depends on the symbol type.
     if (Symbol.Type == IFSSymbolType::NoType) {
-      IO.mapOptional("Size", Symbol.Size, (uint64_t)0);
-    } else if (Symbol.Type == IFSSymbolType::Func) {
-      Symbol.Size = 0;
-    } else {
-      IO.mapRequired("Size", Symbol.Size);
+      // Size is None, so we are reading it in, or it is non 0 so we
+      // should emit it.
+      if (!Symbol.Size || *Symbol.Size)
+        IO.mapOptional("Size", Symbol.Size);
+    } else if (Symbol.Type != IFSSymbolType::Func) {
+      IO.mapOptional("Size", Symbol.Size);
     }
     IO.mapOptional("Undefined", Symbol.Undefined, false);
     IO.mapOptional("Weak", Symbol.Weak, false);
@@ -192,7 +193,7 @@ Expected<std::unique_ptr<IFSStub>> ifs::readIFSFromBuffer(StringRef Buf) {
         std::make_error_code(std::errc::invalid_argument));
   if (Stub->Target.ArchString) {
     Stub->Target.Arch =
-        ELF::convertArchNameToEMachine(Stub->Target.ArchString.getValue());
+        ELF::convertArchNameToEMachine(*Stub->Target.ArchString);
   }
   return std::move(Stub);
 }
@@ -265,7 +266,7 @@ Error ifs::validateIFSTarget(IFSStub &Stub, bool ParseTriple) {
           ValidationEC);
     }
     if (ParseTriple) {
-      IFSTarget TargetFromTriple = parseTriple(Stub.Target.Triple.getValue());
+      IFSTarget TargetFromTriple = parseTriple(*Stub.Target.Triple);
       Stub.Target.Arch = TargetFromTriple.Arch;
       Stub.Target.BitWidth = TargetFromTriple.BitWidth;
       Stub.Target.Endianness = TargetFromTriple.Endianness;

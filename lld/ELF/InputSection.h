@@ -149,6 +149,8 @@ public:
     bytesDropped -= num;
   }
 
+  mutable ArrayRef<uint8_t> rawData;
+
   void trim() {
     if (bytesDropped) {
       rawData = rawData.drop_back(bytesDropped);
@@ -219,8 +221,6 @@ public:
     assert(s % sizeof(T) == 0);
     return llvm::makeArrayRef<T>((const T *)rawData.data(), s / sizeof(T));
   }
-
-  mutable ArrayRef<uint8_t> rawData;
 
 protected:
   template <typename ELFT>
@@ -387,7 +387,7 @@ static_assert(sizeof(InputSection) <= 160, "InputSection is too big");
 
 inline bool isDebugSection(const InputSectionBase &sec) {
   return (sec.flags & llvm::ELF::SHF_ALLOC) == 0 &&
-         (sec.name.startswith(".debug") || sec.name.startswith(".zdebug"));
+         sec.name.startswith(".debug");
 }
 
 // The list of all input sections.

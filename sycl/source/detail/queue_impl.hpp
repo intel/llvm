@@ -113,7 +113,7 @@ public:
       throw cl::sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
           "as the context does not contain the given device.",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
@@ -172,7 +172,7 @@ public:
     if (MHostQueue) {
       throw invalid_object_error(
           "This instance of queue doesn't support OpenCL interoperability",
-          PI_INVALID_QUEUE);
+          PI_ERROR_INVALID_QUEUE);
     }
     getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
     return pi::cast<cl_command_queue>(MQueues[0]);
@@ -318,8 +318,8 @@ public:
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // PI_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
+    // PI_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    if (MSupportOOO && Error == PI_ERROR_INVALID_QUEUE_PROPERTIES) {
       MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
     } else {

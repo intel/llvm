@@ -125,13 +125,15 @@ public:
     return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
     throw runtime_error("get_local_id() is not implemented on host device",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
     // Implementing get_local_id() on host device requires ABI breaking change.
     // It requires extending class group with local item which represents
     // local_id. Currently this local id is only used in nd_item and group
     // cannot access it.
 #endif
   }
+
+  size_t get_local_id(int dimention) const { return get_local_id()[dimention]; }
 
   size_t get_local_linear_id() const {
     return get_local_linear_id_impl<Dimensions>();

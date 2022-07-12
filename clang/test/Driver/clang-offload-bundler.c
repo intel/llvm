@@ -51,9 +51,9 @@
 // CK-HELP: {{.*}}bc {{.*}}- llvm-bc
 // CK-HELP: {{.*}}s {{.*}}- assembler
 // CK-HELP: {{.*}}o {{.*}}- object
-// CK-HELP: {{.*}}a {{.*}}- archive of objects
 // CK-HELP: {{.*}}gch {{.*}}- precompiled-header
 // CK-HELP: {{.*}}ast {{.*}}- clang AST file
+// CK-HELP: {{.*}}a {{.*}}- archive of objects
 // CK-HELP: {{.*}}ao {{.*}}- archive with one object; output is an unbundled object
 // CK-HELP: {{.*}}aoo {{.*}}- archive; output file is a list of unbundled objects
 // CK-HELP: {{.*}}-unbundle {{.*}}- Unbundle bundled file into several output files.
@@ -114,25 +114,23 @@
 // RUN: not clang-offload-bundler -type=a -targets=hxst-powerpcxxle-ibm-linux-gnu,openxp-pxxerpc64le-ibm-linux-gnu,xpenmp-x86_xx-pc-linux-gnu -input=%t.i -input=%t.tgt1 -input=%t.tgt2 -output=%t.bundle.i 2>&1 | FileCheck %s --check-prefix CK-ERR10A
 // CK-ERR10A: error: Archive files are only supported for unbundling
 
-<<<<<<< HEAD
-// RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -outputs=%t.i,%t.tgt1,%t.tgt2 -inputs=%t.bundle.i -unbundle -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR10
+// RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -output=%t.i -output=%t.tgt1 -output=%t.tgt2 -input=%t.bundle.i -unbundle -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR10
 // CK-ERR10: error: -unbundle and -check-section are not compatible options
 
-// RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle.i,%t.i  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR11
-// CK-ERR11: error: only one input file supported in checking mode
+// RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -input=%t.bundle.i,%t.i  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR11
+// CK-ERR11: error: only one target supported in checking mode
 
-// RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle.i  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR12
-// CK-ERR12: error: only one target supported in checking mode
-
-// RUN: not clang-offload-bundler -type=i -targets=openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle.i -outputs=%t.r  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR13
-// CK-ERR13: error: no output file supported in checking mode
-=======
 // RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -input=%t.i -inputs=%t.tgt1,%t.tgt2 -output=%t.bundle.i -unbundle 2>&1 | FileCheck %s --check-prefix CK-ERR11A
 // CK-ERR11A: error: -inputs and -input cannot be used together, use only -input instead
 
 // RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -output=%t.i -outputs=%t.tgt1,%t.tgt2 -input=%t.bundle.i -unbundle 2>&1 | FileCheck %s --check-prefix CK-ERR11B
 // CK-ERR11B: error: -outputs and -output cannot be used together, use only -output instead
->>>>>>> 09a5eae0d1952f53dffd56b9a598215aa1a1487e
+
+// RUN: not clang-offload-bundler -type=i -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu -input=%t.bundle.i  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR12
+// CK-ERR12: error: only one target supported in checking mode
+
+// RUN: not clang-offload-bundler -type=i -targets=openmp-powerpc64le-ibm-linux-gnu -input=%t.bundle.i -output=%t.r  -check-section 2>&1 | FileCheck %s --check-prefix CK-ERR13
+// CK-ERR13: error: no output file supported in checking mode
 
 //
 // Check text bundle. This is a readable format, so we check for the format we expect to find.
@@ -343,12 +341,12 @@
 //
 // Check target checking
 //
-// RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple -inputs=%t.bundle3.bc -check-section
-// RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu -inputs=%t.bundle3.bc -check-section
-// RUN: clang-offload-bundler -type=bc -targets=openmp-x86_64-pc-linux-gnu -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux -inputs=%t.bundle3.bc -check-section
-// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux -inputs=%t.bundle3.bc -check-section
+// RUN: clang-offload-bundler -type=bc -targets=host-%itanium_abi_triple -input=%t.bundle3.bc -check-section
+// RUN: clang-offload-bundler -type=bc -targets=openmp-powerpc64le-ibm-linux-gnu -input=%t.bundle3.bc -check-section
+// RUN: clang-offload-bundler -type=bc -targets=openmp-x86_64-pc-linux-gnu -input=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocr-intel-linux -input=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aoco-intel-linux -input=%t.bundle3.bc -check-section
+// RUN: not clang-offload-bundler -type=bc -targets=fpga-fpga_aocx-intel-linux -input=%t.bundle3.bc -check-section
 
 //
 // Check archive bundle.
@@ -358,7 +356,7 @@
 // RUN: echo 'Invalid object' > %t.invalid.o
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t.bundle3.o %t.invalid.o
-// RUN: clang-offload-bundler -type=aoo -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.lst,%t.tgt1.lst,%t.tgt2.lst -inputs=%t.a -unbundle
+// RUN: clang-offload-bundler -type=aoo -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -output=%t.host.lst -output=%t.tgt1.lst -output=%t.tgt2.lst -input=%t.a -unbundle
 // RUN: wc -l %t.host.lst | FileCheck %s --check-prefix=CHECK-AR-FILE-LIST
 // RUN: wc -l %t.tgt1.lst | FileCheck %s --check-prefix=CHECK-AR-FILE-LIST
 // RUN: wc -l %t.tgt2.lst | FileCheck %s --check-prefix=CHECK-AR-FILE-LIST
@@ -369,7 +367,7 @@
 // CHECK-AR-FILE-LIST: 1
 
 // Check single-file mode.
-// RUN: clang-offload-bundler -type=ao -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.out,%t.tgt1.out,%t.tgt2.out -inputs=%t.a -unbundle
+// RUN: clang-offload-bundler -type=ao -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -output=%t.host.out -output=%t.tgt1.out -output=%t.tgt2.out -input=%t.a -unbundle
 // RUN: diff %t.bundle3.o %t.host.out
 // RUN: diff %t.tgt1 %t.tgt1.out
 // RUN: diff %t.tgt2 %t.tgt2.out
@@ -377,7 +375,7 @@
 // Check that bundler does not accept multi-file archive in single-file mode.
 // RUN: cp %t.bundle3.o %t.bundle4.o
 // RUN: llvm-ar crv %t.a %t.bundle3.o %t.bundle4.o %t.invalid.o
-// RUN: not clang-offload-bundler -type=ao -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.out,%t.tgt1.out,%t.tgt2.out -inputs=%t.a -unbundle 2>&1 \
+// RUN: not clang-offload-bundler -type=ao -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -output=%t.host.out -output=%t.tgt1.out -output=%t.tgt2.out -input=%t.a -unbundle 2>&1 \
 // RUN:   | FileCheck %s --check-prefix CHECK-MULTI-FILE-AR-ERROR
 
 // CHECK-MULTI-FILE-AR-ERROR: 'ao' file type is requested, but the archive contains multiple device objects; use 'aoo' instead
@@ -391,7 +389,7 @@
 // RUN: diff %t.tgt2 %t.res.tgt2
 
 // Check archive mode.
-// RUN: clang-offload-bundler -type=a -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -outputs=%t.host.a,%t.tgt1.a,%t.tgt2.a -inputs=%t.a -unbundle
+// RUN: clang-offload-bundler -type=a -targets=host-%itanium_abi_triple,openmp-powerpc64le-ibm-linux-gnu,openmp-x86_64-pc-linux-gnu -output=%t.host.a -output=%t.tgt1.a -output=%t.tgt2.a -input=%t.a -unbundle
 // RUN: cmp %t.host.a %t.a
 // RUN: llvm-ar t %t.tgt1.a | FileCheck %s --check-prefix=CHECK-AR-TGT1-LIST
 // RUN: llvm-ar t %t.tgt2.a | FileCheck %s --check-prefix=CHECK-AR-TGT2-LIST

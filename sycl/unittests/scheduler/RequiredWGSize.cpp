@@ -221,7 +221,7 @@ static void performChecks() {
   auto ExecBundle = sycl::build(KernelBundle);
   Queue.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(ExecBundle);
-    CGH.single_task<TestKernel>([] {}); // Actual kernel does not matter
+    CGH.single_task<TestKernel<>>([] {}); // Actual kernel does not matter
   });
 
   EXPECT_EQ(KernelGetGroupInfoCalled, true);
@@ -238,6 +238,5 @@ TEST(RequiredWGSize, NoRequiredSize) {
 TEST(RequiredWGSize, HasRequiredSize) {
   reset();
   RequiredLocalSize = {1, 2, 3};
-  return; // FIXME: Resolve post-commit failures.
   performChecks();
 }

@@ -36,8 +36,6 @@ class buffer;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
 
-using buffer_allocator = detail::sycl_memory_object_allocator;
-
 namespace detail {
 
 class __SYCL_EXPORT buffer_impl final : public SYCLMemObjT {
@@ -52,7 +50,7 @@ public:
     if (Props.has_property<sycl::property::buffer::use_host_ptr>())
       throw sycl::invalid_object_error(
           "The use_host_ptr property requires host pointer to be provided",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
   }
 
   buffer_impl(void *HostData, size_t SizeInBytes, size_t RequiredAlign,
@@ -64,7 +62,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -78,7 +76,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -93,7 +91,7 @@ public:
             sycl::ext::oneapi::property::buffer::use_pinned_host_memory>())
       throw sycl::invalid_object_error(
           "The use_pinned_host_memory cannot be used with host pointer",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(HostData, RequiredAlign);
   }
@@ -113,7 +111,7 @@ public:
       throw sycl::invalid_object_error(
           "Buffer constructor from a pair of iterator values cannot have the "
           "use_host_ptr property.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(First, Last, RequiredAlign);
   }
@@ -133,7 +131,7 @@ public:
       throw sycl::invalid_object_error(
           "Buffer constructor from a pair of iterator values cannot have the "
           "use_host_ptr property.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     BaseT::handleHostData(First, Last, RequiredAlign);
   }

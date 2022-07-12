@@ -42,16 +42,13 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 ; LMULMAX1-NEXT:    vrgather.vi v12, v8, 0
 ; LMULMAX1-NEXT:    vrgather.vi v12, v9, 3, v0.t
 ; LMULMAX1-NEXT:    li a0, 8
-; LMULMAX1-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX1-NEXT:    vmv.s.x v0, a0
-; LMULMAX1-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
-; LMULMAX1-NEXT:    vrgather.vi v8, v10, 0
-; LMULMAX1-NEXT:    vrgather.vi v8, v11, 3, v0.t
+; LMULMAX1-NEXT:    vrgather.vi v9, v10, 0
 ; LMULMAX1-NEXT:    li a0, 3
-; LMULMAX1-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
-; LMULMAX1-NEXT:    vmv.s.x v0, a0
-; LMULMAX1-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
-; LMULMAX1-NEXT:    vmerge.vvm v8, v8, v12, v0
+; LMULMAX1-NEXT:    vmv.s.x v8, a0
+; LMULMAX1-NEXT:    vrgather.vi v9, v11, 3, v0.t
+; LMULMAX1-NEXT:    vmv.v.v v0, v8
+; LMULMAX1-NEXT:    vmerge.vvm v8, v9, v12, v0
 ; LMULMAX1-NEXT:    ret
 ;
 ; LMULMAX2-LABEL: hang_when_merging_stores_after_legalization:
@@ -117,7 +114,7 @@ define void @buildvec_dominant0_v4f32(<4 x float>* %x) {
 ; CHECK-NEXT:    addi a1, a1, %lo(.LCPI4_0)
 ; CHECK-NEXT:    vlse32.v v8, (a1), zero
 ; CHECK-NEXT:    vmv.s.x v9, zero
-; CHECK-NEXT:    vsetivli zero, 3, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 3, e32, m1, tu, mu
 ; CHECK-NEXT:    vslideup.vi v8, v9, 2
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; CHECK-NEXT:    vse32.v v8, (a0)
@@ -132,7 +129,7 @@ define void @buildvec_dominant1_v4f32(<4 x float>* %x, float %f) {
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; CHECK-NEXT:    vmv.s.x v8, zero
 ; CHECK-NEXT:    vfmv.v.f v9, fa0
-; CHECK-NEXT:    vsetivli zero, 2, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e32, m1, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 1
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; CHECK-NEXT:    vse32.v v9, (a0)
@@ -153,7 +150,7 @@ define void @buildvec_dominant2_v4f32(<4 x float>* %x, float %f) {
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; CHECK-NEXT:    vfmv.s.f v8, ft0
 ; CHECK-NEXT:    vfmv.v.f v9, fa0
-; CHECK-NEXT:    vsetivli zero, 2, e32, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e32, m1, tu, mu
 ; CHECK-NEXT:    vslideup.vi v9, v8, 1
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; CHECK-NEXT:    vse32.v v9, (a0)

@@ -253,6 +253,9 @@ public:
   /// example: GroupNonUniformBallotBitCount(Reduce) =>
   /// group_ballot_bit_count_iadd => sub_group_ballot_bit_count
   std::string getBallotBuiltinName(CallInst *CI, Op OC);
+  /// Transform OpGroupNonUniformRotateKHR to corresponding OpenCL function
+  /// name.
+  std::string getRotateBuiltinName(CallInst *CI, Op OC);
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
   /// Transform SPV-IR image opaque type into OpenCL representation,
@@ -262,7 +265,10 @@ public:
   /// example: spirv.Pipe._0 => opencl.pipe_ro_t
   std::string getOCLPipeOpaqueType(SmallVector<std::string, 8> &Postfixes);
 
+  void getParameterTypes(CallInst *CI, SmallVectorImpl<StructType *> &Tys);
+
   void translateOpaqueTypes();
+  std::string translateOpaqueType(StringRef STName);
 
   Module *M;
   LLVMContext *Ctx;
