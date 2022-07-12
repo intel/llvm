@@ -19,7 +19,6 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti/xpti_trace_framework.hpp"
 #include <detail/xpti_registry.hpp>
-#include <sstream>
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {

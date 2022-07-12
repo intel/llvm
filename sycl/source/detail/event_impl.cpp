@@ -22,7 +22,6 @@
 #include "xpti/xpti_trace_framework.hpp"
 #include <atomic>
 #include <detail/xpti_registry.hpp>
-#include <sstream>
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {

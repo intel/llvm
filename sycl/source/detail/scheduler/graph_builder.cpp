@@ -17,7 +17,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <map>
 #include <memory>
 #include <queue>
@@ -135,15 +134,15 @@ static void handleVisitedNodes(std::vector<Command *> &Visited) {
   }
 }
 
-static void printDotRecursive(std::fstream &Stream,
-                              std::vector<Command *> &Visited, Command *Cmd) {
+static void printDotRecursive(FILE *file, std::vector<Command *> &Visited,
+                              Command *Cmd) {
   if (!markNodeAsVisited(Cmd, Visited))
     return;
   for (Command *User : Cmd->MUsers) {
     if (User)
-      printDotRecursive(Stream, Visited, User);
+      printDotRecursive(file, Visited, User);
   }
-  Cmd->printDot(Stream);
+  Cmd->printDot(file);
 }
 
 void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
@@ -154,16 +153,29 @@ void Scheduler::GraphBuilder::printGraphAsDot(const char *ModeName) {
 
   Counter++;
 
-  std::fstream Stream(FileName, std::ios::out);
-  Stream << "strict digraph {" << std::endl;
+  FILE *file = fopen(FileName.c_str(), "w");
+  if (file == nullptr) {
+    throw runtime_error("Couldn't open file: " + FileName +
+                            std::string(" for write"),
+                        PI_ERROR_UNKNOWN);
+  }
+
+  fprintf(file, "strict digraph {\n");
 
   MVisitedCmds.clear();
 
   for (SYCLMemObjI *MemObject : MMemObjs)
     for (Command *AllocaCmd : MemObject->MRecord->MAllocaCommands)
-      printDotRecursive(Stream, MVisitedCmds, AllocaCmd);
+      printDotRecursive(file, MVisitedCmds, AllocaCmd);
 
-  Stream << "}" << std::endl;
+  fprintf(file, "}\n");
+  if (ferror(file)) {
+    throw runtime_error("Error writing to file: " + FileName, PI_ERROR_UNKNOWN);
+  }
+
+  if (fclose(file) == EOF) {
+    throw runtime_error("Couldn't close file: " + FileName, PI_ERROR_UNKNOWN);
+  }
 
   unmarkVisitedNodes(MVisitedCmds);
 }

@@ -2,6 +2,7 @@
 // RUN: %RUN_ON_HOST %t.out
 
 #include <CL/sycl.hpp>
+#include <iostream>
 
 using namespace cl::sycl;
 

@@ -13,7 +13,6 @@
 #include <CL/sycl/detail/type_traits.hpp>
 
 #include <functional>
-#include <iostream>
 #include <limits>
 
 #if !__has_builtin(__builtin_expect)
@@ -143,7 +142,8 @@ public:
   half(const float &rhs);
 
   half &operator=(const half &rhs) = default;
-
+  // string operator
+  operator std::string() const;
   // Operator +=, -=, *=, /=
   half &operator+=(const half &rhs);
 
@@ -585,20 +585,6 @@ public:
     return static_cast<float>(Data);
   }
 
-  // Operator << and >>
-  inline friend std::ostream &operator<<(std::ostream &O,
-                                         cl::sycl::half const &rhs) {
-    O << static_cast<float>(rhs);
-    return O;
-  }
-
-  inline friend std::istream &operator>>(std::istream &I, cl::sycl::half &rhs) {
-    float ValFloat = 0.0f;
-    I >> ValFloat;
-    rhs = ValFloat;
-    return I;
-  }
-
   template <typename Key> friend struct std::hash;
 
   friend class sycl::ext::intel::esimd::detail::WrapperElementTypeProxy;
@@ -707,6 +693,34 @@ template <> struct numeric_limits<cl::sycl::half> {
 };
 
 } // namespace std
+
+inline FILE *operator<<(FILE *file, cl::sycl::half const &rhs) {
+  fprintf(file, "%lf", static_cast<float>(rhs));
+  return file;
+}
+
+inline FILE *operator>>(FILE *file, cl::sycl::half &rhs) {
+  float ValFloat = 0.0f;
+  if (!fscanf(file, "%f", &ValFloat)) {
+    throw std::runtime_error("Couldn't extract sycl::half from file\n");
+  }
+  rhs = ValFloat;
+  return file;
+}
+
+// Almost a replacement for std::istream except it takes and returns a string
+// parameter
+inline std::string &operator>>(std::string &str, cl::sycl::half &rhs) {
+  float ValFloat = 0.0f;
+  std::string::size_type sz = 0;
+
+  if (str[0] >= '0' && str[0] <= '9') {
+    ValFloat = std::stof(str, &sz);
+    str.erase(0, sz);
+  }
+  rhs = ValFloat;
+  return str;
+}
 
 #undef __SYCL_CONSTEXPR_HALF
 #undef _CPP14_CONSTEXPR

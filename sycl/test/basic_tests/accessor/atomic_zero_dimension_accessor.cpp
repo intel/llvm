@@ -7,6 +7,7 @@
 // with the __ENABLE_USM_ADDR_SPACE__ macro.
 
 #include <CL/sycl.hpp>
+#include <iostream>
 
 using namespace sycl;
 

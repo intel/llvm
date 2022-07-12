@@ -12,6 +12,7 @@
 // accessors.
 
 #include <CL/sycl.hpp>
+#include <iostream>
 #include <vector>
 using namespace cl::sycl;
 

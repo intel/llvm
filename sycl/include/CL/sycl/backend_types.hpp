@@ -10,9 +10,6 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
-#include <fstream>
-#include <iostream>
-#include <istream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -31,7 +28,7 @@ enum class backend : char {
   esimd_cpu __SYCL2020_DEPRECATED("use 'ext_oneapi_esimd_emulator' instead") =
       ext_intel_esimd_emulator,
   ext_oneapi_hip = 6,
-  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
+  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip
 };
 
 template <backend Backend> class backend_traits;
@@ -43,30 +40,25 @@ template <backend Backend, typename SYCLObjectT>
 using backend_return_t =
     typename backend_traits<Backend>::template return_type<SYCLObjectT>;
 
-inline std::ostream &operator<<(std::ostream &Out, backend be) {
+inline std::string backend_to_string(const backend &be) {
+
   switch (be) {
   case backend::host:
-    Out << "host";
-    break;
+    return "host";
   case backend::opencl:
-    Out << "opencl";
-    break;
+    return "opencl";
   case backend::ext_oneapi_level_zero:
-    Out << "ext_oneapi_level_zero";
-    break;
+    return "ext_oneapi_level_zero";
   case backend::ext_oneapi_cuda:
-    Out << "ext_oneapi_cuda";
-    break;
+    return "ext_oneapi_cuda";
   case backend::ext_intel_esimd_emulator:
-    Out << "ext_intel_esimd_emulator";
-    break;
+    return "ext_intel_esimd_emulator";
   case backend::ext_oneapi_hip:
-    Out << "ext_oneapi_hip";
-    break;
+    return "ext_oneapi_hip";
   case backend::all:
-    Out << "all";
+    return "all";
   }
-  return Out;
+  return "";
 }
 
 } // namespace sycl

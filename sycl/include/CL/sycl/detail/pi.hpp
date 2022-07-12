@@ -21,7 +21,6 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -82,11 +81,14 @@ __SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
 
 template <typename T>
 void handleUnknownParamName(const char *functionName, T parameter) {
-  std::stringstream stream;
-  stream << "Unknown parameter " << parameter << " passed to " << functionName
-         << "\n";
-  auto str = stream.str();
-  auto msg = str.c_str();
+  std::string string;
+  string += "Unknown parameter ";
+  string += parameter;
+  string += " passed to ";
+  string += functionName;
+  string += "\n";
+
+  auto msg = string.c_str();
   die(msg);
 }
 
@@ -232,14 +234,11 @@ public:
   pi_uint32 asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
+  operator std::string() const;
 
 protected:
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const DeviceBinaryProperty &P);
   const _pi_device_binary_property_struct *Prop;
 };
-
-std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
 
 // C++ convenience wrapper over the pi_device_binary_struct structure.
 class DeviceBinaryImage {
@@ -298,7 +297,7 @@ public:
   DeviceBinaryImage() : Bin(nullptr){};
 
   virtual void print() const;
-  virtual void dump(std::ostream &Out) const;
+  virtual void dump(FILE *file) const;
 
   size_t getSize() const {
     assert(Bin && "binary image data not set");

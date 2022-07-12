@@ -30,10 +30,12 @@ std::string getCudaVersionString() {
   int driver_version = 0;
   cuDriverGetVersion(&driver_version);
   // The version is returned as (1000 major + 10 minor).
-  std::stringstream stream;
-  stream << "CUDA " << driver_version / 1000 << "."
-         << driver_version % 1000 / 10;
-  return stream.str();
+  std::string versionString;
+  versionString = "CUDA ";
+  versionString += std::to_string(driver_version / 1000);
+  versionString += ".";
+  versionString += std::to_string(driver_version % 1000 / 10);
+  return versionString;
 }
 
 pi_result map_error(CUresult result) {
@@ -137,13 +139,14 @@ pi_result check_error(CUresult result, const char *function, int line,
   const char *errorName = nullptr;
   cuGetErrorName(result, &errorName);
   cuGetErrorString(result, &errorString);
-  std::cerr << "\nPI CUDA ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  fprintf(stderr,
+          "\nPI CUDA ERROR:"
+          "\n\tValue:           %d"
+          "\n\tName:            %s"
+          "\n\tDescription:     %s"
+          "\n\tFunction:        %s"
+          "\n\tSource Location: %s:%d\n\n",
+          result, errorName, errorString, function, file, line);
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -337,13 +340,13 @@ namespace pi {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
+  fprintf(stderr, "pi_die: %s\n", Message);
   std::terminate();
 }
 
 // Reports error messages
 void cuPrint(const char *Message) {
-  std::cerr << "pi_print: " << Message << std::endl;
+  fprintf(stderr, "pi_print: %s\n", Message);
 }
 
 void assertion(bool Condition, const char *Message) {

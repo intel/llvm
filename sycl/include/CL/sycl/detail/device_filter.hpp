@@ -12,7 +12,6 @@
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/info/info_desc.hpp>
 
-#include <iostream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -30,8 +29,7 @@ struct device_filter {
 
   device_filter(){};
   device_filter(const std::string &FilterString);
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter &Filter);
+  inline operator std::string() const;
 };
 
 class device_filter_list {
@@ -47,37 +45,45 @@ public:
   bool deviceTypeCompatible(info::device_type DeviceType);
   bool deviceNumberCompatible(int DeviceNum);
   bool containsHost();
-  friend std::ostream &operator<<(std::ostream &Out,
-                                  const device_filter_list &List);
+  inline operator std::string() const;
 };
 
-inline std::ostream &operator<<(std::ostream &Out,
-                                const device_filter &Filter) {
-  Out << Filter.Backend << ":";
-  if (Filter.DeviceType == info::device_type::host) {
-    Out << "host";
-  } else if (Filter.DeviceType == info::device_type::cpu) {
-    Out << "cpu";
-  } else if (Filter.DeviceType == info::device_type::gpu) {
-    Out << "gpu";
-  } else if (Filter.DeviceType == info::device_type::accelerator) {
-    Out << "accelerator";
-  } else if (Filter.DeviceType == info::device_type::all) {
-    Out << "*";
-  } else {
-    Out << "unknown";
+inline device_filter::operator std::string() const {
+  std::string Out{};
+  Out += backend_to_string(this->Backend);
+  Out += ":";
+  switch (this->DeviceType) {
+  case info::device_type::host:
+    Out += "host";
+    break;
+  case info::device_type::cpu:
+    Out += "cpu";
+    break;
+  case info::device_type::gpu:
+    Out += "gpu";
+    break;
+  case info::device_type::accelerator:
+    Out += "accelerator";
+    break;
+  case info::device_type::all:
+    Out += "*";
+    break;
+  default:
+    Out += "unknown";
+    break;
   }
-  if (Filter.HasDeviceNum) {
-    Out << ":" << Filter.DeviceNum;
+
+  if (this->HasDeviceNum) {
+    Out += ":" + std::to_string(this->DeviceNum);
   }
   return Out;
 }
 
-inline std::ostream &operator<<(std::ostream &Out,
-                                const device_filter_list &List) {
-  for (const device_filter &Filter : List.FilterList) {
-    Out << Filter;
-    Out << ",";
+inline device_filter_list::operator std::string() const {
+  std::string Out;
+  for (const device_filter &Filter : this->FilterList) {
+    Out += Filter;
+    Out += ",";
   }
   return Out;
 }

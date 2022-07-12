@@ -256,23 +256,23 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
 
   if (IsDeprecatedKeyNameDeviceNameWasUsed &&
       IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cout << "\nWARNING: " << DeprecatedKeyNameDeviceName << " and "
-              << DeprecatedKeyNamePlatformName
-              << " in SYCL_DEVICE_ALLOWLIST are deprecated. ";
+    printf("\nWARNING: %s and %s"
+           " in SYCL_DEVICE_ALLOWLIST are deprecated. ",
+           DeprecatedKeyNameDeviceName.c_str(),
+           DeprecatedKeyNamePlatformName.c_str());
   } else if (IsDeprecatedKeyNameDeviceNameWasUsed) {
-    std::cout << "\nWARNING: " << DeprecatedKeyNameDeviceName
-              << " in SYCL_DEVICE_ALLOWLIST is deprecated. ";
+    printf("\nWARNING: %s in SYCL_DEVICE_ALLOWLIST is deprecated. ",
+           DeprecatedKeyNameDeviceName.c_str());
   } else if (IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cout << "\nWARNING: " << DeprecatedKeyNamePlatformName
-              << " in SYCL_DEVICE_ALLOWLIST is deprecated. ";
+    printf("\nWARNING: %s in SYCL_DEVICE_ALLOWLIST is deprecated. ",
+           DeprecatedKeyNamePlatformName.c_str());
   }
   if (IsDeprecatedKeyNameDeviceNameWasUsed ||
       IsDeprecatedKeyNamePlatformNameWasUsed) {
-    std::cout << "Please use " << BackendNameKeyName << ", "
-              << DeviceTypeKeyName << " and " << DeviceVendorIdKeyName
-              << " instead. For details, please refer to "
-                 "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                 "EnvironmentVariables.md\n\n";
+    printf("Please use %s, %s and %s instead. For details, please refer to "
+           "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+           "EnvironmentVariables.md\n\n",
+           BackendNameKeyName, DeviceTypeKeyName, DeviceVendorIdKeyName);
   }
 
   return AllowListParsed;
@@ -381,9 +381,10 @@ void applyAllowList(std::vector<RT::PiDevice> &PiDevices,
     uint32_t DeviceVendorIdUInt =
         sycl::detail::get_device_info<uint32_t, info::device::vendor_id>::get(
             Device, Plugin);
-    std::stringstream DeviceVendorIdHexStringStream;
-    DeviceVendorIdHexStringStream << "0x" << std::hex << DeviceVendorIdUInt;
-    const auto &DeviceVendorIdValue = DeviceVendorIdHexStringStream.str();
+
+    char DeviceVendorIdHexString[15];
+    snprintf(DeviceVendorIdHexString, 15, "0x%x", DeviceVendorIdUInt);
+    const std::string DeviceVendorIdValue = DeviceVendorIdHexString;
     DeviceDesc[DeviceVendorIdKeyName] = DeviceVendorIdValue;
     // get DriverVersion value and put it to DeviceDesc
     const auto &DriverVersionValue = sycl::detail::get_device_info<

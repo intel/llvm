@@ -45,7 +45,7 @@ void foo(sycl::detail::pi::DeviceBinaryImage &Img) { Img.print(); }
 // CHECK-NEXT:   1 | sycl::detail::pi::DeviceBinaryImage RTTI
 // CHECK-NEXT:       -- (sycl::detail::pi::DeviceBinaryImage, 0) vtable address --
 // CHECK-NEXT:   2 | void sycl::detail::pi::DeviceBinaryImage::print() const
-// CHECK-NEXT:   3 | void sycl::detail::pi::DeviceBinaryImage::dump(std::ostream &) const
+// CHECK-NEXT:   3 | void sycl::detail::pi::DeviceBinaryImage::dump(FILE *) const
 // CHECK-NEXT:   4 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [complete]
 // CHECK-NEXT:   5 | sycl::detail::pi::DeviceBinaryImage::~DeviceBinaryImage() [deleting]
 

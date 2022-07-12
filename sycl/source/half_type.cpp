@@ -81,6 +81,10 @@ bool operator==(const half &LHS, const half &RHS) {
 }
 
 bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
+// Convert half type to string
+half::operator std::string() const {
+  return std::to_string(static_cast<float>(*this));
+}
 } // namespace host_half_impl
 
 } // namespace detail

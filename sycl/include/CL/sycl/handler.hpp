@@ -1041,8 +1041,8 @@ private:
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
       if (this->RangeRoundingTrace())
-        std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
-                  << " to " << NewValX << std::endl;
+        printf("parallel_for range adjusted from %lu to %lu\n", NumWorkItems[0],
+               NewValX);
 
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =

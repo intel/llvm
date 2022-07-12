@@ -20,7 +20,6 @@
 #include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
-#include <fstream>
 #include <libgen.h> // for dirname
 #include <link.h>
 #include <linux/limits.h> // for PATH_MAX
@@ -86,20 +85,28 @@ OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
   return reinterpret_cast<OSModuleHandle>(Res.Handle);
 }
 
-bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
+bool procMapsAddressInRange(FILE *file, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
-  Stream >> Start;
-  assert(!Stream.fail() && Stream.peek() == '-' &&
+  char next_char = 0, scanf_matches = 0;
+  void *dummyPtr;
+  scanf_matches = fscanf(file, "%p", &dummyPtr);
+  Start = reinterpret_cast<uintptr_t>(dummyPtr);
+  assert(scanf_matches && !ferror(file) &&
          "Couldn't read /proc/self/maps correctly");
-  Stream.ignore(1);
+  next_char = fgetc(file);
+  assert(next_char == '-' && "Couldn't read /proc/self/maps correctly");
 
-  Stream >> End;
-  assert(!Stream.fail() && Stream.peek() == ' ' &&
+  scanf_matches = fscanf(file, "%p", &dummyPtr);
+  End = reinterpret_cast<uintptr_t>(dummyPtr);
+  assert(scanf_matches && !ferror(file) &&
          "Couldn't read /proc/self/maps correctly");
-  Stream.ignore(1);
+  next_char = fgetc(file);
+  assert(next_char == ' ' && "Couldn't read /proc/self/maps correctly");
 
   return Addr >= Start && Addr < End;
 }
+
+extern void file_ignore(FILE *file, size_t n, int delim);
 
 /// Returns an absolute path to a directory where the object was found.
 std::string OSUtil::getCurrentDSODir() {
@@ -124,44 +131,74 @@ std::string OSUtil::getCurrentDSODir() {
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
   uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
-  std::ifstream Stream("/proc/self/maps");
-  Stream >> std::hex;
-  while (!Stream.eof()) {
-    if (!procMapsAddressInRange(Stream, CurrentFunc)) {
+  FILE *file = fopen("/proc/self/maps", "r");
+  int next_char;
+  while ((next_char = fgetc(file)) != EOF) {
+
+    if (ungetc(next_char, file) == EOF) {
+      throw runtime_error(
+          "Error writing to stream associated with file:/proc/self/maps",
+          PI_ERROR_UNKNOWN);
+    }
+    if (!procMapsAddressInRange(file, CurrentFunc)) {
       // Skip the rest until an EOL and check the next line
-      Stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+      file_ignore(file, std::numeric_limits<size_t>::max(), '\n');
       continue;
     }
 
-    char Perm[4];
-    Stream.readsome(Perm, sizeof(Perm));
+    char Perm[5];
+
+    if (!fgets(Perm, sizeof(Perm), file)) {
+      throw runtime_error("Error reading flags from /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
+    }
+
     assert(Perm[0] == 'r' && Perm[2] == 'x' &&
            "Invalid flags in /proc/self/maps");
-    assert(Stream.peek() == ' ');
-    Stream.ignore(1);
 
+    char next_char_getCurrentDSODir = fgetc(file);
+    assert(next_char_getCurrentDSODir == ' ');
+
+    bool fileError = false;
     // Read and ignore the following:
     // offset
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
+    fileError |= fgetc(file) == EOF;
     // dev major
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ':');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(), ':');
+    fileError |= fgetc(file) == EOF;
     // dev minor
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
+    fileError |= fgetc(file) == EOF;
     // inode
-    Stream.ignore(std::numeric_limits<std::streamsize>::max(), ' ');
-    Stream.ignore(1);
+    file_ignore(file, std::numeric_limits<size_t>::max(), ' ');
+    fileError |= fgetc(file) == EOF;
+
+    if (fileError) {
+      throw runtime_error("Error parsing file /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
+    }
 
     // Now read the path: it is padded with whitespaces, so we skip them
     // first.
-    while (Stream.peek() == ' ') {
-      Stream.ignore(1);
-    }
+    do {
+      next_char_getCurrentDSODir = fgetc(file);
+    } while (next_char_getCurrentDSODir == ' ');
+
+    fileError = ungetc(next_char_getCurrentDSODir, file) == EOF;
     char Path[PATH_MAX];
-    Stream.getline(Path, PATH_MAX - 1);
-    Path[PATH_MAX - 1] = '\0';
+    fileError |= fgets(Path, PATH_MAX, file) == nullptr;
+
+    if (ferror(file) || fileError) {
+      throw runtime_error("Error parsing file /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
+    }
+
+    if (fclose(file) == EOF) {
+      throw runtime_error("Couldn't close file /proc/self/maps",
+                          PI_ERROR_UNKNOWN);
+    }
+
     return OSUtil::getDirName(Path);
   }
   assert(false && "Unable to find the current function in /proc/self/maps");

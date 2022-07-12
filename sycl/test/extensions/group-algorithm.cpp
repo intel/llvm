@@ -14,6 +14,7 @@
 #include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <limits>
 #include <numeric>
 using namespace sycl;

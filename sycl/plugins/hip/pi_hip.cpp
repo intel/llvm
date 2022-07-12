@@ -87,10 +87,13 @@ std::string getHipVersionString() {
     return "";
   }
   // The version is returned as (1000 major + 10 minor).
-  std::stringstream stream;
-  stream << "HIP " << driver_version / 1000 << "."
-         << driver_version % 1000 / 10;
-  return stream.str();
+  std::string versionString;
+  versionString = "HIP ";
+  versionString += std::to_string(driver_version / 1000);
+  versionString += ".";
+  versionString += std::to_string(driver_version % 1000 / 10);
+
+  return versionString;
 }
 
 pi_result map_error(hipError_t result) {
@@ -193,13 +196,14 @@ pi_result check_error(hipError_t result, const char *function, int line,
   const char *errorName = nullptr;
   errorName = hipGetErrorName(result);
   errorString = hipGetErrorString(result);
-  std::cerr << "\nPI HIP ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  fprintf(stderr,
+          "\nPI HIP ERROR:"
+          "\n\tValue:           %d"
+          "\n\tName:            %s"
+          "\n\tDescription:     %s"
+          "\n\tFunction:        %s"
+          "\n\tSource Location: %s:%d\n\n",
+          result, errorName, errorString, function, file, line);
 
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();
@@ -385,13 +389,13 @@ namespace pi {
 //       but for now it is useful to see every failure.
 //
 [[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
+  printf("pi_die: %s\n", Message);
   std::terminate();
 }
 
 // Reports error messages
 void hipPrint(const char *Message) {
-  std::cerr << "pi_print: " << Message << std::endl;
+  fprintf(stderr, "pi_print: %s\n", Message);
 }
 
 void assertion(bool Condition, const char *Message) {

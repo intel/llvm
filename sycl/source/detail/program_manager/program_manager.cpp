@@ -29,12 +29,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <memory>
 #include <mutex>
-#include <sstream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -108,10 +107,11 @@ ProgramManager::getDeviceImage(OSModuleHandle M, const std::string &KernelName,
                                const context &Context, const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0)
-    std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \""
-              << KernelName << "\", " << getRawSyclObjImpl(Context) << ", "
-              << getRawSyclObjImpl(Device) << ", " << JITCompilationIsRequired
-              << ")\n";
+    fprintf(stderr,
+            ">>> ProgramManager::getDeviceImage(%ld,\"%s\"%p, %p, %s)\n", M,
+            KernelName.c_str(), (void *)getRawSyclObjImpl(Context),
+            (void *)getRawSyclObjImpl(Device),
+            JITCompilationIsRequired ? "true" : "false");
 
   KernelSetId KSId = getKernelSetId(M, KernelName);
   return getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
@@ -307,9 +307,9 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,
                                               const device &Device) {
   if (DbgProgMgr > 0)
-    std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ")\n";
+    fprintf(stderr, ">>> ProgramManager::createPIProgram(%p, %p, %p)\n",
+            (const void *)&Img, (void *)getRawSyclObjImpl(Context),
+            (void *)getRawSyclObjImpl(Device));
   const pi_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
@@ -360,9 +360,8 @@ RT::PiProgram ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
   }
 
   if (DbgProgMgr > 1)
-    std::cerr << "created program: " << Res
-              << "; image format: " << getFormatStr(Format) << "\n";
-
+    fprintf(stderr, "created program: %p%s%s\n", (void *)Res,
+            "; image format: ", getFormatStr(Format));
   return Res;
 }
 
@@ -488,7 +487,8 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
   if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2) {
     std::string ProgramBuildLog =
         ProgramManager::getProgramBuildLog(Prog, Context);
-    std::clog << ProgramBuildLog << std::endl;
+    // TODO: Implement clog replacment, stdout is not fully analogous
+    fprintf(stdout, "%s\n", ProgramBuildLog.c_str());
   }
 }
 
@@ -616,9 +616,9 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
                                   const std::string &KernelName,
                                   const program_impl *Prg) {
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getOrCreateKernel(" << M << ", "
-              << ContextImpl.get() << ", " << DeviceImpl.get() << ", "
-              << KernelName << ")\n";
+    fprintf(stderr, ">>> ProgramManager::getOrCreateKernel(%ld, %p, %p, %s)\n",
+            M, (void *)ContextImpl.get(), (void *)DeviceImpl.get(),
+            KernelName.c_str());
   }
 
   using PiKernelT = KernelProgramCache::PiKernelT;
@@ -736,18 +736,29 @@ std::string ProgramManager::getProgramBuildLog(const RT::PiProgram &Program,
 static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           RT::PiProgram &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
-  std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
-                     std::ifstream::in | std::ifstream::binary);
-  if (!File.good()) {
+
+  std::string FileName = LibSyclDir + OSUtil::DirSep + Name;
+  FILE *File = fopen(FileName.c_str(), "rb");
+  bool fileError = false;
+
+  if (File == nullptr || !fseek(File, 0, SEEK_END)) {
     return false;
   }
 
-  File.seekg(0, std::ios::end);
-  size_t FileSize = File.tellg();
-  File.seekg(0, std::ios::beg);
+  size_t FileSize = ftell(File);
+  fileError = fseek(File, 0, SEEK_SET);
   std::vector<char> FileContent(FileSize);
-  File.read(&FileContent[0], FileSize);
-  File.close();
+  fileError |= fread(&FileContent[0], sizeof(char), FileSize, File) != FileSize;
+
+  if (ferror(File) || fileError) {
+    throw runtime_error("Failed to load device binary file:" + FileName,
+                        PI_ERROR_UNKNOWN);
+  }
+
+  if (fclose(File) == EOF) {
+    throw runtime_error("Failed to close device binary file:" + FileName,
+                        PI_ERROR_UNKNOWN);
+  }
 
   Prog =
       createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
@@ -850,28 +861,35 @@ ProgramManager::ProgramManager() {
     m_UseSpvFile = true;
     // The env var requests that the program is loaded from a SPIR-V file on
     // disk
-    std::ifstream File(SpvFile, std::ios::binary);
+    FILE *File = fopen(SpvFile, "rb");
+    bool fileError = false;
 
-    if (!File.is_open())
+    if (File == nullptr)
       throw runtime_error(std::string("Can't open file specified via ") +
                               UseSpvEnv + ": " + SpvFile,
                           PI_ERROR_INVALID_VALUE);
-    File.seekg(0, std::ios::end);
-    size_t Size = File.tellg();
+    fileError = fseek(File, 0, SEEK_END);
+    size_t Size = ftell(File);
     std::unique_ptr<char[]> Data(new char[Size]);
-    File.seekg(0);
-    File.read(Data.get(), Size);
-    File.close();
-    if (!File.good())
+    fileError |= fseek(File, 0, SEEK_SET);
+    fileError |= fread(Data.get(), sizeof(char), Size, File) != Size;
+
+    if (ferror(File) || fileError) {
       throw runtime_error(std::string("read from ") + SpvFile +
                               std::string(" failed"),
                           PI_ERROR_INVALID_VALUE);
+    }
+    if (fclose(File) == EOF) {
+      throw runtime_error("Error closing file:" + std::string(SpvFile),
+                          PI_ERROR_UNKNOWN);
+    }
+
     auto ImgPtr = make_unique_ptr<DynRTDeviceBinaryImage>(
         std::move(Data), Size, OSUtil::DummyModuleHandle);
 
     if (DbgProgMgr > 0) {
-      std::cerr << "loaded device image binary from " << SpvFile << "\n";
-      std::cerr << "format: " << getFormatStr(ImgPtr->getFormat()) << "\n";
+      fprintf(stderr, "loaded device image binary from %s\n", SpvFile);
+      fprintf(stderr, "format: %s\n", getFormatStr(ImgPtr->getFormat()));
     }
     // No need for a mutex here since all access to these private fields is
     // blocked until the construction of the ProgramManager singleton is
@@ -887,12 +905,12 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                const context &Context, const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getDeviceImage(" << M << ", \"" << KSId
-              << "\", " << getRawSyclObjImpl(Context) << ", "
-              << getRawSyclObjImpl(Device) << ", " << JITCompilationIsRequired
-              << ")\n";
+    fprintf(stderr,
+            ">>> ProgramManager::getDeviceImage(%ld, \"%lu\", %p, %p, %d)\n", M,
+            KSId, (void *)getRawSyclObjImpl(Context),
+            (void *)getRawSyclObjImpl(Device), JITCompilationIsRequired);
 
-    std::cerr << "available device images:\n";
+    fprintf(stderr, "available device images:\n");
     debugPrintBinaryImages();
   }
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
@@ -932,7 +950,8 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
   Img = Imgs[ImgInd].get();
 
   if (DbgProgMgr > 0) {
-    std::cerr << "selected device image: " << &Img->getRawData() << "\n";
+    fprintf(stderr, "selected device image: %p\n",
+            (const void *)&Img->getRawData());
     Img->print();
   }
   return *Img;
@@ -1011,9 +1030,9 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
                       const RT::PiDevice &Device, uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
-              << CompileOptions << ", " << LinkOptions << ", ... " << Device
-              << ")\n";
+    fprintf(stderr, ">>> ProgramManager::build(%p, %s, %s, ... %p)\n",
+            (const void *)Program.get(), CompileOptions.c_str(),
+            LinkOptions.c_str(), (void *)Device);
   }
 
   // TODO: old sycl compiler always marks cassert fallback device library as
@@ -1284,7 +1303,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
 void ProgramManager::debugPrintBinaryImages() const {
   for (const auto &ImgVecIt : m_DeviceImages) {
-    std::cerr << "  ++++++ Kernel set: " << ImgVecIt.first << "\n";
+    fprintf(stderr, "  ++++++ Kernel set: %lu\n", ImgVecIt.first);
     for (const auto &Img : *ImgVecIt.second)
       Img.get()->print();
   }
@@ -1339,21 +1358,22 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
     Ext = ".bin";
   Fname += Ext;
 
-  std::ofstream F(Fname, std::ios::binary);
-
-  if (!F.is_open()) {
+  FILE *F = fopen(Fname.c_str(), "wb");
+  if (!F) {
     throw runtime_error("Can not write " + Fname, PI_ERROR_UNKNOWN);
   }
   Img.dump(F);
-  F.close();
+  if (fclose(F) == EOF) {
+    throw runtime_error("Error closing file:" + Fname, PI_ERROR_UNKNOWN);
+  }
 }
 
 void ProgramManager::flushSpecConstants(const program_impl &Prg,
                                         RT::PiProgram NativePrg,
                                         const RTDeviceBinaryImage *Img) {
   if (DbgProgMgr > 2) {
-    std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
-              << ",...)\n";
+    fprintf(stderr, ">>> ProgramManager::flushSpecConstants(%p,...)\n",
+            (void *)Prg.get());
   }
   if (!Prg.hasSetSpecConstants())
     return; // nothing to do
@@ -1375,8 +1395,10 @@ void ProgramManager::flushSpecConstants(const program_impl &Prg,
     }
     if (!Img->supportsSpecConstants()) {
       if (DbgProgMgr > 0)
-        std::cerr << ">>> ProgramManager::flushSpecConstants: binary image "
-                  << &Img->getRawData() << " doesn't support spec constants\n";
+        fprintf(stderr,
+                ">>> ProgramManager::flushSpecConstants: binary image %p"
+                " doesn't support spec constants\n",
+                (const void *)&Img->getRawData());
       // This device binary image does not support runtime setting of
       // specialization constants; compiler must have generated default values.
       // NOTE: Can't throw here, as it would always take place with AOT

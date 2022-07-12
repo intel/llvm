@@ -17,7 +17,6 @@
 #include <detail/spec_constant_impl.hpp>
 
 #include <algorithm>
-#include <fstream>
 #include <list>
 #include <memory>
 #include <mutex>

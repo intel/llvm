@@ -13,8 +13,8 @@
 #include <CL/sycl/detail/util.hpp>
 #include <CL/sycl/exception.hpp>
 
+#include <cstdio>
 #include <cstring>
-#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -36,16 +36,21 @@ void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
     Dst.insert(Dst.end(), SC.getValuePtr(), SC.getValuePtr() + SC.getSize());
   }
 }
+spec_constant_impl::operator std::string() const {
+  std::string Out;
+  Out += "spec_constant_impl";
+  Out += " { Size=";
+  Out += std::to_string(this->getSize()) +
+         " IsSet=" + (this->isSet() ? "true" : "false") + " Val=[";
 
-std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
-  Out << "spec_constant_impl"
-      << " { Size=" << V.getSize() << " IsSet=" << V.isSet() << " Val=[";
-  std::ios_base::fmtflags FlagsSav = Out.flags();
-  Out << std::hex;
-  for (unsigned I = 0; I < V.getSize(); ++I) {
-    Out << (I == 0 ? "" : " ") << static_cast<int>(*(V.getValuePtr() + I));
+  char tempString[50];
+  for (unsigned I = 0; I < this->getSize(); ++I) {
+    Out += (I == 0 ? "" : " ");
+    snprintf(tempString, 50, "%x",
+             static_cast<int>(*(this->getValuePtr() + I)));
+    Out += tempString;
   }
-  Out << "]" << FlagsSav;
+  Out += "]";
   return Out;
 }
 
