@@ -65,7 +65,6 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
-
 [[sycl::reqd_work_group_size(4)]] void f4x1x1() {}
 
 class Functor16 {
@@ -197,7 +196,6 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
     h.single_task<class kernel_name6>(
         []() { func1(); });
-
   });
   return 0;
 }

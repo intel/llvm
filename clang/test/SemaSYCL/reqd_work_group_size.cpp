@@ -147,7 +147,7 @@ template <typename Ty, typename Ty1, typename Ty2>
 
 struct S {};
 void var() {
-  //expected-note@+1{{in instantiation of function template specialization 'func<S, S, S>' requested here}}
+  // expected-note@+1{{in instantiation of function template specialization 'func<S, S, S>' requested here}}
   func<S, S, S>();
 }
 
@@ -184,8 +184,8 @@ int check() {
 // mode, and still requires all three arguments.
 __attribute__((reqd_work_group_size(4, 4, 4))) void four_once_more(); // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
                                                                       // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
-[[cl::reqd_work_group_size(4, 4, 4)]] void four_with_feeling(); // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
-                                                                // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+[[cl::reqd_work_group_size(4, 4, 4)]] void four_with_feeling();       // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
+                                                                 // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
 
 __attribute__((reqd_work_group_size(4))) void four_yet_again(); // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
                                                                 // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \

@@ -7,7 +7,6 @@
 using namespace cl::sycl;
 queue q;
 
-
 [[sycl::reqd_work_group_size(4)]] void f4x1x1() {} // expected-note {{conflicting attribute is here}}
 // expected-note@-1 {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(32)]] void f32x1x1() {} // expected-note {{conflicting attribute is here}}
