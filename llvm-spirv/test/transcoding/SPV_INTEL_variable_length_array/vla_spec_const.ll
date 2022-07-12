@@ -5,7 +5,7 @@
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; The IR was generated from the following source:
-; #include <sycl/sycl.hpp>
+; #include <CL/sycl.hpp>
 ; #include <cstdint>
 ;
 ; class SpecializedKernel;

@@ -11,7 +11,7 @@
 ; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; The IR was generated from the following source:
-; #include <sycl/sycl.hpp>
+; #include <CL/sycl.hpp>
 ;
 ; int main() {
 ;   sycl::queue Queue;
