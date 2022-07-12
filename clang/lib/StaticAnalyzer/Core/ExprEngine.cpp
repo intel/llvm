@@ -1262,9 +1262,13 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::OMPTaskLoopDirectiveClass:
     case Stmt::OMPTaskLoopSimdDirectiveClass:
     case Stmt::OMPMasterTaskLoopDirectiveClass:
+    case Stmt::OMPMaskedTaskLoopDirectiveClass:
     case Stmt::OMPMasterTaskLoopSimdDirectiveClass:
+    case Stmt::OMPMaskedTaskLoopSimdDirectiveClass:
     case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
+    case Stmt::OMPParallelMaskedTaskLoopDirectiveClass:
     case Stmt::OMPParallelMasterTaskLoopSimdDirectiveClass:
+    case Stmt::OMPParallelMaskedTaskLoopSimdDirectiveClass:
     case Stmt::OMPDistributeDirectiveClass:
     case Stmt::OMPDistributeParallelForDirectiveClass:
     case Stmt::OMPDistributeParallelForSimdDirectiveClass:
@@ -2632,6 +2636,9 @@ void ExprEngine::VisitCommonDeclRefExpr(const Expr *Ex, const NamedDecl *D,
       return;
     } else
       llvm_unreachable("An unknown case of structured binding encountered!");
+
+    if (BD->getType()->isReferenceType())
+      V = state->getSVal(V.getAsRegion());
 
     Bldr.generateNode(Ex, Pred, state->BindExpr(Ex, LCtx, V), nullptr,
                       ProgramPoint::PostLValueKind);

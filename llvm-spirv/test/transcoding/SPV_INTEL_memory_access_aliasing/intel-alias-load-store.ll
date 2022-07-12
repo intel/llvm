@@ -24,7 +24,7 @@
 ;; using https://github.com/intel/llvm.git bb5a2fece7c3315d7c72d8495c34a8a6eabc92d8
 ;; with an exception of !16 noalias medata - it doesn't make any sence.
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_memory_access_aliasing -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV

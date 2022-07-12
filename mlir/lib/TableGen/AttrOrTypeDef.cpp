@@ -81,7 +81,15 @@ AttrOrTypeDef::AttrOrTypeDef(const llvm::Record *def) : def(def) {
                     "'assemblyFormat' or 'hasCustomAssemblyFormat' can only be "
                     "used when 'mnemonic' is set");
   }
-  // Assembly format requires accessors to be generated.
+  // Assembly format parser requires builders with the same prototype
+  // as the default-builders.
+  // TODO: attempt to detect when a custom builder matches the prototype.
+  if (hasDeclarativeFormat && skipDefaultBuilders()) {
+    PrintWarning(getLoc(),
+                 "using 'assemblyFormat' with 'skipDefaultBuilders=1' may "
+                 "result in C++ compilation errors");
+  }
+  // Assembly format printer requires accessors to be generated.
   if (hasDeclarativeFormat && !genAccessors()) {
     PrintFatalError(getLoc(),
                     "'assemblyFormat' requires 'genAccessors' to be true");
@@ -229,14 +237,9 @@ StringRef AttrOrTypeParameter::getComparator() const {
 }
 
 StringRef AttrOrTypeParameter::getCppType() const {
-  llvm::Init *parameterType = getDef();
-  if (auto *stringType = dyn_cast<llvm::StringInit>(parameterType))
+  if (auto *stringType = dyn_cast<llvm::StringInit>(getDef()))
     return stringType->getValue();
-  if (auto *param = dyn_cast<llvm::DefInit>(parameterType))
-    return param->getDef()->getValueAsString("cppType");
-  llvm::PrintFatalError(
-      "Parameters DAG arguments must be either strings or defs "
-      "which inherit from AttrOrTypeParameter\n");
+  return getDefValue<llvm::StringInit>("cppType").getValue();
 }
 
 StringRef AttrOrTypeParameter::getCppAccessorType() const {
@@ -246,6 +249,10 @@ StringRef AttrOrTypeParameter::getCppAccessorType() const {
 
 StringRef AttrOrTypeParameter::getCppStorageType() const {
   return getDefValue<llvm::StringInit>("cppStorageType").value_or(getCppType());
+}
+
+StringRef AttrOrTypeParameter::getConvertFromStorage() const {
+  return getDefValue<llvm::StringInit>("convertFromStorage").value_or("$_self");
 }
 
 Optional<StringRef> AttrOrTypeParameter::getParser() const {

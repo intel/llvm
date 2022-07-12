@@ -382,6 +382,7 @@
 ; GCN-O1-NEXT:        Branch Probability Basic Block Placement
 ; GCN-O1-NEXT:        Insert fentry calls
 ; GCN-O1-NEXT:        Insert XRay ops
+; GCN-O1-NEXT:        GCN Create VOPD Instructions
 ; GCN-O1-NEXT:        SI Memory Legalizer
 ; GCN-O1-NEXT:        MachineDominator Tree Construction
 ; GCN-O1-NEXT:        Machine Natural Loop Construction
@@ -392,6 +393,7 @@
 ; GCN-O1-NEXT:        SI Final Branch Preparation
 ; GCN-O1-NEXT:        SI peephole optimizations
 ; GCN-O1-NEXT:        Post RA hazard recognizer
+; GCN-O1-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O1-NEXT:        Branch relaxation pass
 ; GCN-O1-NEXT:        Register Usage Information Collector Pass
 ; GCN-O1-NEXT:        Live DEBUG_VALUE analysis
@@ -672,6 +674,7 @@
 ; GCN-O1-OPTS-NEXT:        Branch Probability Basic Block Placement
 ; GCN-O1-OPTS-NEXT:        Insert fentry calls
 ; GCN-O1-OPTS-NEXT:        Insert XRay ops
+; GCN-O1-OPTS-NEXT:        GCN Create VOPD Instructions
 ; GCN-O1-OPTS-NEXT:        SI Memory Legalizer
 ; GCN-O1-OPTS-NEXT:        MachineDominator Tree Construction
 ; GCN-O1-OPTS-NEXT:        Machine Natural Loop Construction
@@ -682,6 +685,7 @@
 ; GCN-O1-OPTS-NEXT:        SI Final Branch Preparation
 ; GCN-O1-OPTS-NEXT:        SI peephole optimizations
 ; GCN-O1-OPTS-NEXT:        Post RA hazard recognizer
+; GCN-O1-OPTS-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O1-OPTS-NEXT:        Branch relaxation pass
 ; GCN-O1-OPTS-NEXT:        Register Usage Information Collector Pass
 ; GCN-O1-OPTS-NEXT:        Live DEBUG_VALUE analysis
@@ -964,6 +968,7 @@
 ; GCN-O2-NEXT:        Branch Probability Basic Block Placement
 ; GCN-O2-NEXT:        Insert fentry calls
 ; GCN-O2-NEXT:        Insert XRay ops
+; GCN-O2-NEXT:        GCN Create VOPD Instructions
 ; GCN-O2-NEXT:        SI Memory Legalizer
 ; GCN-O2-NEXT:        MachineDominator Tree Construction
 ; GCN-O2-NEXT:        Machine Natural Loop Construction
@@ -974,6 +979,8 @@
 ; GCN-O2-NEXT:        SI Final Branch Preparation
 ; GCN-O2-NEXT:        SI peephole optimizations
 ; GCN-O2-NEXT:        Post RA hazard recognizer
+; GCN-O2-NEXT:        Release VGPRs
+; GCN-O2-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O2-NEXT:        Branch relaxation pass
 ; GCN-O2-NEXT:        Register Usage Information Collector Pass
 ; GCN-O2-NEXT:        Live DEBUG_VALUE analysis
@@ -1268,6 +1275,7 @@
 ; GCN-O3-NEXT:        Branch Probability Basic Block Placement
 ; GCN-O3-NEXT:        Insert fentry calls
 ; GCN-O3-NEXT:        Insert XRay ops
+; GCN-O3-NEXT:        GCN Create VOPD Instructions
 ; GCN-O3-NEXT:        SI Memory Legalizer
 ; GCN-O3-NEXT:        MachineDominator Tree Construction
 ; GCN-O3-NEXT:        Machine Natural Loop Construction
@@ -1278,6 +1286,8 @@
 ; GCN-O3-NEXT:        SI Final Branch Preparation
 ; GCN-O3-NEXT:        SI peephole optimizations
 ; GCN-O3-NEXT:        Post RA hazard recognizer
+; GCN-O3-NEXT:        Release VGPRs
+; GCN-O3-NEXT:        AMDGPU Insert Delay ALU
 ; GCN-O3-NEXT:        Branch relaxation pass
 ; GCN-O3-NEXT:        Register Usage Information Collector Pass
 ; GCN-O3-NEXT:        Live DEBUG_VALUE analysis

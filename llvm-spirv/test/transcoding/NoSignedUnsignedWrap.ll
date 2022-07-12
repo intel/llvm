@@ -7,7 +7,7 @@
 ;
 ; Positive tests:
 ;
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.spv
 ; RUN: spirv-val %t.spv

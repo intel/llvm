@@ -345,7 +345,7 @@ INITIALIZE_PASS_END(LoopIdiomRecognizeLegacyPass, "loop-idiom",
 Pass *llvm::createLoopIdiomPass() { return new LoopIdiomRecognizeLegacyPass(); }
 
 static void deleteDeadInstruction(Instruction *I) {
-  I->replaceAllUsesWith(UndefValue::get(I->getType()));
+  I->replaceAllUsesWith(PoisonValue::get(I->getType()));
   I->eraseFromParent();
 }
 
@@ -1481,7 +1481,7 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
       return Changed;
     // We cannot allow unaligned ops for unordered load/store, so reject
     // anything where the alignment isn't at least the element size.
-    assert((StoreAlign.hasValue() && LoadAlign.hasValue()) &&
+    assert((StoreAlign && LoadAlign) &&
            "Expect unordered load/store to have align.");
     if (StoreAlign.getValue() < StoreSize || LoadAlign.getValue() < StoreSize)
       return Changed;

@@ -2712,7 +2712,16 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
         SubDemandedElts &= ScaledDemandedElts;
         if (!isSplatValue(Src, SubDemandedElts, SubUndefElts, Depth + 1))
           return false;
-        UndefElts |= APIntOps::ScaleBitMask(SubUndefElts, NumElts);
+
+        // Here we can't do "MatchAnyBits" operation merge for undef bits.
+        // Because some operation only use part value of the source.
+        // Take llvm.fshl.* for example:
+        // t1: v4i32 = Constant:i32<12>, undef:i32, Constant:i32<12>, undef:i32
+        // t2: v2i64 = bitcast t1
+        // t5: v2i64 = fshl t3, t4, t2
+        // We can not convert t2 to {i64 undef, i64 undef}
+        UndefElts |= APIntOps::ScaleBitMask(SubUndefElts, NumElts,
+                                            /*MatchAllBits=*/true);
       }
       return true;
     }
@@ -3262,6 +3271,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       Known.Zero.setBitsFrom(1);
     break;
   case ISD::SETCC:
+  case ISD::SETCCCARRY:
   case ISD::STRICT_FSETCC:
   case ISD::STRICT_FSETCCS: {
     unsigned OpNo = Op->isStrictFPOpcode() ? 1 : 0;
@@ -3497,6 +3507,8 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     break;
   case ISD::USUBO:
   case ISD::SSUBO:
+  case ISD::SUBCARRY:
+  case ISD::SSUBO_CARRY:
     if (Op.getResNo() == 1) {
       // If we know the result of a setcc has the top bits zero, use this info.
       if (TLI->getBooleanContents(Op.getOperand(0).getValueType()) ==
@@ -3511,6 +3523,10 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     assert(Op.getResNo() == 0 &&
            "We only compute knownbits for the difference here.");
 
+    // TODO: Compute influence of the carry operand.
+    if (Opcode == ISD::SUBCARRY || Opcode == ISD::SSUBO_CARRY)
+      break;
+
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
     Known = KnownBits::computeForAddSub(/* Add */ false, /* NSW */ false,
@@ -3520,6 +3536,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
   case ISD::UADDO:
   case ISD::SADDO:
   case ISD::ADDCARRY:
+  case ISD::SADDO_CARRY:
     if (Op.getResNo() == 1) {
       // If we know the result of a setcc has the top bits zero, use this info.
       if (TLI->getBooleanContents(Op.getOperand(0).getValueType()) ==
@@ -3539,7 +3556,7 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     if (Opcode == ISD::ADDE)
       // Can't track carry from glue, set carry to unknown.
       Carry.resetAll();
-    else if (Opcode == ISD::ADDCARRY)
+    else if (Opcode == ISD::ADDCARRY || Opcode == ISD::SADDO_CARRY)
       // TODO: Compute known bits for the carry operand. Not sure if it is worth
       // the trouble (how often will we find a known carry bit). And I haven't
       // tested this very much yet, but something like this might work:
@@ -4099,8 +4116,12 @@ unsigned SelectionDAG::ComputeNumSignBits(SDValue Op, const APInt &DemandedElts,
     return std::min(Tmp, Tmp2);
   case ISD::SADDO:
   case ISD::UADDO:
+  case ISD::SADDO_CARRY:
+  case ISD::ADDCARRY:
   case ISD::SSUBO:
   case ISD::USUBO:
+  case ISD::SSUBO_CARRY:
+  case ISD::SUBCARRY:
   case ISD::SMULO:
   case ISD::UMULO:
     if (Op.getResNo() != 1)
@@ -4114,6 +4135,7 @@ unsigned SelectionDAG::ComputeNumSignBits(SDValue Op, const APInt &DemandedElts,
       return VTBits;
     break;
   case ISD::SETCC:
+  case ISD::SETCCCARRY:
   case ISD::STRICT_FSETCC:
   case ISD::STRICT_FSETCCS: {
     unsigned OpNo = Op->isStrictFPOpcode() ? 1 : 0;
@@ -6149,6 +6171,10 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
         if (N1Op2C->getZExtValue() == N2C->getZExtValue()) {
           if (VT == N1.getOperand(1).getValueType())
             return N1.getOperand(1);
+          if (VT.isFloatingPoint()) {
+            assert(VT.getSizeInBits() > N1.getOperand(1).getValueType().getSizeInBits());
+            return getFPExtendOrRound(N1.getOperand(1), DL, VT);
+          }
           return getSExtOrTrunc(N1.getOperand(1), DL, VT);
         }
         return getNode(ISD::EXTRACT_VECTOR_ELT, DL, VT, N1.getOperand(0), N2);
@@ -7492,6 +7518,8 @@ SDValue SelectionDAG::getAtomic(unsigned Opcode, const SDLoc &dl, EVT MemVT,
           Opcode == ISD::ATOMIC_LOAD_UMAX ||
           Opcode == ISD::ATOMIC_LOAD_FADD ||
           Opcode == ISD::ATOMIC_LOAD_FSUB ||
+          Opcode == ISD::ATOMIC_LOAD_FMAX ||
+          Opcode == ISD::ATOMIC_LOAD_FMIN ||
           Opcode == ISD::ATOMIC_SWAP ||
           Opcode == ISD::ATOMIC_STORE) &&
          "Invalid Atomic Op");

@@ -106,6 +106,34 @@ void populateInlineConstantOperandsPatterns(RewritePatternSet &patterns);
 /// Patterns that are used to bubble up extract slice op above linalg op.
 void populateBubbleUpExtractSliceOpPatterns(RewritePatternSet &patterns);
 
+/// Split the given `op` into two parts along the given iteration space
+/// `dimension` at the specified `splitPoint`, and return the two parts.
+///
+/// For example, the following op:
+///
+///   linalg.matmul ins(%0, %1 : tensor<128x32xf32>, tensor<32x64xf32>)
+///                 outs(%2 : tensor<128x64xf32>)
+///
+/// split along the first dimension at position 42 will result in:
+///
+///   %3 = tensor.extract_slice %0[0, 0][42, 32][1, 1]
+///   %4 = tensor.extract_slice %2[0, 0][42, 64][1, 1]
+///   %5 = linalg.matmul ins(%3, %1 : tensor<42x32xf32>, tensor<32x64xf32>)
+///                      outs(%5 : tensor<42x64xf32>)
+///   %6 = tensor.insert_slice %5 into %2[0, 0][42, 64][1, 1]
+///
+///   %7 = tensor.extract_slice %0[42, 0][86, 32][1, 1]
+///   %8 = tensor.extract_slice %6[42, 0][86, 64][1, 1]
+///   %9 = linalg.matmul ins(%7, %1 : tensor<86x32xf32>, tensor<32x64xf32>)
+///                      outs(%8 : tensor<86x64xf32>)
+///   tensor.insert_slice %5 into %6[42, 0][86, 64][1, 1]
+///
+/// Note that there is no simplification other than constant propagation applied
+/// to slice extraction and insertion.
+std::pair<LinalgOp, LinalgOp> splitOp(RewriterBase &rewriter, LinalgOp op,
+                                      unsigned dimension,
+                                      OpFoldResult splitPoint);
+
 /// Perform standalone tiling of a single LinalgOp by `tileSizes`.
 /// and permute the loop nest according to `interchangeVector`
 /// The permutation is expressed as a list of integers that specify
@@ -211,6 +239,8 @@ tileAndFuseLinalgOps(OpBuilder &builder, ArrayRef<LinalgOp> ops,
 /// `interchangeVector = [1,2,0]`. All values in `interchangeVector` must be
 /// integers, in the range 0..`op.rank` without duplications
 /// (i.e. `[1,1,2]` is an invalid permutation).
+///
+/// Return failure if the permutation is not valid.
 FailureOr<GenericOp> interchangeGenericOp(RewriterBase &rewriter,
                                           GenericOp genericOp,
                                           ArrayRef<unsigned> interchangeVector);
@@ -1474,7 +1504,8 @@ using ControlSplitReductionFn =
 void populateSplitReductionPattern(
     RewritePatternSet &patterns,
     const ControlSplitReductionFn &controlSplitReductionFn,
-    const LinalgTransformationFilter &f = LinalgTransformationFilter());
+    const LinalgTransformationFilter &f = LinalgTransformationFilter(),
+    bool useAlloc = false);
 
 /// Apply transformation to split the single linalg op reduction into a parallel
 /// and reduction dimension. Then create a new linalg.generic op doing the rest
@@ -1518,19 +1549,21 @@ void populateSplitReductionPattern(
 FailureOr<LinalgOp>
 splitReduction(PatternRewriter &b, LinalgOp op,
                const ControlSplitReductionFn &controlSplitReductionFn,
-               const LinalgTransformationFilter &f);
+               const LinalgTransformationFilter &f, bool useAlloc = false);
 
 /// Filterless version of the above.
 /// Returns both the new linalg ops as well as the fillOp needed to initialize
 /// the temporary expanded tensor with the proper neutral element.
 struct SplitReductionResult {
+  Operation *initOrAlloc;
   FillOp fillOp;
   LinalgOp splitLinalgOp;
   LinalgOp resultCombiningLinalgOp;
 };
 FailureOr<SplitReductionResult>
 splitReduction(PatternRewriter &b, LinalgOp op,
-               const ControlSplitReductionFn &controlSplitReductionFn);
+               const ControlSplitReductionFn &controlSplitReductionFn,
+               bool useAlloc = false);
 
 /// Scaling-based implementation of the split reduction transformation.
 /// Instead of introducing an ExpandShapeOp, this rewrites a reduction dimension
@@ -1580,7 +1613,8 @@ splitReduction(PatternRewriter &b, LinalgOp op,
 /// ```
 FailureOr<SplitReductionResult>
 splitReductionByScaling(PatternRewriter &b, LinalgOp op,
-                        const ControlSplitReductionFn &controlSplitReductionFn);
+                        const ControlSplitReductionFn &controlSplitReductionFn,
+                        bool useAlloc = false);
 
 } // namespace linalg
 } // namespace mlir

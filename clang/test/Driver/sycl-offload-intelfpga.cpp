@@ -12,13 +12,13 @@
 /// -fintelfpga implies -g and -MMD
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xshardware %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-INTELFPGA %s
-// CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=limited" {{.*}} "-dependency-file"
+// CHK-TOOLS-INTELFPGA: clang{{.*}} "-debug-info-kind=constructor" {{.*}} "-dependency-file"
 // CHK-TOOLS-INTELFPGA: aoc{{.*}} "-dep-files={{.*}}"
 
 /// -fintelfpga implies -g but -g0 should override
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -g0 -fsycl -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-INTELFPGA-G0 %s
-// CHK-TOOLS-INTELFPGA-G0-NOT: clang{{.*}} "-debug-info-kind=limited"
+// CHK-TOOLS-INTELFPGA-G0-NOT: clang{{.*}} "-debug-info-kind=constructor"
 
 /// -fintelfpga passes it to host and device cc1 compilations
 // RUN:   %clangxx -### -fsycl -fintelfpga %s 2>&1 \

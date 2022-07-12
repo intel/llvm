@@ -231,6 +231,18 @@ private:
   friend InterfaceBase;
 };
 
+//===----------------------------------------------------------------------===//
+// Core AttributeTrait
+//===----------------------------------------------------------------------===//
+
+/// This trait is used to determine if an attribute is mutable or not. It is
+/// attached on an attribute if the corresponding ImplType defines a `mutate`
+/// function with proper signature.
+namespace AttributeTrait {
+template <typename ConcreteType>
+using IsMutable = detail::StorageUserTrait::IsMutable<ConcreteType>;
+} // namespace AttributeTrait
+
 } // namespace mlir.
 
 namespace llvm {
@@ -254,7 +266,8 @@ template <> struct DenseMapInfo<mlir::Attribute> {
 };
 template <typename T>
 struct DenseMapInfo<
-    T, std::enable_if_t<std::is_base_of<mlir::Attribute, T>::value>>
+    T, std::enable_if_t<std::is_base_of<mlir::Attribute, T>::value &&
+                        !mlir::detail::IsInterface<T>::value>>
     : public DenseMapInfo<mlir::Attribute> {
   static T getEmptyKey() {
     const void *pointer = llvm::DenseMapInfo<const void *>::getEmptyKey();
