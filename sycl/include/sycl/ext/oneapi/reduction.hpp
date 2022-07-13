@@ -56,7 +56,8 @@ using IsReduOptForFastAtomicFetch =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<sycl::detail::is_sgeninteger<T>::value &&
+    bool_constant<((sycl::detail::is_sgenfloat<T>::value && sizeof(T) == 4) ||
+                   sycl::detail::is_sgeninteger<T>::value) &&
                   sycl::detail::IsValidAtomicType<T>::value &&
                   (sycl::detail::IsPlus<T, BinaryOperation>::value ||
                    sycl::detail::IsMinimum<T, BinaryOperation>::value ||
@@ -74,18 +75,15 @@ using IsReduOptForFastAtomicFetch =
 // IsReduOptForFastReduce. The macro SYCL_REDUCTION_DETERMINISTIC prohibits
 // using the reduce_over_group() algorithm to produce stable results across same
 // type devices.
-// TODO 32 bit floating point atomics are eventually expected to be supported by
-// the has_fast_atomics specialization. Once the reducer class is updated to
-// replace the deprecated atomic class with atomic_ref, the (sizeof(T) == 4)
-// case should be removed here and replaced in IsReduOptForFastAtomicFetch.
 template <typename T, class BinaryOperation>
-using IsReduOptForAtomic64Add =
+using IsReduOptForAtomic64Op =
 #ifdef SYCL_REDUCTION_DETERMINISTIC
     bool_constant<false>;
 #else
-    bool_constant<sycl::detail::IsPlus<T, BinaryOperation>::value &&
-                  sycl::detail::is_sgenfloat<T>::value &&
-                  (sizeof(T) == 4 || sizeof(T) == 8)>;
+    bool_constant<(sycl::detail::IsPlus<T, BinaryOperation>::value ||
+                   sycl::detail::IsMinimum<T, BinaryOperation>::value ||
+                   sycl::detail::IsMaximum<T, BinaryOperation>::value) &&
+                  sycl::detail::is_sgenfloat<T>::value && sizeof(T) == 8>;
 #endif
 
 // This type trait is used to detect if the group algorithm reduce() used with
@@ -248,7 +246,7 @@ public:
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
               (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
-               IsReduOptForAtomic64Add<T, _BinaryOperation>::value) &&
+               IsReduOptForAtomic64Op<T, _BinaryOperation>::value) &&
               sycl::detail::IsPlus<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
@@ -294,7 +292,8 @@ public:
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Op<T, _BinaryOperation>::value) &&
               sycl::detail::IsMinimum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
@@ -305,7 +304,8 @@ public:
   template <access::address_space Space = access::address_space::global_space,
             typename _T = T, class _BinaryOperation = BinaryOperation>
   enable_if_t<BasicCheck<_T, Space, _BinaryOperation> &&
-              IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value &&
+              (IsReduOptForFastAtomicFetch<T, _BinaryOperation>::value ||
+               IsReduOptForAtomic64Op<T, _BinaryOperation>::value) &&
               sycl::detail::IsMaximum<T, _BinaryOperation>::value>
   atomic_combine(_T *ReduVarPtr) const {
     atomic_combine_impl<Space>(
@@ -566,7 +566,7 @@ public:
                                     access::target::device, is_placeholder,
                                     ext::oneapi::accessor_property_list<>>;
   static constexpr bool has_atomic_add_float64 =
-      IsReduOptForAtomic64Add<T, BinaryOperation>::value;
+      IsReduOptForAtomic64Op<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
@@ -2040,12 +2040,8 @@ template <class KernelName> struct NDRangeAtomic64;
 } // namespace main_krn
 } // namespace reduction
 
-// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
-// temporarily 32) bit floating point support for atomic add.
-// TODO 32 bit floating point atomics are eventually expected to be supported by
-// the has_fast_atomics specialization. Corresponding changes to
-// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
-// be made.
+// Specialization for devices with the atomic64 aspect, which guarantees 64 bit
+// floating point support for atomic add.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                         const nd_range<Dims> &Range, Reduction &Redu) {
