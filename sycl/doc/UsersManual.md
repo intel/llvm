@@ -49,7 +49,8 @@ and not recommended to use in production environment.
 **`-f[no-]sycl-unnamed-lambda`**
 
     Enables/Disables unnamed SYCL lambda kernels support.
-    Disabled by default.
+    The default value depends on the SYCL language standard: it is enabled
+    by default for SYCL 2020, and disabled for SYCL 1.2.1.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
