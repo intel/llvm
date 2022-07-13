@@ -13723,6 +13723,16 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
 
       int Order = S.getASTContext().getFloatingTypeSemanticOrder(
           QualType(SourceBT, 0), QualType(TargetBT, 0));
+      // Warn if the source type and target type sizes do not match in device
+      // code.
+
+      if (S.Context.getTypeSize(Source) != S.Context.getTypeSize(Target)) {
+        if (S.getLangOpts().SYCLIsDevice) {
+          S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_cast_size_mismatch);
+        } else {
+          DiagnoseImpCast(S, E, T, CC, diag::warn_imp_cast_size_mismatch);
+        }
+      }
       if (Order > 0) {
         // Don't warn about float constants that are precisely
         // representable in the target type.
@@ -13737,7 +13747,6 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
 
         if (S.SourceMgr.isInSystemMacro(CC))
           return;
-
         DiagnoseImpCast(S, E, T, CC, diag::warn_impcast_float_precision);
       }
       // ... or possibly if we're increasing rank, too
