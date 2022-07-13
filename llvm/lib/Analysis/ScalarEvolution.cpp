@@ -3480,12 +3480,8 @@ const SCEV *ScalarEvolution::getUDivExpr(const SCEV *LHS,
       }
 
       // Fold if both operands are constant.
-      if (const SCEVConstant *LHSC = dyn_cast<SCEVConstant>(LHS)) {
-        Constant *LHSCV = LHSC->getValue();
-        Constant *RHSCV = RHSC->getValue();
-        return getConstant(cast<ConstantInt>(ConstantExpr::getUDiv(LHSCV,
-                                                                   RHSCV)));
-      }
+      if (const SCEVConstant *LHSC = dyn_cast<SCEVConstant>(LHS))
+        return getConstant(LHSC->getAPInt().udiv(RHSC->getAPInt()));
     }
   }
 
@@ -4406,18 +4402,9 @@ void ScalarEvolution::insertValueToMap(Value *V, const SCEV *S) {
 const SCEV *ScalarEvolution::getSCEV(Value *V) {
   assert(isSCEVable(V->getType()) && "Value is not SCEVable!");
 
-  const SCEV *S = getExistingSCEV(V);
-  if (S == nullptr) {
-    S = createSCEV(V);
-    // During PHI resolution, it is possible to create two SCEVs for the same
-    // V, so it is needed to double check whether V->S is inserted into
-    // ValueExprMap before insert S->{V, 0} into ExprValueMap.
-    std::pair<ValueExprMapType::iterator, bool> Pair =
-        ValueExprMap.insert({SCEVCallbackVH(V, this), S});
-    if (Pair.second)
-      ExprValueMap[S].insert(V);
-  }
-  return S;
+  if (const SCEV *S = getExistingSCEV(V))
+    return S;
+  return createSCEVIter(V);
 }
 
 const SCEV *ScalarEvolution::getExistingSCEV(Value *V) {
@@ -4847,7 +4834,7 @@ public:
         SelectInst *SI = cast<SelectInst>(I);
         Optional<const SCEV *> Res =
             compareWithBackedgeCondition(SI->getCondition());
-        if (Res.hasValue()) {
+        if (Res) {
           bool IsOne = cast<SCEVConstant>(Res.getValue())->getValue()->isOne();
           Result = SE.getSCEV(IsOne ? SI->getTrueValue() : SI->getFalseValue());
         }
@@ -4855,7 +4842,7 @@ public:
       }
       default: {
         Optional<const SCEV *> Res = compareWithBackedgeCondition(I);
-        if (Res.hasValue())
+        if (Res)
           Result = Res.getValue();
         break;
       }
@@ -6161,9 +6148,8 @@ const SCEV *ScalarEvolution::createNodeForSelectOrPHI(Value *V, Value *Cond,
 /// Expand GEP instructions into add and multiply operations. This allows them
 /// to be analyzed by regular SCEV code.
 const SCEV *ScalarEvolution::createNodeForGEP(GEPOperator *GEP) {
-  // Don't attempt to analyze GEPs over unsized objects.
-  if (!GEP->getSourceElementType()->isSized())
-    return getUnknown(GEP);
+  assert(GEP->getSourceElementType()->isSized() &&
+         "GEP source element type must be sized");
 
   SmallVector<const SCEV *, 4> IndexExprs;
   for (Value *Index : GEP->indices())
@@ -6596,7 +6582,7 @@ ScalarEvolution::getRangeRef(const SCEV *S,
 
     // Check if the IR explicitly contains !range metadata.
     Optional<ConstantRange> MDRange = GetRangeFromMetadata(U->getValue());
-    if (MDRange.hasValue())
+    if (MDRange)
       ConservativeResult = ConservativeResult.intersectWith(MDRange.getValue(),
                                                             RangeType);
 
@@ -7186,6 +7172,213 @@ bool ScalarEvolution::loopIsFiniteByAssumption(const Loop *L) {
   return isFinite(L) || (isMustProgress(L) && loopHasNoSideEffects(L));
 }
 
+const SCEV *ScalarEvolution::createSCEVIter(Value *V) {
+  // Worklist item with a Value and a bool indicating whether all operands have
+  // been visited already.
+  using PointerTy = PointerIntPair<Value *, 1, bool>;
+  SmallVector<PointerTy> Stack;
+
+  Stack.emplace_back(V, true);
+  Stack.emplace_back(V, false);
+  while (!Stack.empty()) {
+    auto E = Stack.pop_back_val();
+    Value *CurV = E.getPointer();
+
+    if (getExistingSCEV(CurV))
+      continue;
+
+    SmallVector<Value *> Ops;
+    const SCEV *CreatedSCEV = nullptr;
+    // If all operands have been visited already, create the SCEV.
+    if (E.getInt()) {
+      CreatedSCEV = createSCEV(CurV);
+    } else {
+      // Otherwise get the operands we need to create SCEV's for before creating
+      // the SCEV for CurV. If the SCEV for CurV can be constructed trivially,
+      // just use it.
+      CreatedSCEV = getOperandsToCreate(CurV, Ops);
+    }
+
+    if (CreatedSCEV) {
+      insertValueToMap(CurV, CreatedSCEV);
+    } else {
+      // Queue CurV for SCEV creation, followed by its's operands which need to
+      // be constructed first.
+      Stack.emplace_back(CurV, true);
+      for (Value *Op : Ops)
+        Stack.emplace_back(Op, false);
+    }
+  }
+
+  return getExistingSCEV(V);
+}
+
+const SCEV *
+ScalarEvolution::getOperandsToCreate(Value *V, SmallVectorImpl<Value *> &Ops) {
+  if (!isSCEVable(V->getType()))
+    return getUnknown(V);
+
+  if (Instruction *I = dyn_cast<Instruction>(V)) {
+    // Don't attempt to analyze instructions in blocks that aren't
+    // reachable. Such instructions don't matter, and they aren't required
+    // to obey basic rules for definitions dominating uses which this
+    // analysis depends on.
+    if (!DT.isReachableFromEntry(I->getParent()))
+      return getUnknown(PoisonValue::get(V->getType()));
+  } else if (ConstantInt *CI = dyn_cast<ConstantInt>(V))
+    return getConstant(CI);
+  else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
+    if (!GA->isInterposable()) {
+      Ops.push_back(GA->getAliasee());
+      return nullptr;
+    }
+    return getUnknown(V);
+  } else if (!isa<ConstantExpr>(V))
+    return getUnknown(V);
+
+  Operator *U = cast<Operator>(V);
+  if (auto BO = MatchBinaryOp(U, DT)) {
+    bool IsConstArg = isa<ConstantInt>(BO->RHS);
+    switch (U->getOpcode()) {
+    case Instruction::Add: {
+      // For additions and multiplications, traverse add/mul chains for which we
+      // can potentially create a single SCEV, to reduce the number of
+      // get{Add,Mul}Expr calls.
+      do {
+        if (BO->Op) {
+          if (BO->Op != V && getExistingSCEV(BO->Op)) {
+            Ops.push_back(BO->Op);
+            break;
+          }
+        }
+        Ops.push_back(BO->RHS);
+        auto NewBO = MatchBinaryOp(BO->LHS, DT);
+        if (!NewBO || (NewBO->Opcode != Instruction::Add &&
+                       NewBO->Opcode != Instruction::Sub)) {
+          Ops.push_back(BO->LHS);
+          break;
+        }
+        BO = NewBO;
+      } while (true);
+      return nullptr;
+    }
+
+    case Instruction::Mul: {
+      do {
+        if (BO->Op) {
+          if (BO->Op != V && getExistingSCEV(BO->Op)) {
+            Ops.push_back(BO->Op);
+            break;
+          }
+        }
+        Ops.push_back(BO->RHS);
+        auto NewBO = MatchBinaryOp(BO->LHS, DT);
+        if (!NewBO || NewBO->Opcode != Instruction::Mul) {
+          Ops.push_back(BO->LHS);
+          break;
+        }
+        BO = NewBO;
+      } while (true);
+      return nullptr;
+    }
+
+    case Instruction::AShr:
+    case Instruction::Shl:
+    case Instruction::Xor:
+      if (!IsConstArg)
+        return nullptr;
+      break;
+    case Instruction::And:
+    case Instruction::Or:
+      if (!IsConstArg && BO->LHS->getType()->isIntegerTy(1))
+        return nullptr;
+      break;
+    default:
+      break;
+    }
+
+    Ops.push_back(BO->LHS);
+    Ops.push_back(BO->RHS);
+    return nullptr;
+  }
+
+  switch (U->getOpcode()) {
+  case Instruction::Trunc:
+  case Instruction::ZExt:
+  case Instruction::SExt:
+  case Instruction::PtrToInt:
+    Ops.push_back(U->getOperand(0));
+    return nullptr;
+
+  case Instruction::BitCast:
+    if (isSCEVable(U->getType()) && isSCEVable(U->getOperand(0)->getType())) {
+      Ops.push_back(U->getOperand(0));
+      return nullptr;
+    }
+    return getUnknown(V);
+
+  case Instruction::SDiv:
+  case Instruction::SRem:
+    Ops.push_back(U->getOperand(0));
+    Ops.push_back(U->getOperand(1));
+    return nullptr;
+
+  case Instruction::GetElementPtr:
+    assert(cast<GEPOperator>(U)->getSourceElementType()->isSized() &&
+           "GEP source element type must be sized");
+    for (Value *Index : U->operands())
+      Ops.push_back(Index);
+    return nullptr;
+
+  case Instruction::IntToPtr:
+    return getUnknown(V);
+
+  case Instruction::PHI:
+    // Keep constructing SCEVs' for phis recursively for now.
+    return nullptr;
+
+  case Instruction::Select:
+    for (Value *Inc : U->operands())
+      Ops.push_back(Inc);
+    return nullptr;
+    break;
+
+  case Instruction::Call:
+  case Instruction::Invoke:
+    if (Value *RV = cast<CallBase>(U)->getReturnedArgOperand()) {
+      Ops.push_back(RV);
+      return nullptr;
+    }
+
+    if (auto *II = dyn_cast<IntrinsicInst>(U)) {
+      switch (II->getIntrinsicID()) {
+      case Intrinsic::abs:
+        Ops.push_back(II->getArgOperand(0));
+        return nullptr;
+      case Intrinsic::umax:
+      case Intrinsic::umin:
+      case Intrinsic::smax:
+      case Intrinsic::smin:
+      case Intrinsic::usub_sat:
+      case Intrinsic::uadd_sat:
+        Ops.push_back(II->getArgOperand(0));
+        Ops.push_back(II->getArgOperand(1));
+        return nullptr;
+      case Intrinsic::start_loop_iterations:
+      case Intrinsic::annotation:
+      case Intrinsic::ptr_annotation:
+        Ops.push_back(II->getArgOperand(0));
+        return nullptr;
+      default:
+        break;
+      }
+    }
+    break;
+  }
+
+  return nullptr;
+}
+
 const SCEV *ScalarEvolution::createSCEV(Value *V) {
   if (!isSCEVable(V->getType()))
     return getUnknown(V);
@@ -7196,7 +7389,7 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
     // to obey basic rules for definitions dominating uses which this
     // analysis depends on.
     if (!DT.isReachableFromEntry(I->getParent()))
-      return getUnknown(UndefValue::get(V->getType()));
+      return getUnknown(PoisonValue::get(V->getType()));
   } else if (ConstantInt *CI = dyn_cast<ConstantInt>(V))
     return getConstant(CI);
   else if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V))
@@ -7625,8 +7818,10 @@ const SCEV *ScalarEvolution::createSCEV(Value *V) {
         return getAddExpr(ClampedX, Y, SCEV::FlagNUW);
       }
       case Intrinsic::start_loop_iterations:
-        // A start_loop_iterations is just equivalent to the first operand for
-        // SCEV purposes.
+      case Intrinsic::annotation:
+      case Intrinsic::ptr_annotation:
+        // A start_loop_iterations or llvm.annotation or llvm.prt.annotation is
+        // just eqivalent to the first operand for SCEV purposes.
         return getSCEV(II->getArgOperand(0));
       default:
         break;
@@ -9046,13 +9241,6 @@ static Constant *EvaluateExpression(Value *V, const Loop *L,
     Operands[i] = C;
   }
 
-  if (CmpInst *CI = dyn_cast<CmpInst>(I))
-    return ConstantFoldCompareInstOperands(CI->getPredicate(), Operands[0],
-                                           Operands[1], DL, TLI);
-  if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-    if (!LI->isVolatile())
-      return ConstantFoldLoadFromConstPtr(Operands[0], LI->getType(), DL);
-  }
   return ConstantFoldInstOperands(I, Operands, DL, TLI);
 }
 
@@ -9296,67 +9484,44 @@ static Constant *BuildConstantFromSCEV(const SCEV *V) {
   }
   case scAddExpr: {
     const SCEVAddExpr *SA = cast<SCEVAddExpr>(V);
-    if (Constant *C = BuildConstantFromSCEV(SA->getOperand(0))) {
-      if (PointerType *PTy = dyn_cast<PointerType>(C->getType())) {
-        unsigned AS = PTy->getAddressSpace();
-        Type *DestPtrTy = Type::getInt8PtrTy(C->getContext(), AS);
-        C = ConstantExpr::getBitCast(C, DestPtrTy);
+    Constant *C = nullptr;
+    for (const SCEV *Op : SA->operands()) {
+      Constant *OpC = BuildConstantFromSCEV(Op);
+      if (!OpC)
+        return nullptr;
+      if (!C) {
+        C = OpC;
+        continue;
       }
-      for (unsigned i = 1, e = SA->getNumOperands(); i != e; ++i) {
-        Constant *C2 = BuildConstantFromSCEV(SA->getOperand(i));
-        if (!C2)
-          return nullptr;
-
-        // First pointer!
-        if (!C->getType()->isPointerTy() && C2->getType()->isPointerTy()) {
-          unsigned AS = C2->getType()->getPointerAddressSpace();
-          std::swap(C, C2);
-          Type *DestPtrTy = Type::getInt8PtrTy(C->getContext(), AS);
-          // The offsets have been converted to bytes.  We can add bytes to an
-          // i8* by GEP with the byte count in the first index.
-          C = ConstantExpr::getBitCast(C, DestPtrTy);
-        }
-
-        // Don't bother trying to sum two pointers. We probably can't
-        // statically compute a load that results from it anyway.
-        if (C2->getType()->isPointerTy())
-          return nullptr;
-
-        if (C->getType()->isPointerTy()) {
-          C = ConstantExpr::getGetElementPtr(Type::getInt8Ty(C->getContext()),
-                                             C, C2);
-        } else {
-          C = ConstantExpr::getAdd(C, C2);
-        }
+      assert(!C->getType()->isPointerTy() &&
+             "Can only have one pointer, and it must be last");
+      if (auto *PT = dyn_cast<PointerType>(OpC->getType())) {
+        // The offsets have been converted to bytes.  We can add bytes to an
+        // i8* by GEP with the byte count in the first index.
+        Type *DestPtrTy =
+            Type::getInt8PtrTy(PT->getContext(), PT->getAddressSpace());
+        OpC = ConstantExpr::getBitCast(OpC, DestPtrTy);
+        C = ConstantExpr::getGetElementPtr(Type::getInt8Ty(C->getContext()),
+                                           OpC, C);
+      } else {
+        C = ConstantExpr::getAdd(C, OpC);
       }
-      return C;
     }
-    return nullptr;
+    return C;
   }
   case scMulExpr: {
     const SCEVMulExpr *SM = cast<SCEVMulExpr>(V);
-    if (Constant *C = BuildConstantFromSCEV(SM->getOperand(0))) {
-      // Don't bother with pointers at all.
-      if (C->getType()->isPointerTy())
+    Constant *C = nullptr;
+    for (const SCEV *Op : SM->operands()) {
+      assert(!Op->getType()->isPointerTy() && "Can't multiply pointers");
+      Constant *OpC = BuildConstantFromSCEV(Op);
+      if (!OpC)
         return nullptr;
-      for (unsigned i = 1, e = SM->getNumOperands(); i != e; ++i) {
-        Constant *C2 = BuildConstantFromSCEV(SM->getOperand(i));
-        if (!C2 || C2->getType()->isPointerTy())
-          return nullptr;
-        C = ConstantExpr::getMul(C, C2);
-      }
-      return C;
+      C = C ? ConstantExpr::getMul(C, OpC) : OpC;
     }
-    return nullptr;
+    return C;
   }
-  case scUDivExpr: {
-    const SCEVUDivExpr *SU = cast<SCEVUDivExpr>(V);
-    if (Constant *LHS = BuildConstantFromSCEV(SU->getLHS()))
-      if (Constant *RHS = BuildConstantFromSCEV(SU->getRHS()))
-        if (LHS->getType() == RHS->getType())
-          return ConstantExpr::getUDiv(LHS, RHS);
-    return nullptr;
-  }
+  case scUDivExpr:
   case scSMaxExpr:
   case scUMaxExpr:
   case scSMinExpr:
@@ -9472,15 +9637,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
         if (MadeImprovement) {
           Constant *C = nullptr;
           const DataLayout &DL = getDataLayout();
-          if (const CmpInst *CI = dyn_cast<CmpInst>(I))
-            C = ConstantFoldCompareInstOperands(CI->getPredicate(), Operands[0],
-                                                Operands[1], DL, &TLI);
-          else if (const LoadInst *Load = dyn_cast<LoadInst>(I)) {
-            if (!Load->isVolatile())
-              C = ConstantFoldLoadFromConstPtr(Operands[0], Load->getType(),
-                                               DL);
-          } else
-            C = ConstantFoldInstOperands(I, Operands, DL, &TLI);
+          C = ConstantFoldInstOperands(I, Operands, DL, &TLI);
           if (!C) return V;
           return getSCEV(C);
         }
@@ -9710,15 +9867,15 @@ GetQuadraticEquation(const SCEVAddRecExpr *AddRec) {
 /// (b) if neither X nor Y exist, return None,
 /// (c) if exactly one of X and Y exists, return that value.
 static Optional<APInt> MinOptional(Optional<APInt> X, Optional<APInt> Y) {
-  if (X.hasValue() && Y.hasValue()) {
+  if (X && Y) {
     unsigned W = std::max(X->getBitWidth(), Y->getBitWidth());
     APInt XW = X->sext(W);
     APInt YW = Y->sext(W);
     return XW.slt(YW) ? *X : *Y;
   }
-  if (!X.hasValue() && !Y.hasValue())
+  if (!X && !Y)
     return None;
-  return X.hasValue() ? *X : *Y;
+  return X ? *X : *Y;
 }
 
 /// Helper function to truncate an optional APInt to a given BitWidth.
@@ -9760,13 +9917,13 @@ SolveQuadraticAddRecExact(const SCEVAddRecExpr *AddRec, ScalarEvolution &SE) {
   APInt A, B, C, M;
   unsigned BitWidth;
   auto T = GetQuadraticEquation(AddRec);
-  if (!T.hasValue())
+  if (!T)
     return None;
 
   std::tie(A, B, C, M, BitWidth) = *T;
   LLVM_DEBUG(dbgs() << __func__ << ": solving for unsigned overflow\n");
   Optional<APInt> X = APIntOps::SolveQuadraticEquationWrap(A, B, C, BitWidth+1);
-  if (!X.hasValue())
+  if (!X)
     return None;
 
   ConstantInt *CX = ConstantInt::get(SE.getContext(), *X);
@@ -10471,7 +10628,7 @@ ScalarEvolution::getMonotonicPredicateType(const SCEVAddRecExpr *LHS,
     auto ResultSwapped =
         getMonotonicPredicateTypeImpl(LHS, ICmpInst::getSwappedPredicate(Pred));
 
-    assert(ResultSwapped.hasValue() && "should be able to analyze both!");
+    assert(ResultSwapped && "should be able to analyze both!");
     assert(ResultSwapped.getValue() != Result.getValue() &&
            "monotonicity should flip as we flip the predicate");
   }
@@ -11648,7 +11805,7 @@ bool ScalarEvolution::isImpliedViaMerge(ICmpInst::Predicate Pred,
       const SCEV *L = getSCEV(LPhi->getIncomingValueForBlock(IncBB));
       // Make sure L does not refer to a value from a potentially previous
       // iteration of a loop.
-      if (!properlyDominates(L, IncBB))
+      if (!properlyDominates(L, LBB))
         return false;
       if (!ProvedEasily(L, RHS))
         return false;

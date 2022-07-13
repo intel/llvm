@@ -46,6 +46,7 @@ Implemented Papers
 - P0174R2 (Deprecating Vestigial Library Parts in C++17)
 - N4190 (Removing auto_ptr, random_shuffle(), And Old <functional> Stuff)
 - P0154R1 (Hardware inference size)
+- P0618R0 (Deprecating <codecvt>)
 
 - Marked the following papers as "Complete" (note that some of those might have
   been implemented in a previous release but not marked as such):
@@ -97,19 +98,15 @@ API Changes
   ``<filesystem>`` header. The associated macro
   ``_LIBCPP_DEPRECATED_EXPERIMENTAL_FILESYSTEM`` has also been removed.
 
-- Some libc++ headers no longer transitively include all of:
-    - ``<algorithm>``
-    - ``<chrono>``
-    - ``<exception>``
-    - ``<functional>``
-    - ``<iterator>``
-    - ``<new>``
-    - ``<typeinfo>``
-    - ``<utility>``
+- Libc++ is getting ready to remove unnecessary transitive inclusions. This may
+  break your code in the future. To future-proof your code to these removals,
+  please compile your code with ``_LIBCPP_REMOVE_TRANSITIVE_INCLUDES`` defined
+  and fix any compilation error resulting from missing includes.
 
-  If, after updating libc++, you see compiler errors related to missing declarations
-  in namespace ``std``, it might be because one of your source files now needs to
-  include one or more of the headers listed above.
+- The ``<algorithm>``, ``<array>``, ``<optional>``, ``<unordered_map>`` and ``<vector>``
+  headers no longer transitively include the ``<functional>`` header. If you see compiler
+  errors related to missing declarations in namespace ``std``, make sure you have the
+  necessary includes.
 
 - The integer distributions ``binomial_distribution``, ``discrete_distribution``,
   ``geometric_distribution``, ``negative_binomial_distribution``, ``poisson_distribution``,
@@ -158,6 +155,10 @@ API Changes
   They are also marked as ``[[deprecated]]`` in C++11 and later. To disable deprecation warnings
   you have to define ``_LIBCPP_DISABLE_DEPRECATION_WARNINGS``. Note that this disables
   all deprecation warnings.
+
+- The contents of ``<codecvt>``, ``wstring_convert`` and ``wbuffer_convert`` have been marked as deprecated.
+  To disable deprecation warnings you have to define ``_LIBCPP_DISABLE_DEPRECATION_WARNINGS``. Note that this
+  disables all deprecation warnings.
 
 ABI Changes
 -----------

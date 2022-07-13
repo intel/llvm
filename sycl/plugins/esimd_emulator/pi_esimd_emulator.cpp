@@ -263,8 +263,8 @@ public:
     const auto InvokeKernelArg = KernelInvocationContext<DIMS>{
         MKernel, LocalSize, GlobalSize, GlobalOffset};
 
-    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>), GroupDim,
-                   SpaceDim}
+    EsimdemuKernel{reinterpret_cast<fptrVoid>(InvokeKernel<DIMS>),
+                   GroupDim.data(), SpaceDim.data()}
         .launchMT(sizeof(InvokeKernelArg), &InvokeKernelArg);
   }
 };

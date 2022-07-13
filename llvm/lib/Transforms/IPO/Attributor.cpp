@@ -222,8 +222,8 @@ Constant *AA::getInitialValueForObj(Value &Obj, Type &Ty,
                                     const TargetLibraryInfo *TLI) {
   if (isa<AllocaInst>(Obj))
     return UndefValue::get(&Ty);
-  if (isAllocationFn(&Obj, TLI))
-    return getInitialValueOfAllocation(&cast<CallBase>(Obj), TLI, &Ty);
+  if (Constant *Init = getInitialValueOfAllocation(&Obj, TLI, &Ty))
+    return Init;
   auto *GV = dyn_cast<GlobalVariable>(&Obj);
   if (!GV)
     return nullptr;
@@ -297,11 +297,11 @@ AA::combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
                                          const Optional<Value *> &B, Type *Ty) {
   if (A == B)
     return A;
-  if (!B.hasValue())
+  if (!B)
     return A;
   if (*B == nullptr)
     return nullptr;
-  if (!A.hasValue())
+  if (!A)
     return Ty ? getWithType(**B, *Ty) : nullptr;
   if (*A == nullptr)
     return nullptr;
@@ -718,7 +718,7 @@ Argument *IRPosition::getAssociatedArgument() const {
   }
 
   // If we found a unique callback candidate argument, return it.
-  if (CBCandidateArg.hasValue() && CBCandidateArg.getValue())
+  if (CBCandidateArg && CBCandidateArg.getValue())
     return CBCandidateArg.getValue();
 
   // If no callbacks were found, or none used the underlying call site operand
@@ -2695,7 +2695,7 @@ void InformationCache::initializeInformationCache(const Function &CF,
     while (!Worklist.empty()) {
       const Instruction *I = Worklist.pop_back_val();
       Optional<short> &NumUses = AssumeUsesMap[I];
-      if (!NumUses.hasValue())
+      if (!NumUses)
         NumUses = I->getNumUses();
       NumUses = NumUses.getValue() - /* this assume */ 1;
       if (NumUses.getValue() != 0)
