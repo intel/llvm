@@ -344,11 +344,7 @@ static bool isFileEmpty(const std::string &FileName) {
 
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
-#if ENABLE_OPAQUE_POINTERS
-  Context.setOpaquePointers(true);
-#else
   Context.setOpaquePointers(false);
-#endif
 
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
