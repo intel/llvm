@@ -62,10 +62,8 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-
-    if (DefaultContext->hasDevice(Device))
+    if (isValidDevice(DefaultContext, Device))
       return DefaultContext;
-
     return detail::getSyclObjImpl(
         context{createSyclObjFromImpl<device>(Device), {}, {}});
   }
@@ -109,11 +107,20 @@ public:
                             "Queue cannot be constructed with both of "
                             "discard_events and enable_profiling.");
     }
-    if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_object_error(
+    if (!isValidDevice(Context, Device)) {
+      if (!Context->is_host() &&
+          Context->getPlugin().getBackend() == backend::opencl)
+        throw sycl::invalid_object_error(
+            "Queue cannot be constructed with the given context and device "
+            "since the device is not a member of the context (descendants of "
+            "devices from the context are not supported on OpenCL yet).",
+            PI_ERROR_INVALID_DEVICE);
+      throw sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
-          "as the context does not contain the given device.",
+          "since the device is neither a member of the context nor a "
+          "descendant of its member.",
           PI_ERROR_INVALID_DEVICE);
+    }
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
@@ -476,6 +483,27 @@ protected:
   }
 
 private:
+  /// Helper function for checking whether a device is either a member of a
+  /// context or a descendnant of its member.
+  /// \return True iff the device or its parent is a member of the context.
+  static bool isValidDevice(const ContextImplPtr &Context,
+                            DeviceImplPtr Device) {
+    // OpenCL does not support creating a queue with a descendant of a device
+    // from the given context yet.
+    // TODO remove once this limitation is lifted
+    if (!Context->is_host() &&
+        Context->getPlugin().getBackend() == backend::opencl)
+      return Context->hasDevice(Device);
+
+    while (!Context->hasDevice(Device)) {
+      if (Device->isRootDevice())
+        return false;
+      Device = detail::getSyclObjImpl(
+          Device->get_info<info::device::parent_device>());
+    }
+    return true;
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
