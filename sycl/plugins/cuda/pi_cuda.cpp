@@ -133,17 +133,21 @@ pi_result check_error(CUresult result, const char *function, int line,
     return PI_SUCCESS;
   }
 
-  const char *errorString = nullptr;
-  const char *errorName = nullptr;
-  cuGetErrorName(result, &errorName);
-  cuGetErrorString(result, &errorString);
-  std::cerr << "\nPI CUDA ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    const char *errorString = nullptr;
+    const char *errorName = nullptr;
+    cuGetErrorName(result, &errorName);
+    cuGetErrorString(result, &errorString);
+    std::stringstream ss;
+    ss << "\nPI CUDA ERROR:"
+       << "\n\tValue:           " << result
+       << "\n\tName:            " << errorName
+       << "\n\tDescription:     " << errorString
+       << "\n\tFunction:        " << function << "\n\tSource Location: " << file
+       << ":" << line << "\n"
+       << std::endl;
+    std::cerr << ss.str();
+  }
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
