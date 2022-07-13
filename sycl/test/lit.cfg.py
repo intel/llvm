@@ -91,6 +91,7 @@ config.substitutions.append( ('%fsycl-host-only', '-std=c++17 -Xclang -fsycl-is-
 llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 
 config.substitutions.append( ('%RUN_ON_HOST', "env SYCL_DEVICE_FILTER=host ") )
+config.substitutions.append(('%sycl_gdb_iostream', config.sycl_test_dir + '/basic_tests/iostream_gdb_commands.gdb'))
 
 # Every SYCL implementation provides a host implementation.
 config.available_features.add('host')
