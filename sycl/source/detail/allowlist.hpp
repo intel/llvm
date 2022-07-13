@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <map>
 #include <vector>

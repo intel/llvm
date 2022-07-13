@@ -5,7 +5,7 @@
 
 // clang-format off
 
-#include <CL/sycl/types.hpp>
+#include <sycl/types.hpp>
 
 SYCL_EXTERNAL void foo(sycl::vec<int, 4>) {}
 

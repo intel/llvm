@@ -8,7 +8,7 @@
 // The test checks SYCL headers C++ compiance and that a warning is emitted
 // when compiling in < C++17 mode.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 // cxx14-warning@* {{DPCPP does not support C++ version earlier than C++17. Some features might not be available.}}
 //

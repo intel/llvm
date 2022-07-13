@@ -9,10 +9,10 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/marray.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/id.hpp>
+#include <sycl/marray.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

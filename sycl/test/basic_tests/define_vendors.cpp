@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -c -o %t.out
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #if !defined(SYCL_IMPLEMENTATION_ONEAPI)
 #error SYCL_IMPLEMENTATION_ONEAPI is not defined

@@ -8,12 +8,12 @@
 #pragma once
 
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/sycl_fe_intrins.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/multi_ptr.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/group.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #include <cstdint>
 #include <type_traits>

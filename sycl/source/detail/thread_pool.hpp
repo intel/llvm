@@ -16,7 +16,7 @@
 #include <thread>
 #include <vector>
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
