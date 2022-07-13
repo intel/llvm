@@ -8,6 +8,9 @@ add_header_library(
   thread_attrib
   HDRS
     thread_attrib.h
+  DEPENDS
+    libc.src.__support.common
+    libc.src.__support.CPP.atomic
 )
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
@@ -25,11 +28,17 @@ if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.mutex)
 endif()
 
 if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.thread)
-  add_header_library(
+  add_object_library(
     thread
     HDRS
       thread.h
+    SRCS
+      ${LIBC_TARGET_OS}/thread.cpp
     DEPENDS
-      .${LIBC_TARGET_OS}.thread
+      .thread_attrib
+    COMPILE_OPTIONS
+      -O3
+      -fno-omit-frame-pointer # This allows us to sniff out the thread args from
+                              # the new thread's stack reliably.
   )
 endif()

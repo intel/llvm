@@ -7034,6 +7034,10 @@ TEST_F(FormatTest, BreakConstructorInitializersAfterColon) {
       "SomeClass::Constructor() :\n"
       "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa), aaaaaaaaaaaaaaa(aaaaaaaaaaaa) {}",
       Style);
+  verifyFormat(
+      "SomeClass::Constructor() : // NOLINT\n"
+      "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa), aaaaaaaaaaaaaaa(aaaaaaaaaaaa) {}",
+      Style);
 
   Style.PackConstructorInitializers = FormatStyle::PCIS_BinPack;
   verifyFormat(
@@ -7101,6 +7105,10 @@ TEST_F(FormatTest, BreakConstructorInitializersAfterColon) {
                "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa),\n"
                "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa) {}",
                OnePerLine);
+  verifyFormat("Foo::Foo(int i, int j) : // NOLINT\n"
+               "    i(i),                // comment\n"
+               "    j(j) {}",
+               OnePerLine);
   verifyFormat("MyClass::MyClass(int var) :\n"
                "    some_var_(var),            // 4 space indent\n"
                "    some_other_var_(var + 1) { // lined up\n"
@@ -7129,13 +7137,21 @@ TEST_F(FormatTest, BreakConstructorInitializersAfterColon) {
                "    bbbbbbbbbbbbbbbbbbbbbbbb(b) {}",
                OnePerLine);
 
-  EXPECT_EQ("Constructor() :\n"
-            "    // Comment forcing unwanted break.\n"
-            "    aaaa(aaaa) {}",
-            format("Constructor() :\n"
-                   "    // Comment forcing unwanted break.\n"
-                   "    aaaa(aaaa) {}",
-                   Style));
+  verifyFormat("Constructor() :\n"
+               "    // Comment forcing unwanted break.\n"
+               "    aaaa(aaaa) {}",
+               Style);
+  verifyFormat("Constructor() : // NOLINT\n"
+               "    aaaa(aaaa) {}",
+               Style);
+  verifyFormat("Constructor() : // A very long trailing comment that cannot fit"
+               " on a single\n"
+               "                // line.\n"
+               "    aaaa(aaaa) {}",
+               "Constructor() : // A very long trailing comment that cannot fit"
+               " on a single line.\n"
+               "    aaaa(aaaa) {}",
+               Style);
 
   Style.ColumnLimit = 0;
   verifyFormat("SomeClass::Constructor() :\n"
@@ -10430,6 +10446,67 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
       "              ::std::is_array<T>{} && ::std::is_array<T>{}>::type>\n"
       "void F();",
       getGoogleStyleWithColumns(68));
+
+  FormatStyle Style = getLLVMStyle();
+  Style.PointerAlignment = FormatStyle::PAS_Left;
+  verifyFormat("struct {\n"
+               "}* ptr;",
+               Style);
+  verifyFormat("union {\n"
+               "}* ptr;",
+               Style);
+  verifyFormat("class {\n"
+               "}* ptr;",
+               Style);
+  verifyFormat("struct {\n"
+               "}&& ptr = {};",
+               Style);
+  verifyFormat("union {\n"
+               "}&& ptr = {};",
+               Style);
+  verifyFormat("class {\n"
+               "}&& ptr = {};",
+               Style);
+
+  Style.PointerAlignment = FormatStyle::PAS_Middle;
+  verifyFormat("struct {\n"
+               "} * ptr;",
+               Style);
+  verifyFormat("union {\n"
+               "} * ptr;",
+               Style);
+  verifyFormat("class {\n"
+               "} * ptr;",
+               Style);
+  verifyFormat("struct {\n"
+               "} && ptr = {};",
+               Style);
+  verifyFormat("union {\n"
+               "} && ptr = {};",
+               Style);
+  verifyFormat("class {\n"
+               "} && ptr = {};",
+               Style);
+
+  Style.PointerAlignment = FormatStyle::PAS_Right;
+  verifyFormat("struct {\n"
+               "} *ptr;",
+               Style);
+  verifyFormat("union {\n"
+               "} *ptr;",
+               Style);
+  verifyFormat("class {\n"
+               "} *ptr;",
+               Style);
+  verifyFormat("struct {\n"
+               "} &&ptr = {};",
+               Style);
+  verifyFormat("union {\n"
+               "} &&ptr = {};",
+               Style);
+  verifyFormat("class {\n"
+               "} &&ptr = {};",
+               Style);
 
   verifyIndependentOfContext("MACRO(int *i);");
   verifyIndependentOfContext("MACRO(auto *a);");
@@ -23846,6 +23923,22 @@ TEST_F(FormatTest, LikelyUnlikely) {
                "  return 29;\n",
                Style);
 
+  verifyFormat("while (limit > 0) [[unlikely]] {\n"
+               "  --limit;\n"
+               "}",
+               Style);
+  verifyFormat("for (auto &limit : limits) [[likely]] {\n"
+               "  --limit;\n"
+               "}",
+               Style);
+
+  verifyFormat("for (auto &limit : limits) [[unlikely]]\n"
+               "  --limit;",
+               Style);
+  verifyFormat("while (limit > 0) [[likely]]\n"
+               "  --limit;",
+               Style);
+
   Style.AttributeMacros.push_back("UNLIKELY");
   Style.AttributeMacros.push_back("LIKELY");
   verifyFormat("if (argc > 5) UNLIKELY\n"
@@ -23873,6 +23966,22 @@ TEST_F(FormatTest, LikelyUnlikely) {
                "} else LIKELY {\n"
                "  return 42;\n"
                "}\n",
+               Style);
+
+  verifyFormat("for (auto &limit : limits) UNLIKELY {\n"
+               "  --limit;\n"
+               "}",
+               Style);
+  verifyFormat("while (limit > 0) LIKELY {\n"
+               "  --limit;\n"
+               "}",
+               Style);
+
+  verifyFormat("while (limit > 0) UNLIKELY\n"
+               "  --limit;",
+               Style);
+  verifyFormat("for (auto &limit : limits) LIKELY\n"
+               "  --limit;",
                Style);
 }
 
@@ -25407,8 +25516,7 @@ TEST_F(FormatTest, RemoveBraces) {
   verifyFormat("do {\n"
                "  ++I;\n"
                "} while (hasMore() && Filter(*I));",
-               "do { ++I; } while (hasMore() && Filter(*I));",
-               Style);
+               "do { ++I; } while (hasMore() && Filter(*I));", Style);
 
   verifyFormat("if (a)\n"
                "  if (b)\n"
@@ -25432,6 +25540,128 @@ TEST_F(FormatTest, RemoveBraces) {
                "  }\n"
                "else\n"
                "  h;",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  b;\n"
+               "} else if (c) {\n"
+               "  d;\n"
+               "  e;\n"
+               "}",
+               "if (a) {\n"
+               "  b;\n"
+               "} else {\n"
+               "  if (c) {\n"
+               "    d;\n"
+               "    e;\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  b;\n"
+               "  c;\n"
+               "} else if (d) {\n"
+               "  e;\n"
+               "  f;\n"
+               "}",
+               "if (a) {\n"
+               "  b;\n"
+               "  c;\n"
+               "} else {\n"
+               "  if (d) {\n"
+               "    e;\n"
+               "    f;\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  b;\n"
+               "} else if (c) {\n"
+               "  d;\n"
+               "} else {\n"
+               "  e;\n"
+               "  f;\n"
+               "}",
+               "if (a) {\n"
+               "  b;\n"
+               "} else {\n"
+               "  if (c) {\n"
+               "    d;\n"
+               "  } else {\n"
+               "    e;\n"
+               "    f;\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  b;\n"
+               "} else if (c) {\n"
+               "  d;\n"
+               "} else if (e) {\n"
+               "  f;\n"
+               "  g;\n"
+               "}",
+               "if (a) {\n"
+               "  b;\n"
+               "} else {\n"
+               "  if (c) {\n"
+               "    d;\n"
+               "  } else if (e) {\n"
+               "    f;\n"
+               "    g;\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  if (b)\n"
+               "    c;\n"
+               "  else if (d) {\n"
+               "    e;\n"
+               "    f;\n"
+               "  }\n"
+               "} else {\n"
+               "  g;\n"
+               "}",
+               "if (a) {\n"
+               "  if (b)\n"
+               "    c;\n"
+               "  else {\n"
+               "    if (d) {\n"
+               "      e;\n"
+               "      f;\n"
+               "    }\n"
+               "  }\n"
+               "} else {\n"
+               "  g;\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a)\n"
+               "  if (b)\n"
+               "    c;\n"
+               "  else {\n"
+               "    if (d) {\n"
+               "      e;\n"
+               "      f;\n"
+               "    }\n"
+               "  }\n"
+               "else\n"
+               "  g;",
+               Style);
+
+  verifyFormat("if (a) {\n"
+               "  b;\n"
+               "  c;\n"
+               "} else { // comment\n"
+               "  if (d) {\n"
+               "    e;\n"
+               "    f;\n"
+               "  }\n"
+               "}",
                Style);
 
   verifyFormat("if (a)\n"
@@ -25628,6 +25858,25 @@ TEST_F(FormatTest, RemoveBraces) {
                "for (int &i :\n"
                "     chars) {\n"
                "  ++i;\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a)\n"
+               "  b;\n"
+               "else if (c) {\n"
+               "  d;\n"
+               "  e;\n"
+               "} else\n"
+               "  f = g(foo, bar,\n"
+               "        baz);",
+               "if (a)\n"
+               "  b;\n"
+               "else {\n"
+               "  if (c) {\n"
+               "    d;\n"
+               "    e;\n"
+               "  } else\n"
+               "    f = g(foo, bar, baz);\n"
                "}",
                Style);
 

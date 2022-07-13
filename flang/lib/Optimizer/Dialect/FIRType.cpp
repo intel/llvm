@@ -12,6 +12,7 @@
 
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
+#include "flang/Optimizer/Support/KindMapping.h"
 #include "flang/Tools/PointerModels.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinDialect.h"
@@ -483,6 +484,13 @@ mlir::Type fir::ComplexType::getElementType() const {
   return fir::RealType::get(getContext(), getFKind());
 }
 
+// Return the MLIR float type of the complex element type.
+mlir::Type fir::ComplexType::getEleType(const fir::KindMapping &kindMap) const {
+  auto fkind = getFKind();
+  auto realTypeID = kindMap.getRealTypeID(fkind);
+  return fir::fromRealTypeID(getContext(), realTypeID, fkind);
+}
+
 //===----------------------------------------------------------------------===//
 // HeapType
 //===----------------------------------------------------------------------===//
@@ -741,14 +749,17 @@ mlir::Type fir::SequenceType::parse(mlir::AsmParser &parser) {
     return {};
   }
   mlir::Type eleTy;
-  if (parser.parseType(eleTy) || parser.parseGreater())
+  if (parser.parseType(eleTy))
     return {};
   mlir::AffineMapAttr map;
-  if (!parser.parseOptionalComma())
+  if (!parser.parseOptionalComma()) {
     if (parser.parseAttribute(map)) {
       parser.emitError(parser.getNameLoc(), "expecting affine map");
       return {};
     }
+  }
+  if (parser.parseGreater())
+    return {};
   return SequenceType::get(parser.getContext(), shape, eleTy, map);
 }
 
@@ -923,6 +934,37 @@ bool fir::isCharacterProcedureTuple(mlir::Type ty, bool acceptRawFunc) {
          (tuple.getType(0).isa<fir::BoxProcType>() ||
           (acceptRawFunc && tuple.getType(0).isa<mlir::FunctionType>())) &&
          fir::isa_integer(tuple.getType(1));
+}
+
+bool fir::hasAbstractResult(mlir::FunctionType ty) {
+  if (ty.getNumResults() == 0)
+    return false;
+  auto resultType = ty.getResult(0);
+  return resultType.isa<fir::SequenceType, fir::BoxType, fir::RecordType>();
+}
+
+/// Convert llvm::Type::TypeID to mlir::Type. \p kind is provided for error
+/// messages only.
+mlir::Type fir::fromRealTypeID(mlir::MLIRContext *context,
+                               llvm::Type::TypeID typeID, fir::KindTy kind) {
+  switch (typeID) {
+  case llvm::Type::TypeID::HalfTyID:
+    return mlir::FloatType::getF16(context);
+  case llvm::Type::TypeID::BFloatTyID:
+    return mlir::FloatType::getBF16(context);
+  case llvm::Type::TypeID::FloatTyID:
+    return mlir::FloatType::getF32(context);
+  case llvm::Type::TypeID::DoubleTyID:
+    return mlir::FloatType::getF64(context);
+  case llvm::Type::TypeID::X86_FP80TyID:
+    return mlir::FloatType::getF80(context);
+  case llvm::Type::TypeID::FP128TyID:
+    return mlir::FloatType::getF128(context);
+  default:
+    mlir::emitError(mlir::UnknownLoc::get(context))
+        << "unsupported type: !fir.real<" << kind << ">";
+    return {};
+  }
 }
 
 //===----------------------------------------------------------------------===//

@@ -13,6 +13,8 @@
 
 #include "src/__support/CPP/Bit.h"
 #include "src/__support/CPP/TypeTraits.h"
+#include "src/__support/FPUtil/builtin_wrappers.h"
+#include "src/__support/common.h"
 
 #include "FloatProperties.h"
 #include <stdint.h>
@@ -68,15 +70,22 @@ template <typename T> struct FPBits {
                     (FloatProp::MANTISSA_WIDTH));
   }
 
-  void set_sign(bool signVal) {
-    bits &= ~(FloatProp::SIGN_MASK);
-    UIntType sign = UIntType(signVal) << (FloatProp::BIT_WIDTH - 1);
-    bits |= sign;
+  // The function return mantissa with the implicit bit set iff the current
+  // value is a valid normal number.
+  constexpr UIntType get_explicit_mantissa() {
+    return ((get_unbiased_exponent() > 0 && !is_inf_or_nan())
+                ? (FloatProp::MANTISSA_MASK + 1)
+                : 0) |
+           (FloatProp::MANTISSA_MASK & bits);
   }
 
-  bool get_sign() const {
-    return ((bits & FloatProp::SIGN_MASK) >> (FloatProp::BIT_WIDTH - 1));
+  void set_sign(bool signVal) {
+    bits |= FloatProp::SIGN_MASK;
+    if (!signVal)
+      bits -= FloatProp::SIGN_MASK;
   }
+
+  bool get_sign() const { return (bits & FloatProp::SIGN_MASK) != 0; }
 
   static_assert(sizeof(T) == sizeof(UIntType),
                 "Data type and integral representation have different sizes.");
@@ -92,7 +101,7 @@ template <typename T> struct FPBits {
   static constexpr UIntType MAX_NORMAL =
       ((UIntType(MAX_EXPONENT) - 1) << MantissaWidth<T>::VALUE) | MAX_SUBNORMAL;
 
-  // We don't want accidental type promotions/conversions so we require exact
+  // We don't want accidental type promotions/conversions, so we require exact
   // type match.
   template <typename XType,
             cpp::EnableIfType<cpp::IsSame<T, XType>::Value, int> = 0>
@@ -118,41 +127,76 @@ template <typename T> struct FPBits {
   }
 
   bool is_zero() const {
-    return get_mantissa() == 0 && get_unbiased_exponent() == 0;
+    // Remove sign bit by shift
+    return (bits << 1) == 0;
   }
 
   bool is_inf() const {
-    return get_mantissa() == 0 && get_unbiased_exponent() == MAX_EXPONENT;
+    return (bits & FloatProp::EXP_MANT_MASK) == FloatProp::EXPONENT_MASK;
   }
 
   bool is_nan() const {
-    return get_unbiased_exponent() == MAX_EXPONENT && get_mantissa() != 0;
+    return (bits & FloatProp::EXP_MANT_MASK) > FloatProp::EXPONENT_MASK;
   }
 
-  bool is_inf_or_nan() const { return get_unbiased_exponent() == MAX_EXPONENT; }
-
-  static FPBits<T> zero() { return FPBits(); }
-
-  static FPBits<T> neg_zero() {
-    return FPBits(UIntType(1) << (sizeof(UIntType) * 8 - 1));
+  bool is_quiet_nan() const {
+    return (bits & FloatProp::EXP_MANT_MASK) ==
+           (FloatProp::EXPONENT_MASK | FloatProp::QUIET_NAN_MASK);
   }
 
-  static FPBits<T> inf() {
+  bool is_inf_or_nan() const {
+    return (bits & FloatProp::EXPONENT_MASK) == FloatProp::EXPONENT_MASK;
+  }
+
+  static constexpr FPBits<T> zero(bool sign = false) {
+    return FPBits(sign ? FloatProp::SIGN_MASK : UIntType(0));
+  }
+
+  static constexpr FPBits<T> neg_zero() { return zero(true); }
+
+  static constexpr FPBits<T> inf() {
     FPBits<T> bits;
     bits.set_unbiased_exponent(MAX_EXPONENT);
     return bits;
   }
 
-  static FPBits<T> neg_inf() {
+  static constexpr FPBits<T> neg_inf() {
     FPBits<T> bits = inf();
     bits.set_sign(1);
     return bits;
   }
 
-  static T build_nan(UIntType v) {
+  static constexpr T build_nan(UIntType v) {
     FPBits<T> bits = inf();
     bits.set_mantissa(v);
     return T(bits);
+  }
+
+  // The function convert integer number and unbiased exponent to proper float
+  // T type:
+  //   Result = number * 2^(ep+1 - exponent_bias)
+  // Be careful!
+  //   1) "ep" is raw exponent value.
+  //   2) The function add to +1 to ep for seamless normalized to denormalized
+  //      transition.
+  //   3) The function did not check exponent high limit.
+  //   4) "number" zero value is not processed correctly.
+  //   5) Number is unsigned, so the result can be only positive.
+  inline static constexpr FPBits<T> make_value(UIntType number, int ep) {
+    FPBits<T> result;
+    // offset: +1 for sign, but -1 for implicit first bit
+    int lz = fputil::unsafe_clz(number) - FloatProp::EXPONENT_WIDTH;
+    number <<= lz;
+    ep -= lz;
+
+    if (likely(ep >= 0)) {
+      // Implicit number bit will be removed by mask
+      result.set_mantissa(number);
+      result.set_unbiased_exponent(ep + 1);
+    } else {
+      result.set_mantissa(number >> -ep);
+    }
+    return result;
   }
 };
 

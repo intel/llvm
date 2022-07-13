@@ -564,6 +564,7 @@ private:
                                         AddStmtChoice asc);
   CFGBlock *VisitCXXThrowExpr(CXXThrowExpr *T);
   CFGBlock *VisitCXXTryStmt(CXXTryStmt *S);
+  CFGBlock *VisitCXXTypeidExpr(CXXTypeidExpr *S, AddStmtChoice asc);
   CFGBlock *VisitDeclStmt(DeclStmt *DS);
   CFGBlock *VisitDeclSubExpr(DeclStmt *DS);
   CFGBlock *VisitDefaultStmt(DefaultStmt *D);
@@ -597,6 +598,8 @@ private:
   CFGBlock *VisitObjCMessageExpr(ObjCMessageExpr *E, AddStmtChoice asc);
   CFGBlock *VisitPseudoObjectExpr(PseudoObjectExpr *E);
   CFGBlock *VisitReturnStmt(Stmt *S);
+  CFGBlock *VisitCoroutineSuspendExpr(CoroutineSuspendExpr *S,
+                                      AddStmtChoice asc);
   CFGBlock *VisitSEHExceptStmt(SEHExceptStmt *S);
   CFGBlock *VisitSEHFinallyStmt(SEHFinallyStmt *S);
   CFGBlock *VisitSEHLeaveStmt(SEHLeaveStmt *S);
@@ -607,6 +610,7 @@ private:
                                           AddStmtChoice asc);
   CFGBlock *VisitUnaryOperator(UnaryOperator *U, AddStmtChoice asc);
   CFGBlock *VisitWhileStmt(WhileStmt *W);
+  CFGBlock *VisitArrayInitLoopExpr(ArrayInitLoopExpr *A, AddStmtChoice asc);
 
   CFGBlock *Visit(Stmt *S, AddStmtChoice asc = AddStmtChoice::NotAlwaysAdd,
                   bool ExternallyDestructed = false);
@@ -2217,6 +2221,9 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc,
     case Stmt::CXXTryStmtClass:
       return VisitCXXTryStmt(cast<CXXTryStmt>(S));
 
+    case Stmt::CXXTypeidExprClass:
+      return VisitCXXTypeidExpr(cast<CXXTypeidExpr>(S), asc);
+
     case Stmt::CXXForRangeStmtClass:
       return VisitCXXForRangeStmt(cast<CXXForRangeStmt>(S));
 
@@ -2297,6 +2304,10 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc,
     case Stmt::CoreturnStmtClass:
       return VisitReturnStmt(S);
 
+    case Stmt::CoyieldExprClass:
+    case Stmt::CoawaitExprClass:
+      return VisitCoroutineSuspendExpr(cast<CoroutineSuspendExpr>(S), asc);
+
     case Stmt::SEHExceptStmtClass:
       return VisitSEHExceptStmt(cast<SEHExceptStmt>(S));
 
@@ -2324,6 +2335,9 @@ CFGBlock *CFGBuilder::Visit(Stmt * S, AddStmtChoice asc,
 
     case Stmt::WhileStmtClass:
       return VisitWhileStmt(cast<WhileStmt>(S));
+
+    case Stmt::ArrayInitLoopExprClass:
+      return VisitArrayInitLoopExpr(cast<ArrayInitLoopExpr>(S), asc);
   }
 }
 
@@ -3152,6 +3166,27 @@ CFGBlock *CFGBuilder::VisitReturnStmt(Stmt *S) {
   return B;
 }
 
+CFGBlock *CFGBuilder::VisitCoroutineSuspendExpr(CoroutineSuspendExpr *E,
+                                                AddStmtChoice asc) {
+  // We're modelling the pre-coro-xform CFG. Thus just evalate the various
+  // active components of the co_await or co_yield. Note we do not model the
+  // edge from the builtin_suspend to the exit node.
+  if (asc.alwaysAdd(*this, E)) {
+    autoCreateBlock();
+    appendStmt(Block, E);
+  }
+  CFGBlock *B = Block;
+  if (auto *R = Visit(E->getResumeExpr()))
+    B = R;
+  if (auto *R = Visit(E->getSuspendExpr()))
+    B = R;
+  if (auto *R = Visit(E->getReadyExpr()))
+    B = R;
+  if (auto *R = Visit(E->getCommonExpr()))
+    B = R;
+  return B;
+}
+
 CFGBlock *CFGBuilder::VisitSEHExceptStmt(SEHExceptStmt *ES) {
   // SEHExceptStmt are treated like labels, so they are the first statement in a
   // block.
@@ -3854,6 +3889,27 @@ CFGBlock *CFGBuilder::VisitWhileStmt(WhileStmt *W) {
   return EntryConditionBlock;
 }
 
+CFGBlock *CFGBuilder::VisitArrayInitLoopExpr(ArrayInitLoopExpr *A,
+                                             AddStmtChoice asc) {
+  if (asc.alwaysAdd(*this, A)) {
+    autoCreateBlock();
+    appendStmt(Block, A);
+  }
+
+  CFGBlock *B = Block;
+
+  if (CFGBlock *R = Visit(A->getSubExpr()))
+    B = R;
+
+  auto *OVE = dyn_cast<OpaqueValueExpr>(A->getCommonExpr());
+  assert(OVE && "ArrayInitLoopExpr->getCommonExpr() should be wrapped in an "
+                "OpaqueValueExpr!");
+  if (CFGBlock *R = Visit(OVE->getSourceExpr()))
+    B = R;
+
+  return B;
+}
+
 CFGBlock *CFGBuilder::VisitObjCAtCatchStmt(ObjCAtCatchStmt *CS) {
   // ObjCAtCatchStmt are treated like labels, so they are the first statement
   // in a block.
@@ -3991,6 +4047,25 @@ CFGBlock *CFGBuilder::VisitCXXThrowExpr(CXXThrowExpr *T) {
   // Add the statement to the block.  This may create new blocks if S contains
   // control-flow (short-circuit operations).
   return VisitStmt(T, AddStmtChoice::AlwaysAdd);
+}
+
+CFGBlock *CFGBuilder::VisitCXXTypeidExpr(CXXTypeidExpr *S, AddStmtChoice asc) {
+  if (asc.alwaysAdd(*this, S)) {
+    autoCreateBlock();
+    appendStmt(Block, S);
+  }
+
+  // C++ [expr.typeid]p3:
+  //   When typeid is applied to an expression other than an glvalue of a
+  //   polymorphic class type [...] [the] expression is an unevaluated
+  //   operand. [...]
+  // We add only potentially evaluated statements to the block to avoid
+  // CFG generation for unevaluated operands.
+  if (S && !S->isTypeDependent() && S->isPotentiallyEvaluated())
+    return VisitChildren(S);
+
+  // Return block without CFG for unevaluated operands.
+  return Block;
 }
 
 CFGBlock *CFGBuilder::VisitDoStmt(DoStmt *D) {

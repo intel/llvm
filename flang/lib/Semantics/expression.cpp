@@ -249,20 +249,6 @@ MaybeExpr ExpressionAnalyzer::CompleteSubscripts(ArrayRef &&ref) {
           symbolRank, symbol.name(), subscripts);
     }
     return std::nullopt;
-  } else if (Component * component{ref.base().UnwrapComponent()}) {
-    int baseRank{component->base().Rank()};
-    if (baseRank > 0) {
-      int subscriptRank{0};
-      for (const auto &expr : ref.subscript()) {
-        subscriptRank += expr.Rank();
-      }
-      if (subscriptRank > 0) { // C919a
-        Say("Subscripts of component '%s' of rank-%d derived type "
-            "array have rank %d but must all be scalar"_err_en_US,
-            symbol.name(), baseRank, subscriptRank);
-        return std::nullopt;
-      }
-    }
   } else if (const auto *object{
                  symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     // C928 & C1002
@@ -306,21 +292,47 @@ MaybeExpr ExpressionAnalyzer::ApplySubscripts(
       std::move(dataRef.u));
 }
 
-// Top-level checks for data references.
-MaybeExpr ExpressionAnalyzer::TopLevelChecks(DataRef &&dataRef) {
-  if (Component * component{std::get_if<Component>(&dataRef.u)}) {
-    const Symbol &symbol{component->GetLastSymbol()};
-    int componentRank{symbol.Rank()};
-    if (componentRank > 0) {
-      int baseRank{component->base().Rank()};
-      if (baseRank > 0) { // C919a
-        Say("Reference to whole rank-%d component '%%%s' of "
-            "rank-%d array of derived type is not allowed"_err_en_US,
-            componentRank, symbol.name(), baseRank);
-      }
-    }
-  }
-  return Designate(std::move(dataRef));
+// C919a - only one part-ref of a data-ref may have rank > 0
+bool ExpressionAnalyzer::CheckRanks(const DataRef &dataRef) {
+  return common::visit(
+      common::visitors{
+          [this](const Component &component) {
+            const Symbol &symbol{component.GetLastSymbol()};
+            if (int componentRank{symbol.Rank()}; componentRank > 0) {
+              if (int baseRank{component.base().Rank()}; baseRank > 0) {
+                Say("Reference to whole rank-%d component '%s' of rank-%d array of derived type is not allowed"_err_en_US,
+                    componentRank, symbol.name(), baseRank);
+                return false;
+              }
+            } else {
+              return CheckRanks(component.base());
+            }
+            return true;
+          },
+          [this](const ArrayRef &arrayRef) {
+            if (const auto *component{arrayRef.base().UnwrapComponent()}) {
+              int subscriptRank{0};
+              for (const Subscript &subscript : arrayRef.subscript()) {
+                subscriptRank += subscript.Rank();
+              }
+              if (subscriptRank > 0) {
+                if (int componentBaseRank{component->base().Rank()};
+                    componentBaseRank > 0) {
+                  Say("Subscripts of component '%s' of rank-%d derived type array have rank %d but must all be scalar"_err_en_US,
+                      component->GetLastSymbol().name(), componentBaseRank,
+                      subscriptRank);
+                  return false;
+                }
+              } else {
+                return CheckRanks(component->base());
+              }
+            }
+            return true;
+          },
+          [](const SymbolRef &) { return true; },
+          [](const CoarrayRef &) { return true; },
+      },
+      dataRef.u);
 }
 
 // Parse tree correction after a substring S(j:k) was misparsed as an
@@ -369,11 +381,22 @@ MaybeExpr ExpressionAnalyzer::Analyze(const parser::Designator &d) {
   FixMisparsedSubstring(d);
   // These checks have to be deferred to these "top level" data-refs where
   // we can be sure that there are no following subscripts (yet).
-  // Substrings have already been run through TopLevelChecks() and
-  // won't be returned by ExtractDataRef().
   if (MaybeExpr result{Analyze(d.u)}) {
     if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(result))}) {
-      return TopLevelChecks(std::move(*dataRef));
+      if (!CheckRanks(std::move(*dataRef))) {
+        return std::nullopt;
+      }
+      return Designate(std::move(*dataRef));
+    } else if (std::optional<DataRef> dataRef{
+                   ExtractDataRef(std::move(result), /*intoSubstring=*/true)}) {
+      if (!CheckRanks(std::move(*dataRef))) {
+        return std::nullopt;
+      }
+    } else if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(result),
+                   /*intoSubstring=*/false, /*intoComplexPart=*/true)}) {
+      if (!CheckRanks(std::move(*dataRef))) {
+        return std::nullopt;
+      }
     }
     return result;
   }
@@ -504,11 +527,12 @@ template <typename TYPE>
 Constant<TYPE> ReadRealLiteral(
     parser::CharBlock source, FoldingContext &context) {
   const char *p{source.begin()};
-  auto valWithFlags{Scalar<TYPE>::Read(p, context.rounding())};
+  auto valWithFlags{
+      Scalar<TYPE>::Read(p, context.targetCharacteristics().roundingMode())};
   CHECK(p == source.end());
   RealFlagWarnings(context, valWithFlags.flags, "conversion of REAL literal");
   auto value{valWithFlags.value};
-  if (context.flushSubnormalsToZero()) {
+  if (context.targetCharacteristics().areSubnormalsFlushedToZero()) {
     value = value.FlushSubnormalToZero();
   }
   return {value};
@@ -826,7 +850,7 @@ std::optional<Expr<SubscriptInteger>> ExpressionAnalyzer::GetSubstringBound(
 MaybeExpr ExpressionAnalyzer::Analyze(const parser::Substring &ss) {
   if (MaybeExpr baseExpr{Analyze(std::get<parser::DataRef>(ss.t))}) {
     if (std::optional<DataRef> dataRef{ExtractDataRef(std::move(*baseExpr))}) {
-      if (MaybeExpr newBaseExpr{TopLevelChecks(std::move(*dataRef))}) {
+      if (MaybeExpr newBaseExpr{Designate(std::move(*dataRef))}) {
         if (std::optional<DataRef> checked{
                 ExtractDataRef(std::move(*newBaseExpr))}) {
           const parser::SubstringRange &range{
@@ -881,7 +905,8 @@ MaybeExpr ExpressionAnalyzer::Analyze(
             StaticDataObject::Pointer staticData{StaticDataObject::Create()};
             staticData->set_alignment(Result::kind)
                 .set_itemBytes(Result::kind)
-                .Push(cp->GetScalarValue().value());
+                .Push(cp->GetScalarValue().value(),
+                    foldingContext_.targetCharacteristics().isBigEndian());
             Substring substring{std::move(staticData), std::move(lower.value()),
                 std::move(upper.value())};
             return AsGenericExpr(
@@ -1954,13 +1979,16 @@ auto ExpressionAnalyzer::AnalyzeProcedureComponentRef(
             return std::nullopt;
           }
         }
+        std::optional<DataRef> dataRef{ExtractDataRef(std::move(*dtExpr))};
+        if (dataRef.has_value() && !CheckRanks(std::move(*dataRef))) {
+          return std::nullopt;
+        }
         if (const Symbol *
             resolution{GetBindingResolution(dtExpr->GetType(), *sym)}) {
           AddPassArg(arguments, std::move(*dtExpr), *sym, false);
           return CalleeAndArguments{
               ProcedureDesignator{*resolution}, std::move(arguments)};
-        } else if (std::optional<DataRef> dataRef{
-                       ExtractDataRef(std::move(*dtExpr))}) {
+        } else if (dataRef.has_value()) {
           if (sym->attrs().test(semantics::Attr::NOPASS)) {
             return CalleeAndArguments{
                 ProcedureDesignator{Component{std::move(*dataRef), *sym}},
@@ -2184,6 +2212,7 @@ const Symbol &ExpressionAnalyzer::AccessSpecific(
     // Create a renaming USE of the specific procedure.
     auto rename{context_.SaveTempName(
         used->symbol().owner().GetName().value().ToString() + "$" +
+        specific.owner().GetName().value().ToString() + "$" +
         specific.name().ToString())};
     return *const_cast<semantics::Scope &>(scope)
                 .try_emplace(rename, specific.attrs(),
@@ -3131,7 +3160,13 @@ DynamicType ExpressionAnalyzer::GetDefaultKindOfType(
 
 bool ExpressionAnalyzer::CheckIntrinsicKind(
     TypeCategory category, std::int64_t kind) {
-  if (IsValidKindOfIntrinsicType(category, kind)) { // C712, C714, C715, C727
+  if (foldingContext_.targetCharacteristics().IsTypeEnabled(
+          category, kind)) { // C712, C714, C715, C727
+    return true;
+  } else if (foldingContext_.targetCharacteristics().CanSupportType(
+                 category, kind)) {
+    Say("%s(KIND=%jd) is not an enabled type for this targe"_warn_en_US,
+        ToUpperCase(EnumToString(category)), kind);
     return true;
   } else {
     Say("%s(KIND=%jd) is not a supported type"_err_en_US,
@@ -3142,17 +3177,29 @@ bool ExpressionAnalyzer::CheckIntrinsicKind(
 
 bool ExpressionAnalyzer::CheckIntrinsicSize(
     TypeCategory category, std::int64_t size) {
+  std::int64_t kind{size};
   if (category == TypeCategory::Complex) {
     // COMPLEX*16 == COMPLEX(KIND=8)
-    if (size % 2 == 0 && IsValidKindOfIntrinsicType(category, size / 2)) {
-      return true;
+    if (size % 2 == 0) {
+      kind = size / 2;
+    } else {
+      Say("COMPLEX*%jd is not a supported type"_err_en_US, size);
+      return false;
     }
-  } else if (IsValidKindOfIntrinsicType(category, size)) {
-    return true;
   }
-  Say("%s*%jd is not a supported type"_err_en_US,
-      ToUpperCase(EnumToString(category)), size);
-  return false;
+  if (foldingContext_.targetCharacteristics().IsTypeEnabled(
+          category, kind)) { // C712, C714, C715, C727
+    return true;
+  } else if (foldingContext_.targetCharacteristics().CanSupportType(
+                 category, kind)) {
+    Say("%s*%jd is not an enabled type for this target"_warn_en_US,
+        ToUpperCase(EnumToString(category)), size);
+    return true;
+  } else {
+    Say("%s*%jd is not a supported type"_err_en_US,
+        ToUpperCase(EnumToString(category)), size);
+    return false;
+  }
 }
 
 bool ExpressionAnalyzer::AddImpliedDo(parser::CharBlock name, int kind) {

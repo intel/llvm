@@ -25,7 +25,7 @@ inline sub_group this_sub_group() {
   return sub_group();
 #else
   throw runtime_error("Sub-groups are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 } // namespace experimental

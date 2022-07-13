@@ -246,6 +246,7 @@ public:
       MachineInstrBundleIterator<const MachineInstr, true>;
 
   unsigned size() const { return (unsigned)Insts.size(); }
+  bool sizeWithoutDebugLargerThan(unsigned Limit) const;
   bool empty() const { return Insts.empty(); }
 
   MachineInstr       &instr_front()       { return Insts.front(); }
@@ -405,7 +406,7 @@ public:
   // Iteration support for live in sets.  These sets are kept in sorted
   // order by their register number.
   using livein_iterator = LiveInVector::const_iterator;
-#ifndef NDEBUG
+
   /// Unlike livein_begin, this method does not check that the liveness
   /// information is accurate. Still for debug purposes it may be useful
   /// to have iterators that won't assert if the liveness information
@@ -414,7 +415,7 @@ public:
   iterator_range<livein_iterator> liveins_dbg() const {
     return make_range(livein_begin_dbg(), livein_end());
   }
-#endif
+
   livein_iterator livein_begin() const;
   livein_iterator livein_end()   const { return LiveIns.end(); }
   bool            livein_empty() const { return LiveIns.empty(); }
@@ -735,6 +736,15 @@ public:
   /// all, for example if this block ends with an unconditional branch to some
   /// other block.
   bool isLayoutSuccessor(const MachineBasicBlock *MBB) const;
+
+  /// Return the successor of this block if it has a single successor.
+  /// Otherwise return a null pointer.
+  ///
+  const MachineBasicBlock *getSingleSuccessor() const;
+  MachineBasicBlock *getSingleSuccessor() {
+    return const_cast<MachineBasicBlock *>(
+        static_cast<const MachineBasicBlock *>(this)->getSingleSuccessor());
+  }
 
   /// Return the fallthrough block if the block can implicitly
   /// transfer control to the block after it by falling off the end of

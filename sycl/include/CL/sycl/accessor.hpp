@@ -12,6 +12,7 @@
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/detail/accessor_impl.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/generic_type_traits.hpp>
@@ -447,7 +448,7 @@ private:
   void checkDeviceFeatureSupported(const device &Device) {
     if (!Device.get_info<param>())
       throw feature_not_supported("Images are not supported by this device.",
-                                  PI_INVALID_OPERATION);
+                                  PI_ERROR_INVALID_OPERATION);
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -469,7 +470,7 @@ private:
   sycl::vec<int, Dimensions> getRangeInternal() const {
     // TODO: Implement for host.
     throw runtime_error("image::getRangeInternal() is not implemented for host",
-                        PI_INVALID_OPERATION);
+                        PI_ERROR_INVALID_OPERATION);
     return sycl::vec<int, Dimensions>{1};
   }
 
@@ -1461,7 +1462,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1502,7 +1503,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     if (!IsPlaceH)
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1574,7 +1575,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1614,7 +1615,7 @@ public:
       throw sycl::invalid_object_error(
           "accessor with requested offset and range would exceed the bounds of "
           "the buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1816,14 +1817,14 @@ private:
       throw sycl::invalid_object_error(
           "SYCL buffer size is zero. To create a device accessor, SYCL "
           "buffer size must be greater than zero.",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
       throw sycl::invalid_object_error(
           "accessor would cannot be both read_only and no_init",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
     }
   }
 

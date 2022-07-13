@@ -849,7 +849,7 @@ bool NativeProcessLinux::MonitorClone(NativeThreadLinux &parent,
     auto tgid_ret = getPIDForTID(child_pid);
     if (tgid_ret != child_pid) {
       // A new thread should have PGID matching our process' PID.
-      assert(!tgid_ret || tgid_ret.getValue() == GetID());
+      assert(!tgid_ret || *tgid_ret == GetID());
 
       NativeThreadLinux &child_thread = AddThread(child_pid, /*resume*/ true);
       ThreadWasCreated(child_thread);
@@ -898,6 +898,8 @@ Status NativeProcessLinux::Resume(const ResumeActionList &resume_actions) {
   Log *log = GetLog(POSIXLog::Process);
   LLDB_LOG(log, "pid {0}", GetID());
 
+  NotifyTracersProcessWillResume();
+
   bool software_single_step = !SupportHardwareSingleStepping();
 
   if (software_single_step) {
@@ -945,7 +947,7 @@ Status NativeProcessLinux::Resume(const ResumeActionList &resume_actions) {
 
     case eStateSuspended:
     case eStateStopped:
-      llvm_unreachable("Unexpected state");
+      break;
 
     default:
       return Status("NativeProcessLinux::%s (): unexpected state %s specified "
@@ -1225,7 +1227,8 @@ llvm::Expected<uint64_t>
 NativeProcessLinux::Syscall(llvm::ArrayRef<uint64_t> args) {
   PopulateMemoryRegionCache();
   auto region_it = llvm::find_if(m_mem_region_cache, [](const auto &pair) {
-    return pair.first.GetExecutable() == MemoryRegionInfo::eYes;
+    return pair.first.GetExecutable() == MemoryRegionInfo::eYes &&
+        pair.first.GetShared() != MemoryRegionInfo::eYes;
   });
   if (region_it == m_mem_region_cache.end())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -1665,9 +1668,12 @@ void NativeProcessLinux::StopTrackingThread(NativeThreadLinux &thread) {
   SignalIfAllThreadsStopped();
 }
 
-void NativeProcessLinux::NotifyTracersProcessStateChanged(
-    lldb::StateType state) {
-  m_intel_pt_collector.OnProcessStateChanged(state);
+void NativeProcessLinux::NotifyTracersProcessDidStop() {
+  m_intel_pt_collector.ProcessDidStop();
+}
+
+void NativeProcessLinux::NotifyTracersProcessWillResume() {
+  m_intel_pt_collector.ProcessWillResume();
 }
 
 Status NativeProcessLinux::NotifyTracersOfNewThread(lldb::tid_t tid) {

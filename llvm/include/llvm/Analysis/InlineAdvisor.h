@@ -9,6 +9,7 @@
 #ifndef LLVM_ANALYSIS_INLINEADVISOR_H
 #define LLVM_ANALYSIS_INLINEADVISOR_H
 
+#include "llvm/Analysis/CGSCCPassManager.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Config/llvm-config.h"
@@ -144,7 +145,7 @@ public:
   DefaultInlineAdvice(InlineAdvisor *Advisor, CallBase &CB,
                       Optional<InlineCost> OIC, OptimizationRemarkEmitter &ORE,
                       bool EmitRemarks = true)
-      : InlineAdvice(Advisor, CB, ORE, OIC.hasValue()), OriginalCB(&CB),
+      : InlineAdvice(Advisor, CB, ORE, OIC.has_value()), OriginalCB(&CB),
         OIC(OIC), EmitRemarks(EmitRemarks) {}
 
 private:
@@ -180,7 +181,7 @@ public:
   /// This must be called when the Inliner pass is entered, to allow the
   /// InlineAdvisor update internal state, as result of function passes run
   /// between Inliner pass runs (for the same module).
-  virtual void onPassEntry() {}
+  virtual void onPassEntry(LazyCallGraph::SCC *SCC = nullptr) {}
 
   /// This must be called when the Inliner pass is exited, as function passes
   /// may be run subsequently. This allows an implementation of InlineAdvisor
@@ -193,7 +194,9 @@ public:
   }
 
   /// NOTE pass name is annotated only when inline advisor constructor provides InlineContext.
-  const char *getAnnotatedInlinePassName();
+  const char *getAnnotatedInlinePassName() const {
+    return AnnotatedInlinePassName.c_str();
+  }
 
 protected:
   InlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
@@ -205,6 +208,7 @@ protected:
   Module &M;
   FunctionAnalysisManager &FAM;
   const Optional<InlineContext> IC;
+  const std::string AnnotatedInlinePassName;
   std::unique_ptr<ImportedFunctionsInliningStatistics> ImportedFunctionsStats;
 
   enum class MandatoryInliningKind { NotMandatory, Always, Never };
@@ -225,8 +229,8 @@ private:
 class DefaultInlineAdvisor : public InlineAdvisor {
 public:
   DefaultInlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
-                       InlineParams Params)
-      : InlineAdvisor(M, FAM), Params(Params) {}
+                       InlineParams Params, InlineContext IC)
+      : InlineAdvisor(M, FAM, IC), Params(Params) {}
 
 private:
   std::unique_ptr<InlineAdvice> getAdviceImpl(CallBase &CB) override;
@@ -250,7 +254,8 @@ public:
       return !PAC.preservedWhenStateless();
     }
     bool tryCreate(InlineParams Params, InliningAdvisorMode Mode,
-                   const ReplayInlinerSettings &ReplaySettings);
+                   const ReplayInlinerSettings &ReplaySettings,
+                   InlineContext IC);
     InlineAdvisor *getAdvisor() const { return Advisor.get(); }
 
   private:
@@ -271,6 +276,9 @@ public:
   explicit InlineAdvisorAnalysisPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
+
+  PreservedAnalyses run(LazyCallGraph::SCC &InitialC, CGSCCAnalysisManager &AM,
+                        LazyCallGraph &CG, CGSCCUpdateResult &UR);
 };
 
 std::unique_ptr<InlineAdvisor>

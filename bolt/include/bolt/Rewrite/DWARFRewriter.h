@@ -38,7 +38,11 @@ private:
 
   /// Stores and serializes information that will be put into the
   /// .debug_ranges DWARF section.
-  std::unique_ptr<DebugRangesSectionWriter> RangesSectionWriter;
+  std::unique_ptr<DebugRangesSectionWriter> LegacyRangesSectionWriter;
+
+  /// Stores and serializes information that will be put into the
+  /// .debug_rnglists DWARF section.
+  std::unique_ptr<DebugRangeListsSectionWriter> RangeListsSectionWriter;
 
   /// Stores and serializes information that will be put into the
   /// .debug_aranges DWARF section.
@@ -112,7 +116,7 @@ private:
                                       Optional<uint64_t> RangesBase = None);
 
   std::unique_ptr<DebugBufferVector>
-  makeFinalLocListsSection(SimpleBinaryPatcher &DebugInfoPatcher,
+  makeFinalLocListsSection(DebugInfoBinaryPatcher &DebugInfoPatcher,
                            DWARFVersion Version);
 
   /// Finalize debug sections in the main binary.

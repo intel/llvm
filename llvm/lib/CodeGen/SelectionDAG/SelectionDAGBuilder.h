@@ -528,8 +528,8 @@ private:
   void visitInsertElement(const User &I);
   void visitShuffleVector(const User &I);
 
-  void visitExtractValue(const User &I);
-  void visitInsertValue(const User &I);
+  void visitExtractValue(const ExtractValueInst &I);
+  void visitInsertValue(const InsertValueInst &I);
   void visitLandingPad(const LandingPadInst &LP);
 
   void visitGetElementPtr(const User &I);
@@ -689,9 +689,7 @@ struct RegsForValue {
                const DataLayout &DL, unsigned Reg, Type *Ty,
                Optional<CallingConv::ID> CC);
 
-  bool isABIMangled() const {
-    return CallConv.hasValue();
-  }
+  bool isABIMangled() const { return CallConv.has_value(); }
 
   /// Add the specified values to this one.
   void append(const RegsForValue &RHS) {

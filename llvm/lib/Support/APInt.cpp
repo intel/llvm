@@ -1007,24 +1007,6 @@ APInt APInt::sextOrTrunc(unsigned width) const {
   return *this;
 }
 
-APInt APInt::truncOrSelf(unsigned width) const {
-  if (BitWidth > width)
-    return trunc(width);
-  return *this;
-}
-
-APInt APInt::zextOrSelf(unsigned width) const {
-  if (BitWidth < width)
-    return zext(width);
-  return *this;
-}
-
-APInt APInt::sextOrSelf(unsigned width) const {
-  if (BitWidth < width)
-    return sext(width);
-  return *this;
-}
-
 /// Arithmetic right-shift this APInt by shiftAmt.
 /// Arithmetic right-shift function.
 void APInt::ashrInPlace(const APInt &shiftAmt) {
@@ -2986,7 +2968,8 @@ llvm::APIntOps::GetMostSignificantDifferentBit(const APInt &A, const APInt &B) {
   return A.getBitWidth() - ((A ^ B).countLeadingZeros() + 1);
 }
 
-APInt llvm::APIntOps::ScaleBitMask(const APInt &A, unsigned NewBitWidth) {
+APInt llvm::APIntOps::ScaleBitMask(const APInt &A, unsigned NewBitWidth,
+                                   bool MatchAllBits) {
   unsigned OldBitWidth = A.getBitWidth();
   assert((((OldBitWidth % NewBitWidth) == 0) ||
           ((NewBitWidth % OldBitWidth) == 0)) &&
@@ -3010,11 +2993,16 @@ APInt llvm::APIntOps::ScaleBitMask(const APInt &A, unsigned NewBitWidth) {
       if (A[i])
         NewA.setBits(i * Scale, (i + 1) * Scale);
   } else {
-    // Merge bits - if any old bit is set, then set scale equivalent new bit.
     unsigned Scale = OldBitWidth / NewBitWidth;
-    for (unsigned i = 0; i != NewBitWidth; ++i)
-      if (!A.extractBits(Scale, i * Scale).isZero())
-        NewA.setBit(i);
+    for (unsigned i = 0; i != NewBitWidth; ++i) {
+      if (MatchAllBits) {
+        if (A.extractBits(Scale, i * Scale).isAllOnes())
+          NewA.setBit(i);
+      } else {
+        if (!A.extractBits(Scale, i * Scale).isZero())
+          NewA.setBit(i);
+      }
+    }
   }
 
   return NewA;

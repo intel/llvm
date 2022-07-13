@@ -60,7 +60,7 @@ public:
 #ifndef __SYCL_DEVICE_ONLY__
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<Backend, DataT, Dims>(
         detail::getSyclObjImpl(*AccBase).get());
@@ -91,7 +91,7 @@ public:
     // are ready to be used.
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     return reinterpret_cast<backend_return_t<Backend, queue>>(getNativeQueue());
 #else
     // we believe this won't be ever called on device side
@@ -112,7 +112,7 @@ public:
     // are ready to be used.
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     // C-style cast required to allow various native types
     return (backend_return_t<Backend, device>)getNativeDevice();
 #else
@@ -134,7 +134,7 @@ public:
     // are ready to be used.
     if (Backend != get_backend())
       throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_INVALID_MEM_OBJECT);
+                                 PI_ERROR_INVALID_MEM_OBJECT);
     return reinterpret_cast<backend_return_t<Backend, context>>(
         getNativeContext());
 #else

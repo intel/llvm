@@ -207,6 +207,23 @@ func.func @test_vectorize_scalar_input(%A : memref<8x16xf32>, %arg0 : f32) {
 
 // -----
 
+// CHECK-LABEL: func @test_do_not_vectorize_unsupported_element_types
+func.func @test_do_not_vectorize_unsupported_element_types(%A : memref<8x16xcomplex<f32>>, %arg0 : complex<f32>) {
+  // CHECK-NOT: vector.broadcast
+  // CHECK-NOT: vector.transfer_write
+  linalg.generic {
+    indexing_maps = [affine_map<(m, n) -> ()>, affine_map<(m, n) -> (m, n)>],
+    iterator_types = ["parallel", "parallel"]}
+   ins(%arg0 : complex<f32>)
+  outs(%A: memref<8x16xcomplex<f32>>) {
+    ^bb(%0: complex<f32>, %1: complex<f32>) :
+      linalg.yield %0 : complex<f32>
+  }
+  return
+}
+
+// -----
+
 // CHECK-LABEL: func @test_vectorize_fill
 func.func @test_vectorize_fill(%A : memref<8x16xf32>, %arg0 : f32) {
   //       CHECK: %[[V:.*]] = vector.broadcast {{.*}} : f32 to vector<8x16xf32>
@@ -1076,4 +1093,28 @@ func.func @reduce_1d(%arg0: tensor<32xf32>) -> tensor<f32> {
     } -> tensor<f32>
 
   return %2 : tensor<f32>
+}
+
+
+// -----
+
+// This test checks that vectorization does not occur when an input indexing map
+// is not a projected permutation. In the future, this can be converted to a 
+// positive test when support is added.
+
+// CHECK-LABEL:   func @not_projected_permutation
+func.func @not_projected_permutation(%arg0: tensor<8x8xf32>) -> tensor<6x6x3x3xf32> {
+  %c0 = arith.constant 0.0 : f32
+  %init = linalg.init_tensor [6, 6, 3, 3] : tensor<6x6x3x3xf32>
+  %fill = linalg.fill ins(%c0 : f32) outs(%init : tensor<6x6x3x3xf32>) -> tensor<6x6x3x3xf32>
+  // CHECK: linalg.generic
+  %result = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0 + d2, d1 + d3)>,
+                                             affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+   iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
+   ins(%arg0 : tensor<8x8xf32>)
+   outs(%fill : tensor<6x6x3x3xf32>) {
+    ^bb0(%arg7: f32, %arg9: f32):
+      linalg.yield %arg7 : f32
+    } -> tensor<6x6x3x3xf32>
+  return %result : tensor<6x6x3x3xf32>
 }

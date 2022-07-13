@@ -580,6 +580,11 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(prefix);
   KEYWORD(prologue);
 
+  KEYWORD(no_sanitize_address);
+  KEYWORD(no_sanitize_hwaddress);
+  KEYWORD(no_sanitize_memtag);
+  KEYWORD(sanitize_address_dyninit);
+
   KEYWORD(ccc);
   KEYWORD(fastcc);
   KEYWORD(coldcc);
@@ -656,7 +661,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(oge); KEYWORD(ord); KEYWORD(uno); KEYWORD(ueq); KEYWORD(une);
 
   KEYWORD(xchg); KEYWORD(nand); KEYWORD(max); KEYWORD(min); KEYWORD(umax);
-  KEYWORD(umin);
+  KEYWORD(umin); KEYWORD(fmax); KEYWORD(fmin);
 
   KEYWORD(vscale);
   KEYWORD(x);

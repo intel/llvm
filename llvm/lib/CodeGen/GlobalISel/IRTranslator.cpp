@@ -1817,7 +1817,7 @@ static unsigned getConstrainedOpcode(Intrinsic::ID ID) {
 
 bool IRTranslator::translateConstrainedFPIntrinsic(
   const ConstrainedFPIntrinsic &FPI, MachineIRBuilder &MIRBuilder) {
-  fp::ExceptionBehavior EB = FPI.getExceptionBehavior().getValue();
+  fp::ExceptionBehavior EB = *FPI.getExceptionBehavior();
 
   unsigned Opcode = getConstrainedOpcode(FPI.getIntrinsicID());
   if (!Opcode)
@@ -2264,7 +2264,7 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
         .buildInstr(TargetOpcode::G_INTRINSIC_FPTRUNC_ROUND,
                     {getOrCreateVReg(CI)},
                     {getOrCreateVReg(*CI.getArgOperand(0))}, Flags)
-        .addImm((int)RoundMode.getValue());
+        .addImm((int)*RoundMode);
 
     return true;
   }
@@ -2425,7 +2425,7 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
   TargetLowering::IntrinsicInfo Info;
   // TODO: Add a GlobalISel version of getTgtMemIntrinsic.
   if (TLI.getTgtMemIntrinsic(Info, CI, *MF, ID)) {
-    Align Alignment = Info.align.getValueOr(
+    Align Alignment = Info.align.value_or(
         DL->getABITypeAlign(Info.memVT.getTypeForEVT(F->getContext())));
     LLT MemTy = Info.memVT.isSimple()
                     ? getLLTForMVT(Info.memVT.getSimpleVT())
@@ -2883,6 +2883,12 @@ bool IRTranslator::translateAtomicRMW(const User &U,
   case AtomicRMWInst::FSub:
     Opcode = TargetOpcode::G_ATOMICRMW_FSUB;
     break;
+  case AtomicRMWInst::FMax:
+    Opcode = TargetOpcode::G_ATOMICRMW_FMAX;
+    break;
+  case AtomicRMWInst::FMin:
+    Opcode = TargetOpcode::G_ATOMICRMW_FMIN;
+    break;
   }
 
   MIRBuilder.buildAtomicRMW(
@@ -2948,15 +2954,6 @@ void IRTranslator::finishPendingPhis() {
       }
     }
   }
-}
-
-bool IRTranslator::valueIsSplit(const Value &V,
-                                SmallVectorImpl<uint64_t> *Offsets) {
-  SmallVector<LLT, 4> SplitTys;
-  if (Offsets && !Offsets->empty())
-    Offsets->clear();
-  computeValueLLTs(*DL, *V.getType(), SplitTys, Offsets);
-  return SplitTys.size() > 1;
 }
 
 bool IRTranslator::translate(const Instruction &Inst) {
@@ -3270,14 +3267,13 @@ bool IRTranslator::emitSPDescriptorFailure(StackProtectorDescriptor &SPD,
     return false;
   }
 
-  // On PS4, the "return address" must still be within the calling function,
-  // even if it's at the very end, so emit an explicit TRAP here.
-  // Passing 'true' for doesNotReturn above won't generate the trap for us.
+  // On PS4/PS5, the "return address" must still be within the calling
+  // function, even if it's at the very end, so emit an explicit TRAP here.
   // WebAssembly needs an unreachable instruction after a non-returning call,
   // because the function return type can be different from __stack_chk_fail's
   // return type (void).
   const TargetMachine &TM = MF->getTarget();
-  if (TM.getTargetTriple().isPS4() || TM.getTargetTriple().isWasm()) {
+  if (TM.getTargetTriple().isPS() || TM.getTargetTriple().isWasm()) {
     LLVM_DEBUG(dbgs() << "Unhandled trap emission for stack protector fail\n");
     return false;
   }

@@ -1047,6 +1047,7 @@ private:
   // Set when walking DATA & array constructor implied DO loop bounds
   // to warn about use of the implied DO intex therein.
   std::optional<SourceName> checkIndexUseInOwnBounds_;
+  bool hasBindCName_{false};
 
   bool HandleAttributeStmt(Attr, const std::list<parser::Name> &);
   Symbol &HandleAttributeStmt(Attr, const parser::Name &);
@@ -1661,12 +1662,18 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
   }
   std::optional<std::string> label{
       evaluate::GetScalarConstantValue<evaluate::Ascii>(bindName_)};
-  // 18.9.2(2): discard leading and trailing blanks, ignore if all blank
+  if (ClassifyProcedure(symbol) == ProcedureDefinitionClass::Internal) {
+    if (label) { // C1552: no NAME= allowed even if null
+      Say(symbol.name(),
+          "An internal procedure may not have a BIND(C,NAME=) binding label"_err_en_US);
+    }
+    return;
+  }
+  // 18.9.2(2): discard leading and trailing blanks
   if (label) {
     auto first{label->find_first_not_of(" ")};
     if (first == std::string::npos) {
       // Empty NAME= means no binding at all (18.10.2p2)
-      Say(currStmtSource().value(), "Blank binding label ignored"_warn_en_US);
       return;
     }
     auto last{label->find_last_not_of(" ")};
@@ -1674,7 +1681,19 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
   } else {
     label = parser::ToLowerCaseLetters(symbol.name().ToString());
   }
+  // Check if a symbol has two Bind names.
+  std::string oldBindName;
+  if (symbol.GetBindName()) {
+    oldBindName = *symbol.GetBindName();
+  }
   symbol.SetBindName(std::move(*label));
+  if (!oldBindName.empty()) {
+    if (const std::string * newBindName{symbol.GetBindName()}) {
+      if (oldBindName.compare(*newBindName) != 0) {
+        Say(symbol.name(), "The entity '%s' has multiple BIND names"_err_en_US);
+      }
+    }
+  }
 }
 
 void AttrsVisitor::Post(const parser::LanguageBindingSpec &x) {
@@ -2698,15 +2717,23 @@ ModuleVisitor::SymbolRename ModuleVisitor::AddUse(
 
 // symbol must be either a Use or a Generic formed by merging two uses.
 // Convert it to a UseError with this additional location.
-static void ConvertToUseError(
+static bool ConvertToUseError(
     Symbol &symbol, const SourceName &location, const Scope &module) {
   const auto *useDetails{symbol.detailsIf<UseDetails>()};
   if (!useDetails) {
-    auto &genericDetails{symbol.get<GenericDetails>()};
-    useDetails = &genericDetails.uses().at(0)->get<UseDetails>();
+    if (auto *genericDetails{symbol.detailsIf<GenericDetails>()}) {
+      if (!genericDetails->uses().empty()) {
+        useDetails = &genericDetails->uses().at(0)->get<UseDetails>();
+      }
+    }
   }
-  symbol.set_details(
-      UseErrorDetails{*useDetails}.add_occurrence(location, module));
+  if (useDetails) {
+    symbol.set_details(
+        UseErrorDetails{*useDetails}.add_occurrence(location, module));
+    return true;
+  } else {
+    return false;
+  }
 }
 
 // If a symbol has previously been USE-associated and did not appear in a USE
@@ -2807,9 +2834,7 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
     }
   }
   if (!combine) {
-    if (localSymbol.has<UseDetails>() || localSymbol.has<GenericDetails>()) {
-      ConvertToUseError(localSymbol, location, *useModuleScope_);
-    } else {
+    if (!ConvertToUseError(localSymbol, location, *useModuleScope_)) {
       Say(location,
           "Cannot use-associate '%s'; it is already declared in this scope"_err_en_US,
           localName)
@@ -2913,21 +2938,29 @@ void ModuleVisitor::AddAndCheckExplicitIntrinsicUse(
 
 bool ModuleVisitor::BeginSubmodule(
     const parser::Name &name, const parser::ParentIdentifier &parentId) {
-  auto &ancestorName{std::get<parser::Name>(parentId.t)};
-  auto &parentName{std::get<std::optional<parser::Name>>(parentId.t)};
+  const auto &ancestorName{std::get<parser::Name>(parentId.t)};
+  Scope *parentScope{nullptr};
   Scope *ancestor{FindModule(ancestorName, false /*not intrinsic*/)};
-  if (!ancestor) {
-    return false;
+  if (ancestor) {
+    if (const auto &parentName{
+            std::get<std::optional<parser::Name>>(parentId.t)}) {
+      parentScope = FindModule(*parentName, false /*not intrinsic*/, ancestor);
+    } else {
+      parentScope = ancestor;
+    }
   }
-  Scope *parentScope{parentName
-          ? FindModule(*parentName, false /*not intrinsic*/, ancestor)
-          : ancestor};
-  if (!parentScope) {
-    return false;
+  if (parentScope) {
+    PushScope(*parentScope);
+  } else {
+    // Error recovery: there's no ancestor scope, so create a dummy one to
+    // hold the submodule's scope.
+    SourceName dummyName{context().GetTempName(currScope())};
+    Symbol &dummySymbol{MakeSymbol(dummyName, Attrs{}, ModuleDetails{false})};
+    PushScope(Scope::Kind::Module, &dummySymbol);
+    parentScope = &currScope();
   }
-  PushScope(*parentScope); // submodule is hosted in parent
   BeginModule(name, true);
-  if (!ancestor->AddSubmodule(name.source, currScope())) {
+  if (ancestor && !ancestor->AddSubmodule(name.source, currScope())) {
     Say(name, "Module '%s' already has a submodule named '%s'"_err_en_US,
         ancestorName.source, name.source);
   }
@@ -3885,7 +3918,17 @@ bool DeclarationVisitor::Pre(const parser::BindEntity &x) {
     symbol = &MakeCommonBlockSymbol(name);
     symbol->attrs().set(Attr::BIND_C);
   }
-  SetBindNameOn(*symbol);
+  // 8.6.4(1)
+  // Some entities such as named constant or module name need to checked
+  // elsewhere. This is to skip the ICE caused by setting Bind name for non-name
+  // things such as data type and also checks for procedures.
+  if (symbol->has<CommonBlockDetails>() || symbol->has<ObjectEntityDetails>() ||
+      symbol->has<EntityDetails>()) {
+    SetBindNameOn(*symbol);
+  } else {
+    Say(name,
+        "Only variable and named common block can be in BIND statement"_err_en_US);
+  }
   return false;
 }
 bool DeclarationVisitor::Pre(const parser::OldParameterStmt &x) {
@@ -4153,10 +4196,10 @@ Symbol &DeclarationVisitor::DeclareUnknownEntity(
       SetType(name, *type);
     }
     charInfo_.length.reset();
-    SetBindNameOn(symbol);
     if (symbol.attrs().test(Attr::EXTERNAL)) {
       ConvertToProcEntity(symbol);
     }
+    SetBindNameOn(symbol);
     return symbol;
   }
 }
@@ -4282,7 +4325,7 @@ void DeclarationVisitor::Post(const parser::CharSelector::LengthAndKind &x) {
   charInfo_.kind = EvaluateSubscriptIntExpr(x.kind);
   std::optional<std::int64_t> intKind{ToInt64(charInfo_.kind)};
   if (intKind &&
-      !evaluate::IsValidKindOfIntrinsicType(
+      !context().targetCharacteristics().IsTypeEnabled(
           TypeCategory::Character, *intKind)) { // C715, C719
     Say(currStmtSource().value(),
         "KIND value (%jd) not valid for CHARACTER"_err_en_US, *intKind);
@@ -4661,12 +4704,22 @@ void DeclarationVisitor::Post(const parser::FillDecl &x) {
   }
   ClearArraySpec();
 }
-bool DeclarationVisitor::Pre(const parser::ProcedureDeclarationStmt &) {
+bool DeclarationVisitor::Pre(const parser::ProcedureDeclarationStmt &x) {
   CHECK(!interfaceName_);
+  const auto &procAttrSpec{std::get<std::list<parser::ProcAttrSpec>>(x.t)};
+  for (const parser::ProcAttrSpec &procAttr : procAttrSpec) {
+    if (auto *bindC{std::get_if<parser::LanguageBindingSpec>(&procAttr.u)}) {
+      if (bindC->v.has_value()) {
+        hasBindCName_ = true;
+        break;
+      }
+    }
+  }
   return BeginDecl();
 }
 void DeclarationVisitor::Post(const parser::ProcedureDeclarationStmt &) {
   interfaceName_ = nullptr;
+  hasBindCName_ = false;
   EndDecl();
 }
 bool DeclarationVisitor::Pre(const parser::DataComponentDefStmt &x) {
@@ -4733,6 +4786,10 @@ void DeclarationVisitor::Post(const parser::ProcDecl &x) {
   symbol.ReplaceName(name.source);
   if (dtDetails) {
     dtDetails->add_component(symbol);
+  }
+  if (hasBindCName_ && (IsPointer(symbol) || IsDummy(symbol))) {
+    Say(symbol.name(),
+        "BIND(C) procedure with NAME= specified can neither have POINTER attribute nor be a dummy procedure"_err_en_US);
   }
 }
 
@@ -5233,7 +5290,7 @@ void DeclarationVisitor::CheckSaveStmts() {
     } else if (specPartState_.saveInfo.saveAll) {
       // C889 - note that pgi, ifort, xlf do not enforce this constraint
       Say2(name,
-          "Explicit SAVE of '%s' is redundant due to global SAVE statement"_err_en_US,
+          "Explicit SAVE of '%s' is redundant due to global SAVE statement"_warn_en_US,
           *specPartState_.saveInfo.saveAll, "Global SAVE statement"_en_US);
     } else if (auto msg{CheckSaveAttr(*symbol)}) {
       Say(name, std::move(*msg));
@@ -5341,6 +5398,9 @@ void DeclarationVisitor::CheckCommonBlocks() {
     } else if (attrs.test(Attr::BIND_C)) {
       Say(name,
           "Variable '%s' with BIND attribute may not appear in a COMMON block"_err_en_US);
+    } else if (IsNamedConstant(*symbol)) {
+      Say(name,
+          "A named constant '%s' may not appear in a COMMON block"_err_en_US);
     } else if (IsDummy(*symbol)) {
       Say(name,
           "Dummy argument '%s' may not appear in a COMMON block"_err_en_US);

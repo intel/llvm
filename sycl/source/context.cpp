@@ -54,7 +54,8 @@ context::context(const std::vector<device> &DeviceList,
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
-    throw invalid_parameter_error("DeviceList is empty.", PI_INVALID_VALUE);
+    throw invalid_parameter_error("DeviceList is empty.",
+                                  PI_ERROR_INVALID_VALUE);
   }
   auto NonHostDeviceIter = std::find_if_not(
       DeviceList.begin(), DeviceList.end(),
@@ -75,7 +76,7 @@ context::context(const std::vector<device> &DeviceList,
                     }))
       throw invalid_parameter_error(
           "Can't add devices across platforms to a single context.",
-          PI_INVALID_DEVICE);
+          PI_ERROR_INVALID_DEVICE);
     else
       impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
                                                     PropList);

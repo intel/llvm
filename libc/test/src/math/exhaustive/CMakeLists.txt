@@ -92,7 +92,6 @@ add_fp_unittest(
   DEPENDS
     .exhaustive_test
     libc.include.math
-    libc.src.math.expf
     libc.src.math.expm1f
     libc.src.__support.FPUtil.fputil
   LINK_LIBRARIES
@@ -184,4 +183,17 @@ add_fp_unittest(
     libc.src.__support.FPUtil.fputil
   LINK_LIBRARIES
     -lpthread
+)
+
+add_fp_unittest(
+  fmod_generic_impl_test
+  NO_RUN_POSTBUILD
+  NEED_MPFR
+  SUITE
+    libc_math_exhaustive_tests
+  SRCS
+    fmod_generic_impl_test.cpp
+  DEPENDS
+    libc.src.__support.FPUtil.fputil
+    libc.src.__support.FPUtil.generic.fmod
 )

@@ -177,6 +177,12 @@ def FeatureSGPRInitBug : SubtargetFeature<"sgpr-init-bug",
   "VI SGPR initialization bug requiring a fixed SGPR allocation size"
 >;
 
+def FeatureUserSGPRInit16Bug : SubtargetFeature<"user-sgpr-init16-bug",
+  "UserSGPRInit16Bug",
+  "true",
+  "Bug requiring at least 16 user+system SGPRs to be enabled"
+>;
+
 def FeatureLdsMisalignedBug : SubtargetFeature<"lds-misaligned-bug",
   "LDSMisalignedBug",
   "true",
@@ -1262,11 +1268,11 @@ def FeatureISAVersion11_Common : FeatureSet<
 // Features for GFX 11.0.0 and 11.0.1
 def FeatureISAVersion11_0 : FeatureSet<
   !listconcat(FeatureISAVersion11_Common.Features,
-    [])>;
+    [FeatureUserSGPRInit16Bug])>;
 
 def FeatureISAVersion11_0_2 : FeatureSet<
   !listconcat(FeatureISAVersion11_Common.Features,
-    [])>;
+    [FeatureUserSGPRInit16Bug])>;
 
 //===----------------------------------------------------------------------===//
 
@@ -1296,8 +1302,10 @@ def AMDGPUAsmVariants {
   int SDWA9_ID = 3;
   string DPP = "DPP";
   int DPP_ID = 4;
+  string VOP3_DPP = "VOP3_DPP";
+  int VOP3_DPP_ID = 5;
   string Disable = "Disable";
-  int Disable_ID = 5;
+  int Disable_ID = 6;
 }
 
 def DefaultAMDGPUAsmParserVariant : AsmParserVariant {
@@ -1325,6 +1333,11 @@ def DPPAsmParserVariant : AsmParserVariant {
   let Name = AMDGPUAsmVariants.DPP;
 }
 
+def VOP3_DPPAsmParserVariant : AsmParserVariant {
+  let Variant = AMDGPUAsmVariants.VOP3_DPP_ID;
+  let Name = AMDGPUAsmVariants.VOP3_DPP;
+}
+
 def AMDGPU : Target {
   // Pull in Instruction Info:
   let InstructionSet = AMDGPUInstrInfo;
@@ -1333,7 +1346,8 @@ def AMDGPU : Target {
                                 VOP3AsmParserVariant,
                                 SDWAAsmParserVariant,
                                 SDWA9AsmParserVariant,
-                                DPPAsmParserVariant];
+                                DPPAsmParserVariant,
+                                VOP3_DPPAsmParserVariant];
   let AssemblyWriters = [AMDGPUAsmWriter];
   let AllowRegisterRenaming = 1;
 }

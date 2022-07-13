@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
@@ -27,6 +28,8 @@ class platform;
 namespace detail {
 class context_impl;
 }
+template <backend Backend, class SyclT>
+auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
 /// The context class represents a SYCL context on which kernel functions may
 /// be executed.
@@ -230,6 +233,10 @@ private:
   pi_native_handle getNative() const;
 
   std::shared_ptr<detail::context_impl> impl;
+
+  template <backend Backend, class SyclT>
+  friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
+
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 

@@ -38,20 +38,12 @@ static cl::opt<unsigned> ColdThreshold(
              "samples). Default: 0 "),
     cl::init(0), cl::ZeroOrMore, cl::Hidden, cl::cat(BoltOptCategory));
 
-static cl::opt<bool>
-PrintClusters("print-clusters",
-  cl::desc("print clusters"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
+static cl::opt<bool> PrintClusters("print-clusters", cl::desc("print clusters"),
+                                   cl::Hidden, cl::cat(BoltOptCategory));
 
-cl::opt<uint32_t>
-RandomSeed("bolt-seed",
-  cl::desc("seed for randomization"),
-  cl::init(42),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
+cl::opt<uint32_t> RandomSeed("bolt-seed", cl::desc("seed for randomization"),
+                             cl::init(42), cl::Hidden,
+                             cl::cat(BoltOptCategory));
 
 } // namespace opts
 
@@ -252,7 +244,7 @@ void PHGreedyClusterAlgorithm::initQueue(std::vector<EdgeTy> &Queue,
   };
 
   // Sort edges in increasing profile count order.
-  std::sort(Queue.begin(), Queue.end(), Comp);
+  llvm::sort(Queue, Comp);
 }
 
 void PHGreedyClusterAlgorithm::adjustQueue(std::vector<EdgeTy> &Queue,
@@ -393,7 +385,7 @@ void MinBranchGreedyClusterAlgorithm::adjustQueue(std::vector<EdgeTy> &Queue,
 
   // Sort remaining edges in increasing weight order.
   Queue.swap(NewQueue);
-  std::sort(Queue.begin(), Queue.end(), Comp);
+  llvm::sort(Queue, Comp);
 }
 
 bool MinBranchGreedyClusterAlgorithm::areClustersCompatible(

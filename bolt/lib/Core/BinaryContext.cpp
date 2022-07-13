@@ -47,12 +47,9 @@ using namespace llvm;
 
 namespace opts {
 
-cl::opt<bool>
-NoHugePages("no-huge-pages",
-  cl::desc("use regular size pages for code alignment"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+cl::opt<bool> NoHugePages("no-huge-pages",
+                          cl::desc("use regular size pages for code alignment"),
+                          cl::Hidden, cl::cat(BoltCategory));
 
 static cl::opt<bool>
 PrintDebugInfo("print-debug-info",
@@ -61,12 +58,10 @@ PrintDebugInfo("print-debug-info",
   cl::ZeroOrMore,
   cl::cat(BoltCategory));
 
-cl::opt<bool>
-PrintRelocations("print-relocations",
-  cl::desc("print relocations when printing functions/objects"),
-  cl::Hidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+cl::opt<bool> PrintRelocations(
+    "print-relocations",
+    cl::desc("print relocations when printing functions/objects"), cl::Hidden,
+    cl::cat(BoltCategory));
 
 static cl::opt<bool>
 PrintMemData("print-mem-data",
@@ -720,13 +715,14 @@ void BinaryContext::skipMarkedFragments() {
            "internal error in traversing function fragments");
     if (opts::Verbosity >= 1)
       errs() << "BOLT-WARNING: Ignoring " << BF->getPrintName() << '\n';
-    BF->setIgnored();
-    std::for_each(BF->Fragments.begin(), BF->Fragments.end(), addToWorklist);
-    std::for_each(BF->ParentFragments.begin(), BF->ParentFragments.end(),
-                  addToWorklist);
+    BF->setSimple(false);
+    BF->setHasSplitJumpTable(true);
+
+    llvm::for_each(BF->Fragments, addToWorklist);
+    llvm::for_each(BF->ParentFragments, addToWorklist);
   }
   if (!FragmentsToSkip.empty())
-    errs() << "BOLT-WARNING: ignored " << FragmentsToSkip.size() << " function"
+    errs() << "BOLT-WARNING: skipped " << FragmentsToSkip.size() << " function"
            << (FragmentsToSkip.size() == 1 ? "" : "s")
            << " due to cold fragments\n";
   FragmentsToSkip.clear();
@@ -767,12 +763,31 @@ BinaryFunction *BinaryContext::createBinaryFunction(
 const MCSymbol *
 BinaryContext::getOrCreateJumpTable(BinaryFunction &Function, uint64_t Address,
                                     JumpTable::JumpTableType Type) {
+  auto isFragmentOf = [](BinaryFunction *Fragment, BinaryFunction *Parent) {
+    return (Fragment->isFragment() && Fragment->isParentFragment(Parent));
+  };
+
   if (JumpTable *JT = getJumpTableContainingAddress(Address)) {
     assert(JT->Type == Type && "jump table types have to match");
-    assert(JT->Parent == &Function &&
+    bool HasMultipleParents = isFragmentOf(JT->Parent, &Function) ||
+                              isFragmentOf(&Function, JT->Parent);
+    assert((JT->Parent == &Function || HasMultipleParents) &&
            "cannot re-use jump table of a different function");
     assert(Address == JT->getAddress() && "unexpected non-empty jump table");
 
+    // Flush OffsetEntries with INVALID_OFFSET if multiple parents
+    // Duplicate the entry for the parent function for easy access
+    if (HasMultipleParents) {
+      if (opts::Verbosity > 2) {
+        outs() << "BOLT-WARNING: Multiple fragments access same jump table: "
+               << JT->Parent->getPrintName() << "; " << Function.getPrintName()
+               << "\n";
+      }
+      constexpr uint64_t INVALID_OFFSET = std::numeric_limits<uint64_t>::max();
+      for (unsigned I = 0; I < JT->OffsetEntries.size(); ++I)
+        JT->OffsetEntries[I] = INVALID_OFFSET;
+      Function.JumpTables.emplace(Address, JT);
+    }
     return JT->getFirstLabel();
   }
 
@@ -1043,10 +1058,9 @@ void BinaryContext::generateSymbolHashes() {
 
     // First check if a non-anonymous alias exists and move it to the front.
     if (BD.getSymbols().size() > 1) {
-      auto Itr = std::find_if(BD.getSymbols().begin(), BD.getSymbols().end(),
-                              [&](const MCSymbol *Symbol) {
-                                return !isInternalSymbolName(Symbol->getName());
-                              });
+      auto Itr = llvm::find_if(BD.getSymbols(), [&](const MCSymbol *Symbol) {
+        return !isInternalSymbolName(Symbol->getName());
+      });
       if (Itr != BD.getSymbols().end()) {
         size_t Idx = std::distance(BD.getSymbols().begin(), Itr);
         std::swap(BD.getSymbols()[0], BD.getSymbols()[Idx]);
@@ -1208,8 +1222,7 @@ void BinaryContext::foldFunction(BinaryFunction &ChildBF,
   ChildBF.getSymbols().clear();
 
   // Move other names the child function is known under.
-  std::move(ChildBF.Aliases.begin(), ChildBF.Aliases.end(),
-            std::back_inserter(ParentBF.Aliases));
+  llvm::move(ChildBF.Aliases, std::back_inserter(ParentBF.Aliases));
   ChildBF.Aliases.clear();
 
   if (HasRelocations) {
@@ -1376,32 +1389,29 @@ unsigned BinaryContext::addDebugFilenameToUnit(const uint32_t DestCUID,
 
 std::vector<BinaryFunction *> BinaryContext::getSortedFunctions() {
   std::vector<BinaryFunction *> SortedFunctions(BinaryFunctions.size());
-  std::transform(BinaryFunctions.begin(), BinaryFunctions.end(),
-                 SortedFunctions.begin(),
-                 [](std::pair<const uint64_t, BinaryFunction> &BFI) {
-                   return &BFI.second;
-                 });
+  llvm::transform(BinaryFunctions, SortedFunctions.begin(),
+                  [](std::pair<const uint64_t, BinaryFunction> &BFI) {
+                    return &BFI.second;
+                  });
 
-  std::stable_sort(SortedFunctions.begin(), SortedFunctions.end(),
-                   [](const BinaryFunction *A, const BinaryFunction *B) {
-                     if (A->hasValidIndex() && B->hasValidIndex()) {
-                       return A->getIndex() < B->getIndex();
-                     }
-                     return A->hasValidIndex();
-                   });
+  llvm::stable_sort(SortedFunctions,
+                    [](const BinaryFunction *A, const BinaryFunction *B) {
+                      if (A->hasValidIndex() && B->hasValidIndex()) {
+                        return A->getIndex() < B->getIndex();
+                      }
+                      return A->hasValidIndex();
+                    });
   return SortedFunctions;
 }
 
 std::vector<BinaryFunction *> BinaryContext::getAllBinaryFunctions() {
   std::vector<BinaryFunction *> AllFunctions;
   AllFunctions.reserve(BinaryFunctions.size() + InjectedBinaryFunctions.size());
-  std::transform(BinaryFunctions.begin(), BinaryFunctions.end(),
-                 std::back_inserter(AllFunctions),
-                 [](std::pair<const uint64_t, BinaryFunction> &BFI) {
-                   return &BFI.second;
-                 });
-  std::copy(InjectedBinaryFunctions.begin(), InjectedBinaryFunctions.end(),
-            std::back_inserter(AllFunctions));
+  llvm::transform(BinaryFunctions, std::back_inserter(AllFunctions),
+                  [](std::pair<const uint64_t, BinaryFunction> &BFI) {
+                    return &BFI.second;
+                  });
+  llvm::copy(InjectedBinaryFunctions, std::back_inserter(AllFunctions));
 
   return AllFunctions;
 }
@@ -1414,7 +1424,7 @@ Optional<DWARFUnit *> BinaryContext::getDWOCU(uint64_t DWOId) {
   return Iter->second;
 }
 
-DWARFContext *BinaryContext::getDWOContext() {
+DWARFContext *BinaryContext::getDWOContext() const {
   if (DWOCUs.empty())
     return nullptr;
   return &DWOCUs.begin()->second->getContext();
@@ -1474,21 +1484,15 @@ void BinaryContext::preprocessDebugInfo() {
     ContainsDwarfLegacy |= CU->getVersion() < 5;
   }
 
-  if (ContainsDwarf5 && ContainsDwarfLegacy)
-    llvm::errs() << "BOLT-WARNING: BOLT does not support mix mode binary with "
-                    "DWARF5 and DWARF{2,3,4}.\n";
-
-  std::sort(AllRanges.begin(), AllRanges.end());
+  llvm::sort(AllRanges);
   for (auto &KV : BinaryFunctions) {
     const uint64_t FunctionAddress = KV.first;
     BinaryFunction &Function = KV.second;
 
-    auto It = std::partition_point(
-        AllRanges.begin(), AllRanges.end(),
-        [=](CURange R) { return R.HighPC <= FunctionAddress; });
-    if (It != AllRanges.end() && It->LowPC <= FunctionAddress) {
+    auto It = llvm::partition_point(
+        AllRanges, [=](CURange R) { return R.HighPC <= FunctionAddress; });
+    if (It != AllRanges.end() && It->LowPC <= FunctionAddress)
       Function.setDWARFUnit(It->Unit);
-    }
   }
 
   // Discover units with debug info that needs to be updated.
@@ -1676,6 +1680,36 @@ bool BinaryContext::isMarker(const SymbolRef &Symbol) const {
   return getMarkerType(Symbol) != MarkerSymType::NONE;
 }
 
+static void printDebugInfo(raw_ostream &OS, const MCInst &Instruction,
+                           const BinaryFunction *Function,
+                           DWARFContext *DwCtx) {
+  DebugLineTableRowRef RowRef =
+      DebugLineTableRowRef::fromSMLoc(Instruction.getLoc());
+  if (RowRef == DebugLineTableRowRef::NULL_ROW)
+    return;
+
+  const DWARFDebugLine::LineTable *LineTable;
+  if (Function && Function->getDWARFUnit() &&
+      Function->getDWARFUnit()->getOffset() == RowRef.DwCompileUnitIndex) {
+    LineTable = Function->getDWARFLineTable();
+  } else {
+    LineTable = DwCtx->getLineTableForUnit(
+        DwCtx->getCompileUnitForOffset(RowRef.DwCompileUnitIndex));
+  }
+  assert(LineTable && "line table expected for instruction with debug info");
+
+  const DWARFDebugLine::Row &Row = LineTable->Rows[RowRef.RowIndex - 1];
+  StringRef FileName = "";
+  if (Optional<const char *> FName =
+          dwarf::toString(LineTable->Prologue.FileNames[Row.File - 1].Name))
+    FileName = *FName;
+  OS << " # debug line " << FileName << ":" << Row.Line;
+  if (Row.Column)
+    OS << ":" << Row.Column;
+  if (Row.Discriminator)
+    OS << " discriminator:" << Row.Discriminator;
+}
+
 void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
                                      uint64_t Offset,
                                      const BinaryFunction *Function,
@@ -1723,33 +1757,8 @@ void BinaryContext::printInstruction(raw_ostream &OS, const MCInst &Instruction,
 
   MIB->printAnnotations(Instruction, OS);
 
-  if (opts::PrintDebugInfo) {
-    DebugLineTableRowRef RowRef =
-        DebugLineTableRowRef::fromSMLoc(Instruction.getLoc());
-    if (RowRef != DebugLineTableRowRef::NULL_ROW) {
-      const DWARFDebugLine::LineTable *LineTable;
-      if (Function && Function->getDWARFUnit() &&
-          Function->getDWARFUnit()->getOffset() == RowRef.DwCompileUnitIndex) {
-        LineTable = Function->getDWARFLineTable();
-      } else {
-        LineTable = DwCtx->getLineTableForUnit(
-            DwCtx->getCompileUnitForOffset(RowRef.DwCompileUnitIndex));
-      }
-      assert(LineTable &&
-             "line table expected for instruction with debug info");
-
-      const DWARFDebugLine::Row &Row = LineTable->Rows[RowRef.RowIndex - 1];
-      StringRef FileName = "";
-      if (Optional<const char *> FName =
-              dwarf::toString(LineTable->Prologue.FileNames[Row.File - 1].Name))
-        FileName = *FName;
-      OS << " # debug line " << FileName << ":" << Row.Line;
-      if (Row.Column)
-        OS << ":" << Row.Column;
-      if (Row.Discriminator)
-        OS << " discriminator:" << Row.Discriminator;
-    }
-  }
+  if (opts::PrintDebugInfo)
+    printDebugInfo(OS, Instruction, Function, DwCtx.get());
 
   if ((opts::PrintRelocations || PrintRelocations) && Function) {
     const uint64_t Size = computeCodeSize(&Instruction, &Instruction + 1);
@@ -2070,7 +2079,7 @@ BinaryContext::calculateEmittedSize(BinaryFunction &BF, bool FixBranches) {
   MCSymbol *ColdStartLabel = LocalCtx->createTempSymbol();
   MCSymbol *ColdEndLabel = LocalCtx->createTempSymbol();
 
-  Streamer->SwitchSection(Section);
+  Streamer->switchSection(Section);
   Streamer->emitLabel(StartLabel);
   emitFunctionBody(*Streamer, BF, /*EmitColdPart=*/false,
                    /*EmitCodeOnly=*/true);
@@ -2082,14 +2091,14 @@ BinaryContext::calculateEmittedSize(BinaryFunction &BF, bool FixBranches) {
                                 ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
     ColdSection->setHasInstructions(true);
 
-    Streamer->SwitchSection(ColdSection);
+    Streamer->switchSection(ColdSection);
     Streamer->emitLabel(ColdStartLabel);
     emitFunctionBody(*Streamer, BF, /*EmitColdPart=*/true,
                      /*EmitCodeOnly=*/true);
     Streamer->emitLabel(ColdEndLabel);
     // To avoid calling MCObjectStreamer::flushPendingLabels() which is private
     Streamer->emitBytes(StringRef(""));
-    Streamer->SwitchSection(Section);
+    Streamer->switchSection(Section);
   }
 
   // To avoid calling MCObjectStreamer::flushPendingLabels() which is private or
@@ -2197,8 +2206,7 @@ DebugAddressRangesVector BinaryContext::translateModuleAddressRanges(
         break;
       const DebugAddressRangesVector FunctionRanges =
           Function.getOutputAddressRanges();
-      std::move(std::begin(FunctionRanges), std::end(FunctionRanges),
-                std::back_inserter(OutputRanges));
+      llvm::move(FunctionRanges, std::back_inserter(OutputRanges));
       std::advance(BFI, 1);
     }
   }

@@ -436,6 +436,17 @@ static std::optional<Constant<SubscriptInteger>> FoldLocationCall(
     ActualArguments &arg, FoldingContext &context) {
   if (arg[0]) {
     if (auto type{arg[0]->GetType()}) {
+      if constexpr (which == WhichLocation::Findloc) {
+        // Both ARRAY and VALUE are susceptible to conversion to a common
+        // comparison type.
+        if (arg[1]) {
+          if (auto valType{arg[1]->GetType()}) {
+            if (auto compareType{ComparisonType(*type, *valType)}) {
+              type = compareType;
+            }
+          }
+        }
+      }
       return common::SearchTypes(
           LocationHelper<which>{std::move(*type), arg, context});
     }
@@ -936,14 +947,15 @@ Expr<Type<TypeCategory::Integer, KIND>> FoldIntrinsicFunction(
     }
   } else if (name == "selected_int_kind") {
     if (auto p{GetInt64Arg(args[0])}) {
-      return Expr<T>{SelectedIntKind(*p)};
+      return Expr<T>{context.targetCharacteristics().SelectedIntKind(*p)};
     }
   } else if (name == "selected_real_kind" ||
       name == "__builtin_ieee_selected_real_kind") {
     if (auto p{GetInt64ArgOr(args[0], 0)}) {
       if (auto r{GetInt64ArgOr(args[1], 0)}) {
         if (auto radix{GetInt64ArgOr(args[2], 2)}) {
-          return Expr<T>{SelectedRealKind(*p, *r, *radix)};
+          return Expr<T>{
+              context.targetCharacteristics().SelectedRealKind(*p, *r, *radix)};
         }
       }
     }

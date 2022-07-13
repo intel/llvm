@@ -964,7 +964,7 @@ template <uint16_t Version, class AddrType> void TestAddresses() {
   EXPECT_EQ(SubprogramDieLowPC.getTag(), DW_TAG_subprogram);
   OptU64 = toAddress(SubprogramDieLowPC.find(DW_AT_low_pc));
   EXPECT_TRUE((bool)OptU64);
-  EXPECT_EQ(OptU64.getValue(), ActualLowPC);
+  EXPECT_EQ(*OptU64, ActualLowPC);
   OptU64 = toAddress(SubprogramDieLowPC.find(DW_AT_high_pc));
   EXPECT_FALSE((bool)OptU64);
   OptU64 = toUnsigned(SubprogramDieLowPC.find(DW_AT_high_pc));
@@ -981,7 +981,7 @@ template <uint16_t Version, class AddrType> void TestAddresses() {
   EXPECT_EQ(SubprogramDieLowHighPC.getTag(), DW_TAG_subprogram);
   OptU64 = toAddress(SubprogramDieLowHighPC.find(DW_AT_low_pc));
   EXPECT_TRUE((bool)OptU64);
-  EXPECT_EQ(OptU64.getValue(), ActualLowPC);
+  EXPECT_EQ(*OptU64, ActualLowPC);
   // Get the high PC as an address. This should succeed if the high PC was
   // encoded as an address and fail if the high PC was encoded as an offset.
   OptU64 = toAddress(SubprogramDieLowHighPC.find(DW_AT_high_pc));
@@ -1607,12 +1607,12 @@ TEST(DWARFDebugInfo, TestFindRecurse) {
   // Test the dwarf::toString() helper function.
   auto StringOpt = toString(NameOpt);
   EXPECT_TRUE(StringOpt);
-  EXPECT_EQ(SpecDieName, StringOpt.getValueOr(nullptr));
+  EXPECT_EQ(SpecDieName, StringOpt.value_or(nullptr));
   // Test the dwarf::toString() helper function with a default value specified.
   EXPECT_EQ(SpecDieName, toString(NameOpt, nullptr));
 
   auto LinkageNameOpt = FuncDie.findRecursively(DW_AT_linkage_name);
-  EXPECT_EQ(SpecLinkageName, toString(LinkageNameOpt).getValueOr(nullptr));
+  EXPECT_EQ(SpecLinkageName, toString(LinkageNameOpt).value_or(nullptr));
 
   // Make sure we can't extract the name from the abstract origin die when using
   // DWARFDie::find() since it won't check the DW_AT_abstract_origin DIE.
@@ -1626,7 +1626,7 @@ TEST(DWARFDebugInfo, TestFindRecurse) {
   // Test the dwarf::toString() helper function.
   StringOpt = toString(NameOpt);
   EXPECT_TRUE(StringOpt);
-  EXPECT_EQ(AbsDieName, StringOpt.getValueOr(nullptr));
+  EXPECT_EQ(AbsDieName, StringOpt.value_or(nullptr));
 }
 
 TEST(DWARFDebugInfo, TestDwarfToFunctions) {
@@ -1877,8 +1877,7 @@ TEST(DWARFDebugInfo, TestImplicitConstAbbrevs) {
     EXPECT_EQ(*AttrIndex, 0u);
     uint64_t OffsetVal =
         it->getAttributeOffsetFromIndex(*AttrIndex, /* offset */ 0, *U);
-    EXPECT_TRUE(
-        it->getAttributeValueFromOffset(*AttrIndex, OffsetVal, *U).hasValue());
+    EXPECT_TRUE(it->getAttributeValueFromOffset(*AttrIndex, OffsetVal, *U));
 
     auto FormValue = it->getAttributeValue(/* offset */ 0, A, *U);
     EXPECT_TRUE((bool)FormValue);
@@ -1961,10 +1960,10 @@ TEST(DWARFDebugInfo, TestErrorReporting) {
   MCContext *MC = DG->getMCContext();
 
   // Emit two compressed sections with broken headers.
-  AP->OutStreamer->SwitchSection(
+  AP->OutStreamer->switchSection(
       MC->getELFSection(".zdebug_foo", 0 /*Type*/, 0 /*Flags*/));
   AP->OutStreamer->emitBytes("0");
-  AP->OutStreamer->SwitchSection(
+  AP->OutStreamer->switchSection(
       MC->getELFSection(".zdebug_bar", 0 /*Type*/, 0 /*Flags*/));
   AP->OutStreamer->emitBytes("0");
 

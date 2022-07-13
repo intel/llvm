@@ -520,8 +520,9 @@ void MachOWriter::writeCodeSignatureData() {
   uint8_t *CurrHashWritePosition = HashWriteStart;
   while (CurrHashReadPosition < HashReadEnd) {
     StringRef Block(reinterpret_cast<char *>(CurrHashReadPosition),
-                    std::min(HashReadEnd - CurrHashReadPosition,
-                             static_cast<ssize_t>(CodeSignature.BlockSize)));
+                    std::min(static_cast<size_t>(HashReadEnd
+                             - CurrHashReadPosition),
+                             static_cast<size_t>(CodeSignature.BlockSize)));
     SHA256 Hasher;
     Hasher.update(Block);
     std::array<uint8_t, 32> Hash = Hasher.final();
@@ -634,9 +635,7 @@ void MachOWriter::writeTail() {
     }
   }
 
-  llvm::sort(Queue, [](const WriteOperation &LHS, const WriteOperation &RHS) {
-    return LHS.first < RHS.first;
-  });
+  llvm::sort(Queue, llvm::less_first());
 
   for (auto WriteOp : Queue)
     (this->*WriteOp.second)();

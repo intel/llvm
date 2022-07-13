@@ -38,6 +38,16 @@ func.func @tanh(%arg: complex<f32>) -> complex<f32> {
   func.return %tanh : complex<f32>
 }
 
+func.func @rsqrt(%arg: complex<f32>) -> complex<f32> {
+  %sqrt = complex.rsqrt %arg : complex<f32>
+  func.return %sqrt : complex<f32>
+}
+
+func.func @conj(%arg: complex<f32>) -> complex<f32> {
+  %conj = complex.conj %arg : complex<f32>
+  func.return %conj : complex<f32>
+}
+
 // %input contains pairs of lhs, rhs, i.e. [lhs_0, rhs_0, lhs_1, rhs_1,...]
 func.func @test_binary(%input: tensor<?xcomplex<f32>>,
                        %func: (complex<f32>, complex<f32>) -> complex<f32>) {
@@ -67,6 +77,31 @@ func.func @atan2(%lhs: complex<f32>, %rhs: complex<f32>) -> complex<f32> {
   func.return %atan2 : complex<f32>
 }
 
+func.func @pow(%lhs: complex<f32>, %rhs: complex<f32>) -> complex<f32> {
+  %pow = complex.pow %lhs, %rhs : complex<f32>
+  func.return %pow : complex<f32>
+}
+
+func.func @test_element(%input: tensor<?xcomplex<f32>>,
+                      %func: (complex<f32>) -> f32) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %size = tensor.dim %input, %c0: tensor<?xcomplex<f32>>
+
+  scf.for %i = %c0 to %size step %c1 {
+    %elem = tensor.extract %input[%i]: tensor<?xcomplex<f32>>
+
+    %val = func.call_indirect %func(%elem) : (complex<f32>) -> f32
+    vector.print %val : f32
+    scf.yield
+  }
+  func.return
+}
+
+func.func @angle(%arg: complex<f32>) -> f32 {
+  %angle = complex.angle %arg : complex<f32>
+  func.return %angle : f32
+}
 
 func.func @entry() {
   // complex.sqrt test
@@ -121,6 +156,30 @@ func.func @entry() {
     : (tensor<?xcomplex<f32>>, (complex<f32>, complex<f32>)
     -> complex<f32>) -> ()
 
+  // complex.pow test
+  %pow_test = arith.constant dense<[
+    (0.0, 0.0), (0.0, 0.0),
+    // CHECK:       1
+    // CHECK-NEXT:  0
+    (0.0, 0.0), (1.0, 0.0),
+    // CHECK-NEXT:  0
+    // CHECK-NEXT:  0
+    (0.0, 0.0), (-1.0, 0.0),
+    // CHECK-NEXT:  -nan
+    // CHECK-NEXT:  -nan
+    (1.0, 1.0), (1.0, 1.0)
+    // CHECK-NEXT:  0.273
+    // CHECK-NEXT:  0.583
+  ]> : tensor<8xcomplex<f32>>
+  %pow_test_cast = tensor.cast %pow_test
+    :  tensor<8xcomplex<f32>> to tensor<?xcomplex<f32>>
+
+  %pow_func = func.constant @pow : (complex<f32>, complex<f32>)
+    -> complex<f32>
+  call @test_binary(%pow_test_cast, %pow_func)
+    : (tensor<?xcomplex<f32>>, (complex<f32>, complex<f32>)
+    -> complex<f32>) -> ()
+
   // complex.tanh test
   %tanh_test = arith.constant dense<[
     (-1.0, -1.0),
@@ -151,6 +210,92 @@ func.func @entry() {
   %tanh_func = func.constant @tanh : (complex<f32>) -> complex<f32>
   call @test_unary(%tanh_test_cast, %tanh_func)
     : (tensor<?xcomplex<f32>>, (complex<f32>) -> complex<f32>) -> ()
+
+  // complex.rsqrt test
+  %rsqrt_test = arith.constant dense<[
+    (-1.0, -1.0),
+    // CHECK:       0.321
+    // CHECK-NEXT:  0.776
+    (-1.0, 1.0),
+    // CHECK-NEXT:  0.321
+    // CHECK-NEXT:  -0.776
+    (0.0, 0.0),
+    // CHECK-NEXT:  nan
+    // CHECK-NEXT:  nan
+    (0.0, 1.0),
+    // CHECK-NEXT:  0.707
+    // CHECK-NEXT:  -0.707
+    (1.0, -1.0),
+    // CHECK-NEXT:  0.776
+    // CHECK-NEXT:  0.321
+    (1.0, 0.0),
+    // CHECK-NEXT:  1
+    // CHECK-NEXT:  0
+    (1.0, 1.0)
+    // CHECK-NEXT:  0.776
+    // CHECK-NEXT:  -0.321
+  ]> : tensor<7xcomplex<f32>>
+  %rsqrt_test_cast = tensor.cast %rsqrt_test
+    :  tensor<7xcomplex<f32>> to tensor<?xcomplex<f32>>
+
+  %rsqrt_func = func.constant @rsqrt : (complex<f32>) -> complex<f32>
+  call @test_unary(%rsqrt_test_cast, %rsqrt_func)
+    : (tensor<?xcomplex<f32>>, (complex<f32>) -> complex<f32>) -> ()
+
+  // complex.conj test
+  %conj_test = arith.constant dense<[
+    (-1.0, -1.0),
+    // CHECK:      -1
+    // CHECK-NEXT: 1
+    (-1.0, 1.0),
+    // CHECK-NEXT:  -1
+    // CHECK-NEXT:  -1
+    (0.0, 0.0),
+    // CHECK-NEXT:  0
+    // CHECK-NEXT:  0
+    (0.0, 1.0),
+    // CHECK-NEXT:  0
+    // CHECK-NEXT:  -1
+    (1.0, -1.0),
+    // CHECK-NEXT:  1
+    // CHECK-NEXT:  1
+    (1.0, 0.0),
+    // CHECK-NEXT:  1
+    // CHECK-NEXT:  0
+    (1.0, 1.0)
+    // CHECK-NEXT:  1
+    // CHECK-NEXT:  -1
+  ]> : tensor<7xcomplex<f32>>
+  %conj_test_cast = tensor.cast %conj_test
+    :  tensor<7xcomplex<f32>> to tensor<?xcomplex<f32>>
+
+  %conj_func = func.constant @conj : (complex<f32>) -> complex<f32>
+  call @test_unary(%conj_test_cast, %conj_func)
+    : (tensor<?xcomplex<f32>>, (complex<f32>) -> complex<f32>) -> ()
+
+  // complex.angle test
+  %angle_test = arith.constant dense<[
+    (-1.0, -1.0),
+    // CHECK:      -2.356
+    (-1.0, 1.0),
+    // CHECK-NEXT:  2.356
+    (0.0, 0.0),
+    // CHECK-NEXT:  0
+    (0.0, 1.0),
+    // CHECK-NEXT:  1.570
+    (1.0, -1.0),
+    // CHECK-NEXT:  -0.785
+    (1.0, 0.0),
+    // CHECK-NEXT:  0
+    (1.0, 1.0)
+    // CHECK-NEXT:  0.785
+  ]> : tensor<7xcomplex<f32>>
+  %angle_test_cast = tensor.cast %angle_test
+    :  tensor<7xcomplex<f32>> to tensor<?xcomplex<f32>>
+
+  %angle_func = func.constant @angle : (complex<f32>) -> f32
+  call @test_element(%angle_test_cast, %angle_func)
+    : (tensor<?xcomplex<f32>>, (complex<f32>) -> f32) -> ()
 
   func.return
 }

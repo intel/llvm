@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -80,7 +81,7 @@ public:
     if (is_host()) {
       throw invalid_object_error(
           "This instance of platform doesn't support OpenCL interoperability.",
-          PI_INVALID_PLATFORM);
+          PI_ERROR_INVALID_PLATFORM);
     }
     return pi::cast<cl_platform_id>(MPlatform);
   }
@@ -95,7 +96,7 @@ public:
   const RT::PiPlatform &getHandleRef() const {
     if (is_host())
       throw invalid_object_error("This instance of platform is a host instance",
-                                 PI_INVALID_PLATFORM);
+                                 PI_ERROR_INVALID_PLATFORM);
 
     return MPlatform;
   }

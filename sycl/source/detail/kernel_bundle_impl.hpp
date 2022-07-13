@@ -146,7 +146,7 @@ public:
       case bundle_state::input:
         throw sycl::runtime_error(
             "Internal error. The target state should not be input",
-            PI_INVALID_OPERATION);
+            PI_ERROR_INVALID_OPERATION);
         break;
       }
     }

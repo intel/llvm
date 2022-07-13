@@ -1261,18 +1261,6 @@ public:
   /// extended, truncated, or left alone to make it that width.
   APInt zextOrTrunc(unsigned width) const;
 
-  /// Truncate this APInt if necessary to ensure that its bit width is <= \p
-  /// width.
-  [[deprecated("Use trunc instead")]] APInt truncOrSelf(unsigned width) const;
-
-  /// Sign-extend this APInt if necessary to ensure that its bit width is >= \p
-  /// width.
-  [[deprecated("Use sext instead")]] APInt sextOrSelf(unsigned width) const;
-
-  /// Zero-extend this APInt if necessary to ensure that its bit width is >= \p
-  /// width.
-  [[deprecated("Use zext instead")]] APInt zextOrSelf(unsigned width) const;
-
   /// @}
   /// \name Bit Manipulation Operators
   /// @{
@@ -2251,12 +2239,16 @@ Optional<unsigned> GetMostSignificantDifferentBit(const APInt &A,
 /// Splat/Merge neighboring bits to widen/narrow the bitmask represented
 /// by \param A to \param NewBitWidth bits.
 ///
+/// MatchAnyBits: (Default)
 /// e.g. ScaleBitMask(0b0101, 8) -> 0b00110011
 /// e.g. ScaleBitMask(0b00011011, 4) -> 0b0111
-/// A.getBitwidth() or NewBitWidth must be a whole multiples of the other.
 ///
-/// TODO: Do we need a mode where all bits must be set when merging down?
-APInt ScaleBitMask(const APInt &A, unsigned NewBitWidth);
+/// MatchAllBits:
+/// e.g. ScaleBitMask(0b0101, 8) -> 0b00110011
+/// e.g. ScaleBitMask(0b00011011, 4) -> 0b0001
+/// A.getBitwidth() or NewBitWidth must be a whole multiples of the other.
+APInt ScaleBitMask(const APInt &A, unsigned NewBitWidth,
+                   bool MatchAllBits = false);
 } // namespace APIntOps
 
 // See friend declaration above. This additional declaration is required in

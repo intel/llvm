@@ -44,7 +44,7 @@ struct IsValidAtomicRefAddressSpace {
   static constexpr bool value =
       (AS == access::address_space::global_space ||
        AS == access::address_space::local_space ||
-       AS == access::address_space::global_device_space ||
+       AS == access::address_space::ext_intel_global_device_space ||
        AS == access::address_space::generic_space);
 };
 
@@ -119,10 +119,10 @@ class atomic_ref_base {
       "Invalid atomic type.  Valid types are int, unsigned int, long, "
       "unsigned long, long long, unsigned long long, float, double "
       "and pointer types");
-  static_assert(
-      detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
-      "Invalid atomic address_space.  Valid address spaces are: "
-      "global_space, local_space, global_device_space, generic_space");
+  static_assert(detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
+                "Invalid atomic address_space.  Valid address spaces are: "
+                "global_space, local_space, ext_intel_global_device_space, "
+                "generic_space");
   static_assert(
       detail::IsValidDefaultOrder<DefaultOrder>::value,
       "Invalid default memory_order for atomics.  Valid defaults are: "

@@ -1291,12 +1291,12 @@ bool CombinerHelper::matchCombineConstantFoldFpUnary(MachineInstr &MI,
   Register SrcReg = MI.getOperand(1).getReg();
   LLT DstTy = MRI.getType(DstReg);
   Cst = constantFoldFpUnary(MI.getOpcode(), DstTy, SrcReg, MRI);
-  return Cst.hasValue();
+  return Cst.has_value();
 }
 
 void CombinerHelper::applyCombineConstantFoldFpUnary(MachineInstr &MI,
                                                      Optional<APFloat> &Cst) {
-  assert(Cst.hasValue() && "Optional is unexpectedly empty!");
+  assert(Cst && "Optional is unexpectedly empty!");
   Builder.setInstrAndDebugLoc(MI);
   MachineFunction &MF = Builder.getMF();
   auto *FPVal = ConstantFP::get(MF.getFunction().getContext(), *Cst);
@@ -2426,7 +2426,7 @@ bool CombinerHelper::matchConstantOp(const MachineOperand &MOP, int64_t C) {
     return false;
   auto *MI = MRI.getVRegDef(MOP.getReg());
   auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
-  return MaybeCst.hasValue() && MaybeCst->getBitWidth() <= 64 &&
+  return MaybeCst && MaybeCst->getBitWidth() <= 64 &&
          MaybeCst->getSExtValue() == C;
 }
 
@@ -3465,7 +3465,7 @@ bool CombinerHelper::matchLoadOrCombine(
   // BSWAP.
   bool IsBigEndianTarget = MF.getDataLayout().isBigEndian();
   Optional<bool> IsBigEndian = isBigEndian(MemOffset2Idx, LowestIdx);
-  if (!IsBigEndian.hasValue())
+  if (!IsBigEndian)
     return false;
   bool NeedsBSwap = IsBigEndianTarget != *IsBigEndian;
   if (NeedsBSwap && !isLegalOrBeforeLegalizer({TargetOpcode::G_BSWAP, {Ty}}))
@@ -3973,7 +3973,7 @@ bool CombinerHelper::matchExtractAllEltsFromBuildVector(
     auto Cst = getIConstantVRegVal(II.getOperand(2).getReg(), MRI);
     if (!Cst)
       return false;
-    unsigned Idx = Cst.getValue().getZExtValue();
+    unsigned Idx = Cst->getZExtValue();
     if (Idx >= NumElts)
       return false; // Out of range.
     ExtractedElts.set(Idx);
@@ -5631,6 +5631,22 @@ bool CombinerHelper::matchCombineFMinMaxNaN(MachineInstr &MI,
   };
 
   return MatchNaN(1) || MatchNaN(2);
+}
+
+bool CombinerHelper::matchAddSubSameReg(MachineInstr &MI, Register &Src) {
+  assert(MI.getOpcode() == TargetOpcode::G_ADD && "Expected a G_ADD");
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+
+  // Helper lambda to check for opportunities for
+  // A + (B - A) -> B
+  // (B - A) + A -> B
+  auto CheckFold = [&](Register MaybeSub, Register MaybeSameReg) {
+    Register Reg;
+    return mi_match(MaybeSub, MRI, m_GSub(m_Reg(Src), m_Reg(Reg))) &&
+           Reg == MaybeSameReg;
+  };
+  return CheckFold(LHS, RHS) || CheckFold(RHS, LHS);
 }
 
 bool CombinerHelper::tryCombine(MachineInstr &MI) {

@@ -34,12 +34,8 @@ namespace opts {
 extern cl::opt<JumpTableSupportLevel> JumpTables;
 extern cl::opt<bool> PreserveBlocksAlignment;
 
-cl::opt<bool>
-AlignBlocks("align-blocks",
-  cl::desc("align basic blocks"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+cl::opt<bool> AlignBlocks("align-blocks", cl::desc("align basic blocks"),
+                          cl::cat(BoltOptCategory));
 
 cl::opt<MacroFusionType>
 AlignMacroOpFusion("align-macro-fusion",
@@ -70,20 +66,15 @@ FunctionPadSpec("pad-funcs",
   cl::Hidden,
   cl::cat(BoltCategory));
 
-static cl::opt<bool>
-MarkFuncs("mark-funcs",
-  cl::desc("mark function boundaries with break instruction to make "
-           "sure we accidentally don't cross them"),
-  cl::ReallyHidden,
-  cl::ZeroOrMore,
-  cl::cat(BoltCategory));
+static cl::opt<bool> MarkFuncs(
+    "mark-funcs",
+    cl::desc("mark function boundaries with break instruction to make "
+             "sure we accidentally don't cross them"),
+    cl::ReallyHidden, cl::cat(BoltCategory));
 
-static cl::opt<bool>
-PrintJumpTables("print-jump-tables",
-  cl::desc("print jump tables"),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltCategory));
+static cl::opt<bool> PrintJumpTables("print-jump-tables",
+                                     cl::desc("print jump tables"), cl::Hidden,
+                                     cl::cat(BoltCategory));
 
 static cl::opt<bool>
 X86AlignBranchBoundaryHotOnly("x86-align-branch-boundary-hot-only",
@@ -258,7 +249,7 @@ void BinaryEmitter::emitFunctions() {
 
   // Mark the start of hot text.
   if (opts::HotText) {
-    Streamer.SwitchSection(BC.getTextSection());
+    Streamer.switchSection(BC.getTextSection());
     Streamer.emitLabel(BC.getHotTextStartSymbol());
   }
 
@@ -271,7 +262,7 @@ void BinaryEmitter::emitFunctions() {
 
   // Mark the end of hot text.
   if (opts::HotText) {
-    Streamer.SwitchSection(BC.getTextSection());
+    Streamer.switchSection(BC.getTextSection());
     Streamer.emitLabel(BC.getHotTextEndSymbol());
   }
 }
@@ -286,7 +277,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
   MCSection *Section =
       BC.getCodeSection(EmitColdPart ? Function.getColdCodeSectionName()
                                      : Function.getCodeSectionName());
-  Streamer.SwitchSection(Section);
+  Streamer.switchSection(Section);
   Section->setHasInstructions(true);
   BC.Ctx->addGenDwarfSection(Section);
 
@@ -342,8 +333,7 @@ bool BinaryEmitter::emitFunction(BinaryFunction &Function, bool EmitColdPart) {
       // Only write CIE CFI insns that LLVM will not already emit
       const std::vector<MCCFIInstruction> &FrameInstrs =
           MAI->getInitialFrameState();
-      if (std::find(FrameInstrs.begin(), FrameInstrs.end(), CFIInstr) ==
-          FrameInstrs.end())
+      if (!llvm::is_contained(FrameInstrs, CFIInstr))
         emitCFIInstruction(CFIInstr);
     }
   }
@@ -780,7 +770,7 @@ void BinaryEmitter::emitJumpTable(const JumpTable &JT, MCSection *HotSection,
     }
     LabelCounts[CurrentLabel] = CurrentLabelCount;
   } else {
-    Streamer.SwitchSection(JT.Count > 0 ? HotSection : ColdSection);
+    Streamer.switchSection(JT.Count > 0 ? HotSection : ColdSection);
     Streamer.emitValueToAlignment(JT.EntrySize);
   }
   MCSymbol *LastLabel = nullptr;
@@ -797,9 +787,9 @@ void BinaryEmitter::emitJumpTable(const JumpTable &JT, MCSection *HotSection,
         LLVM_DEBUG(dbgs() << "BOLT-DEBUG: jump table count: "
                           << LabelCounts[LI->second] << '\n');
         if (LabelCounts[LI->second] > 0)
-          Streamer.SwitchSection(HotSection);
+          Streamer.switchSection(HotSection);
         else
-          Streamer.SwitchSection(ColdSection);
+          Streamer.switchSection(ColdSection);
         Streamer.emitValueToAlignment(JT.EntrySize);
       }
       Streamer.emitLabel(LI->second);
@@ -885,7 +875,7 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   for (const BinaryFunction::CallSite &CallSite : *Sites)
     CallSiteTableLength += getULEB128Size(CallSite.Action);
 
-  Streamer.SwitchSection(BC.MOFI->getLSDASection());
+  Streamer.switchSection(BC.MOFI->getLSDASection());
 
   const unsigned TTypeEncoding = BC.TTypeEncoding;
   const unsigned TTypeEncodingSize = BC.getDWARFEncodingSize(TTypeEncoding);
@@ -921,8 +911,8 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
   // defined in the same section and hence cannot place the landing pad into a
   // cold fragment when the corresponding call site is in the hot fragment.
   // Because of this issue and the previously described issue of possible
-  // zero-offset landing pad we disable splitting of exception-handling
-  // code for shared objects.
+  // zero-offset landing pad we have to place landing pads in the same section
+  // as the corresponding invokes for shared objects.
   std::function<void(const MCSymbol *)> emitLandingPad;
   if (BC.HasFixedLoadAddress) {
     Streamer.emitIntValue(dwarf::DW_EH_PE_udata4, 1); // LPStart format
@@ -934,8 +924,6 @@ void BinaryEmitter::emitLSDA(BinaryFunction &BF, bool EmitColdPart) {
         Streamer.emitSymbolValue(LPSymbol, 4);
     };
   } else {
-    assert(!EmitColdPart &&
-           "cannot have exceptions in cold fragment for shared object");
     Streamer.emitIntValue(dwarf::DW_EH_PE_omit, 1); // LPStart format
     emitLandingPad = [&](const MCSymbol *LPSymbol) {
       if (!LPSymbol)
@@ -1098,7 +1086,7 @@ void BinaryEmitter::emitDebugLineInfoForUnprocessedCUs() {
 
     StmtListOffsets.push_back(*StmtList);
   }
-  std::sort(StmtListOffsets.begin(), StmtListOffsets.end());
+  llvm::sort(StmtListOffsets);
 
   // For each CU that was not processed, emit its line info as a binary blob.
   for (const std::unique_ptr<DWARFUnit> &CU : BC.DwCtx->compile_units()) {
@@ -1116,8 +1104,7 @@ void BinaryEmitter::emitDebugLineInfoForUnprocessedCUs() {
 
     // Statement list ends where the next unit contribution begins, or at the
     // end of the section.
-    auto It =
-        std::upper_bound(StmtListOffsets.begin(), StmtListOffsets.end(), Begin);
+    auto It = llvm::upper_bound(StmtListOffsets, Begin);
     const uint64_t End =
         It == StmtListOffsets.end() ? DebugLineContents.size() : *It;
 

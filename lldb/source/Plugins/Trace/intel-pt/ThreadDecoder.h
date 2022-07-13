@@ -23,7 +23,7 @@ namespace trace_intel_pt {
 class ThreadDecoder {
 public:
   /// \param[in] thread_sp
-  ///     The thread whose trace buffer will be decoded.
+  ///     The thread whose intel pt trace buffer will be decoded.
   ///
   /// \param[in] trace
   ///     The main Trace object who owns this decoder and its data.
@@ -34,13 +34,13 @@ public:
   ///
   /// \return
   ///     A \a DecodedThread instance.
-  DecodedThreadSP Decode();
+  llvm::Expected<DecodedThreadSP> Decode();
 
   ThreadDecoder(const ThreadDecoder &other) = delete;
   ThreadDecoder &operator=(const ThreadDecoder &other) = delete;
 
 private:
-  DecodedThreadSP DoDecode();
+  llvm::Expected<DecodedThreadSP> DoDecode();
 
   lldb::ThreadSP m_thread_sp;
   TraceIntelPT &m_trace;

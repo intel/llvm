@@ -1336,7 +1336,7 @@ DynamicSection<ELFT>::computeContents() {
     addInt(config->enableNewDtags ? DT_RUNPATH : DT_RPATH,
            part.dynStrTab->addString(config->rpath));
 
-  for (SharedFile *file : sharedFiles)
+  for (SharedFile *file : ctx->sharedFiles)
     if (file->isNeeded)
       addInt(DT_NEEDED, part.dynStrTab->addString(file->soName));
 
@@ -1505,7 +1505,7 @@ DynamicSection<ELFT>::computeContents() {
   if (part.verNeed && part.verNeed->isNeeded()) {
     addInSec(DT_VERNEED, *part.verNeed);
     unsigned needNum = 0;
-    for (SharedFile *f : sharedFiles)
+    for (SharedFile *f : ctx->sharedFiles)
       if (!f->vernauxs.empty())
         ++needNum;
     addInt(DT_VERNEEDNUM, needNum);
@@ -1593,7 +1593,7 @@ uint32_t DynamicReloc::getSymIndex(SymbolTableBaseSection *symTab) const {
     return 0;
 
   size_t index = symTab->getSymbolIndex(sym);
-  assert((index != 0 || type != target->gotRel && type != target->pltRel ||
+  assert((index != 0 || (type != target->gotRel && type != target->pltRel) ||
           !mainPart->dynSymTab->getParent()) &&
          "GOT or PLT relocation must refer to symbol in dynamic symbol table");
   return index;
@@ -2841,7 +2841,7 @@ static SmallVector<GdbIndexSection::GdbSymbol, 0> createSymbols(
   // Instantiate GdbSymbols while uniqufying them by name.
   auto symbols = std::make_unique<SmallVector<GdbSymbol, 0>[]>(numShards);
 
-  parallelForEachN(0, concurrency, [&](size_t threadId) {
+  parallelFor(0, concurrency, [&](size_t threadId) {
     uint32_t i = 0;
     for (ArrayRef<NameAttrEntry> entries : nameAttrs) {
       for (const NameAttrEntry &ent : entries) {
@@ -2921,7 +2921,7 @@ template <class ELFT> GdbIndexSection *GdbIndexSection::create() {
   SmallVector<GdbChunk, 0> chunks(files.size());
   SmallVector<SmallVector<NameAttrEntry, 0>, 0> nameAttrs(files.size());
 
-  parallelForEachN(0, files.size(), [&](size_t i) {
+  parallelFor(0, files.size(), [&](size_t i) {
     // To keep memory usage low, we don't want to keep cached DWARFContext, so
     // avoid getDwarf() here.
     ObjFile<ELFT> *file = cast<ObjFile<ELFT>>(files[i]);
@@ -3179,7 +3179,7 @@ VersionNeedSection<ELFT>::VersionNeedSection()
                        ".gnu.version_r") {}
 
 template <class ELFT> void VersionNeedSection<ELFT>::finalizeContents() {
-  for (SharedFile *f : sharedFiles) {
+  for (SharedFile *f : ctx->sharedFiles) {
     if (f->vernauxs.empty())
       continue;
     verneeds.emplace_back();
@@ -3287,8 +3287,8 @@ void MergeTailSection::finalizeContents() {
 }
 
 void MergeNoTailSection::writeTo(uint8_t *buf) {
-  parallelForEachN(0, numShards,
-                   [&](size_t i) { shards[i].write(buf + shardOffsets[i]); });
+  parallelFor(0, numShards,
+              [&](size_t i) { shards[i].write(buf + shardOffsets[i]); });
 }
 
 // This function is very hot (i.e. it can take several seconds to finish)
@@ -3312,7 +3312,7 @@ void MergeNoTailSection::finalizeContents() {
                        numShards));
 
   // Add section pieces to the builders.
-  parallelForEachN(0, concurrency, [&](size_t threadId) {
+  parallelFor(0, concurrency, [&](size_t threadId) {
     for (MergeInputSection *sec : sections) {
       for (size_t i = 0, e = sec->pieces.size(); i != e; ++i) {
         if (!sec->pieces[i].live)
@@ -3349,7 +3349,7 @@ template <class ELFT> void elf::splitSections() {
   llvm::TimeTraceScope timeScope("Split sections");
   // splitIntoPieces needs to be called on each MergeInputSection
   // before calling finalizeContents().
-  parallelForEach(objectFiles, [](ELFFileBase *file) {
+  parallelForEach(ctx->objectFiles, [](ELFFileBase *file) {
     for (InputSectionBase *sec : file->getSections()) {
       if (!sec)
         continue;
@@ -3717,9 +3717,9 @@ static uint8_t getAbiVersion() {
     return 0;
   }
 
-  if (config->emachine == EM_AMDGPU && !objectFiles.empty()) {
-    uint8_t ver = objectFiles[0]->abiVersion;
-    for (InputFile *file : makeArrayRef(objectFiles).slice(1))
+  if (config->emachine == EM_AMDGPU && !ctx->objectFiles.empty()) {
+    uint8_t ver = ctx->objectFiles[0]->abiVersion;
+    for (InputFile *file : makeArrayRef(ctx->objectFiles).slice(1))
       if (file->abiVersion != ver)
         error("incompatible ABI version: " + toString(file));
     return ver;

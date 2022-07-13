@@ -1151,6 +1151,8 @@ add_fp_unittest(
     libc.src.__support.FPUtil.fputil
 )
 
+# TODO(lntue): The current implementation of fputil::general::fma<float> is only
+# correctly rounded for the default rounding mode round-to-nearest tie-to-even.
 add_fp_unittest(
   fmaf_test
   NEED_MPFR
@@ -1162,6 +1164,8 @@ add_fp_unittest(
     libc.include.math
     libc.src.math.fmaf
     libc.src.__support.FPUtil.fputil
+  FLAGS
+    FMA_OPT__ONLY
 )
 
 add_fp_unittest(
@@ -1189,9 +1193,6 @@ add_fp_unittest(
     libc.src.__support.FPUtil.fputil
 )
 
-# Without FMA instructions, the current expm1f implementation is not correctly
-# rounded for all float inputs (1 extra exceptional value). This will be fixed
-# in the followup patch: https://reviews.llvm.org/D123440
 add_fp_unittest(
   expm1f_test
   NEED_MPFR
@@ -1204,8 +1205,6 @@ add_fp_unittest(
     libc.include.math
     libc.src.math.expm1f
     libc.src.__support.FPUtil.fputil
-  FLAGS
-    FMA_OPT__ONLY
 )
 
 add_fp_unittest(
@@ -1269,6 +1268,34 @@ add_fp_unittest(
   DEPENDS
     libc.include.math
     libc.src.math.log1pf
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  fmodf_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmodf_test.cpp
+  HDRS
+    FModTest.h
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmodf
+    libc.src.__support.FPUtil.fputil
+)
+
+add_fp_unittest(
+  fmod_test
+  SUITE
+    libc_math_unittests
+  SRCS
+    fmod_test.cpp
+  HDRS
+    FModTest.h
+  DEPENDS
+    libc.include.math
+    libc.src.math.fmod
     libc.src.__support.FPUtil.fputil
 )
 

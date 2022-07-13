@@ -37,7 +37,7 @@ class MachineInstr;
 /// contains private AArch64-specific information for each MachineFunction.
 class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// Backreference to the machine function.
-  MachineFunction &MF;
+  MachineFunction *MF;
 
   /// Number of bytes of arguments this function has on the stack. If the callee
   /// is expected to restore the argument stack this should be a multiple of 16,
@@ -175,6 +175,12 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
   /// The stack slot where the Swift asynchronous context is stored.
   int SwiftAsyncContextFrameIdx = std::numeric_limits<int>::max();
 
+  bool IsMTETagged = false;
+
+  /// The function has Scalable Vector or Scalable Predicate register argument
+  /// or return type
+  bool IsSVECC = false;
+
   /// True if the function need unwind information.
   mutable Optional<bool> NeedsDwarfUnwindInfo;
 
@@ -183,6 +189,14 @@ class AArch64FunctionInfo final : public MachineFunctionInfo {
 
 public:
   explicit AArch64FunctionInfo(MachineFunction &MF);
+
+  MachineFunctionInfo *
+  clone(BumpPtrAllocator &Allocator, MachineFunction &DestMF,
+        const DenseMap<MachineBasicBlock *, MachineBasicBlock *> &Src2DstMBB)
+      const override;
+
+  bool isSVECC() const { return IsSVECC; };
+  void setIsSVECC(bool s) { IsSVECC = s; };
 
   void initializeBaseYamlFields(const yaml::AArch64FunctionInfo &YamlMFI);
 
@@ -403,6 +417,7 @@ public:
   bool shouldSignReturnAddress(bool SpillsLR) const;
 
   bool shouldSignWithBKey() const { return SignWithBKey; }
+  bool isMTETagged() const { return IsMTETagged; }
 
   bool branchTargetEnforcement() const { return BranchTargetEnforcement; }
 

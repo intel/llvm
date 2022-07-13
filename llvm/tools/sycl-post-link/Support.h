@@ -37,6 +37,10 @@ inline void error(const Twine &Msg) {
   exit(1);
 }
 
+inline void warning(const Twine &Msg) {
+  errs() << "sycl-post-link WARNING: " << Msg << '\n';
+}
+
 inline void checkError(std::error_code EC, const Twine &Prefix) {
   if (EC)
     error(Prefix + ": " + EC.message());

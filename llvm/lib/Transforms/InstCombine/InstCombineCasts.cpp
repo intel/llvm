@@ -36,8 +36,10 @@ static Value *decomposeSimpleLinearExpr(Value *Val, unsigned &Scale,
 
   if (BinaryOperator *I = dyn_cast<BinaryOperator>(Val)) {
     // Cannot look past anything that might overflow.
+    // We specifically require nuw because we store the Scale in an unsigned
+    // and perform an unsigned divide on it.
     OverflowingBinaryOperator *OBI = dyn_cast<OverflowingBinaryOperator>(Val);
-    if (OBI && !OBI->hasNoUnsignedWrap() && !OBI->hasNoSignedWrap()) {
+    if (OBI && !OBI->hasNoUnsignedWrap()) {
       Scale = 1;
       Offset = 0;
       return Val;
@@ -987,7 +989,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
       Attribute Attr =
           Trunc.getFunction()->getFnAttribute(Attribute::VScaleRange);
       if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
-        if (Log2_32(MaxVScale.getValue()) < DestWidth) {
+        if (Log2_32(*MaxVScale) < DestWidth) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(Trunc, VScale);
         }
@@ -1359,7 +1361,7 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &CI) {
       Attribute Attr = CI.getFunction()->getFnAttribute(Attribute::VScaleRange);
       if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
         unsigned TypeWidth = Src->getType()->getScalarSizeInBits();
-        if (Log2_32(MaxVScale.getValue()) < TypeWidth) {
+        if (Log2_32(*MaxVScale) < TypeWidth) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(CI, VScale);
         }
@@ -1632,7 +1634,7 @@ Instruction *InstCombinerImpl::visitSExt(SExtInst &CI) {
         CI.getFunction()->hasFnAttribute(Attribute::VScaleRange)) {
       Attribute Attr = CI.getFunction()->getFnAttribute(Attribute::VScaleRange);
       if (Optional<unsigned> MaxVScale = Attr.getVScaleRangeMax()) {
-        if (Log2_32(MaxVScale.getValue()) < (SrcBitSize - 1)) {
+        if (Log2_32(*MaxVScale) < (SrcBitSize - 1)) {
           Value *VScale = Builder.CreateVScale(ConstantInt::get(DestTy, 1));
           return replaceInstUsesWith(CI, VScale);
         }
@@ -1732,7 +1734,7 @@ static Type *getMinimumFPType(Value *V) {
 
 /// Return true if the cast from integer to FP can be proven to be exact for all
 /// possible inputs (the conversion does not lose any precision).
-static bool isKnownExactCastIntToFP(CastInst &I) {
+static bool isKnownExactCastIntToFP(CastInst &I, InstCombinerImpl &IC) {
   CastInst::CastOps Opcode = I.getOpcode();
   assert((Opcode == CastInst::SIToFP || Opcode == CastInst::UIToFP) &&
          "Unexpected cast");
@@ -1768,7 +1770,14 @@ static bool isKnownExactCastIntToFP(CastInst &I) {
 
   // TODO:
   // Try harder to find if the source integer type has less significant bits.
-  // For example, compute number of sign bits or compute low bit mask.
+  // For example, compute number of sign bits.
+  KnownBits SrcKnown = IC.computeKnownBits(Src, 0, &I);
+  int SigBits = (int)SrcTy->getScalarSizeInBits() -
+                SrcKnown.countMinLeadingZeros() -
+                SrcKnown.countMinTrailingZeros();
+  if (SigBits <= DestNumSigBits)
+    return true;
+
   return false;
 }
 
@@ -1949,7 +1958,7 @@ Instruction *InstCombinerImpl::visitFPTrunc(FPTruncInst &FPT) {
   Value *Src = FPT.getOperand(0);
   if (isa<SIToFPInst>(Src) || isa<UIToFPInst>(Src)) {
     auto *FPCast = cast<CastInst>(Src);
-    if (isKnownExactCastIntToFP(*FPCast))
+    if (isKnownExactCastIntToFP(*FPCast, *this))
       return CastInst::Create(FPCast->getOpcode(), FPCast->getOperand(0), Ty);
   }
 
@@ -1963,7 +1972,7 @@ Instruction *InstCombinerImpl::visitFPExt(CastInst &FPExt) {
   Value *Src = FPExt.getOperand(0);
   if (isa<SIToFPInst>(Src) || isa<UIToFPInst>(Src)) {
     auto *FPCast = cast<CastInst>(Src);
-    if (isKnownExactCastIntToFP(*FPCast))
+    if (isKnownExactCastIntToFP(*FPCast, *this))
       return CastInst::Create(FPCast->getOpcode(), FPCast->getOperand(0), Ty);
   }
 
@@ -1990,7 +1999,7 @@ Instruction *InstCombinerImpl::foldItoFPtoI(CastInst &FI) {
 
   // This means this is also safe for a signed input and unsigned output, since
   // a negative input would lead to undefined behavior.
-  if (!isKnownExactCastIntToFP(*OpI)) {
+  if (!isKnownExactCastIntToFP(*OpI, *this)) {
     // The first cast may not round exactly based on the source integer width
     // and FP width, but the overflow UB rules can still allow this to fold.
     // If the destination type is narrow, that means the intermediate FP value

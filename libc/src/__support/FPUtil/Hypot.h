@@ -12,8 +12,10 @@
 #include "BasicOperations.h"
 #include "FEnvImpl.h"
 #include "FPBits.h"
+#include "builtin_wrappers.h"
 #include "src/__support/CPP/Bit.h"
 #include "src/__support/CPP/TypeTraits.h"
+#include "src/__support/CPP/UInt128.h"
 
 namespace __llvm_libc {
 namespace fputil {
@@ -21,43 +23,12 @@ namespace fputil {
 namespace internal {
 
 template <typename T>
-static inline T find_leading_one(T mant, int &shift_length);
-
-// The following overloads are matched based on what is accepted by
-// __builtin_clz* rather than using the exactly-sized aliases from stdint.h
-// (such as uint32_t). There are 3 overloads even though 2 will only ever be
-// used by a specific platform, since unsigned long varies in size depending on
-// the word size of the architecture.
-
-template <>
-inline unsigned int find_leading_one<unsigned int>(unsigned int mant,
-                                                   int &shift_length) {
+static inline T find_leading_one(T mant, int &shift_length) {
   shift_length = 0;
   if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - __builtin_clz(mant);
+    shift_length = (sizeof(mant) * 8) - 1 - unsafe_clz(mant);
   }
-  return 1U << shift_length;
-}
-
-template <>
-inline unsigned long find_leading_one<unsigned long>(unsigned long mant,
-                                                     int &shift_length) {
-  shift_length = 0;
-  if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - __builtin_clzl(mant);
-  }
-  return 1UL << shift_length;
-}
-
-template <>
-inline unsigned long long
-find_leading_one<unsigned long long>(unsigned long long mant,
-                                     int &shift_length) {
-  shift_length = 0;
-  if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - __builtin_clzll(mant);
-  }
-  return 1ULL << shift_length;
+  return T(1) << shift_length;
 }
 
 } // namespace internal
@@ -68,7 +39,9 @@ template <> struct DoubleLength<uint16_t> { using Type = uint32_t; };
 
 template <> struct DoubleLength<uint32_t> { using Type = uint64_t; };
 
-template <> struct DoubleLength<uint64_t> { using Type = __uint128_t; };
+template <> struct DoubleLength<uint64_t> {
+  using Type = UInt128;
+};
 
 // Correctly rounded IEEE 754 HYPOT(x, y) with round to nearest, ties to even.
 //

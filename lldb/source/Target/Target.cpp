@@ -3466,6 +3466,7 @@ void Target::PrintDummySignals(Stream &strm, Args &signal_args) {
       case eLazyBoolYes: return "true   ";
       case eLazyBoolNo: return "false  ";
     }
+    llvm_unreachable("Fully covered switch above!");
   };
   size_t num_args = signal_args.GetArgumentCount();
   for (const auto &elem : m_dummy_signals) {
@@ -3798,6 +3799,22 @@ static constexpr OptionEnumValueElement g_import_std_module_value_types[] = {
         "complex expressions involving C++ standard library types. This feature"
         " is experimental."
     },
+};
+
+static constexpr OptionEnumValueElement
+    g_dynamic_class_info_helper_value_types[] = {
+        {
+            eDynamicClassInfoHelperAuto,
+            "auto",
+            "Automatically determine the most appropriate method for the "
+            "target OS.",
+        },
+        {eDynamicClassInfoHelperRealizedClassesStruct, "RealizedClassesStruct",
+         "Prefer using the realized classes struct."},
+        {eDynamicClassInfoHelperCopyRealizedClassList, "CopyRealizedClassList",
+         "Prefer using the CopyRealizedClassList API."},
+        {eDynamicClassInfoHelperGetRealizedClassList, "GetRealizedClassList",
+         "Prefer using the GetRealizedClassList API."},
 };
 
 static constexpr OptionEnumValueElement g_hex_immediate_style_values[] = {
@@ -4296,6 +4313,13 @@ ImportStdModule TargetProperties::GetImportStdModule() const {
   const uint32_t idx = ePropertyImportStdModule;
   return (ImportStdModule)m_collection_sp->GetPropertyAtIndexAsEnumeration(
       nullptr, idx, g_target_properties[idx].default_uint_value);
+}
+
+DynamicClassInfoHelper TargetProperties::GetDynamicClassInfoHelper() const {
+  const uint32_t idx = ePropertyDynamicClassInfoHelper;
+  return (DynamicClassInfoHelper)
+      m_collection_sp->GetPropertyAtIndexAsEnumeration(
+          nullptr, idx, g_target_properties[idx].default_uint_value);
 }
 
 bool TargetProperties::GetEnableAutoApplyFixIts() const {

@@ -592,7 +592,10 @@ protected:
       return false;
     }
 
-    ABISP abi = m_exe_ctx.GetProcessPtr()->GetABI();
+    ABISP abi;
+    if (Process *proc = m_exe_ctx.GetProcessPtr())
+      abi = proc->GetABI();
+
     if (abi)
       addr = abi->FixDataAddress(addr);
 
@@ -1734,7 +1737,7 @@ protected:
 
     const llvm::Optional<std::vector<addr_t>> &dirty_page_list =
         range_info.GetDirtyPageList();
-    if (dirty_page_list.hasValue()) {
+    if (dirty_page_list) {
       const size_t page_count = dirty_page_list.getValue().size();
       result.AppendMessageWithFormat(
           "Modified memory (dirty) page list provided, %zu entries.\n",
@@ -1747,8 +1750,7 @@ protected:
             result.AppendMessageWithFormat(", ");
           else
             print_comma = true;
-          result.AppendMessageWithFormat("0x%" PRIx64,
-                                         dirty_page_list.getValue()[i]);
+          result.AppendMessageWithFormat("0x%" PRIx64, (*dirty_page_list)[i]);
         }
         result.AppendMessageWithFormat(".\n");
       }

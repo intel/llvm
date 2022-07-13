@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Victor Mustya <victor.mustya@intel.com>
-    # Date:   Tue, 3 May 2022 17:56:40 +0000
-    # Remove default switch labels for LSC-related functions
-    set(LLVMGenXIntrinsics_GIT_TAG 561f4ff575a198b36a72fcb790e1997d7d6d6c91)
+    # Author: Haohai Wen <haohai.wen@intel.com>
+    # Date:   Fri Jun 10 03:46:22 2022 +0000
+    # Format InstructionSimplify names
+    set(LLVMGenXIntrinsics_GIT_TAG abce9184b7a3a7fe1b02289b9285610d9dc45465)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -48,8 +48,10 @@ set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics
 
 add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMD.cpp
+  ESIMD/LowerESIMDKernelProps.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDVecArg.cpp
+  ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
   LowerInvokeSimd.cpp
   LowerWGScope.cpp

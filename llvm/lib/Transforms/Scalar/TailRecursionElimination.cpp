@@ -526,7 +526,7 @@ void TailRecursionEliminator::createTailRecurseLoopHeader(CallInst *CI) {
   }
 
   // If the function doen't return void, create the RetPN and RetKnownPN PHI
-  // nodes to track our return value. We initialize RetPN with undef and
+  // nodes to track our return value. We initialize RetPN with poison and
   // RetKnownPN with false since we can't know our return value at function
   // entry.
   Type *RetType = F.getReturnType();
@@ -535,7 +535,7 @@ void TailRecursionEliminator::createTailRecurseLoopHeader(CallInst *CI) {
     RetPN = PHINode::Create(RetType, 2, "ret.tr", InsertPos);
     RetKnownPN = PHINode::Create(BoolType, 2, "ret.known.tr", InsertPos);
 
-    RetPN->addIncoming(UndefValue::get(RetType), NewEntry);
+    RetPN->addIncoming(PoisonValue::get(RetType), NewEntry);
     RetKnownPN->addIncoming(ConstantInt::getFalse(BoolType), NewEntry);
   }
 
@@ -729,7 +729,7 @@ void TailRecursionEliminator::cleanupAndFinalize() {
   // call.
   for (PHINode *PN : ArgumentPHIs) {
     // If the PHI Node is a dynamic constant, replace it with the value it is.
-    if (Value *PNV = SimplifyInstruction(PN, F.getParent()->getDataLayout())) {
+    if (Value *PNV = simplifyInstruction(PN, F.getParent()->getDataLayout())) {
       PN->replaceAllUsesWith(PNV);
       PN->eraseFromParent();
     }

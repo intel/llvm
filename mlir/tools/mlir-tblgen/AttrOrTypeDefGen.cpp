@@ -7,16 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "AttrOrTypeFormatGen.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/TableGen/AttrOrTypeDef.h"
 #include "mlir/TableGen/Class.h"
 #include "mlir/TableGen/CodeGenHelpers.h"
 #include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
 #include "mlir/TableGen/Interfaces.h"
-#include "llvm/ADT/Sequence.h"
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/TableGen/Error.h"
@@ -30,13 +26,6 @@ using namespace mlir::tblgen;
 //===----------------------------------------------------------------------===//
 // Utility Functions
 //===----------------------------------------------------------------------===//
-
-std::string mlir::tblgen::getParameterAccessorName(StringRef name) {
-  assert(!name.empty() && "parameter has empty name");
-  auto ret = "get" + name.str();
-  ret[3] = llvm::toUpper(ret[3]); // uppercase first letter of the name
-  return ret;
-}
 
 /// Find all the AttrOrTypeDef for the specified dialect. If no dialect
 /// specified and can only find one dialect's defs, use that.
@@ -262,7 +251,7 @@ void DefGen::emitParserPrinter() {
   mnemonic->body().indent() << strfmt("return {\"{0}\"};", *def.getMnemonic());
 
   // Declare the parser and printer, if needed.
-  bool hasAssemblyFormat = def.getAssemblyFormat().hasValue();
+  bool hasAssemblyFormat = def.getAssemblyFormat().has_value();
   if (!def.hasCustomAssemblyFormat() && !hasAssemblyFormat)
     return;
 
@@ -288,7 +277,7 @@ void DefGen::emitParserPrinter() {
 void DefGen::emitAccessors() {
   for (auto &param : params) {
     Method *m = defCls.addMethod(
-        param.getCppAccessorType(), getParameterAccessorName(param.getName()),
+        param.getCppAccessorType(), param.getAccessorName(),
         def.genStorageClass() ? Method::Const : Method::ConstDeclaration);
     // Generate accessor definitions only if we also generate the storage
     // class. Otherwise, let the user define the exact accessor definition.
@@ -776,7 +765,7 @@ static const char *const dialectDynamicTypePrinterDispatch = R"(
 /// functions from their dialect's print/parse methods.
 void DefGenerator::emitParsePrintDispatch(ArrayRef<AttrOrTypeDef> defs) {
   if (llvm::none_of(defs, [](const AttrOrTypeDef &def) {
-        return def.getMnemonic().hasValue();
+        return def.getMnemonic().has_value();
       })) {
     return;
   }

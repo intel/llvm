@@ -1058,29 +1058,25 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         switch (OpType) {
         default:
           llvm_unreachable("Unexpected operand type");
-        case RISCVOp::OPERAND_UIMM2:
-          Ok = isUInt<2>(Imm);
-          break;
-        case RISCVOp::OPERAND_UIMM3:
-          Ok = isUInt<3>(Imm);
-          break;
-        case RISCVOp::OPERAND_UIMM4:
-          Ok = isUInt<4>(Imm);
-          break;
-        case RISCVOp::OPERAND_UIMM5:
-          Ok = isUInt<5>(Imm);
-          break;
-        case RISCVOp::OPERAND_UIMM7:
-          Ok = isUInt<7>(Imm);
-          break;
-        case RISCVOp::OPERAND_UIMM12:
-          Ok = isUInt<12>(Imm);
-          break;
+
+          // clang-format off
+#define CASE_OPERAND_UIMM(NUM)                                                 \
+  case RISCVOp::OPERAND_UIMM##NUM:                                             \
+    Ok = isUInt<NUM>(Imm);                                                     \
+    break;
+        CASE_OPERAND_UIMM(2)
+        CASE_OPERAND_UIMM(3)
+        CASE_OPERAND_UIMM(4)
+        CASE_OPERAND_UIMM(5)
+        CASE_OPERAND_UIMM(7)
+        CASE_OPERAND_UIMM(12)
+        CASE_OPERAND_UIMM(20)
+          // clang-format on
         case RISCVOp::OPERAND_SIMM12:
           Ok = isInt<12>(Imm);
           break;
-        case RISCVOp::OPERAND_UIMM20:
-          Ok = isUInt<20>(Imm);
+        case RISCVOp::OPERAND_SIMM12_LSB00000:
+          Ok = isShiftedInt<7, 5>(Imm);
           break;
         case RISCVOp::OPERAND_UIMMLOG2XLEN:
           if (STI.getTargetTriple().isArch64Bit())
@@ -1359,7 +1355,7 @@ std::string RISCVInstrInfo::createMIROperandComment(
     return GenericComment;
 
   // If not, we must have an immediate operand.
-  if (Op.getType() != MachineOperand::MO_Immediate)
+  if (!Op.isImm())
     return std::string();
 
   std::string Comment;
@@ -1367,14 +1363,13 @@ std::string RISCVInstrInfo::createMIROperandComment(
 
   uint64_t TSFlags = MI.getDesc().TSFlags;
 
-  // Print the full VType operand of vsetvli/vsetivli and PseudoReadVL
-  // instructions, and the SEW operand of vector codegen pseudos.
-  if (((MI.getOpcode() == RISCV::VSETVLI || MI.getOpcode() == RISCV::VSETIVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETIVLI ||
-        MI.getOpcode() == RISCV::PseudoVSETVLIX0) &&
-       OpIdx == 2) ||
-      (MI.getOpcode() == RISCV::PseudoReadVL && OpIdx == 1)) {
+  // Print the full VType operand of vsetvli/vsetivli instructions, and the SEW
+  // operand of vector codegen pseudos.
+  if ((MI.getOpcode() == RISCV::VSETVLI || MI.getOpcode() == RISCV::VSETIVLI ||
+       MI.getOpcode() == RISCV::PseudoVSETVLI ||
+       MI.getOpcode() == RISCV::PseudoVSETIVLI ||
+       MI.getOpcode() == RISCV::PseudoVSETVLIX0) &&
+      OpIdx == 2) {
     unsigned Imm = MI.getOperand(OpIdx).getImm();
     RISCVVType::printVType(Imm, OS);
   } else if (RISCVII::hasSEWOp(TSFlags)) {
@@ -1714,6 +1709,12 @@ MachineInstr *RISCVInstrInfo::convertToThreeAddress(MachineInstr &MI,
   case CASE_WIDEOP_OPCODE_LMULS(WADDU_WV):
   case CASE_WIDEOP_OPCODE_LMULS(WSUB_WV):
   case CASE_WIDEOP_OPCODE_LMULS(WSUBU_WV): {
+    // If the tail policy is undisturbed we can't convert.
+    assert(RISCVII::hasVecPolicyOp(MI.getDesc().TSFlags) &&
+           MI.getNumExplicitOperands() == 6);
+    if ((MI.getOperand(5).getImm() & 1) == 0)
+      return nullptr;
+
     // clang-format off
     unsigned NewOpc;
     switch (MI.getOpcode()) {
@@ -1879,20 +1880,18 @@ static bool isRVVWholeLoadStore(unsigned Opcode) {
   }
 }
 
-bool RISCVInstrInfo::isRVVSpill(const MachineInstr &MI, bool CheckFIs) const {
+bool RISCV::isRVVSpill(const MachineInstr &MI) {
   // RVV lacks any support for immediate addressing for stack addresses, so be
   // conservative.
   unsigned Opcode = MI.getOpcode();
   if (!RISCVVPseudosTable::getPseudoInfo(Opcode) &&
       !isRVVWholeLoadStore(Opcode) && !isRVVSpillForZvlsseg(Opcode))
     return false;
-  return !CheckFIs || any_of(MI.operands(), [](const MachineOperand &MO) {
-    return MO.isFI();
-  });
+  return true;
 }
 
 Optional<std::pair<unsigned, unsigned>>
-RISCVInstrInfo::isRVVSpillForZvlsseg(unsigned Opcode) const {
+RISCV::isRVVSpillForZvlsseg(unsigned Opcode) {
   switch (Opcode) {
   default:
     return None;
@@ -1930,4 +1929,9 @@ RISCVInstrInfo::isRVVSpillForZvlsseg(unsigned Opcode) const {
   case RISCV::PseudoVRELOAD8_M1:
     return std::make_pair(8u, 1u);
   }
+}
+
+bool RISCV::isFaultFirstLoad(const MachineInstr &MI) {
+  return MI.getNumExplicitDefs() == 2 && MI.modifiesRegister(RISCV::VL) &&
+         !MI.isInlineAsm();
 }

@@ -1256,10 +1256,13 @@ void OpenMPIRBuilder::createTaskyield(const LocationDescription &Loc) {
 OpenMPIRBuilder::InsertPointTy
 OpenMPIRBuilder::createTask(const LocationDescription &Loc,
                             InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
-                            bool Tied) {
+                            bool Tied, Value *Final) {
   if (!updateToLocation(Loc))
     return InsertPointTy();
 
+  uint32_t SrcLocStrSize;
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc, SrcLocStrSize);
+  Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
   // The current basic block is split into four basic blocks. After outlining,
   // they will be mapped as follows:
   // ```
@@ -1285,7 +1288,7 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
   OI.EntryBB = TaskAllocaBB;
   OI.OuterAllocaBB = AllocaIP.getBlock();
   OI.ExitBB = TaskExitBB;
-  OI.PostOutlineCB = [this, &Loc, Tied](Function &OutlinedFn) {
+  OI.PostOutlineCB = [this, Ident, Tied, Final](Function &OutlinedFn) {
     // The input IR here looks like the following-
     // ```
     // func @current_fn() {
@@ -1324,16 +1327,20 @@ OpenMPIRBuilder::createTask(const LocationDescription &Loc,
 
     // Arguments - `loc_ref` (Ident) and `gtid` (ThreadID)
     // call.
-    uint32_t SrcLocStrSize;
-    Constant *SrcLocStr = getOrCreateSrcLocStr(Loc, SrcLocStrSize);
-    Value *Ident = getOrCreateIdent(SrcLocStr, SrcLocStrSize);
     Value *ThreadID = getOrCreateThreadID(Ident);
 
     // Argument - `flags`
-    // If task is tied, then (Flags & 1) == 1.
-    // If task is untied, then (Flags & 1) == 0.
+    // Task is tied iff (Flags & 1) == 1.
+    // Task is untied iff (Flags & 1) == 0.
+    // Task is final iff (Flags & 2) == 2.
+    // Task is not final iff (Flags & 2) == 0.
     // TODO: Handle the other flags.
     Value *Flags = Builder.getInt32(Tied);
+    if (Final) {
+      Value *FinalFlag =
+          Builder.CreateSelect(Final, Builder.getInt32(2), Builder.getInt32(0));
+      Flags = Builder.CreateOr(FinalFlag, Flags);
+    }
 
     // Argument - `sizeof_kmp_task_t` (TaskSize)
     // Tasksize refers to the size in bytes of kmp_task_t data structure
@@ -3013,16 +3020,17 @@ static int32_t computeHeuristicUnrollFactor(CanonicalLoopInfo *CLI) {
   unsigned NumInlineCandidates;
   bool NotDuplicatable;
   bool Convergent;
-  unsigned LoopSize =
+  InstructionCost LoopSizeIC =
       ApproximateLoopSize(L, NumInlineCandidates, NotDuplicatable, Convergent,
                           TTI, EphValues, UP.BEInsns);
-  LLVM_DEBUG(dbgs() << "Estimated loop size is " << LoopSize << "\n");
+  LLVM_DEBUG(dbgs() << "Estimated loop size is " << LoopSizeIC << "\n");
 
   // Loop is not unrollable if the loop contains certain instructions.
-  if (NotDuplicatable || Convergent) {
+  if (NotDuplicatable || Convergent || !LoopSizeIC.isValid()) {
     LLVM_DEBUG(dbgs() << "Loop not considered unrollable\n");
     return 1;
   }
+  unsigned LoopSize = *LoopSizeIC.getValue();
 
   // TODO: Determine trip count of \p CLI if constant, computeUnrollCount might
   // be able to use it.
@@ -3954,6 +3962,8 @@ Value *OpenMPIRBuilder::emitRMWOpAsInstruction(Value *Src1, Value *Src2,
   case AtomicRMWInst::Min:
   case AtomicRMWInst::UMax:
   case AtomicRMWInst::UMin:
+  case AtomicRMWInst::FMax:
+  case AtomicRMWInst::FMin:
     llvm_unreachable("Unsupported atomic update operation");
   }
   llvm_unreachable("Unsupported atomic update operation");
@@ -4118,20 +4128,37 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
 
   assert(X.Var->getType()->isPointerTy() &&
          "OMP atomic expects a pointer to target memory");
-  assert((X.ElemTy->isIntegerTy() || X.ElemTy->isPointerTy()) &&
-         "OMP atomic compare expected a integer scalar type");
   // compare capture
   if (V.Var) {
     assert(V.Var->getType()->isPointerTy() && "v.var must be of pointer type");
     assert(V.ElemTy == X.ElemTy && "x and v must be of same type");
   }
 
+  bool IsInteger = E->getType()->isIntegerTy();
+
   if (Op == OMPAtomicCompareOp::EQ) {
     AtomicOrdering Failure = AtomicCmpXchgInst::getStrongestFailureOrdering(AO);
-    AtomicCmpXchgInst *Result =
-        Builder.CreateAtomicCmpXchg(X.Var, E, D, MaybeAlign(), AO, Failure);
+    AtomicCmpXchgInst *Result = nullptr;
+    if (!IsInteger) {
+      unsigned Addrspace =
+          cast<PointerType>(X.Var->getType())->getAddressSpace();
+      IntegerType *IntCastTy =
+          IntegerType::get(M.getContext(), X.ElemTy->getScalarSizeInBits());
+      Value *XBCast =
+          Builder.CreateBitCast(X.Var, IntCastTy->getPointerTo(Addrspace));
+      Value *EBCast = Builder.CreateBitCast(E, IntCastTy);
+      Value *DBCast = Builder.CreateBitCast(D, IntCastTy);
+      Result = Builder.CreateAtomicCmpXchg(XBCast, EBCast, DBCast, MaybeAlign(),
+                                           AO, Failure);
+    } else {
+      Result =
+          Builder.CreateAtomicCmpXchg(X.Var, E, D, MaybeAlign(), AO, Failure);
+    }
+
     if (V.Var) {
       Value *OldValue = Builder.CreateExtractValue(Result, /*Idxs=*/0);
+      if (!IsInteger)
+        OldValue = Builder.CreateBitCast(OldValue, X.ElemTy);
       assert(OldValue->getType() == V.ElemTy &&
              "OldValue and V must be of same type");
       if (IsPostfixUpdate) {
@@ -4205,19 +4232,29 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
     // x = x <= expr ? x : expr;
     AtomicRMWInst::BinOp NewOp;
     if (IsXBinopExpr) {
-      if (X.IsSigned)
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Min
-                                              : AtomicRMWInst::Max;
-      else
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMin
-                                              : AtomicRMWInst::UMax;
+      if (IsInteger) {
+        if (X.IsSigned)
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Min
+                                                : AtomicRMWInst::Max;
+        else
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMin
+                                                : AtomicRMWInst::UMax;
+      } else {
+        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::FMin
+                                              : AtomicRMWInst::FMax;
+      }
     } else {
-      if (X.IsSigned)
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Max
-                                              : AtomicRMWInst::Min;
-      else
-        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMax
-                                              : AtomicRMWInst::UMin;
+      if (IsInteger) {
+        if (X.IsSigned)
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::Max
+                                                : AtomicRMWInst::Min;
+        else
+          NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::UMax
+                                                : AtomicRMWInst::UMin;
+      } else {
+        NewOp = Op == OMPAtomicCompareOp::MAX ? AtomicRMWInst::FMax
+                                              : AtomicRMWInst::FMin;
+      }
     }
 
     AtomicRMWInst *OldValue =
@@ -4235,11 +4272,17 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
         case AtomicRMWInst::UMax:
           Pred = CmpInst::ICMP_UGT;
           break;
+        case AtomicRMWInst::FMax:
+          Pred = CmpInst::FCMP_OGT;
+          break;
         case AtomicRMWInst::Min:
           Pred = CmpInst::ICMP_SLT;
           break;
         case AtomicRMWInst::UMin:
           Pred = CmpInst::ICMP_ULT;
+          break;
+        case AtomicRMWInst::FMin:
+          Pred = CmpInst::FCMP_OLT;
           break;
         default:
           llvm_unreachable("unexpected comparison op");

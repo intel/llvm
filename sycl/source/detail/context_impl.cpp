@@ -107,7 +107,7 @@ cl_context context_impl::get() const {
   if (MHostContext) {
     throw invalid_object_error(
         "This instance of context doesn't support OpenCL interoperability.",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piContextRetain>(MContext);
@@ -132,7 +132,7 @@ const async_handler &context_impl::get_async_handler() const {
 }
 
 template <>
-cl_uint context_impl::get_info<info::context::reference_count>() const {
+uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
   return get_context_info<info::context::reference_count>::get(
