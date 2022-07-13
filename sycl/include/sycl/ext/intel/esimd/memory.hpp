@@ -894,7 +894,9 @@ enum fence_mask : uint8_t {
   local_barrier = 0x20,
   /// Flush L1 read - only data cache.
   l1_flush_ro_data = 0x40,
-  /// Enable thread scheduling barrier.
+  /// Creates a software (compiler) barrier, which does not generate
+  /// any instruction and only prevents instruction scheduler from
+  /// reordering instructions across this barrier at compile time.
   sw_barrier = 0x80
 };
 
