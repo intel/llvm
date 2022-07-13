@@ -160,7 +160,7 @@ public:
     if (MDevice == nullptr)
       throw sycl::exception(
           make_error_code(errc::invalid),
-          "internal error.  Device on PiQueue not found in Context.");
+          "Device provided by native Queue not found in Context.");
   }
 
   ~queue_impl() {
