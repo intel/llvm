@@ -1341,7 +1341,7 @@ _pi_queue::createCommandList(bool UseCopyEngine,
   ze_command_list_handle_t ZeCommandList;
 
   uint32_t QueueGroupOrdinal;
-  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
+  auto &QGroup = getQueueGroup(UseCopyEngine);
   auto &ZeCommandQueue =
       ForcedCmdQueue ? *ForcedCmdQueue : QGroup.getZeQueue(&QueueGroupOrdinal);
   if (ForcedCmdQueue)
@@ -1358,7 +1358,7 @@ _pi_queue::createCommandList(bool UseCopyEngine,
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
           ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
 
-  PI_CALL(Queue->insertActiveBarriers(CommandList, UseCopyEngine));
+  PI_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
   return PI_SUCCESS;
 }
 
