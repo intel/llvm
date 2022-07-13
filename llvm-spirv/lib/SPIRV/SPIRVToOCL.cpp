@@ -785,8 +785,8 @@ void SPIRVToOCLBase::mutateArgsForImageOperands(std::vector<Value *> &Args,
       if (ImOpValue & ImageOperandsMask::ImageOperandsZeroExtendMask)
         IsSigned = false;
       ImOpValue &= ~SignZeroExtMasks;
-      Args[3] = getInt32(M, ImOpValue);
-      ImOp = cast<ConstantInt>(Args[3]);
+      Args[ImOpArgIndex] = getInt32(M, ImOpValue);
+      ImOp = cast<ConstantInt>(Args[ImOpArgIndex]);
     }
     // Drop "Image Operands" argument.
     Args.erase(Args.begin() + ImOpArgIndex);
