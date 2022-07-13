@@ -192,6 +192,8 @@ pi_result check_error(hipError_t result, const char *function, int line,
     return PI_SUCCESS;
   }
 
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
   const char *errorString = nullptr;
   const char *errorName = nullptr;
   errorName = hipGetErrorName(result);
@@ -204,7 +206,8 @@ pi_result check_error(hipError_t result, const char *function, int line,
           "\n\tFunction:        %s"
           "\n\tSource Location: %s:%d\n\n",
           result, errorName, errorString, function, file, line);
-
+  }
+  
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();
   }
