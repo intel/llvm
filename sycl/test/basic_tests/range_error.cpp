@@ -1,7 +1,7 @@
 // RUN: %clangxx %s %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning
-#include <CL/sycl.hpp>
-#include <iostream>
 #include <cassert>
+#include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace std;
 int main() {

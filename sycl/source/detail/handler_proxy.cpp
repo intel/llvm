@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/handler_proxy.hpp>
+#include <sycl/detail/handler_proxy.hpp>
 
-#include <CL/sycl/handler.hpp>
+#include <sycl/handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
