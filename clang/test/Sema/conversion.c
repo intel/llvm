@@ -436,8 +436,8 @@ void test27(ushort16 constants) {
 
 
 float double2float_test1(double a) {
-    // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
-    return a; // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}
+  // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
+  return a; // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}
 }
 
 void double2float_test2(double a, float *b) {
