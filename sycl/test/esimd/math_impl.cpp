@@ -3,9 +3,9 @@
 // This test checks the codegen for the following ESIMD APIs:
 // sin, cos, exp, log.
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/builtins_esimd.hpp>
+#include <sycl/builtins_esimd.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel;

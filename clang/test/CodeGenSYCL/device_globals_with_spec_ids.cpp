@@ -11,7 +11,7 @@ int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK: #include <sycl/detail/defines_elementary.hpp>
 constexpr sycl::specialization_id a{2};
 // CHECK-NEXT: __SYCL_INLINE_NAMESPACE(cl) {
 // CHECK-NEXT: namespace sycl {
@@ -247,8 +247,8 @@ struct Wrapper {
 } // namespace
 } // namespace outer
 
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
-// CHECK-NEXT: #include <CL/sycl/detail/device_global_map.hpp>
+// CHECK: #include <sycl/detail/spec_const_integration.hpp>
+// CHECK-NEXT: #include <sycl/detail/device_global_map.hpp>
 // CHECK-NEXT: namespace sycl::detail {
 // CHECK-NEXT: namespace {
 // CHECK-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {

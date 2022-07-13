@@ -8,9 +8,9 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/pointers.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

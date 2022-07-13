@@ -1,10 +1,10 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out | FileCheck %s
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <sycl/sycl.hpp>
 
 // Check that linear id is monotonically increased on host device.
 // Only there we can reliable check that. Since the kernel has a restriction
