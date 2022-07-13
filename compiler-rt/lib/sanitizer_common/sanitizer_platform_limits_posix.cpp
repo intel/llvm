@@ -73,6 +73,9 @@
 #include <sys/vt.h>
 #include <linux/cdrom.h>
 #include <linux/fd.h>
+#if SANITIZER_ANDROID
+#include <linux/fs.h>
+#endif
 #include <linux/hdreg.h>
 #include <linux/input.h>
 #include <linux/ioctl.h>
