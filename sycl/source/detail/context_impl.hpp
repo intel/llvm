@@ -165,6 +165,10 @@ public:
   /// Returns true if and only if context contains the given device.
   bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
 
+  /// Given a PiDevice, returns the matching shared_ptr<device_impl>
+  /// within this context. May return nullptr if no match discovered.
+  DeviceImplPtr findMatchingDeviceImpl(RT::PiDevice &DevicePI) const;
+
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle.
