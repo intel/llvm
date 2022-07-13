@@ -19,8 +19,8 @@
 // It also checks for SYCL_DEVICE being set incorrectly.
 //==---------------------------------------------------------------==//
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

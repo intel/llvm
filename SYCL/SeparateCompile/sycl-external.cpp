@@ -19,8 +19,8 @@
 // Linking issues with HIP AMD
 // XFAIL: hip_amd
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 #ifdef SOURCE1
 int bar(int b);
