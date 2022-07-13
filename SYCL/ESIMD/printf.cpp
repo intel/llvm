@@ -53,7 +53,7 @@ int main() {
                 esimd_test::createExceptionHandler());
 
     Queue.submit([&](handler &CGH) {
-      CGH.single_task<class integral>([=]() {
+      CGH.single_task([=]() SYCL_ESIMD_KERNEL {
         // String
         oneapi::experimental::printf(format_hello_world);
         // Due to a bug in Intel CPU Runtime for OpenCL on Windows, information
@@ -97,7 +97,7 @@ int main() {
                 esimd_test::createExceptionHandler());
     // printf in parallel_for
     Queue.submit([&](handler &CGH) {
-      CGH.parallel_for<class stream_string>(range<1>(10), [=](id<1> i) {
+      CGH.parallel_for(range<1>(10), [=](id<1> i) SYCL_ESIMD_KERNEL {
         // cast to uint64_t to be sure that we pass 64-bit unsigned value
         oneapi::experimental::printf(format_hello_world_2, (uint64_t)i.get(0));
       });
