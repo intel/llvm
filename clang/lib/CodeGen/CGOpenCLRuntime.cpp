@@ -129,9 +129,9 @@ llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T) {
 llvm::Type *CGOpenCLRuntime::getPipeType(const PipeType *T, StringRef Name,
                                          llvm::Type *&PipeTy) {
   if (!PipeTy)
-    PipeTy = llvm::PointerType::get(getOpaqueType(Name),
-      CGM.getContext().getTargetAddressSpace(
-          CGM.getContext().getOpenCLTypeAddrSpace(T)));
+    PipeTy = llvm::PointerType::get(
+        getOpaqueType(Name), CGM.getContext().getTargetAddressSpace(
+                                 CGM.getContext().getOpenCLTypeAddrSpace(T)));
   return PipeTy;
 }
 
