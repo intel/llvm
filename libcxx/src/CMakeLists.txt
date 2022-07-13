@@ -64,7 +64,7 @@ set(LIBCXX_SOURCES
   vector.cpp
   )
 
-if (LIBCXX_ENABLE_DEBUG_MODE_SUPPORT)
+if (LIBCXX_ENABLE_DEBUG_MODE OR LIBCXX_ENABLE_BACKWARDS_COMPATIBILITY_DEBUG_MODE_SYMBOLS)
   list(APPEND LIBCXX_SOURCES
     debug.cpp
     legacy_debug_handler.cpp
@@ -332,6 +332,12 @@ if (LIBCXX_ENABLE_EXPERIMENTAL_LIBRARY)
       OUTPUT_NAME   "c++experimental"
   )
   cxx_add_common_build_flags(cxx_experimental)
+
+  if (LIBCXX_HERMETIC_STATIC_LIBRARY)
+    # _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS can be defined in __config_site
+    # too. Define it in the same way here, to avoid redefinition conflicts.
+    target_compile_definitions(cxx_experimental PRIVATE _LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS=)
+  endif()
 endif()
 
 

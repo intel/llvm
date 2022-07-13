@@ -296,8 +296,8 @@ public:
     RootFile.DirIndex = 0;
     RootFile.Checksum = Checksum;
     RootFile.Source = Source;
-    trackMD5Usage(Checksum.hasValue());
-    HasSource = Source.hasValue();
+    trackMD5Usage(Checksum.has_value());
+    HasSource = Source.has_value();
   }
 
   void resetFileTable() {
@@ -688,6 +688,7 @@ struct MCDwarfFrameInfo {
   bool IsSimple = false;
   unsigned RAReg = static_cast<unsigned>(INT_MAX);
   bool IsBKeyFrame = false;
+  bool IsMTETaggedFrame = false;
 };
 
 class MCDwarfFrameEmitter {

@@ -1,4 +1,4 @@
-! Verify that reading from stdin works as expected
+! Verify that reading from stdin works as expected - Fortran input
 
 !--------------------------
 ! FLANG DRIVER (flang)
@@ -25,15 +25,9 @@
 ! RUN: cat %s | %flang -fc1 -test-io -cpp | FileCheck %s --check-prefix=IO --match-full-lines
 ! RUN: cat %s | %flang -fc1 -DNEW -cpp -test-io | FileCheck %s --check-prefix=IO --match-full-lines
 
-!-------------------------
-! EXPECTED OUTPUT for `-E`
-!-------------------------
 ! PP-NOT-DEFINED: Program B
 ! PP-DEFINED: Program A
 
-!-------------------------------
-! EXPECTED OUTPUT for `-test-io`
-!-------------------------------
 ! IO: #ifdef NEW
 ! IO-NEXT:   Program A
 ! IO-NEXT: #else

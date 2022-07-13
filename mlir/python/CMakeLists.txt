@@ -46,10 +46,9 @@ declare_mlir_python_sources(MLIRPythonSources.Passes
     transforms/*.py
 )
 
-declare_mlir_python_sources(MLIRPythonCAPIHeaderSources
-  ROOT_DIR "${MLIR_SOURCE_DIR}/include"
+declare_mlir_python_sources(MLIRPythonCAPI.HeaderSources
+  ROOT_DIR "${MLIR_MAIN_INCLUDE_DIR}"
   SOURCES_GLOB "mlir-c/*.h"
-  DEST_PREFIX "_mlir_libs/include"
 )
 
 ################################################################################
@@ -80,6 +79,14 @@ declare_mlir_dialect_python_bindings(
     dialects/builtin.py
     dialects/_builtin_ops_ext.py
   DIALECT_NAME builtin)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/ComplexOps.td
+  SOURCES
+    dialects/complex.py
+  DIALECT_NAME complex)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -124,6 +131,16 @@ declare_mlir_dialect_python_bindings(
     dialects/_transform_ops_ext.py
     dialects/transform/__init__.py
   DIALECT_NAME transform)
+
+declare_mlir_dialect_extension_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/SCFLoopTransformOps.td
+  SOURCES
+    dialects/_loop_transform_ops_ext.py
+    dialects/transform/loop.py
+  DIALECT_NAME transform
+  EXTENSION_NAME loop_transform)
 
 declare_mlir_dialect_extension_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -485,6 +502,8 @@ add_mlir_python_common_capi_library(MLIRPythonCAPI
   INSTALL_DESTINATION python_packages/mlir_core/mlir/_mlir_libs
   OUTPUT_DIRECTORY "${MLIR_BINARY_DIR}/python_packages/mlir_core/mlir/_mlir_libs"
   RELATIVE_INSTALL_ROOT "../../../.."
+  DECLARED_HEADERS
+    MLIRPythonCAPI.HeaderSources
   DECLARED_SOURCES
     MLIRPythonSources
     MLIRPythonExtension.AllPassesRegistration
@@ -502,8 +521,7 @@ add_mlir_python_modules(MLIRPythonModules
   DECLARED_SOURCES
     MLIRPythonSources
     MLIRPythonExtension.AllPassesRegistration
-    MLIRPythonCAPIHeaderSources
     ${_ADDL_TEST_SOURCES}
   COMMON_CAPI_LINK_LIBS
     MLIRPythonCAPI
-  )
+)

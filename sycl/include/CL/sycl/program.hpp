@@ -12,6 +12,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>

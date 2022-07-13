@@ -591,7 +591,7 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   reserveRegisterTuples(Reserved, AMDGPU::TTMP14_TTMP15);
 
   // Reserve null register - it shall never be allocated
-  reserveRegisterTuples(Reserved, AMDGPU::SGPR_NULL);
+  reserveRegisterTuples(Reserved, AMDGPU::SGPR_NULL64);
 
   // Disallow vcc_hi allocation in wave32. It may be allocated but most likely
   // will result in bugs.
@@ -2933,6 +2933,10 @@ MCRegister SIRegisterInfo::getVCC() const {
   return isWave32 ? AMDGPU::VCC_LO : AMDGPU::VCC;
 }
 
+MCRegister SIRegisterInfo::getExec() const {
+  return isWave32 ? AMDGPU::EXEC_LO : AMDGPU::EXEC;
+}
+
 const TargetRegisterClass *SIRegisterInfo::getVGPR64Class() const {
   // VGPR tuples have an alignment requirement on gfx90a variants.
   return ST.needsAlignedVGPRs() ? &AMDGPU::VReg_64_Align2RegClass
@@ -3063,6 +3067,7 @@ SIRegisterInfo::getProperlyAlignedRC(const TargetRegisterClass *RC) const {
 bool SIRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
   switch (PhysReg) {
   case AMDGPU::SGPR_NULL:
+  case AMDGPU::SGPR_NULL64:
   case AMDGPU::SRC_SHARED_BASE:
   case AMDGPU::SRC_PRIVATE_BASE:
   case AMDGPU::SRC_SHARED_LIMIT:

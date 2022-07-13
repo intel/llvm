@@ -74,128 +74,121 @@ class Module;
 static cl::opt<std::string>
     OptimizeDeps("polly-opt-optimize-only",
                  cl::desc("Only a certain kind of dependences (all/raw)"),
-                 cl::Hidden, cl::init("all"), cl::ZeroOrMore,
-                 cl::cat(PollyCategory));
+                 cl::Hidden, cl::init("all"), cl::cat(PollyCategory));
 
 static cl::opt<std::string>
     SimplifyDeps("polly-opt-simplify-deps",
                  cl::desc("Dependences should be simplified (yes/no)"),
-                 cl::Hidden, cl::init("yes"), cl::ZeroOrMore,
-                 cl::cat(PollyCategory));
+                 cl::Hidden, cl::init("yes"), cl::cat(PollyCategory));
 
 static cl::opt<int> MaxConstantTerm(
     "polly-opt-max-constant-term",
     cl::desc("The maximal constant term allowed (-1 is unlimited)"), cl::Hidden,
-    cl::init(20), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::init(20), cl::cat(PollyCategory));
 
 static cl::opt<int> MaxCoefficient(
     "polly-opt-max-coefficient",
     cl::desc("The maximal coefficient allowed (-1 is unlimited)"), cl::Hidden,
-    cl::init(20), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::init(20), cl::cat(PollyCategory));
 
 static cl::opt<std::string>
     MaximizeBandDepth("polly-opt-maximize-bands",
                       cl::desc("Maximize the band depth (yes/no)"), cl::Hidden,
-                      cl::init("yes"), cl::ZeroOrMore, cl::cat(PollyCategory));
+                      cl::init("yes"), cl::cat(PollyCategory));
 
 static cl::opt<bool>
     GreedyFusion("polly-loopfusion-greedy",
                  cl::desc("Aggressively try to fuse everything"), cl::Hidden,
-                 cl::ZeroOrMore, cl::cat(PollyCategory));
+                 cl::cat(PollyCategory));
 
 static cl::opt<std::string> OuterCoincidence(
     "polly-opt-outer-coincidence",
     cl::desc("Try to construct schedules where the outer member of each band "
              "satisfies the coincidence constraints (yes/no)"),
-    cl::Hidden, cl::init("no"), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init("no"), cl::cat(PollyCategory));
 
 static cl::opt<int> PrevectorWidth(
     "polly-prevect-width",
     cl::desc(
         "The number of loop iterations to strip-mine for pre-vectorization"),
-    cl::Hidden, cl::init(4), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(4), cl::cat(PollyCategory));
 
 static cl::opt<bool> FirstLevelTiling("polly-tiling",
                                       cl::desc("Enable loop tiling"),
-                                      cl::init(true), cl::ZeroOrMore,
-                                      cl::cat(PollyCategory));
+                                      cl::init(true), cl::cat(PollyCategory));
 
 static cl::opt<int> FirstLevelDefaultTileSize(
     "polly-default-tile-size",
     cl::desc("The default tile size (if not enough were provided by"
              " --polly-tile-sizes)"),
-    cl::Hidden, cl::init(32), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(32), cl::cat(PollyCategory));
 
 static cl::list<int>
     FirstLevelTileSizes("polly-tile-sizes",
                         cl::desc("A tile size for each loop dimension, filled "
                                  "with --polly-default-tile-size"),
-                        cl::Hidden, cl::ZeroOrMore, cl::CommaSeparated,
-                        cl::cat(PollyCategory));
+                        cl::Hidden, cl::CommaSeparated, cl::cat(PollyCategory));
 
 static cl::opt<bool>
     SecondLevelTiling("polly-2nd-level-tiling",
                       cl::desc("Enable a 2nd level loop of loop tiling"),
-                      cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+                      cl::cat(PollyCategory));
 
 static cl::opt<int> SecondLevelDefaultTileSize(
     "polly-2nd-level-default-tile-size",
     cl::desc("The default 2nd-level tile size (if not enough were provided by"
              " --polly-2nd-level-tile-sizes)"),
-    cl::Hidden, cl::init(16), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(16), cl::cat(PollyCategory));
 
 static cl::list<int>
     SecondLevelTileSizes("polly-2nd-level-tile-sizes",
                          cl::desc("A tile size for each loop dimension, filled "
                                   "with --polly-default-tile-size"),
-                         cl::Hidden, cl::ZeroOrMore, cl::CommaSeparated,
+                         cl::Hidden, cl::CommaSeparated,
                          cl::cat(PollyCategory));
 
 static cl::opt<bool> RegisterTiling("polly-register-tiling",
                                     cl::desc("Enable register tiling"),
-                                    cl::init(false), cl::ZeroOrMore,
                                     cl::cat(PollyCategory));
 
 static cl::opt<int> RegisterDefaultTileSize(
     "polly-register-tiling-default-tile-size",
     cl::desc("The default register tile size (if not enough were provided by"
              " --polly-register-tile-sizes)"),
-    cl::Hidden, cl::init(2), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(2), cl::cat(PollyCategory));
 
 static cl::list<int>
     RegisterTileSizes("polly-register-tile-sizes",
                       cl::desc("A tile size for each loop dimension, filled "
                                "with --polly-register-tile-size"),
-                      cl::Hidden, cl::ZeroOrMore, cl::CommaSeparated,
-                      cl::cat(PollyCategory));
+                      cl::Hidden, cl::CommaSeparated, cl::cat(PollyCategory));
 
 static cl::opt<bool> PragmaBasedOpts(
     "polly-pragma-based-opts",
     cl::desc("Apply user-directed transformation from metadata"),
-    cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::init(true), cl::cat(PollyCategory));
 
 static cl::opt<bool> EnableReschedule("polly-reschedule",
                                       cl::desc("Optimize SCoPs using ISL"),
-                                      cl::init(true), cl::ZeroOrMore,
-                                      cl::cat(PollyCategory));
+                                      cl::init(true), cl::cat(PollyCategory));
 
 static cl::opt<bool>
     PMBasedOpts("polly-pattern-matching-based-opts",
                 cl::desc("Perform optimizations based on pattern matching"),
-                cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
+                cl::init(true), cl::cat(PollyCategory));
 
 static cl::opt<bool>
     EnablePostopts("polly-postopts",
                    cl::desc("Apply post-rescheduling optimizations such as "
                             "tiling (requires -polly-reschedule)"),
-                   cl::init(true), cl::ZeroOrMore, cl::cat(PollyCategory));
+                   cl::init(true), cl::cat(PollyCategory));
 
 static cl::opt<bool> OptimizedScops(
     "polly-optimized-scops",
     cl::desc("Polly - Dump polyhedral description of Scops optimized with "
              "the isl scheduling optimizer and the set of post-scheduling "
              "transformations is applied on the schedule tree"),
-    cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::cat(PollyCategory));
 
 STATISTIC(ScopsProcessed, "Number of scops processed");
 STATISTIC(ScopsRescheduled, "Number of scops rescheduled");
@@ -235,6 +228,7 @@ struct OptimizerAdditionalInfoTy {
   bool PatternOpts;
   bool Postopts;
   bool Prevect;
+  bool &DepsChanged;
 };
 
 class ScheduleTreeOptimizer final {
@@ -533,6 +527,7 @@ ScheduleTreeOptimizer::optimizeBand(__isl_take isl_schedule_node *NodeArg,
         tryOptimizeMatMulPattern(Node, OAI->TTI, OAI->D);
     if (!PatternOptimizedSchedule.is_null()) {
       MatMulOpts++;
+      OAI->DepsChanged = true;
       return PatternOptimizedSchedule.release();
     }
   }
@@ -683,21 +678,21 @@ static void walkScheduleTreeForStatistics(isl::schedule Schedule, int Version) {
       &Version);
 }
 
-static bool runIslScheduleOptimizer(
+static void runIslScheduleOptimizer(
     Scop &S,
     function_ref<const Dependences &(Dependences::AnalysisLevel)> GetDeps,
     TargetTransformInfo *TTI, OptimizationRemarkEmitter *ORE,
-    isl::schedule &LastSchedule) {
+    isl::schedule &LastSchedule, bool &DepsChanged) {
 
   // Skip SCoPs in case they're already optimised by PPCGCodeGeneration
   if (S.isToBeSkipped())
-    return false;
+    return;
 
   // Skip empty SCoPs but still allow code generation as it will delete the
   // loops present but not needed.
   if (S.getSize() == 0) {
     S.markAsOptimized();
-    return false;
+    return;
   }
 
   ScopsProcessed++;
@@ -713,7 +708,7 @@ static bool runIslScheduleOptimizer(
         &S, Schedule, GetDeps(Dependences::AL_Statement), ORE);
     if (ManuallyTransformed.is_null()) {
       LLVM_DEBUG(dbgs() << "Error during manual optimization\n");
-      return false;
+      return;
     }
 
     if (ManuallyTransformed.get() != Schedule.get()) {
@@ -731,18 +726,18 @@ static bool runIslScheduleOptimizer(
   // metadata earlier in ScopDetection.
   if (!HasUserTransformation && S.hasDisableHeuristicsHint()) {
     LLVM_DEBUG(dbgs() << "Heuristic optimizations disabled by metadata\n");
-    return false;
+    return;
   }
 
   // Get dependency analysis.
   const Dependences &D = GetDeps(Dependences::AL_Statement);
   if (D.getSharedIslCtx() != S.getSharedIslCtx()) {
     LLVM_DEBUG(dbgs() << "DependenceInfo for another SCoP/isl_ctx\n");
-    return false;
+    return;
   }
   if (!D.hasValidDependences()) {
     LLVM_DEBUG(dbgs() << "Dependency information not available\n");
-    return false;
+    return;
   }
 
   // Apply ISL's algorithm only if not overriden by the user. Note that
@@ -776,7 +771,7 @@ static bool runIslScheduleOptimizer(
     isl::union_set Domain = S.getDomains();
 
     if (Domain.is_null())
-      return false;
+      return;
 
     isl::union_map Validity = D.getDependences(ValidityKinds);
     isl::union_map Proximity = D.getDependences(ProximityKinds);
@@ -854,7 +849,7 @@ static bool runIslScheduleOptimizer(
   // In cases the scheduler is not able to optimize the code, we just do not
   // touch the schedule.
   if (Schedule.is_null())
-    return false;
+    return;
 
   if (GreedyFusion) {
     isl::union_map Validity = D.getDependences(
@@ -865,10 +860,12 @@ static bool runIslScheduleOptimizer(
 
   // Apply post-rescheduling optimizations (if enabled) and/or prevectorization.
   const OptimizerAdditionalInfoTy OAI = {
-      TTI, const_cast<Dependences *>(&D),
+      TTI,
+      const_cast<Dependences *>(&D),
       /*PatternOpts=*/!HasUserTransformation && PMBasedOpts,
       /*Postopts=*/!HasUserTransformation && EnablePostopts,
-      /*Prevect=*/PollyVectorizerChoice != VECTORIZER_NONE};
+      /*Prevect=*/PollyVectorizerChoice != VECTORIZER_NONE,
+      DepsChanged};
   if (OAI.PatternOpts || OAI.Postopts || OAI.Prevect) {
     Schedule = ScheduleTreeOptimizer::optimizeSchedule(Schedule, &OAI);
     Schedule = hoistExtensionNodes(Schedule);
@@ -879,7 +876,7 @@ static bool runIslScheduleOptimizer(
   // Skip profitability check if user transformation(s) have been applied.
   if (!HasUserTransformation &&
       !ScheduleTreeOptimizer::isProfitableSchedule(S, Schedule))
-    return false;
+    return;
 
   auto ScopStats = S.getStatistics();
   ScopsOptimized++;
@@ -892,8 +889,6 @@ static bool runIslScheduleOptimizer(
 
   if (OptimizedScops)
     errs() << S;
-
-  return false;
 }
 
 bool IslScheduleOptimizerWrapperPass::runOnScop(Scop &S) {
@@ -911,7 +906,13 @@ bool IslScheduleOptimizerWrapperPass::runOnScop(Scop &S) {
       getAnalysis<OptimizationRemarkEmitterWrapperPass>().getORE();
   TargetTransformInfo *TTI =
       &getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
-  return runIslScheduleOptimizer(S, getDependences, TTI, &ORE, LastSchedule);
+
+  bool DepsChanged = false;
+  runIslScheduleOptimizer(S, getDependences, TTI, &ORE, LastSchedule,
+                          DepsChanged);
+  if (DepsChanged)
+    getAnalysis<DependenceInfo>().abandonDependences();
+  return false;
 }
 
 static void runScheduleOptimizerPrinter(raw_ostream &OS,
@@ -978,22 +979,18 @@ runIslScheduleOptimizerUsingNPM(Scop &S, ScopAnalysisManager &SAM,
   OptimizationRemarkEmitter ORE(&S.getFunction());
   TargetTransformInfo *TTI = &SAR.TTI;
   isl::schedule LastSchedule;
-  bool Modified = runIslScheduleOptimizer(S, GetDeps, TTI, &ORE, LastSchedule);
+  bool DepsChanged = false;
+  runIslScheduleOptimizer(S, GetDeps, TTI, &ORE, LastSchedule, DepsChanged);
+  if (DepsChanged)
+    Deps.abandonDependences();
+
   if (OS) {
     *OS << "Printing analysis 'Polly - Optimize schedule of SCoP' for region: '"
         << S.getName() << "' in function '" << S.getFunction().getName()
         << "':\n";
     runScheduleOptimizerPrinter(*OS, LastSchedule);
   }
-
-  if (!Modified)
-    return PreservedAnalyses::all();
-
-  PreservedAnalyses PA;
-  PA.preserveSet<AllAnalysesOn<Module>>();
-  PA.preserveSet<AllAnalysesOn<Function>>();
-  PA.preserveSet<AllAnalysesOn<Loop>>();
-  return PA;
+  return PreservedAnalyses::all();
 }
 
 llvm::PreservedAnalyses

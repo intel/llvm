@@ -95,7 +95,7 @@ cl_device_id device_impl::get() const {
   if (MIsHostDevice) {
     throw invalid_object_error(
         "This instance of device doesn't support OpenCL interoperability.",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
   }
   // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin().call<PiApiKind::piDeviceRetain>(MDevice);
@@ -158,7 +158,7 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
     throw cl::sycl::feature_not_supported();
@@ -171,8 +171,8 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
                           "Total counts exceed max compute units");
 
   size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)ComputeUnits,
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_EQUALLY, (pi_device_partition_property)ComputeUnits,
       0};
   return create_sub_devices(Properties, SubDevicesCount);
 }
@@ -184,14 +184,14 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
     throw cl::sycl::feature_not_supported();
   }
-  static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  std::vector<cl_device_partition_property> Properties(P, P + 3);
+  static const pi_device_partition_property P[] = {
+      PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
+  std::vector<pi_device_partition_property> Properties(P, P + 3);
 
   // Fill the properties vector with counts and validate it
   auto It = Properties.begin() + 1;
@@ -229,7 +229,7 @@ std::vector<device> device_impl::create_sub_devices(
     // TODO: implement host device partitioning
     throw runtime_error(
         "Partitioning to subdevices of the host device is not implemented yet",
-        PI_INVALID_DEVICE);
+        PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
@@ -276,6 +276,8 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_khr_fp16");
   case aspect::fp64:
     return has_extension("cl_khr_fp64");
+  case aspect::ext_oneapi_bfloat16:
+    return get_info<info::device::ext_oneapi_bfloat16>();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
@@ -376,7 +378,7 @@ bool device_impl::has(aspect Aspect) const {
   }
   default:
     throw runtime_error("This device aspect has not been implemented yet.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
   }
 }
 

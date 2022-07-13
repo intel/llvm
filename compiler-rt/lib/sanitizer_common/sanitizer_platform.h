@@ -177,7 +177,7 @@
 
 #if defined(__mips__)
 #  define SANITIZER_MIPS 1
-#  if defined(__mips64)
+#  if defined(__mips64) && _MIPS_SIM == _ABI64
 #    define SANITIZER_MIPS32 0
 #    define SANITIZER_MIPS64 1
 #  else
@@ -285,7 +285,8 @@
 #ifndef SANITIZER_CAN_USE_ALLOCATOR64
 #  if (SANITIZER_ANDROID && defined(__aarch64__)) || SANITIZER_FUCHSIA
 #    define SANITIZER_CAN_USE_ALLOCATOR64 1
-#  elif defined(__mips64) || defined(__aarch64__)
+#  elif defined(__mips64) || defined(__aarch64__) || defined(__i386__) || \
+      defined(__arm__) || SANITIZER_RISCV64 || defined(__hexagon__)
 #    define SANITIZER_CAN_USE_ALLOCATOR64 0
 #  else
 #    define SANITIZER_CAN_USE_ALLOCATOR64 (SANITIZER_WORDSIZE == 64)

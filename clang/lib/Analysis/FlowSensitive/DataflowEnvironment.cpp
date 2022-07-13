@@ -50,22 +50,25 @@ llvm::DenseMap<K, V> intersectDenseMaps(const llvm::DenseMap<K, V> &Map1,
   return Result;
 }
 
+static bool areEquivalentIndirectionValues(Value *Val1, Value *Val2) {
+  if (auto *IndVal1 = dyn_cast<ReferenceValue>(Val1)) {
+    auto *IndVal2 = cast<ReferenceValue>(Val2);
+    return &IndVal1->getReferentLoc() == &IndVal2->getReferentLoc();
+  }
+  if (auto *IndVal1 = dyn_cast<PointerValue>(Val1)) {
+    auto *IndVal2 = cast<PointerValue>(Val2);
+    return &IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc();
+  }
+  return false;
+}
+
 /// Returns true if and only if `Val1` is equivalent to `Val2`.
 static bool equivalentValues(QualType Type, Value *Val1,
                              const Environment &Env1, Value *Val2,
                              const Environment &Env2,
                              Environment::ValueModel &Model) {
-  if (Val1 == Val2)
-    return true;
-
-  if (auto *IndVal1 = dyn_cast<IndirectionValue>(Val1)) {
-    auto *IndVal2 = cast<IndirectionValue>(Val2);
-    assert(IndVal1->getKind() == IndVal2->getKind());
-    if (&IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc())
-      return true;
-  }
-
-  return Model.compareEquivalent(Type, *Val1, Env1, *Val2, Env2);
+  return Val1 == Val2 || areEquivalentIndirectionValues(Val1, Val2) ||
+         Model.compareEquivalent(Type, *Val1, Env1, *Val2, Env2);
 }
 
 /// Attempts to merge distinct values `Val1` and `Val2` in `Env1` and `Env2`,
@@ -84,17 +87,18 @@ static Value *mergeDistinctValues(QualType Type, Value *Val1,
   // have mutually exclusive conditions.
   if (auto *Expr1 = dyn_cast<BoolValue>(Val1)) {
     auto *Expr2 = cast<BoolValue>(Val2);
-    return &Env1.makeOr(Env1.makeAnd(Env1.getFlowConditionToken(), *Expr1),
-                        Env1.makeAnd(Env2.getFlowConditionToken(), *Expr2));
+    auto &MergedVal = MergedEnv.makeAtomicBoolValue();
+    MergedEnv.addToFlowCondition(MergedEnv.makeOr(
+        MergedEnv.makeAnd(Env1.getFlowConditionToken(),
+                          MergedEnv.makeIff(MergedVal, *Expr1)),
+        MergedEnv.makeAnd(Env2.getFlowConditionToken(),
+                          MergedEnv.makeIff(MergedVal, *Expr2))));
+    return &MergedVal;
   }
 
   // FIXME: add unit tests that cover this statement.
-  if (auto *IndVal1 = dyn_cast<IndirectionValue>(Val1)) {
-    auto *IndVal2 = cast<IndirectionValue>(Val2);
-    assert(IndVal1->getKind() == IndVal2->getKind());
-    if (&IndVal1->getPointeeLoc() == &IndVal2->getPointeeLoc()) {
-      return Val1;
-    }
+  if (areEquivalentIndirectionValues(Val1, Val2)) {
+    return Val1;
   }
 
   // FIXME: Consider destroying `MergedValue` immediately if `ValueModel::merge`
@@ -146,29 +150,6 @@ static void initGlobalVars(const Stmt &S, Environment &Env) {
   } else if (auto *E = dyn_cast<MemberExpr>(&S)) {
     initGlobalVar(*E->getMemberDecl(), Env);
   }
-}
-
-// FIXME: Does not precisely handle non-virtual diamond inheritance. A single
-// field decl will be modeled for all instances of the inherited field.
-static void
-getFieldsFromClassHierarchy(QualType Type,
-                            llvm::DenseSet<const FieldDecl *> &Fields) {
-  if (Type->isIncompleteType() || Type->isDependentType() ||
-      !Type->isRecordType())
-    return;
-
-  for (const FieldDecl *Field : Type->getAsRecordDecl()->fields())
-    Fields.insert(Field);
-  if (auto *CXXRecord = Type->getAsCXXRecordDecl())
-    for (const CXXBaseSpecifier &Base : CXXRecord->bases())
-      getFieldsFromClassHierarchy(Base.getType(), Fields);
-}
-
-/// Gets the set of all fields in the type.
-static llvm::DenseSet<const FieldDecl *> getObjectFields(QualType Type) {
-  llvm::DenseSet<const FieldDecl *> Fields;
-  getFieldsFromClassHierarchy(Type, Fields);
-  return Fields;
 }
 
 Environment::Environment(DataflowAnalysisContext &DACtx)
@@ -306,39 +287,21 @@ LatticeJoinEffect Environment::join(const Environment &Other,
 }
 
 StorageLocation &Environment::createStorageLocation(QualType Type) {
-  assert(!Type.isNull());
-  if (Type->isStructureOrClassType() || Type->isUnionType()) {
-    // FIXME: Explore options to avoid eager initialization of fields as some of
-    // them might not be needed for a particular analysis.
-    llvm::DenseMap<const ValueDecl *, StorageLocation *> FieldLocs;
-    for (const FieldDecl *Field : getObjectFields(Type))
-      FieldLocs.insert({Field, &createStorageLocation(Field->getType())});
-    return takeOwnership(
-        std::make_unique<AggregateStorageLocation>(Type, std::move(FieldLocs)));
-  }
-  return takeOwnership(std::make_unique<ScalarStorageLocation>(Type));
+  return DACtx->getStableStorageLocation(Type);
 }
 
 StorageLocation &Environment::createStorageLocation(const VarDecl &D) {
   // Evaluated declarations are always assigned the same storage locations to
   // ensure that the environment stabilizes across loop iterations. Storage
   // locations for evaluated declarations are stored in the analysis context.
-  if (auto *Loc = DACtx->getStorageLocation(D))
-    return *Loc;
-  auto &Loc = createStorageLocation(D.getType());
-  DACtx->setStorageLocation(D, Loc);
-  return Loc;
+  return DACtx->getStableStorageLocation(D);
 }
 
 StorageLocation &Environment::createStorageLocation(const Expr &E) {
   // Evaluated expressions are always assigned the same storage locations to
   // ensure that the environment stabilizes across loop iterations. Storage
   // locations for evaluated expressions are stored in the analysis context.
-  if (auto *Loc = DACtx->getStorageLocation(E))
-    return *Loc;
-  auto &Loc = createStorageLocation(E.getType());
-  DACtx->setStorageLocation(E, Loc);
-  return Loc;
+  return DACtx->getStableStorageLocation(E);
 }
 
 void Environment::setStorageLocation(const ValueDecl &D, StorageLocation &Loc) {
@@ -367,6 +330,10 @@ StorageLocation *Environment::getStorageLocation(const Expr &E,
 
 StorageLocation *Environment::getThisPointeeStorageLocation() const {
   return DACtx->getThisPointeeStorageLocation();
+}
+
+PointerValue &Environment::getOrCreateNullPointerValue(QualType PointeeType) {
+  return DACtx->getOrCreateNullPointerValue(PointeeType);
 }
 
 void Environment::setValue(const StorageLocation &Loc, Value &Val) {
@@ -458,8 +425,7 @@ Value *Environment::createValueUnlessSelfReferential(
     QualType PointeeType = Type->castAs<ReferenceType>()->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
-    if (!Visited.contains(PointeeType.getCanonicalType())) {
-      Visited.insert(PointeeType.getCanonicalType());
+    if (Visited.insert(PointeeType.getCanonicalType()).second) {
       Value *PointeeVal = createValueUnlessSelfReferential(
           PointeeType, Visited, Depth, CreatedValuesCount);
       Visited.erase(PointeeType.getCanonicalType());
@@ -476,8 +442,7 @@ Value *Environment::createValueUnlessSelfReferential(
     QualType PointeeType = Type->castAs<PointerType>()->getPointeeType();
     auto &PointeeLoc = createStorageLocation(PointeeType);
 
-    if (!Visited.contains(PointeeType.getCanonicalType())) {
-      Visited.insert(PointeeType.getCanonicalType());
+    if (Visited.insert(PointeeType.getCanonicalType()).second) {
       Value *PointeeVal = createValueUnlessSelfReferential(
           PointeeType, Visited, Depth, CreatedValuesCount);
       Visited.erase(PointeeType.getCanonicalType());
@@ -523,7 +488,7 @@ StorageLocation &Environment::skip(StorageLocation &Loc, SkipPast SP) const {
     // References cannot be chained so we only need to skip past one level of
     // indirection.
     if (auto *Val = dyn_cast_or_null<ReferenceValue>(getValue(Loc)))
-      return Val->getPointeeLoc();
+      return Val->getReferentLoc();
     return Loc;
   case SkipPast::ReferenceThenPointer:
     StorageLocation &LocPastRef = skip(Loc, SkipPast::Reference);

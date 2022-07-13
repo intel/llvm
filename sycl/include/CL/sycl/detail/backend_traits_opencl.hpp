@@ -19,6 +19,7 @@
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
@@ -188,6 +189,26 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeKernel = true;
   static constexpr bool MakeKernelBundle = true;
 };
+
+namespace pi {
+// Cast for std::vector<cl_event>, according to the spec, make_event
+// should create one(?) event from a vector of cl_event
+template <class To> inline To cast(std::vector<cl_event> value) {
+  RT::assertion(value.size() == 1,
+                "Temporary workaround requires that the "
+                "size of the input vector for make_event be equal to one.");
+  return cast<To>(value[0]);
+}
+
+// These conversions should use PI interop API.
+template <>
+inline PiProgram
+    cast(cl_program) = delete; // Use piextCreateProgramWithNativeHandle
+
+template <>
+inline PiDevice
+    cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
+} // namespace pi
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

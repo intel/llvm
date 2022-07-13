@@ -92,7 +92,7 @@ Matcher<const std::vector<CodeCompletion> &> has(std::string Name,
                                                  CompletionItemKind K) {
   return Contains(AllOf(named(std::move(Name)), kind(K)));
 }
-MATCHER(isDocumented, "") { return arg.Documentation.hasValue(); }
+MATCHER(isDocumented, "") { return arg.Documentation.has_value(); }
 MATCHER(deprecated, "") { return arg.Deprecated; }
 
 std::unique_ptr<SymbolIndex> memIndex(std::vector<Symbol> Symbols) {
@@ -413,6 +413,23 @@ TEST(CompletionTest, Accessible) {
   )cpp");
   EXPECT_THAT(External.Completions,
               AllOf(has("pub"), Not(has("prot")), Not(has("priv"))));
+
+  auto Results = completions(R"cpp(
+      struct Foo {
+        public: void pub();
+        protected: void prot();
+        private: void priv();
+      };
+      struct Bar : public Foo {
+        private: using Foo::pub;
+      };
+      void test() {
+        Bar B;
+        B.^
+      }
+  )cpp");
+  EXPECT_THAT(Results.Completions,
+              AllOf(Not(has("priv")), Not(has("prot")), Not(has("pub"))));
 }
 
 TEST(CompletionTest, Qualifiers) {
@@ -3114,6 +3131,26 @@ TEST(CompletionTest, ObjectiveCMethodDeclaration) {
   EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
 }
 
+TEST(CompletionTest, ObjectiveCMethodDeclarationFilterOnEntireSelector) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c secondArgument:(id)object;
+      @end
+      @implementation Foo
+      secondArg^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(filterText("valueForCharacter:secondArgument:")));
+  EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(qualifier("- (int)")));
+  EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
+}
+
 TEST(CompletionTest, ObjectiveCMethodDeclarationPrefixTyped) {
   auto Results = completions(R"objc(
       @interface Foo
@@ -3148,6 +3185,20 @@ TEST(CompletionTest, ObjectiveCMethodDeclarationFromMiddle) {
   EXPECT_THAT(C, ElementsAre(named("secondArgument:")));
   EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
   EXPECT_THAT(C, ElementsAre(signature("(id)object")));
+}
+
+TEST(CompletionTest, ObjectiveCProtocolFromIndex) {
+  Symbol FoodClass = objcClass("FoodClass");
+  Symbol SymFood = objcProtocol("Food");
+  Symbol SymFooey = objcProtocol("Fooey");
+  auto Results = completions(R"objc(
+      id<Foo^>
+    )objc",
+                             {SymFood, FoodClass, SymFooey},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, UnorderedElementsAre(named("Food"), named("Fooey")));
 }
 
 TEST(CompletionTest, CursorInSnippets) {

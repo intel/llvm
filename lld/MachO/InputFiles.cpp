@@ -45,6 +45,7 @@
 #include "Config.h"
 #include "Driver.h"
 #include "Dwarf.h"
+#include "EhFrame.h"
 #include "ExportTrie.h"
 #include "InputSection.h"
 #include "MachOStructs.h"
@@ -64,6 +65,7 @@
 #include "llvm/LTO/LTO.h"
 #include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/LEB128.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
@@ -323,6 +325,7 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
             section, data.slice(off, recordSize), align);
         subsections.push_back({off, isec});
       }
+      section.doneSplitting = true;
     };
 
     if (sectionType(sec.flags) == S_CSTRING_LITERALS ||
@@ -344,6 +347,9 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
       section.subsections.push_back({0, isec});
     } else if (auto recordSize = getRecordSize(segname, name)) {
       splitRecords(*recordSize);
+    } else if (config->parseEhFrames && name == section_names::ehFrame &&
+               segname == segment_names::text) {
+      splitEhFrames(data, *sections.back());
     } else if (segname == segment_names::llvm) {
       if (config->callGraphProfileSort && name == section_names::cgProfile)
         checkError(parseCallGraph(data, callGraph));
@@ -369,6 +375,45 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
       }
     }
   }
+}
+
+void ObjFile::splitEhFrames(ArrayRef<uint8_t> data, Section &ehFrameSection) {
+  EhReader reader(this, data, /*dataOff=*/0, target->wordSize);
+  size_t off = 0;
+  while (off < reader.size()) {
+    uint64_t frameOff = off;
+    uint64_t length = reader.readLength(&off);
+    if (length == 0)
+      break;
+    uint64_t fullLength = length + (off - frameOff);
+    off += length;
+    // We hard-code an alignment of 1 here because we don't actually want our
+    // EH frames to be aligned to the section alignment. EH frame decoders don't
+    // expect this alignment. Moreover, each EH frame must start where the
+    // previous one ends, and where it ends is indicated by the length field.
+    // Unless we update the length field (troublesome), we should keep the
+    // alignment to 1.
+    // Note that we still want to preserve the alignment of the overall section,
+    // just not of the individual EH frames.
+    ehFrameSection.subsections.push_back(
+        {frameOff, make<ConcatInputSection>(ehFrameSection,
+                                            data.slice(frameOff, fullLength),
+                                            /*align=*/1)});
+  }
+  ehFrameSection.doneSplitting = true;
+}
+
+template <class T>
+static Section *findContainingSection(const std::vector<Section *> &sections,
+                                      T *offset) {
+  static_assert(std::is_same<uint64_t, T>::value ||
+                    std::is_same<uint32_t, T>::value,
+                "unexpected type for offset");
+  auto it = std::prev(llvm::upper_bound(
+      sections, *offset,
+      [](uint64_t value, const Section *sec) { return value < sec->addr; }));
+  *offset -= (*it)->addr;
+  return *it;
 }
 
 // Find the subsection corresponding to the greatest section offset that is <=
@@ -403,6 +448,154 @@ static Defined *findSymbolAtOffset(const ConcatInputSection *isec,
     return nullptr;
   }
   return *it;
+}
+
+// Linker optimization hints mark a sequence of instructions used for
+// synthesizing an address which that be transformed into a faster sequence. The
+// transformations depend on conditions that are determined at link time, like
+// the distance to the referenced symbol or its alignment.
+//
+// Each hint has a type and refers to 2 or 3 instructions. Each of those
+// instructions must have a corresponding relocation. After addresses have been
+// finalized and relocations have been performed, we check if the requirements
+// hold, and perform the optimizations if they do.
+//
+// Similar linker relaxations exist for ELF as well, with the difference being
+// that the explicit marking allows for the relaxation of non-consecutive
+// relocations too.
+//
+// The specific types of hints are documented in Arch/ARM64.cpp
+void ObjFile::parseOptimizationHints(ArrayRef<uint8_t> data) {
+  auto expectedArgCount = [](uint8_t type) {
+    switch (type) {
+    case LOH_ARM64_ADRP_ADRP:
+    case LOH_ARM64_ADRP_LDR:
+    case LOH_ARM64_ADRP_ADD:
+    case LOH_ARM64_ADRP_LDR_GOT:
+      return 2;
+    case LOH_ARM64_ADRP_ADD_LDR:
+    case LOH_ARM64_ADRP_ADD_STR:
+    case LOH_ARM64_ADRP_LDR_GOT_LDR:
+    case LOH_ARM64_ADRP_LDR_GOT_STR:
+      return 3;
+    }
+    return -1;
+  };
+
+  // Each hint contains at least 4 ULEB128-encoded fields, so in the worst case,
+  // there are data.size() / 4 LOHs. It's a huge overestimation though, as
+  // offsets are unlikely to fall in the 0-127 byte range, so we pre-allocate
+  // half as much.
+  optimizationHints.reserve(data.size() / 8);
+
+  for (const uint8_t *p = data.begin(); p < data.end();) {
+    const ptrdiff_t inputOffset = p - data.begin();
+    unsigned int n = 0;
+    uint8_t type = decodeULEB128(p, &n, data.end());
+    p += n;
+
+    // An entry of type 0 terminates the list.
+    if (type == 0)
+      break;
+
+    int expectedCount = expectedArgCount(type);
+    if (LLVM_UNLIKELY(expectedCount == -1)) {
+      error("Linker optimization hint at offset " + Twine(inputOffset) +
+            " has unknown type " + Twine(type));
+      return;
+    }
+
+    uint8_t argCount = decodeULEB128(p, &n, data.end());
+    p += n;
+
+    if (LLVM_UNLIKELY(argCount != expectedCount)) {
+      error("Linker optimization hint at offset " + Twine(inputOffset) +
+            " has " + Twine(argCount) + " arguments instead of the expected " +
+            Twine(expectedCount));
+      return;
+    }
+
+    uint64_t offset0 = decodeULEB128(p, &n, data.end());
+    p += n;
+
+    int16_t delta[2];
+    for (int i = 0; i < argCount - 1; ++i) {
+      uint64_t address = decodeULEB128(p, &n, data.end());
+      p += n;
+      int64_t d = address - offset0;
+      if (LLVM_UNLIKELY(d > std::numeric_limits<int16_t>::max() ||
+                        d < std::numeric_limits<int16_t>::min())) {
+        error("Linker optimization hint at offset " + Twine(inputOffset) +
+              " has addresses too far apart");
+        return;
+      }
+      delta[i] = d;
+    }
+
+    optimizationHints.push_back({offset0, {delta[0], delta[1]}, type});
+  }
+
+  // We sort the per-object vector of optimization hints so each section only
+  // needs to hold an ArrayRef to a contiguous range of hints.
+  llvm::sort(optimizationHints,
+             [](const OptimizationHint &a, const OptimizationHint &b) {
+               return a.offset0 < b.offset0;
+             });
+
+  auto section = sections.begin();
+  auto subsection = (*section)->subsections.begin();
+  uint64_t subsectionBase = 0;
+  uint64_t subsectionEnd = 0;
+
+  auto updateAddr = [&]() {
+    subsectionBase = (*section)->addr + subsection->offset;
+    subsectionEnd = subsectionBase + subsection->isec->getSize();
+  };
+
+  auto advanceSubsection = [&]() {
+    if (section == sections.end())
+      return;
+    ++subsection;
+    if (subsection == (*section)->subsections.end()) {
+      ++section;
+      if (section == sections.end())
+        return;
+      subsection = (*section)->subsections.begin();
+    }
+  };
+
+  updateAddr();
+  auto hintStart = optimizationHints.begin();
+  for (auto hintEnd = hintStart, end = optimizationHints.end(); hintEnd != end;
+       ++hintEnd) {
+    if (hintEnd->offset0 >= subsectionEnd) {
+      subsection->isec->optimizationHints =
+          ArrayRef<OptimizationHint>(&*hintStart, hintEnd - hintStart);
+
+      hintStart = hintEnd;
+      while (hintStart->offset0 >= subsectionEnd) {
+        advanceSubsection();
+        if (section == sections.end())
+          break;
+        updateAddr();
+      }
+    }
+
+    hintEnd->offset0 -= subsectionBase;
+    for (int i = 0, count = expectedArgCount(hintEnd->type); i < count - 1;
+         ++i) {
+      if (LLVM_UNLIKELY(
+              hintEnd->delta[i] < -static_cast<int64_t>(hintEnd->offset0) ||
+              hintEnd->delta[i] >=
+                  static_cast<int64_t>(subsectionEnd - hintEnd->offset0))) {
+        error("Linker optimization hint spans multiple sections");
+        return;
+      }
+    }
+  }
+  if (section != sections.end())
+    subsection->isec->optimizationHints = ArrayRef<OptimizationHint>(
+        &*hintStart, optimizationHints.end() - hintStart);
 }
 
 template <class SectionHeader>
@@ -475,13 +668,6 @@ void ObjFile::parseRelocations(ArrayRef<SectionHeader> sectionHeaders,
     relocation_info relInfo = relInfos[i];
     bool isSubtrahend =
         target->hasAttr(relInfo.r_type, RelocAttrBits::SUBTRAHEND);
-    if (isSubtrahend && StringRef(sec.sectname) == section_names::ehFrame) {
-      // __TEXT,__eh_frame only has symbols and SUBTRACTOR relocs when ld64 -r
-      // adds local "EH_Frame1" and "func.eh". Ignore them because they have
-      // gone unused by Mac OS since Snow Leopard (10.6), vintage 2009.
-      ++i;
-      continue;
-    }
     int64_t pairedAddend = 0;
     if (target->hasAttr(relInfo.r_type, RelocAttrBits::ADDEND)) {
       pairedAddend = SignExtend64<24>(relInfo.r_symbolnum);
@@ -637,7 +823,8 @@ static macho::Symbol *createDefined(const NList &sym, StringRef name,
   }
   assert(!isWeakDefCanBeHidden &&
          "weak_def_can_be_hidden on already-hidden symbol?");
-  bool includeInSymtab = !name.startswith("l") && !name.startswith("L");
+  bool includeInSymtab =
+      !name.startswith("l") && !name.startswith("L") && !isEhFrameSection(isec);
   return make<Defined>(
       name, isec->getFile(), isec, value, size, sym.n_desc & N_WEAK_DEF,
       /*isExternal=*/false, /*isPrivateExtern=*/false, includeInSymtab,
@@ -730,20 +917,14 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
     Subsections &subsections = sections[i]->subsections;
     if (subsections.empty())
       continue;
-    if (sections[i]->name == section_names::ehFrame) {
-      // __TEXT,__eh_frame only has symbols and SUBTRACTOR relocs when ld64 -r
-      // adds local "EH_Frame1" and "func.eh". Ignore them because they have
-      // gone unused by Mac OS since Snow Leopard (10.6), vintage 2009.
-      continue;
-    }
     std::vector<uint32_t> &symbolIndices = symbolsBySection[i];
     uint64_t sectionAddr = sectionHeaders[i].addr;
     uint32_t sectionAlign = 1u << sectionHeaders[i].align;
 
-    // Record-based sections have already been split into subsections during
+    // Some sections have already been split into subsections during
     // parseSections(), so we simply need to match Symbols to the corresponding
     // subsection here.
-    if (getRecordSize(sections[i]->segname, sections[i]->name)) {
+    if (sections[i]->doneSplitting) {
       for (size_t j = 0; j < symbolIndices.size(); ++j) {
         uint32_t symIndex = symbolIndices[j];
         const NList &sym = nList[symIndex];
@@ -760,6 +941,7 @@ void ObjFile::parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
       }
       continue;
     }
+    sections[i]->doneSplitting = true;
 
     // Calculate symbol sizes and create subsections by splitting the sections
     // along symbol boundaries.
@@ -916,6 +1098,11 @@ template <class LP> void ObjFile::parse() {
     if (!sections[i]->subsections.empty())
       parseRelocations(sectionHeaders, sectionHeaders[i], *sections[i]);
 
+  if (!config->ignoreOptimizationHints)
+    if (auto *cmd = findCommand<linkedit_data_command>(
+            hdr, LC_LINKER_OPTIMIZATION_HINT))
+      parseOptimizationHints({buf + cmd->dataoff, cmd->datasize});
+
   parseDebugInfo();
 
   Section *ehFrameSection = nullptr;
@@ -930,6 +1117,8 @@ template <class LP> void ObjFile::parse() {
   }
   if (compactUnwindSection)
     registerCompactUnwind(*compactUnwindSection);
+  if (config->parseEhFrames && ehFrameSection)
+    registerEhFrames(*ehFrameSection);
 }
 
 template <class LP> void ObjFile::parseLazy() {
@@ -963,6 +1152,8 @@ void ObjFile::parseDebugInfo() {
   if (!dObj)
     return;
 
+  // We do not re-use the context from getDwarf() here as that function
+  // constructs an expensive DWARFCache object.
   auto *ctx = make<DWARFContext>(
       std::move(dObj), "",
       [&](Error err) {
@@ -978,7 +1169,7 @@ void ObjFile::parseDebugInfo() {
   // FIXME: There can be more than one compile unit per object file. See
   // PR48637.
   auto it = units.begin();
-  compileUnit = it->get();
+  compileUnit = it != units.end() ? it->get() : nullptr;
 }
 
 ArrayRef<data_in_code_entry> ObjFile::getDataInCode() const {
@@ -1003,6 +1194,12 @@ void ObjFile::registerCompactUnwind(Section &compactUnwindSection) {
     // of the corresponding relocations.) We rely on `relocateCompactUnwind()`
     // to correctly handle these truncated input sections.
     isec->data = isec->data.slice(target->wordSize);
+    uint32_t encoding = read32le(isec->data.data() + sizeof(uint32_t));
+    // llvm-mc omits CU entries for functions that need DWARF encoding, but
+    // `ld -r` doesn't. We can ignore them because we will re-synthesize these
+    // CU entries from the DWARF info during the output phase.
+    if ((encoding & target->modeDwarfEncoding) == target->modeDwarfEncoding)
+      continue;
 
     ConcatInputSection *referentIsec;
     for (auto it = isec->relocs.begin(); it != isec->relocs.end();) {
@@ -1053,6 +1250,310 @@ void ObjFile::registerCompactUnwind(Section &compactUnwindSection) {
   }
 }
 
+struct CIE {
+  macho::Symbol *personalitySymbol = nullptr;
+  bool fdesHaveLsda = false;
+  bool fdesHaveAug = false;
+};
+
+static CIE parseCIE(const InputSection *isec, const EhReader &reader,
+                    size_t off) {
+  // Handling the full generality of possible DWARF encodings would be a major
+  // pain. We instead take advantage of our knowledge of how llvm-mc encodes
+  // DWARF and handle just that.
+  constexpr uint8_t expectedPersonalityEnc =
+      dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_indirect | dwarf::DW_EH_PE_sdata4;
+  constexpr uint8_t expectedPointerEnc =
+      dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_absptr;
+
+  CIE cie;
+  uint8_t version = reader.readByte(&off);
+  if (version != 1 && version != 3)
+    fatal("Expected CIE version of 1 or 3, got " + Twine(version));
+  StringRef aug = reader.readString(&off);
+  reader.skipLeb128(&off); // skip code alignment
+  reader.skipLeb128(&off); // skip data alignment
+  reader.skipLeb128(&off); // skip return address register
+  reader.skipLeb128(&off); // skip aug data length
+  uint64_t personalityAddrOff = 0;
+  for (char c : aug) {
+    switch (c) {
+    case 'z':
+      cie.fdesHaveAug = true;
+      break;
+    case 'P': {
+      uint8_t personalityEnc = reader.readByte(&off);
+      if (personalityEnc != expectedPersonalityEnc)
+        reader.failOn(off, "unexpected personality encoding 0x" +
+                               Twine::utohexstr(personalityEnc));
+      personalityAddrOff = off;
+      off += 4;
+      break;
+    }
+    case 'L': {
+      cie.fdesHaveLsda = true;
+      uint8_t lsdaEnc = reader.readByte(&off);
+      if (lsdaEnc != expectedPointerEnc)
+        reader.failOn(off, "unexpected LSDA encoding 0x" +
+                               Twine::utohexstr(lsdaEnc));
+      break;
+    }
+    case 'R': {
+      uint8_t pointerEnc = reader.readByte(&off);
+      if (pointerEnc != expectedPointerEnc)
+        reader.failOn(off, "unexpected pointer encoding 0x" +
+                               Twine::utohexstr(pointerEnc));
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  if (personalityAddrOff != 0) {
+    auto personalityRelocIt =
+        llvm::find_if(isec->relocs, [=](const macho::Reloc &r) {
+          return r.offset == personalityAddrOff;
+        });
+    if (personalityRelocIt == isec->relocs.end())
+      reader.failOn(off, "Failed to locate relocation for personality symbol");
+    cie.personalitySymbol = personalityRelocIt->referent.get<macho::Symbol *>();
+  }
+  return cie;
+}
+
+// EH frame target addresses may be encoded as pcrel offsets. However, instead
+// of using an actual pcrel reloc, ld64 emits subtractor relocations instead.
+// This function recovers the target address from the subtractors, essentially
+// performing the inverse operation of EhRelocator.
+//
+// Concretely, we expect our relocations to write the value of `PC -
+// target_addr` to `PC`. `PC` itself is denoted by a minuend relocation that
+// points to a symbol plus an addend.
+//
+// It is important that the minuend relocation point to a symbol within the
+// same section as the fixup value, since sections may get moved around.
+//
+// For example, for arm64, llvm-mc emits relocations for the target function
+// address like so:
+//
+//   ltmp:
+//     <CIE start>
+//     ...
+//     <CIE end>
+//     ... multiple FDEs ...
+//     <FDE start>
+//     <target function address - (ltmp + pcrel offset)>
+//     ...
+//
+// If any of the FDEs in `multiple FDEs` get dead-stripped, then `FDE start`
+// will move to an earlier address, and `ltmp + pcrel offset` will no longer
+// reflect an accurate pcrel value. To avoid this problem, we "canonicalize"
+// our relocation by adding an `EH_Frame` symbol at `FDE start`, and updating
+// the reloc to be `target function address - (EH_Frame + new pcrel offset)`.
+//
+// If `Invert` is set, then we instead expect `target_addr - PC` to be written
+// to `PC`.
+template <bool Invert = false>
+Defined *
+targetSymFromCanonicalSubtractor(const InputSection *isec,
+                                 std::vector<macho::Reloc>::iterator relocIt) {
+  macho::Reloc &subtrahend = *relocIt;
+  macho::Reloc &minuend = *std::next(relocIt);
+  assert(target->hasAttr(subtrahend.type, RelocAttrBits::SUBTRAHEND));
+  assert(target->hasAttr(minuend.type, RelocAttrBits::UNSIGNED));
+  // Note: pcSym may *not* be exactly at the PC; there's usually a non-zero
+  // addend.
+  auto *pcSym = cast<Defined>(subtrahend.referent.get<macho::Symbol *>());
+  Defined *target =
+      cast_or_null<Defined>(minuend.referent.dyn_cast<macho::Symbol *>());
+  if (!pcSym) {
+    auto *targetIsec =
+        cast<ConcatInputSection>(minuend.referent.get<InputSection *>());
+    target = findSymbolAtOffset(targetIsec, minuend.addend);
+  }
+  if (Invert)
+    std::swap(pcSym, target);
+  if (pcSym->isec == isec) {
+    if (pcSym->value - (Invert ? -1 : 1) * minuend.addend != subtrahend.offset)
+      fatal("invalid FDE relocation in __eh_frame");
+  } else {
+    // Ensure the pcReloc points to a symbol within the current EH frame.
+    // HACK: we should really verify that the original relocation's semantics
+    // are preserved. In particular, we should have
+    // `oldSym->value + oldOffset == newSym + newOffset`. However, we don't
+    // have an easy way to access the offsets from this point in the code; some
+    // refactoring is needed for that.
+    macho::Reloc &pcReloc = Invert ? minuend : subtrahend;
+    pcReloc.referent = isec->symbols[0];
+    assert(isec->symbols[0]->value == 0);
+    minuend.addend = pcReloc.offset * (Invert ? 1LL : -1LL);
+  }
+  return target;
+}
+
+Defined *findSymbolAtAddress(const std::vector<Section *> &sections,
+                             uint64_t addr) {
+  Section *sec = findContainingSection(sections, &addr);
+  auto *isec = cast<ConcatInputSection>(findContainingSubsection(*sec, &addr));
+  return findSymbolAtOffset(isec, addr);
+}
+
+// For symbols that don't have compact unwind info, associate them with the more
+// general-purpose (and verbose) DWARF unwind info found in __eh_frame.
+//
+// This requires us to parse the contents of __eh_frame. See EhFrame.h for a
+// description of its format.
+//
+// While parsing, we also look for what MC calls "abs-ified" relocations -- they
+// are relocations which are implicitly encoded as offsets in the section data.
+// We convert them into explicit Reloc structs so that the EH frames can be
+// handled just like a regular ConcatInputSection later in our output phase.
+//
+// We also need to handle the case where our input object file has explicit
+// relocations. This is the case when e.g. it's the output of `ld -r`. We only
+// look for the "abs-ified" relocation if an explicit relocation is absent.
+void ObjFile::registerEhFrames(Section &ehFrameSection) {
+  DenseMap<const InputSection *, CIE> cieMap;
+  for (const Subsection &subsec : ehFrameSection.subsections) {
+    auto *isec = cast<ConcatInputSection>(subsec.isec);
+    uint64_t isecOff = subsec.offset;
+
+    // Subtractor relocs require the subtrahend to be a symbol reloc. Ensure
+    // that all EH frames have an associated symbol so that we can generate
+    // subtractor relocs that reference them.
+    if (isec->symbols.size() == 0)
+      isec->symbols.push_back(make<Defined>(
+          "EH_Frame", isec->getFile(), isec, /*value=*/0, /*size=*/0,
+          /*isWeakDef=*/false, /*isExternal=*/false, /*isPrivateExtern=*/false,
+          /*includeInSymtab=*/false, /*isThumb=*/false,
+          /*isReferencedDynamically=*/false, /*noDeadStrip=*/false));
+    else if (isec->symbols[0]->value != 0)
+      fatal("found symbol at unexpected offset in __eh_frame");
+
+    EhReader reader(this, isec->data, subsec.offset, target->wordSize);
+    size_t dataOff = 0; // Offset from the start of the EH frame.
+    reader.skipValidLength(&dataOff); // readLength() already validated this.
+    // cieOffOff is the offset from the start of the EH frame to the cieOff
+    // value, which is itself an offset from the current PC to a CIE.
+    const size_t cieOffOff = dataOff;
+
+    EhRelocator ehRelocator(isec);
+    auto cieOffRelocIt = llvm::find_if(
+        isec->relocs, [=](const Reloc &r) { return r.offset == cieOffOff; });
+    InputSection *cieIsec = nullptr;
+    if (cieOffRelocIt != isec->relocs.end()) {
+      // We already have an explicit relocation for the CIE offset.
+      cieIsec =
+          targetSymFromCanonicalSubtractor</*Invert=*/true>(isec, cieOffRelocIt)
+              ->isec;
+      dataOff += sizeof(uint32_t);
+    } else {
+      // If we haven't found a relocation, then the CIE offset is most likely
+      // embedded in the section data (AKA an "abs-ified" reloc.). Parse that
+      // and generate a Reloc struct.
+      uint32_t cieMinuend = reader.readU32(&dataOff);
+      if (cieMinuend == 0)
+        cieIsec = isec;
+      else {
+        uint32_t cieOff = isecOff + dataOff - cieMinuend;
+        cieIsec = findContainingSubsection(ehFrameSection, &cieOff);
+        if (cieIsec == nullptr)
+          fatal("failed to find CIE");
+      }
+      if (cieIsec != isec)
+        ehRelocator.makeNegativePcRel(cieOffOff, cieIsec->symbols[0],
+                                      /*length=*/2);
+    }
+    if (cieIsec == isec) {
+      cieMap[cieIsec] = parseCIE(isec, reader, dataOff);
+      continue;
+    }
+
+    // Offset of the function address within the EH frame.
+    const size_t funcAddrOff = dataOff;
+    uint64_t funcAddr = reader.readPointer(&dataOff) + ehFrameSection.addr +
+                        isecOff + funcAddrOff;
+    uint32_t funcLength = reader.readPointer(&dataOff);
+    size_t lsdaAddrOff = 0; // Offset of the LSDA address within the EH frame.
+    assert(cieMap.count(cieIsec));
+    const CIE &cie = cieMap[cieIsec];
+    Optional<uint64_t> lsdaAddrOpt;
+    if (cie.fdesHaveAug) {
+      reader.skipLeb128(&dataOff);
+      lsdaAddrOff = dataOff;
+      if (cie.fdesHaveLsda) {
+        uint64_t lsdaOff = reader.readPointer(&dataOff);
+        if (lsdaOff != 0) // FIXME possible to test this?
+          lsdaAddrOpt = ehFrameSection.addr + isecOff + lsdaAddrOff + lsdaOff;
+      }
+    }
+
+    auto funcAddrRelocIt = isec->relocs.end();
+    auto lsdaAddrRelocIt = isec->relocs.end();
+    for (auto it = isec->relocs.begin(); it != isec->relocs.end(); ++it) {
+      if (it->offset == funcAddrOff)
+        funcAddrRelocIt = it++; // Found subtrahend; skip over minuend reloc
+      else if (lsdaAddrOpt && it->offset == lsdaAddrOff)
+        lsdaAddrRelocIt = it++; // Found subtrahend; skip over minuend reloc
+    }
+
+    Defined *funcSym;
+    if (funcAddrRelocIt != isec->relocs.end()) {
+      funcSym = targetSymFromCanonicalSubtractor(isec, funcAddrRelocIt);
+    } else {
+      funcSym = findSymbolAtAddress(sections, funcAddr);
+      ehRelocator.makePcRel(funcAddrOff, funcSym, target->p2WordSize);
+    }
+    // The symbol has been coalesced, or already has a compact unwind entry.
+    if (!funcSym || funcSym->getFile() != this || funcSym->unwindEntry) {
+      // We must prune unused FDEs for correctness, so we cannot rely on
+      // -dead_strip being enabled.
+      isec->live = false;
+      continue;
+    }
+
+    InputSection *lsdaIsec = nullptr;
+    if (lsdaAddrRelocIt != isec->relocs.end()) {
+      lsdaIsec = targetSymFromCanonicalSubtractor(isec, lsdaAddrRelocIt)->isec;
+    } else if (lsdaAddrOpt) {
+      uint64_t lsdaAddr = *lsdaAddrOpt;
+      Section *sec = findContainingSection(sections, &lsdaAddr);
+      lsdaIsec =
+          cast<ConcatInputSection>(findContainingSubsection(*sec, &lsdaAddr));
+      ehRelocator.makePcRel(lsdaAddrOff, lsdaIsec, target->p2WordSize);
+    }
+
+    fdes[isec] = {funcLength, cie.personalitySymbol, lsdaIsec};
+    funcSym->unwindEntry = isec;
+    ehRelocator.commit();
+  }
+}
+
+std::string ObjFile::sourceFile() const {
+  SmallString<261> dir(compileUnit->getCompilationDir());
+  StringRef sep = sys::path::get_separator();
+  // We don't use `path::append` here because we want an empty `dir` to result
+  // in an absolute path. `append` would give us a relative path for that case.
+  if (!dir.endswith(sep))
+    dir += sep;
+  return (dir + compileUnit->getUnitDIE().getShortName()).str();
+}
+
+lld::DWARFCache *ObjFile::getDwarf() {
+  llvm::call_once(initDwarf, [this]() {
+    auto dwObj = DwarfObject::create(this);
+    if (!dwObj)
+      return;
+    dwarfCache = std::make_unique<DWARFCache>(std::make_unique<DWARFContext>(
+        std::move(dwObj), "",
+        [&](Error err) { warn(getName() + ": " + toString(std::move(err))); },
+        [&](Error warning) {
+          warn(getName() + ": " + toString(std::move(warning)));
+        }));
+  });
+
+  return dwarfCache.get();
+}
 // The path can point to either a dylib or a .tbd file.
 static DylibFile *loadDylib(StringRef path, DylibFile *umbrella) {
   Optional<MemoryBufferRef> mbref = readFile(path);

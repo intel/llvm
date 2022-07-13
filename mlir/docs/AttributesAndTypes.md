@@ -24,7 +24,7 @@ names to attribute values.
 Every SSA value, such as operation results or block arguments, in MLIR has a type
 defined by the type system. MLIR has an open type system with no fixed list of types,
 and there are no restrictions on the abstractions they represent. For example, take
-the following [Arithemetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
+the following [Arithmetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
 
 ```mlir
   %result = arith.addi %lhs, %rhs : i64
@@ -71,7 +71,7 @@ Operations, etc.
 
 ```tablegen
 // Include the definition of the necessary tablegen constructs for defining
-// our types. 
+// our types.
 include "mlir/IR/AttrTypeBase.td"
 
 // It's common to define a base classes for types in the same dialect. This
@@ -108,7 +108,7 @@ Below is an example of an Attribute:
 
 ```tablegen
 // Include the definition of the necessary tablegen constructs for defining
-// our attributes. 
+// our attributes.
 include "mlir/IR/AttrTypeBase.td"
 
 // It's common to define a base classes for attributes in the same dialect. This
@@ -128,11 +128,11 @@ def My_IntegerAttr : MyDialect_Attr<"Integer", "int"> {
   }];
   /// Here we've defined two parameters, one is the `self` type of the attribute
   /// (i.e. the type of the Attribute itself), and the other is the integer value
-  /// of the attribute. 
+  /// of the attribute.
   let parameters = (ins AttributeSelfTypeParameter<"">:$type, "APInt":$value);
-  
+
   /// Here we've defined a custom builder for the type, that removes the need to pass
-  /// in an MLIRContext instance; as it can be infered from the `type`. 
+  /// in an MLIRContext instance; as it can be infered from the `type`.
   let builders = [
     AttrBuilderWithInferredContext<(ins "Type":$type,
                                         "const APInt &":$value), [{
@@ -147,7 +147,7 @@ def My_IntegerAttr : MyDialect_Attr<"Integer", "int"> {
   ///    #my.int<50> : !my.int<32> // a 32-bit integer of value 50.
   ///
   let assemblyFormat = "`<` $value `>`";
-  
+
   /// Indicate that our attribute will add additional verification to the parameters.
   let genVerifyDecl = 1;
 
@@ -295,7 +295,7 @@ documentation for more information on defining and using interfaces.
 
 For each attribute or type, there are a few builders(`get`/`getChecked`)
 automatically generated based on the parameters of the type. These are used to
-construct instances of the correpsonding attribute or type. For example, given
+construct instances of the corresponding attribute or type. For example, given
 the following definition:
 
 ```tablegen
@@ -519,7 +519,7 @@ assembly format consists of literals, variables, and directives.
 
 - A literal is a keyword or valid punctuation enclosed in backticks, e.g.
   `` `keyword` `` or `` `<` ``.
-- A variable is a parameter name preceeded by a dollar sign, e.g. `$param0`,
+- A variable is a parameter name preceded by a dollar sign, e.g. `$param0`,
   which captures one attribute or type parameter.
 - A directive is a keyword followed by an optional argument list that defines
   special parser and printer behaviour.
@@ -612,6 +612,10 @@ example, `StringRefParameter` uses `std::string` as its storage type, whereas
 `ArrayRefParameter` uses `SmallVector` as its storage type. The parsers for
 these parameters are expected to return `FailureOr<$cppStorageType>`.
 
+To add a custom conversion between the `cppStorageType` and the C++ type of the
+parameter, parameters can override `convertFromStorage`, which by default is
+`"$_self"` (i.e., it attempts an implicit conversion from `cppStorageType`).
+
 ###### Optional Parameters
 
 Optional parameters in the assembly format can be indicated by setting
@@ -669,10 +673,10 @@ Which will look like:
 ```
 
 For optional `Attribute` or `Type` parameters, the current MLIR context is
-available through `$_ctx`. E.g.
+available through `$_ctxt`. E.g.
 
 ```tablegen
-DefaultValuedParameter<"IntegerType", "IntegerType::get($_ctx, 32)">
+DefaultValuedParameter<"IntegerType", "IntegerType::get($_ctxt, 32)">
 ```
 
 ##### Assembly Format Directives
@@ -1060,7 +1064,7 @@ void MyDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "MyDialect/Attributes.cpp.inc"
   >();
-  
+
     /// Add the defined types to the dialect.
   addTypes<
 #define GET_TYPEDEF_LIST

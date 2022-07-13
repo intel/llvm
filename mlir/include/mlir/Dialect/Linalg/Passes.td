@@ -134,8 +134,7 @@ def LinalgTiling : Pass<"linalg-tile", "func::FuncOp"> {
     "scf::SCFDialect"
   ];
   let options = [
-    ListOption<"tileSizes", "tile-sizes", "int64_t", "Tile sizes",
-               "llvm::cl::ZeroOrMore">,
+    ListOption<"tileSizes", "tile-sizes", "int64_t", "Tile sizes">,
     Option<"loopType", "loop-type", "std::string", /*default=*/"\"for\"",
            "Specify the type of loops to generate: for, parallel">
   ];
@@ -269,6 +268,22 @@ def LinalgStrategyInterchangePass
   let options = [
     Option<"anchorFuncName", "anchor-func", "std::string", /*default=*/"",
       "Which func op is the anchor to latch on.">,
+  ];
+}
+
+def LinalgStrategyPeelPass
+    : Pass<"linalg-strategy-peel-pass", "func::FuncOp"> {
+  let summary = "Configurable pass to apply pattern-based linalg peeling.";
+  let constructor = "mlir::createLinalgStrategyPeelPass()";
+  let dependentDialects = [
+    "linalg::LinalgDialect",
+    "scf::SCFDialect"
+  ];
+  let options = [
+    Option<"anchorFuncName", "anchor-func", "std::string", /*default=*/"",
+      "Which func op is the anchor to latch on.">,
+    Option<"anchorOpName", "anchor-op", "std::string", /*default=*/"",
+      "Which linalg op within the func is the anchor to latch on.">,
   ];
 }
 

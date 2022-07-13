@@ -267,7 +267,7 @@ public:
       throw runtime_error(
           "Buffer constructor from a pair of iterator values does not support "
           "use_host_ptr property.",
-          PI_INVALID_OPERATION);
+          PI_ERROR_INVALID_OPERATION);
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();
@@ -301,7 +301,7 @@ public:
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;
-    throw runtime_error("Not implemented", PI_INVALID_OPERATION);
+    throw runtime_error("Not implemented", PI_ERROR_INVALID_OPERATION);
   }
 
   __SYCL_DLL_LOCAL MemObjType getType() const override {

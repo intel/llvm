@@ -95,6 +95,11 @@ public:
                                                 : Env.makeNot(LHSEqRHSValue));
       break;
     }
+    case BO_Comma: {
+      if (auto *Loc = Env.getStorageLocation(*RHS, SkipPast::None))
+        Env.setStorageLocation(*S, *Loc);
+      break;
+    }
     default:
       break;
     }
@@ -244,6 +249,16 @@ public:
         break;
 
       Env.setStorageLocation(*S, *SubExprLoc);
+      break;
+    }
+    case CK_NullToPointer:
+    case CK_NullToMemberPointer: {
+      auto &Loc = Env.createStorageLocation(S->getType());
+      Env.setStorageLocation(*S, Loc);
+
+      auto &NullPointerVal =
+          Env.getOrCreateNullPointerValue(S->getType()->getPointeeType());
+      Env.setValue(Loc, NullPointerVal);
       break;
     }
     default:

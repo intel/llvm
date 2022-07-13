@@ -314,16 +314,16 @@ AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
                       MVT::v5i32, MVT::v5f32, MVT::v6i32, MVT::v6f32,
                       MVT::v7i32, MVT::v7f32, MVT::v8i32, MVT::v8f32},
                      Custom);
-  setOperationAction(ISD::EXTRACT_SUBVECTOR,
-                     {MVT::v2f16,  MVT::v2i16,  MVT::v4f16,  MVT::v4i16,
-                      MVT::v2f32,  MVT::v2i32,  MVT::v3f32,  MVT::v3i32,
-                      MVT::v4f32,  MVT::v4i32,  MVT::v5f32,  MVT::v5i32,
-                      MVT::v6f32,  MVT::v6i32,  MVT::v7f32,  MVT::v7i32,
-                      MVT::v8f32,  MVT::v8i32,  MVT::v16f32, MVT::v16i32,
-                      MVT::v32f32, MVT::v32i32, MVT::v2f64,  MVT::v2i64,
-                      MVT::v3f64,  MVT::v3i64,  MVT::v4f64,  MVT::v4i64,
-                      MVT::v8f64,  MVT::v8i64,  MVT::v16f64, MVT::v16i64},
-                     Custom);
+  setOperationAction(
+      ISD::EXTRACT_SUBVECTOR,
+      {MVT::v2f16,  MVT::v2i16,  MVT::v4f16,  MVT::v4i16,  MVT::v2f32,
+       MVT::v2i32,  MVT::v3f32,  MVT::v3i32,  MVT::v4f32,  MVT::v4i32,
+       MVT::v5f32,  MVT::v5i32,  MVT::v6f32,  MVT::v6i32,  MVT::v7f32,
+       MVT::v7i32,  MVT::v8f32,  MVT::v8i32,  MVT::v16f16, MVT::v16i16,
+       MVT::v16f32, MVT::v16i32, MVT::v32f32, MVT::v32i32, MVT::v2f64,
+       MVT::v2i64,  MVT::v3f64,  MVT::v3i64,  MVT::v4f64,  MVT::v4i64,
+       MVT::v8f64,  MVT::v8i64,  MVT::v16f64, MVT::v16i64},
+      Custom);
 
   setOperationAction(ISD::FP16_TO_FP, MVT::f64, Expand);
   setOperationAction(ISD::FP_TO_FP16, {MVT::f64, MVT::f32}, Custom);
@@ -650,11 +650,11 @@ bool AMDGPUTargetLowering::shouldReduceLoadWidth(SDNode *N,
   unsigned AS = MN->getAddressSpace();
   // Do not shrink an aligned scalar load to sub-dword.
   // Scalar engine cannot do sub-dword loads.
-  if (OldSize >= 32 && NewSize < 32 && MN->getAlignment() >= 4 &&
+  if (OldSize >= 32 && NewSize < 32 && MN->getAlign() >= Align(4) &&
       (AS == AMDGPUAS::CONSTANT_ADDRESS ||
        AS == AMDGPUAS::CONSTANT_ADDRESS_32BIT ||
-       (isa<LoadSDNode>(N) &&
-        AS == AMDGPUAS::GLOBAL_ADDRESS && MN->isInvariant())) &&
+       (isa<LoadSDNode>(N) && AS == AMDGPUAS::GLOBAL_ADDRESS &&
+        MN->isInvariant())) &&
       AMDGPUInstrInfo::isUniformMMO(MN->getMemOperand()))
     return false;
 
@@ -939,10 +939,9 @@ void AMDGPUTargetLowering::analyzeFormalArgumentsCompute(
     const bool IsByRef = Arg.hasByRefAttr();
     Type *BaseArgTy = Arg.getType();
     Type *MemArgTy = IsByRef ? Arg.getParamByRefType() : BaseArgTy;
-    MaybeAlign Alignment = IsByRef ? Arg.getParamAlign() : None;
-    if (!Alignment)
-      Alignment = DL.getABITypeAlign(MemArgTy);
-    MaxAlign = max(Alignment, MaxAlign);
+    Align Alignment = DL.getValueOrABITypeAlignment(
+        IsByRef ? Arg.getParamAlign() : None, MemArgTy);
+    MaxAlign = std::max(Alignment, MaxAlign);
     uint64_t AllocSize = DL.getTypeAllocSize(MemArgTy);
 
     uint64_t ArgOffset = alignTo(ExplicitArgOffset, Alignment) + ExplicitOffset;
@@ -1282,6 +1281,11 @@ SDValue AMDGPUTargetLowering::LowerEXTRACT_SUBVECTOR(SDValue Op,
       (Start == 0 || Start == 4))
     return Op;
 
+  if (((SrcVT == MVT::v16f16 && VT == MVT::v8f16) ||
+       (SrcVT == MVT::v16i16 && VT == MVT::v8i16)) &&
+      (Start == 0 || Start == 8))
+    return Op;
+
   DAG.ExtractVectorElements(Op.getOperand(0), Args, Start,
                             VT.getVectorNumElements());
 
@@ -1456,8 +1460,8 @@ SDValue AMDGPUTargetLowering::SplitVectorLoad(const SDValue Op,
   std::tie(Lo, Hi) = splitVector(Op, SL, LoVT, HiVT, DAG);
 
   unsigned Size = LoMemVT.getStoreSize();
-  unsigned BaseAlign = Load->getAlignment();
-  unsigned HiAlign = MinAlign(BaseAlign, Size);
+  Align BaseAlign = Load->getAlign();
+  Align HiAlign = commonAlignment(BaseAlign, Size);
 
   SDValue LoLoad = DAG.getExtLoad(Load->getExtensionType(), SL, LoVT,
                                   Load->getChain(), BasePtr, SrcValue, LoMemVT,
@@ -1495,13 +1499,13 @@ SDValue AMDGPUTargetLowering::WidenOrSplitVectorLoad(SDValue Op,
   EVT MemVT = Load->getMemoryVT();
   SDLoc SL(Op);
   const MachinePointerInfo &SrcValue = Load->getMemOperand()->getPointerInfo();
-  unsigned BaseAlign = Load->getAlignment();
+  Align BaseAlign = Load->getAlign();
   unsigned NumElements = MemVT.getVectorNumElements();
 
   // Widen from vec3 to vec4 when the load is at least 8-byte aligned
   // or 16-byte fully dereferenceable. Otherwise, split the vector load.
   if (NumElements != 3 ||
-      (BaseAlign < 8 &&
+      (BaseAlign < Align(8) &&
        !SrcValue.isDereferenceable(16, *DAG.getContext(), DAG.getDataLayout())))
     return SplitVectorLoad(Op, DAG);
 
@@ -1548,9 +1552,9 @@ SDValue AMDGPUTargetLowering::SplitVectorStore(SDValue Op,
   SDValue HiPtr = DAG.getObjectPtrOffset(SL, BasePtr, LoMemVT.getStoreSize());
 
   const MachinePointerInfo &SrcValue = Store->getMemOperand()->getPointerInfo();
-  unsigned BaseAlign = Store->getAlignment();
+  Align BaseAlign = Store->getAlign();
   unsigned Size = LoMemVT.getStoreSize();
-  unsigned HiAlign = MinAlign(BaseAlign, Size);
+  Align HiAlign = commonAlignment(BaseAlign, Size);
 
   SDValue LoStore =
       DAG.getTruncStore(Chain, SL, Lo, BasePtr, SrcValue, LoMemVT, BaseAlign,
@@ -4799,6 +4803,8 @@ AMDGPUTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *RMW) const {
   case AtomicRMWInst::Nand:
   case AtomicRMWInst::FAdd:
   case AtomicRMWInst::FSub:
+  case AtomicRMWInst::FMax:
+  case AtomicRMWInst::FMin:
     return AtomicExpansionKind::CmpXChg;
   default:
     return AtomicExpansionKind::None;

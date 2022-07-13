@@ -40,12 +40,12 @@
 // point types, 2/3/4/8/16-element vector of scalar types").
 //
 //===----------------------------------------------------------------------===//
+
+#include "SPIRVLowerBitCastToNonStandardType.h"
 #include "SPIRVInternal.h"
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/NoFolder.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #include <utility>
@@ -119,135 +119,116 @@ static bool isNonStdVecType(VectorType *VecTy) {
   return !isValidVectorSize(NumElems);
 }
 
-class SPIRVLowerBitCastToNonStandardTypePass
-    : public llvm::PassInfoMixin<SPIRVLowerBitCastToNonStandardTypePass> {
-public:
-  SPIRVLowerBitCastToNonStandardTypePass(const SPIRV::TranslatorOpts &Opts)
-      : Opts(Opts) {}
+PreservedAnalyses
+SPIRVLowerBitCastToNonStandardTypePass::run(Function &F,
+                                            FunctionAnalysisManager &FAM) {
+  // This pass doesn't cover all possible uses of non-standard types, only
+  // known. We assume that bad type won't be passed to a function as
+  // parameter, since it added by an optimization.
+  bool Changed = false;
 
-  PreservedAnalyses
-  runLowerBitCastToNonStandardType(Function &F, FunctionAnalysisManager &FAM) {
-    // This pass doesn't cover all possible uses of non-standard types, only
-    // known. We assume that bad type won't be passed to a function as
-    // parameter, since it added by an optimization.
-    bool Changed = false;
+  // SPV_INTEL_vector_compute allows to use vectors with any number of
+  // components. Since this method only lowers vectors with non-standard
+  // in pure SPIR-V number of components, there is no need to do anything in
+  // case SPV_INTEL_vector_compute is enabled.
+  if (Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
+    return PreservedAnalyses::all();
 
-    // SPV_INTEL_vector_compute allows to use vectors with any number of
-    // components. Since this method only lowers vectors with non-standard
-    // in pure SPIR-V number of components, there is no need to do anything in
-    // case SPV_INTEL_vector_compute is enabled.
-    if (Opts.isAllowedToUseExtension(ExtensionID::SPV_INTEL_vector_compute))
-      return PreservedAnalyses::all();
-
-    // The basic pattern we're trying to fix is this InstCombine pattern:
-    // trunc (extractelement) -> extractelement (bitcast)
-    // (note that the bitcast itself can get propagated back to change the type
-    // of load instructions, and even through those to pointer casts, if typed
-    // pointers are enabled.
-    std::vector<ExtractElementInst *> NonStdVecInsts;
-    SmallVector<WeakTrackingVH, 4> MaybeDeletedInsts;
-    for (auto &BB : F)
-      for (auto &I : BB) {
-        if (auto *EI = dyn_cast<ExtractElementInst>(&I)) {
-          if (isNonStdVecType(EI->getVectorOperandType()))
-            NonStdVecInsts.push_back(EI);
-        } else if (auto *VT = dyn_cast<VectorType>(I.getType())) {
-          if (isNonStdVecType(VT)) {
-            MaybeDeletedInsts.push_back(&I);
-          }
+  // The basic pattern we're trying to fix is this InstCombine pattern:
+  // trunc (extractelement) -> extractelement (bitcast)
+  // (note that the bitcast itself can get propagated back to change the type
+  // of load instructions, and even through those to pointer casts, if typed
+  // pointers are enabled.
+  std::vector<ExtractElementInst *> NonStdVecInsts;
+  SmallVector<WeakTrackingVH, 4> MaybeDeletedInsts;
+  for (auto &BB : F)
+    for (auto &I : BB) {
+      if (auto *EI = dyn_cast<ExtractElementInst>(&I)) {
+        if (isNonStdVecType(EI->getVectorOperandType()))
+          NonStdVecInsts.push_back(EI);
+      } else if (auto *VT = dyn_cast<VectorType>(I.getType())) {
+        if (isNonStdVecType(VT)) {
+          MaybeDeletedInsts.push_back(&I);
         }
       }
-
-    std::vector<Instruction *> InstsToErase;
-    NFIRBuilder Builder(F.getContext());
-    for (auto &I : NonStdVecInsts) {
-      VectorType *OldVecTy = I->getVectorOperandType();
-      unsigned OldVecSize = OldVecTy->getElementCount().getFixedValue();
-
-      // Compute the adjustment factor for the new vector size.
-      unsigned VecFactor = 2;
-      while (OldVecSize % VecFactor == 0 &&
-             !isValidVectorSize(OldVecSize / VecFactor))
-        VecFactor *= 2;
-      if (OldVecSize % VecFactor != 0) {
-        report_fatal_error(Twine("Invalid vector size for fixup: ") +
-                           Twine(OldVecSize));
-        return PreservedAnalyses::none();
-      }
-      unsigned NewElemSize = OldVecTy->getScalarSizeInBits() * VecFactor;
-      VectorType *NewVecTy =
-          VectorType::get(Type::getIntNTy(F.getContext(), NewElemSize),
-                          OldVecSize / VecFactor, false);
-
-      // Adjust the element index as appropriate.
-      uint64_t OldElemIdx =
-          cast<ConstantInt>(I->getIndexOperand())->getZExtValue();
-      uint64_t NewElemIdx = OldElemIdx / VecFactor;
-      uint64_t ShiftCount = OldElemIdx % VecFactor;
-      Builder.SetInsertPoint(I);
-      Value *NewVecOp = removeBitCasts(I->getVectorOperand(), NewVecTy, Builder,
-                                       InstsToErase);
-      Value *NewExtracted = Builder.CreateExtractElement(NewVecOp, NewElemIdx);
-
-      // If the extract does higher-order bits of the value, shift as necessary.
-      if (ShiftCount > 0)
-        NewExtracted = Builder.CreateLShr(
-            NewExtracted, ShiftCount * OldVecTy->getScalarSizeInBits());
-
-      Value *NewValue = Builder.CreateTrunc(NewExtracted, I->getType());
-      I->replaceAllUsesWith(NewValue);
-      I->eraseFromParent();
-      Changed = true;
     }
 
-    for (auto *I : InstsToErase)
-      RecursivelyDeleteTriviallyDeadInstructions(I);
+  std::vector<Instruction *> InstsToErase;
+  NFIRBuilder Builder(F.getContext());
+  for (auto &I : NonStdVecInsts) {
+    VectorType *OldVecTy = I->getVectorOperandType();
+    unsigned OldVecSize = OldVecTy->getElementCount().getFixedValue();
 
-    // Check if there are any residual unsupported vector types.
-    for (auto &VH : MaybeDeletedInsts) {
-      // Some vector-valued instructions were replaced with undef values, so if
-      // that's what we got, it's still a dead instruction.
-      if (VH.pointsToAliveValue() && !isa<UndefValue>(VH)) {
-        auto *VT = dyn_cast<VectorType>(VH->getType());
-        report_fatal_error(Twine("Unsupported vector type with ") +
-                               Twine(VT->getElementCount().getFixedValue()) +
-                               Twine(" elements"),
-                           false);
-      }
+    // Compute the adjustment factor for the new vector size.
+    unsigned VecFactor = 2;
+    while (OldVecSize % VecFactor == 0 &&
+           !isValidVectorSize(OldVecSize / VecFactor))
+      VecFactor *= 2;
+    if (OldVecSize % VecFactor != 0) {
+      report_fatal_error(Twine("Invalid vector size for fixup: ") +
+                         Twine(OldVecSize));
+      return PreservedAnalyses::none();
     }
+    unsigned NewElemSize = OldVecTy->getScalarSizeInBits() * VecFactor;
+    VectorType *NewVecTy =
+        VectorType::get(Type::getIntNTy(F.getContext(), NewElemSize),
+                        OldVecSize / VecFactor, false);
 
-    return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    // Adjust the element index as appropriate.
+    uint64_t OldElemIdx =
+        cast<ConstantInt>(I->getIndexOperand())->getZExtValue();
+    uint64_t NewElemIdx = OldElemIdx / VecFactor;
+    uint64_t ShiftCount = OldElemIdx % VecFactor;
+    Builder.SetInsertPoint(I);
+    Value *NewVecOp =
+        removeBitCasts(I->getVectorOperand(), NewVecTy, Builder, InstsToErase);
+    Value *NewExtracted = Builder.CreateExtractElement(NewVecOp, NewElemIdx);
+
+    // If the extract does higher-order bits of the value, shift as necessary.
+    if (ShiftCount > 0)
+      NewExtracted = Builder.CreateLShr(
+          NewExtracted, ShiftCount * OldVecTy->getScalarSizeInBits());
+
+    Value *NewValue = Builder.CreateTrunc(NewExtracted, I->getType());
+    I->replaceAllUsesWith(NewValue);
+    I->eraseFromParent();
+    Changed = true;
   }
 
-private:
-  SPIRV::TranslatorOpts Opts;
-};
+  for (auto *I : InstsToErase)
+    RecursivelyDeleteTriviallyDeadInstructions(I);
 
-class SPIRVLowerBitCastToNonStandardTypeLegacy : public FunctionPass {
-public:
-  static char ID;
-  SPIRVLowerBitCastToNonStandardTypeLegacy(const SPIRV::TranslatorOpts &Opts)
-      : FunctionPass(ID), Opts(Opts) {}
-
-  SPIRVLowerBitCastToNonStandardTypeLegacy() : FunctionPass(ID) {}
-
-  bool runOnFunction(Function &F) override {
-    SPIRVLowerBitCastToNonStandardTypePass Impl(Opts);
-    FunctionAnalysisManager FAM;
-    auto PA = Impl.runLowerBitCastToNonStandardType(F, FAM);
-    return !PA.areAllPreserved();
+  // Check if there are any residual unsupported vector types.
+  for (auto &VH : MaybeDeletedInsts) {
+    // Some vector-valued instructions were replaced with undef values, so if
+    // that's what we got, it's still a dead instruction.
+    if (VH.pointsToAliveValue() && !isa<UndefValue>(VH)) {
+      auto *VT = dyn_cast<VectorType>(VH->getType());
+      report_fatal_error(Twine("Unsupported vector type with ") +
+                             Twine(VT->getElementCount().getFixedValue()) +
+                             Twine(" elements"),
+                         false);
+    }
   }
 
-  bool doFinalization(Module &M) override {
-    verifyRegularizationPass(M, "SPIRVLowerBitCastToNonStandardType");
-    return false;
-  }
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
+}
 
-  StringRef getPassName() const override { return "Lower nonstandard type"; }
+bool SPIRVLowerBitCastToNonStandardTypeLegacy::runOnFunction(Function &F) {
+  SPIRVLowerBitCastToNonStandardTypePass Impl(Opts);
+  FunctionAnalysisManager FAM;
+  auto PA = Impl.run(F, FAM);
+  return !PA.areAllPreserved();
+}
 
-private:
-  SPIRV::TranslatorOpts Opts;
-};
+bool SPIRVLowerBitCastToNonStandardTypeLegacy::doFinalization(Module &M) {
+  verifyRegularizationPass(M, "SPIRVLowerBitCastToNonStandardType");
+  return false;
+}
+
+StringRef SPIRVLowerBitCastToNonStandardTypeLegacy::getPassName() const {
+  return "Lower nonstandard type";
+}
 
 char SPIRVLowerBitCastToNonStandardTypeLegacy::ID = 0;
 

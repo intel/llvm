@@ -15,6 +15,7 @@
 #define LLVM_CLANG_BASIC_TARGETINFO_H
 
 #include "clang/Basic/AddressSpaces.h"
+#include "clang/Basic/BitmaskEnum.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/LangOptions.h"
@@ -31,6 +32,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Frontend/OpenMP/OMPGridValues.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/DataTypes.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/VersionTuple.h"
@@ -51,12 +53,14 @@ class MacroBuilder;
 namespace Builtin { struct Info; }
 
 enum class FloatModeKind {
-  NoFloat = 255,
-  Float = 0,
-  Double,
-  LongDouble,
-  Float128,
-  Ibm128
+  NoFloat = 0,
+  Half = 1 << 0,
+  Float = 1 << 1,
+  Double = 1 << 2,
+  LongDouble = 1 << 3,
+  Float128 = 1 << 4,
+  Ibm128 = 1 << 5,
+  LLVM_MARK_AS_BITMASK_ENUM(Ibm128)
 };
 
 /// Fields controlling how types are laid out in memory; these may need to
@@ -218,7 +222,9 @@ protected:
   mutable VersionTuple PlatformMinVersion;
 
   unsigned HasAlignMac68kSupport : 1;
-  unsigned RealTypeUsesObjCFPRet : 3;
+  unsigned RealTypeUsesObjCFPRetMask
+      : llvm::BitmaskEnumDetail::bitWidth(
+            (int)FloatModeKind::LLVM_BITMASK_LARGEST_ENUMERATOR);
   unsigned ComplexLongDoubleUsesFP2Ret : 1;
 
   unsigned HasBuiltinMSVaList : 1;
@@ -234,6 +240,8 @@ protected:
   unsigned ARMCDECoprocMask : 8;
 
   unsigned MaxOpenCLWorkGroupSize;
+
+  Optional<unsigned> MaxBitIntWidth;
 
   Optional<llvm::Triple> DarwinTargetVariantTriple;
 
@@ -595,11 +603,16 @@ public:
   // Different targets may support a different maximum width for the _BitInt
   // type, depending on what operations are supported.
   virtual size_t getMaxBitIntWidth() const {
+    // Consider -fexperimental-max-bitint-width= first.
+    if (MaxBitIntWidth)
+      return std::min<size_t>(*MaxBitIntWidth, llvm::IntegerType::MAX_INT_BITS);
+
     // FIXME: this value should be llvm::IntegerType::MAX_INT_BITS, which is
     // maximum bit width that LLVM claims its IR can support. However, most
-    // backends currently have a bug where they only support division
-    // operations on types that are <= 128 bits and crash otherwise. We're
-    // setting the max supported value to 128 to be conservative.
+    // backends currently have a bug where they only support float to int
+    // conversion (and vice versa) on types that are <= 128 bits and crash
+    // otherwise. We're setting the max supported value to 128 to be
+    // conservative.
     return 128;
   }
 
@@ -880,7 +893,7 @@ public:
   /// Check whether the given real type should use the "fpret" flavor of
   /// Objective-C message passing on this target.
   bool useObjCFPRetForRealType(FloatModeKind T) const {
-    return RealTypeUsesObjCFPRet & (1 << (int)T);
+    return RealTypeUsesObjCFPRetMask & llvm::BitmaskEnumDetail::Underlying(T);
   }
 
   /// Check whether _Complex long double should use the "fp2ret" flavor
@@ -1347,7 +1360,9 @@ public:
   bool supportsMultiVersioning() const { return getTriple().isX86(); }
 
   /// Identify whether this target supports IFuncs.
-  bool supportsIFunc() const { return getTriple().isOSBinFormatELF(); }
+  bool supportsIFunc() const {
+    return getTriple().isOSBinFormatELF() && !getTriple().isOSFuchsia();
+  }
 
   // Validate the contents of the __builtin_cpu_supports(const char*)
   // argument.

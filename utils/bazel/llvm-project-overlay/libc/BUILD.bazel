@@ -72,7 +72,7 @@ cc_library(
 cc_library(
     name = "__support_cpp_limits",
     hdrs = ["src/__support/CPP/Limits.h"],
-    deps = [":libc_root"],
+    deps = [":libc_root", "__support_cpp_uint"],
 )
 
 cc_library(
@@ -86,10 +86,15 @@ cc_library(
     hdrs = [
         "src/__support/CPP/UInt.h",
     ],
-    deps = [
-        "__support_cpp_array",
-        ":libc_root",
+    deps = [":libc_root","__support_cpp_array"],
+)
+
+cc_library(
+    name = "__support_cpp_uint128",
+    hdrs = [
+        "src/__support/CPP/UInt128.h",
     ],
+    deps = [":libc_root",":__support_cpp_uint"],
 )
 
 cc_library(
@@ -97,10 +102,7 @@ cc_library(
     hdrs = [
         "src/__support/CPP/TypeTraits.h",
     ],
-    deps = [
-        "__support_cpp_uint",
-        ":libc_root",
-    ],
+    deps = [":libc_root","__support_cpp_uint"],
 )
 
 cc_library(
@@ -158,6 +160,7 @@ fputil_common_hdrs = [
     "src/__support/FPUtil/NearestIntegerOperations.h",
     "src/__support/FPUtil/NormalFloat.h",
     "src/__support/FPUtil/PlatformDefs.h",
+    "src/__support/FPUtil/builtin_wrappers.h",
 ]
 
 fputil_hdrs = selects.with_or({
@@ -179,6 +182,7 @@ cc_library(
         ":__support_common",
         ":__support_cpp_bit",
         ":__support_cpp_type_traits",
+        ":__support_cpp_uint128",
         ":libc_root",
     ],
 )
@@ -206,6 +210,7 @@ cc_library(
         ":__support_common",
         ":__support_cpp_bit",
         ":__support_cpp_type_traits",
+        ":__support_cpp_uint128",
         ":__support_fputil",
         ":libc_root",
     ],
@@ -231,6 +236,7 @@ cc_library(
         ":__support_common",
         ":__support_cpp_bit",
         ":__support_cpp_type_traits",
+        ":__support_cpp_uint128",
         ":__support_fputil",
         ":libc_root",
     ],
@@ -420,6 +426,25 @@ cc_library(
     deps = [
         ":libc_root",
         ":math_utils",
+    ],
+)
+
+cc_library(
+    name = "common_constants",
+    srcs = ["src/math/generic/common_constants.cpp"],
+    hdrs = ["src/math/generic/common_constants.h"],
+    deps = [
+        ":libc_root",
+    ],
+)
+
+libc_math_function(
+    name = "expm1f",
+    additional_deps = [
+        ":__support_fputil_fma",
+        ":__support_fputil_multiply_add",
+        ":__support_fputil_polyeval",
+        ":common_constants",
     ],
 )
 
@@ -795,7 +820,7 @@ cc_library(
         ":__support_common",
         ":__support_cpp_bitset",
         ":libc_root",
-        ":string_memory_utils"
+        ":string_memory_utils",
     ],
 )
 
@@ -813,6 +838,7 @@ libc_function(
     name = "memcpy",
     srcs = ["src/string/memcpy.cpp"],
     hdrs = ["src/string/memcpy.h"],
+    copts = ["-mllvm --tail-merge-threshold=0"],
     features = no_sanitize_features,
     deps = [
         ":__support_common",
@@ -839,7 +865,6 @@ libc_function(
     deps = [
         ":__support_common",
         ":__support_integer_operations",
-        ":memcpy",
         ":string_memory_utils",
     ],
 )

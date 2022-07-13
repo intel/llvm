@@ -23,12 +23,9 @@ extern cl::opt<unsigned> AlignFunctions;
 extern cl::opt<bool> UseOldText;
 extern cl::opt<bool> HotFunctionsAtEnd;
 
-static cl::opt<bool>
-GroupStubs("group-stubs",
-  cl::desc("share stubs across functions"),
-  cl::init(true),
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+static cl::opt<bool> GroupStubs("group-stubs",
+                                cl::desc("share stubs across functions"),
+                                cl::init(true), cl::cat(BoltOptCategory));
 }
 
 namespace llvm {
@@ -80,7 +77,7 @@ LongJmpPass::createNewStub(BinaryBasicBlock &SourceBB, const MCSymbol *TgtSym,
   const BinaryContext &BC = Func.getBinaryContext();
   const bool IsCold = SourceBB.isCold();
   MCSymbol *StubSym = BC.Ctx->createNamedTempSymbol("Stub");
-  std::unique_ptr<BinaryBasicBlock> StubBB = Func.createBasicBlock(0, StubSym);
+  std::unique_ptr<BinaryBasicBlock> StubBB = Func.createBasicBlock(StubSym);
   MCInst Inst;
   BC.MIB->createUncondBranch(Inst, TgtSym, BC.Ctx.get());
   if (TgtIsFunc)
@@ -92,9 +89,8 @@ LongJmpPass::createNewStub(BinaryBasicBlock &SourceBB, const MCSymbol *TgtSym,
   auto registerInMap = [&](StubGroupsTy &Map) {
     StubGroupTy &StubGroup = Map[TgtSym];
     StubGroup.insert(
-        std::lower_bound(
-            StubGroup.begin(), StubGroup.end(),
-            std::make_pair(AtAddress, nullptr),
+        llvm::lower_bound(
+            StubGroup, std::make_pair(AtAddress, nullptr),
             [&](const std::pair<uint64_t, BinaryBasicBlock *> &LHS,
                 const std::pair<uint64_t, BinaryBasicBlock *> &RHS) {
               return LHS.first < RHS.first;
@@ -129,8 +125,8 @@ BinaryBasicBlock *LongJmpPass::lookupStubFromGroup(
   const StubGroupTy &Candidates = CandidatesIter->second;
   if (Candidates.empty())
     return nullptr;
-  auto Cand = std::lower_bound(
-      Candidates.begin(), Candidates.end(), std::make_pair(DotAddress, nullptr),
+  auto Cand = llvm::lower_bound(
+      Candidates, std::make_pair(DotAddress, nullptr),
       [&](const std::pair<uint64_t, BinaryBasicBlock *> &LHS,
           const std::pair<uint64_t, BinaryBasicBlock *> &RHS) {
         return LHS.first < RHS.first;
@@ -259,11 +255,7 @@ void LongJmpPass::updateStubGroups() {
     for (auto &KeyVal : StubGroups) {
       for (StubTy &Elem : KeyVal.second)
         Elem.first = BBAddresses[Elem.second];
-      std::sort(KeyVal.second.begin(), KeyVal.second.end(),
-                [&](const std::pair<uint64_t, BinaryBasicBlock *> &LHS,
-                    const std::pair<uint64_t, BinaryBasicBlock *> &RHS) {
-                  return LHS.first < RHS.first;
-                });
+      llvm::sort(KeyVal.second, llvm::less_first());
     }
   };
 

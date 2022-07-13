@@ -19,7 +19,7 @@
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/Utils/VectorUtils.h"
@@ -1126,6 +1126,21 @@ struct CombineContractBroadcast
       // relaxed we can remove this case.
       if (innerDimBroadcast)
         continue;
+
+      // It would be incorrect to fold a broadcast onto a reduction dimension
+      // of non-unit size.
+      bool nonUnitDimReductionBroadcast = false;
+      for (int64_t i = 0; i < rankDiff; ++i) {
+        if (broadcast.getVectorType().getDimSize(i) != 1 &&
+            isReductionIterator(contractOp.getIteratorTypes()
+                                    .getValue()[map.getDimPosition(i)])) {
+          nonUnitDimReductionBroadcast = true;
+          break;
+        }
+      }
+      if (nonUnitDimReductionBroadcast)
+        continue;
+
       AffineMap broadcastMap =
           AffineMap::get(broadcast.getVectorType().getRank(), 0, originalDims,
                          contractOp.getContext());
@@ -1133,11 +1148,36 @@ struct CombineContractBroadcast
       *operand = broadcast.getSource();
       changed = true;
     }
+
     if (!changed)
+      return failure();
+
+    // Determine which dims are usused, now that the maps have been composed
+    // with the broadcast maps.
+    llvm::SmallBitVector unusedDimsBitVector = getUnusedDimsBitVector(maps);
+    // Compress unused dims.
+    for (auto &m : maps)
+      m = compressDims(m, unusedDimsBitVector);
+    // Compute the combined iterators.
+    SmallVector<Attribute, 4> iterators;
+    for (unsigned i = 0; i < unusedDimsBitVector.size(); ++i) {
+      if (!unusedDimsBitVector.test(i))
+        iterators.push_back(contractOp.getIteratorTypes().getValue()[i]);
+    }
+    // Check that compressing unused dims isn't removing all reduction
+    // iterators. For example, if the vector.contract had only one reduction
+    // iterator and that was a unit-dimension created by a broadcast,
+    // then we should bail here, otherwise we would create a contract without
+    // a reduction iterator.
+    if (!llvm::any_of(iterators, isReductionIterator))
+      return failure();
+    // If the compressed maps have a dimension that is not used by either LHS or
+    // RHS then the ContractionOp verifier would fail.
+    if (getUnusedDimsBitVector({maps[0], maps[1]}).any())
       return failure();
     rewriter.replaceOpWithNewOp<vector::ContractionOp>(
         contractOp, lhs, rhs, contractOp.getAcc(),
-        rewriter.getAffineMapArrayAttr(maps), contractOp.getIteratorTypes());
+        rewriter.getAffineMapArrayAttr(maps), rewriter.getArrayAttr(iterators));
     return success();
   }
 };
@@ -1324,6 +1364,12 @@ ContractionOpToMatmulOpLowering::matchAndRewrite(vector::ContractionOp op,
   if (!elementType.isIntOrFloat())
     return failure();
 
+  Type dstElementType = op.getType();
+  if (auto vecType = dstElementType.dyn_cast<VectorType>())
+    dstElementType = vecType.getElementType();
+  if (elementType != dstElementType)
+    return failure();
+
   // Perform lhs + rhs transpositions to conform to matmul row-major semantics.
   // Bail out if the contraction cannot be put in this form.
   MLIRContext *ctx = op.getContext();
@@ -1416,11 +1462,29 @@ struct UnrolledOuterProductGenerator
     return builder.create<vector::TransposeOp>(loc, v, perm);
   }
 
+  Value promote(Value v, Type dstElementType) {
+    Type elementType = v.getType();
+    auto vecType = elementType.dyn_cast<VectorType>();
+    if (vecType)
+      elementType = vecType.getElementType();
+    if (elementType == dstElementType)
+      return v;
+    Type promotedType = dstElementType;
+    if (vecType)
+      promotedType = VectorType::get(vecType.getShape(), promotedType);
+    if (dstElementType.isa<FloatType>())
+      return builder.create<arith::ExtFOp>(loc, promotedType, v);
+    return builder.create<arith::ExtSIOp>(loc, promotedType, v);
+  }
+
   Value outerProd(Value lhs, Value rhs, Value res, int reductionSize) {
     assert(reductionSize > 0);
+    Type resElementType = res.getType().cast<VectorType>().getElementType();
     for (int64_t k = 0; k < reductionSize; ++k) {
       Value a = builder.create<vector::ExtractOp>(loc, lhs, k);
       Value b = builder.create<vector::ExtractOp>(loc, rhs, k);
+      a = promote(a, resElementType);
+      b = promote(b, resElementType);
       res = builder.create<vector::OuterProductOp>(loc, res.getType(), a, b,
                                                    res, kind);
     }
@@ -1851,10 +1915,9 @@ Value ContractionOpLowering::lowerReduction(vector::ContractionOp op,
     assert(rhsType.getRank() == 1 && "corrupt contraction");
     Value m = createMul(loc, op.getLhs(), op.getRhs(), isInt, rewriter);
     auto kind = vector::CombiningKind::ADD;
-    Value res = rewriter.create<vector::ReductionOp>(loc, kind, m);
     if (auto acc = op.getAcc())
-      res = createAdd(op.getLoc(), res, acc, isInt, rewriter);
-    return res;
+      return rewriter.create<vector::ReductionOp>(loc, kind, m, acc);
+    return rewriter.create<vector::ReductionOp>(loc, kind, m);
   }
   // Construct new iterator types and affine map array attribute.
   std::array<AffineMap, 3> lowIndexingMaps = {

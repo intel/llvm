@@ -16,6 +16,13 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/Type.h"
+
+namespace fir {
+class FIROpsDialect;
+class KindMapping;
+using KindTy = unsigned;
+} // namespace fir
 
 #define GET_TYPEDEF_CLASSES
 #include "flang/Optimizer/Dialect/FIROpsTypes.h.inc"
@@ -37,11 +44,6 @@ class ValueRange;
 } // namespace mlir
 
 namespace fir {
-
-class FIROpsDialect;
-
-using KindTy = unsigned;
-
 namespace detail {
 struct RecordTypeStorage;
 } // namespace detail
@@ -59,8 +61,8 @@ bool isa_fir_or_std_type(mlir::Type t);
 
 /// Is `t` a FIR dialect type that implies a memory (de)reference?
 inline bool isa_ref_type(mlir::Type t) {
-  return t.isa<ReferenceType>() || t.isa<PointerType>() || t.isa<HeapType>() ||
-         t.isa<fir::LLVMPointerType>();
+  return t.isa<fir::ReferenceType, fir::PointerType, fir::HeapType,
+               fir::LLVMPointerType>();
 }
 
 /// Is `t` a boxed type?
@@ -169,6 +171,14 @@ inline unsigned getRankOfShapeType(mlir::Type t) {
   return 0;
 }
 
+/// Get the memory reference type of the data pointer from the box type,
+inline mlir::Type boxMemRefType(fir::BoxType t) {
+  auto eleTy = t.getEleTy();
+  if (!eleTy.isa<fir::PointerType, fir::HeapType>())
+    eleTy = fir::ReferenceType::get(t);
+  return eleTy;
+}
+
 /// If `t` is a SequenceType return its element type, otherwise return `t`.
 inline mlir::Type unwrapSequenceType(mlir::Type t) {
   if (auto seqTy = t.dyn_cast<fir::SequenceType>())
@@ -245,17 +255,25 @@ bool isRecordWithAllocatableMember(mlir::Type ty);
 /// Return true iff `ty` is a RecordType with type parameters.
 inline bool isRecordWithTypeParameters(mlir::Type ty) {
   if (auto recTy = ty.dyn_cast_or_null<fir::RecordType>())
-    return recTy.getNumLenParams() != 0;
+    return recTy.isDependentType();
   return false;
 }
 
-/// Is this tuple type holding a character function and its result length ?
+/// Is this tuple type holding a character function and its result length?
 bool isCharacterProcedureTuple(mlir::Type type, bool acceptRawFunc = true);
 
 /// Apply the components specified by `path` to `rootTy` to determine the type
 /// of the resulting component element. `rootTy` should be an aggregate type.
 /// Returns null on error.
 mlir::Type applyPathToType(mlir::Type rootTy, mlir::ValueRange path);
+
+/// Does this function type has a result that requires binding the result value
+/// with a storage in a fir.save_result operation in order to use the result?
+bool hasAbstractResult(mlir::FunctionType ty);
+
+/// Convert llvm::Type::TypeID to mlir::Type
+mlir::Type fromRealTypeID(mlir::MLIRContext *context, llvm::Type::TypeID typeID,
+                          fir::KindTy kind);
 
 } // namespace fir
 

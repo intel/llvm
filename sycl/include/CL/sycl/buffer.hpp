@@ -329,14 +329,15 @@ public:
 
     if (b.is_sub_buffer())
       throw cl::sycl::invalid_object_error(
-          "Cannot create sub buffer from sub buffer.", PI_INVALID_VALUE);
+          "Cannot create sub buffer from sub buffer.", PI_ERROR_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
       throw cl::sycl::invalid_object_error(
           "Requested sub-buffer size exceeds the size of the parent buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
       throw cl::sycl::invalid_object_error(
-          "Requested sub-buffer region is not contiguous", PI_INVALID_VALUE);
+          "Requested sub-buffer region is not contiguous",
+          PI_ERROR_INVALID_VALUE);
   }
 
 #ifdef __SYCL_INTERNAL_API
@@ -435,7 +436,7 @@ public:
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw cl::sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     return accessor<T, dimensions, mode, target, access::placeholder::false_t,
                     ext::oneapi::accessor_property_list<>>(
@@ -451,7 +452,7 @@ public:
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
       throw cl::sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     return accessor<T, dimensions, mode, access::target::host_buffer,
                     access::placeholder::false_t,
@@ -498,7 +499,7 @@ public:
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, reinterpretRange, OffsetInBytes, IsSubBuffer);
@@ -524,7 +525,7 @@ public:
       throw cl::sycl::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
           "the reinterpreted type",
-          PI_INVALID_VALUE);
+          PI_ERROR_INVALID_VALUE);
 
     return buffer<ReinterpretT, ReinterpretDim, AllocatorT>(
         impl, range<1>{sz / sizeof(ReinterpretT)}, OffsetInBytes, IsSubBuffer);

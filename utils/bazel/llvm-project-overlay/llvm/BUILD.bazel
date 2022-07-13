@@ -93,14 +93,6 @@ enum_targets_gen(
     targets = llvm_target_mcas,
 )
 
-# TODO: Need to replace this with something that actually extracts the git
-# commit from the LLVM source (submodule or http_archive).
-genrule(
-    name = "version_info_gen",
-    outs = ["include/llvm/Config/VersionInfo.h"],
-    cmd = "echo '#define LLVM_VERSION_INFO \"git\"' > $@",
-)
-
 template_rule(
     name = "abi_breaking_h_gen",
     src = "include/llvm/Config/abi-breaking.h.cmake",
@@ -124,7 +116,6 @@ exports_files([
 cc_library(
     name = "config",
     hdrs = [
-        "include/llvm/Config/VersionInfo.h",
         "include/llvm/Config/abi-breaking.h",
         "include/llvm/Config/llvm-config.h",
     ],
@@ -204,7 +195,7 @@ cc_library(
             "lib/Support/BLAKE3/blake3_avx512_x86-64_unix.S",
         ],
         "//conditions:default": [
-        ]
+        ],
     }),
     hdrs = glob([
         "include/llvm/Support/**/*.h",
@@ -230,7 +221,7 @@ cc_library(
         ],
         "//conditions:default": [
             "BLAKE3_USE_NEON=0",
-        ]
+        ],
     }) + select({
         "@platforms//cpu:x86_64": [
         ],
@@ -239,7 +230,7 @@ cc_library(
             "BLAKE3_NO_AVX512",
             "BLAKE3_NO_SSE2",
             "BLAKE3_NO_SSE41",
-        ]
+        ],
     }),
     includes = ["include"],
     linkopts = select({
@@ -444,6 +435,9 @@ cc_library(
     ]),
     copts = llvm_copts,
     deps = [
+        ":BinaryFormat",
+        ":DebugInfoDWARF",
+        ":Object",
         ":Support",
         ":Symbolize",
     ],
@@ -588,6 +582,10 @@ llvm_target_intrinsics_list = [
     {
         "name": "BPF",
         "intrinsic_prefix": "bpf",
+    },
+    {
+        "name": "DirectX",
+        "intrinsic_prefix": "dx",
     },
     {
         "name": "Hexagon",
@@ -2594,12 +2592,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+template_rule(
+    name = "dsymutil_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "dsymutil-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "dsymutil",
+    },
+)
+
 cc_binary(
     name = "dsymutil",
     srcs = glob([
         "tools/dsymutil/*.cpp",
         "tools/dsymutil/*.h",
-    ]),
+    ]) + ["dsymutil-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2689,12 +2696,21 @@ cc_binary(
     ],
 )
 
+template_rule(
+    name = "ar_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "llvm-ar-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_ar",
+    },
+)
+
 cc_binary(
     name = "llvm-ar",
     srcs = glob([
         "tools/llvm-ar/*.cpp",
         "tools/llvm-ar/*.h",
-    ]),
+    ]) + ["llvm-ar-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2882,12 +2898,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+template_rule(
+    name = "cxxfilt_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "llvm-cxxfilt-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_cxxfilt",
+    },
+)
+
 cc_binary(
     name = "llvm-cxxfilt",
     srcs = glob([
         "tools/llvm-cxxfilt/*.cpp",
         "tools/llvm-cxxfilt/*.h",
-    ]),
+    ]) + ["llvm-cxxfilt-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -2907,11 +2932,11 @@ cc_binary(
     copts = llvm_copts,
     stamp = 0,
     deps = [
-        ":Symbolize",
         ":BitReader",
         ":Core",
-        ":Support",
         ":Debuginfod",
+        ":Support",
+        ":Symbolize",
     ],
 )
 
@@ -3416,12 +3441,21 @@ cc_binary(
     ],
 )
 
+template_rule(
+    name = "objcopy_main",
+    src = "cmake/modules/llvm-driver-template.cpp.in",
+    out = "llvm-objcopy-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_objcopy",
+    },
+)
+
 cc_binary(
     name = "llvm-objcopy",
     srcs = glob([
         "tools/llvm-objcopy/*.cpp",
         "tools/llvm-objcopy/*.h",
-    ]),
+    ]) + ["llvm-objcopy-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [

@@ -1540,7 +1540,7 @@ static bool ClassTemplateAllowsToInstantiationArgs(
     return false;
 
   // Ensure that <typename...> != <typename>.
-  if (pack_parameter.hasValue() != instantiation_values.hasParameterPack())
+  if (pack_parameter.has_value() != instantiation_values.hasParameterPack())
     return false;
 
   // Compare the first pack parameter that was found with the first pack
@@ -9833,10 +9833,7 @@ void ScratchTypeSystemClang::Dump(llvm::raw_ostream &output) {
   std::vector<KeyAndTS> sorted_typesystems;
   for (const auto &a : m_isolated_asts)
     sorted_typesystems.emplace_back(a.first, a.second.get());
-  llvm::stable_sort(sorted_typesystems,
-                    [](const KeyAndTS &lhs, const KeyAndTS &rhs) {
-                      return lhs.first < rhs.first;
-                    });
+  llvm::stable_sort(sorted_typesystems, llvm::less_first());
 
   // Dump each sub-AST too.
   for (const auto &a : sorted_typesystems) {

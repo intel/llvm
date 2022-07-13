@@ -168,7 +168,7 @@ static llvm::Optional<QualType> getUnwidenedIntegerType(const ASTContext &Ctx,
 
 /// Check if \p E is a widened promoted integer.
 static bool IsWidenedIntegerOp(const ASTContext &Ctx, const Expr *E) {
-  return getUnwidenedIntegerType(Ctx, E).hasValue();
+  return getUnwidenedIntegerType(Ctx, E).has_value();
 }
 
 /// Check if we can skip the overflow check for \p Op.
@@ -1604,7 +1604,7 @@ ScalarExprEmitter::VisitSYCLUniqueStableNameExpr(SYCLUniqueStableNameExpr *E) {
       Context.getTargetInfo().getConstantAddressSpace();
   llvm::Constant *GlobalConstStr = Builder.CreateGlobalStringPtr(
       E->ComputeName(Context), "__usn_str",
-      static_cast<unsigned>(GlobalAS.getValueOr(LangAS::Default)));
+      static_cast<unsigned>(GlobalAS.value_or(LangAS::Default)));
 
   unsigned ExprAS = Context.getTargetAddressSpace(E->getType());
 
@@ -2112,8 +2112,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     }
 
     // If Src is a fixed vector and Dst is a scalable vector, and both have the
-    // same element type, use the llvm.experimental.vector.insert intrinsic to
-    // perform the bitcast.
+    // same element type, use the llvm.vector.insert intrinsic to perform the
+    // bitcast.
     if (const auto *FixedSrc = dyn_cast<llvm::FixedVectorType>(SrcTy)) {
       if (const auto *ScalableDst = dyn_cast<llvm::ScalableVectorType>(DstTy)) {
         // If we are casting a fixed i8 vector to a scalable 16 x i1 predicate
@@ -2140,8 +2140,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     }
 
     // If Src is a scalable vector and Dst is a fixed vector, and both have the
-    // same element type, use the llvm.experimental.vector.extract intrinsic to
-    // perform the bitcast.
+    // same element type, use the llvm.vector.extract intrinsic to perform the
+    // bitcast.
     if (const auto *ScalableSrc = dyn_cast<llvm::ScalableVectorType>(SrcTy)) {
       if (const auto *FixedDst = dyn_cast<llvm::FixedVectorType>(DstTy)) {
         // If we are casting a scalable 16 x i1 predicate vector to a fixed i8

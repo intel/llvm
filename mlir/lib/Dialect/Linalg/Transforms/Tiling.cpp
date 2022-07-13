@@ -18,7 +18,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/IR/AffineExpr.h"
@@ -89,9 +89,9 @@ static Value insertSliceIntoTensor(RewriterBase &b, Location loc,
                                    tensor::ExtractSliceOp sliceOp, Value source,
                                    Value dest) {
   return b.create<tensor::InsertSliceOp>(
-      loc, sliceOp.source().getType(), source, dest, sliceOp.offsets(),
-      sliceOp.sizes(), sliceOp.strides(), sliceOp.static_offsets(),
-      sliceOp.static_sizes(), sliceOp.static_strides());
+      loc, sliceOp.getSource().getType(), source, dest, sliceOp.getOffsets(),
+      sliceOp.getSizes(), sliceOp.getStrides(), sliceOp.getStaticOffsets(),
+      sliceOp.getStaticSizes(), sliceOp.getStaticStrides());
 }
 
 template <typename LoopTy>
@@ -182,32 +182,11 @@ tileLinalgOpImpl(RewriterBase &b, LinalgOp op, ValueRange tileSizes,
         makeTiledShapes(b, loc, op, valuesToTile, interchangedIvs, tileSizes,
                         sizeBounds, /*omitPartialTileCheck=*/false);
 
-    // TODO: use an interface/adaptor to avoid leaking position in
-    // `tiledOperands`.
-    SmallVector<Type, 4> resultTensorTypes;
-    for (OpOperand *opOperand : op.getOutputTensorOperands())
-      resultTensorTypes.push_back(
-          tiledOperands[opOperand->getOperandNumber()].getType());
-
+    SmallVector<Type> resultTensorTypes =
+        getTensorOutputTypes(op, tiledOperands);
     res = op.clone(b, loc, resultTensorTypes, tiledOperands);
-
-    // Insert a insert_slice for each output tensor.
-    unsigned resultIdx = 0;
-    for (OpOperand *opOperand : op.getOutputTensorOperands()) {
-      // TODO: use an interface/adaptor to avoid leaking position in
-      // `tiledOperands`.
-      Value outputTensor = tiledOperands[opOperand->getOperandNumber()];
-      // TODO: Propagate RewriterBase everywhere.
-      IRRewriter rewriter(b);
-      if (auto sliceOp = outputTensor.getDefiningOp<tensor::ExtractSliceOp>()) {
-        tensorResults.push_back(insertSliceIntoTensor(rewriter, loc, sliceOp,
-                                                      res->getResult(resultIdx),
-                                                      sliceOp.source()));
-      } else {
-        tensorResults.push_back(res->getResult(resultIdx));
-      }
-      ++resultIdx;
-    }
+    tensorResults =
+        insertSlicesBack(builder, loc, op, tiledOperands, res->getResults());
     return scf::ValueVector(tensorResults.begin(), tensorResults.end());
   };
   GenerateLoopNest<LoopTy>::doit(b, op.getLoc(), loopRanges, op, iteratorTypes,
@@ -320,8 +299,7 @@ static LogicalResult tilePadOp(RewriterBase &builder, tensor::PadOp op,
         // Compute offsets and sizes of ExtractSliceOp.
         SmallVector<Value> offsets =
             computeTileOffsets(b, loc, localIvs, tileSizes);
-        SmallVector<Value> sizes =
-            computeTileSizes(b, loc, localIvs, tileSizes, allDims);
+        SmallVector<Value> sizes = computeTileSizes(b, loc, tileSizes, allDims);
         // Create ExtractSliceOp: Extract a tile from the tensor::PadOp.
         // Note: The tensor::PadOp is located outside of the loop nest. It is
         // later moved inside by ExtractSliceOfPadTensorSwapPattern.

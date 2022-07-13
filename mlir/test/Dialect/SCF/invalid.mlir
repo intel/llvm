@@ -476,7 +476,7 @@ func.func @while_cross_region_type_mismatch() {
 func.func @while_cross_region_type_mismatch() {
   %true = arith.constant true
   // expected-error@+1 {{'scf.while' op  along control flow edge from Region #0 to Region #1: source type #0 'i1' should match input type #0 'i32'}}
-  scf.while : () -> () {
+  %0 = scf.while : () -> (i1) {
     scf.condition(%true) %true : i1
   } do {
   ^bb0(%arg0: i32):
@@ -531,7 +531,7 @@ func.func @wrong_num_results(%in: tensor<100xf32>, %out: tensor<100xf32>) {
   %result:2 = scf.foreach_thread (%thread_idx) in (%num_threads) -> (tensor<100xf32>, tensor<100xf32>) {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
       scf.foreach_thread.perform_concurrently {
-        scf.foreach_thread.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
+        tensor.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
           tensor<1xf32> into tensor<100xf32>
       }
   }
@@ -548,7 +548,7 @@ func.func @wrong_type_result(%in: tensor<100xf32>, %out: tensor<100xf32>) {
   %result = scf.foreach_thread (%thread_idx) in (%num_threads) -> (tensor<?xf32>) {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
       scf.foreach_thread.perform_concurrently {
-        scf.foreach_thread.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
+        tensor.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
           tensor<1xf32> into tensor<100xf32>
       }
   }
@@ -563,9 +563,9 @@ func.func @wrong_terminator_op(%in: tensor<100xf32>, %out: tensor<100xf32>) {
 
   %result = scf.foreach_thread (%thread_idx) in (%num_threads) -> (tensor<100xf32>) {
       %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
-      // expected-error @+1 {{expected only scf.foreach_thread.parallel_insert_slice ops}}
+      // expected-error @+1 {{expected only tensor.parallel_insert_slice ops}}
       scf.foreach_thread.perform_concurrently {
-        scf.foreach_thread.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
+        tensor.parallel_insert_slice %1 into %out[%thread_idx][1][1] :
           tensor<1xf32> into tensor<100xf32>
         %0 = arith.constant 1: index
       }

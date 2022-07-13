@@ -1,6 +1,6 @@
 // RUN: mlir-opt -split-input-file -convert-math-to-spirv -verify-diagnostics %s -o - | FileCheck %s
 
-module attributes { spv.target_env = #spv.target_env<#spv.vce<v1.0, [Kernel], []>, {}> } {
+module attributes { spv.target_env = #spv.target_env<#spv.vce<v1.0, [Kernel], []>, #spv.resource_limits<>> } {
 
 // CHECK-LABEL: @float32_unary_scalar
 func.func @float32_unary_scalar(%arg0: f32) {
@@ -34,6 +34,8 @@ func.func @float32_unary_scalar(%arg0: f32) {
   %11 = math.floor %arg0 : f32
   // CHECK: spv.OCL.erf %{{.*}}: f32
   %12 = math.erf %arg0 : f32
+  // CHECK: spv.OCL.round %{{.*}}: f32
+  %13 = math.round %arg0 : f32
   return
 }
 

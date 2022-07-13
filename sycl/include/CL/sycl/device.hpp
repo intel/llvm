@@ -10,6 +10,7 @@
 
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>

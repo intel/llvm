@@ -746,6 +746,8 @@ Syntax::
                          <global | constant> <Type> [<InitializerConstant>]
                          [, section "name"] [, partition "name"]
                          [, comdat [($name)]] [, align <Alignment>]
+                         [, no_sanitize] [, no_sanitize_address]
+                         [, no_sanitize_hwaddress] [, sanitize_address_dyninit]
                          (, !name !N)*
 
 For example, the following defines a global in a numbered address space
@@ -1577,9 +1579,9 @@ example:
     Specify the desired alignment, which must be a power of two, in
     parentheses.
 ``"alloc-family"="FAMILY"``
-    This indicates which "family" an allocator function is part of. To avoid 
-    collisions, the family name should match the mangled name of the primary 
-    allocator function, that is "malloc" for malloc/calloc/realloc/free, 
+    This indicates which "family" an allocator function is part of. To avoid
+    collisions, the family name should match the mangled name of the primary
+    allocator function, that is "malloc" for malloc/calloc/realloc/free,
     "_Znwm" for ``::operator::new`` and ``::operator::delete``, and
     "_ZnwmSt11align_val_t" for aligned ``::operator::new`` and
     ``::operator::delete``. Matching malloc/realloc/free calls within a family
@@ -1595,13 +1597,13 @@ example:
       will match that of the ``allocptr`` argument and the ``allocptr``
       argument is invalidated, even if the function returns the same address.
     * "free": the function frees the block of memory specified by ``allocptr``.
-    * "uninitialized": Any newly-allocated memory (either a new block from 
+    * "uninitialized": Any newly-allocated memory (either a new block from
       a "alloc" function or the enlarged capacity from a "realloc" function)
       will be uninitialized.
     * "zeroed": Any newly-allocated memory (either a new block from a "alloc"
       function or the enlarged capacity from a "realloc" function) will be
       zeroed.
-    * "aligned": the function returns memory aligned according to the 
+    * "aligned": the function returns memory aligned according to the
       ``allocalign`` parameter.
 
     The first three options are mutually exclusive, and the remaining options
@@ -2320,6 +2322,25 @@ Global Attributes
 Attributes may be set to communicate additional information about a global variable.
 Unlike :ref:`function attributes <fnattrs>`, attributes on a global variable
 are grouped into a single :ref:`attribute group <attrgrp>`.
+
+``no_sanitize``
+    This attribute indicates that the global variable should not have any
+    sanitizers applied to it, either because it was in the sanitizer ignore
+    list, or it was annotated with
+    `__attribute__((disable_sanitizer_instrumentation))`.
+``no_sanitize_address``
+    This attribute indicates that the global variable should not have
+    AddressSanitizer instrumentation applied to it, because it was annotated
+    with `__attribute__((no_sanitize("address")))`.
+``no_sanitize_hwaddress``
+    This attribute indicates that the global variable should not have
+    HWAddressSanitizer instrumentation applied to it, because it was annotated
+    with `__attribute__((no_sanitize("hwaddress")))`.
+``sanitize_address_dyninit``
+    This attribute indicates that the global variable, when instrumented with
+    AddressSanitizer, should be checked for ODR violations. This attribute is
+    applied to global variables that are dynamically initialized according to
+    C++ rules.
 
 .. _opbundles:
 
@@ -5266,7 +5287,7 @@ multiple metadata attachments with the same identifier.
 
 A transformation is required to drop any metadata attachment that it does not
 know or know it can't preserve. Currently there is an exception for metadata
-attachment to globals for ``!type`` and ``!absolute_symbol`` which can't be
+attachment to globals for ``!func_sanitize``, ``!type`` and ``!absolute_symbol`` which can't be
 unconditionally dropped unless the global is itself deleted.
 
 Metadata attached to a module using named metadata may not be dropped, with
@@ -6375,6 +6396,24 @@ final ``i1 true``).
     !1 = !{i64 2, i64 -1, i64 -1, i1 true}
     !0 = !{!1}
 
+'``exclude``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^
+
+``exclude`` metadata may be attached to a global variable to signify that its
+section should not be included in the final executable or shared library. This
+option is only valid for global variables with an explicit section targeting ELF
+or COFF. This is done using the ``SHF_EXCLUDE`` flag on ELF targets and the
+``IMAGE_SCN_LNK_REMOVE`` and ``IMAGE_SCN_MEM_DISCARDABLE`` flags for COFF
+targets. Additionally, this metadata is only used as a flag, so the associated
+node must be empty. The explicit section should not conflict with any other
+sections that the user does not want removed after linking.
+
+.. code-block:: text
+
+  @object = private constant [1 x i8] c"\00", section ".foo" !exclude !0
+
+  ...
+  !0 = !{}
 
 '``unpredictable``' Metadata
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -7154,6 +7193,26 @@ Example:
     %a.addr = alloca float*, align 8, !annotation !0
     !0 = !{!"auto-init"}
 
+'``func_sanitize``' Metadata
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``func_sanitize`` metadata is used to attach two values for the function
+sanitizer instrumentation. The first value is the ubsan function signature.
+The second value is the address of the proxy variable which stores the address
+of the RTTI descriptor. If :ref:`prologue <prologuedata>` and '``func_sanitize``'
+are used at the same time, :ref:`prologue <prologuedata>` is emitted before
+'``func_sanitize``' in the output.
+
+Example:
+
+.. code-block:: text
+
+    @__llvm_rtti_proxy = private unnamed_addr constant i8* bitcast ({ i8*, i8* }* @_ZTIFvvE to i8*)
+    define void @_Z3funv() !func_sanitize !0 {
+      return void
+    }
+    !0 = !{i32 846595819, i8** @__llvm_rtti_proxy}
+
 Module Flags Metadata
 =====================
 
@@ -7387,6 +7446,19 @@ LTO Post-Link Module Flags Metadata
 Some optimisations are only when the entire LTO unit is present in the current
 module. This is represented by the ``LTOPostLink`` module flags metadata, which
 will be created with a value of ``1`` when LTO linking occurs.
+
+Embedded Objects Names Metadata
+===============================
+
+Offloading compilations need to embed device code into the host section table to
+create a fat binary. This metadata node references each global that will be
+embedded in the module. The primary use for this is to make referencing these
+globals more efficient in the IR. The metadata references nodes containing
+pointers to the global to be embedded followed by the section name it will be
+stored at::
+
+    !llvm.embedded.objects = !{!0}
+    !0 = !{ptr @object, !".section"}
 
 Automatic Linker Flags Named Metadata
 =====================================
@@ -10289,12 +10361,14 @@ operation. The operation must be one of the following keywords:
 -  umin
 -  fadd
 -  fsub
+-  fmax
+-  fmin
 
 For most of these operations, the type of '<value>' must be an integer
 type whose bit width is a power of two greater than or equal to eight
 and less than or equal to a target-specific size limit. For xchg, this
 may also be a floating point or a pointer type with the same size constraints
-as integers.  For fadd/fsub, this must be a floating point type.  The
+as integers.  For fadd/fsub/fmax/fmin, this must be a floating point type.  The
 type of the '``<pointer>``' operand must be a pointer to that type. If
 the ``atomicrmw`` is marked as ``volatile``, then the optimizer is not
 allowed to modify the number or order of execution of this
@@ -10331,6 +10405,8 @@ operation argument:
 -  umin: ``*ptr = *ptr < val ? *ptr : val`` (using an unsigned comparison)
 - fadd: ``*ptr = *ptr + val`` (using floating point arithmetic)
 - fsub: ``*ptr = *ptr - val`` (using floating point arithmetic)
+-  fmax: ``*ptr = maxnum(*ptr, val)`` (match the `llvm.maxnum.*`` intrinsic)
+-  fmin: ``*ptr = minnum(*ptr, val)`` (match the `llvm.minnum.*`` intrinsic)
 
 Example:
 """"""""
@@ -13867,6 +13943,71 @@ If ``<len>`` is not a well-defined value, the behavior is undefined.
 If ``<len>`` is not zero, ``<dest>`` should be well-defined, otherwise the
 behavior is undefined.
 
+.. _int_memset_inline:
+
+'``llvm.memset.inline``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+This is an overloaded intrinsic. You can use ``llvm.memset.inline`` on any
+integer bit width and for different address spaces. Not all targets
+support all bit widths however.
+
+::
+
+      declare void @llvm.memset.inline.p0i8.p0i8.i32(i8* <dest>, i8 <val>,
+                                                     i32 <len>,
+                                                     i1 <isvolatile>)
+      declare void @llvm.memset.inline.p0i8.p0i8.i64(i8* <dest>, i8 <val>,
+                                                     i64 <len>,
+                                                     i1 <isvolatile>)
+
+Overview:
+"""""""""
+
+The '``llvm.memset.inline.*``' intrinsics fill a block of memory with a
+particular byte value and guarantees that no external functions are called.
+
+Note that, unlike the standard libc function, the ``llvm.memset.inline.*``
+intrinsics do not return a value, take an extra isvolatile argument and the
+pointer can be in specified address spaces.
+
+Arguments:
+""""""""""
+
+The first argument is a pointer to the destination to fill, the second
+is the byte value with which to fill it, the third argument is a constant
+integer argument specifying the number of bytes to fill, and the fourth
+is a boolean indicating a volatile access.
+
+The :ref:`align <attr_align>` parameter attribute can be provided
+for the first argument.
+
+If the ``isvolatile`` parameter is ``true``, the ``llvm.memset.inline`` call is
+a :ref:`volatile operation <volatile>`. The detailed access behavior is not
+very cleanly specified and it is unwise to depend on it.
+
+Semantics:
+""""""""""
+
+The '``llvm.memset.inline.*``' intrinsics fill "len" bytes of memory starting
+at the destination location. If the argument is known to be
+aligned to some boundary, this can be specified as an attribute on
+the argument.
+
+``len`` must be a constant expression.
+If ``<len>`` is 0, it is no-op modulo the behavior of attributes attached to
+the arguments.
+If ``<len>`` is not a well-defined value, the behavior is undefined.
+If ``<len>`` is not zero, ``<dest>`` should be well-defined, otherwise the
+behavior is undefined.
+
+The behavior of '``llvm.memset.inline.*``' is equivalent to the behavior of
+'``llvm.memset.*``', but the generated code is guaranteed not to call any
+external functions.
+
 '``llvm.sqrt.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -17182,27 +17323,35 @@ Arguments:
 """"""""""
 The argument to this intrinsic must be a vector of floating-point values.
 
-'``llvm.experimental.vector.insert``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.insert``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
-This is an overloaded intrinsic. You can use ``llvm.experimental.vector.insert``
-to insert a fixed-width vector into a scalable vector, but not the other way
-around.
+This is an overloaded intrinsic.
 
 ::
 
-      declare <vscale x 4 x float> @llvm.experimental.vector.insert.nxv4f32.v4f32(<vscale x 4 x float> %vec, <4 x float> %subvec, i64 %idx)
-      declare <vscale x 2 x double> @llvm.experimental.vector.insert.nxv2f64.v2f64(<vscale x 2 x double> %vec, <2 x double> %subvec, i64 %idx)
+      ; Insert fixed type into scalable type
+      declare <vscale x 4 x float> @llvm.vector.insert.nxv4f32.v4f32(<vscale x 4 x float> %vec, <4 x float> %subvec, i64 <idx>)
+      declare <vscale x 2 x double> @llvm.vector.insert.nxv2f64.v2f64(<vscale x 2 x double> %vec, <2 x double> %subvec, i64 <idx>)
+
+      ; Insert scalable type into scalable type
+      declare <vscale x 4 x float> @llvm.vector.insert.nxv4f64.nxv2f64(<vscale x 4 x float> %vec, <vscale x 2 x float> %subvec, i64 <idx>)
+
+      ; Insert fixed type into fixed type
+      declare <4 x double> @llvm.vector.insert.v4f64.v2f64(<4 x double> %vec, <2 x double> %subvec, i64 <idx>)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.insert.*``' intrinsics insert a vector into another vector
+The '``llvm.vector.insert.*``' intrinsics insert a vector into another vector
 starting from a given index. The return type matches the type of the vector we
 insert into. Conceptually, this can be used to build a scalable vector out of
-non-scalable vectors.
+non-scalable vectors, however this intrinsic can also be used on purely fixed
+types.
+
+Scalable vectors can only be inserted into other scalable vectors.
 
 Arguments:
 """"""""""
@@ -17220,27 +17369,35 @@ cannot be determined statically but is false at runtime, then the result vector
 is undefined.
 
 
-'``llvm.experimental.vector.extract``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+'``llvm.vector.extract``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Syntax:
 """""""
-This is an overloaded intrinsic. You can use
-``llvm.experimental.vector.extract`` to extract a fixed-width vector from a
-scalable vector, but not the other way around.
+This is an overloaded intrinsic.
 
 ::
 
-      declare <4 x float> @llvm.experimental.vector.extract.v4f32.nxv4f32(<vscale x 4 x float> %vec, i64 %idx)
-      declare <2 x double> @llvm.experimental.vector.extract.v2f64.nxv2f64(<vscale x 2 x double> %vec, i64 %idx)
+      ; Extract fixed type from scalable type
+      declare <4 x float> @llvm.vector.extract.v4f32.nxv4f32(<vscale x 4 x float> %vec, i64 <idx>)
+      declare <2 x double> @llvm.vector.extract.v2f64.nxv2f64(<vscale x 2 x double> %vec, i64 <idx>)
+
+      ; Extract scalable type from scalable type
+      declare <vscale x 2 x float> @llvm.vector.extract.nxv2f32.nxv4f32(<vscale x 4 x float> %vec, i64 <idx>)
+
+      ; Extract fixed type from fixed type
+      declare <2 x double> @llvm.vector.extract.v2f64.v4f64(<4 x double> %vec, i64 <idx>)
 
 Overview:
 """""""""
 
-The '``llvm.experimental.vector.extract.*``' intrinsics extract a vector from
-within another vector starting from a given index. The return type must be
-explicitly specified. Conceptually, this can be used to decompose a scalable
-vector into non-scalable parts.
+The '``llvm.vector.extract.*``' intrinsics extract a vector from within another
+vector starting from a given index. The return type must be explicitly
+specified. Conceptually, this can be used to decompose a scalable vector into
+non-scalable parts, however this intrinsic can also be used on purely fixed
+types.
+
+Scalable vectors can only be extracted from other scalable vectors.
 
 Arguments:
 """"""""""
@@ -20491,7 +20648,7 @@ Semantics:
 The '``llvm.vp.fpext``' intrinsic extends the ``value`` from a smaller
 :ref:`floating-point <t_floating>` type to a larger :ref:`floating-point
 <t_floating>` type. The '``llvm.vp.fpext``' cannot be used to make a
-*no-op cast* because it always changes bits. Use ``bitcast`` to make a 
+*no-op cast* because it always changes bits. Use ``bitcast`` to make a
 *no-op cast* for a floating-point cast.
 The conversion is performed on lane positions below the explicit vector length
 and where the vector mask is true.  Masked-off lanes are undefined.
@@ -23453,8 +23610,10 @@ Semantics:
 
 This intrinsic allows annotation of a pointer to an integer with arbitrary
 strings. This can be useful for special purpose optimizations that want to look
-for these annotations. These have no other defined use; they are ignored by code
-generation and optimization.
+for these annotations. These have no other defined use; transformations preserve
+annotations on a best-effort basis but are allowed to replace the intrinsic with
+its first argument without breaking semantics and the intrinsic is completely
+dropped during instruction selection.
 
 '``llvm.annotation.*``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -23489,10 +23648,12 @@ the line number. It returns the value of the first argument.
 Semantics:
 """"""""""
 
-This intrinsic allows annotations to be put on arbitrary expressions
-with arbitrary strings. This can be useful for special purpose
-optimizations that want to look for these annotations. These have no
-other defined use; they are ignored by code generation and optimization.
+This intrinsic allows annotations to be put on arbitrary expressions with
+arbitrary strings. This can be useful for special purpose optimizations that
+want to look for these annotations. These have no other defined use;
+transformations preserve annotations on a best-effort basis but are allowed to
+replace the intrinsic with its first argument without breaking semantics and the
+intrinsic is completely dropped during instruction selection.
 
 '``llvm.codeview.annotation``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

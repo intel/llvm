@@ -31,7 +31,7 @@ pi_result redefinedQueueCreate(pi_context context, pi_device device,
                                pi_queue *queue) {
   if (!TestContext.SupportOOO &&
       properties & PI_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
-    return PI_INVALID_QUEUE_PROPERTIES;
+    return PI_ERROR_INVALID_QUEUE_PROPERTIES;
   }
   return PI_SUCCESS;
 }
