@@ -116,17 +116,17 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 /// functions and representing users' reduction variable.
 /// The generic version of the class represents those reductions of those
 /// types and operations for which the identity value is not known.
-/// The Algorithm template can be used to specialize reducers for different
-/// reduction algorithms. The View template describes whether the reducer
-/// owns its data or not: if View is 'true', then the reducer does not own
-/// its data and instead provides a view of data allocated elsewhere (i.e.
-/// via a reference or pointer member); if View is 'false', then the reducer
-/// owns its data. With the current default reduction algorithm, the top-level
-/// reducers that are passed to the user's lambda contain a private copy of
-/// the reduction variable, whereas any reducer created by a subscript operator
-/// contains a reference to a reduction variable allocated elsewhere.
+/// The View template describes whether the reducer owns its data or not: if
+/// View is 'true', then the reducer does not own its data and instead provides
+/// a view of data allocated elsewhere (i.e. via a reference or pointer member);
+/// if View is 'false', then the reducer owns its data. With the current default
+/// reduction algorithm, the top-level reducers that are passed to the user's
+/// lambda contain a private copy of the reduction variable, whereas any reducer
+/// created by a subscript operator contains a reference to a reduction variable
+/// allocated elsewhere. The Subst parameter is an implementation detail and is
+/// used to spell out restrictions using 'enable_if'.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View = false, typename Subst = void>
+          bool View = false, typename Subst = void>
 class reducer;
 
 /// Helper class for accessing reducer-defined types in CRTP
@@ -134,9 +134,8 @@ class reducer;
 template <typename Reducer> struct ReducerTraits;
 
 template <typename T, class BinaryOperation, int Dims, std::size_t Extent,
-          class Algorithm, bool View, typename Subst>
-struct ReducerTraits<
-    reducer<T, BinaryOperation, Dims, Extent, Algorithm, View, Subst>> {
+          bool View, typename Subst>
+struct ReducerTraits<reducer<T, BinaryOperation, Dims, Extent, View, Subst>> {
   using type = T;
   using op = BinaryOperation;
   static constexpr int dims = Dims;
@@ -311,14 +310,13 @@ public:
 ///
 /// It stores a copy of the identity and binary operation associated with the
 /// reduction.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    T, BinaryOperation, Dims, Extent, View,
     enable_if_t<Dims == 0 && Extent == 1 && View == false &&
                 !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+          reducer<T, BinaryOperation, Dims, Extent, View,
                   enable_if_t<Dims == 0 && Extent == 1 && View == false &&
                               !sycl::detail::IsKnownIdentityOp<
                                   T, BinaryOperation>::value>>> {
@@ -344,14 +342,13 @@ private:
 ///
 /// It allows to reduce the size of the 'reducer' object by not holding
 /// the identity field inside it and allows to add a default constructor.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    T, BinaryOperation, Dims, Extent, View,
     enable_if_t<Dims == 0 && Extent == 1 && View == false &&
                 sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+          reducer<T, BinaryOperation, Dims, Extent, View,
                   enable_if_t<Dims == 0 && Extent == 1 && View == false &&
                               sycl::detail::IsKnownIdentityOp<
                                   T, BinaryOperation>::value>>> {
@@ -375,11 +372,10 @@ public:
 
 /// Component of 'reducer' class for array reductions, representing a single
 /// element of the span (as returned by the subscript operator).
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+class reducer<T, BinaryOperation, Dims, Extent, View,
               enable_if_t<Dims == 0 && View == true>>
-    : public combiner<reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, View,
                               enable_if_t<Dims == 0 && View == true>>> {
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
@@ -393,13 +389,12 @@ private:
 
 /// Specialization of 'reducer' class for array reductions exposing the
 /// subscript operator.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    T, BinaryOperation, Dims, Extent, View,
     enable_if_t<Dims == 1 && View == false &&
                 !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public combiner<reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, View,
                               enable_if_t<Dims == 1 && View == false &&
                                           !sycl::detail::IsKnownIdentityOp<
                                               T, BinaryOperation>::value>>> {
@@ -407,8 +402,7 @@ public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  reducer<T, BinaryOperation, Dims - 1, Extent, Algorithm, true>
-  operator[](size_t Index) {
+  reducer<T, BinaryOperation, Dims - 1, Extent, true> operator[](size_t Index) {
     return {MValue[Index], MBinaryOp};
   }
 
@@ -424,13 +418,12 @@ private:
 
 /// Specialization of 'reducer' class for array reductions accepting a span
 /// in cases where the identity value is known.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
 class reducer<
-    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    T, BinaryOperation, Dims, Extent, View,
     enable_if_t<Dims == 1 && View == false &&
                 sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public combiner<reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, View,
                               enable_if_t<Dims == 1 && View == false &&
                                           sycl::detail::IsKnownIdentityOp<
                                               T, BinaryOperation>::value>>> {
@@ -440,8 +433,7 @@ public:
 
   // SYCL 2020 revision 4 says this should be const, but this is a bug
   // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
-  reducer<T, BinaryOperation, Dims - 1, Extent, Algorithm, true>
-  operator[](size_t Index) {
+  reducer<T, BinaryOperation, Dims - 1, Extent, true> operator[](size_t Index) {
     return {MValue[Index], BinaryOperation()};
   }
 
@@ -517,9 +509,7 @@ class reduction_impl_algo<
   using base = reduction_impl_common<T, BinaryOperation>;
 
 public:
-  using reducer_type =
-      reducer<T, BinaryOperation, Dims, Extent,
-              default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>;
+  using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
   using result_type = T;
   using binary_operation = BinaryOperation;
 
