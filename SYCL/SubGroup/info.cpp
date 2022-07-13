@@ -14,7 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 class kernel_sg;
 using namespace cl::sycl;
 

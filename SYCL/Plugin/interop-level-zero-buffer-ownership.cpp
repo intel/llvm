@@ -26,7 +26,7 @@
 // CHECK-NOT: zeMemFree
 
 #include "interop-level-zero-buffer-helpers.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>

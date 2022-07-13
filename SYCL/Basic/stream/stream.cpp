@@ -14,9 +14,9 @@
 //===----------------------------------------------------------------------===//
 
 #define SYCL_SIMPLE_SWIZZLES
-#include <CL/sycl.hpp>
-#include <CL/sycl/context.hpp>
 #include <cassert>
+#include <sycl/context.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

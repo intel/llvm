@@ -19,10 +19,10 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include <CL/sycl/detail/defines.hpp>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <sycl/detail/defines.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
   namespace sycl {

@@ -25,7 +25,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.fat
 // RUN: %ACC_RUN_PLACEHOLDER %t.fat
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 

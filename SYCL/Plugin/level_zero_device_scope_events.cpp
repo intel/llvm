@@ -30,7 +30,7 @@
 // zeCommandQueueExecuteCommandLists(ZeCommandQueue, 1, &ZeCommandList,
 // CommandList->second.ZeFence)
 ///
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main(int argc, char **argv) {
   cl::sycl::gpu_selector device_selector;

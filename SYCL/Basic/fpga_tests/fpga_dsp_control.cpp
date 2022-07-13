@@ -10,8 +10,8 @@
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/sycl.hpp>
 
 int test_dsp_control(cl::sycl::queue Queue) {
   std::vector<float> input_data = {1.23f, 2.34f};

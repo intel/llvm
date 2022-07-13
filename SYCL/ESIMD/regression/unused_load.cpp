@@ -13,8 +13,8 @@
 // This test checks that ESIMD JIT compilation does not crash on unused
 // copy_from invocation.
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 

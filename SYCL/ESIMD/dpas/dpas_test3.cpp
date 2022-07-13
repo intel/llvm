@@ -17,8 +17,8 @@
 // ways of initializing the input operands of DPAS. There were runtime
 // errors previously depending on what variant of initialization was used.
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel::esimd;

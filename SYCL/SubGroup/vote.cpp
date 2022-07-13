@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace cl::sycl;
 
 void check(queue Queue, const int G, const int L, const int D, const int R) {

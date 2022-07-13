@@ -19,8 +19,8 @@
 // buffers are as defined by the spec and will allocate the right amount of
 // memory on the device.
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 constexpr size_t NumElems = 67;
 

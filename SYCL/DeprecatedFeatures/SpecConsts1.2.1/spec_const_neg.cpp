@@ -15,7 +15,7 @@
 // The test that specialization constant implementation throws exceptions when
 // expected.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 #include <vector>

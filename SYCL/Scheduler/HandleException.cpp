@@ -5,8 +5,8 @@
 
 // Expected exception is generated for OpenCL backend only.
 // REQUIRES: opencl
-#include <CL/sycl.hpp>
 #include <array>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

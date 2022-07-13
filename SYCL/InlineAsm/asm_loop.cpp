@@ -4,9 +4,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include "include/asmhelper.h"
-#include <CL/sycl.hpp>
 #include <cmath>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 using DataType = cl::sycl::cl_int;

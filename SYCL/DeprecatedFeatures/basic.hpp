@@ -1,4 +1,4 @@
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main(int argc, char **argv) {
   // Test program and kernel APIs when building a kernel.

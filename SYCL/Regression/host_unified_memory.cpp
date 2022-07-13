@@ -2,9 +2,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER SYCL_HOST_UNIFIED_MEMORY=1 %t.out
 
-#include <CL/sycl.hpp>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sycl/sycl.hpp>
 #include <unistd.h>
 
 using namespace cl::sycl;

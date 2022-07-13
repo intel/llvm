@@ -8,7 +8,7 @@
  * https://www.khronos.org/registry/OpenCL/specs/opencl-1.2.pdf#page=329
  */
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 

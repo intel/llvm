@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace cl::sycl::ext::oneapi;

@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 using namespace cl::sycl;

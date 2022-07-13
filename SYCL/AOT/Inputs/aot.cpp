@@ -6,7 +6,7 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <array>
 #include <iostream>

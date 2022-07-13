@@ -12,11 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace cl::sycl;

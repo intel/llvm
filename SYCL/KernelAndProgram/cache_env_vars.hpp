@@ -62,9 +62,9 @@
   INC10000(x)                                                                  \
   INC10000(x)
 
-#include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
+#include <sycl/sycl.hpp>
 class Inc;
 template <class Kernel> void check_build_time(cl::sycl::queue &q) {
   auto start = std::chrono::steady_clock::now();

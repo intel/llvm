@@ -12,7 +12,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

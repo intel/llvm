@@ -1,6 +1,6 @@
 // RUN: not %clangxx -fsycl -fsyntax-only -fsycl-targets=%sycl_triple %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

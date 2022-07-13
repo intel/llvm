@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
 #include <limits>
 #include <numeric>
+#include <sycl/sycl.hpp>
 
 template <typename T, bool UseNewSyntax> class sycl_subgr;
 using namespace cl::sycl;

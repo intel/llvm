@@ -11,9 +11,9 @@
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <map>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace std;

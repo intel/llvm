@@ -1,5 +1,5 @@
-#include <CL/sycl.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cmath>
 

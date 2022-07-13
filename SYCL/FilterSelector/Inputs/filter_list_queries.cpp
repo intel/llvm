@@ -6,9 +6,9 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <map>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

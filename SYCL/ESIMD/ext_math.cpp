@@ -19,9 +19,9 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/builtins_esimd.hpp>
+#include <sycl/builtins_esimd.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cmath>
 #include <iostream>

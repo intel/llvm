@@ -4,11 +4,11 @@
 #define TEST_GENERIC_IN_LOCAL 0
 #endif
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <numeric>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 using namespace sycl;

@@ -12,9 +12,9 @@
 //
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PROGRAM_COMPILE_OPTIONS="-enable-link-options -cl-denorms-are-zero" SHOULD_CRASH=1 %t.out
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <memory>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

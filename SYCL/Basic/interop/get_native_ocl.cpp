@@ -4,7 +4,7 @@
 
 #include <CL/cl.h>
 
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
 constexpr auto BE = sycl::backend::opencl;

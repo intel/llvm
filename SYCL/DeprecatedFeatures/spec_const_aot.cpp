@@ -6,7 +6,7 @@
 // The test checks that the specialization constant feature works with ahead
 // of time compilation.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 #include <vector>

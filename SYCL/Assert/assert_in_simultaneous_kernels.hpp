@@ -1,7 +1,7 @@
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <thread>
 
 using namespace cl::sycl;

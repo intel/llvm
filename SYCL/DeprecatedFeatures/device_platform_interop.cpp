@@ -14,10 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 #include <iostream>
 #include <memory>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 #include <unordered_map>
 using namespace cl::sycl;
 

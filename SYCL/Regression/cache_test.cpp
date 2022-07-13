@@ -7,8 +7,8 @@
 #include <level_zero/ze_api.h>
 #include <stdio.h>
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::oneapi;
 

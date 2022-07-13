@@ -7,8 +7,8 @@
 // Test that the wait with a barrier is fully batched, i.e. it doesn't cause
 // extra submissions.
 
-#include <CL/sycl.hpp>
 #include <level_zero/ze_api.h>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 using namespace std;

@@ -8,9 +8,9 @@
 
 // Shared code for the hier_par_wgscope* tests
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <memory>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

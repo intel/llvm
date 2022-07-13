@@ -6,8 +6,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <cstdio>
+#include <sycl/sycl.hpp>
 
 union TestUnion {
 public:

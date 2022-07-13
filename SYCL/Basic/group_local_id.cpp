@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.run
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

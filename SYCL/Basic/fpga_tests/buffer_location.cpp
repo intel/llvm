@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue Queue;

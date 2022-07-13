@@ -15,8 +15,8 @@
 // elements. First, partial reduction is computed inside each SG, then atomic
 // add is used to reduce between SG leaders
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

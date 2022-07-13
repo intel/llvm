@@ -16,7 +16,7 @@
 // RUN: %t.out
 // RUN: ls | not grep dot
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl;
 

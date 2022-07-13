@@ -7,10 +7,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
 #include <fstream>
 #include <iostream>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/sycl.hpp>
 
 #include "io_pipe_def.h"
 

@@ -13,7 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 template <typename F, typename B>
 void run(cl::sycl::queue &q, B &buf, const F &func) {

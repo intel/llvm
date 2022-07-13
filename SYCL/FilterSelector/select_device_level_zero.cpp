@@ -8,8 +8,8 @@
 //
 // REQUIRES: level_zero,gpu,host
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace std;

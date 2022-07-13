@@ -3,11 +3,11 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <numeric>
+#include <sycl/sycl.hpp>
 #include <vector>
 using namespace sycl;
 using namespace sycl::ext::oneapi;

@@ -12,11 +12,11 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out %T/output.ppm %S/golden_hw.ppm
 
 #include "esimd_test_utils.hpp"
-#include <CL/sycl.hpp>
 #include <array>
 #include <iostream>
 #include <memory>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel::esimd;

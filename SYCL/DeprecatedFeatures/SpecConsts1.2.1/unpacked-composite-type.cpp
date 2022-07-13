@@ -12,7 +12,7 @@
 // CHECK: --------> 2
 // CHECK: --------> 3
 // CHECK: --------> 4
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <stdint.h>
 

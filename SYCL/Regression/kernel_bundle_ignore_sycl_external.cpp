@@ -5,7 +5,7 @@
 //
 // XFAIL: cuda || hip_nvidia
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 class KernelName;
 

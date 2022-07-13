@@ -12,9 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <complex>
+#include <sycl/sycl.hpp>
 #include <vector>
 template <typename T> class pointer_kernel;
 

@@ -4,7 +4,7 @@
 // RUN: env SYCL_PI_TRACE=-1 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue q;

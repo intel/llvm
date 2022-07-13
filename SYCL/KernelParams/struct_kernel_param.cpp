@@ -12,11 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <iterator>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

@@ -3,7 +3,7 @@
 // RUN: env SYCL_DEVICE_FILTER="opencl" %t.ocl.out
 
 #include <CL/cl.h>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
 
 #include <sycl/sycl.hpp>
 

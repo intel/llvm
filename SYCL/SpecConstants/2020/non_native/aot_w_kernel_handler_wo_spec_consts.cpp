@@ -5,7 +5,7 @@
 // kernel lambdas containing kernel_handler arguments and w/o usage of
 // specialization constants in AOT mode
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue q;

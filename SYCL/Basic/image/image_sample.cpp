@@ -4,7 +4,7 @@
 // Temporarily disable test on Windows due to regressions in GPU driver.
 // UNSUPPORTED: cuda || hip, windows
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 

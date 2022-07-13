@@ -14,12 +14,12 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/builtins_esimd.hpp>
 #include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <sycl/builtins_esimd.hpp>
+#include <sycl/sycl.hpp>
 #ifdef _WIN32
 #include <malloc.h>
 #endif // _WIN32

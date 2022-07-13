@@ -7,11 +7,11 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <memory>
 #include <stdio.h>
 #include <sycl/ext/oneapi/dot_product.hpp>
+#include <sycl/sycl.hpp>
 
 // Change if tests are added/removed
 static int testCount = 4;

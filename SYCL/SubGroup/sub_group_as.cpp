@@ -12,11 +12,11 @@
 // XFAIL: hip_amd || hip_nvidia
 // UNSUPPORTED: ze_debug-1,ze_debug4
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <sycl/sycl.hpp>
 
 int main(int argc, char *argv[]) {
   cl::sycl::queue queue;

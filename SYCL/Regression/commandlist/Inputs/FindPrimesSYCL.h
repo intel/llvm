@@ -1,7 +1,7 @@
 #ifndef FINDPRIMESSYCL_H
 #define FINDPRIMESSYCL_H
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <chrono>
 #include <mutex>

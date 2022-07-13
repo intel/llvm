@@ -8,8 +8,8 @@
 // If temporary variable is used (see TO_PASS mode) the test succeeded.
 // XFAIL: gpu
 #include "include/asmhelper.h"
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 using dataType = cl::sycl::cl_int;

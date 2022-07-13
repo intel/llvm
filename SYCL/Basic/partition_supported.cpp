@@ -15,7 +15,7 @@ not support the info::partition_affinity_domain provided, an exception with the
 **feature_not_supported error code must be thrown**.
 */
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 /** returns true if the device supports a particular affinity domain
  */

@@ -1,6 +1,6 @@
 #include "Inputs/kernels_in_file2.hpp"
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
 #define NDEBUG

@@ -12,9 +12,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <random>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel;

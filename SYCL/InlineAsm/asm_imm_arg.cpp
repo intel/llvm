@@ -4,8 +4,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include "include/asmhelper.h"
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 constexpr int CONST_ARGUMENT = 0xabc;

@@ -4,7 +4,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 cl::sycl::event submit(cl::sycl::queue &Q, cl::sycl::buffer<int> &B) {
   return Q.submit([&](cl::sycl::handler &CGH) {

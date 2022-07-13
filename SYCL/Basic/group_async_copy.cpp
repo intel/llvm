@@ -4,8 +4,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.run
 // RUN: env SYCL_DEVICE_FILTER=host %t.run
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <typeinfo>
 
 using namespace cl::sycl;

@@ -17,9 +17,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <type_traits>
 
 using namespace cl::sycl;

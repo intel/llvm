@@ -5,7 +5,7 @@
 
 // Test that "device_read_only" shared USM allocations are pooled.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace std;
 using namespace sycl;

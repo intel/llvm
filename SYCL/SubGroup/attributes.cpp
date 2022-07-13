@@ -14,7 +14,7 @@
 
 #include "helper.hpp"
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #define KERNEL_FUNCTOR_WITH_SIZE(SIZE)                                         \
   class KernelFunctor##SIZE {                                                  \

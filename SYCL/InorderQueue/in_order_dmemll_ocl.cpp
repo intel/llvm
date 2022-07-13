@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

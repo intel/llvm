@@ -2,7 +2,7 @@
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 // This tests that early free of command (and, hence, the command group) won't
 // affect "native kernel" feature support.

@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER SYCL_PI_TRACE=-1 %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 class Foo;
 using namespace cl::sycl;

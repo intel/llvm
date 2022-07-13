@@ -19,7 +19,7 @@
 // clang-format on
 //
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace cl::sycl;
 
 int foo(queue &q, int n) {

@@ -1,7 +1,7 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 class KernelName;
 void submitKernel() {

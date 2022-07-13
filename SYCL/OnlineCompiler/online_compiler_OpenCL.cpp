@@ -10,9 +10,9 @@
 // All OpenCL specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/sycl.hpp>
 
 #include <vector>
 

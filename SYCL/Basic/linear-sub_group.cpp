@@ -13,10 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "../SubGroup/helper.hpp"
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

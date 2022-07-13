@@ -8,7 +8,7 @@
 // so it is unsupported on any other backend.
 // UNSUPPORTED: cuda || hip || level_zero
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cassert>
 

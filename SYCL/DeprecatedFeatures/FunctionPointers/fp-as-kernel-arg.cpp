@@ -9,8 +9,8 @@
 // FIXME: This test should use runtime early exit once correct check for
 // corresponding extension is implemented
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/oneapi/__function_pointers.hpp>
+#include <sycl/sycl.hpp>
 
 #include <algorithm>
 #include <iostream>

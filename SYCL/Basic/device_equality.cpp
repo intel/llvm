@@ -11,9 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace cl::sycl;

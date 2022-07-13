@@ -15,9 +15,9 @@
 // This test checks hierarchical parallelism invocation APIs, but without any
 // data or code with side-effects between the work group and work item scopes.
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <memory>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

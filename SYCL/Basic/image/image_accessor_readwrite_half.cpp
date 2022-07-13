@@ -15,9 +15,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iomanip>
+#include <sycl/sycl.hpp>
 #if DEBUG_OUTPUT
 #include <iostream>
 #endif

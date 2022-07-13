@@ -14,8 +14,8 @@
 // and linker switches.
 // UNSUPPORTED: level_zero
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 using namespace cl::sycl;
 class DUMMY {
 public:

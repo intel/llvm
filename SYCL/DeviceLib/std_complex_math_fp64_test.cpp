@@ -8,10 +8,10 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <array>
 #include <cassert>
 #include <complex>
+#include <sycl/sycl.hpp>
 
 #include "math_utils.hpp"
 

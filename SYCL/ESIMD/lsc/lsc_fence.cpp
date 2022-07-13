@@ -13,12 +13,12 @@
 // This test verifies the intrinsic lsc_fence on PVC.
 // It is based on https://en.wikipedia.org/wiki/Memory_barrier#Example
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <numeric>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace sycl::ext::intel::esimd;

@@ -10,12 +10,12 @@
 // RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" %t.out
 // RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" %t.out
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <string>
+#include <sycl/sycl.hpp>
 
 using namespace cl;
 

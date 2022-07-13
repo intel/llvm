@@ -23,9 +23,9 @@
 // CHECK-ACC: The test ended.
 
 #include "Inputs/kernels_in_file2.hpp"
-#include <CL/sycl.hpp>
 #include <cstdio>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <thread>
 
 #ifdef DEFINE_NDEBUG_INFILE1

@@ -10,7 +10,7 @@
 // with the embedded ZE_DEBUG=4 testing capability.
 //
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace cl;
 int main(int argc, char **argv) {
   sycl::queue Q;

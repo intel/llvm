@@ -8,8 +8,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include <CL/opencl.h>
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

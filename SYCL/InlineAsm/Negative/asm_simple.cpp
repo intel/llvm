@@ -5,7 +5,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 #include "../include/asmhelper.h"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct KernelFunctor {
   KernelFunctor() {}

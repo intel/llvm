@@ -27,8 +27,8 @@
 // CHECK-NEXT: 8
 // CHECK-NEXT: 9
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

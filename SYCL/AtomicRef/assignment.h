@@ -1,9 +1,9 @@
 #pragma once
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <numeric>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 using namespace sycl;

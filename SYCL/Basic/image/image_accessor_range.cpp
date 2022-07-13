@@ -9,9 +9,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/accessor.hpp>
 #include <iostream>
+#include <sycl/accessor.hpp>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 #define N 4   // dimensin
 #define M 128 // dimension

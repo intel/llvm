@@ -8,11 +8,11 @@
 // XFAIL: hip
 
 #include "support.h"
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cassert>
 #include <limits>
 #include <numeric>
+#include <sycl/sycl.hpp>
 #include <vector>
 using namespace sycl;
 

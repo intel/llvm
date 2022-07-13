@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace cl::sycl;
 struct Data {
   unsigned int local_id;

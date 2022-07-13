@@ -7,8 +7,8 @@
 // Disabling on windows until fixed
 // UNSUPPORTED: hip_amd, windows
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/fpga_device_selector.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::context Context;

@@ -7,8 +7,8 @@
 // various plugins may return a larger choice of partition properties than SYCL
 // supports ensure we are only returning SYCL standard  partition properties.
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

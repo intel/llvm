@@ -6,7 +6,7 @@
 // Regression test to check that Level Zero backend doesn't fail when using a
 // long kernel name.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   cl::sycl::queue Q;

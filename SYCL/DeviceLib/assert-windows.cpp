@@ -24,9 +24,9 @@
 // RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefix=CHECK-FALLBACK
 // CHECK-FALLBACK: ---> piProgramLink
 
-#include <CL/sycl.hpp>
 #include <array>
 #include <assert.h>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

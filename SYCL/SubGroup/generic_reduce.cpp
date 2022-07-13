@@ -4,8 +4,8 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
 #include <complex>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

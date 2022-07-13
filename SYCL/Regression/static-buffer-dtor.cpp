@@ -18,7 +18,7 @@
 // Failing on HIP AMD
 // XFAIL: hip_amd
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   uint8_t *h_A = (uint8_t *)malloc(256);

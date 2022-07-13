@@ -12,7 +12,7 @@
 // use reverse order to call destructors, and low level runtime's objects are
 // destroyed before global queue in user code.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 sycl::queue Queue;
 

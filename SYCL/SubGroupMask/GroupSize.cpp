@@ -13,7 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 #ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 constexpr int global_size = 128;

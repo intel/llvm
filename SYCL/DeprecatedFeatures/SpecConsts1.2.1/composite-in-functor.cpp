@@ -13,7 +13,7 @@
 // CHECK-NEXT: 3
 // CHECK-NEXT: 4 : 5
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

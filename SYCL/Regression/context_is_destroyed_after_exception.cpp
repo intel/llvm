@@ -5,7 +5,7 @@
 //
 // XFAIL: hip_nvidia
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   const auto GlobalRange = 1;

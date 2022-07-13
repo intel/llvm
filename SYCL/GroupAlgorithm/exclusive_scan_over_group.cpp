@@ -6,9 +6,9 @@
 // CPU and ACC not yet supported:
 // Unsupported SPIR-V module SPIRV module requires unsupported capability 6400
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 template <typename T>
 cl::sycl::event compiler_group_scan_impl(cl::sycl::queue *queue, T *in_data,

@@ -11,9 +11,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <sycl/ext/intel/fpga_extensions.hpp>
+#include <sycl/sycl.hpp>
 #include <type_traits>
 
 // Size of an array passing through a pipe

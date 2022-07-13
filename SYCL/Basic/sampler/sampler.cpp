@@ -12,9 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/context.hpp>
 #include <cassert>
+#include <sycl/context.hpp>
+#include <sycl/sycl.hpp>
 
 namespace sycl {
 using namespace cl::sycl;

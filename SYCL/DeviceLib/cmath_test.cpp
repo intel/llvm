@@ -9,10 +9,10 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include "math_utils.hpp"
-#include <CL/sycl.hpp>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 namespace s = cl::sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;

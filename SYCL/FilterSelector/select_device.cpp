@@ -13,8 +13,8 @@
 //
 // REQUIRES: cpu,gpu,accelerator,host
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 using namespace std;

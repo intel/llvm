@@ -14,8 +14,8 @@
 //===----------------------------------------------------------------------===//
 // Tests the constructors, get_count and get_range APIs.
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
 void no_delete(void *) {}
 

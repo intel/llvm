@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // The test checks that pi_events are released without queue destruction
 // or call to queue::wait, when the corresponding commands are cleaned up.

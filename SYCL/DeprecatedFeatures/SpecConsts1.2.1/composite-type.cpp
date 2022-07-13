@@ -9,7 +9,7 @@
 // composite types: toolchain processes them correctly and runtime can correctly
 // execute the program.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 #include <vector>

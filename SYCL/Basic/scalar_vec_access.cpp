@@ -15,8 +15,8 @@
 // CHECK-NOT: Error: unexpected behavior because of accessing element of the
 // vector by reference
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 typedef float float4_t __attribute__((ext_vector_type(4)));
 

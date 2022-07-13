@@ -10,7 +10,7 @@
 // code optimizations disabled (the implementation relies on inlining these
 // functions regardless of device code optimization settings).
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cassert>
 #include <vector>

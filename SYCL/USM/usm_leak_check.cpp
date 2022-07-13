@@ -8,7 +8,7 @@
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out s 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-SMALL-BUF
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out l 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-LARGE-BUF
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 
 #include <array>

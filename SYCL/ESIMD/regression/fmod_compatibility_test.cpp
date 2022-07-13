@@ -13,11 +13,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <cmath>
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 constexpr auto sycl_write = cl::sycl::access::mode::write;

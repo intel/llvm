@@ -6,9 +6,9 @@
 // shared memory, and also test user can call free() without worrying about
 // nullptr or invalid memory descriptor returned from malloc.
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <stdlib.h>
+#include <sycl/sycl.hpp>
 using namespace cl::sycl;
 
 int main(int argc, char *argv[]) {

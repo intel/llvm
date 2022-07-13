@@ -14,11 +14,11 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;

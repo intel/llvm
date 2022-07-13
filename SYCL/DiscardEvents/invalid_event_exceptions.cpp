@@ -15,9 +15,9 @@
 // they do it.
 // 3. An attempt to pass discarded event into depends_on throws an exception.
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

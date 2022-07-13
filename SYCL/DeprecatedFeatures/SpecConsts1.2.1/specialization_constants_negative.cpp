@@ -14,10 +14,10 @@
 //===----------------------------------------------------------------------===//
 // Checks for negative cases
 
-#include <CL/sycl.hpp>
 #include <chrono>
 #include <cstdint>
 #include <random>
+#include <sycl/sycl.hpp>
 
 class SpecializedKernelNegative;
 

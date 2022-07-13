@@ -20,7 +20,7 @@
 // - the program is JITted only once per a unique set of specialization
 //   constants values.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 #include <vector>

@@ -91,10 +91,10 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
-#include <CL/sycl.hpp>
 #include <array>
 #include <assert.h>
 #include <stdlib.h>
+#include <sycl/sycl.hpp>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>

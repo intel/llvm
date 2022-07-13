@@ -44,7 +44,7 @@
 // CHECK-SAME:  [ {{0[xX]?[0-9a-fA-F]*}} ... ]
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 int main() {
   cl::sycl::queue Queue;
   cl::sycl::buffer<int, 1> Buf(10);

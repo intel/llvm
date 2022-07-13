@@ -10,9 +10,9 @@
 // The test checks that each PI call to the queue returns a discarded event
 // with the status "ext_oneapi_unknown"
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 static constexpr size_t BUFFER_SIZE = 16;

@@ -10,8 +10,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

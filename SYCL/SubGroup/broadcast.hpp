@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 template <typename T> class sycl_subgr;
 using namespace cl::sycl;
 template <typename T> void check(queue &Queue) {

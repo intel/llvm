@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <CL/sycl.hpp>
 #include <limits>
+#include <sycl/sycl.hpp>
 
 template <typename... Ts> class sycl_subgr;
 

@@ -12,11 +12,11 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <CL/sycl.hpp>
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   using namespace cl::sycl;

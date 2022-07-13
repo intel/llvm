@@ -4,8 +4,8 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
 #define __TEST_FFMATH_BINARY(func)                                             \
   int test_ffmath_##func() {                                                   \

@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <algorithm>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

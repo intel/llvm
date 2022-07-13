@@ -6,7 +6,7 @@
 //
 // XFAIL: hip_nvidia
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 class Kern1;
 class Kern2;

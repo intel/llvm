@@ -17,8 +17,8 @@
 // RUN: %BE_RUN_PLACEHOLDER env SYCL_USE_KERNEL_SPV=%t.spv %t.out | FileCheck %s
 // CHECK: Passed
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

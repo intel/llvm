@@ -6,7 +6,7 @@
 // NOTE: Tests that debugging information can be generated for all integral
 // optimization levels.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue q;

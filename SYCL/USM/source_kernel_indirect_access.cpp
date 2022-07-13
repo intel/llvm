@@ -5,8 +5,8 @@
 // REQUIRES: opencl,opencl_icd
 
 #include <CL/cl.h>
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

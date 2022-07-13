@@ -1,5 +1,5 @@
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 

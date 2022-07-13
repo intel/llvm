@@ -8,9 +8,9 @@
 // backend.
 //==----------------------------------------------------------==//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend_types.hpp>
 #include <iostream>
+#include <sycl/backend_types.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

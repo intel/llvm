@@ -8,9 +8,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out 10
 // RUN: %ACC_RUN_PLACEHOLDER %t.out 10
 
-#include <CL/sycl.hpp>
 #include <chrono>
 #include <iostream>
+#include <sycl/sycl.hpp>
 #include <thread>
 
 using namespace cl::sycl;

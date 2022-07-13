@@ -57,11 +57,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <fstream>
 #include <iostream>
 #include <regex>
 #include <string>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

@@ -11,7 +11,7 @@
 
 // REQUIRES: TEMPORARY_DISABLED
 // Disable test due to flacky failures
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 class ComplexClass {
 public:

@@ -9,8 +9,8 @@
 
 #include <cstdint>
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

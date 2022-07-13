@@ -17,7 +17,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t-same-kernel.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t-same-kernel.exe
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

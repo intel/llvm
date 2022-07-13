@@ -5,7 +5,7 @@
 //
 // XFAIL: hip_nvidia
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cassert>
 #include <vector>

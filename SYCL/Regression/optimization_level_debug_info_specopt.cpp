@@ -7,7 +7,7 @@
 // NOTE: Tests that debugging information can be generated for all special-name
 // optimization levels.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue q;

@@ -14,10 +14,10 @@
 //===----------------------------------------------------------------------===//
 // Basic checks for some primitive types
 
-#include <CL/sycl.hpp>
 #include <chrono>
 #include <cstdint>
 #include <random>
+#include <sycl/sycl.hpp>
 
 #define HALF 0 // FIXME Spec constants do not support half type yet
 
