@@ -8,10 +8,10 @@
 
 #include "SchedulerTestUtils.hpp"
 
-#include <CL/sycl.hpp>
 #include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
 #include <memory>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl::detail;
 

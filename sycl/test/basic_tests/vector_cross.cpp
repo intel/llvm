@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <cmath>
+#include <sycl/sycl.hpp>
 
 bool isEqualTo(double x, double y, double epsilon = 0.001) {
   return std::fabs(x - y) <= epsilon;

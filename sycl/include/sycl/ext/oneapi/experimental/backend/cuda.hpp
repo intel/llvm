@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend.hpp>
-#include <CL/sycl/context.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/context.hpp>
 
 #include <vector>
 

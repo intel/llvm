@@ -4,7 +4,7 @@
 
 // clang-format off
 
-#include <CL/sycl/image.hpp>
+#include <sycl/image.hpp>
 
 sycl::image<2> Img{sycl::image_channel_order::rgba, sycl::image_channel_type::fp16, sycl::range<2>{10, 10}};
 

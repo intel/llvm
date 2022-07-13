@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
+#include <sycl/detail/pi.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

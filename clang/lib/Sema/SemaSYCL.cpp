@@ -4585,8 +4585,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
-  O << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-  O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
+  O << "#include <sycl/detail/defines_elementary.hpp>\n";
+  O << "#include <sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
 
@@ -5055,7 +5055,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // We only want to emit the #includes if we have a variable that needs
     // them, so emit this one on the first time through the loop.
     if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
-      OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
+      OS << "#include <sycl/detail/defines_elementary.hpp>\n";
 
     Visited.insert(VD);
     std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
@@ -5101,10 +5101,10 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   }
 
   if (EmittedFirstSpecConstant)
-    OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+    OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 
   if (DeviceGlobalsEmitted) {
-    OS << "#include <CL/sycl/detail/device_global_map.hpp>\n";
+    OS << "#include <sycl/detail/device_global_map.hpp>\n";
     DeviceGlobOS.flush();
     OS << "namespace sycl::detail {\n";
     OS << "namespace {\n";
