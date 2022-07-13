@@ -48,6 +48,7 @@ if (MLIR_INCLUDE_INTEGRATION_TESTS)
   file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/mttkrp_b.tns
             ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/test.mtx
             ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/test_symmetric.mtx
+            ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/test_symmetric_complex.mtx
             ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/test.tns
             ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/wide.mtx
           DESTINATION ${MLIR_INTEGRATION_TEST_DIR}/data/)
@@ -97,6 +98,7 @@ set(MLIR_TEST_DEPENDS
   mlir-reduce
   mlir-tblgen
   mlir-translate
+  tblgen-lsp-server
   )
 
 # The native target may not be enabled, in this case we won't

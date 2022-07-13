@@ -1,6 +1,6 @@
 ; Tests that coro-split will convert coro.resume followed by a suspend to a
 ; musttail call.
-; RUN: opt < %s -passes='cgscc(coro-split),simplifycfg,early-cse' -S | FileCheck %s
+; RUN: opt < %s -passes='cgscc(coro-split<optimizing>),simplifycfg,early-cse' -S | FileCheck %s
 
 define void @fakeresume1(i8*)  {
 entry:
@@ -61,7 +61,7 @@ declare i1 @llvm.coro.end(i8*, i1) #2
 declare i8* @llvm.coro.subfn.addr(i8* nocapture readonly, i8) #1
 declare i8* @malloc(i64)
 
-attributes #0 = { "coroutine.presplit"="1" }
+attributes #0 = { presplitcoroutine }
 attributes #1 = { argmemonly nounwind readonly }
 attributes #2 = { nounwind }
 attributes #3 = { nounwind readnone }

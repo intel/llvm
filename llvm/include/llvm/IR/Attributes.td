@@ -51,6 +51,9 @@ def Alignment : IntAttr<"align", [ParamAttr, RetAttr]>;
 /// aligned_alloc and aligned ::operator::new.
 def AllocAlign: EnumAttr<"allocalign", [ParamAttr]>;
 
+/// Describes behavior of an allocator function in terms of known properties.
+def AllocKind: IntAttr<"allockind", [FnAttr]>;
+
 /// Parameter is the pointer to be manipulated by the allocator function.
 def AllocatedPointer : EnumAttr<"allocptr", [ParamAttr]>;
 
@@ -299,6 +302,9 @@ def ZExt : EnumAttr<"zeroext", [ParamAttr, RetAttr]>;
 
 /// Function is required to make Forward Progress.
 def MustProgress : EnumAttr<"mustprogress", [FnAttr]>;
+
+/// Function is a presplit coroutine.
+def PresplitCoroutine : EnumAttr<"presplitcoroutine", [FnAttr]>;
 
 /// Target-independent string attributes.
 def LessPreciseFPMAD : StrBoolAttr<"less-precise-fpmad">;

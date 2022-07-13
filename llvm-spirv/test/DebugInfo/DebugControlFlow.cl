@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -cl-std=CL2.0 -O0 -debug-info-kind=standalone -gno-column-info -emit-llvm %s -o %t.ll -no-opaque-pointers
-// RUN: llvm-as %t.ll -o %t.bc
+// RUN: llvm-as -opaque-pointers=0 %t.ll -o %t.bc
 // RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 // RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv %t.bc -o %t.spv

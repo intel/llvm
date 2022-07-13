@@ -78,10 +78,17 @@ public:
   TupleType getTupleType(TypeRange elementTypes);
   NoneType getNoneType();
 
-  /// Get or construct an instance of the type 'ty' with provided arguments.
+  /// Get or construct an instance of the type `Ty` with provided arguments.
   template <typename Ty, typename... Args>
-  Ty getType(Args... args) {
-    return Ty::get(context, args...);
+  Ty getType(Args &&...args) {
+    return Ty::get(context, std::forward<Args>(args)...);
+  }
+
+  /// Get or construct an instance of the attribute `Attr` with provided
+  /// arguments.
+  template <typename Attr, typename... Args>
+  Attr getAttr(Args &&...args) {
+    return Attr::get(context, std::forward<Args>(args)...);
   }
 
   // Attributes.
@@ -476,7 +483,7 @@ public:
 
   /// Overload to create or fold a zero result operation.
   template <typename OpTy, typename... Args>
-  typename std::enable_if<OpTy::template hasTrait<OpTrait::ZeroResult>(),
+  typename std::enable_if<OpTy::template hasTrait<OpTrait::ZeroResults>(),
                           OpTy>::type
   createOrFold(Location location, Args &&...args) {
     auto op = create<OpTy>(location, std::forward<Args>(args)...);

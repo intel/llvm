@@ -37,6 +37,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       static_cast<const toolchains::Fuchsia &>(getToolChain());
   const Driver &D = ToolChain.getDriver();
 
+  const llvm::Triple &Triple = ToolChain.getEffectiveTriple();
+
   ArgStringList CmdArgs;
 
   // Silence warning for "clang -g foo.o -o foo"
@@ -84,6 +86,12 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("--hash-style=gnu");
   }
 
+  if (ToolChain.getArch() == llvm::Triple::aarch64) {
+    std::string CPU = getCPUName(D, Args, Triple);
+    if (CPU.empty() || CPU == "generic" || CPU == "cortex-a53")
+      CmdArgs.push_back("--fix-cortex-a53-843419");
+  }
+
   CmdArgs.push_back("--eh-frame-hdr");
 
   if (Args.hasArg(options::OPT_static))
@@ -105,6 +113,9 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-dynamic-linker");
     CmdArgs.push_back(Args.MakeArgString(Dyld));
   }
+
+  if (ToolChain.getArch() == llvm::Triple::riscv64)
+    CmdArgs.push_back("-X");
 
   CmdArgs.push_back("-o");
   CmdArgs.push_back(Output.getFilename());

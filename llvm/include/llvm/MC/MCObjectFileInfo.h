@@ -225,6 +225,9 @@ protected:
   MCSection *GIATsSection = nullptr;
   MCSection *GLJMPSection = nullptr;
 
+  // GOFF specific sections.
+  MCSection *PPA1Section = nullptr;
+
   // XCOFF specific sections
   MCSection *TOCBaseSection = nullptr;
   MCSection *ReadOnly8Section = nullptr;
@@ -423,6 +426,9 @@ public:
   MCSection *getGIATsSection() const { return GIATsSection; }
   MCSection *getGLJMPSection() const { return GLJMPSection; }
 
+  // GOFF specific sections.
+  MCSection *getPPA1Section() const { return PPA1Section; }
+
   // XCOFF specific sections
   MCSection *getTOCBaseSection() const { return TOCBaseSection; }
 
@@ -453,6 +459,7 @@ private:
   void initSPIRVMCObjectFileInfo(const Triple &T);
   void initWasmMCObjectFileInfo(const Triple &T);
   void initXCOFFMCObjectFileInfo(const Triple &T);
+  void initDXContainerObjectFileInfo(const Triple &T);
   MCSection *getDwarfComdatSection(const char *Name, uint64_t Hash) const;
 
 public:

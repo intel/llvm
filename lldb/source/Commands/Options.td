@@ -428,11 +428,11 @@ let Command = "history" in {
     Desc<"Clears the current command history.">;
 }
 
-let Command = "log" in {
+let Command = "log enable" in {
   def log_file : Option<"file", "f">, Group<1>, Arg<"Filename">,
     Desc<"Set the destination file to log to.">;
-  def log_threadsafe : Option<"threadsafe", "t">, Group<1>,
-    Desc<"Enable thread safe logging to avoid interweaved log lines.">;
+  def log_buffer_size : Option<"buffer", "b">, Group<1>, Arg<"UnsignedInteger">,
+    Desc<"Set the log to be buffered, using the specified buffer size.">;
   def log_verbose : Option<"verbose", "v">, Group<1>,
     Desc<"Enable verbose logging.">;
   def log_sequence : Option<"sequence", "s">, Group<1>,
@@ -491,8 +491,6 @@ let Command = "memory read" in {
     "display data.">;
   def memory_read_force : Option<"force", "r">, Groups<[1,2,3]>,
     Desc<"Necessary if reading over target.max-memory-read-size bytes.">;
-  def memory_read_show_tags : Option<"show-tags", "\\x01">, Group<1>,
-    Desc<"Include memory tags in output (does not apply to binary output).">;
 }
 
 let Command = "memory find" in {
@@ -513,6 +511,12 @@ let Command = "memory write" in {
     Required, Desc<"Write memory using the contents of a file.">;
   def memory_write_offset : Option<"offset", "o">, Group<1>, Arg<"Offset">,
     Desc<"Start writing bytes from an offset within the input file.">;
+}
+
+let Command = "memory region" in {
+  def memory_region_all : Option<"all", "a">, Group<2>, Required,
+    Desc<"Show all memory regions. This is equivalent to starting from address "
+         "0 and repeating the command. Unmapped areas are included.">;
 }
 
 let Command = "memory tag write" in {
@@ -714,9 +718,13 @@ let Command = "process attach" in {
 }
 
 let Command = "process continue" in {
-  def process_continue_ignore_count : Option<"ignore-count", "i">,
+  def process_continue_ignore_count : Option<"ignore-count", "i">, Group<1>,
     Arg<"UnsignedInteger">, Desc<"Ignore <N> crossings of the breakpoint (if it"
     " exists) for the currently selected thread.">;
+  def process_continue_run_to_bkpt : Option<"continue-to-bkpt", "b">, Group<2>,
+    Arg<"BreakpointIDRange">, Desc<"Specify a breakpoint to continue to, temporarily "
+    "ignoring other breakpoints.  Can be specified more than once.  "
+    "The continue action will be done synchronously if this option is specified.">;
 }
 
 let Command = "process detach" in {
@@ -738,6 +746,8 @@ let Command = "process load" in {
 }
 
 let Command = "process handle" in {
+  def process_handle_clear : Option<"clear", "c">, Group<2>,
+    Desc<"Removes the signals listed from the Target signal handlers">;
   def process_handle_stop : Option<"stop", "s">, Group<1>, Arg<"Boolean">,
     Desc<"Whether or not the process should be stopped if the signal is "
     "received.">;
@@ -746,6 +756,10 @@ let Command = "process handle" in {
     "received.">;
   def process_handle_pass : Option<"pass", "p">, Group<1>, Arg<"Boolean">,
     Desc<"Whether or not the signal should be passed to the process.">;
+  def process_handle_only_target : Option<"target", "t">, Group<1>,
+    Desc<"Show only the signals with behaviors modified in this target">;
+  def process_handle_dummy : Option<"dummy", "d">, Group<2>,
+    Desc<"Also clear the values in the dummy target so they won't be inherited by new targets.">;
 }
 
 let Command = "process status" in {
@@ -1106,6 +1120,9 @@ let Command = "thread trace dump instructions" in {
     Arg<"Count">,
     Desc<"The number of instructions to display starting at the most recent "
     "instruction, or the oldest if --forwards is provided.">;
+  def thread_trace_dump_instructions_all : Option<"all", "a">, Group<1>,
+    Desc<"From the starting point of the trace, dump all instructions "
+    "available.">;
   def thread_trace_dump_instructions_id: Option<"id", "i">, Group<1>,
     Arg<"Index">,
     Desc<"Custom starting instruction id from where to start traversing. This "
@@ -1114,14 +1131,22 @@ let Command = "thread trace dump instructions" in {
     Arg<"Index">,
     Desc<"How many instruction to skip from the starting position of the trace "
     "before starting the traversal.">;
-  def thread_trace_dump_instructions_raw : Option<"raw", "r">,
-    Group<1>,
+  def thread_trace_dump_instructions_raw : Option<"raw", "r">, Group<1>,
     Desc<"Dump only instruction address without disassembly nor symbol "
     "information.">;
+  def thread_trace_dump_instructions_file : Option<"file", "F">, Group<1>,
+    Arg<"Filename">,
+    Desc<"Dump the instruction to a file instead of the standard output.">;
+  def thread_trace_dump_instructions_json: Option<"json", "j">,
+    Group<1>,
+    Desc<"Dump in simple JSON format.">;
+  def thread_trace_dump_instructions_pretty_print: Option<"pretty-json", "J">,
+    Group<1>,
+    Desc<"Dump in JSON format but pretty printing the output for easier readability.">;
   def thread_trace_dump_instructions_show_tsc : Option<"tsc", "t">, Group<1>,
     Desc<"For each instruction, print the corresponding timestamp counter if "
     "available.">;
-  def thread_trace_dump_instructions_hide_events : Option<"events", "e">,
+  def thread_trace_dump_instructions_show_events : Option<"events", "e">,
     Group<1>,
     Desc<"Dump the events that happened during the execution of the target.">;
   def thread_trace_dump_instructions_continue: Option<"continue", "C">,

@@ -42,6 +42,7 @@
 ! HELP-NEXT: -flogical-abbreviations Enable logical abbreviations
 ! HELP-NEXT: -fno-automatic         Implies the SAVE attribute for non-automatic local objects in subprograms unless RECURSIVE
 ! HELP-NEXT: -fno-color-diagnostics  Disable colors in diagnostics
+! HELP-NEXT: -fno-integrated-as      Disable the integrated assembler
 ! HELP-NEXT: -fopenacc              Enable OpenACC
 ! HELP-NEXT: -fopenmp               Parse OpenMP pragmas and generate parallel code.
 ! HELP-NEXT: -fxor-operator         Enable .XOR. as a synonym of .NEQV.
@@ -56,6 +57,8 @@
 ! HELP-NEXT: -print-effective-triple Print the effective target triple
 ! HELP-NEXT: -print-target-triple    Print the normalized target triple
 ! HELP-NEXT: -P                     Disable linemarker output in -E mode
+! HELP-NEXT: -save-temps=<value>    Save intermediate compilation results.
+! HELP-NEXT: -save-temps            Save intermediate compilation results
 ! HELP-NEXT: -std=<value>           Language standard to compile for
 ! HELP-NEXT: -S                     Only run preprocess and compilation steps
 ! HELP-NEXT: --target=<value>       Generate code for the given target
@@ -80,6 +83,7 @@
 ! HELP-FC1-NEXT: -falternative-parameter-statement
 ! HELP-FC1-NEXT: Enable the old style PARAMETER statement
 ! HELP-FC1-NEXT: -fbackslash            Specify that backslash in string introduces an escape character
+! HELP-FC1-NEXT: -fcolor-diagnostics     Enable colors in diagnostics
 ! HELP-FC1-NEXT: -fdebug-dump-all       Dump symbols and the parse tree after the semantic checks
 ! HELP-FC1-NEXT: -fdebug-dump-parse-tree-no-sema
 ! HELP-FC1-NEXT:                        Dump the parse tree (skips the semantic checks)

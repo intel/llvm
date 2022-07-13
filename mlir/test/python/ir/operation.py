@@ -75,7 +75,7 @@ def testTraverseOpRegionBlockIterators():
   # CHECK:       REGION 0:
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
-  # CHECK:           OP 1: return
+  # CHECK:           OP 1: func.return
   walk_operations("", op)
 
 
@@ -114,7 +114,7 @@ def testTraverseOpRegionBlockIndices():
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
   # CHECK:           OP 0: parent func.func
-  # CHECK:           OP 1: return
+  # CHECK:           OP 1: func.return
   # CHECK:           OP 1: parent func.func
   walk_operations("", module.operation)
 
@@ -535,7 +535,7 @@ def testOperationPrint():
   module = Module.parse(
       r"""
     func.func @f1(%arg0: i32) -> i32 {
-      %0 = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32>
+      %0 = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32> loc("nom")
       return %arg0 : i32
     }
   """, ctx)
@@ -561,6 +561,10 @@ def testOperationPrint():
   bytes_value = f.getvalue()
   print(bytes_value.__class__)
   print(bytes_value)
+
+  # Test get_asm local_scope.
+  # CHECK: constant dense<[1, 2, 3, 4]> : tensor<4xi32> loc("nom")
+  module.operation.print(enable_debug_info=True, use_local_scope=True)
 
   # Test get_asm with options.
   # CHECK: value = opaque<"elided_large_const", "0xDEADBEEF"> : tensor<4xi32>
@@ -803,7 +807,7 @@ def testOperationLoc():
 @run
 def testModuleMerge():
   with Context():
-    m1 = Module.parse("func private @foo()")
+    m1 = Module.parse("func.func private @foo()")
     m2 = Module.parse("""
       func.func private @bar()
       func.func private @qux()
@@ -829,8 +833,8 @@ def testModuleMerge():
 @run
 def testAppendMoveFromAnotherBlock():
   with Context():
-    m1 = Module.parse("func private @foo()")
-    m2 = Module.parse("func private @bar()")
+    m1 = Module.parse("func.func private @foo()")
+    m2 = Module.parse("func.func private @bar()")
     func = m1.body.operations[0]
     m2.body.append(func)
 
@@ -848,7 +852,7 @@ def testAppendMoveFromAnotherBlock():
 @run
 def testDetachFromParent():
   with Context():
-    m1 = Module.parse("func private @foo()")
+    m1 = Module.parse("func.func private @foo()")
     func = m1.body.operations[0].detach_from_parent()
 
     try:

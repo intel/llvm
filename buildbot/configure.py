@@ -75,6 +75,11 @@ def do_configure(args):
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
 
+    # all llvm compiler targets don't require 3rd party dependencies, so can be
+    # built/tested even if specific runtimes are not available
+    if args.enable_all_llvm_targets:
+        llvm_targets_to_build += ';NVPTX;AMDGPU'
+
     if args.werror or args.ci_defaults:
         sycl_werror = 'ON'
         xpti_enable_werror = 'ON'
@@ -210,6 +215,7 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
     parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support")
+    parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--werror", action='store_true', help="Treat warnings as errors")

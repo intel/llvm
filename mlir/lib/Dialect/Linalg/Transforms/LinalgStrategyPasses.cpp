@@ -23,7 +23,7 @@
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/IR/AffineExpr.h"
@@ -259,6 +259,40 @@ struct LinalgStrategyPromotePass
   }
 
   LinalgPromotionOptions options;
+  LinalgTransformationFilter filter;
+};
+
+/// Configurable pass to apply pattern-based linalg peeling.
+struct LinalgStrategyPeelPass
+    : public LinalgStrategyPeelPassBase<LinalgStrategyPeelPass> {
+
+  LinalgStrategyPeelPass() = default;
+
+  LinalgStrategyPeelPass(StringRef opName, LinalgPeelOptions opt,
+                         LinalgTransformationFilter filt)
+      : options(opt), filter(std::move(filt)) {
+    this->anchorOpName.setValue(opName.str());
+  }
+
+  void runOnOperation() override {
+    auto funcOp = getOperation();
+    if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
+      return;
+
+    RewritePatternSet peelingPatterns(funcOp.getContext());
+    if (!anchorOpName.empty()) {
+      peelingPatterns.add<LinalgPeelingPattern>(
+          anchorOpName, funcOp.getContext(), options, filter);
+    } else {
+      peelingPatterns.add<LinalgPeelingPattern>(funcOp.getContext(), filter,
+                                                options);
+    }
+    if (failed(
+            applyPatternsAndFoldGreedily(funcOp, std::move(peelingPatterns))))
+      return signalPassFailure();
+  }
+
+  LinalgPeelOptions options;
   LinalgTransformationFilter filter;
 };
 
@@ -504,6 +538,13 @@ mlir::createLinalgStrategyInterchangePass(
     const LinalgTransformationFilter &filter) {
   return std::make_unique<LinalgStrategyInterchangePass>(iteratorInterchange,
                                                          filter);
+}
+
+/// Create a LinalgStrategyPeelPass.
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::createLinalgStrategyPeelPass(StringRef opName, LinalgPeelOptions opt,
+                                   const LinalgTransformationFilter &filter) {
+  return std::make_unique<LinalgStrategyPeelPass>(opName, opt, filter);
 }
 
 /// Create a LinalgStrategyVectorizePass.

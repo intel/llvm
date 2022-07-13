@@ -260,7 +260,7 @@ static Optional<AllocFnsTy> getAllocationSize(const Value *V,
   Result.AllocTy = MallocLike;
   Result.NumParams = Callee->getNumOperands();
   Result.FstParam = Args.first;
-  Result.SndParam = Args.second.getValueOr(-1);
+  Result.SndParam = Args.second.value_or(-1);
   // Allocsize has no way to specify an alignment argument
   Result.AlignParam = -1;
   return Result;
@@ -335,7 +335,7 @@ bool llvm::isAllocRemovable(const CallBase *CB, const TargetLibraryInfo *TLI) {
 Value *llvm::getAllocAlignment(const CallBase *V,
                                const TargetLibraryInfo *TLI) {
   const Optional<AllocFnsTy> FnData = getAllocationData(V, AnyAlloc, TLI);
-  if (FnData.hasValue() && FnData->AlignParam >= 0) {
+  if (FnData && FnData->AlignParam >= 0) {
     return V->getOperand(FnData->AlignParam);
   }
   return V->getArgOperandWithAttribute(Attribute::AllocAlign);
@@ -385,7 +385,7 @@ llvm::getAllocSize(const CallBase *CB,
       if (!Arg)
         return None;
 
-      APInt MaxSize = Arg->getValue().zextOrSelf(IntTyBits);
+      APInt MaxSize = Arg->getValue().zext(IntTyBits);
       if (Size.ugt(MaxSize))
         Size = MaxSize + 1;
     }
@@ -648,7 +648,7 @@ STATISTIC(ObjectVisitorLoad,
 
 APInt ObjectSizeOffsetVisitor::align(APInt Size, MaybeAlign Alignment) {
   if (Options.RoundToAlign && Alignment)
-    return APInt(IntTyBits, alignTo(Size.getZExtValue(), Alignment));
+    return APInt(IntTyBits, alignTo(Size.getZExtValue(), *Alignment));
   return Size;
 }
 

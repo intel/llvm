@@ -14,7 +14,11 @@
 #include <cstddef>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::oneapi::experimental::cuda {
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace cuda {
 
 class barrier {
   int64_t state;
@@ -35,7 +39,7 @@ public:
     (void)state;
     (void)expected_count;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -44,7 +48,7 @@ public:
     __clc_BarrierInvalidate(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -53,7 +57,7 @@ public:
     return __clc_BarrierArrive(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -62,7 +66,7 @@ public:
     return __clc_BarrierArriveAndDrop(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -72,7 +76,7 @@ public:
 #else
     (void)count;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -82,7 +86,7 @@ public:
 #else
     (void)count;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -91,7 +95,7 @@ public:
     __clc_BarrierCopyAsyncArrive(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -100,7 +104,7 @@ public:
     __clc_BarrierCopyAsyncArriveNoInc(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -110,7 +114,7 @@ public:
 #else
     (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -120,7 +124,7 @@ public:
 #else
     (void)arrival;
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -129,7 +133,7 @@ public:
     __clc_BarrierArriveAndWait(&state);
 #else
     throw runtime_error("Barrier is not supported on host device.",
-                        PI_INVALID_DEVICE);
+                        PI_ERROR_INVALID_DEVICE);
 #endif
   }
 
@@ -141,6 +145,9 @@ public:
   static constexpr uint64_t max() { return (1 << 20) - 1; }
 #pragma pop_macro("max")
 };
-
-} // namespace sycl::ext::oneapi::experimental::cuda
+} // namespace cuda
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

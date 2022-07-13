@@ -272,7 +272,7 @@ Attribute CombiningKindAttr::parse(AsmParser &parser, Type type) {
   if (failed(parser.parseGreater()))
     return {};
 
-  return CombiningKindAttr::get(kind.getValue(), parser.getContext());
+  return CombiningKindAttr::get(*kind, parser.getContext());
 }
 
 Attribute VectorDialect::parseAttribute(DialectAsmParser &parser,
@@ -476,6 +476,12 @@ Value mlir::vector::getVectorReductionOp(arith::AtomicRMWKind op,
   case arith::AtomicRMWKind::maxu:
     return builder.create<vector::ReductionOp>(vector.getLoc(),
                                                CombiningKind::MAXUI, vector);
+  case arith::AtomicRMWKind::andi:
+    return builder.create<vector::ReductionOp>(vector.getLoc(),
+                                               CombiningKind::AND, vector);
+  case arith::AtomicRMWKind::ori:
+    return builder.create<vector::ReductionOp>(vector.getLoc(),
+                                               CombiningKind::OR, vector);
   // TODO: Add remaining reduction operations.
   default:
     (void)emitOptionalError(loc, "Reduction operation type not supported");
@@ -2864,7 +2870,8 @@ ParseResult TransferReadOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
   ParseResult hasMask = parser.parseOptionalComma();
   if (hasMask.succeeded()) {
-    parser.parseOperand(maskInfo);
+    if (parser.parseOperand(maskInfo))
+      return failure();
   }
   if (parser.parseOptionalAttrDict(result.attributes) ||
       parser.getCurrentLocation(&typesLoc) || parser.parseColonTypeList(types))
@@ -4232,9 +4239,13 @@ OpFoldResult BitCastOp::fold(ArrayRef<Attribute> operands) {
     return getSource();
 
   // Canceling bitcasts.
-  if (auto otherOp = getSource().getDefiningOp<BitCastOp>())
+  if (auto otherOp = getSource().getDefiningOp<BitCastOp>()) {
     if (getResult().getType() == otherOp.getSource().getType())
       return otherOp.getSource();
+
+    setOperand(otherOp.getSource());
+    return getResult();
+  }
 
   Attribute sourceConstant = operands.front();
   if (!sourceConstant)
@@ -4748,7 +4759,7 @@ ParseResult WarpExecuteOnLane0Op::parse(OpAsmParser &parser,
 void WarpExecuteOnLane0Op::getSuccessorRegions(
     Optional<unsigned> index, ArrayRef<Attribute> operands,
     SmallVectorImpl<RegionSuccessor> &regions) {
-  if (index.hasValue()) {
+  if (index) {
     regions.push_back(RegionSuccessor(getResults()));
     return;
   }

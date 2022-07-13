@@ -4,6 +4,8 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+class ModuleOp;
+
 namespace func {
 class FuncOp;
 } // namespace func
@@ -33,6 +35,17 @@ std::unique_ptr<Pass> createBufferLoopHoistingPass();
 /// Creates a pass that converts memref function results to out-params.
 std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
 
+/// Replace buffers that are returned from a function with an out parameter.
+/// Also update all call sites.
+LogicalResult promoteBufferResultsToOutParams(ModuleOp module);
+
+/// Creates a pass that drops memref function results that are equivalent to a
+/// function argument.
+std::unique_ptr<Pass> createDropEquivalentBufferResultsPass();
+
+/// Drop all memref function results that are equivalent to a function argument.
+LogicalResult dropEquivalentBufferResults(ModuleOp module);
+
 /// Creates a pass that finalizes a partial bufferization by removing remaining
 /// bufferization.to_tensor and bufferization.to_memref operations.
 std::unique_ptr<OperationPass<func::FuncOp>> createFinalizingBufferizePass();
@@ -57,6 +70,18 @@ createPromoteBuffersToStackPass(unsigned maxAllocSizeInBytes = 1024,
 /// Only buffers smaller with `isSmallAlloc(alloc) == true` are promoted.
 std::unique_ptr<Pass>
 createPromoteBuffersToStackPass(std::function<bool(Value)> isSmallAlloc);
+
+/// Create a pass that tries to eliminate alloc_tensor ops that are anchored on
+/// insert_slice ops.
+std::unique_ptr<Pass> createAllocTensorEliminationPass();
+
+/// Create a pass that bufferizes ops from the bufferization dialect.
+std::unique_ptr<Pass> createBufferizationBufferizePass();
+
+/// Create a pass that resolves out-of-place tensor OpOperands with copies.
+std::unique_ptr<Pass> createTensorCopyInsertionPass();
+std::unique_ptr<Pass>
+createTensorCopyInsertionPass(const OneShotBufferizationOptions &options);
 
 //===----------------------------------------------------------------------===//
 // Registration

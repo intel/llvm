@@ -250,13 +250,12 @@ void SPIRVToOCLBase::visitCastInst(CastInst &Cast) {
 }
 
 void SPIRVToOCLBase::visitCallSPRIVImageQuerySize(CallInst *CI) {
-  Function *Func = CI->getCalledFunction();
   // Get image type
-  Type *ArgTy = Func->getFunctionType()->getParamType(0);
-  assert(ArgTy->isPointerTy() &&
-         "argument must be a pointer to opaque structure");
-  StructType *ImgTy = cast<StructType>(ArgTy->getPointerElementType());
-  assert(ImgTy->isOpaque() && "image type must be an opaque structure");
+  SmallVector<StructType *, 4> ParamTys;
+  getParameterTypes(CI, ParamTys);
+  StructType *ImgTy = ParamTys[0];
+  assert(ImgTy && ImgTy->isOpaque() &&
+         "image type must be an opaque structure");
   StringRef ImgTyName = ImgTy->getName();
   assert(ImgTyName.startswith("opencl.image") && "not an OCL image type");
 
@@ -482,7 +481,23 @@ std::string SPIRVToOCLBase::getBallotBuiltinName(CallInst *CI, Op OC) {
   return Prefix + kSPIRVName::GroupPrefix + "ballot_" + GroupOp;
 }
 
+std::string SPIRVToOCLBase::getRotateBuiltinName(CallInst *CI, Op OC) {
+  assert((OC == OpGroupNonUniformRotateKHR) &&
+         "Not intended to handle other opcodes");
+  std::string Prefix = getGroupBuiltinPrefix(CI);
+  assert((Prefix == kOCLBuiltinName::SubPrefix) &&
+         "Workgroup scope is not supported for OpGroupNonUniformRotateKHR");
+
+  std::string OptionalClustered;
+  if (CI->arg_size() == 4)
+    OptionalClustered = "clustered_";
+  return Prefix + kSPIRVName::GroupPrefix + OptionalClustered + "rotate";
+}
+
 std::string SPIRVToOCLBase::groupOCToOCLBuiltinName(CallInst *CI, Op OC) {
+  if (OC == OpGroupNonUniformRotateKHR)
+    return getRotateBuiltinName(CI, OC);
+
   auto FuncName = OCLSPIRVBuiltinMap::rmap(OC);
   assert(FuncName.find(kSPIRVName::GroupPrefix) == 0);
 
@@ -755,18 +770,20 @@ void SPIRVToOCLBase::visitCallSPIRVImageSampleExplicitLodBuiltIn(CallInst *CI,
                                                                  Op OC) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  CallInst *CallSampledImg = cast<CallInst>(CI->getArgOperand(0));
+  SmallVector<StructType *, 6> ParamTys;
+  getParameterTypes(CallSampledImg, ParamTys);
   StringRef ImageTypeName;
   bool IsDepthImage = false;
-  if (isOCLImageType(
-          (cast<CallInst>(CI->getOperand(0)))->getArgOperand(0)->getType(),
-          &ImageTypeName))
+  if (isOCLImageStructType(ParamTys[0], &ImageTypeName))
     IsDepthImage = ImageTypeName.contains("_depth_");
 
   auto ModifyArguments = [=](CallInst *, std::vector<Value *> &Args,
                              llvm::Type *&RetTy) {
-    CallInst *CallSampledImg = cast<CallInst>(Args[0]);
     auto Img = CallSampledImg->getArgOperand(0);
-    assert(isOCLImageType(Img->getType()));
+    if (!Img->getType()->isOpaquePointerTy())
+      assert(isOCLImageStructType(
+          Img->getType()->getNonOpaquePointerElementType()));
     auto Sampler = CallSampledImg->getArgOperand(1);
     Args[0] = Img;
     Args.insert(Args.begin() + 1, Sampler);
@@ -1247,27 +1264,53 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
     if (!IsSPIRVOpaque)
       continue;
 
-    SmallVector<std::string, 8> Postfixes;
-    std::string DecodedST = decodeSPIRVTypeName(STName, Postfixes);
-
-    if (!SPIRVOpaqueTypeOpCodeMap::find(DecodedST))
-      continue;
-
-    Op OP = SPIRVOpaqueTypeOpCodeMap::map(DecodedST);
-    std::string OCLOpaqueName;
-    if (OP == OpTypeImage)
-      OCLOpaqueName = getOCLImageOpaqueType(Postfixes);
-    else if (OP == OpTypePipe)
-      OCLOpaqueName = getOCLPipeOpaqueType(Postfixes);
-    else if (isSubgroupAvcINTELTypeOpCode(OP))
-      OCLOpaqueName = OCLSubgroupINTELTypeOpCodeMap::rmap(OP);
-    else if (isOpaqueGenericTypeOpCode(OP))
-      OCLOpaqueName = OCLOpaqueTypeOpCodeMap::rmap(OP);
-    else
-      continue;
-
-    S->setName(OCLOpaqueName);
+    S->setName(translateOpaqueType(STName));
   }
+}
+
+std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
+  if (!STName.startswith(kSPIRVTypeName::PrefixAndDelim))
+    return STName.str();
+
+  SmallVector<std::string, 8> Postfixes;
+  std::string DecodedST = decodeSPIRVTypeName(STName, Postfixes);
+
+  if (!SPIRVOpaqueTypeOpCodeMap::find(DecodedST))
+    return STName.str();
+
+  Op OP = SPIRVOpaqueTypeOpCodeMap::map(DecodedST);
+  std::string OCLOpaqueName;
+  if (OP == OpTypeImage)
+    OCLOpaqueName = getOCLImageOpaqueType(Postfixes);
+  else if (OP == OpTypePipe)
+    OCLOpaqueName = getOCLPipeOpaqueType(Postfixes);
+  else if (isSubgroupAvcINTELTypeOpCode(OP))
+    OCLOpaqueName = OCLSubgroupINTELTypeOpCodeMap::rmap(OP);
+  else if (isOpaqueGenericTypeOpCode(OP))
+    OCLOpaqueName = OCLOpaqueTypeOpCodeMap::rmap(OP);
+  else
+    return STName.str();
+
+  return OCLOpaqueName;
+}
+
+void SPIRVToOCLBase::getParameterTypes(CallInst *CI,
+                                       SmallVectorImpl<StructType *> &Tys) {
+  ::getParameterTypes(CI, Tys);
+  for (auto &Ty : Tys) {
+    if (!Ty)
+      continue;
+    StringRef STName = Ty->getStructName();
+    bool IsSPIRVOpaque =
+        Ty->isOpaque() && STName.startswith(kSPIRVTypeName::PrefixAndDelim);
+
+    if (!IsSPIRVOpaque)
+      continue;
+
+    std::string NewName = translateOpaqueType(STName);
+    if (NewName != STName)
+      Ty = getOrCreateOpaqueStructType(M, NewName);
+  };
 }
 
 void addSPIRVBIsLoweringPass(ModulePassManager &PassMgr,

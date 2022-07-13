@@ -18,6 +18,7 @@
 ??$create_sub_devices@$0BAII@@device@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
 ??$getPlugin@$00@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
 ??$getPlugin@$01@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
+??$getPlugin@$02@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
 ??$getPlugin@$04@pi@detail@sycl@cl@@YAAEBVplugin@123@XZ
 ??$getPluginOpaqueData@$04@detail@sycl@cl@@YAPEAXPEAX@Z
 ??$get_info@$0BAAA@@device@sycl@cl@@QEBA?AW4device_type@info@12@XZ
@@ -136,6 +137,7 @@
 ??$get_info@$0BBLK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BBNC@@event@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBND@@event@sycl@cl@@QEBA?AW4event_command_status@info@12@XZ
+??$get_info@$0BPPPP@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
 ??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ

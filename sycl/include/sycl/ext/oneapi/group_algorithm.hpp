@@ -154,7 +154,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
   (void)x;
   (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -176,7 +176,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
   (void)x;
   (void)local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -198,7 +198,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
   (void)x;
   (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -221,7 +221,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
   (void)x;
   (void)linear_local_id;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -238,7 +238,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
   (void)g;
   (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -258,7 +258,7 @@ detail::enable_if_t<(detail::is_generic_group<Group>::value &&
   (void)g;
   (void)x;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 
@@ -541,7 +541,7 @@ leader(Group g) {
 #else
   (void)g;
   throw runtime_error("Group algorithms are not supported on host device.",
-                      PI_INVALID_DEVICE);
+                      PI_ERROR_INVALID_DEVICE);
 #endif
 }
 

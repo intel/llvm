@@ -377,7 +377,7 @@ private:
 
   /// Returns true if the diagnostic is still active, i.e. it has a live
   /// diagnostic.
-  bool isActive() const { return impl.hasValue(); }
+  bool isActive() const { return impl.has_value(); }
 
   /// Returns true if the diagnostic is still in flight to be reported.
   bool isInFlight() const { return owner; }
@@ -417,7 +417,7 @@ public:
   /// The handler type for MLIR diagnostics. This function takes a diagnostic as
   /// input, and returns success if the handler has fully processed this
   /// diagnostic. Returns failure otherwise.
-  using HandlerTy = std::function<LogicalResult(Diagnostic &)>;
+  using HandlerTy = llvm::unique_function<LogicalResult(Diagnostic &)>;
 
   /// A handle to a specific registered handler object.
   using HandlerID = uint64_t;
@@ -427,7 +427,7 @@ public:
   /// handlers will process diagnostics first. This function returns a unique
   /// identifier for the registered handler, which can be used to unregister
   /// this handler at a later time.
-  HandlerID registerHandler(const HandlerTy &handler);
+  HandlerID registerHandler(HandlerTy handler);
 
   /// Set the diagnostic handler with a function that returns void. This is a
   /// convenient wrapper for handlers that always completely process the given

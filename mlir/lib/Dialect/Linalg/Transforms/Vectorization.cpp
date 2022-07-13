@@ -417,36 +417,6 @@ vectorizeOneOp(OpBuilder &b, LinalgOp linalgOp, Operation *op,
                llvm::to_vector<4>(returnTypes), op->getAttrs())};
 }
 
-/// Detect whether `r` has only ConstantOp, ElementwiseMappable and YieldOp.
-static bool hasOnlyScalarElementwiseOp(Region &r) {
-  if (!llvm::hasSingleElement(r))
-    return false;
-  for (Operation &op : r.front()) {
-    if (!(isa<arith::ConstantOp, func::ConstantOp, linalg::YieldOp,
-              linalg::IndexOp>(op) ||
-          OpTrait::hasElementwiseMappableTraits(&op)) ||
-        llvm::any_of(op.getResultTypes(),
-                     [](Type type) { return !type.isIntOrIndexOrFloat(); }))
-      return false;
-  }
-  return true;
-}
-
-// Return true if the op is an element-wise linalg op.
-static bool isElementwise(Operation *op) {
-  auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
-  if (!linalgOp)
-    return false;
-  if (linalgOp.getNumLoops() != linalgOp.getNumParallelLoops())
-    return false;
-  // TODO: relax the restrictions on indexing map.
-  for (OpOperand *opOperand : linalgOp.getOutputOperands()) {
-    if (!linalgOp.getTiedIndexingMap(opOperand).isIdentity())
-      return false;
-  }
-  return hasOnlyScalarElementwiseOp(linalgOp->getRegion(0));
-}
-
 /// Generic vectorization function that rewrites the body of a `linalgOp` into
 /// vector form. Generic vectorization proceeds as follows:
 ///   1. Verify the `linalgOp` has one non-empty region.
@@ -564,17 +534,6 @@ vectorizeAsLinalgGeneric(OpBuilder &b, LinalgOp linalgOp,
   return success();
 }
 
-/// Helper function to vectorize a `linalgOp` with contraction semantics in a
-/// generic fashion.
-/// This helper is needed atm because the truly generic implementation requires
-/// good vector.multi_reduce folding patterns that are currently NYI.
-// TODO: drop reliance on a specific pattern.
-static bool allIndexingsAreProjectedPermutation(LinalgOp op) {
-  return llvm::all_of(op.getIndexingMaps(), [](AffineMap m) {
-    return m.isProjectedPermutation(/*allowZeroInResults=*/true);
-  });
-}
-
 // TODO: probably need some extra checks for reduction followed by consumer
 // ops that may not commute (e.g. linear reduction + non-linear instructions).
 static LogicalResult reductionPreconditions(LinalgOp op) {
@@ -593,6 +552,19 @@ static LogicalResult reductionPreconditions(LinalgOp op) {
 }
 
 static LogicalResult vectorizeStaticLinalgOpPrecondition(linalg::LinalgOp op) {
+  // All types in the body should be a supported element type for VectorType.
+  for (Operation &innerOp : op->getRegion(0).front()) {
+    if (llvm::any_of(innerOp.getOperandTypes(), [](Type type) {
+          return !VectorType::isValidElementType(type);
+        })) {
+      return failure();
+    }
+    if (llvm::any_of(innerOp.getResultTypes(), [](Type type) {
+          return !VectorType::isValidElementType(type);
+        })) {
+      return failure();
+    }
+  }
   if (isElementwise(op))
     return success();
   // TODO: isaConvolutionOpInterface that can also infer from generic features.
@@ -814,7 +786,7 @@ protected:
 
 /// Rewrite use of tensor::PadOp result in TransferReadOp. E.g.:
 /// ```
-/// %0 = linalg.pad_tensor %src ... : tensor<?x?xf32> to tensor<17x5xf32>
+/// %0 = tensor.pad %src ... : tensor<?x?xf32> to tensor<17x5xf32>
 /// %r = vector.transfer_read %0[%c0, %c0], %cst
 ///     {in_bounds = [true, true]} : tensor<17x5xf32>, vector<17x5xf32>
 /// ```
@@ -869,7 +841,7 @@ struct PadOpVectorizationWithTransferReadPattern
 /// ```
 /// %0 = tensor.extract_slice ...[...] [%s0, %s1] [1, 1]
 ///     : tensor<...> to tensor<?x?xf32>
-/// %1 = linalg.pad_tensor %0 ... : tensor<?x?xf32> to tensor<17x5xf32>
+/// %1 = tensor.pad %0 ... : tensor<?x?xf32> to tensor<17x5xf32>
 /// %2 = vector.transfer_write %vec, %1[...]
 ///     : vector<17x5xf32>, tensor<17x5xf32>
 /// %r = tensor.extract_slice %2[0, 0] [%s0, %s1] [1, 1]
@@ -1026,7 +998,7 @@ struct PadOpVectorizationWithTransferWritePattern
 
 /// Rewrite use of tensor::PadOp result in InsertSliceOp. E.g.:
 /// ```
-/// %0 = linalg.pad_tensor %src ... : tensor<?x?xf32> to tensor<17x5xf32>
+/// %0 = tensor.pad %src ... : tensor<?x?xf32> to tensor<17x5xf32>
 /// %r = tensor.insert_slice %0
 ///     into %dest[%a, %b, 0, 0] [1, 1, 17, 5] [1, 1, 1, 1]
 ///     : tensor<17x5xf32> into tensor<?x?x17x5xf32>
@@ -1373,10 +1345,29 @@ struct Conv1DNwcGenerator : public StructuredGenerator<LinalgOp> {
     maybeKind = getCombinerOpKind(reduceOp);
     if (!maybeKind || *maybeKind != vector::CombiningKind::ADD)
       return;
-    maybeKind = getCombinerOpKind(&(linalgOp->getRegion(0).front().front()));
-    if (!maybeKind || *maybeKind != vector::CombiningKind::MUL)
+    // Check for single `mul` predecessor. The `mul` operands must be block
+    // arguments or extension of block arguments.
+    Operation *mulOp = nullptr;
+    for (Value operand : reduceOp->getOperands()) {
+      if (operand.isa<BlockArgument>())
+        continue;
+      if (mulOp)
+        return;
+      mulOp = operand.getDefiningOp();
+      if (!mulOp || !isa<arith::MulIOp, arith::MulFOp>(mulOp))
+        return;
+    }
+    if (!mulOp)
       return;
-
+    for (Value operand : mulOp->getOperands()) {
+      if (Operation *def = operand.getDefiningOp()) {
+        if (!isa<arith::ExtFOp>(def))
+          return;
+        operand = def->getOperand(0);
+      }
+      if (!operand.isa<BlockArgument>())
+        return;
+    }
     // The op is now known to be valid.
     valid = true;
   }

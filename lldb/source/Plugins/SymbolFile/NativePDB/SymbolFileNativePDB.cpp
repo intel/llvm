@@ -449,7 +449,8 @@ SymbolFileNativePDB::CreateCompileUnit(const CompilandIndexItem &cci) {
 
   llvm::SmallString<64> source_file_name =
       m_index->compilands().GetMainSourceFile(cci);
-  FileSpec fs(source_file_name);
+  FileSpec fs(llvm::sys::path::convert_to_slash(
+      source_file_name, llvm::sys::path::Style::windows_backslash));
 
   CompUnitSP cu_sp =
       std::make_shared<CompileUnit>(m_objfile_sp->GetModule(), nullptr, fs,
@@ -726,6 +727,8 @@ TypeSP SymbolFileNativePDB::CreateAndCacheType(PdbTypeSymId type_id) {
   PdbTypeSymId best_decl_id = full_decl_uid ? *full_decl_uid : type_id;
 
   clang::QualType qt = m_ast->GetOrCreateType(best_decl_id);
+  if (qt.isNull())
+    return nullptr;
 
   TypeSP result = CreateType(best_decl_id, m_ast->ToCompilerType(qt));
   if (!result)
@@ -984,7 +987,7 @@ uint32_t SymbolFileNativePDB::ResolveSymbolContext(
     llvm::Optional<uint16_t> modi = m_index->GetModuleIndexForVa(file_addr);
     if (!modi)
       return 0;
-    CompUnitSP cu_sp = GetCompileUnitAtIndex(modi.getValue());
+    CompUnitSP cu_sp = GetCompileUnitAtIndex(*modi);
     if (!cu_sp)
       return 0;
 
@@ -1858,7 +1861,7 @@ size_t SymbolFileNativePDB::ParseVariablesForContext(const SymbolContext &sc) {
 
 CompilerDecl SymbolFileNativePDB::GetDeclForUID(lldb::user_id_t uid) {
   if (auto decl = m_ast->GetOrCreateDeclForUid(uid))
-    return decl.getValue();
+    return *decl;
   else
     return CompilerDecl();
 }

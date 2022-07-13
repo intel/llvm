@@ -2080,6 +2080,25 @@ void Verifier::verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
       return;
   }
 
+  if (Attrs.hasFnAttr(Attribute::AllocKind)) {
+    AllocFnKind K = Attrs.getAllocKind();
+    AllocFnKind Type =
+        K & (AllocFnKind::Alloc | AllocFnKind::Realloc | AllocFnKind::Free);
+    if (!is_contained(
+            {AllocFnKind::Alloc, AllocFnKind::Realloc, AllocFnKind::Free},
+            Type))
+      CheckFailed(
+          "'allockind()' requires exactly one of alloc, realloc, and free");
+    if ((Type == AllocFnKind::Free) &&
+        ((K & (AllocFnKind::Uninitialized | AllocFnKind::Zeroed |
+               AllocFnKind::Aligned)) != AllocFnKind::Unknown))
+      CheckFailed("'allockind(\"free\")' doesn't allow uninitialized, zeroed, "
+                  "or aligned modifiers.");
+    AllocFnKind ZeroedUninit = AllocFnKind::Uninitialized | AllocFnKind::Zeroed;
+    if ((K & ZeroedUninit) == ZeroedUninit)
+      CheckFailed("'allockind()' can't be both zeroed and uninitialized");
+  }
+
   if (Attrs.hasFnAttr(Attribute::VScaleRange)) {
     unsigned VScaleMin = Attrs.getFnAttrs().getVScaleRangeMin();
     if (VScaleMin == 0)
@@ -3925,7 +3944,8 @@ void Verifier::visitAtomicRMWInst(AtomicRMWInst &RMWI) {
   auto Op = RMWI.getOperation();
   Type *ElTy = RMWI.getOperand(1)->getType();
   if (Op == AtomicRMWInst::Xchg) {
-    Check(ElTy->isIntegerTy() || ElTy->isFloatingPointTy(),
+    Check(ElTy->isIntegerTy() || ElTy->isFloatingPointTy() ||
+              ElTy->isPointerTy(),
           "atomicrmw " + AtomicRMWInst::getOperationName(Op) +
               " operand must have integer or floating point type!",
           &RMWI, ElTy);
@@ -4867,7 +4887,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
 
     Optional<RoundingMode> RoundMode =
         convertStrToRoundingMode(cast<MDString>(MD)->getString());
-    Check(RoundMode.hasValue() && RoundMode.getValue() != RoundingMode::Dynamic,
+    Check(RoundMode && *RoundMode != RoundingMode::Dynamic,
           "unsupported rounding mode argument", Call);
     break;
   }
@@ -4897,7 +4917,8 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::memcpy:
   case Intrinsic::memcpy_inline:
   case Intrinsic::memmove:
-  case Intrinsic::memset: {
+  case Intrinsic::memset:
+  case Intrinsic::memset_inline: {
     const auto *MI = cast<MemIntrinsic>(&Call);
     auto IsValidAlignment = [&](unsigned Alignment) -> bool {
       return Alignment == 0 || isPowerOf2_32(Alignment);
@@ -6046,7 +6067,7 @@ void Verifier::verifyAttachedCallBundle(const CallBase &Call,
 }
 
 void Verifier::verifySourceDebugInfo(const DICompileUnit &U, const DIFile &F) {
-  bool HasSource = F.getSource().hasValue();
+  bool HasSource = F.getSource().has_value();
   if (!HasSourceDebugInfo.count(&U))
     HasSourceDebugInfo[&U] = HasSource;
   CheckDI(HasSource == HasSourceDebugInfo[&U],

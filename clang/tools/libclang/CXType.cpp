@@ -675,6 +675,7 @@ CXCallingConv clang_getFunctionTypeCallingConv(CXType X) {
       TCALLINGCONV(X86RegCall);
       TCALLINGCONV(X86VectorCall);
       TCALLINGCONV(AArch64VectorCall);
+      TCALLINGCONV(AArch64SVEPCS);
       TCALLINGCONV(Win64);
       TCALLINGCONV(X86_64SysV);
       TCALLINGCONV(AAPCS);
@@ -685,6 +686,7 @@ CXCallingConv clang_getFunctionTypeCallingConv(CXType X) {
       TCALLINGCONV(PreserveMost);
       TCALLINGCONV(PreserveAll);
     case CC_SpirFunction: return CXCallingConv_Unexposed;
+    case CC_AMDGPUKernelCall: return CXCallingConv_Unexposed;
     case CC_OpenCLKernel: return CXCallingConv_Unexposed;
       break;
     }
@@ -1162,7 +1164,7 @@ int clang_Type_getNumTemplateArguments(CXType CT) {
   if (!TA)
     return -1;
 
-  return GetTemplateArgumentArraySize(TA.getValue());
+  return GetTemplateArgumentArraySize(*TA);
 }
 
 CXType clang_Type_getTemplateArgumentAsType(CXType CT, unsigned index) {
@@ -1174,8 +1176,8 @@ CXType clang_Type_getTemplateArgumentAsType(CXType CT, unsigned index) {
   if (!TA)
     return MakeCXType(QualType(), GetTU(CT));
 
-  Optional<QualType> QT = FindTemplateArgumentTypeAt(TA.getValue(), index);
-  return MakeCXType(QT.getValueOr(QualType()), GetTU(CT));
+  Optional<QualType> QT = FindTemplateArgumentTypeAt(*TA, index);
+  return MakeCXType(QT.value_or(QualType()), GetTU(CT));
 }
 
 CXType clang_Type_getObjCObjectBaseType(CXType CT) {

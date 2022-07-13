@@ -28,6 +28,7 @@
 #include "llvm/Object/Archive.h"
 #include "llvm/Object/ArchiveWriter.h"
 #include "llvm/Object/Binary.h"
+#include "llvm/Object/IRObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/OffloadBinary.h"
 #include "llvm/Support/CommandLine.h"
@@ -63,59 +64,54 @@ enum DebugKind {
 static cl::OptionCategory
     ClangLinkerWrapperCategory("clang-linker-wrapper options");
 
-static cl::opt<bool> StripSections(
-    "strip-sections", cl::ZeroOrMore,
-    cl::desc("Strip offloading sections from the host object file."),
-    cl::init(false), cl::cat(ClangLinkerWrapperCategory));
-
 static cl::opt<std::string> LinkerUserPath("linker-path", cl::Required,
                                            cl::desc("Path of linker binary"),
                                            cl::cat(ClangLinkerWrapperCategory));
 
-static cl::opt<std::string>
-    TargetFeatures("target-feature", cl::ZeroOrMore,
-                   cl::desc("Target features for triple"),
-                   cl::cat(ClangLinkerWrapperCategory));
-
-static cl::opt<std::string> OptLevel("opt-level", cl::ZeroOrMore,
+static cl::opt<std::string> OptLevel("opt-level",
                                      cl::desc("Optimization level for LTO"),
                                      cl::init("O2"),
                                      cl::cat(ClangLinkerWrapperCategory));
 
 static cl::list<std::string>
-    BitcodeLibraries("target-library", cl::ZeroOrMore,
+    BitcodeLibraries("target-library",
                      cl::desc("Path for the target bitcode library"),
                      cl::cat(ClangLinkerWrapperCategory));
 
 static cl::opt<bool> EmbedBitcode(
-    "target-embed-bc", cl::ZeroOrMore,
+    "target-embed-bc",
     cl::desc("Embed linked bitcode instead of an executable device image"),
-    cl::init(false), cl::cat(ClangLinkerWrapperCategory));
+    cl::cat(ClangLinkerWrapperCategory));
 
 static cl::opt<bool> DryRun(
-    "dry-run", cl::ZeroOrMore,
+    "dry-run",
     cl::desc("List the linker commands to be run without executing them"),
-    cl::init(false), cl::cat(ClangLinkerWrapperCategory));
+    cl::cat(ClangLinkerWrapperCategory));
 
 static cl::opt<bool>
-    PrintWrappedModule("print-wrapped-module", cl::ZeroOrMore,
+    PrintWrappedModule("print-wrapped-module",
                        cl::desc("Print the wrapped module's IR for testing"),
-                       cl::init(false), cl::cat(ClangLinkerWrapperCategory));
+                       cl::cat(ClangLinkerWrapperCategory));
 
 static cl::opt<std::string>
-    HostTriple("host-triple", cl::ZeroOrMore,
+    HostTriple("host-triple",
                cl::desc("Triple to use for the host compilation"),
                cl::init(sys::getDefaultTargetTriple()),
                cl::cat(ClangLinkerWrapperCategory));
 
 static cl::list<std::string>
-    PtxasArgs("ptxas-args", cl::ZeroOrMore,
+    PtxasArgs("ptxas-args",
               cl::desc("Argument to pass to the ptxas invocation"),
               cl::cat(ClangLinkerWrapperCategory));
 
-static cl::opt<bool> Verbose("v", cl::ZeroOrMore,
-                             cl::desc("Verbose output from tools"),
-                             cl::init(false),
+static cl::list<std::string>
+    LinkerArgs("device-linker",
+               cl::desc("Arguments to pass to the device linker invocation"),
+               cl::value_desc("<value> or <triple>=<value>"),
+               cl::cat(ClangLinkerWrapperCategory));
+
+static cl::opt<bool> Verbose("v", cl::desc("Verbose output from tools"),
+
                              cl::cat(ClangLinkerWrapperCategory));
 
 static cl::opt<DebugKind> DebugInfo(
@@ -125,11 +121,11 @@ static cl::opt<DebugKind> DebugInfo(
                           "Direction information"),
                clEnumValN(FullDebugInfo, "g", "Full debugging support")));
 
-static cl::opt<bool> SaveTemps("save-temps", cl::ZeroOrMore,
+static cl::opt<bool> SaveTemps("save-temps",
                                cl::desc("Save intermediary results."),
                                cl::cat(ClangLinkerWrapperCategory));
 
-static cl::opt<std::string> CudaPath("cuda-path", cl::ZeroOrMore,
+static cl::opt<std::string> CudaPath("cuda-path",
                                      cl::desc("Save intermediary results."),
                                      cl::cat(ClangLinkerWrapperCategory));
 
@@ -151,7 +147,7 @@ static StringRef Sysroot = "";
 static std::string CudaBinaryPath;
 
 /// Temporary files created by the linker wrapper.
-static SmallVector<std::string, 16> TempFiles;
+static std::list<SmallString<128>> TempFiles;
 
 /// Codegen flags for LTO backend.
 static codegen::RegisterCodeGenFlags CodeGenFlags;
@@ -164,51 +160,43 @@ static codegen::RegisterCodeGenFlags CodeGenFlags;
 /// different but it should work for what is passed here.
 static constexpr unsigned FatbinaryOffset = 0x50;
 
-/// Information for a device offloading file extracted from the host.
-struct DeviceFile {
-  DeviceFile(StringRef Kind, StringRef TheTriple, StringRef Arch,
-             StringRef Filename)
-      : Kind(Kind), TheTriple(TheTriple), Arch(Arch), Filename(Filename) {}
+using OffloadingImage = OffloadBinary::OffloadingImage;
 
-  std::string Kind;
-  std::string TheTriple;
-  std::string Arch;
-  std::string Filename;
+/// A class to contain the binary information for a single OffloadBinary.
+class OffloadFile : public OwningBinary<OffloadBinary> {
+public:
+  using TargetID = std::pair<StringRef, StringRef>;
+
+  OffloadFile(std::unique_ptr<OffloadBinary> Binary,
+              std::unique_ptr<MemoryBuffer> Buffer)
+      : OwningBinary<OffloadBinary>(std::move(Binary), std::move(Buffer)) {}
+
+  /// We use the Triple and Architecture pair to group linker inputs together.
+  /// This conversion function lets us use these files in a hash-map.
+  operator TargetID() const {
+    return std::make_pair(getBinary()->getTriple(), getBinary()->getArch());
+  }
 };
 
 namespace llvm {
-/// Helper that allows DeviceFile to be used as a key in a DenseMap. For now we
-/// assume device files with matching architectures and triples but different
-/// offloading kinds should be handlded together, this may not be true in the
-/// future.
-template <> struct DenseMapInfo<DeviceFile> {
-  static DeviceFile getEmptyKey() {
-    return {DenseMapInfo<StringRef>::getEmptyKey(),
-            DenseMapInfo<StringRef>::getEmptyKey(),
-            DenseMapInfo<StringRef>::getEmptyKey(),
-            DenseMapInfo<StringRef>::getEmptyKey()};
+// Provide DenseMapInfo so that OffloadKind can be used in a DenseMap.
+template <> struct DenseMapInfo<OffloadKind> {
+  static inline OffloadKind getEmptyKey() { return OFK_LAST; }
+  static inline OffloadKind getTombstoneKey() {
+    return static_cast<OffloadKind>(OFK_LAST + 1);
   }
-  static DeviceFile getTombstoneKey() {
-    return {DenseMapInfo<StringRef>::getTombstoneKey(),
-            DenseMapInfo<StringRef>::getTombstoneKey(),
-            DenseMapInfo<StringRef>::getTombstoneKey(),
-            DenseMapInfo<StringRef>::getTombstoneKey()};
-  }
-  static unsigned getHashValue(const DeviceFile &I) {
-    return DenseMapInfo<StringRef>::getHashValue(I.TheTriple) ^
-           DenseMapInfo<StringRef>::getHashValue(I.Arch);
-  }
-  static bool isEqual(const DeviceFile &LHS, const DeviceFile &RHS) {
-    return LHS.TheTriple == RHS.TheTriple && LHS.Arch == RHS.Arch;
+  static unsigned getHashValue(const OffloadKind &Val) { return Val; }
+
+  static bool isEqual(const OffloadKind &LHS, const OffloadKind &RHS) {
+    return LHS == RHS;
   }
 };
 } // namespace llvm
 
 namespace {
 
-Expected<Optional<std::string>>
-extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
-                  SmallVectorImpl<DeviceFile> &DeviceFiles);
+Error extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
+                        SmallVectorImpl<OffloadFile> &DeviceFiles);
 
 void printCommands(ArrayRef<StringRef> CmdArgs) {
   if (CmdArgs.empty())
@@ -219,35 +207,62 @@ void printCommands(ArrayRef<StringRef> CmdArgs) {
     llvm::errs() << *IC << (std::next(IC) != IE ? " " : "\n");
 }
 
+/// Forward user requested arguments to the device linking job.
+void renderXLinkerArgs(SmallVectorImpl<StringRef> &Args, StringRef Triple) {
+  for (StringRef Arg : LinkerArgs) {
+    auto TripleAndValue = Arg.split('=');
+    if (TripleAndValue.second.empty())
+      Args.push_back(TripleAndValue.first);
+    else if (TripleAndValue.first == Triple)
+      Args.push_back(TripleAndValue.second);
+  }
+}
+
+/// Create an extra user-specified \p OffloadFile.
+/// TODO: We should find a way to wrap these as libraries instead.
+Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
+  auto DeviceAndPath = StringRef(Input).split('=');
+  auto StringAndArch = DeviceAndPath.first.rsplit('-');
+  auto KindAndTriple = StringAndArch.first.split('-');
+
+  llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> ImageOrError =
+      llvm::MemoryBuffer::getFileOrSTDIN(DeviceAndPath.second);
+  if (std::error_code EC = ImageOrError.getError())
+    return createFileError(DeviceAndPath.second, EC);
+
+  OffloadingImage Image{};
+  Image.TheImageKind = IMG_Bitcode;
+  Image.TheOffloadKind = getOffloadKind(KindAndTriple.first);
+  Image.StringData = {{"triple", KindAndTriple.second},
+                      {"arch", StringAndArch.second}};
+  Image.Image = std::move(*ImageOrError);
+
+  std::unique_ptr<MemoryBuffer> Binary = OffloadBinary::write(Image);
+  auto NewBinaryOrErr = OffloadBinary::create(*Binary);
+  if (!NewBinaryOrErr)
+    return NewBinaryOrErr.takeError();
+  return OffloadFile(std::move(*NewBinaryOrErr), std::move(Binary));
+}
+
 std::string getMainExecutable(const char *Name) {
   void *Ptr = (void *)(intptr_t)&getMainExecutable;
   auto COWPath = sys::fs::getMainExecutable(Name, Ptr);
   return sys::path::parent_path(COWPath).str();
 }
 
-/// Extract the device file from the string '<kind>-<triple>-<arch>=<library>'.
-DeviceFile getBitcodeLibrary(StringRef LibraryStr) {
-  auto DeviceAndPath = StringRef(LibraryStr).split('=');
-  auto StringAndArch = DeviceAndPath.first.rsplit('-');
-  auto KindAndTriple = StringAndArch.first.split('-');
-  return DeviceFile(KindAndTriple.first, KindAndTriple.second,
-                    StringAndArch.second, DeviceAndPath.second);
-}
-
 /// Get a temporary filename suitable for output.
-Error createOutputFile(const Twine &Prefix, StringRef Extension,
-                       SmallString<128> &NewFilename) {
-  if (!SaveTemps) {
-    if (std::error_code EC =
-            sys::fs::createTemporaryFile(Prefix, Extension, NewFilename))
-      return createFileError(NewFilename, EC);
-    TempFiles.push_back(static_cast<std::string>(NewFilename));
+Expected<StringRef> createOutputFile(const Twine &Prefix, StringRef Extension) {
+  SmallString<128> OutputFile;
+  if (SaveTemps) {
+    (Prefix + "." + Extension).toNullTerminatedStringRef(OutputFile);
   } else {
-    const Twine &Filename = Prefix + "." + Extension;
-    Filename.toNullTerminatedStringRef(NewFilename);
+    if (std::error_code EC =
+            sys::fs::createTemporaryFile(Prefix, Extension, OutputFile))
+      return createFileError(OutputFile, EC);
   }
 
-  return Error::success();
+  TempFiles.push_back(OutputFile);
+  return TempFiles.back();
 }
 
 /// Execute the command \p ExecutablePath with the arguments \p Args.
@@ -276,13 +291,12 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
   return *Path;
 }
 
-Error runLinker(std::string &LinkerPath, SmallVectorImpl<std::string> &Args) {
-  std::vector<StringRef> LinkerArgs;
-  LinkerArgs.push_back(LinkerPath);
-  for (auto &Arg : Args)
-    LinkerArgs.push_back(Arg);
+Error runLinker(StringRef LinkerPath, ArrayRef<StringRef> LinkerArgs) {
 
-  if (Error Err = executeCommands(LinkerPath, LinkerArgs))
+  SmallVector<StringRef> Args({LinkerPath});
+  for (StringRef Arg : LinkerArgs)
+    Args.push_back(Arg);
+  if (Error Err = executeCommands(LinkerPath, Args))
     return Err;
   return Error::success();
 }
@@ -291,45 +305,16 @@ void PrintVersion(raw_ostream &OS) {
   OS << clang::getClangToolFullVersion("clang-linker-wrapper") << '\n';
 }
 
-void removeFromCompilerUsed(Module &M, GlobalValue &Value) {
-  GlobalVariable *GV = M.getGlobalVariable("llvm.compiler.used");
-  Type *Int8PtrTy = Type::getInt8PtrTy(M.getContext());
-  Constant *ValueToRemove =
-      ConstantExpr::getPointerBitCastOrAddrSpaceCast(&Value, Int8PtrTy);
-  SmallPtrSet<Constant *, 16> InitAsSet;
-  SmallVector<Constant *, 16> Init;
-  if (GV) {
-    if (GV->hasInitializer()) {
-      auto *CA = cast<ConstantArray>(GV->getInitializer());
-      for (auto &Op : CA->operands()) {
-        Constant *C = cast_or_null<Constant>(Op);
-        if (C != ValueToRemove && InitAsSet.insert(C).second)
-          Init.push_back(C);
-      }
-    }
-    GV->eraseFromParent();
-  }
-
-  if (Init.empty())
-    return;
-
-  ArrayType *ATy = ArrayType::get(Int8PtrTy, Init.size());
-  GV = new llvm::GlobalVariable(M, ATy, false, GlobalValue::AppendingLinkage,
-                                ConstantArray::get(ATy, Init),
-                                "llvm.compiler.used");
-  GV->setSection("llvm.metadata");
-}
-
 /// Attempts to extract all the embedded device images contained inside the
 /// buffer \p Contents. The buffer is expected to contain a valid offloading
 /// binary format.
-Error extractOffloadFiles(StringRef Contents, StringRef Prefix,
-                          SmallVectorImpl<DeviceFile> &DeviceFiles) {
+Error extractOffloadFiles(MemoryBufferRef Contents,
+                          SmallVectorImpl<OffloadFile> &DeviceFiles) {
   uint64_t Offset = 0;
   // There could be multiple offloading binaries stored at this section.
-  while (Offset < Contents.size()) {
+  while (Offset < Contents.getBuffer().size()) {
     std::unique_ptr<MemoryBuffer> Buffer =
-        MemoryBuffer::getMemBuffer(Contents.drop_front(Offset), "",
+        MemoryBuffer::getMemBuffer(Contents.getBuffer().drop_front(Offset), "",
                                    /*RequiresNullTerminator*/ false);
     auto BinaryOrErr = OffloadBinary::create(*Buffer);
     if (!BinaryOrErr)
@@ -340,28 +325,14 @@ Error extractOffloadFiles(StringRef Contents, StringRef Prefix,
       return createStringError(inconvertibleErrorCode(),
                                "Incompatible device image version");
 
-    StringRef Kind = getOffloadKindName(Binary.getOffloadKind());
-    StringRef Suffix = getImageKindName(Binary.getImageKind());
-
-    SmallString<128> TempFile;
-    if (Error Err =
-            createOutputFile(Prefix + "-" + Kind + "-" + Binary.getTriple() +
-                                 "-" + Binary.getArch(),
-                             Suffix, TempFile))
-      return Err;
-
-    Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
-        FileOutputBuffer::create(TempFile, Binary.getImage().size());
-    if (!OutputOrErr)
-      return OutputOrErr.takeError();
-    std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
-    std::copy(Binary.getImage().bytes_begin(), Binary.getImage().bytes_end(),
-              Output->getBufferStart());
-    if (Error E = Output->commit())
-      return E;
-
-    DeviceFiles.emplace_back(Kind, Binary.getTriple(), Binary.getArch(),
-                             TempFile);
+    // Create a new owned binary with a copy of the original memory.
+    std::unique_ptr<MemoryBuffer> BufferCopy = MemoryBuffer::getMemBufferCopy(
+        Binary.getData().take_front(Binary.getSize()),
+        Contents.getBufferIdentifier());
+    auto NewBinaryOrErr = OffloadBinary::create(*BufferCopy);
+    if (!NewBinaryOrErr)
+      return NewBinaryOrErr.takeError();
+    DeviceFiles.emplace_back(std::move(*NewBinaryOrErr), std::move(BufferCopy));
 
     Offset += Binary.getSize();
   }
@@ -369,85 +340,29 @@ Error extractOffloadFiles(StringRef Contents, StringRef Prefix,
   return Error::success();
 }
 
-Expected<Optional<std::string>>
-extractFromBinary(const ObjectFile &Obj,
-                  SmallVectorImpl<DeviceFile> &DeviceFiles) {
-  StringRef Extension = sys::path::extension(Obj.getFileName()).drop_front();
-  StringRef Prefix = sys::path::stem(Obj.getFileName());
-  SmallVector<StringRef, 4> ToBeStripped;
-
-  // Extract offloading binaries from sections with the name `.llvm.offloading`.
+// Extract offloading binaries from an Object file \p Obj.
+Error extractFromBinary(const ObjectFile &Obj,
+                        SmallVectorImpl<OffloadFile> &DeviceFiles) {
   for (const SectionRef &Sec : Obj.sections()) {
     Expected<StringRef> Name = Sec.getName();
     if (!Name || !Name->equals(OFFLOAD_SECTION_MAGIC_STR))
       continue;
 
-    Expected<StringRef> Contents = Sec.getContents();
-    if (!Contents)
-      return Contents.takeError();
+    Expected<StringRef> Buffer = Sec.getContents();
+    if (!Buffer)
+      return Buffer.takeError();
 
-    if (Error Err = extractOffloadFiles(*Contents, Prefix, DeviceFiles))
-      return std::move(Err);
+    MemoryBufferRef Contents(*Buffer, Obj.getFileName());
 
-    ToBeStripped.push_back(*Name);
+    if (Error Err = extractOffloadFiles(Contents, DeviceFiles))
+      return Err;
   }
 
-  if (ToBeStripped.empty() || !StripSections)
-    return None;
-
-  // If the object file to strip doesn't exist we need to write it so we can
-  // pass it to llvm-strip.
-  SmallString<128> StripFile = Obj.getFileName();
-  if (!sys::fs::exists(StripFile)) {
-    SmallString<128> TempFile;
-    if (Error Err = createOutputFile(
-            sys::path::stem(StripFile),
-            sys::path::extension(StripFile).drop_front(), TempFile))
-      return std::move(Err);
-
-    auto Contents = Obj.getMemoryBufferRef().getBuffer();
-    Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
-        FileOutputBuffer::create(TempFile, Contents.size());
-    if (!OutputOrErr)
-      return OutputOrErr.takeError();
-    std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
-    std::copy(Contents.begin(), Contents.end(), Output->getBufferStart());
-    if (Error E = Output->commit())
-      return std::move(E);
-    StripFile = TempFile;
-  }
-
-  // We will use llvm-strip to remove the now unneeded section containing the
-  // offloading code.
-  Expected<std::string> StripPath =
-      findProgram("llvm-strip", {getMainExecutable("llvm-strip")});
-  if (!StripPath)
-    return StripPath.takeError();
-
-  SmallString<128> TempFile;
-  if (Error Err = createOutputFile(Prefix + "-host", Extension, TempFile))
-    return std::move(Err);
-
-  SmallVector<StringRef, 8> StripArgs;
-  StripArgs.push_back(*StripPath);
-  StripArgs.push_back("--no-strip-all");
-  StripArgs.push_back(StripFile);
-  for (auto &Section : ToBeStripped) {
-    StripArgs.push_back("--remove-section");
-    StripArgs.push_back(Section);
-  }
-  StripArgs.push_back("-o");
-  StripArgs.push_back(TempFile);
-
-  if (Error Err = executeCommands(*StripPath, StripArgs))
-    return std::move(Err);
-
-  return static_cast<std::string>(TempFile);
+  return Error::success();
 }
 
-Expected<Optional<std::string>>
-extractFromBitcode(std::unique_ptr<MemoryBuffer> Buffer,
-                   SmallVectorImpl<DeviceFile> &DeviceFiles) {
+Error extractFromBitcode(std::unique_ptr<MemoryBuffer> Buffer,
+                         SmallVectorImpl<OffloadFile> &DeviceFiles) {
   LLVMContext Context;
   SMDiagnostic Err;
   std::unique_ptr<Module> M = getLazyIRModule(std::move(Buffer), Err, Context);
@@ -455,14 +370,7 @@ extractFromBitcode(std::unique_ptr<MemoryBuffer> Buffer,
     return createStringError(inconvertibleErrorCode(),
                              "Failed to create module");
 
-  StringRef Extension = sys::path::extension(M->getName()).drop_front();
-  StringRef Prefix =
-      sys::path::stem(M->getName()).take_until([](char C) { return C == '-'; });
-
-  SmallVector<GlobalVariable *, 4> ToBeDeleted;
-
-  // Extract offloading data from globals with the `.llvm.offloading` section
-  // name.
+  // Extract offloading data from globals with the `.llvm.offloading` section.
   for (GlobalVariable &GV : M->globals()) {
     if (!GV.hasSection() || !GV.getSection().equals(OFFLOAD_SECTION_MAGIC_STR))
       continue;
@@ -471,109 +379,46 @@ extractFromBitcode(std::unique_ptr<MemoryBuffer> Buffer,
     if (!CDS)
       continue;
 
-    StringRef Contents = CDS->getAsString();
+    MemoryBufferRef Contents(CDS->getAsString(), M->getName());
 
-    if (Error Err = extractOffloadFiles(Contents, Prefix, DeviceFiles))
-      return std::move(Err);
-
-    ToBeDeleted.push_back(&GV);
+    if (Error Err = extractOffloadFiles(Contents, DeviceFiles))
+      return Err;
   }
 
-  if (ToBeDeleted.empty() || !StripSections)
-    return None;
-
-  // We need to materialize the lazy module before we make any changes.
-  if (Error Err = M->materializeAll())
-    return std::move(Err);
-
-  // Remove the global from the module and write it to a new file.
-  for (GlobalVariable *GV : ToBeDeleted) {
-    removeFromCompilerUsed(*M, *GV);
-    GV->eraseFromParent();
-  }
-
-  SmallString<128> TempFile;
-  if (Error Err = createOutputFile(Prefix + "-host", Extension, TempFile))
-    return std::move(Err);
-
-  std::error_code EC;
-  raw_fd_ostream HostOutput(TempFile, EC, sys::fs::OF_None);
-  if (EC)
-    return createFileError(TempFile, EC);
-  WriteBitcodeToFile(*M, HostOutput);
-  return static_cast<std::string>(TempFile);
+  return Error::success();
 }
 
-Expected<Optional<std::string>>
-extractFromArchive(const Archive &Library,
-                   SmallVectorImpl<DeviceFile> &DeviceFiles) {
-  bool NewMembers = false;
-  SmallVector<NewArchiveMember, 8> Members;
-
+Error extractFromArchive(const Archive &Library,
+                         SmallVectorImpl<OffloadFile> &DeviceFiles) {
   // Try to extract device code from each file stored in the static archive.
-  // Save the stripped archive members to create a new host archive with the
-  // offloading code removed.
   Error Err = Error::success();
   for (auto Child : Library.children(Err)) {
-    auto ChildBufferRefOrErr = Child.getMemoryBufferRef();
-    if (!ChildBufferRefOrErr)
-      return ChildBufferRefOrErr.takeError();
+    auto ChildBufferOrErr = Child.getMemoryBufferRef();
+    if (!ChildBufferOrErr)
+      return ChildBufferOrErr.takeError();
     std::unique_ptr<MemoryBuffer> ChildBuffer =
-        MemoryBuffer::getMemBuffer(*ChildBufferRefOrErr, false);
+        MemoryBuffer::getMemBuffer(*ChildBufferOrErr, false);
 
-    auto FileOrErr = extractFromBuffer(std::move(ChildBuffer), DeviceFiles);
-    if (!FileOrErr)
-      return FileOrErr.takeError();
+    // Check if the buffer has the required alignment.
+    if (!isAddrAligned(Align(OffloadBinary::getAlignment()),
+                       ChildBuffer->getBufferStart()))
+      ChildBuffer = MemoryBuffer::getMemBufferCopy(
+          ChildBufferOrErr->getBuffer(),
+          ChildBufferOrErr->getBufferIdentifier());
 
-    // If we created a new stripped host file, use it to create a new archive
-    // member, otherwise use the old member.
-    if (!FileOrErr->hasValue()) {
-      Expected<NewArchiveMember> NewMember =
-          NewArchiveMember::getOldMember(Child, true);
-      if (!NewMember)
-        return NewMember.takeError();
-      Members.push_back(std::move(*NewMember));
-    } else {
-      Expected<NewArchiveMember> NewMember =
-          NewArchiveMember::getFile(**FileOrErr, true);
-      if (!NewMember)
-        return NewMember.takeError();
-      Members.push_back(std::move(*NewMember));
-      NewMembers = true;
-
-      // We no longer need the stripped file, remove it.
-      if (std::error_code EC = sys::fs::remove(**FileOrErr))
-        return createFileError(**FileOrErr, EC);
-    }
+    if (Error Err = extractFromBuffer(std::move(ChildBuffer), DeviceFiles))
+      return Err;
   }
 
   if (Err)
-    return std::move(Err);
-
-  if (!NewMembers || !StripSections)
-    return None;
-
-  // Create a new static library using the stripped host files.
-  SmallString<128> TempFile;
-  StringRef Prefix = sys::path::stem(Library.getFileName());
-  if (Error Err = createOutputFile(Prefix + "-host", "a", TempFile))
-    return std::move(Err);
-
-  std::unique_ptr<MemoryBuffer> Buffer =
-      MemoryBuffer::getMemBuffer(Library.getMemoryBufferRef(), false);
-  if (Error Err = writeArchive(TempFile, Members, true, Library.kind(), true,
-                               Library.isThin(), std::move(Buffer)))
-    return std::move(Err);
-
-  return static_cast<std::string>(TempFile);
+    return Err;
+  return Error::success();
 }
 
 /// Extracts embedded device offloading code from a memory \p Buffer to a list
-/// of \p DeviceFiles. If device code was extracted a new file with the embedded
-/// device code stripped from the buffer will be returned.
-Expected<Optional<std::string>>
-extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
-                  SmallVectorImpl<DeviceFile> &DeviceFiles) {
+/// of \p DeviceFiles.
+Error extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
+                        SmallVectorImpl<OffloadFile> &DeviceFiles) {
   file_magic Type = identify_magic(Buffer->getBuffer());
   switch (Type) {
   case file_magic::bitcode:
@@ -595,26 +440,25 @@ extractFromBuffer(std::unique_ptr<MemoryBuffer> Buffer,
     return extractFromArchive(*LibFile->get(), DeviceFiles);
   }
   default:
-    return None;
+    return Error::success();
   }
 }
 
-// TODO: Move these to a separate file.
 namespace nvptx {
-Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
-                               StringRef Arch, bool RDC = true) {
+Expected<StringRef> assemble(StringRef InputFile, Triple TheTriple,
+                             StringRef Arch, bool RDC = true) {
   // NVPTX uses the ptxas binary to create device object files.
   Expected<std::string> PtxasPath = findProgram("ptxas", {CudaBinaryPath});
   if (!PtxasPath)
     return PtxasPath.takeError();
 
   // Create a new file to write the linked device image to.
-  SmallString<128> TempFile;
-  if (Error Err =
-          createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
-                               TheTriple.getArchName() + "-" + Arch,
-                           "cubin", TempFile))
-    return std::move(Err);
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                           TheTriple.getArchName() + "-" + Arch,
+                       "cubin");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
 
   SmallVector<StringRef, 16> CmdArgs;
   std::string Opt = "-" + OptLevel;
@@ -629,7 +473,7 @@ Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
   for (auto &Arg : PtxasArgs)
     CmdArgs.push_back(Arg);
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(TempFile);
+  CmdArgs.push_back(*TempFileOrErr);
   CmdArgs.push_back(Opt);
   CmdArgs.push_back("--gpu-name");
   CmdArgs.push_back(Arch);
@@ -641,23 +485,23 @@ Expected<std::string> assemble(StringRef InputFile, Triple TheTriple,
   if (Error Err = executeCommands(*PtxasPath, CmdArgs))
     return std::move(Err);
 
-  return static_cast<std::string>(TempFile);
+  return *TempFileOrErr;
 }
 
-Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
-                           StringRef Arch) {
+Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
+                         StringRef Arch) {
   // NVPTX uses the nvlink binary to link device object files.
   Expected<std::string> NvlinkPath = findProgram("nvlink", {CudaBinaryPath});
   if (!NvlinkPath)
     return NvlinkPath.takeError();
 
   // Create a new file to write the linked device image to.
-  SmallString<128> TempFile;
-  if (Error Err =
-          createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
-                               TheTriple.getArchName() + "-" + Arch,
-                           "out", TempFile))
-    return std::move(Err);
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                           TheTriple.getArchName() + "-" + Arch,
+                       "out");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
 
   SmallVector<StringRef, 16> CmdArgs;
   CmdArgs.push_back(*NvlinkPath);
@@ -667,7 +511,7 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   if (DebugInfo != NoDebugInfo)
     CmdArgs.push_back("-g");
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(TempFile);
+  CmdArgs.push_back(*TempFileOrErr);
   CmdArgs.push_back("-arch");
   CmdArgs.push_back(Arch);
 
@@ -675,15 +519,51 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
+  renderXLinkerArgs(CmdArgs, TheTriple.getTriple());
   if (Error Err = executeCommands(*NvlinkPath, CmdArgs))
     return std::move(Err);
 
-  return static_cast<std::string>(TempFile);
+  return *TempFileOrErr;
+}
+
+Expected<StringRef>
+fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
+          Triple TheTriple) {
+  // NVPTX uses the fatbinary program to bundle the linked images.
+  Expected<std::string> FatBinaryPath =
+      findProgram("fatbinary", {CudaBinaryPath});
+  if (!FatBinaryPath)
+    return FatBinaryPath.takeError();
+
+  // Create a new file to write the linked device image to.
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                           TheTriple.getArchName(),
+                       "fatbin");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  SmallVector<StringRef, 16> CmdArgs;
+  CmdArgs.push_back(*FatBinaryPath);
+  CmdArgs.push_back(TheTriple.isArch64Bit() ? "-64" : "-32");
+  CmdArgs.push_back("--create");
+  CmdArgs.push_back(*TempFileOrErr);
+  for (const auto &FileAndArch : InputFiles)
+    CmdArgs.push_back(Saver.save("--image=profile=" + std::get<1>(FileAndArch) +
+                                 ",file=" + std::get<0>(FileAndArch)));
+
+  if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
+    return std::move(Err);
+
+  return *TempFileOrErr;
 }
 } // namespace nvptx
 namespace amdgcn {
-Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
-                           StringRef Arch) {
+Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
+                         StringRef Arch) {
   // AMDGPU uses lld to link device object files.
   Expected<std::string> LLDPath =
       findProgram("lld", {getMainExecutable("lld")});
@@ -691,11 +571,12 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
     return LLDPath.takeError();
 
   // Create a new file to write the linked device image to.
-  SmallString<128> TempFile;
-  if (Error Err = createOutputFile(sys::path::filename(ExecutableName) + "-" +
-                                       TheTriple.getArchName() + "-" + Arch,
-                                   "out", TempFile))
-    return std::move(Err);
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-" +
+                           TheTriple.getArchName() + "-" + Arch,
+                       "out");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
 
   SmallVector<StringRef, 16> CmdArgs;
   CmdArgs.push_back(*LLDPath);
@@ -704,16 +585,17 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   CmdArgs.push_back("--no-undefined");
   CmdArgs.push_back("-shared");
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(TempFile);
+  CmdArgs.push_back(*TempFileOrErr);
 
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
+  renderXLinkerArgs(CmdArgs, TheTriple.getTriple());
   if (Error Err = executeCommands(*LLDPath, CmdArgs))
     return std::move(Err);
 
-  return static_cast<std::string>(TempFile);
+  return *TempFileOrErr;
 }
 } // namespace amdgcn
 
@@ -744,14 +626,15 @@ const char *getLDMOption(const llvm::Triple &T) {
   }
 }
 
-Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
-                           StringRef Arch) {
+Expected<StringRef> link(ArrayRef<StringRef> InputFiles, Triple TheTriple,
+                         StringRef Arch) {
   // Create a new file to write the linked device image to.
-  SmallString<128> TempFile;
-  if (Error Err = createOutputFile(sys::path::filename(ExecutableName) + "-" +
-                                       TheTriple.getArchName() + "-" + Arch,
-                                   "out", TempFile))
-    return std::move(Err);
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-" +
+                           TheTriple.getArchName() + "-" + Arch,
+                       "out");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
 
   // Use the host linker to perform generic offloading. Use the same libraries
   // and paths as the host application does.
@@ -781,21 +664,22 @@ Expected<std::string> link(ArrayRef<std::string> InputFiles, Triple TheTriple,
   }
   CmdArgs.push_back("-Bsymbolic");
   CmdArgs.push_back("-o");
-  CmdArgs.push_back(TempFile);
+  CmdArgs.push_back(*TempFileOrErr);
 
   // Add extracted input files.
   for (StringRef Input : InputFiles)
     CmdArgs.push_back(Input);
 
+  renderXLinkerArgs(CmdArgs, TheTriple.getTriple());
   if (Error Err = executeCommands(LinkerUserPath, CmdArgs))
     return std::move(Err);
 
-  return static_cast<std::string>(TempFile);
+  return *TempFileOrErr;
 }
 } // namespace generic
 
-Expected<std::string> linkDevice(ArrayRef<std::string> InputFiles,
-                                 Triple TheTriple, StringRef Arch) {
+Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles, Triple TheTriple,
+                               StringRef Arch) {
   switch (TheTriple.getArch()) {
   case Triple::nvptx:
   case Triple::nvptx64:
@@ -838,16 +722,24 @@ void diagnosticHandler(const DiagnosticInfo &DI) {
   }
 }
 
-// Get the target features passed in from the driver as <triple>=<features>.
-std::vector<std::string> getTargetFeatures(const Triple &TheTriple) {
-  std::vector<std::string> Features;
-  auto TargetAndFeatures = StringRef(TargetFeatures).split('=');
-  if (TargetAndFeatures.first != TheTriple.getTriple())
-    return Features;
+// Get the list of target features from the input file and unify them such that
+// if there are multiple +xxx or -xxx features we only keep the last one.
+std::vector<std::string> getTargetFeatures(ArrayRef<OffloadFile> InputFiles) {
+  SmallVector<StringRef> Features;
+  for (const OffloadFile &File : InputFiles) {
+    for (auto Arg : llvm::split(File.getBinary()->getString("feature"), ","))
+      Features.emplace_back(Arg);
+  }
 
-  for (auto Feature : llvm::split(TargetAndFeatures.second, ','))
-    Features.push_back(Feature.str());
-  return Features;
+  // Only add a feature if it hasn't been seen before starting from the end.
+  std::vector<std::string> UnifiedFeatures;
+  DenseSet<StringRef> UsedFeatures;
+  for (StringRef Feature : llvm::reverse(Features)) {
+    if (UsedFeatures.insert(Feature.drop_front()).second)
+      UnifiedFeatures.push_back(Feature.str());
+  }
+
+  return UnifiedFeatures;
 }
 
 CodeGenOpt::Level getCGOptLevel(unsigned OptLevel) {
@@ -867,6 +759,7 @@ CodeGenOpt::Level getCGOptLevel(unsigned OptLevel) {
 template <typename ModuleHook = function_ref<bool(size_t, const Module &)>>
 std::unique_ptr<lto::LTO> createLTO(
     const Triple &TheTriple, StringRef Arch, bool WholeProgram,
+    const std::vector<std::string> &Features,
     ModuleHook Hook = [](size_t, const Module &) { return true; }) {
   lto::Config Conf;
   lto::ThinBackend Backend;
@@ -877,7 +770,7 @@ std::unique_ptr<lto::LTO> createLTO(
   Conf.CPU = Arch.str();
   Conf.Options = codegen::InitTargetOptionsFromCodeGenFlags(TheTriple);
 
-  Conf.MAttrs = getTargetFeatures(TheTriple);
+  Conf.MAttrs = Features;
   Conf.CGOptLevel = getCGOptLevel(OptLevel[1] - '0');
   Conf.OptLevel = OptLevel[1] - '0';
   if (Conf.OptLevel > 0)
@@ -889,20 +782,21 @@ std::unique_ptr<lto::LTO> createLTO(
   Conf.PTO.SLPVectorization = Conf.OptLevel > 1;
 
   if (SaveTemps) {
-    auto HandleError = [&](Error Err) {
+    auto HandleError = [=](Error Err) {
       logAllUnhandledErrors(std::move(Err),
                             WithColor::error(errs(), LinkerExecutable));
       exit(1);
     };
-    Conf.PostInternalizeModuleHook = [&](size_t, const Module &M) {
-      SmallString<128> TempFile;
-      if (Error Err = createOutputFile(sys::path::filename(ExecutableName) +
-                                           "-device-" + TheTriple.getTriple(),
-                                       "bc", TempFile))
-        HandleError(std::move(Err));
+    Conf.PostInternalizeModuleHook = [&, Arch](size_t, const Module &M) {
+      auto TempFileOrErr =
+          createOutputFile(sys::path::filename(ExecutableName) + "-" +
+                               TheTriple.getTriple() + "-" + Arch,
+                           "bc");
+      if (!TempFileOrErr)
+        HandleError(TempFileOrErr.takeError());
 
       std::error_code EC;
-      raw_fd_ostream LinkedBitcode(TempFile, EC, sys::fs::OF_None);
+      raw_fd_ostream LinkedBitcode(*TempFileOrErr, EC, sys::fs::OF_None);
       if (EC)
         HandleError(errorCodeToError(EC));
       WriteBitcodeToFile(M, LinkedBitcode);
@@ -929,46 +823,30 @@ bool isValidCIdentifier(StringRef S) {
                      [](char C) { return C == '_' || isAlnum(C); });
 }
 
-Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
-                       const Triple &TheTriple, StringRef Arch,
-                       bool &WholeProgram) {
-  SmallVector<std::unique_ptr<MemoryBuffer>, 4> SavedBuffers;
-  SmallVector<std::unique_ptr<lto::InputFile>, 4> BitcodeFiles;
-  SmallVector<std::string, 4> NewInputFiles;
+Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
+                       SmallVectorImpl<StringRef> &OutputFiles,
+                       const Triple &TheTriple, StringRef Arch) {
+  SmallVector<OffloadFile, 4> BitcodeInputFiles;
   DenseSet<StringRef> UsedInRegularObj;
   DenseSet<StringRef> UsedInSharedLib;
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
 
   // Search for bitcode files in the input and create an LTO input file. If it
-  // is not a bitcode file, scan its symbol table for symbols we need to
-  // save.
-  for (StringRef File : InputFiles) {
-    ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
-        MemoryBuffer::getFileOrSTDIN(File);
-    if (std::error_code EC = BufferOrErr.getError())
-      return createFileError(File, EC);
-    MemoryBufferRef Buffer = **BufferOrErr;
+  // is not a bitcode file, scan its symbol table for symbols we need to save.
+  for (OffloadFile &File : InputFiles) {
+    MemoryBufferRef Buffer = MemoryBufferRef(File.getBinary()->getImage(), "");
 
-    file_magic Type = identify_magic((*BufferOrErr)->getBuffer());
+    file_magic Type = identify_magic(Buffer.getBuffer());
     switch (Type) {
     case file_magic::bitcode: {
-      Expected<std::unique_ptr<lto::InputFile>> InputFileOrErr =
-          llvm::lto::InputFile::create(Buffer);
-      if (!InputFileOrErr)
-        return InputFileOrErr.takeError();
-
-      // Save the input file and the buffer associated with its memory.
-      BitcodeFiles.push_back(std::move(*InputFileOrErr));
-      SavedBuffers.push_back(std::move(*BufferOrErr));
+      BitcodeInputFiles.emplace_back(std::move(File));
       continue;
     }
     case file_magic::cuda_fatbinary: {
       // Cuda fatbinaries made by Clang almost almost have an object eighty
       // bytes from the beginning. This should be sufficient to identify the
       // symbols.
-      Buffer = MemoryBufferRef(
-          (*BufferOrErr)->getBuffer().drop_front(FatbinaryOffset), "FatBinary");
+      Buffer =
+          MemoryBufferRef(Buffer.getBuffer().drop_front(FatbinaryOffset), "");
       LLVM_FALLTHROUGH;
     }
     case file_magic::elf_relocatable:
@@ -980,7 +858,6 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
       if (!ObjFile)
         continue;
 
-      NewInputFiles.push_back(File.str());
       for (auto &Sym : (*ObjFile)->symbols()) {
         Expected<StringRef> Name = Sym.getName();
         if (!Name)
@@ -988,9 +865,9 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
 
         // Record if we've seen these symbols in any object or shared libraries.
         if ((*ObjFile)->isRelocatableObject())
-          UsedInRegularObj.insert(Saver.save(*Name));
+          UsedInRegularObj.insert(*Name);
         else
-          UsedInSharedLib.insert(Saver.save(*Name));
+          UsedInSharedLib.insert(*Name);
       }
       continue;
     }
@@ -999,8 +876,11 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
     }
   }
 
-  if (BitcodeFiles.empty())
+  if (BitcodeInputFiles.empty())
     return Error::success();
+
+  // Remove all the bitcode files that we moved from the original input.
+  llvm::erase_if(InputFiles, [](OffloadFile &F) { return !F.getBinary(); });
 
   auto HandleError = [&](Error Err) {
     logAllUnhandledErrors(std::move(Err),
@@ -1009,34 +889,45 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
   };
 
   // LTO Module hook to output bitcode without running the backend.
+  SmallVector<StringRef, 4> BitcodeOutput;
   auto OutputBitcode = [&](size_t Task, const Module &M) {
-    SmallString<128> TempFile;
-    if (Error Err = createOutputFile(sys::path::filename(ExecutableName) +
-                                         "-jit-" + TheTriple.getTriple(),
-                                     "bc", TempFile))
-      HandleError(std::move(Err));
+    auto TempFileOrErr = createOutputFile(sys::path::filename(ExecutableName) +
+                                              "-jit-" + TheTriple.getTriple(),
+                                          "bc");
+    if (!TempFileOrErr)
+      HandleError(TempFileOrErr.takeError());
 
     std::error_code EC;
-    raw_fd_ostream LinkedBitcode(TempFile, EC, sys::fs::OF_None);
+    raw_fd_ostream LinkedBitcode(*TempFileOrErr, EC, sys::fs::OF_None);
     if (EC)
       HandleError(errorCodeToError(EC));
     WriteBitcodeToFile(M, LinkedBitcode);
-    NewInputFiles.push_back(static_cast<std::string>(TempFile));
+    BitcodeOutput.push_back(*TempFileOrErr);
     return false;
   };
 
   // We assume visibility of the whole program if every input file was bitcode.
-  WholeProgram = BitcodeFiles.size() == InputFiles.size();
+  auto Features = getTargetFeatures(BitcodeInputFiles);
+  bool WholeProgram = InputFiles.empty();
   auto LTOBackend =
-      (EmbedBitcode) ? createLTO(TheTriple, Arch, WholeProgram, OutputBitcode)
-                     : createLTO(TheTriple, Arch, WholeProgram);
+      (EmbedBitcode)
+          ? createLTO(TheTriple, Arch, WholeProgram, Features, OutputBitcode)
+          : createLTO(TheTriple, Arch, WholeProgram, Features);
 
   // We need to resolve the symbols so the LTO backend knows which symbols need
   // to be kept or can be internalized. This is a simplified symbol resolution
   // scheme to approximate the full resolution a linker would do.
   DenseSet<StringRef> PrevailingSymbols;
-  for (auto &BitcodeFile : BitcodeFiles) {
-    const auto Symbols = BitcodeFile->symbols();
+  for (auto &BitcodeInput : BitcodeInputFiles) {
+    MemoryBufferRef Buffer =
+        MemoryBufferRef(BitcodeInput.getBinary()->getImage(), "");
+    Expected<std::unique_ptr<lto::InputFile>> BitcodeFileOrErr =
+        llvm::lto::InputFile::create(Buffer);
+    if (!BitcodeFileOrErr)
+      return BitcodeFileOrErr.takeError();
+
+    // Save the input file and the buffer associated with its memory.
+    const auto Symbols = (*BitcodeFileOrErr)->symbols();
     SmallVector<lto::SymbolResolution, 16> Resolutions(Symbols.size());
     size_t Idx = 0;
     for (auto &Sym : Symbols) {
@@ -1045,8 +936,7 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
       // We will use this as the prevailing symbol definition in LTO unless
       // it is undefined or another definition has already been used.
       Res.Prevailing =
-          !Sym.isUndefined() &&
-          PrevailingSymbols.insert(Saver.save(Sym.getName())).second;
+          !Sym.isUndefined() && PrevailingSymbols.insert(Sym.getName()).second;
 
       // We need LTO to preseve the following global symbols:
       // 1) Symbols used in regular objects.
@@ -1079,21 +969,24 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
     }
 
     // Add the bitcode file with its resolved symbols to the LTO job.
-    if (Error Err = LTOBackend->add(std::move(BitcodeFile), Resolutions))
+    if (Error Err = LTOBackend->add(std::move(*BitcodeFileOrErr), Resolutions))
       return Err;
   }
 
   // Run the LTO job to compile the bitcode.
   size_t MaxTasks = LTOBackend->getMaxTasks();
-  std::vector<SmallString<128>> Files(MaxTasks);
+  SmallVector<StringRef> Files(MaxTasks);
   auto AddStream = [&](size_t Task) -> std::unique_ptr<CachedFileStream> {
     int FD = -1;
     auto &TempFile = Files[Task];
     StringRef Extension = (TheTriple.isNVPTX()) ? "s" : "o";
-    if (Error Err = createOutputFile(sys::path::filename(ExecutableName) +
-                                         "-device-" + TheTriple.getTriple(),
-                                     Extension, TempFile))
-      HandleError(std::move(Err));
+    auto TempFileOrErr =
+        createOutputFile(sys::path::filename(ExecutableName) + "-device-" +
+                             TheTriple.getTriple(),
+                         Extension);
+    if (!TempFileOrErr)
+      HandleError(TempFileOrErr.takeError());
+    TempFile = *TempFileOrErr;
     if (std::error_code EC = sys::fs::openFileForWrite(TempFile, FD))
       HandleError(errorCodeToError(EC));
     return std::make_unique<CachedFileStream>(
@@ -1103,9 +996,18 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
   if (Error Err = LTOBackend->run(AddStream))
     return Err;
 
+  // If we are embedding bitcode we only need the intermediate output.
+  if (EmbedBitcode) {
+    if (BitcodeOutput.size() != 1 || !WholeProgram)
+      return createStringError(inconvertibleErrorCode(),
+                               "Cannot embed bitcode with multiple files.");
+    OutputFiles.push_back(static_cast<std::string>(BitcodeOutput.front()));
+    return Error::success();
+  }
+
   // Is we are compiling for NVPTX we need to run the assembler first.
-  if (TheTriple.isNVPTX() && !EmbedBitcode) {
-    for (auto &File : Files) {
+  if (TheTriple.isNVPTX()) {
+    for (StringRef &File : Files) {
       auto FileOrErr = nvptx::assemble(File, TheTriple, Arch, !WholeProgram);
       if (!FileOrErr)
         return FileOrErr.takeError();
@@ -1114,60 +1016,40 @@ Error linkBitcodeFiles(SmallVectorImpl<std::string> &InputFiles,
   }
 
   // Append the new inputs to the device linker input.
-  for (auto &File : Files)
-    NewInputFiles.push_back(static_cast<std::string>(File));
-  InputFiles = NewInputFiles;
+  for (StringRef File : Files)
+    OutputFiles.push_back(File);
 
   return Error::success();
 }
 
-/// Runs the appropriate linking action on all the device files specified in \p
-/// DeviceFiles. The linked device images are returned in \p LinkedImages.
-Error linkDeviceFiles(ArrayRef<DeviceFile> DeviceFiles,
-                      SmallVectorImpl<std::string> &LinkedImages) {
-  // Get the list of inputs for a specific device.
-  DenseMap<DeviceFile, SmallVector<std::string, 4>> LinkerInputMap;
-  for (auto &File : DeviceFiles)
-    LinkerInputMap[File].push_back(File.Filename);
+Expected<StringRef> writeOffloadFile(const OffloadFile &File) {
+  const OffloadBinary &Binary = *File.getBinary();
 
-  // Try to link each device toolchain.
-  for (auto &LinkerInput : LinkerInputMap) {
-    DeviceFile &File = LinkerInput.getFirst();
-    Triple TheTriple = Triple(File.TheTriple);
-    bool WholeProgram = false;
+  StringRef Prefix =
+      sys::path::stem(Binary.getMemoryBufferRef().getBufferIdentifier());
+  StringRef Suffix = getImageKindName(Binary.getImageKind());
 
-    // Run LTO on any bitcode files and replace the input with the result.
-    if (Error Err = linkBitcodeFiles(LinkerInput.getSecond(), TheTriple,
-                                     File.Arch, WholeProgram))
-      return Err;
+  auto TempFileOrErr = createOutputFile(
+      Prefix + "-" + Binary.getTriple() + "-" + Binary.getArch(), Suffix);
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
 
-    // If we are embedding bitcode for JIT, skip the final device linking.
-    if (EmbedBitcode) {
-      assert(!LinkerInput.getSecond().empty() && "No bitcode image to embed");
-      LinkedImages.push_back(LinkerInput.getSecond().front());
-      continue;
-    }
+  Expected<std::unique_ptr<FileOutputBuffer>> OutputOrErr =
+      FileOutputBuffer::create(*TempFileOrErr, Binary.getImage().size());
+  if (!OutputOrErr)
+    return OutputOrErr.takeError();
+  std::unique_ptr<FileOutputBuffer> Output = std::move(*OutputOrErr);
+  std::copy(Binary.getImage().bytes_begin(), Binary.getImage().bytes_end(),
+            Output->getBufferStart());
+  if (Error E = Output->commit())
+    return std::move(E);
 
-    // If we performed LTO on NVPTX and had whole program visibility, we can use
-    // CUDA in non-RDC mode.
-    if (WholeProgram && TheTriple.isNVPTX()) {
-      assert(!LinkerInput.getSecond().empty() && "No non-RDC image to embed");
-      LinkedImages.push_back(LinkerInput.getSecond().front());
-      continue;
-    }
-
-    auto ImageOrErr = linkDevice(LinkerInput.getSecond(), TheTriple, File.Arch);
-    if (!ImageOrErr)
-      return ImageOrErr.takeError();
-
-    LinkedImages.push_back(*ImageOrErr);
-  }
-  return Error::success();
+  return *TempFileOrErr;
 }
 
 // Compile the module to an object file using the appropriate target machine for
 // the host triple.
-Expected<std::string> compileModule(Module &M) {
+Expected<StringRef> compileModule(Module &M) {
   std::string Msg;
   const Target *T = TargetRegistry::lookupTarget(M.getTargetTriple(), Msg);
   if (!T)
@@ -1183,12 +1065,12 @@ Expected<std::string> compileModule(Module &M) {
   if (M.getDataLayout().isDefault())
     M.setDataLayout(TM->createDataLayout());
 
-  SmallString<128> ObjectFile;
   int FD = -1;
-  if (Error Err = createOutputFile(
-          sys::path::filename(ExecutableName) + "-wrapper", "o", ObjectFile))
-    return std::move(Err);
-  if (std::error_code EC = sys::fs::openFileForWrite(ObjectFile, FD))
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName) + "-wrapper", "o");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+  if (std::error_code EC = sys::fs::openFileForWrite(*TempFileOrErr, FD))
     return errorCodeToError(EC);
 
   auto OS = std::make_unique<llvm::raw_fd_ostream>(FD, true);
@@ -1201,35 +1083,171 @@ Expected<std::string> compileModule(Module &M) {
                              "Failed to execute host backend");
   CodeGenPasses.run(M);
 
-  return static_cast<std::string>(ObjectFile);
+  return *TempFileOrErr;
 }
 
-/// Creates the object file containing the device image and runtime registration
-/// code from the device images stored in \p Images.
-Expected<std::string> wrapDeviceImages(ArrayRef<std::string> Images) {
-  SmallVector<std::unique_ptr<MemoryBuffer>, 4> SavedBuffers;
-  SmallVector<ArrayRef<char>, 4> ImagesToWrap;
-
-  for (StringRef ImageFilename : Images) {
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ImageOrError =
-        llvm::MemoryBuffer::getFileOrSTDIN(ImageFilename);
-    if (std::error_code EC = ImageOrError.getError())
-      return createFileError(ImageFilename, EC);
-    ImagesToWrap.emplace_back((*ImageOrError)->getBufferStart(),
-                              (*ImageOrError)->getBufferSize());
-    SavedBuffers.emplace_back(std::move(*ImageOrError));
-  }
+/// Creates the object file containing the device image and runtime
+/// registration code from the device images stored in \p Images.
+Expected<StringRef>
+wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
+                 OffloadKind Kind) {
+  SmallVector<ArrayRef<char>, 4> BuffersToWrap;
+  for (const auto &Buffer : Buffers)
+    BuffersToWrap.emplace_back(
+        ArrayRef<char>(Buffer->getBufferStart(), Buffer->getBufferSize()));
 
   LLVMContext Context;
   Module M("offload.wrapper.module", Context);
   M.setTargetTriple(HostTriple);
-  if (Error Err = wrapBinaries(M, ImagesToWrap))
-    return std::move(Err);
+
+  switch (Kind) {
+  case OFK_OpenMP:
+    if (Error Err = wrapOpenMPBinaries(M, BuffersToWrap))
+      return std::move(Err);
+    break;
+  case OFK_Cuda:
+    if (Error Err = wrapCudaBinary(M, BuffersToWrap.front()))
+      return std::move(Err);
+    break;
+  default:
+    return createStringError(inconvertibleErrorCode(),
+                             getOffloadKindName(Kind) +
+                                 " wrapping is not supported");
+  }
 
   if (PrintWrappedModule)
     llvm::errs() << M;
 
-  return compileModule(M);
+  auto FileOrErr = compileModule(M);
+  if (!FileOrErr)
+    return FileOrErr.takeError();
+  return *FileOrErr;
+}
+
+Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
+bundleOpenMP(ArrayRef<OffloadingImage> Images) {
+  SmallVector<std::unique_ptr<MemoryBuffer>> Buffers;
+  for (const OffloadingImage &Image : Images)
+    Buffers.emplace_back(
+        MemoryBuffer::getMemBufferCopy(Image.Image->getBuffer()));
+
+  return std::move(Buffers);
+}
+
+Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
+bundleCuda(ArrayRef<OffloadingImage> Images) {
+  SmallVector<std::unique_ptr<MemoryBuffer>> Buffers;
+
+  SmallVector<std::pair<StringRef, StringRef>, 4> InputFiles;
+  for (const OffloadingImage &Image : Images)
+    InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
+                                           Image.StringData.lookup("arch")));
+
+  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
+  auto FileOrErr = nvptx::fatbinary(InputFiles, TheTriple);
+  if (!FileOrErr)
+    return FileOrErr.takeError();
+
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ImageOrError =
+      llvm::MemoryBuffer::getFileOrSTDIN(*FileOrErr);
+  if (std::error_code EC = ImageOrError.getError())
+    return createFileError(*FileOrErr, EC);
+  Buffers.emplace_back(std::move(*ImageOrError));
+
+  return std::move(Buffers);
+}
+
+/// Transforms the input \p Images into the binary format the runtime expects
+/// for the given \p Kind.
+Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
+bundleLinkedOutput(ArrayRef<OffloadingImage> Images, OffloadKind Kind) {
+  switch (Kind) {
+  case OFK_OpenMP:
+    return bundleOpenMP(Images);
+  case OFK_Cuda:
+    return bundleCuda(Images);
+  default:
+    return createStringError(inconvertibleErrorCode(),
+                             getOffloadKindName(Kind) +
+                                 " bundling is not supported");
+  }
+}
+
+/// Transforms all the extracted offloading input files into an image that can
+/// be registered by the runtime.
+Expected<SmallVector<StringRef>>
+linkAndWrapDeviceFiles(SmallVectorImpl<OffloadFile> &LinkerInputFiles) {
+  DenseMap<OffloadFile::TargetID, SmallVector<OffloadFile, 4>> InputsForTarget;
+  for (auto &File : LinkerInputFiles)
+    InputsForTarget[File].emplace_back(std::move(File));
+  LinkerInputFiles.clear();
+
+  BumpPtrAllocator Alloc;
+  UniqueStringSaver Saver(Alloc);
+  DenseMap<OffloadKind, SmallVector<OffloadingImage, 2>> Images;
+  for (auto &InputForTarget : InputsForTarget) {
+    SmallVector<OffloadFile, 4> &Input = InputForTarget.getSecond();
+    StringRef TripleStr = Saver.save(InputForTarget.getFirst().first);
+    StringRef Arch = Saver.save(InputForTarget.getFirst().second);
+    llvm::Triple Triple(TripleStr);
+
+    DenseSet<OffloadKind> ActiveOffloadKinds;
+    for (const auto &File : Input)
+      ActiveOffloadKinds.insert(File.getBinary()->getOffloadKind());
+
+    // First link and remove all the input files containing bitcode.
+    SmallVector<StringRef> InputFiles;
+    if (Error Err = linkBitcodeFiles(Input, InputFiles, Triple, Arch))
+      return std::move(Err);
+
+    // Write any remaining device inputs to an output file for the linker job.
+    for (const OffloadFile &File : Input) {
+      auto FileNameOrErr = writeOffloadFile(File);
+      if (!FileNameOrErr)
+        return FileNameOrErr.takeError();
+      InputFiles.emplace_back(*FileNameOrErr);
+    }
+
+    // Link the remaining device files, if necessary, using the device linker.
+    bool RequiresLinking =
+        !Input.empty() || (!EmbedBitcode && !Triple.isNVPTX());
+    auto OutputOrErr = (RequiresLinking) ? linkDevice(InputFiles, Triple, Arch)
+                                         : InputFiles.front();
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
+
+    // Store the offloading image for each linked output file.
+    for (OffloadKind Kind : ActiveOffloadKinds) {
+      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> FileOrErr =
+          llvm::MemoryBuffer::getFileOrSTDIN(*OutputOrErr);
+      if (std::error_code EC = FileOrErr.getError())
+        return createFileError(*OutputOrErr, EC);
+
+      OffloadingImage TheImage{};
+      TheImage.TheImageKind = IMG_Object;
+      TheImage.TheOffloadKind = Kind;
+      TheImage.StringData = {{"triple", TripleStr}, {"arch", Arch}};
+      TheImage.Image = std::move(*FileOrErr);
+      Images[Kind].emplace_back(std::move(TheImage));
+    }
+  }
+
+  // Create a binary image of each offloading image and embed it into a new
+  // object file.
+  SmallVector<StringRef> WrappedOutput;
+  for (const auto &KindAndImages : Images) {
+    OffloadKind Kind = KindAndImages.first;
+    auto BundledImagesOrErr =
+        bundleLinkedOutput(KindAndImages.second, KindAndImages.first);
+    if (!BundledImagesOrErr)
+      return BundledImagesOrErr.takeError();
+    auto OutputOrErr = wrapDeviceImages(*BundledImagesOrErr, Kind);
+    if (!OutputOrErr)
+      return OutputOrErr.takeError();
+    WrappedOutput.push_back(*OutputOrErr);
+  }
+
+  return WrappedOutput;
 }
 
 Optional<std::string> findFile(StringRef Dir, const Twine &Name) {
@@ -1316,8 +1334,8 @@ int main(int argc, const char **argv) {
     Sysroot = StringRef(*RootIt).split('=').second;
 
   ExecutableName = *std::next(llvm::find(HostLinkerArgs, "-o"));
-  SmallVector<std::string, 16> LinkerArgs;
-  for (const std::string &Arg : HostLinkerArgs)
+  SmallVector<StringRef, 16> LinkerArgs;
+  for (StringRef Arg : HostLinkerArgs)
     LinkerArgs.push_back(Arg);
 
   SmallVector<StringRef, 16> LibraryPaths;
@@ -1326,59 +1344,82 @@ int main(int argc, const char **argv) {
       LibraryPaths.push_back(Arg.drop_front(2));
   }
 
-  // Try to extract device code from the linker input and replace the linker
-  // input with a new file that has the device section stripped.
-  SmallVector<DeviceFile, 4> DeviceFiles;
-  for (std::string &Arg : LinkerArgs) {
+  // Try to extract device code from the linker input.
+  SmallVector<OffloadFile, 4> InputFiles;
+  SmallVector<OffloadFile, 4> LazyInputFiles;
+  for (StringRef Arg : LinkerArgs) {
     if (Arg == ExecutableName)
       continue;
 
-    // Search for static libraries in the library link path.
-    std::string Filename = Arg;
-    if (Optional<std::string> Library = searchLibrary(Arg, LibraryPaths))
-      Filename = *Library;
-
-    if (sys::fs::exists(Filename) && !sys::fs::is_directory(Filename)) {
+    // Search the inpuot argument for embedded device files if it is a static
+    // library or regular input file.
+    if (Optional<std::string> Library = searchLibrary(Arg, LibraryPaths)) {
       ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
-          MemoryBuffer::getFileOrSTDIN(Filename);
+          MemoryBuffer::getFileOrSTDIN(*Library);
       if (std::error_code EC = BufferOrErr.getError())
-        return reportError(createFileError(Filename, EC));
+        return reportError(createFileError(*Library, EC));
 
-      auto NewFileOrErr =
-          extractFromBuffer(std::move(*BufferOrErr), DeviceFiles);
+      if (Error Err =
+              extractFromBuffer(std::move(*BufferOrErr), LazyInputFiles))
+        return reportError(std::move(Err));
+    } else if (sys::fs::exists(Arg) && !sys::fs::is_directory(Arg)) {
+      ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
+          MemoryBuffer::getFileOrSTDIN(Arg);
+      if (std::error_code EC = BufferOrErr.getError())
+        return reportError(createFileError(Arg, EC));
 
-      if (!NewFileOrErr)
-        return reportError(NewFileOrErr.takeError());
-
-      if (NewFileOrErr->hasValue())
-        Arg = **NewFileOrErr;
+      if (sys::path::extension(Arg).endswith(".a")) {
+        if (Error Err =
+                extractFromBuffer(std::move(*BufferOrErr), LazyInputFiles))
+          return reportError(std::move(Err));
+      } else {
+        if (Error Err = extractFromBuffer(std::move(*BufferOrErr), InputFiles))
+          return reportError(std::move(Err));
+      }
     }
   }
 
-  // Add the device bitcode libraries to the device files if any were passed in.
-  for (StringRef LibraryStr : BitcodeLibraries)
-    DeviceFiles.push_back(getBitcodeLibrary(LibraryStr));
+  for (StringRef Library : BitcodeLibraries) {
+    auto FileOrErr = getInputBitcodeLibrary(Library);
+    if (!FileOrErr)
+      return reportError(FileOrErr.takeError());
+  }
 
-  // Link the device images extracted from the linker input.
-  SmallVector<std::string, 16> LinkedImages;
-  if (Error Err = linkDeviceFiles(DeviceFiles, LinkedImages))
-    return reportError(std::move(Err));
+  DenseSet<OffloadFile::TargetID> IsTargetUsed;
+  for (const auto &File : InputFiles)
+    IsTargetUsed.insert(File);
 
-  // Wrap each linked device image into a linkable host binary and add it to the
-  // link job's inputs.
-  auto FileOrErr = wrapDeviceImages(LinkedImages);
-  if (!FileOrErr)
-    return reportError(FileOrErr.takeError());
-  LinkerArgs.push_back(*FileOrErr);
+  // We should only include input files that are used.
+  // TODO: Only load a library if it defined undefined symbols in the input.
+  for (auto &LazyFile : LazyInputFiles)
+    if (IsTargetUsed.contains(LazyFile))
+      InputFiles.emplace_back(std::move(LazyFile));
+  LazyInputFiles.clear();
+
+  // Link and wrap the device images extracted from the linker input.
+  auto FilesOrErr = linkAndWrapDeviceFiles(InputFiles);
+  if (!FilesOrErr)
+    return reportError(FilesOrErr.takeError());
+
+  // We need to insert the new files next to the old ones to make sure they're
+  // linked with the same libraries / arguments.
+  if (!FilesOrErr->empty()) {
+    auto *FirstInput = std::next(llvm::find_if(LinkerArgs, [](StringRef Str) {
+      return sys::fs::exists(Str) && !sys::fs::is_directory(Str) &&
+             Str != ExecutableName;
+    }));
+    LinkerArgs.insert(FirstInput, FilesOrErr->begin(), FilesOrErr->end());
+  }
 
   // Run the host linking job.
   if (Error Err = runLinker(LinkerUserPath, LinkerArgs))
     return reportError(std::move(Err));
 
   // Remove the temporary files created.
-  for (const auto &TempFile : TempFiles)
-    if (std::error_code EC = sys::fs::remove(TempFile))
-      reportError(createFileError(TempFile, EC));
+  if (!SaveTemps)
+    for (const auto &TempFile : TempFiles)
+      if (std::error_code EC = sys::fs::remove(TempFile))
+        reportError(createFileError(TempFile, EC));
 
   return EXIT_SUCCESS;
 }

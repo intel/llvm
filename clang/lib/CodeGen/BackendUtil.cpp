@@ -458,6 +458,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   }
 
   Options.MCOptions.SplitDwarfFile = CodeGenOpts.SplitDwarfFile;
+  Options.MCOptions.EmitDwarfUnwind = CodeGenOpts.getEmitDwarfUnwind();
   Options.MCOptions.MCRelaxAll = CodeGenOpts.RelaxAll;
   Options.MCOptions.MCSaveTempLabels = CodeGenOpts.SaveTempLabels;
   Options.MCOptions.MCUseDwarfDirectory =
@@ -745,7 +746,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     assert(!CodeGenOpts.hasProfileCSIRUse() &&
            "Cannot have both CSProfileUse pass and CSProfileGen pass at "
            "the same time");
-    if (PGOOpt.hasValue()) {
+    if (PGOOpt) {
       assert(PGOOpt->Action != PGOOptions::IRInstr &&
              PGOOpt->Action != PGOOptions::SampleUse &&
              "Cannot run CSProfileGen pass with ProfileGen or SampleUse "
@@ -829,8 +830,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
     if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback(
-          [](ModulePassManager &MPM, OptimizationLevel Level) {
-            MPM.addPass(ESIMDVerifierPass());
+          [&](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
           });
 
     bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
@@ -934,7 +935,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   // Add SPIRITTAnnotations pass to the pass manager if
   // -fsycl-instrument-device-code option was passed. This option can be used
   // only with spir triple.
-  if (CodeGenOpts.SPIRITTAnnotations) {
+  if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
     assert(llvm::Triple(TheModule->getTargetTriple()).isSPIR() &&
            "ITT annotations can only be added to a module with spir target");
     MPM.addPass(SPIRITTAnnotationsPass());
@@ -1247,33 +1248,16 @@ void clang::EmbedObject(llvm::Module *M, const CodeGenOptions &CGOpts,
     return;
 
   for (StringRef OffloadObject : CGOpts.OffloadObjects) {
-    SmallVector<StringRef, 4> ObjectFields;
-    OffloadObject.split(ObjectFields, ',');
-
-    if (ObjectFields.size() != 4) {
-      auto DiagID = Diags.getCustomDiagID(
-          DiagnosticsEngine::Error, "Expected at least four arguments '%0'");
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
+        llvm::MemoryBuffer::getFileOrSTDIN(OffloadObject);
+    if (std::error_code EC = ObjectOrErr.getError()) {
+      auto DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
+                                          "could not open '%0' for embedding");
       Diags.Report(DiagID) << OffloadObject;
       return;
     }
 
-    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
-        llvm::MemoryBuffer::getFileOrSTDIN(ObjectFields[0]);
-    if (std::error_code EC = ObjectOrErr.getError()) {
-      auto DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
-                                          "could not open '%0' for embedding");
-      Diags.Report(DiagID) << ObjectFields[0];
-      return;
-    }
-
-    OffloadBinary::OffloadingImage Image{};
-    Image.TheImageKind = getImageKind(ObjectFields[0].rsplit(".").second);
-    Image.TheOffloadKind = getOffloadKind(ObjectFields[1]);
-    Image.StringData = {{"triple", ObjectFields[2]}, {"arch", ObjectFields[3]}};
-    Image.Image = **ObjectOrErr;
-
-    std::unique_ptr<MemoryBuffer> OffloadBuffer = OffloadBinary::write(Image);
-    llvm::embedBufferInModule(*M, *OffloadBuffer, ".llvm.offloading",
-                              Align(OffloadBinary::getAlignment()));
+    llvm::embedBufferInModule(*M, **ObjectOrErr, ".llvm.offloading",
+                              Align(object::OffloadBinary::getAlignment()));
   }
 }

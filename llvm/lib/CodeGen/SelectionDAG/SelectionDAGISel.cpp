@@ -367,8 +367,8 @@ static void SplitCriticalSideEffectEdges(Function &Fn, DominatorTree *DT,
     // PHI.
     for (BasicBlock::iterator I = BB.begin(); (PN = dyn_cast<PHINode>(I)); ++I)
       for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
-        ConstantExpr *CE = dyn_cast<ConstantExpr>(PN->getIncomingValue(i));
-        if (!CE || !CE->canTrap()) continue;
+        Constant *C = dyn_cast<Constant>(PN->getIncomingValue(i));
+        if (!C || !C->canTrap()) continue;
 
         // The only case we have to worry about is when the edge is critical.
         // Since this block has a PHI Node, we assume it has multiple input
@@ -706,6 +706,7 @@ static void reportFastISelFailure(MachineFunction &MF,
     report_fatal_error(Twine(R.getMsg()));
 
   ORE.emit(R);
+  LLVM_DEBUG(dbgs() << R.getMsg() << "\n");
 }
 
 void SelectionDAGISel::SelectBasicBlock(BasicBlock::const_iterator Begin,
@@ -1524,6 +1525,8 @@ void SelectionDAGISel::SelectAllBasicBlocks(const Function &Fn) {
               BeforeInst->hasOneUse() &&
               FastIS->tryToFoldLoad(cast<LoadInst>(BeforeInst), Inst)) {
             // If we succeeded, don't re-select the load.
+            LLVM_DEBUG(dbgs()
+                       << "FastISel folded load: " << *BeforeInst << "\n");
             BI = std::next(BasicBlock::const_iterator(BeforeInst));
             --NumFastIselRemaining;
             ++NumFastIselSuccess;

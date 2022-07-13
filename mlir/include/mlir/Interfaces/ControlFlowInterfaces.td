@@ -134,12 +134,14 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
     InterfaceMethod<[{
         Returns the operands of this operation used as the entry arguments when
         entering the region at `index`, which was specified as a successor of
-        this operation by `getSuccessorRegions`. These operands should
-        correspond 1-1 with the successor inputs specified in
+        this operation by `getSuccessorRegions`, or the operands forwarded to
+        the operation's results when it branches back to itself. These operands
+        should correspond 1-1 with the successor inputs specified in
         `getSuccessorRegions`.
       }],
       "::mlir::OperandRange", "getSuccessorEntryOperands",
-      (ins "unsigned":$index), [{}], /*defaultImplementation=*/[{
+      (ins "::llvm::Optional<unsigned>":$index), [{}], 
+      /*defaultImplementation=*/[{
         auto operandEnd = this->getOperation()->operand_end();
         return ::mlir::OperandRange(operandEnd, operandEnd);
       }]
@@ -161,7 +163,7 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
       "void", "getSuccessorRegions",
       (ins "::mlir::Optional<unsigned>":$index,
            "::mlir::ArrayRef<::mlir::Attribute>":$operands,
-           "::mlir::SmallVectorImpl<::mlir::RegionSuccessor> &":$regions)
+           "::llvm::SmallVectorImpl<::mlir::RegionSuccessor> &":$regions)
     >,
     InterfaceMethod<[{
         Populates `invocationBounds` with the minimum and maximum number of
@@ -198,7 +200,7 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
   ];
 
   let verify = [{
-    static_assert(!ConcreteOp::template hasTrait<OpTrait::ZeroRegion>(),
+    static_assert(!ConcreteOp::template hasTrait<OpTrait::ZeroRegions>(),
                   "expected operation to have non-zero regions");
     return detail::verifyTypesAlongControlFlowEdges($_op);
   }];
@@ -207,10 +209,7 @@ def RegionBranchOpInterface : OpInterface<"RegionBranchOpInterface"> {
   let extraClassDeclaration = [{
     /// Convenience helper in case none of the operands is known.
     void getSuccessorRegions(Optional<unsigned> index,
-                             SmallVectorImpl<RegionSuccessor> &regions) {
-       SmallVector<Attribute, 2> nullAttrs(getOperation()->getNumOperands());
-       getSuccessorRegions(index, nullAttrs, regions);
-    }
+                             SmallVectorImpl<RegionSuccessor> &regions);
 
     /// Return `true` if control flow originating from the given region may
     /// eventually branch back to the same region. (Maybe after passing through
@@ -259,9 +258,9 @@ def RegionBranchTerminatorOpInterface :
   let verify = [{
     static_assert(ConcreteOp::template hasTrait<OpTrait::IsTerminator>(),
                   "expected operation to be a terminator");
-    static_assert(ConcreteOp::template hasTrait<OpTrait::ZeroResult>(),
+    static_assert(ConcreteOp::template hasTrait<OpTrait::ZeroResults>(),
                   "expected operation to have zero results");
-    static_assert(ConcreteOp::template hasTrait<OpTrait::ZeroSuccessor>(),
+    static_assert(ConcreteOp::template hasTrait<OpTrait::ZeroSuccessors>(),
                   "expected operation to have zero successors");
     return success();
   }];

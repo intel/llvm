@@ -9,6 +9,8 @@
  // CHECK-DAG: #[[$MAP6:.*]] = affine_map<(d0) -> (d0 * 2)>
  // CHECK-DAG: #[[$MAP7:.*]] = affine_map<(d0, d1, d2)[s0] -> (d0 * 8 + s0 + d1 * 4 + d2)>
  // CHECK-DAG: #[[$MAP8:.*]] = affine_map<(d0)[s0] -> (d0 * 4 + s0)>
+ // CHECK-DAG: #[[$MAP9:.*]] = affine_map<()[s0] -> (s0)>
+ // CHECK-DAG: #[[$MAP10:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
 
 // CHECK-LABEL:   func @dim(
 // CHECK-SAME:              %[[TENSOR:.*]]: tensor<f32>,
@@ -333,6 +335,20 @@ func.func @tensor.expand_shape_of_slice(
   return %1 : tensor<?x7x2x5xf32>
 }
 
+// CHECK-LABEL: func @tensor.expand_shape_of_scalar_slice(
+//  CHECK-SAME:     %[[t1:.*]]: tensor<?xf32>
+func.func @tensor.expand_shape_of_scalar_slice(
+    %t1: tensor<?xf32>, %o1: index, %s1: index) -> tensor<1xf32> {
+  // CHECK: %[[m1:.*]] = bufferization.to_memref %[[t1]] : memref<?xf32>
+  // CHECK: %[[subview:.*]] = memref.subview %[[m1]][%{{.*}}] [1] [1] :  memref<?xf32> to memref<f32, #[[$MAP9]]>
+  %0 = tensor.extract_slice %t1[%o1][1][1] : tensor<?xf32> to tensor<f32>
+  // CHECK: %[[expanded:.*]] = memref.expand_shape %[[subview]] [] : memref<f32, #[[$MAP9]]> into memref<1xf32, #[[$MAP10]]>
+  %1 = tensor.expand_shape %0 [] : tensor<f32> into tensor<1xf32>
+  // CHECK: %[[r:.*]] = bufferization.to_tensor %[[expanded]]
+  // CHECK: return %[[r]]
+  return %1 : tensor<1xf32>
+}
+
 // CHECK-LABEL: func @tensor.collapse_shape(
 //  CHECK-SAME:     %[[t1:.*]]: tensor<2x?x?xf32>
 func.func @tensor.collapse_shape(%t1: tensor<2x?x?xf32>) -> tensor<?x?xf32> {
@@ -407,4 +423,31 @@ func.func @tensor.collapse_shape_of_slice4(%arg0: tensor<?x2x4xf32>, %offset: in
   // CHECK-SAME: [0, 1, 2]] : memref<4x2x1xf32, #[[$MAP7]]> into memref<8xf32, #[[$MAP8]]>
   %ret = tensor.collapse_shape %0 [[0, 1, 2]] : tensor<4x2x1xf32> into tensor<8xf32>
   return %ret: tensor<8xf32>
+}
+
+// CHECK-LABEL: func @tensor.reshape(
+//  CHECK-SAME:     %[[t1:.*]]: tensor<?x10xf32>
+func.func @tensor.reshape(%t1: tensor<?x10xf32>) -> tensor<2x2x5xf32> {
+  // CHECK: %[[m1:.*]] = bufferization.to_memref %[[t1]] : memref<?x10xf32>
+
+  // CHECK: %[[two:.*]] = arith.constant 2 : i64
+  %two = arith.constant 2 : i64
+  // CHECK: %[[five:.*]] = arith.constant 5 : i64
+  %five = arith.constant 5 : i64
+
+  // CHECK: %[[alloc:.*]] = memref.alloc() {alignment = 128 : i64} : memref<3xi64>
+  // CHECK: %[[zero_idx:.*]] = arith.constant 0 : index
+  // CHECK: %[[one_idx:.*]] = arith.constant 1 : index
+  // CHECK: %[[two_idx:.*]] = arith.constant 2 : index
+  // CHECK: memref.store %[[two]], %[[alloc]][%[[zero_idx]]] : memref<3xi64>
+  // CHECK: memref.store %[[two]], %[[alloc]][%[[one_idx]]] : memref<3xi64>
+  // CHECK: memref.store %[[five]], %[[alloc]][%[[two_idx]]] : memref<3xi64>
+  %shape = tensor.from_elements %two, %two, %five : tensor<3xi64>
+
+  // CHECK: %[[reshaped:.*]] = memref.reshape %[[m1]](%[[alloc]]) : (memref<?x10xf32>, memref<3xi64>) -> memref<2x2x5xf32>
+  %reshaped = tensor.reshape %t1(%shape) : (tensor<?x10xf32>, tensor<3xi64>) -> tensor<2x2x5xf32>
+
+  // CHECK: %[[r:.*]] = bufferization.to_tensor %[[reshaped]]
+  // CHECK: return %[[r]]
+  return %reshaped : tensor<2x2x5xf32>
 }

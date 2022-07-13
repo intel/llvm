@@ -35,7 +35,11 @@ bool lowerRISCVMachineInstrToMCInst(const MachineInstr *MI, MCInst &OutMI,
 bool lowerRISCVMachineOperandToMCOperand(const MachineOperand &MO,
                                          MCOperand &MCOp, const AsmPrinter &AP);
 
-FunctionPass *createRISCVISelDag(RISCVTargetMachine &TM);
+FunctionPass *createRISCVISelDag(RISCVTargetMachine &TM,
+                                 CodeGenOpt::Level OptLevel);
+
+FunctionPass *createRISCVMakeCompressibleOptPass();
+void initializeRISCVMakeCompressibleOptPass(PassRegistry &);
 
 FunctionPass *createRISCVGatherScatterLoweringPass();
 void initializeRISCVGatherScatterLoweringPass(PassRegistry &);

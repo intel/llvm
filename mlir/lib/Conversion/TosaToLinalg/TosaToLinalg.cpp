@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -147,10 +147,8 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
       cast<tosa::NegateOp>(op).quantization_info()) {
     auto quantizationInfo = cast<tosa::NegateOp>(op).quantization_info();
     int32_t inputBitWidth = elementTy.getIntOrFloatBitWidth();
-    int64_t inZp =
-        quantizationInfo.getValue().input_zp().getValue().getSExtValue();
-    int64_t outZp =
-        quantizationInfo.getValue().output_zp().getValue().getSExtValue();
+    int64_t inZp = quantizationInfo.getValue().getInputZp();
+    int64_t outZp = quantizationInfo.getValue().getOutputZp();
 
     // Compute the maximum value that can occur in the intermediate buffer.
     int64_t zpAdd = inZp + outZp;
@@ -259,54 +257,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
 
   // tosa::ClzOp
   if (isa<tosa::ClzOp>(op) && elementTy.isa<IntegerType>()) {
-    int bitWidth = elementTy.getIntOrFloatBitWidth();
-    auto zero =
-        rewriter.create<arith::ConstantOp>(loc, IntegerAttr::get(elementTy, 0));
-    auto leadingZeros = rewriter.create<arith::ConstantOp>(
-        loc, IntegerAttr::get(elementTy, bitWidth));
-
-    SmallVector<Value> operands = {args[0], leadingZeros, zero};
-    SmallVector<Type> types = {elementTy, elementTy, elementTy};
-    SmallVector<Location> locations = {loc, loc, loc};
-
-    auto whileOp = rewriter.create<scf::WhileOp>(loc, types, operands);
-    Block *before =
-        rewriter.createBlock(&whileOp.getBefore(), {}, types, locations);
-    Block *after =
-        rewriter.createBlock(&whileOp.getAfter(), {}, types, locations);
-
-    // The conditional block of the while loop.
-    {
-      rewriter.setInsertionPointToStart(&whileOp.getBefore().front());
-      Value input = before->getArgument(0);
-      Value zero = before->getArgument(2);
-
-      Value inputLargerThanZero = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::ne, input, zero);
-      rewriter.create<scf::ConditionOp>(loc, inputLargerThanZero,
-                                        before->getArguments());
-    }
-
-    // The body of the while loop: shift right until reaching a value of 0.
-    {
-      rewriter.setInsertionPointToStart(&whileOp.getAfter().front());
-      Value input = after->getArgument(0);
-      Value leadingZeros = after->getArgument(1);
-
-      auto one = rewriter.create<arith::ConstantOp>(
-          loc, IntegerAttr::get(elementTy, 1));
-      auto shifted =
-          rewriter.create<arith::ShRUIOp>(loc, resultTypes, input, one);
-      auto leadingZerosMinusOne =
-          rewriter.create<arith::SubIOp>(loc, resultTypes, leadingZeros, one);
-
-      rewriter.create<scf::YieldOp>(
-          loc,
-          ValueRange({shifted, leadingZerosMinusOne, after->getArgument(2)}));
-    }
-
-    rewriter.setInsertionPointAfter(whileOp);
-    return whileOp->getResult(1);
+    return rewriter.create<math::CountLeadingZerosOp>(loc, elementTy, args[0]);
   }
 
   // tosa::LogicalAnd
@@ -1891,13 +1842,13 @@ public:
           loc, padOp.pad_const(), ValueRange({}));
     } else {
       Attribute constantAttr;
-      if (elementTy.isa<FloatType>())
+      if (elementTy.isa<FloatType>()) {
         constantAttr = rewriter.getFloatAttr(elementTy, 0.0);
-      else if (elementTy.isa<IntegerType>() && !padOp.quantization_info())
+      } else if (elementTy.isa<IntegerType>() && !padOp.quantization_info()) {
         constantAttr = rewriter.getIntegerAttr(elementTy, 0);
-      else if (elementTy.isa<IntegerType>() && padOp.quantization_info()) {
-        auto value = padOp.quantization_info().getValue().input_zp().getValue();
-        constantAttr = rewriter.getIntegerAttr(elementTy, value.getZExtValue());
+      } else if (elementTy.isa<IntegerType>() && padOp.quantization_info()) {
+        int64_t value = padOp.quantization_info()->getInputZp();
+        constantAttr = rewriter.getIntegerAttr(elementTy, value);
       }
       if (constantAttr)
         padConstant = rewriter.create<arith::ConstantOp>(loc, constantAttr);

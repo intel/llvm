@@ -1492,13 +1492,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpVariable: {
     auto BVar = static_cast<SPIRVVariable *>(BV);
-    auto Ty = transType(BVar->getType()->getPointerElementType());
+    auto *PreTransTy = BVar->getType()->getPointerElementType();
+    auto *Ty = transType(PreTransTy);
     bool IsConst = BVar->isConstant();
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
     SPIRVStorageClassKind BS = BVar->getStorageClass();
     SPIRVValue *Init = BVar->getInitializer();
 
-    if (isSPIRVSamplerType(Ty) && BS == StorageClassUniformConstant) {
+    if (PreTransTy->isTypeSampler() && BS == StorageClassUniformConstant) {
       // Skip generating llvm code during translation of a variable definition,
       // generate code only for its uses
       if (!BB)

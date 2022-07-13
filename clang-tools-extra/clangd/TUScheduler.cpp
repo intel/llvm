@@ -452,7 +452,7 @@ public:
       {
         std::lock_guard<std::mutex> Lock(Mutex);
         CurrentReq.reset();
-        IsEmpty = !NextReq.hasValue();
+        IsEmpty = !NextReq;
       }
       if (IsEmpty) {
         // We don't perform this above, before waiting for a request to make
@@ -1013,9 +1013,10 @@ void PreambleThread::build(Request Req) {
   bool IsFirstPreamble = !LatestBuild;
   LatestBuild = clang::clangd::buildPreamble(
       FileName, *Req.CI, Inputs, StoreInMemory,
-      [this, Version(Inputs.Version)](ASTContext &Ctx, Preprocessor &PP,
-                                      const CanonicalIncludes &CanonIncludes) {
-        Callbacks.onPreambleAST(FileName, Version, Ctx, PP, CanonIncludes);
+      [&](ASTContext &Ctx, Preprocessor &PP,
+          const CanonicalIncludes &CanonIncludes) {
+        Callbacks.onPreambleAST(FileName, Inputs.Version, *Req.CI, Ctx, PP,
+                                CanonIncludes);
       },
       &Stats);
   if (!LatestBuild)
@@ -1145,7 +1146,7 @@ void ASTWorker::generateDiagnostics(
     }
     Status.update([&](TUStatus &Status) {
       Status.Details.ReuseAST = false;
-      Status.Details.BuildFailed = !NewAST.hasValue();
+      Status.Details.BuildFailed = !NewAST;
     });
     AST = NewAST ? std::make_unique<ParsedAST>(std::move(*NewAST)) : nullptr;
   } else {
@@ -1195,7 +1196,7 @@ std::shared_ptr<const PreambleData> ASTWorker::getPossiblyStalePreamble(
 
 void ASTWorker::waitForFirstPreamble() const {
   std::unique_lock<std::mutex> Lock(Mutex);
-  PreambleCV.wait(Lock, [this] { return LatestPreamble.hasValue() || Done; });
+  PreambleCV.wait(Lock, [this] { return LatestPreamble || Done; });
 }
 
 tooling::CompileCommand ASTWorker::getCurrentCompileCommand() const {

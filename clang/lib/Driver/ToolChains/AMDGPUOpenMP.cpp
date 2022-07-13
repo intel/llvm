@@ -126,9 +126,8 @@ const char *AMDGCN::OpenMPLinker::constructLLVMLinkCommand(
       SmallVector<std::string, 12> BCLibs =
           AMDGPUOpenMPTC.getCommonDeviceLibNames(Args, SubArchName.str(),
                                                  Action::OFK_OpenMP);
-      llvm::for_each(BCLibs, [&](StringRef BCFile) {
+      for (StringRef BCFile : BCLibs)
         CmdArgs.push_back(Args.MakeArgString(BCFile));
-      });
     }
   }
 
@@ -308,9 +307,10 @@ llvm::opt::DerivedArgList *AMDGPUOpenMPToolChain::TranslateArgs(
       if (!llvm::is_contained(*DAL, A))
         DAL->append(A);
 
-    std::string Arch = DAL->getLastArgValue(options::OPT_march_EQ).str();
-    if (Arch.empty()) {
-      checkSystemForAMDGPU(Args, *this, Arch);
+    if (!DAL->hasArg(options::OPT_march_EQ)) {
+      std::string Arch = BoundArch.str();
+      if (BoundArch.empty())
+        checkSystemForAMDGPU(Args, *this, Arch);
       DAL->AddJoinedArg(nullptr, Opts.getOption(options::OPT_march_EQ), Arch);
     }
 

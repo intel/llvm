@@ -75,6 +75,7 @@ int main() {
 // NONATIVESUPPORT-NEXT: InitListExpr
 // NONATIVESUPPORT-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // NONATIVESUPPORT-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
+// NONATIVESUPPORT-NEXT: SYCLScopeAttr {{.*}} Implicit WorkGroup
 
 // Check declaration and initialization of kernel handler local clone using default constructor
 // NONATIVESUPPORT-NEXT: DeclStmt

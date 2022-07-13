@@ -2,8 +2,8 @@
  * Check that we don't assert on a duplicate static relocation added by lld
  * against _Z6myfuncv. The same address has a dynamic relocation against it.
  *
- * RUN: %clang -fPIC -shared %s -o %t.so -Wl,-q -fuse-ld=lld
- * RUN: llvm-bolt %t.so -o %t.so.bolt -relocs
+ * RUN: %clang %cflags -fPIC -shared %s -o %t.so -Wl,-q -fuse-ld=lld
+ * RUN: llvm-bolt %t.so -o %t.so.bolt --relocs
  */
 
 unsigned long long myfunc();

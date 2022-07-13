@@ -43,10 +43,6 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions(-DDEBUG)
 endif()
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/impl
-)
-
 set(LIBOMPTARGET_DLOPEN_LIBHSA OFF)
 option(LIBOMPTARGET_FORCE_DLOPEN_LIBHSA "Build with dlopened libhsa" ${LIBOMPTARGET_DLOPEN_LIBHSA})
 
@@ -87,6 +83,13 @@ else()
   set(LDFLAGS_UNDEFINED "-Wl,-z,defs")
 endif()
 
+target_include_directories(
+  omptarget.rtl.amdgpu
+  PRIVATE
+  ${LIBOMPTARGET_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/impl
+)
+
 target_link_libraries(
   omptarget.rtl.amdgpu
   PRIVATE
@@ -114,6 +117,7 @@ if (${amdgpu_arch_result})
 else()
   # Report to the parent scope that we are building a plugin for amdgpu
   set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-oldDriver" PARENT_SCOPE)
+  set(LIBOMPTARGET_SYSTEM_TARGETS "${LIBOMPTARGET_SYSTEM_TARGETS} amdgcn-amd-amdhsa amdgcn-amd-amdhsa-LTO" PARENT_SCOPE)
   list(APPEND LIBOMPTARGET_TESTED_PLUGINS "omptarget.rtl.amdgpu")
   set(LIBOMPTARGET_TESTED_PLUGINS "${LIBOMPTARGET_TESTED_PLUGINS}" PARENT_SCOPE)
 endif()

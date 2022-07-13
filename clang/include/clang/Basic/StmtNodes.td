@@ -289,6 +289,7 @@ def OMPTargetTeamsDistributeSimdDirective : StmtNode<OMPLoopDirective>;
 def OMPInteropDirective : StmtNode<OMPExecutableDirective>;
 def OMPDispatchDirective : StmtNode<OMPExecutableDirective>;
 def OMPMaskedDirective : StmtNode<OMPExecutableDirective>;
+def OMPParallelMaskedDirective : StmtNode<OMPExecutableDirective>;
 def OMPGenericLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPTeamsGenericLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPTargetTeamsGenericLoopDirective : StmtNode<OMPLoopDirective>;

@@ -28,11 +28,11 @@
 module {
   // Invert the structure of a sparse vector. Present values become missing.
   // Missing values are filled with 1 (i32).
-  func @vector_complement(%arga: tensor<?xf64, #SparseVector>) -> tensor<?xi32, #SparseVector> {
+  func.func @vector_complement(%arga: tensor<?xf64, #SparseVector>) -> tensor<?xi32, #SparseVector> {
     %c = arith.constant 0 : index
     %ci1 = arith.constant 1 : i32
     %d = tensor.dim %arga, %c : tensor<?xf64, #SparseVector>
-    %xv = sparse_tensor.init [%d] : tensor<?xi32, #SparseVector>
+    %xv = bufferization.alloc_tensor(%d) : tensor<?xi32, #SparseVector>
     %0 = linalg.generic #trait_vec_scale
        ins(%arga: tensor<?xf64, #SparseVector>)
         outs(%xv: tensor<?xi32, #SparseVector>) {
@@ -48,11 +48,11 @@ module {
   }
 
   // Negate existing values. Fill missing ones with +1.
-  func @vector_negation(%arga: tensor<?xf64, #SparseVector>) -> tensor<?xf64, #SparseVector> {
+  func.func @vector_negation(%arga: tensor<?xf64, #SparseVector>) -> tensor<?xf64, #SparseVector> {
     %c = arith.constant 0 : index
     %cf1 = arith.constant 1.0 : f64
     %d = tensor.dim %arga, %c : tensor<?xf64, #SparseVector>
-    %xv = sparse_tensor.init [%d] : tensor<?xf64, #SparseVector>
+    %xv = bufferization.alloc_tensor(%d) : tensor<?xf64, #SparseVector>
     %0 = linalg.generic #trait_vec_scale
        ins(%arga: tensor<?xf64, #SparseVector>)
         outs(%xv: tensor<?xf64, #SparseVector>) {
@@ -72,14 +72,14 @@ module {
   }
 
   // Clips values to the range [3, 7].
-  func @matrix_clip(%argx: tensor<?x?xf64, #DCSR>) -> tensor<?x?xf64, #DCSR> {
+  func.func @matrix_clip(%argx: tensor<?x?xf64, #DCSR>) -> tensor<?x?xf64, #DCSR> {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %cfmin = arith.constant 3.0 : f64
     %cfmax = arith.constant 7.0 : f64
     %d0 = tensor.dim %argx, %c0 : tensor<?x?xf64, #DCSR>
     %d1 = tensor.dim %argx, %c1 : tensor<?x?xf64, #DCSR>
-    %xv = sparse_tensor.init [%d0, %d1] : tensor<?x?xf64, #DCSR>
+    %xv = bufferization.alloc_tensor(%d0, %d1) : tensor<?x?xf64, #DCSR>
     %0 = linalg.generic #trait_mat_scale
        ins(%argx: tensor<?x?xf64, #DCSR>)
         outs(%xv: tensor<?x?xf64, #DCSR>) {
@@ -100,7 +100,7 @@ module {
   }
 
   // Dumps a sparse vector of type f64.
-  func @dump_vec_f64(%arg0: tensor<?xf64, #SparseVector>) {
+  func.func @dump_vec_f64(%arg0: tensor<?xf64, #SparseVector>) {
     // Dump the values array to verify only sparse contents are stored.
     %c0 = arith.constant 0 : index
     %d0 = arith.constant -1.0 : f64
@@ -117,7 +117,7 @@ module {
   }
 
   // Dumps a sparse vector of type i32.
-  func @dump_vec_i32(%arg0: tensor<?xi32, #SparseVector>) {
+  func.func @dump_vec_i32(%arg0: tensor<?xi32, #SparseVector>) {
     // Dump the values array to verify only sparse contents are stored.
     %c0 = arith.constant 0 : index
     %d0 = arith.constant -1 : i32
@@ -134,7 +134,7 @@ module {
   }
 
   // Dump a sparse matrix.
-  func @dump_mat(%arg0: tensor<?x?xf64, #DCSR>) {
+  func.func @dump_mat(%arg0: tensor<?x?xf64, #DCSR>) {
     %c0 = arith.constant 0 : index
     %d0 = arith.constant -1.0 : f64
     %0 = sparse_tensor.values %arg0 : tensor<?x?xf64, #DCSR> to memref<?xf64>
@@ -149,7 +149,7 @@ module {
   }
 
   // Driver method to call and verify vector kernels.
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
 
     // Setup sparse vectors.

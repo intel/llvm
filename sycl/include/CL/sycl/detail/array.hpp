@@ -112,7 +112,7 @@ protected:
 #ifndef __SYCL_DEVICE_ONLY__
     if (dimension >= dimensions || dimension < 0) {
       throw cl::sycl::invalid_parameter_error("Index out of range",
-                                              PI_INVALID_VALUE);
+                                              PI_ERROR_INVALID_VALUE);
     }
 #endif
     (void)dimension;

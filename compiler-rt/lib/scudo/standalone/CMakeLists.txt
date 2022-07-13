@@ -36,6 +36,7 @@ list(APPEND SCUDO_LINK_FLAGS -ffunction-sections -fdata-sections -Wl,--gc-sectio
 
 # We don't use the C++ standard library, so avoid including it by mistake.
 append_list_if(COMPILER_RT_HAS_NOSTDLIBXX_FLAG -nostdlib++ SCUDO_LINK_FLAGS)
+append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none SCUDO_LINK_FLAGS)
 
 if(ANDROID)
   list(APPEND SCUDO_CFLAGS -fno-emulated-tls)
@@ -139,6 +140,10 @@ set(SCUDO_LINK_LIBS)
 append_list_if(COMPILER_RT_HAS_LIBPTHREAD -pthread SCUDO_LINK_FLAGS)
 
 append_list_if(FUCHSIA zircon SCUDO_LINK_LIBS)
+
+if(COMPILER_RT_DEFAULT_TARGET_ARCH MATCHES "mips|mips64|mipsel|mips64el")
+  list(APPEND SCUDO_LINK_LIBS atomic)
+endif()
 
 if(COMPILER_RT_HAS_SCUDO_STANDALONE)
   add_compiler_rt_object_libraries(RTScudoStandalone

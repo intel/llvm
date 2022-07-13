@@ -165,7 +165,9 @@ DIE *DwarfCompileUnit::getOrCreateGlobalVariableDIE(
   } else {
     DeclContext = GV->getScope();
     // Add name and type.
-    addString(*VariableDIE, dwarf::DW_AT_name, GV->getDisplayName());
+    StringRef DisplayName = GV->getDisplayName();
+    if (!DisplayName.empty())
+      addString(*VariableDIE, dwarf::DW_AT_name, GV->getDisplayName());
     if (GTy)
       addType(*VariableDIE, GTy);
 
@@ -299,8 +301,11 @@ void DwarfCompileUnit::addLocationAttribute(
                   DD->useGNUTLSOpcode() ? dwarf::DW_OP_GNU_push_tls_address
                                         : dwarf::DW_OP_form_tls_address);
         }
-      } else if (Asm->TM.getRelocationModel() == Reloc::RWPI ||
-                 Asm->TM.getRelocationModel() == Reloc::ROPI_RWPI) {
+      } else if ((Asm->TM.getRelocationModel() == Reloc::RWPI ||
+                  Asm->TM.getRelocationModel() == Reloc::ROPI_RWPI) &&
+                 !Asm->getObjFileLowering()
+                      .getKindForGlobal(Global, Asm->TM)
+                      .isReadOnly()) {
         auto FormAndOp = GetPointerSizedFormAndOp();
         // Constant
         addUInt(*Loc, dwarf::DW_FORM_data1, FormAndOp.Op);

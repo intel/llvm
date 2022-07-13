@@ -13,7 +13,7 @@
 #include "mlir/Dialect/SCF/Utils/AffineCanonicalizationUtils.h"
 #include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Matchers.h"
@@ -43,8 +43,8 @@ static LogicalResult alignAndAddBound(FlatAffineValueConstraints &constraints,
                                       unsigned pos, AffineMap map,
                                       ValueRange operands) {
   SmallVector<Value> dims, syms, newSyms;
-  unpackOptionalValues(constraints.getMaybeDimValues(), dims);
-  unpackOptionalValues(constraints.getMaybeSymbolValues(), syms);
+  unpackOptionalValues(constraints.getMaybeValues(IdKind::SetDim), dims);
+  unpackOptionalValues(constraints.getMaybeValues(IdKind::Symbol), syms);
 
   AffineMap alignedMap =
       alignAffineMapWithValues(map, operands, dims, syms, &newSyms);
@@ -182,7 +182,7 @@ canonicalizeMinMaxOp(RewriterBase &rewriter, Operation *op, AffineMap map,
   // Lower and upper bound of `op` are equal. Replace `minOp` with its bound.
   AffineMap newMap = alignedBoundMap;
   SmallVector<Value> newOperands;
-  unpackOptionalValues(constraints.getMaybeDimAndSymbolValues(), newOperands);
+  unpackOptionalValues(constraints.getMaybeValues(), newOperands);
   // If dims/symbols have known constant values, use those in order to simplify
   // the affine map further.
   for (int64_t i = 0, e = constraints.getNumIds(); i < e; ++i) {
@@ -201,7 +201,7 @@ canonicalizeMinMaxOp(RewriterBase &rewriter, Operation *op, AffineMap map,
 
 static LogicalResult
 addLoopRangeConstraints(FlatAffineValueConstraints &constraints, Value iv,
-                        Value lb, Value ub, Value step,
+                        OpFoldResult lb, OpFoldResult ub, OpFoldResult step,
                         RewriterBase &rewriter) {
   // IntegerPolyhedron does not support semi-affine expressions.
   // Therefore, only constant step values are supported.
@@ -210,8 +210,12 @@ addLoopRangeConstraints(FlatAffineValueConstraints &constraints, Value iv,
     return failure();
 
   unsigned dimIv = constraints.appendDimId(iv);
-  unsigned dimLb = constraints.appendDimId(lb);
-  unsigned dimUb = constraints.appendDimId(ub);
+  auto lbv = lb.dyn_cast<Value>();
+  unsigned dimLb =
+      lbv ? constraints.appendDimId(lbv) : constraints.appendDimId(/*num=*/1);
+  auto ubv = ub.dyn_cast<Value>();
+  unsigned dimUb =
+      ubv ? constraints.appendDimId(ubv) : constraints.appendDimId(/*num=*/1);
 
   // If loop lower/upper bounds are constant: Add EQ constraint.
   Optional<int64_t> lbInt = getConstantIntValue(lb);
@@ -270,13 +274,13 @@ LogicalResult scf::canonicalizeMinMaxOpInLoop(RewriterBase &rewriter,
   // Find all iteration variables among `minOp`'s operands add constrain them.
   for (Value operand : operands) {
     // Skip duplicate ivs.
-    if (llvm::find(allIvs, operand) != allIvs.end())
+    if (llvm::is_contained(allIvs, operand))
       continue;
 
     // If `operand` is an iteration variable: Find corresponding loop
     // bounds and step.
     Value iv = operand;
-    Value lb, ub, step;
+    OpFoldResult lb, ub, step;
     if (failed(loopMatcher(operand, lb, ub, step)))
       continue;
     allIvs.insert(iv);

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple spir -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 %s -triple spir -cl-std=CL2.0 -fdeclare-opencl-builtins -finclude-default-header -emit-llvm-bc -o %t.bc -no-opaque-pointers
 //
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv

@@ -74,6 +74,11 @@ end
   `CFI_section`, `CFI_setpointer` or `CFI_allocate`, the lower
   bound on that dimension will be set to 1 for consistency with
   the `LBOUND()` intrinsic function.
+* `-2147483648_4` is, strictly speaking, a non-conforming literal
+  constant on a machine with 32-bit two's-complement integers as
+  kind 4, because the grammar of Fortran expressions parses it as a
+  negation of a literal constant, not a negative literal constant.
+  This compiler accepts it with a portability warning.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -90,6 +95,7 @@ end
   "not yet implemented" message.
 * Structure field access with `.field`
 * `BYTE` as synonym for `INTEGER(KIND=1)`; but not when spelled `TYPE(BYTE)`.
+* When kind-param is used for REAL literals, allow a matching exponent letter
 * Quad precision REAL literals with `Q`
 * `X` prefix/suffix as synonym for `Z` on hexadecimal literals
 * `B`, `O`, `Z`, and `X` accepted as suffixes as well as prefixes
@@ -227,6 +233,8 @@ end
 * Legacy names `AND`, `OR`, and `XOR` are accepted as aliases for
   the standard intrinsic functions `IAND`, `IOR`, and `IEOR`
   respectively.
+* A digit count of d=0 is accepted in Ew.0, Dw.0, and Gw.0 output
+  editing if no nonzero scale factor (kP) is in effect.
 
 ### Extensions supported when enabled by options
 
@@ -276,6 +284,8 @@ end
 * USE association of a procedure interface within that same procedure's definition
 * NULL() as a structure constructor expression for an ALLOCATABLE component (PGI).
 * Conversion of LOGICAL to INTEGER in expressions.
+* Use of INTEGER data with the intrinsic logical operators `.NOT.`, `.AND.`, `.OR.`,
+  and `.XOR.`.
 * IF (integer expression) THEN ... END IF  (PGI/Intel)
 * Comparsion of LOGICAL with ==/.EQ. rather than .EQV. (also .NEQV.) (PGI/Intel)
 * Procedure pointers in COMMON blocks (PGI/Intel)
@@ -296,6 +306,8 @@ end
   related generics. Some accepted exceptions are listed above in the allowed extensions.
   PGI, Intel, and XLF support this in ways that are not numerically equivalent.
   PGI converts the arguments while Intel and XLF replace the specific by the related generic.
+* VMS listing control directives (`%LIST`, `%NOLIST`, `%EJECT`)
+* Continuation lines on `INCLUDE` lines
 
 ## Preprocessing behavior
 

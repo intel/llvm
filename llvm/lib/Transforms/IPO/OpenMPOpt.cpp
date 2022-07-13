@@ -58,17 +58,16 @@ using namespace omp;
 #define DEBUG_TYPE "openmp-opt"
 
 static cl::opt<bool> DisableOpenMPOptimizations(
-    "openmp-opt-disable", cl::ZeroOrMore,
-    cl::desc("Disable OpenMP specific optimizations."), cl::Hidden,
-    cl::init(false));
+    "openmp-opt-disable", cl::desc("Disable OpenMP specific optimizations."),
+    cl::Hidden, cl::init(false));
 
 static cl::opt<bool> EnableParallelRegionMerging(
-    "openmp-opt-enable-merging", cl::ZeroOrMore,
+    "openmp-opt-enable-merging",
     cl::desc("Enable the OpenMP region merging optimization."), cl::Hidden,
     cl::init(false));
 
 static cl::opt<bool>
-    DisableInternalization("openmp-opt-disable-internalization", cl::ZeroOrMore,
+    DisableInternalization("openmp-opt-disable-internalization",
                            cl::desc("Disable function internalization."),
                            cl::Hidden, cl::init(false));
 
@@ -84,47 +83,47 @@ static cl::opt<bool> HideMemoryTransferLatency(
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> DisableOpenMPOptDeglobalization(
-    "openmp-opt-disable-deglobalization", cl::ZeroOrMore,
+    "openmp-opt-disable-deglobalization",
     cl::desc("Disable OpenMP optimizations involving deglobalization."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> DisableOpenMPOptSPMDization(
-    "openmp-opt-disable-spmdization", cl::ZeroOrMore,
+    "openmp-opt-disable-spmdization",
     cl::desc("Disable OpenMP optimizations involving SPMD-ization."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> DisableOpenMPOptFolding(
-    "openmp-opt-disable-folding", cl::ZeroOrMore,
+    "openmp-opt-disable-folding",
     cl::desc("Disable OpenMP optimizations involving folding."), cl::Hidden,
     cl::init(false));
 
 static cl::opt<bool> DisableOpenMPOptStateMachineRewrite(
-    "openmp-opt-disable-state-machine-rewrite", cl::ZeroOrMore,
+    "openmp-opt-disable-state-machine-rewrite",
     cl::desc("Disable OpenMP optimizations that replace the state machine."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> DisableOpenMPOptBarrierElimination(
-    "openmp-opt-disable-barrier-elimination", cl::ZeroOrMore,
+    "openmp-opt-disable-barrier-elimination",
     cl::desc("Disable OpenMP optimizations that eliminate barriers."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> PrintModuleAfterOptimizations(
-    "openmp-opt-print-module-after", cl::ZeroOrMore,
+    "openmp-opt-print-module-after",
     cl::desc("Print the current module after OpenMP optimizations."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> PrintModuleBeforeOptimizations(
-    "openmp-opt-print-module-before", cl::ZeroOrMore,
+    "openmp-opt-print-module-before",
     cl::desc("Print the current module before OpenMP optimizations."),
     cl::Hidden, cl::init(false));
 
 static cl::opt<bool> AlwaysInlineDeviceFunctions(
-    "openmp-opt-inline-device", cl::ZeroOrMore,
+    "openmp-opt-inline-device",
     cl::desc("Inline all applicible functions on the device."), cl::Hidden,
     cl::init(false));
 
 static cl::opt<bool>
-    EnableVerboseRemarks("openmp-opt-verbose-remarks", cl::ZeroOrMore,
+    EnableVerboseRemarks("openmp-opt-verbose-remarks",
                          cl::desc("Enables more verbose remarks."), cl::Hidden,
                          cl::init(false));
 
@@ -2413,8 +2412,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
 
       auto CallCheck = [&](Instruction &I) {
         Optional<Value *> ReplVal = getValueForCall(A, I, ICV);
-        if (ReplVal.hasValue() &&
-            ValuesMap.insert(std::make_pair(&I, *ReplVal)).second)
+        if (ReplVal && ValuesMap.insert(std::make_pair(&I, *ReplVal)).second)
           HasChanged = ChangeStatus::CHANGED;
 
         return true;
@@ -2474,7 +2472,8 @@ struct AAICVTrackerFunction : public AAICVTracker {
 
     if (ICVTrackingAA.isAssumedTracked()) {
       Optional<Value *> URV = ICVTrackingAA.getUniqueReplacementValue(ICV);
-      if (!URV || (*URV && AA::isValidAtPosition(**URV, I, OMPInfoCache)))
+      if (!URV || (*URV && AA::isValidAtPosition(AA::ValueAndContext(**URV, I),
+                                                 OMPInfoCache)))
         return URV;
     }
 
@@ -2545,7 +2544,7 @@ struct AAICVTrackerFunction : public AAICVTracker {
       }
 
       // If we are in the same BB and we have a value, we are done.
-      if (CurrBB == I->getParent() && ReplVal.hasValue())
+      if (CurrBB == I->getParent() && ReplVal)
         return ReplVal;
 
       // Go through all predecessors and add terminators for analysis.
@@ -2603,7 +2602,7 @@ struct AAICVTrackerFunctionReturned : AAICVTracker {
             ICVTrackingAA.getReplacementValue(ICV, &I, A);
 
         // If we found a second ICV value there is no unique returned value.
-        if (UniqueICVValue.hasValue() && UniqueICVValue != NewReplVal)
+        if (UniqueICVValue && UniqueICVValue != NewReplVal)
           return false;
 
         UniqueICVValue = NewReplVal;
@@ -2654,10 +2653,10 @@ struct AAICVTrackerCallSite : AAICVTracker {
   }
 
   ChangeStatus manifest(Attributor &A) override {
-    if (!ReplVal.hasValue() || !ReplVal.getValue())
+    if (!ReplVal || !*ReplVal)
       return ChangeStatus::UNCHANGED;
 
-    A.changeValueAfterManifest(*getCtxI(), **ReplVal);
+    A.changeAfterManifest(IRPosition::inst(*getCtxI()), **ReplVal);
     A.deleteAfterManifest(*getCtxI());
 
     return ChangeStatus::CHANGED;
@@ -3054,7 +3053,7 @@ struct AAHeapToSharedFunction : public AAHeapToShared {
              "HeapToShared on allocation without alignment attribute");
       SharedMem->setAlignment(MaybeAlign(Alignment));
 
-      A.changeValueAfterManifest(*CB, *NewBuffer);
+      A.changeAfterManifest(IRPosition::callsite_returned(*CB), *NewBuffer);
       A.deleteAfterManifest(*CB);
       A.deleteAfterManifest(*FreeCalls.front());
 
@@ -4494,9 +4493,9 @@ struct AAFoldRuntimeCallCallSiteReturned : AAFoldRuntimeCall {
   ChangeStatus manifest(Attributor &A) override {
     ChangeStatus Changed = ChangeStatus::UNCHANGED;
 
-    if (SimplifiedValue.hasValue() && SimplifiedValue.getValue()) {
+    if (SimplifiedValue && *SimplifiedValue) {
       Instruction &I = *getCtxI();
-      A.changeValueAfterManifest(I, **SimplifiedValue);
+      A.changeAfterManifest(IRPosition::inst(I), **SimplifiedValue);
       A.deleteAfterManifest(I);
 
       CallBase *CB = dyn_cast<CallBase>(&I);
@@ -4582,7 +4581,7 @@ private:
       // We have empty reaching kernels, therefore we cannot tell if the
       // associated call site can be folded. At this moment, SimplifiedValue
       // must be none.
-      assert(!SimplifiedValue.hasValue() && "SimplifiedValue should be none");
+      assert(!SimplifiedValue && "SimplifiedValue should be none");
     }
 
     return SimplifiedValue == SimplifiedValueBefore ? ChangeStatus::UNCHANGED
@@ -4625,7 +4624,7 @@ private:
       return indicatePessimisticFixpoint();
 
     if (CallerKernelInfoAA.ReachingKernelEntries.empty()) {
-      assert(!SimplifiedValue.hasValue() &&
+      assert(!SimplifiedValue &&
              "SimplifiedValue should keep none at this point");
       return ChangeStatus::UNCHANGED;
     }

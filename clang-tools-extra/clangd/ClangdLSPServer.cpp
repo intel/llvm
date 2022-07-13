@@ -29,6 +29,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -361,7 +362,7 @@ private:
   Context handlerContext() const {
     return Context::current().derive(
         kCurrentOffsetEncoding,
-        Server.Opts.Encoding.getValueOr(OffsetEncoding::UTF16));
+        Server.Opts.Encoding.value_or(OffsetEncoding::UTF16));
   }
 
   // We run cancelable requests in a context that does two things:
@@ -492,7 +493,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
 
   Opts.CodeComplete.EnableSnippets = Params.capabilities.CompletionSnippets;
   Opts.CodeComplete.IncludeFixIts = Params.capabilities.CompletionFixes;
-  if (!Opts.CodeComplete.BundleOverloads.hasValue())
+  if (!Opts.CodeComplete.BundleOverloads)
     Opts.CodeComplete.BundleOverloads = Params.capabilities.HasSignatureHelp;
   Opts.CodeComplete.DocumentationFormat =
       Params.capabilities.CompletionDocumentationFormat;
@@ -574,6 +575,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
        llvm::json::Object{{"automaticReload", true}}},
       {"callHierarchyProvider", true},
       {"clangdInlayHintsProvider", true},
+      {"inlayHintProvider", true},
   };
 
   {
@@ -784,7 +786,7 @@ void ClangdLSPServer::onWorkspaceSymbol(
     const WorkspaceSymbolParams &Params,
     Callback<std::vector<SymbolInformation>> Reply) {
   Server->workspaceSymbols(
-      Params.query, Params.limit.getValueOr(Opts.CodeComplete.Limit),
+      Params.query, Params.limit.value_or(Opts.CodeComplete.Limit),
       [Reply = std::move(Reply),
        this](llvm::Expected<std::vector<SymbolInformation>> Items) mutable {
         if (!Items)
@@ -1108,7 +1110,7 @@ void ClangdLSPServer::onGoToDefinition(const TextDocumentPositionParams &Params,
         for (auto &S : *Symbols) {
           if (Location *Toggle = getToggle(Params, S))
             return Reply(std::vector<Location>{std::move(*Toggle)});
-          Defs.push_back(S.Definition.getValueOr(S.PreferredDeclaration));
+          Defs.push_back(S.Definition.value_or(S.PreferredDeclaration));
         }
         Reply(std::move(Defs));
       });
@@ -1207,8 +1209,41 @@ void ClangdLSPServer::onCallHierarchyIncomingCalls(
   Server->incomingCalls(Params.item, std::move(Reply));
 }
 
-void ClangdLSPServer::onInlayHints(const InlayHintsParams &Params,
-                                   Callback<std::vector<InlayHint>> Reply) {
+void ClangdLSPServer::onClangdInlayHints(const InlayHintsParams &Params,
+                                         Callback<llvm::json::Value> Reply) {
+  // Our extension has a different representation on the wire than the standard.
+  // We have a "range" property and "kind" is represented as a string, not as an
+  // enum value.
+  // https://clangd.llvm.org/extensions#inlay-hints
+  auto Serialize = [Reply = std::move(Reply)](
+                       llvm::Expected<std::vector<InlayHint>> Hints) mutable {
+    if (!Hints) {
+      Reply(Hints.takeError());
+      return;
+    }
+    llvm::json::Array Result;
+    Result.reserve(Hints->size());
+    for (auto &Hint : *Hints) {
+      Result.emplace_back(llvm::json::Object{
+          {"kind", llvm::to_string(Hint.kind)},
+          {"range", Hint.range},
+          {"position", Hint.position},
+          // Extension doesn't have paddingLeft/Right so adjust the label
+          // accordingly.
+          {"label",
+           ((Hint.paddingLeft ? " " : "") + llvm::StringRef(Hint.label) +
+            (Hint.paddingRight ? " " : ""))
+               .str()},
+      });
+    }
+    Reply(std::move(Result));
+  };
+  Server->inlayHints(Params.textDocument.uri.file(), Params.range,
+                     std::move(Serialize));
+}
+
+void ClangdLSPServer::onInlayHint(const InlayHintsParams &Params,
+                                  Callback<std::vector<InlayHint>> Reply) {
   Server->inlayHints(Params.textDocument.uri.file(), Params.range,
                      std::move(Reply));
 }
@@ -1491,7 +1526,8 @@ void ClangdLSPServer::bindMethods(LSPBinder &Bind,
   Bind.method("textDocument/documentLink", this, &ClangdLSPServer::onDocumentLink);
   Bind.method("textDocument/semanticTokens/full", this, &ClangdLSPServer::onSemanticTokens);
   Bind.method("textDocument/semanticTokens/full/delta", this, &ClangdLSPServer::onSemanticTokensDelta);
-  Bind.method("clangd/inlayHints", this, &ClangdLSPServer::onInlayHints);
+  Bind.method("clangd/inlayHints", this, &ClangdLSPServer::onClangdInlayHints);
+  Bind.method("textDocument/inlayHint", this, &ClangdLSPServer::onInlayHint);
   Bind.method("$/memoryUsage", this, &ClangdLSPServer::onMemoryUsage);
   if (Opts.FoldingRanges)
     Bind.method("textDocument/foldingRange", this, &ClangdLSPServer::onFoldingRange);

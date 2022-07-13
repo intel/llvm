@@ -16,7 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ConstantFold.h"
+#include "llvm/IR/ConstantFold.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
@@ -379,7 +379,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
                opc != Instruction::AddrSpaceCast &&
                // Do not fold bitcast (gep) with inrange index, as this loses
                // information.
-               !cast<GEPOperator>(CE)->getInRangeIndex().hasValue() &&
+               !cast<GEPOperator>(CE)->getInRangeIndex() &&
                // Do not fold if the gep type is a vector, as bitcasting
                // operand 0 of a vector gep will result in a bitcast between
                // different sizes.
