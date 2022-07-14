@@ -48,10 +48,6 @@ on:
         type: string
         required: false
         default: ""
-      cts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
       amdgpu_image:
         type: string
         required: false
@@ -64,14 +60,22 @@ on:
         type: string
         required: false
         default: 'intel'
-      cts_ref:
-        type: string
-        required: false
-        default: 'SYCL-2020'
       max_parallel:
         type: number
         required: false
         default: 4
+      cts_config:
+        type: string
+        required: false
+        default: ""
+      cts_cmake_extra_args:
+        type: string
+        required: false
+        default: ""
+      cts_ref:
+        type: string
+        required: false
+        default: 'SYCL-2020'
 
 jobs:
   build:
