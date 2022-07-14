@@ -57,7 +57,7 @@ runs:
       mkdir build
       cmake  -GNinja -B./build -S./khronos_sycl_cts -DSYCL_IMPLEMENTATION=DPCPP \
       -DCMAKE_CXX_COMPILER=="$PWD/toolchain/bin/clang++" \
-      -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/llvm/devops/pre_commit.exclude_filter" \
+      -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/llvm/devops/cts_exclude_filter" \
       -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
       -DDPCPP_INSTALL_DIR="$PWD/toolchain" \
       ${{ inputs.cmake_args }}
