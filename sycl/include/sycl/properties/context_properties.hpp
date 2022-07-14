@@ -31,9 +31,9 @@ namespace property {
 namespace context {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::context' instead") cuda {
-  class use_primary_context : public ::cl::sycl::ext::oneapi::cuda::property::
-                                  context::use_primary_context {};
-  // clang-format off
+class use_primary_context : public ::cl::sycl::ext::oneapi::cuda::property::
+                                context::use_primary_context {};
+// clang-format off
 } // namespace cuda
 // clang-format on
 } // namespace context

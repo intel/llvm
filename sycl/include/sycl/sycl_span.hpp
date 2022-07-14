@@ -188,8 +188,8 @@ struct __is_span_compatible_container<
         // remove_pointer_t<decltype(data(cont))>(*)[] is convertible to
         // ElementType(*)[]
         typename std::enable_if<
-            std::is_convertible_v<std::remove_pointer_t<decltype(
-                                      data(std::declval<_Tp &>()))> (*)[],
+            std::is_convertible_v<std::remove_pointer_t<decltype(data(
+                                      std::declval<_Tp &>()))> (*)[],
                                   _ElementType (*)[]>,
             std::nullptr_t>::type>> : public std::true_type {};
 

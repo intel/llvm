@@ -821,12 +821,12 @@ private:
         class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
                             ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         LinearizedRange, [=](id<1> Id) {
-      size_t Index = Id[0];
-      id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
-      id<DimDst> DstId = detail::getDelinearizedId(Dst.get_range(), Index);
-      Dst[DstId] = Src[SrcId];
+          size_t Index = Id[0];
+          id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
+          id<DimDst> DstId = detail::getDelinearizedId(Dst.get_range(), Index);
+          Dst[DstId] = Src[SrcId];
         });
-        return true;
+    return true;
   }
 
   /// Handles some special cases of the copy operation from one accessor
@@ -849,8 +849,7 @@ private:
     single_task<
         class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
                             ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
-        [=]() {
-      *(Dst.get_pointer()) = *(Src.get_pointer()); });
+        [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
     return true;
   }
 
@@ -869,9 +868,9 @@ private:
     parallel_for<
         class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
-      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-      using TSrcNonConst = typename detail::remove_const_t<TSrc>;
-      (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
+          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
+          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          (reinterpret_cast<TSrcNonConst *>(Dst))[LinearIndex] = Src[Index];
         });
   }
 
@@ -887,8 +886,8 @@ private:
                    TDst *Dst) {
     single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
-      using TSrcNonConst = typename detail::remove_const_t<TSrc>;
-      *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
+          using TSrcNonConst = typename detail::remove_const_t<TSrc>;
+          *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
         });
   }
 
@@ -905,8 +904,8 @@ private:
     parallel_for<
         class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
-      const size_t LinearIndex = detail::getLinearIndex(Index, Range);
-      Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
+          const size_t LinearIndex = detail::getLinearIndex(Index, Range);
+          Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
         });
   }
 
@@ -922,7 +921,7 @@ private:
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
-      *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
+          *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
         });
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -2493,8 +2492,7 @@ public:
       range<Dims> Range = Dst.get_range();
       parallel_for<
           class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-          Range, [=](id<Dims> Index) {
-        Dst[Index] = Pattern; });
+                                   Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
 

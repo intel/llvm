@@ -923,7 +923,9 @@ private:
   // function would activate a bug in MSVC that is fixed only in v19.20.
   // Until then MSVC does not recognize such constexpr functions as const and
   // thus does not let using them in template parameters inside swizzle.def.
-  template <int Index> struct Indexer { static constexpr int value = Index; };
+  template <int Index> struct Indexer {
+    static constexpr int value = Index;
+  };
 
 public:
 #ifdef __SYCL_ACCESS_RETURN
@@ -1229,7 +1231,7 @@ private:
     }
     return Result;
   }
-#else // __SYCL_USE_EXT_VECTOR_TYPE__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <template <typename> class Operation>
   vec<DataT, NumElements>
   operatorHelper(const vec<DataT, NumElements> &Rhs) const {
@@ -1269,7 +1271,7 @@ private:
   DataT getValue(EnableIfHostHalf<Ty> Index, int) const {
     return vec_data<DataT>::get(m_Data.s[Index]);
   }
-#else // __SYCL_USE_EXT_VECTOR_TYPE__
+#else  // __SYCL_USE_EXT_VECTOR_TYPE__
   template <int Num = NumElements,
             typename = typename detail::enable_if_t<1 != Num>>
   constexpr void setValue(int Index, const DataT &Value, int) {

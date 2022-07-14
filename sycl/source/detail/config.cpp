@@ -18,9 +18,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// This is the size of the buffer when reading a line from the config file.
-// If a line can have more characters, increase size
-#define SYCL_CONFIG_FILE_BUFFER_SIZE 150
 
 #ifndef SYCL_CONFIG_FILE_NAME
 #define SYCL_CONFIG_FILE_NAME "sycl.conf"

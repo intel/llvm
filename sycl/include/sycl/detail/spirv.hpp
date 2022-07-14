@@ -133,7 +133,9 @@ using WidenOpenCLTypeTo32_t = conditional_t<
 // Broadcast with scalar local index
 // Work-group supports any integral type
 // Sub-group currently supports only uint32_t
-template <typename Group> struct GroupId { using type = size_t; };
+template <typename Group> struct GroupId {
+  using type = size_t;
+};
 template <> struct GroupId<::cl::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };

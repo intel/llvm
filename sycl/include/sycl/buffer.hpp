@@ -92,8 +92,8 @@ public:
   template <class Container>
   using EnableIfContiguous =
       detail::void_t<detail::enable_if_t<std::is_convertible<
-                         detail::remove_pointer_t<decltype(
-                             std::declval<Container>().data())> (*)[],
+                         detail::remove_pointer_t<
+                             decltype(std::declval<Container>().data())> (*)[],
                          const T (*)[]>::value>,
                      decltype(std::declval<Container>().size())>;
   template <class It>

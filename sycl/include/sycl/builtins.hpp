@@ -751,7 +751,7 @@ sycl::detail::enable_if_t<sycl::detail::is_geninteger<T>::value, T> ctz(
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") intel {
-  using namespace ext::intel;
+using namespace ext::intel;
 }
 
 // geninteger mad_hi (geninteger a, geninteger b, geninteger c)

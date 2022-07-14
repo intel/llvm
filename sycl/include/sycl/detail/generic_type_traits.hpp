@@ -431,10 +431,14 @@ struct select_cl_mptr_or_vector_or_scalar;
 
 // this struct helps to use std::uint8_t instead of std::byte,
 // which is not supported on device
-template <typename T> struct TypeHelper { using RetType = T; };
+template <typename T> struct TypeHelper {
+  using RetType = T;
+};
 
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <> struct TypeHelper<std::byte> { using RetType = std::uint8_t; };
+template <> struct TypeHelper<std::byte> {
+  using RetType = std::uint8_t;
+};
 #endif
 
 template <typename T> using type_helper = typename TypeHelper<T>::RetType;

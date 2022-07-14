@@ -29,7 +29,9 @@ public:
   using const_reference = const T &;
 
 public:
-  template <typename U> struct rebind { typedef aligned_allocator<U> other; };
+  template <typename U> struct rebind {
+    typedef aligned_allocator<U> other;
+  };
 
   aligned_allocator() = default;
   ~aligned_allocator() = default;
