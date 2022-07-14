@@ -752,6 +752,32 @@ class reduction_impl
 private:
   using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
                                    Algorithm>;
+  using self = reduction_impl<T, BinaryOperation, Dims, Extent, RedOutVar, Algorithm>;
+
+  static constexpr bool is_known_identity =
+      sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value;
+
+  // TODO: Do we also need chooseBinOp?
+  static constexpr T chooseIdentity(const T &Identity) {
+    // For now the implementation ignores the identity value given by user
+    // when the implementation knows the identity.
+    // The SPEC could prohibit passing identity parameter to operations with
+    // known identity, but that could have some bad consequences too.
+    // For example, at some moment the implementation may NOT know the identity
+    // for COMPLEX-PLUS reduction. User may create a program that would pass
+    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
+    // when the implementation starts handling COMPLEX-PLUS as known operation
+    // the existing user's program remains compilable and working correctly.
+    // I.e. with this constructor here, adding more reduction operations to the
+    // list of known operations does not break the existing programs.
+    if constexpr (is_known_identity) {
+      (void)Identity;
+      return reducer_type::getIdentity();
+
+    } else {
+      return Identity;
+    }
+  }
 
 public:
   using algo::my_is_usm;
@@ -767,11 +793,10 @@ public:
 
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _T, typename AllocatorT,
-            std::enable_if_t<
-                sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                my_is_rw_acc> * = nullptr>
-  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
+  template <typename AllocatorT, typename _self = self,
+            std::enable_if_t<_self::is_known_identity && _self::my_is_rw_acc>
+                * = nullptr>
+  reduction_impl(buffer<T, 1, AllocatorT> Buffer, handler &CGH,
                  bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, rw_accessor_type{Buffer}) {
@@ -783,10 +808,9 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
+  template <typename _self = self,
+            enable_if_t<_self::is_known_identity &&
+                        (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
   reduction_impl(RedOutVar &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
@@ -798,69 +822,14 @@ public:
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  template <
-      typename _T, typename AllocatorT,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_rw_acc> * = nullptr>
-  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
-                 const T & /*Identity*/, BinaryOperation,
-                 bool InitializeToIdentity)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, rw_accessor_type{Buffer}) {
-    algo::associateWithHandler(CGH);
-    if (Buffer.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
-  reduction_impl(RedOutVar &Acc, const T & /*Identity*/, BinaryOperation)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), my_is_dw_acc,
-             Acc) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is NOT known statically.
-  template <typename _T, typename AllocatorT,
-            enable_if_t<
-                !sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                my_is_rw_acc> * = nullptr>
-  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
+  template <typename AllocatorT, typename _self = self,
+            enable_if_t<_self::my_is_rw_acc> * = nullptr>
+  reduction_impl(buffer<T, 1, AllocatorT> Buffer, handler &CGH,
                  const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity)
-      : algo(Identity, BOp, InitializeToIdentity,
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity,
              rw_accessor_type{Buffer}) {
     algo::associateWithHandler(CGH);
     if (Buffer.size() != 1)
@@ -870,11 +839,10 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                             _T, BinaryOperation>::value &&
-                                         (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
+  template <typename _self = self,
+            enable_if_t<_self::my_is_rw_acc || _self::my_is_dw_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(Identity, BOp, my_is_dw_acc, Acc) {
+      : algo(chooseIdentity(Identity), BOp, my_is_dw_acc, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -885,75 +853,32 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::is_known_identity &&
+                                               _self::my_is_usm> * = nullptr>
   reduction_impl(T *VarPtr, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, VarPtr) {}
 
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_usm> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation,
-                 bool InitializeToIdentity = false)
-      : algo(Identity, BinaryOperation(), InitializeToIdentity, VarPtr) {
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
-  /// Constructs reduction_impl when the identity value is unknown.
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                             _T, BinaryOperation>::value &&
-                                         my_is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::my_is_usm> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
-      : algo(Identity, BOp, InitializeToIdentity, VarPtr) {}
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
 
   /// Constructs reduction_impl when the identity value is statically known
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(span<_T, Extent> Span, bool InitializeToIdentity = false)
+  template <typename _self = self, enable_if_t<_self::is_known_identity &&
+                                               _self::my_is_usm> * = nullptr>
+  reduction_impl(span<T, Extent> Span, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, Span.data()) {}
 
-  /// Constructs reduction_impl when the identity value is statically known
-  /// and user passed an identity value anyway
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_usm> * = nullptr>
-  reduction_impl(span<_T, Extent> Span, const T & /* Identity */,
-                 BinaryOperation BOp, bool InitializeToIdentity = false)
-      : algo(reducer_type::getIdentity(), BOp, InitializeToIdentity,
-             Span.data()) {}
-
-  /// Constructs reduction_impl when the identity value is not statically known
-  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                             _T, BinaryOperation>::value &&
-                                         my_is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::my_is_usm> * = nullptr>
   reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
-      : algo(Identity, BOp, InitializeToIdentity, Span.data()) {}
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Span.data()) {
+  }
 };
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
