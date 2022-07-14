@@ -96,8 +96,8 @@ namespace detail {
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ>
 __esimd_abs_common_internal(simd<T1, SZ> src0) {
-  simd<T1, SZ> Result = simd<T0, SZ>(__esimd_abs<T1, SZ>(src0.data()));
-  return Result;
+  simd<T1, SZ> Result = simd<T1, SZ>(__esimd_abs<T1, SZ>(src0.data()));
+  return convert<T0>(__esimd_abs<T1, SZ>(src0.data()));
 }
 
 template <typename T0, typename T1>
