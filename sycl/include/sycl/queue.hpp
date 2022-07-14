@@ -862,6 +862,54 @@ public:
     return parallel_for_impl<KernelName>(Range, DepEvents, Rest...);
   }
 
+  // While other shortcuts with offsets are able to go through parallel_for(...,
+  // RestT &&...Rest), those that accept dependency events vector have to be
+  // overloaded to allow implicit construction from an init-list.
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<1> Range, id<1> WorkItemOffset,
+                     const std::vector<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc)) {
+    return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
+                                         KernelFunc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<2> Range, id<2> WorkItemOffset,
+                     const std::vector<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc)) {
+    return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
+                                         KernelFunc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param Range specifies the global work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  event parallel_for(range<3> Range, id<3> WorkItemOffset,
+                     const std::vector<event> &DepEvents,
+                     _KERNELFUNCPARAM(KernelFunc)) {
+    return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
+                                         KernelFunc);
+  }
+
   /// parallel_for version with a kernel represented as a lambda + range and
   /// offset that specify global size and global offset correspondingly.
   ///
