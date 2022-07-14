@@ -2492,7 +2492,7 @@ public:
       range<Dims> Range = Dst.get_range();
       parallel_for<
           class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-                                   Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
+          Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
 

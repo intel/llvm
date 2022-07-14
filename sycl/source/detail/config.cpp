@@ -18,7 +18,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-
 #ifndef SYCL_CONFIG_FILE_NAME
 #define SYCL_CONFIG_FILE_NAME "sycl.conf"
 #endif // SYCL_CONFIG_FILE_NAME
