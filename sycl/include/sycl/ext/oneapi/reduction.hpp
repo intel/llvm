@@ -496,6 +496,24 @@ protected:
   bool InitializeToIdentity;
 };
 
+template <class T>
+struct is_rw_acc_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::placeholder IsPlaceholder>
+struct is_rw_acc_t<
+    accessor<T, AccessorDims, access::mode::read_write, access::target::device,
+             IsPlaceholder, ext::oneapi::accessor_property_list<>>>
+    : public std::true_type {};
+
+template <class T>
+struct is_dw_acc_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::placeholder IsPlaceholder>
+struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
+                            access::target::device, IsPlaceholder,
+                            ext::oneapi::accessor_property_list<>>>
+    : public std::true_type {};
+
 /// Types representing specific reduction algorithms
 /// Enables reduction_impl_algo to take additional algorithm-specific templates
 template <bool IsUSM, access::placeholder IsPlaceholder, int AccessorDims>
@@ -516,6 +534,11 @@ class reduction_impl_algo<
     default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>
     : public reduction_impl_common<T, BinaryOperation> {
   using base = reduction_impl_common<T, BinaryOperation>;
+
+protected:
+  static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
+  static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
+  static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
 
 public:
   using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
@@ -734,24 +757,6 @@ template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value =
       !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
 };
-template <class T>
-struct is_rw_acc_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::placeholder IsPlaceholder>
-struct is_rw_acc_t<
-    accessor<T, AccessorDims, access::mode::read_write, access::target::device,
-             IsPlaceholder, ext::oneapi::accessor_property_list<>>>
-    : public std::true_type {};
-
-template <class T>
-struct is_dw_acc_t : public std::false_type {};
-
-template <class T, int AccessorDims, access::placeholder IsPlaceholder>
-struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
-                            access::target::device, IsPlaceholder,
-                            ext::oneapi::accessor_property_list<>>>
-    : public std::true_type {};
-
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
@@ -763,9 +768,10 @@ class reduction_impl
 private:
   using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
                                    Algorithm>;
-  static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
-  static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
-  static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
+
+  using algo::my_is_usm;
+  using algo::my_is_rw_acc;
+  using algo::my_is_dw_acc;
 
 public:
   using reducer_type = typename algo::reducer_type;
