@@ -538,11 +538,6 @@ class reduction_impl_algo<
       T, BinaryOperation, Dims, Extent, RedOutVar,
       default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>;
 
-protected:
-  static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
-  static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
-  static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
-
 public:
   using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
   using result_type = T;
@@ -568,7 +563,14 @@ public:
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
       IsReduOptForFastReduce<T, BinaryOperation>::value;
+
   static constexpr bool is_usm = IsUSM;
+  static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
+  static_assert(is_usm == my_is_usm);
+
+  static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
+  static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
+
   static constexpr bool is_placeholder =
       (IsPlaceholder == access::placeholder::true_t);
 
@@ -597,10 +599,10 @@ public:
   /// to keep the accessor alive until the command group finishes the work.
   /// This function does not do anything for USM reductions.
   void associateWithHandler(handler &CGH) {
-    if (MRWAcc)
-      CGH.associateWithHandler(MRWAcc.get(), access::target::device);
-    else if (MDWAcc)
-      CGH.associateWithHandler(MDWAcc.get(), access::target::device);
+    if constexpr (!my_is_usm) {
+      static_assert(my_is_rw_acc || my_is_dw_acc);
+      CGH.associateWithHandler(&MRedOut, access::target::device);
+    }
   }
 
   /// Creates and returns a local accessor with the \p Size elements.
@@ -624,7 +626,7 @@ public:
   template <bool IsOneWG, bool _IsUSM = is_usm>
   std::enable_if_t<IsOneWG && _IsUSM, result_type *>
   getWriteMemForPartialReds(size_t, handler &) {
-    return getUSMPointer();
+    return getUserRedVar();
   }
 
   /// Returns user's accessor passed to reduction for editing if that is
@@ -633,8 +635,8 @@ public:
   template <bool IsOneWG, bool _IsUSM = is_usm>
   std::enable_if_t<IsOneWG && !_IsUSM, rw_accessor_type>
   getWriteMemForPartialReds(size_t, handler &CGH) {
-    if (MRWAcc)
-      return *MRWAcc;
+    if constexpr (my_is_rw_acc)
+      return MRedOut;
     return getWriteMemForPartialReds<false>(1, CGH);
   }
 
@@ -655,9 +657,11 @@ public:
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
   rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if (Size == 1 && MRWAcc != nullptr) {
-      associateWithHandler(CGH);
-      return *MRWAcc;
+    if constexpr (my_is_rw_acc) {
+      if (Size == 1) {
+        associateWithHandler(CGH);
+        return MRedOut;
+      }
     }
 
     // Create a new output buffer and return an accessor to it.
@@ -673,8 +677,12 @@ public:
   template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
-    if (!is_usm && !base::initializeToIdentity())
-      return *MRWAcc;
+    if constexpr (my_is_rw_acc) {
+      if (!base::initializeToIdentity())
+        return MRedOut;
+    }
+    assert(!(my_is_dw_acc && !base::initializeToIdentity()) &&
+           "Unexpected condition!");
 
     // TODO: Move to T[] in C++20 to simplify handling here
     // auto RWReduVal = std::make_shared<T[num_elements]>();
@@ -701,22 +709,7 @@ public:
     return {*CounterBuf, CGH};
   }
 
-  bool hasUserDiscardWriteAccessor() { return MDWAcc != nullptr; }
-
-  template <bool _IsUSM = IsUSM>
-  std::enable_if_t<!_IsUSM, rw_accessor_type &> getUserReadWriteAccessor() {
-    return *MRWAcc;
-  }
-
-  template <bool _IsUSM = IsUSM>
-  std::enable_if_t<!_IsUSM, dw_accessor_type &> getUserDiscardWriteAccessor() {
-    return *MDWAcc;
-  }
-
-  result_type *getUSMPointer() {
-    assert(is_usm && "Unexpected call of getUSMPointer().");
-    return MUSMPointer;
-  }
+  RedOutVar &getUserRedVar() { return MRedOut; }
 
   static inline result_type *getOutPointer(const rw_accessor_type &OutAcc) {
     return OutAcc.get_pointer().get();
@@ -781,11 +774,11 @@ private:
   using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
                                    Algorithm>;
 
+public:
   using algo::my_is_usm;
   using algo::my_is_rw_acc;
   using algo::my_is_dw_acc;
 
-public:
   using reducer_type = typename algo::reducer_type;
   using rw_accessor_type = typename algo::rw_accessor_type;
   using dw_accessor_type = typename algo::dw_accessor_type;
@@ -1746,10 +1739,7 @@ std::enable_if_t<!Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
   Redu.associateWithHandler(CGH);
-  if (Redu.hasUserDiscardWriteAccessor())
-    CGH.copy(InAcc, Redu.getUserDiscardWriteAccessor());
-  else
-    CGH.copy(InAcc, Redu.getUserReadWriteAccessor());
+  CGH.copy(InAcc, Redu.getUserRedVar());
 }
 
 // This method is used for implementation of parallel_for accepting 1 reduction.
@@ -1762,7 +1752,7 @@ std::enable_if_t<Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  auto UserVarPtr = Redu.getUSMPointer();
+  auto UserVarPtr = Redu.getUserRedVar();
   bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
   auto BOp = Redu.getBinaryOperation();
   CGH.single_task<KernelName>([=] {
@@ -2559,21 +2549,16 @@ template <typename Reduction, typename... RestT>
 void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
-  // Reductions initialized with USM pointer currently do not require copying
-  // because the last kernel writes directly to the USM memory.
-  if constexpr (!Reduction::is_usm) {
-    if (Redu.hasUserDiscardWriteAccessor()) {
-      event CopyEvent =
-          withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
-            auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
-            auto OutAcc = Redu.getUserDiscardWriteAccessor();
-            Redu.associateWithHandler(CopyHandler);
-            if (!Events.empty())
-              CopyHandler.depends_on(Events.back());
-            CopyHandler.copy(InAcc, OutAcc);
-          });
-      Events.push_back(CopyEvent);
-    }
+  if constexpr (Reduction::my_is_dw_acc) {
+    event CopyEvent = withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
+      auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
+      auto OutAcc = Redu.getUserRedVar();
+      Redu.associateWithHandler(CopyHandler);
+      if (!Events.empty())
+        CopyHandler.depends_on(Events.back());
+      CopyHandler.copy(InAcc, OutAcc);
+    });
+    Events.push_back(CopyEvent);
   }
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
