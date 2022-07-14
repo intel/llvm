@@ -15,11 +15,12 @@ class KernelNameC;
 
 int main() {
   sycl::queue q;
+  sycl::event e;
   // Check that init-list works here.
-  sycl::event e = q.parallel_for<KernelNameA>(sycl::range<1>{1}, sycl::id<1>{0},
-                              [=](sycl::item<1> i) { });
-  q.parallel_for<KernelNameB>(sycl::range<2>{1, 1}, sycl::id<2>{0, 0}, e,
-                              [=](sycl::item<2> i) { });
-  q.parallel_for<KernelNameC>(sycl::range<3>{1, 1, 1}, sycl::id<3>{0, 0, 0}, {e},
-                              [=](sycl::item<3> i) { });
+  q.parallel_for<KernelNameA>(sycl::range<1>{1}, sycl::id<1>{0}, {e},
+                              [=](sycl::item<1> i) {});
+  q.parallel_for<KernelNameB>(sycl::range<2>{1, 1}, sycl::id<2>{0, 0}, {e},
+                              [=](sycl::item<2> i) {});
+  q.parallel_for<KernelNameC>(sycl::range<3>{1, 1, 1}, sycl::id<3>{0, 0, 0},
+                              {e}, [=](sycl::item<3> i) {});
 }
