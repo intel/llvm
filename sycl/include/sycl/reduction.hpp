@@ -25,7 +25,7 @@ std::enable_if_t<
     has_known_identity<BinaryOperation, T>::value,
     ext::oneapi::detail::reduction_impl<
         T, BinaryOperation, 0, 1,
-        accessor<T, 0, access::mode::read_write, access::target::device,
+        accessor<T, 1, access::mode::read_write, access::target::device,
                  access::placeholder::true_t,
                  ext::oneapi::accessor_property_list<>>,
         ext::oneapi::detail::default_reduction_algorithm<
@@ -46,7 +46,7 @@ std::enable_if_t<
     !has_known_identity<BinaryOperation, T>::value,
     ext::oneapi::detail::reduction_impl<
         T, BinaryOperation, 0, 1,
-        accessor<T, 0, access::mode::read_write, access::target::device,
+        accessor<T, 1, access::mode::read_write, access::target::device,
                  access::placeholder::true_t,
                  ext::oneapi::accessor_property_list<>>,
         ext::oneapi::detail::default_reduction_algorithm<
@@ -100,7 +100,7 @@ reduction(T *, BinaryOperation, const property_list &PropList = {}) {
 template <typename T, typename AllocatorT, typename BinaryOperation>
 ext::oneapi::detail::reduction_impl<
     T, BinaryOperation, 0, 1,
-    accessor<T, 0, access::mode::read_write, access::target::device,
+    accessor<T, 1, access::mode::read_write, access::target::device,
              access::placeholder::true_t,
              ext::oneapi::accessor_property_list<>>,
     ext::oneapi::detail::default_reduction_algorithm<

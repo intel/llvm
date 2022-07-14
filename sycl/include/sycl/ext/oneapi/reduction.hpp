@@ -579,16 +579,19 @@ public:
             std::enable_if_t<_self::my_is_rw_acc> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       std::shared_ptr<rw_accessor_type> AccPointer)
-      : base(Identity, BinaryOp, Init), MRWAcc(AccPointer){};
+      : base(Identity, BinaryOp, Init), MRWAcc(AccPointer),
+        MRedOut(*AccPointer){};
   template <class _self = self,
             std::enable_if_t<_self::my_is_dw_acc> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       std::shared_ptr<dw_accessor_type> AccPointer)
-      : base(Identity, BinaryOp, Init), MDWAcc(AccPointer){};
+      : base(Identity, BinaryOp, Init), MDWAcc(AccPointer),
+        MRedOut(*AccPointer){};
   template <class _self = self, std::enable_if_t<_self::my_is_usm> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       T *USMPointer)
-      : base(Identity, BinaryOp, Init), MUSMPointer(USMPointer){};
+      : base(Identity, BinaryOp, Init), MUSMPointer(USMPointer),
+        MRedOut(MUSMPointer){};
 
   /// Associates the reduction accessor to user's memory with \p CGH handler
   /// to keep the accessor alive until the command group finishes the work.
@@ -738,7 +741,6 @@ private:
     return Acc;
   }
 
-  RedOutVar *MRedOut;
   /// User's accessor to where the reduction must be written.
   std::shared_ptr<rw_accessor_type> MRWAcc;
   std::shared_ptr<dw_accessor_type> MDWAcc;
@@ -748,6 +750,8 @@ private:
   /// USM pointer referencing the memory to where the result of the reduction
   /// must be written. Applicable/used only for USM reductions.
   T *MUSMPointer = nullptr;
+
+  RedOutVar &MRedOut;
 };
 
 /// Predicate returning true if all template type parameters except the last one
