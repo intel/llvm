@@ -534,6 +534,9 @@ class reduction_impl_algo<
     default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>
     : public reduction_impl_common<T, BinaryOperation> {
   using base = reduction_impl_common<T, BinaryOperation>;
+  using self = reduction_impl_algo<
+      T, BinaryOperation, Dims, Extent, RedOutVar,
+      default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>;
 
 protected:
   static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
@@ -572,12 +575,17 @@ public:
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
 
+  template <class _self = self,
+            std::enable_if_t<_self::my_is_rw_acc> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       std::shared_ptr<rw_accessor_type> AccPointer)
       : base(Identity, BinaryOp, Init), MRWAcc(AccPointer){};
+  template <class _self = self,
+            std::enable_if_t<_self::my_is_dw_acc> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       std::shared_ptr<dw_accessor_type> AccPointer)
       : base(Identity, BinaryOp, Init), MDWAcc(AccPointer){};
+  template <class _self = self, std::enable_if_t<_self::my_is_usm> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
                       T *USMPointer)
       : base(Identity, BinaryOp, Init), MUSMPointer(USMPointer){};
