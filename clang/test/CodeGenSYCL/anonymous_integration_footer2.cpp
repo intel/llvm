@@ -9,7 +9,7 @@ int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK: #include <sycl/detail/defines_elementary.hpp>
 
 using namespace cl;
 
@@ -155,4 +155,4 @@ constexpr sycl::specialization_id same_name{209};
 }
 }
 
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
+// CHECK: #include <sycl/detail/spec_const_integration.hpp>

@@ -83,7 +83,7 @@
 
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
-#include <CL/sycl/half_type.hpp>
+#include <sycl/half_type.hpp>
 
 /// @cond ESIMD_DETAIL
 

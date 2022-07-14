@@ -13,19 +13,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
+#include <sycl/types.hpp>
 
 #include <cstdint>
 
 #ifndef __SYCL_DEVICE_ONLY__
 // ESIMD_CPU Emulation support using esimd_cpu plugin
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 

@@ -13,7 +13,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/builtins.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/host_util.hpp>

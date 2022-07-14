@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <CL/sycl/platform.hpp>
+#include <sycl/platform.hpp>
 
 #include <algorithm>
 #include <functional>
