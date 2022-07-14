@@ -72,5 +72,19 @@
       "check_sycl_all": "cuda:gpu,host",
       "cmake_args": ""
     }
+  ],
+  "cts": [
+    {
+      "config": "cuda",
+      "name": "CUDA Khronos SYCL CTS",
+      "runs-on": [
+        "Linux",
+        "cuda"
+      ],
+      "image": "${{ inputs.cuda_image }}",
+      "container_options": "--gpus all",
+      "sycl_device_filter": "cuda:gpu",
+      "cmake_args": ""
+    }
   ]
 }
