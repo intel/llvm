@@ -152,6 +152,10 @@ public:
   getOrMakeDeviceImpl(RT::PiDevice PiDevice,
                       const std::shared_ptr<platform_impl> &PlatformImpl);
 
+  std::shared_ptr<device_impl>
+  getDeviceImpl(RT::PiDevice PiDevice,
+                const std::shared_ptr<platform_impl> &PlatformImpl);
+
   /// Static functions that help maintain platform uniquess and
   /// equality of comparison
 

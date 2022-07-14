@@ -26,13 +26,18 @@ class device_selector;
 class device;
 namespace detail {
 class platform_impl;
-}
+device make_device(pi_native_handle NativeHandle, backend Backend);
+} // namespace detail
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
 class __SYCL_EXPORT platform {
 public:
+
+friend device detail::make_device(pi_native_handle NativeHandle,
+                                  backend Backend);
+
   /// Constructs a SYCL platform as a host platform.
   platform();
 

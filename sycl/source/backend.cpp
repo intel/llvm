@@ -57,12 +57,21 @@ platform make_platform(pi_native_handle NativeHandle, backend Backend) {
 
 __SYCL_EXPORT device make_device(pi_native_handle NativeHandle,
                                  backend Backend) {
-  const auto &Plugin = getPlugin(Backend);
 
-  pi::PiDevice PiDevice = nullptr;
-  Plugin.call<PiApiKind::piextDeviceCreateWithNativeHandle>(NativeHandle,
-                                                            nullptr, &PiDevice);
-  // Construct the SYCL device from PI device.
+  auto plts = platform::get_platforms();
+  detail::pi::PiDevice PiDevice = nullptr;
+  const auto &Plugin = detail::getPlugin(Backend);
+  for (const auto &plt : plts) {
+    if (plt.get_backend() == Backend) {
+      Plugin.call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+          NativeHandle, nullptr, &PiDevice);
+      auto devImpl = plt.impl->getDeviceImpl(PiDevice, plt.impl);
+      if (devImpl != nullptr) {
+        return detail::createSyclObjFromImpl<device>(devImpl);
+      }
+    }
+  }
+
   return detail::createSyclObjFromImpl<device>(
       std::make_shared<device_impl>(PiDevice, Plugin));
 }

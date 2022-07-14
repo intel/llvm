@@ -212,6 +212,20 @@ static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
   Plugin.setLastDeviceId(Platform, DeviceNum);
 }
 
+std::shared_ptr<device_impl> platform_impl::getDeviceImpl(
+    RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
+  const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
+
+  // If we've already seen this device, return the impl
+  for (const std::weak_ptr<device_impl> &DeviceWP : MDeviceCache) {
+    if (std::shared_ptr<device_impl> Device = DeviceWP.lock()) {
+      if (Device->getHandleRef() == PiDevice)
+        return Device;
+    }
+  }
+  return nullptr;
+    }
+
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
     RT::PiDevice PiDevice, const std::shared_ptr<platform_impl> &PlatformImpl) {
   const std::lock_guard<std::mutex> Guard(MDeviceMapMutex);
