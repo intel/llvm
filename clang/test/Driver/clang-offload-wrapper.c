@@ -83,7 +83,7 @@
 // CHECK-HELP:     =hip                  -   HIP
 // CHECK-HELP:     =sycl                 -   SYCL
 // CHECK-HELP:   --link-opts=<string>    - link options passed to the offload runtime
-// CHECK-HELP:   -o=<filename>           - Output filename
+// CHECK-HELP:   -o <filename>           - Output filename
 // CHECK-HELP:   --properties=<filename> - File listing device binary image properties, SYCL offload only
 // CHECK-HELP:   --target=<string>       - offload target triple
 // CHECK-HELP:   -v                      - verbose output
