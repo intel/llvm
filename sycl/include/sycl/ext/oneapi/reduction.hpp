@@ -521,22 +521,23 @@ class default_reduction_algorithm {};
 
 /// Templated class for implementations of specific reduction algorithms
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar, class Algorithm>
+          class Algorithm, typename RedOutVar>
 class reduction_impl_algo;
 
 /// Original reduction algorithm is the default. It supports both USM and
 /// accessors via a single class
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar, bool IsUSM, access::placeholder IsPlaceholder,
-          int AccessorDims>
+          bool IsUSM, access::placeholder IsPlaceholder, int AccessorDims,
+          typename RedOutVar>
 class reduction_impl_algo<
-    T, BinaryOperation, Dims, Extent, RedOutVar,
-    default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>
+    T, BinaryOperation, Dims, Extent,
+    default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>, RedOutVar>
     : public reduction_impl_common<T, BinaryOperation> {
   using base = reduction_impl_common<T, BinaryOperation>;
   using self = reduction_impl_algo<
-      T, BinaryOperation, Dims, Extent, RedOutVar,
-      default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>;
+      T, BinaryOperation, Dims, Extent,
+      default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>,
+      RedOutVar>;
 
 public:
   using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
@@ -744,15 +745,16 @@ template <typename T> struct AreAllButLastReductions<T> {
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          typename RedOutVar, class Algorithm>
+          class Algorithm, typename RedOutVar>
 class reduction_impl
     : private reduction_impl_base,
-      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
-                                 Algorithm> {
+      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, Algorithm,
+                                 RedOutVar> {
 private:
-  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
-                                   Algorithm>;
-  using self = reduction_impl<T, BinaryOperation, Dims, Extent, RedOutVar, Algorithm>;
+  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent,
+                                   Algorithm, RedOutVar>;
+  using self =
+      reduction_impl<T, BinaryOperation, Dims, Extent, Algorithm, RedOutVar>;
 
   static constexpr bool is_known_identity =
       sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value;
@@ -2464,8 +2466,8 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, 0, 1,
-                       accessor<T, Dims, AccMode, access::target::device, IsPH>,
-                       detail::default_reduction_algorithm<false, IsPH, Dims>>
+                       detail::default_reduction_algorithm<false, IsPH, Dims>,
+                       accessor<T, Dims, AccMode, access::target::device, IsPH>>
 reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           const T &Identity, BinaryOperation BOp) {
   return {Acc, Identity, BOp};
@@ -2480,8 +2482,8 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
 std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                  detail::reduction_impl<
                      T, BinaryOperation, 0, 1,
-                     accessor<T, Dims, AccMode, access::target::device, IsPH>,
-                     detail::default_reduction_algorithm<false, IsPH, Dims>>>
+                     detail::default_reduction_algorithm<false, IsPH, Dims>,
+                     accessor<T, Dims, AccMode, access::target::device, IsPH>>>
 reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           BinaryOperation) {
   return {Acc};
@@ -2493,8 +2495,9 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
 detail::reduction_impl<
-    T, BinaryOperation, 0, 1, T *,
-    detail::default_reduction_algorithm<true, access::placeholder::false_t, 1>>
+    T, BinaryOperation, 0, 1,
+    detail::default_reduction_algorithm<true, access::placeholder::false_t, 1>,
+    T *>
 reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return {VarPtr, Identity, BOp};
 }
@@ -2507,9 +2510,10 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 template <typename T, class BinaryOperation>
 std::enable_if_t<
     sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-    detail::reduction_impl<T, BinaryOperation, 0, 1, T *,
+    detail::reduction_impl<T, BinaryOperation, 0, 1,
                            detail::default_reduction_algorithm<
-                               true, access::placeholder::false_t, 1>>>
+                               true, access::placeholder::false_t, 1>,
+                           T *>>
 reduction(T *VarPtr, BinaryOperation) {
   return {VarPtr};
 }
