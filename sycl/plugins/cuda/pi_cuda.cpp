@@ -179,14 +179,6 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// contexts to be restored by SYCL.
 class ScopedContext {
 public:
-  ScopedContext(pi_context ctxt) {
-    if (!ctxt) {
-      throw PI_ERROR_INVALID_CONTEXT;
-    }
-
-    set_context(ctxt->get()[0]);
-  }
-
   ScopedContext(CUcontext ctxt) { set_context(ctxt); }
 
   ~ScopedContext() {}
@@ -2050,7 +2042,9 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
     if (property_cuda_primary) {
-      assert(num_devices == 1); // TODO proper error
+      if(num_devices != 1){
+        return PI_ERROR_INVALID_VALUE;
+      }
       // Use the CUDA primary context and assume that we want to use it
       // immediately as we want to forge context switches.
       CUcontext Ctxt;
@@ -3378,7 +3372,7 @@ pi_result cuda_piProgramCreateWithBinary(
       }
     }
     assert(found_device &&
-          "Mismatch between devices context and passed context when creating "
+          "Mismatch between device's context and passed context when creating "
           "program from binary");
   }
 
