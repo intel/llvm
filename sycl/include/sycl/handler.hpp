@@ -242,7 +242,7 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
+          typename RedOutVar, class Algorithm>
 class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
@@ -2667,7 +2667,7 @@ private:
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
-            class Algorithm>
+            typename RedOutVar, class Algorithm>
   friend class ext::oneapi::detail::reduction_impl_algo;
 
 #ifndef __SYCL_DEVICE_ONLY__

@@ -21,11 +21,15 @@ namespace sycl {
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
 /// reduction operation \p Combiner, and optional reduction properties.
 template <typename T, typename AllocatorT, typename BinaryOperation>
-std::enable_if_t<has_known_identity<BinaryOperation, T>::value,
-                 ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 0, 1,
-                     ext::oneapi::detail::default_reduction_algorithm<
-                         false, access::placeholder::true_t, 1>>>
+std::enable_if_t<
+    has_known_identity<BinaryOperation, T>::value,
+    ext::oneapi::detail::reduction_impl<
+        T, BinaryOperation, 0, 1,
+        accessor<T, 0, access::mode::read_write, access::target::device,
+                 access::placeholder::true_t,
+                 ext::oneapi::accessor_property_list<>>,
+        ext::oneapi::detail::default_reduction_algorithm<
+            false, access::placeholder::true_t, 1>>>
 reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
           const property_list &PropList = {}) {
   bool InitializeToIdentity =
@@ -38,11 +42,15 @@ reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
 /// The reduction algorithm may be less efficient for this variant as the
 /// reduction identity is not known statically and it is not provided by user.
 template <typename T, typename AllocatorT, typename BinaryOperation>
-std::enable_if_t<!has_known_identity<BinaryOperation, T>::value,
-                 ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 0, 1,
-                     ext::oneapi::detail::default_reduction_algorithm<
-                         false, access::placeholder::true_t, 1>>>
+std::enable_if_t<
+    !has_known_identity<BinaryOperation, T>::value,
+    ext::oneapi::detail::reduction_impl<
+        T, BinaryOperation, 0, 1,
+        accessor<T, 0, access::mode::read_write, access::target::device,
+                 access::placeholder::true_t,
+                 ext::oneapi::accessor_property_list<>>,
+        ext::oneapi::detail::default_reduction_algorithm<
+            false, access::placeholder::true_t, 1>>>
 reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
           const property_list &PropList = {}) {
   // TODO: implement reduction that works even when identity is not known.
@@ -58,7 +66,7 @@ reduction(buffer<T, 1, AllocatorT>, handler &, BinaryOperation,
 template <typename T, typename BinaryOperation>
 std::enable_if_t<has_known_identity<BinaryOperation, T>::value,
                  ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 0, 1,
+                     T, BinaryOperation, 0, 1, T *,
                      ext::oneapi::detail::default_reduction_algorithm<
                          true, access::placeholder::false_t, 1>>>
 reduction(T *Var, BinaryOperation, const property_list &PropList = {}) {
@@ -75,7 +83,7 @@ reduction(T *Var, BinaryOperation, const property_list &PropList = {}) {
 template <typename T, typename BinaryOperation>
 std::enable_if_t<!has_known_identity<BinaryOperation, T>::value,
                  ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 0, 1,
+                     T, BinaryOperation, 0, 1, T *,
                      ext::oneapi::detail::default_reduction_algorithm<
                          true, access::placeholder::false_t, 1>>>
 reduction(T *, BinaryOperation, const property_list &PropList = {}) {
@@ -92,6 +100,9 @@ reduction(T *, BinaryOperation, const property_list &PropList = {}) {
 template <typename T, typename AllocatorT, typename BinaryOperation>
 ext::oneapi::detail::reduction_impl<
     T, BinaryOperation, 0, 1,
+    accessor<T, 0, access::mode::read_write, access::target::device,
+             access::placeholder::true_t,
+             ext::oneapi::accessor_property_list<>>,
     ext::oneapi::detail::default_reduction_algorithm<
         false, access::placeholder::true_t, 1>>
 reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
@@ -106,7 +117,7 @@ reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
 /// binary operation \p Combiner, and optional reduction properties.
 template <typename T, typename BinaryOperation>
 ext::oneapi::detail::reduction_impl<
-    T, BinaryOperation, 0, 1,
+    T, BinaryOperation, 0, 1, T *,
     ext::oneapi::detail::default_reduction_algorithm<
         true, access::placeholder::false_t, 1>>
 reduction(T *Var, const T &Identity, BinaryOperation Combiner,
@@ -124,7 +135,7 @@ template <typename T, size_t Extent, typename BinaryOperation>
 std::enable_if_t<Extent != dynamic_extent &&
                      has_known_identity<BinaryOperation, T>::value,
                  ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 1, Extent,
+                     T, BinaryOperation, 1, Extent, T *,
                      ext::oneapi::detail::default_reduction_algorithm<
                          true, access::placeholder::false_t, 1>>>
 reduction(span<T, Extent> Span, BinaryOperation,
@@ -143,7 +154,7 @@ template <typename T, size_t Extent, typename BinaryOperation>
 std::enable_if_t<Extent != dynamic_extent &&
                      !has_known_identity<BinaryOperation, T>::value,
                  ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 1, Extent,
+                     T, BinaryOperation, 1, Extent, T *,
                      ext::oneapi::detail::default_reduction_algorithm<
                          true, access::placeholder::false_t, 1>>>
 reduction(span<T, Extent>, BinaryOperation,
@@ -161,7 +172,7 @@ reduction(span<T, Extent>, BinaryOperation,
 template <typename T, size_t Extent, typename BinaryOperation>
 std::enable_if_t<Extent != dynamic_extent,
                  ext::oneapi::detail::reduction_impl<
-                     T, BinaryOperation, 1, Extent,
+                     T, BinaryOperation, 1, Extent, T *,
                      ext::oneapi::detail::default_reduction_algorithm<
                          true, access::placeholder::false_t, 1>>>
 reduction(span<T, Extent> Span, const T &Identity, BinaryOperation Combiner,

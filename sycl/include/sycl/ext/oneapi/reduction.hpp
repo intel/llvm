@@ -503,15 +503,16 @@ class default_reduction_algorithm {};
 
 /// Templated class for implementations of specific reduction algorithms
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
+          typename RedOutVar, class Algorithm>
 class reduction_impl_algo;
 
 /// Original reduction algorithm is the default. It supports both USM and
 /// accessors via a single class
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          bool IsUSM, access::placeholder IsPlaceholder, int AccessorDims>
+          typename RedOutVar, bool IsUSM, access::placeholder IsPlaceholder,
+          int AccessorDims>
 class reduction_impl_algo<
-    T, BinaryOperation, Dims, Extent,
+    T, BinaryOperation, Dims, Extent, RedOutVar,
     default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>
     : public reduction_impl_common<T, BinaryOperation> {
   using base = reduction_impl_common<T, BinaryOperation>;
@@ -533,6 +534,7 @@ public:
       accessor<T, AccessorDims, access::mode::discard_write,
                access::target::device, IsPlaceholder,
                ext::oneapi::accessor_property_list<>>;
+
 
   static constexpr bool has_atomic_add_float64 =
       IsReduOptForAtomic64Add<T, BinaryOperation>::value;
@@ -705,6 +707,7 @@ private:
     return Acc;
   }
 
+  RedOutVar *MRedOut;
   /// User's accessor to where the reduction must be written.
   std::shared_ptr<rw_accessor_type> MRWAcc;
   std::shared_ptr<dw_accessor_type> MDWAcc;
@@ -731,16 +734,38 @@ template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value =
       !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
 };
+template <class T>
+struct is_rw_acc_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::placeholder IsPlaceholder>
+struct is_rw_acc_t<
+    accessor<T, AccessorDims, access::mode::read_write, access::target::device,
+             IsPlaceholder, ext::oneapi::accessor_property_list<>>>
+    : public std::true_type {};
+
+template <class T>
+struct is_dw_acc_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::placeholder IsPlaceholder>
+struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
+                            access::target::device, IsPlaceholder,
+                            ext::oneapi::accessor_property_list<>>>
+    : public std::true_type {};
 
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
+          typename RedOutVar, class Algorithm>
 class reduction_impl
     : private reduction_impl_base,
-      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, Algorithm> {
+      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
+                                 Algorithm> {
 private:
-  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, Algorithm>;
+  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar,
+                                   Algorithm>;
+  static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
+  static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
+  static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
 
 public:
   using reducer_type = typename algo::reducer_type;
@@ -753,8 +778,9 @@ public:
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _T, typename AllocatorT,
-            std::enable_if_t<sycl::detail::IsKnownIdentityOp<
-                _T, BinaryOperation>::value> * = nullptr>
+            std::enable_if_t<
+                sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                my_is_rw_acc> * = nullptr>
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
@@ -767,8 +793,10 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_rw_acc> * = nullptr>
   reduction_impl(rw_accessor_type &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false,
              std::make_shared<rw_accessor_type>(Acc)) {
@@ -779,8 +807,10 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_dw_acc> * = nullptr>
   reduction_impl(dw_accessor_type &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), true,
              std::make_shared<dw_accessor_type>(Acc)) {
@@ -795,8 +825,8 @@ public:
   /// and user still passed the identity value.
   template <
       typename _T, typename AllocatorT,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value>
-          * = nullptr>
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_rw_acc> * = nullptr>
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  const T & /*Identity*/, BinaryOperation,
                  bool InitializeToIdentity)
@@ -822,8 +852,10 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_rw_acc> * = nullptr>
   reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false,
              std::make_shared<rw_accessor_type>(Acc)) {
@@ -846,8 +878,10 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_dw_acc> * = nullptr>
   reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : algo(reducer_type::getIdentity(), BinaryOperation(), true,
              std::make_shared<dw_accessor_type>(Acc)) {
@@ -870,10 +904,10 @@ public:
 
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is NOT known statically.
-  template <
-      typename _T, typename AllocatorT,
-      enable_if_t<!sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value>
-          * = nullptr>
+  template <typename _T, typename AllocatorT,
+            enable_if_t<
+                !sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                my_is_rw_acc> * = nullptr>
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity)
@@ -888,7 +922,8 @@ public:
 
   /// Constructs reduction_impl when the identity value is unknown.
   template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+                                             _T, BinaryOperation>::value &&
+                                         my_is_rw_acc> * = nullptr>
   reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : algo(Identity, BOp, false, std::make_shared<rw_accessor_type>(Acc)) {
     if (Acc.size() != 1)
@@ -899,7 +934,8 @@ public:
 
   /// Constructs reduction_impl when the identity value is unknown.
   template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+                                             _T, BinaryOperation>::value &&
+                                         my_is_dw_acc> * = nullptr>
   reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : algo(Identity, BOp, true, std::make_shared<dw_accessor_type>(Acc)) {
     if (Acc.size() != 1)
@@ -912,8 +948,10 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_usm> * = nullptr>
   reduction_impl(T *VarPtr, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, VarPtr) {}
@@ -923,8 +961,10 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_usm> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity, BinaryOperation,
                  bool InitializeToIdentity = false)
       : algo(Identity, BinaryOperation(), InitializeToIdentity, VarPtr) {
@@ -946,7 +986,8 @@ public:
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
   template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+                                             _T, BinaryOperation>::value &&
+                                         my_is_usm> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, VarPtr) {}
@@ -960,8 +1001,10 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known
   /// and user passed an identity value anyway
-  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+  template <
+      typename _T = T,
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
+                  my_is_usm> * = nullptr>
   reduction_impl(span<_T, Extent> Span, const T & /* Identity */,
                  BinaryOperation BOp, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BOp, InitializeToIdentity,
@@ -969,7 +1012,8 @@ public:
 
   /// Constructs reduction_impl when the identity value is not statically known
   template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                 _T, BinaryOperation>::value> * = nullptr>
+                                             _T, BinaryOperation>::value &&
+                                         my_is_usm> * = nullptr>
   reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, Span.data()) {}
@@ -2566,6 +2610,7 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, 0, 1,
+                       accessor<T, Dims, AccMode, access::target::device, IsPH>,
                        detail::default_reduction_algorithm<false, IsPH, Dims>>
 reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           const T &Identity, BinaryOperation BOp) {
@@ -2581,6 +2626,7 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
 std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                  detail::reduction_impl<
                      T, BinaryOperation, 0, 1,
+                     accessor<T, Dims, AccMode, access::target::device, IsPH>,
                      detail::default_reduction_algorithm<false, IsPH, Dims>>>
 reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           BinaryOperation) {
@@ -2593,7 +2639,7 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
 detail::reduction_impl<
-    T, BinaryOperation, 0, 1,
+    T, BinaryOperation, 0, 1, T *,
     detail::default_reduction_algorithm<true, access::placeholder::false_t, 1>>
 reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return {VarPtr, Identity, BOp};
@@ -2607,7 +2653,7 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 template <typename T, class BinaryOperation>
 std::enable_if_t<
     sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-    detail::reduction_impl<T, BinaryOperation, 0, 1,
+    detail::reduction_impl<T, BinaryOperation, 0, 1, T *,
                            detail::default_reduction_algorithm<
                                true, access::placeholder::false_t, 1>>>
 reduction(T *VarPtr, BinaryOperation) {
