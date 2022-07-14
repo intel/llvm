@@ -30,6 +30,8 @@ runs:
       cp -r /actions .
       git config --global --add safe.directory /__w/repo_cache/KhronosGroup/SYCL-CTS
     shell: bash
+  - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
+    shell: bash
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
     with:
@@ -49,7 +51,6 @@ runs:
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
   # TODO these must be in the container
-  - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
   - name: Build SYCL-CTS
     shell: bash
     run: |
