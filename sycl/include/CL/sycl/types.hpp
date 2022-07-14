@@ -829,6 +829,7 @@ public:
       printf("  %d: %d\n", I, getValue(I));
     }
     printf("\n");
+    fflush(stdout);
 #endif // __SYCL_DEVICE_ONLY__
   }
 

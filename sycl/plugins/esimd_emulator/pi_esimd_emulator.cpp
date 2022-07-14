@@ -116,6 +116,7 @@ static bool PrintPiTrace = false;
 static void PiTrace(std::string TraceString) {
   if (PrintPiTrace) {
     printf("%s\n", TraceString.c_str());
+    fflush(stdout);
   }
 }
 

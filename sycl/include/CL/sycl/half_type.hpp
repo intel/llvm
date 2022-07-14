@@ -696,6 +696,7 @@ template <> struct numeric_limits<cl::sycl::half> {
 
 inline FILE *operator<<(FILE *file, cl::sycl::half const &rhs) {
   fprintf(file, "%lf", static_cast<float>(rhs));
+  fflush(file);
   return file;
 }
 

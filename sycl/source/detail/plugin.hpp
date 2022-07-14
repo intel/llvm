@@ -119,10 +119,10 @@ public:
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        // TODO: Current solution is a proper analog ogf clog
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
         fprintf(stdout, "%s\n", message);
-
+        fflush(stdout);
+      }
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
         return;
@@ -137,10 +137,10 @@ public:
       pi_result = call_nocheck<PiApiKind::piPluginGetLastError>(&message);
 
       // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2)
-        // TODO: Current solution is a proper analog ogf clog
+      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
         fprintf(stdout, "%s\n", message);
-
+        fflush(stdout);
+      }
       // If it is a warning do not throw code
       if (pi_result == PI_SUCCESS)
         return;
@@ -199,6 +199,7 @@ public:
       RT::printArgs(R);
       RT::printOuts(Args...);
       printf("\n");
+      fflush(stdout);
     } else {
       R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
     }

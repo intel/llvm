@@ -944,6 +944,7 @@ void AllocaCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
@@ -1034,6 +1035,7 @@ void AllocaSubBufCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
@@ -1147,6 +1149,7 @@ void ReleaseCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 bool ReleaseCommand::producesPiEvent() const { return false; }
@@ -1215,6 +1218,7 @@ void MapMemObject::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
@@ -1296,6 +1300,7 @@ void UnMapMemObject::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 MemCpyCommand::MemCpyCommand(Requirement SrcReq,
@@ -1412,6 +1417,7 @@ void MemCpyCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
@@ -1485,6 +1491,7 @@ void UpdateHostRequirementCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
@@ -1641,6 +1648,7 @@ void EmptyCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 bool EmptyCommand::producesPiEvent() const { return false; }
@@ -1661,6 +1669,7 @@ void MemCpyCommandHost::printDot(FILE *file) const {
             "MemObj: ", (const void *)Dep.MDepRequirement->MSYCLMemObj,
             " \" ]");
   }
+  fflush(file);
 }
 
 UpdateHostRequirementCommand::UpdateHostRequirementCommand(
@@ -1949,6 +1958,7 @@ void ExecCGCommand::printDot(FILE *file) const {
         accessModeToString(Dep.MDepRequirement->MAccessMode).c_str(),
         (const void *)Dep.MDepRequirement->MSYCLMemObj);
   }
+  fflush(file);
 }
 
 // SYCL has a parallel_for_work_group variant where the only NDRange

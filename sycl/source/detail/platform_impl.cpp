@@ -86,6 +86,7 @@ static bool IsBannedPlatform(platform Platform) {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL) && IsCUDAOCL) {
       printf("SYCL_PI_TRACE[all]: NVIDIA CUDA OpenCL platform found but is not "
              "compatible.\n");
+      fflush(stdout);
     }
     return IsCUDAOCL;
   };

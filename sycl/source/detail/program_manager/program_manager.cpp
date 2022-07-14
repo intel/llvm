@@ -487,8 +487,8 @@ static void emitBuiltProgramInfo(const pi_program &Prog,
   if (SYCLConfig<SYCL_RT_WARNING_LEVEL>::get() >= 2) {
     std::string ProgramBuildLog =
         ProgramManager::getProgramBuildLog(Prog, Context);
-    // TODO: Implement clog replacment, stdout is not fully analogous
     fprintf(stdout, "%s\n", ProgramBuildLog.c_str());
+    fflush(stdout);
   }
 }
 
@@ -741,7 +741,7 @@ static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
   FILE *File = fopen(FileName.c_str(), "rb");
   bool fileError = false;
 
-  if (File == nullptr || !fseek(File, 0, SEEK_END)) {
+  if (File == nullptr || fseek(File, 0, SEEK_END)) {
     return false;
   }
 

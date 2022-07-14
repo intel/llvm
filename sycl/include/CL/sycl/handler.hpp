@@ -1040,9 +1040,11 @@ private:
       // will yield a rounded-up value for the total range.
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      if (this->RangeRoundingTrace())
+      if (this->RangeRoundingTrace()) {
         printf("parallel_for range adjusted from %lu to %lu\n", NumWorkItems[0],
                NewValX);
+        fflush(stdout);
+      }
 
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =

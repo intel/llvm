@@ -18,7 +18,9 @@
 #include <sycl/ext/intel/esimd/detail/region.hpp>
 
 #if defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)
-#define __esimd_dbg_print(a) printf(">>> %s\n", #a);
+#define __esimd_dbg_print(a)                                                   \
+  printf(">>> %s\n", #a);                                                      \
+  fflush(stdout);
 #else
 #define __esimd_dbg_print(a)
 #endif // defined(__ESIMD_DBG_HOST) && !defined(__SYCL_DEVICE_ONLY__)

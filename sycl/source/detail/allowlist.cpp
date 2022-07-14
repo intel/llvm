@@ -274,7 +274,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
            "EnvironmentVariables.md\n\n",
            BackendNameKeyName, DeviceTypeKeyName, DeviceVendorIdKeyName);
   }
-
+  fflush(stdout);
   return AllowListParsed;
 }
 

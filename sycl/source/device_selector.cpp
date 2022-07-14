@@ -67,6 +67,7 @@ device device_selector::select_device() const {
              ((dev_score < 0) ? " (REJECTED)" : ""),
              "SYCL_PI_TRACE[all]: ", "  platform: ", PlatformName.c_str(),
              "SYCL_PI_TRACE[all]: ", "  device: ", DeviceName.c_str());
+      fflush(stdout);
     }
 
     // A negative score means that a device must not be selected.
@@ -95,6 +96,7 @@ device device_selector::select_device() const {
              "SYCL_PI_TRACE[all]: ", "Selected device ->",
              "SYCL_PI_TRACE[all]: ", "  platform: ", PlatformName.c_str(),
              "SYCL_PI_TRACE[all]: ", "  device: ", DeviceName.c_str());
+      fflush(stdout);
     }
     return *res;
   }

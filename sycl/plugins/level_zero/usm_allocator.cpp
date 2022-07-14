@@ -299,6 +299,7 @@ public:
            Capacity[MemType::SharedReadOnly]);
     printf("%15s%12lu\n", "MaxPoolSize", MaxPoolSize);
     printf("%15s%12lu\n\n", "EnableBuffers", EnableBuffers);
+    fflush(stdout);
   }
 } USMSettings;
 } // namespace settings
@@ -912,10 +913,12 @@ void Bucket::printStats(bool &TitlePrinted, MemType MT) {
       printf("%s memory statistics\n", Label);
       printf("%14s%12s%12s%18s%20s%21s\n", "Bucket Size", "Allocs", "Frees",
              "Allocs from Pool", "Peak Slabs in Use", "Peak Slabs in Pool");
+      fflush(stdout);
       TitlePrinted = true;
     }
     printf("%14lu%12lu%12lu%18lu%20lu%21lu\n", getSize(), allocCount, freeCount,
            allocPoolCount, maxSlabsInUse, maxSlabsInPool);
+    fflush(stdout);
   }
 }
 
@@ -1048,6 +1051,7 @@ void *USMAllocContext::allocate(size_t size) {
 
     printf("Allocated %8lu %s USM bytes from %s ->%p\n", size,
            USMSettings.MemTypeNames[MT], (FromPool ? "Pool" : "USM"), Ptr);
+    fflush(stdout);
   }
   return Ptr;
 }
@@ -1062,6 +1066,7 @@ void *USMAllocContext::allocate(size_t size, size_t alignment) {
     printf("Allocated %8lu %s USM bytes aligned at %lu from %s ->%p\n", size,
            USMSettings.MemTypeNames[MT], alignment, (FromPool ? "Pool" : "USM"),
            Ptr);
+    fflush(stdout);
   }
   return Ptr;
 }
@@ -1081,6 +1086,7 @@ void USMAllocContext::deallocate(void *ptr, bool OwnZeMemHandle) {
            USMSettings.CurPoolSizes[MemType::Device],
            USMSettings.CurPoolSizes[MemType::Shared],
            USMSettings.CurPoolSizes[MemType::SharedReadOnly]);
+    fflush(stdout);
   }
   return;
 }
@@ -1101,6 +1107,7 @@ USMAllocContext::~USMAllocContext() {
              std::string(1, tolower(*Label)).c_str(),
              std::string(Label + 1).c_str(), HighBucketSize,
              HighPeakSlabsInUse);
+      fflush(stdout);
     }
   }
 }

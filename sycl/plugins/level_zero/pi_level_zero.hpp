@@ -62,6 +62,7 @@ template <> uint32_t pi_cast(uint64_t Value) {
 // common header file with utilities should be created.
 [[noreturn]] void die(const char *Message) {
   printf("die: %s\n", Message);
+  fflush(stdout);
   std::terminate();
 }
 
