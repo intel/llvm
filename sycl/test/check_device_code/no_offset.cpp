@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl-device-only -fsycl-early-optimizations -fsycl-dead-args-optimization -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ -S -emit-llvm -o - %s | FileCheck %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 inline constexpr int size = 100;
 

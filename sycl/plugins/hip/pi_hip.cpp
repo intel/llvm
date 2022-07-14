@@ -11,10 +11,10 @@
 ///
 /// \ingroup sycl_pi_hip
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/hip_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <pi_hip.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/hip_definitions.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <algorithm>
 #include <cassert>

@@ -5,10 +5,9 @@
 // and the combine() method of the aux class 'reducer'.
 
 #include "reduction_utils.hpp"
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
-
+#include <sycl/sycl.hpp>
 using namespace cl::sycl;
 
 bool toBool(bool V) { return V; }

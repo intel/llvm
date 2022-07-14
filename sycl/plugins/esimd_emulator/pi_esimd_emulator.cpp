@@ -14,20 +14,20 @@
 
 #include <stdint.h>
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/nd_item.hpp>
-#include <CL/sycl/range.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/common.hpp> // SLM_BTI
+#include <sycl/group.hpp>
+#include <sycl/id.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/range.hpp>
 
 #include <esimdemu_support.h>
 
@@ -345,7 +345,7 @@ static bool isNull(int NDims, const size_t *R) {
 
 // NDims is the number of dimensions in the ND-range. Kernels are
 // normalized in the handler so that all kernels take an sycl::nd_item
-// as argument (see StoreLambda in CL/sycl/handler.hpp). For kernels
+// as argument (see StoreLambda in sycl/handler.hpp). For kernels
 // whose workgroup size (LocalWorkSize) is unspecified, InvokeImpl
 // sets LocalWorkSize to {1, 1, 1}, i.e. each workgroup contains just
 // one work item. CM emulator will run several workgroups in parallel
@@ -2011,7 +2011,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 
   return PI_SUCCESS;
 }

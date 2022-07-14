@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // 4.9.2 Exception Class Interface
-#include <CL/sycl/exception_list.hpp>
+#include <sycl/exception_list.hpp>
 
 #include <utility>
 

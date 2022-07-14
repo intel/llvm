@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/interop_handle.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/interop_handle.hpp>
 
 #include <algorithm>
 

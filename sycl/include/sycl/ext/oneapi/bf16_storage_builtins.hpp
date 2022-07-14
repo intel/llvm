@@ -1,11 +1,11 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/builtins.hpp>
-#include <CL/sycl/detail/builtins.hpp>
-#include <CL/sycl/detail/generic_type_lists.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/builtins.hpp>
+#include <sycl/detail/generic_type_lists.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

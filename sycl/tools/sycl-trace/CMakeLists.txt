@@ -21,8 +21,8 @@ find_package(Python3 REQUIRED)
 add_custom_target(pi-pretty-printers
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/generate_pi_pretty_printers.py
-  ${sycl_inc_dir}/CL/sycl/detail/pi.h
-  SOURCES ${sycl_inc_dir}/CL/sycl/detail/pi.h
+  ${sycl_inc_dir}/sycl/detail/pi.h
+  SOURCES ${sycl_inc_dir}/sycl/detail/pi.h
   BYPRODUCTS
     ${CMAKE_CURRENT_BINARY_DIR}/pi_structs.hpp
     ${CMAKE_CURRENT_BINARY_DIR}/pi_printers.def

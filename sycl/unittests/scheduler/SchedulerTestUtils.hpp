@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/detail/cl.h>
 
 #include <functional>
 #include <gmock/gmock.h>

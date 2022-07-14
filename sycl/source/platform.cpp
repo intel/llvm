@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/platform.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/platform.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -63,7 +63,7 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
   template __SYCL_EXPORT ret_type                                              \
   platform::get_info<info::param_type::param>() const;
 
-#include <CL/sycl/info/platform_traits.def>
+#include <sycl/info/platform_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

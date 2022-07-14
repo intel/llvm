@@ -25,8 +25,8 @@ endif()
 
 add_sycl_plugin(cuda
   SOURCES
-    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-    "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
     "pi_cuda.cpp"
   LIBRARIES
