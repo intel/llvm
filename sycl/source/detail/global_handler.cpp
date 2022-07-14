@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/spinlock.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
@@ -17,6 +14,9 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/spinlock.hpp>
 
 #ifdef _WIN32
 #include <windows.h>

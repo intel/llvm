@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "detail/config.hpp"
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/exception.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/memory_manager.hpp>
+#include <sycl/exception.hpp>
 
 #include <cstdlib>
 #include <cstring>

@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/common_info.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

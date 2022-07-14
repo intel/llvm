@@ -34,6 +34,7 @@ static const char *LegalSYCLFunctions[] = {
     "^cl::sycl::accessor<.+>::~accessor",
     "^cl::sycl::accessor<.+>::getNativeImageObj",
     "^cl::sycl::accessor<.+>::__init_esimd",
+    "^cl::sycl::ext::oneapi::experimental::printf",
     "^cl::sycl::id<.+>::.+",
     "^cl::sycl::item<.+>::.+",
     "^cl::sycl::nd_item<.+>::.+",
