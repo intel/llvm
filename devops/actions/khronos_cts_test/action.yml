@@ -40,6 +40,10 @@ runs:
       ref: ${{ inputs.test_ref }}
       default_branch: 'SYCL-2020'
       cache_path: "/__w/repo_cache/"
+  - run: |
+      cd khronos_sycl_cts
+      git submodule update --init
+    shell: bash
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
     with:
