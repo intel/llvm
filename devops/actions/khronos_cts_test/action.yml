@@ -28,13 +28,13 @@ runs:
   steps:
   - run: |
       cp -r /actions .
-      git config --global --add safe.directory /__w/repo_cache/khronos_sycl_cts
+      git config --global --add safe.directory /__w/repo_cache/KhronosGroup/SYCL-CTS
     shell: bash
   - name: Checkout LLVM Test Suite
     uses: ./actions/cached_checkout
     with:
-      path: llvm_test_suite
-      repository: 'khronos_sycl_cts'
+      path: khronos_sycl_cts
+      repository: 'KhronosGroup/SYCL-CTS'
       ref: ${{ inputs.test_ref }}
       default_branch: 'SYCL-2020'
       cache_path: "/__w/repo_cache/"
