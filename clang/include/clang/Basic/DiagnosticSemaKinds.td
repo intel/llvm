@@ -127,7 +127,7 @@ def warn_double_const_requires_fp64 : Warning<
   "casting to single precision">;
 def warn_imp_cast_size_mismatch : Warning<
   "implicit converstion between floating point types. Size loss expected.">,
-  InGroup<DiagGroup<"double-in-device">>;
+  InGroup<ImplicitFloatSizeConversion> , DefaultIgnore;
 def err_half_const_requires_fp16 : Error<
   "half precision constant requires cl_khr_fp16">;
 

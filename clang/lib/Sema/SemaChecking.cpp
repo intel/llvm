@@ -13811,8 +13811,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
           QualType(SourceBT, 0), QualType(TargetBT, 0));
       // Warn if the source type and target type sizes do not match in device
       // code.
-
-      if (S.Context.getTypeSize(Source) != S.Context.getTypeSize(Target)) {
+      if (Order != 0) {
         if (S.getLangOpts().SYCLIsDevice) {
           S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_cast_size_mismatch);
         } else {
