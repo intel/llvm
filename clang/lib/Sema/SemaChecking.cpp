@@ -13813,9 +13813,9 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
       // code.
       if (Order != 0) {
         if (S.getLangOpts().SYCLIsDevice) {
-          S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_cast_size_mismatch);
+          S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
         } else {
-          DiagnoseImpCast(S, E, T, CC, diag::warn_imp_cast_size_mismatch);
+          DiagnoseImpCast(S, E, T, CC, diag::warn_imp_float_size_conversion);
         }
       }
       if (Order > 0) {
