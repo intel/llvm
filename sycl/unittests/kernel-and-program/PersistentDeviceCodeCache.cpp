@@ -451,7 +451,7 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
   // Image should be successfully read
   for (size_t i = 0; i < Res.size(); ++i) {
     for (size_t j = 0; j < Res[i].size(); ++j) {
-      EXPECT_EQ(Res[i][0], static_cast<unsigned char>(i))
+      EXPECT_EQ(Res[i][j], static_cast<unsigned char>(i))
           << "Corrupted image loaded from persistent cache";
     }
   }
