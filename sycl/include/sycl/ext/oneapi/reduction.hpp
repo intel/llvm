@@ -577,23 +577,9 @@ public:
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
 
-  template <class _self = self,
-            std::enable_if_t<_self::my_is_rw_acc> * = nullptr>
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
-                      std::shared_ptr<rw_accessor_type> AccPointer)
-      : base(Identity, BinaryOp, Init), MRWAcc(AccPointer),
-        MRedOut(*AccPointer){};
-  template <class _self = self,
-            std::enable_if_t<_self::my_is_dw_acc> * = nullptr>
-  reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
-                      std::shared_ptr<dw_accessor_type> AccPointer)
-      : base(Identity, BinaryOp, Init), MDWAcc(AccPointer),
-        MRedOut(*AccPointer){};
-  template <class _self = self, std::enable_if_t<_self::my_is_usm> * = nullptr>
-  reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
-                      T *USMPointer)
-      : base(Identity, BinaryOp, Init), MUSMPointer(USMPointer),
-        MRedOut(MUSMPointer){};
+                      RedOutVar RedOut)
+      : base(Identity, BinaryOp, Init), MRedOut(std::move(RedOut)){};
 
   /// Associates the reduction accessor to user's memory with \p CGH handler
   /// to keep the accessor alive until the command group finishes the work.
@@ -734,17 +720,10 @@ private:
     return Acc;
   }
 
-  /// User's accessor to where the reduction must be written.
-  std::shared_ptr<rw_accessor_type> MRWAcc;
-  std::shared_ptr<dw_accessor_type> MDWAcc;
-
   std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
 
-  /// USM pointer referencing the memory to where the result of the reduction
-  /// must be written. Applicable/used only for USM reductions.
-  T *MUSMPointer = nullptr;
-
-  RedOutVar &MRedOut;
+  /// User's accessor/USM pointer to where the reduction must be written.
+  RedOutVar MRedOut;
 };
 
 /// Predicate returning true if all template type parameters except the last one
@@ -795,7 +774,7 @@ public:
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, std::make_shared<rw_accessor_type>(Buffer)) {
+             InitializeToIdentity, rw_accessor_type{Buffer}) {
     algo::associateWithHandler(CGH);
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
@@ -807,24 +786,9 @@ public:
   template <
       typename _T = T,
       enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_rw_acc> * = nullptr>
-  reduction_impl(rw_accessor_type &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false,
-             std::make_shared<rw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_dw_acc> * = nullptr>
-  reduction_impl(dw_accessor_type &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), true,
-             std::make_shared<dw_accessor_type>(Acc)) {
+                  (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
+  reduction_impl(RedOutVar &Acc)
+      : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -842,7 +806,7 @@ public:
                  const T & /*Identity*/, BinaryOperation,
                  bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, std::make_shared<rw_accessor_type>(Buffer)) {
+             InitializeToIdentity, rw_accessor_type{Buffer}) {
     algo::associateWithHandler(CGH);
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
@@ -866,36 +830,10 @@ public:
   template <
       typename _T = T,
       enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_rw_acc> * = nullptr>
-  reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false,
-             std::make_shared<rw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  template <
-      typename _T = T,
-      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value &&
-                  my_is_dw_acc> * = nullptr>
-  reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), true,
-             std::make_shared<dw_accessor_type>(Acc)) {
+                  (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
+  reduction_impl(RedOutVar &Acc, const T & /*Identity*/, BinaryOperation)
+      : algo(reducer_type::getIdentity(), BinaryOperation(), my_is_dw_acc,
+             Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -923,7 +861,7 @@ public:
                  const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity)
       : algo(Identity, BOp, InitializeToIdentity,
-             std::make_shared<rw_accessor_type>(Buffer)) {
+             rw_accessor_type{Buffer}) {
     algo::associateWithHandler(CGH);
     if (Buffer.size() != 1)
       throw sycl::runtime_error(errc::invalid,
@@ -934,21 +872,9 @@ public:
   /// Constructs reduction_impl when the identity value is unknown.
   template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
                                              _T, BinaryOperation>::value &&
-                                         my_is_rw_acc> * = nullptr>
-  reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(Identity, BOp, false, std::make_shared<rw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
-                                             _T, BinaryOperation>::value &&
-                                         my_is_dw_acc> * = nullptr>
-  reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(Identity, BOp, true, std::make_shared<dw_accessor_type>(Acc)) {
+                                         (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
+  reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
+      : algo(Identity, BOp, my_is_dw_acc, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
