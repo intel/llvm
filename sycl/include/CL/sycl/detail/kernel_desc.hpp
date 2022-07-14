@@ -13,7 +13,7 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 
-#include <cstdint>
+// #include <cstdint>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -22,6 +22,16 @@ namespace detail {
 #ifndef __SYCL_DEVICE_ONLY__
 #define _Bool bool
 #endif
+
+template <bool Cond, typename TrueT, typename FalseT> struct conditional {
+  using type = TrueT;
+};
+template <typename TrueT, typename FalseT>
+struct conditional<false, TrueT, FalseT> {
+  using type = FalseT;
+};
+
+using int64_t = conditional<sizeof(long) == 8, long, long long>::type;
 
 // kernel parameter kinds
 enum class kernel_param_kind_t {
