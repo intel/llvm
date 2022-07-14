@@ -48,6 +48,8 @@ runs:
       mkdir toolchain
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
       rm -f ${{ inputs.sycl_archive }}
+  # TODO these must be in the container
+  - run: apt update && apt install -yqq opencl-headers ocl-icd-opencl-dev
   - name: Build SYCL-CTS
     shell: bash
     run: |
