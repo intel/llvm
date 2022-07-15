@@ -612,32 +612,15 @@ public:
     return {*MOutBufPtr, CGH};
   }
 
-  /// Returns user's USM pointer passed to reduction for editing.
-  template <bool IsOneWG, bool _IsUSM = is_usm>
-  std::enable_if_t<IsOneWG && _IsUSM, result_type *>
-  getWriteMemForPartialReds(size_t, handler &) {
-    return getUserRedVar();
-  }
-
-  /// Returns user's accessor passed to reduction for editing if that is
-  /// the read-write accessor. Otherwise, create a new buffer and return
-  /// read-write accessor to it.
-  template <bool IsOneWG, bool _IsUSM = is_usm>
-  std::enable_if_t<IsOneWG && !_IsUSM, rw_accessor_type>
-  getWriteMemForPartialReds(size_t, handler &CGH) {
-    if constexpr (is_rw_acc)
-      return MRedOut;
-    return getWriteMemForPartialReds<false>(1, CGH);
-  }
-
-  /// Constructs a new temporary buffer to hold partial sums and returns
-  /// the accessor for that buffer.
   template <bool IsOneWG>
-  std::enable_if_t<!IsOneWG, rw_accessor_type>
-  getWriteMemForPartialReds(size_t Size, handler &CGH) {
-    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
-    CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+  auto getWriteMemForPartialReds(size_t Size, handler &CGH) {
+    if constexpr (IsOneWG && !is_dw_acc) {
+      return MRedOut;
+    } else {
+      MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+      CGH.addReduction(MOutBufPtr);
+      return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    }
   }
 
   /// Returns an accessor accessing the memory that will hold the reduction
