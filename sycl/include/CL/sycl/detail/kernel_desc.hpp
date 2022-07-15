@@ -21,9 +21,9 @@ namespace detail {
 #define _Bool bool
 #endif
 
-// TODO: ideally, we would include <cstdint> and simply pick up int64_t from it
-// but that inclusion is causing problems. In the interim, we are simply
-// borrowing the matching definitions used by SemaSYCL in the FE.
+// As stated above, this header file cannot include any of the standard C++
+// headers. We need int64_t.  Here we are matching the exact definition used by
+// the SemaSYCL version of kernel_desc.hpp in the FE.
 template <bool Cond, typename TrueT, typename FalseT> struct conditional {
   using type = TrueT;
 };
