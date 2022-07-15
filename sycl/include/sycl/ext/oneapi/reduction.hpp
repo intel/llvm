@@ -576,11 +576,13 @@ public:
   static constexpr bool has_fast_reduce =
       IsReduOptForFastReduce<T, BinaryOperation>::value;
 
-  static constexpr bool my_is_usm = std::is_same_v<RedOutVar, T *>;
-  static constexpr bool is_usm = my_is_usm;
+  static constexpr bool is_usm = std::is_same_v<RedOutVar, T *>;
 
-  static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
-  static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
+  static constexpr bool is_rw_acc = is_rw_acc_t<RedOutVar>::value;
+  static constexpr bool is_dw_acc = is_dw_acc_t<RedOutVar>::value;
+  static constexpr bool is_acc = is_rw_acc | is_dw_acc;
+  static_assert(!is_rw_acc || !is_dw_acc, "Can be only one at once!");
+  static_assert(!is_usm || !is_acc, "Ca be only one at once!");
 
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
@@ -593,8 +595,7 @@ public:
   /// to keep the accessor alive until the command group finishes the work.
   /// This function does not do anything for USM reductions.
   void associateWithHandler(handler &CGH) {
-    if constexpr (!my_is_usm) {
-      static_assert(my_is_rw_acc || my_is_dw_acc);
+    if constexpr (is_acc) {
       CGH.associateWithHandler(&MRedOut, access::target::device);
     }
   }
@@ -629,7 +630,7 @@ public:
   template <bool IsOneWG, bool _IsUSM = is_usm>
   std::enable_if_t<IsOneWG && !_IsUSM, rw_accessor_type>
   getWriteMemForPartialReds(size_t, handler &CGH) {
-    if constexpr (my_is_rw_acc)
+    if constexpr (is_rw_acc)
       return MRedOut;
     return getWriteMemForPartialReds<false>(1, CGH);
   }
@@ -651,7 +652,7 @@ public:
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
   rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if constexpr (my_is_rw_acc) {
+    if constexpr (is_rw_acc) {
       if (Size == 1) {
         associateWithHandler(CGH);
         return MRedOut;
@@ -671,11 +672,11 @@ public:
   template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
-    if constexpr (my_is_rw_acc) {
+    if constexpr (is_rw_acc) {
       if (!base::initializeToIdentity())
         return MRedOut;
     }
-    assert(!(my_is_dw_acc && !base::initializeToIdentity()) &&
+    assert(!(is_dw_acc && !base::initializeToIdentity()) &&
            "Unexpected condition!");
 
     // TODO: Move to T[] in C++20 to simplify handling here
@@ -714,20 +715,21 @@ public:
   }
 
 private:
-  template <typename BufferT, typename _self = self>
-  std::enable_if_t<_self::is_placeholder == access::placeholder::false_t,
-                   rw_accessor_type>
-  createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
-    return {Buffer, CGH};
-  }
-
-  template <typename BufferT, typename _self = self>
-  std::enable_if_t<_self::is_placeholder == access::placeholder::true_t,
-                   rw_accessor_type>
-  createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
-    rw_accessor_type Acc(Buffer);
-    CGH.require(Acc);
-    return Acc;
+  template <typename BufferT>
+  rw_accessor_type createHandlerWiredReadWriteAccessor(handler &CGH,
+                                                       BufferT Buffer) {
+    // TODO:
+    // SYCL 2020: The accessor template parameter IsPlaceholder is allowed to be
+    // specified, but it has no bearing on whether the accessor instance is a
+    // placeholder. This is determined solely by the constructor used to create
+    // the instance. The associated type access::placeholder is also deprecated.
+    if constexpr (is_placeholder == access::placeholder::true_t) {
+      rw_accessor_type Acc(Buffer);
+      CGH.require(Acc);
+      return Acc;
+    } else {
+      return {Buffer, CGH};
+    }
   }
 
   std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
@@ -788,9 +790,10 @@ private:
   }
 
 public:
-  using algo::my_is_usm;
-  using algo::my_is_rw_acc;
-  using algo::my_is_dw_acc;
+  using algo::is_usm;
+  using algo::is_rw_acc;
+  using algo::is_dw_acc;
+  using algo::is_acc;
 
   using reducer_type = typename algo::reducer_type;
   using rw_accessor_type = typename algo::rw_accessor_type;
@@ -800,8 +803,7 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
-            enable_if_t<_self::is_known_identity &&
-                        (my_is_rw_acc || my_is_dw_acc)> * = nullptr>
+            enable_if_t<_self::is_known_identity && _self::is_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
     if (Acc.size() != 1)
@@ -815,7 +817,7 @@ public:
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
   template <typename _self = self, enable_if_t<_self::is_known_identity &&
-                                               _self::my_is_usm> * = nullptr>
+                                               _self::is_usm> * = nullptr>
   reduction_impl(RedOutVar VarPtr, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, VarPtr) {}
@@ -823,8 +825,8 @@ public:
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
-            std::enable_if_t<_self::is_known_identity && _self::my_is_rw_acc>
-                * = nullptr>
+            std::enable_if_t<_self::is_known_identity && _self::is_rw_acc> * =
+                nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, Acc) {
@@ -836,10 +838,9 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <typename _self = self,
-            enable_if_t<_self::my_is_rw_acc || _self::my_is_dw_acc> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::is_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(chooseIdentity(Identity), BOp, my_is_dw_acc, Acc) {
+      : algo(chooseIdentity(Identity), BOp, is_dw_acc, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -849,13 +850,13 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self, enable_if_t<_self::my_is_usm> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::is_usm> * = nullptr>
   reduction_impl(RedOutVar VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
 
   /// For placeholder accessor.
-  template <typename _self = self, enable_if_t<_self::my_is_rw_acc> * = nullptr>
+  template <typename _self = self, enable_if_t<_self::is_rw_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
                  BinaryOperation BOp, bool InitializeToIdentity)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
@@ -2393,7 +2394,7 @@ template <typename Reduction, typename... RestT>
 void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
-  if constexpr (Reduction::my_is_dw_acc) {
+  if constexpr (Reduction::is_dw_acc) {
     event CopyEvent = withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
       auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
       auto OutAcc = Redu.getUserRedVar();
