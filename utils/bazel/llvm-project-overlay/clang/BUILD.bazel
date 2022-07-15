@@ -1455,7 +1455,11 @@ gentbl(
 # We generate the set of builtin headers under a special subdirectory in the
 # 'bin' section of the bazel output so that they can be used as data
 # dependencies. It requires listing explicitly all the generated inputs here.
-builtin_headers = glob(["lib/Headers/**/*.h"]) + [
+builtin_headers = glob(["lib/Headers/**/*.h"], exclude = [
+    # FIXME: They are not handled in CMake side.
+    "lib/Headers/openmp_wrappers/time.h",
+    "lib/Headers/ppc_wrappers/nmmintrin.h",
+]) + [
     "lib/Headers/arm_cde.h",
     "lib/Headers/arm_fp16.h",
     "lib/Headers/arm_mve.h",
@@ -1929,7 +1933,7 @@ cc_binary(
 template_rule(
     name = "clang_main",
     src = "//llvm:cmake/modules/llvm-driver-template.cpp.in",
-    out = "clang_main.cpp",
+    out = "clang-driver.cpp",
     substitutions = {
         "@TOOL_NAME@": "clang"
     },
@@ -1940,7 +1944,7 @@ cc_library(
     srcs = glob([
         "tools/driver/*.cpp",
         "tools/driver/*.h",
-    ]) + ["clang_main.cpp"],
+    ]) + ["clang-driver.cpp"],
     copts = [
         # Disable stack frame size checks in the driver because
         # clang::ensureStackAddressSpace allocates a large array on the stack.

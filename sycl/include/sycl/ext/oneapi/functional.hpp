@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/functional.hpp>
+#include <sycl/functional.hpp>
 
 #include <functional>
 

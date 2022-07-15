@@ -42,7 +42,7 @@ pi_result redefinePiEventRelease(pi_event) { return PI_SUCCESS; }
 // This test checks a handling of empty events in WaitWithBarrier command.
 // Original reproducer for l0 plugin led to segfault(nullptr dereference):
 //
-// #include <CL/sycl.hpp>
+// #include <sycl/sycl.hpp>
 // int main() {
 //     sycl::queue q;
 //     sycl::event e;

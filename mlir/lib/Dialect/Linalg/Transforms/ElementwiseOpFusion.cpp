@@ -717,8 +717,8 @@ fuseWithReshapeByExpansion(GenericOp genericOp, Operation *reshapeOp,
   expandedOpOperands.reserve(genericOp.getNumInputs());
   for (OpOperand *opOperand : genericOp.getInputOperands()) {
     if (opOperand == fusableOpOperand) {
-      expandedOpOperands.push_back(isExpanding ? expandingReshapeOp.src()
-                                               : collapsingReshapeOp.src());
+      expandedOpOperands.push_back(isExpanding ? expandingReshapeOp.getSrc()
+                                               : collapsingReshapeOp.getSrc());
       continue;
     }
     if (genericOp.isInputTensor(opOperand)) {
@@ -841,7 +841,7 @@ public:
           fuseWithReshapeByExpansion(genericOp, reshapeOp, opOperand, rewriter);
       if (!replacementValues)
         return failure();
-      rewriter.replaceOp(genericOp, replacementValues.getValue());
+      rewriter.replaceOp(genericOp, *replacementValues);
       return success();
     }
     return failure();
@@ -865,7 +865,7 @@ struct FoldReshapeWithGenericOpByExpansion
   LogicalResult matchAndRewrite(tensor::ExpandShapeOp reshapeOp,
                                 PatternRewriter &rewriter) const override {
     // Fold only if all constraints of fusing with reshape by expansion are met.
-    GenericOp producer = reshapeOp.src().getDefiningOp<GenericOp>();
+    GenericOp producer = reshapeOp.getSrc().getDefiningOp<GenericOp>();
     if (!producer || producer.getNumOutputs() != 1 ||
         !isFusableWithReshapeByDimExpansion(producer,
                                             producer.getOutputOperand(0)) ||
@@ -876,7 +876,7 @@ struct FoldReshapeWithGenericOpByExpansion
         producer, reshapeOp, producer.getOutputOperand(0), rewriter);
     if (!replacementValues)
       return failure();
-    rewriter.replaceOp(reshapeOp, replacementValues.getValue());
+    rewriter.replaceOp(reshapeOp, *replacementValues);
     return success();
   }
 
@@ -1465,7 +1465,7 @@ public:
             genericOp, "failed to do the fusion by collapsing transformation");
       }
 
-      rewriter.replaceOp(genericOp, replacements.getValue());
+      rewriter.replaceOp(genericOp, *replacements);
       return success();
     }
     return failure();

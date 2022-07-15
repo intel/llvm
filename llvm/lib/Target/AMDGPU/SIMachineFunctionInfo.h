@@ -270,7 +270,7 @@ template <> struct MappingTraits<SIMode> {
 
 struct SIMachineFunctionInfo final : public yaml::MachineFunctionInfo {
   uint64_t ExplicitKernArgSize = 0;
-  unsigned MaxKernArgAlign = 0;
+  Align MaxKernArgAlign;
   uint32_t LDSSize = 0;
   uint32_t GDSSize = 0;
   Align DynLDSAlign;
@@ -312,7 +312,7 @@ template <> struct MappingTraits<SIMachineFunctionInfo> {
   static void mapping(IO &YamlIO, SIMachineFunctionInfo &MFI) {
     YamlIO.mapOptional("explicitKernArgSize", MFI.ExplicitKernArgSize,
                        UINT64_C(0));
-    YamlIO.mapOptional("maxKernArgAlign", MFI.MaxKernArgAlign, 0u);
+    YamlIO.mapOptional("maxKernArgAlign", MFI.MaxKernArgAlign);
     YamlIO.mapOptional("ldsSize", MFI.LDSSize, 0u);
     YamlIO.mapOptional("gdsSize", MFI.GDSSize, 0u);
     YamlIO.mapOptional("dynLDSAlign", MFI.DynLDSAlign, Align());
@@ -608,6 +608,13 @@ public:
   Register addDispatchID(const SIRegisterInfo &TRI);
   Register addFlatScratchInit(const SIRegisterInfo &TRI);
   Register addImplicitBufferPtr(const SIRegisterInfo &TRI);
+
+  /// Increment user SGPRs used for padding the argument list only.
+  Register addReservedUserSGPR() {
+    Register Next = getNextUserSGPR();
+    ++NumUserSGPRs;
+    return Next;
+  }
 
   // Add system SGPRs.
   Register addWorkGroupIDX() {

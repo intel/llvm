@@ -2,8 +2,8 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 // REQUIRES: hip_be
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 int main() {
 #if SYCL_EXT_ONEAPI_BACKEND_HIP == 1
   std::cout << "SYCL_EXT_ONEAPI_BACKEND_HIP=1" << std::endl;

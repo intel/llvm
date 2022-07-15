@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl-device-only -fsyntax-only -Xclang -verify %s -I %sycl_include -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
 // expected-no-diagnostics
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   constexpr cl::sycl::half L1 = std::numeric_limits<cl::sycl::half>::min();

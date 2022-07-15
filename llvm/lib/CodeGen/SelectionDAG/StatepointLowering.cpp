@@ -196,10 +196,10 @@ static Optional<int> findPreviousSpillSlot(const Value *Val,
     for (auto &IncomingValue : Phi->incoming_values()) {
       Optional<int> SpillSlot =
           findPreviousSpillSlot(IncomingValue, Builder, LookUpDepth - 1);
-      if (!SpillSlot.hasValue())
+      if (!SpillSlot)
         return None;
 
-      if (MergedResult.hasValue() && *MergedResult != *SpillSlot)
+      if (MergedResult && *MergedResult != *SpillSlot)
         return None;
 
       MergedResult = SpillSlot;
@@ -280,7 +280,7 @@ static void reservePreviousStackSlotForValue(const Value *IncomingValue,
   const int LookUpDepth = 6;
   Optional<int> Index =
       findPreviousSpillSlot(IncomingValue, Builder, LookUpDepth);
-  if (!Index.hasValue())
+  if (!Index)
     return;
 
   const auto &StatepointSlots = Builder.FuncInfo.StatepointStackSlots;
@@ -530,14 +530,14 @@ lowerStatepointMetaArgs(SmallVectorImpl<SDValue> &Ops,
     GCStrategy &S = GFI->getStrategy();
     for (const Value *V : SI.Bases) {
       auto Opt = S.isGCManagedPointer(V->getType()->getScalarType());
-      if (Opt.hasValue()) {
+      if (Opt) {
         assert(Opt.getValue() &&
                "non gc managed base pointer found in statepoint");
       }
     }
     for (const Value *V : SI.Ptrs) {
       auto Opt = S.isGCManagedPointer(V->getType()->getScalarType());
-      if (Opt.hasValue()) {
+      if (Opt) {
         assert(Opt.getValue() &&
                "non gc managed derived pointer found in statepoint");
       }
@@ -1169,8 +1169,8 @@ void SelectionDAGBuilder::LowerCallSiteWithDeoptBundleImpl(
   unsigned DefaultID = StatepointDirectives::DeoptBundleStatepointID;
 
   auto SD = parseStatepointDirectivesFromAttrs(Call->getAttributes());
-  SI.ID = SD.StatepointID.getValueOr(DefaultID);
-  SI.NumPatchBytes = SD.NumPatchBytes.getValueOr(0);
+  SI.ID = SD.StatepointID.value_or(DefaultID);
+  SI.NumPatchBytes = SD.NumPatchBytes.value_or(0);
 
   SI.DeoptState =
       ArrayRef<const Use>(DeoptBundle.Inputs.begin(), DeoptBundle.Inputs.end());

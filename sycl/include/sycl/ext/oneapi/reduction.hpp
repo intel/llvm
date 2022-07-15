@@ -8,14 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/atomic.hpp>
-#include <CL/sycl/detail/tuple.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/known_identity.hpp>
+#if __cplusplus >= 201703L
+// Entire feature is dependent on C++17.
+
+#include <sycl/accessor.hpp>
+#include <sycl/atomic.hpp>
+#include <sycl/atomic_ref.hpp>
+#include <sycl/detail/tuple.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/group_algorithm.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/known_identity.hpp>
 
 #include <tuple>
 
@@ -219,14 +223,14 @@ private:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       auto AtomicRef =
-          atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-              multi_ptr<T, Space>(ReduVarPtr)[E]);
+          sycl::atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(),
+                           Space>(multi_ptr<T, Space>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
 
   template <class _T, access::address_space Space, class BinaryOperation>
-  static inline constexpr bool BasicCheck =
+  static constexpr bool BasicCheck =
       std::is_same<typename remove_AS<_T>::type, T>::value &&
       (Space == access::address_space::global_space ||
        Space == access::address_space::local_space);
@@ -309,13 +313,15 @@ public:
 /// reduction.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                          !IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public combiner<
           reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
                   enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                              !IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                              !sycl::detail::IsKnownIdentityOp<
+                                  T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -340,13 +346,15 @@ private:
 /// the identity field inside it and allows to add a default constructor.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                          IsKnownIdentityOp<T, BinaryOperation>::value>>
+class reducer<
+    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public combiner<
           reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
                   enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                              IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                              sycl::detail::IsKnownIdentityOp<
+                                  T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -357,7 +365,7 @@ public:
   }
 
   static T getIdentity() {
-    return known_identity_impl<BinaryOperation, T>::value;
+    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t) { return MValue; }
@@ -387,13 +395,14 @@ private:
 /// subscript operator.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 1 && View == false &&
-                          !IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-                  enable_if_t<Dims == 1 && View == false &&
-                              !IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+class reducer<
+    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    enable_if_t<Dims == 1 && View == false &&
+                !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+                              enable_if_t<Dims == 1 && View == false &&
+                                          !sycl::detail::IsKnownIdentityOp<
+                                              T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -417,13 +426,14 @@ private:
 /// in cases where the identity value is known.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 1 && View == false &&
-                          IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-                  enable_if_t<Dims == 1 && View == false &&
-                              IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+class reducer<
+    T, BinaryOperation, Dims, Extent, Algorithm, View,
+    enable_if_t<Dims == 1 && View == false &&
+                sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+                              enable_if_t<Dims == 1 && View == false &&
+                                          sycl::detail::IsKnownIdentityOp<
+                                              T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -436,7 +446,7 @@ public:
   }
 
   static T getIdentity() {
-    return known_identity_impl<BinaryOperation, T>::value;
+    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
@@ -461,14 +471,14 @@ protected:
 public:
   /// Returns the statically known identity value.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
+  enable_if_t<sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value,
               _T> constexpr getIdentity() {
-    return known_identity_impl<_BinaryOperation, _T>::value;
+    return sycl::detail::known_identity_impl<_BinaryOperation, _T>::value;
   }
 
   /// Returns the identity value given by user.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
+  enable_if_t<!sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
     return MIdentity;
   }
@@ -749,8 +759,8 @@ public:
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _T, typename AllocatorT,
-            std::enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * =
-                nullptr>
+            std::enable_if_t<sycl::detail::IsKnownIdentityOp<
+                _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
@@ -763,9 +773,8 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(rw_accessor_type &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false,
              std::make_shared<rw_accessor_type>(Acc)) {
@@ -776,9 +785,8 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is statically known.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(dw_accessor_type &Acc)
       : algo(reducer_type::getIdentity(), BinaryOperation(), true,
              std::make_shared<dw_accessor_type>(Acc)) {
@@ -793,7 +801,8 @@ public:
   /// and user still passed the identity value.
   template <
       typename _T, typename AllocatorT,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+      enable_if_t<sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value>
+          * = nullptr>
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  const T & /*Identity*/, BinaryOperation,
                  bool InitializeToIdentity)
@@ -819,9 +828,8 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : algo(reducer_type::getIdentity(), BinaryOperation(), false,
              std::make_shared<rw_accessor_type>(Acc)) {
@@ -844,9 +852,8 @@ public:
 
   /// Constructs reduction_impl when the identity value is statically known,
   /// and user still passed the identity value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
       : algo(reducer_type::getIdentity(), BinaryOperation(), true,
              std::make_shared<dw_accessor_type>(Acc)) {
@@ -871,7 +878,8 @@ public:
   /// Constructs reduction_impl when the identity value is NOT known statically.
   template <
       typename _T, typename AllocatorT,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+      enable_if_t<!sycl::detail::IsKnownIdentityOp<_T, BinaryOperation>::value>
+          * = nullptr>
   reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
                  const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity)
@@ -885,9 +893,8 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : algo(Identity, BOp, false, std::make_shared<rw_accessor_type>(Acc)) {
     if (Acc.size() != 1)
@@ -897,9 +904,8 @@ public:
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
       : algo(Identity, BOp, true, std::make_shared<dw_accessor_type>(Acc)) {
     if (Acc.size() != 1)
@@ -912,9 +918,8 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, VarPtr) {}
@@ -924,9 +929,8 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity, BinaryOperation,
                  bool InitializeToIdentity = false)
       : algo(Identity, BinaryOperation(), InitializeToIdentity, VarPtr) {
@@ -947,72 +951,42 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, VarPtr) {}
 
-#if __cplusplus >= 201703L
   /// Constructs reduction_impl when the identity value is statically known
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(span<_T, Extent> Span, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, Span.data()) {}
 
   /// Constructs reduction_impl when the identity value is statically known
   /// and user passed an identity value anyway
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(span<_T, Extent> Span, const T & /* Identity */,
                  BinaryOperation BOp, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BOp, InitializeToIdentity,
              Span.data()) {}
 
   /// Constructs reduction_impl when the identity value is not statically known
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
+  template <typename _T = T, enable_if_t<!sycl::detail::IsKnownIdentityOp<
+                                 _T, BinaryOperation>::value> * = nullptr>
   reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(Identity, BOp, InitializeToIdentity, Span.data()) {}
-#endif
 };
 
-/// These are the forward declaration for the classes that help to create
-/// names for additional kernels. It is used only when there are
-/// more then 1 kernels in one parallel_for() implementing SYCL reduction.
-template <typename T1, bool B1, bool B2, typename T2>
-class __sycl_reduction_main_kernel;
-template <typename T1, bool B1, bool B2, typename T2>
-class __sycl_reduction_aux_kernel;
-
-/// Helper structs to get additional kernel name types based on given
-/// \c Name and additional template parameters helping to distinguish kernels.
-/// If \c Name is undefined (is \c auto_name) leave it that way to take
-/// advantage of unnamed kernels being named after their functor.
-template <typename Name, typename Type, bool B1, bool B2, typename T3 = void>
-struct get_reduction_main_kernel_name_t {
-  using name = __sycl_reduction_main_kernel<Name, B1, B2, T3>;
-};
-template <typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_main_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
-                                        T3> {
-  using name = sycl::detail::auto_name;
-};
-template <typename Name, typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_aux_kernel_name_t {
-  using name = __sycl_reduction_aux_kernel<Name, B1, B2, T3>;
-};
-template <typename Type, bool B1, bool B2, typename T3>
-struct get_reduction_aux_kernel_name_t<sycl::detail::auto_name, Type, B1, B2,
-                                       T3> {
-  using name = sycl::detail::auto_name;
-};
+/// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
+/// must do that to avoid name collisions.
+template <template <typename...> class Namer, class KernelName, class... Ts>
+using __sycl_reduction_kernel =
+    std::conditional_t<std::is_same<KernelName, sycl::detail::auto_name>::value,
+                       sycl::detail::auto_name, Namer<KernelName, Ts...>>;
 
 /// Called in device code. This function iterates through the index space
 /// \p Range using stride equal to the global range specified in \p NdId,
@@ -1029,16 +1003,21 @@ void reductionLoop(const range<Dims> &Range, ReducerT &Reducer,
     F(sycl::detail::getDelinearizedId(Range, I), Reducer);
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct RangeFastAtomics;
+} // namespace main_krn
+} // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-std::enable_if_t<Reduction::has_fast_atomics>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-               const nd_range<1> &NDRange, Reduction &Redu) {
+void reduCGFuncForRangeFastAtomics(handler &CGH, KernelType KernelFunc,
+                                   const range<Dims> &Range,
+                                   const nd_range<1> &NDRange,
+                                   Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   auto GroupSum = Reduction::getReadWriteLocalAcc(NElements, CGH);
-  using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                Reduction::is_usm, false>::name;
+  using Name = __sycl_reduction_kernel<reduction::main_krn::RangeFastAtomics,
+                                       KernelName>;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1067,10 +1046,15 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   });
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct RangeFastReduce;
+} // namespace main_krn
+} // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-std::enable_if_t<!Reduction::has_fast_atomics && Reduction::has_fast_reduce>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-               const nd_range<1> &NDRange, Reduction &Redu) {
+void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
+                                  const range<Dims> &Range,
+                                  const nd_range<1> &NDRange, Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1087,8 +1071,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
       Reduction::template getReadWriteLocalAcc<int>(1, CGH);
 
   using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                Reduction::is_usm, false>::name;
+      __sycl_reduction_kernel<reduction::main_krn::RangeFastReduce, KernelName>;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1119,8 +1102,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     // Signal this work-group has finished after all values are reduced
     if (LID == 0) {
       auto NFinished =
-          atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                     access::address_space::global_space>(
+          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                           access::address_space::global_space>(
               NWorkGroupsFinished[0]);
       DoReducePartialSumsInLastWG[0] =
           ++NFinished == NWorkGroups && NWorkGroups > 1;
@@ -1147,10 +1130,15 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   });
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct RangeBasic;
+} // namespace main_krn
+} // namespace reduction
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-std::enable_if_t<!Reduction::has_fast_atomics && !Reduction::has_fast_reduce>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-               const nd_range<1> &NDRange, Reduction &Redu) {
+void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
+                             const range<Dims> &Range,
+                             const nd_range<1> &NDRange, Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t WGSize = NDRange.get_local_range().size();
   size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1170,8 +1158,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   auto Identity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
   using Name =
-      typename get_reduction_main_kernel_name_t<KernelName, KernelType,
-                                                Reduction::is_usm, false>::name;
+      __sycl_reduction_kernel<reduction::main_krn::RangeBasic, KernelName>;
   CGH.parallel_for<Name>(NDRange, [=](nd_item<1> NDId) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(Identity, BOp);
@@ -1214,8 +1201,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
     // Signal this work-group has finished after all values are reduced
     if (LID == 0) {
       auto NFinished =
-          atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                     access::address_space::global_space>(
+          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                           access::address_space::global_space>(
               NWorkGroupsFinished[0]);
       DoReducePartialSumsInLastWG[0] =
           ++NFinished == NWorkGroups && NWorkGroups > 1;
@@ -1258,9 +1245,9 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
 }
 
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
-                size_t MaxWGSize, uint32_t NumConcurrentWorkGroups,
-                Reduction &Redu) {
+void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+                        const range<Dims> &Range, size_t MaxWGSize,
+                        uint32_t NumConcurrentWorkGroups, Reduction &Redu) {
   size_t NWorkItems = Range.size();
   size_t WGSize = std::min(NWorkItems, MaxWGSize);
   size_t NWorkGroups = NWorkItems / WGSize;
@@ -1271,9 +1258,23 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
   size_t NDRItems = NWorkGroups * WGSize;
   nd_range<1> NDRange{range<1>{NDRItems}, range<1>{WGSize}};
 
-  reduCGFuncImpl<KernelName>(CGH, KernelFunc, Range, NDRange, Redu);
+  if constexpr (Reduction::has_fast_atomics) {
+    reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                              Redu);
+
+  } else if constexpr (Reduction::has_fast_reduce) {
+    reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                             Redu);
+  } else {
+    reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange, Redu);
+  }
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct NDRangeBothFastReduceAndAtomics;
+} // namespace main_krn
+} // namespace reduction
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
@@ -1283,14 +1284,13 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc, const range<Dims> &Range,
 ///
 /// Briefly: calls user's lambda, ext::oneapi::reduce() + atomic, INT +
 /// ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool IsPow2WG>
-enable_if_t<Reduction::has_fast_reduce && Reduction::has_fast_atomics>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFuncForNDRangeBothFastReduceAndAtomics(
+    handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+    Reduction &, typename Reduction::rw_accessor_type Out) {
   constexpr size_t NElements = Reduction::num_elements;
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, IsPow2WG>::name;
+  using Name = __sycl_reduction_kernel<
+      reduction::main_krn::NDRangeBothFastReduceAndAtomics, KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1299,13 +1299,18 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     typename Reduction::binary_operation BOp;
     for (int E = 0; E < NElements; ++E) {
       Reducer.getElement(E) =
-          ext::oneapi::reduce(NDIt.get_group(), Reducer.getElement(E), BOp);
+          reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
     }
     if (NDIt.get_local_linear_id() == 0)
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
   });
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct NDRangeFastAtomicsOnly;
+} // namespace main_krn
+} // namespace reduction
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function KernelFunc and also does one iteration of reduction
 /// of elements computed in user's lambda function.
@@ -1314,11 +1319,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// user's reduction variable.
 ///
 /// Briefly: calls user's lambda, tree-reduction + atomic, INT + AND/OR/XOR.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool IsPow2WG>
-enable_if_t<!Reduction::has_fast_reduce && Reduction::has_fast_atomics>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFuncForNDRangeFastAtomicsOnly(
+    handler &CGH, bool IsPow2WG, KernelType KernelFunc,
+    const nd_range<Dims> &Range, Reduction &,
+    typename Reduction::rw_accessor_type Out) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
 
@@ -1329,8 +1334,9 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   size_t NLocalElements = WGSize + (IsPow2WG ? 0 : 1);
   auto LocalReds = Reduction::getReadWriteLocalAcc(NLocalElements, CGH);
 
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, IsPow2WG>::name;
+  using Name =
+      __sycl_reduction_kernel<reduction::main_krn::NDRangeFastAtomicsOnly,
+                              KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1381,36 +1387,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   });
 }
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu) {
-
-  size_t WGSize = Range.get_local_range().size();
-
-  // User's initialized read-write accessor is re-used here if
-  // initialize_to_identity is not set (i.e. if user's variable is initialized).
-  // Otherwise, a new buffer is initialized with identity value and a new
-  // read-write accessor to that buffer is created. That is done because
-  // atomic operations update some initialized memory.
-  // User's USM pointer is not re-used even when initialize_to_identity is not
-  // set because it does not worth the creation of an additional variant of
-  // a user's kernel for that case.
-  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-
-  // If the work group size is not pow of 2, then the kernel runs some
-  // additional code and checks in it.
-  // If the reduction has fast reduce then the kernel does not care if the work
-  // group size is pow of 2 or not, assume true for such cases.
-  bool IsPow2WG = Reduction::has_fast_reduce || ((WGSize & (WGSize - 1)) == 0);
-  if (IsPow2WG)
-    reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
-        CGH, KernelFunc, Range, Redu, Out);
-  else
-    reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, false>(
-        CGH, KernelFunc, Range, Redu, Out);
-}
-
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct NDRangeFastReduceOnly;
+} // namespace main_krn
+} // namespace reduction
 /// Implements a command group function that enqueues a kernel that
 /// calls user's lambda function and does one iteration of reduction
 /// of elements in each of work-groups.
@@ -1419,18 +1400,18 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, ext::oneapi::reduce(), FP + ADD/MIN/MAX.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool IsPow2WG>
-enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &Redu, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFuncForNDRangeFastReduceOnly(
+    handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
+    Reduction &Redu, typename Reduction::rw_accessor_type Out) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t NWorkGroups = Range.get_group_range().size();
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, IsPow2WG>::name;
+  using Name =
+      __sycl_reduction_kernel<reduction::main_krn::NDRangeFastReduceOnly,
+                              KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -1442,7 +1423,7 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
     for (int E = 0; E < NElements; ++E) {
       typename Reduction::result_type PSum;
       PSum = Reducer.getElement(E);
-      PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
+      PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
           PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
@@ -1452,6 +1433,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   });
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct NDRangeBasic;
+} // namespace main_krn
+} // namespace reduction
 /// Implements a command group function that enqueues a kernel that calls
 /// user's lambda function \param KernelFunc and does one iteration of
 /// reduction of elements in each of work-groups.
@@ -1460,11 +1446,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 /// to a global buffer.
 ///
 /// Briefly: user's lambda, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, int Dims, class Reduction,
-          bool IsPow2WG>
-enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-               Reduction &Redu, typename Reduction::rw_accessor_type Out) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFuncForNDRangeBasic(handler &CGH, bool IsPow2WG,
+                               KernelType KernelFunc,
+                               const nd_range<Dims> &Range, Reduction &Redu,
+                               typename Reduction::rw_accessor_type Out) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
@@ -1479,8 +1465,8 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   size_t NumLocalElements = WGSize + (IsPow2WG ? 0 : 1);
   auto LocalReds = Reduction::getReadWriteLocalAcc(NumLocalElements, CGH);
   typename Reduction::result_type ReduIdentity = Redu.getIdentity();
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, IsPow2WG>::name;
+  using Name =
+      __sycl_reduction_kernel<reduction::main_krn::NDRangeBasic, KernelName>;
   auto BOp = Redu.getBinaryOperation();
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's functions. Reducer.MValue gets initialized there.
@@ -1531,29 +1517,11 @@ reduCGFuncImpl(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
   });
 }
 
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics>
-reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
-           Reduction &Redu) {
-  constexpr size_t NElements = Reduction::num_elements;
-  size_t WGSize = Range.get_local_range().size();
-  size_t NWorkGroups = Range.get_group_range().size();
-
-  // If the work group size is not pow of 2, then the kernel runs some
-  // additional code and checks in it.
-  // If the reduction has fast reduce then the kernel does not care if the work
-  // group size is pow of 2 or not, assume true for such cases.
-  bool IsPow2WG = Reduction::has_fast_reduce || ((WGSize & (WGSize - 1)) == 0);
-
-  auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
-  if (IsPow2WG)
-    reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, true>(
-        CGH, KernelFunc, Range, Redu, Out);
-  else
-    reduCGFuncImpl<KernelName, KernelType, Dims, Reduction, false>(
-        CGH, KernelFunc, Range, Redu, Out);
-}
-
+namespace reduction {
+namespace aux_krn {
+template <class KernelName> struct FastReduce;
+} // namespace aux_krn
+} // namespace reduction
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
 /// This version uses ext::oneapi::reduce() algorithm to reduce elements in each
@@ -1562,14 +1530,15 @@ reduCGFunc(handler &CGH, KernelType KernelFunc, const nd_range<Dims> &Range,
 ///
 /// Briefly: aux kernel, ext::oneapi::reduce(), reproducible results, FP +
 /// ADD/MIN/MAX
-template <typename KernelName, typename KernelType, bool UniformWG,
-          class Reduction, typename InputT, typename OutputT>
-enable_if_t<Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
-                  size_t WGSize, Reduction &Redu, InputT In, OutputT Out) {
+template <typename KernelName, typename KernelType, class Reduction,
+          typename InputT, typename OutputT>
+void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
+                                 size_t NWorkItems, size_t NWorkGroups,
+                                 size_t WGSize, Reduction &Redu, InputT In,
+                                 OutputT Out) {
   constexpr size_t NElements = Reduction::num_elements;
-  using Name = typename get_reduction_aux_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, UniformWG, OutputT>::name;
+  using Name =
+      __sycl_reduction_kernel<reduction::aux_krn::FastReduce, KernelName>;
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
   range<1> GlobalRange = {UniformWG ? NWorkItems : NWorkGroups * WGSize};
@@ -1584,7 +1553,7 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
           (UniformWG || (GID < NWorkItems))
               ? In[GID * NElements + E]
               : Reduction::reducer_type::getIdentity();
-      PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
+      PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
           PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
@@ -1594,6 +1563,11 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
   });
 }
 
+namespace reduction {
+namespace aux_krn {
+template <class KernelName> struct NoFastReduceNorAtomic;
+} // namespace aux_krn
+} // namespace reduction
 /// Implements a command group function that enqueues a kernel that does one
 /// iteration of reduction of elements in each of work-groups.
 /// This version uses tree-reduction algorithm to reduce elements in each
@@ -1601,11 +1575,13 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
 /// to a global buffer.
 ///
 /// Briefly: aux kernel, tree-reduction, CUSTOM types/ops.
-template <typename KernelName, typename KernelType, bool UniformPow2WG,
-          class Reduction, typename InputT, typename OutputT>
-enable_if_t<!Reduction::has_fast_reduce && !Reduction::has_fast_atomics>
-reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
-                  size_t WGSize, Reduction &Redu, InputT In, OutputT Out) {
+template <typename KernelName, typename KernelType, class Reduction,
+          typename InputT, typename OutputT>
+void reduAuxCGFuncNoFastReduceNorAtomicImpl(handler &CGH, bool UniformPow2WG,
+                                            size_t NWorkItems,
+                                            size_t NWorkGroups, size_t WGSize,
+                                            Reduction &Redu, InputT In,
+                                            OutputT Out) {
   constexpr size_t NElements = Reduction::num_elements;
   bool IsUpdateOfUserVar =
       !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
@@ -1619,8 +1595,9 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
 
   auto ReduIdentity = Redu.getIdentity();
   auto BOp = Redu.getBinaryOperation();
-  using Name = typename get_reduction_aux_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm, UniformPow2WG, OutputT>::name;
+  using Name =
+      __sycl_reduction_kernel<reduction::aux_krn::NoFastReduceNorAtomic,
+                              KernelName>;
   range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
   nd_range<1> Range{GlobalRange, range<1>(WGSize)};
   CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
@@ -1673,10 +1650,8 @@ reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
 /// At the end of each work-group the partial sum is written to a global buffer.
 /// The function returns the number of the newly generated partial sums.
 template <typename KernelName, typename KernelType, class Reduction>
-enable_if_t<!Reduction::has_fast_atomics, size_t>
-reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
-              Reduction &Redu) {
-
+size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
+                     Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   size_t NWorkGroups;
   size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
@@ -1692,12 +1667,15 @@ reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   // in the previous kernel.
   auto In = Redu.getReadAccToPreviousPartialReds(CGH);
   auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
-  if (HasUniformWG)
-    reduAuxCGFuncImpl<KernelName, KernelType, true>(
-        CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
-  else
-    reduAuxCGFuncImpl<KernelName, KernelType, false>(
-        CGH, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
+
+  if constexpr (Reduction::has_fast_reduce && !Reduction::has_fast_atomics) {
+    reduAuxCGFuncFastReduceImpl<KernelName, KernelType>(
+        CGH, HasUniformWG, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
+
+  } else {
+    reduAuxCGFuncNoFastReduceNorAtomicImpl<KernelName, KernelType>(
+        CGH, HasUniformWG, NWorkItems, NWorkGroups, WGSize, Redu, In, Out);
+  }
   return NWorkGroups;
 }
 
@@ -1813,9 +1791,9 @@ void callReduUserKernelFunc(KernelType KernelFunc, nd_item<Dims> NDIt,
   KernelFunc(NDIt, std::get<Is>(Reducers)...);
 }
 
-template <bool Pow2WG, typename... LocalAccT, typename... ReducerT,
-          typename... ResultT, size_t... Is>
-void initReduLocalAccs(size_t LID, size_t WGSize,
+template <typename... LocalAccT, typename... ReducerT, typename... ResultT,
+          size_t... Is>
+void initReduLocalAccs(bool Pow2WG, size_t LID, size_t WGSize,
                        ReduTupleT<LocalAccT...> LocalAccs,
                        const std::tuple<ReducerT...> &Reducers,
                        ReduTupleT<ResultT...> Identities,
@@ -1831,9 +1809,10 @@ void initReduLocalAccs(size_t LID, size_t WGSize,
         std::make_tuple(std::get<Is>(Identities)...);
 }
 
-template <bool UniformPow2WG, typename... LocalAccT, typename... InputAccT,
-          typename... ResultT, size_t... Is>
-void initReduLocalAccs(size_t LID, size_t GID, size_t NWorkItems, size_t WGSize,
+template <typename... LocalAccT, typename... InputAccT, typename... ResultT,
+          size_t... Is>
+void initReduLocalAccs(bool UniformPow2WG, size_t LID, size_t GID,
+                       size_t NWorkItems, size_t WGSize,
                        ReduTupleT<InputAccT...> LocalAccs,
                        ReduTupleT<LocalAccT...> InputAccs,
                        ReduTupleT<ResultT...> Identities,
@@ -1869,11 +1848,10 @@ void reduceReduLocalAccs(size_t IndexA, size_t IndexB,
                                           std::get<Is>(LocalAccs)[IndexB]))...);
 }
 
-template <bool Pow2WG, bool IsOneWG, typename... Reductions,
-          typename... OutAccT, typename... LocalAccT, typename... BOPsT,
-          typename... Ts, size_t... Is>
+template <typename... Reductions, typename... OutAccT, typename... LocalAccT,
+          typename... BOPsT, typename... Ts, size_t... Is>
 void writeReduSumsToOutAccs(
-    size_t OutAccIndex, size_t WGSize, std::tuple<Reductions...> *,
+    bool Pow2WG, bool IsOneWG, size_t OutAccIndex, size_t WGSize,
     ReduTupleT<OutAccT...> OutAccs, ReduTupleT<LocalAccT...> LocalAccs,
     ReduTupleT<BOPsT...> BOPs, ReduTupleT<Ts...> IdentityVals,
     std::array<bool, sizeof...(Reductions)> IsInitializeToIdentity,
@@ -1987,19 +1965,20 @@ struct IsArrayReduction {
 
 /// All scalar reductions are processed together; there is one loop of log2(N)
 /// steps, and each reduction uses its own storage.
-template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
-          typename... LocalAccT, typename... OutAccT, typename... ReducerT,
-          typename... Ts, typename... BOPsT, size_t... Is>
+template <typename... Reductions, int Dims, typename... LocalAccT,
+          typename... OutAccT, typename... ReducerT, typename... Ts,
+          typename... BOPsT, size_t... Is>
 void reduCGFuncImplScalar(
-    nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
+    ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
-  initReduLocalAccs<Pow2WG>(LID, WGSize, LocalAccsTuple, ReducersTuple,
-                            IdentitiesTuple, ReduIndices);
+  initReduLocalAccs(Pow2WG, LID, WGSize, LocalAccsTuple, ReducersTuple,
+                    IdentitiesTuple, ReduIndices);
   NDIt.barrier();
 
   size_t PrevStep = WGSize;
@@ -2020,20 +1999,19 @@ void reduCGFuncImplScalar(
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
     size_t GrID = NDIt.get_group_linear_id();
-    writeReduSumsToOutAccs<Pow2WG, IsOneWG>(
-        GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
-        LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
-        ReduIndices);
+    writeReduSumsToOutAccs<Reductions...>(
+        Pow2WG, IsOneWG, GrID, WGSize, OutAccsTuple, LocalAccsTuple, BOPsTuple,
+        IdentitiesTuple, InitToIdentityProps, ReduIndices);
   }
 }
 
 /// Each array reduction is processed separately.
-template <bool Pow2WG, bool IsOneWG, typename Reduction, int Dims,
-          typename LocalAccT, typename OutAccT, typename ReducerT, typename T,
-          typename BOPT>
-void reduCGFuncImplArrayHelper(nd_item<Dims> NDIt, LocalAccT LocalReds,
-                               OutAccT Out, ReducerT &Reducer, T Identity,
-                               BOPT BOp, bool IsInitializeToIdentity) {
+template <typename Reduction, int Dims, typename LocalAccT, typename OutAccT,
+          typename ReducerT, typename T, typename BOPT>
+void reduCGFuncImplArrayHelper(bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
+                               LocalAccT LocalReds, OutAccT Out,
+                               ReducerT &Reducer, T Identity, BOPT BOp,
+                               bool IsInitializeToIdentity) {
   size_t WGSize = NDIt.get_local_range().size();
   size_t LID = NDIt.get_local_linear_id();
 
@@ -2089,30 +2067,38 @@ void reduCGFuncImplArrayHelper(nd_item<Dims> NDIt, LocalAccT LocalReds,
   }
 }
 
-template <bool Pow2WG, bool IsOneWG, typename... Reductions, int Dims,
-          typename... LocalAccT, typename... OutAccT, typename... ReducerT,
-          typename... Ts, typename... BOPsT, size_t... Is>
+template <typename... Reductions, int Dims, typename... LocalAccT,
+          typename... OutAccT, typename... ReducerT, typename... Ts,
+          typename... BOPsT, size_t... Is>
 void reduCGFuncImplArray(
-    nd_item<Dims> NDIt, ReduTupleT<LocalAccT...> LocalAccsTuple,
+    bool Pow2WG, bool IsOneWG, nd_item<Dims> NDIt,
+    ReduTupleT<LocalAccT...> LocalAccsTuple,
     ReduTupleT<OutAccT...> OutAccsTuple, std::tuple<ReducerT...> &ReducersTuple,
     ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
-  (reduCGFuncImplArrayHelper<Pow2WG, IsOneWG,
-                             std::tuple_element_t<Is, ReductionPack>>(
-       NDIt, std::get<Is>(LocalAccsTuple), std::get<Is>(OutAccsTuple),
-       std::get<Is>(ReducersTuple), std::get<Is>(IdentitiesTuple),
-       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
+  (reduCGFuncImplArrayHelper<std::tuple_element_t<Is, ReductionPack>>(
+       Pow2WG, IsOneWG, NDIt, std::get<Is>(LocalAccsTuple),
+       std::get<Is>(OutAccsTuple), std::get<Is>(ReducersTuple),
+       std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple),
+       InitToIdentityProps[Is]),
    ...);
 }
 
-template <typename KernelName, bool Pow2WG, bool IsOneWG, typename KernelType,
-          int Dims, typename... Reductions, size_t... Is>
-void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
-                    const nd_range<Dims> &Range,
-                    std::tuple<Reductions...> &ReduTuple,
-                    std::index_sequence<Is...> ReduIndices) {
+namespace reduction {
+namespace main_krn {
+template <class KernelName, class Accessor> struct NDRangeMulti;
+} // namespace main_krn
+} // namespace reduction
+template <typename KernelName, typename KernelType, int Dims,
+          typename... Reductions, size_t... Is>
+void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
+                     const nd_range<Dims> &Range,
+                     std::tuple<Reductions...> &ReduTuple,
+                     std::index_sequence<Is...> ReduIndices) {
+  size_t WGSize = Range.get_local_range().size();
+  bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
 
   // Split reduction sequence into two:
   // 1) Scalar reductions
@@ -2129,77 +2115,61 @@ void reduCGFuncImpl(handler &CGH, KernelType KernelFunc,
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
   // Create inputs using the global order of all reductions
-  size_t WGSize = Range.get_local_range().size();
   size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
   auto LocalAccsTuple =
       createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
 
-  size_t NWorkGroups = IsOneWG ? 1 : Range.get_group_range().size();
-  auto OutAccsTuple =
-      createReduOutAccs<IsOneWG>(NWorkGroups, CGH, ReduTuple, ReduIndices);
-  auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
-  auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
-  auto InitToIdentityProps =
-      getInitToIdentityProperties(ReduTuple, ReduIndices);
-
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Pow2WG, IsOneWG, decltype(OutAccsTuple)>::name;
-  CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
-    // Pass all reductions to user's lambda in the same order as supplied
-    // Each reducer initializes its own storage
-    auto ReduIndices = std::index_sequence_for<Reductions...>();
-    auto ReducersTuple =
-        createReducers<Reductions...>(IdentitiesTuple, BOPsTuple, ReduIndices);
-    callReduUserKernelFunc(KernelFunc, NDIt, ReducersTuple, ReduIndices);
-
-    // Combine and write-back the results of any scalar reductions
-    // reduCGFuncImplScalar<Reductions...>(NDIt, LocalAccsTuple, OutAccsTuple,
-    // ReducersTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps,
-    // ReduIndices);
-    reduCGFuncImplScalar<Pow2WG, IsOneWG, Reductions...>(
-        NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple, IdentitiesTuple,
-        BOPsTuple, InitToIdentityProps, ScalarIs);
-
-    // Combine and write-back the results of any array reductions
-    // These are handled separately to minimize temporary storage and account
-    // for the fact that each array reduction may have a different number of
-    // elements to reduce (i.e. a different extent).
-    reduCGFuncImplArray<Pow2WG, IsOneWG, Reductions...>(
-        NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple, IdentitiesTuple,
-        BOPsTuple, InitToIdentityProps, ArrayIs);
-  });
-}
-
-template <typename KernelName, typename KernelType, int Dims,
-          typename... Reductions, size_t... Is>
-void reduCGFunc(handler &CGH, KernelType KernelFunc,
-                const nd_range<Dims> &Range,
-                std::tuple<Reductions...> &ReduTuple,
-                std::index_sequence<Is...> ReduIndices) {
-  size_t WGSize = Range.get_local_range().size();
   size_t NWorkGroups = Range.get_group_range().size();
-  bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
-  if (NWorkGroups == 1) {
-    // TODO: consider having only one variant of kernel instead of two here.
-    // Having two kernels, where one is just slighly more efficient than
-    // another, and only for the purpose of running 1 work-group may be too
-    // expensive.
-    if (Pow2WG)
-      reduCGFuncImpl<KernelName, true, true>(CGH, KernelFunc, Range, ReduTuple,
-                                             ReduIndices);
-    else
-      reduCGFuncImpl<KernelName, false, true>(CGH, KernelFunc, Range, ReduTuple,
-                                              ReduIndices);
-  } else {
-    if (Pow2WG)
-      reduCGFuncImpl<KernelName, true, false>(CGH, KernelFunc, Range, ReduTuple,
-                                              ReduIndices);
-    else
-      reduCGFuncImpl<KernelName, false, false>(CGH, KernelFunc, Range,
-                                               ReduTuple, ReduIndices);
-  }
+  bool IsOneWG = NWorkGroups == 1;
+
+  // The type of the Out "accessor" differs between scenarios when there is just
+  // one WorkGroup and when there are multiple. Use this lambda to write the
+  // code just once.
+  auto Rest = [&](auto OutAccsTuple) {
+    auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
+    auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
+    auto InitToIdentityProps =
+        getInitToIdentityProperties(ReduTuple, ReduIndices);
+
+    using Name = __sycl_reduction_kernel<reduction::main_krn::NDRangeMulti,
+                                         KernelName, decltype(OutAccsTuple)>;
+    CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
+      // Pass all reductions to user's lambda in the same order as supplied
+      // Each reducer initializes its own storage
+      auto ReduIndices = std::index_sequence_for<Reductions...>();
+      auto ReducersTuple = createReducers<Reductions...>(
+          IdentitiesTuple, BOPsTuple, ReduIndices);
+      callReduUserKernelFunc(KernelFunc, NDIt, ReducersTuple, ReduIndices);
+
+      // Combine and write-back the results of any scalar reductions
+      // reduCGFuncImplScalar<Reductions...>(NDIt, LocalAccsTuple, OutAccsTuple,
+      // ReducersTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps,
+      // ReduIndices);
+      reduCGFuncImplScalar<Reductions...>(
+          Pow2WG, IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
+          IdentitiesTuple, BOPsTuple, InitToIdentityProps, ScalarIs);
+
+      // Combine and write-back the results of any array reductions
+      // These are handled separately to minimize temporary storage and account
+      // for the fact that each array reduction may have a different number of
+      // elements to reduce (i.e. a different extent).
+      reduCGFuncImplArray<Reductions...>(
+          Pow2WG, IsOneWG, NDIt, LocalAccsTuple, OutAccsTuple, ReducersTuple,
+          IdentitiesTuple, BOPsTuple, InitToIdentityProps, ArrayIs);
+    });
+  };
+
+  if (IsOneWG)
+    Rest(createReduOutAccs<true>(NWorkGroups, CGH, ReduTuple, ReduIndices));
+  else
+    Rest(createReduOutAccs<false>(NWorkGroups, CGH, ReduTuple, ReduIndices));
 }
 
+namespace reduction {
+namespace main_krn {
+template <class KernelName> struct NDRangeAtomic64;
+} // namespace main_krn
+} // namespace reduction
 // Specialization for devices with the atomic64 aspect, which guarantees 64 (and
 // temporarily 32) bit floating point support for atomic add.
 // TODO 32 bit floating point atomics are eventually expected to be supported by
@@ -2207,15 +2177,14 @@ void reduCGFunc(handler &CGH, KernelType KernelFunc,
 // IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
 // be made.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-std::enable_if_t<Reduction::has_atomic_add_float64>
-reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
-                       const nd_range<Dims> &Range, Reduction &,
-                       typename Reduction::rw_accessor_type Out) {
+void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
+                            const nd_range<Dims> &Range, Reduction &,
+                            typename Reduction::rw_accessor_type Out) {
+  static_assert(Reduction::has_atomic_add_float64,
+                "Only suitable for reductions that have FP64 atomic add.");
   constexpr size_t NElements = Reduction::num_elements;
-  using Name = typename get_reduction_main_kernel_name_t<
-      KernelName, KernelType, Reduction::is_usm,
-      Reduction::has_atomic_add_float64,
-      typename Reduction::rw_accessor_type>::name;
+  using Name =
+      __sycl_reduction_kernel<reduction::main_krn::NDRangeAtomic64, KernelName>;
   CGH.parallel_for<Name>(Range, [=](nd_item<Dims> NDIt) {
     // Call user's function. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
@@ -2242,10 +2211,8 @@ reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
 // IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
 // be made.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-enable_if_t<Reduction::has_atomic_add_float64>
-reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                   const nd_range<Dims> &Range, Reduction &Redu) {
-
+void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                        const nd_range<Dims> &Range, Reduction &Redu) {
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
       CGH, KernelFunc, Range, Redu, Out);
@@ -2275,18 +2242,19 @@ void associateReduAccsWithHandler(handler &CGH,
 
 /// All scalar reductions are processed together; there is one loop of log2(N)
 /// steps, and each reduction uses its own storage.
-template <bool UniformPow2WG, bool IsOneWG, typename... Reductions, int Dims,
-          typename... LocalAccT, typename... InAccT, typename... OutAccT,
-          typename... Ts, typename... BOPsT, size_t... Is>
+template <typename... Reductions, int Dims, typename... LocalAccT,
+          typename... InAccT, typename... OutAccT, typename... Ts,
+          typename... BOPsT, size_t... Is>
 void reduAuxCGFuncImplScalar(
-    nd_item<Dims> NDIt, size_t LID, size_t GID, size_t NWorkItems,
-    size_t WGSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
-    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
-    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    bool UniformPow2WG, bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
+    size_t GID, size_t NWorkItems, size_t WGSize,
+    ReduTupleT<LocalAccT...> LocalAccsTuple, ReduTupleT<InAccT...> InAccsTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<Ts...> IdentitiesTuple,
+    ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...> ReduIndices) {
-  initReduLocalAccs<UniformPow2WG>(LID, GID, NWorkItems, WGSize, LocalAccsTuple,
-                                   InAccsTuple, IdentitiesTuple, ReduIndices);
+  initReduLocalAccs(UniformPow2WG, LID, GID, NWorkItems, WGSize, LocalAccsTuple,
+                    InAccsTuple, IdentitiesTuple, ReduIndices);
   NDIt.barrier();
 
   size_t PrevStep = WGSize;
@@ -2307,17 +2275,16 @@ void reduAuxCGFuncImplScalar(
   // Compute the partial sum/reduction for the work-group.
   if (LID == 0) {
     size_t GrID = NDIt.get_group_linear_id();
-    writeReduSumsToOutAccs<UniformPow2WG, IsOneWG>(
-        GrID, WGSize, (std::tuple<Reductions...> *)nullptr, OutAccsTuple,
-        LocalAccsTuple, BOPsTuple, IdentitiesTuple, InitToIdentityProps,
-        ReduIndices);
+    writeReduSumsToOutAccs<Reductions...>(
+        UniformPow2WG, IsOneWG, GrID, WGSize, OutAccsTuple, LocalAccsTuple,
+        BOPsTuple, IdentitiesTuple, InitToIdentityProps, ReduIndices);
   }
 }
 
-template <bool UniformPow2WG, bool IsOneWG, typename Reduction, int Dims,
-          typename LocalAccT, typename InAccT, typename OutAccT, typename T,
-          typename BOPT>
-void reduAuxCGFuncImplArrayHelper(nd_item<Dims> NDIt, size_t LID, size_t GID,
+template <typename Reduction, int Dims, typename LocalAccT, typename InAccT,
+          typename OutAccT, typename T, typename BOPT>
+void reduAuxCGFuncImplArrayHelper(bool UniformPow2WG, bool IsOneWG,
+                                  nd_item<Dims> NDIt, size_t LID, size_t GID,
                                   size_t NWorkItems, size_t WGSize,
                                   LocalAccT LocalReds, InAccT In, OutAccT Out,
                                   T Identity, BOPT BOp,
@@ -2391,82 +2358,76 @@ void reduAuxCGFuncImplArrayHelper(nd_item<Dims> NDIt, size_t LID, size_t GID,
   }
 }
 
-template <bool UniformPow2WG, bool IsOneWG, typename... Reductions, int Dims,
-          typename... LocalAccT, typename... InAccT, typename... OutAccT,
-          typename... Ts, typename... BOPsT, size_t... Is>
+template <typename... Reductions, int Dims, typename... LocalAccT,
+          typename... InAccT, typename... OutAccT, typename... Ts,
+          typename... BOPsT, size_t... Is>
 void reduAuxCGFuncImplArray(
-    nd_item<Dims> NDIt, size_t LID, size_t GID, size_t NWorkItems,
-    size_t WGSize, ReduTupleT<LocalAccT...> LocalAccsTuple,
-    ReduTupleT<InAccT...> InAccsTuple, ReduTupleT<OutAccT...> OutAccsTuple,
-    ReduTupleT<Ts...> IdentitiesTuple, ReduTupleT<BOPsT...> BOPsTuple,
+    bool UniformPow2WG, bool IsOneWG, nd_item<Dims> NDIt, size_t LID,
+    size_t GID, size_t NWorkItems, size_t WGSize,
+    ReduTupleT<LocalAccT...> LocalAccsTuple, ReduTupleT<InAccT...> InAccsTuple,
+    ReduTupleT<OutAccT...> OutAccsTuple, ReduTupleT<Ts...> IdentitiesTuple,
+    ReduTupleT<BOPsT...> BOPsTuple,
     std::array<bool, sizeof...(Reductions)> InitToIdentityProps,
     std::index_sequence<Is...>) {
   using ReductionPack = std::tuple<Reductions...>;
-  (reduAuxCGFuncImplArrayHelper<UniformPow2WG, IsOneWG,
-                                std::tuple_element_t<Is, ReductionPack>>(
-       NDIt, LID, GID, NWorkItems, WGSize, std::get<Is>(LocalAccsTuple),
-       std::get<Is>(InAccsTuple), std::get<Is>(OutAccsTuple),
-       std::get<Is>(IdentitiesTuple), std::get<Is>(BOPsTuple),
-       InitToIdentityProps[Is]),
+  (reduAuxCGFuncImplArrayHelper<std::tuple_element_t<Is, ReductionPack>>(
+       UniformPow2WG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize,
+       std::get<Is>(LocalAccsTuple), std::get<Is>(InAccsTuple),
+       std::get<Is>(OutAccsTuple), std::get<Is>(IdentitiesTuple),
+       std::get<Is>(BOPsTuple), InitToIdentityProps[Is]),
    ...);
 }
 
-template <typename KernelName, typename KernelType, bool UniformPow2WG,
-          bool IsOneWG, typename... Reductions, size_t... Is>
-void reduAuxCGFuncImpl(handler &CGH, size_t NWorkItems, size_t NWorkGroups,
-                       size_t WGSize, std::tuple<Reductions...> &ReduTuple,
-                       std::index_sequence<Is...> ReduIndices) {
+template <typename KernelName, typename KernelType, int Dims, class Reduction>
+void reduCGFunc(handler &CGH, KernelType KernelFunc,
+                const nd_range<Dims> &Range, Reduction &Redu) {
+  size_t WGSize = Range.get_local_range().size();
+  auto Out = [&]() {
+    if constexpr (Reduction::has_fast_atomics) {
 
-  // Like reduCGFuncImpl, we also have to split out scalar and array reductions
-  IsScalarReduction ScalarPredicate;
-  auto ScalarIs = filterSequence<Reductions...>(ScalarPredicate, ReduIndices);
+      // User's initialized read-write accessor is re-used here if
+      // initialize_to_identity is not set (i.e. if user's variable is
+      // initialized). Otherwise, a new buffer is initialized with identity
+      // value and a new read-write accessor to that buffer is created. That is
+      // done because atomic operations update some initialized memory. User's
+      // USM pointer is not re-used even when initialize_to_identity is not set
+      // because it does not worth the creation of an additional variant of a
+      // user's kernel for that case.
+      return Redu.getReadWriteAccessorToInitializedMem(CGH);
 
-  IsArrayReduction ArrayPredicate;
-  auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
+    } else {
+      constexpr size_t NElements = Reduction::num_elements;
+      size_t NWorkGroups = Range.get_group_range().size();
 
-  // The last kernel DOES write to user's accessor passed to reduction.
-  // Associate it with handler manually.
-  std::conditional_t<IsOneWG, IsNonUsmReductionPredicate,
-                     EmptyReductionPredicate>
-      Predicate;
-  auto AccReduIndices = filterSequence<Reductions...>(Predicate, ReduIndices);
-  associateReduAccsWithHandler(CGH, ReduTuple, AccReduIndices);
+      return Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
+    }
+  }();
 
-  size_t LocalAccSize = WGSize + (UniformPow2WG ? 0 : 1);
-  auto LocalAccsTuple =
-      createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
-  auto InAccsTuple =
-      getReadAccsToPreviousPartialReds(CGH, ReduTuple, ReduIndices);
-  auto OutAccsTuple =
-      createReduOutAccs<IsOneWG>(NWorkGroups, CGH, ReduTuple, ReduIndices);
-  auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
-  auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
-  auto InitToIdentityProps =
-      getInitToIdentityProperties(ReduTuple, ReduIndices);
-
-  using Name =
-      typename get_reduction_aux_kernel_name_t<KernelName, KernelType,
-                                               UniformPow2WG, IsOneWG,
-                                               decltype(OutAccsTuple)>::name;
-  // TODO: Opportunity to parallelize across number of elements
-  range<1> GlobalRange = {UniformPow2WG ? NWorkItems : NWorkGroups * WGSize};
-  nd_range<1> Range{GlobalRange, range<1>(WGSize)};
-  CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
-    size_t WGSize = NDIt.get_local_range().size();
-    size_t LID = NDIt.get_local_linear_id();
-    size_t GID = NDIt.get_global_linear_id();
-
-    // Handle scalar and array reductions
-    reduAuxCGFuncImplScalar<UniformPow2WG, IsOneWG, Reductions...>(
-        NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple, InAccsTuple,
-        OutAccsTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps,
-        ScalarIs);
-    reduAuxCGFuncImplArray<UniformPow2WG, IsOneWG, Reductions...>(
-        NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple, InAccsTuple,
-        OutAccsTuple, IdentitiesTuple, BOPsTuple, InitToIdentityProps, ArrayIs);
-  });
+  if constexpr (Reduction::has_fast_reduce) {
+    if constexpr (Reduction::has_fast_atomics) {
+      reduCGFuncForNDRangeBothFastReduceAndAtomics<KernelName, KernelType>(
+          CGH, KernelFunc, Range, Redu, Out);
+    } else {
+      reduCGFuncForNDRangeFastReduceOnly<KernelName, KernelType>(
+          CGH, KernelFunc, Range, Redu, Out);
+    }
+  } else {
+    bool IsPow2WG = (WGSize & (WGSize - 1)) == 0;
+    if constexpr (Reduction::has_fast_atomics) {
+      reduCGFuncForNDRangeFastAtomicsOnly<KernelName, KernelType>(
+          CGH, IsPow2WG, KernelFunc, Range, Redu, Out);
+    } else {
+      reduCGFuncForNDRangeBasic<KernelName, KernelType>(
+          CGH, IsPow2WG, KernelFunc, Range, Redu, Out);
+    }
+  }
 }
 
+namespace reduction {
+namespace aux_krn {
+template <class KernelName, class Accessor> struct Multi;
+} // namespace aux_krn
+} // namespace reduction
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
@@ -2476,22 +2437,61 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
 
   bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
-  bool HasUniformWG = Pow2WG && (NWorkGroups * WGSize == NWorkItems);
-  if (NWorkGroups == 1) {
-    if (HasUniformWG)
-      reduAuxCGFuncImpl<KernelName, KernelType, true, true>(
-          CGH, NWorkItems, NWorkGroups, WGSize, ReduTuple, ReduIndices);
-    else
-      reduAuxCGFuncImpl<KernelName, KernelType, false, true>(
-          CGH, NWorkItems, NWorkGroups, WGSize, ReduTuple, ReduIndices);
-  } else {
-    if (HasUniformWG)
-      reduAuxCGFuncImpl<KernelName, KernelType, true, false>(
-          CGH, NWorkItems, NWorkGroups, WGSize, ReduTuple, ReduIndices);
-    else
-      reduAuxCGFuncImpl<KernelName, KernelType, false, false>(
-          CGH, NWorkItems, NWorkGroups, WGSize, ReduTuple, ReduIndices);
-  }
+  bool IsOneWG = NWorkGroups == 1;
+
+  // Like reduCGFuncImpl, we also have to split out scalar and array reductions
+  IsScalarReduction ScalarPredicate;
+  auto ScalarIs = filterSequence<Reductions...>(ScalarPredicate, ReduIndices);
+
+  IsArrayReduction ArrayPredicate;
+  auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
+
+  // Predicate/OutAccsTuple below have different type depending on us having
+  // just a single WG or multiple WGs. Use this lambda to avoid code
+  // duplication.
+  auto Rest = [&](auto Predicate, auto OutAccsTuple) {
+    auto AccReduIndices = filterSequence<Reductions...>(Predicate, ReduIndices);
+    associateReduAccsWithHandler(CGH, ReduTuple, AccReduIndices);
+
+    size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
+    auto LocalAccsTuple =
+        createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
+    auto InAccsTuple =
+        getReadAccsToPreviousPartialReds(CGH, ReduTuple, ReduIndices);
+
+    auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
+    auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
+    auto InitToIdentityProps =
+        getInitToIdentityProperties(ReduTuple, ReduIndices);
+
+    using Name = __sycl_reduction_kernel<reduction::aux_krn::Multi, KernelName,
+                                         decltype(OutAccsTuple)>;
+    // TODO: Opportunity to parallelize across number of elements
+    range<1> GlobalRange = {Pow2WG ? NWorkItems : NWorkGroups * WGSize};
+    nd_range<1> Range{GlobalRange, range<1>(WGSize)};
+    CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
+      size_t WGSize = NDIt.get_local_range().size();
+      size_t LID = NDIt.get_local_linear_id();
+      size_t GID = NDIt.get_global_linear_id();
+
+      // Handle scalar and array reductions
+      reduAuxCGFuncImplScalar<Reductions...>(
+          Pow2WG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple,
+          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          InitToIdentityProps, ScalarIs);
+      reduAuxCGFuncImplArray<Reductions...>(
+          Pow2WG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple,
+          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          InitToIdentityProps, ArrayIs);
+    });
+  };
+  if (NWorkGroups == 1)
+    Rest(IsNonUsmReductionPredicate{},
+         createReduOutAccs<true>(NWorkGroups, CGH, ReduTuple, ReduIndices));
+  else
+    Rest(EmptyReductionPredicate{},
+         createReduOutAccs<false>(NWorkGroups, CGH, ReduTuple, ReduIndices));
+
   return NWorkGroups;
 }
 
@@ -2500,29 +2500,24 @@ reduSaveFinalResultToUserMemHelper(std::vector<event> &,
                                    std::shared_ptr<detail::queue_impl>, bool) {}
 
 template <typename Reduction, typename... RestT>
-std::enable_if_t<Reduction::is_usm>
-reduSaveFinalResultToUserMemHelper(std::vector<event> &Events,
-                                   std::shared_ptr<detail::queue_impl> Queue,
-                                   bool IsHost, Reduction &, RestT... Rest) {
-  // Reductions initialized with USM pointer currently do not require copying
-  // because the last kernel write directly to USM memory.
-  reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
-}
-
-template <typename Reduction, typename... RestT>
-std::enable_if_t<!Reduction::is_usm> reduSaveFinalResultToUserMemHelper(
+void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
-  if (Redu.hasUserDiscardWriteAccessor()) {
-    handler CopyHandler(Queue, IsHost);
-    auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
-    auto OutAcc = Redu.getUserDiscardWriteAccessor();
-    Redu.associateWithHandler(CopyHandler);
-    if (!Events.empty())
-      CopyHandler.depends_on(Events.back());
-    CopyHandler.copy(InAcc, OutAcc);
-    event CopyEvent = CopyHandler.finalize();
-    Events.push_back(CopyEvent);
+  // Reductions initialized with USM pointer currently do not require copying
+  // because the last kernel writes directly to the USM memory.
+  if constexpr (!Reduction::is_usm) {
+    if (Redu.hasUserDiscardWriteAccessor()) {
+      event CopyEvent =
+          handler::withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
+            auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
+            auto OutAcc = Redu.getUserDiscardWriteAccessor();
+            Redu.associateWithHandler(CopyHandler);
+            if (!Events.empty())
+              CopyHandler.depends_on(Events.back());
+            CopyHandler.copy(InAcc, OutAcc);
+          });
+      Events.push_back(CopyEvent);
+    }
   }
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
@@ -2589,7 +2584,7 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
-std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
+std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                  detail::reduction_impl<
                      T, BinaryOperation, 0, 1,
                      detail::default_reduction_algorithm<false, IsPH, Dims>>>
@@ -2617,7 +2612,7 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation>
 std::enable_if_t<
-    detail::IsKnownIdentityOp<T, BinaryOperation>::value,
+    sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
     detail::reduction_impl<T, BinaryOperation, 0, 1,
                            detail::default_reduction_algorithm<
                                true, access::placeholder::false_t, 1>>>
@@ -2659,3 +2654,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 #endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
+
+#endif // __cplusplus >= 201703L

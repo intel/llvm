@@ -1935,6 +1935,7 @@ struct PostOrderFunctionAttrsLegacyPass : public CallGraphSCCPass {
 char PostOrderFunctionAttrsLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(PostOrderFunctionAttrsLegacyPass, "function-attrs",
                       "Deduce function attributes", false, false)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
 INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
 INITIALIZE_PASS_END(PostOrderFunctionAttrsLegacyPass, "function-attrs",
@@ -2014,12 +2015,13 @@ static bool addNoRecurseAttrsTopDown(Function &F) {
   // this function could be recursively (indirectly) called. Note that this
   // also detects if F is directly recursive as F is not yet marked as
   // a norecurse function.
-  for (auto *U : F.users()) {
-    auto *I = dyn_cast<Instruction>(U);
+  for (auto &U : F.uses()) {
+    auto *I = dyn_cast<Instruction>(U.getUser());
     if (!I)
       return false;
     CallBase *CB = dyn_cast<CallBase>(I);
-    if (!CB || !CB->getParent()->getParent()->doesNotRecurse())
+    if (!CB || !CB->isCallee(&U) ||
+        !CB->getParent()->getParent()->doesNotRecurse())
       return false;
   }
   F.setDoesNotRecurse();

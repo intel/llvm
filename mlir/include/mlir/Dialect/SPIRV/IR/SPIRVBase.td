@@ -72,6 +72,10 @@ def SPIRV_Dialect : Dialect {
     void printAttribute(
         Attribute attr, DialectAsmPrinter &printer) const override;
   }];
+
+  // TODO: This has overlapping accessors with generated when switched to
+  // prefixed. Fix and update to _Both & then _Prefixed.
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 //===----------------------------------------------------------------------===//
@@ -82,7 +86,7 @@ def SPIRV_Dialect : Dialect {
 // enum class with `name`.
 class SPV_IsKnownEnumCaseFor<string name> :
     CPred<"::mlir::spirv::symbolize" # name # "("
-          "$_self.cast<IntegerAttr>().getValue().getZExtValue()).hasValue()">;
+          "$_self.cast<IntegerAttr>().getValue().getZExtValue()).has_value()">;
 
 // Wrapper over base BitEnumAttr to set common fields.
 class SPV_BitEnumAttr<string name, string description,

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
 #include <gtest/gtest.h>
+#include <sycl/detail/os_util.hpp>
 
 #ifdef _WIN32
 /// Compare for string equality, but ignore difference between forward slash (/)

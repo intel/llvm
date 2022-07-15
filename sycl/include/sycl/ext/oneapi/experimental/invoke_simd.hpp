@@ -17,9 +17,9 @@
 
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
-#include <CL/sycl/sub_group.hpp>
 #include <std/experimental/simd.hpp>
 #include <sycl/detail/boost/mp11.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <functional>
 

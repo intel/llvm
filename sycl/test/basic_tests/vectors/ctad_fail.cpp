@@ -1,5 +1,5 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected %s
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace sycl = cl::sycl;
 

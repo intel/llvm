@@ -256,22 +256,6 @@ FunctionModRefBehavior GlobalsAAResult::getModRefBehavior(const Function *F) {
   return FunctionModRefBehavior(AAResultBase::getModRefBehavior(F) & Min);
 }
 
-FunctionModRefBehavior
-GlobalsAAResult::getModRefBehavior(const CallBase *Call) {
-  FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
-
-  if (!Call->hasOperandBundles())
-    if (const Function *F = Call->getCalledFunction())
-      if (FunctionInfo *FI = getFunctionInfo(F)) {
-        if (!isModOrRefSet(FI->getModRefInfo()))
-          Min = FMRB_DoesNotAccessMemory;
-        else if (!isModSet(FI->getModRefInfo()))
-          Min = FMRB_OnlyReadsMemory;
-      }
-
-  return FunctionModRefBehavior(AAResultBase::getModRefBehavior(Call) & Min);
-}
-
 /// Returns the function info for the function, or null if we don't have
 /// anything useful to say about it.
 GlobalsAAResult::FunctionInfo *
@@ -608,12 +592,7 @@ void GlobalsAAResult::AnalyzeCallGraph(CallGraph &CG, Module &M) {
         // We handle calls specially because the graph-relevant aspects are
         // handled above.
         if (auto *Call = dyn_cast<CallBase>(&I)) {
-          auto &TLI = GetTLI(*Node->getFunction());
-          if (isAllocationFn(Call, &TLI) || isFreeCall(Call, &TLI)) {
-            // FIXME: It is completely unclear why this is necessary and not
-            // handled by the above graph code.
-            FI.addModRefInfo(ModRefInfo::ModRef);
-          } else if (Function *Callee = Call->getCalledFunction()) {
+          if (Function *Callee = Call->getCalledFunction()) {
             // The callgraph doesn't include intrinsic calls.
             if (Callee->isIntrinsic()) {
               if (isa<DbgInfoIntrinsic>(Call))

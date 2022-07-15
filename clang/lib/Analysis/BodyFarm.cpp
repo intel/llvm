@@ -134,7 +134,8 @@ BinaryOperator *ASTMaker::makeComparison(const Expr *LHS, const Expr *RHS,
 }
 
 CompoundStmt *ASTMaker::makeCompound(ArrayRef<Stmt *> Stmts) {
-  return CompoundStmt::Create(C, Stmts, SourceLocation(), SourceLocation());
+  return CompoundStmt::Create(C, Stmts, FPOptionsOverride(), SourceLocation(),
+                              SourceLocation());
 }
 
 DeclRefExpr *ASTMaker::makeDeclRefExpr(
@@ -697,7 +698,7 @@ static Stmt *create_OSAtomicCompareAndSwap(ASTContext &C, const FunctionDecl *D)
 
 Stmt *BodyFarm::getBody(const FunctionDecl *D) {
   Optional<Stmt *> &Val = Bodies[D];
-  if (Val.hasValue())
+  if (Val)
     return Val.getValue();
 
   Val = nullptr;
@@ -737,7 +738,7 @@ Stmt *BodyFarm::getBody(const FunctionDecl *D) {
 
   if (FF) { Val = FF(C, D); }
   else if (Injector) { Val = Injector->getBody(D); }
-  return Val.getValue();
+  return *Val;
 }
 
 static const ObjCIvarDecl *findBackingIvar(const ObjCPropertyDecl *Prop) {
@@ -872,7 +873,7 @@ Stmt *BodyFarm::getBody(const ObjCMethodDecl *D) {
     return nullptr;
 
   Optional<Stmt *> &Val = Bodies[D];
-  if (Val.hasValue())
+  if (Val)
     return Val.getValue();
   Val = nullptr;
 
@@ -900,5 +901,5 @@ Stmt *BodyFarm::getBody(const ObjCMethodDecl *D) {
 
   Val = createObjCPropertyGetter(C, D);
 
-  return Val.getValue();
+  return *Val;
 }
