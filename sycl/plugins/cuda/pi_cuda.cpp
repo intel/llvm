@@ -266,8 +266,8 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
 void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
-                        const size_t maxThreadsPerBlock[3], CUfunction native_kernel,
-                        pi_uint32 local_size) {
+                        const size_t maxThreadsPerBlock[3],
+                        CUfunction native_kernel, pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
   assert(global_work_size != nullptr);
   assert(native_kernel != nullptr);
@@ -620,9 +620,8 @@ _pi_program::_pi_program(pi_context ctxt)
     : modules_{ctxt->get_devices().size(), nullptr},
       build_results_{ctxt->get_devices().size(), CUDA_ERROR_UNKNOWN},
       binary_{0}, binarySizeInBytes_{0}, refCount_{1}, context_{ctxt},
-      kernelReqdWorkGroupSizeMD_{} {
-  cuda_piContextRetain(context_);
-}
+      kernelReqdWorkGroupSizeMD_ {}
+{ cuda_piContextRetain(context_); }
 
 _pi_program::~_pi_program() { cuda_piContextRelease(context_); }
 
@@ -1089,7 +1088,8 @@ pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
                                              const char *func_name,
                                              pi_uint64 *func_pointer_ret) {
   assert(func_pointer_ret != nullptr);
-  CUmodule module = program->get()[program->get_context()->device_index(device)];
+  CUmodule module =
+      program->get()[program->get_context()->device_index(device)];
 
   CUfunction func;
   CUresult ret = cuModuleGetFunction(&func, module, func_name);
@@ -2046,7 +2046,7 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
   std::unique_ptr<_pi_context> piContextPtr{nullptr};
   try {
     if (property_cuda_primary) {
-      if(num_devices != 1){
+      if (num_devices != 1) {
         return PI_ERROR_INVALID_VALUE;
       }
       // Use the CUDA primary context and assume that we want to use it
@@ -3031,8 +3031,9 @@ pi_result cuda_piEnqueueKernelLaunch(
             return err;
         }
       } else {
-        guessLocalWorkSize(threadsPerBlock, global_work_size,
-                           maxThreadsPerBlock, kernel->get(command_queue->get_device()), local_size);
+        guessLocalWorkSize(
+            threadsPerBlock, global_work_size, maxThreadsPerBlock,
+            kernel->get(command_queue->get_device()), local_size);
       }
     }
 
@@ -3367,17 +3368,17 @@ pi_result cuda_piProgramCreateWithBinary(
   assert(binaries != nullptr);
   assert(program != nullptr);
   assert(device_list != nullptr);
-  for(size_t i=0;i<num_devices;i++){
+  for (size_t i = 0; i < num_devices; i++) {
     bool found_device = false;
-    for(pi_device context_device : context->get_devices()){
-      if(device_list[i] == context_device){
+    for (pi_device context_device : context->get_devices()) {
+      if (device_list[i] == context_device) {
         found_device = true;
         break;
       }
     }
     assert(found_device &&
-          "Mismatch between device's context and passed context when creating "
-          "program from binary");
+           "Mismatch between device's context and passed context when creating "
+           "program from binary");
   }
 
   pi_result retError = PI_SUCCESS;

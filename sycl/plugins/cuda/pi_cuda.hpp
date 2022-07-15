@@ -209,7 +209,7 @@ struct _pi_context {
 
   const std::vector<CUcontext> &get() const noexcept { return cuContexts_; }
 
-  size_t device_index(pi_device device){
+  size_t device_index(pi_device device) {
     for (size_t i = 0; i < deviceIds_.size(); i++) {
       if (deviceIds_[i] == device) {
         return i;

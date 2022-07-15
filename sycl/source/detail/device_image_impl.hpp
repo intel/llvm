@@ -339,9 +339,9 @@ private:
   // Binary blob which can have values of all specialization constants in the
   // image
   std::vector<unsigned char> MSpecConstsBlob;
-  // A vector of buffers containing binary blobs which can have values of all specialization
-  // constants in the image; they are used for storing non-native specialization
-  // constants
+  // A vector of buffers containing binary blobs which can have values of all
+  // specialization constants in the image; they are used for storing non-native
+  // specialization constants
   std::vector<RT::PiMem> MSpecConstsBuffers;
   // Contains map of spec const names to their descriptions + offsets in
   // the MSpecConstsBlob
