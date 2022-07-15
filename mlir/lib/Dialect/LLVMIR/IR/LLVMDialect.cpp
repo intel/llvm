@@ -237,9 +237,9 @@ ParseResult AllocaOp::parse(OpAsmParser &parser, OperationState &result) {
 
   Optional<NamedAttribute> alignmentAttr =
       result.attributes.getNamed("alignment");
-  if (alignmentAttr.hasValue()) {
+  if (alignmentAttr.has_value()) {
     auto alignmentInt =
-        alignmentAttr.getValue().getValue().dyn_cast<IntegerAttr>();
+        alignmentAttr.value().getValue().dyn_cast<IntegerAttr>();
     if (!alignmentInt)
       return parser.emitError(parser.getNameLoc(),
                               "expected integer alignment");
@@ -272,11 +272,11 @@ ParseResult AllocaOp::parse(OpAsmParser &parser, OperationState &result) {
 /// the attribute, but not both.
 static LogicalResult verifyOpaquePtr(Operation *op, LLVMPointerType ptrType,
                                      Optional<Type> ptrElementType) {
-  if (ptrType.isOpaque() && !ptrElementType.hasValue()) {
+  if (ptrType.isOpaque() && !ptrElementType.has_value()) {
     return op->emitOpError() << "expected '" << kElemTypeAttrName
                              << "' attribute if opaque pointer type is used";
   }
-  if (!ptrType.isOpaque() && ptrElementType.hasValue()) {
+  if (!ptrType.isOpaque() && ptrElementType.has_value()) {
     return op->emitOpError()
            << "unexpected '" << kElemTypeAttrName
            << "' attribute when non-opaque pointer type is used";
@@ -907,7 +907,7 @@ CallInterfaceCallable InvokeOp::getCallableForCallee() {
 }
 
 Operation::operand_range InvokeOp::getArgOperands() {
-  return getOperands().drop_front(getCallee().hasValue() ? 0 : 1);
+  return getOperands().drop_front(getCallee().has_value() ? 0 : 1);
 }
 
 LogicalResult InvokeOp::verify() {
@@ -928,13 +928,13 @@ LogicalResult InvokeOp::verify() {
 
 void InvokeOp::print(OpAsmPrinter &p) {
   auto callee = getCallee();
-  bool isDirect = callee.hasValue();
+  bool isDirect = callee.has_value();
 
   p << ' ';
 
   // Either function name or pointer
   if (isDirect)
-    p.printSymbolName(callee.getValue());
+    p.printSymbolName(callee.value());
   else
     p << getOperand(0);
 
@@ -1146,7 +1146,7 @@ CallInterfaceCallable CallOp::getCallableForCallee() {
 }
 
 Operation::operand_range CallOp::getArgOperands() {
-  return getOperands().drop_front(getCallee().hasValue() ? 0 : 1);
+  return getOperands().drop_front(getCallee().has_value() ? 0 : 1);
 }
 
 LogicalResult CallOp::verify() {
@@ -1233,13 +1233,13 @@ LogicalResult CallOp::verify() {
 
 void CallOp::print(OpAsmPrinter &p) {
   auto callee = getCallee();
-  bool isDirect = callee.hasValue();
+  bool isDirect = callee.has_value();
 
   // Print the direct callee if present as a function attribute, or an indirect
   // callee (first operand) otherwise.
   p << ' ';
   if (isDirect)
-    p.printSymbolName(callee.getValue());
+    p.printSymbolName(callee.value());
   else
     p << getOperand(0);
 
@@ -2011,8 +2011,8 @@ LogicalResult GlobalOp::verify() {
   }
 
   Optional<uint64_t> alignAttr = getAlignment();
-  if (alignAttr.hasValue()) {
-    uint64_t value = alignAttr.getValue();
+  if (alignAttr.has_value()) {
+    uint64_t value = alignAttr.value();
     if (!llvm::isPowerOf2_64(value))
       return emitError() << "alignment attribute is not a power of 2";
   }

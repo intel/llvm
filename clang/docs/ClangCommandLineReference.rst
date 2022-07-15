@@ -3285,6 +3285,10 @@ Use the given offset for addressing the stack-protector guard
 
 Use the given reg for addressing the stack-protector guard
 
+.. option:: -mstack-protector-guard-symbol=<arg>
+
+Use the given symbol for addressing the stack-protector guard
+
 .. option:: -mstack-protector-guard=<arg>
 
 Use the given guard (global, tls) for addressing the stack-protector guard
@@ -3321,7 +3325,7 @@ Specify bit size of immediate TLS offsets (AArch64 ELF only): 12 (for 4KB) \| 24
 .. option:: -mtune=<arg>
 .. program:: clang
 
-Only supported on X86 and RISC-V. Otherwise accepted for compatibility with GCC.
+Only supported on X86, RISC-V and SystemZ. Otherwise accepted for compatibility with GCC.
 
 .. option:: -mtvos-version-min=<arg>, -mappletvos-version-min=<arg>
 

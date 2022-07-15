@@ -50,6 +50,22 @@ static Operation *getOwnerOfValue(Value value) {
   return value.cast<BlockArgument>().getOwner()->getParentOp();
 }
 
+bool bufferization::allocationDoesNotEscape(OpResult opResult) {
+#ifndef NDEBUG
+  auto bufferizableOp = opResult.getDefiningOp<BufferizableOpInterface>();
+  assert(bufferizableOp && bufferizableOp.bufferizesToAllocation(opResult) &&
+         "expected op that bufferizes to an allocation");
+#endif // NDEBUG
+
+  Operation *op = opResult.getDefiningOp();
+  // If there is no 'escape' attribute, we cannot say for sure.
+  if (!op->hasAttr(BufferizationDialect::kEscapeAttrName))
+    return false;
+  auto attr =
+      op->getAttrOfType<ArrayAttr>(BufferizationDialect::kEscapeAttrName);
+  return !attr[opResult.getResultNumber()].cast<BoolAttr>().getValue();
+}
+
 /// Create an AllocTensorOp for the given shaped value. If `copy` is set, the
 /// shaped value is copied. Otherwise, a tensor with undefined contents is
 /// allocated.
@@ -567,11 +583,11 @@ bufferization::getBufferType(Value value, const BufferizationOptions &options) {
 
   // If we still do not know the memory space, use the default memory space (if
   // any).
-  if (!memorySpace.hasValue())
+  if (!memorySpace.has_value())
     memorySpace = options.defaultMemorySpace;
 
   // If we still do not know the memory space, report a failure.
-  if (!memorySpace.hasValue())
+  if (!memorySpace.has_value())
     return op->emitError("could not infer memory space");
 
   return getMemRefType(value, options, /*layout=*/{}, *memorySpace);

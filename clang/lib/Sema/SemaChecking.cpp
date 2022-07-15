@@ -1894,7 +1894,7 @@ static ExprResult SemaBuiltinLaunder(Sema &S, CallExpr *TheCall) {
   }();
   if (DiagSelect) {
     S.Diag(TheCall->getBeginLoc(), diag::err_builtin_launder_invalid_arg)
-        << DiagSelect.getValue() << TheCall->getSourceRange();
+        << DiagSelect.value() << TheCall->getSourceRange();
     return ExprError();
   }
 
@@ -2427,7 +2427,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     bool ReturnsPointer = BuiltinID == Builtin::BIaddressof ||
                           BuiltinID == Builtin::BI__addressof;
     if (!(Param->isReferenceType() &&
-          (ReturnsPointer ? Result->isPointerType()
+          (ReturnsPointer ? Result->isAnyPointerType()
                           : Result->isReferenceType()) &&
           Context.hasSameUnqualifiedType(Param->getPointeeType(),
                                          Result->getPointeeType()))) {
@@ -5784,6 +5784,40 @@ static void CheckNonNullArguments(Sema &S,
   }
 }
 
+// 16 byte ByVal alignment not due to a vector member is not honoured by XL
+// on AIX. Emit a warning here that users are generating binary incompatible
+// code to be safe.
+// Here we try to get information about the alignment of the struct member
+// from the struct passed to the caller function. We only warn when the struct
+// is passed byval, hence the series of checks and early returns if we are a not
+// passing a struct byval.
+void Sema::checkAIXMemberAlignment(SourceLocation Loc, const Expr *Arg) {
+  const auto *ICE = dyn_cast<ImplicitCastExpr>(Arg->IgnoreParens());
+  if (!ICE)
+    return;
+
+  const auto *DR = dyn_cast<DeclRefExpr>(ICE->getSubExpr());
+  if (!DR)
+    return;
+
+  const auto *PD = dyn_cast<ParmVarDecl>(DR->getDecl());
+  if (!PD || !PD->getType()->isRecordType())
+    return;
+
+  QualType ArgType = Arg->getType();
+  for (const FieldDecl *FD :
+       ArgType->castAs<RecordType>()->getDecl()->fields()) {
+    if (const auto *AA = FD->getAttr<AlignedAttr>()) {
+      CharUnits Alignment =
+          Context.toCharUnitsFromBits(AA->getAlignment(Context));
+      if (Alignment.getQuantity() == 16) {
+        Diag(FD->getLocation(), diag::warn_not_xl_compatible) << FD;
+        Diag(Loc, diag::note_misaligned_member_used_here) << PD;
+      }
+    }
+  }
+}
+
 /// Warn if a pointer or reference argument passed to a function points to an
 /// object that is less aligned than the parameter. This can happen when
 /// creating a typedef with a lower alignment than the original type and then
@@ -5893,6 +5927,12 @@ void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,
       if (const Expr *Arg = Args[ArgIdx]) {
         if (Arg->containsErrors())
           continue;
+
+        if (Context.getTargetInfo().getTriple().isOSAIX() && FDecl && Arg &&
+            FDecl->hasLinkage() &&
+            FDecl->getFormalLinkage() != InternalLinkage &&
+            CallType == VariadicDoesNotApply)
+          checkAIXMemberAlignment((Arg->getExprLoc()), Arg);
 
         QualType ParamTy = Proto->getParamType(ArgIdx);
         QualType ArgTy = Arg->getType();
@@ -16989,9 +17029,15 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
         RHSDeclRef->getDecl()->getCanonicalDecl())
       return;
 
-    Diag(OpLoc, diag::warn_self_move) << LHSExpr->getType()
-                                        << LHSExpr->getSourceRange()
-                                        << RHSExpr->getSourceRange();
+    auto D = Diag(OpLoc, diag::warn_self_move)
+             << LHSExpr->getType() << LHSExpr->getSourceRange()
+             << RHSExpr->getSourceRange();
+    if (const FieldDecl *F =
+            getSelfAssignmentClassMemberCandidate(RHSDeclRef->getDecl()))
+      D << 1 << F
+        << FixItHint::CreateInsertion(LHSDeclRef->getBeginLoc(), "this->");
+    else
+      D << 0;
     return;
   }
 
@@ -17026,16 +17072,16 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
         RHSDeclRef->getDecl()->getCanonicalDecl())
       return;
 
-    Diag(OpLoc, diag::warn_self_move) << LHSExpr->getType()
-                                        << LHSExpr->getSourceRange()
-                                        << RHSExpr->getSourceRange();
+    Diag(OpLoc, diag::warn_self_move)
+        << LHSExpr->getType() << 0 << LHSExpr->getSourceRange()
+        << RHSExpr->getSourceRange();
     return;
   }
 
   if (isa<CXXThisExpr>(LHSBase) && isa<CXXThisExpr>(RHSBase))
-    Diag(OpLoc, diag::warn_self_move) << LHSExpr->getType()
-                                        << LHSExpr->getSourceRange()
-                                        << RHSExpr->getSourceRange();
+    Diag(OpLoc, diag::warn_self_move)
+        << LHSExpr->getType() << 0 << LHSExpr->getSourceRange()
+        << RHSExpr->getSourceRange();
 }
 
 //===--- Layout compatibility ----------------------------------------------//
