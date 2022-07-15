@@ -499,24 +499,32 @@ protected:
 template <class T>
 struct is_rw_acc_t : public std::false_type {};
 
-template <class T, int AccessorDims, access::placeholder IsPlaceholder>
-struct is_rw_acc_t<
-    accessor<T, AccessorDims, access::mode::read_write, access::target::device,
-             IsPlaceholder, ext::oneapi::accessor_property_list<>>>
+template <class T, int AccessorDims, access::placeholder IsPlaceholder,
+          typename PropList>
+struct is_rw_acc_t<accessor<T, AccessorDims, access::mode::read_write,
+                            access::target::device, IsPlaceholder, PropList>>
     : public std::true_type {};
 
 template <class T>
 struct is_dw_acc_t : public std::false_type {};
 
-template <class T, int AccessorDims, access::placeholder IsPlaceholder>
+template <class T, int AccessorDims, access::placeholder IsPlaceholder,
+          typename PropList>
 struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
-                            access::target::device, IsPlaceholder,
-                            ext::oneapi::accessor_property_list<>>>
+                            access::target::device, IsPlaceholder, PropList>>
+    : public std::true_type {};
+
+template <class T>
+struct is_placeholder_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::mode Mode, typename PropList>
+struct is_placeholder_t<accessor<T, AccessorDims, Mode, access::target::device,
+                                 access::placeholder::true_t, PropList>>
     : public std::true_type {};
 
 /// Types representing specific reduction algorithms
 /// Enables reduction_impl_algo to take additional algorithm-specific templates
-template <access::placeholder IsPlaceholder, int AccessorDims>
+template <int AccessorDims>
 class default_reduction_algorithm {};
 
 /// Templated class for implementations of specific reduction algorithms
@@ -527,16 +535,15 @@ class reduction_impl_algo;
 /// Original reduction algorithm is the default. It supports both USM and
 /// accessors via a single class
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          access::placeholder IsPlaceholder, int AccessorDims,
-          typename RedOutVar>
+          int AccessorDims, typename RedOutVar>
 class reduction_impl_algo<
     T, BinaryOperation, Dims, Extent,
-    default_reduction_algorithm<IsPlaceholder, AccessorDims>, RedOutVar>
+    default_reduction_algorithm<AccessorDims>, RedOutVar>
     : public reduction_impl_common<T, BinaryOperation> {
   using base = reduction_impl_common<T, BinaryOperation>;
-  using self = reduction_impl_algo<
-      T, BinaryOperation, Dims, Extent,
-      default_reduction_algorithm<IsPlaceholder, AccessorDims>, RedOutVar>;
+  using self =
+      reduction_impl_algo<T, BinaryOperation, Dims, Extent,
+                          default_reduction_algorithm<AccessorDims>, RedOutVar>;
 
 public:
   using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
@@ -548,15 +555,12 @@ public:
   // AccessorDims also determines the dimensionality of some temp storage
   static constexpr int accessor_dim = AccessorDims;
   static constexpr int buffer_dim = (AccessorDims == 0) ? 1 : AccessorDims;
+  static constexpr access::placeholder is_placeholder =
+      is_placeholder_t<RedOutVar>::value ? access::placeholder::true_t
+                                         : access::placeholder::false_t;
   using rw_accessor_type = accessor<T, AccessorDims, access::mode::read_write,
-                                    access::target::device, IsPlaceholder,
+                                    access::target::device, is_placeholder,
                                     ext::oneapi::accessor_property_list<>>;
-  using dw_accessor_type =
-      accessor<T, AccessorDims, access::mode::discard_write,
-               access::target::device, IsPlaceholder,
-               ext::oneapi::accessor_property_list<>>;
-
-
   static constexpr bool has_atomic_add_float64 =
       IsReduOptForAtomic64Add<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
@@ -569,9 +573,6 @@ public:
 
   static constexpr bool my_is_rw_acc = is_rw_acc_t<RedOutVar>::value;
   static constexpr bool my_is_dw_acc = is_dw_acc_t<RedOutVar>::value;
-
-  static constexpr bool is_placeholder =
-      (IsPlaceholder == access::placeholder::true_t);
 
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
@@ -705,14 +706,16 @@ public:
   }
 
 private:
-  template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
-  std::enable_if_t<IsPH == access::placeholder::false_t, rw_accessor_type>
+  template <typename BufferT, typename _self = self>
+  std::enable_if_t<_self::is_placeholder == access::placeholder::false_t,
+                   rw_accessor_type>
   createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
     return {Buffer, CGH};
   }
 
-  template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
-  std::enable_if_t<IsPH == access::placeholder::true_t, rw_accessor_type>
+  template <typename BufferT, typename _self = self>
+  std::enable_if_t<_self::is_placeholder == access::placeholder::true_t,
+                   rw_accessor_type>
   createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
     rw_accessor_type Acc(Buffer);
     CGH.require(Acc);
@@ -786,7 +789,6 @@ public:
 
   using reducer_type = typename algo::reducer_type;
   using rw_accessor_type = typename algo::rw_accessor_type;
-  using dw_accessor_type = typename algo::dw_accessor_type;
 
   // Only scalar and 1D array reductions are supported by SYCL 2020.
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
@@ -2464,7 +2466,7 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, 0, 1,
-                       detail::default_reduction_algorithm<IsPH, Dims>,
+                       detail::default_reduction_algorithm<Dims>,
                        accessor<T, Dims, AccMode, access::target::device, IsPH>>
 reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           const T &Identity, BinaryOperation BOp) {
@@ -2480,7 +2482,7 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
 std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                  detail::reduction_impl<
                      T, BinaryOperation, 0, 1,
-                     detail::default_reduction_algorithm<IsPH, Dims>,
+                     detail::default_reduction_algorithm<Dims>,
                      accessor<T, Dims, AccMode, access::target::device, IsPH>>>
 reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           BinaryOperation) {
@@ -2492,9 +2494,8 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// the computed reduction must be stored \param VarPtr, identity value
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
-detail::reduction_impl<
-    T, BinaryOperation, 0, 1,
-    detail::default_reduction_algorithm<access::placeholder::false_t, 1>, T *>
+detail::reduction_impl<T, BinaryOperation, 0, 1,
+                       detail::default_reduction_algorithm<1>, T *>
 reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
   return {VarPtr, Identity, BOp};
 }
@@ -2505,11 +2506,10 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation>
-std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                 detail::reduction_impl<T, BinaryOperation, 0, 1,
-                                        detail::default_reduction_algorithm<
-                                            access::placeholder::false_t, 1>,
-                                        T *>>
+std::enable_if_t<
+    sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
+    detail::reduction_impl<T, BinaryOperation, 0, 1,
+                           detail::default_reduction_algorithm<1>, T *>>
 reduction(T *VarPtr, BinaryOperation) {
   return {VarPtr};
 }
