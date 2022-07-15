@@ -22,7 +22,6 @@ string(CONCAT sycl_targets_opt
   "spir64_fpga-unknown-unknown,"
   "spir64-unknown-unknown")
 
-
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
   # a function with a raw pointer parameter.

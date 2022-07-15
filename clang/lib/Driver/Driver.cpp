@@ -1,4 +1,3 @@
-#include <iostream>
 //===--- Driver.cpp - Clang GCC Compatible Driver -------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -3574,8 +3573,8 @@ class OffloadingActionBuilder final {
                           Action::OffloadKind OFKind)
         : DeviceActionBuilder(C, Args, Inputs, OFKind) {}
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction,
-                                              const bool UseArch) override {
+    ActionBuilderReturnCode
+    addDeviceDepences(Action *HostAction, const bool UseArch = true) override {
       // While generating code for CUDA, we only depend on the host input action
       // to trigger the creation of all the CUDA device actions.
 
@@ -4449,8 +4448,6 @@ class OffloadingActionBuilder final {
     /// targets.
     SmallVector<std::pair<llvm::Triple, const char *>, 8> GpuArchList;
 
-    SYCLInstallationDetector SYCLInstallation;
-
     /// Build the last steps for CUDA after all BC files have been linked.
     JobAction *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
@@ -4484,8 +4481,7 @@ class OffloadingActionBuilder final {
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
-        : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL),
-          SYCLInstallation(C.getDriver()) {}
+        : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL) {}
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4683,7 +4679,8 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction, const bool UseArch=true) override {
+    ActionBuilderReturnCode
+    addDeviceDepences(Action *HostAction, const bool UseArch = true) override {
 
       // If this is an input action replicate it for each SYCL toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -4781,7 +4778,7 @@ class OffloadingActionBuilder final {
            llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
         Action *A = std::get<0>(TargetActionInfo);
         DeviceTargetInfo &TargetInfo = std::get<1>(TargetActionInfo);
-        
+
         OffloadAction::DeviceDependences Dep;
         Dep.add(*A, *TargetInfo.TC, TargetInfo.BoundArch, Action::OFK_SYCL);
         AL.push_back(C.MakeAction<OffloadAction>(Dep, A->getType()));
@@ -4834,8 +4831,10 @@ class OffloadingActionBuilder final {
         }
       }
 
+      const toolchains::SYCLToolChain *SYCLTC =
+          static_cast<const toolchains::SYCLToolChain *>(TC);
       SmallVector<SmallString<128>, 4> LibLocCandidates;
-      SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+      SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
