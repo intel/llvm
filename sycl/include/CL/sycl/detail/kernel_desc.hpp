@@ -13,8 +13,6 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 
-// #include <cstdint>
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
@@ -23,6 +21,9 @@ namespace detail {
 #define _Bool bool
 #endif
 
+// TODO: ideally, we would include <cstdint> and simply pick up int64_t from it
+// but that inclusion is causing problems. In the interim, we are simply
+// borrowing the matching definitions used by SemaSYCL in the FE.
 template <bool Cond, typename TrueT, typename FalseT> struct conditional {
   using type = TrueT;
 };
@@ -30,7 +31,6 @@ template <typename TrueT, typename FalseT>
 struct conditional<false, TrueT, FalseT> {
   using type = FalseT;
 };
-
 using int64_t = conditional<sizeof(long) == 8, long, long long>::type;
 
 // kernel parameter kinds
