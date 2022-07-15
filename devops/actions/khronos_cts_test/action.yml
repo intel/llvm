@@ -70,7 +70,7 @@ runs:
       ${{ inputs.cmake_args }}
       echo "::endgroup::"
       echo "::group::Ninja bulid"
-      ninja
+      ninja ./bulid
       echo "::endgroup::"
   - name: Run SYCL-CTS
     shell: bash
