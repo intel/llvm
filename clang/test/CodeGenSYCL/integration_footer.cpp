@@ -7,7 +7,7 @@ int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK: #include <sycl/detail/defines_elementary.hpp>
 
 using namespace cl::sycl;
 
@@ -200,4 +200,4 @@ auto &y = GlobalWrapper<int>::template sc<20>;
 // CHECK-NOT: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalWrapper<int>::sc>()
 // CHECK: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalWrapper<int>::sc<20>>()
 
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
+// CHECK: #include <sycl/detail/spec_const_integration.hpp>
