@@ -158,13 +158,16 @@ public:
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
-    RT::PiDevice Device{};
+    RT::PiDevice DevicePI{};
     const detail::plugin &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piQueueGetInfo>(MQueues[0], PI_QUEUE_INFO_DEVICE,
-                                           sizeof(Device), &Device, nullptr);
-    MDevice =
-        DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
+    Plugin.call<PiApiKind::piQueueGetInfo>(
+        MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
+    MDevice = MContext->findMatchingDeviceImpl(DevicePI);
+    if (MDevice == nullptr)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Device provided by native Queue not found in Context.");
   }
 
   ~queue_impl() {
