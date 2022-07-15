@@ -62,11 +62,11 @@ device device_selector::select_device() const {
       std::string PlatformName = dev.get_info<info::device::platform>()
                                      .get_info<info::platform::name>();
       std::string DeviceName = dev.get_info<info::device::name>();
-      printf("%s%s%d%s\n%s%s%s\n%s%s%s\n",
-             "SYCL_PI_TRACE[all]: ", "select_device(): -> score = ", dev_score,
-             ((dev_score < 0) ? " (REJECTED)" : ""),
-             "SYCL_PI_TRACE[all]: ", "  platform: ", PlatformName.c_str(),
-             "SYCL_PI_TRACE[all]: ", "  device: ", DeviceName.c_str());
+      printf("SYCL_PI_TRACE[all]: select_device(): -> score = %lld%s\n"
+             "SYCL_PI_TRACE[all]:   platform: %s\n"
+             "SYCL_PI_TRACE[all]:   device: %s\n",
+             (long long int)dev_score, ((dev_score < 0) ? " (REJECTED)" : ""),
+             PlatformName.c_str(), DeviceName.c_str());
       fflush(stdout);
     }
 

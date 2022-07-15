@@ -603,8 +603,9 @@ void DeviceBinaryImage::print() const {
   fprintf(stderr, "    Kind     : %d\n", (int)Bin->Kind);
   fprintf(stderr, "    Format   : %d\n", (int)Bin->Format);
   fprintf(stderr, "    Target   : %s\n", Bin->DeviceTargetSpec);
-  fprintf(stderr, "    Bin size : %ld\n",
-          ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart));
+  fprintf(
+      stderr, "    Bin size : %lld\n",
+      (long long int)((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart));
   fprintf(stderr, "    Compile options : %s",
           (Bin->CompileOptions ? Bin->CompileOptions : "NULL"));
   fprintf(stderr, "    Link options    : %s",

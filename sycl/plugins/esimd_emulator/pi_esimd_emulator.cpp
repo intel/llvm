@@ -377,7 +377,7 @@ extern "C" {
   if (PrintPiTrace) {                                                          \
     fprintf(stderr, "Not Implemented : %s - File : %s", __FUNCTION__,          \
             __FILE__);                                                         \
-    fprintf(stderr, " / Line : %d\n", __LINE__);                               \
+    fprintf(stderr, " / Line : %lld\n", (long long int)__LINE__);              \
   }                                                                            \
   return PI_ERROR_INVALID_OPERATION;
 
@@ -385,7 +385,7 @@ extern "C" {
   if (PrintPiTrace) {                                                          \
     fprintf(stderr, "Warning : Not Implemented : %s - File : %s",              \
             __FUNCTION__, __FILE__);                                           \
-    fprintf(stderr, " / Line : %d\n", __LINE__);                               \
+    fprintf(stderr, " / Line : %lld\n", (long long int)__LINE__);              \
   }                                                                            \
   return PI_SUCCESS;
 
@@ -393,8 +393,8 @@ extern "C" {
   case not_supported:                                                          \
     if (PrintPiTrace) {                                                        \
       fprintf(stderr,                                                          \
-              "\nUnsupported PI case : " #not_supported " in %s:%d(%s)\n",     \
-              __FUNCTION__, __LINE__, __FILE__);                               \
+              "\nUnsupported PI case : " #not_supported " in %s:%lld(%s)\n",   \
+              __FUNCTION__, (long long int)__LINE__, __FILE__);                \
     }                                                                          \
     return PI_ERROR_INVALID_OPERATION;
 
@@ -611,8 +611,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     /// ESIMDEmuPluginInterfaceVersion : 0.a.b
     /// a : ESIMDEmuPluginInterfaceVersion
     /// b : ESIMDEmuPluginDataVersion
-    sprintf(ESimdEmuVersionString, "0.%d.%d", ESIMDEmuPluginInterfaceVersion,
-            ESIMDEmuPluginDataVersion);
+    sprintf(ESimdEmuVersionString, "0.%lld.%lld",
+            (long long int)ESIMDEmuPluginInterfaceVersion,
+            (long long int)ESIMDEmuPluginDataVersion);
     return ReturnValue(ESimdEmuVersionString);
   case PI_DEVICE_INFO_VENDOR:
     return ReturnValue("Intel(R) Corporation");

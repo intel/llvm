@@ -107,11 +107,11 @@ ProgramManager::getDeviceImage(OSModuleHandle M, const std::string &KernelName,
                                const context &Context, const device &Device,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0)
-    fprintf(stderr,
-            ">>> ProgramManager::getDeviceImage(%ld,\"%s\"%p, %p, %s)\n", M,
-            KernelName.c_str(), (void *)getRawSyclObjImpl(Context),
-            (void *)getRawSyclObjImpl(Device),
-            JITCompilationIsRequired ? "true" : "false");
+    fprintf(
+        stderr, ">>> ProgramManager::getDeviceImage(%lld,\"%s\"%p, %p, %s)\n",
+        (long long int)M, KernelName.c_str(),
+        (void *)getRawSyclObjImpl(Context), (void *)getRawSyclObjImpl(Device),
+        JITCompilationIsRequired ? "true" : "false");
 
   KernelSetId KSId = getKernelSetId(M, KernelName);
   return getDeviceImage(M, KSId, Context, Device, JITCompilationIsRequired);
@@ -616,9 +616,9 @@ ProgramManager::getOrCreateKernel(OSModuleHandle M,
                                   const std::string &KernelName,
                                   const program_impl *Prg) {
   if (DbgProgMgr > 0) {
-    fprintf(stderr, ">>> ProgramManager::getOrCreateKernel(%ld, %p, %p, %s)\n",
-            M, (void *)ContextImpl.get(), (void *)DeviceImpl.get(),
-            KernelName.c_str());
+    fprintf(stderr, ">>> ProgramManager::getOrCreateKernel(%lld, %p, %p, %s)\n",
+            (long long int)M, (void *)ContextImpl.get(),
+            (void *)DeviceImpl.get(), KernelName.c_str());
   }
 
   using PiKernelT = KernelProgramCache::PiKernelT;
@@ -906,8 +906,8 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
     fprintf(stderr,
-            ">>> ProgramManager::getDeviceImage(%ld, \"%lu\", %p, %p, %d)\n", M,
-            KSId, (void *)getRawSyclObjImpl(Context),
+            ">>> ProgramManager::getDeviceImage(%lld, \"%lu\", %p, %p, %d)\n",
+            (long long int)M, KSId, (void *)getRawSyclObjImpl(Context),
             (void *)getRawSyclObjImpl(Device), JITCompilationIsRequired);
 
     fprintf(stderr, "available device images:\n");
@@ -1303,7 +1303,8 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
 void ProgramManager::debugPrintBinaryImages() const {
   for (const auto &ImgVecIt : m_DeviceImages) {
-    fprintf(stderr, "  ++++++ Kernel set: %lu\n", ImgVecIt.first);
+    fprintf(stderr, "  ++++++ Kernel set: %llu\n",
+            (unsigned long long int)ImgVecIt.first);
     for (const auto &Img : *ImgVecIt.second)
       Img.get()->print();
   }

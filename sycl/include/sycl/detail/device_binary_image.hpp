@@ -43,7 +43,7 @@ public:
 
   void print() const override {
     pi::DeviceBinaryImage::print();
-    fprintf(stderr, "    OSModuleHandle=%ld\n", ModuleHandle);
+    fprintf(stderr, "    OSModuleHandle=%lld\n", (long long int)ModuleHandle);
   }
 
 protected:

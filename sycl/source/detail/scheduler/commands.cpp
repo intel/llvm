@@ -1021,8 +1021,10 @@ void AllocaSubBufCommand::printDot(FILE *file) const {
           deviceToString(MQueue->get_device()).c_str());
   fprintf(file, " MemObj : %p\\n",
           (const void *)this->MRequirement.MSYCLMemObj);
-  fprintf(file, " Offset : %u\\n", this->MRequirement.MOffsetInBytes);
-  fprintf(file, " Access range : %lu\\n", this->MRequirement.MAccessRange[0]);
+  fprintf(file, " Offset : %llu\\n",
+          (unsigned long long int)this->MRequirement.MOffsetInBytes);
+  fprintf(file, " Access range : %llu\\n",
+          (unsigned long long int)this->MRequirement.MAccessRange[0]);
   fprintf(file, "\"];\n");
 
   for (const auto &Dep : MDeps) {

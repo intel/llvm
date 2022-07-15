@@ -83,35 +83,51 @@ template <> inline void print<>(const PiEvent *val) {
 }
 
 template <> inline void print<>(pi_buffer_region rgn) {
-  printf("pi_buffer_region origin/size : %lu/%lu\n", rgn->origin, rgn->size);
+  printf("pi_buffer_region origin/size : %llu/%llu\n",
+         (unsigned long long int)rgn->origin,
+         (unsigned long long int)rgn->size);
 }
 
 template <> inline void print<>(pi_buff_rect_region rgn) {
-  printf("pi_buff_rect_region width_bytes/height/depth : %lu/%lu/%lu\n",
-         rgn->width_bytes, rgn->height_scalar, rgn->depth_scalar);
+  printf("pi_buff_rect_region width_bytes/height/depth : %llu/%llu/%llu\n",
+         (unsigned long long int)rgn->width_bytes,
+         (unsigned long long int)rgn->height_scalar,
+         (unsigned long long int)rgn->depth_scalar);
 }
 
 template <> inline void print<>(pi_buff_rect_offset off) {
-  printf("pi_buff_rect_offset x_bytes/y/z : %lu/%lu/%lu\n", off->x_bytes,
-         off->y_scalar, off->z_scalar);
+  printf("pi_buff_rect_offset x_bytes/y/z : %llu/%llu/%llu\n",
+         (unsigned long long int)off->x_bytes,
+         (unsigned long long int)off->y_scalar,
+         (unsigned long long int)off->z_scalar);
 }
 
 template <> inline void print<>(pi_image_region rgn) {
-  printf("pi_image_region width/height/depth : %lu/%lu/%lu\n", rgn->width,
-         rgn->height, rgn->depth);
+  printf("pi_image_region width/height/depth : %llu/%llu/%llu\n",
+         (unsigned long long int)rgn->width,
+         (unsigned long long int)rgn->height,
+         (unsigned long long int)rgn->depth);
 }
 
 template <> inline void print<>(pi_image_offset off) {
-  printf("pi_image_offset x/y/z : %lu/%lu/%lu\n", off->x, off->y, off->z);
+  printf("pi_image_offset x/y/z : %llu/%llu/%llu\n",
+         (unsigned long long int)off->x, (unsigned long long int)off->y,
+         (unsigned long long int)off->z);
 }
 
 template <> inline void print<>(const pi_image_desc *desc) {
-  printf("image_desc w/h/d : %lu / %lu / %lu  --  arrSz/row/slice : %lu / %lu "
-         "/ %lu"
-         "  --  num_mip_lvls/num_smpls/image_type : %d / %d / %d\n",
-         desc->image_width, desc->image_height, desc->image_depth,
-         desc->image_array_size, desc->image_row_pitch, desc->image_slice_pitch,
-         desc->num_mip_levels, desc->num_samples, desc->image_type);
+  printf("image_desc w/h/d : %llu / %llu / %llu  --  arrSz/row/slice : %llu / "
+         "%llu "
+         "/ %llu"
+         "  --  num_mip_lvls/num_smpls/image_type : %lld / %lld / %lld\n",
+         (unsigned long long int)desc->image_width,
+         (unsigned long long int)desc->image_height,
+         (unsigned long long int)desc->image_depth,
+         (unsigned long long int)desc->image_array_size,
+         (unsigned long long int)desc->image_row_pitch,
+         (unsigned long long int)desc->image_slice_pitch,
+         (long long int)desc->num_mip_levels, (long long int)desc->num_samples,
+         (long long int)desc->image_type);
 }
 
 template <> inline void print<>(PiResult val) {
@@ -119,7 +135,7 @@ template <> inline void print<>(PiResult val) {
   if (val == PI_SUCCESS)
     printf("PI_SUCCESS\n");
   else
-    printf("%d\n", val);
+    printf("%lld\n", (long long int)val);
 }
 
 // cout does not resolve a nullptr.

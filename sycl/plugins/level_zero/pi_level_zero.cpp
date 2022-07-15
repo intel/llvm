@@ -16,6 +16,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <iterator>
 #include <memory>
 #include <set>
 #include <string>
@@ -2958,8 +2959,9 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     uint32_t SpirvVersionMinor = ZE_MINOR_VERSION(SpirvVersion);
 
     char SpirvVersionString[50];
-    int Len = sprintf(SpirvVersionString, "SPIR-V_%d.%d ", SpirvVersionMajor,
-                      SpirvVersionMinor);
+    int Len = sprintf(SpirvVersionString, "SPIR-V_%lld.%lld ",
+                      (long long int)SpirvVersionMajor,
+                      (long long int)SpirvVersionMinor);
     // returned string to contain only len number of characters.
     std::string ILVersion(SpirvVersionString, Len);
     return ReturnValue(ILVersion.c_str());
@@ -8394,8 +8396,8 @@ pi_result piTearDown(void *PluginParameter) {
     //
     // clang-format on
 
-    fprintf(stderr, "ZE_DEBUG=%d: check balance of create/destroy calls\n",
-            ZE_DEBUG_CALL_COUNT);
+    fprintf(stderr, "ZE_DEBUG=%lld: check balance of create/destroy calls\n",
+            (long long int)ZE_DEBUG_CALL_COUNT);
     fprintf(stderr,
             "----------------------------------------------------------\n");
     for (const auto &Row : CreateDestroySet) {
@@ -8417,12 +8419,12 @@ pi_result piTearDown(void *PluginParameter) {
           }
         }
 
-        fprintf(stderr, "%30s = %-5d", ZeName, ZeCount);
+        fprintf(stderr, "%30s = %-5lld", ZeName, (long long int)ZeCount);
       }
 
       if (diff) {
         LeakFound = true;
-        fprintf(stderr, " ---> LEAK = %d", diff);
+        fprintf(stderr, " ---> LEAK = %lld", (long long int)diff);
       }
       fprintf(stderr, "\n");
     }

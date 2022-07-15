@@ -1042,8 +1042,9 @@ private:
       size_t NewValX =
           ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
       if (this->RangeRoundingTrace()) {
-        printf("parallel_for range adjusted from %lu to %lu\n", NumWorkItems[0],
-               NewValX);
+        printf("parallel_for range adjusted from %llu to %llu\n",
+               (unsigned long long int)NumWorkItems[0],
+               (unsigned long long int)NewValX);
         fflush(stdout);
       }
 
