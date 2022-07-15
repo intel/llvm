@@ -20,8 +20,15 @@ namespace detail {
 
 class AccessorBaseHost;
 
+#ifndef __SYCL_DEVICE_ONLY__
 __SYCL_EXPORT void associateWithHandler(handler &, AccessorBaseHost *,
                                         access::target);
+#else
+// In device compilation accessor isn't inherited from AccessorBaseHost, so
+// can't detect by it. Since we don't expect it to be ever called in device
+// execution, just use blind void *.
+inline void associateWithHandler(handler &, void *, access::target) {}
+#endif
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
