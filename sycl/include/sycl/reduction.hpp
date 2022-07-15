@@ -89,9 +89,8 @@ reduction(T *, BinaryOperation, const property_list &PropList = {}) {
 /// reduction identity value \p Identity, reduction operation \p Combiner,
 /// and optional reduction properties.
 template <typename T, typename AllocatorT, typename BinaryOperation>
-auto
-reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
-          BinaryOperation Combiner, const property_list &PropList = {}) {
+auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
+               BinaryOperation Combiner, const property_list &PropList = {}) {
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return ext::oneapi::detail::make_reduction<BinaryOperation, 0, 1>(
