@@ -577,7 +577,7 @@ public:
   static constexpr bool is_dw_acc = is_dw_acc_t<RedOutVar>::value;
   static constexpr bool is_acc = is_rw_acc | is_dw_acc;
   static_assert(!is_rw_acc || !is_dw_acc, "Can be only one at once!");
-  static_assert(!is_usm || !is_acc, "Ca be only one at once!");
+  static_assert(!is_usm || !is_acc, "Can be only one at once!");
 
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
