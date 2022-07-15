@@ -54,5 +54,23 @@ using defaultLatencyAnchorIdProperty = latency_anchor_id_key::value_t<-1>;
 using defaultLatencyConstraintProperty =
     latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
+// Map from a sycl::ext::intel::experimental::latency_control_type
+// strongly-typed enumerator to the corresponding integer code.
+constexpr int32_t get_latency_control_type(
+    const sycl::ext::intel::experimental::latency_control_type
+        _control_type_enum) {
+  if (_control_type_enum ==
+      sycl::ext::intel::experimental::latency_control_type::exact) {
+    return 1;
+  } else if (_control_type_enum ==
+             sycl::ext::intel::experimental::latency_control_type::max) {
+    return 2;
+  } else if (_control_type_enum ==
+             sycl::ext::intel::experimental::latency_control_type::min) {
+    return 3;
+  }
+  return 0; // sycl::ext::intel::experimental::latency_control_type::none
+}
+
 } // namespace sycl::ext::intel::experimental::detail
 } // __SYCL_INLINE_NAMESPACE(cl)
