@@ -97,7 +97,12 @@ template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ>
 __esimd_abs_common_internal(simd<T1, SZ> src0) {
   simd<T1, SZ> Result = simd<T1, SZ>(__esimd_abs<T1, SZ>(src0.data()));
-  return convert<T0>(__esimd_abs<T1, SZ>(src0.data()));
+  if constexpr (!std::is_same<std::remove_const_t<T0>,
+                              std::remove_const_t<T1>>::value) {
+    return convert<T0>(Result);
+  } else {
+    return Result;
+  }
 }
 
 template <typename T0, typename T1>

@@ -1,15 +1,6 @@
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-//==- abs_fix_test.cpp - Test for complation of abs function -==//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
+// Test checks for that no compile errors occur for abs function
 
 #include <CL/sycl.hpp>
 #include <ext/intel/esimd.hpp>
