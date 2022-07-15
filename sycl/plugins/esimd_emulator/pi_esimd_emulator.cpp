@@ -1151,7 +1151,8 @@ ConvertPiImageFormatToCmFormat(const pi_image_format *PiFormat) {
   return cm_support::CM_SURFACE_FORMAT_UNKNOWN;
 }
 
-pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
+pi_result piMemImageCreate(pi_context Context, pi_device Device,
+                           pi_mem_flags Flags,
                            const pi_image_format *ImageFormat,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
