@@ -4448,6 +4448,9 @@ class OffloadingActionBuilder final {
     /// targets.
     SmallVector<std::pair<llvm::Triple, const char *>, 8> GpuArchList;
 
+    // SYCLInstallation is needed in order to link SYCLDeviceLibs
+    SYCLInstallationDetector SYCLInstallation;
+
     /// Build the last steps for CUDA after all BC files have been linked.
     JobAction *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
       auto *BA = C.getDriver().ConstructPhaseAction(
@@ -4481,7 +4484,8 @@ class OffloadingActionBuilder final {
   public:
     SYCLActionBuilder(Compilation &C, DerivedArgList &Args,
                       const Driver::InputList &Inputs)
-        : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL) {}
+        : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL),
+          SYCLInstallation(C.getDriver()) {}
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4831,10 +4835,8 @@ class OffloadingActionBuilder final {
         }
       }
 
-      const toolchains::SYCLToolChain *SYCLTC =
-          static_cast<const toolchains::SYCLToolChain *>(TC);
       SmallVector<SmallString<128>, 4> LibLocCandidates;
-      SYCLTC->SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
+      SYCLInstallation.getSYCLDeviceLibPath(LibLocCandidates);
       StringRef LibSuffix = isMSVCEnv ? ".obj" : ".o";
       using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
