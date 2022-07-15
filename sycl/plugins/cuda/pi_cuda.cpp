@@ -620,8 +620,9 @@ _pi_program::_pi_program(pi_context ctxt)
     : modules_{ctxt->get_devices().size(), nullptr},
       build_results_{ctxt->get_devices().size(), CUDA_ERROR_UNKNOWN},
       binary_{0}, binarySizeInBytes_{0}, refCount_{1}, context_{ctxt},
-      kernelReqdWorkGroupSizeMD_ {}
-{ cuda_piContextRetain(context_); }
+      kernelReqdWorkGroupSizeMD_{} {
+  cuda_piContextRetain(context_);
+}
 
 _pi_program::~_pi_program() { cuda_piContextRelease(context_); }
 
