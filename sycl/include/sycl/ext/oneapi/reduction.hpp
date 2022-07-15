@@ -535,6 +535,18 @@ struct accessor_dim_t<
   static constexpr int value = AccessorDims;
 };
 
+template <class T> struct get_red_t;
+template <class T> struct get_red_t<T*> {
+  using type = T;
+};
+
+template <class T, int AccessorDims, access::mode Mode,
+          access::placeholder IsPH, typename PropList>
+struct get_red_t<
+    accessor<T, AccessorDims, Mode, access::target::device, IsPH, PropList>> {
+  using type = T;
+};
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo : public reduction_impl_common<T, BinaryOperation> {
@@ -788,15 +800,14 @@ public:
 
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename AllocatorT, typename _self = self,
+  template <typename _self = self,
             std::enable_if_t<_self::is_known_identity && _self::my_is_rw_acc>
                 * = nullptr>
-  reduction_impl(buffer<T, 1, AllocatorT> Buffer, handler &CGH,
-                 bool InitializeToIdentity)
+  reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, rw_accessor_type{Buffer}) {
+             InitializeToIdentity, Acc) {
     algo::associateWithHandler(CGH);
-    if (Buffer.size() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
                                 PI_ERROR_INVALID_VALUE);
@@ -819,15 +830,12 @@ public:
   /// and user still passed the identity value.
   /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is NOT known statically.
-  template <typename AllocatorT, typename _self = self,
-            enable_if_t<_self::my_is_rw_acc> * = nullptr>
-  reduction_impl(buffer<T, 1, AllocatorT> Buffer, handler &CGH,
-                 const T &Identity, BinaryOperation BOp,
-                 bool InitializeToIdentity)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity,
-             rw_accessor_type{Buffer}) {
+  template <typename _self = self, enable_if_t<_self::my_is_rw_acc> * = nullptr>
+  reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
+                 BinaryOperation BOp, bool InitializeToIdentity)
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
     algo::associateWithHandler(CGH);
-    if (Buffer.size() != 1)
+    if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
                                 PI_ERROR_INVALID_VALUE);
@@ -861,20 +869,14 @@ public:
   reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
-
-  /// Constructs reduction_impl when the identity value is statically known
-  template <typename _self = self, enable_if_t<_self::is_known_identity &&
-                                               _self::my_is_usm> * = nullptr>
-  reduction_impl(span<T, Extent> Span, bool InitializeToIdentity = false)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, Span.data()) {}
-
-  template <typename _self = self, enable_if_t<_self::my_is_usm> * = nullptr>
-  reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
-                 bool InitializeToIdentity = false)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Span.data()) {
-  }
 };
+
+template <class BinaryOp, int Dims, size_t Extent, typename RedOutVar,
+          typename... RestTy>
+auto make_reduction(RedOutVar RedVar, RestTy &&... Rest) {
+  return reduction_impl<typename get_red_t<RedOutVar>::type, BinaryOp, Dims,
+                        Extent, RedOutVar>{RedVar, std::forward<RestTy>(Rest)...};
+}
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
@@ -2458,11 +2460,9 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 /// operation used in the reduction.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
-detail::reduction_impl<T, BinaryOperation, 0, 1,
-                       accessor<T, Dims, AccMode, access::target::device, IsPH>>
-reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
-          const T &Identity, BinaryOperation BOp) {
-  return {Acc, Identity, BOp};
+auto reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
+               const T &Identity, BinaryOperation BOp) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(Acc, Identity, BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -2470,14 +2470,12 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// must be stored \param Acc and the binary operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
-          access::placeholder IsPH>
-std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                 detail::reduction_impl<
-                     T, BinaryOperation, 0, 1,
-                     accessor<T, Dims, AccMode, access::target::device, IsPH>>>
-reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
-          BinaryOperation) {
-  return {Acc};
+          access::placeholder IsPH,
+          typename = std::enable_if_t<
+              sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+auto reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
+               BinaryOperation) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(Acc);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -2485,9 +2483,8 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// the computed reduction must be stored \param VarPtr, identity value
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
-detail::reduction_impl<T, BinaryOperation, 0, 1, T *>
-reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
-  return {VarPtr, Identity, BOp};
+auto reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(VarPtr, Identity, BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -2495,11 +2492,11 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// the computed reduction must be stored \param VarPtr, and the binary
 /// operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
-template <typename T, class BinaryOperation>
-std::enable_if_t<sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                 detail::reduction_impl<T, BinaryOperation, 0, 1, T *>>
-reduction(T *VarPtr, BinaryOperation) {
-  return {VarPtr};
+template <typename T, class BinaryOperation,
+          typename = std::enable_if_t<
+              sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+auto reduction(T *VarPtr, BinaryOperation) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(VarPtr);
 }
 
 // ---- has_known_identity
