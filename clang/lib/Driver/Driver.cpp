@@ -3479,7 +3479,8 @@ class OffloadingActionBuilder final {
 
     /// Update the state to include the provided host action \a HostAction as a
     /// dependency of the current device action. By default it is inactive.
-    virtual ActionBuilderReturnCode addDeviceDepences(Action *HostAction) {
+    virtual ActionBuilderReturnCode addDeviceDepences(Action *HostAction,
+                                                      const bool UseArch=true) {
       return ABRT_Inactive;
     }
 
@@ -3573,7 +3574,8 @@ class OffloadingActionBuilder final {
                           Action::OffloadKind OFKind)
         : DeviceActionBuilder(C, Args, Inputs, OFKind) {}
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
+    ActionBuilderReturnCode addDeviceDepences(Action *HostAction,
+                                              const bool UseArch) override {
       // While generating code for CUDA, we only depend on the host input action
       // to trigger the creation of all the CUDA device actions.
 
@@ -4244,7 +4246,8 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
+    ActionBuilderReturnCode
+    addDeviceDepences(Action *HostAction, const bool UseArch = true) override {
 
       // If this is an input action replicate it for each OpenMP toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -4680,7 +4683,7 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
-    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
+    ActionBuilderReturnCode addDeviceDepences(Action *HostAction, const bool UseArch=true) override {
 
       // If this is an input action replicate it for each SYCL toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -4740,7 +4743,8 @@ class OffloadingActionBuilder final {
         // Create 1 device action per triple/bound arch
         for (auto &TargetInfo : SYCLTargetInfoList) {
           SYCLDeviceActions.push_back(UA);
-          UA->registerDependentActionInfo(TargetInfo.TC, TargetInfo.BoundArch,
+          const auto *Arch = UseArch ? TargetInfo.BoundArch : nullptr;
+          UA->registerDependentActionInfo(TargetInfo.TC, Arch,
                                           Action::OFK_SYCL);
         }
         return ABRT_Success;
@@ -4884,17 +4888,8 @@ class OffloadingActionBuilder final {
               auto *SYCLDeviceLibsUnbundleAction =
                   C.MakeAction<OffloadUnbundlingJobAction>(
                       SYCLDeviceLibsInputAction);
-
-              OffloadAction::DeviceDependences Dep;
-              //Dep.add(*SYCLDeviceLibsInputAction, *TC, /*BoundArch=*/nullptr,
-              //        Action::OFK_SYCL);
-              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/nullptr,
-                      Action::OFK_SYCL);
-              auto *SYCLDeviceLibsDependenciesAction =
-                  C.MakeAction<OffloadAction>(
-                      Dep, SYCLDeviceLibsUnbundleAction->getType());
-
-              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+              addDeviceDepences(SYCLDeviceLibsUnbundleAction, false);
+              DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
               if (!LibLocSelected)
                 LibLocSelected = !LibLocSelected;
             }
@@ -7788,8 +7783,12 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // be returned for the current depending action.
       std::pair<const Action *, std::string> ActionTC = {
           A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-      std::cerr << "ActionTC.second " << ActionTC.second << std::endl;
-      assert(CachedResults.find(ActionTC) != CachedResults.end() &&
+
+      if (CachedResults.find(ActionTC) == CachedResults.end())
+        ActionTC = {
+            A, GetTriplePlusArchString(TC, "", TargetDeviceOffloadKind)};
+
+      assert((CachedResults.find(ActionTC) != CachedResults.end()) &&
              "Result does not exist??");
       Result = CachedResults[ActionTC].front();
     }
