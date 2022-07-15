@@ -798,21 +798,6 @@ public:
   // Only scalar and 1D array reductions are supported by SYCL 2020.
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
 
-  /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _self = self,
-            std::enable_if_t<_self::is_known_identity && _self::my_is_rw_acc>
-                * = nullptr>
-  reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, Acc) {
-    algo::associateWithHandler(CGH);
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
   /// Constructs reduction_impl when the identity value is statically known.
   template <typename _self = self,
             enable_if_t<_self::is_known_identity &&
@@ -825,15 +810,24 @@ public:
                                 PI_ERROR_INVALID_VALUE);
   }
 
+  /// Constructs reduction_impl when the identity value is statically known.
+  /// The \param VarPtr is a USM pointer to memory, to where the computed
+  /// reduction value is added using BinaryOperation, i.e. it is expected that
+  /// the memory is pre-initialized with some meaningful value.
+  template <typename _self = self, enable_if_t<_self::is_known_identity &&
+                                               _self::my_is_usm> * = nullptr>
+  reduction_impl(RedOutVar VarPtr, bool InitializeToIdentity = false)
+      : algo(reducer_type::getIdentity(), BinaryOperation(),
+             InitializeToIdentity, VarPtr) {}
+
   /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is NOT known statically.
-  template <typename _self = self, enable_if_t<_self::my_is_rw_acc> * = nullptr>
-  reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
-                 BinaryOperation BOp, bool InitializeToIdentity)
-      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
+  /// Constructs reduction_impl when the identity value is statically known.
+  template <typename _self = self,
+            std::enable_if_t<_self::is_known_identity && _self::my_is_rw_acc>
+                * = nullptr>
+  reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
+      : algo(reducer_type::getIdentity(), BinaryOperation(),
+             InitializeToIdentity, Acc) {
     algo::associateWithHandler(CGH);
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
@@ -852,23 +846,25 @@ public:
                                 PI_ERROR_INVALID_VALUE);
   }
 
-  /// Constructs reduction_impl when the identity value is statically known.
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <typename _self = self, enable_if_t<_self::is_known_identity &&
-                                               _self::my_is_usm> * = nullptr>
-  reduction_impl(T *VarPtr, bool InitializeToIdentity = false)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, VarPtr) {}
-
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
   template <typename _self = self, enable_if_t<_self::my_is_usm> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp,
+  reduction_impl(RedOutVar VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
+
+  /// For placeholder accessor.
+  template <typename _self = self, enable_if_t<_self::my_is_rw_acc> * = nullptr>
+  reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
+                 BinaryOperation BOp, bool InitializeToIdentity)
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
+    algo::associateWithHandler(CGH);
+    if (Acc.size() != 1)
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_ERROR_INVALID_VALUE);
+  }
 };
 
 template <class BinaryOp, int Dims, size_t Extent, typename RedOutVar,
