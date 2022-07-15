@@ -502,8 +502,7 @@ private:
   // In device compilation accessor isn't inherited from AccessorBaseHost, so
   // can't detect by it. Since we don't expect it to be ever called in device
   // execution, just use blind void *.
-  void associateWithHandler(void *AccBase,
-                            access::target AccTarget);
+  void associateWithHandler(void *AccBase, access::target AccTarget);
 #endif
 
   // Recursively calls itself until arguments pack is fully processed.
