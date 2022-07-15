@@ -588,7 +588,7 @@ void testBinarySetOperationExhaustive(Fn1 OpFn, Fn2 ExactOpFn, Fn3 InResultFn) {
 
         Optional<ConstantRange> ExactCR = ExactOpFn(CR1, CR2);
         if (SmallestCR.isSizeLargerThan(Elems.count())) {
-          EXPECT_TRUE(!ExactCR.hasValue());
+          EXPECT_TRUE(!ExactCR);
         } else {
           EXPECT_EQ(SmallestCR, *ExactCR);
         }
@@ -1259,6 +1259,9 @@ TEST_F(ConstantRangeTest, UDiv) {
 }
 
 TEST_F(ConstantRangeTest, SDiv) {
+  ConstantRange OneBit = ConstantRange::getFull(1);
+  EXPECT_EQ(OneBit.sdiv(OneBit), ConstantRange(APInt(1, 0)));
+
   unsigned Bits = 4;
   EnumerateTwoConstantRanges(Bits, [&](const ConstantRange &CR1,
                                        const ConstantRange &CR2) {

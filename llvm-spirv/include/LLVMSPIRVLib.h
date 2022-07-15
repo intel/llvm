@@ -57,7 +57,7 @@ void initializeSPIRVLowerBoolLegacyPass(PassRegistry &);
 void initializeSPIRVLowerConstExprLegacyPass(PassRegistry &);
 void initializeSPIRVLowerOCLBlocksLegacyPass(PassRegistry &);
 void initializeSPIRVLowerMemmoveLegacyPass(PassRegistry &);
-void initializeSPIRVLowerSaddWithOverflowLegacyPass(PassRegistry &);
+void initializeSPIRVLowerSaddIntrinsicsLegacyPass(PassRegistry &);
 void initializeSPIRVRegularizeLLVMLegacyPass(PassRegistry &);
 void initializeSPIRVToOCL12LegacyPass(PassRegistry &);
 void initializeSPIRVToOCL20LegacyPass(PassRegistry &);
@@ -183,7 +183,7 @@ ModulePass *createSPIRVLowerOCLBlocksLegacy();
 ModulePass *createSPIRVLowerMemmoveLegacy();
 
 /// Create a pass for lowering llvm.sadd.with.overflow
-ModulePass *createSPIRVLowerSaddWithOverflowLegacy();
+ModulePass *createSPIRVLowerSaddIntrinsicsLegacy();
 
 /// Create a pass for regularize LLVM module to be translated to SPIR-V.
 ModulePass *createSPIRVRegularizeLLVMLegacy();

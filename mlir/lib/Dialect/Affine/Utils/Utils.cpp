@@ -370,7 +370,7 @@ mlir::affineParallelize(AffineForOp forOp,
       llvm::makeArrayRef(upperBoundMap), upperBoundOperands,
       llvm::makeArrayRef(forOp.getStep()));
   // Steal the body of the old affine for op.
-  newPloop.region().takeBody(forOp.region());
+  newPloop.getRegion().takeBody(forOp.getRegion());
   Operation *yieldOp = &newPloop.getBody()->back();
 
   // Handle the initial values of reductions because the parallel loop always
@@ -487,7 +487,7 @@ void mlir::normalizeAffineParallel(AffineParallelOp op) {
   if (op.hasMinMaxBounds())
     return;
 
-  AffineMap lbMap = op.lowerBoundsMap();
+  AffineMap lbMap = op.getLowerBoundsMap();
   SmallVector<int64_t, 8> steps = op.getSteps();
   // No need to do any work if the parallel op is already normalized.
   bool isAlreadyNormalized =
@@ -1778,7 +1778,7 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
     return memrefType;
   // TODO: Handle semi-affine maps.
   // Project out the old data dimensions.
-  fac.projectOut(newRank, fac.getNumIds() - newRank - fac.getNumLocalIds());
+  fac.projectOut(newRank, fac.getNumVars() - newRank - fac.getNumLocalVars());
   SmallVector<int64_t, 4> newShape(newRank);
   for (unsigned d = 0; d < newRank; ++d) {
     // Check if each dimension of normalized memrefType is dynamic.
@@ -1791,7 +1791,7 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
       auto ubConst = fac.getConstantBound(IntegerPolyhedron::UB, d);
       // For a static memref and an affine map with no symbols, this is
       // always bounded.
-      assert(ubConst.hasValue() && "should always have an upper bound");
+      assert(ubConst && "should always have an upper bound");
       if (ubConst.getValue() < 0)
         // This is due to an invalid map that maps to a negative space.
         return memrefType;

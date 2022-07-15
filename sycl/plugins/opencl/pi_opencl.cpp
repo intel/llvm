@@ -16,9 +16,9 @@
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/pi.h>
 #include <pi_opencl.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/pi.h>
 
 #include <algorithm>
 #include <cassert>

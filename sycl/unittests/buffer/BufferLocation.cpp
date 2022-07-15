@@ -11,8 +11,8 @@
 #include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/accessor.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -116,7 +116,8 @@ TEST_F(BufferTest, BufferLocationOnly) {
             cl::sycl::ext::oneapi::accessor_property_list<
                 cl::sycl::ext::intel::property::buffer_location::instance<2>>>
             Acc{Buf, cgh, sycl::read_write, PL};
-        cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
+        constexpr size_t KS = sizeof(decltype(Acc));
+        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)2);
@@ -149,7 +150,8 @@ TEST_F(BufferTest, BufferLocationWithAnotherProp) {
                 cl::sycl::ext::intel::property::buffer_location::instance<5>>>
             Acc{Buf, cgh, sycl::write_only, PL};
 
-        cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
+        constexpr size_t KS = sizeof(decltype(Acc));
+        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, (uint64_t)5);
@@ -209,7 +211,8 @@ TEST_F(BufferTest, WOBufferLocation) {
                        cl::sycl::access::placeholder::false_t,
                        cl::sycl::ext::oneapi::accessor_property_list<>>
             Acc{Buf, cgh, sycl::read_write};
-        cgh.single_task<TestKernel>([=]() { Acc[0] = 4; });
+        constexpr size_t KS = sizeof(decltype(Acc));
+        cgh.single_task<TestKernel<KS>>([=]() { Acc[0] = 4; });
       })
       .wait();
   EXPECT_EQ(PassedLocation, DEFAULT_VALUE);

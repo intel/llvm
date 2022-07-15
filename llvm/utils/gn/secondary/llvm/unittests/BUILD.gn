@@ -15,6 +15,7 @@ group("unittests") {
     "DebugInfo/GSYM:DebugInfoGSYMTests",
     "DebugInfo/MSF:DebugInfoMSFTests",
     "DebugInfo/PDB:DebugInfoPDBTests",
+    "DebugInfo/Symbolizer:DebugInfoSymbolizerTests",
     "Debuginfod:DebuginfodTests",
     "Demangle:DemangleTests",
     "ExecutionEngine:ExecutionEngineTests",
@@ -52,6 +53,7 @@ group("unittests") {
     "tools/llvm-cfi-verify:CFIVerifyTests",
     "tools/llvm-exegesis:LLVMExegesisTests",
     "tools/llvm-profgen:LLVMProfgenTests",
+    "tools/llvm-mca:LLVMMCATests",
   ]
 
   # Target-dependent unit tests.

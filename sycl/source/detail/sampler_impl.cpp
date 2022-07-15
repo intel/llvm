@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/property_list.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/sampler_impl.hpp>
+#include <sycl/property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

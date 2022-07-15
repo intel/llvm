@@ -12,8 +12,6 @@ from lldbsuite.test import lldbutil
 
 
 class WatchpointIgnoreCountTestCase(TestBase):
-
-    mydir = TestBase.compute_mydir(__file__)
     NO_DEBUG_INFO_TESTCASE = True
 
     def setUp(self):
@@ -89,7 +87,7 @@ class WatchpointIgnoreCountTestCase(TestBase):
         process.Continue()
 
         # At this point, the inferior process should have exited.
-        self.assertEqual(process.GetState(), lldb.eStateExited, PROCESS_EXITED)
+        self.assertState(process.GetState(), lldb.eStateExited, PROCESS_EXITED)
 
         # Verify some vital statistics.
         self.assertTrue(watchpoint)

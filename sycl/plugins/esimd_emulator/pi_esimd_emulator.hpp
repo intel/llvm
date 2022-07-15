@@ -14,11 +14,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <iostream>
 #include <mutex>
+#include <sycl/detail/pi.h>
 #include <unordered_map>
 
 #include <malloc.h>

@@ -33,6 +33,11 @@ _warningFlags = [
   '-Wno-literal-suffix', # GCC
   '-Wno-user-defined-literals', # Clang
 
+  # GCC warns about this when TEST_IS_CONSTANT_EVALUATED is used on a non-constexpr
+  # function. (This mostely happens in C++11 mode.)
+  # TODO(mordante) investigate a solution for this issue.
+  '-Wno-tautological-compare',
+
   # These warnings should be enabled in order to support the MSVC
   # team using the test suite; They enable the warnings below and
   # expect the test suite to be clean.
@@ -181,6 +186,15 @@ DEFAULT_PARAMETERS = [
                  "This should be used sparingly since specifying ad-hoc features manually is error-prone and "
                  "brittle in the long run as changes are made to the test suite.",
             actions=lambda features: [AddFeature(f) for f in features]),
+
+  Parameter(name='enable_transitive_includes', choices=[True, False], type=bool, default=True,
+            help="Whether to enable backwards-compatibility transitive includes when running the tests. This "
+                 "is provided to ensure that the trimmed-down version of libc++ does not bit-rot in between "
+                 "points at which we bulk-remove transitive includes.",
+            actions=lambda enabled: [] if enabled else [
+              AddFeature('transitive-includes-disabled'),
+              AddCompileFlag('-D_LIBCPP_REMOVE_TRANSITIVE_INCLUDES')
+            ]),
 ]
 
 DEFAULT_PARAMETERS += [

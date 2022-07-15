@@ -9,7 +9,7 @@
 // Verify that a sample compilation succeeds with -save-temps
 // RUN: %clangxx -fsycl -save-temps %s -o %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 void foo() {}
 

@@ -22,24 +22,22 @@ func.func @insert_slice_fun(
     %t1 : tensor<4xf32> {bufferization.writable = true})
   ->  (tensor<?xf32>, tensor<?xf32>, tensor<?xf32>, tensor<?xf32>)
 {
-  // Hoisted allocs.
-  //      CHECK: %[[REALLOC1:.*]] = memref.alloc
-  //      CHECK: %[[REALLOC2:.*]] = memref.alloc
-  //      CHECK: %[[REALLOC3:.*]] = memref.alloc
-
   // Alloc and copy the whole result tensor. Copy the tensor.extract_slice.
+  //      CHECK: %[[REALLOC3:.*]] = memref.alloc
   //      CHECK: memref.copy %[[A0]], %[[REALLOC3]]
   //      CHECK: %[[SV_A0:.*]] = memref.subview %[[REALLOC3]]
   //      CHECK: memref.copy %[[t0]], %[[SV_A0]]
   %r0 = tensor.insert_slice %t0 into %A0[0][4][1] : tensor<4xf32> into tensor<?xf32>
 
   // Alloc and copy the whole result tensor. Copy the tensor.extract_slice.
+  //      CHECK: %[[REALLOC2:.*]] = memref.alloc
   //      CHECK: memref.copy %[[A0]]
   //      CHECK: %[[SV_A0_2:.*]] = memref.subview %[[REALLOC2]]
   //      CHECK: memref.copy %[[t1]], %[[SV_A0_2]]
   %r1 = tensor.insert_slice %t1 into %A0[0][4][1] : tensor<4xf32> into tensor<?xf32>
 
   //  Still alloc the large tensor because %A1 is read after. Copy the tensor.extract_slice.
+  //      CHECK: %[[REALLOC1:.*]] = memref.alloc
   //      CHECK: memref.copy %[[A1]]
   //      CHECK: %[[SV_A1:.*]] = memref.subview %[[REALLOC1]]
   //      CHECK: memref.copy %[[t0]], %[[SV_A1]]
@@ -194,4 +192,28 @@ func.func @rank_reducing(
     scf.yield %10 : tensor<?x1x6x8xf32>
   }
   return %5: tensor<?x1x6x8xf32>
+}
+
+// -----
+
+// CHECK: #[[$MAP0:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s1 + s0)>
+// CHECK: #[[$MAP1:.*]] = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
+
+// CHECK-LABEL: func.func @rank_reducing_parallel_insert_slice
+func.func @rank_reducing_parallel_insert_slice(%in: tensor<100xf32>, %out: tensor<200x100xf32>) {
+  %c1 = arith.constant 1 : index
+  %num_threads = arith.constant 100 : index
+
+  // CHECK: scf.foreach_thread {{.*}} {
+  %result = scf.foreach_thread (%thread_idx) in (%num_threads) -> tensor<200x100xf32> {
+      %1 = tensor.extract_slice %in[%thread_idx][1][1] : tensor<100xf32> to tensor<1xf32>
+      scf.foreach_thread.perform_concurrently {
+        // CHECK: memref.subview %{{.*}}[%{{.*}}] [1] [1] : memref<100xf32, #[[$MAP0]]> to memref<1xf32, #[[$MAP0]]>
+        // CHECK: memref.subview %{{.*}}[1, %{{.*}}] [1, 1] [1, 1] : memref<200x100xf32, #[[$MAP1]]> to memref<1xf32, #[[$MAP0]]>
+        tensor.parallel_insert_slice %1 into %out[1, %thread_idx][1, 1][1, 1] :
+          tensor<1xf32> into tensor<200x100xf32>
+      }
+  }
+  // CHECK: }
+  return
 }

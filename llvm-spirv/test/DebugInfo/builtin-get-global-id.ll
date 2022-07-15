@@ -9,7 +9,7 @@
 ; Command line:
 ; ./clang -cc1 1.cl -triple spir64 -cl-std=cl2.0 -emit-llvm -finclude-default-header -debug-info-kind=line-tables-only -O0
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s

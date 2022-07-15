@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/property_helper.hpp>
+#include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 
 #include <tuple>

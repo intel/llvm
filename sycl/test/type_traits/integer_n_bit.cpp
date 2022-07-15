@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 namespace s = cl::sycl;
 namespace d = cl::sycl::detail;

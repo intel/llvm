@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/pointers.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/pointers.hpp>
+#include <sycl/types.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

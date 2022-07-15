@@ -19,7 +19,7 @@
 // advantage of being able to use a portable interface across Intel and Nvidia
 // backends.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

@@ -588,6 +588,7 @@ static bool isExportedFromModuleInterfaceUnit(const NamedDecl *D) {
   // FIXME: Handle isModulePrivate.
   switch (D->getModuleOwnershipKind()) {
   case Decl::ModuleOwnershipKind::Unowned:
+  case Decl::ModuleOwnershipKind::ReachableWhenImported:
   case Decl::ModuleOwnershipKind::ModulePrivate:
     return false;
   case Decl::ModuleOwnershipKind::Visible:
@@ -2959,6 +2960,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
   FunctionDeclBits.IsDefaulted = false;
   FunctionDeclBits.IsExplicitlyDefaulted = false;
   FunctionDeclBits.HasDefaultedFunctionInfo = false;
+  FunctionDeclBits.IsIneligibleOrNotSelected = false;
   FunctionDeclBits.HasImplicitReturnZero = false;
   FunctionDeclBits.IsLateTemplateParsed = false;
   FunctionDeclBits.ConstexprKind = static_cast<uint64_t>(ConstexprKind);

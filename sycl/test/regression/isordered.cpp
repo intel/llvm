@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER=host %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   cl::sycl::range<1> ndRng(3);

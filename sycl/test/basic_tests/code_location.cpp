@@ -3,9 +3,9 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 int main() {
   auto code_loc = sycl::detail::code_location::current();

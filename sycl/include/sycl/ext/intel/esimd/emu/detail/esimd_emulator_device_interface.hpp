@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/pi.hpp>
 
 // cstdint-type fields such as 'uint32_t' are to be used in funtion
 // pointer table file ('esimd_emulator_functions_v1.h') included in 'struct

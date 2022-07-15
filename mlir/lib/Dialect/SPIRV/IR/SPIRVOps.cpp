@@ -188,7 +188,7 @@ parseEnumStrAttr(EnumClass &value, OpAsmParser &parser,
     return parser.emitError(loc, "invalid ")
            << attrName << " attribute specification: " << attrVal;
   }
-  value = attrOptional.getValue();
+  value = *attrOptional;
   return success();
 }
 
@@ -870,7 +870,7 @@ static ParseResult parseGroupNonUniformArithmeticOp(OpAsmParser &parser,
   if (parser.resolveOperand(valueInfo, resultType, state.operands))
     return failure();
 
-  if (clusterSizeInfo.hasValue()) {
+  if (clusterSizeInfo) {
     Type i32Type = parser.getBuilder().getIntegerType(32);
     if (parser.resolveOperand(*clusterSizeInfo, i32Type, state.operands))
       return failure();
@@ -2497,7 +2497,7 @@ void spirv::GlobalVariableOp::print(OpAsmPrinter &printer) {
   // Print optional initializer
   if (auto initializer = this->initializer()) {
     printer << " " << kInitializerAttrName << '(';
-    printer.printSymbolName(initializer.getValue());
+    printer.printSymbolName(*initializer);
     printer << ')';
     elidedAttrs.push_back(kInitializerAttrName);
   }
@@ -2546,7 +2546,7 @@ LogicalResult spirv::GroupBroadcastOp::verify() {
     return emitOpError("execution scope must be 'Workgroup' or 'Subgroup'");
 
   if (auto localIdTy = localid().getType().dyn_cast<VectorType>())
-    if (!(localIdTy.getNumElements() == 2 || localIdTy.getNumElements() == 3))
+    if (localIdTy.getNumElements() != 2 && localIdTy.getNumElements() != 3)
       return emitOpError("localid is a vector and can be with only "
                          " 2 or 3 components, actual number is ")
              << localIdTy.getNumElements();
@@ -4201,10 +4201,10 @@ LogicalResult spirv::GLSLFrexpStructOp::verify() {
   if (exponentVecTy) {
     IntegerType componentIntTy =
         exponentVecTy.getElementType().dyn_cast<IntegerType>();
-    if (!(componentIntTy && componentIntTy.getWidth() == 32))
+    if (!componentIntTy || componentIntTy.getWidth() != 32)
       return emitError("member one of the resulting struct type must"
                        "be a scalar or vector of 32 bit integer type");
-  } else if (!(exponentIntTy && exponentIntTy.getWidth() == 32)) {
+  } else if (!exponentIntTy || exponentIntTy.getWidth() != 32) {
     return emitError("member one of the resulting struct type "
                      "must be a scalar or vector of 32 bit integer type");
   }
@@ -4322,9 +4322,9 @@ LogicalResult spirv::ImageQuerySizeOp::verify() {
   case spirv::Dim::Dim2D:
   case spirv::Dim::Dim3D:
   case spirv::Dim::Cube:
-    if (!(samplingInfo == spirv::ImageSamplingInfo::MultiSampled ||
-          samplerInfo == spirv::ImageSamplerUseInfo::SamplerUnknown ||
-          samplerInfo == spirv::ImageSamplerUseInfo::NoSampler))
+    if (samplingInfo != spirv::ImageSamplingInfo::MultiSampled &&
+        samplerInfo != spirv::ImageSamplerUseInfo::SamplerUnknown &&
+        samplerInfo != spirv::ImageSamplerUseInfo::NoSampler)
       return emitError(
           "if Dim is 1D, 2D, 3D, or Cube, "
           "it must also have either an MS of 1 or a Sampled of 0 or 2");
