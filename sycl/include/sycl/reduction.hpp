@@ -28,10 +28,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, BinaryOperation,
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return ext::oneapi::detail::make_reduction<BinaryOperation, 0, 1>(
-      accessor<T, 1, access::mode::read_write, access::target::device,
-               access::placeholder::true_t,
-               ext::oneapi::accessor_property_list<>>{Var},
-      CGH, InitializeToIdentity);
+      accessor{Var}, CGH, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the given buffer \p Var, handler \p CGH,
@@ -94,10 +91,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return ext::oneapi::detail::make_reduction<BinaryOperation, 0, 1>(
-      accessor<T, 1, access::mode::read_write, access::target::device,
-               access::placeholder::true_t,
-               ext::oneapi::accessor_property_list<>>{Var},
-      CGH, Identity, Combiner, InitializeToIdentity);
+      accessor{Var}, CGH, Identity, Combiner, InitializeToIdentity);
 }
 
 /// Constructs a reduction object using the reduction variable referenced by
