@@ -586,15 +586,6 @@ public:
                       RedOutVar RedOut)
       : base(Identity, BinaryOp, Init), MRedOut(std::move(RedOut)){};
 
-  /// Associates the reduction accessor to user's memory with \p CGH handler
-  /// to keep the accessor alive until the command group finishes the work.
-  /// This function does not do anything for USM reductions.
-  void associateWithHandler(handler &CGH) {
-    if constexpr (is_acc) {
-      CGH.associateWithHandler(&MRedOut, access::target::device);
-    }
-  }
-
   /// Creates and returns a local accessor with the \p Size elements.
   /// By default the local accessor elements are of the same type as the
   /// elements processed by the reduction, but may it be altered by specifying
@@ -632,7 +623,7 @@ public:
   rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
     if constexpr (is_rw_acc) {
       if (Size == 1) {
-        associateWithHandler(CGH);
+        CGH.associateWithHandler(&MRedOut, access::target::device);
         return MRedOut;
       }
     }
@@ -808,7 +799,7 @@ public:
   reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, Acc) {
-    algo::associateWithHandler(CGH);
+    associateWithHandler(CGH, &Acc, access::target::device);
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -838,7 +829,7 @@ public:
   reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
                  BinaryOperation BOp, bool InitializeToIdentity)
       : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
-    algo::associateWithHandler(CGH);
+    associateWithHandler(CGH, &Acc, access::target::device);
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -1561,7 +1552,7 @@ template <typename KernelName, class Reduction>
 std::enable_if_t<!Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  Redu.associateWithHandler(CGH);
+  associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
   CGH.copy(InAcc, Redu.getUserRedVar());
 }
 
@@ -2089,26 +2080,16 @@ void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
       CGH, KernelFunc, Range, Redu, Out);
 }
 
-inline void associateReduAccsWithHandlerHelper(handler &) {}
-
-template <typename ReductionT>
-void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu) {
-  Redu.associateWithHandler(CGH);
-}
-
-template <typename ReductionT, typename... RestT,
-          enable_if_t<(sizeof...(RestT) > 0), int> Z = 0>
-void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu,
-                                        RestT &...Rest) {
-  Redu.associateWithHandler(CGH);
-  associateReduAccsWithHandlerHelper(CGH, Rest...);
-}
-
 template <typename... Reductions, size_t... Is>
 void associateReduAccsWithHandler(handler &CGH,
                                   std::tuple<Reductions...> &ReduTuple,
                                   std::index_sequence<Is...>) {
-  associateReduAccsWithHandlerHelper(CGH, std::get<Is>(ReduTuple)...);
+  auto ProcessOne = [&CGH](auto Redu) {
+    if constexpr (decltype(Redu)::is_acc) {
+      associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
+    }
+  };
+  (ProcessOne(std::get<Is>(ReduTuple)), ...);
 }
 
 /// All scalar reductions are processed together; there is one loop of log2(N)
@@ -2378,7 +2359,8 @@ void reduSaveFinalResultToUserMemHelper(
     event CopyEvent = withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
       auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
       auto OutAcc = Redu.getUserRedVar();
-      Redu.associateWithHandler(CopyHandler);
+      associateWithHandler(CopyHandler, &Redu.getUserRedVar(),
+                           access::target::device);
       if (!Events.empty())
         CopyHandler.depends_on(Events.back());
       CopyHandler.copy(InAcc, OutAcc);
