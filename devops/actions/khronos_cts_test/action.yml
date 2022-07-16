@@ -72,7 +72,7 @@ runs:
       -DDPCPP_INSTALL_DIR="$PWD/toolchain" \
       ${{ inputs.cmake_args }}
       echo "::endgroup::"
-      echo "::group::Ninja bulid"
+      echo "::group::Bulid testing"
       cd build
       ninja
       echo "::endgroup::"
@@ -104,6 +104,8 @@ runs:
       echo $LD_LIBRARY_PATH
       SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
+      echo "::group::Run testing"
+      export SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1
       ./build/bin/test_all
   - name: Cleanup
     shell: bash
