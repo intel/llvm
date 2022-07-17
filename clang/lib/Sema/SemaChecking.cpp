@@ -13811,13 +13811,13 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
           QualType(SourceBT, 0), QualType(TargetBT, 0));
       // Warn if the source type and target type sizes do not match in device
       // code.
-      if (Order != 0) {
+      uint64_t sourceSize = S.getASTContext().getTypeSize(QualType(SourceBT, 0));
+      uint64_t targetSize = S.getASTContext().getTypeSize(QualType(TargetBT, 0));
+      /*if (S.getASTContext().getTypeSize(QualType(SourceBT, 0)) != S.getASTContext().getTypeSize(QualType(TargetBT, 0)) ) {
         if (S.getLangOpts().SYCLIsDevice) {
           S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
-        } else {
-          DiagnoseImpCast(S, E, T, CC, diag::warn_imp_float_size_conversion);
         }
-      }
+      }*/
       if (Order > 0) {
         // Don't warn about float constants that are precisely
         // representable in the target type.

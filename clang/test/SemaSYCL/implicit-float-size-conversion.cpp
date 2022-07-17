@@ -10,8 +10,8 @@ int main() {
   q.submit([&](handler &h) {
     // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<kernelA, (lambda}}
     h.single_task<class kernelA>([=]() {
-      float s = 1.0;       // expected-warning {{implicit converstion between floating point types. Size loss expected.}}
-      float f = 1.0 / 2.0; // expected-warning {{implicit converstion between floating point types. Size loss expected.}}
+      float ff = 2.1;
+      double d = 2.0f;
     });
   });
 
