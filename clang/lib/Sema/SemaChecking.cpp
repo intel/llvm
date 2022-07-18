@@ -13809,25 +13809,26 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
 
       int Order = S.getASTContext().getFloatingTypeSemanticOrder(
           QualType(SourceBT, 0), QualType(TargetBT, 0));
-      // Warn if the source type and target type sizes do not match in device
-      // code.
-      uint64_t sourceSize = S.getASTContext().getTypeSize(QualType(SourceBT, 0));
-      uint64_t targetSize = S.getASTContext().getTypeSize(QualType(TargetBT, 0));
-      /*if (S.getASTContext().getTypeSize(QualType(SourceBT, 0)) != S.getASTContext().getTypeSize(QualType(TargetBT, 0)) ) {
-        if (S.getLangOpts().SYCLIsDevice) {
-          S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
-        }
-      }*/
+
       if (Order > 0) {
         // Don't warn about float constants that are precisely
         // representable in the target type.
         Expr::EvalResult result;
         if (E->EvaluateAsRValue(result, S.Context)) {
           // Value might be a float, a float vector, or a float complex.
-          if (IsSameFloatAfterCast(result.Val,
-                   S.Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
-                   S.Context.getFloatTypeSemantics(QualType(SourceBT, 0))))
-            return;
+          if (IsSameFloatAfterCast(
+                  result.Val,
+                  S.Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
+                  S.Context.getFloatTypeSemantics(QualType(SourceBT, 0)))) {
+            if (S.getLangOpts().SYCLIsDevice) {
+              S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+              return;
+            } else {
+              DiagnoseImpCast(S, E, T, CC,
+                              diag::warn_imp_float_size_conversion);
+              return;
+            }
+          }
         }
 
         if (S.SourceMgr.isInSystemMacro(CC))
