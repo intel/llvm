@@ -495,14 +495,14 @@ private:
 
   bool is_host() { return MIsHost; }
 
-#ifndef __SYCL_DEVICE_ONLY__
-  void associateWithHandler(detail::AccessorBaseHost *AccBase,
-                            access::target AccTarget);
-#else
+#ifdef __SYCL_DEVICE_ONLY__
   // In device compilation accessor isn't inherited from AccessorBaseHost, so
   // can't detect by it. Since we don't expect it to be ever called in device
   // execution, just use blind void *.
   void associateWithHandler(void *AccBase, access::target AccTarget);
+#else
+  void associateWithHandler(detail::AccessorBaseHost *AccBase,
+                            access::target AccTarget);
 #endif
 
   // Recursively calls itself until arguments pack is fully processed.
