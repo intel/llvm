@@ -267,8 +267,8 @@ void test11(float v) {
   takes_long(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_longlong(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_float(v);
-  takes_double(v);     // expected-warning {{implicit converstion between floating point types. Size loss expected.}}
-  takes_longdouble(v); // expected-warning {{implicit converstion between floating point types. Size loss expected.}}
+  takes_double(v);
+  takes_longdouble(v);
 }
 
 void test12(double v) {
@@ -277,10 +277,8 @@ void test12(double v) {
   takes_int(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_long(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_longlong(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
-  // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
   takes_float(v); // expected-warning {{implicit conversion loses floating-point precision}}
   takes_double(v);
-  // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
   takes_longdouble(v);
 }
 
@@ -290,9 +288,7 @@ void test13(long double v) {
   takes_int(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_long(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
   takes_longlong(v); // expected-warning {{implicit conversion turns floating-point number into integer}}
-  // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
-  takes_float(v); // expected-warning {{implicit conversion loses floating-point precision}}
-  // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
+  takes_float(v);    // expected-warning {{implicit conversion loses floating-point precision}}
   takes_double(v); // expected-warning {{implicit conversion loses floating-point precision}}
   takes_longdouble(v);
 }
@@ -434,9 +430,7 @@ void test27(ushort16 constants) {
     ushort16 brBias = pairedConstants.s6; // expected-warning {{implicit conversion loses integer precision: 'uint32_t' (aka 'unsigned int') to 'ushort16'}}
 }
 
-
 float double2float_test1(double a) {
-    // expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
     return a; // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}
 }
 
@@ -446,7 +440,6 @@ void double2float_test2(double a, float *b) {
 
 float sinf (float x);
 double double2float_test3(double a) {
-  // expected-warning@+1 2 {{implicit converstion between floating point types. Size loss expected.}}
   return sinf(a); // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}
 }
 
@@ -454,5 +447,4 @@ float double2float_test4(double a, float b) {
   b -= a; // expected-warning {{implicit conversion when assigning computation result loses floating-point precision: 'double' to 'float'}}
   return b;
 }
-// expected-warning@+1 {{implicit converstion between floating point types. Size loss expected.}}
-float f = 1.0 / 2.0;
+float f = 1.0 / 2.0; // expected-warning {{implicit conversion between floating point types of different sizes}}
