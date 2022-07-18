@@ -404,7 +404,7 @@ typedef enum {
 
 typedef enum {
   // Device-specific value opaque in PI API.
-  PI_MEM_ADVISE_RESET = 0,
+  PI_MEM_ADVICE_RESET = 0,
   PI_MEM_ADVICE_UNKNOWN = 1,
   PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
   PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
