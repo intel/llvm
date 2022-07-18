@@ -147,12 +147,9 @@ groupEntryPointsByKernelType(const ModuleDesc &MD,
         !MD.isEntryPointCandidate(F))
       continue;
 
-    if (isESIMDFunction(F)) {
+    if (isESIMDFunction(F))
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-      // Entry points should not be inlined
-      auto F1 = MD.getModule().getFunction(F.getName());
-      F1->addFnAttr(Attribute::NoInline);
-    } else
+    else
       EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
   }
 
@@ -258,7 +255,6 @@ groupEntryPointsByAttribute(const ModuleDesc &MD, StringRef AttrName,
         !MD.isEntryPointCandidate(F)) {
       continue;
     }
-
     if (F.hasFnAttribute(AttrName)) {
       EntryPointMap[AttrName].insert(&F);
     } else {
@@ -651,8 +647,11 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   auto It1 = Names.cend();
   std::for_each(It0, It1, [&](const std::string &Name) {
     const Function *F = M.getFunction(Name);
-    assert(F && "entry point lost");
-    Functions.insert(F);
+    // Some functions could be lost due to inlining followed by DCE. 
+    // This is expected to NOT cause any issues in later compilation stages.
+    // TODO: Avoid deletion of entry points in DCE.
+    if (F)
+      Functions.insert(F);
   });
 }
 
