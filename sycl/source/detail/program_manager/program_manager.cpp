@@ -906,9 +906,9 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
                                bool JITCompilationIsRequired) {
   if (DbgProgMgr > 0) {
     fprintf(stderr,
-            ">>> ProgramManager::getDeviceImage(%lld, \"%lu\", %p, %p, %d)\n",
+            ">>> ProgramManager::getDeviceImage(%lld, \"%zu\", %p, %p, %d)\n",
             (long long int)M, KSId, (void *)getRawSyclObjImpl(Context),
-            (void *)getRawSyclObjImpl(Device), JITCompilationIsRequired);
+            (void *)getRawSyclObjImpl(Device), (int)JITCompilationIsRequired);
 
     fprintf(stderr, "available device images:\n");
     debugPrintBinaryImages();

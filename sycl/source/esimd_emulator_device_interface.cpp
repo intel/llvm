@@ -52,9 +52,9 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
             "%s\n"
             "Opaque data returned by ESIMD Emu plugin is incompatible with"
             "the one used in current implementation.\n"
-            "Returned version : %lu\n"
+            "Returned version : %llu\n"
             "Required version : %d\n",
-            __FUNCTION__, OpaqueData->version,
+            __FUNCTION__, (long long int)OpaqueData->version,
             ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION);
     throw feature_not_supported();
   }
@@ -68,9 +68,10 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
             "%s\n"
             "The device interface version provided from plug-in"
             "library is behind required device interface version\n"
-            "Found version : %lu\n"
+            "Found version : %llu\n"
             "Required version :%d\n",
-            __FUNCTION__, Interface->version, ESIMD_DEVICE_INTERFACE_VERSION);
+            __FUNCTION__, (long long int)Interface->version,
+            ESIMD_DEVICE_INTERFACE_VERSION);
     throw feature_not_supported();
   }
   return Interface;
