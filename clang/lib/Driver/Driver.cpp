@@ -4120,8 +4120,8 @@ class OffloadingActionBuilder final {
         A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                AssociatedOffloadKind);
 
-      if (CompileDeviceOnly && CurPhase == FinalPhase &&
-          BundleOutput.hasValue() && BundleOutput.getValue()) {
+      if (CompileDeviceOnly && CurPhase == FinalPhase && BundleOutput &&
+          BundleOutput.getValue()) {
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
           OffloadAction::DeviceDependences DDep;
           DDep.add(*CudaDeviceActions[I], *ToolChains.front(), GpuArchList[I],
@@ -8121,6 +8121,14 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
     }
   } else if (JA.getType() == types::TY_PCH && IsCLMode()) {
     NamedOutput = C.getArgs().MakeArgString(GetClPchPath(C, BaseName));
+  } else if ((JA.getType() == types::TY_Plist || JA.getType() == types::TY_AST) &&
+             C.getArgs().hasArg(options::OPT__SLASH_o)) {
+    StringRef Val =
+        C.getArgs()
+            .getLastArg(options::OPT__SLASH_o)
+            ->getValue();
+    NamedOutput =
+        MakeCLOutputFilename(C.getArgs(), Val, BaseName, types::TY_Object);
   } else {
     const char *Suffix = types::getTypeTempSuffix(JA.getType(), IsCLMode());
     assert(Suffix && "All types used for output should have a suffix.");

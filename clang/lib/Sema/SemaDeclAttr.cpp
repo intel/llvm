@@ -421,7 +421,7 @@ bool Sema::checkStringLiteralArgumentAttr(const AttributeCommonInfo &CI,
   if (ArgLocation)
     *ArgLocation = E->getBeginLoc();
 
-  if (!Literal || !Literal->isAscii()) {
+  if (!Literal || !Literal->isOrdinary()) {
     Diag(E->getBeginLoc(), diag::err_attribute_argument_type)
         << CI << AANT_ArgumentString;
     return false;
@@ -696,7 +696,7 @@ static void checkAttrArgsAreCapabilityObjs(Sema &S, Decl *D,
 
     if (const auto *StrLit = dyn_cast<StringLiteral>(ArgExp)) {
       if (StrLit->getLength() == 0 ||
-          (StrLit->isAscii() && StrLit->getString() == StringRef("*"))) {
+          (StrLit->isOrdinary() && StrLit->getString() == StringRef("*"))) {
         // Pass empty strings to the analyzer without warnings.
         // Treat "*" as the universal lock.
         Args.push_back(ArgExp);
@@ -2759,8 +2759,8 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         auto Major = Version.getMajor();
         auto NewMajor = Major >= 9 ? Major - 7 : 0;
         if (NewMajor >= 2) {
-          if (Version.getMinor().hasValue()) {
-            if (Version.getSubminor().hasValue())
+          if (Version.getMinor()) {
+            if (Version.getSubminor())
               return VersionTuple(NewMajor, Version.getMinor().getValue(),
                                   Version.getSubminor().getValue());
             else
@@ -5106,12 +5106,10 @@ static void handleFormatAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   // check if the function is variadic if the 3rd argument non-zero
   if (FirstArg != 0) {
-    if (isFunctionOrMethodVariadic(D)) {
+    if (isFunctionOrMethodVariadic(D))
       ++NumArgs; // +1 for ...
-    } else {
-      S.Diag(D->getLocation(), diag::err_format_attribute_requires_variadic);
-      return;
-    }
+    else
+      S.Diag(D->getLocation(), diag::warn_gcc_requires_variadic_function) << AL;
   }
 
   // strftime requires FirstArg to be 0 because it doesn't read from any
@@ -8029,11 +8027,12 @@ static void handleBuiltinAliasAttr(Sema &S, Decl *D,
   bool IsAArch64 = S.Context.getTargetInfo().getTriple().isAArch64();
   bool IsARM = S.Context.getTargetInfo().getTriple().isARM();
   bool IsRISCV = S.Context.getTargetInfo().getTriple().isRISCV();
+  bool IsHLSL = S.Context.getLangOpts().HLSL;
   if ((IsAArch64 && !ArmSveAliasValid(S.Context, BuiltinID, AliasName)) ||
       (IsARM && !ArmMveAliasValid(BuiltinID, AliasName) &&
        !ArmCdeAliasValid(BuiltinID, AliasName)) ||
       (IsRISCV && !RISCVAliasValid(BuiltinID, AliasName)) ||
-      (!IsAArch64 && !IsARM && !IsRISCV)) {
+      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL)) {
     S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
     return;
   }
@@ -10259,6 +10258,11 @@ static bool isGlobalVar(const Decl *D) {
   return false;
 }
 
+static bool isSanitizerAttributeAllowedOnGlobals(StringRef Sanitizer) {
+  return Sanitizer == "address" || Sanitizer == "hwaddress" ||
+         Sanitizer == "memtag";
+}
+
 static void handleNoSanitizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!AL.checkAtLeastNumArgs(S, 1))
     return;
@@ -10276,7 +10280,7 @@ static void handleNoSanitizeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
             SanitizerMask() &&
         SanitizerName != "coverage")
       S.Diag(LiteralLoc, diag::warn_unknown_sanitizer_ignored) << SanitizerName;
-    else if (isGlobalVar(D) && SanitizerName != "address")
+    else if (isGlobalVar(D) && !isSanitizerAttributeAllowedOnGlobals(SanitizerName))
       S.Diag(D->getLocation(), diag::err_attribute_wrong_decl_type)
           << AL << ExpectedFunctionOrMethod;
     Sanitizers.push_back(SanitizerName);

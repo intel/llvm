@@ -159,6 +159,9 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
     return false;
 
   Register SelReg = Op1->getReg();
+  if (SelReg.isPhysical())
+    return false;
+
   auto *Sel = TRI->findReachingDef(SelReg, Op1->getSubReg(), *Cmp, *MRI, LIS);
   if (!Sel || Sel->getOpcode() != AMDGPU::V_CNDMASK_B32_e64)
     return false;
@@ -206,40 +209,25 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
 
   LiveInterval *CmpLI =
       CmpReg.isVirtual() ? &LIS->getInterval(CmpReg) : nullptr;
+  LiveInterval *SelLI =
+      SelReg.isVirtual() ? &LIS->getInterval(SelReg) : nullptr;
 
-  // Try to remove compare. Cmp value should not used in between of cmp
-  // and s_and_b64 if VCC or just unused if any other register.
-  if ((CmpReg.isVirtual() && CmpLI->Query(AndIdx.getRegSlot()).isKill()) ||
-      (CmpReg == Register(CondReg) &&
-       std::none_of(std::next(Cmp->getIterator()), Andn2->getIterator(),
-                    [&](const MachineInstr &MI) {
-                      return MI.readsRegister(CondReg, TRI);
-                    }))) {
-    LLVM_DEBUG(dbgs() << "Erasing: " << *Cmp << '\n');
-    if (CmpLI)
-      LIS->removeVRegDefAt(*CmpLI, CmpIdx.getRegSlot());
-    LIS->RemoveMachineInstrFromMaps(*Cmp);
-    Cmp->eraseFromParent();
-
-    LiveInterval *SelLI =
-        SelReg.isVirtual() ? &LIS->getInterval(SelReg) : nullptr;
-    // Try to remove v_cndmask_b32.
-    if (SelLI && SelLI->Query(CmpIdx.getRegSlot()).isKill()) {
-      LLVM_DEBUG(dbgs() << "Erasing: " << *Sel << '\n');
-
-      if (SelLI)
-        LIS->removeVRegDefAt(*SelLI, SelIdx.getRegSlot());
-      LIS->RemoveMachineInstrFromMaps(*Sel);
-      Sel->eraseFromParent();
-    }
-  }
-
+  // Update live intervals for CCReg before potentially removing CmpReg/SelReg,
+  // and their associated liveness information.
   if (CCReg.isVirtual()) {
+    // Note: this ignores that SelLI might have multiple internal values
+    // or splits and simply extends the live range to cover all cases
+    // where the result of the v_cndmask_b32 was live (e.g. loops).
+    // This could yield worse register allocation in rare edge cases.
+    SlotIndex EndIdx = AndIdx.getRegSlot();
+    if (SelLI && SelLI->endIndex() > EndIdx && SelLI->endIndex().isBlock())
+      EndIdx = SelLI->endIndex();
+
     LiveInterval &CCLI = LIS->getInterval(CCReg);
     auto CCQ = CCLI.Query(SelIdx.getRegSlot());
     if (CCQ.valueIn()) {
       CCLI.addSegment(LiveRange::Segment(SelIdx.getRegSlot(),
-                                         AndIdx.getRegSlot(), CCQ.valueIn()));
+                                         EndIdx, CCQ.valueIn()));
     }
 
     if (CC->getSubReg()) {
@@ -251,7 +239,7 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
             auto CCQS = SR.Query(SelIdx.getRegSlot());
             if (CCQS.valueIn()) {
               SR.addSegment(LiveRange::Segment(
-                  SelIdx.getRegSlot(), AndIdx.getRegSlot(), CCQS.valueIn()));
+                  SelIdx.getRegSlot(), EndIdx, CCQS.valueIn()));
             }
           },
           *LIS->getSlotIndexes(), *TRI);
@@ -262,6 +250,36 @@ bool SIOptimizeExecMaskingPreRA::optimizeVcndVcmpPair(MachineBasicBlock &MBB) {
     }
   } else
     LIS->removeAllRegUnitsForPhysReg(CCReg);
+
+  // Try to remove compare. Cmp value should not used in between of cmp
+  // and s_and_b64 if VCC or just unused if any other register.
+  if ((CmpReg.isVirtual() && CmpLI && CmpLI->Query(AndIdx.getRegSlot()).isKill()) ||
+      (CmpReg == Register(CondReg) &&
+       std::none_of(std::next(Cmp->getIterator()), Andn2->getIterator(),
+                    [&](const MachineInstr &MI) {
+                      return MI.readsRegister(CondReg, TRI);
+                    }))) {
+    LLVM_DEBUG(dbgs() << "Erasing: " << *Cmp << '\n');
+    if (CmpLI)
+      LIS->removeVRegDefAt(*CmpLI, CmpIdx.getRegSlot());
+    LIS->RemoveMachineInstrFromMaps(*Cmp);
+    Cmp->eraseFromParent();
+
+    // Try to remove v_cndmask_b32.
+    if (SelLI) {
+      // Kill status must be checked before shrinking the live range.
+      bool IsKill = SelLI->Query(CmpIdx.getRegSlot()).isKill();
+      LIS->shrinkToUses(SelLI);
+      bool IsDead = SelLI->Query(SelIdx.getRegSlot()).isDeadDef();
+      if (MRI->use_nodbg_empty(SelReg) && (IsKill || IsDead)) {
+        LLVM_DEBUG(dbgs() << "Erasing: " << *Sel << '\n');
+
+        LIS->removeVRegDefAt(*SelLI, SelIdx.getRegSlot());
+        LIS->RemoveMachineInstrFromMaps(*Sel);
+        Sel->eraseFromParent();
+      }
+    }
+  }
 
   return true;
 }

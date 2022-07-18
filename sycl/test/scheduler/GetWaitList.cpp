@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   cl::sycl::event start;

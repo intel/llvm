@@ -1008,33 +1008,62 @@ bool DAGCombiner::reassociationCanBreakAddressingModePattern(unsigned Opc,
   // (load/store (add, (add, x, offset1), offset2)) ->
   // (load/store (add, x, offset1+offset2)).
 
+  // (load/store (add, (add, x, y), offset2)) ->
+  // (load/store (add, (add, x, offset2), y)).
+
   if (Opc != ISD::ADD || N0.getOpcode() != ISD::ADD)
     return false;
 
-  if (N0.hasOneUse())
-    return false;
-
-  auto *C1 = dyn_cast<ConstantSDNode>(N0.getOperand(1));
   auto *C2 = dyn_cast<ConstantSDNode>(N1);
-  if (!C1 || !C2)
+  if (!C2)
     return false;
 
-  const APInt &C1APIntVal = C1->getAPIntValue();
   const APInt &C2APIntVal = C2->getAPIntValue();
-  if (C1APIntVal.getBitWidth() > 64 || C2APIntVal.getBitWidth() > 64)
+  if (C2APIntVal.getSignificantBits() > 64)
     return false;
 
-  const APInt CombinedValueIntVal = C1APIntVal + C2APIntVal;
-  if (CombinedValueIntVal.getBitWidth() > 64)
-    return false;
-  const int64_t CombinedValue = CombinedValueIntVal.getSExtValue();
+  if (auto *C1 = dyn_cast<ConstantSDNode>(N0.getOperand(1))) {
+    if (N0.hasOneUse())
+      return false;
 
-  for (SDNode *Node : N->uses()) {
-    auto LoadStore = dyn_cast<MemSDNode>(Node);
-    if (LoadStore) {
-      // Is x[offset2] already not a legal addressing mode? If so then
-      // reassociating the constants breaks nothing (we test offset2 because
-      // that's the one we hope to fold into the load or store).
+    const APInt &C1APIntVal = C1->getAPIntValue();
+    const APInt CombinedValueIntVal = C1APIntVal + C2APIntVal;
+    if (CombinedValueIntVal.getSignificantBits() > 64)
+      return false;
+    const int64_t CombinedValue = CombinedValueIntVal.getSExtValue();
+
+    for (SDNode *Node : N->uses()) {
+      if (auto *LoadStore = dyn_cast<MemSDNode>(Node)) {
+        // Is x[offset2] already not a legal addressing mode? If so then
+        // reassociating the constants breaks nothing (we test offset2 because
+        // that's the one we hope to fold into the load or store).
+        TargetLoweringBase::AddrMode AM;
+        AM.HasBaseReg = true;
+        AM.BaseOffs = C2APIntVal.getSExtValue();
+        EVT VT = LoadStore->getMemoryVT();
+        unsigned AS = LoadStore->getAddressSpace();
+        Type *AccessTy = VT.getTypeForEVT(*DAG.getContext());
+        if (!TLI.isLegalAddressingMode(DAG.getDataLayout(), AM, AccessTy, AS))
+          continue;
+
+        // Would x[offset1+offset2] still be a legal addressing mode?
+        AM.BaseOffs = CombinedValue;
+        if (!TLI.isLegalAddressingMode(DAG.getDataLayout(), AM, AccessTy, AS))
+          return true;
+      }
+    }
+  } else {
+    if (auto *GA = dyn_cast<GlobalAddressSDNode>(N0.getOperand(1)))
+      if (GA->getOpcode() == ISD::GlobalAddress && TLI.isOffsetFoldingLegal(GA))
+        return false;
+
+    for (SDNode *Node : N->uses()) {
+      auto *LoadStore = dyn_cast<MemSDNode>(Node);
+      if (!LoadStore)
+        return false;
+
+      // Is x[offset2] a legal addressing mode? If so then
+      // reassociating the constants breaks address pattern
       TargetLoweringBase::AddrMode AM;
       AM.HasBaseReg = true;
       AM.BaseOffs = C2APIntVal.getSExtValue();
@@ -1042,13 +1071,9 @@ bool DAGCombiner::reassociationCanBreakAddressingModePattern(unsigned Opc,
       unsigned AS = LoadStore->getAddressSpace();
       Type *AccessTy = VT.getTypeForEVT(*DAG.getContext());
       if (!TLI.isLegalAddressingMode(DAG.getDataLayout(), AM, AccessTy, AS))
-        continue;
-
-      // Would x[offset1+offset2] still be a legal addressing mode?
-      AM.BaseOffs = CombinedValue;
-      if (!TLI.isLegalAddressingMode(DAG.getDataLayout(), AM, AccessTy, AS))
-        return true;
+        return false;
     }
+    return true;
   }
 
   return false;
@@ -1097,6 +1122,28 @@ SDValue DAGCombiner::reassociateOpsCommutative(unsigned Opc, const SDLoc &DL,
     // (N00 ^ N01) ^ N01 --> N00
     if (N1 == N01)
       return N00;
+  }
+
+  if (TLI.isReassocProfitable(DAG, N0, N1)) {
+    if (N1 != N01) {
+      // Reassociate if (op N00, N1) already exist
+      if (SDNode *NE = DAG.getNodeIfExists(Opc, DAG.getVTList(VT), {N00, N1})) {
+        // if Op (Op N00, N1), N01 already exist
+        // we need to stop reassciate to avoid dead loop
+        if (!DAG.doesNodeExist(Opc, DAG.getVTList(VT), {SDValue(NE, 0), N01}))
+          return DAG.getNode(Opc, DL, VT, SDValue(NE, 0), N01);
+      }
+    }
+
+    if (N1 != N00) {
+      // Reassociate if (op N01, N1) already exist
+      if (SDNode *NE = DAG.getNodeIfExists(Opc, DAG.getVTList(VT), {N01, N1})) {
+        // if Op (Op N01, N1), N00 already exist
+        // we need to stop reassciate to avoid dead loop
+        if (!DAG.doesNodeExist(Opc, DAG.getVTList(VT), {SDValue(NE, 0), N00}))
+          return DAG.getNode(Opc, DL, VT, SDValue(NE, 0), N00);
+      }
+    }
   }
 
   return SDValue();
@@ -2345,12 +2392,14 @@ static SDValue foldAddSubOfSignBit(SDNode *N, SelectionDAG &DAG) {
   // add (srl (not X), 31), C --> add (sra X, 31), (C + 1)
   // sub C, (srl (not X), 31) --> add (srl X, 31), (C - 1)
   SDLoc DL(N);
-  auto ShOpcode = IsAdd ? ISD::SRA : ISD::SRL;
-  SDValue NewShift = DAG.getNode(ShOpcode, DL, VT, Not.getOperand(0), ShAmt);
-  if (SDValue NewC =
-          DAG.FoldConstantArithmetic(IsAdd ? ISD::ADD : ISD::SUB, DL, VT,
-                                     {ConstantOp, DAG.getConstant(1, DL, VT)}))
+  if (SDValue NewC = DAG.FoldConstantArithmetic(
+          IsAdd ? ISD::ADD : ISD::SUB, DL, VT,
+          {ConstantOp, DAG.getConstant(1, DL, VT)})) {
+    SDValue NewShift = DAG.getNode(IsAdd ? ISD::SRA : ISD::SRL, DL, VT,
+                                   Not.getOperand(0), ShAmt);
     return DAG.getNode(ISD::ADD, DL, VT, NewShift, NewC);
+  }
+
   return SDValue();
 }
 
@@ -4503,13 +4552,12 @@ SDValue DAGCombiner::visitREM(SDNode *N) {
   SDLoc DL(N);
 
   // fold (rem c1, c2) -> c1%c2
-  ConstantSDNode *N1C = isConstOrConstSplat(N1);
   if (SDValue C = DAG.FoldConstantArithmetic(Opcode, DL, VT, {N0, N1}))
     return C;
 
   // fold (urem X, -1) -> select(FX == -1, 0, FX)
   // Freeze the numerator to avoid a miscompile with an undefined value.
-  if (!isSigned && N1C && N1C->isAllOnes()) {
+  if (!isSigned && llvm::isAllOnesOrAllOnesSplat(N1, /*AllowUndefs*/ false)) {
     SDValue F0 = DAG.getFreeze(N0);
     SDValue EqualsNeg1 = DAG.getSetCC(DL, CCVT, F0, N1, ISD::SETEQ);
     return DAG.getSelect(DL, VT, EqualsNeg1, DAG.getConstant(0, DL, VT), F0);
@@ -13196,18 +13244,6 @@ SDValue DAGCombiner::visitTRUNCATE(SDNode *N) {
     }
   }
 
-  // See if we can simplify the input to this truncate through knowledge that
-  // only the low bits are being used.
-  // For example "trunc (or (shl x, 8), y)" // -> trunc y
-  // Currently we only perform this optimization on scalars because vectors
-  // may have different active low bits.
-  if (!VT.isVector()) {
-    APInt Mask =
-        APInt::getLowBitsSet(N0.getValueSizeInBits(), VT.getSizeInBits());
-    if (SDValue Shorter = DAG.GetDemandedBits(N0, Mask))
-      return DAG.getNode(ISD::TRUNCATE, SDLoc(N), VT, Shorter);
-  }
-
   // fold (truncate (load x)) -> (smaller load x)
   // fold (truncate (srl (load x), c)) -> (smaller load (x+c/evtbits))
   if (!LegalTypes || TLI.isTypeDesirableForOp(N0.getOpcode(), VT)) {
@@ -13293,6 +13329,18 @@ SDValue DAGCombiner::visitTRUNCATE(SDNode *N) {
   // Simplify the operands using demanded-bits information.
   if (SimplifyDemandedBits(SDValue(N, 0)))
     return SDValue(N, 0);
+
+  // See if we can simplify the input to this truncate through knowledge that
+  // only the low bits are being used.
+  // For example "trunc (or (shl x, 8), y)" // -> trunc y
+  // Currently we only perform this optimization on scalars because vectors
+  // may have different active low bits.
+  if (!VT.isVector()) {
+    APInt Mask =
+        APInt::getLowBitsSet(N0.getValueSizeInBits(), VT.getSizeInBits());
+    if (SDValue Shorter = DAG.GetDemandedBits(N0, Mask))
+      return DAG.getNode(ISD::TRUNCATE, SDLoc(N), VT, Shorter);
+  }
 
   // fold (truncate (extract_subvector(ext x))) ->
   //      (extract_subvector x)
@@ -24467,9 +24515,8 @@ bool DAGCombiner::mayAlias(SDNode *Op0, SDNode *Op1) const {
   auto &Size0 = MUC0.NumBytes;
   auto &Size1 = MUC1.NumBytes;
   if (OrigAlignment0 == OrigAlignment1 && SrcValOffset0 != SrcValOffset1 &&
-      Size0.hasValue() && Size1.hasValue() && *Size0 == *Size1 &&
-      OrigAlignment0 > *Size0 && SrcValOffset0 % *Size0 == 0 &&
-      SrcValOffset1 % *Size1 == 0) {
+      Size0 && Size1 && *Size0 == *Size1 && OrigAlignment0 > *Size0 &&
+      SrcValOffset0 % *Size0 == 0 && SrcValOffset1 % *Size1 == 0) {
     int64_t OffAlign0 = SrcValOffset0 % OrigAlignment0.value();
     int64_t OffAlign1 = SrcValOffset1 % OrigAlignment1.value();
 
@@ -24488,8 +24535,8 @@ bool DAGCombiner::mayAlias(SDNode *Op0, SDNode *Op1) const {
     UseAA = false;
 #endif
 
-  if (UseAA && AA && MUC0.MMO->getValue() && MUC1.MMO->getValue() &&
-      Size0.hasValue() && Size1.hasValue()) {
+  if (UseAA && AA && MUC0.MMO->getValue() && MUC1.MMO->getValue() && Size0 &&
+      Size1) {
     // Use alias analysis information.
     int64_t MinOffset = std::min(SrcValOffset0, SrcValOffset1);
     int64_t Overlap0 = *Size0 + SrcValOffset0 - MinOffset;

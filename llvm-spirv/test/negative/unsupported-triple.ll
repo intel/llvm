@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s
 
 ; CHECK: InvalidTargetTriple: Expects spir-unknown-unknown or spir64-unknown-unknown. Actual target triple is aarch64

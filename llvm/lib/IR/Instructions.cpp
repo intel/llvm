@@ -128,7 +128,7 @@ Value *PHINode::removeIncomingValue(unsigned Idx, bool DeletePHIIfEmpty) {
   // If the PHI node is dead, because it has zero entries, nuke it now.
   if (getNumOperands() == 0 && DeletePHIIfEmpty) {
     // If anyone is using this PHI, make them use a dummy value instead...
-    replaceAllUsesWith(UndefValue::get(getType()));
+    replaceAllUsesWith(PoisonValue::get(getType()));
     eraseFromParent();
   }
   return Removed;
@@ -1696,6 +1696,10 @@ StringRef AtomicRMWInst::getOperationName(BinOp Op) {
     return "fadd";
   case AtomicRMWInst::FSub:
     return "fsub";
+  case AtomicRMWInst::FMax:
+    return "fmax";
+  case AtomicRMWInst::FMin:
+    return "fmin";
   case AtomicRMWInst::BAD_BINOP:
     return "<invalid operation>";
   }

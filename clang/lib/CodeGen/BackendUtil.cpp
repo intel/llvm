@@ -681,7 +681,6 @@ static void addSanitizers(const Triple &TargetTriple,
         Opts.Recover = CodeGenOpts.SanitizeRecover.has(Mask);
         Opts.UseAfterScope = CodeGenOpts.SanitizeAddressUseAfterScope;
         Opts.UseAfterReturn = CodeGenOpts.getSanitizeAddressUseAfterReturn();
-        MPM.addPass(RequireAnalysisPass<ASanGlobalsMetadataAnalysis, Module>());
         MPM.addPass(ModuleAddressSanitizerPass(
             Opts, UseGlobalGC, UseOdrIndicator, DestructorKind));
       }
@@ -794,6 +793,18 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   SI.registerCallbacks(PIC, &FAM);
   PassBuilder PB(TM.get(), PTO, PGOOpt, &PIC);
 
+  // Enable verify-debuginfo-preserve-each for new PM.
+  DebugifyEachInstrumentation Debugify;
+  DebugInfoPerPass DebugInfoBeforePass;
+  if (CodeGenOpts.EnableDIPreservationVerify) {
+    Debugify.setDebugifyMode(DebugifyMode::OriginalDebugInfo);
+    Debugify.setDebugInfoBeforePass(DebugInfoBeforePass);
+
+    if (!CodeGenOpts.DIBugsReportFilePath.empty())
+      Debugify.setOrigDIVerifyBugsReportFilePath(
+          CodeGenOpts.DIBugsReportFilePath);
+    Debugify.registerCallbacks(PIC);
+  }
   // Attempt to load pass plugins and register their callbacks with PB.
   for (auto &PluginFN : CodeGenOpts.PassPlugins) {
     auto PassPlugin = PassPlugin::Load(PluginFN);

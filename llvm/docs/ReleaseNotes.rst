@@ -66,6 +66,20 @@ versions of these toolchains.
 Changes to the LLVM IR
 ----------------------
 
+* Renamed ``llvm.experimental.vector.extract`` intrinsic to ``llvm.vector.extract``.
+* Renamed ``llvm.experimental.vector.insert`` intrinsic to ``llvm.vector.insert``.
+* The constant expression variants of the following instructions have been
+  removed:
+  * ``extractvalue``
+  * ``insertvalue``
+  * ``udiv``
+  * ``sdiv``
+  * ``urem``
+  * ``srem``
+* Added the support for ``fmax`` and ``fmin`` in ``atomicrmw`` instruction. The
+  comparison is expected to match the behavior of ``llvm.maxnum.*`` and
+  ``llvm.minnum.*`` respectively.
+
 Changes to building LLVM
 ------------------------
 
@@ -104,11 +118,24 @@ Changes to the ARM Backend
   Erratum 1655431. This is enabled by default when targeting either CPU.
 * Implemented generation of Windows SEH unwind information.
 * Switched the MinGW target to use SEH instead of DWARF for unwind information.
+* Added support for the Cortex-M85 CPU.
+* Added support for a new -mframe-chain=(none|aapcs|aapcs+leaf) command-line
+  option, which controls the generation of AAPCS-compliant Frame Records.
 
 Changes to the AVR Backend
 --------------------------
 
 * ...
+
+Changes to the DirectX Backend
+------------------------------
+
+* DirectX has been added as an experimental target. Specify
+  ``-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=DirectX`` in your CMake configuration
+  to enable it. The target is not packaged in pre-built binaries.
+* The DirectX backend supports the ``dxil`` architecture which is based on LLVM
+  3.6 IR encoded as bitcode and is the format used for DirectX GPU Shader
+  programs.
 
 Changes to the Hexagon Backend
 ------------------------------
@@ -139,6 +166,7 @@ Changes to the X86 Backend
 --------------------------
 
 * Support ``half`` type on SSE2 and above targets.
+* Support ``rdpru`` instruction on Zen2 and above targets.
 
 Changes to the OCaml bindings
 -----------------------------
@@ -157,6 +185,22 @@ Changes to the C API
   representation. The ``LLVMGetElementAsConstant`` function is deprecated in
   favor of the new function, which works on all constant aggregates, rather than
   only instances of ``ConstantDataSequential``.
+
+* The following functions for creating constant expressions have been removed,
+  because the underlying constant expressions are no longer supported. Instead,
+  an instruction should be created using the ``LLVMBuildXYZ`` APIs, which will
+  constant fold the operands if possible and create an instruction otherwise:
+  * ``LLVMConstExtractValue``
+  * ``LLVMConstInsertValue``
+  * ``LLVMConstUDiv``
+  * ``LLVMConstExactUDiv``
+  * ``LLVMConstSDiv``
+  * ``LLVMConstExactSDiv``
+  * ``LLVMConstURem``
+  * ``LLVMConstSRem``
+
+* Add ``LLVMDeleteInstruction`` function which allows deleting instructions that
+  are not inserted into a basic block.
 
 Changes to the Go bindings
 --------------------------
@@ -178,6 +222,11 @@ During this release ...
 
 Changes to the LLVM tools
 ---------------------------------
+
+* (Experimental) :manpage:`llvm-symbolizer(1)` now has ``--filter-markup`` to
+  filter :doc:`Symbolizer Markup </SymbolizerMarkupFormat>` into human-readable
+  form.
+* :doc:`llvm-objcopy <CommandGuide/llvm-objcopy>` has removed support for the legacy ``zlib-gnu`` format.
 
 Changes to LLDB
 ---------------------------------

@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // 4.9.2 Exception Class Interface
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/context.hpp>
+#include <sycl/exception.hpp>
 
 #include <cstring>
 

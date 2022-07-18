@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/queue.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/queue.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

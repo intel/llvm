@@ -1457,10 +1457,12 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
     if (Offset >= 0) {
       if (auto *C = dyn_cast<Constant>(
               lookupOperandLeader(DepSI->getValueOperand()))) {
-        LLVM_DEBUG(dbgs() << "Coercing load from store " << *DepSI
-                          << " to constant " << *C << "\n");
-        return createConstantExpression(
-            getConstantStoreValueForLoad(C, Offset, LoadType, DL));
+        if (Constant *Res =
+                getConstantStoreValueForLoad(C, Offset, LoadType, DL)) {
+          LLVM_DEBUG(dbgs() << "Coercing load from store " << *DepSI
+                            << " to constant " << *Res << "\n");
+          return createConstantExpression(Res);
+        }
       }
     }
   } else if (auto *DepLI = dyn_cast<LoadInst>(DepInst)) {
@@ -1507,9 +1509,8 @@ NewGVN::performSymbolicLoadCoercion(Type *LoadType, Value *LoadPtr,
   else if (auto *II = dyn_cast<IntrinsicInst>(DepInst)) {
     if (II->getIntrinsicID() == Intrinsic::lifetime_start)
       return createConstantExpression(UndefValue::get(LoadType));
-  } else if (isAllocationFn(DepInst, TLI))
-    if (auto *InitVal = getInitialValueOfAllocation(cast<CallBase>(DepInst),
-                                                    TLI, LoadType))
+  } else if (auto *InitVal =
+                 getInitialValueOfAllocation(DepInst, TLI, LoadType))
       return createConstantExpression(InitVal);
 
   return nullptr;

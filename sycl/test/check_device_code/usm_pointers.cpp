@@ -26,7 +26,7 @@
 // CHECK-ENABLE-NEXT: %[[HOSTCAST:[0-9]+]] = addrspacecast i8 addrspace(6)* %[[HOSTLOAD]] to i8 addrspace(4)*
 // ret i8 addrspace(4)* %[[HOSTCAST]]
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

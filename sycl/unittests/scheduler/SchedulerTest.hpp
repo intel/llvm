@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/queue.hpp>
+#include <sycl/queue.hpp>
 
 #include <gtest/gtest.h>
 

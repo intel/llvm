@@ -988,8 +988,8 @@ Instruction *InstCombinerImpl::foldBinopOfSextBoolToSelect(BinaryOperator &BO) {
   // bo (sext i1 X), C --> select X, (bo -1, C), (bo 0, C)
   Constant *Ones = ConstantInt::getAllOnesValue(BO.getType());
   Constant *Zero = ConstantInt::getNullValue(BO.getType());
-  Constant *TVal = ConstantExpr::get(BO.getOpcode(), Ones, C);
-  Constant *FVal = ConstantExpr::get(BO.getOpcode(), Zero, C);
+  Value *TVal = Builder.CreateBinOp(BO.getOpcode(), Ones, C);
+  Value *FVal = Builder.CreateBinOp(BO.getOpcode(), Zero, C);
   return SelectInst::Create(X, TVal, FVal);
 }
 
@@ -1019,12 +1019,6 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
   // Figure out if the constant is the left or the right argument.
   bool ConstIsRHS = isa<Constant>(I.getOperand(1));
   Constant *ConstOperand = cast<Constant>(I.getOperand(ConstIsRHS));
-
-  if (auto *SOC = dyn_cast<Constant>(SO)) {
-    if (ConstIsRHS)
-      return ConstantExpr::get(I.getOpcode(), SOC, ConstOperand);
-    return ConstantExpr::get(I.getOpcode(), ConstOperand, SOC);
-  }
 
   Value *Op0 = SO, *Op1 = ConstOperand;
   if (!ConstIsRHS)
@@ -1115,12 +1109,6 @@ static Value *foldOperationIntoPhiValue(BinaryOperator *I, Value *InV,
                                         InstCombiner::BuilderTy &Builder) {
   bool ConstIsRHS = isa<Constant>(I->getOperand(1));
   Constant *C = cast<Constant>(I->getOperand(ConstIsRHS));
-
-  if (auto *InC = dyn_cast<Constant>(InV)) {
-    if (ConstIsRHS)
-      return ConstantExpr::get(I->getOpcode(), InC, C);
-    return ConstantExpr::get(I->getOpcode(), C, InC);
-  }
 
   Value *Op0 = InV, *Op1 = C;
   if (!ConstIsRHS)
@@ -1336,6 +1324,11 @@ Instruction *InstCombinerImpl::foldBinopWithPhiOperands(BinaryOperator &BO) {
     if (!isGuaranteedToTransferExecutionToSuccessor(&*BBIter))
       return nullptr;
 
+  // Fold constants for the predecessor block with constant incoming values.
+  Constant *NewC = ConstantFoldBinaryOpOperands(BO.getOpcode(), C0, C1, DL);
+  if (!NewC)
+    return nullptr;
+
   // Make a new binop in the predecessor block with the non-constant incoming
   // values.
   Builder.SetInsertPoint(PredBlockBranch);
@@ -1344,9 +1337,6 @@ Instruction *InstCombinerImpl::foldBinopWithPhiOperands(BinaryOperator &BO) {
                                      Phi1->getIncomingValueForBlock(OtherBB));
   if (auto *NotFoldedNewBO = dyn_cast<BinaryOperator>(NewBO))
     NotFoldedNewBO->copyIRFlags(&BO);
-
-  // Fold constants for the predecessor block with constant incoming values.
-  Constant *NewC = ConstantExpr::get(BO.getOpcode(), C0, C1);
 
   // Replace the binop with a phi of the new values. The old phis are dead.
   PHINode *NewPhi = PHINode::Create(BO.getType(), 2);
@@ -2035,11 +2025,23 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
     if (!GEP.accumulateConstantOffset(DL, Offset))
       return nullptr;
 
+    APInt OffsetOld = Offset;
     // Convert the total offset back into indices.
     SmallVector<APInt> ConstIndices =
         DL.getGEPIndicesForOffset(BaseType, Offset);
-    if (!Offset.isZero() || (!IsFirstType && !ConstIndices[0].isZero()))
+    if (!Offset.isZero() || (!IsFirstType && !ConstIndices[0].isZero())) {
+      // If both GEP are constant-indexed, and cannot be merged in either way,
+      // convert them to a GEP of i8.
+      if (Src->hasAllConstantIndices())
+        return isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP))
+            ? GetElementPtrInst::CreateInBounds(
+                Builder.getInt8Ty(), Src->getOperand(0),
+                Builder.getInt(OffsetOld), GEP.getName())
+            : GetElementPtrInst::Create(
+                Builder.getInt8Ty(), Src->getOperand(0),
+                Builder.getInt(OffsetOld), GEP.getName());
       return nullptr;
+    }
 
     bool IsInBounds = isMergedGEPInBounds(*Src, *cast<GEPOperator>(&GEP));
     SmallVector<Value *> Indices;

@@ -12,7 +12,7 @@
 // Check that the test can be compiled with device compiler as well.
 // RUN: %clangxx -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct SomeStructure {
   char a;
