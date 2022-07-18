@@ -339,9 +339,9 @@ void EliminateUnreachableBlocks::runOnFunction(BinaryFunction &Function) {
     uint64_t Bytes;
     Function.markUnreachableBlocks();
     LLVM_DEBUG({
-      for (BinaryBasicBlock *BB : Function.layout()) {
-        if (!BB->isValid()) {
-          dbgs() << "BOLT-INFO: UCE found unreachable block " << BB->getName()
+      for (BinaryBasicBlock &BB : Function) {
+        if (!BB.isValid()) {
+          dbgs() << "BOLT-INFO: UCE found unreachable block " << BB.getName()
                  << " in function " << Function << "\n";
           Function.dump();
         }
@@ -1595,6 +1595,9 @@ void InstructionLowering::runOnFunctions(BinaryContext &BC) {
 }
 
 void StripRepRet::runOnFunctions(BinaryContext &BC) {
+  if (!BC.isX86())
+    return;
+
   uint64_t NumPrefixesRemoved = 0;
   uint64_t NumBytesSaved = 0;
   for (auto &BFI : BC.getBinaryFunctions()) {

@@ -3384,10 +3384,11 @@ def warn_assume_aligned_too_great
               "alignment assumed">,
       InGroup<DiagGroup<"builtin-assume-aligned-alignment">>;
 def warn_not_xl_compatible
-    : Warning<"requesting an alignment of 16 bytes or greater for struct"
-              " members is not binary compatible with IBM XL C/C++ for AIX"
-              " 16.1.0 and older">,
+    : Warning<"alignment of 16 bytes for a struct member is not binary "
+              "compatible with IBM XL C/C++ for AIX 16.1.0 or older">,
       InGroup<AIXCompat>;
+def note_misaligned_member_used_here : Note<
+    "passing byval argument %0 with potentially incompatible alignment here">;
 def warn_redeclaration_without_attribute_prev_attribute_ignored : Warning<
   "%q0 redeclared without %1 attribute: previous %1 ignored">,
   InGroup<MicrosoftInconsistentDllImport>;
@@ -5610,6 +5611,9 @@ def warn_deprecated_def : Warning<
 def warn_unavailable_def : Warning<
   "implementing unavailable method">,
   InGroup<DeprecatedImplementations>, DefaultIgnore;
+def warn_deprecated_builtin : Warning<
+  "builtin %0 is deprecated; use %1 instead">,
+  InGroup<DeprecatedBuiltins>;
 def err_unavailable : Error<"%0 is unavailable">;
 def err_property_method_unavailable :
     Error<"property access is using %0 method which is unavailable">;
@@ -6662,13 +6666,16 @@ def warn_addition_in_bitshift : Warning<
   "'%1' will be evaluated first">, InGroup<ShiftOpParentheses>;
 
 def warn_self_assignment_builtin : Warning<
-  "explicitly assigning value of variable of type %0 to itself">,
+  "explicitly assigning value of variable of type %0 to itself%select{|; did "
+  "you mean to assign to member %2?}1">,
   InGroup<SelfAssignment>, DefaultIgnore;
 def warn_self_assignment_overloaded : Warning<
-  "explicitly assigning value of variable of type %0 to itself">,
+  "explicitly assigning value of variable of type %0 to itself%select{|; did "
+  "you mean to assign to member %2?}1">,
   InGroup<SelfAssignmentOverloaded>, DefaultIgnore;
 def warn_self_move : Warning<
-  "explicitly moving variable of type %0 to itself">,
+  "explicitly moving variable of type %0 to itself%select{|; did you mean to "
+  "move to member %2?}1">,
   InGroup<SelfMove>, DefaultIgnore;
 
 def err_builtin_move_forward_unsupported : Error<
@@ -9460,6 +9467,12 @@ def warn_array_index_exceeds_max_addressable_bounds : Warning<
   InGroup<ArrayBounds>;
 def note_array_declared_here : Note<
   "array %0 declared here">;
+
+def warn_inconsistent_array_form : Warning<
+  "argument %0 of type %1 with mismatched bound">,
+  InGroup<ArrayParameter>, DefaultIgnore;
+def note_previous_declaration_as : Note<
+  "previously declared as %0 here">;
 
 def warn_printf_insufficient_data_args : Warning<
   "more '%%' conversions than data arguments">, InGroup<FormatInsufficientArgs>;

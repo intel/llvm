@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/__support/threads/thread.h"
+#include "config/linux/app.h"
 #include "src/__support/CPP/atomic.h"
 #include "src/__support/CPP/error.h"
 #include "src/__support/OSUtil/syscall.h"           // For syscall functions.
@@ -42,11 +43,10 @@ static constexpr unsigned CLONE_SYSCALL_FLAGS =
     | CLONE_THREAD  // Same thread group as the parent.
     | CLONE_SYSVSEM // Share a single list of System V semaphore adjustment
                     // values
-    | CLONE_PARENT_SETTID   // Set child thread ID in |ptid| of the parent.
-    | CLONE_CHILD_CLEARTID; // Let the kernel clear the tid address
-                            // wake the joining thread.
-// TODO: Add the CLONE_SETTLS flag and setup the TLS area correctly
-// when making the clone syscall.
+    | CLONE_PARENT_SETTID  // Set child thread ID in |ptid| of the parent.
+    | CLONE_CHILD_CLEARTID // Let the kernel clear the tid address
+                           // wake the joining thread.
+    | CLONE_SETTLS;        // Setup the thread pointer of the new thread.
 
 static inline cpp::ErrorOr<void *> alloc_stack(size_t size) {
   long mmap_result =
@@ -75,10 +75,18 @@ struct Thread;
 // If different architecture in future requires higher alignment, then we
 // can add a platform specific alignment spec.
 struct alignas(STACK_ALIGNMENT) StartArgs {
-  Thread *thread;
+  ThreadAttributes *thread_attrib;
   ThreadRunner runner;
   void *arg;
 };
+
+static void cleanup_thread_resources(ThreadAttributes *attrib) {
+  // Cleanup the TLS before the stack as the TLS information is stored on
+  // the stack.
+  cleanup_tls(attrib->tls, attrib->tls_size);
+  if (attrib->owned_stack)
+    free_stack(attrib->stack, attrib->stack_size);
+}
 
 __attribute__((always_inline)) inline uintptr_t get_start_args_addr() {
 // NOTE: For __builtin_frame_address to work reliably across compilers,
@@ -99,10 +107,12 @@ __attribute__((always_inline)) inline uintptr_t get_start_args_addr() {
 #endif
 }
 
-static void start_thread() __attribute__((noinline)) {
+__attribute__((noinline))
+static void start_thread() {
   auto *start_args = reinterpret_cast<StartArgs *>(get_start_args_addr());
-  auto *thread = start_args->thread;
-  auto *attrib = thread->attrib;
+  auto *attrib = start_args->thread_attrib;
+  self.attrib = attrib;
+
   long retval;
   if (attrib->style == ThreadStyle::POSIX) {
     attrib->retval.posix_retval =
@@ -115,11 +125,14 @@ static void start_thread() __attribute__((noinline)) {
   }
 
   uint32_t joinable_state = uint32_t(DetachState::JOINABLE);
-  if (!thread->attrib->detach_state.compare_exchange_strong(
+  if (!attrib->detach_state.compare_exchange_strong(
           joinable_state, uint32_t(DetachState::EXITING))) {
     // Thread is detached so cleanup the resources.
-    if (thread->attrib->owned_stack)
-      free_stack(thread->attrib->stack, thread->attrib->stack_size);
+    cleanup_thread_resources(attrib);
+
+    // Set the CLEAR_TID address to nullptr to prevent the kernel
+    // from signalling at a non-existent futex location.
+    __llvm_libc::syscall(SYS_set_tid_address, 0);
   }
 
   __llvm_libc::syscall(SYS_exit, retval);
@@ -139,6 +152,9 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
     owned_stack = true;
   }
 
+  TLSDescriptor tls;
+  init_tls(tls);
+
   // When the new thread is spawned by the kernel, the new thread gets the
   // stack we pass to the clone syscall. However, this stack is empty and does
   // not have any local vars present in this function. Hence, one cannot
@@ -154,9 +170,6 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
   adjusted_stack &= ~(uintptr_t(STACK_ALIGNMENT) - 1);
 
   auto *start_args = reinterpret_cast<StartArgs *>(adjusted_stack);
-  start_args->thread = this;
-  start_args->runner = runner;
-  start_args->arg = arg;
 
   attrib =
       reinterpret_cast<ThreadAttributes *>(adjusted_stack + sizeof(StartArgs));
@@ -166,11 +179,17 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
   attrib->stack = stack;
   attrib->stack_size = size;
   attrib->owned_stack = owned_stack;
+  attrib->tls = tls.addr;
+  attrib->tls_size = tls.size;
+
+  start_args->thread_attrib = attrib;
+  start_args->runner = runner;
+  start_args->arg = arg;
 
   auto clear_tid = reinterpret_cast<cpp::Atomic<FutexWordType> *>(
       adjusted_stack + sizeof(StartArgs) + sizeof(ThreadAttributes));
   clear_tid->val = CLEAR_TID_VALUE;
-  platform_data = clear_tid;
+  attrib->platform_data = clear_tid;
 
   // The clone syscall takes arguments in an architecture specific order.
   // Also, we want the result of the syscall to be in a register as the child
@@ -182,14 +201,14 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
       SYS_clone, CLONE_SYSCALL_FLAGS, adjusted_stack,
       &attrib->tid,    // The address where the child tid is written
       &clear_tid->val, // The futex where the child thread status is signalled
-      0                // Set TLS to null for now.
+      tls.tp           // The thread pointer value for the new thread.
   );
 #elif defined(LLVM_LIBC_ARCH_AARCH64)
   long register clone_result asm("x0");
   clone_result = __llvm_libc::syscall(
       SYS_clone, CLONE_SYSCALL_FLAGS, adjusted_stack,
       &attrib->tid,   // The address where the child tid is written
-      0,              // Set TLS to null for now.
+      tls.tp,         // The thread pointer value for the new thread.
       &clear_tid->val // The futex where the child thread status is signalled
   );
 #else
@@ -204,8 +223,7 @@ int Thread::run(ThreadStyle style, ThreadRunner runner, void *arg, void *stack,
 #endif
     start_thread();
   } else if (clone_result < 0) {
-    if (attrib->owned_stack)
-      free_stack(attrib->stack, attrib->stack_size);
+    cleanup_thread_resources(attrib);
     return -clone_result;
   }
 
@@ -220,8 +238,7 @@ int Thread::join(ThreadReturnValue &retval) {
   else
     retval.stdc_retval = attrib->retval.stdc_retval;
 
-  if (attrib->owned_stack)
-    free_stack(attrib->stack, attrib->stack_size);
+  cleanup_thread_resources(attrib);
 
   return 0;
 }
@@ -238,8 +255,8 @@ int Thread::detach() {
   // and free up resources.
   wait();
 
-  if (attrib->owned_stack)
-    free_stack(attrib->stack, attrib->stack_size);
+  cleanup_thread_resources(attrib);
+
   return int(DetachType::CLEANUP);
 }
 
@@ -248,13 +265,17 @@ void Thread::wait() {
   // If not, it is a spurious wake and we should continue to wait on
   // the futex.
   auto *clear_tid =
-      reinterpret_cast<cpp::Atomic<FutexWordType> *>(platform_data);
+      reinterpret_cast<cpp::Atomic<FutexWordType> *>(attrib->platform_data);
   while (clear_tid->load() != 0) {
     // We cannot do a FUTEX_WAIT_PRIVATE here as the kernel does a
     // FUTEX_WAKE and not a FUTEX_WAKE_PRIVATE.
     __llvm_libc::syscall(SYS_futex, &clear_tid->val, FUTEX_WAIT,
                          CLEAR_TID_VALUE, nullptr);
   }
+}
+
+bool Thread::operator==(const Thread &thread) const {
+  return attrib->tid == thread.attrib->tid;
 }
 
 } // namespace __llvm_libc

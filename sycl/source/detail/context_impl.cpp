@@ -199,6 +199,15 @@ bool context_impl::hasDevice(
   return false;
 }
 
+DeviceImplPtr
+context_impl::findMatchingDeviceImpl(RT::PiDevice &DevicePI) const {
+  for (device D : MDevices)
+    if (getSyclObjImpl(D)->getHandleRef() == DevicePI)
+      return getSyclObjImpl(D);
+
+  return nullptr;
+}
+
 pi_native_handle context_impl::getNative() const {
   auto Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)

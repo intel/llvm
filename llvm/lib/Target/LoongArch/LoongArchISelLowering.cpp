@@ -21,6 +21,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/KnownBits.h"
 
 using namespace llvm;
 
@@ -50,6 +51,7 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SHL_PARTS, GRLenVT, Custom);
   setOperationAction(ISD::SRA_PARTS, GRLenVT, Custom);
   setOperationAction(ISD::SRL_PARTS, GRLenVT, Custom);
+  setOperationAction(ISD::FP_TO_SINT, GRLenVT, Custom);
 
   setOperationAction({ISD::GlobalAddress, ISD::ConstantPool}, GRLenVT, Custom);
 
@@ -57,6 +59,10 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::SHL, MVT::i32, Custom);
     setOperationAction(ISD::SRA, MVT::i32, Custom);
     setOperationAction(ISD::SRL, MVT::i32, Custom);
+    setOperationAction(ISD::FP_TO_SINT, MVT::i32, Custom);
+    setOperationAction(ISD::BITCAST, MVT::i32, Custom);
+    if (Subtarget.hasBasicF() && !Subtarget.hasBasicD())
+      setOperationAction(ISD::FP_TO_UINT, MVT::i32, Custom);
   }
 
   static const ISD::CondCode FPCCToExpand[] = {ISD::SETOGT, ISD::SETOGE,
@@ -70,15 +76,18 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
     setCondCodeAction(FPCCToExpand, MVT::f64, Expand);
     setOperationAction(ISD::SELECT_CC, MVT::f64, Expand);
     setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
+    setLoadExtAction(ISD::EXTLOAD, MVT::f64, MVT::f32, Expand);
   }
 
   setOperationAction(ISD::BR_CC, GRLenVT, Expand);
   setOperationAction(ISD::SELECT_CC, GRLenVT, Expand);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
   setOperationAction({ISD::SMUL_LOHI, ISD::UMUL_LOHI}, GRLenVT, Expand);
-
   if (!Subtarget.is64Bit())
     setLibcallName(RTLIB::MUL_I128, nullptr);
+
+  setOperationAction(ISD::FP_TO_UINT, GRLenVT, Custom);
+  setOperationAction(ISD::UINT_TO_FP, GRLenVT, Custom);
 
   // Compute derived properties from the register classes.
   computeRegisterProperties(STI.getRegisterInfo());
@@ -87,11 +96,14 @@ LoongArchTargetLowering::LoongArchTargetLowering(const TargetMachine &TM,
 
   setBooleanContents(ZeroOrOneBooleanContent);
 
+  setMaxAtomicSizeInBitsSupported(Subtarget.getGRLen());
+
   // Function alignments.
   const Align FunctionAlignment(4);
   setMinFunctionAlignment(FunctionAlignment);
 
   setTargetDAGCombine(ISD::AND);
+  setTargetDAGCombine(ISD::OR);
   setTargetDAGCombine(ISD::SRL);
 }
 
@@ -117,7 +129,63 @@ SDValue LoongArchTargetLowering::LowerOperation(SDValue Op,
     return SDValue();
   case ISD::ConstantPool:
     return lowerConstantPool(Op, DAG);
+  case ISD::FP_TO_SINT:
+    return lowerFP_TO_SINT(Op, DAG);
+  case ISD::BITCAST:
+    return lowerBITCAST(Op, DAG);
+  case ISD::FP_TO_UINT:
+    return SDValue();
+  case ISD::UINT_TO_FP:
+    return lowerUINT_TO_FP(Op, DAG);
   }
+}
+
+SDValue LoongArchTargetLowering::lowerUINT_TO_FP(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+  auto &TLI = DAG.getTargetLoweringInfo();
+  SDValue Tmp1, Tmp2;
+  SDValue Op1 = Op.getOperand(0);
+  if (Op1->getOpcode() == ISD::AssertZext ||
+      Op1->getOpcode() == ISD::AssertSext)
+    return Op;
+  SDValue Trunc = DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Op.getOperand(0));
+  SDValue Res = DAG.getNode(ISD::UINT_TO_FP, DL, MVT::f64, Trunc);
+  SDNode *N = Res.getNode();
+  TLI.expandUINT_TO_FP(N, Tmp1, Tmp2, DAG);
+  return Tmp1;
+}
+
+SDValue LoongArchTargetLowering::lowerBITCAST(SDValue Op,
+                                              SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+  SDValue Op0 = Op.getOperand(0);
+
+  if (Op.getValueType() == MVT::f32 && Op0.getValueType() == MVT::i32 &&
+      Subtarget.is64Bit() && Subtarget.hasBasicF()) {
+    SDValue NewOp0 = DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i64, Op0);
+    return DAG.getNode(LoongArchISD::MOVGR2FR_W_LA64, DL, MVT::f32, NewOp0);
+  }
+  return Op;
+}
+
+SDValue LoongArchTargetLowering::lowerFP_TO_SINT(SDValue Op,
+                                                 SelectionDAG &DAG) const {
+
+  SDLoc DL(Op);
+
+  if (Op.getValueSizeInBits() > 32 && Subtarget.hasBasicF() &&
+      !Subtarget.hasBasicD()) {
+    SDValue Dst =
+        DAG.getNode(LoongArchISD::FTINT, DL, MVT::f32, Op.getOperand(0));
+    return DAG.getNode(LoongArchISD::MOVFR2GR_S_LA64, DL, MVT::i64, Dst);
+  }
+
+  EVT FPTy = EVT::getFloatingPointVT(Op.getValueSizeInBits());
+  SDValue Trunc = DAG.getNode(LoongArchISD::FTINT, DL, FPTy, Op.getOperand(0));
+  return DAG.getNode(ISD::BITCAST, DL, Op.getValueType(), Trunc);
 }
 
 SDValue LoongArchTargetLowering::lowerConstantPool(SDValue Op,
@@ -299,6 +367,36 @@ void LoongArchTargetLowering::ReplaceNodeResults(
       break;
     }
     break;
+  case ISD::FP_TO_SINT: {
+    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+           "Unexpected custom legalisation");
+    SDValue Src = N->getOperand(0);
+    EVT VT = EVT::getFloatingPointVT(N->getValueSizeInBits(0));
+    SDValue Dst = DAG.getNode(LoongArchISD::FTINT, DL, VT, Src);
+    Results.push_back(DAG.getNode(ISD::BITCAST, DL, N->getValueType(0), Dst));
+    break;
+  }
+  case ISD::BITCAST: {
+    EVT VT = N->getValueType(0);
+    SDValue Src = N->getOperand(0);
+    EVT SrcVT = Src.getValueType();
+    if (VT == MVT::i32 && SrcVT == MVT::f32 && Subtarget.is64Bit() &&
+        Subtarget.hasBasicF()) {
+      SDValue Dst =
+          DAG.getNode(LoongArchISD::MOVFR2GR_S_LA64, DL, MVT::i64, Src);
+      Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Dst));
+    }
+    break;
+  }
+  case ISD::FP_TO_UINT: {
+    assert(N->getValueType(0) == MVT::i32 && Subtarget.is64Bit() &&
+           "Unexpected custom legalisation");
+    auto &TLI = DAG.getTargetLoweringInfo();
+    SDValue Tmp1, Tmp2;
+    TLI.expandFP_TO_UINT(N, Tmp1, Tmp2, DAG);
+    Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Tmp1));
+    break;
+  }
   }
 }
 
@@ -406,6 +504,224 @@ static SDValue performSRLCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+static SDValue performORCombine(SDNode *N, SelectionDAG &DAG,
+                                TargetLowering::DAGCombinerInfo &DCI,
+                                const LoongArchSubtarget &Subtarget) {
+  MVT GRLenVT = Subtarget.getGRLenVT();
+  EVT ValTy = N->getValueType(0);
+  SDValue N0 = N->getOperand(0), N1 = N->getOperand(1);
+  ConstantSDNode *CN0, *CN1;
+  SDLoc DL(N);
+  unsigned ValBits = ValTy.getSizeInBits();
+  unsigned MaskIdx0, MaskLen0, MaskIdx1, MaskLen1;
+  unsigned Shamt;
+  bool SwapAndRetried = false;
+
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
+
+  if (ValBits != 32 && ValBits != 64)
+    return SDValue();
+
+Retry:
+  // 1st pattern to match BSTRINS:
+  //  R = or (and X, mask0), (and (shl Y, lsb), mask1)
+  //  where mask1 = (2**size - 1) << lsb, mask0 = ~mask1
+  //  =>
+  //  R = BSTRINS X, Y, msb, lsb (where msb = lsb + size - 1)
+  if (N0.getOpcode() == ISD::AND &&
+      (CN0 = dyn_cast<ConstantSDNode>(N0.getOperand(1))) &&
+      isShiftedMask_64(~CN0->getSExtValue(), MaskIdx0, MaskLen0) &&
+      N1.getOpcode() == ISD::AND && N1.getOperand(0).getOpcode() == ISD::SHL &&
+      (CN1 = dyn_cast<ConstantSDNode>(N1.getOperand(1))) &&
+      isShiftedMask_64(CN1->getZExtValue(), MaskIdx1, MaskLen1) &&
+      MaskIdx0 == MaskIdx1 && MaskLen0 == MaskLen1 &&
+      (CN1 = dyn_cast<ConstantSDNode>(N1.getOperand(0).getOperand(1))) &&
+      (Shamt = CN1->getZExtValue()) == MaskIdx0 &&
+      (MaskIdx0 + MaskLen0 <= ValBits)) {
+    LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 1\n");
+    return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0.getOperand(0),
+                       N1.getOperand(0).getOperand(0),
+                       DAG.getConstant((MaskIdx0 + MaskLen0 - 1), DL, GRLenVT),
+                       DAG.getConstant(MaskIdx0, DL, GRLenVT));
+  }
+
+  // 2nd pattern to match BSTRINS:
+  //  R = or (and X, mask0), (shl (and Y, mask1), lsb)
+  //  where mask1 = (2**size - 1), mask0 = ~(mask1 << lsb)
+  //  =>
+  //  R = BSTRINS X, Y, msb, lsb (where msb = lsb + size - 1)
+  if (N0.getOpcode() == ISD::AND &&
+      (CN0 = dyn_cast<ConstantSDNode>(N0.getOperand(1))) &&
+      isShiftedMask_64(~CN0->getSExtValue(), MaskIdx0, MaskLen0) &&
+      N1.getOpcode() == ISD::SHL && N1.getOperand(0).getOpcode() == ISD::AND &&
+      (CN1 = dyn_cast<ConstantSDNode>(N1.getOperand(1))) &&
+      (Shamt = CN1->getZExtValue()) == MaskIdx0 &&
+      (CN1 = dyn_cast<ConstantSDNode>(N1.getOperand(0).getOperand(1))) &&
+      isShiftedMask_64(CN1->getZExtValue(), MaskIdx1, MaskLen1) &&
+      MaskLen0 == MaskLen1 && MaskIdx1 == 0 &&
+      (MaskIdx0 + MaskLen0 <= ValBits)) {
+    LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 2\n");
+    return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0.getOperand(0),
+                       N1.getOperand(0).getOperand(0),
+                       DAG.getConstant((MaskIdx0 + MaskLen0 - 1), DL, GRLenVT),
+                       DAG.getConstant(MaskIdx0, DL, GRLenVT));
+  }
+
+  // 3rd pattern to match BSTRINS:
+  //  R = or (and X, mask0), (and Y, mask1)
+  //  where ~mask0 = (2**size - 1) << lsb, mask0 & mask1 = 0
+  //  =>
+  //  R = BSTRINS X, (shr (and Y, mask1), lsb), msb, lsb
+  //  where msb = lsb + size - 1
+  if (N0.getOpcode() == ISD::AND && N1.getOpcode() == ISD::AND &&
+      (CN0 = dyn_cast<ConstantSDNode>(N0.getOperand(1))) &&
+      isShiftedMask_64(~CN0->getSExtValue(), MaskIdx0, MaskLen0) &&
+      (MaskIdx0 + MaskLen0 <= 64) &&
+      (CN1 = dyn_cast<ConstantSDNode>(N1->getOperand(1))) &&
+      (CN1->getSExtValue() & CN0->getSExtValue()) == 0) {
+    LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 3\n");
+    return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0.getOperand(0),
+                       DAG.getNode(ISD::SRL, DL, N1->getValueType(0), N1,
+                                   DAG.getConstant(MaskIdx0, DL, GRLenVT)),
+                       DAG.getConstant(ValBits == 32
+                                           ? (MaskIdx0 + (MaskLen0 & 31) - 1)
+                                           : (MaskIdx0 + MaskLen0 - 1),
+                                       DL, GRLenVT),
+                       DAG.getConstant(MaskIdx0, DL, GRLenVT));
+  }
+
+  // 4th pattern to match BSTRINS:
+  //  R = or (and X, mask), (shl Y, shamt)
+  //  where mask = (2**shamt - 1)
+  //  =>
+  //  R = BSTRINS X, Y, ValBits - 1, shamt
+  //  where ValBits = 32 or 64
+  if (N0.getOpcode() == ISD::AND && N1.getOpcode() == ISD::SHL &&
+      (CN0 = dyn_cast<ConstantSDNode>(N0.getOperand(1))) &&
+      isShiftedMask_64(CN0->getZExtValue(), MaskIdx0, MaskLen0) &&
+      MaskIdx0 == 0 && (CN1 = dyn_cast<ConstantSDNode>(N1.getOperand(1))) &&
+      (Shamt = CN1->getZExtValue()) == MaskLen0 &&
+      (MaskIdx0 + MaskLen0 <= ValBits)) {
+    LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 4\n");
+    return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0.getOperand(0),
+                       N1.getOperand(0),
+                       DAG.getConstant((ValBits - 1), DL, GRLenVT),
+                       DAG.getConstant(Shamt, DL, GRLenVT));
+  }
+
+  // 5th pattern to match BSTRINS:
+  //  R = or (and X, mask), const
+  //  where ~mask = (2**size - 1) << lsb, mask & const = 0
+  //  =>
+  //  R = BSTRINS X, (const >> lsb), msb, lsb
+  //  where msb = lsb + size - 1
+  if (N0.getOpcode() == ISD::AND &&
+      (CN0 = dyn_cast<ConstantSDNode>(N0.getOperand(1))) &&
+      isShiftedMask_64(~CN0->getSExtValue(), MaskIdx0, MaskLen0) &&
+      (CN1 = dyn_cast<ConstantSDNode>(N1)) &&
+      (CN1->getSExtValue() & CN0->getSExtValue()) == 0) {
+    LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 5\n");
+    return DAG.getNode(
+        LoongArchISD::BSTRINS, DL, ValTy, N0.getOperand(0),
+        DAG.getConstant(CN1->getSExtValue() >> MaskIdx0, DL, ValTy),
+        DAG.getConstant((MaskIdx0 + MaskLen0 - 1), DL, GRLenVT),
+        DAG.getConstant(MaskIdx0, DL, GRLenVT));
+  }
+
+  // 6th pattern.
+  // a = b | ((c & mask) << shamt), where all positions in b to be overwritten
+  // by the incoming bits are known to be zero.
+  // =>
+  // a = BSTRINS b, c, shamt + MaskLen - 1, shamt
+  //
+  // Note that the 1st pattern is a special situation of the 6th, i.e. the 6th
+  // pattern is more common than the 1st. So we put the 1st before the 6th in
+  // order to match as many nodes as possible.
+  ConstantSDNode *CNMask, *CNShamt;
+  unsigned MaskIdx, MaskLen;
+  if (N1.getOpcode() == ISD::SHL && N1.getOperand(0).getOpcode() == ISD::AND &&
+      (CNMask = dyn_cast<ConstantSDNode>(N1.getOperand(0).getOperand(1))) &&
+      isShiftedMask_64(CNMask->getZExtValue(), MaskIdx, MaskLen) &&
+      MaskIdx == 0 && (CNShamt = dyn_cast<ConstantSDNode>(N1.getOperand(1))) &&
+      CNShamt->getZExtValue() + MaskLen <= ValBits) {
+    Shamt = CNShamt->getZExtValue();
+    APInt ShMask(ValBits, CNMask->getZExtValue() << Shamt);
+    if (ShMask.isSubsetOf(DAG.computeKnownBits(N0).Zero)) {
+      LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 6\n");
+      return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0,
+                         N1.getOperand(0).getOperand(0),
+                         DAG.getConstant(Shamt + MaskLen - 1, DL, GRLenVT),
+                         DAG.getConstant(Shamt, DL, GRLenVT));
+    }
+  }
+
+  // 7th pattern.
+  // a = b | ((c << shamt) & shifted_mask), where all positions in b to be
+  // overwritten by the incoming bits are known to be zero.
+  // =>
+  // a = BSTRINS b, c, MaskIdx + MaskLen - 1, MaskIdx
+  //
+  // Similarly, the 7th pattern is more common than the 2nd. So we put the 2nd
+  // before the 7th in order to match as many nodes as possible.
+  if (N1.getOpcode() == ISD::AND &&
+      (CNMask = dyn_cast<ConstantSDNode>(N1.getOperand(1))) &&
+      isShiftedMask_64(CNMask->getZExtValue(), MaskIdx, MaskLen) &&
+      N1.getOperand(0).getOpcode() == ISD::SHL &&
+      (CNShamt = dyn_cast<ConstantSDNode>(N1.getOperand(0).getOperand(1))) &&
+      CNShamt->getZExtValue() == MaskIdx) {
+    APInt ShMask(ValBits, CNMask->getZExtValue());
+    if (ShMask.isSubsetOf(DAG.computeKnownBits(N0).Zero)) {
+      LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 7\n");
+      return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0,
+                         N1.getOperand(0).getOperand(0),
+                         DAG.getConstant(MaskIdx + MaskLen - 1, DL, GRLenVT),
+                         DAG.getConstant(MaskIdx, DL, GRLenVT));
+    }
+  }
+
+  // (or a, b) and (or b, a) are equivalent, so swap the operands and retry.
+  if (!SwapAndRetried) {
+    std::swap(N0, N1);
+    SwapAndRetried = true;
+    goto Retry;
+  }
+
+  SwapAndRetried = false;
+Retry2:
+  // 8th pattern.
+  // a = b | (c & shifted_mask), where all positions in b to be overwritten by
+  // the incoming bits are known to be zero.
+  // =>
+  // a = BSTRINS b, c >> MaskIdx, MaskIdx + MaskLen - 1, MaskIdx
+  //
+  // Similarly, the 8th pattern is more common than the 4th and 5th patterns. So
+  // we put it here in order to match as many nodes as possible or generate less
+  // instructions.
+  if (N1.getOpcode() == ISD::AND &&
+      (CNMask = dyn_cast<ConstantSDNode>(N1.getOperand(1))) &&
+      isShiftedMask_64(CNMask->getZExtValue(), MaskIdx, MaskLen)) {
+    APInt ShMask(ValBits, CNMask->getZExtValue());
+    if (ShMask.isSubsetOf(DAG.computeKnownBits(N0).Zero)) {
+      LLVM_DEBUG(dbgs() << "Perform OR combine: match pattern 8\n");
+      return DAG.getNode(LoongArchISD::BSTRINS, DL, ValTy, N0,
+                         DAG.getNode(ISD::SRL, DL, N1->getValueType(0),
+                                     N1->getOperand(0),
+                                     DAG.getConstant(MaskIdx, DL, GRLenVT)),
+                         DAG.getConstant(MaskIdx + MaskLen - 1, DL, GRLenVT),
+                         DAG.getConstant(MaskIdx, DL, GRLenVT));
+    }
+  }
+  // Swap N0/N1 and retry.
+  if (!SwapAndRetried) {
+    std::swap(N0, N1);
+    SwapAndRetried = true;
+    goto Retry2;
+  }
+
+  return SDValue();
+}
+
 SDValue LoongArchTargetLowering::PerformDAGCombine(SDNode *N,
                                                    DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -414,6 +730,8 @@ SDValue LoongArchTargetLowering::PerformDAGCombine(SDNode *N,
     break;
   case ISD::AND:
     return performANDCombine(N, DAG, DCI, Subtarget);
+  case ISD::OR:
+    return performORCombine(N, DAG, DCI, Subtarget);
   case ISD::SRL:
     return performSRLCombine(N, DAG, DCI, Subtarget);
   }
@@ -483,7 +801,11 @@ const char *LoongArchTargetLowering::getTargetNodeName(unsigned Opcode) const {
     NODE_NAME_CASE(SLL_W)
     NODE_NAME_CASE(SRA_W)
     NODE_NAME_CASE(SRL_W)
+    NODE_NAME_CASE(BSTRINS)
     NODE_NAME_CASE(BSTRPICK)
+    NODE_NAME_CASE(MOVGR2FR_W_LA64)
+    NODE_NAME_CASE(MOVFR2GR_S_LA64)
+    NODE_NAME_CASE(FTINT)
   }
 #undef NODE_NAME_CASE
   return nullptr;
