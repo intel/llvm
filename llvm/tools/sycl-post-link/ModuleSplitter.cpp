@@ -146,6 +146,9 @@ groupEntryPointsByKernelType(const ModuleDesc &MD,
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
+    // Entry points should not be inlined
+    auto F1 = MD.getModule().getFunction(F.getName());
+    F1->addFnAttr(Attribute::NoInline);
 
     if (isESIMDFunction(F))
       EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
@@ -196,6 +199,9 @@ EntryPointGroupVec groupEntryPointsByScope(const ModuleDesc &MD,
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
+    // Entry points should not be inlined
+    auto F1 = MD.getModule().getFunction(F.getName());
+    F1->addFnAttr(Attribute::NoInline);
 
     switch (EntryScope) {
     case Scope_PerKernel:
@@ -255,6 +261,10 @@ groupEntryPointsByAttribute(const ModuleDesc &MD, StringRef AttrName,
         !MD.isEntryPointCandidate(F)) {
       continue;
     }
+    // Entry points should not be inlined
+    auto F1 = MD.getModule().getFunction(F.getName());
+    F1->addFnAttr(Attribute::NoInline);
+
     if (F.hasFnAttribute(AttrName)) {
       EntryPointMap[AttrName].insert(&F);
     } else {
