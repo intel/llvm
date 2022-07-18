@@ -78,7 +78,7 @@ plugin interface (PI) layer `initialize()` call. In this call, we will
 perform two operations:
 
 1. Initialize all listeners and create a trace event to represent the graph.
-This is done in `sycl/include/CL/sycl/detail/pi.cpp`.
+This is done in `sycl/include/sycl/detail/pi.cpp`.
 2. Send a `graph_create` event to all subscribers. This notification
 will only be sent once.
 

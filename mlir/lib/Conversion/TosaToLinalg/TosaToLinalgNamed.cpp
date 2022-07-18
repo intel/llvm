@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -61,7 +61,7 @@ static mlir::Value applyPad(Location loc, Value input, ArrayRef<int64_t> pad,
   return tensor::createPadScalarOp(RankedTensorType::get(paddedShape, inputETy),
                                    input, padValue, lowIndices, highIndices,
                                    /*nofold=*/false, loc, rewriter)
-      .result();
+      .getResult();
 }
 
 static mlir::Value reifyConstantDim(Attribute attr,
@@ -540,7 +540,7 @@ public:
       return success();
     }
 
-    auto quantizationInfo = op.quantization_info().getValue();
+    auto quantizationInfo = *op.quantization_info();
     auto aZp = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI32IntegerAttr(quantizationInfo.getAZp()));
     auto bZp = rewriter.create<arith::ConstantOp>(
@@ -650,7 +650,7 @@ public:
       return success();
     }
 
-    auto quantizationInfo = op.quantization_info().getValue();
+    auto quantizationInfo = *op.quantization_info();
     auto inputZp = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI32IntegerAttr(quantizationInfo.getInputZp()));
     auto outputZp = rewriter.create<arith::ConstantOp>(
@@ -694,9 +694,9 @@ public:
 
     auto dynamicDimsOr =
         checkHasDynamicBatchDims(rewriter, op, {input, op.output()});
-    if (!dynamicDimsOr.hasValue())
+    if (!dynamicDimsOr.has_value())
       return failure();
-    SmallVector<Value> dynamicDims = dynamicDimsOr.getValue();
+    SmallVector<Value> dynamicDims = dynamicDimsOr.value();
 
     // Determine what the initial value needs to be for the max pool op.
     Attribute initialAttr;
@@ -771,9 +771,9 @@ public:
 
     auto dynamicDimsOr =
         checkHasDynamicBatchDims(rewriter, op, {input, op.output()});
-    if (!dynamicDimsOr.hasValue())
+    if (!dynamicDimsOr.has_value())
       return failure();
-    SmallVector<Value> dynamicDims = dynamicDimsOr.getValue();
+    SmallVector<Value> dynamicDims = dynamicDimsOr.value();
 
     // Apply padding as necessary.
     llvm::SmallVector<int64_t> pad;
@@ -890,7 +890,7 @@ public:
             // If we have quantization information we need to apply an offset
             // for the input zp value.
             if (op.quantization_info()) {
-              auto quantizationInfo = op.quantization_info().getValue();
+              auto quantizationInfo = *op.quantization_info();
               auto inputZp = rewriter.create<arith::ConstantOp>(
                   loc, b.getIntegerAttr(accETy, quantizationInfo.getInputZp()));
               Value offset =
@@ -926,7 +926,7 @@ public:
             // If we have quantization information we need to apply output
             // zeropoint.
             if (op.quantization_info()) {
-              auto quantizationInfo = op.quantization_info().getValue();
+              auto quantizationInfo = *op.quantization_info();
               auto outputZp = rewriter.create<arith::ConstantOp>(
                   loc, b.getIntegerAttr(scaled.getType(),
                                         quantizationInfo.getOutputZp()));

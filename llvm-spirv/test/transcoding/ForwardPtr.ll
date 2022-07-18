@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 < %s | llvm-spirv -spirv-ext=+all -o %t.spv
+; RUN: llvm-as < %s | llvm-spirv -spirv-ext=+all -o %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM

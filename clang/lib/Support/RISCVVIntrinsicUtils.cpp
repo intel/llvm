@@ -31,10 +31,6 @@ const PrototypeDescriptor PrototypeDescriptor::VL =
 const PrototypeDescriptor PrototypeDescriptor::Vector =
     PrototypeDescriptor(BaseTypeModifier::Vector);
 
-// Concat BasicType, LMUL and Proto as key
-static std::unordered_map<uint64_t, RVVType> LegalTypes;
-static std::set<uint64_t> IllegalTypes;
-
 //===----------------------------------------------------------------------===//
 // Type implementation
 //===----------------------------------------------------------------------===//
@@ -114,11 +110,11 @@ bool RVVType::verifyType() const {
     return false;
   if (isScalar())
     return true;
-  if (!Scale.hasValue())
+  if (!Scale)
     return false;
   if (isFloat() && ElementBitwidth == 8)
     return false;
-  unsigned V = Scale.getValue();
+  unsigned V = Scale.value();
   switch (ElementBitwidth) {
   case 1:
   case 8:
@@ -213,7 +209,7 @@ void RVVType::initBuiltinStr() {
       BuiltinStr += "*";
     return;
   }
-  BuiltinStr = "q" + utostr(Scale.getValue()) + BuiltinStr;
+  BuiltinStr = "q" + utostr(*Scale) + BuiltinStr;
   // Pointer to vector types. Defined for segment load intrinsics.
   // segment load intrinsics have pointer type arguments to store the loaded
   // vector values.
@@ -228,7 +224,7 @@ void RVVType::initClangBuiltinStr() {
   ClangBuiltinStr = "__rvv_";
   switch (ScalarType) {
   case ScalarTypeKind::Boolean:
-    ClangBuiltinStr += "bool" + utostr(64 / Scale.getValue()) + "_t";
+    ClangBuiltinStr += "bool" + utostr(64 / *Scale) + "_t";
     return;
   case ScalarTypeKind::Float:
     ClangBuiltinStr += "float";
@@ -282,7 +278,7 @@ void RVVType::initTypeStr() {
     else
       // Vector bool is special case, the formulate is
       // `vbool<N>_t = MVT::nxv<64/N>i1` ex. vbool16_t = MVT::4i1
-      Str += "vbool" + utostr(64 / Scale.getValue()) + "_t";
+      Str += "vbool" + utostr(64 / *Scale) + "_t";
     break;
   case ScalarTypeKind::Float:
     if (isScalar()) {
@@ -314,7 +310,7 @@ void RVVType::initShortStr() {
   switch (ScalarType) {
   case ScalarTypeKind::Boolean:
     assert(isVector());
-    ShortStr = "b" + utostr(64 / Scale.getValue());
+    ShortStr = "b" + utostr(64 / *Scale);
     return;
   case ScalarTypeKind::Float:
     ShortStr = "f" + utostr(ElementBitwidth);
@@ -799,10 +795,10 @@ RVVType::computeTypes(BasicType BT, int Log2LMUL, unsigned NF,
   RVVTypes Types;
   for (const PrototypeDescriptor &Proto : Prototype) {
     auto T = computeType(BT, Log2LMUL, Proto);
-    if (!T.hasValue())
+    if (!T)
       return llvm::None;
     // Record legal type index
-    Types.push_back(T.getValue());
+    Types.push_back(T.value());
   }
   return Types;
 }
@@ -822,6 +818,9 @@ static uint64_t computeRVVTypeHashValue(BasicType BT, int Log2LMUL,
 
 Optional<RVVTypePtr> RVVType::computeType(BasicType BT, int Log2LMUL,
                                           PrototypeDescriptor Proto) {
+  // Concat BasicType, LMUL and Proto as key
+  static std::unordered_map<uint64_t, RVVType> LegalTypes;
+  static std::set<uint64_t> IllegalTypes;
   uint64_t Idx = computeRVVTypeHashValue(BT, Log2LMUL, Proto);
   // Search first
   auto It = LegalTypes.find(Idx);
@@ -926,7 +925,7 @@ std::string RVVIntrinsic::getSuffixStr(
   SmallVector<std::string> SuffixStrs;
   for (auto PD : PrototypeDescriptors) {
     auto T = RVVType::computeType(Type, Log2LMUL, PD);
-    SuffixStrs.push_back(T.getValue()->getShortStr());
+    SuffixStrs.push_back((*T)->getShortStr());
   }
   return join(SuffixStrs, "_");
 }

@@ -21,6 +21,7 @@
 #ifndef LLVM_ANALYSIS_TARGETTRANSFORMINFO_H
 #define LLVM_ANALYSIS_TARGETTRANSFORMINFO_H
 
+#include "llvm/ADT/SmallBitVector.h"
 #include "llvm/IR/FMF.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
@@ -158,6 +159,8 @@ public:
 
   bool skipScalarizationCost() const { return ScalarizationCost.isValid(); }
 };
+
+enum class PredicationStyle { None, Data, DataAndControlFlow };
 
 class TargetTransformInfo;
 typedef TargetTransformInfo TTI;
@@ -530,8 +533,12 @@ public:
                                    const LoopAccessInfo *LAI) const;
 
   /// Query the target whether lowering of the llvm.get.active.lane.mask
-  /// intrinsic is supported.
-  bool emitGetActiveLaneMask() const;
+  /// intrinsic is supported and how the mask should be used. A return value
+  /// of PredicationStyle::Data indicates the mask is used as data only,
+  /// whereas PredicationStyle::DataAndControlFlow indicates we should also use
+  /// the mask for control flow in the loop. If unsupported the return value is
+  /// PredicationStyle::None.
+  PredicationStyle emitGetActiveLaneMask() const;
 
   // Parameters that control the loop peeling transformation
   struct PeelingPreferences {
@@ -678,6 +685,16 @@ public:
   /// Return true if the target supports masked expand load.
   bool isLegalMaskedExpandLoad(Type *DataType) const;
 
+  /// Return true if this is an alternating opcode pattern that can be lowered
+  /// to a single instruction on the target. In X86 this is for the addsub
+  /// instruction which corrsponds to a Shuffle + Fadd + FSub pattern in IR.
+  /// This function expectes two opcodes: \p Opcode1 and \p Opcode2 being
+  /// selected by \p OpcodeMask. The mask contains one bit per lane and is a `0`
+  /// when \p Opcode0 is selected and `1` when Opcode1 is selected.
+  /// \p VecTy is the vector type of the instruction to be generated.
+  bool isLegalAltInstr(VectorType *VecTy, unsigned Opcode0, unsigned Opcode1,
+                       const SmallBitVector &OpcodeMask) const;
+
   /// Return true if we should be enabling ordered reductions for the target.
   bool enableOrderedReductions() const;
 
@@ -764,6 +781,9 @@ public:
   /// return true here so that insertion/extraction costs are not added to
   /// the scalarization cost of a load/store.
   bool supportsEfficientVectorElementLoadStore() const;
+
+  /// If the target supports tail calls.
+  bool supportsTailCalls() const;
 
   /// Don't restrict interleaved unrolling to small loops.
   bool enableAggressiveInterleaving(bool LoopHasReductions) const;
@@ -1539,7 +1559,7 @@ public:
   preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
                               AssumptionCache &AC, TargetLibraryInfo *TLI,
                               DominatorTree *DT, const LoopAccessInfo *LAI) = 0;
-  virtual bool emitGetActiveLaneMask() = 0;
+  virtual PredicationStyle emitGetActiveLaneMask() = 0;
   virtual Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
                                                        IntrinsicInst &II) = 0;
   virtual Optional<Value *>
@@ -1581,6 +1601,9 @@ public:
                                            Align Alignment) = 0;
   virtual bool isLegalMaskedCompressStore(Type *DataType) = 0;
   virtual bool isLegalMaskedExpandLoad(Type *DataType) = 0;
+  virtual bool isLegalAltInstr(VectorType *VecTy, unsigned Opcode0,
+                               unsigned Opcode1,
+                               const SmallBitVector &OpcodeMask) const = 0;
   virtual bool enableOrderedReductions() = 0;
   virtual bool hasDivRemOp(Type *DataType, bool IsSigned) = 0;
   virtual bool hasVolatileVariant(Instruction *I, unsigned AddrSpace) = 0;
@@ -1607,6 +1630,7 @@ public:
   getOperandsScalarizationOverhead(ArrayRef<const Value *> Args,
                                    ArrayRef<Type *> Tys) = 0;
   virtual bool supportsEfficientVectorElementLoadStore() = 0;
+  virtual bool supportsTailCalls() = 0;
   virtual bool enableAggressiveInterleaving(bool LoopHasReductions) = 0;
   virtual MemCmpExpansionOptions
   enableMemCmpExpansion(bool OptSize, bool IsZeroCmp) const = 0;
@@ -1914,7 +1938,7 @@ public:
                                    const LoopAccessInfo *LAI) override {
     return Impl.preferPredicateOverEpilogue(L, LI, SE, AC, TLI, DT, LAI);
   }
-  bool emitGetActiveLaneMask() override {
+  PredicationStyle emitGetActiveLaneMask() override {
     return Impl.emitGetActiveLaneMask();
   }
   Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
@@ -2006,6 +2030,10 @@ public:
   bool isLegalMaskedExpandLoad(Type *DataType) override {
     return Impl.isLegalMaskedExpandLoad(DataType);
   }
+  bool isLegalAltInstr(VectorType *VecTy, unsigned Opcode0, unsigned Opcode1,
+                       const SmallBitVector &OpcodeMask) const override {
+    return Impl.isLegalAltInstr(VecTy, Opcode0, Opcode1, OpcodeMask);
+  }
   bool enableOrderedReductions() override {
     return Impl.enableOrderedReductions();
   }
@@ -2064,6 +2092,8 @@ public:
   bool supportsEfficientVectorElementLoadStore() override {
     return Impl.supportsEfficientVectorElementLoadStore();
   }
+
+  bool supportsTailCalls() override { return Impl.supportsTailCalls(); }
 
   bool enableAggressiveInterleaving(bool LoopHasReductions) override {
     return Impl.enableAggressiveInterleaving(LoopHasReductions);

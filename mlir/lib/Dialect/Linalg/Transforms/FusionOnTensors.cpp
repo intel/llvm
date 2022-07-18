@@ -186,7 +186,7 @@ static LinalgOp getTiledProducer(OpBuilder &b, OpResult producerResult,
   LinalgOp clonedOp = producerOp.clone(b, loc, resultTypes, tiledOperands);
 
   // Shift all IndexOp results by the tile offset.
-  addTileLoopIvsToIndexOpResults(b, clonedOp, allIvs);
+  offsetIndices(b, clonedOp, allIvs);
 
   return clonedOp;
 }
@@ -256,7 +256,7 @@ bool TileLoopNest::hasOtherUses(BlockArgument bbArg,
     }
     if (auto insertSliceOp = dyn_cast<tensor::InsertSliceOp>(op)) {
       SetVector<Operation *> backwardSlice;
-      getBackwardSlice(insertSliceOp.source(), &backwardSlice,
+      getBackwardSlice(insertSliceOp.getSource(), &backwardSlice,
                        [](Operation *op) {
                          return isa<LinalgOp, tensor::InsertSliceOp>(op);
                        });
@@ -288,8 +288,7 @@ LogicalResult TileLoopNest::tileRootOp(
                       .setTileSizes(tileSizes)
                       .setLoopType(LinalgTilingLoopType::Loops);
   if (tileDistribution)
-    tilingOptions =
-        tilingOptions.setDistributionOptions(tileDistribution.getValue());
+    tilingOptions = tilingOptions.setDistributionOptions(*tileDistribution);
 
   // TODO: Propagate RewriterBase everywhere.
   IRRewriter rewriter(b);
@@ -359,8 +358,8 @@ FailureOr<LinalgOp> TileLoopNest::fuseProducer(OpBuilder &b,
 
   // Check if the producer is a LinalgOp possibly passed by iteration argument.
   OpOperand *iterArg = nullptr;
-  auto producerResult = sliceOp.source().dyn_cast<OpResult>();
-  if (auto bbArg = sliceOp.source().dyn_cast<BlockArgument>()) {
+  auto producerResult = sliceOp.getSource().dyn_cast<OpResult>();
+  if (auto bbArg = sliceOp.getSource().dyn_cast<BlockArgument>()) {
     iterArg = getTiedIterArg(bbArg);
     // Check the iteration argument may be used to pass in the producer output.
     if (!iterArg || hasOtherUses(bbArg, sliceOp))

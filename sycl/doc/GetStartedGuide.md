@@ -563,7 +563,7 @@ A simple DPC++ or SYCL\* program consists of following parts:
 Creating a file `simple-sycl-app.cpp` with the following C++/SYCL code:
 
 ```c++
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   // Creating buffer of 4 ints to be used inside the kernel code
@@ -737,7 +737,7 @@ The example below illustrates how to use `cl::sycl::device_selector` to create
 device and queue objects bound to Intel GPU device:
 
 ```c++
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   class NEOGPUDeviceSelector : public cl::sycl::device_selector {

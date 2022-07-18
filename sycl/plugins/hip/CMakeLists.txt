@@ -12,8 +12,8 @@ set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUD
 # Create pi_hip library
 add_sycl_plugin(hip
   SOURCES
-    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-    "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_hip.hpp"
     "pi_hip.cpp"
   INCLUDE_DIRS
@@ -36,9 +36,6 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
 
   # Set HIP define to select AMD platform
   target_compile_definitions(pi_hip PRIVATE __HIP_PLATFORM_AMD__)
-
-  # Make sure lld is built as part of the toolchain
-  add_dependencies(sycl-toolchain lld)
 elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
   # Import CUDA libraries
   find_package(CUDA REQUIRED)

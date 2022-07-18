@@ -139,6 +139,9 @@ VisitGlobalVariableForEmission(const GlobalVariable *GV,
 }
 
 void NVPTXAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  NVPTX_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                        getSubtargetInfo().getFeatureBits());
+
   MCInst Inst;
   lowerToMCInst(MI, Inst);
   EmitToStreamer(*OutStreamer, Inst);
@@ -1427,7 +1430,7 @@ void NVPTXAsmPrinter::emitFunctionParamList(const Function *F, raw_ostream &O) {
                                     paramIndex](Type *Ty) -> Align {
       Align TypeAlign = TLI->getFunctionParamOptimizedAlign(F, Ty, DL);
       MaybeAlign ParamAlign = PAL.getParamAlignment(paramIndex);
-      return max(TypeAlign, ParamAlign);
+      return std::max(TypeAlign, ParamAlign.valueOrOne());
     };
 
     if (!PAL.hasParamAttr(paramIndex, Attribute::ByVal)) {

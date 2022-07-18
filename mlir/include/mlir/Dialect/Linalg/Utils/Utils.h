@@ -11,7 +11,7 @@
 
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 
@@ -31,6 +31,15 @@ class LinalgDependenceGraph;
 //===----------------------------------------------------------------------===//
 // General utilities
 //===----------------------------------------------------------------------===//
+
+/// Check if all indexing maps are projected permutations.
+bool allIndexingsAreProjectedPermutation(LinalgOp op);
+
+/// Detect whether `r` has only ConstantOp, ElementwiseMappable and YieldOp.
+bool hasOnlyScalarElementwiseOp(Region &r);
+
+/// Check if a LinalgOp is an element-wise operation.
+bool isElementwise(LinalgOp op);
 
 /// Check if `permutation` is a permutation of the range
 /// `[0, permutation.size())`.
@@ -134,6 +143,15 @@ GenericOp makeTransposeOp(OpBuilder &b, Location loc, Value inputTensor,
 /// or vectorize.
 GenericOp makeMemRefCopyOp(OpBuilder &b, Location loc, Value from, Value to);
 
+/// Get the reassociation maps to fold the result of a extract_slice (or source
+/// of a insert_slice) operation with given offsets, and sizes to its
+/// rank-reduced version. This is only done for the cases where the size is 1
+/// and offset is 0. Strictly speaking the offset 0 is not required in general,
+/// but non-zero offsets are not handled by SPIR-V backend at this point (and
+/// potentially cannot be handled).
+Optional<SmallVector<ReassociationIndices>>
+getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes);
+
 //===----------------------------------------------------------------------===//
 // Fusion / Tiling utilities
 //===----------------------------------------------------------------------===//
@@ -159,18 +177,43 @@ bool isProducerLastWriteOfView(const LinalgDependenceGraph &graph,
 bool isFusableInto(const LinalgDependenceGraph &graph, LinalgOp consumer,
                    Value consumedView, LinalgOp producer);
 
-/// Compute tile offsets, given a list of loop `ivs` and `tileSizes`. In case a
+/// Creates either a memref.subview or a tensor.extract_slice with the given
+/// offsets/sizes/strides based on the type of `value`.
+Value createSlice(OpBuilder &builder, Location loc, Value value,
+                  ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
+                  ArrayRef<OpFoldResult> strides);
+
+/// Computes tile offsets, given a list of loop `ivs` and `tileSizes`. In case a
 /// tile size is zero (i.e., no tiling), the corresponding offset is also zero.
 SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
                                       ValueRange ivs, ValueRange tileSizes);
 
-/// Compute tile sizes, given a list of `tileSizes` and dimension
+/// Computes tile sizes, given a list of `tileSizes` and dimension
 /// sizes (`sizeBounds`). In case a tile size is zero (i.e., no tiling), the
 /// corresponding result size is the corresponding value from `sizeBounds`.
 /// Note: The returned tile sizes are closed intervals.
 SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc,
                                     ValueRange tileSizes,
                                     ArrayRef<Value> sizeBounds);
+
+/// Returns the list of tensor output types produced when the given structured
+/// operation `op` is applied to the given `operands`. Note that `operands` are
+/// not necessarily the actual operands of `op`.
+SmallVector<Type> getTensorOutputTypes(LinalgOp op, ValueRange operands);
+
+/// Creates `insert_slice` ops that insert `results` back into larger tensors
+/// they were originally extracted from with `extract_slice` before being passed
+/// as `operands` to the given structured operation `op` or its clone. Note that
+/// `operands` are not necessarily the actual operands of `op`, the operation
+/// serves only as metadata container for operand types and positions.
+SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
+                                    LinalgOp op, ValueRange operands,
+                                    ValueRange results);
+
+/// Turns an OpFoldResult into a value, creating an index-typed constant if
+/// necessary.
+Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
+                              OpFoldResult opFoldResult);
 
 /// Creates an extract_slice/subview op for a single `valueToTile` with
 /// `builder`. This new operation extracts a tile of `valueToTile`, starting
@@ -200,10 +243,11 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &builder, Location loc,
                                       ArrayRef<Value> sizeBounds,
                                       bool omitPartialTileCheck);
 
-/// Add the tile loop induction variables `ivs` to the IndexOp results found in
-/// the body of the `tiledOp` to account for the tile offset.
-void addTileLoopIvsToIndexOpResults(OpBuilder &b, LinalgOp tiledOp,
-                                    ArrayRef<Value> ivs);
+/// Add the specified offsets to any `linalg.index` ops contained in the given
+/// `linalgOp`. The offsets are provided in the same order as iteration space
+/// dimensions. Null offests are assumed to be zero.
+void offsetIndices(OpBuilder &b, LinalgOp linalgOp, ArrayRef<Value> offests);
+void offsetIndices(RewriterBase &b, LinalgOp linalgOp, ArrayRef<Value> offests);
 
 using FusableOpDependencesTy = llvm::MapVector<
     Operation *,

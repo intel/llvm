@@ -222,8 +222,8 @@ Constant *AA::getInitialValueForObj(Value &Obj, Type &Ty,
                                     const TargetLibraryInfo *TLI) {
   if (isa<AllocaInst>(Obj))
     return UndefValue::get(&Ty);
-  if (isAllocationFn(&Obj, TLI))
-    return getInitialValueOfAllocation(&cast<CallBase>(Obj), TLI, &Ty);
+  if (Constant *Init = getInitialValueOfAllocation(&Obj, TLI, &Ty))
+    return Init;
   auto *GV = dyn_cast<GlobalVariable>(&Obj);
   if (!GV)
     return nullptr;
@@ -297,11 +297,11 @@ AA::combineOptionalValuesInAAValueLatice(const Optional<Value *> &A,
                                          const Optional<Value *> &B, Type *Ty) {
   if (A == B)
     return A;
-  if (!B.hasValue())
+  if (!B)
     return A;
   if (*B == nullptr)
     return nullptr;
-  if (!A.hasValue())
+  if (!A)
     return Ty ? getWithType(**B, *Ty) : nullptr;
   if (*A == nullptr)
     return nullptr;
@@ -709,7 +709,7 @@ Argument *IRPosition::getAssociatedArgument() const {
 
       assert(ACS.getCalledFunction()->arg_size() > u &&
              "ACS mapped into var-args arguments!");
-      if (CBCandidateArg.hasValue()) {
+      if (CBCandidateArg) {
         CBCandidateArg = nullptr;
         break;
       }
@@ -718,8 +718,8 @@ Argument *IRPosition::getAssociatedArgument() const {
   }
 
   // If we found a unique callback candidate argument, return it.
-  if (CBCandidateArg.hasValue() && CBCandidateArg.getValue())
-    return CBCandidateArg.getValue();
+  if (CBCandidateArg && CBCandidateArg.value())
+    return CBCandidateArg.value();
 
   // If no callbacks were found, or none used the underlying call site operand
   // exclusively, use the direct callee argument if available.
@@ -1030,7 +1030,7 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
   // assume it's simplified.
   for (auto &CB : SimplificationCallbacks.lookup(IRP)) {
     Optional<Value *> SimplifiedV = CB(IRP, &AA, UsedAssumedInformation);
-    if (!SimplifiedV.hasValue())
+    if (!SimplifiedV)
       return llvm::None;
     if (isa_and_nonnull<Constant>(*SimplifiedV))
       return cast<Constant>(*SimplifiedV);
@@ -1044,15 +1044,15 @@ Attributor::getAssumedConstant(const IRPosition &IRP,
       ValueSimplifyAA.getAssumedSimplifiedValue(*this);
   bool IsKnown = ValueSimplifyAA.isAtFixpoint();
   UsedAssumedInformation |= !IsKnown;
-  if (!SimplifiedV.hasValue()) {
+  if (!SimplifiedV) {
     recordDependence(ValueSimplifyAA, AA, DepClassTy::OPTIONAL);
     return llvm::None;
   }
-  if (isa_and_nonnull<UndefValue>(SimplifiedV.getValue())) {
+  if (isa_and_nonnull<UndefValue>(SimplifiedV.value())) {
     recordDependence(ValueSimplifyAA, AA, DepClassTy::OPTIONAL);
     return UndefValue::get(IRP.getAssociatedType());
   }
-  Constant *CI = dyn_cast_or_null<Constant>(SimplifiedV.getValue());
+  Constant *CI = dyn_cast_or_null<Constant>(SimplifiedV.value());
   if (CI)
     CI = dyn_cast_or_null<Constant>(
         AA::getWithType(*CI, *IRP.getAssociatedType()));
@@ -1078,7 +1078,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
       ValueSimplifyAA.getAssumedSimplifiedValue(*this);
   bool IsKnown = ValueSimplifyAA.isAtFixpoint();
   UsedAssumedInformation |= !IsKnown;
-  if (!SimplifiedV.hasValue()) {
+  if (!SimplifiedV) {
     if (AA)
       recordDependence(ValueSimplifyAA, *AA, DepClassTy::OPTIONAL);
     return llvm::None;
@@ -1097,7 +1097,7 @@ Attributor::getAssumedSimplified(const IRPosition &IRP,
 Optional<Value *> Attributor::translateArgumentToCallSiteContent(
     Optional<Value *> V, CallBase &CB, const AbstractAttribute &AA,
     bool &UsedAssumedInformation) {
-  if (!V.hasValue())
+  if (!V)
     return V;
   if (*V == nullptr || isa<Constant>(*V))
     return V;
@@ -1642,7 +1642,7 @@ void Attributor::runTillFixpoint() {
 
   unsigned IterationCounter = 1;
   unsigned MaxIterations =
-      Configuration.MaxFixpointIterations.getValueOr(SetFixpointIterations);
+      Configuration.MaxFixpointIterations.value_or(SetFixpointIterations);
 
   SmallVector<AbstractAttribute *, 32> ChangedAAs;
   SetVector<AbstractAttribute *> Worklist, InvalidAAs;
@@ -2695,10 +2695,10 @@ void InformationCache::initializeInformationCache(const Function &CF,
     while (!Worklist.empty()) {
       const Instruction *I = Worklist.pop_back_val();
       Optional<short> &NumUses = AssumeUsesMap[I];
-      if (!NumUses.hasValue())
+      if (!NumUses)
         NumUses = I->getNumUses();
-      NumUses = NumUses.getValue() - /* this assume */ 1;
-      if (NumUses.getValue() != 0)
+      NumUses = NumUses.value() - /* this assume */ 1;
+      if (NumUses.value() != 0)
         continue;
       AssumeOnlyValues.insert(I);
       for (const Value *Op : I->operands())
@@ -3159,7 +3159,7 @@ raw_ostream &llvm::operator<<(raw_ostream &OS,
   OS << " [" << Acc.getKind() << "] " << *Acc.getRemoteInst();
   if (Acc.getLocalInst() != Acc.getRemoteInst())
     OS << " via " << *Acc.getLocalInst();
-  if (Acc.getContent().hasValue()) {
+  if (Acc.getContent()) {
     if (*Acc.getContent())
       OS << " [" << **Acc.getContent() << "]";
     else

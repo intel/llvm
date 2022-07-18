@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/accessor.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/accessor.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 #include <sycl/ext/oneapi/atomic_ref.hpp>
 

@@ -19,9 +19,8 @@ namespace bolt {
 
 bool ThreeWayBranch::shouldRunOnFunction(BinaryFunction &Function) {
   BinaryContext &BC = Function.getBinaryContext();
-  BinaryFunction::BasicBlockOrderType BlockLayout = Function.getLayout();
-  for (BinaryBasicBlock *BB : BlockLayout)
-    for (MCInst &Inst : *BB)
+  for (const BinaryBasicBlock &BB : Function)
+    for (const MCInst &Inst : BB)
       if (BC.MIB->isPacked(Inst))
         return false;
   return true;
@@ -101,12 +100,10 @@ void ThreeWayBranch::runOnFunction(BinaryFunction &Function) {
     Blocks.push_back(std::make_pair(SecondEndpoint, SecondCC));
     Blocks.push_back(std::make_pair(ThirdEndpoint, ThirdCC));
 
-    std::sort(Blocks.begin(), Blocks.end(),
-              [&](const std::pair<BinaryBasicBlock *, unsigned> A,
-                  const std::pair<BinaryBasicBlock *, unsigned> B) {
-                return A.first->getExecutionCount() <
-                       B.first->getExecutionCount();
-              });
+    llvm::sort(Blocks, [&](const std::pair<BinaryBasicBlock *, unsigned> A,
+                           const std::pair<BinaryBasicBlock *, unsigned> B) {
+      return A.first->getExecutionCount() < B.first->getExecutionCount();
+    });
 
     uint64_t NewSecondBranchCount = Blocks[1].first->getExecutionCount() +
                                     Blocks[0].first->getExecutionCount();

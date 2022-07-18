@@ -554,6 +554,14 @@ public:
     return MI.getDesc().TSFlags & SIInstrFlags::EXP;
   }
 
+  static bool isDualSourceBlendEXP(const MachineInstr &MI) {
+    if (!isEXP(MI))
+      return false;
+    unsigned Target = MI.getOperand(0).getImm();
+    return Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND0 ||
+           Target == AMDGPU::Exp::ET_DUAL_SRC_BLEND1;
+  }
+
   bool isEXP(uint16_t Opcode) const {
     return get(Opcode).TSFlags & SIInstrFlags::EXP;
   }
@@ -663,6 +671,14 @@ public:
 
   static bool isDOT(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::IsDOT;
+  }
+
+  static bool isWMMA(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsWMMA;
+  }
+
+  bool isWMMA(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsWMMA;
   }
 
   bool isDOT(uint16_t Opcode) const {
@@ -1224,6 +1240,9 @@ namespace AMDGPU {
 
   LLVM_READONLY
   int getDPPOp32(uint16_t Opcode);
+
+  LLVM_READONLY
+  int getDPPOp64(uint16_t Opcode);
 
   LLVM_READONLY
   int getBasicFromSDWAOp(uint16_t Opcode);

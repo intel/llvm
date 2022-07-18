@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/event.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <memory>
 #include <unordered_set>
@@ -22,7 +22,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-event::event() : impl(std::make_shared<detail::event_impl>()) {}
+event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
 event::event(cl_event ClEvent, const context &SyclContext)
     : impl(std::make_shared<detail::event_impl>(
@@ -75,7 +75,7 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
     return impl->get_info<info::param_type::param>();                          \
   }
 
-#include <CL/sycl/info/event_traits.def>
+#include <sycl/info/event_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -87,7 +87,7 @@ event::event(std::shared_ptr<detail::event_impl> event_impl)
     return impl->get_profiling_info<info::param_type::param>();                \
   }
 
-#include <CL/sycl/info/event_profiling_traits.def>
+#include <sycl/info/event_profiling_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

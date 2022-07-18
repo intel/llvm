@@ -8,17 +8,18 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
 #include <condition_variable>
+#include <optional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -43,7 +44,10 @@ public:
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl(HostEventState State = HES_Complete);
+  /// Normally constructs a host event, use std::nullopt to instead instantiate
+  /// a device event.
+  event_impl(std::optional<HostEventState> State = HES_Complete);
+
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the

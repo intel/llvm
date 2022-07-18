@@ -446,7 +446,9 @@ public:
   /// `load` must be a LHS array_load. Returns `llvm::None` on error.
   llvm::Optional<size_t> findArgPosition(fir::ArrayLoadOp load);
 
-  bool isLHS(fir::ArrayLoadOp load) { return findArgPosition(load).hasValue(); }
+  bool isLHS(fir::ArrayLoadOp load) {
+    return findArgPosition(load).has_value();
+  }
 
   /// `load` must be a LHS array_load. Determine the threaded inner argument
   /// corresponding to this load.
@@ -465,14 +467,14 @@ public:
 
   llvm::Optional<fir::ArrayLoadOp> getLhsLoad(size_t i) {
     assert(i < lhsBases.size());
-    if (lhsBases[counter].hasValue())
+    if (lhsBases[counter])
       return findBinding(lhsBases[counter].getValue());
     return llvm::None;
   }
 
   /// Return the outermost loop in this FORALL nest.
   fir::DoLoopOp getOuterLoop() {
-    assert(outerLoop.hasValue());
+    assert(outerLoop.has_value());
     return outerLoop.getValue();
   }
 
@@ -500,11 +502,11 @@ public:
   }
 
   void attachLoopCleanup(std::function<void(fir::FirOpBuilder &builder)> fn) {
-    if (!loopCleanup.hasValue()) {
+    if (!loopCleanup) {
       loopCleanup = fn;
       return;
     }
-    std::function<void(fir::FirOpBuilder &)> oldFn = loopCleanup.getValue();
+    std::function<void(fir::FirOpBuilder &)> oldFn = *loopCleanup;
     loopCleanup = [=](fir::FirOpBuilder &builder) {
       oldFn(builder);
       fn(builder);

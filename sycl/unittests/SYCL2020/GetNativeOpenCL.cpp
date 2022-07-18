@@ -9,9 +9,9 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 #define __SYCL_INTERNAL_API
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
 #include <detail/context_impl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiMock.hpp>
@@ -127,7 +127,8 @@ TEST(GetNative, GetNativeHandle) {
   sycl::buffer<int, 1> Buffer(&Data[0], sycl::range<1>(1));
   Queue.submit([&](sycl::handler &cgh) {
     auto Acc = Buffer.get_access<sycl::access::mode::read_write>(cgh);
-    cgh.single_task<TestKernel>([=]() { (void)Acc; });
+    constexpr size_t KS = sizeof(decltype(Acc));
+    cgh.single_task<TestKernel<KS>>([=]() { (void)Acc; });
   });
 
   get_native<backend::opencl>(Context);

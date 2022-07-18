@@ -150,6 +150,8 @@ public:
 
   unsigned getMaxInterleaveFactor(unsigned VF);
 
+  bool prefersVectorizedAddressing() const;
+
   InstructionCost getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
                                         Align Alignment, unsigned AddressSpace,
                                         TTI::TargetCostKind CostKind);
@@ -332,8 +334,10 @@ public:
     return 2;
   }
 
-  bool emitGetActiveLaneMask() const {
-    return ST->hasSVE();
+  PredicationStyle emitGetActiveLaneMask() const {
+    if (ST->hasSVE())
+      return PredicationStyle::DataAndControlFlow;
+    return PredicationStyle::None;
   }
 
   bool supportsScalableVectors() const { return ST->hasSVE(); }

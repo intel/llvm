@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/atomic.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/atomic.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/multi_ptr.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/multi_ptr.hpp>
 #endif
 
 #ifndef __SYCL_DEVICE_ONLY__

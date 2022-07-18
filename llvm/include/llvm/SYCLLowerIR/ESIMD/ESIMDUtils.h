@@ -1,4 +1,4 @@
-//===----------- ESIMDUtils.hpp - ESIMD t-forms-related utility functions  ===//
+//===------------ ESIMDUtils.h - ESIMD utility functions ------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -34,6 +34,16 @@ void traverseCallgraphUp(Function *F, CallGraphNodeActionF ActionF,
 
 // Tells whether given function is a ESIMD kernel.
 bool isESIMDKernel(const Function &F);
+
+/// Reports and error with the message \p Msg concatenated with the optional
+/// \p OptMsg if \p Condition is false.
+inline void assert_and_diag(bool Condition, StringRef Msg,
+                            StringRef OptMsg = "") {
+  if (!Condition) {
+    auto T = Twine(Msg) + OptMsg;
+    llvm::report_fatal_error(T, true /* crash diagnostics */);
+  }
+}
 
 } // namespace esimd
 } // namespace llvm

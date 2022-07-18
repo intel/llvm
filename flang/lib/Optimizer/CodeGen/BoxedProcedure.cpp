@@ -221,7 +221,8 @@ public:
           if (embox.getHost()) {
             // Create the thunk.
             auto module = embox->getParentOfType<mlir::ModuleOp>();
-            FirOpBuilder builder(rewriter, getKindMapping(module));
+            fir::KindMapping kindMap = getKindMapping(module);
+            FirOpBuilder builder(rewriter, kindMap);
             auto loc = embox.getLoc();
             mlir::Type i8Ty = builder.getI8Type();
             mlir::Type i8Ptr = builder.getRefType(i8Ty);
@@ -252,10 +253,10 @@ public:
             auto toTy = typeConverter.convertType(unwrapRefType(ty));
             bool isPinned = mem.getPinned();
             llvm::StringRef uniqName;
-            if (mem.getUniqName().hasValue())
+            if (mem.getUniqName())
               uniqName = mem.getUniqName().getValue();
             llvm::StringRef bindcName;
-            if (mem.getBindcName().hasValue())
+            if (mem.getBindcName())
               bindcName = mem.getBindcName().getValue();
             rewriter.replaceOpWithNewOp<AllocaOp>(
                 mem, toTy, uniqName, bindcName, isPinned, mem.getTypeparams(),
@@ -267,10 +268,10 @@ public:
             rewriter.setInsertionPoint(mem);
             auto toTy = typeConverter.convertType(unwrapRefType(ty));
             llvm::StringRef uniqName;
-            if (mem.getUniqName().hasValue())
+            if (mem.getUniqName())
               uniqName = mem.getUniqName().getValue();
             llvm::StringRef bindcName;
-            if (mem.getBindcName().hasValue())
+            if (mem.getBindcName())
               bindcName = mem.getBindcName().getValue();
             rewriter.replaceOpWithNewOp<AllocMemOp>(
                 mem, toTy, uniqName, bindcName, mem.getTypeparams(),
@@ -307,7 +308,7 @@ public:
             auto toTy = typeConverter.convertType(ty);
             auto toOnTy = typeConverter.convertType(onTy);
             rewriter.replaceOpWithNewOp<LenParamIndexOp>(
-                mem, toTy, index.getFieldId(), toOnTy);
+                mem, toTy, index.getFieldId(), toOnTy, index.getTypeparams());
           }
         } else if (op->getDialect() == firDialect) {
           rewriter.startRootUpdate(op);

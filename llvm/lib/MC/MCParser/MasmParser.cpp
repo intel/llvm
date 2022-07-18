@@ -1190,7 +1190,7 @@ bool MasmParser::expandMacros() {
     }
   }
 
-  if (!ExpandedValue.hasValue())
+  if (!ExpandedValue)
     return true;
   std::unique_ptr<MemoryBuffer> Instantiation =
       MemoryBuffer::getMemBufferCopy(*ExpandedValue, "<instantiation>");
@@ -1585,6 +1585,16 @@ bool MasmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc,
       Res = MCUnaryExpr::createNot(Res, getContext(), FirstTokenLoc);
       return false;
     }
+    // Parse directional local label references.
+    if (Identifier.equals_insensitive("@b") ||
+        Identifier.equals_insensitive("@f")) {
+      bool Before = Identifier.equals_insensitive("@b");
+      MCSymbol *Sym = getContext().getDirectionalLocalSymbol(0, Before);
+      if (Before && Sym->isUndefined())
+        return Error(FirstTokenLoc, "Expected @@ label before @B reference");
+      Res = MCSymbolRefExpr::create(Sym, getContext());
+      return false;
+    }
     // Parse symbol variant.
     std::pair<StringRef, StringRef> Split;
     if (!MAI.useParensForSymbolVariant()) {
@@ -1714,34 +1724,10 @@ bool MasmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc,
   case AsmToken::BigNum:
     return TokError("literal value out of range for directive");
   case AsmToken::Integer: {
-    SMLoc Loc = getTok().getLoc();
     int64_t IntVal = getTok().getIntVal();
     Res = MCConstantExpr::create(IntVal, getContext());
     EndLoc = Lexer.getTok().getEndLoc();
     Lex(); // Eat token.
-    // Look for 'b' or 'f' following an Integer as a directional label.
-    if (Lexer.getKind() == AsmToken::Identifier) {
-      StringRef IDVal = getTok().getString();
-      // Look up the symbol variant if used.
-      std::pair<StringRef, StringRef> Split = IDVal.split('@');
-      MCSymbolRefExpr::VariantKind Variant = MCSymbolRefExpr::VK_None;
-      if (Split.first.size() != IDVal.size()) {
-        Variant = MCSymbolRefExpr::getVariantKindForName(Split.second);
-        if (Variant == MCSymbolRefExpr::VK_Invalid)
-          return TokError("invalid variant '" + Split.second + "'");
-        IDVal = Split.first;
-      }
-      if (IDVal == "f" || IDVal == "b") {
-        MCSymbol *Sym =
-            Ctx.getDirectionalLocalSymbol(IntVal, IDVal == "b");
-        Res = MCSymbolRefExpr::create(Sym, Variant, getContext());
-        if (IDVal == "b" && Sym->isUndefined())
-          return Error(Loc, "directional label undefined");
-        DirLabels.push_back(std::make_tuple(Loc, CppHashInfo, Sym));
-        EndLoc = Lexer.getTok().getEndLoc();
-        Lex(); // Eat identifier.
-      }
-    }
     return false;
   }
   case AsmToken::String: {
@@ -2042,6 +2028,9 @@ bool MasmParser::parseBinOpRHS(unsigned Precedence, const MCExpr *&Res,
                     .CaseLower("and", AsmToken::Amp)
                     .CaseLower("not", AsmToken::Exclaim)
                     .CaseLower("or", AsmToken::Pipe)
+                    .CaseLower("xor", AsmToken::Caret)
+                    .CaseLower("shl", AsmToken::LessLess)
+                    .CaseLower("shr", AsmToken::GreaterGreater)
                     .CaseLower("eq", AsmToken::EqualEqual)
                     .CaseLower("ne", AsmToken::ExclaimEqual)
                     .CaseLower("lt", AsmToken::Less)
@@ -2110,29 +2099,9 @@ bool MasmParser::parseStatement(ParseStatementInfo &Info,
   AsmToken ID = getTok();
   SMLoc IDLoc = ID.getLoc();
   StringRef IDVal;
-  int64_t LocalLabelVal = -1;
   if (Lexer.is(AsmToken::HashDirective))
     return parseCppHashLineFilenameComment(IDLoc);
-  // Allow an integer followed by a ':' as a directional local label.
-  if (Lexer.is(AsmToken::Integer)) {
-    LocalLabelVal = getTok().getIntVal();
-    if (LocalLabelVal < 0) {
-      if (!TheCondState.Ignore) {
-        Lex(); // always eat a token
-        return Error(IDLoc, "unexpected token at start of statement");
-      }
-      IDVal = "";
-    } else {
-      IDVal = getTok().getString();
-      Lex(); // Consume the integer token to be used as an identifier token.
-      if (Lexer.getKind() != AsmToken::Colon) {
-        if (!TheCondState.Ignore) {
-          Lex(); // always eat a token
-          return Error(IDLoc, "unexpected token at start of statement");
-        }
-      }
-    }
-  } else if (Lexer.is(AsmToken::Dot)) {
+  if (Lexer.is(AsmToken::Dot)) {
     // Treat '.' as a valid identifier in this context.
     Lex();
     IDVal = ".";
@@ -2257,19 +2226,22 @@ bool MasmParser::parseStatement(ParseStatementInfo &Info,
     // FIXME: This doesn't diagnose assignment to a symbol which has been
     // implicitly marked as external.
     MCSymbol *Sym;
-    if (LocalLabelVal == -1) {
-      if (ParsingMSInlineAsm && SI) {
-        StringRef RewrittenLabel =
-            SI->LookupInlineAsmLabel(IDVal, getSourceManager(), IDLoc, true);
-        assert(!RewrittenLabel.empty() &&
-               "We should have an internal name here.");
-        Info.AsmRewrites->emplace_back(AOK_Label, IDLoc, IDVal.size(),
-                                       RewrittenLabel);
-        IDVal = RewrittenLabel;
-      }
+    if (ParsingMSInlineAsm && SI) {
+      StringRef RewrittenLabel =
+          SI->LookupInlineAsmLabel(IDVal, getSourceManager(), IDLoc, true);
+      assert(!RewrittenLabel.empty() &&
+             "We should have an internal name here.");
+      Info.AsmRewrites->emplace_back(AOK_Label, IDLoc, IDVal.size(),
+                                     RewrittenLabel);
+      IDVal = RewrittenLabel;
+    }
+    // Handle directional local labels
+    if (IDVal == "@@") {
+      Sym = Ctx.createDirectionalLocalSymbol(0);
+    } else {
       Sym = getContext().getOrCreateSymbol(IDVal);
-    } else
-      Sym = Ctx.createDirectionalLocalSymbol(LocalLabelVal);
+    }
+
     // End of Labels should be treated as end of line for lexing
     // purposes but that information is not available to the Lexer who
     // does not understand Labels. This may cause us to see a Hash
@@ -2902,7 +2874,7 @@ bool MasmParser::expandMacro(raw_svector_ostream &OS, StringRef Body,
       if (Body[Pos] == '&')
         break;
       if (isMacroParameterChar(Body[Pos])) {
-        if (!CurrentQuote.hasValue())
+        if (!CurrentQuote)
           break;
         if (IdentifierPos == End)
           IdentifierPos = Pos;
@@ -2911,7 +2883,7 @@ bool MasmParser::expandMacro(raw_svector_ostream &OS, StringRef Body,
       }
 
       // Track quotation status
-      if (!CurrentQuote.hasValue()) {
+      if (!CurrentQuote) {
         if (Body[Pos] == '\'' || Body[Pos] == '"')
           CurrentQuote = Body[Pos];
       } else if (Body[Pos] == CurrentQuote) {
@@ -3330,7 +3302,7 @@ bool MasmParser::handleMacroInvocation(const MCAsmMacro *M, SMLoc NameLoc) {
     ParseStatementInfo Info(&AsmStrRewrites);
     bool Parsed = parseStatement(Info, nullptr);
 
-    if (!Parsed && Info.ExitValue.hasValue()) {
+    if (!Parsed && Info.ExitValue) {
       ExitValue = std::move(*Info.ExitValue);
       break;
     }
@@ -3625,7 +3597,7 @@ bool MasmParser::parseTextItem(std::string &Data) {
       if (BuiltinIt != BuiltinSymbolMap.end()) {
         llvm::Optional<std::string> BuiltinText =
             evaluateBuiltinTextMacro(BuiltinIt->getValue(), StartLoc);
-        if (!BuiltinText.hasValue()) {
+        if (!BuiltinText) {
           // Not a text macro; break without substituting
           break;
         }
@@ -4239,9 +4211,9 @@ bool MasmParser::parseStructInitializer(const StructInfo &Structure,
 
   auto &FieldInitializers = Initializer.FieldInitializers;
   size_t FieldIndex = 0;
-  if (EndToken.hasValue()) {
+  if (EndToken) {
     // Initialize all fields with given initializers.
-    while (getTok().isNot(EndToken.getValue()) &&
+    while (getTok().isNot(EndToken.value()) &&
            FieldIndex < Structure.Fields.size()) {
       const FieldInfo &Field = Structure.Fields[FieldIndex++];
       if (parseOptionalToken(AsmToken::Comma)) {
@@ -4272,11 +4244,11 @@ bool MasmParser::parseStructInitializer(const StructInfo &Structure,
     FieldInitializers.push_back(Field.Contents);
   }
 
-  if (EndToken.hasValue()) {
-    if (EndToken.getValue() == AsmToken::Greater)
+  if (EndToken) {
+    if (EndToken.value() == AsmToken::Greater)
       return parseAngleBracketClose();
 
-    return parseToken(EndToken.getValue());
+    return parseToken(EndToken.value());
   }
 
   return false;

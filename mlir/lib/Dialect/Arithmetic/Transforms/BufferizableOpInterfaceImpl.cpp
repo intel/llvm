@@ -23,8 +23,13 @@ struct ConstantOpInterface
     : public BufferizableOpInterface::ExternalModel<ConstantOpInterface,
                                                     arith::ConstantOp> {
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     auto constantOp = cast<arith::ConstantOp>(op);
+
+    // TODO: Implement memory space for this op. E.g., by adding a memory_space
+    // attribute to ConstantOp.
+    if (options.defaultMemorySpace != static_cast<unsigned>(0))
+      return op->emitError("memory space not implemented yet");
 
     // Only ranked tensors are supported.
     if (!constantOp.getType().isa<RankedTensorType>())
@@ -38,12 +43,12 @@ struct ConstantOpInterface
     // Create global memory segment and replace tensor with memref pointing to
     // that memory segment.
     FailureOr<memref::GlobalOp> globalOp =
-        getGlobalFor(constantOp, state.getOptions().bufferAlignment);
+        getGlobalFor(constantOp, options.bufferAlignment);
     if (failed(globalOp))
       return failure();
-    memref::GlobalOp globalMemref = globalOp.getValue();
+    memref::GlobalOp globalMemref = *globalOp;
     replaceOpWithNewBufferizedOp<memref::GetGlobalOp>(
-        rewriter, op, globalMemref.type(), globalMemref.getName());
+        rewriter, op, globalMemref.getType(), globalMemref.getName());
 
     return success();
   }
@@ -80,12 +85,14 @@ struct IndexCastOpInterface
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     auto castOp = cast<arith::IndexCastOp>(op);
     auto resultTensorType = castOp.getType().cast<TensorType>();
 
-    Value source = *state.getBuffer(rewriter, op->getOpOperand(0) /*in*/);
-    auto sourceType = source.getType().cast<BaseMemRefType>();
+    FailureOr<Value> source = getBuffer(rewriter, castOp.getIn(), options);
+    if (failed(source))
+      return failure();
+    auto sourceType = source->getType().cast<BaseMemRefType>();
 
     // Result type should have same layout and address space as the source type.
     BaseMemRefType resultType;
@@ -100,7 +107,7 @@ struct IndexCastOpInterface
     }
 
     replaceOpWithNewBufferizedOp<arith::IndexCastOp>(rewriter, op, resultType,
-                                                     source);
+                                                     *source);
     return success();
   }
 };
@@ -132,19 +139,26 @@ struct SelectOpInterface
   }
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
-                          BufferizationState &state) const {
+                          const BufferizationOptions &options) const {
     auto selectOp = cast<arith::SelectOp>(op);
     Location loc = selectOp.getLoc();
 
-    // `getBuffer` introduces copies if an OpOperand bufferizes out-of-place.
     // TODO: It would be more efficient to copy the result of the `select` op
     // instead of its OpOperands. In the worst case, 2 copies are inserted at
     // the moment (one for each tensor). When copying the op result, only one
     // copy would be needed.
-    Value trueBuffer =
-        *state.getBuffer(rewriter, selectOp->getOpOperand(1) /*true_value*/);
-    Value falseBuffer =
-        *state.getBuffer(rewriter, selectOp->getOpOperand(2) /*false_value*/);
+    FailureOr<Value> maybeTrueBuffer =
+        getBuffer(rewriter, selectOp.getTrueValue(), options);
+    FailureOr<Value> maybeFalseBuffer =
+        getBuffer(rewriter, selectOp.getFalseValue(), options);
+    if (failed(maybeTrueBuffer) || failed(maybeFalseBuffer))
+      return failure();
+    Value trueBuffer = *maybeTrueBuffer;
+    Value falseBuffer = *maybeFalseBuffer;
+    BaseMemRefType trueType = trueBuffer.getType().cast<BaseMemRefType>();
+    BaseMemRefType falseType = falseBuffer.getType().cast<BaseMemRefType>();
+    if (trueType.getMemorySpaceAsInt() != falseType.getMemorySpaceAsInt())
+      return op->emitError("inconsistent memory space on true/false operands");
 
     // The "true" and the "false" operands must have the same type. If the
     // buffers have different types, they differ only in their layout map. Cast

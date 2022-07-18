@@ -5,8 +5,6 @@ from lldbsuite.test import lldbutil
 
 class ExprCharTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def do_test(self, dictionary=None):
         """These basic expression commands should work as expected."""
         self.build(dictionary=dictionary)
@@ -40,5 +38,6 @@ class ExprCharTestCase(TestBase):
             'arm64_32'],
         bugnumber="llvm.org/pr23069, <rdar://problem/28721938>")
     @expectedFailureAll(triple='mips*', bugnumber="llvm.org/pr23069")
+    @expectedFailureAll(oslist=['windows'], archs=['aarch64'], bugnumber="llvm.org/pr23069")
     def test_unsigned_char(self):
         self.do_test(dictionary={'CFLAGS_EXTRAS': '-funsigned-char'})

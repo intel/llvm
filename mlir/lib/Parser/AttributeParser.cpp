@@ -11,9 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Parser.h"
+
+#include "AsmParserImpl.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Parser/AsmParserState.h"
 #include "llvm/ADT/StringExtras.h"
@@ -30,6 +33,7 @@ using namespace mlir::detail;
 ///                    | float-literal (`:` float-type)?
 ///                    | string-literal (`:` type)?
 ///                    | type
+///                    | `[` `:` (integer-type | float-type) tensor-literal `]`
 ///                    | `[` (attribute-value (`,` attribute-value)*)? `]`
 ///                    | `{` (attribute-entry (`,` attribute-entry)*)? `}`
 ///                    | symbol-ref-id (`::` symbol-ref-id)*
@@ -67,13 +71,16 @@ Attribute Parser::parseAttribute(Type type) {
 
   // Parse an array attribute.
   case Token::l_square: {
+    consumeToken(Token::l_square);
+    if (consumeIf(Token::colon))
+      return parseDenseArrayAttr();
     SmallVector<Attribute, 4> elements;
     auto parseElt = [&]() -> ParseResult {
       elements.push_back(parseAttribute());
       return elements.back() ? success() : failure();
     };
 
-    if (parseCommaSeparatedList(Delimiter::Square, parseElt))
+    if (parseCommaSeparatedListUntil(Token::r_square, parseElt))
       return nullptr;
     return builder.getArrayAttr(elements);
   }
@@ -206,6 +213,12 @@ Attribute Parser::parseAttribute(Type type) {
     consumeToken(Token::kw_unit);
     return builder.getUnitAttr();
 
+    // Handle completion of an attribute.
+  case Token::code_complete:
+    if (getToken().isCodeCompletionFor(Token::hash_identifier))
+      return parseExtendedAttr(type);
+    return codeCompleteAttribute();
+
   default:
     // Parse a type attribute. We parse `Optional` here to allow for providing a
     // better error message.
@@ -312,7 +325,7 @@ ParseResult Parser::parseAttributeDict(NamedAttrList &attributes) {
 /// Parse a float attribute.
 Attribute Parser::parseFloatAttr(Type type, bool isNegative) {
   auto val = getToken().getFloatingPointValue();
-  if (!val.hasValue())
+  if (!val)
     return (emitError("floating point value too large for attribute"), nullptr);
   consumeToken(Token::floatliteral);
   if (!type) {
@@ -325,7 +338,7 @@ Attribute Parser::parseFloatAttr(Type type, bool isNegative) {
   if (!type.isa<FloatType>())
     return (emitError("floating point value not valid for specified type"),
             nullptr);
-  return FloatAttr::get(type, isNegative ? -val.getValue() : val.getValue());
+  return FloatAttr::get(type, isNegative ? -*val : *val);
 }
 
 /// Construct an APint from a parsed value, a known attribute type and
@@ -512,12 +525,11 @@ ParseResult TensorLiteralParser::parse(bool allowHex) {
 
 /// Build a dense attribute instance with the parsed elements and the given
 /// shaped type.
-DenseElementsAttr TensorLiteralParser::getAttr(SMLoc loc,
-                                               ShapedType type) {
+DenseElementsAttr TensorLiteralParser::getAttr(SMLoc loc, ShapedType type) {
   Type eltType = type.getElementType();
 
   // Check to see if we parse the literal from a hex string.
-  if (hexStorage.hasValue() &&
+  if (hexStorage &&
       (eltType.isIntOrIndexOrFloat() || eltType.isa<ComplexType>()))
     return getHexAttr(loc, type);
 
@@ -530,7 +542,7 @@ DenseElementsAttr TensorLiteralParser::getAttr(SMLoc loc,
   }
 
   // Handle the case where no elements were parsed.
-  if (!hexStorage.hasValue() && storage.empty() && type.getNumElements()) {
+  if (!hexStorage && storage.empty() && type.getNumElements()) {
     p.emitError(loc) << "parsed zero elements, but type (" << type
                      << ") expected at least 1";
     return nullptr;
@@ -648,7 +660,7 @@ TensorLiteralParser::getFloatAttrElements(SMLoc loc, FloatType eltTy,
 
     // Build the float values from tokens.
     auto val = token.getFloatingPointValue();
-    if (!val.hasValue())
+    if (!val)
       return p.emitError("floating point value too large for attribute");
 
     APFloat apVal(isNegative ? -*val : *val);
@@ -663,11 +675,10 @@ TensorLiteralParser::getFloatAttrElements(SMLoc loc, FloatType eltTy,
 }
 
 /// Build a Dense String attribute for the given type.
-DenseElementsAttr TensorLiteralParser::getStringAttr(SMLoc loc,
-                                                     ShapedType type,
+DenseElementsAttr TensorLiteralParser::getStringAttr(SMLoc loc, ShapedType type,
                                                      Type eltTy) {
-  if (hexStorage.hasValue()) {
-    auto stringValue = hexStorage.getValue().getStringValue();
+  if (hexStorage.has_value()) {
+    auto stringValue = hexStorage.value().getStringValue();
     return DenseStringElementsAttr::get(type, {stringValue});
   }
 
@@ -685,8 +696,7 @@ DenseElementsAttr TensorLiteralParser::getStringAttr(SMLoc loc,
 }
 
 /// Build a Dense attribute with hex data for the given type.
-DenseElementsAttr TensorLiteralParser::getHexAttr(SMLoc loc,
-                                                  ShapedType type) {
+DenseElementsAttr TensorLiteralParser::getHexAttr(SMLoc loc, ShapedType type) {
   Type elementType = type.getElementType();
   if (!elementType.isIntOrIndexOrFloat() && !elementType.isa<ComplexType>()) {
     p.emitError(loc)
@@ -696,7 +706,7 @@ DenseElementsAttr TensorLiteralParser::getHexAttr(SMLoc loc,
   }
 
   std::string data;
-  if (parseElementAttrHexValues(p, hexStorage.getValue(), data))
+  if (parseElementAttrHexValues(p, *hexStorage, data))
     return nullptr;
 
   ArrayRef<char> rawData(data.data(), data.size());
@@ -811,6 +821,87 @@ ParseResult TensorLiteralParser::parseList(SmallVectorImpl<int64_t> &dims) {
 //===----------------------------------------------------------------------===//
 // ElementsAttr Parser
 //===----------------------------------------------------------------------===//
+
+namespace {
+/// This class provides an implementation of AsmParser, allowing to call back
+/// into the libMLIRIR-provided APIs for invoking attribute parsing code defined
+/// in libMLIRIR.
+class CustomAsmParser : public AsmParserImpl<AsmParser> {
+public:
+  CustomAsmParser(Parser &parser)
+      : AsmParserImpl<AsmParser>(parser.getToken().getLoc(), parser) {}
+};
+} // namespace
+
+/// Parse a dense array attribute.
+Attribute Parser::parseDenseArrayAttr() {
+  auto typeLoc = getToken().getLoc();
+  auto type = parseType();
+  if (!type)
+    return {};
+  CustomAsmParser parser(*this);
+  Attribute result;
+  // Check for empty list.
+  bool isEmptyList = getToken().is(Token::r_square);
+
+  if (auto intType = type.dyn_cast<IntegerType>()) {
+    switch (type.getIntOrFloatBitWidth()) {
+    case 8:
+      if (isEmptyList)
+        result = DenseI8ArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseI8ArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
+    case 16:
+      if (isEmptyList)
+        result = DenseI16ArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseI16ArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
+    case 32:
+      if (isEmptyList)
+        result = DenseI32ArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseI32ArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
+    case 64:
+      if (isEmptyList)
+        result = DenseI64ArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseI64ArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
+    default:
+      emitError(typeLoc, "expected i8, i16, i32, or i64 but got: ") << type;
+      return {};
+    }
+  } else if (auto floatType = type.dyn_cast<FloatType>()) {
+    switch (type.getIntOrFloatBitWidth()) {
+    case 32:
+      if (isEmptyList)
+        result = DenseF32ArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseF32ArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
+    case 64:
+      if (isEmptyList)
+        result = DenseF64ArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseF64ArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
+    default:
+      emitError(typeLoc, "expected f32 or f64 but got: ") << type;
+      return {};
+    }
+  } else {
+    emitError(typeLoc, "expected integer or float type, got: ") << type;
+    return {};
+  }
+  if (!consumeIf(Token::r_square)) {
+    emitError("expected ']' to close an array attribute");
+    return {};
+  }
+  return result;
+}
 
 /// Parse a dense elements attribute.
 Attribute Parser::parseDenseElementsAttr(Type attrType) {

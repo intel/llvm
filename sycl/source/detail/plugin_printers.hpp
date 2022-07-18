@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <type_traits>
 
