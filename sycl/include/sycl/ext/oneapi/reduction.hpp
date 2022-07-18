@@ -2032,6 +2032,7 @@ namespace main_krn {
 template <class KernelName> struct NDRangeAtomic64;
 } // namespace main_krn
 } // namespace reduction
+
 // Specialization for devices with the atomic64 aspect, which guarantees 64 (and
 // temporarily 32) bit floating point support for atomic add.
 // TODO 32 bit floating point atomics are eventually expected to be supported by
@@ -2039,9 +2040,9 @@ template <class KernelName> struct NDRangeAtomic64;
 // IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
 // be made.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
-                            const nd_range<Dims> &Range, Reduction &,
-                            typename Reduction::rw_accessor_type Out) {
+void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                        const nd_range<Dims> &Range, Reduction &Redu) {
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   static_assert(Reduction::has_atomic_add_float64,
                 "Only suitable for reductions that have FP64 atomic add.");
   constexpr size_t NElements = Reduction::num_elements;
@@ -2064,20 +2065,6 @@ void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
     }
   });
-}
-
-// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
-// temporarily 32) bit floating point support for atomic add.
-// TODO 32 bit floating point atomics are eventually expected to be supported by
-// the has_fast_atomics specialization. Corresponding changes to
-// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
-// be made.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                        const nd_range<Dims> &Range, Reduction &Redu) {
-  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-  reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
-      CGH, KernelFunc, Range, Redu, Out);
 }
 
 template <typename... Reductions, size_t... Is>
