@@ -5095,7 +5095,8 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   if (advice == PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION ||
       advice == PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION ||
       advice == PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY ||
-      advice == PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+      advice == PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY ||
+      advice == PI_MEM_ADVISE_RESET) {
     pi_device device = queue->get_context()->get_device();
     if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
       setErrorMessage("Mem advise ignored as device does not support "
