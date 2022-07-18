@@ -647,7 +647,7 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   auto It1 = Names.cend();
   std::for_each(It0, It1, [&](const std::string &Name) {
     const Function *F = M.getFunction(Name);
-    // Some functions could be lost due to inlining followed by DCE. 
+    // Some functions could be lost due to inlining followed by DCE.
     // This is expected to NOT cause any issues in later compilation stages.
     // TODO: Avoid deletion of entry points in DCE.
     if (F)
