@@ -474,6 +474,8 @@ append_list_if(COMPILER_RT_HAS_WD4800_FLAG /wd4800 SANITIZER_COMMON_CFLAGS)
 append_list_if(MINGW -fms-extensions SANITIZER_COMMON_CFLAGS)
 
 # Set common link flags.
+# TODO: We should consider using the same model as libc++, that is use either
+# -nostdlib++ and --unwindlib=none if supported, or -nodefaultlibs otherwise.
 append_list_if(C_SUPPORTS_NODEFAULTLIBS_FLAG -nodefaultlibs SANITIZER_COMMON_LINK_FLAGS)
 append_list_if(COMPILER_RT_HAS_Z_TEXT -Wl,-z,text SANITIZER_COMMON_LINK_FLAGS)
 
@@ -533,12 +535,15 @@ string(REPLACE " " ";" COMPILER_RT_UNITTEST_CFLAGS "${COMPILER_RT_TEST_COMPILER_
 set(COMPILER_RT_UNITTEST_LINK_FLAGS ${COMPILER_RT_UNITTEST_CFLAGS})
 
 if(COMPILER_RT_USE_LLVM_UNWINDER)
+  # We're linking directly against the libunwind that we're building so don't
+  # try to link in the toolchain's default libunwind which may be missing.
+  append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none COMPILER_RT_COMMON_LINK_FLAGS)
+  append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none COMPILER_RT_UNITTEST_LINK_FLAGS)
   if (COMPILER_RT_ENABLE_STATIC_UNWINDER)
-    set(unwinder_target unwind_static)
+    list(APPEND COMPILER_RT_UNWINDER_LINK_LIBS "$<TARGET_LINKER_FILE:unwind_static>")
   else()
-    set(unwinder_target unwind_shared)
+    list(APPEND COMPILER_RT_UNWINDER_LINK_LIBS "$<TARGET_LINKER_FILE:$<IF:$<TARGET_EXISTS:unwind_shared>,unwind_shared,unwind_static>>")
   endif()
-  list(APPEND SANITIZER_CXX_ABI_LIBRARIES "$<$<TARGET_EXISTS:${unwinder_target}>:$<TARGET_LINKER_FILE:${unwinder_target}>>")
 endif()
 
 if (COMPILER_RT_CXX_LIBRARY STREQUAL "libcxx")
@@ -546,13 +551,12 @@ if (COMPILER_RT_CXX_LIBRARY STREQUAL "libcxx")
   append_list_if(COMPILER_RT_HAS_NOSTDINCXX_FLAG -nostdinc++ COMPILER_RT_COMMON_CFLAGS)
   append_list_if(COMPILER_RT_HAS_NOSTDLIBXX_FLAG -nostdlib++ COMPILER_RT_COMMON_LINK_FLAGS)
   # Use the in-tree libc++ through explicit include and library paths.
+  set(COMPILER_RT_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:-isystem$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>-isystem>>")
   if (COMPILER_RT_STATIC_CXX_LIBRARY)
-    set(cxx_target cxx_static)
+    set(COMPILER_RT_CXX_LINK_LIBS "$<TARGET_LINKER_FILE:cxx_static>")
   else()
-    set(cxx_target cxx_shared)
+    set(COMPILER_RT_CXX_LINK_LIBS "$<TARGET_LINKER_FILE:$<IF:$<TARGET_EXISTS:cxx_shared>,cxx_shared,cxx_static>>")
   endif()
-  list(APPEND COMPILER_RT_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:-isystem$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>-isystem>>")
-  list(APPEND COMPILER_RT_CXX_LINK_LIBS "$<$<TARGET_EXISTS:${cxx_target}>:$<TARGET_LINKER_FILE:${cxx_target}>>")
 elseif (COMPILER_RT_CXX_LIBRARY STREQUAL "none")
   # We aren't using any C++ standard library so avoid including the default one.
   append_list_if(COMPILER_RT_HAS_NOSTDINCXX_FLAG -nostdinc++ COMPILER_RT_COMMON_CFLAGS)
@@ -563,6 +567,11 @@ endif()
 
 macro(append_libcxx_libs var)
   if (${var}_INTREE)
+    # TODO: We don't need to add --unwindlib=none to SANITIZER_COMMON_LINK_FLAGS
+    # because we added -nodefaultlibs there earlier, and adding would result in
+    # a warning, but if we switch to -nostdlib++, we would need to add it here.
+    # append_list_if(CXX_SUPPORTS_UNWINDLIB_NONE_FLAG --unwindlib=none SANITIZER_COMMON_LINK_FLAGS)
+
     if (SANITIZER_USE_STATIC_LLVM_UNWINDER AND (TARGET unwind_static OR HAVE_LIBUNWIND))
       list(APPEND ${var}_LIBRARIES unwind_static)
     elseif (TARGET unwind_shared OR HAVE_LIBUNWIND)
@@ -589,13 +598,12 @@ endif()
 
 if (SANITIZER_TEST_CXX_LIBNAME STREQUAL "libc++")
   if (SANITIZER_TEST_CXX_INTREE)
-    if (SANITIZER_USE_STATIC_TEST_CXX)
-      set(cxx_target cxx_static)
-    else()
-      set(cxx_target cxx_shared)
-    endif()
-    list(APPEND SANITIZER_TEST_CXX_LIBRARIES "$<$<TARGET_EXISTS:${cxx_target}>:$<TARGET_LINKER_FILE:${cxx_target}>>")
     list(APPEND SANITIZER_TEST_CXX_CFLAGS "$<$<TARGET_EXISTS:cxx-headers>:-isystem$<JOIN:$<TARGET_PROPERTY:cxx-headers,INTERFACE_INCLUDE_DIRECTORIES>,$<SEMICOLON>-isystem>>")
+    if (SANITIZER_USE_STATIC_TEST_CXX)
+      list(APPEND SANITIZER_TEST_CXX_LIBRARIES "$<TARGET_LINKER_FILE:cxx_static>")
+    else()
+      list(APPEND SANITIZER_TEST_CXX_LIBRARIES "$<TARGET_LINKER_FILE:$<IF:$<TARGET_EXISTS:cxx_shared>,cxx_shared,cxx_static>>")
+    endif()
     # We are using the in tree libc++ so avoid including the default one.
     append_list_if(COMPILER_RT_HAS_NOSTDINCXX_FLAG -nostdinc++ COMPILER_RT_UNITTEST_CFLAGS)
     append_list_if(COMPILER_RT_HAS_NOSTDLIBXX_FLAG -nostdlib++ COMPILER_RT_UNITTEST_LINK_FLAGS)

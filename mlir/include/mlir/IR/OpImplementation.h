@@ -151,10 +151,9 @@ public:
             std::enable_if_t<detect_has_print_method<AttrOrType>::value>
                 *sfinae = nullptr>
   void printStrippedAttrOrType(ArrayRef<AttrOrType> attrOrTypes) {
-    llvm::interleaveComma(attrOrTypes, getStream(),
-                          [this](AttrOrType attrOrType) {
-                            printStrippedAttrOrType(attrOrType);
-                          });
+    llvm::interleaveComma(
+        attrOrTypes, getStream(),
+        [this](AttrOrType attrOrType) { printStrippedAttrOrType(attrOrType); });
   }
 
   /// SFINAE for printing the provided attribute in the context of an operation
@@ -724,7 +723,7 @@ public:
     }
 
     /// Returns true if this switch has a value yet.
-    bool hasValue() const { return result.hasValue(); }
+    bool hasValue() const { return result.has_value(); }
 
     /// Return the result of the switch.
     LLVM_NODISCARD operator ResultT() {
@@ -793,14 +792,14 @@ public:
   /// unlike `OpBuilder::getType`, this method does not implicitly insert a
   /// context parameter.
   template <typename T, typename... ParamsT>
-  T getChecked(SMLoc loc, ParamsT &&...params) {
+  auto getChecked(SMLoc loc, ParamsT &&...params) {
     return T::getChecked([&] { return emitError(loc); },
                          std::forward<ParamsT>(params)...);
   }
   /// A variant of `getChecked` that uses the result of `getNameLoc` to emit
   /// errors.
   template <typename T, typename... ParamsT>
-  T getChecked(ParamsT &&...params) {
+  auto getChecked(ParamsT &&...params) {
     return T::getChecked([&] { return emitError(getNameLoc()); },
                          std::forward<ParamsT>(params)...);
   }

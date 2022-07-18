@@ -84,6 +84,18 @@ Changes to the LLVM IR
 * Added the support for ``fmax`` and ``fmin`` in ``atomicrmw`` instruction. The
   comparison is expected to match the behavior of ``llvm.maxnum.*`` and
   ``llvm.minnum.*`` respectively.
+* ``callbr`` instructions no longer use ``blockaddress`` arguments for labels.
+  Instead, label constraints starting with ``!`` refer directly to entries in
+  the ``callbr`` indirect destination list.
+
+.. code-block:: llvm
+
+    ; Old representation
+    %res = callbr i32 asm "", "=r,r,i"(i32 %x, i8 *blockaddress(@foo, %indirect))
+          to label %fallthrough [label %indirect]
+    ; New representation
+    %res = callbr i32 asm "", "=r,r,!i"(i32 %x)
+          to label %fallthrough [label %indirect]
 
 Changes to building LLVM
 ------------------------
@@ -251,6 +263,8 @@ Changes to the LLVM tools
 * :doc:`llvm-objcopy <CommandGuide/llvm-objcopy>` has removed support for the legacy ``zlib-gnu`` format.
 * :doc:`llvm-objcopy <CommandGuide/llvm-objcopy>` now allows ``--set-section-flags src=... --rename-section src=tst``.
   ``--add-section=.foo1=... --rename-section=.foo1=.foo2`` now adds ``.foo1`` instead of ``.foo2``.
+* The LLVM gold plugin now ignores bitcode from the ``.llvmbc`` section of ELF
+  files when doing LTO.  https://github.com/llvm/llvm-project/issues/47216
 
 Changes to LLDB
 ---------------------------------

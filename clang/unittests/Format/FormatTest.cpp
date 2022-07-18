@@ -10458,6 +10458,9 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
   verifyFormat("class {\n"
                "}* ptr;",
                Style);
+  // Don't confuse a multiplication after a brace-initialized expression with
+  // a class pointer.
+  verifyFormat("int i = int{42} * 34;", Style);
   verifyFormat("struct {\n"
                "}&& ptr = {};",
                Style);
@@ -25742,6 +25745,17 @@ TEST_F(FormatTest, RemoveBraces) {
                Style);
 
   verifyFormat("if (a) {\n"
+               "  if (b)\n"
+               "    c = 1; // comment\n"
+               "}",
+               "if (a) {\n"
+               "  if (b) {\n"
+               "    c = 1; // comment\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
                "Label:\n"
                "}",
                Style);
@@ -25788,6 +25802,13 @@ TEST_F(FormatTest, RemoveBraces) {
                Style);
 
   Style.ColumnLimit = 20;
+
+  verifyFormat("int i;\n"
+               "#define FOO(a, b)  \\\n"
+               "  while (a) {      \\\n"
+               "    b;             \\\n"
+               "  }",
+               Style);
 
   verifyFormat("int ab = [](int i) {\n"
                "  if (i > 0) {\n"

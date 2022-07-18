@@ -485,7 +485,8 @@ recordStructIndices(Type baseGEPType, unsigned indexPos,
   unsigned dynamicIndexPos = indexPos;
   if (!isStaticIndex)
     dynamicIndexPos = llvm::count(structIndices.take_front(indexPos + 1),
-                                  LLVM::GEPOp::kDynamicIndex) - 1;
+                                  LLVM::GEPOp::kDynamicIndex) -
+                      1;
 
   return llvm::TypeSwitch<Type, llvm::Error>(baseGEPType)
       .Case<LLVMStructType>([&](LLVMStructType structType) -> llvm::Error {
@@ -564,6 +565,13 @@ static Type extractVectorElementType(Type type) {
   if (auto fixedVectorType = type.dyn_cast<LLVMFixedVectorType>())
     return fixedVectorType.getElementType();
   return type;
+}
+
+void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
+                  Type elementType, Value basePtr, ValueRange indices,
+                  ArrayRef<NamedAttribute> attributes) {
+  build(builder, result, resultType, elementType, basePtr, indices,
+        SmallVector<int32_t>(indices.size(), kDynamicIndex), attributes);
 }
 
 void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
