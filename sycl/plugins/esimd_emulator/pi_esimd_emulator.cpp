@@ -1156,7 +1156,7 @@ pi_result piMemImageCreate(pi_context Context, pi_device Device,
                            const pi_image_format *ImageFormat,
                            const pi_image_desc *ImageDesc, void *HostPtr,
                            pi_mem *RetImage) {
-  (void)device;
+  (void)Device;
   if ((Flags & PI_MEM_FLAGS_ACCESS_RW) == 0) {
     PiTrace("Invalid memory attribute for piMemImageCreate");
     return PI_ERROR_INVALID_OPERATION;
