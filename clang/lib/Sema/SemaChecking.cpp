@@ -13809,7 +13809,6 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
 
       int Order = S.getASTContext().getFloatingTypeSemanticOrder(
           QualType(SourceBT, 0), QualType(TargetBT, 0));
-
       if (Order > 0) {
         // Don't warn about float constants that are precisely
         // representable in the target type.
@@ -13820,14 +13819,12 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
                   result.Val,
                   S.Context.getFloatTypeSemantics(QualType(TargetBT, 0)),
                   S.Context.getFloatTypeSemantics(QualType(SourceBT, 0)))) {
-            if (S.getLangOpts().SYCLIsDevice) {
+            if (S.getLangOpts().SYCLIsDevice)
               S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
-              return;
-            } else {
+            else
               DiagnoseImpCast(S, E, T, CC,
                               diag::warn_imp_float_size_conversion);
-              return;
-            }
+            return;
           }
         }
 

@@ -6,7 +6,7 @@
 void f(void) {
   SMALL a;
   BIG b = 0;
-  a = b; 
+  a = b;
 #ifndef NO_DIAG
   // expected-warning@-2 {{implicit conversion}}
 #else
