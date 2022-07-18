@@ -39,7 +39,7 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                              __ESIMD_NS::simd<T0, SZ>>
 shl(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
   using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
-  __ESIMD_NS::simd<T1, SZ> Src0 = src0;
+  ComputationTy Src0 = src0;
   ComputationTy Src1 = src1;
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_on_tag>) {
@@ -88,8 +88,11 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 shl(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::shl<T0>(Src0, src1, sat);
+  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::shl<T0, T1, 1, T2, Sat>(Src0, Src1, sat);
   return Result[0];
 }
 
@@ -141,8 +144,11 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 shr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::shr<T0>(Src0, src1, sat);
+  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::shr<T0, T1, 1, T2, Sat>(Src0, Src1, sat);
   return Result[0];
 }
 
@@ -198,8 +204,10 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 rol(T1 src0, T2 src1) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0>(Src0, src1);
+  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, Src1);
   return Result[0];
 }
 
@@ -255,8 +263,10 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 ror(T1 src0, T2 src1) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0>(Src0, src1);
+  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, Src1);
   return Result[0];
 }
 
@@ -310,8 +320,13 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 lsr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::lsr<T0>(Src0, src1, sat);
+
+  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::lsr<T0, T1, 1, T2, Sat>(Src0, Src1, sat);
+
   return Result[0];
 }
 
@@ -364,8 +379,11 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 asr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::asr<T0>(Src0, src1, sat);
+  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
+  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::asr<T0, T1, 1, T2, Sat>(Src0, Src1, sat);
   return Result[0];
 }
 /// @} sycl_esimd_bitmanip
