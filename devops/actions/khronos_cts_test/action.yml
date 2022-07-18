@@ -107,6 +107,7 @@ runs:
       echo "::group::Run testing"
       export SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1
       ./build/bin/test_all
+      echo "::endgroup::"
   - name: Cleanup
     shell: bash
     if: always()

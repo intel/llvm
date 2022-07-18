@@ -83,7 +83,7 @@
       ],
       "image": "${{ inputs.cuda_image }}",
       "container_options": "--gpus all",
-      "sycl_device_filter": "cuda:gpu",
+      "sycl_device_filter": "cuda:gpu,host",
       "cmake_args": ""
     }
   ]
