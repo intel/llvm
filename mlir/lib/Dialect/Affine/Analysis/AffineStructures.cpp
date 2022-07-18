@@ -322,7 +322,7 @@ unsigned FlatAffineValueConstraints::insertVar(VarKind kind, unsigned pos,
 
 bool FlatAffineValueConstraints::hasValues() const {
   return llvm::find_if(values, [](Optional<Value> var) {
-           return var.hasValue();
+           return var.has_value();
          }) != values.end();
 }
 
@@ -402,11 +402,11 @@ static void mergeAndAlignVars(unsigned offset, FlatAffineValueConstraints *a,
 
   assert(std::all_of(a->getMaybeValues().begin() + offset,
                      a->getMaybeValues().end(),
-                     [](Optional<Value> var) { return var.hasValue(); }));
+                     [](Optional<Value> var) { return var.has_value(); }));
 
   assert(std::all_of(b->getMaybeValues().begin() + offset,
                      b->getMaybeValues().end(),
-                     [](Optional<Value> var) { return var.hasValue(); }));
+                     [](Optional<Value> var) { return var.has_value(); }));
 
   SmallVector<Value, 4> aDimValues;
   a->getValues(offset, a->getNumDimVars(), &aDimValues);
@@ -1009,18 +1009,18 @@ void FlatAffineValueConstraints::getSliceBounds(
 
       auto lbConst = getConstantBound(BoundType::LB, pos);
       auto ubConst = getConstantBound(BoundType::UB, pos);
-      if (lbConst.hasValue() && ubConst.hasValue()) {
+      if (lbConst.has_value() && ubConst.has_value()) {
         // Detect equality to a constant.
-        if (lbConst.getValue() == ubConst.getValue()) {
-          memo[pos] = getAffineConstantExpr(lbConst.getValue(), context);
+        if (lbConst.value() == ubConst.value()) {
+          memo[pos] = getAffineConstantExpr(lbConst.value(), context);
           changed = true;
           continue;
         }
 
         // Detect an variable as modulo of another variable w.r.t a
         // constant.
-        if (detectAsMod(*this, pos, lbConst.getValue(), ubConst.getValue(),
-                        memo, context)) {
+        if (detectAsMod(*this, pos, lbConst.value(), ubConst.value(), memo,
+                        context)) {
           changed = true;
           continue;
         }
@@ -1120,21 +1120,20 @@ void FlatAffineValueConstraints::getSliceBounds(
         LLVM_DEBUG(llvm::dbgs()
                    << "WARNING: Potentially over-approximating slice lb\n");
         auto lbConst = getConstantBound(BoundType::LB, pos + offset);
-        if (lbConst.hasValue()) {
-          lbMap = AffineMap::get(
-              numMapDims, numMapSymbols,
-              getAffineConstantExpr(lbConst.getValue(), context));
+        if (lbConst.has_value()) {
+          lbMap =
+              AffineMap::get(numMapDims, numMapSymbols,
+                             getAffineConstantExpr(lbConst.value(), context));
         }
       }
       if (!ubMap || ubMap.getNumResults() > 1) {
         LLVM_DEBUG(llvm::dbgs()
                    << "WARNING: Potentially over-approximating slice ub\n");
         auto ubConst = getConstantBound(BoundType::UB, pos + offset);
-        if (ubConst.hasValue()) {
-          ubMap =
-              AffineMap::get(numMapDims, numMapSymbols,
-                             getAffineConstantExpr(
-                                 ubConst.getValue() + ubAdjustment, context));
+        if (ubConst.has_value()) {
+          ubMap = AffineMap::get(
+              numMapDims, numMapSymbols,
+              getAffineConstantExpr(ubConst.value() + ubAdjustment, context));
         }
       }
     }
@@ -1673,13 +1672,13 @@ void FlatAffineRelation::compose(const FlatAffineRelation &other) {
 
   // Add and match domain of `rel` to domain of `this`.
   for (unsigned i = 0, e = rel.getNumDomainDims(); i < e; ++i)
-    if (relMaybeValues[i].hasValue())
-      setValue(i, relMaybeValues[i].getValue());
+    if (relMaybeValues[i].has_value())
+      setValue(i, relMaybeValues[i].value());
   // Add and match range of `this` to range of `rel`.
   for (unsigned i = 0, e = getNumRangeDims(); i < e; ++i) {
     unsigned rangeIdx = rel.getNumDomainDims() + i;
-    if (thisMaybeValues[rangeIdx].hasValue())
-      rel.setValue(rangeIdx, thisMaybeValues[rangeIdx].getValue());
+    if (thisMaybeValues[rangeIdx].has_value())
+      rel.setValue(rangeIdx, thisMaybeValues[rangeIdx].value());
   }
 
   // Append `this` to `rel` and simplify constraints.

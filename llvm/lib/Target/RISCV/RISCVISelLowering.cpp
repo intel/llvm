@@ -1161,6 +1161,37 @@ bool RISCVTargetLowering::hasBitTest(SDValue X, SDValue Y) const {
   return C && C->getAPIntValue().ule(10);
 }
 
+bool RISCVTargetLowering::shouldConvertConstantLoadToIntImm(const APInt &Imm,
+                                                            Type *Ty) const {
+  assert(Ty->isIntegerTy());
+
+  unsigned BitSize = Ty->getIntegerBitWidth();
+  if (BitSize > Subtarget.getXLen())
+    return false;
+
+  // Fast path, assume 32-bit immediates are cheap.
+  int64_t Val = Imm.getSExtValue();
+  if (isInt<32>(Val))
+    return true;
+
+  // A constant pool entry may be more aligned thant he load we're trying to
+  // replace. If we don't support unaligned scalar mem, prefer the constant
+  // pool.
+  // TODO: Can the caller pass down the alignment?
+  if (!Subtarget.enableUnalignedScalarMem())
+    return true;
+
+  // Prefer to keep the load if it would require many instructions.
+  // This uses the same threshold we use for constant pools but doesn't
+  // check useConstantPoolForLargeInts.
+  // TODO: Should we keep the load only when we're definitely going to emit a
+  // constant pool?
+
+  RISCVMatInt::InstSeq Seq =
+      RISCVMatInt::generateInstSeq(Val, Subtarget.getFeatureBits());
+  return Seq.size() <= Subtarget.getMaxBuildIntsCost();
+}
+
 bool RISCVTargetLowering::
     shouldProduceAndByConstByHoistingConstFromShiftsLHSOfAnd(
         SDValue X, ConstantSDNode *XC, ConstantSDNode *CC, SDValue Y,
@@ -1663,7 +1694,7 @@ static SDValue convertFromScalableVector(EVT VT, SDValue V, SelectionDAG &DAG,
 /// Return the type of the mask type suitable for masking the provided
 /// vector type.  This is simply an i1 element type vector of the same
 /// (possibly scalable) length.
-static MVT getMaskTypeFor(EVT VecVT) {
+static MVT getMaskTypeFor(MVT VecVT) {
   assert(VecVT.isVector());
   ElementCount EC = VecVT.getVectorElementCount();
   return MVT::getVectorVT(MVT::i1, EC);
@@ -5752,8 +5783,7 @@ SDValue RISCVTargetLowering::lowerVECTOR_SPLICE(SDValue Op,
       DAG.getNode(RISCVISD::VSLIDEDOWN_VL, DL, VecVT, DAG.getUNDEF(VecVT), V1,
                   DownOffset, TrueMask, UpOffset);
   return DAG.getNode(RISCVISD::VSLIDEUP_VL, DL, VecVT, SlideDown, V2, UpOffset,
-                     TrueMask,
-                     DAG.getTargetConstant(RISCV::VLMaxSentinel, DL, XLenVT));
+                     TrueMask, DAG.getRegister(RISCV::X0, XLenVT));
 }
 
 SDValue
@@ -8534,12 +8564,6 @@ static unsigned negateFMAOpcode(unsigned Opcode, bool NegMul, bool NegAcc) {
   return Opcode;
 }
 
-// Combine (sra (shl X, 32), 32 - C) -> (shl (sext_inreg X, i32), C)
-// FIXME: Should this be a generic combine? There's a similar combine on X86.
-//
-// Also try these folds where an add or sub is in the middle.
-// (sra (add (shl X, 32), C1), 32 - C) -> (shl (sext_inreg (add X, C1), C)
-// (sra (sub C1, (shl X, 32)), 32 - C) -> (shl (sext_inreg (sub C1, X), C)
 static SDValue performSRACombine(SDNode *N, SelectionDAG &DAG,
                                  const RISCVSubtarget &Subtarget) {
   assert(N->getOpcode() == ISD::SRA && "Unexpected opcode");
@@ -8547,12 +8571,40 @@ static SDValue performSRACombine(SDNode *N, SelectionDAG &DAG,
   if (N->getValueType(0) != MVT::i64 || !Subtarget.is64Bit())
     return SDValue();
 
-  auto *ShAmtC = dyn_cast<ConstantSDNode>(N->getOperand(1));
-  if (!ShAmtC || ShAmtC->getZExtValue() > 32)
+  if (!isa<ConstantSDNode>(N->getOperand(1)))
+    return SDValue();
+  uint64_t ShAmt = N->getConstantOperandVal(1);
+  if (ShAmt > 32)
     return SDValue();
 
   SDValue N0 = N->getOperand(0);
 
+  // Combine (sra (sext_inreg (shl X, C1), i32), C2) ->
+  // (sra (shl X, C1+32), C2+32) so it gets selected as SLLI+SRAI instead of
+  // SLLIW+SRAIW. SLLI+SRAI have compressed forms.
+  if (ShAmt < 32 &&
+      N0.getOpcode() == ISD::SIGN_EXTEND_INREG && N0.hasOneUse() &&
+      cast<VTSDNode>(N0.getOperand(1))->getVT() == MVT::i32 &&
+      N0.getOperand(0).getOpcode() == ISD::SHL && N0.getOperand(0).hasOneUse() &&
+      isa<ConstantSDNode>(N0.getOperand(0).getOperand(1))) {
+    uint64_t LShAmt = N0.getOperand(0).getConstantOperandVal(1);
+    if (LShAmt < 32) {
+      SDLoc ShlDL(N0.getOperand(0));
+      SDValue Shl = DAG.getNode(ISD::SHL, ShlDL, MVT::i64,
+                                N0.getOperand(0).getOperand(0),
+                                DAG.getConstant(LShAmt + 32, ShlDL, MVT::i64));
+      SDLoc DL(N);
+      return DAG.getNode(ISD::SRA, DL, MVT::i64, Shl,
+                         DAG.getConstant(ShAmt + 32, DL, MVT::i64));
+    }
+  }
+
+  // Combine (sra (shl X, 32), 32 - C) -> (shl (sext_inreg X, i32), C)
+  // FIXME: Should this be a generic combine? There's a similar combine on X86.
+  //
+  // Also try these folds where an add or sub is in the middle.
+  // (sra (add (shl X, 32), C1), 32 - C) -> (shl (sext_inreg (add X, C1), C)
+  // (sra (sub C1, (shl X, 32)), 32 - C) -> (shl (sext_inreg (sub C1, X), C)
   SDValue Shl;
   ConstantSDNode *AddC = nullptr;
 
@@ -8598,12 +8650,12 @@ static SDValue performSRACombine(SDNode *N, SelectionDAG &DAG,
 
   SDValue SExt = DAG.getNode(ISD::SIGN_EXTEND_INREG, DL, MVT::i64, In,
                              DAG.getValueType(MVT::i32));
-  if (ShAmtC->getZExtValue() == 32)
+  if (ShAmt == 32)
     return SExt;
 
   return DAG.getNode(
       ISD::SHL, DL, MVT::i64, SExt,
-      DAG.getConstant(32 - ShAmtC->getZExtValue(), DL, MVT::i64));
+      DAG.getConstant(32 - ShAmt, DL, MVT::i64));
 }
 
 SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
@@ -9156,10 +9208,10 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     // FIXME: Support FP.
     if (Val.getOpcode() == RISCVISD::VMV_X_S) {
       SDValue Src = Val.getOperand(0);
-      EVT VecVT = Src.getValueType();
+      MVT VecVT = Src.getSimpleValueType();
       EVT MemVT = Store->getMemoryVT();
       // The memory VT and the element type must match.
-      if (VecVT.getVectorElementType() == MemVT) {
+      if (MemVT == VecVT.getVectorElementType()) {
         SDLoc DL(N);
         MVT MaskVT = getMaskTypeFor(VecVT);
         return DAG.getStoreVP(
@@ -9798,6 +9850,109 @@ static MachineBasicBlock *emitQuietFCMP(MachineInstr &MI, MachineBasicBlock *BB,
   return BB;
 }
 
+static MachineBasicBlock *
+EmitLoweredCascadedSelect(MachineInstr &First, MachineInstr &Second,
+                          MachineBasicBlock *ThisMBB,
+                          const RISCVSubtarget &Subtarget) {
+  // Select_FPRX_ (rs1, rs2, imm, rs4, (Select_FPRX_ rs1, rs2, imm, rs4, rs5)
+  // Without this, custom-inserter would have generated:
+  //
+  //   A
+  //   | \
+  //   |  B
+  //   | /
+  //   C
+  //   | \
+  //   |  D
+  //   | /
+  //   E
+  //
+  // A: X = ...; Y = ...
+  // B: empty
+  // C: Z = PHI [X, A], [Y, B]
+  // D: empty
+  // E: PHI [X, C], [Z, D]
+  //
+  // If we lower both Select_FPRX_ in a single step, we can instead generate:
+  //
+  //   A
+  //   | \
+  //   |  C
+  //   | /|
+  //   |/ |
+  //   |  |
+  //   |  D
+  //   | /
+  //   E
+  //
+  // A: X = ...; Y = ...
+  // D: empty
+  // E: PHI [X, A], [X, C], [Y, D]
+
+  const RISCVInstrInfo &TII = *Subtarget.getInstrInfo();
+  const DebugLoc &DL = First.getDebugLoc();
+  const BasicBlock *LLVM_BB = ThisMBB->getBasicBlock();
+  MachineFunction *F = ThisMBB->getParent();
+  MachineBasicBlock *FirstMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *SecondMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *SinkMBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineFunction::iterator It = ++ThisMBB->getIterator();
+  F->insert(It, FirstMBB);
+  F->insert(It, SecondMBB);
+  F->insert(It, SinkMBB);
+
+  // Transfer the remainder of ThisMBB and its successor edges to SinkMBB.
+  SinkMBB->splice(SinkMBB->begin(), ThisMBB,
+                  std::next(MachineBasicBlock::iterator(First)),
+                  ThisMBB->end());
+  SinkMBB->transferSuccessorsAndUpdatePHIs(ThisMBB);
+
+  // Fallthrough block for ThisMBB.
+  ThisMBB->addSuccessor(FirstMBB);
+  // Fallthrough block for FirstMBB.
+  FirstMBB->addSuccessor(SecondMBB);
+  ThisMBB->addSuccessor(SinkMBB);
+  FirstMBB->addSuccessor(SinkMBB);
+  // This is fallthrough.
+  SecondMBB->addSuccessor(SinkMBB);
+
+  auto FirstCC = static_cast<RISCVCC::CondCode>(First.getOperand(3).getImm());
+  Register FLHS = First.getOperand(1).getReg();
+  Register FRHS = First.getOperand(2).getReg();
+  // Insert appropriate branch.
+  BuildMI(FirstMBB, DL, TII.getBrCond(FirstCC))
+      .addReg(FLHS)
+      .addReg(FRHS)
+      .addMBB(SinkMBB);
+
+  Register SLHS = Second.getOperand(1).getReg();
+  Register SRHS = Second.getOperand(2).getReg();
+  Register Op1Reg4 = First.getOperand(4).getReg();
+  Register Op1Reg5 = First.getOperand(5).getReg();
+
+  auto SecondCC = static_cast<RISCVCC::CondCode>(Second.getOperand(3).getImm());
+  // Insert appropriate branch.
+  BuildMI(ThisMBB, DL, TII.getBrCond(SecondCC))
+      .addReg(SLHS)
+      .addReg(SRHS)
+      .addMBB(SinkMBB);
+
+  Register DestReg = Second.getOperand(0).getReg();
+  Register Op2Reg4 = Second.getOperand(4).getReg();
+  BuildMI(*SinkMBB, SinkMBB->begin(), DL, TII.get(RISCV::PHI), DestReg)
+      .addReg(Op2Reg4)
+      .addMBB(ThisMBB)
+      .addReg(Op1Reg4)
+      .addMBB(FirstMBB)
+      .addReg(Op1Reg5)
+      .addMBB(SecondMBB);
+
+  // Now remove the Select_FPRX_s.
+  First.eraseFromParent();
+  Second.eraseFromParent();
+  return SinkMBB;
+}
+
 static MachineBasicBlock *emitSelectPseudo(MachineInstr &MI,
                                            MachineBasicBlock *BB,
                                            const RISCVSubtarget &Subtarget) {
@@ -9825,6 +9980,10 @@ static MachineBasicBlock *emitSelectPseudo(MachineInstr &MI,
   // previous selects in the sequence.
   // These conditions could be further relaxed. See the X86 target for a
   // related approach and more information.
+  //
+  // Select_FPRX_ (rs1, rs2, imm, rs4, (Select_FPRX_ rs1, rs2, imm, rs4, rs5))
+  // is checked here and handled by a separate function -
+  // EmitLoweredCascadedSelect.
   Register LHS = MI.getOperand(1).getReg();
   Register RHS = MI.getOperand(2).getReg();
   auto CC = static_cast<RISCVCC::CondCode>(MI.getOperand(3).getImm());
@@ -9834,6 +9993,13 @@ static MachineBasicBlock *emitSelectPseudo(MachineInstr &MI,
   SelectDests.insert(MI.getOperand(0).getReg());
 
   MachineInstr *LastSelectPseudo = &MI;
+  auto Next = next_nodbg(MI.getIterator(), BB->instr_end());
+  if (MI.getOpcode() != RISCV::Select_GPR_Using_CC_GPR && Next != BB->end() &&
+      Next->getOpcode() == MI.getOpcode() &&
+      Next->getOperand(5).getReg() == MI.getOperand(0).getReg() &&
+      Next->getOperand(5).isKill()) {
+    return EmitLoweredCascadedSelect(MI, *Next, BB, Subtarget);
+  }
 
   for (auto E = BB->end(), SequenceMBBI = MachineBasicBlock::iterator(MI);
        SequenceMBBI != E; ++SequenceMBBI) {
@@ -11984,6 +12150,17 @@ const MCExpr *RISCVTargetLowering::LowerCustomJumpTableEntry(
   assert(Subtarget.is64Bit() && !isPositionIndependent() &&
          getTargetMachine().getCodeModel() == CodeModel::Small);
   return MCSymbolRefExpr::create(MBB->getSymbol(), Ctx);
+}
+
+bool RISCVTargetLowering::isVScaleKnownToBeAPowerOfTwo() const {
+  // We define vscale to be VLEN/RVVBitsPerBlock.  VLEN is always a power
+  // of two >= 64, and RVVBitsPerBlock is 64.  Thus, vscale must be
+  // a power of two as well.
+  // FIXME: This doesn't work for zve32, but that's already broken
+  // elsewhere for the same reason.
+  assert(Subtarget.getRealMinVLen() >= 64 && "zve32* unsupported");
+  assert(RISCV::RVVBitsPerBlock == 64 && "RVVBitsPerBlock changed, audit needed");
+  return true;
 }
 
 bool RISCVTargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,

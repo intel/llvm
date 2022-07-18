@@ -651,9 +651,6 @@ void Initialize(ThreadState *thr) {
   __tsan::InitializePlatformEarly();
 
 #if !SANITIZER_GO
-  // Re-exec ourselves if we need to set additional env or command line args.
-  MaybeReexec();
-
   InitializeAllocator();
   ReplaceSystemMalloc();
 #endif
@@ -953,6 +950,15 @@ void TraceSwitchPartImpl(ThreadState* thr) {
     for (uptr i = 0; i < d.count; i++)
       TraceMutexLock(thr, d.write ? EventType::kLock : EventType::kRLock, 0,
                      d.addr, d.stack_id);
+  }
+  // Callers of TraceSwitchPart expect that TraceAcquire will always succeed
+  // after the call. It's possible that TryTraceFunc/TraceMutexLock above
+  // filled the trace part exactly up to the TracePart::kAlignment gap
+  // and the next TraceAcquire won't succeed. Skip the gap to avoid that.
+  EventFunc *ev;
+  if (!TraceAcquire(thr, &ev)) {
+    CHECK(TraceSkipGap(thr));
+    CHECK(TraceAcquire(thr, &ev));
   }
   {
     Lock lock(&ctx->slot_mtx);

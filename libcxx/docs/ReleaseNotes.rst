@@ -47,6 +47,8 @@ Implemented Papers
 - N4190 (Removing auto_ptr, random_shuffle(), And Old <functional> Stuff)
 - P0154R1 (Hardware inference size)
 - P0618R0 (Deprecating <codecvt>)
+- P2418R2 (Add support for ``std::generator``-like types to ``std::format``)
+- LWG3659 (Consider ``ATOMIC_FLAG_INIT`` undeprecation)
 
 - Marked the following papers as "Complete" (note that some of those might have
   been implemented in a previous release but not marked as such):
@@ -84,6 +86,9 @@ New Features
   of throwing an exception at run-time.  (This does not affect the ``v``
   functions.)
 
+- All format functions in ``<format>`` allow the usage of non-copyable types as
+  argument for the formatting functions. This change causes bit fields to become
+  invalid arguments for the formatting functions.
 
 API Changes
 -----------
@@ -224,3 +229,8 @@ Build System Changes
   means that the same set of installed headers works for both DLL and static
   linkage. This means that distributors finally can build both library
   versions with a single CMake invocation.
+
+- The ``LIBCXX_HIDE_FROM_ABI_PER_TU_BY_DEFAULT`` configuration option has been removed. Indeed,
+  the risk of ODR violations from mixing different versions of libc++ in the same program has
+  been mitigated with a different technique that is simpler and does not have the drawbacks of
+  using internal linkage.

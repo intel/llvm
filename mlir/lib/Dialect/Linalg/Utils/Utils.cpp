@@ -980,10 +980,10 @@ SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
     Value outputTensor = operands[opOperand->getOperandNumber()];
     if (auto sliceOp = outputTensor.getDefiningOp<tensor::ExtractSliceOp>()) {
       Value inserted = builder.create<tensor::InsertSliceOp>(
-          loc, sliceOp.source().getType(), results[resultIdx], sliceOp.source(),
-          sliceOp.offsets(), sliceOp.sizes(), sliceOp.strides(),
-          sliceOp.static_offsets(), sliceOp.static_sizes(),
-          sliceOp.static_strides());
+          loc, sliceOp.getSource().getType(), results[resultIdx],
+          sliceOp.getSource(), sliceOp.getOffsets(), sliceOp.getSizes(),
+          sliceOp.getStrides(), sliceOp.getStaticOffsets(),
+          sliceOp.getStaticSizes(), sliceOp.getStaticStrides());
       tensorResults.push_back(inserted);
     } else {
       tensorResults.push_back(results[resultIdx]);
@@ -991,6 +991,14 @@ SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
     ++resultIdx;
   }
   return tensorResults;
+}
+
+Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
+                              OpFoldResult opFoldResult) {
+  if (auto value = opFoldResult.dyn_cast<Value>())
+    return value;
+  auto attr = opFoldResult.get<Attribute>().cast<IntegerAttr>();
+  return builder.create<arith::ConstantIndexOp>(attr.getValue().getSExtValue());
 }
 
 SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
@@ -1040,21 +1048,29 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
   return tiledShapes;
 }
 
-void addTileLoopIvsToIndexOpResults(OpBuilder &b, LinalgOp tiledOp,
-                                    ArrayRef<Value> ivs) {
-  if (tiledOp.hasIndexSemantics()) {
-    for (IndexOp indexOp : tiledOp.getBlock()->getOps<IndexOp>()) {
-      if (ivs[indexOp.dim()] == nullptr)
-        continue;
-      OpBuilder::InsertionGuard guard(b);
-      b.setInsertionPointAfter(indexOp);
-      AffineExpr index, offset;
-      bindDims(b.getContext(), index, offset);
-      AffineApplyOp applyOp = makeComposedAffineApply(
-          b, indexOp.getLoc(), index + offset,
-          ValueRange{indexOp.getResult(), ivs[indexOp.dim()]});
-      indexOp.getResult().replaceAllUsesExcept(applyOp, applyOp);
-    }
+void offsetIndices(OpBuilder &b, LinalgOp linalgOp, ArrayRef<Value> offsets) {
+  IRRewriter rewriter(b);
+  offsetIndices(rewriter, linalgOp, offsets);
+}
+
+void offsetIndices(RewriterBase &b, LinalgOp linalgOp,
+                   ArrayRef<Value> offsets) {
+  if (!linalgOp.hasIndexSemantics())
+    return;
+
+  for (IndexOp indexOp : linalgOp.getBlock()->getOps<IndexOp>()) {
+    if (indexOp.dim() >= offsets.size() || offsets[indexOp.dim()] == nullptr)
+      continue;
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointAfter(indexOp);
+    AffineExpr index, offset;
+    bindDims(b.getContext(), index, offset);
+    AffineApplyOp applyOp = makeComposedAffineApply(
+        b, indexOp.getLoc(), index + offset,
+        ValueRange{indexOp.getResult(), offsets[indexOp.dim()]});
+    b.replaceOpWithIf(indexOp, applyOp.getResult(), [&](OpOperand &use) {
+      return use.getOwner() != applyOp;
+    });
   }
 }
 

@@ -334,34 +334,14 @@ ArrayAttr vector::getVectorSubscriptAttr(Builder &builder,
 
 void vector::MultiDimReductionOp::build(OpBuilder &builder,
                                         OperationState &result, Value source,
-                                        ArrayRef<bool> reductionMask,
+                                        Value acc, ArrayRef<bool> reductionMask,
                                         CombiningKind kind) {
   SmallVector<int64_t> reductionDims;
   for (const auto &en : llvm::enumerate(reductionMask))
     if (en.value())
       reductionDims.push_back(en.index());
-  build(builder, result, kind, source, builder.getI64ArrayAttr(reductionDims));
-}
-
-LogicalResult MultiDimReductionOp::inferReturnTypes(
-    MLIRContext *, Optional<Location>, ValueRange operands,
-    DictionaryAttr attributes, RegionRange,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  MultiDimReductionOp::Adaptor op(operands, attributes);
-  auto vectorType = op.getSource().getType().cast<VectorType>();
-  SmallVector<int64_t> targetShape;
-  for (auto it : llvm::enumerate(vectorType.getShape()))
-    if (!llvm::any_of(op.getReductionDims().getValue(), [&](Attribute attr) {
-          return attr.cast<IntegerAttr>().getValue() == it.index();
-        }))
-      targetShape.push_back(it.value());
-  // TODO: update to also allow 0-d vectors when available.
-  if (targetShape.empty())
-    inferredReturnTypes.push_back(vectorType.getElementType());
-  else
-    inferredReturnTypes.push_back(
-        VectorType::get(targetShape, vectorType.getElementType()));
-  return success();
+  build(builder, result, kind, source, acc,
+        builder.getI64ArrayAttr(reductionDims));
 }
 
 OpFoldResult MultiDimReductionOp::fold(ArrayRef<Attribute> operands) {
@@ -373,6 +353,28 @@ OpFoldResult MultiDimReductionOp::fold(ArrayRef<Attribute> operands) {
 
 Optional<SmallVector<int64_t, 4>> MultiDimReductionOp::getShapeForUnroll() {
   return llvm::to_vector<4>(getSourceVectorType().getShape());
+}
+
+LogicalResult MultiDimReductionOp::verify() {
+  SmallVector<int64_t> targetShape;
+  Type inferredReturnType;
+  for (auto it : llvm::enumerate(getSourceVectorType().getShape()))
+    if (!llvm::any_of(getReductionDims().getValue(), [&](Attribute attr) {
+          return attr.cast<IntegerAttr>().getValue() == it.index();
+        }))
+      targetShape.push_back(it.value());
+  // TODO: update to also allow 0-d vectors when available.
+  if (targetShape.empty())
+    inferredReturnType = getSourceVectorType().getElementType();
+  else
+    inferredReturnType =
+        VectorType::get(targetShape, getSourceVectorType().getElementType());
+  if (getType() != inferredReturnType)
+    return emitOpError() << "destination type " << getType()
+                         << " is incompatible with source type "
+                         << getSourceVectorType();
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -499,19 +501,9 @@ struct ElideSingleElementReduction : public OpRewritePattern<ReductionOp> {
                                               reductionOp.getVector(),
                                               rewriter.getI64ArrayAttr(0));
 
-    if (Value acc = reductionOp.getAcc()) {
-      assert(reductionOp.getType().isa<FloatType>());
-      switch (reductionOp.getKind()) {
-      case CombiningKind::ADD:
-        result = rewriter.create<arith::AddFOp>(loc, result, acc);
-        break;
-      case CombiningKind::MUL:
-        result = rewriter.create<arith::MulFOp>(loc, result, acc);
-        break;
-      default:
-        assert(false && "invalid op!");
-      }
-    }
+    if (Value acc = reductionOp.getAcc())
+      result = vector::makeArithReduction(rewriter, loc, reductionOp.getKind(),
+                                          result, acc);
 
     rewriter.replaceOp(reductionOp, result);
     return success();
@@ -2791,8 +2783,8 @@ void TransferReadOp::build(OpBuilder &builder, OperationState &result,
                            ValueRange indices, AffineMap permutationMap,
                            Optional<ArrayRef<bool>> inBounds) {
   auto permutationMapAttr = AffineMapAttr::get(permutationMap);
-  auto inBoundsAttr = (inBounds && !inBounds.getValue().empty())
-                          ? builder.getBoolArrayAttr(inBounds.getValue())
+  auto inBoundsAttr = (inBounds && !inBounds.value().empty())
+                          ? builder.getBoolArrayAttr(inBounds.value())
                           : ArrayAttr();
   build(builder, result, vectorType, source, indices, permutationMapAttr,
         inBoundsAttr);
@@ -2806,8 +2798,8 @@ void TransferReadOp::build(OpBuilder &builder, OperationState &result,
   AffineMap permutationMap = getTransferMinorIdentityMap(
       source.getType().cast<ShapedType>(), vectorType);
   auto permutationMapAttr = AffineMapAttr::get(permutationMap);
-  auto inBoundsAttr = (inBounds && !inBounds.getValue().empty())
-                          ? builder.getBoolArrayAttr(inBounds.getValue())
+  auto inBoundsAttr = (inBounds && !inBounds.value().empty())
+                          ? builder.getBoolArrayAttr(inBounds.value())
                           : ArrayAttr();
   build(builder, result, vectorType, source, indices, permutationMapAttr,
         padding,
@@ -3330,8 +3322,8 @@ void TransferWriteOp::build(OpBuilder &builder, OperationState &result,
                             AffineMap permutationMap,
                             Optional<ArrayRef<bool>> inBounds) {
   auto permutationMapAttr = AffineMapAttr::get(permutationMap);
-  auto inBoundsAttr = (inBounds && !inBounds.getValue().empty())
-                          ? builder.getBoolArrayAttr(inBounds.getValue())
+  auto inBoundsAttr = (inBounds && !inBounds.value().empty())
+                          ? builder.getBoolArrayAttr(inBounds.value())
                           : ArrayAttr();
   build(builder, result, vector, dest, indices, permutationMapAttr,
         /*mask=*/Value(), inBoundsAttr);
@@ -5003,6 +4995,56 @@ LogicalResult WarpExecuteOnLane0Op::verify() {
 bool WarpExecuteOnLane0Op::areTypesCompatible(Type lhs, Type rhs) {
   return succeeded(
       verifyDistributedType(lhs, rhs, getWarpSize(), getOperation()));
+}
+
+Value mlir::vector::makeArithReduction(OpBuilder &b, Location loc,
+                                       CombiningKind kind, Value v1, Value v2) {
+  Type t1 = getElementTypeOrSelf(v1.getType());
+  Type t2 = getElementTypeOrSelf(v2.getType());
+  switch (kind) {
+  case CombiningKind::ADD:
+    if (t1.isIntOrIndex() && t2.isIntOrIndex())
+      return b.createOrFold<arith::AddIOp>(loc, v1, v2);
+    else if (t1.isa<FloatType>() && t2.isa<FloatType>())
+      return b.createOrFold<arith::AddFOp>(loc, v1, v2);
+    llvm_unreachable("invalid value types for ADD reduction");
+  case CombiningKind::AND:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::AndIOp>(loc, v1, v2);
+  case CombiningKind::MAXF:
+    assert(t1.isa<FloatType>() && t2.isa<FloatType>() &&
+           "expected float values");
+    return b.createOrFold<arith::MaxFOp>(loc, v1, v2);
+  case CombiningKind::MINF:
+    assert(t1.isa<FloatType>() && t2.isa<FloatType>() &&
+           "expected float values");
+    return b.createOrFold<arith::MinFOp>(loc, v1, v2);
+  case CombiningKind::MAXSI:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::MaxSIOp>(loc, v1, v2);
+  case CombiningKind::MINSI:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::MinSIOp>(loc, v1, v2);
+  case CombiningKind::MAXUI:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::MaxUIOp>(loc, v1, v2);
+  case CombiningKind::MINUI:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::MinUIOp>(loc, v1, v2);
+  case CombiningKind::MUL:
+    if (t1.isIntOrIndex() && t2.isIntOrIndex())
+      return b.createOrFold<arith::MulIOp>(loc, v1, v2);
+    else if (t1.isa<FloatType>() && t2.isa<FloatType>())
+      return b.createOrFold<arith::MulFOp>(loc, v1, v2);
+    llvm_unreachable("invalid value types for MUL reduction");
+  case CombiningKind::OR:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::OrIOp>(loc, v1, v2);
+  case CombiningKind::XOR:
+    assert(t1.isIntOrIndex() && t2.isIntOrIndex() && "expected int values");
+    return b.createOrFold<arith::XOrIOp>(loc, v1, v2);
+  };
+  llvm_unreachable("unknown CombiningKind");
 }
 
 //===----------------------------------------------------------------------===//

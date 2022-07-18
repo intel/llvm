@@ -69,7 +69,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1856,6 +1855,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::DisableSanitizerInstrumentation;
   case bitc::ATTR_KIND_ELEMENTTYPE:
     return Attribute::ElementType;
+  case bitc::ATTR_KIND_FNRETTHUNK_EXTERN:
+    return Attribute::FnRetThunkExtern;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_ONLY:
     return Attribute::InaccessibleMemOnly;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_OR_ARGMEMONLY:
@@ -3677,7 +3678,7 @@ GlobalValue::SanitizerMetadata deserializeSanitizerMetadata(unsigned V) {
   if (V & (1 << 1))
     Meta.NoHWAddress = true;
   if (V & (1 << 2))
-    Meta.NoMemtag = true;
+    Meta.Memtag = true;
   if (V & (1 << 3))
     Meta.IsDynInit = true;
   return Meta;
@@ -7446,10 +7447,9 @@ class BitcodeErrorCategoryType : public std::error_category {
 
 } // end anonymous namespace
 
-static ManagedStatic<BitcodeErrorCategoryType> ErrorCategory;
-
 const std::error_category &llvm::BitcodeErrorCategory() {
-  return *ErrorCategory;
+  static BitcodeErrorCategoryType ErrorCategory;
+  return ErrorCategory;
 }
 
 static Expected<StringRef> readBlobInRecord(BitstreamCursor &Stream,
