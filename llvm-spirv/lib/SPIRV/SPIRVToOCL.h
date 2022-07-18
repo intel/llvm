@@ -273,9 +273,10 @@ private:
   std::string translateOpaqueType(StringRef STName);
 
   /// Mutate the argument list based on (optional) image operands at position
-  /// ImOpArgIndex.
+  /// ImOpArgIndex.  Set IsSigned according to any SignExtend/ZeroExtend Image
+  /// Operands present in Args, or default to signed if there are none.
   void mutateArgsForImageOperands(std::vector<Value *> &Args,
-                                  unsigned ImOpArgIndex);
+                                  unsigned ImOpArgIndex, bool &IsSigned);
 
 protected:
   Module *M;
