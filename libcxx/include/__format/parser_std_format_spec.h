@@ -64,7 +64,7 @@ __parse_arg_id(const _CharT* __begin, const _CharT* __end, auto& __parse_ctx) {
 
 template <class _Context>
 _LIBCPP_HIDE_FROM_ABI constexpr uint32_t
-__substitute_arg_id(basic_format_arg<_Context> _Arg) {
+__substitute_arg_id(basic_format_arg<_Context> __format_arg) {
   return visit_format_arg(
       [](auto __arg) -> uint32_t {
         using _Type = decltype(__arg);
@@ -88,7 +88,7 @@ __substitute_arg_id(basic_format_arg<_Context> _Arg) {
           __throw_format_error("A format-spec arg-id replacement argument "
                                "isn't an integral type");
       },
-      _Arg);
+      __format_arg);
 }
 
 /** Helper struct returned from @ref __get_string_alignment. */
@@ -1041,17 +1041,9 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_char(__parser<_CharT
 }
 
 template <class _CharT>
-_LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_integer(__parser<_CharT>& __parser) {
-  if (__parser.__alignment_ == __alignment::__default)
-    __parser.__alignment_ = __alignment::__right;
-}
-
-template <class _CharT>
 _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_bool(__parser<_CharT>& __parser) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
-    __parser.__type_ = __format_spec::__type::__string;
-    [[fallthrough]];
   case __format_spec::__type::__string:
     __format_spec::__process_display_type_bool_string(__parser);
     break;
@@ -1062,7 +1054,6 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_bool(__parser<_CharT>& __p
   case __format_spec::__type::__decimal:
   case __format_spec::__type::__hexadecimal_lower_case:
   case __format_spec::__type::__hexadecimal_upper_case:
-    __process_display_type_integer(__parser);
     break;
 
   default:
@@ -1074,8 +1065,6 @@ template <class _CharT>
 _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_char(__parser<_CharT>& __parser) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
-    __parser.__type_ = __format_spec::__type::__char;
-    [[fallthrough]];
   case __format_spec::__type::__char:
     __format_spec::__process_display_type_char(__parser);
     break;
@@ -1086,7 +1075,6 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_char(__parser<_CharT>& __p
   case __format_spec::__type::__decimal:
   case __format_spec::__type::__hexadecimal_lower_case:
   case __format_spec::__type::__hexadecimal_upper_case:
-    __format_spec::__process_display_type_integer(__parser);
     break;
 
   default:
@@ -1098,15 +1086,12 @@ template <class _CharT>
 _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_integer(__parser<_CharT>& __parser) {
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
-    __parser.__type_ = __format_spec::__type::__decimal;
-    [[fallthrough]];
   case __format_spec::__type::__binary_lower_case:
   case __format_spec::__type::__binary_upper_case:
   case __format_spec::__type::__octal:
   case __format_spec::__type::__decimal:
   case __format_spec::__type::__hexadecimal_lower_case:
   case __format_spec::__type::__hexadecimal_upper_case:
-    __format_spec::__process_display_type_integer(__parser);
     break;
 
   case __format_spec::__type::__char:
@@ -1120,8 +1105,6 @@ _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_integer(__parser<_CharT>& 
 
 template <class _CharT>
 _LIBCPP_HIDE_FROM_ABI constexpr void __process_parsed_floating_point(__parser<_CharT>& __parser) {
-  __format_spec::__process_display_type_integer(__parser);
-
   switch (__parser.__type_) {
   case __format_spec::__type::__default:
     // When no precision specified then it keeps default since that

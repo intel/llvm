@@ -84,6 +84,20 @@ static Type *getBlockStructType(Value *Parameter) {
   return ParamType;
 }
 
+/// Return one of the SPIR-V 1.4 SignExtend or ZeroExtend image operands
+/// for a demangled function name, or 0 if the function does not return an
+/// integer type (e.g. read_imagef).
+static unsigned getImageSignZeroExt(StringRef DemangledName) {
+  bool IsSigned = !DemangledName.endswith("ui") && DemangledName.back() == 'i';
+  bool IsUnsigned = DemangledName.endswith("ui");
+
+  if (IsSigned)
+    return ImageOperandsMask::ImageOperandsSignExtendMask;
+  if (IsUnsigned)
+    return ImageOperandsMask::ImageOperandsZeroExtendMask;
+  return 0;
+}
+
 bool OCLToSPIRVLegacy::runOnModule(Module &M) {
   setOCLTypeToSPIRV(&getAnalysis<OCLTypeToSPIRVLegacy>());
   return runOCLToSPIRV(M);
@@ -266,7 +280,7 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
   }
   if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0) {
     if (MangledName.find(kMangledName::Sampler) != StringRef::npos) {
-      visitCallReadImageWithSampler(&CI, MangledName);
+      visitCallReadImageWithSampler(&CI, MangledName, DemangledName);
       return;
     }
     if (MangledName.find("msaa") != StringRef::npos) {
@@ -973,7 +987,8 @@ void OCLToSPIRVBase::visitCallReadImageMSAA(CallInst *CI,
 }
 
 void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
-                                                   StringRef MangledName) {
+                                                   StringRef MangledName,
+                                                   StringRef DemangledName) {
   assert(MangledName.find(kMangledName::Sampler) != StringRef::npos);
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   Function *Func = CI->getCalledFunction();
@@ -999,22 +1014,26 @@ void OCLToSPIRVBase::visitCallReadImageWithSampler(CallInst *CI,
         Args[0] = SampledImg;
         Args.erase(Args.begin() + 1, Args.begin() + 2);
 
+        unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+        unsigned ImgOpMaskInsIndex = Args.size();
         switch (Args.size()) {
         case 2: // no lod
-          Args.push_back(getInt32(M, ImageOperandsMask::ImageOperandsLodMask));
+          ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+          ImgOpMaskInsIndex = Args.size();
           Args.push_back(getFloat32(M, 0.f));
           break;
         case 3: // explicit lod
-          Args.insert(Args.begin() + 2,
-                      getInt32(M, ImageOperandsMask::ImageOperandsLodMask));
+          ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+          ImgOpMaskInsIndex = 2;
           break;
         case 4: // gradient
-          Args.insert(Args.begin() + 2,
-                      getInt32(M, ImageOperandsMask::ImageOperandsGradMask));
+          ImgOpMask |= ImageOperandsMask::ImageOperandsGradMask;
+          ImgOpMaskInsIndex = 2;
           break;
         default:
           assert(0 && "read_image* with unhandled number of args!");
         }
+        Args.insert(Args.begin() + ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
 
         // SPIR-V instruction always returns 4-element vector
         if (IsRetScalar)
@@ -1130,18 +1149,31 @@ void OCLToSPIRVBase::visitCallBuiltinSimple(CallInst *CI, StringRef MangledName,
 void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
                                              StringRef DemangledName) {
   OCLBuiltinTransInfo Info;
-  if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0)
+  if (DemangledName.find(kOCLBuiltinName::ReadImage) == 0) {
     Info.UniqName = kOCLBuiltinName::ReadImage;
+    unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+    if (ImgOpMask) {
+      Info.PostProc = [&](std::vector<Value *> &Args) {
+        Args.push_back(getInt32(M, ImgOpMask));
+      };
+    }
+  }
 
   if (DemangledName.find(kOCLBuiltinName::WriteImage) == 0) {
     Info.UniqName = kOCLBuiltinName::WriteImage;
     Info.PostProc = [&](std::vector<Value *> &Args) {
+      unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
+      unsigned ImgOpMaskInsIndex = Args.size();
       if (Args.size() == 4) // write with lod
       {
         auto Lod = Args[2];
         Args.erase(Args.begin() + 2);
-        Args.push_back(getInt32(M, ImageOperandsMask::ImageOperandsLodMask));
+        ImgOpMask |= ImageOperandsMask::ImageOperandsLodMask;
+        ImgOpMaskInsIndex = Args.size();
         Args.push_back(Lod);
+      }
+      if (ImgOpMask) {
+        Args.insert(Args.begin() + ImgOpMaskInsIndex, getInt32(M, ImgOpMask));
       }
     };
   }

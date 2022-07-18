@@ -174,13 +174,13 @@ static Value broadcastIfNeeded(OpBuilder &b, Value value,
 /// Create MultiDimReductionOp to compute the reduction for `reductionOp`. This
 /// assumes that `reductionOp` has two operands and one of them is the reduction
 /// initial value.
-static Value buildMultiDimReduce(OpBuilder &b, Operation *reduceOp,
-                                 Value valueToReduce,
-                                 const SmallVector<bool> &reductionMask) {
+static Operation *buildMultiDimReduce(OpBuilder &b, Operation *reduceOp,
+                                      Value valueToReduce, Value acc,
+                                      const SmallVector<bool> &reductionMask) {
   auto maybeKind = getCombinerOpKind(reduceOp);
   assert(maybeKind && "Failed precondition: could not get reduction kind");
   return b.create<vector::MultiDimReductionOp>(
-      reduceOp->getLoc(), valueToReduce, reductionMask, *maybeKind);
+      reduceOp->getLoc(), valueToReduce, acc, reductionMask, *maybeKind);
 }
 
 static SmallVector<bool> getReductionMask(LinalgOp linalgOp) {
@@ -315,10 +315,7 @@ static Operation *reduceIfNeeded(OpBuilder &b, LinalgOp linalgOp, Operation *op,
       (outputType && reduceType.getShape() == outputType.getShape()))
     return nullptr;
   SmallVector<bool> reductionMask = getReductionMask(linalgOp);
-  Value reduce = buildMultiDimReduce(b, op, reduceVec, reductionMask);
-  return b.create(op->getLoc(), op->getName().getIdentifier(),
-                  /*operands=*/{reduce, outputVec}, reduce.getType(),
-                  op->getAttrs());
+  return buildMultiDimReduce(b, op, reduceVec, outputVec, reductionMask);
 }
 
 /// Generic vectorization for a single operation `op`, given already vectorized
@@ -625,8 +622,8 @@ LogicalResult mlir::linalg::vectorize(RewriterBase &rewriter,
 LogicalResult mlir::linalg::vectorizeCopy(RewriterBase &rewriter,
                                           memref::CopyOp copyOp) {
 
-  auto srcType = copyOp.source().getType().cast<MemRefType>();
-  auto dstType = copyOp.target().getType().cast<MemRefType>();
+  auto srcType = copyOp.getSource().getType().cast<MemRefType>();
+  auto dstType = copyOp.getTarget().getType().cast<MemRefType>();
   if (!srcType.hasStaticShape() || !dstType.hasStaticShape())
     return failure();
 
@@ -640,14 +637,14 @@ LogicalResult mlir::linalg::vectorizeCopy(RewriterBase &rewriter,
   SmallVector<Value> indices(srcType.getRank(), zero);
 
   Value readValue = rewriter.create<vector::TransferReadOp>(
-      loc, readType, copyOp.source(), indices,
+      loc, readType, copyOp.getSource(), indices,
       rewriter.getMultiDimIdentityMap(srcType.getRank()));
   if (readValue.getType().cast<VectorType>().getRank() == 0) {
     readValue = rewriter.create<vector::ExtractElementOp>(loc, readValue);
     readValue = rewriter.create<vector::BroadcastOp>(loc, writeType, readValue);
   }
   Operation *writeValue = rewriter.create<vector::TransferWriteOp>(
-      loc, readValue, copyOp.target(), indices,
+      loc, readValue, copyOp.getTarget(), indices,
       rewriter.getMultiDimIdentityMap(srcType.getRank()));
   rewriter.replaceOp(copyOp, writeValue->getResults());
   return success();
@@ -1168,8 +1165,8 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
   memref::CopyOp copyOp;
   for (auto &u : subView.getUses()) {
     if (auto newCopyOp = dyn_cast<memref::CopyOp>(u.getOwner())) {
-      assert(newCopyOp.target().getType().isa<MemRefType>());
-      if (newCopyOp.target() != subView)
+      assert(newCopyOp.getTarget().getType().isa<MemRefType>());
+      if (newCopyOp.getTarget() != subView)
         continue;
       LDBG("copy candidate " << *newCopyOp);
       if (mayExistInterleavedUses(newCopyOp, xferOp, {viewOrAlloc, subView}))
@@ -1204,7 +1201,7 @@ LogicalResult LinalgCopyVTRForwardingPattern::matchAndRewrite(
     LDBG("with maybeFillOp " << *maybeFillOp);
 
   // `in` is the subview that memref.copy reads. Replace it.
-  Value in = copyOp.source();
+  Value in = copyOp.getSource();
 
   // memref.copy + linalg.fill can be used to create a padded local buffer.
   // The `masked` attribute is only valid on this padded buffer.
@@ -1248,7 +1245,7 @@ LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
   memref::CopyOp copyOp;
   for (auto &u : subViewOp.getResult().getUses()) {
     if (auto newCopyOp = dyn_cast<memref::CopyOp>(u.getOwner())) {
-      if (newCopyOp.source() != subView)
+      if (newCopyOp.getSource() != subView)
         continue;
       if (mayExistInterleavedUses(xferOp, newCopyOp, {viewOrAlloc, subView}))
         continue;
@@ -1260,8 +1257,8 @@ LogicalResult LinalgCopyVTWForwardingPattern::matchAndRewrite(
     return failure();
 
   // `out` is the subview copied into that we replace.
-  assert(copyOp.target().getType().isa<MemRefType>());
-  Value out = copyOp.target();
+  assert(copyOp.getTarget().getType().isa<MemRefType>());
+  Value out = copyOp.getTarget();
 
   // Forward vector.transfer into copy.
   // memref.copy + linalg.fill can be used to create a padded local buffer.
