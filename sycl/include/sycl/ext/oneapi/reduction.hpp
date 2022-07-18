@@ -563,14 +563,10 @@ public:
   /// to keep the accessor alive until the command group finishes the work.
   /// This function does not do anything for USM reductions.
   void associateWithHandler(handler &CGH) {
-#ifndef __SYCL_DEVICE_ONLY__
     if (MRWAcc)
       CGH.associateWithHandler(MRWAcc.get(), access::target::device);
     else if (MDWAcc)
       CGH.associateWithHandler(MDWAcc.get(), access::target::device);
-#else
-    (void)CGH;
-#endif
   }
 
   /// Creates and returns a local accessor with the \p Size elements.
