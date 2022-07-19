@@ -1630,6 +1630,18 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   if (Body && isa_and_nonnull<CoroutineBodyStmt>(Body))
     llvm::append_range(FnArgs, FD->parameters());
 
+  // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
+  if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
+      getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
+      FD->hasAttr<CUDADeviceAttr>()) {
+    Fn->setLinkage(llvm::Function::WeakODRLinkage);
+    if (FD->getReturnType()->isVoidType())
+      Builder.CreateRetVoid();
+    else
+      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
+    return;
+  }
+
   // Generate the body of the function.
   PGO.assignRegionCounters(GD, CurFn);
   if (isa<CXXDestructorDecl>(FD))
@@ -1640,19 +1652,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
            !getLangOpts().CUDAIsDevice &&
            FD->hasAttr<CUDAGlobalAttr>())
     CGM.getCUDARuntime().emitDeviceStub(*this, Args);
-  else if (getLangOpts().CUDA && !getLangOpts().CUDAIsDevice &&
-           getLangOpts().SYCLIsHost && !FD->hasAttr<CUDAHostAttr>() &&
-           FD->hasAttr<CUDADeviceAttr>()) {
-    // Generate a dummy __host__ function for compiling CUDA sources in SYCL.
-    Fn->setLinkage(llvm::Function::WeakODRLinkage);
-    if (FD->getReturnType()->isVoidType())
-      Builder.CreateRetVoid();
-    else
-      Builder.CreateRet(llvm::UndefValue::get(Fn->getReturnType()));
-    return;
-  }
-  if (isa<CXXMethodDecl>(FD) &&
-             cast<CXXMethodDecl>(FD)->isLambdaStaticInvoker()) {
+  else if (isa<CXXMethodDecl>(FD) &&
+           cast<CXXMethodDecl>(FD)->isLambdaStaticInvoker()) {
     // The lambda static invoker function is special, because it forwards or
     // clones the body of the function call operator (but is actually static).
     EmitLambdaStaticInvokeBody(cast<CXXMethodDecl>(FD));
