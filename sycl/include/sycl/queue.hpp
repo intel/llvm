@@ -872,40 +872,12 @@ public:
   /// \param WorkItemOffset specifies the offset for each work item id
   /// \param KernelFunc is the Kernel functor or lambda
   /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<1> Range, id<1> WorkItemOffset,
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dim>
+  event parallel_for(range<Dim> Range, id<Dim> WorkItemOffset,
                      const std::vector<event> &DepEvents,
                      _KERNELFUNCPARAM(KernelFunc)) {
-    return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
-                                         KernelFunc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range and
-  /// offset that specify global size and global offset correspondingly.
-  ///
-  /// \param Range specifies the global work space of the kernel
-  /// \param WorkItemOffset specifies the offset for each work item id
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<2> Range, id<2> WorkItemOffset,
-                     const std::vector<event> &DepEvents,
-                     _KERNELFUNCPARAM(KernelFunc)) {
-    return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
-                                         KernelFunc);
-  }
-
-  /// parallel_for version with a kernel represented as a lambda + range and
-  /// offset that specify global size and global offset correspondingly.
-  ///
-  /// \param Range specifies the global work space of the kernel
-  /// \param WorkItemOffset specifies the offset for each work item id
-  /// \param KernelFunc is the Kernel functor or lambda
-  /// \param CodeLoc contains the code location of user code
-  template <typename KernelName = detail::auto_name, typename KernelType>
-  event parallel_for(range<3> Range, id<3> WorkItemOffset,
-                     const std::vector<event> &DepEvents,
-                     _KERNELFUNCPARAM(KernelFunc)) {
+    static_assert(1 <= Dim && Dim <= 3, "Invalid number of dimensions");
     return parallel_for_impl<KernelName>(Range, WorkItemOffset, DepEvents,
                                          KernelFunc);
   }

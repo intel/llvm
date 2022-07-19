@@ -495,8 +495,15 @@ private:
 
   bool is_host() { return MIsHost; }
 
+#ifdef __SYCL_DEVICE_ONLY__
+  // In device compilation accessor isn't inherited from AccessorBaseHost, so
+  // can't detect by it. Since we don't expect it to be ever called in device
+  // execution, just use blind void *.
+  void associateWithHandler(void *AccBase, access::target AccTarget);
+#else
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
                             access::target AccTarget);
+#endif
 
   // Recursively calls itself until arguments pack is fully processed.
   // The version for regular(standard layout) argument.
@@ -1389,11 +1396,7 @@ public:
   void
   require(accessor<DataT, Dims, AccMode, AccTarget, access::placeholder::true_t>
               Acc) {
-#ifndef __SYCL_DEVICE_ONLY__
     associateWithHandler(&Acc, AccTarget);
-#else
-    (void)Acc;
-#endif
   }
 
   /// Registers event dependencies on this command group.
@@ -2670,9 +2673,11 @@ private:
             class Algorithm>
   friend class ext::oneapi::detail::reduction_impl_algo;
 
+#ifndef __SYCL_DEVICE_ONLY__
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+#endif
 
   friend class ::MockHandler;
   friend class detail::queue_impl;
