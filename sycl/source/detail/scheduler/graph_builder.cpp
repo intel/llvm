@@ -47,8 +47,10 @@ static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
   return LHS == RHS || (LHS->is_host() && RHS->is_host());
 }
 bool sameDev(const DeviceImplPtr &LHS, const DeviceImplPtr &RHS) {
-  RT::PiDevice LHSroot = LHS->MRootDevice == nullptr ? LHS->MDevice : LHS->MRootDevice;
-  RT::PiDevice RHSroot = RHS->MRootDevice == nullptr ? RHS->MDevice : RHS->MRootDevice;
+  RT::PiDevice LHSroot =
+      LHS->MRootDevice == nullptr ? LHS->MDevice : LHS->MRootDevice;
+  RT::PiDevice RHSroot =
+      RHS->MRootDevice == nullptr ? RHS->MDevice : RHS->MRootDevice;
   return LHSroot == RHSroot;
 }
 
