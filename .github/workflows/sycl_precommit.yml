@@ -42,4 +42,3 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       lts_config: "hip_amdgpu;ocl_x64;ocl_gen9;l0_gen9;esimd_emu;cuda"
-      cts_config: "cuda"
