@@ -750,6 +750,15 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // Get a native event and its pool from cache.
+  std::pair<ze_event_handle_t, ze_event_pool_handle_t>
+  getZeEventFromCache(bool HostVisible, bool WithProfiling);
+
+  // Add a native event and its pool to cache.
+  void addZeEventToCache(ze_event_handle_t ZeEvent,
+                         ze_event_pool_handle_t ZePool, bool HostVisible,
+                         bool WithProfiling);
+
 private:
   // If context contains one device then return this device.
   // If context contains sub-devices of the same device, then return this parent
@@ -798,6 +807,21 @@ private:
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
   pi_mutex ZeEventPoolCacheMutex;
+
+  // Mutex to control operations on event caches.
+  pi_mutex ZeEventCacheMutex;
+
+  // Caches for native event handles.
+  std::vector<std::list<std::pair<ze_event_handle_t, ze_event_pool_handle_t>>>
+      ZeEventCaches{4};
+
+  // Get the cache of events for a provided scope and profiling mode.
+  auto getZeEventCache(bool HostVisible, bool WithProfiling) {
+    if (HostVisible)
+      return WithProfiling ? &ZeEventCaches[0] : &ZeEventCaches[1];
+    else
+      return WithProfiling ? &ZeEventCaches[2] : &ZeEventCaches[3];
+  }
 };
 
 struct _pi_queue : _pi_object {

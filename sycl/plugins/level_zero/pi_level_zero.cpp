@@ -99,6 +99,16 @@ static const bool UseMultipleCmdlistBarriers = [] {
   return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
+// This is an experimental option that allows to disable caching of events in
+// the context.
+static const bool DisableEventsCaching = [] {
+  const char *DisableEventsCachingFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING");
+  if (!DisableEventsCachingFlag)
+    return false;
+  return std::stoi(DisableEventsCachingFlag) != 0;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -869,6 +879,15 @@ pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
   // For example, event pool caches would be still alive.
+  {
+    std::scoped_lock Lock(ZeEventCacheMutex);
+    for (auto &ZeEventCache : ZeEventCaches) {
+      for (auto &ZeEventAndPool : ZeEventCache)
+        ZE_CALL(zeEventDestroy, (ZeEventAndPool.first));
+      ZeEventCache.clear();
+    }
+  }
+
   {
     std::scoped_lock Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
@@ -5430,6 +5449,28 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
+std::pair<ze_event_handle_t, ze_event_pool_handle_t>
+_pi_context::getZeEventFromCache(bool HostVisible, bool WithProfiling) {
+  std::scoped_lock Lock(ZeEventCacheMutex);
+  auto Cache = getZeEventCache(HostVisible, WithProfiling);
+  if (Cache->empty())
+    return std::make_pair<ze_event_handle_t, ze_event_pool_handle_t>(nullptr,
+                                                                     nullptr);
+
+  auto It = Cache->begin();
+  std::pair<ze_event_handle_t, ze_event_pool_handle_t> ZeEvent = *It;
+  Cache->erase(It);
+  return ZeEvent;
+}
+
+void _pi_context::addZeEventToCache(ze_event_handle_t ZeEvent,
+                                    ze_event_pool_handle_t ZePool,
+                                    bool HostVisible, bool WithProfiling) {
+  std::scoped_lock Lock(ZeEventCacheMutex);
+  auto Cache = getZeEventCache(HostVisible, WithProfiling);
+  Cache->emplace_back(ZeEvent, ZePool);
+}
+
 // Helper function for creating a PI event.
 // The "Queue" argument specifies the PI queue where a command is submitted.
 // The "HostVisible" argument specifies if event needs to be allocated from
@@ -5437,36 +5478,45 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent) {
-
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  size_t Index = 0;
-  ze_event_pool_handle_t ZeEventPool = {};
-  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled))
-    return Res;
-
+  auto CachedEvent =
+      Context->getZeEventFromCache(HostVisible, ProfilingEnabled);
   ze_event_handle_t ZeEvent;
-  ZeStruct<ze_event_desc_t> ZeEventDesc;
-  ZeEventDesc.index = Index;
-  ZeEventDesc.wait = 0;
+  ze_event_pool_handle_t ZeEventPool = {};
 
-  if (HostVisible) {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+  // If no any then check cache of event in the context
+  if (CachedEvent.first) {
+    ZeEvent = CachedEvent.first;
+    ZeEventPool = CachedEvent.second;
   } else {
-    //
-    // Set the scope to "device" for every event. This is sufficient for global
-    // device access and peer device access. If needed to be seen on the host
-    // we are doing special handling, see EventsScope options.
-    //
-    // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
-    //       used in some circumstances.
-    //
-    ZeEventDesc.signal = 0;
-  }
+    size_t Index = 0;
 
-  ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+    if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+            ZeEventPool, Index, HostVisible, ProfilingEnabled))
+      return Res;
+
+    ZeStruct<ze_event_desc_t> ZeEventDesc;
+    ZeEventDesc.index = Index;
+    ZeEventDesc.wait = 0;
+
+    if (HostVisible) {
+      ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
+    } else {
+      //
+      // Set the scope to "device" for every event. This is sufficient for
+      // global device access and peer device access. If needed to be seen on
+      // the host we are doing special handling, see EventsScope options.
+      //
+      // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
+      //       used in some circumstances.
+      //
+      ZeEventDesc.signal = 0;
+    }
+
+    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+  }
 
   try {
     PI_ASSERT(RetEvent, PI_ERROR_INVALID_VALUE);
@@ -5819,7 +5869,17 @@ pi_result piEventRelease(pi_event Event) {
     Event->CommandData = nullptr;
   }
   if (Event->OwnZeEvent) {
-    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    if (!DisableEventsCaching) {
+      ZE_CALL(zeEventHostReset, (Event->ZeEvent));
+      Event->Context->addZeEventToCache(Event->ZeEvent, Event->ZeEventPool,
+                                        Event->isHostVisible(),
+                                        Event->isProfilingEnabled());
+    } else {
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+      auto Context = Event->Context;
+      if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+        return Res;
+    }
   }
   // It is possible that host-visible event was never created.
   // In case it was check if that's different from this same event
@@ -5828,10 +5888,6 @@ pi_result piEventRelease(pi_event Event) {
     // Decrement ref-count of the host-visible proxy event.
     PI_CALL(piEventRelease(Event->HostVisibleEvent));
   }
-
-  auto Context = Event->Context;
-  if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
-    return Res;
 
   // We intentionally incremented the reference counter when an event is
   // created so that we can avoid pi_queue is released before the associated
