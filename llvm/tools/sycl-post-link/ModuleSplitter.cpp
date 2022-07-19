@@ -331,7 +331,7 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   // So such functions along with the call graphs they start are always
   // extracted (and duplicated in each split module).
   for (const auto *F : Deps.addrTakenFunctions()) {
-    if (!isKernel(*F))
+    if (!isKernel(*F) && (isESIMDFunction(*F) == ModuleEntryPoints.isEsimd()))
       GVs.insert(F);
   }
 
