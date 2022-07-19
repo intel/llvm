@@ -242,6 +242,8 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
+
+  friend bool sameDev(const std::shared_ptr<device_impl> &LHS, const std::shared_ptr<device_impl> &RHS);
 }; // class device_impl
 
 } // namespace detail

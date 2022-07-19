@@ -46,8 +46,10 @@ static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
   // allocation on the host
   return LHS == RHS || (LHS->is_host() && RHS->is_host());
 }
-static bool sameDev(const DeviceImplPtr &LHS, const DeviceImplPtr &RHS) {
-  return LHS == RHS;
+bool sameDev(const DeviceImplPtr &LHS, const DeviceImplPtr &RHS) {
+  RT::PiDevice LHSroot = LHS->MRootDevice == nullptr ? LHS->MDevice : LHS->MRootDevice;
+  RT::PiDevice RHSroot = RHS->MRootDevice == nullptr ? RHS->MDevice : RHS->MRootDevice;
+  return LHSroot == RHSroot;
 }
 
 /// Checks if current requirement is requirement for sub buffer.
