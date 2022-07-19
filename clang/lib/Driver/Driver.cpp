@@ -3478,8 +3478,7 @@ class OffloadingActionBuilder final {
 
     /// Update the state to include the provided host action \a HostAction as a
     /// dependency of the current device action. By default it is inactive.
-    virtual ActionBuilderReturnCode addDeviceDepences(Action *HostAction,
-                                                      const bool UseArch=true) {
+    virtual ActionBuilderReturnCode addDeviceDepences(Action *HostAction) {
       return ABRT_Inactive;
     }
 
@@ -3573,8 +3572,7 @@ class OffloadingActionBuilder final {
                           Action::OffloadKind OFKind)
         : DeviceActionBuilder(C, Args, Inputs, OFKind) {}
 
-    ActionBuilderReturnCode
-    addDeviceDepences(Action *HostAction, const bool UseArch = true) override {
+    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
       // While generating code for CUDA, we only depend on the host input action
       // to trigger the creation of all the CUDA device actions.
 
@@ -4246,7 +4244,7 @@ class OffloadingActionBuilder final {
     }
 
     ActionBuilderReturnCode
-    addDeviceDepences(Action *HostAction, const bool UseArch = true) override {
+    addDeviceDepences(Action *HostAction) override {
 
       // If this is an input action replicate it for each OpenMP toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -4444,12 +4442,12 @@ class OffloadingActionBuilder final {
     /// List of static archives to extract FPGA dependency info from
     ActionList FPGAArchiveInputs;
 
+    // SYCLInstallation is needed in order to link SYCLDeviceLibs
+    SYCLInstallationDetector SYCLInstallation;
+
     /// List of GPU architectures to use in this compilation with NVPTX/AMDGCN
     /// targets.
     SmallVector<std::pair<llvm::Triple, const char *>, 8> GpuArchList;
-
-    // SYCLInstallation is needed in order to link SYCLDeviceLibs
-    SYCLInstallationDetector SYCLInstallation;
 
     /// Build the last steps for CUDA after all BC files have been linked.
     JobAction *finalizeNVPTXDependences(Action *Input, const llvm::Triple &TT) {
@@ -4683,8 +4681,7 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
-    ActionBuilderReturnCode
-    addDeviceDepences(Action *HostAction, const bool UseArch = true) override {
+    ActionBuilderReturnCode addDeviceDepences(Action *HostAction) override {
 
       // If this is an input action replicate it for each SYCL toolchain.
       if (auto *IA = dyn_cast<InputAction>(HostAction)) {
@@ -4744,8 +4741,7 @@ class OffloadingActionBuilder final {
         // Create 1 device action per triple/bound arch
         for (auto &TargetInfo : SYCLTargetInfoList) {
           SYCLDeviceActions.push_back(UA);
-          const auto *Arch = UseArch ? TargetInfo.BoundArch : nullptr;
-          UA->registerDependentActionInfo(TargetInfo.TC, Arch,
+          UA->registerDependentActionInfo(TargetInfo.TC, TargetInfo.BoundArch,
                                           Action::OFK_SYCL);
         }
         return ABRT_Success;
@@ -4889,8 +4885,16 @@ class OffloadingActionBuilder final {
               auto *SYCLDeviceLibsUnbundleAction =
                   C.MakeAction<OffloadUnbundlingJobAction>(
                       SYCLDeviceLibsInputAction);
-              addDeviceDepences(SYCLDeviceLibsUnbundleAction, false);
-              DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+              SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
+                  TC, /*BoundArch=*/"", Action::OFK_SYCL);
+              OffloadAction::DeviceDependences Dep;
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/nullptr,
+                      Action::OFK_SYCL);
+              auto *SYCLDeviceLibsDependenciesAction =
+                  C.MakeAction<OffloadAction>(
+                      Dep, SYCLDeviceLibsUnbundleAction->getType());
+
+              DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
               if (!LibLocSelected)
                 LibLocSelected = !LibLocSelected;
             }
@@ -7784,11 +7788,11 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // be returned for the current depending action.
       std::pair<const Action *, std::string> ActionTC = {
           A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-
+/*
       if (CachedResults.find(ActionTC) == CachedResults.end())
         ActionTC = {
             A, GetTriplePlusArchString(TC, "", TargetDeviceOffloadKind)};
-
+*/
       assert((CachedResults.find(ActionTC) != CachedResults.end()) &&
              "Result does not exist??");
       Result = CachedResults[ActionTC].front();
