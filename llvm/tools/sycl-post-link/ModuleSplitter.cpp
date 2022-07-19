@@ -330,6 +330,9 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
   // or otherwise used by any function in any module split from the initial one.
   // So such functions along with the call graphs they start are always
   // extracted (and duplicated in each split module).
+  // TODO: try to determine which split modules really use address-taken
+  // functions and only duplicate the functions in such modules. Note that usage
+  // may include e.g. function address comparison w/o actual invocation.
   for (const auto *F : Deps.addrTakenFunctions()) {
     if (!isKernel(*F) && (isESIMDFunction(*F) == ModuleEntryPoints.isEsimd()))
       GVs.insert(F);
