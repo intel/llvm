@@ -10,7 +10,7 @@
 // in SYCL SPEC section - 4.13.7 Relational functions.
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 
 #include <cmath>
 

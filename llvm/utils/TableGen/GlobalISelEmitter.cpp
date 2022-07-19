@@ -2970,7 +2970,7 @@ public:
           << MatchTable::IntValue(RendererID);
     if (SubOperand)
       Table << MatchTable::Comment("SubOperand")
-            << MatchTable::IntValue(SubOperand.getValue());
+            << MatchTable::IntValue(SubOperand.value());
     Table << MatchTable::Comment(SymbolicName) << MatchTable::LineBreak;
   }
 };
@@ -3785,10 +3785,12 @@ GlobalISelEmitter::getEquivNode(Record &Equiv, const TreePatternNode *N) const {
 
   for (const TreePredicateCall &Call : N->getPredicateCalls()) {
     const TreePredicateFn &Predicate = Call.Fn;
-    if (!Equiv.isValueUnset("IfSignExtend") && Predicate.isLoad() &&
+    if (!Equiv.isValueUnset("IfSignExtend") &&
+        (Predicate.isLoad() || Predicate.isAtomic()) &&
         Predicate.isSignExtLoad())
       return &Target.getInstruction(Equiv.getValueAsDef("IfSignExtend"));
-    if (!Equiv.isValueUnset("IfZeroExtend") && Predicate.isLoad() &&
+    if (!Equiv.isValueUnset("IfZeroExtend") &&
+        (Predicate.isLoad() || Predicate.isAtomic()) &&
         Predicate.isZeroExtLoad())
       return &Target.getInstruction(Equiv.getValueAsDef("IfZeroExtend"));
   }
@@ -4984,8 +4986,8 @@ Error GlobalISelEmitter::importDefaultOperandRenderers(
       auto Def = DefaultDefOp->getDef();
       if (Def->getName() == "undef_tied_input") {
         unsigned TempRegID = M.allocateTempRegID();
-        M.insertAction<MakeTempRegisterAction>(
-          InsertPt, OpTyOrNone.getValue(), TempRegID);
+        M.insertAction<MakeTempRegisterAction>(InsertPt, OpTyOrNone.value(),
+                                               TempRegID);
         InsertPt = M.insertAction<BuildMIAction>(
           InsertPt, M.allocateOutputInsnID(),
           &Target.getInstruction(RK.getDef("IMPLICIT_DEF")));

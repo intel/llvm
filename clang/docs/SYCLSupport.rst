@@ -72,7 +72,7 @@ This is also in line with the behaviour of CUDA (`small example
    template <typename T, address_space AS> class multi_ptr {
      // DecoratedType applies corresponding address space attribute to the type T
      // DecoratedType<T, global_space>::type == "__attribute__((opencl_global)) T"
-     // See sycl/include/CL/sycl/access/access.hpp for more details
+     // See sycl/include/sycl/access/access.hpp for more details
      using pointer_t = typename DecoratedType<T, AS>::type *;
 
      pointer_t m_Pointer;

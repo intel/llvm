@@ -11,15 +11,15 @@
 #if __cplusplus >= 201703L
 // Entire feature is dependent on C++17.
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/atomic.hpp>
-#include <CL/sycl/atomic_ref.hpp>
-#include <CL/sycl/detail/tuple.hpp>
-#include <CL/sycl/group_algorithm.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/known_identity.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/atomic.hpp>
+#include <sycl/atomic_ref.hpp>
+#include <sycl/detail/tuple.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/known_identity.hpp>
 
 #include <tuple>
 
@@ -563,14 +563,10 @@ public:
   /// to keep the accessor alive until the command group finishes the work.
   /// This function does not do anything for USM reductions.
   void associateWithHandler(handler &CGH) {
-#ifndef __SYCL_DEVICE_ONLY__
     if (MRWAcc)
       CGH.associateWithHandler(MRWAcc.get(), access::target::device);
     else if (MDWAcc)
       CGH.associateWithHandler(MDWAcc.get(), access::target::device);
-#else
-    (void)CGH;
-#endif
   }
 
   /// Creates and returns a local accessor with the \p Size elements.

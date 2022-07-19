@@ -13,14 +13,14 @@
 #include "detail/platform_impl.hpp"
 #include "detail/plugin.hpp"
 #include "detail/queue_impl.hpp"
-#include <CL/sycl/backend.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <algorithm>
 #include <memory>

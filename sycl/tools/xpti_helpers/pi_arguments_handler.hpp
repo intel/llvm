@@ -9,8 +9,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/type_traits.hpp>
 
 #include <functional>
 #include <optional>
@@ -69,7 +69,7 @@ public:
     MHandler##_##api(Plugin, Result, ArgsData);                                \
     return;                                                                    \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
   }
 
@@ -90,7 +90,7 @@ public:
       std::apply(Wrapper, Tuple);                                              \
     };                                                                         \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
 private:
@@ -98,7 +98,7 @@ private:
   std::function<void(const pi_plugin &, std::optional<pi_result>, void *)>     \
       MHandler##_##api =                                                       \
           [](const pi_plugin &, std::optional<pi_result>, void *) {};
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 };
 } // namespace xpti_helpers

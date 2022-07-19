@@ -9,10 +9,10 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/memory_enums.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/memory_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
