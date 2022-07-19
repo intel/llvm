@@ -13830,6 +13830,17 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
 
         if (S.SourceMgr.isInSystemMacro(CC))
           return;
+        // If there is a precision conversion between floating point types when
+        // -Wimplicit-float-size-conversion is passed but
+        // -Wimplicit-float-conversion is not, make sure we emit atleast a size
+        // warning.
+        if (S.Diags.isIgnored(diag::warn_impcast_float_precision, CC) &&
+            !S.Diags.isIgnored(diag::warn_imp_float_size_conversion, CC)) {
+          if (S.getLangOpts().SYCLIsDevice)
+            S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
+          else
+            DiagnoseImpCast(S, E, T, CC, diag::warn_imp_float_size_conversion);
+        }
         DiagnoseImpCast(S, E, T, CC, diag::warn_impcast_float_precision);
       }
       // ... or possibly if we're increasing rank, too
