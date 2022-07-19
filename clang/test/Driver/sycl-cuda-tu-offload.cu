@@ -19,7 +19,7 @@
 // DEFAULT-PHASES:|- 14: assembler, {13}, object, (host-cuda-sycl)
 // DEFAULT-PHASES:15: clang-offload-bundler, {3, 14}, object, (host-cuda-sycl)
 
-// RUN: %clang++ -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES2
+// RUN: %clangxx -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES2
 
 // DEFAULT-PHASES2:                     +- 0: input, "{{.*}}", cuda, (host-cuda)
 // DEFAULT-PHASES2:                  +- 1: preprocessor, {0}, cuda-cpp-output, (host-cuda)
