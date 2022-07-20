@@ -44,6 +44,10 @@ runs:
       cd khronos_sycl_cts
       git submodule update --init
     shell: bash
+  ## TODO remove this step when host_task_interop_api.cpp fixed
+  - run: |
+      rm khronos_sycl_cts/tests/host_task/host_task_interop_api.cpp
+    shell: bash
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
     with:
