@@ -337,6 +337,7 @@ module std [system] {
       module ranges_is_partitioned           { private header "__algorithm/ranges_is_partitioned.h" }
       module ranges_is_sorted                { private header "__algorithm/ranges_is_sorted.h" }
       module ranges_is_sorted_until          { private header "__algorithm/ranges_is_sorted_until.h" }
+      module ranges_iterator_concept         { private header "__algorithm/ranges_iterator_concept.h" }
       module ranges_lexicographical_compare  { private header "__algorithm/ranges_lexicographical_compare.h" }
       module ranges_lower_bound              { private header "__algorithm/ranges_lower_bound.h" }
       module ranges_make_heap                { private header "__algorithm/ranges_make_heap.h" }
@@ -352,6 +353,7 @@ module std [system] {
       module ranges_move_backward            { private header "__algorithm/ranges_move_backward.h" }
       module ranges_none_of                  { private header "__algorithm/ranges_none_of.h" }
       module ranges_nth_element              { private header "__algorithm/ranges_nth_element.h" }
+      module ranges_partial_sort             { private header "__algorithm/ranges_partial_sort.h" }
       module ranges_partial_sort_copy        { private header "__algorithm/ranges_partial_sort_copy.h" }
       module ranges_partition                { private header "__algorithm/ranges_partition.h" }
       module ranges_partition_copy           { private header "__algorithm/ranges_partition_copy.h" }
