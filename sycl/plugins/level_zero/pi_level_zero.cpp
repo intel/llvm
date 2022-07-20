@@ -3528,7 +3528,9 @@ pi_result piQueueRelease(pi_queue Queue) {
       // For immediate commandlists we don't need to do an L0 reset of the
       // commandlist but do need to do event cleanup which is also in the
       // resetCommandList function.
-      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
+      // If the fence is a nullptr we are using immediate commandlists,
+      // otherwise regular commandlists which use a fence.
+      if (it->second.ZeFence == nullptr || it->second.ZeFenceInUse) {
         Queue->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
