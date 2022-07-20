@@ -51,14 +51,14 @@ int main() {
 
   device dev = q.get_device();
   const size_t wgSize =
-      krn.get_work_group_info<info::kernel_work_group::work_group_size>(dev);
+      krn.get_info<info::kernel_device_specific::work_group_size>(dev);
   assert(wgSize > 0);
   const size_t wgSizeNew =
       krn.get_info<info::kernel_device_specific::work_group_size>(dev);
   assert(wgSizeNew > 0);
   assert(wgSize == wgSizeNew);
-  const size_t prefWGSizeMult = krn.get_work_group_info<
-      info::kernel_work_group::preferred_work_group_size_multiple>(dev);
+  const size_t prefWGSizeMult = krn.get_info<
+      info::kernel_device_specific::preferred_work_group_size_multiple>(dev);
   assert(prefWGSizeMult > 0);
   const size_t prefWGSizeMultNew = krn.get_info<
       info::kernel_device_specific::preferred_work_group_size_multiple>(dev);
