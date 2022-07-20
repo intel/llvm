@@ -181,7 +181,8 @@ public:
 /// element type \c To.
 template <typename To, typename From, int N>
 ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
-  if constexpr (std::is_same_v<To, From>)
+  if constexpr (std::is_same_v<std::remove_const_t<To>,
+                               std::remove_const_t<From>>)
     return val;
   else
     return detail::convert_vector<To, From, N>(val.data());
