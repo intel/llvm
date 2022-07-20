@@ -104,13 +104,10 @@ template <typename TRes, typename TArg>
 ESIMD_NODEBUG
     ESIMD_INLINE std::enable_if_t<detail::is_esimd_scalar<TRes>::value &&
                                       detail::is_esimd_scalar<TArg>::value,
-                                  std::remove_const_t<TRes>>
+                                  TRes>
     __esimd_abs_common_internal(TArg src0) {
-  using TTRes = std::remove_const_t<TRes>;
-  using TTArg = std::remove_const_t<TArg>;
-
-  simd<TTArg, 1> Src0 = src0;
-  simd<TTArg, 1> Result = __esimd_abs_common_internal<TTArg>(Src0);
+  simd<TArg, 1> Src0 = src0;
+  simd<TArg, 1> Result = __esimd_abs_common_internal<TArg>(Src0);
   return convert<TRes>(Result)[0];
 }
 } // namespace detail
