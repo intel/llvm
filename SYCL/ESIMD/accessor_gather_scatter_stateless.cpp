@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-esimd-force-stateless-mem %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // The test checks functionality of the gather/scatter accessor-based ESIMD
-// intrinsics.
+// intrinsics when stateless memory accesses are enforced, i.e. accessor based
+// accesses are automatically converted to stateless accesses.
 
 #include "accessor_gather_scatter.hpp"
