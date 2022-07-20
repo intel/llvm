@@ -38,7 +38,8 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 shl(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
+  using ComputationTy =
+      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
   ComputationTy Src0 = src0;
   ComputationTy Src1 = src1;
 
@@ -121,7 +122,8 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
+  using ComputationTy =
+      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
   ComputationTy Src0 = src0;
   ComputationTy Src1 = src1;
   // TODO H/W supports saturation with this op - map to more efficient version.
@@ -188,7 +190,8 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
+  using ComputationTy =
+      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
   ComputationTy Src0 = src0;
   ComputationTy Src1 = src1;
   return esimd::rol<T0>(Src0, Src1);
@@ -245,7 +248,8 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<decltype(src0), U>;
+  using ComputationTy =
+      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
   ComputationTy Src0 = src0;
   ComputationTy Src1 = src1;
   return esimd::ror<T0>(Src0, Src1);
