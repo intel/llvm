@@ -44,27 +44,37 @@ shl(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_on_tag>) {
     if constexpr (std::is_unsigned<T0>::value) {
-      if constexpr (std::is_unsigned<T1>::value)
-        return __esimd_uushl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_unsigned<
+                        typename ComputationTy::element_type>::value)
+        return __esimd_uushl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_usshl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_usshl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     } else {
-      if constexpr (std::is_signed<T1>::value)
-        return __esimd_sushl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_signed<typename ComputationTy::element_type>::value)
+        return __esimd_sushl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_ssshl_sat<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_ssshl_sat<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     }
   } else {
     if constexpr (std::is_unsigned<T0>::value) {
-      if constexpr (std::is_unsigned<T1>::value)
-        return __esimd_uushl<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_unsigned<
+                        typename ComputationTy::element_type>::value)
+        return __esimd_uushl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_usshl<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_usshl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     } else {
-      if constexpr (std::is_signed<T1>::value)
-        return __esimd_sushl<T0, T1, SZ>(Src0.data(), Src1.data());
+      if constexpr (std::is_signed<typename ComputationTy::element_type>::value)
+        return __esimd_sushl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
       else
-        return __esimd_ssshl<T0, T1, SZ>(Src0.data(), Src1.data());
+        return __esimd_ssshl<T0, typename ComputationTy::element_type, SZ>(
+            Src0.data(), Src1.data());
     }
   }
 }
@@ -88,11 +98,9 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
                                  std::is_integral<T2>::value,
                              std::remove_const_t<T0>>
 shl(T1 src0, T2 src1, Sat sat = {}) {
-  using ComputationTy = __ESIMD_DNS::computation_type_t<T1, T2>;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src0 = src0;
-  typename __ESIMD_DNS::simd_type<ComputationTy>::type Src1 = src1;
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
   __ESIMD_NS::simd<T0, 1> Result =
-      esimd::shl<T0, T1, 1, T2, Sat>(Src0, Src1, sat);
+      esimd::shl<T0, T1, 1, T2, Sat>(Src0, src1, sat);
   return Result[0];
 }
 
