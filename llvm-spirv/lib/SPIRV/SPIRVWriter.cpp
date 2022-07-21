@@ -5258,7 +5258,7 @@ bool runSpirvWriterPasses(Module *M, std::ostream *OS, std::string &ErrMsg,
     if (!BM->getErrorLog().checkError(ModuleVer <= Opts.getMaxVersion(),
                                       SPIRVEC_TripleMaxVersionIncompatible))
       return false;
-    BM->setMinSPIRVVersion(static_cast<SPIRVWord>(ModuleVer));
+    BM->setMinSPIRVVersion(ModuleVer);
   }
 
   ModulePassManager PassMgr;
