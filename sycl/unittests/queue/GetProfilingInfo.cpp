@@ -163,8 +163,10 @@ TEST(GetProfilingInfo, command_exception_check) {
       (void)submit_time;
       FAIL();
     } catch (sycl::exception &e) {
-      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   {
@@ -180,8 +182,10 @@ TEST(GetProfilingInfo, command_exception_check) {
       FAIL();
     } catch (sycl::exception const &e) {
       std::cerr << e.what() << std::endl;
-      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   {
@@ -195,8 +199,10 @@ TEST(GetProfilingInfo, command_exception_check) {
       (void)end_time;
       FAIL();
     } catch (sycl::exception const &e) {
-      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
 }
@@ -302,8 +308,10 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       (void)submit_time;
       FAIL();
     } catch (sycl::exception &e) {
-      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   {
@@ -314,8 +322,10 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       (void)start_time;
       FAIL();
     } catch (sycl::exception &e) {
-      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   {
@@ -325,8 +335,10 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       (void)end_time;
       FAIL();
     } catch (sycl::exception &e) {
-      EXPECT_STREQ(e.what(), "get_profiling_info() can't be used without set "
-                             "'enable_profiling' queue property");
+      EXPECT_STREQ(
+          e.what(),
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   // The test passes without this, but keep it still, just in case.
