@@ -16,6 +16,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/IR/Argument.h"
@@ -43,7 +44,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cassert>
 #include <utility>
@@ -76,8 +76,7 @@ public:
   bool runOnModule(Module &M) override {
     if (skipModule(M))
       return false;
-    DeadArgumentEliminationPass DAEP(shouldHackArguments(),
-                                     CheckSYCLKernels());
+    DeadArgumentEliminationPass DAEP(shouldHackArguments(), CheckSYCLKernels());
     ModuleAnalysisManager DummyMAM;
     PreservedAnalyses PA = DAEP.run(M, DummyMAM);
     return !PA.areAllPreserved();
@@ -562,11 +561,9 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
 
   // We can't modify arguments if the function is not local
   // but we can do so for SYCL kernel functions.
-  // DAE is not currently supported for ESIMD kernels.
   bool FuncIsSyclNonEsimdKernel =
       CheckSYCLKernels &&
-      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F)) &&
-      !F.getMetadata("sycl_explicit_simd");
+      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
   bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclNonEsimdKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     markLive(F);
