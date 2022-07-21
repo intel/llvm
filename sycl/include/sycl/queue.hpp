@@ -117,13 +117,14 @@ public:
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(default_selector(), AsyncHandler, PropList) {}
 
-
   /// Constructs a SYCL queue instance using the device identified by the
-  /// device selector provided. 
-  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that takes a device and returns an int
-  /// \param PropList is a list of properties for queue construction. 
-  //template <typename DeviceSelector>
-  explicit queue(const DeviceSelector &deviceSelector, const property_list &propList = {}) {}
+  /// device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int \param PropList is a list of properties
+  /// for queue construction.
+  // template <typename DeviceSelector>
+  explicit queue(const DeviceSelector &deviceSelector,
+                 const property_list &propList = {}) {}
 
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.

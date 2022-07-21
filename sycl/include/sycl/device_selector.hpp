@@ -20,9 +20,9 @@ namespace sycl {
 class device;
 
 /// In SYCL 2020 DeviceSelector is simply a callable returning an int
-using DeviceSelector = int(*)(const device&);   
+using DeviceSelector = int (*)(const device &);
 
-/// The SYCL 1.2.1 device_selector class provides ability to choose the 
+/// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
 ///
 /// \sa device
