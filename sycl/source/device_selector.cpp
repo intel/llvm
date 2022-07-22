@@ -221,5 +221,6 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
     return ext::oneapi::filter_selector::select_device();
   }
 } // namespace ONEAPI
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

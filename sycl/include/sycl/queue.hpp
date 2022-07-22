@@ -27,6 +27,7 @@
 #define __STDC_FORMAT_MACROS 1
 #endif
 #include <cinttypes>
+#include <type_traits>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -122,9 +123,17 @@ public:
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int \param PropList is a list of properties
   /// for queue construction.
-  // template <typename DeviceSelector>
+#if __cplusplus >= 201703L
+  template <typename DeviceSelector,
+            typename = std::enable_if_t<
+                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
   explicit queue(const DeviceSelector &deviceSelector,
-                 const property_list &propList = {}) {}
+                 const property_list &PropList = {})
+      : queue(sycl::detail::select_device(deviceSelector), async_handler{},
+              PropList) {
+    std::cout << "templated DeviceSelector chosen" << std::endl;
+  }
+#endif
 
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.

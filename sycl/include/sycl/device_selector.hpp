@@ -16,11 +16,11 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+// SYCL 1.2.1 defines a negative score to reject a device from selection
+static constexpr int REJECT_DEVICE_SCORE = -1;
+
 // Forward declarations
 class device;
-
-/// In SYCL 2020 DeviceSelector is simply a callable returning an int
-using DeviceSelector = int (*)(const device &);
 
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
@@ -29,9 +29,6 @@ using DeviceSelector = int (*)(const device &);
 ///
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT device_selector {
-protected:
-  // SYCL 1.2.1 defines a negative score to reject a device from selection
-  static constexpr int REJECT_DEVICE_SCORE = -1;
 
 public:
   virtual ~device_selector() = default;
@@ -90,5 +87,77 @@ class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
+
+namespace detail {
+
+template <typename DeviceSelector,
+          typename = std::enable_if_t<
+              std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+device select_device(DeviceSelector DeviceSelectorInvocable) {
+  std::vector<device> devices = device::get_devices();
+  int score = REJECT_DEVICE_SCORE;
+  const device *res = nullptr;
+
+  for (const auto &dev : devices) {
+    int dev_score = std::invoke(DeviceSelectorInvocable, dev);
+
+    /*  CP - restore?
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+      std::string PlatformName = dev.get_info<info::device::platform>()
+                                     .get_info<info::platform::name>();
+      std::string DeviceName = dev.get_info<info::device::name>();
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "select_device(): -> score = " << dev_score
+                << ((dev_score < 0) ? " (REJECTED)" : "") << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  platform: " << PlatformName << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  device: " << DeviceName << std::endl;
+    }
+    */
+
+    // A negative score means that a device must not be selected.
+    if (dev_score < 0)
+      continue;
+
+    // Section 4.6 of SYCL 1.2.1 spec: (not sure if still relevant - CP)
+    // says: "If more than one device receives the high score then
+    // one of those tied devices will be returned, but which of the devices
+    // from the tied set is to be returned is not defined". So use the device
+    // preference score to resolve ties, this is necessary for custom_selectors
+    // that may not already include device preference in their scoring.
+
+    // CP - RESTORE
+    // if ((score < dev_score) || ((score == dev_score) &&
+    // (getDevicePreference(*res) < getDevicePreference(dev)))) {    // <==
+    // RESTORE
+    if (score < dev_score) {
+      res = &dev;
+      score = dev_score;
+    }
+  }
+
+  if (res != nullptr) {
+    /* CP  - restore?
+    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
+      std::string PlatformName = res->get_info<info::device::platform>()
+                                     .get_info<info::platform::name>();
+      std::string DeviceName = res->get_info<info::device::name>();
+      std::cout << "SYCL_PI_TRACE[all]: "
+                << "Selected device ->" << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  platform: " << PlatformName << std::endl
+                << "SYCL_PI_TRACE[all]: "
+                << "  device: " << DeviceName << std::endl;
+    }
+    */
+    return *res;
+  }
+
+  throw cl::sycl::runtime_error("No device of requested type available.",
+                                PI_ERROR_DEVICE_NOT_FOUND);
+}
+
+} // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
