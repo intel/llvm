@@ -1310,6 +1310,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
       if (isa<PHINode>(Usr)) {
         // Note the order here, the Usr access might change the map, CurPtr is
         // already in it though.
+        bool IsFirstPHIUser = !OffsetInfoMap.count(Usr);
         OffsetInfo &UsrOI = OffsetInfoMap[Usr];
         OffsetInfo &PtrOI = OffsetInfoMap[CurPtr];
         // Check if the PHI is invariant (so far).
@@ -1325,25 +1326,25 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         }
 
         // Check if the PHI operand is not dependent on the PHI itself.
-        // TODO: This is not great as we look at the pointer type. However, it
-        // is unclear where the Offset size comes from with typeless pointers.
         APInt Offset(
             DL.getIndexSizeInBits(CurPtr->getType()->getPointerAddressSpace()),
             0);
-        if (&AssociatedValue == CurPtr->stripAndAccumulateConstantOffsets(
-                                    DL, Offset, /* AllowNonInbounds */ true)) {
-          if (Offset != PtrOI.Offset) {
-            LLVM_DEBUG(dbgs()
-                       << "[AAPointerInfo] PHI operand pointer offset mismatch "
-                       << *CurPtr << " in " << *Usr << "\n");
-            return false;
-          }
-          return HandlePassthroughUser(Usr, PtrOI, Follow);
+        Value *CurPtrBase = CurPtr->stripAndAccumulateConstantOffsets(
+            DL, Offset, /* AllowNonInbounds */ true);
+        auto It = OffsetInfoMap.find(CurPtrBase);
+        if (It != OffsetInfoMap.end()) {
+          Offset += It->getSecond().Offset;
+          if (IsFirstPHIUser || Offset == UsrOI.Offset)
+            return HandlePassthroughUser(Usr, PtrOI, Follow);
+          LLVM_DEBUG(dbgs()
+                     << "[AAPointerInfo] PHI operand pointer offset mismatch "
+                     << *CurPtr << " in " << *Usr << "\n");
+        } else {
+          LLVM_DEBUG(dbgs() << "[AAPointerInfo] PHI operand is too complex "
+                            << *CurPtr << " in " << *Usr << "\n");
         }
 
         // TODO: Approximate in case we know the direction of the recurrence.
-        LLVM_DEBUG(dbgs() << "[AAPointerInfo] PHI operand is too complex "
-                          << *CurPtr << " in " << *Usr << "\n");
         UsrOI = PtrOI;
         UsrOI.Offset = OffsetAndSize::Unknown;
         Follow = true;
@@ -1371,7 +1372,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
       if (auto *CB = dyn_cast<CallBase>(Usr)) {
         if (CB->isLifetimeStartOrEnd())
           return true;
-        if (TLI && isFreeCall(CB, TLI))
+        if (getFreedOperand(CB, TLI) == U)
           return true;
         if (CB->isArgOperand(&U)) {
           unsigned ArgNo = CB->getArgOperandNo(&U);
@@ -1381,7 +1382,7 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
           Changed = translateAndAddState(A, CSArgPI,
                                          OffsetInfoMap[CurPtr].Offset, *CB) |
                     Changed;
-          return true;
+          return isValidState();
         }
         LLVM_DEBUG(dbgs() << "[AAPointerInfo] Call user not handled " << *CB
                           << "\n");
@@ -5797,6 +5798,8 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
   struct DeallocationInfo {
     /// The call that deallocates the memory.
     CallBase *const CB;
+    /// The value freed by the call.
+    Value *FreedOp;
 
     /// Flag to indicate if we don't know all objects this deallocation might
     /// free.
@@ -5828,14 +5831,14 @@ struct AAHeapToStackFunction final : public AAHeapToStack {
       CallBase *CB = dyn_cast<CallBase>(&I);
       if (!CB)
         return true;
-      if (isFreeCall(CB, TLI)) {
-        DeallocationInfos[CB] = new (A.Allocator) DeallocationInfo{CB};
+      if (Value *FreedOp = getFreedOperand(CB, TLI)) {
+        DeallocationInfos[CB] = new (A.Allocator) DeallocationInfo{CB, FreedOp};
         return true;
       }
       // To do heap to stack, we need to know that the allocation itself is
       // removable once uses are rewritten, and that we can initialize the
       // alloca to the same pattern as the original allocation result.
-      if (isAllocationFn(CB, TLI) && isAllocRemovable(CB, TLI)) {
+      if (isRemovableAlloc(CB, TLI)) {
         auto *I8Ty = Type::getInt8Ty(CB->getParent()->getContext());
         if (nullptr != getInitialValueOfAllocation(CB, TLI, I8Ty)) {
           AllocationInfo *AI = new (A.Allocator) AllocationInfo{CB};
@@ -6103,7 +6106,7 @@ ChangeStatus AAHeapToStackFunction::updateImpl(Attributor &A) {
         continue;
 
       // Use the non-optimistic version to get the freed object.
-      Value *Obj = getUnderlyingObject(DI.CB->getArgOperand(0));
+      Value *Obj = getUnderlyingObject(DI.FreedOp);
       if (!Obj) {
         LLVM_DEBUG(dbgs() << "[H2S] Unknown underlying object for free!\n");
         DI.MightFreeUnknownObjects = true;
