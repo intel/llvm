@@ -4976,6 +4976,8 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //       piextKernelSetArgMemObj.
   //
   std::scoped_lock Guard(Kernel->Mutex);
+  // The ArgValue may be a NULL pointer in which case a NULL value is used for
+  // the kernel argument declared as a pointer to global or constant memory.
   auto Arg = ArgValue ? *ArgValue : nullptr;
   Kernel->PendingArguments.push_back(
       {ArgIndex, sizeof(void *), Arg, _pi_mem::read_write});
@@ -5202,6 +5204,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
+    // The ArgValue may be a NULL pointer in which case a NULL value is used for
+    // the kernel argument declared as a pointer to global or constant memory.
     char **ZeHandlePtr = nullptr;
     if (Arg.Value) {
       PI_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
