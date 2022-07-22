@@ -168,9 +168,15 @@ static cl::opt<bool>
                  cl::desc("Run PGO context sensitive IR instrumentation"),
                  cl::Hidden);
 
+#if ENABLE_OPAQUE_POINTERS
+static cl::opt<bool> LtoOpaquePointers("lto-opaque-pointers",
+                                       cl::desc("Enable opaque pointer types"),
+                                       cl::init(true), cl::Hidden);
+#else
 static cl::opt<bool> LtoOpaquePointers("lto-opaque-pointers",
                                        cl::desc("Enable opaque pointer types"),
                                        cl::init(false), cl::Hidden);
+#endif
 
 static cl::opt<bool>
     DebugPassManager("debug-pass-manager", cl::Hidden,
