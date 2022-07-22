@@ -26,11 +26,11 @@
 #include <bitset>
 #include <cstdarg>
 #include <cstring>
-#include <iostream>
 #include <map>
 #include <sstream>
 #include <stddef.h>
 #include <string>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting

@@ -12,8 +12,8 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/info/info_desc.hpp>
 
-#include <iostream>
 #include <string>
+#include <sycl/detail/iostream_proxy.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

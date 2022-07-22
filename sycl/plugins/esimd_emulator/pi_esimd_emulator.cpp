@@ -42,6 +42,7 @@
 #include <utility>
 
 #include "pi_esimd_emulator.hpp"
+#include <iostream>
 
 #define ARG_UNUSED(x) (void)x
 

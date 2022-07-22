@@ -13,8 +13,8 @@
 
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <limits>
+#include <sycl/detail/iostream_proxy.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

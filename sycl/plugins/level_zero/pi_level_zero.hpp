@@ -29,13 +29,13 @@
 #include <cassert>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 #include <unordered_map>
 #include <unordered_set>

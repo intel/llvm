@@ -23,11 +23,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <sstream>
 #include <string>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <vector>
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \

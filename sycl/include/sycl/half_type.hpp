@@ -13,8 +13,8 @@
 #include <sycl/detail/type_traits.hpp>
 
 #include <functional>
-#include <iostream>
 #include <limits>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #if !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)

@@ -12,18 +12,17 @@
 #include <cassert>
 #include <cctype>
 #include <iomanip>
-#include <iostream>
 #include <list>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "usm_allocator.hpp"
-#include <iostream>
 #include <sycl/detail/spinlock.hpp>
 
 // USM allocations are a minimum of 4KB/64KB/2MB even when a smaller size is
