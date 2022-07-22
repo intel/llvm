@@ -44,7 +44,7 @@ runs:
       cd khronos_sycl_cts
       git submodule update --init
     shell: bash
-  ## TODO remove this step when host_task_interop_api.cpp fixed
+  # TODO remove this step when host_task_interop_api.cpp fixed, CMPLRTST-17212
   - run: |
       rm khronos_sycl_cts/tests/host_task/host_task_interop_api.cpp
     shell: bash
@@ -67,8 +67,10 @@ runs:
       export PATH=$PWD/toolchain/bin/:$PATH
       mkdir build
       cmake  -GNinja -B./build -S./khronos_sycl_cts -DSYCL_IMPLEMENTATION=DPCPP \
+      -DDPCPP_TARGET_TRIPLES=nvptx64-nvidia-cuda \
       -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" \
       -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$PWD/llvm/devops/cts_exclude_filter" \
+      -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
       -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
       -DDPCPP_INSTALL_DIR="$PWD/toolchain" \
       ${{ inputs.cmake_args }}
