@@ -806,8 +806,8 @@ enum EventsScope _pi_device::EventsScope() {
 // device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
 // (See env var SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS).
 bool _pi_device::UseImmediateCommandLists() {
-  static const char* ImmediateFlag =
-    std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
+  static const char *ImmediateFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS");
   if (!ImmediateFlag)
     return ImmCommandListsPreferred;
   return std::stoi(ImmediateFlag) > 0;
