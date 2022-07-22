@@ -4,3 +4,4 @@ multi_ptr
 opencl_interop
 reduction
 group
+kernel
