@@ -5,3 +5,4 @@ opencl_interop
 reduction
 group
 kernel
+math_builtin_api
