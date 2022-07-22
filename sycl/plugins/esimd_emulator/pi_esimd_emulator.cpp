@@ -35,6 +35,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -42,7 +43,6 @@
 #include <utility>
 
 #include "pi_esimd_emulator.hpp"
-#include <iostream>
 
 #define ARG_UNUSED(x) (void)x
 
