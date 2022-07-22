@@ -220,11 +220,6 @@
 ??$get_sub_group_info@$0BBLK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_sub_group_info@$0CADD@@kernel@sycl@cl@@QEBAIAEBVdevice@12@V?$range@$02@12@@Z
 ??$get_sub_group_info@$0EBAK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
-??$get_work_group_info@$0BBLA@@kernel@sycl@cl@@QEBA_KAEBVdevice@12@@Z
-??$get_work_group_info@$0BBLB@@kernel@sycl@cl@@QEBA?AV?$range@$02@12@AEBVdevice@12@@Z
-??$get_work_group_info@$0BBLD@@kernel@sycl@cl@@QEBA_KAEBVdevice@12@@Z
-??$get_work_group_info@$0BBLE@@kernel@sycl@cl@@QEBA_KAEBVdevice@12@@Z
-??$get_work_group_info@$0BBLF@@kernel@sycl@cl@@QEBA?AV?$range@$02@12@AEBVdevice@12@@Z
 ??$has_property@Vcontext_bound@buffer@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@buffer@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@buffer@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
