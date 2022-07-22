@@ -774,7 +774,7 @@ public:
   template <typename _self = self,
             enable_if_t<_self::is_known_identity && _self::is_acc> * = nullptr>
   reduction_impl(RedOutVar &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false, Acc) {
+      : algo(reducer_type::getIdentity(), BinaryOperation(), is_dw_acc, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
