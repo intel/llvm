@@ -1624,8 +1624,10 @@ Verifier::visitModuleFlag(const MDNode *Op,
     break;
 
   case Module::Min: {
-    Check(mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(2)),
-          "invalid value for 'min' module flag (expected constant integer)",
+    auto *V = mdconst::dyn_extract_or_null<ConstantInt>(Op->getOperand(2));
+    Check(V && V->getValue().isNonNegative(),
+          "invalid value for 'min' module flag (expected constant non-negative "
+          "integer)",
           Op->getOperand(2));
     break;
   }
@@ -2200,7 +2202,13 @@ bool Verifier::verifyAttributeCount(AttributeList Attrs, unsigned Params) {
 void Verifier::verifyInlineAsmCall(const CallBase &Call) {
   const InlineAsm *IA = cast<InlineAsm>(Call.getCalledOperand());
   unsigned ArgNo = 0;
+  unsigned LabelNo = 0;
   for (const InlineAsm::ConstraintInfo &CI : IA->ParseConstraints()) {
+    if (CI.Type == InlineAsm::isLabel) {
+      ++LabelNo;
+      continue;
+    }
+
     // Only deal with constraints that correspond to call arguments.
     if (!CI.hasArg())
       continue;
@@ -2221,6 +2229,15 @@ void Verifier::verifyInlineAsmCall(const CallBase &Call) {
     }
 
     ArgNo++;
+  }
+
+  if (auto *CallBr = dyn_cast<CallBrInst>(&Call)) {
+    Check(LabelNo == CallBr->getNumIndirectDests(),
+          "Number of label constraints does not match number of callbr dests",
+          &Call);
+  } else {
+    Check(LabelNo == 0, "Label constraints can only be used with callbr",
+          &Call);
   }
 }
 
@@ -2839,25 +2856,6 @@ void Verifier::visitCallBrInst(CallBrInst &CBI) {
   Check(CBI.isInlineAsm(), "Callbr is currently only used for asm-goto!", &CBI);
   const InlineAsm *IA = cast<InlineAsm>(CBI.getCalledOperand());
   Check(!IA->canThrow(), "Unwinding from Callbr is not allowed");
-  for (unsigned i = 0, e = CBI.getNumSuccessors(); i != e; ++i)
-    Check(CBI.getSuccessor(i)->getType()->isLabelTy(),
-          "Callbr successors must all have pointer type!", &CBI);
-  for (unsigned i = 0, e = CBI.getNumOperands(); i != e; ++i) {
-    Check(i >= CBI.arg_size() || !isa<BasicBlock>(CBI.getOperand(i)),
-          "Using an unescaped label as a callbr argument!", &CBI);
-    if (isa<BasicBlock>(CBI.getOperand(i)))
-      for (unsigned j = i + 1; j != e; ++j)
-        Check(CBI.getOperand(i) != CBI.getOperand(j),
-              "Duplicate callbr destination!", &CBI);
-  }
-  {
-    SmallPtrSet<BasicBlock *, 4> ArgBBs;
-    for (Value *V : CBI.args())
-      if (auto *BA = dyn_cast<BlockAddress>(V))
-        ArgBBs.insert(BA->getBasicBlock());
-    for (BasicBlock *BB : CBI.getIndirectDests())
-      Check(ArgBBs.count(BB), "Indirect label missing from arglist.", &CBI);
-  }
 
   verifyInlineAsmCall(CBI);
   visitTerminator(CBI);
@@ -5160,14 +5158,13 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       // In all other cases relocate should be tied to the statepoint directly.
       // This covers relocates on a normal return path of invoke statepoint and
       // relocates of a call statepoint.
-      auto Token = Call.getArgOperand(0);
-      Check(isa<GCStatepointInst>(Token),
+      auto *Token = Call.getArgOperand(0);
+      Check(isa<GCStatepointInst>(Token) || isa<UndefValue>(Token),
             "gc relocate is incorrectly tied to the statepoint", Call, Token);
     }
 
     // Verify rest of the relocate arguments.
-    const CallBase &StatepointCall =
-      *cast<GCRelocateInst>(Call).getStatepoint();
+    const Value &StatepointCall = *cast<GCRelocateInst>(Call).getStatepoint();
 
     // Both the base and derived must be piped through the safepoint.
     Value *Base = Call.getArgOperand(1);
@@ -5182,7 +5179,10 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     const uint64_t DerivedIndex = cast<ConstantInt>(Derived)->getZExtValue();
 
     // Check the bounds
-    if (auto Opt = StatepointCall.getOperandBundle(LLVMContext::OB_gc_live)) {
+    if (isa<UndefValue>(StatepointCall))
+      break;
+    if (auto Opt = cast<GCStatepointInst>(StatepointCall)
+                       .getOperandBundle(LLVMContext::OB_gc_live)) {
       Check(BaseIndex < Opt->Inputs.size(),
             "gc.relocate: statepoint base index out of bounds", Call);
       Check(DerivedIndex < Opt->Inputs.size(),

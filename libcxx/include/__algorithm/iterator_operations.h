@@ -41,6 +41,7 @@ struct _IterOps<_RangeAlgPolicy> {
   static constexpr auto next = ranges::next;
   static constexpr auto __advance_to = ranges::advance;
 };
+
 #endif
 
 struct _ClassicAlgPolicy {};
@@ -85,7 +86,15 @@ struct _IterOps<_ClassicAlgPolicy> {
   }
 
   template <class _Iter>
-  _LIBCPP_HIDE_FROM_ABI static _LIBCPP_CONSTEXPR_AFTER_CXX11 void __advance_to(_Iter& __first, _Iter __last) {
+  _LIBCPP_HIDE_FROM_ABI static _LIBCPP_CONSTEXPR_AFTER_CXX11
+  __uncvref_t<_Iter> next(_Iter&& __it,
+                          typename iterator_traits<__uncvref_t<_Iter> >::difference_type __n = 1){
+    return std::next(std::forward<_Iter>(__it), __n);
+  }
+
+  template <class _Iter>
+  _LIBCPP_HIDE_FROM_ABI static _LIBCPP_CONSTEXPR_AFTER_CXX11
+  void __advance_to(_Iter& __first, _Iter __last) {
     __first = __last;
   }
 };
