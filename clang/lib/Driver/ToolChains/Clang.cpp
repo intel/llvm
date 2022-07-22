@@ -4118,6 +4118,9 @@ static void RenderDiagnosticsOptions(const Driver &D, const ArgList &Args,
   if (const Arg *A = Args.getLastArg(options::OPT_fdiagnostics_format_EQ)) {
     CmdArgs.push_back("-fdiagnostics-format");
     CmdArgs.push_back(A->getValue());
+    if (StringRef(A->getValue()) == "sarif" ||
+        StringRef(A->getValue()) == "SARIF")
+      D.Diag(diag::warn_drv_sarif_format_unstable);
   }
 
   if (const Arg *A = Args.getLastArg(
@@ -7518,7 +7521,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fcuda-include-gpubinary");
     CmdArgs.push_back(CudaDeviceInput->getFilename());
   } else if (!HostOffloadingInputs.empty()) {
-    if (IsCuda && !IsRDCMode) {
+    if ((IsCuda || IsHIP) && !IsRDCMode) {
       assert(HostOffloadingInputs.size() == 1 && "Only one input expected");
       CmdArgs.push_back("-fcuda-include-gpubinary");
       CmdArgs.push_back(HostOffloadingInputs.front().getFilename());

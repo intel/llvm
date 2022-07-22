@@ -409,12 +409,12 @@ protected:
 private:
   /// Input character until which we have constructed the respective output
   /// already.
-  const char *Written;
+  const char *Written = "";
 
   llvm::SmallString<128> Result;
 
   /// Whether we have performed any substitutions.
-  bool Substituted;
+  bool Substituted = false;
 
   const char *currentParserPos() const { return this->First; }
 
@@ -909,7 +909,7 @@ static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {
       cpp_category_sp,
       lldb_private::formatters::LibCxxMapIteratorSyntheticFrontEndCreator,
       "std::map iterator synthetic children",
-      ConstString("^std::__[[:alnum:]]+::__map_iterator<.+>$"), stl_synth_flags,
+      ConstString("^std::__[[:alnum:]]+::__map_(const_)?iterator<.+>$"), stl_synth_flags,
       true);
 
   AddCXXSynthetic(

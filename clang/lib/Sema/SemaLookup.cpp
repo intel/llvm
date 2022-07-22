@@ -1666,7 +1666,10 @@ hasAcceptableDefaultArgument(Sema &S, const ParmDecl *D,
   if (!D->hasDefaultArgument())
     return false;
 
-  while (D) {
+  llvm::SmallDenseSet<const ParmDecl *, 4> Visited;
+  while (D && !Visited.count(D)) {
+    Visited.insert(D);
+
     auto &DefaultArg = D->getDefaultArgStorage();
     if (!DefaultArg.isInherited() && S.isAcceptable(D, Kind))
       return true;
@@ -1676,7 +1679,8 @@ hasAcceptableDefaultArgument(Sema &S, const ParmDecl *D,
       Modules->push_back(S.getOwningModule(NonConstD));
     }
 
-    // If there was a previous default argument, maybe its parameter is visible.
+    // If there was a previous default argument, maybe its parameter is
+    // acceptable.
     D = DefaultArg.getInheritedFrom();
   }
   return false;
