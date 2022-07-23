@@ -227,8 +227,8 @@ aws-start-matrix:
           aws-type: ${{ matrix.aws-type }}
           aws-disk: ${{ matrix.aws-disk }}
           one-job:  ${{ matrix.one-job }}
-
-  llvm_test_suite:
+          
+llvm_test_suite:
     needs: [build, resolve_matrix, aws-start-matrix]
     if: ${{ inputs.lts_config != '' }}
     strategy:
