@@ -64,6 +64,11 @@ on:
         type: number
         required: false
         default: 4
+      uniq:
+        description: Unique string to name dynamic runers in AWS
+        type: string
+        required: false
+        default: ${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   build:
@@ -191,8 +196,40 @@ jobs:
           const script = require('./generate_test_matrix.js');
           script({core, process});
 
+aws-start-matrix:
+    name: Start AWS Matrix
+    needs: [ build, resolve_matrix ]
+    if: ${{ inputs.lts_config != '' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.max_parallel }}
+      matrix:
+        include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
+    runs-on: ubuntu-latest
+    environment: aws
+    steps:
+      - uses: actions/checkout@v3
+        if: ${{ matrix.aws-type }}
+        with:
+          path: llvm
+      - run: npm install ./llvm/devops/actions/aws-ec2
+        if: ${{ matrix.aws-type }}
+      - name: Start AWS EC2 runner
+        if: ${{ matrix.aws-type }}
+        uses: ./llvm/devops/actions/aws-ec2
+        with:
+          label: ${{ matrix.runs-on }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+          aws-ami:  ${{ matrix.aws-ami }}
+          aws-spot: ${{ matrix.aws-spot }}
+          aws-type: ${{ matrix.aws-type }}
+          aws-disk: ${{ matrix.aws-disk }}
+          one-job:  ${{ matrix.one-job }}
+
   llvm_test_suite:
-    needs: [build, resolve_matrix]
+    needs: [build, resolve_matrix, aws-start-matrix]
     if: ${{ inputs.lts_config != '' }}
     strategy:
       fail-fast: false
@@ -240,3 +277,30 @@ jobs:
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
+  aws-stop-matrix:
+    name: Stop AWS Matrix
+    needs: [ aws-start-matrix, resolve_matrix, llvm_test_suite ]
+    if: ${{ always() && inputs.lts_config != '' }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.max_parallel }}
+      matrix:
+        include: ${{ fromJSON(needs.resolve_matrix.outputs.lts) }}
+    runs-on: ubuntu-latest
+    environment: aws
+    steps:
+      - uses: actions/checkout@v3
+        if: ${{ matrix.aws-type }}
+        with:
+          path: llvm
+      - run: npm install ./llvm/devops/actions/aws-ec2
+        if: ${{ matrix.aws-type }}
+      - name: Stop AWS EC2 runner
+        if: ${{ matrix.aws-type }}
+        uses: ./llvm/devops/actions/aws-ec2
+        with:
+          label: ${{ matrix.runs-on }}
+          mode: stop
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
