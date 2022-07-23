@@ -7788,8 +7788,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
         std::string TmpFileName = C.getDriver().GetTemporaryPath(
             llvm::sys::path::stem(BaseInput),
             JA->getType() == types::TY_Archive ? "a" : "txt");
-        const char *TmpFile =
-            C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+        const char *TmpFile = C.addTempFile(
+            C.getArgs().MakeArgString(TmpFileName), JA->getType());
         CurI = InputInfo(JA->getType(), TmpFile, TmpFile);
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
