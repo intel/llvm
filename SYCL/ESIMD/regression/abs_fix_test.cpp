@@ -2,7 +2,6 @@
 // UNSUPPORTED: cuda || hip
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: esimd_emulator
 //==- abs_fix_test.cpp - Test for abs function -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
