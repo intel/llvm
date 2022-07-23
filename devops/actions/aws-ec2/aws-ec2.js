@@ -59,8 +59,7 @@ async function start(label) {
         `su gh_runner -c "./config.sh --unattended --url https://github.com/${repo} --token ${reg_token} --name ${label}_${ec2type}_${spot_str} --labels ${label} --replace || shutdown -h now"`,
         // timebomb to avoid paying for stale AWS instances
         `(sleep ${timebomb}; su gh_runner -c "./config.sh remove --token ${reg_token}"; shutdown -h now) &`,
-        // ephemeral runner will exit after one job so we will terminate
-        // instance sooner
+        // ephemeral runner will exit after one job so we will terminate instance sooner
         onejob ? `su gh_runner -c "./run.sh --ephemeral"`
                : `su gh_runner -c "./run.sh"`,
         `su gh_runner -c "./config.sh remove --token ${reg_token}"`,
@@ -115,13 +114,13 @@ async function start(label) {
               .promise();
   for (let i = 0; i < 2; i++) {
     p = p.catch(function() {
-      core.warning(`Error searching for running AWS EC2 spot instance ${ec2id} with ${label} label. Will retry.`);
+      core.warning(`Error searching for running AWS EC2 instance ${ec2id} with ${label} label. Will retry.`);
     }).catch(rejectDelay);
   }
   p = p.then(function() {
-    core.info(`Found running AWS EC2 spot instance ${ec2id} with ${label} label`);
+    core.info(`Found running AWS EC2 instance ${ec2id} with ${label} label`);
   }).catch(function(error) {
-    core.error(`Error searching for running AWS EC2 spot instance ${ec2id} with ${label} label`);
+    core.error(`Error searching for running AWS EC2 instance ${ec2id} with ${label} label`);
     throw error;
   });
 }
