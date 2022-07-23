@@ -196,7 +196,7 @@ jobs:
           const script = require('./generate_test_matrix.js');
           script({core, process});
 
-aws-start-matrix:
+  aws-start-matrix:
     name: Start AWS Matrix
     needs: [ build, resolve_matrix ]
     if: ${{ inputs.lts_config != '' }}
@@ -228,7 +228,7 @@ aws-start-matrix:
           aws-disk: ${{ matrix.aws-disk }}
           one-job:  ${{ matrix.one-job }}
           
-llvm_test_suite:
+  llvm_test_suite:
     needs: [build, resolve_matrix, aws-start-matrix]
     if: ${{ inputs.lts_config != '' }}
     strategy:
@@ -303,4 +303,4 @@ llvm_test_suite:
           mode: stop
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}        
