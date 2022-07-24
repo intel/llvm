@@ -1,6 +1,6 @@
 {
   "name": "aws-ec2",
-  "description": "Starts AWS EC2 instance with github actions runner agent in it to process one job",
+  "description": "Starts AWS EC2 spot instance with Github actions runner agent in it",
   "dependencies": {
     "@actions/core": "^1.9.0",
     "@actions/github": "^5.0.3",
