@@ -65,7 +65,7 @@ on:
         required: false
         default: 4
       uniq:
-        description: Unique string to name dynamic runers in AWS
+        description: Unique string to name dynamic runners in AWS
         type: string
         required: false
         default: ${{ github.run_id }}-${{ github.run_attempt }}
