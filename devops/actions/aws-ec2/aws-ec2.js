@@ -1,6 +1,6 @@
-const core = require('@actions/core');
+const core   = require('@actions/core');
 const github = require('@actions/github');
-const AWS = require('aws-sdk');
+const AWS    = require('aws-sdk');
 
 // shortcut to reference current repo
 const repo = `${github.context.repo.owner}/${github.context.repo.repo}`;
@@ -11,8 +11,7 @@ async function getGithubRegToken() {
   const octokit = github.getOctokit(core.getInput("GH_PERSONAL_ACCESS_TOKEN"));
 
   try {
-    const response = await octokit.request(
-        `POST /repos/${repo}/actions/runners/registration-token`);
+    const response = await octokit.request(`POST /repos/${repo}/actions/runners/registration-token`);
     core.info("Got Github Actions Runner registration token");
     return response.data.token;
   } catch (error) {
@@ -23,8 +22,9 @@ async function getGithubRegToken() {
 
 // add delay before retrying promise one more time
 function rejectDelay(reason) {
-  return new Promise(function(
-      resolve, reject) { setTimeout(reject.bind(null, reason), 10 * 1000); });
+  return new Promise(function(resolve, reject) {
+    setTimeout(reject.bind(null, reason), 10 * 1000);
+  });
 }
 
 // starts AWS EC2 instance that will spawn Github runner for a given label
@@ -33,20 +33,19 @@ async function start(label) {
 
   // we better keep GH_PERSONAL_ACCESS_TOKEN here and do not pass it to AWS EC2
   // userscript so it will keep secret
-  const reg_token = await getGithubRegToken();
-  const timebomb = core.getInput("aws-timebomb");
+  const reg_token    = await getGithubRegToken();
+  const timebomb     = core.getInput("aws-timebomb");
   const raw_ec2types = JSON.parse(core.getInput("aws-type"));
-  const ec2types =
-      typeof raw_ec2types == "string" ? [ raw_ec2types ] : raw_ec2types;
-  const ec2disk = core.getInput("aws-disk");
-  const ec2spot = core.getInput("aws-spot") != "false";
-  const onejob = core.getInput("one-job") != "false";
+  const ec2types     = typeof raw_ec2types == "string" ? [ raw_ec2types ] : raw_ec2types;
+  const ec2disk      = core.getInput("aws-disk");
+  const ec2spot      = core.getInput("aws-spot") != "false";
+  const onejob       = core.getInput("one-job") != "false";
   // ephemeral runner will exit after one job so we will terminate instance sooner
   const ephemeral_str = onejob ? "--ephemeral" : "";
 
   let ec2id;      // AWS EC2 instance id
-  let last_error; // last error that ill be thrown in case all our attemps in
-                  // instance creation will fails
+  // last error that will be thrown in case all our attemps in instance creation will fails
+  let last_error;
   // loop for spot/ondemand instances
   for (let spot of (ec2spot ? [ 1, 0 ] : [ 0 ])) {
     const spot_str = spot ? "spot" : "on-demand";
@@ -63,30 +62,25 @@ async function start(label) {
         `(sleep ${timebomb}; su gh_runner -c "./config.sh remove --token ${reg_token}"; shutdown -h now) &`,
         `su gh_runner -c "./run.sh"`,
         `su gh_runner -c "./config.sh remove --token ${reg_token}"`,
-        `shutdown -h now` // in case we launch insance with
-                          // InstanceInitiatedShutdownBehavior = "terminate" it
-                          // will terminate instance here as well
+        // in case we launch insance with InstanceInitiatedShutdownBehavior = "terminate" it will terminate instance here as well
+        `shutdown -h now`
       ];
       try {
         let params = {
-          ImageId : core.getInput("aws-ami"),
-          InstanceType : ec2type,
-          InstanceInitiatedShutdownBehavior : "terminate",
-          UserData : Buffer.from(setup_github_actions_runner.join('\n'))
-                           .toString('base64'),
-          MinCount : 1,
-          MaxCount : 1,
-          TagSpecifications : [ {
-            ResourceType : "instance",
-            Tags : [ {Key : "Label", Value : label} ]
-          } ]
+          ImageId:      core.getInput("aws-ami"),
+          InstanceType: ec2type,
+          UserData:     Buffer.from(setup_github_actions_runner.join('\n')).toString('base64'),
+          MinCount:     1,
+          MaxCount:     1,
+          InstanceInitiatedShutdownBehavior: "terminate",
+          TagSpecifications: [
+            { ResourceType: "instance", Tags: [ {Key: "Label", Value: label} ] }
+          ]
         };
-        if (spot)
-          params.InstanceMarketOptions = {MarketType : "spot"};
+        if (spot) params.InstanceMarketOptions = { MarketType: "spot" };
         if (ec2disk) {
           const items = ec2disk.split(':');
-          params.BlockDeviceMappings =
-              [ {DeviceName : items[0], Ebs : {VolumeSize : items[1]}} ];
+          params.BlockDeviceMappings = [ {DeviceName: items[0], Ebs: {VolumeSize: items[1]}} ];
         }
         const result = await ec2.runInstances(params).promise();
         ec2id = result.Instances[0].InstanceId;
@@ -98,8 +92,7 @@ async function start(label) {
       }
     }
     // we already created instance and do not need to iterate these loops
-    if (ec2id)
-      break;
+    if (ec2id) break;
   }
   if (last_error) {
     core.error(`Error creating AWS EC2 instance with ${label} label`);
@@ -109,9 +102,9 @@ async function start(label) {
   // wait untill instance will be found running before continuing (spot instance
   // can be created but never run and will be in pending state untill
   // termination)
-  let p = ec2.waitFor("instanceRunning",
-                      {Filters : [ {Name : "tag:Label", Values : [ label ]} ]})
-              .promise();
+  let p = ec2.waitFor("instanceRunning", {
+    Filters: [ { Name: "tag:Label", Values: [ label ] } ]
+  }).promise();
   for (let i = 0; i < 2; i++) {
     p = p.catch(function() {
       core.warning(`Error searching for running AWS EC2 instance ${ec2id} with ${label} label. Will retry.`);
@@ -136,11 +129,9 @@ async function stop(label) {
   // find AWS EC2 instances with tag label
   let instances;
   try {
-    instances =
-        await ec2
-            .describeInstances(
-                {Filters : [ {Name : "tag:Label", Values : [ label ]} ]})
-            .promise();
+    instances = await ec2.describeInstances({
+      Filters: [ { Name: "tag:Label", Values: [ label ] } ]
+    }).promise();
     core.info(`Searched for AWS EC2 instance with label ${label}`);
   } catch (error) {
     core.error(`Error searching for AWS EC2 instance with label ${label}`);
@@ -152,8 +143,7 @@ async function stop(label) {
     for (const reservation of instances.Reservations) {
       for (const instance of reservation.Instances) {
         try {
-          await ec2.terminateInstances({InstanceIds : [ instance.InstanceId ]})
-              .promise();
+          await ec2.terminateInstances({ InstanceIds: [ instance.InstanceId ] }).promise();
           core.info(`Terminated AWS EC2 instance ${instance.InstanceId} with label ${label}`);
         } catch (error) {
           core.error(`Error terminating AWS EC2 instance ${instance.InstanceId} with label ${label}`);
@@ -182,10 +172,8 @@ async function stop(label) {
           label_found = true;
           break;
         }
-      if (!label_found)
-        continue;
-      let p =
-          octokit.request(`DELETE /repos/${repo}/actions/runners/${runner.id}`);
+      if (!label_found) continue;
+      let p = octokit.request(`DELETE /repos/${repo}/actions/runners/${runner.id}`);
       // retry deletion up to 5 times (with 10 seconds delay) sincec Github can
       // not remove runners still marked as active (with running job)
       for (let i = 0; i < 5; i++) {
@@ -201,17 +189,16 @@ async function stop(label) {
       });
     }
 
-  if (last_error)
-    throw last_error;
+  if (last_error) throw last_error;
 }
 
 (async function() {
   try {
     // provide AWS credentials
     AWS.config.update({
-      accessKeyId : core.getInput("AWS_ACCESS_KEY"),
-      secretAccessKey : core.getInput("AWS_SECRET_KEY"),
-      region : core.getInput("aws-region")
+      accessKeyId:     core.getInput("AWS_ACCESS_KEY"),
+      secretAccessKey: core.getInput("AWS_SECRET_KEY"),
+      region:          core.getInput("aws-region")
     });
     // mode is start or stop
     const mode = core.getInput("mode");
