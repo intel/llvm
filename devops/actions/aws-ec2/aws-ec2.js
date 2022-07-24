@@ -41,8 +41,7 @@ async function start(label) {
   const ec2disk = core.getInput("aws-disk");
   const ec2spot = core.getInput("aws-spot") != "false";
   const onejob = core.getInput("one-job") != "false";
-  // ephemeral runner will exit after one job so we will terminate instance
-  // sooner
+  // ephemeral runner will exit after one job so we will terminate instance sooner
   const ephemeral_str = onejob ? "--ephemeral" : "";
 
   let ec2id;      // AWS EC2 instance id
@@ -59,13 +58,9 @@ async function start(label) {
         `export RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | sed -n \'s,.*"tag_name": "v\\(.*\\)".*,\\1,p\')`,
         `curl -O -L https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz || shutdown -h now`,
         `tar xf ./actions-runner-linux-x64-$RUNNER_VERSION.tar.gz || shutdown -h now`,
-        `su gh_runner -c "./config.sh --unattended ${
-            ephemeral_str} --url https://github.com/${repo} --token ${
-            reg_token} --name ${label}_${ec2type}_${spot_str} --labels ${
-            label} --replace || shutdown -h now"`,
+        `su gh_runner -c "./config.sh --unattended ${ephemeral_str} --url https://github.com/${repo} --token ${reg_token} --name ${label}_${ec2type}_${spot_str} --labels ${label} --replace || shutdown -h now"`,
         // timebomb to avoid paying for stale AWS instances
-        `(sleep ${timebomb}; su gh_runner -c "./config.sh remove --token ${
-            reg_token}"; shutdown -h now) &`,
+        `(sleep ${timebomb}; su gh_runner -c "./config.sh remove --token ${reg_token}"; shutdown -h now) &`,
         `su gh_runner -c "./run.sh"`,
         `su gh_runner -c "./config.sh remove --token ${reg_token}"`,
         `shutdown -h now` // in case we launch insance with
@@ -78,7 +73,7 @@ async function start(label) {
           InstanceType : ec2type,
           InstanceInitiatedShutdownBehavior : "terminate",
           UserData : Buffer.from(setup_github_actions_runner.join('\n'))
-                         .toString('base64'),
+                           .toString('base64'),
           MinCount : 1,
           MaxCount : 1,
           TagSpecifications : [ {
@@ -95,12 +90,10 @@ async function start(label) {
         }
         const result = await ec2.runInstances(params).promise();
         ec2id = result.Instances[0].InstanceId;
-        core.info(`Created AWS EC2 ${spot_str} instance ${ec2id} of ${
-            ec2type} type with ${label} label`);
+        core.info(`Created AWS EC2 ${spot_str} instance ${ec2id} of ${ec2type} type with ${label} label`);
         break;
       } catch (error) {
-        core.warning(`Error creating AWS EC2 ${spot_str} instance of ${
-            ec2type} type with ${label} label`);
+        core.warning(`Error creating AWS EC2 ${spot_str} instance of ${ec2type} type with ${label} label`);
         last_error = error;
       }
     }
@@ -121,16 +114,13 @@ async function start(label) {
               .promise();
   for (let i = 0; i < 2; i++) {
     p = p.catch(function() {
-           core.warning(`Error searching for running AWS EC2 instance ${
-               ec2id} with ${label} label. Will retry.`);
-         }).catch(rejectDelay);
+      core.warning(`Error searching for running AWS EC2 instance ${ec2id} with ${label} label. Will retry.`);
+    }).catch(rejectDelay);
   }
   p = p.then(function() {
-         core.info(
-             `Found running AWS EC2 instance ${ec2id} with ${label} label`);
-       }).catch(function(error) {
-    core.error(`Error searching for running AWS EC2 instance ${ec2id} with ${
-        label} label`);
+    core.info(`Found running AWS EC2 instance ${ec2id} with ${label} label`);
+  }).catch(function(error) {
+    core.error(`Error searching for running AWS EC2 instance ${ec2id} with ${label} label`);
     throw error;
   });
 }
@@ -164,11 +154,9 @@ async function stop(label) {
         try {
           await ec2.terminateInstances({InstanceIds : [ instance.InstanceId ]})
               .promise();
-          core.info(`Terminated AWS EC2 instance ${
-              instance.InstanceId} with label ${label}`);
+          core.info(`Terminated AWS EC2 instance ${instance.InstanceId} with label ${label}`);
         } catch (error) {
-          core.error(`Error terminating AWS EC2 instance ${
-              instance.InstanceId} with label ${label}`);
+          core.error(`Error terminating AWS EC2 instance ${instance.InstanceId} with label ${label}`);
           last_error = error;
         }
       }
@@ -202,16 +190,13 @@ async function stop(label) {
       // not remove runners still marked as active (with running job)
       for (let i = 0; i < 5; i++) {
         p = p.catch(function() {
-               core.warning(`Error removing Github self-hosted runner ${
-                   runner.id} with ${label}. Will retry.`);
-             }).catch(rejectDelay);
+          core.warning(`Error removing Github self-hosted runner ${runner.id} with ${label}. Will retry.`);
+        }).catch(rejectDelay);
       }
       p = p.then(function() {
-             core.info(`Removed Github self-hosted runner ${runner.id} with ${
-                 label}`);
-           }).catch(function(error) {
-        core.error(`Error removing Github self-hosted runner ${
-            runner.id} with ${label}`);
+        core.info(`Removed Github self-hosted runner ${runner.id} with ${label}`);
+      }).catch(function(error) {
+        core.error(`Error removing Github self-hosted runner ${runner.id} with ${label}`);
         last_error = error;
       });
     }
