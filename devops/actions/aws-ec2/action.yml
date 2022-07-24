@@ -1,5 +1,5 @@
 name: aws-ec2
-description: Starts AWS EC2 instance with github actions runner agent in it to process one job
+description: Starts AWS EC2 instance with Github actions runner agent in it
 
 inputs:
   label:
