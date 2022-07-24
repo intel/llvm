@@ -41,7 +41,6 @@ inputs:
     
     # "ami-0ccda708841dde988" # Amazon Linux 2 AMI with AMD Radeon Pro Driver (ami-0bb1072e787242eb6 with /dev/xvda disk) with docker installed and gh_runner (1001) like this:
     # sudo -s
-    # sh ./get-docker.sh # or "yum install -y docker" for Amazon Linux or RHEL/CentOS
     # amazon-linux-extras install docker
     # sudo systemctl --now enable docker
     # groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
