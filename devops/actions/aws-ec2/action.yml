@@ -12,7 +12,7 @@ inputs:
     description: "AWS access id"
     required: true
   AWS_SECRET_KEY:
-    description: "WS access secret key"
+    description: "AWS access secret key"
     required: true
   aws-region:
     description: "AWS EC2 region"
