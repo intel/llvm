@@ -41,6 +41,8 @@ async function start(label) {
   const ec2disk = core.getInput("aws-disk");
   const ec2spot = core.getInput("aws-spot") != "false";
   const onejob = core.getInput("one-job") != "false";
+  // ephemeral runner will exit after one job so we will terminate instance sooner
+  const ephemeral_str = onejob ? "--ephemeral" : "";
 
   let ec2id;      // AWS EC2 instance id
   let last_error; // last error that ill be thrown in case all our attemps in
@@ -56,12 +58,10 @@ async function start(label) {
         `export RUNNER_VERSION=$(curl -s https://api.github.com/repos/actions/runner/releases/latest | sed -n \'s,.*"tag_name": "v\\(.*\\)".*,\\1,p\')`,
         `curl -O -L https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz || shutdown -h now`,
         `tar xf ./actions-runner-linux-x64-$RUNNER_VERSION.tar.gz || shutdown -h now`,
-        `su gh_runner -c "./config.sh --unattended --url https://github.com/${repo} --token ${reg_token} --name ${label}_${ec2type}_${spot_str} --labels ${label} --replace || shutdown -h now"`,
+        `su gh_runner -c "./config.sh --unattended ${ephemeral_str} --url https://github.com/${repo} --token ${reg_token} --name ${label}_${ec2type}_${spot_str} --labels ${label} --replace || shutdown -h now"`,
         // timebomb to avoid paying for stale AWS instances
         `(sleep ${timebomb}; su gh_runner -c "./config.sh remove --token ${reg_token}"; shutdown -h now) &`,
-        // ephemeral runner will exit after one job so we will terminate instance sooner
-        onejob ? `su gh_runner -c "./run.sh --ephemeral"`
-               : `su gh_runner -c "./run.sh"`,
+        `su gh_runner -c "./run.sh"`,
         `su gh_runner -c "./config.sh remove --token ${reg_token}"`,
         `shutdown -h now` // in case we launch insance with
                           // InstanceInitiatedShutdownBehavior = "terminate" it
