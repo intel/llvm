@@ -315,6 +315,9 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
 
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
+template <class FunctorTy>
+event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+                     FunctorTy Func);
 } // namespace detail
 } // namespace oneapi
 } // namespace ext
@@ -476,12 +479,9 @@ private:
   }
 
   template <class FunctorTy>
-  static event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
-                              bool IsHost, FunctorTy Func) {
-    handler AuxHandler(Queue, IsHost);
-    Func(AuxHandler);
-    return AuxHandler.finalize();
-  }
+  friend event
+  ext::oneapi::detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
+                                      bool IsHost, FunctorTy Func);
   /// }@
 
   /// Saves buffers created by handling reduction feature in handler.
