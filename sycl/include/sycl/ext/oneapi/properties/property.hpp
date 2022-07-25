@@ -190,6 +190,8 @@ template <typename PropertyT> struct IsCompileTimeProperty : std::false_type {};
 
 // Trait for property compile-time meta names and values.
 template <typename PropertyT> struct PropertyMetaInfo {
+  // Some properties don't have meaningful compile-time values.
+  // Default to empty, as those will be ignored anyway.
   static constexpr const char *name = "";
   static constexpr std::nullptr_t value = nullptr;
 };
