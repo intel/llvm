@@ -7822,8 +7822,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
         }
         std::string TmpFileName = C.getDriver().GetTemporaryPath(
             llvm::sys::path::stem(BaseInput), Ext);
-        const char *TmpFile =
-                        C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+        const char *TmpFile = C.addTempFile(
+            C.getArgs().MakeArgString(TmpFileName), TI);
         CurI = InputInfo(TI, TmpFile, TmpFile);
       } else {
         // Host part of the unbundled object is not used when -fsycl-link is
@@ -7880,7 +7880,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       std::string TmpFileName =
           C.getDriver().GetTemporaryPath(llvm::sys::path::stem(BaseInput), Ext);
       const char *TmpFile =
-          C.addTempFile(C.getArgs().MakeArgString(TmpFileName));
+          C.addTempFile(C.getArgs().MakeArgString(TmpFileName), JA->getType());
       Result = InputInfo(JA->getType(), TmpFile, TmpFile);
       UnbundlingResults.push_back(Result);
     } else {
