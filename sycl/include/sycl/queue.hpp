@@ -131,6 +131,7 @@ public:
                  const property_list &PropList = {})
       : queue(sycl::detail::select_device(deviceSelector), async_handler{},
               PropList) {
+    // CP
     std::cout << "templated DeviceSelector chosen" << std::endl;
   }
 #endif

@@ -89,7 +89,7 @@ public:
 };
 
 namespace detail {
-
+#if __cplusplus >= 201703L
 template <typename DeviceSelector,
           typename = std::enable_if_t<
               std::is_invocable_r<int, DeviceSelector &, device &>::value>>
@@ -157,7 +157,7 @@ device select_device(DeviceSelector DeviceSelectorInvocable) {
   throw cl::sycl::runtime_error("No device of requested type available.",
                                 PI_ERROR_DEVICE_NOT_FOUND);
 }
-
+#endif
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
