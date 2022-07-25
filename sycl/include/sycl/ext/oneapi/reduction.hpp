@@ -2047,7 +2047,7 @@ void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                         const nd_range<Dims> &Range, Reduction &Redu) {
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   static_assert(Reduction::has_atomic_add_float64,
-                "Only suitable for reductions that have FP64 atomic add.");
+                "Only suitable for reductions that have FP64 atomic operations.");
   constexpr size_t NElements = Reduction::num_elements;
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeAtomic64, KernelName>;
