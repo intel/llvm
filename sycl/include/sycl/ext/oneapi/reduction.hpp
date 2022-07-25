@@ -2041,7 +2041,7 @@ template <class KernelName> struct NDRangeAtomic64;
 } // namespace reduction
 
 // Specialization for devices with the atomic64 aspect, which guarantees 64 bit
-// floating point support for atomic add.
+// floating point support for atomic reduction operation.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                         const nd_range<Dims> &Range, Reduction &Redu) {
