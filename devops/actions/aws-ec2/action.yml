@@ -25,7 +25,7 @@ inputs:
     # sudo -s
     # apt-get update
     # curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-    # sh /tmp/get-docker.sh # or "yum install -y docker" for Amazon Linux or RHEL/CentOS
+    # sh /tmp/get-docker.sh
     # groupadd -g 1001 gh_runner; useradd gh_runner -u 1001 -g 1001 -m -s /bin/bash; usermod -aG docker gh_runner; usermod -aG video gh_runner
     # sync; shutdown -h now
     
