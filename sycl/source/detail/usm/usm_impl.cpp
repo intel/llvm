@@ -437,28 +437,32 @@ void *malloc(size_t Size, const queue &Q, alloc Kind,
 
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const context &Ctxt, alloc Kind,
-                    const detail::code_location CL) {
+                    const detail::code_location CL,
+                    const property_list &PropList) {
   void *RetVal = nullptr;
 
   if (Kind == alloc::host) {
-    RetVal = detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind, CL);
+    RetVal = detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind, CL,
+                                           PropList);
   } else {
-    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind, CL);
+    RetVal = detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind, CL,
+                                       PropList);
   }
 
   return RetVal;
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
-                    const context &Ctxt, alloc Kind, const property_list &,
+                    const context &Ctxt, alloc Kind,
+                    const property_list &PropList,
                     const detail::code_location CL) {
-  return aligned_alloc(Alignment, Size, Dev, Ctxt, Kind, CL);
+  return aligned_alloc(Alignment, Size, Dev, Ctxt, Kind, CL, PropList);
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
                     const detail::code_location CL) {
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
-                       CL);
+                       CL, property_list{});
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
@@ -771,15 +775,15 @@ __SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size,
 
 __SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size,
                                   const device &Dev, const context &Ctxt,
-                                  alloc Kind, const property_list &) {
+                                  alloc Kind, const property_list &PropList) {
   return aligned_alloc(Alignment, Size, Dev, Ctxt, Kind,
-                       detail::code_location{});
+                       detail::code_location{}, PropList);
 }
 
 __SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q,
                                   alloc Kind) {
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
-                       detail::code_location{});
+                       detail::code_location{}, property_list{});
 }
 
 __SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q,
