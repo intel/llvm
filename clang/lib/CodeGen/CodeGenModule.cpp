@@ -2906,7 +2906,19 @@ void CodeGenModule::EmitDeferred() {
       GlobalDecl OtherD;
       if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
           (D.getCanonicalDecl().getDecl() !=
-           OtherD.getCanonicalDecl().getDecl())) {
+           OtherD.getCanonicalDecl().getDecl()) &&
+          D.getCanonicalDecl().getDecl()->hasAttr<CUDADeviceAttr>()) {
+        continue;
+      }
+    }
+    // Emit a dummy __host__ function if a legit one is not already present in
+    // case of SYCL compilation of CUDA sources.
+    if (LangOpts.CUDA && !LangOpts.CUDAIsDevice && LangOpts.SYCLIsDevice) {
+      GlobalDecl OtherD;
+      if (lookupRepresentativeDecl(getMangledName(D), OtherD) &&
+          (D.getCanonicalDecl().getDecl() !=
+           OtherD.getCanonicalDecl().getDecl()) &&
+          D.getCanonicalDecl().getDecl()->hasAttr<CUDAHostAttr>()) {
         continue;
       }
     }
@@ -3556,16 +3568,9 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       // device-side variables because the CUDA runtime needs their
       // size and host-side address in order to provide access to
       // their device-side incarnations.
-
-      // So device-only functions are the only things we skip, except for SYCL.
-      if (isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
+      if (!LangOpts.isSYCL() && isa<FunctionDecl>(Global) &&
+          !Global->hasAttr<CUDAHostAttr>() &&
           Global->hasAttr<CUDADeviceAttr>()) {
-        // In SYCL, every (CUDA) __device__ function needs to have a __host__
-        // counterpart that will be emitted in case of it is not already
-        // present.
-        if (LangOpts.SYCLIsHost && MustBeEmitted(Global) &&
-            MayBeEmittedEagerly(Global))
-          addDeferredDeclToEmit(GD);
         return;
       }
       assert((isa<FunctionDecl>(Global) || isa<VarDecl>(Global)) &&
@@ -3592,8 +3597,14 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   if (const auto *FD = dyn_cast<FunctionDecl>(Global)) {
     // Forward declarations are emitted lazily on first use.
     if (!FD->doesThisDeclarationHaveABody()) {
-      if (!FD->doesDeclarationForceExternallyVisibleDefinition())
-        return;
+      if (!FD->doesDeclarationForceExternallyVisibleDefinition()) {
+        // Force the declaration in SYCL compilation of CUDA sources.
+        if (!((LangOpts.SYCLIsHost && LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
+               Global->hasAttr<CUDAHostAttr>()) ||
+              (LangOpts.SYCLIsDevice && LangOpts.CUDA &&
+               !LangOpts.CUDAIsDevice && Global->hasAttr<CUDADeviceAttr>())))
+          return;
+      }
 
       StringRef MangledName = getMangledName(GD);
 
@@ -3652,6 +3663,22 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
   // function. If the global must always be emitted, do it eagerly if possible
   // to benefit from cache locality.
   if (MustBeEmitted(Global) && MayBeEmittedEagerly(Global)) {
+    // Avoid emitting the same __host__ __device__ functions,
+    // in SYCL-CUDA-host compilation, and
+    if (LangOpts.SYCLIsHost && LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
+        isa<FunctionDecl>(Global) && !Global->hasAttr<CUDAHostAttr>() &&
+        Global->hasAttr<CUDADeviceAttr>()) {
+      addDeferredDeclToEmit(GD);
+      return;
+    }
+    // in SYCL-CUDA-device compilation.
+    if (LangOpts.SYCLIsDevice && LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
+        isa<FunctionDecl>(Global) && Global->hasAttr<CUDAHostAttr>() &&
+        !Global->hasAttr<CUDADeviceAttr>()) {
+      addDeferredDeclToEmit(GD);
+      return;
+    }
+
     // Emit the definition if it can't be deferred.
     EmitGlobalDefinition(GD);
     return;
@@ -3675,6 +3702,43 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
     addDeferredDeclToEmit(GD);
     EmittedDeferredDecls[MangledName] = GD;
   } else {
+
+    // For SYCL compilation of CUDA sources,
+    if (LangOpts.isSYCL() && LangOpts.CUDA && !LangOpts.CUDAIsDevice) {
+      // in case of SYCL-CUDA-host,
+      if (LangOpts.SYCLIsHost) {
+        if (Global->hasAttr<CUDAHostAttr>()) {
+          // remove already present __device__ function.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end()) {
+            DeferredDecls.erase(DDI);
+          }
+        } else if (Global->hasAttr<CUDADeviceAttr>()) {
+          // do not insert a __device__ function if a __host__ one is present.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end()) {
+            return;
+          }
+        }
+      }
+      // in case of SYCL-CUDA-device,
+      if (LangOpts.SYCLIsDevice) {
+        if (Global->hasAttr<CUDADeviceAttr>()) {
+          // remove already present __host__ function.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end()) {
+            DeferredDecls.erase(DDI);
+          }
+        } else if (Global->hasAttr<CUDAHostAttr>()) {
+          // do not insert a __host__ function if a __device__ one is present.
+          auto DDI = DeferredDecls.find(MangledName);
+          if (DDI != DeferredDecls.end()) {
+            return;
+          }
+        }
+      }
+    }
+
     // Otherwise, remember that we saw a deferred decl with this name.  The
     // first use of the mangled name will cause it to move into
     // DeferredDeclsToEmit.
@@ -4385,8 +4449,17 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // This is the first use or definition of a mangled name.  If there is a
     // deferred decl with this name, remember that we need to emit it at the end
     // of the file.
+    // In SYCL compilation of CUDA sources, avoid the emission if the
+    // __device__/__host__ attributes do not match.
     auto DDI = DeferredDecls.find(MangledName);
-    if (DDI != DeferredDecls.end()) {
+    if (DDI != DeferredDecls.end() &&
+        ((getLangOpts().isSYCL() && getLangOpts().CUDA &&
+          !getLangOpts().CUDAIsDevice)
+             ? (DDI->second).getDecl()->hasAttr<CUDAHostAttr>() ==
+                       D->hasAttr<CUDAHostAttr>() &&
+                   (DDI->second).getDecl()->hasAttr<CUDADeviceAttr>() ==
+                       D->hasAttr<CUDADeviceAttr>()
+             : true)) {
       // Move the potentially referenced deferred decl to the
       // DeferredDeclsToEmit list, and remove it from DeferredDecls (since we
       // don't need it anymore).
