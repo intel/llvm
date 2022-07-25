@@ -6,3 +6,5 @@ reduction
 group
 kernel
 math_builtin_api
+nd_item
+optional_kernel_features
