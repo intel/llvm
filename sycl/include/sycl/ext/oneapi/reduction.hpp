@@ -565,7 +565,7 @@ public:
   using rw_accessor_type = accessor<T, accessor_dim, access::mode::read_write,
                                     access::target::device, is_placeholder,
                                     ext::oneapi::accessor_property_list<>>;
-  static constexpr bool has_atomic_add_float64 =
+  static constexpr bool has_float64_atomics =
       IsReduOptForAtomic64Op<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
@@ -645,7 +645,7 @@ public:
   /// require initialization with identity value, then return user's read-write
   /// accessor. Otherwise, create global buffer with 'num_elements' initialized
   /// with identity value and return an accessor to that buffer.
-  template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
+  template <bool HasFastAtomics = (has_fast_atomics || has_float64_atomics)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
     if constexpr (is_rw_acc) {
@@ -2046,8 +2046,9 @@ template <typename KernelName, typename KernelType, int Dims, class Reduction>
 void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
                         const nd_range<Dims> &Range, Reduction &Redu) {
   auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-  static_assert(Reduction::has_atomic_add_float64,
-                "Only suitable for reductions that have FP64 atomic operations.");
+  static_assert(
+      Reduction::has_float64_atomics,
+      "Only suitable for reductions that have FP64 atomic operations.");
   constexpr size_t NElements = Reduction::num_elements;
   using Name =
       __sycl_reduction_kernel<reduction::main_krn::NDRangeAtomic64, KernelName>;
