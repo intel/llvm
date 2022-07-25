@@ -297,15 +297,20 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::usm_host_allocations:
     return get_info<info::device::usm_host_allocations>();
   case aspect::usm_atomic_host_allocations:
-    return is_host() || (get_device_info<info::device::usm_host_allocations>(
-                             MDevice, getPlugin()) &
-                         PI_USM_CONCURRENT_ATOMIC_ACCESS);
+    return is_host() ||
+           (get_device_info_impl<
+                pi_usm_capabilities,
+                info::device::usm_host_allocations>::get(MDevice, getPlugin()) &
+            PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
-    return is_host() || (get_device_info<info::device::usm_shared_allocations>(
-                             MDevice, getPlugin()) &
-                         PI_USM_CONCURRENT_ATOMIC_ACCESS);
+    return is_host() ||
+           (get_device_info_impl<
+                pi_usm_capabilities,
+                info::device::usm_shared_allocations>::get(MDevice,
+                                                           getPlugin()) &
+            PI_USM_CONCURRENT_ATOMIC_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
