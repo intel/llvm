@@ -9,9 +9,9 @@
 #pragma once
 
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/group_sort_impl.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/group_sort_impl.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <type_traits>
 
 #include "group_helpers_sorters.hpp"

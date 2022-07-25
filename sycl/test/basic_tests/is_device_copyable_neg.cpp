@@ -4,7 +4,7 @@
 // This test checks if compiler reports compilation error on an attempt to pass
 // a struct with type that is not device copyable as SYCL kernel parameter.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

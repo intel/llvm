@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -c %s -o %t.temp
 // RUN: %clangxx -fsycl -sycl-std=1.2.1 -c %s -o %t.temp
 
-#include "CL/sycl.hpp"
+#include "sycl.hpp"
 
 // This validates that the unnamed lambda logic in the library correctly works
 // with a new implementation of __builtin_unique_stable_name, where

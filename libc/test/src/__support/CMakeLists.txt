@@ -18,6 +18,7 @@ add_libc_unittest(
   high_precision_decimal_test.cpp
   DEPENDS
     libc.src.__support.high_precision_decimal
+    libc.src.__support.CPP.uint128
 )
 
 add_libc_unittest(
@@ -28,6 +29,7 @@ add_libc_unittest(
     str_to_float_test.cpp
   DEPENDS
     libc.src.__support.str_to_float
+    libc.src.__support.CPP.uint128
 )
 
 add_libc_unittest(
@@ -77,4 +79,3 @@ add_custom_command(TARGET libc_str_to_float_comparison_test
 add_subdirectory(CPP)
 add_subdirectory(File)
 add_subdirectory(OSUtil)
-add_subdirectory(threads)

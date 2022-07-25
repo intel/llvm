@@ -8,9 +8,12 @@
 
 #pragma once
 
+#include <cassert>
 #include <cstdint>
 #include <map>
 #include <mutex>
+
+#include <sycl/detail/defines_elementary.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -18,6 +21,7 @@ namespace detail {
 
 // Forward declaration
 class device_impl;
+class context_impl;
 
 struct DeviceGlobalMapEntry {
   // The unique identifier of the device_global.

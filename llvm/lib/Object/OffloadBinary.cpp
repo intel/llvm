@@ -12,6 +12,7 @@
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Object/Error.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/FileOutputBuffer.h"
 
 using namespace llvm;
@@ -26,14 +27,24 @@ OffloadBinary::create(MemoryBufferRef Buf) {
   if (identify_magic(Buf.getBuffer()) != file_magic::offload_binary)
     return errorCodeToError(object_error::parse_failed);
 
+  // Make sure that the data has sufficient alignment.
+  if (!isAddrAligned(Align(getAlignment()), Buf.getBufferStart()))
+    return errorCodeToError(object_error::parse_failed);
+
   const char *Start = Buf.getBufferStart();
   const Header *TheHeader = reinterpret_cast<const Header *>(Start);
+  if (TheHeader->Version != OffloadBinary::Version)
+    return errorCodeToError(object_error::parse_failed);
+
+  if (TheHeader->Size > Buf.getBufferSize() ||
+      TheHeader->EntryOffset > TheHeader->Size - sizeof(Entry) ||
+      TheHeader->EntrySize > TheHeader->Size - sizeof(Header))
+    return errorCodeToError(object_error::unexpected_eof);
+
   const Entry *TheEntry =
       reinterpret_cast<const Entry *>(&Start[TheHeader->EntryOffset]);
 
-  // Make sure the offsets are inside the file.
-  if (TheHeader->EntryOffset > Buf.getBufferSize() ||
-      TheEntry->ImageOffset > Buf.getBufferSize() ||
+  if (TheEntry->ImageOffset > Buf.getBufferSize() ||
       TheEntry->StringOffset > Buf.getBufferSize())
     return errorCodeToError(object_error::unexpected_eof);
 

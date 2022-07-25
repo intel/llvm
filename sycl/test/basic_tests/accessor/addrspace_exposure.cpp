@@ -6,8 +6,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 #include <type_traits>
 
 // This test checks that concrete address spaces are not exposed in device code

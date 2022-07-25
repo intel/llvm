@@ -3,7 +3,7 @@
 // This test checks the integration header generated for a kernel
 // with an argument that is a POD array.
 
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 
 // CHECK: class kernel_B;
 

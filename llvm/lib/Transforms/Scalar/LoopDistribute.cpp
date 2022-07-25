@@ -230,7 +230,7 @@ public:
     // having to update as many def-use and use-def chains.
     for (auto *Inst : reverse(Unused)) {
       if (!Inst->use_empty())
-        Inst->replaceAllUsesWith(UndefValue::get(Inst->getType()));
+        Inst->replaceAllUsesWith(PoisonValue::get(Inst->getType()));
       Inst->eraseFromParent();
     }
   }
@@ -600,9 +600,9 @@ private:
         {LLVMLoopDistributeFollowupAll,
          Part->hasDepCycle() ? LLVMLoopDistributeFollowupSequential
                              : LLVMLoopDistributeFollowupCoincident});
-    if (PartitionID.hasValue()) {
+    if (PartitionID) {
       Loop *NewLoop = Part->getDistributedLoop();
-      NewLoop->setLoopID(PartitionID.getValue());
+      NewLoop->setLoopID(PartitionID.value());
     }
   }
 };
@@ -826,7 +826,7 @@ public:
                              {LLVMLoopDistributeFollowupAll,
                               LLVMLoopDistributeFollowupFallback},
                              "llvm.loop.distribute.", true)
-              .getValue();
+              .value();
       LVer.getNonVersionedLoop()->setLoopID(UnversionedLoopID);
     }
 

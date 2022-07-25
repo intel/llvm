@@ -9,7 +9,6 @@
 #include "gtest/internal/gtest-internal.h"
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -17,6 +16,7 @@
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 

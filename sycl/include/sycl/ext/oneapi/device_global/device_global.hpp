@@ -11,8 +11,8 @@
 #include <cstddef>
 #include <type_traits>
 
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 

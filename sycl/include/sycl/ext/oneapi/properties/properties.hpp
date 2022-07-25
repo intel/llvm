@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/types.hpp>
 
 #include <tuple>
 #include <type_traits>

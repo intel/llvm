@@ -166,7 +166,13 @@ set(BENCHMARK_TESTS
     algorithms/min_max_element.bench.cpp
     algorithms/pop_heap.bench.cpp
     algorithms/push_heap.bench.cpp
+    algorithms/ranges_make_heap.bench.cpp
+    algorithms/ranges_make_heap_then_sort_heap.bench.cpp
+    algorithms/ranges_pop_heap.bench.cpp
+    algorithms/ranges_push_heap.bench.cpp
     algorithms/ranges_sort.bench.cpp
+    algorithms/ranges_sort_heap.bench.cpp
+    algorithms/ranges_stable_sort.bench.cpp
     algorithms/sort.bench.cpp
     algorithms/sort_heap.bench.cpp
     algorithms/stable_sort.bench.cpp
@@ -196,6 +202,7 @@ if (LIBCXX_ENABLE_INCOMPLETE_FEATURES)
       format.bench.cpp
       formatted_size.bench.cpp
       formatter_float.bench.cpp
+      formatter_int.bench.cpp
       std_format_spec_string_unicode.bench.cpp)
 endif()
 

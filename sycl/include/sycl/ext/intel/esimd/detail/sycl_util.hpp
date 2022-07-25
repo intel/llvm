@@ -13,7 +13,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/accessor.hpp>
+#include <sycl/accessor.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

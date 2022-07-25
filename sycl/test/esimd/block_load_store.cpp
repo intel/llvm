@@ -2,9 +2,9 @@
 
 // This test checks that block_load/store API gets successfully compiled.
 
-#include <CL/sycl.hpp>
 #include <limits>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;

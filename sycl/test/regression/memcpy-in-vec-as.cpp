@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -D_FORTIFY_SOURCE=2 %s -o %t.out
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 int main() {
   using res_vec_type = cl::sycl::vec<cl::sycl::cl_ushort, 4>;
