@@ -119,7 +119,7 @@ static lldb::offset_t DumpAPInt(Stream *s, const DataExtractor &data,
                                 bool is_signed, unsigned radix) {
   llvm::Optional<llvm::APInt> apint = GetAPInt(data, &offset, byte_size);
   if (apint) {
-    std::string apint_str = toString(apint.getValue(), radix, is_signed);
+    std::string apint_str = toString(apint.value(), radix, is_signed);
     switch (radix) {
     case 2:
       s->Write("0b", 2);
@@ -170,10 +170,11 @@ static lldb::offset_t DumpInstructions(const DataExtractor &DE, Stream *s,
         offset += bytes_consumed;
         const bool show_address = base_addr != LLDB_INVALID_ADDRESS;
         const bool show_bytes = true;
+        const bool show_control_flow_kind = true;
         ExecutionContext exe_ctx;
         exe_scope->CalculateExecutionContext(exe_ctx);
-        disassembler_sp->GetInstructionList().Dump(s, show_address, show_bytes,
-                                                   &exe_ctx);
+        disassembler_sp->GetInstructionList().Dump(
+            s, show_address, show_bytes, show_control_flow_kind, &exe_ctx);
       }
     }
   } else
@@ -671,7 +672,7 @@ lldb::offset_t lldb_private::DumpDataExtractor(
           llvm::Optional<llvm::APInt> apint =
               GetAPInt(DE, &offset, semantics_byte_size);
           if (apint) {
-            llvm::APFloat apfloat(semantics, apint.getValue());
+            llvm::APFloat apfloat(semantics, apint.value());
             apfloat.toString(sv, format_precision, format_max_padding);
             if (!sv.empty()) {
               s->Printf("%*.*s", (int)sv.size(), (int)sv.size(), sv.data());

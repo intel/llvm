@@ -74,13 +74,16 @@ void LLVMDisposeMessage(char *Message) {
 
 /*===-- Operations on contexts --------------------------------------------===*/
 
-static ManagedStatic<LLVMContext> GlobalContext;
+static LLVMContext &getGlobalContext() {
+  static LLVMContext GlobalContext;
+  return GlobalContext;
+}
 
 LLVMContextRef LLVMContextCreate() {
   return wrap(new LLVMContext());
 }
 
-LLVMContextRef LLVMGetGlobalContext() { return wrap(&*GlobalContext); }
+LLVMContextRef LLVMGetGlobalContext() { return wrap(&getGlobalContext()); }
 
 void LLVMContextSetDiagnosticHandler(LLVMContextRef C,
                                      LLVMDiagnosticHandler Handler,
@@ -251,7 +254,7 @@ LLVMDiagnosticSeverity LLVMGetDiagInfoSeverity(LLVMDiagnosticInfoRef DI) {
 /*===-- Operations on modules ---------------------------------------------===*/
 
 LLVMModuleRef LLVMModuleCreateWithName(const char *ModuleID) {
-  return wrap(new Module(ModuleID, *GlobalContext));
+  return wrap(new Module(ModuleID, getGlobalContext()));
 }
 
 LLVMModuleRef LLVMModuleCreateWithNameInContext(const char *ModuleID,
@@ -1571,11 +1574,6 @@ LLVMValueRef LLVMConstNUWAdd(LLVMValueRef LHSConstant,
                                       unwrap<Constant>(RHSConstant)));
 }
 
-LLVMValueRef LLVMConstFAdd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getFAdd(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
-}
-
 LLVMValueRef LLVMConstSub(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
   return wrap(ConstantExpr::getSub(unwrap<Constant>(LHSConstant),
                                    unwrap<Constant>(RHSConstant)));
@@ -1593,11 +1591,6 @@ LLVMValueRef LLVMConstNUWSub(LLVMValueRef LHSConstant,
                                       unwrap<Constant>(RHSConstant)));
 }
 
-LLVMValueRef LLVMConstFSub(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getFSub(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
-}
-
 LLVMValueRef LLVMConstMul(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
   return wrap(ConstantExpr::getMul(unwrap<Constant>(LHSConstant),
                                    unwrap<Constant>(RHSConstant)));
@@ -1613,21 +1606,6 @@ LLVMValueRef LLVMConstNUWMul(LLVMValueRef LHSConstant,
                              LLVMValueRef RHSConstant) {
   return wrap(ConstantExpr::getNUWMul(unwrap<Constant>(LHSConstant),
                                       unwrap<Constant>(RHSConstant)));
-}
-
-LLVMValueRef LLVMConstFMul(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getFMul(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
-}
-
-LLVMValueRef LLVMConstFDiv(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getFDiv(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
-}
-
-LLVMValueRef LLVMConstFRem(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getFRem(unwrap<Constant>(LHSConstant),
-                                    unwrap<Constant>(RHSConstant)));
 }
 
 LLVMValueRef LLVMConstAnd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {

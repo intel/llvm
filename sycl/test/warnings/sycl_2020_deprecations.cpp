@@ -1,7 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   cl_context ClCtx;

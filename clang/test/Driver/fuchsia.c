@@ -55,6 +55,18 @@
 // CHECK-NOT: crtend.o
 // CHECK-NOT: crtn.o
 
+// RUN: %clang -### %s --target=x86_64-unknown-fuchsia 2>&1 \
+// RUN:     | FileCheck %s -check-prefix=CHECK-FP-ALL
+// RUN: %clang -### %s --target=aarch64-unknown-fuchsia 2>&1 \
+// RUN:     | FileCheck %s -check-prefix=CHECK-FP-NONLEAF
+// RUN: %clang -### %s --target=x86_64-unknown-fuchsia -O3 2>&1 \
+// RUN:     | FileCheck %s -check-prefix=CHECK-FP-NONE
+// RUN: %clang -### %s --target=aarch64-unknown-fuchsia -O3 2>&1 \
+// RUN:     | FileCheck %s -check-prefix=CHECK-FP-NONE
+// CHECK-FP-ALL: "-mframe-pointer=all"
+// CHECK-FP-NONLEAF: "-mframe-pointer=non-leaf"
+// CHECK-FP-NONE: "-mframe-pointer=none"
+
 // RUN: %clang -### %s --target=x86_64-unknown-fuchsia -rtlib=libgcc -fuse-ld=lld 2>&1 \
 // RUN:     | FileCheck %s -check-prefix=CHECK-RTLIB
 // CHECK-RTLIB: error: invalid runtime library name in argument '-rtlib=libgcc'
@@ -74,6 +86,7 @@
 // RUN:     | FileCheck %s -check-prefix=CHECK-RELOCATABLE
 // CHECK-RELOCATABLE-NOT: "-pie"
 // CHECK-RELOCATABLE-NOT: "--build-id"
+// CHECK-RELOCATABLE-NOT "-dynamic-linker"
 // CHECK-RELOCATABLE: "-r"
 // CHECK-RELOCATABLE-NOT: "-l
 // CHECK-RELOCATABLE-NOT: crt{{[^./]+}}.o

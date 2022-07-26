@@ -21,6 +21,6 @@
 #define IMAGE 
 #define UNDEFINED
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 int main() { return 0; }

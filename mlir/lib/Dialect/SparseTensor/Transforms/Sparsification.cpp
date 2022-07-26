@@ -308,17 +308,6 @@ static bool computeIterationGraph(Merger &merger, linalg::GenericOp op,
   return true;
 }
 
-/// Returns true if tensor has an in-place annotation.
-static bool isInPlace(Value val) {
-  if (auto arg = val.dyn_cast<BlockArgument>())
-    if (auto funcOp = dyn_cast<func::FuncOp>(arg.getOwner()->getParentOp()))
-      if (auto attr = funcOp.getArgAttrOfType<BoolAttr>(
-              arg.getArgNumber(),
-              bufferization::BufferizableOpInterface::kInplaceableAttrName))
-        return attr.getValue();
-  return false;
-}
-
 /// Returns true if tensor materializes uninitialized into the computation.
 static bool isMaterializing(Value val) {
   return val.getDefiningOp<linalg::InitTensorOp>() ||
@@ -355,9 +344,8 @@ static bool isAdmissableTensorExp(Merger &merger, linalg::GenericOp op,
     return true;
   // A tensor expression with a sparse output tensor that changes its values
   // but not its nonzero structure, an operation called "simply dynamic" in
-  // [Bik96,Ch9], is also admissable without special codegen, provided
-  // the tensor's underlying sparse storage scheme can be modified in-place.
-  if (merger.isSingleCondition(tensor, exp) && isInPlace(lhs->get()))
+  // [Bik96,Ch9], is also admissable without special codegen.
+  if (merger.isSingleCondition(tensor, exp))
     return true;
   // Accept "truly dynamic" if the output tensor materializes uninitialized
   // into the computation and insertions occur in lexicographic index order.
@@ -486,37 +474,19 @@ static Value genOutputBuffer(CodeGen &codegen, OpBuilder &builder,
   OpOperand *lhs = op.getOutputOperand(0);
   Value tensor = lhs->get();
   bool isInit = op.isInitTensor(lhs);
-  // An output tensor that is in-place can simply materialize from the buffer
-  // of the tensor that appears in the outs() clause. For updates, this has
-  // the advantage that only the nonzero value are involved in the computation,
-  // keeping the operation O(nnz). In all other cases, we are forced to zero
-  // out the buffer to enforce the assumption above, which may negatively
-  // impact running complexity (viz. O(n^2 + nnz) vs. O(nnz) for matrices).
+  // An output tensor can simply materialize from the buffer of the tensor that
+  // appears in the outs() clause. For updates, this has the advantage that only
+  // the nonzero value are involved in the computation, keeping the operation
+  // O(nnz). In all other cases, we are forced to zero out the buffer to enforce
+  // the assumption above, which may negatively impact running complexity
+  // (viz. O(n^2 + nnz) vs. O(nnz) for matrices).
   // TODO: use better analysis to avoid zeroing out the buffer?
-  if (isInPlace(tensor)) {
-    Value init =
-        builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
-    if (!isInit) {
-      Value zero = constantZero(builder, loc, denseTp.getElementType());
-      builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{init});
-    }
-    return init;
-  }
-  // By default, a new buffer is allocated which is either set to zero (when
-  // no updates occur or the tensor materializes into this computation) or
-  // initialized to the value of the tensor defined in the outs() clause.
-  // This is always correct (since it enforces all assumptions above) but
-  // may negatively impact running complexity as explained above.
-  Value alloc = builder.create<memref::AllocOp>(loc, denseTp, args);
-  if (!isInit || isMaterializing(tensor)) {
+  Value init = builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
+  if (!isInit) {
     Value zero = constantZero(builder, loc, denseTp.getElementType());
-    builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{alloc});
-  } else {
-    Value init =
-        builder.create<bufferization::ToMemrefOp>(loc, denseTp, tensor);
-    builder.create<memref::CopyOp>(loc, init, alloc);
+    builder.create<linalg::FillOp>(loc, ValueRange{zero}, ValueRange{init});
   }
-  return alloc;
+  return init;
 }
 
 /// Local bufferization of all dense and sparse data structures.
@@ -1768,9 +1738,9 @@ public:
 
     // Builds the tensor expression for the Linalg operation in SSA form.
     Optional<unsigned> optExp = merger.buildTensorExpFromLinalg(op);
-    if (!optExp.hasValue())
+    if (!optExp.has_value())
       return failure();
-    unsigned exp = optExp.getValue();
+    unsigned exp = optExp.value();
 
     // Rejects an inadmissable tensor expression.
     OpOperand *sparseOut = nullptr;
@@ -1820,7 +1790,7 @@ private:
       auto convert = rewriter.create<ConvertOp>(tval.getLoc(), dstTp, tval);
       op->setOperand(tensor, convert);
       rewriter.setInsertionPointAfter(op);
-      rewriter.create<ReleaseOp>(tval.getLoc(), convert);
+      rewriter.create<bufferization::DeallocTensorOp>(tval.getLoc(), convert);
       return success();
     }
     // Cannot be resolved with a single conversion.
@@ -1832,79 +1802,6 @@ private:
   SparsificationOptions options;
 };
 
-/// Sparse rewriting rule for expand shape operator.
-struct ExpandShapeRewriter : public OpRewritePattern<tensor::ExpandShapeOp> {
-public:
-  using OpRewritePattern<tensor::ExpandShapeOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::ExpandShapeOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op->getLoc();
-    auto encDst = getSparseTensorEncoding(op.result().getType());
-    auto encSrc = getSparseTensorEncoding(op.src().getType());
-    // Since a pure dense expansion is very cheap (change of view), for
-    // sparse2dense or dense2sparse, we can simply unfuse a sparse
-    // conversion from the actual expansion operation itself.
-    if (encDst && encSrc) {
-      return failure(); // TODO: implement sparse2sparse
-    } else if (encSrc) {
-      RankedTensorType rtp = op.src().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto convert = rewriter.create<ConvertOp>(loc, denseTp, op.src());
-      op->setOperand(0, convert);
-      return success();
-    } else if (encDst) {
-      RankedTensorType rtp = op.result().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto reshape = rewriter.create<tensor::ExpandShapeOp>(
-          loc, denseTp, op.src(), op.getReassociation());
-      Value convert = rewriter.create<ConvertOp>(loc, rtp, reshape);
-      rewriter.replaceOp(op, convert);
-      return success();
-    }
-    return failure();
-  }
-};
-
-/// Sparse rewriting rule for collapse shape operator.
-struct CollapseShapeRewriter
-    : public OpRewritePattern<tensor::CollapseShapeOp> {
-public:
-  using OpRewritePattern<tensor::CollapseShapeOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tensor::CollapseShapeOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op->getLoc();
-    auto encDst = getSparseTensorEncoding(op.result().getType());
-    auto encSrc = getSparseTensorEncoding(op.src().getType());
-    // Since a pure dense collapse is very cheap (change of view), for
-    // sparse2dense or dense2sparse, we can simply unfuse a sparse
-    // conversion from the actual collapse operation itself.
-    if (encDst && encSrc) {
-      return failure(); // TODO: implement sparse2sparse
-    } else if (encSrc) {
-      RankedTensorType rtp = op.src().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto convert = rewriter.create<ConvertOp>(loc, denseTp, op.src());
-      op->setOperand(0, convert);
-      return success();
-    } else if (encDst) {
-      RankedTensorType rtp = op.result().getType().cast<RankedTensorType>();
-      auto denseTp =
-          RankedTensorType::get(rtp.getShape(), rtp.getElementType());
-      auto reshape = rewriter.create<tensor::CollapseShapeOp>(
-          loc, denseTp, op.src(), op.getReassociation());
-      Value convert = rewriter.create<ConvertOp>(loc, rtp, reshape);
-      rewriter.replaceOp(op, convert);
-      return success();
-    }
-    return failure();
-  }
-};
-
 } // namespace
 
 /// Populates the given patterns list with rewriting rules required for
@@ -1912,6 +1809,4 @@ public:
 void mlir::populateSparsificationPatterns(
     RewritePatternSet &patterns, const SparsificationOptions &options) {
   patterns.add<GenericOpSparsifier>(patterns.getContext(), options);
-  patterns.add<ExpandShapeRewriter, CollapseShapeRewriter>(
-      patterns.getContext());
 }

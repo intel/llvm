@@ -384,7 +384,7 @@ mlir_c_api_cc_library(
         "include/mlir-c/IntegerSet.h",
         "include/mlir-c/Interfaces.h",
         "include/mlir-c/Pass.h",
-        "include/mlir-c/Registration.h",
+        "include/mlir-c/RegisterEverything.h",
         "include/mlir-c/Support.h",
         "include/mlir/CAPI/AffineExpr.h",
         "include/mlir/CAPI/AffineMap.h",
@@ -644,9 +644,9 @@ mlir_c_api_cc_library(
 )
 
 mlir_c_api_cc_library(
-    name = "CAPIRegistration",
-    srcs = ["lib/CAPI/Registration/Registration.cpp"],
-    hdrs = ["include/mlir-c/Registration.h"],
+    name = "CAPIRegisterEverything",
+    srcs = ["lib/CAPI/RegisterEverything/RegisterEverything.cpp"],
+    hdrs = ["include/mlir-c/RegisterEverything.h"],
     capi_deps = [
         ":CAPIIR",
     ],
@@ -744,7 +744,6 @@ cc_library(
         ":CAPIGPU",
         ":CAPIIR",
         ":CAPIInterfaces",
-        ":CAPIRegistration",
         ":MLIRBindingsPythonHeadersAndDeps",
         "//llvm:Support",
         "@pybind11",
@@ -766,7 +765,6 @@ cc_library(
         ":CAPIDebugHeaders",
         ":CAPIGPUHeaders",
         ":CAPIIRHeaders",
-        ":CAPIRegistrationHeaders",
         ":MLIRBindingsPythonHeaders",
         "//llvm:Support",
         "@pybind11",
@@ -788,7 +786,6 @@ cc_library(
         ":CAPIGPUObjects",
         ":CAPIIRObjects",
         ":CAPIInterfacesObjects",
-        ":CAPIRegistrationObjects",
     ],
 )
 
@@ -825,7 +822,6 @@ cc_binary(
     deps = [
         ":CAPIIR",
         ":CAPILinalg",
-        ":CAPIRegistration",
         ":MLIRBindingsPythonHeadersAndDeps",
     ],
 )
@@ -844,7 +840,6 @@ cc_binary(
     deps = [
         ":CAPIIR",
         ":CAPIQuant",
-        ":CAPIRegistration",
         ":MLIRBindingsPythonHeadersAndDeps",
     ],
 )
@@ -862,29 +857,8 @@ cc_binary(
     ],
     deps = [
         ":CAPIIR",
-        ":CAPIRegistration",
         ":CAPISparseTensor",
         ":MLIRBindingsPythonHeadersAndDeps",
-    ],
-)
-
-# Dynamic library with the MLIR Conversions Python extension.
-cc_binary(
-    name = "_mlirConversions.so",
-    srcs = ["lib/Bindings/Python/Conversions/Conversions.cpp"],
-    copts = PYBIND11_COPTS,
-    features = PYBIND11_FEATURES,
-    linkshared = 1,
-    linkstatic = 0,
-    tags = [
-        "manual",  # External dependency
-        "nobuildkite",  # TODO(gcmn): Add support for this target
-    ],
-    deps = [
-        ":CAPIConversion",
-        ":MLIRBindingsPythonHeadersAndDeps",
-        "@pybind11",
-        "@python_runtime//:headers",
     ],
 )
 
@@ -902,26 +876,6 @@ cc_binary(
     ],
     deps = [
         ":CAPIExecutionEngine",
-        ":MLIRBindingsPythonHeadersAndDeps",
-        "@pybind11",
-        "@python_runtime//:headers",
-    ],
-)
-
-# Dynamic library with the MLIR Transforms Python extension.
-cc_binary(
-    name = "_mlirTransforms.so",
-    srcs = ["lib/Bindings/Python/Transforms/Transforms.cpp"],
-    copts = PYBIND11_COPTS,
-    features = PYBIND11_FEATURES,
-    linkshared = 1,
-    linkstatic = 0,
-    tags = [
-        "manual",  # External dependency
-        "nobuildkite",  # TODO(gcmn): Add support for this target
-    ],
-    deps = [
-        ":CAPITransforms",
         ":MLIRBindingsPythonHeadersAndDeps",
         "@pybind11",
         "@python_runtime//:headers",
@@ -2116,6 +2070,7 @@ cc_library(
         ":SparseTensorDialect",
         ":SparseTensorPassIncGen",
         ":SparseTensorUtils",
+        ":Support",
         ":TensorDialect",
         ":Transforms",
         ":VectorDialect",
@@ -2614,7 +2569,6 @@ cc_library(
         ":TosaToTensor",
         ":VectorToGPU",
         ":VectorToLLVM",
-        ":VectorToROCDL",
         ":VectorToSCF",
         ":VectorToSPIRV",
     ],
@@ -3805,30 +3759,6 @@ cc_library(
 )
 
 cc_library(
-    name = "VectorToROCDL",
-    srcs = [
-        "lib/Conversion/VectorToROCDL/VectorToROCDL.cpp",
-        ":ConversionPassDetail",
-    ],
-    hdrs = ["include/mlir/Conversion/VectorToROCDL/VectorToROCDL.h"],
-    includes = ["include"],
-    deps = [
-        ":ConversionPassIncGen",
-        ":FuncDialect",
-        ":FuncToLLVM",
-        ":GPUDialect",
-        ":IR",
-        ":LLVMCommonConversion",
-        ":LLVMDialect",
-        ":MemRefToLLVM",
-        ":Pass",
-        ":ROCDLDialect",
-        ":Transforms",
-        ":VectorDialect",
-    ],
-)
-
-cc_library(
     name = "VectorToSPIRV",
     srcs = glob([
         "lib/Conversion/VectorToSPIRV/*.cpp",
@@ -3895,7 +3825,6 @@ cc_library(
         ":Transforms",
         ":VectorDialect",
         ":VectorToLLVM",
-        ":VectorToROCDL",
         ":VectorToSCF",
         "//llvm:Support",
     ],
@@ -6348,7 +6277,6 @@ cc_library(
         ":TransformsPassIncGen",
         ":VectorDialect",
         ":VectorToLLVM",
-        ":VectorToROCDL",
         ":VectorToSCF",
         ":VectorToSPIRV",
         ":VectorTransforms",
@@ -7461,6 +7389,9 @@ cc_library(
     ],
     includes = ["include"],
     deps = [
+        ":AffineDialect",
+        ":ArithmeticDialect",
+        ":ControlFlowDialect",
         ":IR",
         ":LinalgDialect",
         ":LinalgTransformOpsIncGen",
@@ -7468,6 +7399,7 @@ cc_library(
         ":PDLDialect",
         ":Parser",
         ":SideEffectInterfaces",
+        ":TilingInterface",
         ":TransformDialect",
         ":TransformUtils",
         "//llvm:Support",

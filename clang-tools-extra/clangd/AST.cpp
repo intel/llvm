@@ -745,7 +745,7 @@ public:
     if (Callee) {
       handleCall(Callee, E->arguments());
     }
-    return !Info.hasValue();
+    return !Info.has_value();
   }
 
   bool VisitCXXConstructExpr(CXXConstructExpr *E) {
@@ -753,7 +753,7 @@ public:
     if (Callee) {
       handleCall(Callee, E->arguments());
     }
-    return !Info.hasValue();
+    return !Info.has_value();
   }
 
   // The expanded parameter pack to be resolved
@@ -793,7 +793,7 @@ private:
     }
     auto OptPackLocation = findPack(Args);
     if (OptPackLocation) {
-      size_t PackLocation = OptPackLocation.getValue();
+      size_t PackLocation = OptPackLocation.value();
       ArrayRef<ParmVarDecl *> MatchingParams =
           Callee->parameters().slice(PackLocation, Parameters.size());
       // Check whether the function has a parameter pack as the last template
@@ -937,12 +937,12 @@ resolveForwardingParameters(const FunctionDecl *D, unsigned MaxDepth) {
         break;
       }
       // If we found something: Fill in non-pack parameters
-      auto Info = V.Info.getValue();
+      auto Info = V.Info.value();
       HeadIt = std::copy(Info.Head.begin(), Info.Head.end(), HeadIt);
       TailIt = std::copy(Info.Tail.rbegin(), Info.Tail.rend(), TailIt);
       // Prepare next recursion level
       Pack = Info.Pack;
-      CurrentFunction = Info.PackTarget.getValueOr(nullptr);
+      CurrentFunction = Info.PackTarget.value_or(nullptr);
       Depth++;
       // If we are recursing into a previously encountered function: Abort
       if (CurrentFunction) {

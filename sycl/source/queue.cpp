@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/queue.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 
@@ -173,7 +173,7 @@ queue::get_info() const {
   template __SYCL_EXPORT RetType queue::get_info<info::ParamType::Param>()     \
       const;
 
-#include <CL/sycl/info/queue_traits.def>
+#include <sycl/info/queue_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

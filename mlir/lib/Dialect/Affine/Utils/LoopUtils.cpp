@@ -196,10 +196,9 @@ static AffineForOp generateShiftedLoop(
   BlockAndValueMapping operandMap;
 
   auto bodyBuilder = OpBuilder::atBlockTerminator(loopChunk.getBody());
-  for (auto it = opGroupQueue.begin() + offset, e = opGroupQueue.end(); it != e;
-       ++it) {
-    uint64_t shift = it->first;
-    auto ops = it->second;
+  for (const auto &it : llvm::drop_begin(opGroupQueue, offset)) {
+    uint64_t shift = it.first;
+    auto ops = it.second;
     // All 'same shift' operations get added with their operands being
     // remapped to results of cloned operations, and their IV used remapped.
     // Generate the remapping if the shift is not zero: remappedIV = newIV -
@@ -405,13 +404,13 @@ checkTilingLegalityImpl(MutableArrayRef<mlir::AffineForOp> origLoops) {
         LLVM_DEBUG(dstAccess.opInst->dump(););
         for (unsigned k = 0, e = depComps.size(); k < e; k++) {
           DependenceComponent depComp = depComps[k];
-          if (depComp.lb.hasValue() && depComp.ub.hasValue() &&
-              depComp.lb.getValue() < depComp.ub.getValue() &&
-              depComp.ub.getValue() < 0) {
+          if (depComp.lb.has_value() && depComp.ub.has_value() &&
+              depComp.lb.value() < depComp.ub.value() &&
+              depComp.ub.value() < 0) {
             LLVM_DEBUG(llvm::dbgs()
                        << "Dependence component lb = "
-                       << Twine(depComp.lb.getValue())
-                       << " ub = " << Twine(depComp.ub.getValue())
+                       << Twine(depComp.lb.value())
+                       << " ub = " << Twine(depComp.ub.value())
                        << " is negative  at depth: " << Twine(d)
                        << " and thus violates the legality rule.\n");
             return false;
@@ -802,11 +801,11 @@ constructTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
     newLoops[width + i].setStep(origLoops[i].getStep());
 
     // Set the upper bound.
-    if (mayBeConstantCount && mayBeConstantCount.getValue() < tileSizes[i]) {
+    if (mayBeConstantCount && mayBeConstantCount.value() < tileSizes[i]) {
       // Trip count is less than the tile size: upper bound is lower bound +
       // trip count * stepSize.
       AffineMap ubMap = b.getSingleDimShiftAffineMap(
-          mayBeConstantCount.getValue() * origLoops[i].getStep());
+          mayBeConstantCount.value() * origLoops[i].getStep());
       newLoops[width + i].setUpperBound(
           /*operands=*/newLoops[i].getInductionVar(), ubMap);
     } else if (largestDiv % tileSizes[i] != 0) {
@@ -974,8 +973,8 @@ void mlir::getTileableBands(func::FuncOp f,
 /// Unrolls this loop completely.
 LogicalResult mlir::loopUnrollFull(AffineForOp forOp) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
-  if (mayBeConstantTripCount.hasValue()) {
-    uint64_t tripCount = mayBeConstantTripCount.getValue();
+  if (mayBeConstantTripCount.has_value()) {
+    uint64_t tripCount = mayBeConstantTripCount.value();
     if (tripCount == 0)
       return success();
     if (tripCount == 1)
@@ -990,9 +989,9 @@ LogicalResult mlir::loopUnrollFull(AffineForOp forOp) {
 LogicalResult mlir::loopUnrollUpToFactor(AffineForOp forOp,
                                          uint64_t unrollFactor) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
-  if (mayBeConstantTripCount.hasValue() &&
-      mayBeConstantTripCount.getValue() < unrollFactor)
-    return loopUnrollByFactor(forOp, mayBeConstantTripCount.getValue());
+  if (mayBeConstantTripCount.has_value() &&
+      mayBeConstantTripCount.value() < unrollFactor)
+    return loopUnrollByFactor(forOp, mayBeConstantTripCount.value());
   return loopUnrollByFactor(forOp, unrollFactor);
 }
 
@@ -1150,9 +1149,9 @@ LogicalResult mlir::loopUnrollByFactor(
 LogicalResult mlir::loopUnrollJamUpToFactor(AffineForOp forOp,
                                             uint64_t unrollJamFactor) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
-  if (mayBeConstantTripCount.hasValue() &&
-      mayBeConstantTripCount.getValue() < unrollJamFactor)
-    return loopUnrollJamByFactor(forOp, mayBeConstantTripCount.getValue());
+  if (mayBeConstantTripCount.has_value() &&
+      mayBeConstantTripCount.value() < unrollJamFactor)
+    return loopUnrollJamByFactor(forOp, mayBeConstantTripCount.value());
   return loopUnrollJamByFactor(forOp, unrollJamFactor);
 }
 
@@ -1573,8 +1572,8 @@ AffineForOp mlir::sinkSequentialLoops(AffineForOp forOp) {
     assert(depComps.size() >= maxLoopDepth);
     for (unsigned j = 0; j < maxLoopDepth; ++j) {
       DependenceComponent &depComp = depComps[j];
-      assert(depComp.lb.hasValue() && depComp.ub.hasValue());
-      if (depComp.lb.getValue() != 0 || depComp.ub.getValue() != 0)
+      assert(depComp.lb.has_value() && depComp.ub.has_value());
+      if (depComp.lb.value() != 0 || depComp.ub.value() != 0)
         isParallelLoop[j] = false;
     }
   }
@@ -2406,12 +2405,12 @@ LogicalResult mlir::affineDataCopyGenerate(Block::iterator begin,
   block->walk(begin, end, [&](Operation *opInst) {
     // Gather regions to allocate to buffers in faster memory space.
     if (auto loadOp = dyn_cast<AffineLoadOp>(opInst)) {
-      if ((filterMemRef.hasValue() && filterMemRef != loadOp.getMemRef()) ||
+      if ((filterMemRef.has_value() && filterMemRef != loadOp.getMemRef()) ||
           (loadOp.getMemRefType().getMemorySpaceAsInt() !=
            copyOptions.slowMemorySpace))
         return;
     } else if (auto storeOp = dyn_cast<AffineStoreOp>(opInst)) {
-      if ((filterMemRef.hasValue() && filterMemRef != storeOp.getMemRef()) ||
+      if ((filterMemRef.has_value() && filterMemRef != storeOp.getMemRef()) ||
           storeOp.getMemRefType().getMemorySpaceAsInt() !=
               copyOptions.slowMemorySpace)
         return;

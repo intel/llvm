@@ -237,6 +237,39 @@ static bool isMergePassthruOpcode(unsigned Opc) {
   }
 }
 
+// Returns true if inactive lanes are known to be zeroed by construction.
+static bool isZeroingInactiveLanes(SDValue Op) {
+  switch (Op.getOpcode()) {
+  default:
+    // We guarantee i1 splat_vectors to zero the other lanes by
+    // implementing it with ptrue and possibly a punpklo for nxv1i1.
+    if (ISD::isConstantSplatVectorAllOnes(Op.getNode()))
+      return true;
+    return false;
+  case AArch64ISD::PTRUE:
+  case AArch64ISD::SETCC_MERGE_ZERO:
+    return true;
+  case ISD::INTRINSIC_WO_CHAIN:
+    switch (Op.getConstantOperandVal(0)) {
+    default:
+      return false;
+    case Intrinsic::aarch64_sve_ptrue:
+    case Intrinsic::aarch64_sve_pnext:
+    case Intrinsic::aarch64_sve_cmpeq_wide:
+    case Intrinsic::aarch64_sve_cmpne_wide:
+    case Intrinsic::aarch64_sve_cmpge_wide:
+    case Intrinsic::aarch64_sve_cmpgt_wide:
+    case Intrinsic::aarch64_sve_cmplt_wide:
+    case Intrinsic::aarch64_sve_cmple_wide:
+    case Intrinsic::aarch64_sve_cmphs_wide:
+    case Intrinsic::aarch64_sve_cmphi_wide:
+    case Intrinsic::aarch64_sve_cmplo_wide:
+    case Intrinsic::aarch64_sve_cmpls_wide:
+      return true;
+    }
+  }
+}
+
 AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
                                              const AArch64Subtarget &STI)
     : TargetLowering(TM), Subtarget(&STI) {
@@ -4368,16 +4401,18 @@ static inline SDValue getPTrue(SelectionDAG &DAG, SDLoc DL, EVT VT,
                      DAG.getTargetConstant(Pattern, DL, MVT::i32));
 }
 
-SDValue AArch64TargetLowering::getSVEPredicateBitCast(EVT VT, SDValue Op,
-                                                      SelectionDAG &DAG) const {
+// Returns a safe bitcast between two scalable vector predicates, where
+// any newly created lanes from a widening bitcast are defined as zero.
+static SDValue getSVEPredicateBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) {
   SDLoc DL(Op);
   EVT InVT = Op.getValueType();
 
   assert(InVT.getVectorElementType() == MVT::i1 &&
          VT.getVectorElementType() == MVT::i1 &&
          "Expected a predicate-to-predicate bitcast");
-  assert(VT.isScalableVector() && isTypeLegal(VT) &&
-         InVT.isScalableVector() && isTypeLegal(InVT) &&
+  assert(VT.isScalableVector() && DAG.getTargetLoweringInfo().isTypeLegal(VT) &&
+         InVT.isScalableVector() &&
+         DAG.getTargetLoweringInfo().isTypeLegal(InVT) &&
          "Only expect to cast between legal scalable predicate types!");
 
   // Return the operand if the cast isn't changing type,
@@ -4396,33 +4431,8 @@ SDValue AArch64TargetLowering::getSVEPredicateBitCast(EVT VT, SDValue Op,
 
   // Check if the other lanes are already known to be zeroed by
   // construction.
-  switch (Op.getOpcode()) {
-  default:
-    // We guarantee i1 splat_vectors to zero the other lanes by
-    // implementing it with ptrue and possibly a punpklo for nxv1i1.
-    if (ISD::isConstantSplatVectorAllOnes(Op.getNode()))
-      return Reinterpret;
-    break;
-  case AArch64ISD::SETCC_MERGE_ZERO:
+  if (isZeroingInactiveLanes(Op))
     return Reinterpret;
-  case ISD::INTRINSIC_WO_CHAIN:
-    switch (Op.getConstantOperandVal(0)) {
-    default:
-      break;
-    case Intrinsic::aarch64_sve_ptrue:
-    case Intrinsic::aarch64_sve_cmpeq_wide:
-    case Intrinsic::aarch64_sve_cmpne_wide:
-    case Intrinsic::aarch64_sve_cmpge_wide:
-    case Intrinsic::aarch64_sve_cmpgt_wide:
-    case Intrinsic::aarch64_sve_cmplt_wide:
-    case Intrinsic::aarch64_sve_cmple_wide:
-    case Intrinsic::aarch64_sve_cmphs_wide:
-    case Intrinsic::aarch64_sve_cmphi_wide:
-    case Intrinsic::aarch64_sve_cmplo_wide:
-    case Intrinsic::aarch64_sve_cmpls_wide:
-      return Reinterpret;
-    }
-  }
 
   // Zero the newly introduced lanes.
   SDValue Mask = DAG.getConstant(1, DL, InVT);
@@ -6442,9 +6452,8 @@ static bool checkZExtBool(SDValue Arg, const SelectionDAG &DAG) {
   if (SizeInBits < 8)
     return false;
 
-  APInt LowBits(SizeInBits, 0xFF);
   APInt RequredZero(SizeInBits, 0xFE);
-  KnownBits Bits = DAG.computeKnownBits(Arg, LowBits, 4);
+  KnownBits Bits = DAG.computeKnownBits(Arg, 4);
   bool ZExtBool = (Bits.Zero & RequredZero) == RequredZero;
   return ZExtBool;
 }
@@ -11802,6 +11811,12 @@ bool AArch64TargetLowering::isShuffleMaskLegal(ArrayRef<int> M, EVT VT) const {
           isConcatMask(M, VT, VT.getSizeInBits() == 128));
 }
 
+bool AArch64TargetLowering::isVectorClearMaskLegal(ArrayRef<int> M,
+                                                   EVT VT) const {
+  // Just delegate to the generic legality, clear masks aren't special.
+  return isShuffleMaskLegal(M, VT);
+}
+
 /// getVShiftImm - Check if this is a valid build_vector for the immediate
 /// operand of a vector shift operation, where all the elements of the
 /// build_vector must have the same constant integer value.
@@ -13578,19 +13593,48 @@ AArch64TargetLowering::getScratchRegisters(CallingConv::ID) const {
 bool
 AArch64TargetLowering::isDesirableToCommuteWithShift(const SDNode *N,
                                                      CombineLevel Level) const {
-  N = N->getOperand(0).getNode();
+  assert((N->getOpcode() == ISD::SHL || N->getOpcode() == ISD::SRA ||
+          N->getOpcode() == ISD::SRL) &&
+         "Expected shift op");
+
+  SDValue ShiftLHS = N->getOperand(0);
   EVT VT = N->getValueType(0);
-    // If N is unsigned bit extraction: ((x >> C) & mask), then do not combine
-    // it with shift to let it be lowered to UBFX.
-  if (N->getOpcode() == ISD::AND && (VT == MVT::i32 || VT == MVT::i64) &&
-      isa<ConstantSDNode>(N->getOperand(1))) {
-    uint64_t TruncMask = N->getConstantOperandVal(1);
+
+  // If ShiftLHS is unsigned bit extraction: ((x >> C) & mask), then do not combine
+  // it with shift 'N' to let it be lowered to UBFX.
+  if (ShiftLHS.getOpcode() == ISD::AND && (VT == MVT::i32 || VT == MVT::i64) &&
+      isa<ConstantSDNode>(ShiftLHS.getOperand(1))) {
+    uint64_t TruncMask = ShiftLHS.getConstantOperandVal(1);
     if (isMask_64(TruncMask) &&
-      N->getOperand(0).getOpcode() == ISD::SRL &&
-      isa<ConstantSDNode>(N->getOperand(0)->getOperand(1)))
+        ShiftLHS.getOperand(0).getOpcode() == ISD::SRL &&
+        isa<ConstantSDNode>(ShiftLHS.getOperand(0).getOperand(1)))
       return false;
   }
   return true;
+}
+
+bool AArch64TargetLowering::isDesirableToCommuteXorWithShift(
+    const SDNode *N) const {
+  assert(N->getOpcode() == ISD::XOR &&
+         (N->getOperand(0).getOpcode() == ISD::SHL ||
+          N->getOperand(0).getOpcode() == ISD::SRL) &&
+         "Expected XOR(SHIFT) pattern");
+
+  // Only commute if the entire NOT mask is a hidden shifted mask.
+  auto *XorC = dyn_cast<ConstantSDNode>(N->getOperand(1));
+  auto *ShiftC = dyn_cast<ConstantSDNode>(N->getOperand(0).getOperand(1));
+  if (XorC && ShiftC) {
+    unsigned MaskIdx, MaskLen;
+    if (XorC->getAPIntValue().isShiftedMask(MaskIdx, MaskLen)) {
+      unsigned ShiftAmt = ShiftC->getZExtValue();
+      unsigned BitWidth = N->getValueType(0).getScalarSizeInBits();
+      if (N->getOperand(0).getOpcode() == ISD::SHL)
+        return MaskIdx == ShiftAmt && MaskLen == (BitWidth - ShiftAmt);
+      return MaskIdx == 0 && MaskLen == (BitWidth - ShiftAmt);
+    }
+  }
+
+  return false;
 }
 
 bool AArch64TargetLowering::shouldFoldConstantShiftPairToMask(
@@ -16165,11 +16209,23 @@ static SDValue getPTest(SelectionDAG &DAG, EVT VT, SDValue Pg, SDValue Op,
   assert(Op.getValueType().isScalableVector() &&
          TLI.isTypeLegal(Op.getValueType()) &&
          "Expected legal scalable vector type!");
+  assert(Op.getValueType() == Pg.getValueType() &&
+         "Expected same type for PTEST operands");
 
   // Ensure target specific opcodes are using legal type.
   EVT OutVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
   SDValue TVal = DAG.getConstant(1, DL, OutVT);
   SDValue FVal = DAG.getConstant(0, DL, OutVT);
+
+  // Ensure operands have type nxv16i1.
+  if (Op.getValueType() != MVT::nxv16i1) {
+    if ((Cond == AArch64CC::ANY_ACTIVE || Cond == AArch64CC::NONE_ACTIVE) &&
+        isZeroingInactiveLanes(Op))
+      Pg = DAG.getNode(AArch64ISD::REINTERPRET_CAST, DL, MVT::nxv16i1, Pg);
+    else
+      Pg = getSVEPredicateBitCast(MVT::nxv16i1, Pg, DAG);
+    Op = DAG.getNode(AArch64ISD::REINTERPRET_CAST, DL, MVT::nxv16i1, Op);
+  }
 
   // Set condition code (CC) flags.
   SDValue Test = DAG.getNode(AArch64ISD::PTEST, DL, MVT::Other, Pg, Op);
@@ -19200,6 +19256,41 @@ static SDValue performBSPExpandForSVE(SDNode *N, SelectionDAG &DAG,
   return DAG.getNode(ISD::OR, DL, VT, Sel, SelInv);
 }
 
+static SDValue performDupLane128Combine(SDNode *N, SelectionDAG &DAG) {
+  EVT VT = N->getValueType(0);
+
+  SDValue Insert = N->getOperand(0);
+  if (Insert.getOpcode() != ISD::INSERT_SUBVECTOR)
+    return SDValue();
+
+  if (!Insert.getOperand(0).isUndef())
+    return SDValue();
+
+  uint64_t IdxInsert = Insert.getConstantOperandVal(2);
+  uint64_t IdxDupLane = N->getConstantOperandVal(1);
+  if (IdxInsert != IdxDupLane)
+    return SDValue();
+
+  SDValue Bitcast = Insert.getOperand(1);
+  if (Bitcast.getOpcode() != ISD::BITCAST)
+    return SDValue();
+
+  SDValue Subvec = Bitcast.getOperand(0);
+  EVT SubvecVT = Subvec.getValueType();
+  if (!SubvecVT.is128BitVector())
+    return SDValue();
+  EVT NewSubvecVT =
+      getPackedSVEVectorVT(Subvec.getValueType().getVectorElementType());
+
+  SDLoc DL(N);
+  SDValue NewInsert =
+      DAG.getNode(ISD::INSERT_SUBVECTOR, DL, NewSubvecVT,
+                  DAG.getUNDEF(NewSubvecVT), Subvec, Insert->getOperand(2));
+  SDValue NewDuplane128 = DAG.getNode(AArch64ISD::DUPLANE128, DL, NewSubvecVT,
+                                      NewInsert, N->getOperand(1));
+  return DAG.getNode(ISD::BITCAST, DL, VT, NewDuplane128);
+}
+
 SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
                                                  DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -19286,6 +19377,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performCSELCombine(N, DCI, DAG);
   case AArch64ISD::DUP:
     return performDUPCombine(N, DCI);
+  case AArch64ISD::DUPLANE128:
+    return performDupLane128Combine(N, DAG);
   case AArch64ISD::NVCAST:
     return performNVCASTCombine(N);
   case AArch64ISD::SPLICE:

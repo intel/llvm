@@ -108,8 +108,8 @@ static bool nodesHaveSameOperandValue(SDNode *N0, SDNode* N1, unsigned OpName) {
   return N0->getOperand(Op0Idx) == N1->getOperand(Op1Idx);
 }
 
-bool SIInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                    AAResults *AA) const {
+bool SIInstrInfo::isReallyTriviallyReMaterializable(
+    const MachineInstr &MI) const {
   if (isVOP1(MI) || isVOP2(MI) || isVOP3(MI) || isSDWA(MI) || isSALU(MI)) {
     // Normally VALU use of exec would block the rematerialization, but that
     // is OK in this case to have an implicit exec read as all VALU do.
@@ -220,16 +220,23 @@ bool SIInstrInfo::areLoadsFromSameBasePtr(SDNode *Load0, SDNode *Load1,
         AMDGPU::getNamedOperandIdx(Opc1, AMDGPU::OpName::sbase) == -1)
       return false;
 
-    assert(getNumOperandsNoGlue(Load0) == getNumOperandsNoGlue(Load1));
+    unsigned NumOps = getNumOperandsNoGlue(Load0);
+    if (NumOps != getNumOperandsNoGlue(Load1))
+      return false;
 
     // Check base reg.
     if (Load0->getOperand(0) != Load1->getOperand(0))
       return false;
 
+    // Match register offsets, if both register and immediate offsets present.
+    assert(NumOps == 4 || NumOps == 5);
+    if (NumOps == 5 && Load0->getOperand(1) != Load1->getOperand(1))
+      return false;
+
     const ConstantSDNode *Load0Offset =
-        dyn_cast<ConstantSDNode>(Load0->getOperand(1));
+        dyn_cast<ConstantSDNode>(Load0->getOperand(NumOps - 3));
     const ConstantSDNode *Load1Offset =
-        dyn_cast<ConstantSDNode>(Load1->getOperand(1));
+        dyn_cast<ConstantSDNode>(Load1->getOperand(NumOps - 3));
 
     if (!Load0Offset || !Load1Offset)
       return false;
@@ -3335,15 +3342,18 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineInstr &MI,
       (ST.getConstantBusLimit(Opc) > 1 || !Src0->isReg() ||
        !RI.isSGPRReg(MBB.getParent()->getRegInfo(), Src0->getReg()))) {
     MachineInstr *DefMI;
-    const auto killDef = [&DefMI, &MBB, this]() -> void {
+    const auto killDef = [&]() -> void {
       const MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
       // The only user is the instruction which will be killed.
-      if (!MRI.hasOneNonDBGUse(DefMI->getOperand(0).getReg()))
+      Register DefReg = DefMI->getOperand(0).getReg();
+      if (!MRI.hasOneNonDBGUse(DefReg))
         return;
       // We cannot just remove the DefMI here, calling pass will crash.
       DefMI->setDesc(get(AMDGPU::IMPLICIT_DEF));
       for (unsigned I = DefMI->getNumOperands() - 1; I != 0; --I)
         DefMI->removeOperand(I);
+      if (LV)
+        LV->getVarInfo(DefReg).AliveBlocks.clear();
     };
 
     int64_t Imm;
@@ -5008,10 +5018,8 @@ bool SIInstrInfo::isOperandLegal(const MachineInstr &MI, unsigned OpIdx,
   }
 
   if (MO->isReg()) {
-    if (!DefinedRC) {
-      // This operand allows any register.
-      return true;
-    }
+    if (!DefinedRC)
+      return OpInfo.OperandType == MCOI::OPERAND_UNKNOWN;
     if (!isLegalRegOperand(MRI, OpInfo, *MO))
       return false;
     bool IsAGPR = RI.isAGPR(MRI, MO->getReg());

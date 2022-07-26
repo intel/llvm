@@ -286,6 +286,15 @@ struct MLIRDocument {
                                         const DialectRegistry &registry);
 
   //===--------------------------------------------------------------------===//
+  // Code Action
+  //===--------------------------------------------------------------------===//
+
+  void getCodeActionForDiagnostic(const lsp::URIForFile &uri,
+                                  lsp::Position &pos, StringRef severity,
+                                  StringRef message,
+                                  std::vector<lsp::TextEdit> &edits);
+
+  //===--------------------------------------------------------------------===//
   // Fields
   //===--------------------------------------------------------------------===//
 
@@ -636,15 +645,17 @@ public:
       : AsmParserCodeCompleteContext(completeLoc),
         completionList(completionList), ctx(ctx) {}
 
-  /// Signal code completion for a dialect name.
-  void completeDialectName() final {
+  /// Signal code completion for a dialect name, with an optional prefix.
+  void completeDialectName(StringRef prefix) final {
     for (StringRef dialect : ctx->getAvailableDialects()) {
-      lsp::CompletionItem item(dialect, lsp::CompletionItemKind::Module);
-      item.sortText = "2";
+      lsp::CompletionItem item(prefix + dialect,
+                               lsp::CompletionItemKind::Module,
+                               /*sortText=*/"3");
       item.detail = "dialect";
       completionList.items.emplace_back(item);
     }
   }
+  using AsmParserCodeCompleteContext::completeDialectName;
 
   /// Signal code completion for an operation name within the given dialect.
   void completeOperationName(StringRef dialectName) final {
@@ -658,8 +669,8 @@ public:
 
       lsp::CompletionItem item(
           op.getStringRef().drop_front(dialectName.size() + 1),
-          lsp::CompletionItemKind::Field);
-      item.sortText = "1";
+          lsp::CompletionItemKind::Field,
+          /*sortText=*/"1");
       item.detail = "operation";
       completionList.items.emplace_back(item);
     }
@@ -690,6 +701,80 @@ public:
     completionList.items.emplace_back(item);
   }
 
+  /// Signal a completion for the given expected token.
+  void completeExpectedTokens(ArrayRef<StringRef> tokens, bool optional) final {
+    for (StringRef token : tokens) {
+      lsp::CompletionItem item(token, lsp::CompletionItemKind::Keyword,
+                               /*sortText=*/"0");
+      item.detail = optional ? "optional" : "";
+      completionList.items.emplace_back(item);
+    }
+  }
+
+  /// Signal a completion for an attribute.
+  void completeAttribute(const llvm::StringMap<Attribute> &aliases) override {
+    appendSimpleCompletions({"affine_set", "affine_map", "dense", "false",
+                             "loc", "opaque", "sparse", "true", "unit"},
+                            lsp::CompletionItemKind::Field,
+                            /*sortText=*/"1");
+
+    completeDialectName("#");
+    completeAliases(aliases, "#");
+  }
+  void completeDialectAttributeOrAlias(
+      const llvm::StringMap<Attribute> &aliases) override {
+    completeDialectName();
+    completeAliases(aliases);
+  }
+
+  /// Signal a completion for a type.
+  void completeType(const llvm::StringMap<Type> &aliases) override {
+    // Handle the various builtin types.
+    appendSimpleCompletions({"memref", "tensor", "complex", "tuple", "vector",
+                             "bf16", "f16", "f32", "f64", "f80", "f128",
+                             "index", "none"},
+                            lsp::CompletionItemKind::Field,
+                            /*sortText=*/"1");
+
+    // Handle the builtin integer types.
+    for (StringRef type : {"i", "si", "ui"}) {
+      lsp::CompletionItem item(type + "<N>", lsp::CompletionItemKind::Field,
+                               /*sortText=*/"1");
+      item.insertText = type.str();
+      completionList.items.emplace_back(item);
+    }
+
+    // Insert completions for dialect types and aliases.
+    completeDialectName("!");
+    completeAliases(aliases, "!");
+  }
+  void
+  completeDialectTypeOrAlias(const llvm::StringMap<Type> &aliases) override {
+    completeDialectName();
+    completeAliases(aliases);
+  }
+
+  /// Add completion results for the given set of aliases.
+  template <typename T>
+  void completeAliases(const llvm::StringMap<T> &aliases,
+                       StringRef prefix = "") {
+    for (const auto &alias : aliases) {
+      lsp::CompletionItem item(prefix + alias.getKey(),
+                               lsp::CompletionItemKind::Field,
+                               /*sortText=*/"2");
+      llvm::raw_string_ostream(item.detail) << "alias: " << alias.getValue();
+      completionList.items.emplace_back(item);
+    }
+  }
+
+  /// Add a set of simple completions that all have the same kind.
+  void appendSimpleCompletions(ArrayRef<StringRef> completions,
+                               lsp::CompletionItemKind kind,
+                               StringRef sortText = "") {
+    for (StringRef completion : completions)
+      completionList.items.emplace_back(completion, kind, sortText);
+  }
+
 private:
   lsp::CompletionList &completionList;
   MLIRContext *ctx;
@@ -718,6 +803,42 @@ MLIRDocument::getCodeCompletion(const lsp::URIForFile &uri,
                         /*sourceFileLoc=*/nullptr, &tmpState,
                         &lspCompleteContext);
   return completionList;
+}
+
+//===----------------------------------------------------------------------===//
+// MLIRDocument: Code Action
+//===----------------------------------------------------------------------===//
+
+void MLIRDocument::getCodeActionForDiagnostic(
+    const lsp::URIForFile &uri, lsp::Position &pos, StringRef severity,
+    StringRef message, std::vector<lsp::TextEdit> &edits) {
+  // Ignore diagnostics that print the current operation. These are always
+  // enabled for the language server, but not generally during normal
+  // parsing/verification.
+  if (message.startswith("see current operation: "))
+    return;
+
+  // Get the start of the line containing the diagnostic.
+  const auto &buffer = sourceMgr.getBufferInfo(sourceMgr.getMainFileID());
+  const char *lineStart = buffer.getPointerForLineNumber(pos.line + 1);
+  if (!lineStart)
+    return;
+  StringRef line(lineStart, pos.character);
+
+  // Add a text edit for adding an expected-* diagnostic check for this
+  // diagnostic.
+  lsp::TextEdit edit;
+  edit.range = lsp::Range(lsp::Position(pos.line, 0));
+
+  // Use the indent of the current line for the expected-* diagnostic.
+  size_t indent = line.find_first_not_of(" ");
+  if (indent == StringRef::npos)
+    indent = line.size();
+
+  edit.newText.append(indent, ' ');
+  llvm::raw_string_ostream(edit.newText)
+      << "// expected-" << severity << " @below {{" << message << "}}\n";
+  edits.emplace_back(std::move(edit));
 }
 
 //===----------------------------------------------------------------------===//
@@ -777,6 +898,9 @@ public:
   void findDocumentSymbols(std::vector<lsp::DocumentSymbol> &symbols);
   lsp::CompletionList getCodeCompletion(const lsp::URIForFile &uri,
                                         lsp::Position completePos);
+  void getCodeActions(const lsp::URIForFile &uri, const lsp::Range &pos,
+                      const lsp::CodeActionContext &context,
+                      std::vector<lsp::CodeAction> &actions);
 
 private:
   /// Find the MLIR document that contains the given position, and update the
@@ -936,6 +1060,62 @@ lsp::CompletionList MLIRTextFile::getCodeCompletion(const lsp::URIForFile &uri,
   return completionList;
 }
 
+void MLIRTextFile::getCodeActions(const lsp::URIForFile &uri,
+                                  const lsp::Range &pos,
+                                  const lsp::CodeActionContext &context,
+                                  std::vector<lsp::CodeAction> &actions) {
+  // Create actions for any diagnostics in this file.
+  for (auto &diag : context.diagnostics) {
+    if (diag.source != "mlir")
+      continue;
+    lsp::Position diagPos = diag.range.start;
+    MLIRTextFileChunk &chunk = getChunkFor(diagPos);
+
+    // Add a new code action that inserts a "expected" diagnostic check.
+    lsp::CodeAction action;
+    action.title = "Add expected-* diagnostic checks";
+    action.kind = lsp::CodeAction::kQuickFix.str();
+
+    StringRef severity;
+    switch (diag.severity) {
+    case lsp::DiagnosticSeverity::Error:
+      severity = "error";
+      break;
+    case lsp::DiagnosticSeverity::Warning:
+      severity = "warning";
+      break;
+    default:
+      continue;
+    }
+
+    // Get edits for the diagnostic.
+    std::vector<lsp::TextEdit> edits;
+    chunk.document.getCodeActionForDiagnostic(uri, diagPos, severity,
+                                              diag.message, edits);
+
+    // Walk the related diagnostics, this is how we encode notes.
+    if (diag.relatedInformation) {
+      for (auto &noteDiag : *diag.relatedInformation) {
+        if (noteDiag.location.uri != uri)
+          continue;
+        diagPos = noteDiag.location.range.start;
+        diagPos.line -= chunk.lineOffset;
+        chunk.document.getCodeActionForDiagnostic(uri, diagPos, "note",
+                                                  noteDiag.message, edits);
+      }
+    }
+    // Fixup the locations for any edits.
+    for (lsp::TextEdit &edit : edits)
+      chunk.adjustLocForChunkOffset(edit.range);
+
+    action.edit.emplace();
+    action.edit->changes[uri.uri().str()] = std::move(edits);
+    action.diagnostics = {diag};
+
+    actions.emplace_back(std::move(action));
+  }
+}
+
 MLIRTextFileChunk &MLIRTextFile::getChunkFor(lsp::Position &pos) {
   if (chunks.size() == 1)
     return *chunks.front();
@@ -1029,4 +1209,12 @@ lsp::MLIRServer::getCodeCompletion(const URIForFile &uri,
   if (fileIt != impl->files.end())
     return fileIt->second->getCodeCompletion(uri, completePos);
   return CompletionList();
+}
+
+void lsp::MLIRServer::getCodeActions(const URIForFile &uri, const Range &pos,
+                                     const CodeActionContext &context,
+                                     std::vector<CodeAction> &actions) {
+  auto fileIt = impl->files.find(uri.file());
+  if (fileIt != impl->files.end())
+    fileIt->second->getCodeActions(uri, pos, context, actions);
 }

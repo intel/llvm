@@ -109,7 +109,7 @@ struct Configuration {
   bool archMultiple = false;
   bool exportDynamic = false;
   bool forceLoadObjC = false;
-  bool forceLoadSwift = false;
+  bool forceLoadSwift = false; // Only applies to LC_LINKER_OPTIONs.
   bool staticLink = false;
   bool implicitDylibs = false;
   bool isPic = false;
@@ -131,9 +131,6 @@ struct Configuration {
   bool omitDebugInfo = false;
   bool warnDylibInstallName = false;
   bool ignoreOptimizationHints = false;
-  // Temporary config flag that will be removed once we have fully implemented
-  // support for __eh_frame.
-  bool parseEhFrames = false;
   uint32_t headerPad;
   uint32_t dylibCompatibilityVersion = 0;
   uint32_t dylibCurrentVersion = 0;
@@ -191,6 +188,8 @@ struct Configuration {
   SymbolPatterns unexportedSymbols;
   SymbolPatterns whyLive;
 
+  std::vector<std::pair<llvm::StringRef, llvm::StringRef>> aliasedSymbols;
+
   SymtabPresence localSymbolsPresence = SymtabPresence::All;
   SymbolPatterns localSymbolPatterns;
 
@@ -203,13 +202,6 @@ struct Configuration {
   llvm::MachO::PlatformType platform() const {
     return platformInfo.target.Platform;
   }
-};
-
-// Whether to force-load an archive.
-enum class ForceLoad {
-  Default, // Apply -all_load or -ObjC behaviors if those flags are enabled
-  Yes,     // Always load the archive, regardless of other flags
-  No,      // Never load the archive, regardless of other flags
 };
 
 extern std::unique_ptr<Configuration> config;

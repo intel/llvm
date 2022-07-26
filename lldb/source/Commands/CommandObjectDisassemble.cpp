@@ -12,6 +12,7 @@
 #include "lldb/Core/Module.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/Options.h"
@@ -63,6 +64,10 @@ Status CommandObjectDisassemble::CommandOptions::SetOptionValue(
 
   case 'b':
     show_bytes = true;
+    break;
+
+  case 'k':
+    show_control_flow_kind = true;
     break;
 
   case 's': {
@@ -154,6 +159,7 @@ void CommandObjectDisassemble::CommandOptions::OptionParsingStarting(
     ExecutionContext *execution_context) {
   show_mixed = false;
   show_bytes = false;
+  show_control_flow_kind = false;
   num_lines_context = 0;
   num_instructions = 0;
   func_name.clear();
@@ -492,6 +498,9 @@ bool CommandObjectDisassemble::DoExecute(Args &command,
 
   if (m_options.show_bytes)
     options |= Disassembler::eOptionShowBytes;
+
+  if (m_options.show_control_flow_kind)
+    options |= Disassembler::eOptionShowControlFlowKind;
 
   if (m_options.raw)
     options |= Disassembler::eOptionRawOuput;

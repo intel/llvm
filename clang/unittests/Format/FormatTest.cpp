@@ -5385,6 +5385,10 @@ TEST_F(FormatTest, IndentPreprocessorDirectives) {
                "#endif",
                Style);
   Style.IndentPPDirectives = FormatStyle::PPDIS_AfterHash;
+  verifyFormat("#if 1\n"
+               "#  define __STR(x) #x\n"
+               "#endif",
+               Style);
   verifyFormat("#ifdef _WIN32\n"
                "#  define A 0\n"
                "#  ifdef VAR2\n"
@@ -10458,6 +10462,9 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
   verifyFormat("class {\n"
                "}* ptr;",
                Style);
+  // Don't confuse a multiplication after a brace-initialized expression with
+  // a class pointer.
+  verifyFormat("int i = int{42} * 34;", Style);
   verifyFormat("struct {\n"
                "}&& ptr = {};",
                Style);
@@ -24711,6 +24718,18 @@ TEST_F(FormatTest, RequiresClauses) {
       "struct S {};",
       Style);
 
+  Style = getLLVMStyle();
+  Style.ConstructorInitializerIndentWidth = 4;
+  Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeColon;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_Never;
+  verifyFormat("constexpr Foo(Foo const &other)\n"
+               "  requires std::is_copy_constructible<T>\n"
+               "    : value{other.value} {\n"
+               "  do_magic();\n"
+               "  do_more_magic();\n"
+               "}",
+               Style);
+
   // Not a clause, but we once hit an assert.
   verifyFormat("#if 0\n"
                "#else\n"
@@ -25742,6 +25761,17 @@ TEST_F(FormatTest, RemoveBraces) {
                Style);
 
   verifyFormat("if (a) {\n"
+               "  if (b)\n"
+               "    c = 1; // comment\n"
+               "}",
+               "if (a) {\n"
+               "  if (b) {\n"
+               "    c = 1; // comment\n"
+               "  }\n"
+               "}",
+               Style);
+
+  verifyFormat("if (a) {\n"
                "Label:\n"
                "}",
                Style);
@@ -25788,6 +25818,13 @@ TEST_F(FormatTest, RemoveBraces) {
                Style);
 
   Style.ColumnLimit = 20;
+
+  verifyFormat("int i;\n"
+               "#define FOO(a, b)  \\\n"
+               "  while (a) {      \\\n"
+               "    b;             \\\n"
+               "  }",
+               Style);
 
   verifyFormat("int ab = [](int i) {\n"
                "  if (i > 0) {\n"

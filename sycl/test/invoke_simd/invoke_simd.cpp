@@ -7,10 +7,10 @@
 // they are fully supported.
 #define __INVOKE_SIMD_ENABLE_ALL_CALLABLES
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
+#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>

@@ -12,7 +12,6 @@
 /// \ingroup sycl_pi_level_zero
 
 #include "pi_level_zero.hpp"
-#include <CL/sycl/detail/spinlock.hpp>
 #include <algorithm>
 #include <cstdarg>
 #include <cstdio>
@@ -21,6 +20,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <sycl/detail/spinlock.hpp>
 #include <thread>
 #include <utility>
 
@@ -214,6 +214,15 @@ static void zePrint(const char *Format, ...) {
     va_end(Args);
   }
 }
+
+// Controls if we should choose doing eager initialization
+// to make it happen on warmup paths and have the reportable
+// paths be less likely affected.
+//
+static bool doEagerInit = [] {
+  const char *EagerInit = std::getenv("SYCL_EAGER_INIT");
+  return EagerInit ? std::atoi(EagerInit) != 0 : false;
+}();
 
 // Controls whether device-scope events are used, and how.
 static const enum EventsScope {
@@ -1230,7 +1239,7 @@ pi_result _pi_context::getAvailableCommandList(
   // Each command list is paired with an associated fence to track when the
   // command list is available for reuse.
   _pi_result pi_result = PI_ERROR_OUT_OF_RESOURCES;
-  ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
   // Level-Zero Command List and Fence for this PI call.
@@ -1270,6 +1279,7 @@ pi_result _pi_context::getAvailableCommandList(
           QueueGroupOrdinal = QGroup.getCmdQueueOrdinal(ZeCommandQueue);
 
         ze_fence_handle_t ZeFence;
+        ZeStruct<ze_fence_desc_t> ZeFenceDesc;
         ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
         CommandList =
             Queue->CommandListMap
@@ -1310,15 +1320,28 @@ pi_result _pi_context::getAvailableCommandList(
     }
   }
 
-  // If there are no available command lists nor signalled command lists, then
-  // we must create another command list.
-  // Once created, this command list & fence are added to the command list fence
-  // map.
-  ze_command_list_handle_t ZeCommandList;
-  ze_fence_handle_t ZeFence;
+  // If there are no available command lists nor signalled command lists,
+  // then we must create another command list.
+  pi_result = Queue->createCommandList(UseCopyEngine, CommandList);
+  CommandList->second.ZeFenceInUse = true;
+  return pi_result;
+}
 
-  auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
+// Helper function to create a new command-list to this queue and associated
+// fence tracking its completion. This command list & fence are added to the
+// map of command lists in this queue with ZeFenceInUse = false.
+// The caller must hold a lock of the queue already.
+pi_result
+_pi_queue::createCommandList(bool UseCopyEngine,
+                             pi_command_list_ptr_t &CommandList,
+                             ze_command_queue_handle_t *ForcedCmdQueue) {
+
+  ze_fence_handle_t ZeFence;
+  ZeStruct<ze_fence_desc_t> ZeFenceDesc;
+  ze_command_list_handle_t ZeCommandList;
+
   uint32_t QueueGroupOrdinal;
+  auto &QGroup = getQueueGroup(UseCopyEngine);
   auto &ZeCommandQueue =
       ForcedCmdQueue ? *ForcedCmdQueue : QGroup.getZeQueue(&QueueGroupOrdinal);
   if (ForcedCmdQueue)
@@ -1327,19 +1350,16 @@ pi_result _pi_context::getAvailableCommandList(
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
-  ZE_CALL(zeCommandListCreate,
-          (Queue->Context->ZeContext, Queue->Device->ZeDevice,
-           &ZeCommandListDesc, &ZeCommandList));
+  ZE_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
+                                &ZeCommandListDesc, &ZeCommandList));
 
   ZE_CALL(zeFenceCreate, (ZeCommandQueue, &ZeFenceDesc, &ZeFence));
-  std::tie(CommandList, std::ignore) = Queue->CommandListMap.insert(
+  std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
-          ZeCommandList, {ZeFence, true, ZeCommandQueue, QueueGroupOrdinal}));
-  if (auto Res = Queue->insertActiveBarriers(CommandList, UseCopyEngine))
-    return Res;
-  pi_result = PI_SUCCESS;
+          ZeCommandList, {ZeFence, false, ZeCommandQueue, QueueGroupOrdinal}));
 
-  return pi_result;
+  PI_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
+  return PI_SUCCESS;
 }
 
 void _pi_queue::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -3396,6 +3416,41 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   } catch (...) {
     return PI_ERROR_UNKNOWN;
   }
+
+  // Do eager initialization of Level Zero handles on request.
+  if (doEagerInit) {
+    pi_queue Q = *Queue;
+    // Creates said number of command-lists.
+    auto warmupQueueGroup = [Q](bool UseCopyEngine,
+                                uint32_t RepeatCount) -> pi_result {
+      pi_command_list_ptr_t CommandList;
+      while (RepeatCount--) {
+        if (UseImmediateCommandLists) {
+          CommandList = Q->getQueueGroup(UseCopyEngine).getImmCmdList();
+        } else {
+          // Heuristically create some number of regular command-list to reuse.
+          for (int I = 0; I < 10; ++I) {
+            PI_CALL(Q->createCommandList(UseCopyEngine, CommandList));
+            // Immediately return them to the cache of available command-lists.
+            std::vector<pi_event> EventsUnused;
+            PI_CALL(Q->resetCommandList(CommandList, true /* MakeAvailable */,
+                                        EventsUnused));
+          }
+        }
+      }
+      return PI_SUCCESS;
+    };
+    // Create as many command-lists as there are queues in the group.
+    // With this the underlying round-robin logic would initialize all
+    // native queues, and create command-lists and their fences.
+    PI_CALL(warmupQueueGroup(false, Q->ComputeQueueGroup.UpperIndex -
+                                        Q->ComputeQueueGroup.LowerIndex + 1));
+    if (Q->useCopyEngine()) {
+      PI_CALL(warmupQueueGroup(true, Q->CopyQueueGroup.UpperIndex -
+                                         Q->CopyQueueGroup.LowerIndex + 1));
+    }
+    // TODO: warmup event pools. Both host-visible and device-only.
+  }
   return PI_SUCCESS;
 }
 
@@ -3473,7 +3528,9 @@ pi_result piQueueRelease(pi_queue Queue) {
       // For immediate commandlists we don't need to do an L0 reset of the
       // commandlist but do need to do event cleanup which is also in the
       // resetCommandList function.
-      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
+      // If the fence is a nullptr we are using immediate commandlists,
+      // otherwise regular commandlists which use a fence.
+      if (it->second.ZeFence == nullptr || it->second.ZeFenceInUse) {
         Queue->resetCommandList(it, true, EventListToCleanup);
       }
       // TODO: remove "if" when the problem is fixed in the level zero
@@ -4919,8 +4976,11 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //       piextKernelSetArgMemObj.
   //
   std::scoped_lock Guard(Kernel->Mutex);
+  // The ArgValue may be a NULL pointer in which case a NULL value is used for
+  // the kernel argument declared as a pointer to global or constant memory.
+  auto Arg = ArgValue ? *ArgValue : nullptr;
   Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), *ArgValue, _pi_mem::read_write});
+      {ArgIndex, sizeof(void *), Arg, _pi_mem::read_write});
 
   return PI_SUCCESS;
 }
@@ -5144,9 +5204,13 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
-    char **ZeHandlePtr;
-    PI_CALL(
-        Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode, Queue->Device));
+    // The ArgValue may be a NULL pointer in which case a NULL value is used for
+    // the kernel argument declared as a pointer to global or constant memory.
+    char **ZeHandlePtr = nullptr;
+    if (Arg.Value) {
+      PI_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
+                                        Queue->Device));
+    }
     ZE_CALL(zeKernelSetArgumentValue,
             (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
   }
@@ -8325,7 +8389,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 
   enableZeTracing();
   return PI_SUCCESS;

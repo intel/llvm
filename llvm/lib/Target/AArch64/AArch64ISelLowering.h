@@ -549,6 +549,10 @@ public:
   /// should be stack expanded.
   bool isShuffleMaskLegal(ArrayRef<int> M, EVT VT) const override;
 
+  /// Similar to isShuffleMaskLegal. Return true is the given 'select with zero'
+  /// shuffle mask can be codegen'd directly.
+  bool isVectorClearMaskLegal(ArrayRef<int> M, EVT VT) const override;
+
   /// Return the ISD::SETCC ValueType.
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
@@ -652,6 +656,9 @@ public:
   /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
   bool isDesirableToCommuteWithShift(const SDNode *N,
                                      CombineLevel Level) const override;
+
+  /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
+  bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
 
   /// Return true if it is profitable to fold a pair of shifts into a mask.
   bool shouldFoldConstantShiftPairToMask(const SDNode *N,
@@ -1153,10 +1160,6 @@ private:
   // with BITCAST used otherwise.
   // This function does not handle predicate bitcasts.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
-
-  // Returns a safe bitcast between two scalable vector predicates, where
-  // any newly created lanes from a widening bitcast are defined as zero.
-  SDValue getSVEPredicateBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
 
   bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,
                                               LLT Ty2) const override;

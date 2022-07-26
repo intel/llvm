@@ -223,13 +223,13 @@ ConstrainedFPIntrinsic::getExceptionBehavior() const {
 bool ConstrainedFPIntrinsic::isDefaultFPEnvironment() const {
   Optional<fp::ExceptionBehavior> Except = getExceptionBehavior();
   if (Except) {
-    if (Except.getValue() != fp::ebIgnore)
+    if (Except.value() != fp::ebIgnore)
       return false;
   }
 
   Optional<RoundingMode> Rounding = getRoundingMode();
   if (Rounding) {
-    if (Rounding.getValue() != RoundingMode::NearestTiesToEven)
+    if (Rounding.value() != RoundingMode::NearestTiesToEven)
       return false;
   }
 
@@ -364,13 +364,13 @@ VPIntrinsic::getVectorLengthParamPos(Intrinsic::ID IntrinsicID) {
 MaybeAlign VPIntrinsic::getPointerAlignment() const {
   Optional<unsigned> PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID());
   assert(PtrParamOpt && "no pointer argument!");
-  return getParamAlign(PtrParamOpt.getValue());
+  return getParamAlign(PtrParamOpt.value());
 }
 
 /// \return The pointer operand of this load,store, gather or scatter.
 Value *VPIntrinsic::getMemoryPointerParam() const {
   if (auto PtrParamOpt = getMemoryPointerParamPos(getIntrinsicID()))
-    return getArgOperand(PtrParamOpt.getValue());
+    return getArgOperand(PtrParamOpt.value());
   return nullptr;
 }
 
@@ -391,7 +391,7 @@ Value *VPIntrinsic::getMemoryDataParam() const {
   auto DataParamOpt = getMemoryDataParamPos(getIntrinsicID());
   if (!DataParamOpt)
     return nullptr;
-  return getArgOperand(DataParamOpt.getValue());
+  return getArgOperand(DataParamOpt.value());
 }
 
 Optional<unsigned> VPIntrinsic::getMemoryDataParamPos(Intrinsic::ID VPID) {
@@ -694,8 +694,10 @@ unsigned BinaryOpIntrinsic::getNoWrapKind() const {
     return OverflowingBinaryOperator::NoUnsignedWrap;
 }
 
-const GCStatepointInst *GCProjectionInst::getStatepoint() const {
+const Value *GCProjectionInst::getStatepoint() const {
   const Value *Token = getArgOperand(0);
+  if (isa<UndefValue>(Token))
+    return Token;
 
   // This takes care both of relocates for call statepoints and relocates
   // on normal path of invoke statepoint.
@@ -714,13 +716,23 @@ const GCStatepointInst *GCProjectionInst::getStatepoint() const {
 }
 
 Value *GCRelocateInst::getBasePtr() const {
-  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+  auto Statepoint = getStatepoint();
+  if (isa<UndefValue>(Statepoint))
+    return UndefValue::get(Statepoint->getType());
+
+  auto *GCInst = cast<GCStatepointInst>(Statepoint);
+  if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getBasePtrIndex());
-  return *(getStatepoint()->arg_begin() + getBasePtrIndex());
+  return *(GCInst->arg_begin() + getBasePtrIndex());
 }
 
 Value *GCRelocateInst::getDerivedPtr() const {
-  if (auto Opt = getStatepoint()->getOperandBundle(LLVMContext::OB_gc_live))
+  auto *Statepoint = getStatepoint();
+  if (isa<UndefValue>(Statepoint))
+    return UndefValue::get(Statepoint->getType());
+
+  auto *GCInst = cast<GCStatepointInst>(Statepoint);
+  if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getDerivedPtrIndex());
-  return *(getStatepoint()->arg_begin() + getDerivedPtrIndex());
+  return *(GCInst->arg_begin() + getDerivedPtrIndex());
 }

@@ -309,9 +309,9 @@ Type Parser::parseNonFunctionType() {
   // integer-type
   case Token::inttype: {
     auto width = getToken().getIntTypeBitwidth();
-    if (!width.hasValue())
+    if (!width.has_value())
       return (emitError("invalid integer width"), nullptr);
-    if (width.getValue() > IntegerType::kMaxWidth) {
+    if (width.value() > IntegerType::kMaxWidth) {
       emitError(getToken().getLoc(), "integer bitwidth is limited to ")
           << IntegerType::kMaxWidth << " bits";
       return nullptr;
@@ -358,6 +358,12 @@ Type Parser::parseNonFunctionType() {
   // extended type
   case Token::exclamation_identifier:
     return parseExtendedType();
+
+  // Handle completion of a dialect type.
+  case Token::code_complete:
+    if (getToken().isCodeCompletionFor(Token::exclamation_identifier))
+      return parseExtendedType();
+    return codeCompleteType();
   }
 }
 

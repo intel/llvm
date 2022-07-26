@@ -35,31 +35,46 @@ see the `releases page <https://llvm.org/releases/>`_.
 What's New in Libc++ 15.0.0?
 ============================
 
+The main focus of the libc++ team has been to implement new C++20 and C++23
+features.
+
+The C++20 ``format`` library is feature complete, but not all Standard LWG
+issues have been addressed. Since it is expected that at least one of these
+issues will cause an ABI break the ``format`` library is considered
+experimental.
+
+The C++20 ``ranges`` library has progressed a lot since the last release and is
+almost complete. The ``ranges`` library is considered experimental.
+
+
 Implemented Papers
 ------------------
 
-- P0627R6 (Function to mark unreachable code)
-- P1165R1 (Make stateful allocator propagation more consistent for ``operator+(basic_string)``)
-- P0674R1 (Support arrays in ``make_shared`` and ``allocate_shared``)
-- P0980R1 (Making ``std::string`` constexpr)
-- P2216R3 (std::format improvements)
-- P0174R2 (Deprecating Vestigial Library Parts in C++17)
-- N4190 (Removing auto_ptr, random_shuffle(), And Old <functional> Stuff)
-- P0154R1 (Hardware inference size)
-- P0618R0 (Deprecating <codecvt>)
+- P0627R6 – Function to mark unreachable code
+- P1165R1 – Make stateful allocator propagation more consistent for ``operator+(basic_string)``
+- P0674R1 – Support arrays in ``make_shared`` and ``allocate_shared``
+- P0980R1 – Making ``std::string`` constexpr
+- P2216R3 – ``std::format`` improvements
+- P0174R2 – Deprecating Vestigial Library Parts in C++17
+- N4190 – Removing ``auto_ptr``, ``random_shuffle()``, And Old ``<functional>`` Stuff
+- P0154R1 – Hardware inference size
+- P0618R0 – Deprecating ``<codecvt>``
+- P2418R2 – Add support for ``std::generator``-like types to ``std::format``
+- LWG3659 – Consider ``ATOMIC_FLAG_INIT`` undeprecation
+- P1423R3 – ``char8_t`` backward compatibility remediation
 
 - Marked the following papers as "Complete" (note that some of those might have
   been implemented in a previous release but not marked as such):
 
-    - P1207R4 (Movability of Single-pass Iterators);
-    - P1474R1 (Helpful pointers for ``ContiguousIterator``);
-    - P1522R1 (Iterator Difference Type and Integer Overflow);
-    - P1523R1 (Views and Size Types);
-    - P1456R1 (Move-only views);
-    - P1870R1 (``forwarding-range`` is too subtle);
-    - P1878R1 (Constraining Readable Types);
-    - P1970R2 (Consistency for ``size()`` functions: Add ``ranges::ssize``);
-    - P1983R0 (Wording for GB301, US296, US292, US291, and US283).
+    - P1207R4 – Movability of Single-pass Iterators
+    - P1474R1 – Helpful pointers for ``ContiguousIterator``
+    - P1522R1 – Iterator Difference Type and Integer Overflow
+    - P1523R1 – Views and Size Types
+    - P1456R1 – Move-only views
+    - P1870R1 – ``forwarding-range`` is too subtle
+    - P1878R1 – Constraining Readable Types
+    - P1970R2 – Consistency for ``size()`` functions: Add ``ranges::ssize``
+    - P1983R0 – Wording for GB301, US296, US292, US291, and US283
 
 New Features
 ------------
@@ -74,9 +89,15 @@ New Features
   should include assertions or not by default. For details, see
   :ref:`the documentation <assertions-mode>` about this new feature.
 
-- The implementation of the function ``std::to_chars`` for integral types has
-  moved from the dylib to the header. This means the function no longer has a
-  minimum deployment target.
+- The implementation of the function ``std::to_chars`` for integral types using
+  base 10 has moved from the dylib to the header. This means the function no
+  longer has a minimum deployment target.
+
+- The performance for ``std::to_chars``, for integral types using base 2, 8,
+  10, or 16 has been improved.
+
+- The functions ``std::from_chars`` and ``std::to_chars`` now have 128-bit integral
+  support.
 
 - The format functions (``std::format``, ``std::format_to``, ``std::format_to_n``, and
   ``std::formatted_size``) now validate the format string at compile time.
@@ -84,6 +105,9 @@ New Features
   of throwing an exception at run-time.  (This does not affect the ``v``
   functions.)
 
+- All format functions in ``<format>`` allow the usage of non-copyable types as
+  argument for the formatting functions. This change causes bit fields to become
+  invalid arguments for the formatting functions.
 
 API Changes
 -----------
@@ -96,17 +120,12 @@ API Changes
 
 - The header ``<experimental/filesystem>`` has been removed. Instead, use
   ``<filesystem>`` header. The associated macro
-  ``_LIBCPP_DEPRECATED_EXPERIMENTAL_FILESYSTEM`` has also been removed.
+  ``_LIBCPP_DEPRECATED_EXPERIMENTAL_FILESYSTEM`` has been removed too.
 
 - Libc++ is getting ready to remove unnecessary transitive inclusions. This may
   break your code in the future. To future-proof your code to these removals,
   please compile your code with ``_LIBCPP_REMOVE_TRANSITIVE_INCLUDES`` defined
   and fix any compilation error resulting from missing includes.
-
-- The ``<algorithm>``, ``<array>``, ``<optional>``, ``<unordered_map>`` and ``<vector>``
-  headers no longer transitively include the ``<functional>`` header. If you see compiler
-  errors related to missing declarations in namespace ``std``, make sure you have the
-  necessary includes.
 
 - The integer distributions ``binomial_distribution``, ``discrete_distribution``,
   ``geometric_distribution``, ``negative_binomial_distribution``, ``poisson_distribution``,
@@ -138,7 +157,7 @@ API Changes
   taken against the shared library.
 
 - The ``_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_VOID_SPECIALIZATION`` macro has been added to allow
-  re-enabling the ``allocator<void>`` specialization. When used in conjuction with
+  re-enabling the ``allocator<void>`` specialization. When used in conjunction with
   ``_LIBCPP_ENABLE_CXX20_REMOVED_ALLOCATOR_MEMBERS``, this ensures that the members of
   ``allocator<void>`` removed in C++20 can be accessed.
 
@@ -159,6 +178,8 @@ API Changes
 - The contents of ``<codecvt>``, ``wstring_convert`` and ``wbuffer_convert`` have been marked as deprecated.
   To disable deprecation warnings you have to define ``_LIBCPP_DISABLE_DEPRECATION_WARNINGS``. Note that this
   disables all deprecation warnings.
+
+- ``boyer_moore_searcher`` and ``boyer_moore_horspool_searcher`` have been implemented.
 
 ABI Changes
 -----------
@@ -183,6 +204,11 @@ ABI Changes
   ``valarray``, and if so ensure that any such function uses ``std::valarray`` directly
   as a return type instead of relying on the type of ``valarray``-expressions, which is
   not guaranteed by the Standard anyway.
+
+- By default, the legacy debug mode symbols are not provided with the library anymore. If
+  you are a vendor and need to re-enable them, please use the ``LIBCXX_ENABLE_BACKWARDS_COMPATIBILITY_DEBUG_MODE_SYMBOLS``
+  CMake flag, and contact the libc++ developers as this will be removed in LLVM 16.
+  Furthermore, please note that ``LIBCXX_ENABLE_DEBUG_MODE_SUPPORT`` is not honored anymore.
 
 Build System Changes
 --------------------
@@ -209,18 +235,19 @@ Build System Changes
   libc++ against alternate ABI libraries should make sure that their ABI library installs
   its own headers.
 
-- The legacy testing configuration is now deprecated and will be removed in the next release. For
-  most users, this should not have any impact. However, if you are testing libc++, libc++abi or
+- The legacy testing configuration is now deprecated and will be removed in LLVM 16. For
+  most users, this should not have any impact. However, if you are testing libc++, libc++abi, or
   libunwind in a configuration or on a platform that used to be supported by the legacy testing
   configuration and isn't supported by one of the configurations in ``libcxx/test/configs``,
-  ``libcxxabi/test/configs`` or ``libunwind/test/configs``, please move to one of those
+  ``libcxxabi/test/configs``, or ``libunwind/test/configs``, please move to one of those
   configurations or define your own.
-
-- The ``LIBCXX_ENABLE_DEBUG_MODE_SUPPORT`` CMake configuration is not supported anymore. If you
-  were disabling support for the debug mode with that flag, please use ``LIBCXX_ENABLE_BACKWARDS_COMPATIBILITY_DEBUG_MODE_SYMBOLS=OFF``
-  instead.
 
 - MinGW DLL builds of libc++ no longer use dllimport in their headers, which
   means that the same set of installed headers works for both DLL and static
   linkage. This means that distributors finally can build both library
   versions with a single CMake invocation.
+
+- The ``LIBCXX_HIDE_FROM_ABI_PER_TU_BY_DEFAULT`` configuration option has been removed. Indeed,
+  the risk of ODR violations from mixing different versions of libc++ in the same program has
+  been mitigated with a different technique that is simpler and does not have the drawbacks of
+  using internal linkage.

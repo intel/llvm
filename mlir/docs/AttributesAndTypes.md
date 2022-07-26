@@ -347,6 +347,7 @@ def MyType : ... {
       // its arguments.
       return Base::get(typeParam.getContext(), ...);
     }]>,
+    TypeBuilder<(ins "int":$intParam), [{}], "IntegerType">,
   ];
 }
 ```
@@ -461,6 +462,28 @@ the builder used `TypeBuilderWithInferredContext` implies that the context
 parameter is not necessary as it can be inferred from the arguments to the
 builder.
 
+The fifth builder will generate the declaration of a builder method with a
+custom return type, like:
+
+```tablegen
+  let builders = [
+    TypeBuilder<(ins "int":$intParam), [{}], "IntegerType">,
+  ]
+```
+
+```c++
+class MyType : /*...*/ {
+  /*...*/
+  static IntegerType get(::mlir::MLIRContext *context, int intParam);
+
+};
+```
+
+This generates a builder declaration the same as the first three examples, but
+the return type of the builder is user-specified instead of the attribute or
+type class. This is useful for defining builders of attributes and types that
+may fold or canonicalize on construction.
+
 ### Parsing and Printing
 
 If a mnemonic was specified, the `hasCustomAssemblyFormat` and `assemblyFormat`
@@ -473,10 +496,10 @@ one for printing. These static functions placed alongside the class definitions
 and have the following function signatures:
 
 ```c++
-static ParseResult generatedAttributeParser(DialectAsmParser& parser, StringRef mnemonic, Type attrType, Attribute &result);
+static ParseResult generatedAttributeParser(DialectAsmParser& parser, StringRef *mnemonic, Type attrType, Attribute &result);
 static LogicalResult generatedAttributePrinter(Attribute attr, DialectAsmPrinter& printer);
 
-static ParseResult generatedTypeParser(DialectAsmParser& parser, StringRef mnemonic, Type &result);
+static ParseResult generatedTypeParser(DialectAsmParser& parser, StringRef *mnemonic, Type &result);
 static LogicalResult generatedTypePrinter(Type type, DialectAsmPrinter& printer);
 ```
 
@@ -1042,13 +1065,16 @@ public:
 
 The declarative Attribute and Type definitions try to auto-generate as much
 logic and methods as possible. With that said, there will always be long-tail
-cases that won't be covered. For such cases, `extraClassDeclaration` can be
-used. Code within the `extraClassDeclaration` field will be copied literally to
-the generated C++ Attribute or Type class.
+cases that won't be covered. For such cases, `extraClassDeclaration` and
+`extraClassDefinition` can be used. Code within the `extraClassDeclaration`
+field will be copied literally to the generated C++ Attribute or Type class.
+Code within `extraClassDefinition` will be added to the generated source file
+inside the class's C++ namespace. The substitution `$cppClass` will be replaced
+by the Attribute or Type's C++ class name.
 
-Note that `extraClassDeclaration` is a mechanism intended for long-tail cases by
-power users; for not-yet-implemented widely-applicable cases, improving the
-infrastructure is preferable.
+Note that these are mechanisms intended for long-tail cases by power users; for
+not-yet-implemented widely-applicable cases, improving the infrastructure is
+preferable.
 
 ### Registering with the Dialect
 

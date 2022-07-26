@@ -69,7 +69,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1856,6 +1855,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::DisableSanitizerInstrumentation;
   case bitc::ATTR_KIND_ELEMENTTYPE:
     return Attribute::ElementType;
+  case bitc::ATTR_KIND_FNRETTHUNK_EXTERN:
+    return Attribute::FnRetThunkExtern;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_ONLY:
     return Attribute::InaccessibleMemOnly;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_OR_ARGMEMONLY:
@@ -3677,7 +3678,7 @@ GlobalValue::SanitizerMetadata deserializeSanitizerMetadata(unsigned V) {
   if (V & (1 << 1))
     Meta.NoHWAddress = true;
   if (V & (1 << 2))
-    Meta.NoMemtag = true;
+    Meta.Memtag = true;
   if (V & (1 << 3))
     Meta.IsDynInit = true;
   return Meta;
@@ -5508,6 +5509,61 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       // Upgrade the bundles if needed.
       if (!OperandBundles.empty())
         UpgradeOperandBundles(OperandBundles);
+
+      if (auto *IA = dyn_cast<InlineAsm>(Callee)) {
+        InlineAsm::ConstraintInfoVector ConstraintInfo = IA->ParseConstraints();
+        auto IsLabelConstraint = [](const InlineAsm::ConstraintInfo &CI) {
+          return CI.Type == InlineAsm::isLabel;
+        };
+        if (none_of(ConstraintInfo, IsLabelConstraint)) {
+          // Upgrade explicit blockaddress arguments to label constraints.
+          // Verify that the last arguments are blockaddress arguments that
+          // match the indirect destinations. Clang always generates callbr
+          // in this form. We could support reordering with more effort.
+          unsigned FirstBlockArg = Args.size() - IndirectDests.size();
+          for (unsigned ArgNo = FirstBlockArg; ArgNo < Args.size(); ++ArgNo) {
+            unsigned LabelNo = ArgNo - FirstBlockArg;
+            auto *BA = dyn_cast<BlockAddress>(Args[ArgNo]);
+            if (!BA || BA->getFunction() != F ||
+                LabelNo > IndirectDests.size() ||
+                BA->getBasicBlock() != IndirectDests[LabelNo])
+              return error("callbr argument does not match indirect dest");
+          }
+
+          // Remove blockaddress arguments.
+          Args.erase(Args.begin() + FirstBlockArg, Args.end());
+          ArgTyIDs.erase(ArgTyIDs.begin() + FirstBlockArg, ArgTyIDs.end());
+
+          // Recreate the function type with less arguments.
+          SmallVector<Type *> ArgTys;
+          for (Value *Arg : Args)
+            ArgTys.push_back(Arg->getType());
+          FTy =
+              FunctionType::get(FTy->getReturnType(), ArgTys, FTy->isVarArg());
+
+          // Update constraint string to use label constraints.
+          std::string Constraints = IA->getConstraintString();
+          unsigned ArgNo = 0;
+          size_t Pos = 0;
+          for (const auto &CI : ConstraintInfo) {
+            if (CI.hasArg()) {
+              if (ArgNo >= FirstBlockArg)
+                Constraints.insert(Pos, "!");
+              ++ArgNo;
+            }
+
+            // Go to next constraint in string.
+            Pos = Constraints.find(',', Pos);
+            if (Pos == std::string::npos)
+              break;
+            ++Pos;
+          }
+
+          Callee = InlineAsm::get(FTy, IA->getAsmString(), Constraints,
+                                  IA->hasSideEffects(), IA->isAlignStack(),
+                                  IA->getDialect(), IA->canThrow());
+        }
+      }
 
       I = CallBrInst::Create(FTy, Callee, DefaultDest, IndirectDests, Args,
                              OperandBundles);
@@ -7446,10 +7502,9 @@ class BitcodeErrorCategoryType : public std::error_category {
 
 } // end anonymous namespace
 
-static ManagedStatic<BitcodeErrorCategoryType> ErrorCategory;
-
 const std::error_category &llvm::BitcodeErrorCategory() {
-  return *ErrorCategory;
+  static BitcodeErrorCategoryType ErrorCategory;
+  return ErrorCategory;
 }
 
 static Expected<StringRef> readBlobInRecord(BitstreamCursor &Stream,

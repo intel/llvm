@@ -523,11 +523,12 @@ bool InstCombinerImpl::SimplifyAssociativeOrCommutative(BinaryOperator &I) {
       // Transform: "(A op C1) op (B op C2)" ==> "(A op B) op (C1 op C2)"
       // if C1 and C2 are constants.
       Value *A, *B;
-      Constant *C1, *C2;
+      Constant *C1, *C2, *CRes;
       if (Op0 && Op1 &&
           Op0->getOpcode() == Opcode && Op1->getOpcode() == Opcode &&
           match(Op0, m_OneUse(m_BinOp(m_Value(A), m_Constant(C1)))) &&
-          match(Op1, m_OneUse(m_BinOp(m_Value(B), m_Constant(C2))))) {
+          match(Op1, m_OneUse(m_BinOp(m_Value(B), m_Constant(C2)))) &&
+          (CRes = ConstantFoldBinaryOpOperands(Opcode, C1, C2, DL))) {
         bool IsNUW = hasNoUnsignedWrap(I) &&
            hasNoUnsignedWrap(*Op0) &&
            hasNoUnsignedWrap(*Op1);
@@ -544,7 +545,7 @@ bool InstCombinerImpl::SimplifyAssociativeOrCommutative(BinaryOperator &I) {
         InsertNewInstWith(NewBO, I);
         NewBO->takeName(Op1);
         replaceOperand(I, 0, NewBO);
-        replaceOperand(I, 1, ConstantExpr::get(Opcode, C1, C2));
+        replaceOperand(I, 1, CRes);
         // Conservatively clear the optional flags, since they may not be
         // preserved by the reassociation.
         ClearSubclassDataAfterReassociation(I);
@@ -993,6 +994,24 @@ Instruction *InstCombinerImpl::foldBinopOfSextBoolToSelect(BinaryOperator &BO) {
   return SelectInst::Create(X, TVal, FVal);
 }
 
+static Constant *constantFoldOperationIntoSelectOperand(
+    Instruction &I, SelectInst *SI, Value *SO) {
+  auto *ConstSO = dyn_cast<Constant>(SO);
+  if (!ConstSO)
+    return nullptr;
+
+  SmallVector<Constant *> ConstOps;
+  for (Value *Op : I.operands()) {
+    if (Op == SI)
+      ConstOps.push_back(ConstSO);
+    else if (auto *C = dyn_cast<Constant>(Op))
+      ConstOps.push_back(C);
+    else
+      llvm_unreachable("Operands should be select or constant");
+  }
+  return ConstantFoldInstOperands(&I, ConstOps, I.getModule()->getDataLayout());
+}
+
 static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
@@ -1100,8 +1119,17 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op, SelectInst *SI,
     }
   }
 
-  Value *NewTV = foldOperationIntoSelectOperand(Op, TV, Builder);
-  Value *NewFV = foldOperationIntoSelectOperand(Op, FV, Builder);
+  // Make sure that one of the select arms constant folds successfully.
+  Value *NewTV = constantFoldOperationIntoSelectOperand(Op, SI, TV);
+  Value *NewFV = constantFoldOperationIntoSelectOperand(Op, SI, FV);
+  if (!NewTV && !NewFV)
+    return nullptr;
+
+  // Create an instruction for the arm that did not fold.
+  if (!NewTV)
+    NewTV = foldOperationIntoSelectOperand(Op, TV, Builder);
+  if (!NewFV)
+    NewFV = foldOperationIntoSelectOperand(Op, FV, Builder);
   return SelectInst::Create(SI->getCondition(), NewTV, NewFV, "", nullptr, SI);
 }
 
@@ -1776,9 +1804,10 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
       //       for target-independent shuffle creation.
       if (I >= SrcVecNumElts || ShMask[I] < 0) {
         Constant *MaybeUndef =
-            ConstOp1 ? ConstantExpr::get(Opcode, UndefScalar, CElt)
-                     : ConstantExpr::get(Opcode, CElt, UndefScalar);
-        if (!match(MaybeUndef, m_Undef())) {
+            ConstOp1
+                ? ConstantFoldBinaryOpOperands(Opcode, UndefScalar, CElt, DL)
+                : ConstantFoldBinaryOpOperands(Opcode, CElt, UndefScalar, DL);
+        if (!MaybeUndef || !match(MaybeUndef, m_Undef())) {
           MayChange = false;
           break;
         }
@@ -2772,7 +2801,8 @@ static bool isAllocSiteRemovable(Instruction *AI,
           continue;
         }
 
-        if (isFreeCall(I, &TLI) && getAllocationFamily(I, &TLI) == Family) {
+        if (getFreedOperand(cast<CallBase>(I), &TLI) == PI &&
+            getAllocationFamily(I, &TLI) == Family) {
           assert(Family);
           Users.emplace_back(I);
           continue;
@@ -2803,7 +2833,7 @@ static bool isAllocSiteRemovable(Instruction *AI,
 }
 
 Instruction *InstCombinerImpl::visitAllocSite(Instruction &MI) {
-  assert(isa<AllocaInst>(MI) || isAllocRemovable(&cast<CallBase>(MI), &TLI));
+  assert(isa<AllocaInst>(MI) || isRemovableAlloc(&cast<CallBase>(MI), &TLI));
 
   // If we have a malloc call which is only used in any amount of comparisons to
   // null and free calls, delete the calls and replace the comparisons with true
@@ -3005,9 +3035,7 @@ static Instruction *tryToMoveFreeBeforeNullTest(CallInst &FI,
   return &FI;
 }
 
-Instruction *InstCombinerImpl::visitFree(CallInst &FI) {
-  Value *Op = FI.getArgOperand(0);
-
+Instruction *InstCombinerImpl::visitFree(CallInst &FI, Value *Op) {
   // free undef -> unreachable.
   if (isa<UndefValue>(Op)) {
     // Leave a marker since we can't modify the CFG here.

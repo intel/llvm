@@ -12,7 +12,7 @@
 //
 // Uses -fsycl-host-compiler=<compiler> on a simple test, requires 'cl'
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #ifndef DEFINE_CHECK
 #error predefined macro not set

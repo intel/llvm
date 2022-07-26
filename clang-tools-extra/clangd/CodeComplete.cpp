@@ -394,7 +394,7 @@ struct CodeCompletionBuilder {
     std::stable_partition(Completion.Includes.begin(),
                           Completion.Includes.end(),
                           [](const CodeCompletion::IncludeCandidate &I) {
-                            return !I.Insertion.hasValue();
+                            return !I.Insertion.has_value();
                           });
   }
 
@@ -1019,10 +1019,12 @@ public:
         auto KindPriority = [&](OC::CandidateKind K) {
           switch (K) {
           case OC::CK_Aggregate:
-            return 1;
+            return 0;
           case OC::CK_Function:
-            return 2;
+            return 1;
           case OC::CK_FunctionType:
+            return 2;
+          case OC::CK_FunctionProtoTypeLoc:
             return 3;
           case OC::CK_FunctionTemplate:
             return 4;

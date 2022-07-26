@@ -12,16 +12,16 @@
 /// \ingroup sycl_pi
 
 #include "context_impl.hpp"
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/version.hpp>
 
 #include <bitset>
 #include <cstdarg>

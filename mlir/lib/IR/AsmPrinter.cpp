@@ -930,8 +930,7 @@ private:
 };
 } // namespace
 
-SSANameState::SSANameState(
-    Operation *op, const OpPrintingFlags &printerFlags)
+SSANameState::SSANameState(Operation *op, const OpPrintingFlags &printerFlags)
     : printerFlags(printerFlags) {
   llvm::SaveAndRestore<unsigned> valueIDSaver(nextValueID);
   llvm::SaveAndRestore<unsigned> argumentIDSaver(nextArgumentID);
@@ -1875,24 +1874,26 @@ void AsmPrinter::Impl::printAttribute(Attribute attr,
     typeElision = AttrTypeElision::Must;
     switch (denseArrayAttr.getElementType()) {
     case DenseArrayBaseAttr::EltType::I8:
-      os << "[:i8 ";
+      os << "[:i8";
       break;
     case DenseArrayBaseAttr::EltType::I16:
-      os << "[:i16 ";
+      os << "[:i16";
       break;
     case DenseArrayBaseAttr::EltType::I32:
-      os << "[:i32 ";
+      os << "[:i32";
       break;
     case DenseArrayBaseAttr::EltType::I64:
-      os << "[:i64 ";
+      os << "[:i64";
       break;
     case DenseArrayBaseAttr::EltType::F32:
-      os << "[:f32 ";
+      os << "[:f32";
       break;
     case DenseArrayBaseAttr::EltType::F64:
-      os << "[:f64 ";
+      os << "[:f64";
       break;
     }
+    if (denseArrayAttr.getType().cast<ShapedType>().getRank())
+      os << " ";
     denseArrayAttr.printWithoutBraces(os);
     os << "]";
   } else if (auto locAttr = attr.dyn_cast<LocationAttr>()) {
@@ -2685,8 +2686,9 @@ private:
                    uint32_t dataAlignment) final {
       printFn(key, [&](raw_ostream &os) {
         // Store the blob in a hex string containing the alignment and the data.
+        llvm::support::ulittle32_t dataAlignmentLE(dataAlignment);
         os << "\"0x"
-           << llvm::toHex(StringRef(reinterpret_cast<char *>(&dataAlignment),
+           << llvm::toHex(StringRef(reinterpret_cast<char *>(&dataAlignmentLE),
                                     sizeof(dataAlignment)))
            << llvm::toHex(StringRef(data.data(), data.size())) << "\"";
       });

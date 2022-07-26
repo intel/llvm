@@ -3,7 +3,7 @@ include "OptionsBase.td"
 let Command = "target modules dump symtab" in {
   def tm_sort : Option<"sort", "s">, Group<1>,
     Desc<"Supply a sort order when dumping the symbol table.">,
-    EnumArg<"SortOrder", "OptionEnumValues(g_sort_option_enumeration)">;
+    EnumArg<"SortOrder">;
   def tm_smn : Option<"show-mangled-names", "m">, Group<1>,
     Desc<"Do not demangle symbol names before showing them.">;
 }
@@ -282,7 +282,7 @@ let Command = "breakpoint command add" in {
     Arg<"Boolean">, Desc<"Specify whether breakpoint command execution should "
     "terminate on error.">;
   def breakpoint_add_script_type : Option<"script-type", "s">,
-    EnumArg<"None", "ScriptOptionEnum()">,
+    EnumArg<"ScriptLang">,
     Desc<"Specify the language for the commands - if none is specified, the "
     "lldb command interpreter will be used.">;
   def breakpoint_add_dummy_breakpoints : Option<"dummy-breakpoints", "D">,
@@ -300,6 +300,11 @@ let Command = "breakpoint command delete" in {
 let Command = "disassemble" in {
   def disassemble_options_bytes : Option<"bytes", "b">,
     Desc<"Show opcode bytes when disassembling.">;
+  def disassemble_options_kind : Option<"kind", "k">,
+    Desc<"Show instruction control flow kind. Refer to the enum "
+    "`InstructionControlFlowKind` for a list of control flow kind. "
+    "As an important note, far jumps, far calls and far returns often indicate "
+    "calls to and from kernel.">;
   def disassemble_options_context : Option<"context", "C">, Arg<"NumLines">,
     Desc<"Number of context lines of source to show.">;
   def disassemble_options_mixed : Option<"mixed", "m">,
@@ -365,7 +370,7 @@ let Command = "expression" in {
     "automatically applied to the expression.">;
   def expression_options_description_verbosity :
     Option<"description-verbosity", "v">, Group<1>,
-    OptionalEnumArg<"DescriptionVerbosity", "DescriptionVerbosityTypes()">,
+    OptionalEnumArg<"DescriptionVerbosity">,
     Desc<"How verbose should the output of this expression be, if the object "
     "description is asked for.">;
   def expression_options_top_level : Option<"top-level", "p">, Groups<[1,2]>,
@@ -432,7 +437,7 @@ let Command = "log enable" in {
   def log_file : Option<"file", "f">, Group<1>, Arg<"Filename">,
     Desc<"Set the destination file to log to.">;
   def log_handler : Option<"log-handler", "h">, Group<1>,
-    EnumArg<"LogHandler", "LogHandlerType()">, Desc<"Specify a log handler which determines where log messages are written.">;
+    EnumArg<"LogHandler">, Desc<"Specify a log handler which determines where log messages are written.">;
   def log_buffer_size : Option<"buffer", "b">, Group<1>, Arg<"UnsignedInteger">,
     Desc<"Set the log to be buffered, using the specified buffer size, if supported by the log handler.">;
   def log_verbose : Option<"verbose", "v">, Group<1>,
@@ -463,7 +468,7 @@ let Command = "log dump" in {
 
 let Command = "reproducer dump" in {
   def reproducer_provider : Option<"provider", "p">, Group<1>,
-    EnumArg<"None", "ReproducerProviderType()">,
+    EnumArg<"ReproducerProvider">,
     Required, Desc<"The reproducer provider to dump.">;
   def reproducer_file : Option<"file", "f">, Group<1>, Arg<"Filename">,
     Desc<"The reproducer path. If a reproducer is replayed and no path is "
@@ -478,7 +483,7 @@ let Command = "reproducer verify" in {
 
 let Command = "reproducer xcrash" in {
   def reproducer_signal : Option<"signal", "s">, Group<1>,
-    EnumArg<"None", "ReproducerSignalType()">,
+    EnumArg<"ReproducerSignal">,
     Required, Desc<"The signal to crash the debugger.">;
 }
 
@@ -776,19 +781,11 @@ let Command = "process status" in {
 
 let Command = "process save_core" in {
   def process_save_core_style : Option<"style", "s">, Group<1>,
-    EnumArg<"SaveCoreStyle", "SaveCoreStyles()">, Desc<"Request a specific style "
+    EnumArg<"SaveCoreStyle">, Desc<"Request a specific style "
     "of corefile to be saved.">;
   def process_save_core_plugin_name : Option<"plugin-name", "p">,
     OptionalArg<"Plugin">, Desc<"Specify a plugin name to create the core file."
     "This allows core files to be saved in different formats.">;
-}
-
-let Command = "process trace save" in {
-  def process_trace_save_directory: Option<"directory", "d">,
-    Group<1>,
-    Arg<"Value">, Required,
-    Desc<"The directory where the trace will be saved."
-        "It will be created if it does not exist.">;
 }
 
 let Command = "script import" in {
@@ -815,7 +812,7 @@ let Command = "script add" in {
   def script_add_overwrite : Option<"overwrite", "o">, Groups<[1,2]>,
   Desc<"Overwrite an existing command at this node.">;
   def script_add_synchronicity : Option<"synchronicity", "s">,
-    EnumArg<"ScriptedCommandSynchronicity", "ScriptSynchroType()">,
+    EnumArg<"ScriptedCommandSynchronicity">,
     Desc<"Set the synchronicity of this command's executions with regard to "
     "LLDB event system.">;
 }
@@ -831,7 +828,7 @@ let Command = "container add" in {
 
 let Command = "script" in {
   def script_language : Option<"language", "l">,
-    EnumArg<"ScriptLang", "ScriptOptionEnum()">, Desc<"Specify the scripting "
+    EnumArg<"ScriptLang">, Desc<"Specify the scripting "
     " language. If none is specific the default scripting language is used.">;
 }
 
@@ -884,7 +881,7 @@ let Command = "source list" in {
 
 let Command = "target dependents" in {
   def dependents_no_dependents : Option<"no-dependents", "d">, Group<1>,
-    OptionalEnumArg<"Value", "OptionEnumValues(g_dependents_enumeration)">,
+    OptionalEnumArg<"Value">,
     Desc<"Whether or not to load dependents when creating a target. If the "
          "option is not specified, the value is implicitly 'default'. If the "
          "option is specified but without a value, the value is implicitly "
@@ -1057,7 +1054,7 @@ let Command = "thread step scope" in {
       " block.  This is particularly use  in conjunction with --step-target to"
       " step through a complex calling sequence.">;
   def thread_step_scope_run_mode : Option<"run-mode", "m">, Group<1>,
-    EnumArg<"RunMode", "TriRunningModes()">, Desc<"Determine how to run other "
+    EnumArg<"RunMode">, Desc<"Determine how to run other "
     "threads while stepping the current thread.">;
   def thread_step_scope_step_over_regexp : Option<"step-over-regexp", "r">,
     Group<1>, Arg<"RegularExpression">, Desc<"A regular expression that defines "
@@ -1073,7 +1070,7 @@ let Command = "thread until" in {
   def thread_until_thread : Option<"thread", "t">, Group<1>, Arg<"ThreadIndex">,
     Desc<"Thread index for the thread for until operation">;
   def thread_until_run_mode : Option<"run-mode", "m">, Group<1>,
-    EnumArg<"RunMode", "DuoRunningModes()">, Desc<"Determine how to run other "
+    EnumArg<"RunMode">, Desc<"Determine how to run other "
     "threads while stepping this one">;
   def thread_until_address : Option<"address", "a">, Group<1>,
     Arg<"AddressOrExpression">, Desc<"Run until we reach the specified address, "
@@ -1150,6 +1147,11 @@ let Command = "thread trace dump instructions" in {
   def thread_trace_dump_instructions_pretty_print: Option<"pretty-json", "J">,
     Group<1>,
     Desc<"Dump in JSON format but pretty printing the output for easier readability.">;
+  def thread_trace_dump_instructions_show_kind : Option<"kind", "k">, Group<1>,
+    Desc<"Show instruction control flow kind. Refer to the enum "
+    "`InstructionControlFlowKind` for a list of control flow kind. "
+    "As an important note, far jumps, far calls and far returns often indicate "
+    "calls to and from kernel.">;
   def thread_trace_dump_instructions_show_tsc : Option<"tsc", "t">, Group<1>,
     Desc<"For each instruction, print the corresponding timestamp counter if "
     "available.">;
@@ -1167,6 +1169,8 @@ let Command = "thread trace dump instructions" in {
 let Command = "thread trace dump info" in {
   def thread_trace_dump_info_verbose : Option<"verbose", "v">, Group<1>,
     Desc<"show verbose thread trace dump info">;
+  def thread_trace_dump_info_json: Option<"json", "j">, Group<1>,
+    Desc<"Dump in JSON format.">;
 }
 
 let Command = "type summary add" in {
@@ -1329,7 +1333,7 @@ let Command = "watchpoint command add" in {
     Arg<"Boolean">, Desc<"Specify whether watchpoint command execution should "
     "terminate on error.">;
   def watchpoint_command_add_script_type : Option<"script-type", "s">,
-    EnumArg<"None", "ScriptOptionEnum()">, Desc<"Specify the language for the"
+    EnumArg<"ScriptLang">, Desc<"Specify the language for the"
     " commands - if none is specified, the lldb command interpreter will be "
     "used.">;
   def watchpoint_command_add_python_function : Option<"python-function", "F">,
@@ -1347,6 +1351,14 @@ let Command = "trace load" in {
   def trace_load_verbose : Option<"verbose", "v">, Group<1>,
     Desc<"Show verbose trace load logging for debugging the plug-in "
     "implementation.">;
+}
+
+let Command = "trace save" in {
+  def trace_save_compact: Option<"compact", "c">,
+    Group<1>,
+    Desc<"Try not to save to disk information irrelevant to the traced "
+        "processes. Each trace plug-in implements this in a different "
+        "fashion.">;
 }
 
 let Command = "trace dump" in {

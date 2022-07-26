@@ -10,7 +10,7 @@
 // in SYCL SPEC section - 4.13.4 Integer functions.
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <algorithm>
 #include <type_traits>
