@@ -618,10 +618,9 @@ inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
     pi_command_list_ptr_t CommandList, bool ForceHostVisible = false) {
 
-  PI_CALL(EventCreate(
-      Queue->Context, Queue,
-      ForceHostVisible ? true : Queue->Device->EventsScope() == AllHostVisible,
-      Event));
+  if (!ForceHostVisible)
+    ForceHostVisible = Queue->Device->EventsScope() == AllHostVisible;
+  PI_CALL(EventCreate(Queue->Context, Queue, ForceHostVisible, Event));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -1890,7 +1889,7 @@ pi_result _pi_ze_event_list_t::createAndRetainPiZeEventList(
           //
           // Make sure that event1.wait() will wait for a host-visible
           // event that is signalled before the command2 is enqueued.
-          if (Queue->Device->EventsScope() != AllHostVisible) {
+          if (CurQueue->Device->EventsScope() != AllHostVisible) {
             CurQueue->executeAllOpenCommandLists();
           }
         }
