@@ -15,10 +15,8 @@
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
-#include "clang/AST/ExprCXX.h"
 #include "clang/AST/Type.h"
 #include "clang/Analysis/FlowSensitive/DataflowLattice.h"
-#include "clang/Analysis/FlowSensitive/StorageLocation.h"
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -354,16 +352,16 @@ void Environment::setValue(const StorageLocation &Loc, Value &Val) {
     }
   }
 
-  auto IT = MemberLocToStruct.find(&Loc);
-  if (IT != MemberLocToStruct.end()) {
+  auto It = MemberLocToStruct.find(&Loc);
+  if (It != MemberLocToStruct.end()) {
     // `Loc` is the location of a struct member so we need to also update the
     // value of the member in the corresponding `StructValue`.
 
-    assert(IT->second.first != nullptr);
-    StructValue &StructVal = *IT->second.first;
+    assert(It->second.first != nullptr);
+    StructValue &StructVal = *It->second.first;
 
-    assert(IT->second.second != nullptr);
-    const ValueDecl &Member = *IT->second.second;
+    assert(It->second.second != nullptr);
+    const ValueDecl &Member = *It->second.second;
 
     StructVal.setChild(Member, Val);
   }
@@ -510,6 +508,10 @@ void Environment::addToFlowCondition(BoolValue &Val) {
 
 bool Environment::flowConditionImplies(BoolValue &Val) const {
   return DACtx->flowConditionImplies(*FlowConditionToken, Val);
+}
+
+void Environment::dump() const {
+  DACtx->dumpFlowCondition(*FlowConditionToken);
 }
 
 } // namespace dataflow

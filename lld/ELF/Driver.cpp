@@ -809,12 +809,9 @@ static OrphanHandlingPolicy getOrphanHandling(opt::InputArgList &args) {
 // --build-id=sha1 are actually tree hashes for performance reasons.
 static std::pair<BuildIdKind, std::vector<uint8_t>>
 getBuildId(opt::InputArgList &args) {
-  auto *arg = args.getLastArg(OPT_build_id, OPT_build_id_eq);
+  auto *arg = args.getLastArg(OPT_build_id);
   if (!arg)
     return {BuildIdKind::None, {}};
-
-  if (arg->getOption().getID() == OPT_build_id)
-    return {BuildIdKind::Fast, {}};
 
   StringRef s = arg->getValue();
   if (s == "fast")
@@ -1696,8 +1693,10 @@ void LinkerDriver::inferMachineType() {
 static uint64_t getMaxPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "max-page-size",
                                        target->defaultMaxPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("max-page-size: value isn't a power of 2");
+    return target->defaultMaxPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultMaxPageSize)
       warn("-z max-page-size set, but paging disabled by omagic or nmagic");
@@ -1711,8 +1710,10 @@ static uint64_t getMaxPageSize(opt::InputArgList &args) {
 static uint64_t getCommonPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "common-page-size",
                                        target->defaultCommonPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("common-page-size: value isn't a power of 2");
+    return target->defaultCommonPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultCommonPageSize)
       warn("-z common-page-size set, but paging disabled by omagic or nmagic");

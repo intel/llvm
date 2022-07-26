@@ -2529,8 +2529,7 @@ bool SelectionDAG::MaskedValueIsZero(SDValue V, const APInt &Mask,
 /// DemandedElts.  We use this predicate to simplify operations downstream.
 bool SelectionDAG::MaskedVectorIsZero(SDValue V, const APInt &DemandedElts,
                                       unsigned Depth /* = 0 */) const {
-  APInt Mask = APInt::getAllOnes(V.getScalarValueSizeInBits());
-  return Mask.isSubsetOf(computeKnownBits(V, DemandedElts, Depth).Zero);
+  return computeKnownBits(V, DemandedElts, Depth).isZero();
 }
 
 /// MaskedValueIsAllOnes - Return true if '(Op & Mask) == Mask'.
@@ -2712,16 +2711,9 @@ bool SelectionDAG::isSplatValue(SDValue V, const APInt &DemandedElts,
         SubDemandedElts &= ScaledDemandedElts;
         if (!isSplatValue(Src, SubDemandedElts, SubUndefElts, Depth + 1))
           return false;
-
-        // Here we can't do "MatchAnyBits" operation merge for undef bits.
-        // Because some operation only use part value of the source.
-        // Take llvm.fshl.* for example:
-        // t1: v4i32 = Constant:i32<12>, undef:i32, Constant:i32<12>, undef:i32
-        // t2: v2i64 = bitcast t1
-        // t5: v2i64 = fshl t3, t4, t2
-        // We can not convert t2 to {i64 undef, i64 undef}
-        UndefElts |= APIntOps::ScaleBitMask(SubUndefElts, NumElts,
-                                            /*MatchAllBits=*/true);
+        // TODO: Add support for merging sub undef elements.
+        if (!SubUndefElts.isZero())
+          return false;
       }
       return true;
     }
@@ -3337,6 +3329,38 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
       Known.Zero |= Known2.Zero;
     }
     break;
+  case ISD::SHL_PARTS:
+  case ISD::SRA_PARTS:
+  case ISD::SRL_PARTS: {
+    assert((Op.getResNo() == 0 || Op.getResNo() == 1) && "Unknown result");
+
+    // Collect lo/hi source values and concatenate.
+    // TODO: Would a KnownBits::concatBits helper be useful?
+    unsigned LoBits = Op.getOperand(0).getScalarValueSizeInBits();
+    unsigned HiBits = Op.getOperand(1).getScalarValueSizeInBits();
+    Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+    Known = Known.anyext(LoBits + HiBits);
+    Known.insertBits(Known2, LoBits);
+
+    // Collect shift amount.
+    Known2 = computeKnownBits(Op.getOperand(2), DemandedElts, Depth + 1);
+
+    if (Opcode == ISD::SHL_PARTS)
+      Known = KnownBits::shl(Known, Known2);
+    else if (Opcode == ISD::SRA_PARTS)
+      Known = KnownBits::ashr(Known, Known2);
+    else // if (Opcode == ISD::SRL_PARTS)
+      Known = KnownBits::lshr(Known, Known2);
+
+    // TODO: Minimum shift low/high bits are known zero.
+
+    if (Op.getResNo() == 0)
+      Known = Known.extractBits(LoBits, 0);
+    else
+      Known = Known.extractBits(HiBits, LoBits);
+    break;
+  }
   case ISD::SIGN_EXTEND_INREG: {
     Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
     EVT EVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
@@ -9064,6 +9088,15 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, SDVTList VTList,
     }
     break;
   }
+  case ISD::SMUL_LOHI:
+  case ISD::UMUL_LOHI: {
+    assert(VTList.NumVTs == 2 && Ops.size() == 2 && "Invalid mul lo/hi op!");
+    assert(VTList.VTs[0].isInteger() && VTList.VTs[0] == VTList.VTs[1] &&
+           VTList.VTs[0] == Ops[0].getValueType() &&
+           VTList.VTs[0] == Ops[1].getValueType() &&
+           "Binary operator types must match!");
+    break;
+  }
   case ISD::STRICT_FP_EXTEND:
     assert(VTList.NumVTs == 2 && Ops.size() == 2 &&
            "Invalid STRICT_FP_EXTEND!");
@@ -11655,6 +11688,35 @@ bool BuildVectorSDNode::isConstant() const {
       return false;
   }
   return true;
+}
+
+Optional<std::pair<APInt, APInt>>
+BuildVectorSDNode::isConstantSequence() const {
+  unsigned NumOps = getNumOperands();
+  if (NumOps < 2)
+    return None;
+
+  if (!isa<ConstantSDNode>(getOperand(0)) ||
+      !isa<ConstantSDNode>(getOperand(1)))
+    return None;
+
+  unsigned EltSize = getValueType(0).getScalarSizeInBits();
+  APInt Start = getConstantOperandAPInt(0).trunc(EltSize);
+  APInt Stride = getConstantOperandAPInt(1).trunc(EltSize) - Start;
+
+  if (Stride.isZero())
+    return None;
+
+  for (unsigned i = 2; i < NumOps; ++i) {
+    if (!isa<ConstantSDNode>(getOperand(i)))
+      return None;
+
+    APInt Val = getConstantOperandAPInt(i).trunc(EltSize);
+    if (Val != (Start + (Stride * i)))
+      return None;
+  }
+
+  return std::make_pair(Start, Stride);
 }
 
 bool ShuffleVectorSDNode::isSplatMask(const int *Mask, EVT VT) {

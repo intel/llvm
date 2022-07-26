@@ -1041,6 +1041,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
 
     setOperationAction(ISD::SMULO,              MVT::v16i8, Custom);
     setOperationAction(ISD::UMULO,              MVT::v16i8, Custom);
+    setOperationAction(ISD::UMULO,              MVT::v2i32, Custom);
 
     setOperationAction(ISD::FNEG,               MVT::v2f64, Custom);
     setOperationAction(ISD::FABS,               MVT::v2f64, Custom);
@@ -1255,6 +1256,7 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
 
     // FIXME: Do we need to handle scalar-to-vector here?
     setOperationAction(ISD::MUL,                MVT::v4i32, Legal);
+    setOperationAction(ISD::SMULO,              MVT::v2i32, Custom);
 
     // We directly match byte blends in the backend as they match the VSELECT
     // condition form.
@@ -19302,6 +19304,44 @@ static bool canonicalizeShuffleMaskWithCommute(ArrayRef<int> Mask) {
   return false;
 }
 
+static bool canCombineAsMaskOperation(SDValue V1, SDValue V2,
+                                      const X86Subtarget &Subtarget) {
+  if (!Subtarget.hasAVX512())
+    return false;
+
+  MVT VT = V1.getSimpleValueType().getScalarType();
+  if ((VT == MVT::i16 || VT == MVT::i8) && !Subtarget.hasBWI())
+    return false;
+
+  // i8 is better to be widen to i16, because there is PBLENDW for vXi16
+  // when the vector bit size is 128 or 256.
+  if (VT == MVT::i8 && V1.getSimpleValueType().getSizeInBits() < 512)
+    return false;
+
+  auto HasMaskOperation = [&](SDValue V) {
+    // TODO: Currently we only check limited opcode. We probably extend
+    // it to all binary operation by checking TLI.isBinOp().
+    switch (V->getOpcode()) {
+    default:
+      return false;
+    case ISD::ADD:
+    case ISD::SUB:
+    case ISD::AND:
+    case ISD::XOR:
+      break;
+    }
+    if (!V->hasOneUse())
+      return false;
+
+    return true;
+  };
+
+  if (HasMaskOperation(V1) || HasMaskOperation(V2))
+    return true;
+
+  return false;
+}
+
 // Forward declaration.
 static SDValue canonicalizeShuffleMaskWithHorizOp(
     MutableArrayRef<SDValue> Ops, MutableArrayRef<int> Mask,
@@ -19377,6 +19417,7 @@ static SDValue lowerVECTOR_SHUFFLE(SDValue Op, const X86Subtarget &Subtarget,
   // integers to handle flipping the low and high halves of AVX 256-bit vectors.
   SmallVector<int, 16> WidenedMask;
   if (VT.getScalarSizeInBits() < 64 && !Is1BitVector &&
+      !canCombineAsMaskOperation(V1, V2, Subtarget) &&
       canWidenShuffleElements(OrigMask, Zeroable, V2IsZero, WidenedMask)) {
     // Shuffle mask widening should not interfere with a broadcast opportunity
     // by obfuscating the operands with bitcasts.
@@ -32379,6 +32420,43 @@ void X86TargetLowering::ReplaceNodeResults(SDNode *N,
     Results.push_back(Res);
     return;
   }
+  case ISD::SMULO:
+  case ISD::UMULO: {
+    EVT VT = N->getValueType(0);
+    assert(getTypeAction(*DAG.getContext(), VT) == TypeWidenVector &&
+           VT == MVT::v2i32 && "Unexpected VT!");
+    bool IsSigned = N->getOpcode() == ISD::SMULO;
+    unsigned ExtOpc = IsSigned ? ISD::SIGN_EXTEND : ISD::ZERO_EXTEND;
+    SDValue Op0 = DAG.getNode(ExtOpc, dl, MVT::v2i64, N->getOperand(0));
+    SDValue Op1 = DAG.getNode(ExtOpc, dl, MVT::v2i64, N->getOperand(1));
+    SDValue Res = DAG.getNode(ISD::MUL, dl, MVT::v2i64, Op0, Op1);
+    // Extract the high 32 bits from each result using PSHUFD.
+    // TODO: Could use SRL+TRUNCATE but that doesn't become a PSHUFD.
+    SDValue Hi = DAG.getBitcast(MVT::v4i32, Res);
+    Hi = DAG.getVectorShuffle(MVT::v4i32, dl, Hi, Hi, {1, 3, -1, -1});
+    Hi = DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, VT, Hi,
+                     DAG.getIntPtrConstant(0, dl));
+
+    // Truncate the low bits of the result. This will become PSHUFD.
+    Res = DAG.getNode(ISD::TRUNCATE, dl, VT, Res);
+
+    SDValue HiCmp;
+    if (IsSigned) {
+      // SMULO overflows if the high bits don't match the sign of the low.
+      HiCmp = DAG.getNode(ISD::SRA, dl, VT, Res, DAG.getConstant(31, dl, VT));
+    } else {
+      // UMULO overflows if the high bits are non-zero.
+      HiCmp = DAG.getConstant(0, dl, VT);
+    }
+    SDValue Ovf = DAG.getSetCC(dl, N->getValueType(1), Hi, HiCmp, ISD::SETNE);
+
+    // Widen the result with by padding with undef.
+    Res = DAG.getNode(ISD::CONCAT_VECTORS, dl, MVT::v4i32, Res,
+                      DAG.getUNDEF(VT));
+    Results.push_back(Res);
+    Results.push_back(Ovf);
+    return;
+  }
   case X86ISD::VPMADDWD: {
     // Legalize types for X86ISD::VPMADDWD by widening.
     assert(Subtarget.hasSSE2() && "Requires at least SSE2!");
@@ -37421,6 +37499,7 @@ static bool matchBinaryShuffle(MVT MaskVT, ArrayRef<int> Mask,
                                bool IsUnary) {
   unsigned NumMaskElts = Mask.size();
   unsigned EltSizeInBits = MaskVT.getScalarSizeInBits();
+  unsigned SizeInBits = MaskVT.getSizeInBits();
 
   if (MaskVT.is128BitVector()) {
     if (isTargetShuffleEquivalent(MaskVT, Mask, {0, 0}, DAG) &&
@@ -37488,7 +37567,10 @@ static bool matchBinaryShuffle(MVT MaskVT, ArrayRef<int> Mask,
 
   // Attempt to match against a OR if we're performing a blend shuffle and the
   // non-blended source element is zero in each case.
-  if ((EltSizeInBits % V1.getScalarValueSizeInBits()) == 0 &&
+  // TODO: Handle cases where V1/V2 sizes doesn't match SizeInBits.
+  if (SizeInBits == V1.getValueSizeInBits() &&
+      SizeInBits == V2.getValueSizeInBits() &&
+      (EltSizeInBits % V1.getScalarValueSizeInBits()) == 0 &&
       (EltSizeInBits % V2.getScalarValueSizeInBits()) == 0) {
     bool IsBlend = true;
     unsigned NumV1Elts = V1.getValueType().getVectorNumElements();
@@ -37518,8 +37600,8 @@ static bool matchBinaryShuffle(MVT MaskVT, ArrayRef<int> Mask,
       break;
     }
     if (IsBlend) {
-      if (DAG.computeKnownBits(V1, DemandedZeroV1).isZero() &&
-          DAG.computeKnownBits(V2, DemandedZeroV2).isZero()) {
+      if (DAG.MaskedVectorIsZero(V1, DemandedZeroV1) &&
+          DAG.MaskedVectorIsZero(V2, DemandedZeroV2)) {
         Shuffle = ISD::OR;
         SrcVT = DstVT = MaskVT.changeTypeToInteger();
         return true;
@@ -41021,12 +41103,20 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
                                         EltBits)) {
         OpBits.clearAllBits();
         OpElts.clearAllBits();
-        for (int I = 0; I != NumElts; ++I)
-          if (DemandedElts[I] && ((Invert && !EltBits[I].isAllOnes()) ||
-                                  (!Invert && !EltBits[I].isZero()))) {
+        for (int I = 0; I != NumElts; ++I) {
+          if (!DemandedElts[I])
+            continue;
+          if (UndefElts[I]) {
+            // We can't assume an undef src element gives an undef dst - the
+            // other src might be zero.
+            OpBits.setAllBits();
+            OpElts.setBit(I);
+          } else if ((Invert && !EltBits[I].isAllOnes()) ||
+                     (!Invert && !EltBits[I].isZero())) {
             OpBits |= Invert ? ~EltBits[I] : EltBits[I];
             OpElts.setBit(I);
           }
+        }
       }
       return std::make_pair(OpBits, OpElts);
     };
@@ -41179,7 +41269,7 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
     SDValue Src = Op.getOperand(0);
     APInt DemandedUpperElts = DemandedElts;
     DemandedUpperElts.clearLowBits(1);
-    if (TLO.DAG.computeKnownBits(Src, DemandedUpperElts, Depth + 1).isZero())
+    if (TLO.DAG.MaskedVectorIsZero(Src, DemandedUpperElts, Depth + 1))
       return TLO.CombineTo(Op, Src);
     break;
   }
@@ -47872,11 +47962,17 @@ static SDValue combineAnd(SDNode *N, SelectionDAG &DAG,
                                         EltBits)) {
         DemandedBits.clearAllBits();
         DemandedElts.clearAllBits();
-        for (int I = 0; I != NumElts; ++I)
-          if (!EltBits[I].isZero()) {
+        for (int I = 0; I != NumElts; ++I) {
+          if (UndefElts[I]) {
+            // We can't assume an undef src element gives an undef dst - the
+            // other src might be zero.
+            DemandedBits.setAllBits();
+            DemandedElts.setBit(I);
+          } else if (!EltBits[I].isZero()) {
             DemandedBits |= EltBits[I];
             DemandedElts.setBit(I);
           }
+        }
       }
       return std::make_pair(DemandedBits, DemandedElts);
     };
@@ -51116,6 +51212,8 @@ static SDValue combineAndnp(SDNode *N, SelectionDAG &DAG,
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
   MVT VT = N->getSimpleValueType(0);
+  int NumElts = VT.getVectorNumElements();
+  unsigned EltSizeInBits = VT.getScalarSizeInBits();
 
   // ANDNP(undef, x) -> 0
   // ANDNP(x, undef) -> 0
@@ -51134,6 +51232,19 @@ static SDValue combineAndnp(SDNode *N, SelectionDAG &DAG,
   if (SDValue Not = IsNOT(N0, DAG))
     return DAG.getNode(ISD::AND, SDLoc(N), VT, DAG.getBitcast(VT, Not), N1);
 
+  // Constant Folding
+  APInt Undefs0, Undefs1;
+  SmallVector<APInt> EltBits0, EltBits1;
+  if (getTargetConstantBitsFromNode(N0, EltSizeInBits, Undefs0, EltBits0) &&
+      getTargetConstantBitsFromNode(N1, EltSizeInBits, Undefs1, EltBits1)) {
+    SDLoc DL(N);
+    SmallVector<APInt> ResultBits;
+    for (int I = 0; I != NumElts; ++I)
+      ResultBits.push_back(~EltBits0[I] & EltBits1[I]);
+    APInt ResultUndefs = APInt::getZero(NumElts);
+    return getConstVector(ResultBits, ResultUndefs, VT, DAG, DL);
+  }
+
   // TODO: Constant fold NOT(N0) to allow us to use AND.
   // TODO: Do this in IsNOT with suitable oneuse checks?
 
@@ -51148,20 +51259,24 @@ static SDValue combineAndnp(SDNode *N, SelectionDAG &DAG,
     auto GetDemandedMasks = [&](SDValue Op, bool Invert = false) {
       APInt UndefElts;
       SmallVector<APInt> EltBits;
-      int NumElts = VT.getVectorNumElements();
-      int EltSizeInBits = VT.getScalarSizeInBits();
       APInt DemandedBits = APInt::getAllOnes(EltSizeInBits);
       APInt DemandedElts = APInt::getAllOnes(NumElts);
       if (getTargetConstantBitsFromNode(Op, EltSizeInBits, UndefElts,
                                         EltBits)) {
         DemandedBits.clearAllBits();
         DemandedElts.clearAllBits();
-        for (int I = 0; I != NumElts; ++I)
-          if ((Invert && !EltBits[I].isAllOnes()) ||
-              (!Invert && !EltBits[I].isZero())) {
+        for (int I = 0; I != NumElts; ++I) {
+          if (UndefElts[I]) {
+            // We can't assume an undef src element gives an undef dst - the
+            // other src might be zero.
+            DemandedBits.setAllBits();
+            DemandedElts.setBit(I);
+          } else if ((Invert && !EltBits[I].isAllOnes()) ||
+                     (!Invert && !EltBits[I].isZero())) {
             DemandedBits |= Invert ? ~EltBits[I] : EltBits[I];
             DemandedElts.setBit(I);
           }
+        }
       }
       return std::make_pair(DemandedBits, DemandedElts);
     };

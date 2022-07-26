@@ -194,6 +194,14 @@ Bug Fixes
   move assignment operator. Fixes `Issue 56456 <https://github.com/llvm/llvm-project/issues/56456>`_.
 - Fixed a crash when a variable with a bool enum type that has no definition
   used in comparison operators. Fixes `Issue 56560 <https://github.com/llvm/llvm-project/issues/56560>`_.
+- Fix that ``if consteval`` could evaluate to ``true`` at runtime because it was incorrectly
+  constant folded. Fixes `Issue 55638 <https://github.com/llvm/llvm-project/issues/55638>`_.
+- Fixed incompatibility of Clang's ``<stdatomic.h>`` with MSVC ``<atomic>``.
+  Fixes `MSVC STL Issue 2862 <https://github.com/microsoft/STL/issues/2862>`_.
+- Empty enums and enums with a single enumerator with value zero will be
+  considered to have one positive bit in order to represent the underlying
+  value. This effects whether we consider the store of the value one to be well
+  defined.
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -262,7 +270,7 @@ Improvements to Clang's diagnostics
 - Added the ``-Wgnu-line-marker`` diagnostic flag (grouped under the ``-Wgnu``
   flag) which is a portability warning about use of GNU linemarker preprocessor
   directives. Fixes `Issue 55067 <https://github.com/llvm/llvm-project/issues/55067>`_.
-- Using ``#elifdef`` and ``#elifndef`` that are incompatible with C/C++
+- Using ``#warning``, ``#elifdef`` and ``#elifndef`` that are incompatible with C/C++
   standards before C2x/C++2b are now warned via ``-pedantic``. Additionally,
   on such language mode, ``-Wpre-c2x-compat`` and ``-Wpre-c++2b-compat``
   diagnostic flags report a compatibility issue.
@@ -427,6 +435,11 @@ Attribute Changes in Clang
   ``__attribute__((function_return("keep")))`` was added. This is intended to
   be used by the Linux kernel to mitigate RETBLEED.
 
+- Ignore the `__preferred_name__` attribute when writing for C++20 module interfaces.
+  This is a short-term workaround intentionally since clang doesn't take care of the
+  serialization and deserialization of `__preferred_name__`.  See
+  https://github.com/llvm/llvm-project/issues/56490 for example.
+
 Windows Support
 ---------------
 
@@ -469,6 +482,7 @@ C2x Feature Support
   support for functions without prototypes, which no longer exist in C2x.
 - Implemented `WG14 N2841 No function declarators without prototypes <https://www9.open-std.org/jtc1/sc22/wg14/www/docs/n2841.htm>`_
   and `WG14 N2432 Remove support for function definitions with identifier lists <https://www9.open-std.org/jtc1/sc22/wg14/www/docs/n2432.pdf>`_.
+- Implemented `WG14 N2836 Identifier Syntax using Unicode Standard Annex 31 <https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2836.pdf>`_.
 
 C++ Language Changes in Clang
 -----------------------------
@@ -485,6 +499,9 @@ C++ Language Changes in Clang
   unsigned character literals. This fixes `Issue 54886 <https://github.com/llvm/llvm-project/issues/54886>`_.
 - Stopped allowing constraints on non-template functions to be compliant with
   dcl.decl.general p4.
+- Improved ``copy elision`` optimization. It's possible to apply ``NRVO`` for an object if at the moment when
+  any return statement of this object is executed, the ``return slot`` won't be occupied by another object.
+
 
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
@@ -504,6 +521,14 @@ C++20 Feature Support
   that can be used for such compatibility. The demangler now demangles
   symbols with named module attachment.
 
+- Enhanced the support for C++20 Modules, including: Partitions,
+  Reachability, Header Unit and ``extern "C++"`` semantics.
+
+- Implemented `P1103R3: Merging Modules <https://wg21.link/P1103R3>`_.
+- Implemented `P1779R3: ABI isolation for member functions <https://wg21.link/P1779R3>`_.
+- Implemented `P1874R1: Dynamic Initialization Order of Non-Local Variables in Modules <https://wg21.link/P1874R1>`_.
+- Partially implemented `P1815R2: Translation-unit-local entities <https://wg21.link/P1815R2>`_.
+
 - As per "Conditionally Trivial Special Member Functions" (P0848), it is
   now possible to overload destructors using concepts. Note that the rest
   of the paper about other special member functions is not yet implemented.
@@ -515,10 +540,11 @@ C++2b Feature Support
 - Implemented `P0849R8: auto(x): decay-copy in the language <https://wg21.link/P0849R8>`_.
 - Implemented `P2242R3: Non-literal variables (and labels and gotos) in constexpr functions	<https://wg21.link/P2242R3>`_.
 - Implemented `LWG3659: Consider ATOMIC_FLAG_INIT undeprecation <https://wg21.link/LWG3659>`_.
-- Implemented `P2290 Delimited escape sequences <https://wg21.link/P2290R3>`_.
+- Implemented `P2290R3 Delimited escape sequences <https://wg21.link/P2290R3>`_.
   This feature is available as an extension in all C and C++ language modes.
-- Implemented `P2071 Named universal character escapes <https://wg21.link/P2290R2>`_.
+- Implemented `P2071R2 Named universal character escapes <https://wg21.link/P2290R2>`_.
   This feature is available as an extension in all C and C++ language modes.
+- Implemented `P2327R1 De-deprecating volatile compound operations <https://wg21.link/P2327R1>`_
 
 CUDA/HIP Language Changes in Clang
 ----------------------------------
@@ -660,7 +686,8 @@ clang-extdef-mapping
 libclang
 --------
 
-- ...
+- The soversion for libclang will now change for each new LLVM major release.  This matches
+  the behavior of clang <= 13.
 
 Static Analyzer
 ---------------

@@ -1,5 +1,7 @@
 set(LLVM_LINK_COMPONENTS
   BinaryFormat
+  BitWriter
+  IRReader
   MC
   Option
   ProfileData
@@ -20,6 +22,7 @@ add_clang_library(clangDriver
   DriverOptions.cpp
   Job.cpp
   Multilib.cpp
+  OffloadBundler.cpp
   OptionUtils.cpp
   Phases.cpp
   SanitizerArgs.cpp

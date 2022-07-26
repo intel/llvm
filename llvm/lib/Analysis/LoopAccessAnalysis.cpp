@@ -900,8 +900,6 @@ findForkedSCEVs(ScalarEvolution *SE, const Loop *L, Value *Ptr,
         std::make_pair(Scev, !isGuaranteedNotToBeUndefOrPoison(Ptr)));
     break;
   }
-
-  return;
 }
 
 static SmallVector<std::pair<const SCEV *, bool>>
@@ -1502,9 +1500,7 @@ bool llvm::sortPtrAccesses(ArrayRef<Value *> VL, Type *ElemTy,
   Value *Ptr0 = VL[0];
 
   using DistOrdPair = std::pair<int64_t, int>;
-  auto Compare = [](const DistOrdPair &L, const DistOrdPair &R) {
-    return L.first < R.first;
-  };
+  auto Compare = llvm::less_first();
   std::set<DistOrdPair, decltype(Compare)> Offsets(Compare);
   Offsets.emplace(0, 0);
   int Cnt = 1;
