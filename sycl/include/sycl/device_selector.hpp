@@ -92,6 +92,9 @@ namespace detail {
 __SYCL_EXPORT int getDevicePreference(const device &Device);
 __SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
                                         bool chosen);
+// returns the range of devices against which we will be running the device selector.
+__SYCL_EXPORT std::vector<device> getDevices();
+__SYCL_EXPORT std::vector<device> getDevices(const context &SyclContext);
 
 #if __cplusplus >= 201703L
 // select_device(selector, deviceVector)
@@ -141,7 +144,7 @@ template <typename DeviceSelector,
           typename = std::enable_if_t<
               std::is_invocable_r<int, DeviceSelector &, device &>::value>>
 device select_device(DeviceSelector DeviceSelectorInvocable) {
-  std::vector<device> devices = device::get_devices();
+  std::vector<device> devices = getDevices();
 
   return select_device(DeviceSelectorInvocable, devices);
 }
@@ -151,7 +154,7 @@ template <typename DeviceSelector,
               std::is_invocable_r<int, DeviceSelector &, device &>::value>>
 device select_device(DeviceSelector DeviceSelectorInvocable,
                      const context &SyclContext) {
-  std::vector<device> devices = SyclContext.get_devices();
+  std::vector<device> devices = getDevices(SyclContext);
 
   return select_device(DeviceSelectorInvocable, devices);
 }

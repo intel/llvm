@@ -76,6 +76,15 @@ __SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
   }
 }
 
+// getDevices
+// returns the range of devices against which we will be running the device selector.
+__SYCL_EXPORT std::vector<device> getDevices(){
+  return device::get_devices();
+}
+__SYCL_EXPORT std::vector<device> getDevices(const context &SyclContext){
+  return SyclContext.get_devices();
+}
+
 } // namespace detail
 
 device device_selector::select_device() const {
