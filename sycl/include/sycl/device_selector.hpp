@@ -89,6 +89,10 @@ public:
 };
 
 namespace detail {
+__SYCL_EXPORT int getDevicePreference(const device &Device);
+__SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
+                                        bool chosen);
+
 #if __cplusplus >= 201703L
 template <typename DeviceSelector,
           typename = std::enable_if_t<
@@ -101,20 +105,7 @@ device select_device(DeviceSelector DeviceSelectorInvocable) {
   for (const auto &dev : devices) {
     int dev_score = std::invoke(DeviceSelectorInvocable, dev);
 
-    /*  CP - restore?
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      std::string PlatformName = dev.get_info<info::device::platform>()
-                                     .get_info<info::platform::name>();
-      std::string DeviceName = dev.get_info<info::device::name>();
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "select_device(): -> score = " << dev_score
-                << ((dev_score < 0) ? " (REJECTED)" : "") << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  platform: " << PlatformName << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  device: " << DeviceName << std::endl;
-    }
-    */
+    traceDeviceSelection(dev, dev_score, false);
 
     // A negative score means that a device must not be selected.
     if (dev_score < 0)
@@ -127,30 +118,17 @@ device select_device(DeviceSelector DeviceSelectorInvocable) {
     // preference score to resolve ties, this is necessary for custom_selectors
     // that may not already include device preference in their scoring.
 
-    // CP - RESTORE
-    // if ((score < dev_score) || ((score == dev_score) &&
-    // (getDevicePreference(*res) < getDevicePreference(dev)))) {    // <==
-    // RESTORE
-    if (score < dev_score) {
+    if ((score < dev_score) ||
+        ((score == dev_score) &&
+         (getDevicePreference(*res) < getDevicePreference(dev)))) {
       res = &dev;
       score = dev_score;
     }
   }
 
   if (res != nullptr) {
-    /* CP  - restore?
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      std::string PlatformName = res->get_info<info::device::platform>()
-                                     .get_info<info::platform::name>();
-      std::string DeviceName = res->get_info<info::device::name>();
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "Selected device ->" << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  platform: " << PlatformName << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  device: " << DeviceName << std::endl;
-    }
-    */
+    traceDeviceSelection(*res, score, true);
+
     return *res;
   }
 

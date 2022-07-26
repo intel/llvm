@@ -27,10 +27,12 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+namespace detail {
+
 // SYCL_DEVICE_FILTER doesn't need to be considered in the device preferences
 // as it filters the device list returned by device::get_devices itself, so
 // only matching devices will be scored.
-static int getDevicePreference(const device &Device) {
+__SYCL_EXPORT int getDevicePreference(const device &Device) {
   int Score = 0;
 
   // No preferences for host devices.
@@ -49,6 +51,26 @@ static int getDevicePreference(const device &Device) {
 
   return Score;
 }
+
+__SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
+                                        bool chosen) {
+  if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+    std::string PlatformName = Device.get_info<info::device::platform>()
+                                   .get_info<info::platform::name>();
+    std::string DeviceName = Device.get_info<info::device::name>();
+    auto selectionMsg = chosen ? "Selected device: -> final score = "
+                               : "Candidate device: -> score = ";
+
+    std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << score
+              << ((score < 0) ? " (REJECTED)" : "") << std::endl
+              << "SYCL_PI_TRACE[all]: "
+              << "  platform: " << PlatformName << std::endl
+              << "SYCL_PI_TRACE[all]: "
+              << "  device: " << DeviceName << std::endl;
+  }
+}
+
+} // namespace detail
 
 device device_selector::select_device() const {
   std::vector<device> devices = device::get_devices();
@@ -81,8 +103,8 @@ device device_selector::select_device() const {
     // preference score to resolve ties, this is necessary for custom_selectors
     // that may not already include device preference in their scoring.
     if ((score < dev_score) ||
-        ((score == dev_score) &&
-         (getDevicePreference(*res) < getDevicePreference(dev)))) {
+        ((score == dev_score) && (detail::getDevicePreference(*res) <
+                                  detail::getDevicePreference(dev)))) {
       res = &dev;
       score = dev_score;
     }
@@ -135,7 +157,7 @@ int default_selector::operator()(const device &dev) const {
     Score += 75;
 
   // Add preference score.
-  Score += getDevicePreference(dev);
+  Score += detail::getDevicePreference(dev);
 
   return Score;
 }
@@ -145,7 +167,7 @@ int gpu_selector::operator()(const device &dev) const {
 
   if (dev.is_gpu()) {
     Score = 1000;
-    Score += getDevicePreference(dev);
+    Score += detail::getDevicePreference(dev);
   }
   return Score;
 }
@@ -155,7 +177,7 @@ int cpu_selector::operator()(const device &dev) const {
 
   if (dev.is_cpu()) {
     Score = 1000;
-    Score += getDevicePreference(dev);
+    Score += detail::getDevicePreference(dev);
   }
   return Score;
 }
@@ -165,7 +187,7 @@ int accelerator_selector::operator()(const device &dev) const {
 
   if (dev.is_accelerator()) {
     Score = 1000;
-    Score += getDevicePreference(dev);
+    Score += detail::getDevicePreference(dev);
   }
   return Score;
 }
@@ -175,7 +197,7 @@ int host_selector::operator()(const device &dev) const {
 
   if (dev.is_host()) {
     Score = 1000;
-    Score += getDevicePreference(dev);
+    Score += detail::getDevicePreference(dev);
   }
   return Score;
 }
