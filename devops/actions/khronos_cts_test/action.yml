@@ -44,9 +44,12 @@ runs:
       cd khronos_sycl_cts
       git submodule update --init
     shell: bash
-  # TODO remove this step when host_task_interop_api.cpp fixed, CMPLRTST-17212
+  # Remove failed test case
   - run: |
+      # TODO remove this step when host_task_interop_api.cpp fixed, CMPLRTST-17212
       rm khronos_sycl_cts/tests/host_task/host_task_interop_api.cpp
+      # PI CUDA kernels only support images with channel types int32, uint32, float, and half.
+      rm khronos_sycl_cts/tests/accessor_legacy/accessor_api_image_core.cpp
     shell: bash
   - name: Download compiler toolchain
     uses: actions/download-artifact@v2
