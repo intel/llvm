@@ -394,7 +394,7 @@ struct CodeCompletionBuilder {
     std::stable_partition(Completion.Includes.begin(),
                           Completion.Includes.end(),
                           [](const CodeCompletion::IncludeCandidate &I) {
-                            return !I.Insertion.hasValue();
+                            return !I.Insertion.has_value();
                           });
   }
 
@@ -861,7 +861,7 @@ struct CompletionRecorder : public CodeCompleteConsumer {
     case CodeCompletionResult::RK_Macro:
       return Result.Macro->getName();
     case CodeCompletionResult::RK_Pattern:
-      return Result.Pattern->getTypedText();
+      break;
     }
     auto *CCS = codeCompletionString(Result);
     const CodeCompletionString::Chunk *OnlyText = nullptr;

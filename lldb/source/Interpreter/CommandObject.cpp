@@ -547,7 +547,7 @@ CommandObject::LookupArgumentName(llvm::StringRef arg_name) {
   const ArgumentTableEntry *table = GetArgumentTable();
   for (int i = 0; i < eArgTypeLastArg; ++i)
     if (arg_name == table[i].arg_name)
-      return_type = g_arguments_data[i].arg_type;
+      return_type = GetArgumentTable()[i].arg_type;
 
   return return_type;
 }
@@ -924,14 +924,14 @@ const char *CommandObject::GetArgumentTypeAsCString(
     const lldb::CommandArgumentType arg_type) {
   assert(arg_type < eArgTypeLastArg &&
          "Invalid argument type passed to GetArgumentTypeAsCString");
-  return g_arguments_data[arg_type].arg_name;
+  return GetArgumentTable()[arg_type].arg_name;
 }
 
 const char *CommandObject::GetArgumentDescriptionAsCString(
     const lldb::CommandArgumentType arg_type) {
   assert(arg_type < eArgTypeLastArg &&
          "Invalid argument type passed to GetArgumentDescriptionAsCString");
-  return g_arguments_data[arg_type].help_text;
+  return GetArgumentTable()[arg_type].help_text;
 }
 
 Target &CommandObject::GetDummyTarget() {
@@ -995,6 +995,11 @@ bool CommandObjectParsed::Execute(const char *args_string,
       if (ParseOptions(cmd_args, result)) {
         // Call the command-specific version of 'Execute', passing it the
         // already processed arguments.
+        if (cmd_args.GetArgumentCount() != 0 && m_arguments.empty()) {
+          result.AppendErrorWithFormatv("'{0}' doesn't take any arguments.",
+                                        GetCommandName());
+          return false;
+        }
         handled = DoExecute(cmd_args, result);
       }
     }
@@ -1036,7 +1041,7 @@ static llvm::StringRef arch_helper() {
   return g_archs_help.GetString();
 }
 
-CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
+static constexpr CommandObject::ArgumentTableEntry g_arguments_data[] = {
     // clang-format off
     { eArgTypeAddress, "address", CommandCompletions::eNoCompletion, { nullptr, false }, "A valid address in the target program's execution space." },
     { eArgTypeAddressOrExpression, "address-expression", CommandCompletions::eNoCompletion, { nullptr, false }, "An expression that resolves to an address." },
@@ -1126,15 +1131,21 @@ CommandObject::ArgumentTableEntry CommandObject::g_arguments_data[] = {
     { eArgTypeCommand, "command", CommandCompletions::eNoCompletion, { nullptr, false }, "An LLDB Command line command element." },
     { eArgTypeColumnNum, "column", CommandCompletions::eNoCompletion, { nullptr, false }, "Column number in a source file." },
     { eArgTypeModuleUUID, "module-uuid", CommandCompletions::eModuleUUIDCompletion, { nullptr, false }, "A module UUID value." },
-    { eArgTypeSaveCoreStyle, "corefile-style", CommandCompletions::eNoCompletion, { nullptr, false }, "The type of corefile that lldb will try to create, dependant on this target's capabilities." }
+    { eArgTypeSaveCoreStyle, "corefile-style", CommandCompletions::eNoCompletion, { nullptr, false }, "The type of corefile that lldb will try to create, dependant on this target's capabilities." },
+    { eArgTypeLogHandler, "log-handler", CommandCompletions::eNoCompletion, { nullptr, false }, "The log handle that will be used to write out log messages." },
+    { eArgTypeSEDStylePair, "substitution-pair", CommandCompletions::eNoCompletion, { nullptr, false }, "A sed-style pattern and target pair." },
+    { eArgTypeRecognizerID, "frame-recognizer-id", CommandCompletions::eNoCompletion, { nullptr, false }, "The ID for a stack frame recognizer." },
+    { eArgTypeConnectURL, "process-connect-url", CommandCompletions::eNoCompletion, { nullptr, false }, "A URL-style specification for a remote connection." },
+    { eArgTypeTargetID, "target-id", CommandCompletions::eNoCompletion, { nullptr, false }, "The index ID for an lldb Target." },
+    { eArgTypeStopHookID, "stop-hook-id", CommandCompletions::eNoCompletion, { nullptr, false }, "The ID you receive when you create a stop-hook." }
     // clang-format on
 };
 
+static_assert(
+    (sizeof(g_arguments_data) / sizeof(CommandObject::ArgumentTableEntry)) ==
+        eArgTypeLastArg,
+    "g_arguments_data out of sync with CommandArgumentType enumeration");
+
 const CommandObject::ArgumentTableEntry *CommandObject::GetArgumentTable() {
-  // If this assertion fires, then the table above is out of date with the
-  // CommandArgumentType enumeration
-  static_assert((sizeof(CommandObject::g_arguments_data) /
-                 sizeof(CommandObject::ArgumentTableEntry)) == eArgTypeLastArg,
-                "");
-  return CommandObject::g_arguments_data;
+  return g_arguments_data;
 }

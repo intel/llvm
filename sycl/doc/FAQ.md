@@ -94,11 +94,11 @@ library is listed in the correct environment variable: `LD_LIBRARY_PATH`
 Example error message:
 ```
 In file included from example.cpp:1:
-In file included from C:\compiler\lib\clang\10.0.0\include\CL/sycl.hpp:11:
-In file included from C:\compiler\lib\clang\10.0.0\include\CL/sycl/accessor.hpp:13:
-In file included from C:\compiler\lib\clang\10.0.0\include\CL/sycl/buffer.hpp:10:
-In file included from C:\compiler\lib\clang\10.0.0\include\CL/sycl/detail/buffer_impl.hpp:14:
-In file included from C:\compiler\lib\clang\10.0.0\include\CL/sycl/detail/aligned_allocator.hpp:16:
+In file included from C:\compiler\lib\clang\10.0.0\include\sycl/sycl.hpp:11:
+In file included from C:\compiler\lib\clang\10.0.0\include\sycl/accessor.hpp:13:
+In file included from C:\compiler\lib\clang\10.0.0\include\sycl/buffer.hpp:10:
+In file included from C:\compiler\lib\clang\10.0.0\include\sycl/detail/buffer_impl.hpp:14:
+In file included from C:\compiler\lib\clang\10.0.0\include\sycl/detail/aligned_allocator.hpp:16:
 C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Tools\MSVC\14.22.27905\include\algorithm(4493,9): error: SYCL kernel cannot call a
       dllimport function
         _STL_ASSERT(!(_Left < _Right), "invalid comparator");

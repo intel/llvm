@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/exception.hpp>
 
 #include <cassert>
 

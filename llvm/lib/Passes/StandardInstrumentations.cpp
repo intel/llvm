@@ -901,10 +901,11 @@ bool OptNoneInstrumentation::shouldRun(StringRef PassID, Any IR) {
 
 void OptBisectInstrumentation::registerCallbacks(
     PassInstrumentationCallbacks &PIC) {
-  if (!OptBisector->isEnabled())
+  if (!getOptBisector().isEnabled())
     return;
   PIC.registerShouldRunOptionalPassCallback([](StringRef PassID, Any IR) {
-    return isIgnored(PassID) || OptBisector->checkPass(PassID, getIRName(IR));
+    return isIgnored(PassID) ||
+           getOptBisector().checkPass(PassID, getIRName(IR));
   });
 }
 
@@ -1192,7 +1193,7 @@ void VerifyInstrumentation::registerCallbacks(
           if (DebugLogging)
             dbgs() << "Verifying function " << F->getName() << "\n";
 
-          if (verifyFunction(*F))
+          if (verifyFunction(*F, &errs()))
             report_fatal_error("Broken function found, compilation aborted!");
         } else if (any_isa<const Module *>(IR) ||
                    any_isa<const LazyCallGraph::SCC *>(IR)) {
@@ -1207,7 +1208,7 @@ void VerifyInstrumentation::registerCallbacks(
           if (DebugLogging)
             dbgs() << "Verifying module " << M->getName() << "\n";
 
-          if (verifyModule(*M))
+          if (verifyModule(*M, &errs()))
             report_fatal_error("Broken module found, compilation aborted!");
         }
       });

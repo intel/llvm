@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/util.hpp>
 #include <detail/global_handler.hpp>
+#include <sycl/detail/util.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

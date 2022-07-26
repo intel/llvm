@@ -1,7 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
-#include <CL/sycl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   cl_context ClCtx;
@@ -150,10 +150,6 @@ int main() {
   // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
-
-  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
-  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
-  (void)SLExtIntel;
 
   // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
   auto LevelZeroBackend = sycl::backend::level_zero;

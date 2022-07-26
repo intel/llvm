@@ -87,6 +87,9 @@ def ConvertAMDGPUToROCDL : Pass<"convert-amdgpu-to-rocdl"> {
     "LLVM::LLVMDialect",
     "ROCDL::ROCDLDialect",
   ];
+  let options = [Option<"chipset", "chipset", "std::string",
+                        /*default=*/"\"gfx000\"",
+                        "Chipset that these operations will run on">];
 }
 
 //===----------------------------------------------------------------------===//
@@ -364,6 +367,9 @@ def ConvertGpuOpsToROCDLOps : Pass<"convert-gpu-to-rocdl", "gpu::GPUModuleOp"> {
   let constructor = "mlir::createLowerGpuOpsToROCDLOpsPass()";
   let dependentDialects = ["ROCDL::ROCDLDialect"];
   let options = [
+    Option<"chipset", "chipset", "std::string",
+           /*default=*/"\"gfx000\"",
+           "Chipset that these operations will run on">,
     Option<"indexBitwidth", "index-bitwidth", "unsigned",
            /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
            "Bitwidth of the index type, 0 to use size of machine word">,
@@ -848,12 +854,12 @@ def ConvertVectorToGPU : Pass<"convert-vector-to-gpu"> {
                 "dialect";
   let constructor = "mlir::createConvertVectorToGPUPass()";
   let dependentDialects = [
-    "memref::MemRefDialect", "gpu::GPUDialect", "AffineDialect", 
+    "memref::MemRefDialect", "gpu::GPUDialect", "AffineDialect",
     "vector::VectorDialect", "nvgpu::NVGPUDialect"
   ];
 
   let options = [
-    Option<"useNvGpu", "use-nvgpu", "bool", /*default=*/"false", 
+    Option<"useNvGpu", "use-nvgpu", "bool", /*default=*/"false",
       "convert to NvGPU ops instead of GPU dialect ops">
   ];
 }
@@ -929,17 +935,6 @@ def ConvertVectorToLLVM : Pass<"convert-vector-to-llvm", "ModuleOp"> {
            "Enables the use of X86Vector dialect while lowering the vector "
 	   "dialect.">
   ];
-}
-
-//===----------------------------------------------------------------------===//
-// VectorToROCDL
-//===----------------------------------------------------------------------===//
-
-def ConvertVectorToROCDL : Pass<"convert-vector-to-rocdl", "ModuleOp"> {
-  let summary = "Lower the operations from the vector dialect into the ROCDL "
-                "dialect";
-  let constructor = "mlir::createConvertVectorToROCDLPass()";
-  let dependentDialects = ["ROCDL::ROCDLDialect"];
 }
 
 //===----------------------------------------------------------------------===//

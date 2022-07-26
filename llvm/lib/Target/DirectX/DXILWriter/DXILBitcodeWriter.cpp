@@ -595,6 +595,10 @@ unsigned DXILBitcodeWriter::getEncodedRMWOperation(AtomicRMWInst::BinOp Op) {
     return bitc::RMW_FADD;
   case AtomicRMWInst::FSub:
     return bitc::RMW_FSUB;
+  case AtomicRMWInst::FMax:
+    return bitc::RMW_FMAX;
+  case AtomicRMWInst::FMin:
+    return bitc::RMW_FMIN;
   }
 }
 
@@ -1251,7 +1255,7 @@ void DXILBitcodeWriter::writeModuleInfo() {
                                                            //| constant
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6));   // Initializer.
     Abbv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 5)); // Linkage.
-    if (MaxAlignment == 0)                                 // Alignment.
+    if (!MaxAlignment)                                     // Alignment.
       Abbv->Add(BitCodeAbbrevOp(0));
     else {
       unsigned MaxEncAlignment = getEncodedAlign(MaxAlignment);

@@ -843,12 +843,12 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       VersionTuple tuple = LangOpts.ObjCRuntime.getVersion();
 
       unsigned minor = 0;
-      if (tuple.getMinor().hasValue())
-        minor = tuple.getMinor().getValue();
+      if (tuple.getMinor())
+        minor = tuple.getMinor().value();
 
       unsigned subminor = 0;
-      if (tuple.getSubminor().hasValue())
-        subminor = tuple.getSubminor().getValue();
+      if (tuple.getSubminor())
+        subminor = tuple.getSubminor().value();
 
       Builder.defineMacro("__OBJFW_RUNTIME_ABI__",
                           Twine(tuple.getMajor() * 10000 + minor * 100 +

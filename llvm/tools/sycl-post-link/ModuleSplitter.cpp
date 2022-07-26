@@ -107,6 +107,10 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
+bool isKernel(const Function &F) {
+  return F.getCallingConv() == CallingConv::SPIR_KERNEL;
+}
+
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   // Skip declarations, if any: they should not be included into a vector of
   // entry points groups or otherwise we will end up with incorrectly generated
@@ -115,7 +119,7 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
     return false;
 
   // Kernels are always considered to be entry points
-  if (CallingConv::SPIR_KERNEL == F.getCallingConv())
+  if (isKernel(F))
     return true;
 
   if (!EmitOnlyKernelsAsEntryPoints) {
@@ -285,6 +289,7 @@ public:
 private:
   std::unordered_map<const Function *, FunctionSet> Graph;
   SmallPtrSet<const Function *, 1> EmptySet;
+  FunctionSet AddrTakenFunctions;
 
 public:
   CallGraph(const Module &M) {
@@ -297,6 +302,9 @@ public:
           }
         }
       }
+      if (F.hasAddressTaken()) {
+        AddrTakenFunctions.insert(&F);
+      }
     }
   }
 
@@ -307,6 +315,10 @@ public:
                ? make_range(EmptySet.begin(), EmptySet.end())
                : make_range(It->second.begin(), It->second.end());
   }
+
+  iterator_range<FunctionSet::const_iterator> addrTakenFunctions() const {
+    return make_range(AddrTakenFunctions.begin(), AddrTakenFunctions.end());
+  }
 };
 
 void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
@@ -314,6 +326,17 @@ void collectFunctionsToExtract(SetVector<const GlobalValue *> &GVs,
                                const CallGraph &Deps) {
   for (const auto *F : ModuleEntryPoints.Functions)
     GVs.insert(F);
+  // It is conservatively assumed that any address-taken function can be invoked
+  // or otherwise used by any function in any module split from the initial one.
+  // So such functions along with the call graphs they start are always
+  // extracted (and duplicated in each split module).
+  // TODO: try to determine which split modules really use address-taken
+  // functions and only duplicate the functions in such modules. Note that usage
+  // may include e.g. function address comparison w/o actual invocation.
+  for (const auto *F : Deps.addrTakenFunctions()) {
+    if (!isKernel(*F) && (isESIMDFunction(*F) == ModuleEntryPoints.isEsimd()))
+      GVs.insert(F);
+  }
 
   // GVs has SetVector type. This type inserts a value only if it is not yet
   // present there. So, recursion is not expected here.

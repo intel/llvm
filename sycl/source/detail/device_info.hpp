@@ -7,19 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/memory_enums.hpp>
-#include <CL/sycl/platform.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/detail/common_info.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/memory_enums.hpp>
+#include <sycl/platform.hpp>
 
 #include <chrono>
 #include <thread>

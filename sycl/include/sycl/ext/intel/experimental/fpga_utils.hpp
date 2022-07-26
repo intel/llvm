@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/ext/oneapi/latency_control/properties.hpp>
+#include <sycl/stl.hpp>
 #include <tuple>
 
 __SYCL_INLINE_NAMESPACE(cl) {

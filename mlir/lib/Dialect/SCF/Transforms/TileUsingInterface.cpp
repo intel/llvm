@@ -244,7 +244,7 @@ scf::TileUsingSCFForOp::returningMatchAndRewrite(
   SmallVector<scf::ForOp> newLoops = replaceLoopNestWithNewYields(
       rewriter, tilingResult.loops, op.getDestinationOperands(rewriter),
       yieldValueFn);
-  for (auto loop : llvm::enumerate(tilingResult.loops)) {
+  for (const auto &loop : llvm::enumerate(tilingResult.loops)) {
     rewriter.eraseOp(loop.value());
     tilingResult.loops[loop.index()] = newLoops[loop.index()];
   }
@@ -333,18 +333,18 @@ scf::TileConsumerAndFuseProducersUsingSCFForOp::returningMatchAndRewrite(
     // 2b. Get the producer of the source (potentially walking through
     // `iter_args` of nested `scf.for`)
     Optional<OpResult> fusableProducer =
-        getFusableProducer(candidateSliceOp.source());
+        getFusableProducer(candidateSliceOp.getSource());
     if (!fusableProducer)
       continue;
 
     // 2c. Generate the tiled implementation of the producer of the source
     rewriter.setInsertionPoint(candidateSliceOp);
     FailureOr<Value> fusedProducerValue =
-        tensor::replaceExtractSliceWithTiledProducer(
-            rewriter, candidateSliceOp, fusableProducer.getValue());
+        tensor::replaceExtractSliceWithTiledProducer(rewriter, candidateSliceOp,
+                                                     fusableProducer.value());
     if (failed(fusedProducerValue))
       continue;
-    rewriter.replaceOp(candidateSliceOp, fusedProducerValue.getValue());
+    rewriter.replaceOp(candidateSliceOp, fusedProducerValue.value());
 
     // 2d. The operands of the fused producer might themselved be slices of
     //     values produced by operations that implement the `TilingInterface`.

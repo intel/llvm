@@ -1013,6 +1013,12 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
     }
   }
 
+  if (auto *Def = D->getDefinition()) {
+      if (D->hasAttr<FinalAttr>()) {
+          Out << " final";
+      }
+  }
+
   if (D->isCompleteDefinition() && !Policy.SuppressDefinition) {
     // Print the base classes
     if (D->getNumBases()) {

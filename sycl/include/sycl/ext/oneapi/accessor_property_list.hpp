@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/property_list_base.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/property_list_base.hpp>
+#include <sycl/property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -463,13 +463,12 @@ Error ELFSectionWriter<ELFT>::visit(const DecompressedSection &Sec) {
                                 ? (ZlibGnuMagic.size() + sizeof(Sec.Size))
                                 : sizeof(Elf_Chdr_Impl<ELFT>);
 
-  StringRef CompressedContent(
-      reinterpret_cast<const char *>(Sec.OriginalData.data()) + DataOffset,
-      Sec.OriginalData.size() - DataOffset);
-
-  SmallVector<char, 128> DecompressedContent;
-  if (Error Err = zlib::uncompress(CompressedContent, DecompressedContent,
-                                   static_cast<size_t>(Sec.Size)))
+  ArrayRef<uint8_t> CompressedContent(Sec.OriginalData.data() + DataOffset,
+                                      Sec.OriginalData.size() - DataOffset);
+  SmallVector<uint8_t, 128> DecompressedContent;
+  if (Error Err =
+          compression::zlib::uncompress(CompressedContent, DecompressedContent,
+                                        static_cast<size_t>(Sec.Size)))
     return createStringError(errc::invalid_argument,
                              "'" + Sec.Name + "': " + toString(std::move(Err)));
 
@@ -519,27 +518,22 @@ Error BinarySectionWriter::visit(const CompressedSection &Sec) {
 template <class ELFT>
 Error ELFSectionWriter<ELFT>::visit(const CompressedSection &Sec) {
   uint8_t *Buf = reinterpret_cast<uint8_t *>(Out.getBufferStart()) + Sec.Offset;
-  if (Sec.CompressionType == DebugCompressionType::None) {
+  Elf_Chdr_Impl<ELFT> Chdr;
+  switch (Sec.CompressionType) {
+  case DebugCompressionType::None:
     std::copy(Sec.OriginalData.begin(), Sec.OriginalData.end(), Buf);
     return Error::success();
-  }
-
-  if (Sec.CompressionType == DebugCompressionType::GNU) {
-    const char *Magic = "ZLIB";
-    memcpy(Buf, Magic, strlen(Magic));
-    Buf += strlen(Magic);
-    const uint64_t DecompressedSize =
-        support::endian::read64be(&Sec.DecompressedSize);
-    memcpy(Buf, &DecompressedSize, sizeof(DecompressedSize));
-    Buf += sizeof(DecompressedSize);
-  } else {
-    Elf_Chdr_Impl<ELFT> Chdr;
+  case DebugCompressionType::GNU:
+    llvm_unreachable("unexpected zlib-gnu");
+    break;
+  case DebugCompressionType::Z:
     Chdr.ch_type = ELF::ELFCOMPRESS_ZLIB;
-    Chdr.ch_size = Sec.DecompressedSize;
-    Chdr.ch_addralign = Sec.DecompressedAlign;
-    memcpy(Buf, &Chdr, sizeof(Chdr));
-    Buf += sizeof(Chdr);
+    break;
   }
+  Chdr.ch_size = Sec.DecompressedSize;
+  Chdr.ch_addralign = Sec.DecompressedAlign;
+  memcpy(Buf, &Chdr, sizeof(Chdr));
+  Buf += sizeof(Chdr);
 
   std::copy(Sec.CompressedData.begin(), Sec.CompressedData.end(), Buf);
   return Error::success();
@@ -549,22 +543,15 @@ CompressedSection::CompressedSection(const SectionBase &Sec,
                                      DebugCompressionType CompressionType)
     : SectionBase(Sec), CompressionType(CompressionType),
       DecompressedSize(Sec.OriginalData.size()), DecompressedAlign(Sec.Align) {
-  zlib::compress(StringRef(reinterpret_cast<const char *>(OriginalData.data()),
-                           OriginalData.size()),
-                 CompressedData);
+  compression::zlib::compress(OriginalData, CompressedData);
 
-  size_t ChdrSize;
-  if (CompressionType == DebugCompressionType::GNU) {
-    Name = ".z" + Sec.Name.substr(1);
-    ChdrSize = sizeof("ZLIB") - 1 + sizeof(uint64_t);
-  } else {
-    Flags |= ELF::SHF_COMPRESSED;
-    ChdrSize =
-        std::max(std::max(sizeof(object::Elf_Chdr_Impl<object::ELF64LE>),
-                          sizeof(object::Elf_Chdr_Impl<object::ELF64BE>)),
-                 std::max(sizeof(object::Elf_Chdr_Impl<object::ELF32LE>),
-                          sizeof(object::Elf_Chdr_Impl<object::ELF32BE>)));
-  }
+  assert(CompressionType != DebugCompressionType::None);
+  Flags |= ELF::SHF_COMPRESSED;
+  size_t ChdrSize =
+      std::max(std::max(sizeof(object::Elf_Chdr_Impl<object::ELF64LE>),
+                        sizeof(object::Elf_Chdr_Impl<object::ELF64BE>)),
+               std::max(sizeof(object::Elf_Chdr_Impl<object::ELF32LE>),
+                        sizeof(object::Elf_Chdr_Impl<object::ELF32BE>)));
   Size = ChdrSize + CompressedData.size();
   Align = 8;
 }
@@ -2653,9 +2640,12 @@ Error BinaryWriter::finalize() {
   // MinAddr will be skipped.
   uint64_t MinAddr = UINT64_MAX;
   for (SectionBase &Sec : Obj.allocSections()) {
+    // If Sec's type is changed from SHT_NOBITS due to --set-section-flags,
+    // Offset may not be aligned. Align it to max(Align, 1).
     if (Sec.ParentSegment != nullptr)
-      Sec.Addr =
-          Sec.Offset - Sec.ParentSegment->Offset + Sec.ParentSegment->PAddr;
+      Sec.Addr = alignTo(Sec.Offset - Sec.ParentSegment->Offset +
+                             Sec.ParentSegment->PAddr,
+                         std::max(Sec.Align, uint64_t(1)));
     if (Sec.Type != SHT_NOBITS && Sec.Size > 0)
       MinAddr = std::min(MinAddr, Sec.Addr);
   }

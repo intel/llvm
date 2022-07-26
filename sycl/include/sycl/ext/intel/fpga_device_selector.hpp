@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
 
 #include <string>
 

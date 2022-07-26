@@ -5673,11 +5673,6 @@ ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
     D2->setPreviousDecl(Recent);
   }
 
-  if (FromTemplated->isCompleteDefinition() &&
-      !ToTemplated->isCompleteDefinition()) {
-    // FIXME: Import definition!
-  }
-
   return D2;
 }
 
@@ -5954,11 +5949,6 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
         ToTemplated->setPreviousDecl(PrevTemplated);
     }
     ToVarTD->setPreviousDecl(Recent);
-  }
-
-  if (DTemplated->isThisDeclarationADefinition() &&
-      !ToTemplated->isThisDeclarationADefinition()) {
-    // FIXME: Import definition!
   }
 
   return ToVarTD;
@@ -6345,9 +6335,10 @@ ExpectedStmt ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
   if (!ToRBracLocOrErr)
     return ToRBracLocOrErr.takeError();
 
-  return CompoundStmt::Create(
-      Importer.getToContext(), ToStmts,
-      *ToLBracLocOrErr, *ToRBracLocOrErr);
+  FPOptionsOverride FPO =
+      S->hasStoredFPFeatures() ? S->getStoredFPFeatures() : FPOptionsOverride();
+  return CompoundStmt::Create(Importer.getToContext(), ToStmts, FPO,
+                              *ToLBracLocOrErr, *ToRBracLocOrErr);
 }
 
 ExpectedStmt ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {

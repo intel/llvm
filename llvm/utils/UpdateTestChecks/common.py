@@ -719,18 +719,19 @@ class NamelessValue:
 # Description of the different "unnamed" values we match in the IR, e.g.,
 # (local) ssa values, (debug) metadata, etc.
 ir_nameless_values = [
-    NamelessValue(r'TMP'  , '%' , r'%'           , None            , None                   , r'[\w$.-]+?' , None                 , False) ,
-    NamelessValue(r'ATTR' , '#' , r'#'           , None            , None                   , r'[0-9]+'    , None                 , False) ,
-    NamelessValue(r'ATTR' , '#' , None           , r'attributes #' , r'[0-9]+'              , None         , r'{[^}]*}'           , False) ,
-    NamelessValue(r'GLOB' , '@' , r'@'           , None            , None                   , r'[0-9]+'    , None                 , False) ,
-    NamelessValue(r'GLOB' , '@' , None           , r'@'            , r'[a-zA-Z0-9_$"\\.-]+' , None         , r'.+'                , True)  ,
-    NamelessValue(r'DBG'  , '!' , r'!dbg '       , None            , None                   , r'![0-9]+'   , None                 , False) ,
-    NamelessValue(r'PROF' , '!' , r'!prof '      , None            , None                   , r'![0-9]+'   , None                 , False) ,
-    NamelessValue(r'TBAA' , '!' , r'!tbaa '      , None            , None                   , r'![0-9]+'   , None                 , False) ,
-    NamelessValue(r'RNG'  , '!' , r'!range '     , None            , None                   , r'![0-9]+'   , None                 , False) ,
-    NamelessValue(r'LOOP' , '!' , r'!llvm.loop ' , None            , None                   , r'![0-9]+'   , None                 , False) ,
-    NamelessValue(r'META' , '!' , r'metadata '   , None            , None                   , r'![0-9]+'   , None                 , False) ,
-    NamelessValue(r'META' , '!' , None           , r''             , r'![0-9]+'             , None         , r'(?:distinct |)!.*' , False) ,
+    NamelessValue(r'TMP'     , '%' , r'%'                   , None            , None                   , r'[\w$.-]+?' , None                 , False) ,
+    NamelessValue(r'ATTR'    , '#' , r'#'                   , None            , None                   , r'[0-9]+'    , None                 , False) ,
+    NamelessValue(r'ATTR'    , '#' , None                   , r'attributes #' , r'[0-9]+'              , None         , r'{[^}]*}'           , False) ,
+    NamelessValue(r'GLOB'    , '@' , r'@'                   , None            , None                   , r'[0-9]+'    , None                 , False) ,
+    NamelessValue(r'GLOB'    , '@' , None                   , r'@'            , r'[a-zA-Z0-9_$"\\.-]+' , None         , r'.+'                , True)  ,
+    NamelessValue(r'DBG'     , '!' , r'!dbg '               , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'PROF'    , '!' , r'!prof '              , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'TBAA'    , '!' , r'!tbaa '              , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'RNG'     , '!' , r'!range '             , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'LOOP'    , '!' , r'!llvm.loop '         , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'META'    , '!' , r'metadata '           , None            , None                   , r'![0-9]+'   , None                 , False) ,
+    NamelessValue(r'META'    , '!' , None                   , r''             , r'![0-9]+'             , None         , r'(?:distinct |)!.*' , False) ,
+    NamelessValue(r'ACC_GRP' , '!' , r'!llvm.access.group ' , None            , None                   , r'![0-9]+'   , None                 , False) ,
 ]
 
 asm_nameless_values = [
@@ -1221,15 +1222,18 @@ def dump_input_lines(output_lines, test_info, prefix_set, comment_string):
 def add_checks_at_end(output_lines, prefix_list, func_order,
                       comment_string, check_generator):
   added = set()
-  generated_prefixes = []
+  generated_prefixes = set()
   for prefix in prefix_list:
     prefixes = prefix[0]
     tool_args = prefix[1]
     for prefix in prefixes:
       for func in func_order[prefix]:
+        # The func order can contain the same functions multiple times.
+        # If we see one again we are done.
+        if (func, prefix) in added:
+            continue
         if added:
           output_lines.append(comment_string)
-        added.add(func)
 
         # The add_*_checks routines expect a run list whose items are
         # tuples that have a list of prefixes as their first element and
@@ -1245,7 +1249,8 @@ def add_checks_at_end(output_lines, prefix_list, func_order,
         # single prefix before moving on to the next prefix.  So checks
         # are ordered by prefix instead of by function as in "normal"
         # mode.
-        generated_prefixes.extend(check_generator(output_lines,
-                        [([prefix], tool_args)],
-                        func))
+        for generated_prefix in check_generator(output_lines,
+                        [([prefix], tool_args)], func):
+            added.add((func, generated_prefix))
+            generated_prefixes.add(generated_prefix)
   return generated_prefixes

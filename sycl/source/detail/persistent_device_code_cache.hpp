@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/detail/device_binary_image.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
 #include <fcntl.h>
 #include <string>
+#include <sycl/detail/device_binary_image.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
 #include <sys/stat.h>
 #include <thread>
 #include <vector>

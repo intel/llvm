@@ -4,7 +4,7 @@
 
 // clang-format off
 
-#include <CL/sycl/buffer.hpp>
+#include <sycl/buffer.hpp>
 
 void foo(sycl::buffer<int, 2>) {}
 // CHECK: 0 | class sycl::detail::buffer_impl
