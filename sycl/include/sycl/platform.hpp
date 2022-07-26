@@ -14,7 +14,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 // #include <sycl/device.hpp>
-// #include <sycl/device_selector.hpp>
+#include <sycl/device_selector.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -165,8 +165,7 @@ private:
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
 
-  // CP
-  // platform(const device &Device);
+  platform(const device &Device);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

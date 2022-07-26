@@ -27,10 +27,8 @@ platform::platform(cl_platform_id PlatformId) {
       detail::RT::getPlugin<backend::opencl>());
 }
 
-// CP
-// platform::platform(const device &Device) {
-//   *this = Device.get_platform();
-// }
+// protected constructor for internal use
+platform::platform(const device &Device) { *this = Device.get_platform(); }
 
 platform::platform(const device_selector &dev_selector) {
   *this = dev_selector.select_device().get_platform();

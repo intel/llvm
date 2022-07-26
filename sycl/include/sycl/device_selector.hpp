@@ -139,6 +139,7 @@ device select_device(DeviceSelector DeviceSelectorInvocable,
   throw cl::sycl::runtime_error("No device of requested type available.",
                                 PI_ERROR_DEVICE_NOT_FOUND);
 }
+
 // select_device(selector)
 template <typename DeviceSelector,
           typename = std::enable_if_t<
@@ -148,6 +149,7 @@ device select_device(DeviceSelector DeviceSelectorInvocable) {
 
   return select_device(DeviceSelectorInvocable, devices);
 }
+
 // select_device(selector, context)
 template <typename DeviceSelector,
           typename = std::enable_if_t<
