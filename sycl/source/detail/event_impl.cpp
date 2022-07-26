@@ -158,8 +158,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled},
-      MIsQueuePresent{true} {
+                                         Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -282,7 +281,9 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  if (!MIsQueuePresent) {
+  std::weak_ptr<queue_impl> EmptyPtr;
+
+  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
                           "Profiling information is unavailable as the event "
                           "has no associated queue.");
