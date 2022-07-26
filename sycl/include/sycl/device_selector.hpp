@@ -94,11 +94,12 @@ __SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
                                         bool chosen);
 
 #if __cplusplus >= 201703L
+// select_device(selector, deviceVector)
 template <typename DeviceSelector,
           typename = std::enable_if_t<
               std::is_invocable_r<int, DeviceSelector &, device &>::value>>
-device select_device(DeviceSelector DeviceSelectorInvocable) {
-  std::vector<device> devices = device::get_devices();
+device select_device(DeviceSelector DeviceSelectorInvocable,
+                     std::vector<device> &devices) {
   int score = REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
@@ -111,7 +112,7 @@ device select_device(DeviceSelector DeviceSelectorInvocable) {
     if (dev_score < 0)
       continue;
 
-    // Section 4.6 of SYCL 1.2.1 spec: (not sure if still relevant - CP)
+    // Section 4.6 of SYCL 1.2.1 spec:
     // says: "If more than one device receives the high score then
     // one of those tied devices will be returned, but which of the devices
     // from the tied set is to be returned is not defined". So use the device
@@ -134,6 +135,25 @@ device select_device(DeviceSelector DeviceSelectorInvocable) {
 
   throw cl::sycl::runtime_error("No device of requested type available.",
                                 PI_ERROR_DEVICE_NOT_FOUND);
+}
+// select_device(selector)
+template <typename DeviceSelector,
+          typename = std::enable_if_t<
+              std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+device select_device(DeviceSelector DeviceSelectorInvocable) {
+  std::vector<device> devices = device::get_devices();
+
+  return select_device(DeviceSelectorInvocable, devices);
+}
+// select_device(selector, context)
+template <typename DeviceSelector,
+          typename = std::enable_if_t<
+              std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+device select_device(DeviceSelector DeviceSelectorInvocable,
+                     const context &SyclContext) {
+  std::vector<device> devices = SyclContext.get_devices();
+
+  return select_device(DeviceSelectorInvocable, devices);
 }
 #endif
 } // namespace detail
