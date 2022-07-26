@@ -158,8 +158,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
 
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled},
-      MIsQueuePresent{true} {
+                                         Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
