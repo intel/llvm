@@ -107,7 +107,13 @@ DEVICE_EXTERN_C_INLINE
 float fmaf(float x, float y, float z) { return __devicelib_fmaf(x, y, z); }
 
 DEVICE_EXTERN_C_INLINE
+float sin(float x) { return __devicelib_sinf(x); }
+
+DEVICE_EXTERN_C_INLINE
 float sinf(float x) { return __devicelib_sinf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float cos(float x) { return __devicelib_cosf(x); }
 
 DEVICE_EXTERN_C_INLINE
 float cosf(float x) { return __devicelib_cosf(x); }

@@ -184,7 +184,6 @@ public:
   bool supportsDebugInfoOption(const llvm::opt::Arg *A) const override;
   void adjustDebugInfoKind(codegenoptions::DebugInfoKind &DebugInfoKind,
                            const llvm::opt::ArgList &Args) const override;
-  bool IsMathErrnoDefault() const override { return false; }
 
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;

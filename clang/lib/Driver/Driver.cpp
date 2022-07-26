@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <iostream>
 #include "clang/Driver/Driver.h"
 #include "ToolChains/AIX.h"
 #include "ToolChains/AMDGPU.h"
@@ -4897,6 +4898,74 @@ class OffloadingActionBuilder final {
               DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
               if (!LibLocSelected)
                 LibLocSelected = !LibLocSelected;
+            }
+          }
+          if (TC->getTriple().isNVPTX() && NumOfDeviceLibLinked) {
+            std::string LibSpirvFile;
+            if (Args.hasArg(
+                    clang::driver::options::OPT_fsycl_libspirv_path_EQ)) {
+              auto ProvidedPath =
+                  Args.getLastArgValue(
+                          clang::driver::options::OPT_fsycl_libspirv_path_EQ)
+                      .str();
+              if (llvm::sys::fs::exists(ProvidedPath))
+                LibSpirvFile = ProvidedPath;
+            } else {
+              SmallVector<StringRef, 8> LibraryPaths;
+
+              // Expected path w/out install.
+              SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
+              llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+              LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+              // Expected path w/ install.
+              SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
+              llvm::sys::path::append(WithInstallPath,
+                                      Twine("../../../share/clc"));
+              LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+              // Select remangled libclc variant
+              std::string LibSpirvTargetName =
+                  (TC->getAuxTriple()->isOSWindows())
+                      ? "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl."
+                        "bc"
+                      : "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl."
+                        "bc";
+
+              for (StringRef LibraryPath : LibraryPaths) {
+                SmallString<128> LibSpirvTargetFile(LibraryPath);
+                llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+                if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+                    Args.hasArg(options::OPT__HASH_HASH_HASH)) {
+                  LibSpirvFile = std::string(LibSpirvTargetFile.str());
+                  break;
+                }
+              }
+            }
+
+            if (!LibSpirvFile.empty()) {
+              Arg *LibClcInputArg =
+                  MakeInputArg(Args, C.getDriver().getOpts(),
+                               Args.MakeArgString(LibSpirvFile));
+              auto *SYCLLibClcInputAction =
+                  C.MakeAction<InputAction>(*LibClcInputArg, types::TY_Object);
+              DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+            }
+
+            const toolchains::CudaToolChain *CudaTC =
+                static_cast<const toolchains::CudaToolChain *>(TC);
+            std::string LibDeviceFile =
+                CudaTC->CudaInstallation.getLibDeviceFile(
+                    Args.getLastArgValue(options::OPT_march_EQ));
+            if (!LibDeviceFile.empty()) {
+              Arg *CudaDeviceLibInputArg =
+                  MakeInputArg(Args, C.getDriver().getOpts(),
+                               Args.MakeArgString(LibDeviceFile));
+              auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
+                  *CudaDeviceLibInputArg, types::TY_Object);
+              DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
+            } else {
+              std::cout << "LibDeviceFile was empty!!\n";
             }
           }
         }
