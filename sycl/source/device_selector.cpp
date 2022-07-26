@@ -54,7 +54,13 @@ __SYCL_EXPORT int getDevicePreference(const device &Device) {
 
 __SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
                                         bool chosen) {
-  if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
+  bool shouldTrace = false;
+  if (chosen) {
+    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+  } else {
+    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL);
+  }
+  if (shouldTrace) {
     std::string PlatformName = Device.get_info<info::device::platform>()
                                    .get_info<info::platform::name>();
     std::string DeviceName = Device.get_info<info::device::name>();
@@ -80,18 +86,7 @@ device device_selector::select_device() const {
   for (const auto &dev : devices) {
     int dev_score = (*this)(dev);
 
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
-      std::string PlatformName = dev.get_info<info::device::platform>()
-                                     .get_info<info::platform::name>();
-      std::string DeviceName = dev.get_info<info::device::name>();
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "select_device(): -> score = " << dev_score
-                << ((dev_score < 0) ? " (REJECTED)" : "") << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  platform: " << PlatformName << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  device: " << DeviceName << std::endl;
-    }
+    detail::traceDeviceSelection(dev, dev_score, false);
 
     // A negative score means that a device must not be selected.
     if (dev_score < 0)
@@ -111,17 +106,7 @@ device device_selector::select_device() const {
   }
 
   if (res != nullptr) {
-    if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC)) {
-      std::string PlatformName = res->get_info<info::device::platform>()
-                                     .get_info<info::platform::name>();
-      std::string DeviceName = res->get_info<info::device::name>();
-      std::cout << "SYCL_PI_TRACE[all]: "
-                << "Selected device ->" << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  platform: " << PlatformName << std::endl
-                << "SYCL_PI_TRACE[all]: "
-                << "  device: " << DeviceName << std::endl;
-    }
+    detail::traceDeviceSelection(*res, score, true);
     return *res;
   }
 
