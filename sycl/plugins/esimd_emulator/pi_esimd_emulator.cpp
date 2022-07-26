@@ -143,7 +143,7 @@ static std::mutex *PiESimdSurfaceMapLock = new std::mutex;
 
 // To be compared with ESIMD_DEVICE_INTERFACE_VERSION in device
 // interface header file
-#define ESIMDEmuPluginInterfaceVersion 1
+#define ESIMDEmuPluginInterfaceVersion 2
 
 // For PI_DEVICE_INFO_DRIVER_VERSION info
 static char ESimdEmuVersionString[32];
@@ -333,6 +333,14 @@ sycl::detail::ESIMDDeviceInterface::ESIMDDeviceInterface() {
   sycl_get_cm_image_params_ptr = sycl_get_cm_image_params;
 
   /* From 'esimd_emulator_functions_v1.h' : End */
+
+  /* From 'esimd_emulator_functions_v2.h' : Start */
+
+  cm_aux_barrier_ptr = cm_support::aux_barrier;
+  cm_get_thread_local_idx_ptr = cm_support::get_thread_local_idx;
+  cm_get_xthread_broadcast_buf_ptr = cm_support::get_xthread_broadcast_buf;
+
+  /* From 'esimd_emulator_functions_v2.h' : End */
 }
 
 /// Implementation for Host Kernel Launch used by

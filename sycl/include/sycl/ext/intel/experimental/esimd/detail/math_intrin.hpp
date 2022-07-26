@@ -685,6 +685,38 @@ __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                                                                 src2);
 }
 
+template <typename EL, int SZ,
+          typename Ret = __ESIMD_DNS::vector_type_t<EL, SZ * 2>>
+Ret __esimd_dpasw_prep_src2(const __ESIMD_DNS::vector_type_t<EL, SZ> &src2) {
+  const auto lid =
+      sycl::detail::getESIMDDeviceInterface()->cm_get_thread_local_idx_ptr();
+  const bool isOdd = lid & 1;
+  const auto peerLid = lid + (isOdd ? -1 : +1);
+  EL *pXtBase = (EL *)sycl::detail::getESIMDDeviceInterface()
+                    ->cm_get_xthread_broadcast_buf_ptr();
+
+  Ret src_ret;
+
+  sycl::detail::getESIMDDeviceInterface()->cm_aux_barrier_ptr();
+
+  for (int idx = 0; idx < SZ; idx++) {
+    pXtBase[lid * SZ + idx] = src2[idx];
+  }
+
+  sycl::detail::getESIMDDeviceInterface()->cm_aux_barrier_ptr();
+
+  // Copying 'this' thread's src2
+  for (int idx = 0; idx < SZ; idx++) {
+    src_ret[idx + (isOdd ? SZ : 0)] = src2[idx];
+  }
+
+  // Copying 'peer' thread's src2
+  for (int idx = 0; idx < SZ; idx++) {
+    src_ret[idx + (isOdd ? 0 : SZ)] = pXtBase[peerLid * SZ + idx];
+  }
+  return src_ret;
+}
+
 template <__ESIMD_ENS::argument_type src1_precision,
           __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
           int repeat_count, typename T, typename T1, typename T2, int N, int N1,
@@ -693,8 +725,9 @@ inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
               __ESIMD_DNS::vector_type_t<T1, N1> src1,
               __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return __ESIMD_DNS::vector_type_t<T, N>();
+  return __esimd_dpas<src1_precision, src2_precision, systolic_depth,
+                      repeat_count, T, T, T1, T2, N, N1, N2 * 2>(
+      src0, src1, __esimd_dpasw_prep_src2<T2, N2>(src2));
 }
 
 template <__ESIMD_ENS::argument_type src1_precision,
@@ -704,8 +737,9 @@ template <__ESIMD_ENS::argument_type src1_precision,
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  __ESIMD_UNSUPPORTED_ON_HOST;
-  return __ESIMD_DNS::vector_type_t<T, N>();
+  return __esimd_dpas2<src1_precision, src2_precision, systolic_depth,
+                       repeat_count, T, T1, T2, N, N1, N2 * 2>(
+      src1, __esimd_dpasw_prep_src2<T2, N2>(src2));
 }
 
 #endif // #ifdef __SYCL_DEVICE_ONLY__

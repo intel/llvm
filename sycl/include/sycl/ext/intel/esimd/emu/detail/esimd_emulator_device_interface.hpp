@@ -34,7 +34,7 @@ namespace detail {
 
 /// This is the device interface version required (and used) by this
 /// implementation of the ESIMD CPU emulator.
-#define ESIMD_DEVICE_INTERFACE_VERSION 1
+#define ESIMD_DEVICE_INTERFACE_VERSION 2
 
 // 'ESIMDDeviceInterface' structure defines interface for ESIMD CPU
 // emulation (ESIMD_EMULATOR) to access LibCM CPU emulation functionalities
@@ -54,6 +54,7 @@ struct ESIMDDeviceInterface {
 
   ESIMDDeviceInterface();
 #include "esimd_emulator_functions_v1.h"
+#include "esimd_emulator_functions_v2.h"
 };
 
 // Denotes the data version used by the implementation.
