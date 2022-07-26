@@ -110,6 +110,8 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifdef __SYCL_DEVICE_ONLY__
+
 template <typename T, typename T0, typename T1, typename T2, int N, int N1,
           int N2>
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
@@ -135,7 +137,7 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info);
 
-#ifndef __SYCL_DEVICE_ONLY__
+#else // __SYCL_DEVICE_ONLY__
 
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
