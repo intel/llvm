@@ -99,3 +99,21 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   // *die = 0xdead;
 }
 #endif // __SPIR__
+
+#ifdef __NVPTX__
+
+SYCL_EXTERNAL extern "C" void __assertfail(const char *__message,
+                                           const char *__file, unsigned __line,
+                                           const char *__function);
+
+DEVICE_EXTERN_C void __assert_fail(const char *expr, const char *file,
+                                   unsigned int line, const char *func) {
+  __assertfail(expr, file, line, func);
+}
+
+DEVICE_EXTERN_C void _wassert(const char *_Message, const char *_File,
+                              unsigned _Line) {
+  __assertfail(_Message, _File, _Line, 0);
+}
+
+#endif
