@@ -207,6 +207,34 @@ TEST(GetProfilingInfo, command_exception_check) {
   }
 }
 
+TEST(GetProfilingInfo, exception_check_no_queue) {
+  sycl::event E;
+  try {
+    auto info =
+        E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    FAIL();
+  } catch (sycl::exception const &e) {
+    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
+                           "has no associated queue.");
+  }
+  try {
+    auto info =
+        E.get_profiling_info<sycl::info::event_profiling::command_start>();
+    FAIL();
+  } catch (sycl::exception const &e) {
+    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
+                           "has no associated queue.");
+  }
+  try {
+    auto info =
+        E.get_profiling_info<sycl::info::event_profiling::command_end>();
+    FAIL();
+  } catch (sycl::exception const &e) {
+    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
+                           "has no associated queue.");
+  }
+}
+
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
   cl::sycl::platform Plt{cl::sycl::default_selector{}};
   if (Plt.is_host()) {
