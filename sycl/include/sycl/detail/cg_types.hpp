@@ -221,8 +221,7 @@ class InteropTask {
   std::function<void(sycl::interop_handler)> MFunc;
 
 public:
-  InteropTask(std::function<void(sycl::interop_handler)> Func)
-      : MFunc(Func) {}
+  InteropTask(std::function<void(sycl::interop_handler)> Func) : MFunc(Func) {}
   void call(sycl::interop_handler &h) { MFunc(h); }
 };
 

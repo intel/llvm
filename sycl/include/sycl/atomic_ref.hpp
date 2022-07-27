@@ -39,8 +39,7 @@ template <typename T> struct IsValidAtomicRefType {
        std::is_pointer<T>::value);
 };
 
-template <sycl::access::address_space AS>
-struct IsValidAtomicRefAddressSpace {
+template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
   static constexpr bool value =
       (AS == access::address_space::global_space ||
        AS == access::address_space::local_space ||

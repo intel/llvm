@@ -575,8 +575,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw sycl::invalid_parameter_error(
-          "Unsupported accessor target case.", PI_ERROR_INVALID_OPERATION);
+      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
+                                          PI_ERROR_INVALID_OPERATION);
       break;
     }
     }

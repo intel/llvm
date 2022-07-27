@@ -738,16 +738,14 @@ template <> struct hash<sycl::kernel_id> {
   }
 };
 
-template <sycl::bundle_state State>
-struct hash<sycl::device_image<State>> {
+template <sycl::bundle_state State> struct hash<sycl::device_image<State>> {
   size_t operator()(const sycl::device_image<State> &DeviceImage) const {
     return hash<std::shared_ptr<sycl::detail::device_image_impl>>()(
         sycl::detail::getSyclObjImpl(DeviceImage));
   }
 };
 
-template <sycl::bundle_state State>
-struct hash<sycl::kernel_bundle<State>> {
+template <sycl::bundle_state State> struct hash<sycl::kernel_bundle<State>> {
   size_t operator()(const sycl::kernel_bundle<State> &KernelBundle) const {
     return hash<std::shared_ptr<sycl::detail::kernel_bundle_impl>>()(
         sycl::detail::getSyclObjImpl(KernelBundle));

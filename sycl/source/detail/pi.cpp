@@ -61,8 +61,7 @@ constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
 constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
-template <sycl::backend BE>
-void *getPluginOpaqueData(void *OpaqueDataParam) {
+template <sycl::backend BE> void *getPluginOpaqueData(void *OpaqueDataParam) {
   void *ReturnOpaqueData = nullptr;
   const sycl::detail::plugin &Plugin = sycl::detail::pi::getPlugin<BE>();
 

@@ -681,8 +681,7 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>
 struct hash<sycl::buffer<T, dimensions, AllocatorT>> {
-  size_t
-  operator()(const sycl::buffer<T, dimensions, AllocatorT> &b) const {
+  size_t operator()(const sycl::buffer<T, dimensions, AllocatorT> &b) const {
     return hash<std::shared_ptr<sycl::detail::buffer_impl>>()(
         sycl::detail::getSyclObjImpl(b));
   }

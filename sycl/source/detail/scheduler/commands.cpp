@@ -2354,8 +2354,8 @@ pi_int32 ExecCGCommand::enqueueImp() {
     case PI_SUCCESS:
       return Error;
     default:
-      throw sycl::runtime_error(
-          "Enqueueing run_on_host_intel task has failed.", Error);
+      throw sycl::runtime_error("Enqueueing run_on_host_intel task has failed.",
+                                Error);
     }
   }
   case CG::CGTYPE::Kernel: {

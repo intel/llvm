@@ -67,9 +67,8 @@ TEST_F(EventDestructionTest, EventDestruction) {
     sycl::event E1{};
 
     {
-      sycl::event E0 = Queue.submit([&](sycl::handler &cgh) {
-        cgh.single_task<TestKernel<>>([]() {});
-      });
+      sycl::event E0 = Queue.submit(
+          [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
       E1 = Queue.submit([&](sycl::handler &cgh) {
         cgh.depends_on(E0);
         cgh.single_task<TestKernel<>>([]() {});
@@ -171,9 +170,8 @@ TEST_F(EventDestructionTest, GetWaitList) {
     sycl::event E1{};
 
     {
-      sycl::event E0 = Queue.submit([&](sycl::handler &cgh) {
-        cgh.single_task<TestKernel<>>([]() {});
-      });
+      sycl::event E0 = Queue.submit(
+          [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
       E1 = Queue.submit([&](sycl::handler &cgh) {
         cgh.depends_on(E0);
         cgh.single_task<TestKernel<>>([]() {});

@@ -39,8 +39,8 @@ info::device_type get_forced_type() {
       return info::device_type::host;
     }
     throw sycl::runtime_error("SYCL_DEVICE_TYPE is not recognized.  Must "
-                                  "be GPU, CPU, ACC or HOST.",
-                                  PI_ERROR_INVALID_VALUE);
+                              "be GPU, CPU, ACC or HOST.",
+                              PI_ERROR_INVALID_VALUE);
   }
   return info::device_type::all;
 }
