@@ -19,10 +19,19 @@ def DocCatType : DocumentationCategory<"Type Attributes">;
 def DocCatStmt : DocumentationCategory<"Statement Attributes">;
 def DocCatDecl : DocumentationCategory<"Declaration Attributes">;
 
-// Attributes listed under the Undocumented category do not generate any public
-// documentation. Ideally, this category should be used for internal-only
-// attributes which contain no spellings.
-def DocCatUndocumented : DocumentationCategory<"Undocumented">;
+// This category is for attributes which have not yet been properly documented,
+// but should be.
+def DocCatUndocumented : DocumentationCategory<"Undocumented"> {
+  let Content = [{
+This section lists attributes which are recognized by Clang, but which are
+currently missing documentation.
+}];
+}
+
+// Attributes listed under the InternalOnly category do not generate any entry
+// in the documentation.  This category should be used only when we _want_
+// to not document the attribute, e.g. if the attribute has no spellings.
+def DocCatInternalOnly : DocumentationCategory<"InternalOnly">;
 
 class DocDeprecated<string replacement = ""> {
   // If the Replacement field is empty, no replacement will be listed with the
@@ -48,11 +57,17 @@ class Documentation {
   DocDeprecated Deprecated;
 }
 
-// Specifies that the attribute is explicitly undocumented. This can be a
-// helpful placeholder for the attribute while working on the implementation,
-// but should not be used once feature work has been completed.
+// Specifies that the attribute is explicitly omitted from the documentation,
+// because it is not intended to be user-facing.
+def InternalOnly : Documentation {
+  let Category = DocCatInternalOnly;
+}
+
+// Specifies that the attribute is undocumented, but that it _should_ have
+// documentation.
 def Undocumented : Documentation {
   let Category = DocCatUndocumented;
+  let Content = "No documentation.";
 }
 
 include "clang/Basic/AttrDocs.td"
@@ -648,7 +663,7 @@ class IgnoredAttr : Attr {
   let Ignored = 1;
   let ASTNode = 0;
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 //
@@ -728,14 +743,14 @@ def AlignMac68k : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def AlignNatural : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def AlwaysInline : DeclOrStmtAttr {
@@ -1210,7 +1225,7 @@ def CUDAInvalidTarget : InheritableAttr {
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
   let LangOpts = [CUDA];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def CUDALaunchBounds : InheritableAttr {
@@ -1976,7 +1991,9 @@ def Final : InheritableAttr {
   let Spellings = [Keyword<"final">, Keyword<"sealed">];
   let Accessors = [Accessor<"isSpelledAsSealed", [Keyword<"sealed">]>];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  // Omitted from docs, since this is language syntax, not an attribute, as far
+  // as users are concerned.
+  let Documentation = [InternalOnly];
 }
 
 def MinSize : InheritableAttr {
@@ -2038,8 +2055,6 @@ def GNUInline : InheritableAttr {
 def Hot : InheritableAttr {
   let Spellings = [GCC<"hot">];
   let Subjects = SubjectList<[Function]>;
-  // An AST node is created for this attribute, but not actually used beyond
-  // semantic checking for mutual exclusion with the Cold attribute.
   let Documentation = [Undocumented];
   let SimpleHandler = 1;
 }
@@ -2118,7 +2133,7 @@ def MaxFieldAlignment : InheritableAttr {
   let Spellings = [];
   let Args = [UnsignedArgument<"Alignment">];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def MayAlias : InheritableAttr {
@@ -2878,7 +2893,7 @@ def TypeNullUnspecified : TypeAttr {
 // qualifier is as an ObjCOwnership attribute with Kind == "none".
 def ObjCInertUnsafeUnretained : TypeAttr {
   let Spellings = [Keyword<"__unsafe_unretained">];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def ObjCKindOf : TypeAttr {
@@ -3162,7 +3177,9 @@ def Overloadable : Attr {
 def Override : InheritableAttr {
   let Spellings = [Keyword<"override">];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  // Omitted from docs, since this is language syntax, not an attribute, as far
+  // as users are concerned.
+  let Documentation = [InternalOnly];
 }
 
 def Ownership : InheritableAttr {
@@ -3393,7 +3410,7 @@ def PragmaClangBSSSection : InheritableAttr {
   let Spellings = [];
   let Args = [StringArgument<"Name">];
   let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def PragmaClangDataSection : InheritableAttr {
@@ -3401,7 +3418,7 @@ def PragmaClangDataSection : InheritableAttr {
   let Spellings = [];
   let Args = [StringArgument<"Name">];
   let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def PragmaClangRodataSection : InheritableAttr {
@@ -3409,7 +3426,7 @@ def PragmaClangRodataSection : InheritableAttr {
   let Spellings = [];
   let Args = [StringArgument<"Name">];
   let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def PragmaClangRelroSection : InheritableAttr {
@@ -3417,7 +3434,7 @@ def PragmaClangRelroSection : InheritableAttr {
   let Spellings = [];
   let Args = [StringArgument<"Name">];
   let Subjects = SubjectList<[GlobalVar], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def StrictFP : InheritableAttr {
@@ -3425,7 +3442,7 @@ def StrictFP : InheritableAttr {
   // Function uses strict floating point operations.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def PragmaClangTextSection : InheritableAttr {
@@ -3433,7 +3450,7 @@ def PragmaClangTextSection : InheritableAttr {
   let Spellings = [];
   let Args = [StringArgument<"Name">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def Sentinel : InheritableAttr {
@@ -4421,7 +4438,7 @@ def DLLExportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetHasDLLImpor
   // the function has local static variables, the function is dllexported too.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def DLLImport : InheritableAttr, TargetSpecificAttr<TargetHasDLLImportExport> {
@@ -4447,7 +4464,7 @@ def DLLImportStaticLocal : InheritableAttr, TargetSpecificAttr<TargetHasDLLImpor
   // attribute is used to determine whether the variables are imported or not.
   let Spellings = [];
   let Subjects = SubjectList<[Function]>;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def SelectAny : InheritableAttr {
@@ -4513,7 +4530,7 @@ def MSVtorDisp : InheritableAttr {
   let AdditionalMembers = [{
   MSVtorDispMode getVtorDispMode() const { return MSVtorDispMode(vdm); }
   }];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def InitSeg : Attr {
@@ -4605,21 +4622,21 @@ def CapturedRecord : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def OMPThreadPrivateDecl : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def OMPCaptureNoInit : InheritableAttr {
   // This attribute has no spellings as it is only ever created implicitly.
   let Spellings = [];
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def OMPCaptureKind : Attr {
@@ -4627,7 +4644,7 @@ def OMPCaptureKind : Attr {
   let Spellings = [];
   let SemaHandler = 0;
   let Args = [UnsignedArgument<"CaptureKindVal">];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
   let AdditionalMembers = [{
     llvm::omp::Clause getCaptureKind() const {
       return static_cast<llvm::omp::Clause>(getCaptureKindVal());
@@ -4640,7 +4657,7 @@ def OMPReferencedVar : Attr {
   let Spellings = [];
   let SemaHandler = 0;
   let Args = [ExprArgument<"Ref">];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def OMPDeclareSimdDecl : Attr {
@@ -4713,7 +4730,7 @@ def OMPAllocateDecl : InheritableAttr {
     ExprArgument<"Allocator">,
     ExprArgument<"Alignment">
   ];
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def OMPDeclareVariant : InheritableAttr {
@@ -4870,7 +4887,7 @@ def Builtin : InheritableAttr {
   let Args = [UnsignedArgument<"ID">];
   let Subjects = SubjectList<[Function]>;
   let SemaHandler = 0;
-  let Documentation = [Undocumented];
+  let Documentation = [InternalOnly];
 }
 
 def EnforceTCB : InheritableAttr {

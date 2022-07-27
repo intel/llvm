@@ -230,7 +230,7 @@ class LLVM_LIBRARY_VISIBILITY SPIR64FPGATargetInfo : public SPIR64TargetInfo {
 public:
   SPIR64FPGATargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : SPIR64TargetInfo(Triple, Opts) {}
-  virtual size_t getMaxBitIntWidth() const override { return 2048; }
+  virtual size_t getMaxBitIntWidth() const override { return 4096; }
 };
 
 // x86-32 SPIR Windows target

@@ -145,7 +145,7 @@ public:
   DefaultInlineAdvice(InlineAdvisor *Advisor, CallBase &CB,
                       Optional<InlineCost> OIC, OptimizationRemarkEmitter &ORE,
                       bool EmitRemarks = true)
-      : InlineAdvice(Advisor, CB, ORE, OIC.hasValue()), OriginalCB(&CB),
+      : InlineAdvice(Advisor, CB, ORE, OIC.has_value()), OriginalCB(&CB),
         OIC(OIC), EmitRemarks(EmitRemarks) {}
 
 private:
@@ -194,7 +194,9 @@ public:
   }
 
   /// NOTE pass name is annotated only when inline advisor constructor provides InlineContext.
-  const char *getAnnotatedInlinePassName();
+  const char *getAnnotatedInlinePassName() const {
+    return AnnotatedInlinePassName.c_str();
+  }
 
 protected:
   InlineAdvisor(Module &M, FunctionAnalysisManager &FAM,
@@ -206,6 +208,7 @@ protected:
   Module &M;
   FunctionAnalysisManager &FAM;
   const Optional<InlineContext> IC;
+  const std::string AnnotatedInlinePassName;
   std::unique_ptr<ImportedFunctionsInliningStatistics> ImportedFunctionsStats;
 
   enum class MandatoryInliningKind { NotMandatory, Always, Never };

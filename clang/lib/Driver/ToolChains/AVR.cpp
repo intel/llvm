@@ -390,11 +390,11 @@ void AVRToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 
   // Omit if there is no avr-libc installed.
   Optional<std::string> AVRLibcRoot = findAVRLibcInstallation();
-  if (!AVRLibcRoot.hasValue())
+  if (!AVRLibcRoot)
     return;
 
   // Add 'avr-libc/include' to clang system include paths if applicable.
-  std::string AVRInc = AVRLibcRoot.getValue() + "/include";
+  std::string AVRInc = *AVRLibcRoot + "/include";
   if (llvm::sys::fs::is_directory(AVRInc))
     addSystemInclude(DriverArgs, CC1Args, AVRInc);
 }

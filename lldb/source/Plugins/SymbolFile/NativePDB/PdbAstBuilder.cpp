@@ -560,7 +560,7 @@ clang::DeclContext *PdbAstBuilder::GetOrCreateDeclContextForUid(PdbSymUid uid) {
   auto option = GetOrCreateDeclForUid(uid);
   if (!option)
     return nullptr;
-  clang::Decl *decl = FromCompilerDecl(option.getValue());
+  clang::Decl *decl = FromCompilerDecl(*option);
   if (!decl)
     return nullptr;
 
@@ -1453,7 +1453,7 @@ void PdbAstBuilder::ParseAllNamespacesPlusChildrenOf(
 
     CVTagRecord tag = CVTagRecord::create(cvt);
 
-    if (!parent.hasValue()) {
+    if (!parent) {
       clang::QualType qt = GetOrCreateType(tid);
       CompleteType(qt);
       continue;

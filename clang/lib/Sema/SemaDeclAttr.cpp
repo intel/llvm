@@ -364,14 +364,6 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
     return;
   }
-
-  // Deprecate [[intel::disable_loop_pipelining]] attribute spelling in favor
-  // of the SYCL FPGA attribute spelling [[intel::fpga_pipeline]].
-  if (A.hasScope() && A.getScopeName()->isStr("intel") &&
-      A.getAttrName()->isStr("disable_loop_pipelining")) {
-    DiagnoseDeprecatedAttribute(A, "intel", "fpga_pipeline");
-    return;
-  }
 }
 
 /// Check if IdxExpr is a valid parameter index for a function or
@@ -2816,7 +2808,7 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         if (IOSToTvOSMapping) {
           if (auto MappedVersion =
                   IOSToTvOSMapping->map(Version, VersionTuple(0, 0), None)) {
-            return MappedVersion.getValue();
+            return *MappedVersion;
           }
         }
         return Version;

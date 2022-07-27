@@ -130,12 +130,11 @@ public:
         loc, weightTy, reverse1, rewriter.getI64IntegerAttr(2));
 
     Value conv2d;
-    if (op.quantization_info().hasValue()) {
+    if (op.quantization_info()) {
       conv2d = rewriter.create<tosa::Conv2DOp>(
           loc, resultTy, input, reverse2, bias,
           rewriter.getI64ArrayAttr(convPad), rewriter.getI64ArrayAttr(stride),
-          rewriter.getI64ArrayAttr(dilation),
-          op.quantization_info().getValue());
+          rewriter.getI64ArrayAttr(dilation), *op.quantization_info());
     } else {
       conv2d = rewriter.create<tosa::Conv2DOp>(
           loc, resultTy, input, reverse2, bias,
@@ -297,14 +296,14 @@ public:
 
     // Perform the convolution using the zero bias.
     Value conv2d;
-    if (op.quantization_info().hasValue()) {
+    if (op.quantization_info()) {
       conv2d = createOpAndInfer<tosa::Conv2DOp>(
                    rewriter, loc, UnrankedTensorType::get(resultETy), input,
                    weight, zeroBias,
                    /*pad=*/rewriter.getI64ArrayAttr({0, 0, 0, 0}),
                    /*stride=*/rewriter.getI64ArrayAttr({1, 1}),
                    /*dilation=*/rewriter.getI64ArrayAttr({1, 1}),
-                   op.quantization_info().getValue())
+                   *op.quantization_info())
                    .getResult();
     } else {
       conv2d = createOpAndInfer<tosa::Conv2DOp>(

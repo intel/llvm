@@ -88,8 +88,8 @@
 
 /// Check that -aux-triple is passed with -fsycl -fintelfpga
 // RUN:    %clang -### -fsycl -fintelfpga %s 2>&1 \
-// RUN:    | FileCheck -DARCH=x86_64 -DARCH2=spir64_fpga -check-prefix=CHK-SYCL-FPGA-AUX-TRIPLE %s
-// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple" "[[ARCH]]-{{.*}}"{{.*}} "-aux-triple" "[[ARCH2]]-{{.*}}"{{.*}} "-fsycl-is-host"
+// RUN:    | FileCheck -DARCH=spir64_fpga -check-prefix=CHK-SYCL-FPGA-AUX-TRIPLE %s
+// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple" "{{.*}}"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"{{.*}} "-fsycl-is-host"
 /// ###########################################################################
 
 /// Validate SYCL option values

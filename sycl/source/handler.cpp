@@ -285,6 +285,7 @@ event handler::finalize() {
     } else {
       NewEvent = std::make_shared<detail::event_impl>(MQueue);
       NewEvent->setContextImpl(MQueue->getContextImplPtr());
+      NewEvent->setStateIncomplete();
       OutEvent = &NewEvent->getHandleRef();
 
       if (PI_SUCCESS != EnqueueKernel())

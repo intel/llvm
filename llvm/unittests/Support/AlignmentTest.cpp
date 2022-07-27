@@ -50,9 +50,7 @@ std::vector<uint64_t> getValidAlignments() {
   return Out;
 }
 
-TEST(AlignmentTest, AlignDefaultCTor) {
-  EXPECT_EQ(Align().value(), 1ULL);
-}
+TEST(AlignmentTest, AlignDefaultCTor) { EXPECT_EQ(Align().value(), 1ULL); }
 
 TEST(AlignmentTest, MaybeAlignDefaultCTor) {
   EXPECT_FALSE(MaybeAlign().hasValue());
@@ -77,11 +75,9 @@ TEST(AlignmentTest, CheckMaybeAlignHasValue) {
 TEST(AlignmentTest, Division) {
   for (uint64_t Value : getValidAlignments()) {
     if (Value > 1) {
-      EXPECT_EQ(Align(Value) / 2, Value / 2);
-      EXPECT_EQ(MaybeAlign(Value) / 2, Value / 2);
+      EXPECT_EQ(Align(Value).previous(), Value / 2);
     }
   }
-  EXPECT_EQ(MaybeAlign(0) / 2, MaybeAlign(0));
 }
 
 TEST(AlignmentTest, AlignTo) {
@@ -95,33 +91,14 @@ TEST(AlignmentTest, AlignTo) {
       return reinterpret_cast<const void *>(offset);
     }
   } kTests[] = {
-      // MaybeAlign
-      {0, 0, 0},
-      {0, 1, 1},
-      {0, 5, 5},
-      // MaybeAlign / Align
-      {1, 0, 0},
-      {1, 1, 1},
-      {1, 5, 5},
-      {2, 0, 0},
-      {2, 1, 2},
-      {2, 2, 2},
-      {2, 7, 8},
-      {2, 16, 16},
-      {4, 0, 0},
-      {4, 1, 4},
-      {4, 4, 4},
-      {4, 6, 8},
+      // Align
+      {1, 0, 0}, {1, 1, 1},   {1, 5, 5}, {2, 0, 0}, {2, 1, 2}, {2, 2, 2},
+      {2, 7, 8}, {2, 16, 16}, {4, 0, 0}, {4, 1, 4}, {4, 4, 4}, {4, 6, 8},
   };
   for (const auto &T : kTests) {
-    MaybeAlign A(T.alignment);
-    // Test MaybeAlign
+    Align A = Align(T.alignment);
     EXPECT_EQ(alignTo(T.offset, A), T.rounded);
-    // Test Align
-    if (A) {
-      EXPECT_EQ(alignTo(T.offset, A.getValue()), T.rounded);
-      EXPECT_EQ(alignAddr(T.forgedAddr(), A.getValue()), T.rounded);
-    }
+    EXPECT_EQ(alignAddr(T.forgedAddr(), A), T.rounded);
   }
 }
 
@@ -144,26 +121,12 @@ TEST(AlignmentTest, MinAlign) {
     uint64_t B;
     uint64_t MinAlign;
   } kTests[] = {
-      // MaybeAlign
-      {0, 0, 0},
-      {0, 8, 8},
-      {2, 0, 2},
-      // MaybeAlign / Align
       {1, 2, 1},
       {8, 4, 4},
   };
   for (const auto &T : kTests) {
-    EXPECT_EQ(commonAlignment(MaybeAlign(T.A), MaybeAlign(T.B)), T.MinAlign);
     EXPECT_EQ(MinAlign(T.A, T.B), T.MinAlign);
-    if (T.A) {
-      EXPECT_EQ(commonAlignment(Align(T.A), MaybeAlign(T.B)), T.MinAlign);
-    }
-    if (T.B) {
-      EXPECT_EQ(commonAlignment(MaybeAlign(T.A), Align(T.B)), T.MinAlign);
-    }
-    if (T.A && T.B) {
-      EXPECT_EQ(commonAlignment(Align(T.A), Align(T.B)), T.MinAlign);
-    }
+    EXPECT_EQ(commonAlignment(Align(T.A), Align(T.B)), T.MinAlign);
   }
 }
 
@@ -272,27 +235,6 @@ TEST(AlignmentTest, AlignComparisons) {
   }
 }
 
-TEST(AlignmentTest, Max) {
-  // We introduce std::max here to test ADL.
-  using std::max;
-
-  // Uses llvm::max.
-  EXPECT_EQ(max(MaybeAlign(), Align(2)), Align(2));
-  EXPECT_EQ(max(Align(2), MaybeAlign()), Align(2));
-
-  EXPECT_EQ(max(MaybeAlign(1), Align(2)), Align(2));
-  EXPECT_EQ(max(Align(2), MaybeAlign(1)), Align(2));
-
-  EXPECT_EQ(max(MaybeAlign(2), Align(2)), Align(2));
-  EXPECT_EQ(max(Align(2), MaybeAlign(2)), Align(2));
-
-  EXPECT_EQ(max(MaybeAlign(4), Align(2)), Align(4));
-  EXPECT_EQ(max(Align(2), MaybeAlign(4)), Align(4));
-
-  // Uses std::max.
-  EXPECT_EQ(max(Align(2), Align(4)), Align(4));
-}
-
 TEST(AlignmentTest, AssumeAligned) {
   EXPECT_EQ(assumeAligned(0), Align(1));
   EXPECT_EQ(assumeAligned(0), Align());
@@ -313,14 +255,6 @@ std::vector<uint64_t> getNonPowerOfTwo() { return {3, 10, 15}; }
 
 TEST(AlignmentDeathTest, CantConvertUnsetMaybe) {
   EXPECT_DEATH((MaybeAlign(0).getValue()), ".*");
-}
-
-TEST(AlignmentDeathTest, Division) {
-  EXPECT_DEATH(Align(1) / 2, "Can't halve byte alignment");
-  EXPECT_DEATH(MaybeAlign(1) / 2, "Can't halve byte alignment");
-
-  EXPECT_DEATH(Align(8) / 0, "Divisor must be positive and a power of 2");
-  EXPECT_DEATH(Align(8) / 3, "Divisor must be positive and a power of 2");
 }
 
 TEST(AlignmentDeathTest, InvalidCTors) {

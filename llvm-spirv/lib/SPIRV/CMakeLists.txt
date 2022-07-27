@@ -43,6 +43,7 @@ add_llvm_library(LLVMSPIRVLib
     Demangle
     IRReader
     Linker
+    Passes
     Support
     TransformUtils
   DEPENDS

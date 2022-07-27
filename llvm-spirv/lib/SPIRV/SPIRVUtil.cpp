@@ -222,9 +222,9 @@ PointerType *getSamplerType(Module *M) {
                                   SPIRAS_Constant);
 }
 
-PointerType *getPipeStorageType(Module *M) {
-  return getOrCreateOpaquePtrType(
-      M, getSPIRVTypeName(kSPIRVTypeName::PipeStorage), SPIRAS_Constant);
+Type *getSamplerStructType(Module *M) {
+  return getOrCreateOpaqueStructType(M,
+                                     getSPIRVTypeName(kSPIRVTypeName::Sampler));
 }
 
 PointerType *getSPIRVOpaquePtrType(Module *M, Op OC) {
@@ -240,22 +240,6 @@ void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
 }
 
 bool isVoidFuncTy(FunctionType *FT) { return FT->getReturnType()->isVoidTy(); }
-
-bool isPointerToOpaqueStructType(llvm::Type *Ty) {
-  if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
-      if (ST->isOpaque())
-        return true;
-  return false;
-}
-
-bool isPointerToOpaqueStructType(llvm::Type *Ty, const std::string &Name) {
-  if (auto PT = dyn_cast<PointerType>(Ty))
-    if (auto *ST = dyn_cast<StructType>(PT->getPointerElementType()))
-      if (ST->isOpaque() && ST->getName() == Name)
-        return true;
-  return false;
-}
 
 bool isOCLImageStructType(llvm::Type *Ty, StringRef *Name) {
   if (auto *ST = dyn_cast_or_null<StructType>(Ty))
@@ -626,13 +610,6 @@ bool containsUnsignedAtomicType(StringRef Name) {
     return false;
   return isMangledTypeUnsigned(
       Name[Loc + strlen(kMangledName::AtomicPrefixIncoming)]);
-}
-
-bool isFunctionPointerType(Type *T) {
-  if (isa<PointerType>(T) && isa<FunctionType>(T->getPointerElementType())) {
-    return true;
-  }
-  return false;
 }
 
 Constant *castToVoidFuncPtr(Function *F) {
@@ -1410,9 +1387,17 @@ bool isSPIRVConstantName(StringRef TyName) {
 
 Type *getSPIRVTypeByChangeBaseTypeName(Module *M, Type *T, StringRef OldName,
                                        StringRef NewName) {
+  return PointerType::get(
+      getSPIRVStructTypeByChangeBaseTypeName(M, T, OldName, NewName),
+      SPIRAS_Global);
+}
+
+Type *getSPIRVStructTypeByChangeBaseTypeName(Module *M, Type *T,
+                                             StringRef OldName,
+                                             StringRef NewName) {
   StringRef Postfixes;
   if (isSPIRVStructType(T, OldName, &Postfixes))
-    return getOrCreateOpaquePtrType(M, getSPIRVTypeName(NewName, Postfixes));
+    return getOrCreateOpaqueStructType(M, getSPIRVTypeName(NewName, Postfixes));
   LLVM_DEBUG(dbgs() << " Invalid SPIR-V type " << *T << '\n');
   llvm_unreachable("Invalid SPIR-V type");
   return nullptr;
@@ -2186,6 +2171,10 @@ public:
     case OpGroupNonUniformShuffleUp:
     case OpGroupNonUniformShuffleDown:
       addUnsignedArg(2);
+      break;
+    case OpGroupNonUniformRotateKHR:
+      if (ArgTys.size() == 4)
+        addUnsignedArg(3);
       break;
     case OpGroupNonUniformInverseBallot:
     case OpGroupNonUniformBallotFindLSB:

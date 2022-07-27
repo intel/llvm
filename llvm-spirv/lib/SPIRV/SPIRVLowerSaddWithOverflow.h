@@ -44,7 +44,7 @@ namespace SPIRV {
 class SPIRVLowerSaddWithOverflowBase
     : public llvm::InstVisitor<SPIRVLowerSaddWithOverflowBase> {
 public:
-  SPIRVLowerSaddWithOverflowBase() : Context(nullptr) {}
+  SPIRVLowerSaddWithOverflowBase() : Context(nullptr), Mod(nullptr) {}
   virtual ~SPIRVLowerSaddWithOverflowBase() {}
   virtual void visitIntrinsicInst(llvm::CallInst &I);
 

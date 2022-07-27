@@ -86,6 +86,17 @@ def riscv_read_cycle_wide : SDNode<"RISCVISD::READ_CYCLE_WIDE",
 def riscv_add_lo : SDNode<"RISCVISD::ADD_LO", SDTIntBinOp>;
 def riscv_hi : SDNode<"RISCVISD::HI", SDTIntUnaryOp>;
 def riscv_lla : SDNode<"RISCVISD::LLA", SDTIntUnaryOp>;
+def riscv_add_tprel : SDNode<"RISCVISD::ADD_TPREL",
+                             SDTypeProfile<1, 3, [SDTCisSameAs<0, 1>,
+                                                  SDTCisSameAs<0, 2>,
+                                                  SDTCisSameAs<0, 3>,
+                                                  SDTCisInt<0>]>>;
+
+def riscv_la : SDNode<"RISCVISD::LA", SDTLoad,
+                      [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+def riscv_la_tls_ie : SDNode<"RISCVISD::LA_TLS_IE", SDTLoad,
+                             [SDNPHasChain, SDNPMayLoad, SDNPMemOperand]>;
+def riscv_la_tls_gd : SDNode<"RISCVISD::LA_TLS_GD", SDTIntUnaryOp>;
 
 //===----------------------------------------------------------------------===//
 // Operand and SDNode transformation definitions.
@@ -1211,7 +1222,7 @@ def PseudoAddTPRel : Pseudo<(outs GPR:$rd),
 def : Pat<(FrameAddrRegImm GPR:$rs1, simm12:$imm12),
           (ADDI GPR:$rs1, simm12:$imm12)>;
 
-// HI and ADD_LO address nodes.
+/// HI and ADD_LO address nodes.
 
 def : Pat<(riscv_hi tglobaladdr:$in), (LUI tglobaladdr:$in)>;
 def : Pat<(riscv_hi tblockaddress:$in), (LUI tblockaddress:$in)>;
@@ -1226,6 +1237,14 @@ def : Pat<(riscv_add_lo GPR:$hi, tjumptable:$lo),
           (ADDI GPR:$hi, tjumptable:$lo)>;
 def : Pat<(riscv_add_lo GPR:$hi, tconstpool:$lo),
           (ADDI GPR:$hi, tconstpool:$lo)>;
+
+/// TLS address nodes.
+
+def : Pat<(riscv_hi tglobaltlsaddr:$in), (LUI tglobaltlsaddr:$in)>;
+def : Pat<(riscv_add_tprel GPR:$rs1, GPR:$rs2, tglobaltlsaddr:$src),
+          (PseudoAddTPRel GPR:$rs1, GPR:$rs2, tglobaltlsaddr:$src)>;
+def : Pat<(riscv_add_lo GPR:$src, tglobaltlsaddr:$lo),
+          (ADDI GPR:$src, tglobaltlsaddr:$lo)>;
 
 /// Setcc
 
@@ -1387,16 +1406,23 @@ let hasSideEffects = 0, mayLoad = 1, mayStore = 0, Size = 8, isCodeGenOnly = 0,
 def PseudoLA : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                       "la", "$dst, $src">;
 
+def : Pat<(riscv_la tglobaladdr:$in), (PseudoLA tglobaladdr:$in)>;
+
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0, Size = 8, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLA_TLS_IE : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                              "la.tls.ie", "$dst, $src">;
+
+def : Pat<(riscv_la_tls_ie tglobaltlsaddr:$in),
+          (PseudoLA_TLS_IE  tglobaltlsaddr:$in)>;
 
 let hasSideEffects = 0, mayLoad = 0, mayStore = 0, Size = 8, isCodeGenOnly = 0,
     isAsmParserOnly = 1 in
 def PseudoLA_TLS_GD : Pseudo<(outs GPR:$dst), (ins bare_symbol:$src), [],
                              "la.tls.gd", "$dst, $src">;
 
+def : Pat<(riscv_la_tls_gd tglobaltlsaddr:$in),
+          (PseudoLA_TLS_GD  tglobaltlsaddr:$in)>;
 
 /// Sign/Zero Extends
 
