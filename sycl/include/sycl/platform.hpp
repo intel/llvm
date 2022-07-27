@@ -13,7 +13,6 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
-// #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/stl.hpp>
 
@@ -48,30 +47,28 @@ public:
   explicit platform(cl_platform_id PlatformId);
 #endif
 
-  /// Constructs a SYCL platform instance using device selector.
+  /// Constructs a SYCL platform instance using a device_selector.
   ///
   /// One of the SYCL devices that is associated with the constructed SYCL
   /// platform instance must be the SYCL device that is produced from the
   /// provided device selector.
   ///
-  /// \param DeviceSelector is an instance of SYCL device_selector.
+  /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector
   explicit platform(const device_selector &DeviceSelector);
-  //  : platform(DeviceSelector.select_device()){}
 
-  // #if __cplusplus >= 201703L
+#if __cplusplus >= 201703L
 
-  // /// Constructs a SYCL platform instance using the platform of the device
-  // /// identified by the device selector provided.
-  // /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable
-  // that
-  // /// takes a device and returns an int
-  // template <typename DeviceSelector,
-  //           typename = std::enable_if_t<
-  //               std::is_invocable_r<int, DeviceSelector &, device &>::value>>
-  // explicit platform(const DeviceSelector &deviceSelector)
-  //   : platform(sycl::detail::select_device(deviceSelector)){}
+  /// Constructs a SYCL platform instance using the platform of the device
+  /// identified by the device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  template <typename DeviceSelector,
+            typename = std::enable_if_t<
+                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+  explicit platform(const DeviceSelector &deviceSelector)
+      : platform(sycl::detail::select_device(deviceSelector)) {}
 
-  // #endif
+#endif
 
   platform(const platform &rhs) = default;
 

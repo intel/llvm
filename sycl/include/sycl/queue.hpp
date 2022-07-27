@@ -187,7 +187,7 @@ public:
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.
   ///
-  /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
+  /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})

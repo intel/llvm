@@ -89,78 +89,15 @@ public:
 };
 
 namespace detail {
-__SYCL_EXPORT int getDevicePreference(const device &Device);
-__SYCL_EXPORT void traceDeviceSelection(const device &Device, int score,
-                                        bool chosen);
-// returns the range of devices against which we will be running the device selector.
-__SYCL_EXPORT std::vector<device> getDevices();
-__SYCL_EXPORT std::vector<device> getDevices(const context &SyclContext);
 
-#if __cplusplus >= 201703L
-// select_device(selector, deviceVector)
-template <typename DeviceSelector,
-          typename = std::enable_if_t<
-              std::is_invocable_r<int, DeviceSelector &, device &>::value>>
-device select_device(DeviceSelector DeviceSelectorInvocable,
-                     std::vector<device> &devices) {
-  int score = REJECT_DEVICE_SCORE;
-  const device *res = nullptr;
+using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 
-  for (const auto &dev : devices) {
-    int dev_score = std::invoke(DeviceSelectorInvocable, dev);
+__SYCL_EXPORT device
+select_device(DSelectorInvocableType DeviceSelectorInvocable);
 
-    traceDeviceSelection(dev, dev_score, false);
+__SYCL_EXPORT device select_device(
+    DSelectorInvocableType DeviceSelectorInvocable, const context &SyclContext);
 
-    // A negative score means that a device must not be selected.
-    if (dev_score < 0)
-      continue;
-
-    // Section 4.6 of SYCL 1.2.1 spec:
-    // says: "If more than one device receives the high score then
-    // one of those tied devices will be returned, but which of the devices
-    // from the tied set is to be returned is not defined". So use the device
-    // preference score to resolve ties, this is necessary for custom_selectors
-    // that may not already include device preference in their scoring.
-
-    if ((score < dev_score) ||
-        ((score == dev_score) &&
-         (getDevicePreference(*res) < getDevicePreference(dev)))) {
-      res = &dev;
-      score = dev_score;
-    }
-  }
-
-  if (res != nullptr) {
-    traceDeviceSelection(*res, score, true);
-
-    return *res;
-  }
-
-  throw cl::sycl::runtime_error("No device of requested type available.",
-                                PI_ERROR_DEVICE_NOT_FOUND);
-}
-
-// select_device(selector)
-template <typename DeviceSelector,
-          typename = std::enable_if_t<
-              std::is_invocable_r<int, DeviceSelector &, device &>::value>>
-device select_device(DeviceSelector DeviceSelectorInvocable) {
-  std::vector<device> devices = getDevices();
-
-  return select_device(DeviceSelectorInvocable, devices);
-}
-
-// select_device(selector, context)
-template <typename DeviceSelector,
-          typename = std::enable_if_t<
-              std::is_invocable_r<int, DeviceSelector &, device &>::value>>
-device select_device(DeviceSelector DeviceSelectorInvocable,
-                     const context &SyclContext) {
-  std::vector<device> devices = getDevices(SyclContext);
-
-  return select_device(DeviceSelectorInvocable, devices);
-}
-#endif
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
