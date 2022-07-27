@@ -18,7 +18,7 @@
 
 #define __SPIRV_VAR_QUALIFIERS EXTERN_C const
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
-__SPIRV_VAR_QUALIFIERS size_t_vec  __spirv_BuiltInGlobalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalInvocationId;
 __SPIRV_VAR_QUALIFIERS size_t __spirv_BuiltInGlobalLinearId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;

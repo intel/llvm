@@ -25,7 +25,6 @@
 #define DEVICE_EXTERN_C DEVICE_EXTERNAL EXTERN_C
 #define DEVICE_EXTERN_C_INLINE                                                 \
   DEVICE_EXTERNAL EXTERN_C __attribute__((always_inline))
-#define DEVICE_EXTERNAL_INLINE DEVICE_EXTERNAL __attribute__((always_inline))
 #endif // __SPIR__ || __NVPTX__
 
 #if defined(__SPIR__) || defined(__LIBDEVICE_HOST_IMPL__)
@@ -37,7 +36,6 @@
 // and it will be linked with user's host code by default. If those functions
 // are decorated with "weak" attribute, compiler will use PLT entry to call
 // all __device_imf_* functions, this will lead to crash.
-#define DEVICE_EXTERNAL_INLINE DEVICE_EXTERNAL __attribute__((always_inline))
 #define DEVICE_EXTERN_C EXTERN_C
 #define DEVICE_EXTERN_C_INLINE DEVICE_EXTERN_C __attribute__((always_inline))
 #endif // __LIBDEVICE_HOST_IMPL__
