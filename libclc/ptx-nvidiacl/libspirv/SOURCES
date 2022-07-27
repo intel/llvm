@@ -1,4 +1,3 @@
-assert/__assert_fail.cl
 reflect.ll
 atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll

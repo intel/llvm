@@ -4886,10 +4886,13 @@ class OffloadingActionBuilder final {
               auto *SYCLDeviceLibsUnbundleAction =
                   C.MakeAction<OffloadUnbundlingJobAction>(
                       SYCLDeviceLibsInputAction);
+
+              // We are using BoundArch="" here since the NVPTX bundles in
+              // the devicelib .o files do not contain any arch information
               SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
                   TC, /*BoundArch=*/"", Action::OFK_SYCL);
               OffloadAction::DeviceDependences Dep;
-              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/nullptr,
+              Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
                       Action::OFK_SYCL);
               auto *SYCLDeviceLibsDependenciesAction =
                   C.MakeAction<OffloadAction>(
@@ -4902,6 +4905,9 @@ class OffloadingActionBuilder final {
           }
         }
 
+        // For NVPTX backend we need to also include libclc and CUDA libdevice
+        // at the same stage that we link all of the unbundled SYCL libdevice
+        // objects together.
         if (TC->getTriple().isNVPTX() && LinkNVPTXLibs &&
             NumOfDeviceLibLinked) {
           std::string LibSpirvFile;
