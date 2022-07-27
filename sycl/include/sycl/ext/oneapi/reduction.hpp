@@ -519,13 +519,14 @@ struct is_placeholder_t<accessor<T, AccessorDims, Mode, access::target::device,
                                  access::placeholder::true_t, PropList>>
     : public std::true_type {};
 
-template <class T> struct accessor_dim_t {
+// Used for determining dimensions for temporary storage (mainly).
+template <class T> struct data_dim_t {
   static constexpr int value = 1;
 };
 
 template <class T, int AccessorDims, access::mode Mode,
           access::placeholder IsPH, typename PropList>
-struct accessor_dim_t<
+struct data_dim_t<
     accessor<T, AccessorDims, Mode, access::target::device, IsPH, PropList>> {
   static constexpr int value = AccessorDims;
 };
@@ -556,7 +557,7 @@ public:
   // Buffers and accessors always describe scalar reductions (i.e. Dims == 0)
   // The input buffer/accessor is allowed to have different dimensionality
   // AccessorDims also determines the dimensionality of some temp storage
-  static constexpr int accessor_dim = accessor_dim_t<RedOutVar>::value;
+  static constexpr int accessor_dim = data_dim_t<RedOutVar>::value;
   static constexpr int buffer_dim = (accessor_dim == 0) ? 1 : accessor_dim;
   static constexpr access::placeholder is_placeholder =
       is_placeholder_t<RedOutVar>::value ? access::placeholder::true_t
