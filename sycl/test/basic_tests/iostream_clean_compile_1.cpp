@@ -1,4 +1,4 @@
-// RUN: %clangxx -Werror -fsycl %s -c
+// RUN: clang++ -Werror -fsycl %s -c
 
 #include <iostream>
 #include <sycl/sycl.hpp>

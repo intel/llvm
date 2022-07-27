@@ -1,4 +1,4 @@
-// RUN: %clangxx -Werror -fsycl %s -c
+// RUN: clang++ -Werror -fsycl %s -c
 
 // clang-format off
 #include <sycl/sycl.hpp>
