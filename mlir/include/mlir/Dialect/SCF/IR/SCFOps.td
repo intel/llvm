@@ -16,6 +16,7 @@
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/IR/RegionKindInterface.td"
+include "mlir/Interfaces/ParallelCombiningOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
@@ -339,6 +340,15 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
     application per thread. Further lowerings are responsible for specifying
     how this is materialized on concrete hardware resources.
 
+    An optional thread_dim_mapping index array attribute specifies for each
+    virtual thread dimension, how it remaps 1-1 to a set of concrete processing
+    element resources (e.g. a CUDA grid dimension or a level of concrete nested
+    async parallelism). At this time, the specification is backend-dependent and
+    is not verified by the op, beyond being an index array attribute.
+    It is the reponsibility of the lowering to interpret the index array in the
+    context of the concrete target the op is lowered to, or to ignore it when
+    the specification is ill-formed or unsupported for a particular target.
+
     The only allowed terminator is `scf.foreach_thread.perform_concurrently`,
     which dictates how the partial results of all parallel invocations should be
     reconciled into a full value.
@@ -398,8 +408,27 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
     // Sequential context.
     //
     ```
+
+    Example with thread_dim_mapping attribute:
+    //
+    // Sequential context.
+    //
+    %matmul_and_pointwise:2 = scf.foreach_thread (%thread_id_1, %thread_id_2) in
+         (%num_threads_1, %numthread_id_2) -> (tensor<?x?xT>, tensor<?xT>) {
+      //
+      // Parallel context, each thread with id = **(%thread_id_2, %thread_id_1)**
+      // runs its version of the code.
+      //
+       scf.foreach_thread.perform_concurrently {
+         ...
+      }
+    } { thread_dim_mapping = [1, 0] }
+    // Implicit synchronization point.
+    // Sequential context.
+    //
   }];
-  let arguments = (ins Variadic<Index>:$num_threads);
+  let arguments = (ins Variadic<Index>:$num_threads,
+                   DefaultValuedAttr<I64ArrayAttr, "{}">:$thread_dim_mapping);
 
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$region);
@@ -411,11 +440,13 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
   let skipDefaultBuilders = 1;
   let builders = [
     // Bodyless builder, result types must be specified.
-    OpBuilder<(ins "TypeRange":$resultTypes, "ValueRange":$num_threads)>,
+    OpBuilder<(ins "TypeRange":$resultTypes, "ValueRange":$num_threads,
+                   CArg<"ArrayRef<int64_t>", "{}">:$thread_dim_mapping)>,
     // Builder that takes a bodyBuilder lambda, result types are inferred from
     // the terminator.
     OpBuilder<(ins "ValueRange":$num_threads,
-              "function_ref<void(OpBuilder &, Location, ValueRange)>":$bodyBuilder)>
+                   "ArrayRef<int64_t>":$thread_dim_mapping,
+                   "function_ref<void(OpBuilder &, Location, ValueRange)>":$bodyBuilder)>
   ];
   let extraClassDeclaration = [{
     int64_t getRank() { return getNumThreads().size(); }
@@ -438,6 +469,7 @@ def ForeachThreadOp : SCF_Op<"foreach_thread", [
 def PerformConcurrentlyOp : SCF_Op<"foreach_thread.perform_concurrently", [
        NoSideEffect,
        Terminator,
+       DeclareOpInterfaceMethods<ParallelCombiningOpInterface>,
        HasParent<"ForeachThreadOp">,
       ] # GraphRegionNoTerminator.traits> {
   let summary = "terminates a `foreach_thread` block";
@@ -465,106 +497,10 @@ def PerformConcurrentlyOp : SCF_Op<"foreach_thread.perform_concurrently", [
   // TODO: Add a `PerformConcurrentlyOpInterface` interface for ops that can
   // appear inside perform_concurrently.
   let extraClassDeclaration = [{
-    SmallVector<Type> yieldedTypes();
-    ::llvm::iterator_range<Block::iterator> yieldingOps();
+    ::llvm::SmallVector<::mlir::Type> getYieldedTypes();
+    ::llvm::iterator_range<::mlir::Block::iterator> getYieldingOps();
+    ::mlir::OpResult getParentResult(int64_t idx);
   }];
-}
-
-//===----------------------------------------------------------------------===//
-// ParallelInsertSliceOp
-//===----------------------------------------------------------------------===//
-
-// TODO: Implement PerformConcurrentlyOpInterface.
-def ParallelInsertSliceOp : SCF_Op<"foreach_thread.parallel_insert_slice", [
-       AttrSizedOperandSegments,
-       OffsetSizeAndStrideOpInterface,
-       HasParent<"PerformConcurrentlyOp">]> {
-  let summary = [{
-    Specify the tensor slice update of a single thread within the terminator of
-    an `scf.foreach_thread`.
-  }];
-  let description = [{
-    The parent `scf.foreach_thread` returns values that are formed by aggregating
-    the actions of all the ops contained within the `perform_concurrently`
-    terminator of all the threads, in some unspecified order.
-    The `scf.foreach_thread.parallel_insert_slice` is one such op allowed in
-    the `scf.foreach_thread.perform_concurrently` terminator.
-
-    Conflicting writes result in undefined semantics, in that the indices written
-    to by multiple parallel updates might contain data from any of the updates, or
-    even a malformed bit pattern.
-
-    If an index is updated exactly once, the value contained at that index
-    in the resulting tensor will be equal to the value at a corresponding index of a
-    slice that was used for the updated. If an index is not updated at all, its value
-    will be equal to the one in the original tensor.
-
-    This op does not create a new value, which allows maintaining a clean
-    separation between the subset and full tensor.
-    Note that we cannot mark this operation as pure (NoSideEffects), even
-    though it has no side effects, because it will get DCEd during
-    canonicalization.
-  }];
-
-  let arguments = (ins
-    AnyRankedTensor:$source,
-    AnyRankedTensor:$dest,
-    Variadic<Index>:$offsets,
-    Variadic<Index>:$sizes,
-    Variadic<Index>:$strides,
-    I64ArrayAttr:$static_offsets,
-    I64ArrayAttr:$static_sizes,
-    I64ArrayAttr:$static_strides
-  );
-  let assemblyFormat = [{
-    $source `into` $dest ``
-    custom<OperandsOrIntegersOffsetsOrStridesList>($offsets, $static_offsets)
-    custom<OperandsOrIntegersSizesList>($sizes, $static_sizes)
-    custom<OperandsOrIntegersOffsetsOrStridesList>($strides, $static_strides)
-    attr-dict `:` type($source) `into` type($dest)
-  }];
-
-  let extraClassDeclaration = [{
-    ::mlir::Operation::operand_range offsets() { return getOffsets(); }
-    ::mlir::Operation::operand_range sizes() { return getSizes(); }
-    ::mlir::Operation::operand_range strides() { return getStrides(); }
-    ::mlir::ArrayAttr static_offsets() { return getStaticOffsets(); }
-    ::mlir::ArrayAttr static_sizes() { return getStaticSizes(); }
-    ::mlir::ArrayAttr static_strides() { return getStaticStrides(); }
-
-    Type yieldedType() { return getDest().getType(); }
-
-    RankedTensorType getSourceType() {
-      return getSource().getType().cast<RankedTensorType>();
-    }
-
-    /// Return the expected rank of each of the `static_offsets`, `static_sizes`
-    /// and `static_strides` attributes.
-    std::array<unsigned, 3> getArrayAttrMaxRanks() {
-      unsigned rank = getSourceType().getRank();
-      return {rank, rank, rank};
-    }
-
-    /// Return the number of leading operands before `offsets`, `sizes` and
-    /// `strides` operands.
-    static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
-  }];
-
-  let builders = [
-    // Build a ParallelInsertSliceOp with mixed static and dynamic entries.
-    OpBuilder<(ins "Value":$source, "Value":$dest,
-      "ArrayRef<OpFoldResult>":$offsets, "ArrayRef<OpFoldResult>":$sizes,
-      "ArrayRef<OpFoldResult>":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
-
-    // Build a ParallelInsertSliceOp with dynamic entries.
-    OpBuilder<(ins "Value":$source, "Value":$dest,
-      "ValueRange":$offsets, "ValueRange":$sizes, "ValueRange":$strides,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
-  ];
-  
-  let hasCanonicalizer = 1;
-  let hasFolder = 1;
 }
 
 //===----------------------------------------------------------------------===//

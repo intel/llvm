@@ -105,6 +105,16 @@ void emitCodeGenSwitchBody(const RVVIntrinsic *RVVI, raw_ostream &OS) {
     return;
   }
 
+  // Cast pointer operand of vector load intrinsic.
+  for (const auto &I : enumerate(RVVI->getInputTypes())) {
+    if (I.value()->isPointer()) {
+      assert(RVVI->getIntrinsicTypes().front() == -1 &&
+             "RVVI should be vector load intrinsic.");
+      OS << "  Ops[" << I.index() << "] = Builder.CreateBitCast(Ops[";
+      OS << I.index() << "], ResultType->getPointerTo());\n";
+    }
+  }
+
   if (RVVI->isMasked()) {
     if (RVVI->hasVL()) {
       OS << "  std::rotate(Ops.begin(), Ops.begin() + 1, Ops.end() - 1);\n";
@@ -217,22 +227,22 @@ void RVVEmitter::createHeader(raw_ostream &OS) {
   for (int Log2LMUL : Log2LMULs) {
     auto T = RVVType::computeType(BasicType::Int8, Log2LMUL,
                                   PrototypeDescriptor::Mask);
-    if (T.hasValue())
-      printType(T.getValue());
+    if (T)
+      printType(T.value());
   }
   // Print RVV int/float types.
   for (char I : StringRef("csil")) {
     BasicType BT = ParseBasicType(I);
     for (int Log2LMUL : Log2LMULs) {
       auto T = RVVType::computeType(BT, Log2LMUL, PrototypeDescriptor::Vector);
-      if (T.hasValue()) {
-        printType(T.getValue());
+      if (T) {
+        printType(T.value());
         auto UT = RVVType::computeType(
             BT, Log2LMUL,
             PrototypeDescriptor(BaseTypeModifier::Vector,
                                 VectorTypeModifier::NoModifier,
                                 TypeModifier::UnsignedInteger));
-        printType(UT.getValue());
+        printType(UT.value());
       }
     }
   }
@@ -240,8 +250,8 @@ void RVVEmitter::createHeader(raw_ostream &OS) {
   for (int Log2LMUL : Log2LMULs) {
     auto T = RVVType::computeType(BasicType::Float16, Log2LMUL,
                                   PrototypeDescriptor::Vector);
-    if (T.hasValue())
-      printType(T.getValue());
+    if (T)
+      printType(T.value());
   }
   OS << "#endif\n";
 
@@ -249,8 +259,8 @@ void RVVEmitter::createHeader(raw_ostream &OS) {
   for (int Log2LMUL : Log2LMULs) {
     auto T = RVVType::computeType(BasicType::Float32, Log2LMUL,
                                   PrototypeDescriptor::Vector);
-    if (T.hasValue())
-      printType(T.getValue());
+    if (T)
+      printType(T.value());
   }
   OS << "#endif\n";
 
@@ -258,8 +268,8 @@ void RVVEmitter::createHeader(raw_ostream &OS) {
   for (int Log2LMUL : Log2LMULs) {
     auto T = RVVType::computeType(BasicType::Float64, Log2LMUL,
                                   PrototypeDescriptor::Vector);
-    if (T.hasValue())
-      printType(T.getValue());
+    if (T)
+      printType(T.value());
   }
   OS << "#endif\n\n";
 

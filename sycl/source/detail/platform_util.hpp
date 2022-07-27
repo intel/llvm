@@ -8,8 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
 #include <cstdint>
+
+#include <stddef.h> // for ::size_t
+
+#include <sycl/detail/defines.hpp>
 
 #ifdef _MSC_VER
 // This feature is not supported in MSVC.

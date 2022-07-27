@@ -735,7 +735,8 @@ bool tools::addOpenMPRuntime(ArgStringList &CmdArgs, const ToolChain &TC,
   if (IsOffloadingHost)
     CmdArgs.push_back("-lomptarget");
 
-  if (IsOffloadingHost && TC.getDriver().isUsingLTO(/* IsOffload */ true))
+  if (IsOffloadingHost && TC.getDriver().isUsingLTO(/* IsOffload */ true) &&
+      !Args.hasArg(options::OPT_nogpulib))
     CmdArgs.push_back("-lomptarget.devicertl");
 
   addArchSpecificRPath(TC, Args, CmdArgs);
@@ -1518,7 +1519,8 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     return;
 
   LibGccType LGT = getLibGccType(TC, D, Args);
-  bool AsNeeded = LGT == LibGccType::UnspecifiedLibGcc && !D.CCCIsCXX() &&
+  bool AsNeeded = LGT == LibGccType::UnspecifiedLibGcc &&
+                  (UNW == ToolChain::UNW_CompilerRT || !D.CCCIsCXX()) &&
                   !TC.getTriple().isAndroid() &&
                   !TC.getTriple().isOSCygMing() && !TC.getTriple().isOSAIX();
   if (AsNeeded)

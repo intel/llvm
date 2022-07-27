@@ -256,22 +256,6 @@ FunctionModRefBehavior GlobalsAAResult::getModRefBehavior(const Function *F) {
   return FunctionModRefBehavior(AAResultBase::getModRefBehavior(F) & Min);
 }
 
-FunctionModRefBehavior
-GlobalsAAResult::getModRefBehavior(const CallBase *Call) {
-  FunctionModRefBehavior Min = FMRB_UnknownModRefBehavior;
-
-  if (!Call->hasOperandBundles())
-    if (const Function *F = Call->getCalledFunction())
-      if (FunctionInfo *FI = getFunctionInfo(F)) {
-        if (!isModOrRefSet(FI->getModRefInfo()))
-          Min = FMRB_DoesNotAccessMemory;
-        else if (!isModSet(FI->getModRefInfo()))
-          Min = FMRB_OnlyReadsMemory;
-      }
-
-  return FunctionModRefBehavior(AAResultBase::getModRefBehavior(Call) & Min);
-}
-
 /// Returns the function info for the function, or null if we don't have
 /// anything useful to say about it.
 GlobalsAAResult::FunctionInfo *
@@ -377,7 +361,7 @@ bool GlobalsAAResult::AnalyzeUsesOfPointer(Value *V,
       if (Call->isDataOperand(&U)) {
         // Detect calls to free.
         if (Call->isArgOperand(&U) &&
-            isFreeCall(I, &GetTLI(*Call->getFunction()))) {
+            getFreedOperand(Call, &GetTLI(*Call->getFunction())) == U) {
           if (Writers)
             Writers->insert(Call->getParent()->getParent());
         } else {
@@ -933,7 +917,7 @@ ModRefInfo GlobalsAAResult::getModRefInfoForArgument(const CallBase *Call,
 
   // Iterate through all the arguments to the called function. If any argument
   // is based on GV, return the conservative result.
-  for (auto &A : Call->args()) {
+  for (const auto &A : Call->args()) {
     SmallVector<const Value*, 4> Objects;
     getUnderlyingObjects(A, Objects);
 

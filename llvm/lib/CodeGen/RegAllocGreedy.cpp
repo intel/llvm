@@ -180,16 +180,7 @@ FunctionPass* llvm::createGreedyRegisterAllocator() {
   return new RAGreedy();
 }
 
-namespace llvm {
-FunctionPass* createGreedyRegisterAllocator(
-  std::function<bool(const TargetRegisterInfo &TRI,
-                     const TargetRegisterClass &RC)> Ftor);
-
-}
-
-FunctionPass* llvm::createGreedyRegisterAllocator(
-  std::function<bool(const TargetRegisterInfo &TRI,
-                     const TargetRegisterClass &RC)> Ftor) {
+FunctionPass *llvm::createGreedyRegisterAllocator(RegClassFilterFunc Ftor) {
   return new RAGreedy(Ftor);
 }
 
@@ -202,8 +193,6 @@ void RAGreedy::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addRequired<MachineBlockFrequencyInfo>();
   AU.addPreserved<MachineBlockFrequencyInfo>();
-  AU.addRequired<AAResultsWrapperPass>();
-  AU.addPreserved<AAResultsWrapperPass>();
   AU.addRequired<LiveIntervals>();
   AU.addPreserved<LiveIntervals>();
   AU.addRequired<SlotIndexes>();
@@ -2488,6 +2477,21 @@ void RAGreedy::reportStats() {
   }
 }
 
+bool RAGreedy::hasVirtRegAlloc() {
+  for (unsigned I = 0, E = MRI->getNumVirtRegs(); I != E; ++I) {
+    Register Reg = Register::index2VirtReg(I);
+    if (MRI->reg_nodbg_empty(Reg))
+      continue;
+    const TargetRegisterClass *RC = MRI->getRegClass(Reg);
+    if (!RC)
+      continue;
+    if (ShouldAllocateClass(*TRI, *RC))
+      return true;
+  }
+
+  return false;
+}
+
 bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   LLVM_DEBUG(dbgs() << "********** GREEDY REGISTER ALLOCATION **********\n"
                     << "********** Function: " << mf.getName() << '\n');
@@ -2501,6 +2505,12 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   RegAllocBase::init(getAnalysis<VirtRegMap>(),
                      getAnalysis<LiveIntervals>(),
                      getAnalysis<LiveRegMatrix>());
+
+  // Early return if there is no virtual register to be allocated to a
+  // physical register.
+  if (!hasVirtRegAlloc())
+    return false;
+
   Indexes = &getAnalysis<SlotIndexes>();
   MBFI = &getAnalysis<MachineBlockFrequencyInfo>();
   DomTree = &getAnalysis<MachineDominatorTree>();
@@ -2509,7 +2519,6 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   Bundles = &getAnalysis<EdgeBundles>();
   SpillPlacer = &getAnalysis<SpillPlacement>();
   DebugVars = &getAnalysis<LiveDebugVariables>();
-  AA = &getAnalysis<AAResultsWrapperPass>().getAAResults();
 
   initializeCSRCost();
 
@@ -2531,7 +2540,7 @@ bool RAGreedy::runOnMachineFunction(MachineFunction &mf) {
   LLVM_DEBUG(LIS->dump());
 
   SA.reset(new SplitAnalysis(*VRM, *LIS, *Loops));
-  SE.reset(new SplitEditor(*SA, *AA, *LIS, *VRM, *DomTree, *MBFI, *VRAI));
+  SE.reset(new SplitEditor(*SA, *LIS, *VRM, *DomTree, *MBFI, *VRAI));
 
   IntfCache.init(MF, Matrix->getLiveUnions(), Indexes, LIS, TRI);
   GlobalCand.resize(32);  // This will grow as needed.

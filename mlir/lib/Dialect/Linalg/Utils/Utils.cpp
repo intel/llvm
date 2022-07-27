@@ -143,7 +143,7 @@ namespace mlir {
 namespace linalg {
 
 bool allIndexingsAreProjectedPermutation(LinalgOp op) {
-  return llvm::all_of(op.getIndexingMaps(), [](AffineMap m) {
+  return llvm::all_of(op.getIndexingMapsArray(), [](AffineMap m) {
     return m.isProjectedPermutation(/*allowZeroInResults=*/true);
   });
 }
@@ -240,18 +240,18 @@ void getUpperBoundForIndex(Value value, AffineMap &boundMap,
 
   // Helper to find or create an identifier for the given value.
   auto findOrCreateId = [&](Value value) {
-    if (!constraints.containsId(value)) {
-      constraints.appendDimId(value);
+    if (!constraints.containsVar(value)) {
+      constraints.appendDimVar(value);
       return true;
     }
     unsigned pos;
-    constraints.findId(value, &pos);
-    return pos < constraints.getNumDimIds();
+    constraints.findVar(value, &pos);
+    return pos < constraints.getNumDimVars();
   };
   // Helper to get the position for the given value.
   auto getPosition = [&](Value value) {
     unsigned pos;
-    bool exists = constraints.findId(value, &pos);
+    bool exists = constraints.findVar(value, &pos);
     (void)exists;
     assert(exists && "expect to find the identifier");
     return pos;
@@ -369,7 +369,7 @@ tensor::ExtractSliceOp makeComposedExtractSliceOp(
     foldedOffsets[en.index()] =
         makeComposedAffineApply(b, loc, dim1 + dim2, offsetValues).getResult();
   }
-  return b.create<tensor::ExtractSliceOp>(loc, producerOp.source(),
+  return b.create<tensor::ExtractSliceOp>(loc, producerOp.getSource(),
                                           foldedOffsets, sizes, strides);
 }
 
@@ -381,7 +381,7 @@ Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
     return tensor::createPadHighOp(type, source, pad, nofold, loc, b);
 
   // Search the `source` use-def chain for padded LinalgOps.
-  Value current = sliceOp.source();
+  Value current = sliceOp.getSource();
   while (current) {
     auto linalgOp = current.getDefiningOp<LinalgOp>();
     if (!linalgOp)
@@ -397,7 +397,7 @@ Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
     return tensor::createPadHighOp(type, source, pad, nofold, loc, b);
 
   // Exit if the padded result type does not match.
-  if (sliceOp.source().getType() != type)
+  if (sliceOp.getSource().getType() != type)
     return tensor::createPadHighOp(type, source, pad, nofold, loc, b);
 
   // Exit if the LinalgOps are not high padded.
@@ -408,7 +408,7 @@ Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
 
   // Exit if `padOpSliceOp`, which defines the slice used by
   // `padOp`, is rank-reducing.
-  auto padOpSliceOp = padOp.source().getDefiningOp<tensor::ExtractSliceOp>();
+  auto padOpSliceOp = padOp.getSource().getDefiningOp<tensor::ExtractSliceOp>();
   if (!padOpSliceOp ||
       sliceOp.getMixedSizes().size() != padOpSliceOp.getMixedSizes().size())
     return tensor::createPadHighOp(type, source, pad, nofold, loc, b);
@@ -430,7 +430,7 @@ Value makeComposedPadHighOp(OpBuilder &b, Location loc, RankedTensorType type,
     return tensor::createPadHighOp(type, source, pad, nofold, loc, b);
 
   // Return the padded result if the padding values and sizes match.
-  return sliceOp.source();
+  return sliceOp.getSource();
 }
 
 GenericOp makeTransposeOp(OpBuilder &b, Location loc, Value inputTensor,
@@ -913,6 +913,21 @@ Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
   return sliceOp->getResult(0);
 }
 
+Value createSlice(OpBuilder &builder, Location loc, Value value,
+                  ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
+                  ArrayRef<OpFoldResult> strides) {
+  if (value.getType().isa<MemRefType>()) {
+    return builder.create<memref::SubViewOp>(loc, value, offsets, sizes,
+                                             strides);
+  }
+
+  // This intentionally does not attempt to compose the extractslice operations.
+  assert(value.getType().isa<RankedTensorType>() &&
+         "expected a ranked tensor type");
+  return builder.create<tensor::ExtractSliceOp>(loc, value, offsets, sizes,
+                                                strides);
+}
+
 SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
                                       ValueRange ivs, ValueRange tileSizes) {
   SmallVector<Value> offsets;
@@ -941,6 +956,49 @@ SmallVector<Value> computeTileSizes(OpBuilder &b, Location loc,
     LLVM_DEBUG(llvm::dbgs() << "computeTileSizes: " << sizes.back() << "\n");
   }
   return sizes;
+}
+
+SmallVector<Type> getTensorOutputTypes(LinalgOp op, ValueRange operands) {
+  // TODO: use an interface/adaptor to avoid leaking position in
+  // `tiledOperands`.
+  return llvm::to_vector(
+      llvm::map_range(op.getOutputTensorOperands(), [&](OpOperand *opOperand) {
+        return operands[opOperand->getOperandNumber()].getType();
+      }));
+}
+
+SmallVector<Value> insertSlicesBack(OpBuilder &builder, Location loc,
+                                    LinalgOp op, ValueRange operands,
+                                    ValueRange results) {
+  SmallVector<Value> tensorResults;
+  tensorResults.reserve(results.size());
+  // Insert a insert_slice for each output tensor.
+  unsigned resultIdx = 0;
+  for (OpOperand *opOperand : op.getOutputTensorOperands()) {
+    // TODO: use an interface/adaptor to avoid leaking position in
+    // `tiledOperands`.
+    Value outputTensor = operands[opOperand->getOperandNumber()];
+    if (auto sliceOp = outputTensor.getDefiningOp<tensor::ExtractSliceOp>()) {
+      Value inserted = builder.create<tensor::InsertSliceOp>(
+          loc, sliceOp.getSource().getType(), results[resultIdx],
+          sliceOp.getSource(), sliceOp.getOffsets(), sliceOp.getSizes(),
+          sliceOp.getStrides(), sliceOp.getStaticOffsets(),
+          sliceOp.getStaticSizes(), sliceOp.getStaticStrides());
+      tensorResults.push_back(inserted);
+    } else {
+      tensorResults.push_back(results[resultIdx]);
+    }
+    ++resultIdx;
+  }
+  return tensorResults;
+}
+
+Value materializeOpFoldResult(ImplicitLocOpBuilder &builder,
+                              OpFoldResult opFoldResult) {
+  if (auto value = opFoldResult.dyn_cast<Value>())
+    return value;
+  auto attr = opFoldResult.get<Attribute>().cast<IntegerAttr>();
+  return builder.create<arith::ConstantIndexOp>(attr.getValue().getSExtValue());
 }
 
 SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
@@ -990,22 +1048,58 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
   return tiledShapes;
 }
 
-void addTileLoopIvsToIndexOpResults(OpBuilder &b, LinalgOp tiledOp,
-                                    ArrayRef<Value> ivs) {
-  if (tiledOp.hasIndexSemantics()) {
-    for (IndexOp indexOp : tiledOp.getBlock()->getOps<IndexOp>()) {
-      if (ivs[indexOp.dim()] == nullptr)
-        continue;
-      OpBuilder::InsertionGuard guard(b);
-      b.setInsertionPointAfter(indexOp);
-      AffineExpr index, offset;
-      bindDims(b.getContext(), index, offset);
-      AffineApplyOp applyOp = makeComposedAffineApply(
-          b, indexOp.getLoc(), index + offset,
-          ValueRange{indexOp.getResult(), ivs[indexOp.dim()]});
-      indexOp.getResult().replaceAllUsesExcept(applyOp, applyOp);
-    }
+void offsetIndices(OpBuilder &b, LinalgOp linalgOp, ArrayRef<Value> offsets) {
+  IRRewriter rewriter(b);
+  offsetIndices(rewriter, linalgOp, offsets);
+}
+
+void offsetIndices(RewriterBase &b, LinalgOp linalgOp,
+                   ArrayRef<Value> offsets) {
+  if (!linalgOp.hasIndexSemantics())
+    return;
+
+  for (IndexOp indexOp : linalgOp.getBlock()->getOps<IndexOp>()) {
+    if (indexOp.dim() >= offsets.size() || offsets[indexOp.dim()] == nullptr)
+      continue;
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointAfter(indexOp);
+    AffineExpr index, offset;
+    bindDims(b.getContext(), index, offset);
+    AffineApplyOp applyOp = makeComposedAffineApply(
+        b, indexOp.getLoc(), index + offset,
+        ValueRange{indexOp.getResult(), offsets[indexOp.dim()]});
+    b.replaceOpWithIf(indexOp, applyOp.getResult(), [&](OpOperand &use) {
+      return use.getOwner() != applyOp;
+    });
   }
+}
+
+/// Get the reassociation maps to fold the result of a extract_slice (or source
+/// of a insert_slice) operation with given offsets, and sizes to its
+/// rank-reduced version. This is only done for the cases where the size is 1
+/// and offset is 0. Strictly speaking the offset 0 is not required in general,
+/// but non-zero offsets are not handled by SPIR-V backend at this point (and
+/// potentially cannot be handled).
+Optional<SmallVector<ReassociationIndices>>
+getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes) {
+  SmallVector<ReassociationIndices> reassociation;
+  ReassociationIndices curr;
+  for (const auto &it : llvm::enumerate(mixedSizes)) {
+    auto dim = it.index();
+    auto size = it.value();
+    curr.push_back(dim);
+    auto attr = size.dyn_cast<Attribute>();
+    if (attr && attr.cast<IntegerAttr>().getInt() == 1)
+      continue;
+    reassociation.emplace_back(ReassociationIndices{});
+    std::swap(reassociation.back(), curr);
+  }
+  // When the reassociations are not empty, then fold the remaining
+  // unit-dimensions into the last dimension.  If the reassociations so far is
+  // empty, then leave it emtpy. This will fold everything to a rank-0 tensor.
+  if (!curr.empty() && !reassociation.empty())
+    reassociation.back().append(curr.begin(), curr.end());
+  return reassociation;
 }
 
 } // namespace linalg

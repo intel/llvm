@@ -201,14 +201,16 @@ SlowMPInt detail::abs(const SlowMPInt &x) { return x >= 0 ? x : -x; }
 SlowMPInt detail::ceilDiv(const SlowMPInt &lhs, const SlowMPInt &rhs) {
   if (rhs == -1)
     return -lhs;
-  return SlowMPInt(
-      llvm::APIntOps::RoundingSDiv(lhs.val, rhs.val, APInt::Rounding::UP));
+  unsigned width = getMaxWidth(lhs.val, rhs.val);
+  return SlowMPInt(llvm::APIntOps::RoundingSDiv(
+      lhs.val.sext(width), rhs.val.sext(width), APInt::Rounding::UP));
 }
 SlowMPInt detail::floorDiv(const SlowMPInt &lhs, const SlowMPInt &rhs) {
   if (rhs == -1)
     return -lhs;
-  return SlowMPInt(
-      llvm::APIntOps::RoundingSDiv(lhs.val, rhs.val, APInt::Rounding::DOWN));
+  unsigned width = getMaxWidth(lhs.val, rhs.val);
+  return SlowMPInt(llvm::APIntOps::RoundingSDiv(
+      lhs.val.sext(width), rhs.val.sext(width), APInt::Rounding::DOWN));
 }
 // The RHS is always expected to be positive, and the result
 /// is always non-negative.
@@ -218,8 +220,8 @@ SlowMPInt detail::mod(const SlowMPInt &lhs, const SlowMPInt &rhs) {
 }
 
 SlowMPInt detail::gcd(const SlowMPInt &a, const SlowMPInt &b) {
-  return SlowMPInt(
-      llvm::APIntOps::GreatestCommonDivisor(a.val.abs(), b.val.abs()));
+  assert(a >= 0 && b >= 0 && "operands must be non-negative!");
+  return SlowMPInt(llvm::APIntOps::GreatestCommonDivisor(a.val, b.val));
 }
 
 /// Returns the least common multiple of 'a' and 'b'.

@@ -36,6 +36,7 @@
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/IntrinsicsBPF.h"
+#include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/IntrinsicsHexagon.h"
 #include "llvm/IR/IntrinsicsMips.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
@@ -353,6 +354,8 @@ Function *Function::createWithDefaultAttr(FunctionType *Ty,
     B.addAttribute("frame-pointer", "all");
     break;
   }
+  if (M->getModuleFlag("function_return_thunk_extern"))
+    B.addAttribute(Attribute::FnRetThunkExtern);
   F->addFnAttrs(B);
   return F;
 }

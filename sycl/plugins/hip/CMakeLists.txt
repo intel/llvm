@@ -12,8 +12,8 @@ set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUD
 # Create pi_hip library
 add_sycl_plugin(hip
   SOURCES
-    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-    "${sycl_inc_dir}/CL/sycl/detail/pi.hpp"
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_hip.hpp"
     "pi_hip.cpp"
   INCLUDE_DIRS

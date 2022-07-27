@@ -159,9 +159,9 @@ tools = [
 tools.extend([
     'dsymutil', 'lli', 'lli-child-target', 'llvm-ar', 'llvm-as',
     'llvm-addr2line', 'llvm-bcanalyzer', 'llvm-bitcode-strip', 'llvm-config',
-    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find',
-    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dlltool', 'llvm-exegesis',
-    'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
+    'llvm-cov', 'llvm-cxxdump', 'llvm-cvtres', 'llvm-debuginfod-find', 'llvm-debuginfod',
+    'llvm-diff', 'llvm-dis', 'llvm-dwarfdump', 'llvm-dwarfutil', 'llvm-dlltool',
+    'llvm-exegesis', 'llvm-extract', 'llvm-isel-fuzzer', 'llvm-ifs',
     'llvm-install-name-tool', 'llvm-jitlink', 'llvm-opt-fuzzer', 'llvm-lib',
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
@@ -478,4 +478,3 @@ def exclude_unsupported_files_for_aix(dirname):
 if 'aix' in config.target_triple:
     for directory in ('/CodeGen/X86', '/DebugInfo', '/DebugInfo/X86', '/DebugInfo/Generic', '/LTO/X86', '/Linker'):
         exclude_unsupported_files_for_aix(config.test_source_root + directory)
-

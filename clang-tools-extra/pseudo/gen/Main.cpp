@@ -79,13 +79,34 @@ int main(int argc, char *argv[]) {
 
   switch (Emit) {
   case EmitSymbolList:
-    for (clang::pseudo::SymbolID ID = 0; ID < G->table().Nonterminals.size();
-         ++ID) {
-      std::string Name = G->symbolName(ID).str();
-      // translation-unit -> translation_unit
-      std::replace(Name.begin(), Name.end(), '-', '_');
-      Out.os() << llvm::formatv("NONTERMINAL({0}, {1})\n", Name, ID);
+    Out.os() << R"cpp(
+#ifndef NONTERMINAL
+#define NONTERMINAL(X, Y)
+#endif
+#ifndef RULE
+#define RULE(X, Y)
+#endif
+#ifndef EXTENSION
+#define EXTENSION(X, Y)
+#endif
+)cpp";
+    for (clang::pseudo::SymbolID ID = 0; ID < G.table().Nonterminals.size();
+         ++ID)
+      Out.os() << llvm::formatv("NONTERMINAL({0}, {1})\n", G.mangleSymbol(ID),
+                                ID);
+    for (clang::pseudo::RuleID RID = 0; RID < G.table().Rules.size(); ++RID)
+      Out.os() << llvm::formatv("RULE({0}, {1})\n", G.mangleRule(RID), RID);
+    for (clang::pseudo::ExtensionID EID = 1 /*skip the sentinel 0 value*/;
+         EID < G.table().AttributeValues.size(); ++EID) {
+      llvm::StringRef Name = G.table().AttributeValues[EID];
+      assert(!Name.empty());
+      Out.os() << llvm::formatv("EXTENSION({0}, {1})\n", Name, EID);
     }
+    Out.os() << R"cpp(
+#undef NONTERMINAL
+#undef RULE
+#undef EXTENSION
+)cpp";
     break;
   case EmitGrammarContent:
     for (llvm::StringRef Line : llvm::split(GrammarText, '\n')) {

@@ -8,8 +8,8 @@
 
 #include <utility>
 
-#include "mlir/IR/AffineExpr.h"
 #include "AffineExprDetail.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/IntegerSet.h"
@@ -974,7 +974,7 @@ static AffineExpr getSemiAffineExprFromFlatForm(ArrayRef<int64_t> flatExprs,
   // Adds entries to `indexToExprMap`, `coefficients` and `indices`.
   auto addEntry = [&](std::pair<unsigned, signed> index, int64_t coefficient,
                       AffineExpr expr) {
-    assert(std::find(indices.begin(), indices.end(), index) == indices.end() &&
+    assert(!llvm::is_contained(indices, index) &&
            "Key is already present in indices vector and overwriting will "
            "happen in `indexToExprMap` and `coefficients`!");
 

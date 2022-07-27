@@ -184,8 +184,7 @@ public:
     return ST;
   }
 
-  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                         AAResults *AA) const override;
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const override;
 
   bool isIgnorableUse(const MachineOperand &MO) const override;
 
@@ -671,6 +670,14 @@ public:
 
   static bool isDOT(const MachineInstr &MI) {
     return MI.getDesc().TSFlags & SIInstrFlags::IsDOT;
+  }
+
+  static bool isWMMA(const MachineInstr &MI) {
+    return MI.getDesc().TSFlags & SIInstrFlags::IsWMMA;
+  }
+
+  bool isWMMA(uint16_t Opcode) const {
+    return get(Opcode).TSFlags & SIInstrFlags::IsWMMA;
   }
 
   bool isDOT(uint16_t Opcode) const {
@@ -1232,6 +1239,9 @@ namespace AMDGPU {
 
   LLVM_READONLY
   int getDPPOp32(uint16_t Opcode);
+
+  LLVM_READONLY
+  int getDPPOp64(uint16_t Opcode);
 
   LLVM_READONLY
   int getBasicFromSDWAOp(uint16_t Opcode);

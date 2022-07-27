@@ -167,8 +167,8 @@ public:
     return false;
   }
 
-  bool emitGetActiveLaneMask() const {
-    return false;
+  PredicationStyle emitGetActiveLaneMask() const {
+    return PredicationStyle::None;
   }
 
   Optional<Instruction *> instCombineIntrinsic(InstCombiner &IC,
@@ -339,6 +339,8 @@ public:
   }
 
   bool supportsEfficientVectorElementLoadStore() const { return false; }
+
+  bool supportsTailCalls() const { return true; }
 
   bool enableAggressiveInterleaving(bool LoopHasReductions) const {
     return false;

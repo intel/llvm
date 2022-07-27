@@ -61,7 +61,7 @@ static mlir::Value applyPad(Location loc, Value input, ArrayRef<int64_t> pad,
   return tensor::createPadScalarOp(RankedTensorType::get(paddedShape, inputETy),
                                    input, padValue, lowIndices, highIndices,
                                    /*nofold=*/false, loc, rewriter)
-      .result();
+      .getResult();
 }
 
 static mlir::Value reifyConstantDim(Attribute attr,
@@ -694,9 +694,9 @@ public:
 
     auto dynamicDimsOr =
         checkHasDynamicBatchDims(rewriter, op, {input, op.output()});
-    if (!dynamicDimsOr.hasValue())
+    if (!dynamicDimsOr.has_value())
       return failure();
-    SmallVector<Value> dynamicDims = dynamicDimsOr.getValue();
+    SmallVector<Value> dynamicDims = dynamicDimsOr.value();
 
     // Determine what the initial value needs to be for the max pool op.
     Attribute initialAttr;
@@ -771,9 +771,9 @@ public:
 
     auto dynamicDimsOr =
         checkHasDynamicBatchDims(rewriter, op, {input, op.output()});
-    if (!dynamicDimsOr.hasValue())
+    if (!dynamicDimsOr.has_value())
       return failure();
-    SmallVector<Value> dynamicDims = dynamicDimsOr.getValue();
+    SmallVector<Value> dynamicDims = dynamicDimsOr.value();
 
     // Apply padding as necessary.
     llvm::SmallVector<int64_t> pad;

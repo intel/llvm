@@ -10,6 +10,7 @@
 
 #include "../common/TraceHTR.h"
 #include "lldb/Host/OptionParser.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Trace.h"
 
@@ -79,9 +80,16 @@ bool CommandObjectThreadTraceExportCTF::DoExecute(Args &command,
         num_threads);
     return false;
   } else {
-    TraceHTR htr(*thread, *trace_sp->GetCursor(*thread));
-    htr.ExecutePasses();
-    if (llvm::Error err = htr.Export(m_options.m_file)) {
+    auto do_work = [&]() -> Error {
+      Expected<TraceCursorUP> cursor = trace_sp->CreateNewCursor(*thread);
+      if (!cursor)
+        return cursor.takeError();
+      TraceHTR htr(*thread, **cursor);
+      htr.ExecutePasses();
+      return htr.Export(m_options.m_file);
+    };
+
+    if (llvm::Error err = do_work()) {
       result.AppendErrorWithFormat("%s\n", toString(std::move(err)).c_str());
       return false;
     } else {

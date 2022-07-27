@@ -17,8 +17,6 @@
 namespace llvm {
 
 class CallGraph;
-class CallGraphSCC;
-class PassRegistry;
 
 namespace coro {
 
@@ -31,7 +29,7 @@ void replaceCoroFree(CoroIdInst *CoroId, bool Elide);
 /// holding a pointer to the coroutine frame.
 void salvageDebugInfo(
     SmallDenseMap<llvm::Value *, llvm::AllocaInst *, 4> &DbgPtrAllocaCache,
-    DbgVariableIntrinsic *DVI, bool Optimizing);
+    DbgVariableIntrinsic *DVI, bool OptimizeFrame);
 
 // Keeps data and helper functions for lowering coroutine intrinsics.
 struct LowererBase {
@@ -104,7 +102,7 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
   BasicBlock *AllocaSpillBlock;
 
   /// This would only be true if optimization are enabled.
-  bool Optimizing;
+  bool OptimizeFrame;
 
   struct SwitchLoweringStorage {
     SwitchInst *ResumeSwitch;
@@ -255,8 +253,8 @@ struct LLVM_LIBRARY_VISIBILITY Shape {
   void emitDealloc(IRBuilder<> &Builder, Value *Ptr, CallGraph *CG) const;
 
   Shape() = default;
-  explicit Shape(Function &F, bool Optimizing = false)
-      : Optimizing(Optimizing) {
+  explicit Shape(Function &F, bool OptimizeFrame = false)
+      : OptimizeFrame(OptimizeFrame) {
     buildFrom(F);
   }
   void buildFrom(Function &F);

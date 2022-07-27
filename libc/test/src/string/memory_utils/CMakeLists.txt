@@ -11,8 +11,25 @@ add_libc_unittest(
   COMPILE_OPTIONS
     ${LIBC_COMPILE_OPTIONS_NATIVE}
     -ffreestanding
+    -pthread
   DEPENDS
     libc.src.string.memory_utils.memory_utils
     libc.src.__support.CPP.array
     libc.src.__support.CPP.array_ref
 )
+
+if(NOT LLVM_LIBC_FULL_BUILD)
+# Disabling this unittest in fullbuild mode as #include<sstream> is pulling an
+# incomplete pthread implementation from llvm-libc.
+add_libc_unittest(
+  algorithm_test
+  SUITE
+    libc_string_unittests
+  SRCS
+    algorithm_test.cpp
+  DEPENDS
+    libc.src.string.memory_utils.memory_utils
+    libc.src.__support.CPP.array
+    libc.src.__support.CPP.array_ref
+)
+endif()

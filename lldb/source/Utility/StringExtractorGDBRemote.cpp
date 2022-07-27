@@ -372,12 +372,16 @@ StringExtractorGDBRemote::GetServerPacketType() const {
         return eServerPacketType_vCont;
       if (PACKET_MATCHES("vCont?"))
         return eServerPacketType_vCont_actions;
+      if (PACKET_STARTS_WITH("vKill;"))
+        return eServerPacketType_vKill;
       if (PACKET_STARTS_WITH("vRun;"))
         return eServerPacketType_vRun;
       if (PACKET_MATCHES("vStopped"))
         return eServerPacketType_vStopped;
       if (PACKET_MATCHES("vCtrlC"))
         return eServerPacketType_vCtrlC;
+      if (PACKET_MATCHES("vStdio"))
+        return eServerPacketType_vStdio;
       break;
 
     }
@@ -637,7 +641,7 @@ llvm::Optional<std::pair<lldb::pid_t, lldb::tid_t>>
 StringExtractorGDBRemote::GetPidTid(lldb::pid_t default_pid) {
   llvm::StringRef view = llvm::StringRef(m_packet).substr(m_index);
   size_t initial_length = view.size();
-  lldb::pid_t pid = default_pid;
+  lldb::pid_t pid = LLDB_INVALID_PROCESS_ID;
   lldb::tid_t tid;
 
   if (view.consume_front("p")) {
@@ -673,5 +677,5 @@ StringExtractorGDBRemote::GetPidTid(lldb::pid_t default_pid) {
   // update m_index
   m_index += initial_length - view.size();
 
-  return {{pid, tid}};
+  return {{pid != LLDB_INVALID_PROCESS_ID ? pid : default_pid, tid}};
 }

@@ -15,9 +15,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/detail/sycl_fe_intrins.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#include <sycl/exception.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

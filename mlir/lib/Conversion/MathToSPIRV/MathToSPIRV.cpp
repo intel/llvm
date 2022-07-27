@@ -16,6 +16,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
 
@@ -233,6 +234,43 @@ struct PowFOpPattern final : public OpConversionPattern<math::PowFOp> {
   }
 };
 
+/// Converts math.round to GLSL SPIRV extended ops.
+struct RoundOpPattern final : public OpConversionPattern<math::RoundOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(math::RoundOp roundOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = roundOp.getLoc();
+    auto operand = roundOp.getOperand();
+    auto ty = operand.getType();
+    auto ety = getElementTypeOrSelf(ty);
+
+    auto zero = spirv::ConstantOp::getZero(ty, loc, rewriter);
+    auto one = spirv::ConstantOp::getOne(ty, loc, rewriter);
+    Value half;
+    if (VectorType vty = ty.dyn_cast<VectorType>()) {
+      half = rewriter.create<spirv::ConstantOp>(
+          loc, vty,
+          DenseElementsAttr::get(vty,
+                                 rewriter.getFloatAttr(ety, 0.5).getValue()));
+    } else {
+      half = rewriter.create<spirv::ConstantOp>(
+          loc, ty, rewriter.getFloatAttr(ety, 0.5));
+    }
+
+    auto abs = rewriter.create<spirv::GLSLFAbsOp>(loc, operand);
+    auto floor = rewriter.create<spirv::GLSLFloorOp>(loc, abs);
+    auto sub = rewriter.create<spirv::FSubOp>(loc, abs, floor);
+    auto greater =
+        rewriter.create<spirv::FOrdGreaterThanEqualOp>(loc, sub, half);
+    auto select = rewriter.create<spirv::SelectOp>(loc, greater, one, zero);
+    auto add = rewriter.create<spirv::FAddOp>(loc, floor, select);
+    rewriter.replaceOpWithNewOp<math::CopySignOp>(roundOp, add, operand);
+    return success();
+  }
+};
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -248,7 +286,7 @@ void populateMathToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
   // GLSL patterns
   patterns
       .add<CountLeadingZerosPattern, Log1pOpPattern<spirv::GLSLLogOp>,
-           ExpM1OpPattern<spirv::GLSLExpOp>, PowFOpPattern,
+           ExpM1OpPattern<spirv::GLSLExpOp>, PowFOpPattern, RoundOpPattern,
            spirv::ElementwiseOpPattern<math::AbsOp, spirv::GLSLFAbsOp>,
            spirv::ElementwiseOpPattern<math::CeilOp, spirv::GLSLCeilOp>,
            spirv::ElementwiseOpPattern<math::CosOp, spirv::GLSLCosOp>,
@@ -263,20 +301,21 @@ void populateMathToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
           typeConverter, patterns.getContext());
 
   // OpenCL patterns
-  patterns.add<Log1pOpPattern<spirv::OCLLogOp>, ExpM1OpPattern<spirv::OCLExpOp>,
-               spirv::ElementwiseOpPattern<math::AbsOp, spirv::OCLFAbsOp>,
-               spirv::ElementwiseOpPattern<math::CeilOp, spirv::OCLCeilOp>,
-               spirv::ElementwiseOpPattern<math::CosOp, spirv::OCLCosOp>,
-               spirv::ElementwiseOpPattern<math::ErfOp, spirv::OCLErfOp>,
-               spirv::ElementwiseOpPattern<math::ExpOp, spirv::OCLExpOp>,
-               spirv::ElementwiseOpPattern<math::FloorOp, spirv::OCLFloorOp>,
-               spirv::ElementwiseOpPattern<math::FmaOp, spirv::OCLFmaOp>,
-               spirv::ElementwiseOpPattern<math::LogOp, spirv::OCLLogOp>,
-               spirv::ElementwiseOpPattern<math::PowFOp, spirv::OCLPowOp>,
-               spirv::ElementwiseOpPattern<math::RsqrtOp, spirv::OCLRsqrtOp>,
-               spirv::ElementwiseOpPattern<math::SinOp, spirv::OCLSinOp>,
-               spirv::ElementwiseOpPattern<math::SqrtOp, spirv::OCLSqrtOp>,
-               spirv::ElementwiseOpPattern<math::TanhOp, spirv::OCLTanhOp>>(
+  patterns.add<Log1pOpPattern<spirv::CLLogOp>, ExpM1OpPattern<spirv::CLExpOp>,
+               spirv::ElementwiseOpPattern<math::AbsOp, spirv::CLFAbsOp>,
+               spirv::ElementwiseOpPattern<math::CeilOp, spirv::CLCeilOp>,
+               spirv::ElementwiseOpPattern<math::CosOp, spirv::CLCosOp>,
+               spirv::ElementwiseOpPattern<math::ErfOp, spirv::CLErfOp>,
+               spirv::ElementwiseOpPattern<math::ExpOp, spirv::CLExpOp>,
+               spirv::ElementwiseOpPattern<math::FloorOp, spirv::CLFloorOp>,
+               spirv::ElementwiseOpPattern<math::FmaOp, spirv::CLFmaOp>,
+               spirv::ElementwiseOpPattern<math::LogOp, spirv::CLLogOp>,
+               spirv::ElementwiseOpPattern<math::PowFOp, spirv::CLPowOp>,
+               spirv::ElementwiseOpPattern<math::RoundOp, spirv::CLRoundOp>,
+               spirv::ElementwiseOpPattern<math::RsqrtOp, spirv::CLRsqrtOp>,
+               spirv::ElementwiseOpPattern<math::SinOp, spirv::CLSinOp>,
+               spirv::ElementwiseOpPattern<math::SqrtOp, spirv::CLSqrtOp>,
+               spirv::ElementwiseOpPattern<math::TanhOp, spirv::CLTanhOp>>(
       typeConverter, patterns.getContext());
 }
 

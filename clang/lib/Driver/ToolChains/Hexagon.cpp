@@ -340,8 +340,8 @@ constructHexagonLinkArgs(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-pie");
 
   if (auto G = toolchains::HexagonToolChain::getSmallDataThreshold(Args)) {
-    CmdArgs.push_back(Args.MakeArgString("-G" + Twine(G.getValue())));
-    UseG0 = G.getValue() == 0;
+    CmdArgs.push_back(Args.MakeArgString("-G" + Twine(G.value())));
+    UseG0 = G.value() == 0;
   }
 
   CmdArgs.push_back("-o");
@@ -614,6 +614,8 @@ void HexagonToolChain::AddCXXStdlibLibArgs(const ArgList &Args,
   switch (Type) {
   case ToolChain::CST_Libcxx:
     CmdArgs.push_back("-lc++");
+    if (Args.hasArg(options::OPT_fexperimental_library))
+      CmdArgs.push_back("-lc++experimental");
     CmdArgs.push_back("-lc++abi");
     CmdArgs.push_back("-lunwind");
     break;

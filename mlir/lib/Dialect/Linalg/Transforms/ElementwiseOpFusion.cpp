@@ -112,7 +112,7 @@ static bool areElementwiseOpsFusable(GenericOp producer, GenericOp consumer,
     };
 
     for (auto pair :
-         llvm::zip(consumer->getOperands(), consumer.getIndexingMaps())) {
+         llvm::zip(consumer->getOperands(), consumer.getIndexingMapsArray())) {
       Value operand = std::get<0>(pair);
       if (operand == consumerOpOperand->get())
         continue;
@@ -709,7 +709,7 @@ fuseWithReshapeByExpansion(GenericOp genericOp, Operation *reshapeOp,
     return llvm::None;
 
   SmallVector<AffineMap, 4> expandedOpIndexingMaps = llvm::to_vector<4>(
-      llvm::map_range(genericOp.getIndexingMaps(), [&](AffineMap m) {
+      llvm::map_range(genericOp.getIndexingMapsArray(), [&](AffineMap m) {
         return getIndexingMapInExpandedOp(rewriter, m, expansionInfo);
       }));
 
@@ -717,8 +717,8 @@ fuseWithReshapeByExpansion(GenericOp genericOp, Operation *reshapeOp,
   expandedOpOperands.reserve(genericOp.getNumInputs());
   for (OpOperand *opOperand : genericOp.getInputOperands()) {
     if (opOperand == fusableOpOperand) {
-      expandedOpOperands.push_back(isExpanding ? expandingReshapeOp.src()
-                                               : collapsingReshapeOp.src());
+      expandedOpOperands.push_back(isExpanding ? expandingReshapeOp.getSrc()
+                                               : collapsingReshapeOp.getSrc());
       continue;
     }
     if (genericOp.isInputTensor(opOperand)) {
@@ -865,7 +865,7 @@ struct FoldReshapeWithGenericOpByExpansion
   LogicalResult matchAndRewrite(tensor::ExpandShapeOp reshapeOp,
                                 PatternRewriter &rewriter) const override {
     // Fold only if all constraints of fusing with reshape by expansion are met.
-    GenericOp producer = reshapeOp.src().getDefiningOp<GenericOp>();
+    GenericOp producer = reshapeOp.getSrc().getDefiningOp<GenericOp>();
     if (!producer || producer.getNumOutputs() != 1 ||
         !isFusableWithReshapeByDimExpansion(producer,
                                             producer.getOutputOperand(0)) ||
@@ -1008,7 +1008,7 @@ getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
   if (!genericOp.hasTensorSemantics() || genericOp.getNumOutputs() != 1)
     return {};
 
-  if (!llvm::all_of(genericOp.getIndexingMaps(), [](AffineMap map) {
+  if (!llvm::all_of(genericOp.getIndexingMapsArray(), [](AffineMap map) {
         return map.isProjectedPermutation();
       })) {
     return {};
@@ -1085,9 +1085,11 @@ getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
     }
 
     // Check that the sequence is preserved in all indexing maps.
-    if (llvm::any_of(genericOp.getIndexingMaps(), [&](AffineMap indexingMap) {
-          return !isDimSequencePreserved(indexingMap, foldedIterationSpaceDims);
-        }))
+    if (llvm::any_of(genericOp.getIndexingMapsArray(),
+                     [&](AffineMap indexingMap) {
+                       return !isDimSequencePreserved(indexingMap,
+                                                      foldedIterationSpaceDims);
+                     }))
       continue;
 
     processedIterationDims.insert(foldedIterationSpaceDims.begin(),
@@ -1350,7 +1352,7 @@ static FailureOr<SmallVector<Value>> collapseGenericOpIterationDims(
 
   // Get the indexing maps.
   auto indexingMaps = llvm::to_vector(
-      llvm::map_range(genericOp.getIndexingMaps(), [&](AffineMap map) {
+      llvm::map_range(genericOp.getIndexingMapsArray(), [&](AffineMap map) {
         return getCollapsedOpIndexingMap(map, collapsingInfo);
       }));
 
@@ -1717,11 +1719,7 @@ struct LinalgElementwiseOpFusionPass
 
     // Add elementwise op fusion patterns.
     populateElementwiseOpsFusionPatterns(patterns, defaultControlFn);
-
     populateFoldReshapeOpsByExpansionPatterns(patterns, defaultControlFn);
-
-    // Add the sparse tensor rewriting patterns.
-    populateSparseTensorRewriting(patterns);
 
     // General canonicalization patterns.
     AffineApplyOp::getCanonicalizationPatterns(patterns, context);

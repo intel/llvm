@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestGetPlugin.hpp"
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <gtest/gtest.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/sycl.hpp>
 #include <vector>
 
 namespace {

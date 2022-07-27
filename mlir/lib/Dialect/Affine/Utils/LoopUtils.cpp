@@ -196,10 +196,9 @@ static AffineForOp generateShiftedLoop(
   BlockAndValueMapping operandMap;
 
   auto bodyBuilder = OpBuilder::atBlockTerminator(loopChunk.getBody());
-  for (auto it = opGroupQueue.begin() + offset, e = opGroupQueue.end(); it != e;
-       ++it) {
-    uint64_t shift = it->first;
-    auto ops = it->second;
+  for (const auto &it : llvm::drop_begin(opGroupQueue, offset)) {
+    uint64_t shift = it.first;
+    auto ops = it.second;
     // All 'same shift' operations get added with their operands being
     // remapped to results of cloned operations, and their IV used remapped.
     // Generate the remapping if the shift is not zero: remappedIV = newIV -
@@ -405,13 +404,13 @@ checkTilingLegalityImpl(MutableArrayRef<mlir::AffineForOp> origLoops) {
         LLVM_DEBUG(dstAccess.opInst->dump(););
         for (unsigned k = 0, e = depComps.size(); k < e; k++) {
           DependenceComponent depComp = depComps[k];
-          if (depComp.lb.hasValue() && depComp.ub.hasValue() &&
-              depComp.lb.getValue() < depComp.ub.getValue() &&
-              depComp.ub.getValue() < 0) {
+          if (depComp.lb.has_value() && depComp.ub.has_value() &&
+              depComp.lb.value() < depComp.ub.value() &&
+              depComp.ub.value() < 0) {
             LLVM_DEBUG(llvm::dbgs()
                        << "Dependence component lb = "
-                       << Twine(depComp.lb.getValue())
-                       << " ub = " << Twine(depComp.ub.getValue())
+                       << Twine(depComp.lb.value())
+                       << " ub = " << Twine(depComp.ub.value())
                        << " is negative  at depth: " << Twine(d)
                        << " and thus violates the legality rule.\n");
             return false;
@@ -802,11 +801,11 @@ constructTiledIndexSetHyperRect(MutableArrayRef<AffineForOp> origLoops,
     newLoops[width + i].setStep(origLoops[i].getStep());
 
     // Set the upper bound.
-    if (mayBeConstantCount && mayBeConstantCount.getValue() < tileSizes[i]) {
+    if (mayBeConstantCount && mayBeConstantCount.value() < tileSizes[i]) {
       // Trip count is less than the tile size: upper bound is lower bound +
       // trip count * stepSize.
       AffineMap ubMap = b.getSingleDimShiftAffineMap(
-          mayBeConstantCount.getValue() * origLoops[i].getStep());
+          mayBeConstantCount.value() * origLoops[i].getStep());
       newLoops[width + i].setUpperBound(
           /*operands=*/newLoops[i].getInductionVar(), ubMap);
     } else if (largestDiv % tileSizes[i] != 0) {
@@ -974,8 +973,8 @@ void mlir::getTileableBands(func::FuncOp f,
 /// Unrolls this loop completely.
 LogicalResult mlir::loopUnrollFull(AffineForOp forOp) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
-  if (mayBeConstantTripCount.hasValue()) {
-    uint64_t tripCount = mayBeConstantTripCount.getValue();
+  if (mayBeConstantTripCount.has_value()) {
+    uint64_t tripCount = mayBeConstantTripCount.value();
     if (tripCount == 0)
       return success();
     if (tripCount == 1)
@@ -990,9 +989,9 @@ LogicalResult mlir::loopUnrollFull(AffineForOp forOp) {
 LogicalResult mlir::loopUnrollUpToFactor(AffineForOp forOp,
                                          uint64_t unrollFactor) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
-  if (mayBeConstantTripCount.hasValue() &&
-      mayBeConstantTripCount.getValue() < unrollFactor)
-    return loopUnrollByFactor(forOp, mayBeConstantTripCount.getValue());
+  if (mayBeConstantTripCount.has_value() &&
+      mayBeConstantTripCount.value() < unrollFactor)
+    return loopUnrollByFactor(forOp, mayBeConstantTripCount.value());
   return loopUnrollByFactor(forOp, unrollFactor);
 }
 
@@ -1150,9 +1149,9 @@ LogicalResult mlir::loopUnrollByFactor(
 LogicalResult mlir::loopUnrollJamUpToFactor(AffineForOp forOp,
                                             uint64_t unrollJamFactor) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
-  if (mayBeConstantTripCount.hasValue() &&
-      mayBeConstantTripCount.getValue() < unrollJamFactor)
-    return loopUnrollJamByFactor(forOp, mayBeConstantTripCount.getValue());
+  if (mayBeConstantTripCount.has_value() &&
+      mayBeConstantTripCount.value() < unrollJamFactor)
+    return loopUnrollJamByFactor(forOp, mayBeConstantTripCount.value());
   return loopUnrollJamByFactor(forOp, unrollJamFactor);
 }
 
@@ -1573,8 +1572,8 @@ AffineForOp mlir::sinkSequentialLoops(AffineForOp forOp) {
     assert(depComps.size() >= maxLoopDepth);
     for (unsigned j = 0; j < maxLoopDepth; ++j) {
       DependenceComponent &depComp = depComps[j];
-      assert(depComp.lb.hasValue() && depComp.ub.hasValue());
-      if (depComp.lb.getValue() != 0 || depComp.ub.getValue() != 0)
+      assert(depComp.lb.has_value() && depComp.ub.has_value());
+      if (depComp.lb.value() != 0 || depComp.ub.value() != 0)
         isParallelLoop[j] = false;
     }
   }
@@ -1668,7 +1667,7 @@ stripmineSink(AffineForOp forOp, uint64_t factor,
         newForOp.getBody()->getOperations().begin(),
         t.getBody()->getOperations(), begin, std::next(begin, nOps));
     replaceAllUsesInRegionWith(iv, newForOp.getInductionVar(),
-                               newForOp.region());
+                               newForOp.getRegion());
     innerLoops.push_back(newForOp);
   }
 
@@ -1813,7 +1812,7 @@ LogicalResult mlir::coalesceLoops(MutableArrayRef<AffineForOp> loops) {
           applyOperands);
     }
     replaceAllUsesInRegionWith(loops[idx - 1].getInductionVar(),
-                               inductionVariable, loops.back().region());
+                               inductionVariable, loops.back().getRegion());
   }
 
   // 4. Move the operations from the innermost just above the second-outermost
@@ -1873,7 +1872,7 @@ findHighestBlockForPlacement(const MemRefRegion &region, Block &block,
                              Block::iterator *copyOutPlacementStart) {
   const auto *cst = region.getConstraints();
   SmallVector<Value, 4> symbols;
-  cst->getValues(cst->getNumDimIds(), cst->getNumDimAndSymbolIds(), &symbols);
+  cst->getValues(cst->getNumDimVars(), cst->getNumDimAndSymbolVars(), &symbols);
 
   SmallVector<AffineForOp, 4> enclosingFors;
   getLoopIVs(*block.begin(), &enclosingFors);
@@ -2110,7 +2109,7 @@ static LogicalResult generateCopy(
   // on; these typically include loop IVs surrounding the level at which the
   // copy generation is being done or other valid symbols in MLIR.
   SmallVector<Value, 8> regionSymbols;
-  cst->getValues(rank, cst->getNumIds(), &regionSymbols);
+  cst->getValues(rank, cst->getNumVars(), &regionSymbols);
 
   // Construct the index expressions for the fast memory buffer. The index
   // expression for a particular dimension of the fast buffer is obtained by
@@ -2144,7 +2143,7 @@ static LogicalResult generateCopy(
       // The coordinate for the start location is just the lower bound along the
       // corresponding dimension on the memory region (stored in 'offset').
       auto map = AffineMap::get(
-          cst->getNumDimIds() + cst->getNumSymbolIds() - rank, 0, offset);
+          cst->getNumDimVars() + cst->getNumSymbolVars() - rank, 0, offset);
       memIndices.push_back(b.create<AffineApplyOp>(loc, map, regionSymbols));
     }
     // The fast buffer is copied into at location zero; addressing is relative.
@@ -2406,12 +2405,12 @@ LogicalResult mlir::affineDataCopyGenerate(Block::iterator begin,
   block->walk(begin, end, [&](Operation *opInst) {
     // Gather regions to allocate to buffers in faster memory space.
     if (auto loadOp = dyn_cast<AffineLoadOp>(opInst)) {
-      if ((filterMemRef.hasValue() && filterMemRef != loadOp.getMemRef()) ||
+      if ((filterMemRef.has_value() && filterMemRef != loadOp.getMemRef()) ||
           (loadOp.getMemRefType().getMemorySpaceAsInt() !=
            copyOptions.slowMemorySpace))
         return;
     } else if (auto storeOp = dyn_cast<AffineStoreOp>(opInst)) {
-      if ((filterMemRef.hasValue() && filterMemRef != storeOp.getMemRef()) ||
+      if ((filterMemRef.has_value() && filterMemRef != storeOp.getMemRef()) ||
           storeOp.getMemRefType().getMemorySpaceAsInt() !=
               copyOptions.slowMemorySpace)
         return;
@@ -2671,7 +2670,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
     // TODO: Non-unit stride is not an issue to generalize to.
     assert(loop.getStep() == 1 && "point loop step expected to be one");
     // Mark everything symbols for the purpose of finding a constant diff pair.
-    cst.setDimSymbolSeparation(/*newSymbolCount=*/cst.getNumDimAndSymbolIds() -
+    cst.setDimSymbolSeparation(/*newSymbolCount=*/cst.getNumDimAndSymbolVars() -
                                1);
     unsigned fullTileLbPos, fullTileUbPos;
     if (!cst.getConstantBoundOnDimSize(0, /*lb=*/nullptr,
@@ -2700,7 +2699,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
       for (unsigned i = 0, e = cst.getNumCols(); i < e; ++i)
         cst.atIneq(ubIndex, i) -= fullTileUb[i];
 
-    cst.removeId(0);
+    cst.removeVar(0);
   }
 
   // The previous step leads to all zeros for the full tile lb and ub position
@@ -2719,7 +2718,7 @@ static AffineIfOp createSeparationCondition(MutableArrayRef<AffineForOp> loops,
     return nullptr;
 
   SmallVector<Value, 4> setOperands;
-  cst.getValues(0, cst.getNumDimAndSymbolIds(), &setOperands);
+  cst.getValues(0, cst.getNumDimAndSymbolVars(), &setOperands);
   canonicalizeSetAndOperands(&ifCondSet, &setOperands);
   return b.create<AffineIfOp>(loops[0].getLoc(), ifCondSet, setOperands,
                               /*withElseRegion=*/true);
@@ -2745,7 +2744,7 @@ createFullTiles(MutableArrayRef<AffineForOp> inputNest,
     (void)getIndexSet(loopOp, &cst);
     // We will mark everything other than this loop IV as symbol for getting a
     // pair of <lb, ub> with a constant difference.
-    cst.setDimSymbolSeparation(cst.getNumDimAndSymbolIds() - 1);
+    cst.setDimSymbolSeparation(cst.getNumDimAndSymbolVars() - 1);
     unsigned lbPos, ubPos;
     if (!cst.getConstantBoundOnDimSize(/*pos=*/0, /*lb=*/nullptr,
                                        /*lbDivisor=*/nullptr, /*ub=*/nullptr,
@@ -2756,7 +2755,7 @@ createFullTiles(MutableArrayRef<AffineForOp> inputNest,
       return failure();
     }
 
-    // Set all identifiers as dimensions uniformly since some of those marked as
+    // Set all variables as dimensions uniformly since some of those marked as
     // symbols above could be outer loop IVs (corresponding tile space IVs).
     cst.setDimSymbolSeparation(/*newSymbolCount=*/0);
 

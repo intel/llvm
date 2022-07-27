@@ -92,7 +92,7 @@ Matcher<const std::vector<CodeCompletion> &> has(std::string Name,
                                                  CompletionItemKind K) {
   return Contains(AllOf(named(std::move(Name)), kind(K)));
 }
-MATCHER(isDocumented, "") { return arg.Documentation.hasValue(); }
+MATCHER(isDocumented, "") { return arg.Documentation.has_value(); }
 MATCHER(deprecated, "") { return arg.Deprecated; }
 
 std::unique_ptr<SymbolIndex> memIndex(std::vector<Symbol> Symbols) {
@@ -1281,6 +1281,23 @@ TEST(SignatureHelpTest, Overloads) {
   // We always prefer the first signature.
   EXPECT_EQ(0, Results.activeSignature);
   EXPECT_EQ(0, Results.activeParameter);
+}
+
+TEST(SignatureHelpTest, FunctionPointers) {
+  auto FunctionPointerResults = signatures(R"cpp(
+    void (*foo)(int x, int y);
+    int main() { foo(^); }
+  )cpp");
+  EXPECT_THAT(FunctionPointerResults.signatures,
+              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
+
+  auto FunctionPointerTypedefResults = signatures(R"cpp(
+    typedef void (*fn)(int x, int y);
+    fn foo;
+    int main() { foo(^); }
+  )cpp");
+  EXPECT_THAT(FunctionPointerTypedefResults.signatures,
+              UnorderedElementsAre(sig("([[int x]], [[int y]]) -> void")));
 }
 
 TEST(SignatureHelpTest, Constructors) {
@@ -3126,6 +3143,26 @@ TEST(CompletionTest, ObjectiveCMethodDeclaration) {
 
   auto C = Results.Completions;
   EXPECT_THAT(C, ElementsAre(named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
+  EXPECT_THAT(C, ElementsAre(qualifier("- (int)")));
+  EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
+}
+
+TEST(CompletionTest, ObjectiveCMethodDeclarationFilterOnEntireSelector) {
+  auto Results = completions(R"objc(
+      @interface Foo
+      - (int)valueForCharacter:(char)c secondArgument:(id)object;
+      @end
+      @implementation Foo
+      secondArg^
+      @end
+    )objc",
+                             /*IndexSymbols=*/{},
+                             /*Opts=*/{}, "Foo.m");
+
+  auto C = Results.Completions;
+  EXPECT_THAT(C, ElementsAre(named("valueForCharacter:")));
+  EXPECT_THAT(C, ElementsAre(filterText("valueForCharacter:secondArgument:")));
   EXPECT_THAT(C, ElementsAre(kind(CompletionItemKind::Method)));
   EXPECT_THAT(C, ElementsAre(qualifier("- (int)")));
   EXPECT_THAT(C, ElementsAre(signature("(char)c secondArgument:(id)object")));
