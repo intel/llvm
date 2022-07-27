@@ -7861,11 +7861,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // be returned for the current depending action.
       std::pair<const Action *, std::string> ActionTC = {
           A, GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-/*
-      if (CachedResults.find(ActionTC) == CachedResults.end())
-        ActionTC = {
-            A, GetTriplePlusArchString(TC, "", TargetDeviceOffloadKind)};
-*/
       assert((CachedResults.find(ActionTC) != CachedResults.end()) &&
              "Result does not exist??");
       Result = CachedResults[ActionTC].front();
