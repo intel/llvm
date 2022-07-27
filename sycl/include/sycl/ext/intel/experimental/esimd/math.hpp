@@ -105,177 +105,6 @@ shl(T1 src0, T2 src1, Sat sat = {}) {
   return Result[0];
 }
 
-/// Shift right operation (vector version)
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vector.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return vector of shifted right values.
-template <typename T0, typename T1, int SZ, typename U,
-          class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
-  ComputationTy Src0 = src0;
-  ComputationTy Src1 = src1;
-  // TODO H/W supports saturation with this op - map to more efficient version.
-  ComputationTy Result = Src0.data() >> Src1.data();
-
-  if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
-    return Result;
-  else
-    return __ESIMD_NS::saturate<T0>(Result);
-}
-
-/// Shift right operation (scalar version)
-/// @tparam T0 element type of the returned value. Must be any integer type.
-/// @tparam T1 element type of the input value. Must be any integer type.
-/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input value.
-/// @param src1 the number of bit positions the input vector shall be shifted.
-/// @param sat enables/disables the saturation (off by default). Possible
-/// values: saturation_on/saturation_off.
-/// @return shifted right value.
-template <typename T0, typename T1, typename T2,
-          class Sat = __ESIMD_NS::saturation_off_tag>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-shr(T1 src0, T2 src1, Sat sat = {}) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result =
-      esimd::shr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
-  return Result[0];
-}
-
-/// Rotate left operation with two vector inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @param src0 the input vector.
-/// @param src1 the vector with number of bit positions by which the elements of
-/// the input vector \p src0 shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
-}
-
-/// Rotate left operation with a vector and a scalar inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
-  ComputationTy Src0 = src0;
-  ComputationTy Src1 = src1;
-  return esimd::rol<T0>(Src0, Src1);
-}
-
-/// Rotate left operation with two scalar inputs
-/// @tparam T0 element type of the returned value. Must be any integer type.
-/// @tparam T1 element type of the input value. Must be any integer type.
-/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input value.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return rotated left value.
-template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-rol(T1 src0, T2 src1) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, src1);
-  return Result[0];
-}
-
-/// Rotate right operation with two vector inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @param src0 the input vector.
-/// @param src1 the vector with number of bit positions by which the elements of
-/// the input vector \p src0 shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
-  return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
-}
-
-/// Rotate right operation with a vector and a scalar inputs
-/// @tparam T0 element type of the returned vector. Must be any integer type.
-/// @tparam T1 element type of the input vector. Must be any integer type.
-/// @tparam SZ size of the input and returned vectors.
-/// @tparam U type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input vector.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return vector of rotated elements.
-template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
-ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  using ComputationTy =
-      __ESIMD_DNS::computation_type_t<decltype(src0), int32_t>;
-  ComputationTy Src0 = src0;
-  ComputationTy Src1 = src1;
-  return esimd::ror<T0>(Src0, Src1);
-}
-
-/// Rotate right operation with two scalar inputs
-/// @tparam T0 element type of the returned value. Must be any integer type.
-/// @tparam T1 element type of the input value. Must be any integer type.
-/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
-/// @param src0 the input value.
-/// @param src1 the number of bit positions the input vector shall be rotated.
-/// @return rotated right value.
-template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
-ror(T1 src0, T2 src1) {
-  __ESIMD_NS::simd<T1, 1> Src0 = src0;
-  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, src1);
-  return Result[0];
-}
-
 /// Logical Shift Right (vector version)
 /// @tparam T0 element type of the returned vector. Must be any integer type.
 /// @tparam T1 element type of the input vector. Must be any integer type.
@@ -387,6 +216,169 @@ asr(T1 src0, T2 src1, Sat sat = {}) {
       esimd::asr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
   return Result[0];
 }
+
+/// Shift right operation (vector version)
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vector.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input vector.
+/// @param src1 the number of bit positions the input vector shall be shifted.
+/// @param sat enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return vector of shifted right values.
+template <typename T0, typename T1, int SZ, typename U,
+          class Sat = __ESIMD_NS::saturation_off_tag>
+__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<U>::value,
+                             __ESIMD_NS::simd<T0, SZ>>
+shr(__ESIMD_NS::simd<T1, SZ> src0, U src1, Sat sat = {}) {
+  if constexpr (std::is_unsigned<T1>::value) {
+    return esimd::lsr<T0, T1, SZ, U, Sat>(src0, src1, sat);
+  } else {
+    return esimd::asr<T0, T1, SZ, U, Sat>(src0, src1, sat);
+  }
+}
+
+/// Shift right operation (scalar version)
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input value.
+/// @param src1 the number of bit positions the input vector shall be shifted.
+/// @param sat enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return shifted right value.
+template <typename T0, typename T1, typename T2,
+          class Sat = __ESIMD_NS::saturation_off_tag>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+                                 std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<T2>::value,
+                             std::remove_const_t<T0>>
+shr(T1 src0, T2 src1, Sat sat = {}) {
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result =
+      esimd::shr<T0, T1, 1, T2, Sat>(Src0, src1, sat);
+  return Result[0];
+}
+
+/// Rotate left operation with two vector inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @param src0 the input vector.
+/// @param src1 the vector with number of bit positions by which the elements of
+/// the input vector \p src0 shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ>
+__ESIMD_API
+    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
+                     __ESIMD_NS::simd<T0, SZ>>
+    rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+  return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
+}
+
+/// Rotate left operation with a vector and a scalar inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input vector.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ, typename U>
+__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<U>::value,
+                             __ESIMD_NS::simd<T0, SZ>>
+rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
+  constexpr auto nrOfDigits = std::numeric_limits<T1>::digits;
+  __ESIMD_NS::simd<T1, SZ> Src1 = src1 % nrOfDigits;
+
+  return esimd::rol<T0>(src0, Src1);
+}
+
+/// Rotate left operation with two scalar inputs
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input value.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return rotated left value.
+template <typename T0, typename T1, typename T2>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+                                 std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<T2>::value,
+                             std::remove_const_t<T0>>
+rol(T1 src0, T2 src1) {
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, src1);
+  return Result[0];
+}
+
+/// Rotate right operation with two vector inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @param src0 the input vector.
+/// @param src1 the vector with number of bit positions by which the elements of
+/// the input vector \p src0 shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ>
+__ESIMD_API
+    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
+                     __ESIMD_NS::simd<T0, SZ>>
+    ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+  return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
+}
+
+/// Rotate right operation with a vector and a scalar inputs
+/// @tparam T0 element type of the returned vector. Must be any integer type.
+/// @tparam T1 element type of the input vector. Must be any integer type.
+/// @tparam SZ size of the input and returned vectors.
+/// @tparam U type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input vector.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return vector of rotated elements.
+template <typename T0, typename T1, int SZ, typename U>
+__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<U>::value,
+                             __ESIMD_NS::simd<T0, SZ>>
+ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
+  constexpr auto nrOfDigits = std::numeric_limits<T1>::digits;
+  __ESIMD_NS::simd<T1, SZ> Src1 = src1 % nrOfDigits;
+  return esimd::ror<T0>(src0, Src1);
+}
+
+/// Rotate right operation with two scalar inputs
+/// @tparam T0 element type of the returned value. Must be any integer type.
+/// @tparam T1 element type of the input value. Must be any integer type.
+/// @tparam T2 type of scalar operand \p src1. Must be any integer type.
+/// @param src0 the input value.
+/// @param src1 the number of bit positions the input vector shall be rotated.
+/// @return rotated right value.
+template <typename T0, typename T1, typename T2>
+__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+                                 std::is_integral<T0>::value &&
+                                 std::is_integral<T1>::value &&
+                                 std::is_integral<T2>::value,
+                             std::remove_const_t<T0>>
+ror(T1 src0, T2 src1) {
+  __ESIMD_NS::simd<T1, 1> Src0 = src0;
+  __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, src1);
+  return Result[0];
+}
+
 /// @} sycl_esimd_bitmanip
 
 /// @addtogroup sycl_esimd_math
