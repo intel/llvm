@@ -138,7 +138,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MHostEvent(false), MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_ERROR_INVALID_CONTEXT);
@@ -149,7 +149,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_ERROR_INVALID_CONTEXT);
@@ -223,7 +223,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
-void event_impl::wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -250,7 +250,7 @@ void event_impl::wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) {
 }
 
 void event_impl::wait_and_throw(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+    std::shared_ptr<sycl::detail::event_impl> Self) {
   Scheduler &Sched = Scheduler::getInstance();
 
   QueueImplPtr submittedQueue = nullptr;
@@ -275,7 +275,7 @@ void event_impl::wait_and_throw(
 }
 
 void event_impl::cleanupCommand(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+    std::shared_ptr<sycl::detail::event_impl> Self) const {
   if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
     detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }

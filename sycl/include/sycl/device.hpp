@@ -229,10 +229,10 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::device> {
-  size_t operator()(const cl::sycl::device &Device) const {
-    return hash<std::shared_ptr<cl::sycl::detail::device_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Device));
+template <> struct hash<sycl::device> {
+  size_t operator()(const sycl::device &Device) const {
+    return hash<std::shared_ptr<sycl::detail::device_impl>>()(
+        sycl::detail::getSyclObjImpl(Device));
   }
 };
 } // namespace std

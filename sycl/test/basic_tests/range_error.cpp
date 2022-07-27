@@ -5,9 +5,9 @@
 
 using namespace std;
 int main() {
-  cl::sycl::range<1> one_dim_range(64);
-  cl::sycl::range<2> two_dim_range(64, 1);
-  cl::sycl::range<3> three_dim_range(64, 1, 2);
+  sycl::range<1> one_dim_range(64);
+  sycl::range<2> two_dim_range(64, 1);
+  sycl::range<3> three_dim_range(64, 1, 2);
   assert(one_dim_range.size() ==64);
   assert(one_dim_range.get(0) ==64);
   assert(one_dim_range[0] ==64);
@@ -26,8 +26,8 @@ int main() {
   assert(three_dim_range.get(2) ==2);
   assert(three_dim_range[2] ==2);
   cout << "three_dim_range passed " << endl;
-  // expected-error@+1 {{no matching constructor for initialization of 'cl::sycl::range<1>'}}
-  cl::sycl::range<1> one_dim_range_f1(64, 2, 4);
-  // expected-error@+1 {{no matching constructor for initialization of 'cl::sycl::range<2>'}}
-  cl::sycl::range<2> two_dim_range_f1(64);
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::range<1>'}}
+  sycl::range<1> one_dim_range_f1(64, 2, 4);
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::range<2>'}}
+  sycl::range<2> two_dim_range_f1(64);
 }

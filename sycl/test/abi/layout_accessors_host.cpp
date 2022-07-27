@@ -6,7 +6,7 @@
 
 #include <sycl/accessor.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // CHECK:        0 | class sycl::detail::AccessorImplHost
 // CHECK-NEXT:   0 |   class sycl::id<3> MOffset

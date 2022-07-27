@@ -3,7 +3,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   // Test new constructors, initially each with empty string messages.

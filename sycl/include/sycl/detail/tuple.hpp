@@ -196,14 +196,14 @@ namespace std {
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type &
-get(cl::sycl::detail::tuple<Types...> &Arg) noexcept {
-  return cl::sycl::detail::get<I>()(Arg);
+get(sycl::detail::tuple<Types...> &Arg) noexcept {
+  return sycl::detail::get<I>()(Arg);
 }
 
 template <size_t I, typename... Types>
 constexpr typename tuple_element<I, tuple<Types...>>::type const &
-get(const cl::sycl::detail::tuple<Types...> &Arg) noexcept {
-  return cl::sycl::detail::get<I>()(Arg);
+get(const sycl::detail::tuple<Types...> &Arg) noexcept {
+  return sycl::detail::get<I>()(Arg);
 }
 
 } // namespace std

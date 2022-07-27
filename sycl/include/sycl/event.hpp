@@ -161,10 +161,10 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::event> {
-  size_t operator()(const cl::sycl::event &e) const {
-    return hash<std::shared_ptr<cl::sycl::detail::event_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(e));
+template <> struct hash<sycl::event> {
+  size_t operator()(const sycl::event &e) const {
+    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
+        sycl::detail::getSyclObjImpl(e));
   }
 };
 } // namespace std

@@ -64,8 +64,8 @@
 /// \code{.cpp}
 /// {
 ///   // Creating SYCL CPU and GPU queues
-///   cl::sycl::queue CPU_Queue = ...;
-///   cl::sycl::queue GPU_Queue = ...;
+///   sycl::queue CPU_Queue = ...;
+///   sycl::queue GPU_Queue = ...;
 ///
 ///   // Creating 3 SYCL buffers
 ///   auto BufferA = ...; // Buffer is initialized with host memory.
@@ -514,7 +514,7 @@ protected:
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
         Command *FinishedCmd,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
         std::vector<std::shared_ptr<const void>> &);
 
     /// Reschedules the command passed using Queue provided.
@@ -541,7 +541,7 @@ protected:
     /// Removes commands that use the given MemObjRecord from the graph.
     void cleanupCommandsForRecord(
         MemObjRecord *Record,
-        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &,
+        std::vector<std::shared_ptr<sycl::detail::stream_impl>> &,
         std::vector<std::shared_ptr<const void>> &);
 
     /// Removes the MemObjRecord for the memory object passed.

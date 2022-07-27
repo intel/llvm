@@ -1,4 +1,3 @@
 __SYCL_PARAM_TRAITS_SPEC(queue, reference_count, uint32_t)
-__SYCL_PARAM_TRAITS_SPEC(queue, context, cl::sycl::context)
-__SYCL_PARAM_TRAITS_SPEC(queue, device, cl::sycl::device)
-
+__SYCL_PARAM_TRAITS_SPEC(queue, context, sycl::context)
+__SYCL_PARAM_TRAITS_SPEC(queue, device, sycl::device)

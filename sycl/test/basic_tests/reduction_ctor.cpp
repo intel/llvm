@@ -8,7 +8,7 @@
 #include <cassert>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 bool toBool(bool V) { return V; }
 bool toBool(vec<int, 2> V) { return V.x() && V.y(); }

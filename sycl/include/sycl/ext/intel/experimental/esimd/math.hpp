@@ -1975,7 +1975,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
       __ESIMD_NS::simd<T2, N2> src2, Sat sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, cl::sycl::detail::half_impl::StorageT>()) &&
+      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
       src1_precision == src2_precision && src1_precision == argument_type::FP16;
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&
@@ -2056,7 +2056,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
                                           __ESIMD_NS::simd<T2, N2> src2,
                                           Sat sat = {}) {
   constexpr bool is_4xhf =
-      (__ESIMD_DNS::is_type<T, cl::sycl::detail::half_impl::StorageT>()) &&
+      (__ESIMD_DNS::is_type<T, sycl::detail::half_impl::StorageT>()) &&
       src1_precision == src2_precision && src1_precision == argument_type::FP16;
 
   constexpr bool is_4xbf = __ESIMD_DNS::is_word_type<T>::value &&

@@ -38,10 +38,10 @@ event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
   return AuxHandler.finalize();
 }
 
-using cl::sycl::detail::bool_constant;
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
-using cl::sycl::detail::remove_AS;
+using sycl::detail::bool_constant;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
+using sycl::detail::remove_AS;
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
@@ -1387,7 +1387,6 @@ void reduCGFuncForNDRangeFastAtomicsOnly(
     if (LID == 0) {
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
     }
-
   });
 }
 
@@ -1918,7 +1917,9 @@ struct IsNonUsmReductionPredicate {
 };
 
 struct EmptyReductionPredicate {
-  template <typename T> struct Func { static constexpr bool value = false; };
+  template <typename T> struct Func {
+    static constexpr bool value = false;
+  };
 };
 
 template <bool Cond, size_t I> struct FilterElement {
@@ -2232,7 +2233,7 @@ void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu) {
 template <typename ReductionT, typename... RestT,
           enable_if_t<(sizeof...(RestT) > 0), int> Z = 0>
 void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu,
-                                        RestT &... Rest) {
+                                        RestT &...Rest) {
   Redu.associateWithHandler(CGH);
   associateReduAccsWithHandlerHelper(CGH, Rest...);
 }
@@ -2646,15 +2647,15 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 
 #ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  namespace detail {
-  using cl::sycl::detail::queue_impl;
-  __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
-                                        size_t LocalMemBytesPerWorkItem);
-  __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
-                                         size_t &NWorkGroups);
-  } // namespace detail
-} // namespace ONEAPI
+using namespace ext::oneapi;
+namespace detail {
+using sycl::detail::queue_impl;
+__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+__SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                       size_t &NWorkGroups);
+} // namespace detail
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
