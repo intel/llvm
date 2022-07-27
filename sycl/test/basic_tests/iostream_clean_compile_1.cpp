@@ -1,4 +1,4 @@
-// RUN: clang++ -Werror -fsycl %s -c
+// RUN: %clangxx -Wno-unused-command-line-argument -Werror -fsycl %s -c
 
 #include <iostream>
 #include <sycl/sycl.hpp>
