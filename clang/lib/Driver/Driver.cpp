@@ -4517,8 +4517,7 @@ class OffloadingActionBuilder final {
                       const Driver::InputList &Inputs,
                       OffloadingActionBuilder &OAB)
         : DeviceActionBuilder(C, Args, Inputs, Action::OFK_SYCL, OAB),
-           SYCLInstallation(C.getDriver()) {}
-
+          SYCLInstallation(C.getDriver()) {}
 
     void withBoundArchForToolChain(const ToolChain *TC,
                                    llvm::function_ref<void(const char *)> Op) {
@@ -4970,7 +4969,7 @@ class OffloadingActionBuilder final {
           }
         }
       };
-      
+
       addInputs(sycl_device_wrapper_libs);
       if (isSpirvAOT || TC->getTriple().isNVPTX())
         addInputs(sycl_device_fallback_libs);

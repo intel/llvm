@@ -10,7 +10,7 @@
 #define __LIBDEVICE_DEVICE_MATH_H__
 
 #include "device.h"
-#if  defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__NVPTX__)
 #include <cstdint>
 
 typedef struct {

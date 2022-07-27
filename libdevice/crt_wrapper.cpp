@@ -8,7 +8,7 @@
 
 #include "wrapper.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__) 
+#if defined(__SPIR__) || defined(__NVPTX__)
 DEVICE_EXTERN_C_INLINE
 void *memcpy(void *dest, const void *src, size_t n) {
   return __devicelib_memcpy(dest, src, n);
