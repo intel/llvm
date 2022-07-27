@@ -342,7 +342,7 @@ private:
 // The default value is "-1".
 //
 static const std::pair<int, int>
-getRangeOfAllowedComputeEngines(pi_device &Device) {
+getRangeOfAllowedComputeEngines() {
   static const char *EnvVar =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
   // If the environment variable is not set, all available compute engines
@@ -1090,8 +1090,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
     ComputeQueueGroup.NextIndex = 0;
   }
 
-  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines(Device).first;
-  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines(Device).second;
+  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
+  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines().second;
   FilterUpperIndex =
       std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
   if (FilterLowerIndex <= FilterUpperIndex) {
