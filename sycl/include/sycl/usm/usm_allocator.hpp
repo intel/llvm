@@ -13,8 +13,8 @@
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 #include <cstdlib>
 #include <memory>
