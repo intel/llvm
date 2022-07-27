@@ -43,10 +43,6 @@ static const CONSTANT char format_hello_world[] = "Hello, World!\n";
 // Static isn't really needed if you define it in global scope
 const CONSTANT char format_int[] = "%d\n";
 
-static const CONSTANT char format_vec[] = "%d,%d,%d,%d\n";
-
-const CONSTANT char format_hello_world_2[] = "%lu: Hello, World!\n";
-
 int main() {
   {
     queue Queue(esimd_test::ESIMDSelector{},
@@ -56,17 +52,12 @@ int main() {
       CGH.single_task([=]() SYCL_ESIMD_KERNEL {
         // String
         oneapi::experimental::printf(format_hello_world);
-        // Due to a bug in Intel CPU Runtime for OpenCL on Windows, information
-        // printed using such format strings (without %-specifiers) might
-        // appear in different order if output is redirected to a file or
-        // another app
-        // FIXME: strictly check output order once the bug is fixed
-        // CHECK: {{(Hello, World!)?}}
+        // CHECK: Hello, World!
 
         // Integral types
         oneapi::experimental::printf(format_int, (int32_t)123);
         oneapi::experimental::printf(format_int, (int32_t)-123);
-        // CHECK: 123
+        // CHECK-NEXT: 123
         // CHECK-NEXT: -123
 
         // Floating point types
@@ -93,30 +84,39 @@ int main() {
   }
 
   {
-    queue Queue(esimd_test::ESIMDSelector{},
-                esimd_test::createExceptionHandler());
+    queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
     // printf in parallel_for
-    Queue.submit([&](handler &CGH) {
-      CGH.parallel_for(range<1>(10), [=](id<1> i) SYCL_ESIMD_KERNEL {
-        // cast to uint64_t to be sure that we pass 64-bit unsigned value
-        oneapi::experimental::printf(format_hello_world_2, (uint64_t)i.get(0));
-      });
-    });
-    Queue.wait();
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
-    // CHECK-NEXT: {{[0-9]+}}: Hello, World!
+    constexpr int SIMD_SIZE = 16;
+    constexpr int WORK_SIZE = SIMD_SIZE;
+    int *Mem = malloc_shared<int>(WORK_SIZE * SIMD_SIZE, Q);
+    for (int I = 0; I < WORK_SIZE * SIMD_SIZE; I++)
+      Mem[I] = I;
+    std::cout << "Start parallel_for:" << std::endl;
+    Q.parallel_for(range<1>(WORK_SIZE), [=](id<1> i) SYCL_ESIMD_KERNEL {
+       static const CONSTANT char STR_LU_D[] = "Thread-id: %d, Value: %d\n";
+       ext::intel::esimd::simd<int, SIMD_SIZE> Vec(Mem + i * SIMD_SIZE);
+       // cast to uint64_t to be sure that we pass 64-bit unsigned value
+       oneapi::experimental::printf(STR_LU_D, (uint64_t)i[0], (int)Vec[i]);
+     }).wait();
+    free(Mem, Q);
+    // CHECK-LABEL: Start parallel_for
+    // CHECK-DAG: Thread-id: 0, Value: 0
+    // CHECK-DAG: Thread-id: 1, Value: 17
+    // CHECK-DAG: Thread-id: 2, Value: 34
+    // CHECK-DAG: Thread-id: 3, Value: 51
+    // CHECK-DAG: Thread-id: 4, Value: 68
+    // CHECK-DAG: Thread-id: 5, Value: 85
+    // CHECK-DAG: Thread-id: 6, Value: 102
+    // CHECK-DAG: Thread-id: 7, Value: 119
+    // CHECK-DAG: Thread-id: 8, Value: 136
+    // CHECK-DAG: Thread-id: 9, Value: 153
+    // CHECK-DAG: Thread-id: 10, Value: 170
+    // CHECK-DAG: Thread-id: 11, Value: 187
+    // CHECK-DAG: Thread-id: 12, Value: 204
+    // CHECK-DAG: Thread-id: 13, Value: 221
+    // CHECK-DAG: Thread-id: 14, Value: 238
+    // CHECK-DAG: Thread-id: 15, Value: 255
   }
-
-  // FIXME: strictly check output order once the bug mentioned above is fixed
-  // CHECK: {{(Hello, World!)?}}
 
   return 0;
 }
