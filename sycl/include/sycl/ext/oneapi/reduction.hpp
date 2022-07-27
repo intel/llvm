@@ -606,6 +606,12 @@ public:
 
   template <bool IsOneWG>
   auto getWriteMemForPartialReds(size_t Size, handler &CGH) {
+    // If there is only one WG we can avoid creation of temporary buffer with
+    // partial sums and write directly into user's reduction variable.
+    //
+    // Current implementation doesn't allow that in case of DW accessor used for
+    // reduction because C++ types for it and for temporary storage don't match,
+    // hence the second part of the check.
     if constexpr (IsOneWG && !is_dw_acc) {
       return MRedOut;
     } else {
