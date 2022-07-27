@@ -22,8 +22,8 @@
 #endif
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 using memory_order = sycl::memory_order;
@@ -666,5 +666,5 @@ public:
                                 AddressSpace>::operator=;
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

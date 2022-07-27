@@ -21,8 +21,8 @@
 // public methods as a default argument. If the end-user wants to disable the
 // code location information, they must compile the code with
 // -DDISABLE_SYCL_INSTRUMENTATION_METADATA flag
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
@@ -84,11 +84,11 @@ private:
   unsigned long MColumnNo;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 __SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
@@ -99,8 +99,8 @@ static inline std::string codeToString(pi_int32 code) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #ifdef __SYCL_DEVICE_ONLY__
 // TODO remove this when 'assert' is supported in device code
@@ -185,8 +185,8 @@ static inline std::string codeToString(pi_int32 code) {
   __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.
@@ -355,5 +355,5 @@ template <typename T> struct InlineVariableHelper {
 
 template <typename T> constexpr T InlineVariableHelper<T>::value;
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

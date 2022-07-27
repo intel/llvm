@@ -9,8 +9,8 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -130,5 +130,5 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 }
 } // namespace detail
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -12,8 +12,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <info::context param> struct get_context_info {
@@ -49,5 +49,5 @@ struct get_context_info<info::context::atomic_memory_order_capabilities> {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

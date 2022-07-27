@@ -4,7 +4,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 // expected-warning@+1 {{unknown attribute 'num_simd_work_items' ignored}}

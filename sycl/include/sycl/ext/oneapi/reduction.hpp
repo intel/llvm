@@ -20,8 +20,8 @@
 
 #include <tuple>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -48,20 +48,18 @@ template <typename T> struct AreAllButLastReductions<T> {
 } // namespace detail
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #if __cplusplus >= 201703L
 // Entire feature is dependent on C++17. We still have to make the trait above
 // available as queue shortcuts use them unconditionally, including on
 // non-reduction path.
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
-
 namespace detail {
-
 template <class FunctorTy>
 event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
                      FunctorTy Func) {
@@ -2496,7 +2494,6 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 } // namespace detail
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
-
 #endif // __cplusplus >= 201703L

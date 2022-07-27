@@ -14,8 +14,8 @@
 #include <sycl/device.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 // OpenCL kernel information methods
@@ -189,5 +189,5 @@ struct get_kernel_device_specific_info_with_input {
   }
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

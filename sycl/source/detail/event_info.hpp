@@ -13,8 +13,8 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/info/info_desc.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 template <info::event_profiling Param> struct get_event_profiling_info {
@@ -43,5 +43,5 @@ template <info::event Param> struct get_event_info {
 };
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

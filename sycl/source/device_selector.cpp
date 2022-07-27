@@ -24,8 +24,8 @@
 #include <cctype>
 #include <regex>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // SYCL_DEVICE_FILTER doesn't need to be considered in the device preferences
 // as it filters the device list returned by device::get_devices itself, so
@@ -207,19 +207,19 @@ device filter_selector::select_device() const {
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  filter_selector::filter_selector(const std::string &Input)
-      : ext::oneapi::filter_selector(Input) {}
+using namespace ext::oneapi;
+filter_selector::filter_selector(const std::string &Input)
+    : ext::oneapi::filter_selector(Input) {}
 
-  int filter_selector::operator()(const device &Dev) const {
-    return ext::oneapi::filter_selector::operator()(Dev);
-  }
+int filter_selector::operator()(const device &Dev) const {
+  return ext::oneapi::filter_selector::operator()(Dev);
+}
 
-  void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
+void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
 
-  device filter_selector::select_device() const {
-    return ext::oneapi::filter_selector::select_device();
-  }
-} // namespace ONEAPI
+device filter_selector::select_device() const {
+  return ext::oneapi::filter_selector::select_device();
+}
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

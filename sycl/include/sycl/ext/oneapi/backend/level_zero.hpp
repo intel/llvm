@@ -13,8 +13,8 @@
 
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace level_zero {
@@ -223,8 +223,8 @@ make_buffer(
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
     level_zero {
-  using namespace ext::oneapi::level_zero;
+using namespace ext::oneapi::level_zero;
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

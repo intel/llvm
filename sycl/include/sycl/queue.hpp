@@ -73,8 +73,8 @@
 #define __SYCL_USE_FALLBACK_ASSERT 0
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class context;
@@ -1241,8 +1241,8 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 #endif // __SYCL_USE_FALLBACK_ASSERT
 } // namespace detail
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::queue> {

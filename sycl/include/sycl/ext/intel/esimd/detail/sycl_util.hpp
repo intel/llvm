@@ -15,8 +15,8 @@
 
 #include <sycl/accessor.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace intel {
 namespace esimd {
@@ -86,7 +86,7 @@ using EnableIfAccessor = sycl::detail::enable_if_t<
 } // namespace esimd
 } // namespace intel
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 /// @endcond ESIMD_DETAIL

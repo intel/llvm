@@ -14,8 +14,8 @@
 
 #include <memory>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 namespace detail {
 std::vector<RT::PiEvent> getOrWaitEvents(std::vector<sycl::event> DepEvents,
@@ -47,5 +47,5 @@ void waitEvents(std::vector<sycl::event> DepEvents) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

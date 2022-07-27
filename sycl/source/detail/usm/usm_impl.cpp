@@ -37,8 +37,8 @@
 #define XPTI_CREATE_TRACEPOINT(CL)
 #endif
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 using alloc = sycl::usm::alloc;
 
@@ -787,5 +787,5 @@ __SYCL_EXPORT void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q,
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
                        PropList, detail::code_location{});
 }
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

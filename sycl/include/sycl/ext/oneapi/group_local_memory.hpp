@@ -19,8 +19,8 @@
 #include <type_traits>
 #include <utility>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 template <typename T, typename Group>
@@ -44,7 +44,7 @@ template <typename T, typename Group, typename... Args>
 std::enable_if_t<std::is_trivially_destructible<T>::value &&
                      sycl::detail::is_group<Group>::value,
                  multi_ptr<T, access::address_space::local_space>>
-    __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&... args) {
+    __SYCL_ALWAYS_INLINE group_local_memory(Group g, Args &&...args) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
   __attribute__((opencl_local)) std::uint8_t *AllocatedMem =
@@ -66,5 +66,5 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
 }
 } // namespace oneapi
 } // namespace ext
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

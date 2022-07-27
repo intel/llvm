@@ -213,7 +213,7 @@
   __MAKE_1V_2V_3P(Fun, 8, Ret, Arg1, Arg2, Arg3)                               \
   __MAKE_1V_2V_3P(Fun, 16, Ret, Arg1, Arg2, Arg3)
 
-__SYCL_INLINE_NAMESPACE(cl) {
+// TODO:
 namespace __host_std {
 namespace detail {
 
@@ -364,4 +364,3 @@ template <> struct helper<0> {
 
 } // namespace detail
 } // namespace __host_std
-} // __SYCL_INLINE_NAMESPACE(cl)

@@ -13,8 +13,8 @@
 #include <sycl/detail/memory_manager.hpp>
 #include <sycl/detail/sycl_mem_obj_t.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                          const size_t SizeInBytes, event AvailableEvent,
@@ -157,5 +157,5 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
     HostPtrReadOnly = false;
 }
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
