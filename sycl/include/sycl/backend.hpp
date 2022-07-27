@@ -127,7 +127,19 @@ auto get_native(const SyclObjectT &Obj)
     throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
                               PI_ERROR_INVALID_OPERATION);
   }
-  return Obj.template get_native<BackendName>();
+  return reinterpret_cast<backend_return_t<BackendName, SyclObjectT>>(
+      Obj.getNative());
+}
+
+template <backend BackendName, bundle_state State>
+auto get_native(const kernel_bundle<State> &Obj)
+    -> backend_return_t<BackendName, kernel_bundle<State>> {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != BackendName) {
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_ERROR_INVALID_OPERATION);
+  }
+  return Obj.template getNative<BackendName>();
 }
 
 template <backend BackendName, typename DataT, int Dimensions,
