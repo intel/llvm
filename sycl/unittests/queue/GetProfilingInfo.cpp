@@ -212,6 +212,7 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
   try {
     auto info =
         E.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    (void)info;
     FAIL();
   } catch (sycl::exception const &e) {
     EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
@@ -220,6 +221,7 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
   try {
     auto info =
         E.get_profiling_info<sycl::info::event_profiling::command_start>();
+    (void)info;
     FAIL();
   } catch (sycl::exception const &e) {
     EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
@@ -228,6 +230,7 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
   try {
     auto info =
         E.get_profiling_info<sycl::info::event_profiling::command_end>();
+    (void)info;
     FAIL();
   } catch (sycl::exception const &e) {
     EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
