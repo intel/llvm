@@ -341,8 +341,7 @@ private:
 //
 // The default value is "-1".
 //
-static const std::pair<int, int>
-getRangeOfAllowedComputeEngines() {
+static const std::pair<int, int> getRangeOfAllowedComputeEngines() {
   static const char *EnvVar =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
   // If the environment variable is not set, all available compute engines
