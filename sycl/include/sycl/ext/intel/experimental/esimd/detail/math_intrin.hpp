@@ -14,40 +14,6 @@
 
 #define ARG_UNUSED(x) (void)x
 
-inline int __esimd_encode_dpas_info(int repeat_count, int systolic_depth,
-                                    __ESIMD_ENS::argument_type src1_precision,
-                                    __ESIMD_ENS::argument_type src2_precision) {
-  return (repeat_count << 24) + (systolic_depth << 16) +
-         (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
-}
-
-inline int __esimd_decode_repeat_count(int dpas_info) {
-  return (dpas_info >> 24);
-}
-
-inline int __esimd_decode_systolic_depth(int dpas_info) {
-  return ((dpas_info >> 16) & 0xFF);
-}
-
-inline __ESIMD_ENS::argument_type
-__esimd_decode_src1_precision(const int dpas_info) {
-  int decoded = dpas_info;
-  decoded &= 0xFF;
-  decoded -= 1;
-
-  return (__ESIMD_ENS::argument_type)decoded;
-}
-
-inline __ESIMD_ENS::argument_type
-__esimd_decode_src2_precision(const int dpas_info) {
-  int decoded = dpas_info;
-  decoded >>= 8;
-  decoded &= 0xFF;
-  decoded -= 1;
-
-  return (__ESIMD_ENS::argument_type)decoded;
-}
-
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
@@ -704,10 +670,10 @@ __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
 #else
 {
   return __esimd_dpas_inner<T, T1, T2, N, N1, N2>(
-      nullptr, src1, src2, __esimd_decode_src1_precision(dpas_info),
-      __esimd_decode_src2_precision(dpas_info),
-      __esimd_decode_systolic_depth(dpas_info),
-      __esimd_decode_repeat_count(dpas_info));
+      nullptr, src1, src2, __ESIMD_EDNS::decode_src1_precision(dpas_info),
+      __ESIMD_EDNS::decode_src2_precision(dpas_info),
+      __ESIMD_EDNS::decode_systolic_depth(dpas_info),
+      __ESIMD_EDNS::decode_repeat_count(dpas_info));
 }
 #endif
 

@@ -410,6 +410,34 @@ constexpr void check_lsc_cache_hint() {
   }
 }
 
+int encode_dpas_info(int repeat_count, int systolic_depth,
+                     argument_type src1_precision,
+                     argument_type src2_precision) {
+  return (repeat_count << 24) + (systolic_depth << 16) +
+         (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
+}
+
+int decode_repeat_count(int dpas_info) { return (dpas_info >> 24); }
+
+int decode_systolic_depth(int dpas_info) { return ((dpas_info >> 16) & 0xFF); }
+
+argument_type decode_src1_precision(const int dpas_info) {
+  int decoded = dpas_info;
+  decoded &= 0xFF;
+  decoded -= 1;
+
+  return (argument_type)decoded;
+}
+
+argument_type decode_src2_precision(const int dpas_info) {
+  int decoded = dpas_info;
+  decoded >>= 8;
+  decoded &= 0xFF;
+  decoded -= 1;
+
+  return (argument_type)decoded;
+}
+
 } // namespace detail
 
 /// Represents a split barrier action.

@@ -1933,8 +1933,8 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<T1, N1> src1,
 
   __ESIMD_NS::simd<T, N> result = __esimd_dpas2<T, T1, T2, N, N1, N2>(
       src1.data(), src2.data(),
-      __esimd_encode_dpas_info(repeat_count, systolic_depth, src1_precision,
-                               src2_precision));
+      __ESIMD_EDNS::encode_dpas_info(repeat_count, systolic_depth,
+                                     src1_precision, src2_precision));
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -2009,8 +2009,8 @@ dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
 
   __ESIMD_NS::simd<T, N> result = __esimd_dpasw<T, T1, T2, N, N1, N2>(
       src0.data(), src1.data(), src2.data(),
-      __esimd_encode_dpas_info(repeat_count, systolic_depth, src1_precision,
-                               src2_precision));
+      __ESIMD_EDNS::encode_dpas_info(repeat_count, systolic_depth,
+                                     src1_precision, src2_precision));
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -2083,8 +2083,8 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
 
   __ESIMD_NS::simd<T, N> result = __esimd_dpasw2<T, T1, T2, N, N1, N2>(
       src1.data(), src2.data(),
-      __esimd_encode_dpas_info(repeat_count, systolic_depth, src1_precision,
-                               src2_precision));
+      __ESIMD_EDNS::encode_dpas_info(repeat_count, systolic_depth,
+                                     src1_precision, src2_precision));
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
