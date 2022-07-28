@@ -5023,7 +5023,7 @@ class OffloadingActionBuilder final {
           Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                              Args.MakeArgString(LibSpirvFile));
           auto *SYCLLibClcInputAction =
-              C.MakeAction<InputAction>(*LibClcInputArg, types::TY_Object);
+              C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
           DeviceLinkObjects.push_back(SYCLLibClcInputAction);
         }
 
@@ -5039,7 +5039,7 @@ class OffloadingActionBuilder final {
                 MakeInputArg(Args, C.getDriver().getOpts(),
                              Args.MakeArgString(LibDeviceFile));
             auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
-                *CudaDeviceLibInputArg, types::TY_Object);
+                *CudaDeviceLibInputArg, types::TY_LLVM_BC);
             DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
           }
         }
