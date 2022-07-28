@@ -134,39 +134,7 @@ select_device(DSelectorInvocableType DeviceSelectorInvocable,
 } // namespace detail
 
 device device_selector::select_device() const {
-  std::vector<device> devices = device::get_devices();
-  int score = REJECT_DEVICE_SCORE;
-  const device *res = nullptr;
-
-  for (const auto &dev : devices) {
-    int dev_score = (*this)(dev);
-
-    detail::traceDeviceSelection(dev, dev_score, false);
-
-    // A negative score means that a device must not be selected.
-    if (dev_score < 0)
-      continue;
-
-    // SYCL spec says: "If more than one device receives the high score then
-    // one of those tied devices will be returned, but which of the devices
-    // from the tied set is to be returned is not defined". So use the device
-    // preference score to resolve ties, this is necessary for custom_selectors
-    // that may not already include device preference in their scoring.
-    if ((score < dev_score) ||
-        ((score == dev_score) && (detail::getDevicePreference(*res) <
-                                  detail::getDevicePreference(dev)))) {
-      res = &dev;
-      score = dev_score;
-    }
-  }
-
-  if (res != nullptr) {
-    detail::traceDeviceSelection(*res, score, true);
-    return *res;
-  }
-
-  throw cl::sycl::runtime_error("No device of requested type available.",
-                                PI_ERROR_DEVICE_NOT_FOUND);
+  return detail::select_device([&](const device &dev) { return (*this)(dev); });
 }
 
 /// Devices of different kinds are prioritized in the following order:
