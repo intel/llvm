@@ -125,9 +125,12 @@ public:
   /// takes a device and returns an int
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  template <typename DeviceSelector,
-            typename = std::enable_if_t<
-                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+  template <
+      typename DeviceSelector,
+      typename = std::enable_if_t<
+          std::is_invocable_r<int, DeviceSelector &, device &>::value &&
+          !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
+  // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &PropList = {})
@@ -138,9 +141,12 @@ public:
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
-  template <typename DeviceSelector,
-            typename = std::enable_if_t<
-                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+  template <
+      typename DeviceSelector,
+      typename = std::enable_if_t<
+          std::is_invocable_r<int, DeviceSelector &, device &>::value &&
+          !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
+  // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const DeviceSelector &deviceSelector,
                  const property_list &PropList = {})
       : queue(detail::select_device(deviceSelector), async_handler{},
@@ -153,9 +159,12 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
 
-  template <typename DeviceSelector,
-            typename = std::enable_if_t<
-                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+  template <
+      typename DeviceSelector,
+      typename = std::enable_if_t<
+          std::is_invocable_r<int, DeviceSelector &, device &>::value &&
+          !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
+  // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const property_list &propList = {})
@@ -169,9 +178,12 @@ public:
   /// takes a device and returns an int
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
-  template <typename DeviceSelector,
-            typename = std::enable_if_t<
-                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+  template <
+      typename DeviceSelector,
+      typename = std::enable_if_t<
+          std::is_invocable_r<int, DeviceSelector &, device &>::value &&
+          !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
+  // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,

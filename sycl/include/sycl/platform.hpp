@@ -28,6 +28,12 @@ class device;
 namespace detail {
 class platform_impl;
 }
+namespace ext {
+namespace oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace oneapi
+} // namespace ext
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -61,9 +67,12 @@ public:
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
-  template <typename DeviceSelector,
-            typename = std::enable_if_t<
-                std::is_invocable_r<int, DeviceSelector &, device &>::value>>
+  template <
+      typename DeviceSelector,
+      typename = std::enable_if_t<
+          std::is_invocable_r<int, DeviceSelector &, device &>::value &&
+          !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
+  // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit platform(const DeviceSelector &deviceSelector)
       : platform(detail::select_device(deviceSelector)) {}
 #endif

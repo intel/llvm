@@ -222,6 +222,13 @@ int filter_selector::operator()(const device &Dev) const {
 
 void filter_selector::reset() const { impl->reset(); }
 
+// filter_selectors not "Callable"
+// because of the requirement that the filter_selector "reset()" itself
+// between invocations, the filter_selector operator() is not purely callable
+// and cannot be used interchangeably as a SYCL2020 callable device selector.
+// TODO: remove this reset() requirement
+// and remove ! std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
+// from device/platform/queue constructors
 device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
       sycl::detail::GlobalHandler::instance().getFilterMutex());
