@@ -89,7 +89,6 @@ runs:
       export PATH=$PWD/toolchain/bin/:$PATH
       # TODO make this part of container build
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/hip/lib/:/opt/rocm/lib
-      export SYCL_DEVICE_FILTER=${{ matrix.sycl_device_filter }}
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
@@ -112,6 +111,7 @@ runs:
       echo "::endgroup::"
       echo "::group::Run testing"
       export SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1
+      export SYCL_DEVICE_FILTER=${{ matrix.sycl_device_filter }}
       ./build/bin/test_all
       echo "::endgroup::"
   - name: Cleanup
