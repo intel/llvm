@@ -35,7 +35,6 @@
 #include <mutex>
 #include <shared_mutex>
 #include <string>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -43,6 +42,7 @@
 
 #include <level_zero/ze_api.h>
 #include <level_zero/zes_api.h>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include "usm_allocator.hpp"
 

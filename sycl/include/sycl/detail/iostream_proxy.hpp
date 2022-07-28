@@ -1,5 +1,4 @@
-#ifndef IOSTREAM_PROXY_HPP
-#define IOSTREAM_PROXY_HPP 1
+#pragma once
 #include <istream>
 #include <ostream>
 
@@ -9,4 +8,3 @@ extern ostream cout; /// Linked to standard output
 extern ostream cerr; /// Linked to standard error (unbuffered)
 extern ostream clog; /// Linked to standard error (buffered)
 } // namespace std
-#endif

@@ -18,6 +18,7 @@
 
 #include <pi_opencl.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 
 #include <algorithm>
@@ -27,7 +28,6 @@
 #include <map>
 #include <sstream>
 #include <string>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <vector>
 
 #define CHECK_ERR_SET_NULL_RET(err, ptr, reterr)                               \

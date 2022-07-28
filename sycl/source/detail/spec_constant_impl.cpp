@@ -9,12 +9,12 @@
 #include <detail/spec_constant_impl.hpp>
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/util.hpp>
 #include <sycl/exception.hpp>
 
 #include <cstring>
-#include <sycl/detail/iostream_proxy.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

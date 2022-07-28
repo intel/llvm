@@ -9,11 +9,11 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include <fstream>
 #include <istream>
 #include <string>
-#include <sycl/detail/iostream_proxy.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
