@@ -26,7 +26,7 @@ inline int __esimd_decode_repeat_count(int dpas_info) {
 }
 
 inline int __esimd_decode_systolic_depth(int dpas_info) {
-  return (dpas_info >> 16);
+  return ((dpas_info >> 16) & 0xFF);
 }
 
 inline __ESIMD_ENS::argument_type
