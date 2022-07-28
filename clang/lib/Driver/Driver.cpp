@@ -4982,11 +4982,9 @@ class OffloadingActionBuilder final {
       // objects together.
       if (TC->getTriple().isNVPTX() && NumOfDeviceLibLinked) {
         std::string LibSpirvFile;
-        if (Args.hasArg(clang::driver::options::OPT_fsycl_libspirv_path_EQ)) {
+        if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
           auto ProvidedPath =
-              Args.getLastArgValue(
-                      clang::driver::options::OPT_fsycl_libspirv_path_EQ)
-                  .str();
+              Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
           if (llvm::sys::fs::exists(ProvidedPath))
             LibSpirvFile = ProvidedPath;
         } else {
