@@ -1383,7 +1383,11 @@ int llvm_echo(bool OpaquePointers) {
   size_t ModuleIdentLen;
   const char *ModuleName = LLVMGetModuleIdentifier(Src, &ModuleIdentLen);
   LLVMContextRef Ctx = LLVMContextCreate();
-  if (OpaquePointers)
+  // FIXME: Delete else branch once after the project is ready for opaque
+  // pointers. Original code assued that "default" value is "true".
+  if (!OpaquePointers)
+    LLVMContextSetOpaquePointers(Ctx, false);
+  else
     LLVMContextSetOpaquePointers(Ctx, true);
   LLVMModuleRef M = LLVMModuleCreateWithNameInContext(ModuleName, Ctx);
 

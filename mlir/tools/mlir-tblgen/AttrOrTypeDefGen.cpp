@@ -214,14 +214,26 @@ void DefGen::createParentWithTraits() {
   defCls.addParent(std::move(defParent));
 }
 
+/// Extra class definitions have a `$cppClass` substitution that is to be
+/// replaced by the C++ class name.
+static std::string formatExtraDefinitions(const AttrOrTypeDef &def) {
+  if (Optional<StringRef> extraDef = def.getExtraDefs()) {
+    FmtContext ctx = FmtContext().addSubst("cppClass", def.getCppClassName());
+    return tgfmt(*extraDef, &ctx).str();
+  }
+  return "";
+}
+
 void DefGen::emitTopLevelDeclarations() {
   // Inherit constructors from the attribute or type class.
   defCls.declare<VisibilityDeclaration>(Visibility::Public);
   defCls.declare<UsingDeclaration>("Base::Base");
 
   // Emit the extra declarations first in case there's a definition in there.
-  if (Optional<StringRef> extraDecl = def.getExtraDecls())
-    defCls.declare<ExtraClassDeclaration>(*extraDecl);
+  Optional<StringRef> extraDecl = def.getExtraDecls();
+  std::string extraDef = formatExtraDefinitions(def);
+  defCls.declare<ExtraClassDeclaration>(extraDecl ? *extraDecl : "",
+                                        std::move(extraDef));
 }
 
 void DefGen::emitBuilders() {
@@ -348,7 +360,10 @@ getCustomBuilderParams(std::initializer_list<MethodParameter> prefix,
 void DefGen::emitCustomBuilder(const AttrOrTypeBuilder &builder) {
   // Don't emit a body if there isn't one.
   auto props = builder.getBody() ? Method::Static : Method::StaticDeclaration;
-  Method *m = defCls.addMethod(def.getCppClassName(), "get", props,
+  StringRef returnType = def.getCppClassName();
+  if (Optional<StringRef> builderReturnType = builder.getReturnType())
+    returnType = *builderReturnType;
+  Method *m = defCls.addMethod(returnType, "get", props,
                                getCustomBuilderParams({}, builder));
   if (!builder.getBody())
     return;
@@ -373,8 +388,11 @@ static std::string replaceInStr(std::string str, StringRef from, StringRef to) {
 void DefGen::emitCheckedCustomBuilder(const AttrOrTypeBuilder &builder) {
   // Don't emit a body if there isn't one.
   auto props = builder.getBody() ? Method::Static : Method::StaticDeclaration;
+  StringRef returnType = def.getCppClassName();
+  if (Optional<StringRef> builderReturnType = builder.getReturnType())
+    returnType = *builderReturnType;
   Method *m = defCls.addMethod(
-      def.getCppClassName(), "getChecked", props,
+      returnType, "getChecked", props,
       getCustomBuilderParams(
           {{"::llvm::function_ref<::mlir::InFlightDiagnostic()>", "emitError"}},
           builder));
