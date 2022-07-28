@@ -32,7 +32,7 @@ namespace detail {
 // SYCL_DEVICE_FILTER doesn't need to be considered in the device preferences
 // as it filters the device list returned by device::get_devices itself, so
 // only matching devices will be scored.
-int getDevicePreference(const device &Device) {
+static int getDevicePreference(const device &Device) {
   int Score = 0;
 
   // No preferences for host devices.
@@ -52,7 +52,7 @@ int getDevicePreference(const device &Device) {
   return Score;
 }
 
-void traceDeviceSelection(const device &Device, int score, bool chosen) {
+static void traceDeviceSelection(const device &Device, int score, bool chosen) {
   bool shouldTrace = false;
   if (chosen) {
     shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
