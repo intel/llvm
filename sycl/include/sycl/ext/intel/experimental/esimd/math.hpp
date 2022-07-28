@@ -1843,20 +1843,12 @@ dpas(__ESIMD_NS::simd<T0, N> src0, __ESIMD_NS::simd<T1, N1> src1,
                        (sizeof(T2) * 8)),
                 "invalid size for Src2");
 
-#if defined(__SYCL_DEVICE_ONLY__)
   constexpr int dst_signed = std::is_signed<T>::value;
   constexpr int src0_signed = std::is_signed<T0>::value;
   __ESIMD_NS::simd<T, N> result = __esimd_dpas<T, T0, T1, T2, N, N1, N2>(
       src0.data(), src1.data(), src2.data(), (int)src1_precision + 1,
       (int)src2_precision + 1, systolic_depth, repeat_count, dst_signed,
       src0_signed);
-
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpas<src1_precision, src2_precision, systolic_depth, repeat_count,
-                   T, T0, T1, T2, N, N1, N2>(src0.data(), src1.data(),
-                                             src2.data());
-#endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -1939,17 +1931,10 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpas(__ESIMD_NS::simd<T1, N1> src1,
                        (sizeof(T2) * 8)),
                 "invalid size for Src2");
 
-#if defined(__SYCL_DEVICE_ONLY__)
-  int dpas_info = (repeat_count << 24) + (systolic_depth << 16) +
-                  (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpas2<T, T1, T2, N, N1, N2>(src1.data(), src2.data(), dpas_info);
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpas2<src1_precision, src2_precision, systolic_depth,
-                    repeat_count, T, T1, T2, N, N1, N2>(src1.data(),
-                                                        src2.data());
-#endif // __SYCL_DEVICE_ONLY__
+  __ESIMD_NS::simd<T, N> result = __esimd_dpas2<T, T1, T2, N, N1, N2>(
+      src1.data(), src2.data(),
+      __esimd_encode_dpas_info(repeat_count, systolic_depth, src1_precision,
+                               src2_precision));
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -2022,17 +2007,10 @@ dpasw(__ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T1, N1> src1,
                        (sizeof(T2) * 8)),
                 "invalid size for Src2");
 
-#if defined(__SYCL_DEVICE_ONLY__)
-  int dpas_info = (repeat_count << 24) + (systolic_depth << 16) +
-                  (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
   __ESIMD_NS::simd<T, N> result = __esimd_dpasw<T, T1, T2, N, N1, N2>(
-      src0.data(), src1.data(), src2.data(), dpas_info);
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpasw<src1_precision, src2_precision, systolic_depth,
-                    repeat_count, T, T1, T2, N, N1, N2>(
-          src0.data(), src1.data(), src2.data());
-#endif // __SYCL_DEVICE_ONLY__
+      src0.data(), src1.data(), src2.data(),
+      __esimd_encode_dpas_info(repeat_count, systolic_depth, src1_precision,
+                               src2_precision));
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;
@@ -2103,17 +2081,10 @@ __ESIMD_API __ESIMD_NS::simd<T, N> dpasw2(__ESIMD_NS::simd<T1, N1> src1,
                        (sizeof(T2) * 8)),
                 "invalid size for Src2");
 
-#if defined(__SYCL_DEVICE_ONLY__)
-  int dpas_info = (repeat_count << 24) + (systolic_depth << 16) +
-                  (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpasw2<T, T1, T2, N, N1, N2>(src1.data(), src2.data(), dpas_info);
-#else
-  __ESIMD_NS::simd<T, N> result =
-      __esimd_dpasw2<src1_precision, src2_precision, systolic_depth,
-                     repeat_count, T, T1, T2, N, N1, N2>(src1.data(),
-                                                         src2.data());
-#endif // __SYCL_DEVICE_ONLY__
+  __ESIMD_NS::simd<T, N> result = __esimd_dpasw2<T, T1, T2, N, N1, N2>(
+      src1.data(), src2.data(),
+      __esimd_encode_dpas_info(repeat_count, systolic_depth, src1_precision,
+                               src2_precision));
 
   if constexpr (std::is_same_v<Sat, __ESIMD_NS::saturation_off_tag>)
     return result;

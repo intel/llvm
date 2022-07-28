@@ -12,6 +12,42 @@
 
 /// @cond ESIMD_DETAIL
 
+#define ARG_UNUSED(x) (void)x
+
+inline int __esimd_encode_dpas_info(int repeat_count, int systolic_depth,
+                                    __ESIMD_ENS::argument_type src1_precision,
+                                    __ESIMD_ENS::argument_type src2_precision) {
+  return (repeat_count << 24) + (systolic_depth << 16) +
+         (((int)src2_precision + 1) << 8) + ((int)src1_precision + 1);
+}
+
+inline int __esimd_decode_repeat_count(int dpas_info) {
+  return (dpas_info >> 24);
+}
+
+inline int __esimd_decode_systolic_depth(int dpas_info) {
+  return (dpas_info >> 16);
+}
+
+inline __ESIMD_ENS::argument_type
+__esimd_decode_src1_precision(const int dpas_info) {
+  int decoded = dpas_info;
+  decoded &= 0xFF;
+  decoded -= 1;
+
+  return (__ESIMD_ENS::argument_type)decoded;
+}
+
+inline __ESIMD_ENS::argument_type
+__esimd_decode_src2_precision(const int dpas_info) {
+  int decoded = dpas_info;
+  decoded >>= 8;
+  decoded &= 0xFF;
+  decoded -= 1;
+
+  return (__ESIMD_ENS::argument_type)decoded;
+}
+
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 
 #define __ESIMD_raw_vec_t(T, SZ)                                               \
@@ -110,34 +146,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-#ifdef __SYCL_DEVICE_ONLY__
-
-template <typename T, typename T0, typename T1, typename T2, int N, int N1,
-          int N2>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
-__esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
-             __ESIMD_DNS::vector_type_t<T1, N1> src1,
-             __ESIMD_DNS::vector_type_t<T2, N2> src2, int src1_precision,
-             int src2_precision, int depth, int repeat, int sign_res,
-             int sign_acc);
-
-template <typename T, typename T1, typename T2, int N, int N1, int N2>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
-__esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
-              __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info);
-
-template <typename T, typename T1, typename T2, int N, int N1, int N2>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
-__esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
-              __ESIMD_DNS::vector_type_t<T1, N1> src1,
-              __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info);
-
-template <typename T, typename T1, typename T2, int N, int N1, int N2>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
-__esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
-               __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info);
-
-#else // __SYCL_DEVICE_ONLY__
+#ifndef __SYCL_DEVICE_ONLY__
 
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
@@ -441,7 +450,7 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(T, SZ)
   return retv;
 }
 
-inline constexpr __ESIMD_NS::uint
+inline __ESIMD_NS::uint
 __esimd_dpas_bits_precision(__ESIMD_ENS::argument_type precisionType) {
   return precisionType == __ESIMD_ENS::argument_type::TF32 ? 32
          : precisionType == __ESIMD_ENS::argument_type::BF16 ||
@@ -460,14 +469,15 @@ __esimd_dpas_bits_precision(__ESIMD_ENS::argument_type precisionType) {
 }
 
 // TODO : 'src0' argument type other than 'void*'?
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
-          int repeat_count, typename RT, typename T1, typename T2,
-          __ESIMD_NS::uint SZ, __ESIMD_NS::uint N1, __ESIMD_NS::uint N2>
+template <typename RT, typename T1, typename T2, __ESIMD_NS::uint SZ,
+          __ESIMD_NS::uint N1, __ESIMD_NS::uint N2>
 inline __ESIMD_DNS::vector_type_t<RT, SZ>
 __esimd_dpas_inner(const void *src0,
                    const __ESIMD_DNS::vector_type_t<T1, N1> &src1,
-                   const __ESIMD_DNS::vector_type_t<T2, N2> &src2) {
+                   const __ESIMD_DNS::vector_type_t<T2, N2> &src2,
+                   __ESIMD_ENS::argument_type src1_precision,
+                   __ESIMD_ENS::argument_type src2_precision,
+                   int systolic_depth, int repeat_count) {
   __ESIMD_DNS::vector_type_t<RT, SZ> retv;
 
   __ESIMD_NS::uint sat1 =
@@ -476,7 +486,7 @@ __esimd_dpas_inner(const void *src0,
       __ESIMD_EMU_DNS::SetSatur<T2,
                                 __ESIMD_EMU_DNS::is_inttype<RT>::value>::set();
 
-  constexpr __ESIMD_NS::uint ops_per_chan =
+  __ESIMD_NS::uint ops_per_chan =
       src1_precision == __ESIMD_ENS::argument_type::BF16 ||
               src1_precision == __ESIMD_ENS::argument_type::FP16 ||
               src2_precision == __ESIMD_ENS::argument_type::BF16 ||
@@ -491,8 +501,8 @@ __esimd_dpas_inner(const void *src0,
 
   __ESIMD_NS::uint V = 0, U = 0, k = 0, temp = 0, src1_ops_per_dword = 0, p = 0;
 
-  constexpr auto src1_el_bits = __esimd_dpas_bits_precision(src1_precision);
-  constexpr auto src2_el_bits = __esimd_dpas_bits_precision(src2_precision);
+  auto src1_el_bits = __esimd_dpas_bits_precision(src1_precision);
+  auto src2_el_bits = __esimd_dpas_bits_precision(src2_precision);
 
   uint32_t src1_signed =
       src1_precision == __ESIMD_ENS::argument_type::S2 ||
@@ -516,54 +526,55 @@ __esimd_dpas_inner(const void *src0,
   constexpr size_t SIMDSize = 8;
 #endif
 
-  constexpr bool
-      pvcHfDest = isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,
-      pvcBfDest = isPvc && std::is_same<RT, short>::value,
-      pvcBfOrHfDest = pvcBfDest || pvcHfDest,
+  constexpr bool pvcHfDest =
+                     isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,
+                 pvcBfDest = isPvc && std::is_same<RT, short>::value,
+                 pvcBfOrHfDest = pvcBfDest || pvcHfDest;
 
-      pvcBfDestChecks = pvcBfDest &&
-                        src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                        src2_precision == __ESIMD_ENS::argument_type::BF16,
+  bool pvcBfDestChecks = pvcBfDest &&
+                         src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                         src2_precision == __ESIMD_ENS::argument_type::BF16,
 
-      pvcHfDestChecks =
-          pvcHfDest && ((src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                         src2_precision == __ESIMD_ENS::argument_type::FP16) ||
-                        (src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                         src2_precision == __ESIMD_ENS::argument_type::BF16)),
+       pvcHfDestChecks =
+           pvcHfDest && ((src1_precision == __ESIMD_ENS::argument_type::FP16 &&
+                          src2_precision == __ESIMD_ENS::argument_type::FP16) ||
+                         (src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                          src2_precision == __ESIMD_ENS::argument_type::BF16)),
 
-      destTypeChk =
-          (!pvcBfOrHfDest && __ESIMD_EMU_DNS::is_fp_or_dword_type<RT>::value) ||
-          (pvcBfOrHfDest && (pvcBfDestChecks || pvcHfDestChecks)),
+       destTypeChk = (!pvcBfOrHfDest &&
+                      __ESIMD_EMU_DNS::is_fp_or_dword_type<RT>::value) ||
+                     (pvcBfOrHfDest && (pvcBfDestChecks || pvcHfDestChecks)),
 
-      srcTypeChk = __ESIMD_EMU_DNS::is_dword_type<T1>::value &&
-                   __ESIMD_EMU_DNS::is_dword_type<T2>::value,
+       srcTypeChk = __ESIMD_EMU_DNS::is_dword_type<T1>::value &&
+                    __ESIMD_EMU_DNS::is_dword_type<T2>::value,
 
-      destSizeChk = SZ >= /*TODO: ==*/SIMDSize * repeat_count,
+       destSizeChk = SZ >= /*TODO: ==*/SIMDSize * repeat_count,
 
-      systolicDepthAndRepeatCountChk =
-          systolic_depth == 8 && repeat_count >= 1 && repeat_count <= 8,
+       systolicDepthAndRepeatCountChk =
+           systolic_depth == 8 && repeat_count >= 1 && repeat_count <= 8,
 
-      src1CountChk =
-          N1 == ((src1_el_bits * systolic_depth * ops_per_chan * SZ) /
-                 (repeat_count * sizeof(T1) * 8)),
-      src2CountChk =
-          N2 >= ((src2_el_bits * systolic_depth * ops_per_chan * repeat_count) /
-                 (sizeof(T2) * 8))
+       src1CountChk =
+           N1 == ((src1_el_bits * systolic_depth * ops_per_chan * SZ) /
+                  (repeat_count * sizeof(T1) * 8)),
+       src2CountChk =
+           N2 >=
+           ((src2_el_bits * systolic_depth * ops_per_chan * repeat_count) /
+            (sizeof(T2) * 8))
       /*TODO: ==; fix PVCIGEMM24*/
       ;
 
   if constexpr (!isPvc)
     static_assert(!pvcBfOrHfDest, "dpas: hfloat and bfloat16 destination "
                                   "element type is only supported on PVC.");
-  static_assert(destTypeChk, "dpas: unsupported dest and accumulator type.");
-  static_assert(srcTypeChk, "dpas: unsupported src element type.");
-  static_assert(destSizeChk,
-                "dpas: destination size must be SIMDSize x repeat_count.");
-  static_assert(systolicDepthAndRepeatCountChk,
-                "dpas: only systolic_depth = 8 and repeat_count of 1 to 8 are "
-                "supported.");
-  static_assert(src1CountChk, "dpas: invalid size for src1.");
-  static_assert(src2CountChk, "dpas: invalid size for src2.");
+  assert(destTypeChk && "dpas: unsupported dest and accumulator type.");
+  assert(srcTypeChk && "dpas: unsupported src element type.");
+  assert(destSizeChk &&
+         "dpas: destination size must be SIMDSize x repeat_count.");
+  assert(systolicDepthAndRepeatCountChk &&
+         "dpas: only systolic_depth = 8 and repeat_count of 1 to 8 are "
+         "supported.");
+  assert(src1CountChk && "dpas: invalid size for src1.");
+  assert(src2CountChk && "dpas: invalid size for src2.");
 
   using TmpAccEl = typename std::conditional<
       pvcBfOrHfDest, float,
@@ -639,7 +650,7 @@ __esimd_dpas_inner(const void *src0,
     } // Systolic phase.
 
     for (uint n = 0; n < SIMDSize; n++) {
-      if constexpr (pvcBfDest) {
+      if (pvcBfDest) {
         // TODO: make abstraction, support saturation, review rounding algo for
         // corner cases.
         auto tmpFloat = simdAcc[n];
@@ -661,55 +672,73 @@ __esimd_dpas_inner(const void *src0,
   return retv;
 }
 
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
-          int repeat_count, typename T, typename T0, typename T1, typename T2,
-          int N, int N1, int N2>
-inline __ESIMD_DNS::vector_type_t<T, N>
+#endif // #ifndef __SYCL_DEVICE_ONLY__
+
+template <typename T, typename T0, typename T1, typename T2, int N, int N1,
+          int N2>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
              __ESIMD_DNS::vector_type_t<T1, N1> src1,
-             __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
-                            repeat_count, T, T1, T2, N, N1, N2>(
-      (void *)std::addressof(src0), src1, src2);
+             __ESIMD_DNS::vector_type_t<T2, N2> src2, int src1_precision,
+             int src2_precision, int depth, int repeat, int sign_res,
+             int sign_acc)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else  // __SYCL_DEVICE_ONLY__
+{
+  ARG_UNUSED(sign_res);
+  ARG_UNUSED(sign_acc);
+  return __esimd_dpas_inner<T, T1, T2, N, N1, N2>(
+      (void *)std::addressof(src0), src1, src2,
+      (__ESIMD_ENS::argument_type)(src1_precision - 1),
+      (__ESIMD_ENS::argument_type)(src2_precision - 1), depth, repeat);
 }
+#endif // __SYCL_DEVICE_ONLY__
 
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
-          int repeat_count, typename T, typename T1, typename T2, int N, int N1,
-          int N2>
+template <typename T, typename T1, typename T2, int N, int N1, int N2>
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
-              __ESIMD_DNS::vector_type_t<T2, N2> src2) {
-  return __esimd_dpas_inner<src1_precision, src2_precision, systolic_depth,
-                            repeat_count, T, T1, T2, N, N1, N2>(nullptr, src1,
-                                                                src2);
+              __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  return __esimd_dpas_inner<T, T1, T2, N, N1, N2>(
+      nullptr, src1, src2, __esimd_decode_src1_precision(dpas_info),
+      __esimd_decode_src2_precision(dpas_info),
+      __esimd_decode_systolic_depth(dpas_info),
+      __esimd_decode_repeat_count(dpas_info));
 }
+#endif
 
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
-          int repeat_count, typename T, typename T1, typename T2, int N, int N1,
-          int N2>
+template <typename T, typename T1, typename T2, int N, int N1, int N2>
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
               __ESIMD_DNS::vector_type_t<T1, N1> src1,
-              __ESIMD_DNS::vector_type_t<T2, N2> src2) {
+              __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  ARG_UNUSED(dpas_info);
   __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 }
+#endif
 
-template <__ESIMD_ENS::argument_type src1_precision,
-          __ESIMD_ENS::argument_type src2_precision, int systolic_depth,
-          int repeat_count, typename T, typename T1, typename T2, int N, int N1,
-          int N2>
+template <typename T, typename T1, typename T2, int N, int N1, int N2>
 inline __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
-               __ESIMD_DNS::vector_type_t<T2, N2> src2) {
+               __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  ARG_UNUSED(dpas_info);
   __ESIMD_UNSUPPORTED_ON_HOST;
   return __ESIMD_DNS::vector_type_t<T, N>();
 }
-
-#endif // #ifdef __SYCL_DEVICE_ONLY__
+#endif
 
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
