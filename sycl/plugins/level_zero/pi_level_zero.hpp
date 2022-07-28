@@ -965,6 +965,9 @@ struct _pi_queue : _pi_object {
   // Returns true if the queue is a in-order queue.
   bool isInOrderQueue() const;
 
+  // Returns true if the queue has discard events property.
+  bool isDiscardEvents() const;
+
   // adjust the queue's batch size, knowing that the current command list
   // is being closed with a full batch.
   // For copy commands, IsCopy is set to 'true'.
@@ -1373,6 +1376,10 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Indicates that event is internal, i.e. it is visible inside the L0 plugin
+  // only.
+  bool Internal = {false};
 
   // Reset _pi_event object.
   pi_result reset();
