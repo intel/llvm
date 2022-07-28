@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   BitWriter
   IRReader
   MC
+  Object
   Option
   ProfileData
   Support
@@ -22,6 +23,7 @@ add_clang_library(clangDriver
   DriverOptions.cpp
   Job.cpp
   Multilib.cpp
+  OffloadBundler.cpp
   OptionUtils.cpp
   Phases.cpp
   SanitizerArgs.cpp
