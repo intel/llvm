@@ -139,6 +139,10 @@ if( NOT CLANG_BUILT_STANDALONE )
   if(TARGET llvm-lto)
     list(APPEND CLANG_TEST_DEPS llvm-lto)
   endif()
+
+  if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+    list(APPEND CLANG_TEST_DEPS libspirv-builtins libsycldevice)
+  endif()
 endif()
 
 if(CLANG_ENABLE_STATIC_ANALYZER)
