@@ -93,8 +93,8 @@
 // DEFAULT-PHASES2:|           |     +- 69: input, "{{.*}}", object
 // DEFAULT-PHASES2:|           |  +- 70: clang-offload-unbundler, {69}, object
 // DEFAULT-PHASES2:|           |- 71: offload, " (nvptx64-nvidia-cuda)" {70}, object
-// DEFAULT-PHASES2:|           |- 72: input, "{{.*}}", object, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|           |- 73: input, "{{.*}}libdevice.10.bc", object, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|           |- 72: input, "{{.*}}nvidiacl.bc", ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|           |- 73: input, "{{.*}}libdevice.10.bc", ir, (device-sycl, sm_80)
 // DEFAULT-PHASES2:|        +- 74: linker, {17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 72, 73}, ir, (device-sycl, sm_80)
 // DEFAULT-PHASES2:|     +- 75: sycl-post-link, {74}, ir, (device-sycl, sm_80)
 // DEFAULT-PHASES2:|     |  +- 76: file-table-tform, {75}, ir, (device-sycl, sm_80)
