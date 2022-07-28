@@ -696,7 +696,7 @@ __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
 #endif // __SYCL_DEVICE_ONLY__
 
 template <typename T, typename T1, typename T2, int N, int N1, int N2>
-inline __ESIMD_DNS::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
               __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -712,7 +712,7 @@ __esimd_dpas2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
 #endif
 
 template <typename T, typename T1, typename T2, int N, int N1, int N2>
-inline __ESIMD_DNS::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
               __ESIMD_DNS::vector_type_t<T1, N1> src1,
               __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info)
@@ -727,7 +727,7 @@ __esimd_dpasw(__ESIMD_DNS::vector_type_t<T, N> src0,
 #endif
 
 template <typename T, typename T1, typename T2, int N, int N1, int N2>
-inline __ESIMD_DNS::vector_type_t<T, N>
+SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __ESIMD_DNS::vector_type_t<T, N>
 __esimd_dpasw2(__ESIMD_DNS::vector_type_t<T1, N1> src1,
                __ESIMD_DNS::vector_type_t<T2, N2> src2, int dpas_info)
 #ifdef __SYCL_DEVICE_ONLY__
