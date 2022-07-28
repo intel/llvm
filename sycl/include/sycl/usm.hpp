@@ -14,6 +14,12 @@
 
 #include <cstddef>
 
+// The C++ FE may instrument USM calls with code location metadata.
+// If it does then that will appear as an extra last argument.
+// If it does not then we use dummy  default initialized code location.
+// The below macros provide the machinery to make code more readable
+// whenever this metadata is used.
+//
 #ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
 #define __CODE_LOCATION_METADATA(...)                                          \
   (__VA_ARGS__,                                                                \
