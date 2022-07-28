@@ -128,9 +128,6 @@ CODEGENOPT(XRayAlwaysEmitTypedEvents , 1, 0)
 ///< Set when -fxray-ignore-loops is enabled.
 CODEGENOPT(XRayIgnoreLoops , 1, 0)
 
-///< Set when -fbundle-no-offload-arch is enabled.
-CODEGENOPT(BundleNoOffloadArch, 1, 0) 
-
 ///< Set with -fno-xray-function-index to omit the index section.
 CODEGENOPT(XRayOmitFunctionIndex , 1, 0)
 
