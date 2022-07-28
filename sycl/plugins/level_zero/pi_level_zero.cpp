@@ -478,10 +478,18 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   std::list<ze_event_pool_handle_t> *ZePoolCache =
       getZeEventPoolCache(HostVisible, ProfilingEnabled);
 
-  // Remove full pool from the cache.
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
-      ZePoolCache->erase(ZePoolCache->begin());
+      if (DisableEventsCaching) {
+        // Remove full pool from the cache if events caching is disabled.
+        ZePoolCache->erase(ZePoolCache->begin());
+      } else {
+        // If event caching is enabled then we don't destroy events so there is
+        // no need to remove pool from the cache and add it back when it has
+        // available slots. Just keep it in the tail of the cache so that all
+        // pools can be destroyed during context destruction.
+        ZePoolCache->push_front(nullptr);
+      }
     }
   }
   if (ZePoolCache->empty()) {
@@ -878,16 +886,18 @@ pi_result _pi_context::initialize() {
 pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
-  // For example, event pool caches would be still alive.
-  {
-    std::scoped_lock Lock(ZeEventCacheMutex);
-    for (auto &ZeEventCache : ZeEventCaches) {
-      for (auto &ZeEventAndPool : ZeEventCache)
-        ZE_CALL(zeEventDestroy, (ZeEventAndPool.first));
-      ZeEventCache.clear();
+  // For example, event and event pool caches would be still alive.
+
+  if (!DisableEventsCaching) {
+    std::scoped_lock Lock(EventCacheMutex);
+    for (auto &EventCache : EventCaches) {
+      for (auto Event : EventCache) {
+        ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+        delete Event;
+      }
+      EventCache.clear();
     }
   }
-
   {
     std::scoped_lock Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
@@ -5449,26 +5459,40 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
-std::pair<ze_event_handle_t, ze_event_pool_handle_t>
-_pi_context::getZeEventFromCache(bool HostVisible, bool WithProfiling) {
-  std::scoped_lock Lock(ZeEventCacheMutex);
-  auto Cache = getZeEventCache(HostVisible, WithProfiling);
-  if (Cache->empty())
-    return std::make_pair<ze_event_handle_t, ze_event_pool_handle_t>(nullptr,
-                                                                     nullptr);
+pi_result _pi_event::reset() {
+  Queue = nullptr;
+  CleanedUp = false;
+  Completed = false;
+  CommandData = nullptr;
+  CommandType = PI_COMMAND_TYPE_USER;
+  WaitList = {};
+  RefCount.reset(1);
 
-  auto It = Cache->begin();
-  std::pair<ze_event_handle_t, ze_event_pool_handle_t> ZeEvent = *It;
-  Cache->erase(It);
-  return ZeEvent;
+  if (!isHostVisible())
+    HostVisibleEvent = nullptr;
+
+  ZE_CALL(zeEventHostReset, (ZeEvent));
+  return PI_SUCCESS;
 }
 
-void _pi_context::addZeEventToCache(ze_event_handle_t ZeEvent,
-                                    ze_event_pool_handle_t ZePool,
-                                    bool HostVisible, bool WithProfiling) {
-  std::scoped_lock Lock(ZeEventCacheMutex);
-  auto Cache = getZeEventCache(HostVisible, WithProfiling);
-  Cache->emplace_back(ZeEvent, ZePool);
+pi_event _pi_context::getEventFromCache(bool HostVisible, bool WithProfiling) {
+  std::scoped_lock Lock(EventCacheMutex);
+  auto Cache = getEventCache(HostVisible, WithProfiling);
+  if (Cache->empty())
+    return nullptr;
+
+  auto It = Cache->begin();
+  pi_event Event = *It;
+  Cache->erase(It);
+  return Event;
+}
+
+void _pi_context::addEventToCache(pi_event Event) {
+  std::scoped_lock Lock(EventCacheMutex);
+  auto Cache =
+      getEventCache(Event->isHostVisible(), Event->isProfilingEnabled());
+  Event->reset();
+  Cache->emplace_back(Event);
 }
 
 // Helper function for creating a PI event.
@@ -5481,42 +5505,40 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  auto CachedEvent =
-      Context->getZeEventFromCache(HostVisible, ProfilingEnabled);
+  if (auto CachedEvent =
+          Context->getEventFromCache(HostVisible, ProfilingEnabled)) {
+    *RetEvent = CachedEvent;
+    return PI_SUCCESS;
+  }
+
   ze_event_handle_t ZeEvent;
   ze_event_pool_handle_t ZeEventPool = {};
 
-  // If no any then check cache of event in the context
-  if (CachedEvent.first) {
-    ZeEvent = CachedEvent.first;
-    ZeEventPool = CachedEvent.second;
+  size_t Index = 0;
+
+  if (auto Res = Context->getFreeSlotInExistingOrNewPool(
+          ZeEventPool, Index, HostVisible, ProfilingEnabled))
+    return Res;
+
+  ZeStruct<ze_event_desc_t> ZeEventDesc;
+  ZeEventDesc.index = Index;
+  ZeEventDesc.wait = 0;
+
+  if (HostVisible) {
+    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
-    size_t Index = 0;
-
-    if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-            ZeEventPool, Index, HostVisible, ProfilingEnabled))
-      return Res;
-
-    ZeStruct<ze_event_desc_t> ZeEventDesc;
-    ZeEventDesc.index = Index;
-    ZeEventDesc.wait = 0;
-
-    if (HostVisible) {
-      ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
-    } else {
-      //
-      // Set the scope to "device" for every event. This is sufficient for
-      // global device access and peer device access. If needed to be seen on
-      // the host we are doing special handling, see EventsScope options.
-      //
-      // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
-      //       used in some circumstances.
-      //
-      ZeEventDesc.signal = 0;
-    }
-
-    ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+    //
+    // Set the scope to "device" for every event. This is sufficient for
+    // global device access and peer device access. If needed to be seen on
+    // the host we are doing special handling, see EventsScope options.
+    //
+    // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
+    //       used in some circumstances.
+    //
+    ZeEventDesc.signal = 0;
   }
+
+  ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
 
   try {
     PI_ASSERT(RetEvent, PI_ERROR_INVALID_VALUE);
@@ -5869,12 +5891,7 @@ pi_result piEventRelease(pi_event Event) {
     Event->CommandData = nullptr;
   }
   if (Event->OwnZeEvent) {
-    if (!DisableEventsCaching) {
-      ZE_CALL(zeEventHostReset, (Event->ZeEvent));
-      Event->Context->addZeEventToCache(Event->ZeEvent, Event->ZeEventPool,
-                                        Event->isHostVisible(),
-                                        Event->isProfilingEnabled());
-    } else {
+    if (DisableEventsCaching) {
       ZE_CALL(zeEventDestroy, (Event->ZeEvent));
       auto Context = Event->Context;
       if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
@@ -5896,7 +5913,12 @@ pi_result piEventRelease(pi_event Event) {
   if (Event->Queue) {
     PI_CALL(piQueueReleaseInternal(Event->Queue));
   }
-  delete Event;
+
+  if (DisableEventsCaching || !Event->OwnZeEvent) {
+    delete Event;
+  } else {
+    Event->Context->addEventToCache(Event);
+  }
 
   return PI_SUCCESS;
 }

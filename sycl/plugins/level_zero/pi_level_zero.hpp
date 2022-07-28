@@ -276,6 +276,8 @@ template <class T> struct ZeCache : private T {
 struct ReferenceCounter {
   ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
 
+  void reset(pi_uint32 InitVal) { RefCount = InitVal; }
+
   // Used when retaining an object.
   void increment() { RefCount++; }
 
@@ -750,14 +752,11 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
-  // Get a native event and its pool from cache.
-  std::pair<ze_event_handle_t, ze_event_pool_handle_t>
-  getZeEventFromCache(bool HostVisible, bool WithProfiling);
+  // Get pi_event from cache.
+  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
 
-  // Add a native event and its pool to cache.
-  void addZeEventToCache(ze_event_handle_t ZeEvent,
-                         ze_event_pool_handle_t ZePool, bool HostVisible,
-                         bool WithProfiling);
+  // Add pi_event to cache.
+  void addEventToCache(pi_event);
 
 private:
   // If context contains one device then return this device.
@@ -809,18 +808,17 @@ private:
   pi_mutex ZeEventPoolCacheMutex;
 
   // Mutex to control operations on event caches.
-  pi_mutex ZeEventCacheMutex;
+  pi_mutex EventCacheMutex;
 
-  // Caches for native event handles.
-  std::vector<std::list<std::pair<ze_event_handle_t, ze_event_pool_handle_t>>>
-      ZeEventCaches{4};
+  // Caches for events.
+  std::vector<std::list<pi_event>> EventCaches{4};
 
   // Get the cache of events for a provided scope and profiling mode.
-  auto getZeEventCache(bool HostVisible, bool WithProfiling) {
+  auto getEventCache(bool HostVisible, bool WithProfiling) {
     if (HostVisible)
-      return WithProfiling ? &ZeEventCaches[0] : &ZeEventCaches[1];
+      return WithProfiling ? &EventCaches[0] : &EventCaches[1];
     else
-      return WithProfiling ? &ZeEventCaches[2] : &ZeEventCaches[3];
+      return WithProfiling ? &EventCaches[2] : &EventCaches[3];
   }
 };
 
@@ -1374,6 +1372,9 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Reset _pi_event object.
+  pi_result reset();
 };
 
 struct _pi_program : _pi_object {
