@@ -597,11 +597,13 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           Value *Val = Cmpxchg->getNewValOperand();
           Value *Comparator = Cmpxchg->getCompareOperand();
 
+          Type *MemType = Cmpxchg->getCompareOperand()->getType();
+
           llvm::Value *Args[] = {Ptr,        MemoryScope, EqualSem,
                                  UnequalSem, Val,         Comparator};
-          auto *Res = addCallInstSPIRV(M, "__spirv_AtomicCompareExchange",
-                                       Cmpxchg->getCompareOperand()->getType(),
-                                       Args, nullptr, &II, "cmpxchg.res");
+          auto *Res =
+              addCallInstSPIRV(M, "__spirv_AtomicCompareExchange", MemType,
+                               Args, nullptr, {MemType}, &II, "cmpxchg.res");
           IRBuilder<> Builder(Cmpxchg);
           auto *Cmp = Builder.CreateICmpEQ(Res, Comparator, "cmpxchg.success");
           auto *V1 = Builder.CreateInsertValue(
