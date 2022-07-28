@@ -57,7 +57,6 @@ public:
   explicit platform(const device_selector &DeviceSelector);
 
 #if __cplusplus >= 201703L
-
   /// Constructs a SYCL platform instance using the platform of the device
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
@@ -66,8 +65,7 @@ public:
             typename = std::enable_if_t<
                 std::is_invocable_r<int, DeviceSelector &, device &>::value>>
   explicit platform(const DeviceSelector &deviceSelector)
-      : platform(sycl::detail::select_device(deviceSelector)) {}
-
+      : platform(detail::select_device(deviceSelector)) {}
 #endif
 
   platform(const platform &rhs) = default;

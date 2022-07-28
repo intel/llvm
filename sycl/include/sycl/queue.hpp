@@ -131,8 +131,7 @@ public:
   explicit queue(const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &PropList = {})
-      : queue(sycl::detail::select_device(deviceSelector), AsyncHandler,
-              PropList) {}
+      : queue(detail::select_device(deviceSelector), AsyncHandler, PropList) {}
 
   /// Constructs a SYCL queue instance using the device identified by the
   /// device selector provided.
@@ -144,7 +143,7 @@ public:
                 std::is_invocable_r<int, DeviceSelector &, device &>::value>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const property_list &PropList = {})
-      : queue(sycl::detail::select_device(deviceSelector), async_handler{},
+      : queue(detail::select_device(deviceSelector), async_handler{},
               PropList) {}
 
   /// Constructs a SYCL queue instance using the device identified by the
@@ -160,8 +159,7 @@ public:
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const property_list &propList = {})
-      : queue(syclContext,
-              sycl::detail::select_device(deviceSelector, syclContext),
+      : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               propList) {}
 
   /// Constructs a SYCL queue instance using the device identified by the
@@ -178,8 +176,7 @@ public:
                  const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &propList = {})
-      : queue(syclContext,
-              sycl::detail::select_device(deviceSelector, syclContext),
+      : queue(syclContext, detail::select_device(deviceSelector, syclContext),
               AsyncHandler, propList) {}
 
 #endif
