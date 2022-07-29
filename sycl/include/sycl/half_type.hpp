@@ -10,10 +10,10 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 #include <functional>
-#include <iostream>
 #include <limits>
 
 #if !__has_builtin(__builtin_expect)

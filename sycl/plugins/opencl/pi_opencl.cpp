@@ -18,12 +18,12 @@
 
 #include <pi_opencl.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <sstream>

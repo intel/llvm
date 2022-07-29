@@ -9,9 +9,9 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include <fstream>
-#include <iostream>
 #include <istream>
 #include <string>
 

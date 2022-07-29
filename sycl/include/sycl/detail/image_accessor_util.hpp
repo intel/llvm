@@ -15,12 +15,12 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/image.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/types.hpp>
 
 #include <cmath>
-#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

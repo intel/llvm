@@ -29,7 +29,6 @@
 #include <cassert>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
@@ -43,6 +42,7 @@
 
 #include <level_zero/ze_api.h>
 #include <level_zero/zes_api.h>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include "usm_allocator.hpp"
 
