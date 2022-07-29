@@ -35,25 +35,20 @@ public:
     return __spirv_ConvertFToBF16INTEL(a);
 #endif
 #else
-    (void)a;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 conversion is not supported on host device"};
+    float tmp = a;
+    uint32_t *res = reinterpret_cast<uint32_t *>(&tmp);
+    *res = *res >> 16;
+    return (storage_t)*res;
 #endif
   }
   static float to_float(const storage_t &a) {
-#if defined(__SYCL_DEVICE_ONLY__)
-#if defined(__NVPTX__)
+#if defined(__SPIR__)
+    return __spirv_ConvertBF16ToFINTEL(a);
+#else
     uint32_t y = a;
     y = y << 16;
     float *res = reinterpret_cast<float *>(&y);
     return *res;
-#else
-    return __spirv_ConvertBF16ToFINTEL(a);
-#endif
-#else
-    (void)a;
-    throw exception{errc::feature_not_supported,
-                    "Bfloat16 conversion is not supported on host device"};
 #endif
   }
 
