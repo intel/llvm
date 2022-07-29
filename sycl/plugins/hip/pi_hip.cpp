@@ -3728,13 +3728,11 @@ pi_result hip_piEnqueueEventsWaitWithBarrier(pi_queue command_queue,
     {
       std::lock_guard(command_queue->barrier_mutex_);
       if (command_queue->barrier_event_ == nullptr) {
-        PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_,
-                                     CU_EVENT_DISABLE_TIMING));
+        PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_event_));
       }
       if (num_events_in_wait_list == 0) { //  wait on all work
         if (command_queue->barrier_tmp_event_ == nullptr) {
-          PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_tmp_event_,
-                                       CU_EVENT_DISABLE_TIMING));
+          PI_CHECK_ERROR(hipEventCreate(&command_queue->barrier_tmp_event_));
         }
         command_queue->sync_streams(
             [hipStream,

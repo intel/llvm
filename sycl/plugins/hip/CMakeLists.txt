@@ -5,8 +5,8 @@ set(SYCL_BUILD_PI_HIP_PLATFORM "AMD" CACHE STRING "PI HIP platform, AMD or NVIDI
 message(STATUS "Including the PI API HIP backend for ${SYCL_BUILD_PI_HIP_PLATFORM}.")
 
 # Set default HIP include dirs
-set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "/opt/rocm/hip/include" CACHE STRING "HIP include dir")
-set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "/opt/rocm/hsa/include" CACHE STRING "HSA include dir")
+set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "/opt/rocm-4.2.0/hip/include" CACHE STRING "HIP include dir")
+set(SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR "/opt/rocm-4.2.0/hsa/include" CACHE STRING "HSA include dir")
 set(HIP_HEADERS "${SYCL_BUILD_PI_HIP_INCLUDE_DIR};${SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR}")
 
 # Create pi_hip library
@@ -23,7 +23,7 @@ set_target_properties(pi_hip PROPERTIES LINKER_LANGUAGE CXX)
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
   # Import HIP runtime library
-  set(SYCL_BUILD_PI_HIP_AMD_LIBRARY "/opt/rocm/hip/lib/libamdhip64.so" CACHE STRING "HIP AMD runtime library")
+  set(SYCL_BUILD_PI_HIP_AMD_LIBRARY "/opt/rocm-4.2.0/hip/lib/libamdhip64.so" CACHE STRING "HIP AMD runtime library")
   add_library(rocmdrv SHARED IMPORTED GLOBAL)
 
   set_target_properties(
