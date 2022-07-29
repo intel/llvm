@@ -253,10 +253,10 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::context> {
-  size_t operator()(const cl::sycl::context &Context) const {
-    return hash<std::shared_ptr<cl::sycl::detail::context_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Context));
+template <> struct hash<sycl::context> {
+  size_t operator()(const sycl::context &Context) const {
+    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
+        sycl::detail::getSyclObjImpl(Context));
   }
 };
 } // namespace std

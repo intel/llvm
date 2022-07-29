@@ -14,7 +14,7 @@
 #include <detail/scheduler/scheduler_helpers.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 inline constexpr auto DisablePostEnqueueCleanupName =
     "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
@@ -69,7 +69,7 @@ public:
   }
 };
 
-using CmdTypeTy = cl::sycl::detail::Command::CommandType;
+using CmdTypeTy = sycl::detail::Command::CommandType;
 
 // Function recursively checks that initial command has dependency on chain of
 // other commands that should have type DepCmdsTypes[Depth] (Depth is a distance
@@ -103,7 +103,7 @@ TEST_F(SchedulerTest, StreamInitDependencyOnHost) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-  cl::sycl::queue HQueue(host_selector{});
+  sycl::queue HQueue(host_selector{});
   detail::QueueImplPtr HQueueImpl = detail::getSyclObjImpl(HQueue);
 
   // Emulating processing of command group function

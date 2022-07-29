@@ -1245,10 +1245,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::queue> {
-  size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Q));
+template <> struct hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const {
+    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
+        sycl::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std

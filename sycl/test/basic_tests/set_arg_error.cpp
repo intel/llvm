@@ -23,15 +23,15 @@ private:
 
 int main() {
   constexpr size_t size = 1;
-  cl::sycl::buffer<int> buf(size);
-  cl::sycl::queue q;
-  q.submit([&](cl::sycl::handler &h) {
-    auto global_acc = buf.get_access<cl::sycl::access::mode::write>(h);
-    cl::sycl::sampler samp(cl::sycl::coordinate_normalization_mode::normalized,
-                           cl::sycl::addressing_mode::clamp,
-                           cl::sycl::filtering_mode::nearest);
-    cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                       cl::sycl::access::target::local>
+  sycl::buffer<int> buf(size);
+  sycl::queue q;
+  q.submit([&](sycl::handler &h) {
+    auto global_acc = buf.get_access<sycl::access::mode::write>(h);
+    sycl::sampler samp(sycl::coordinate_normalization_mode::normalized,
+                       sycl::addressing_mode::clamp,
+                       sycl::filtering_mode::nearest);
+    sycl::accessor<int, 1, sycl::access::mode::read_write,
+                   sycl::access::target::local>
         local_acc({size}, h);
     TriviallyCopyable tc{1, 2};
     NonTriviallyCopyable ntc;

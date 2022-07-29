@@ -396,7 +396,7 @@ using select_cl_scalar_t = conditional_t<
         // half is a special case: it is implemented differently on host and
         // device and therefore, might lower to different types
         conditional_t<std::is_same<T, half>::value,
-                      cl::sycl::detail::half_impl::BIsRepresentationT, T>>>;
+                      sycl::detail::half_impl::BIsRepresentationT, T>>>;
 
 // select_cl_vector_or_scalar does cl_* type selection for element type of
 // a vector type T and does scalar type substitution.  If T is not

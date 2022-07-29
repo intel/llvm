@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 inline constexpr auto DisablePostEnqueueCleanupName =
     "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";
@@ -31,7 +31,7 @@ TEST_F(SchedulerTest, LeafLimit) {
   unittest::ScopedEnvVar DisabledCleanup{
       DisablePostEnqueueCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::reset};
-  cl::sycl::queue HQueue(host_selector{});
+  sycl::queue HQueue(host_selector{});
   MockScheduler MS;
   std::vector<std::unique_ptr<MockCommand>> LeavesToAdd;
   std::unique_ptr<MockCommand> MockDepCmd;
@@ -59,7 +59,7 @@ TEST_F(SchedulerTest, LeafLimit) {
         detail::DepDesc{MockDepCmd.get(), Leaf->getRequirement(), nullptr},
         ToCleanUp);
   }
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
   // Add edges as leaves and exceed the leaf limit
   for (auto &LeafPtr : LeavesToAdd) {
     MS.addNodeToLeaves(Rec, LeafPtr.get(), access::mode::write, ToEnqueue);
