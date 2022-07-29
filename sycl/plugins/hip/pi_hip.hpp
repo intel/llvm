@@ -499,7 +499,7 @@ struct _pi_queue {
     }
   }
 
-  template <bool ResetUsed = false,typename T> void sync_streams(T &&f) {
+  template <bool ResetUsed = false, typename T> void sync_streams(T &&f) {
     auto sync_compute = [&f, &streams = compute_streams_,
                          &delay = delay_compute_](unsigned int start,
                                                   unsigned int stop) {
