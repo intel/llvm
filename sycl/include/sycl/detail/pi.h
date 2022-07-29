@@ -49,7 +49,7 @@
 // NOTE that this results in a changed API for `piProgramGetBuildInfo`.
 
 #define _PI_H_VERSION_MAJOR 9
-#define _PI_H_VERSION_MINOR 11
+#define _PI_H_VERSION_MINOR 12
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
