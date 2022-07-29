@@ -49,9 +49,17 @@ Major New Features
 
 Bug Fixes
 ---------
+- ``-Wtautological-compare`` missed warnings for tautological comparisons
+  involving a negative integer literal. This fixes
+  `Issue 42918 <https://github.com/llvm/llvm-project/issues/42918>`_.
+
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- Clang will now correctly diagnose as ill-formed a constant expression where an
+  enum without a fixed underlying type is set to a value outside the range of
+  of the enumerations values. Fixes
+  `Issue 50055: <https://github.com/llvm/llvm-project/issues/50055>`_.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
