@@ -492,42 +492,44 @@ __esimd_dpas_inner(const void *src0,
   constexpr size_t SIMDSize = 8;
 #endif
 
-  constexpr bool pvcHfDest =
-                     isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,
-                 pvcBfDest = isPvc && std::is_same<RT, short>::value,
-                 pvcBfOrHfDest = pvcBfDest || pvcHfDest;
+  // clang-format off
+  constexpr bool
+      pvcHfDest = isPvc && std::is_same<RT, __ESIMD_EMU_DNS::half>::value,
+      pvcBfDest = isPvc && std::is_same<RT, short>::value,
+      pvcBfOrHfDest = pvcBfDest || pvcHfDest;
 
-  bool pvcBfDestChecks = pvcBfDest &&
-                         src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                         src2_precision == __ESIMD_ENS::argument_type::BF16,
+  bool
+      pvcBfDestChecks = pvcBfDest &&
+                        src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                        src2_precision == __ESIMD_ENS::argument_type::BF16,
 
-       pvcHfDestChecks =
-           pvcHfDest && ((src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                          src2_precision == __ESIMD_ENS::argument_type::FP16) ||
-                         (src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                          src2_precision == __ESIMD_ENS::argument_type::BF16)),
+      pvcHfDestChecks =
+          pvcHfDest && ((src1_precision == __ESIMD_ENS::argument_type::FP16 &&
+                         src2_precision == __ESIMD_ENS::argument_type::FP16) ||
+                        (src1_precision == __ESIMD_ENS::argument_type::BF16 &&
+                         src2_precision == __ESIMD_ENS::argument_type::BF16)),
 
-       destTypeChk = (!pvcBfOrHfDest &&
-                      __ESIMD_EMU_DNS::is_fp_or_dword_type<RT>::value) ||
-                     (pvcBfOrHfDest && (pvcBfDestChecks || pvcHfDestChecks)),
+      destTypeChk =
+          (!pvcBfOrHfDest && __ESIMD_EMU_DNS::is_fp_or_dword_type<RT>::value) ||
+          (pvcBfOrHfDest && (pvcBfDestChecks || pvcHfDestChecks)),
 
-       srcTypeChk = __ESIMD_EMU_DNS::is_dword_type<T1>::value &&
-                    __ESIMD_EMU_DNS::is_dword_type<T2>::value,
+      srcTypeChk = __ESIMD_EMU_DNS::is_dword_type<T1>::value &&
+                   __ESIMD_EMU_DNS::is_dword_type<T2>::value,
 
-       destSizeChk = SZ >= /*TODO: ==*/SIMDSize * repeat_count,
+      destSizeChk = SZ >= /*TODO: ==*/SIMDSize * repeat_count,
 
-       systolicDepthAndRepeatCountChk =
-           systolic_depth == 8 && repeat_count >= 1 && repeat_count <= 8,
+      systolicDepthAndRepeatCountChk =
+          systolic_depth == 8 && repeat_count >= 1 && repeat_count <= 8,
 
-       src1CountChk =
-           N1 == ((src1_el_bits * systolic_depth * ops_per_chan * SZ) /
-                  (repeat_count * sizeof(T1) * 8)),
-       src2CountChk =
-           N2 >=
-           ((src2_el_bits * systolic_depth * ops_per_chan * repeat_count) /
-            (sizeof(T2) * 8))
+      src1CountChk =
+          N1 == ((src1_el_bits * systolic_depth * ops_per_chan * SZ) /
+                 (repeat_count * sizeof(T1) * 8)),
+      src2CountChk =
+          N2 >= ((src2_el_bits * systolic_depth * ops_per_chan * repeat_count) /
+                 (sizeof(T2) * 8))
       /*TODO: ==; fix PVCIGEMM24*/
       ;
+  // clang-format on
 
   if constexpr (!isPvc)
     static_assert(!pvcBfOrHfDest, "dpas: hfloat and bfloat16 destination "
