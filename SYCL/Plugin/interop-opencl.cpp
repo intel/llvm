@@ -45,10 +45,10 @@ int main() {
   }
 
   // Get native OpenCL handles
-  auto ocl_platform = Platform.get_native<backend::opencl>();
-  auto ocl_device = Device.get_native<backend::opencl>();
-  auto ocl_context = Context.get_native<backend::opencl>();
-  auto ocl_queue = Queue.get_native<backend::opencl>();
+  auto ocl_platform = get_native<backend::opencl>(Platform);
+  auto ocl_device = get_native<backend::opencl>(Device);
+  auto ocl_context = get_native<backend::opencl>(Context);
+  auto ocl_queue = get_native<backend::opencl>(Queue);
   auto ocl_buffers = get_native<backend::opencl>(Buffer);
 #ifdef SYCL2020_CONFORMANT_APIS
   assert(ocl_buffers.size() == 1);
@@ -68,10 +68,10 @@ int main() {
 #endif
 
   // Check native handles
-  assert(ocl_platform == PlatformInterop.get_native<backend::opencl>());
-  assert(ocl_device == DeviceInterop.get_native<backend::opencl>());
-  assert(ocl_context == ContextInterop.get_native<backend::opencl>());
-  assert(ocl_queue == QueueInterop.get_native<backend::opencl>());
+  assert(ocl_platform == get_native<backend::opencl>(PlatformInterop));
+  assert(ocl_device == get_native<backend::opencl>(DeviceInterop));
+  assert(ocl_context == get_native<backend::opencl>(ContextInterop));
+  assert(ocl_queue == get_native<backend::opencl>(QueueInterop));
   assert(ocl_buffers == get_native<backend::opencl>(BufferInterop));
 
   return 0;

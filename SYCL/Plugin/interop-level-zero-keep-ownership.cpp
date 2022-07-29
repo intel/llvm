@@ -22,8 +22,8 @@ int main() {
   ze_context_handle_t ZeContext;
   ze_context_desc_t ZeContextDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr,
                                      0};
-  auto ZeDriver = Platform.get_native<backend::ext_oneapi_level_zero>();
-  auto ZeDevice = Device.get_native<backend::ext_oneapi_level_zero>();
+  auto ZeDriver = get_native<backend::ext_oneapi_level_zero>(Platform);
+  auto ZeDevice = get_native<backend::ext_oneapi_level_zero>(Device);
   zeContextCreate(ZeDriver, &ZeContextDesc, &ZeContext);
 
   { // Scope in which SYCL interop context object is live

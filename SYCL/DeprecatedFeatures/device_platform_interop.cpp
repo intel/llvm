@@ -28,7 +28,7 @@ int main() {
   cl_device_id cl_device;
   {
     device D2(device_selector);
-    cl_device = D2.get_native<backend::opencl>();
+    cl_device = get_native<backend::opencl>(D2);
   }
   device D3(cl_device);
   assert(D1 == D3 && "Device impls are different");
@@ -37,7 +37,7 @@ int main() {
   cl_platform_id cl_platform;
   {
     platform P2(device_selector);
-    cl_platform = P2.get_native<backend::opencl>();
+    cl_platform = get_native<backend::opencl>(P2);
   }
   platform P3(cl_platform);
   assert(P1 == P3 && "Platform impls are different");

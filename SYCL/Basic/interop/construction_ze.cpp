@@ -19,7 +19,7 @@ int main() {
   }
 
   sycl::platform Plt = Dev.get_platform();
-  auto NativePlt = Plt.get_native<BE>();
+  auto NativePlt = sycl::get_native<BE>(Plt);
 
   sycl::platform NewPlt = sycl::make_platform<BE>(NativePlt);
   assert(NewPlt == Plt);

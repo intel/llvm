@@ -24,7 +24,7 @@ int main() {
                    {SIZE, SIZE});
 
     ze_context_handle_t ze_context =
-        queue.get_context().get_native<backend::ext_oneapi_level_zero>();
+        get_native<backend::ext_oneapi_level_zero>(queue.get_context());
 
     queue
         .submit([&](handler &cgh) {
