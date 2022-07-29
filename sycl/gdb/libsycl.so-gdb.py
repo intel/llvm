@@ -28,7 +28,7 @@ class Accessor:
         self.depth = depth
 
     def index(self, arg):
-        if arg.type.code == gdb.TYPE_CODE_INT:
+        if arg.type.unqualified().strip_typedefs().code == gdb.TYPE_CODE_INT:
             return int(arg)
         # unwrap if inside item
         try:
