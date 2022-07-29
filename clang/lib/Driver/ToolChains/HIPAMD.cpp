@@ -157,7 +157,8 @@ void AMDGCN::Linker::constructLldCommand(Compilation &C, const JobAction &JA,
   // Look for archive of bundled bitcode in arguments, and add temporary files
   // for the extracted archive of bitcode to inputs.
   auto TargetID = Args.getLastArgValue(options::OPT_mcpu_EQ);
-  if (C.getDriver().getUseNewOffloadingDriver())
+  if (C.getDriver().getUseNewOffloadingDriver() ||
+      JA.getOffloadingDeviceKind() != Action::OFK_SYCL)
     AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, LldArgs, "amdgcn",
                                TargetID,
                                /*IsBitCodeSDL=*/true,
