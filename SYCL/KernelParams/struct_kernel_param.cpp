@@ -18,14 +18,14 @@
 #include <iterator>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct MyNestedStruct {
   bool operator==(const MyNestedStruct &Rhs) {
     return (FldArr[0] == Rhs.FldArr[0] && FldFloat == Rhs.FldFloat);
   }
-  cl::sycl::cl_char FldArr[1];
-  cl::sycl::cl_float FldFloat;
+  sycl::cl_char FldArr[1];
+  sycl::cl_float FldFloat;
 };
 
 struct MyStruct {
@@ -37,13 +37,13 @@ struct MyStruct {
                        std::begin(Rhs.FldArr)) &&
             FldInt == Rhs.FldInt);
   }
-  cl::sycl::cl_char FldChar;
-  cl::sycl::cl_long FldLong;
-  cl::sycl::cl_short FldShort;
-  cl::sycl::cl_uint FldUint;
+  sycl::cl_char FldChar;
+  sycl::cl_long FldLong;
+  sycl::cl_short FldShort;
+  sycl::cl_uint FldUint;
   MyNestedStruct FldStruct;
-  cl::sycl::cl_short FldArr[3];
-  cl::sycl::cl_int FldInt;
+  sycl::cl_short FldArr[3];
+  sycl::cl_int FldInt;
 };
 
 MyStruct GlobS;
@@ -115,12 +115,12 @@ bool test1() {
 }
 
 int main(int argc, char **argv) {
-  cl::sycl::cl_char PartChar = argc;
-  cl::sycl::cl_short PartShort = argc << 8;
-  cl::sycl::cl_int PartInt = argc << 16;
-  cl::sycl::cl_uint PartUint = argc << 16;
-  cl::sycl::cl_long PartLong = ((cl::sycl::cl_long)argc) << 32;
-  cl::sycl::cl_float PartFloat = argc;
+  sycl::cl_char PartChar = argc;
+  sycl::cl_short PartShort = argc << 8;
+  sycl::cl_int PartInt = argc << 16;
+  sycl::cl_uint PartUint = argc << 16;
+  sycl::cl_long PartLong = ((sycl::cl_long)argc) << 32;
+  sycl::cl_float PartFloat = argc;
 
   GlobS = {PartChar,
            PartLong,

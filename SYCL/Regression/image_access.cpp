@@ -19,26 +19,26 @@
 
 int main() {
   try {
-    cl::sycl::range<1> Range(32);
+    sycl::range<1> Range(32);
     std::vector<cl_float> Data(Range.size() * 4, 0.0f);
-    cl::sycl::image<1> Image(Data.data(), cl::sycl::image_channel_order::rgba,
-                             cl::sycl::image_channel_type::fp32, Range);
-    cl::sycl::queue Queue;
+    sycl::image<1> Image(Data.data(), sycl::image_channel_order::rgba,
+                         sycl::image_channel_type::fp32, Range);
+    sycl::queue Queue;
 
-    Queue.submit([&](cl::sycl::handler &CGH) {
-      cl::sycl::accessor<cl::sycl::cl_int4, 1, cl::sycl::access::mode::read,
-                         cl::sycl::access::target::image,
-                         cl::sycl::access::placeholder::false_t>
+    Queue.submit([&](sycl::handler &CGH) {
+      sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read,
+                     sycl::access::target::image,
+                     sycl::access::placeholder::false_t>
           A(Image, CGH);
       CGH.single_task<class MyKernel>([=]() {});
     });
     Queue.wait_and_throw();
 
-    cl::sycl::accessor<cl::sycl::cl_int4, 1, cl::sycl::access::mode::read,
-                       cl::sycl::access::target::host_image,
-                       cl::sycl::access::placeholder::false_t>
+    sycl::accessor<sycl::cl_int4, 1, sycl::access::mode::read,
+                   sycl::access::target::host_image,
+                   sycl::access::placeholder::false_t>
         A(Image);
-  } catch (cl::sycl::exception &E) {
+  } catch (sycl::exception &E) {
     std::cout << E.what();
   }
   return 0;

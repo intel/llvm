@@ -14,7 +14,7 @@
 
 #include <sycl/sycl.hpp>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 class A {
 public:

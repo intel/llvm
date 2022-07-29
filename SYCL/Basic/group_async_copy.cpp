@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 #include <typeinfo>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T> class TypeHelper;
 
@@ -163,7 +163,7 @@ int main() {
       return 1;
     if (test<vec<bool, 4>>(Stride))
       return 1;
-    if (test<cl::sycl::cl_bool>(Stride))
+    if (test<sycl::cl_bool>(Stride))
       return 1;
     if (test<std::byte>(Stride))
       return 1;

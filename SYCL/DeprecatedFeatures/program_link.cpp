@@ -16,7 +16,7 @@
 
 #include <iostream>
 #include <sycl/sycl.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 class DUMMY {
 public:
   void operator()(item<1>) const {};
@@ -33,7 +33,7 @@ int main(void) {
   program prog1(c);
   prog1.compile_with_kernel_type<DUMMY>();
   prog1.link("-cl-finite-math-only");
-  assert(prog1.get_state() == cl::sycl::program_state::linked &&
+  assert(prog1.get_state() == sycl::program_state::linked &&
          "fail to link program");
   // CHECK-IS-RELAXED-MATH: -cl-fast-relaxed-math
   // CHECK-IS-RELAXED-MATH-NOT: -cl-finite-math-only
@@ -42,7 +42,7 @@ int main(void) {
 
   program prog2(c);
   prog2.compile_with_kernel_type<DUMMY>("-cl-mad-enable");
-  assert(prog2.get_state() == cl::sycl::program_state::compiled &&
+  assert(prog2.get_state() == sycl::program_state::compiled &&
          "fail to compile program");
   // CHECK-IS-OPT-DISABLE: -cl-opt-disable
   // CHECK-IS-OPT-DISABLE-NOT: -cl-mad-enable

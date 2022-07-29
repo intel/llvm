@@ -12,7 +12,7 @@
 // with reductions initialized with 1-dimensional discard_write accessor
 // accessing 1 element buffer.
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int NumErrors = 0;
 

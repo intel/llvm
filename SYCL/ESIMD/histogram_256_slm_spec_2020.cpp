@@ -17,7 +17,7 @@ static constexpr int SLM_SIZE = (NUM_BINS * 4);
 static constexpr int BLOCK_WIDTH = 32;
 static constexpr int NUM_BLOCKS = 32;
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -105,7 +105,7 @@ class histogram_slm;
 
 int main(int argc, char **argv) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          cl::sycl::property::queue::enable_profiling{});
+          sycl::property::queue::enable_profiling{});
   auto dev = q.get_device();
   auto ctxt = q.get_context();
 
@@ -160,9 +160,9 @@ int main(int argc, char **argv) {
   unsigned int num_threads;
   num_threads = width * height / (num_blocks * BLOCK_WIDTH * sizeof(int));
 
-  auto GlobalRange = cl::sycl::range<1>(num_threads);
-  auto LocalRange = cl::sycl::range<1>(NUM_BINS / 16);
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  auto GlobalRange = sycl::range<1>(num_threads);
+  auto LocalRange = sycl::range<1>(NUM_BINS / 16);
+  sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
   // Start Timer
   esimd_test::Timer timer;
@@ -175,11 +175,11 @@ int main(int argc, char **argv) {
     for (int iter = 0; iter <= num_iters; ++iter) {
       double etime = 0;
       memset(output_surface, 0, 4 * NUM_BINS);
-      auto e = q.submit([&](cl::sycl::handler &cgh) {
+      auto e = q.submit([&](sycl::handler &cgh) {
         cgh.set_specialization_constant<NumBlocksSpecId>(num_blocks);
         cgh.parallel_for<histogram_slm>(
             Range,
-            [=](cl::sycl::nd_item<1> ndi, kernel_handler kh) SYCL_ESIMD_KERNEL {
+            [=](sycl::nd_item<1> ndi, kernel_handler kh) SYCL_ESIMD_KERNEL {
               histogram_atomic(
                   input_ptr, output_surface, ndi.get_group(0),
                   ndi.get_local_id(0), 16,
@@ -193,7 +193,7 @@ int main(int argc, char **argv) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 1;
   }

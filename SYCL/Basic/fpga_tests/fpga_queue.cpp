@@ -15,7 +15,7 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 const int dataSize = 32;
 const int maxNumQueues = 256;

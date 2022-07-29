@@ -4,8 +4,8 @@
 #include <sycl/sycl.hpp>
 #include <thread>
 
-using namespace cl::sycl;
-using namespace cl::sycl::access;
+using namespace sycl;
+using namespace sycl::access;
 
 static constexpr size_t NUM_THREADS = 4;
 static constexpr size_t RANGE_SIZE = 1024;

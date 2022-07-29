@@ -25,30 +25,30 @@ int main() {
 
   // Single task invocation methods
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     int data = 0;
     // Precompiled kernel invocation
     {
-      cl::sycl::buffer<int, 1> buf(&data, cl::sycl::range<1>(1));
-      cl::sycl::program prg(q.get_context());
+      sycl::buffer<int, 1> buf(&data, sycl::range<1>(1));
+      sycl::program prg(q.get_context());
       // Test program building
-      assert(prg.get_state() == cl::sycl::program_state::none);
+      assert(prg.get_state() == sycl::program_state::none);
       prg.build_with_kernel_type<class SingleTask>();
-      assert(prg.get_state() == cl::sycl::program_state::linked);
+      assert(prg.get_state() == sycl::program_state::linked);
       assert(prg.has_kernel<class SingleTask>());
-      cl::sycl::kernel krn = prg.get_kernel<class SingleTask>();
+      sycl::kernel krn = prg.get_kernel<class SingleTask>();
       assert(krn.get_context() == q.get_context());
       assert(krn.get_program() == prg);
 
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
       });
       if (!q.is_host()) {
         const std::string integrationHeaderKernelName =
-            cl::sycl::detail::KernelInfo<SingleTask>::getName();
+            sycl::detail::KernelInfo<SingleTask>::getName();
         const std::string clKerneName =
-            krn.get_info<cl::sycl::info::kernel::function_name>();
+            krn.get_info<sycl::info::kernel::function_name>();
         assert(integrationHeaderKernelName == clKerneName);
       }
     }
@@ -56,30 +56,30 @@ int main() {
   }
   // Parallel for with range
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     std::vector<int> dataVec(10);
     std::iota(dataVec.begin(), dataVec.end(), 0);
     // Precompiled kernel invocation
     {
-      cl::sycl::range<1> numOfItems(dataVec.size());
-      cl::sycl::buffer<int, 1> buf(dataVec.data(), numOfItems);
-      cl::sycl::program prg(q.get_context());
-      assert(prg.get_state() == cl::sycl::program_state::none);
+      sycl::range<1> numOfItems(dataVec.size());
+      sycl::buffer<int, 1> buf(dataVec.data(), numOfItems);
+      sycl::program prg(q.get_context());
+      assert(prg.get_state() == sycl::program_state::none);
       // Test compiling -> linking
       prg.compile_with_kernel_type<class ParallelFor>();
-      assert(prg.get_state() == cl::sycl::program_state::compiled);
+      assert(prg.get_state() == sycl::program_state::compiled);
       prg.link();
-      assert(prg.get_state() == cl::sycl::program_state::linked);
+      assert(prg.get_state() == sycl::program_state::linked);
       assert(prg.has_kernel<class ParallelFor>());
-      cl::sycl::kernel krn = prg.get_kernel<class ParallelFor>();
+      sycl::kernel krn = prg.get_kernel<class ParallelFor>();
       assert(krn.get_context() == q.get_context());
       assert(krn.get_program() == prg);
 
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.parallel_for<class ParallelFor>(
             krn, numOfItems,
-            [=](cl::sycl::id<1> wiID) { acc[wiID] = acc[wiID] + 1; });
+            [=](sycl::id<1> wiID) { acc[wiID] = acc[wiID] + 1; });
       });
     }
     for (size_t i = 0; i < dataVec.size(); ++i) {
@@ -89,7 +89,7 @@ int main() {
 
   // Parallel for with nd_range
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     std::vector<int> dataVec(10);
     std::iota(dataVec.begin(), dataVec.end(), 0);
 
@@ -97,33 +97,33 @@ int main() {
     // TODO run on host as well once local barrier is supported
     if (!q.is_host()) {
       {
-        cl::sycl::range<1> numOfItems(dataVec.size());
-        cl::sycl::range<1> localRange(2);
-        cl::sycl::buffer<int, 1> buf(dataVec.data(), numOfItems);
-        cl::sycl::program prg(q.get_context());
-        assert(prg.get_state() == cl::sycl::program_state::none);
+        sycl::range<1> numOfItems(dataVec.size());
+        sycl::range<1> localRange(2);
+        sycl::buffer<int, 1> buf(dataVec.data(), numOfItems);
+        sycl::program prg(q.get_context());
+        assert(prg.get_state() == sycl::program_state::none);
         prg.build_with_kernel_type<class ParallelForND>();
-        assert(prg.get_state() == cl::sycl::program_state::linked);
+        assert(prg.get_state() == sycl::program_state::linked);
         assert(prg.has_kernel<class ParallelForND>());
-        cl::sycl::kernel krn = prg.get_kernel<class ParallelForND>();
+        sycl::kernel krn = prg.get_kernel<class ParallelForND>();
         assert(krn.get_context() == q.get_context());
         assert(krn.get_program() == prg);
 
-        q.submit([&](cl::sycl::handler &cgh) {
-          auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
-          cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                             cl::sycl::access::target::local>
+        q.submit([&](sycl::handler &cgh) {
+          auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
+          sycl::accessor<int, 1, sycl::access::mode::read_write,
+                         sycl::access::target::local>
               localAcc(localRange, cgh);
 
           cgh.parallel_for<class ParallelForND>(
-              krn, cl::sycl::nd_range<1>(numOfItems, localRange),
-              [=](cl::sycl::nd_item<1> item) {
+              krn, sycl::nd_range<1>(numOfItems, localRange),
+              [=](sycl::nd_item<1> item) {
                 size_t idx = item.get_global_linear_id();
                 int pos = idx & 1;
                 int opp = pos ^ 1;
                 localAcc[pos] = acc[item.get_global_linear_id()];
 
-                item.barrier(cl::sycl::access::fence_space::local_space);
+                item.barrier(sycl::access::fence_space::local_space);
 
                 acc[idx] = localAcc[opp];
               });

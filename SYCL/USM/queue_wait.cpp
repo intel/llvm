@@ -9,7 +9,7 @@
 #include <cassert>
 #include <cstddef>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // This test checks that queue USM functions are properly waited for during
 // calls to queue::wait().

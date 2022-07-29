@@ -24,9 +24,9 @@
 // CHECK-NEXT: Node create
 // CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
-// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
-// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   sycl_device : {{.*}}
 // CHECK-NEXT: Node create
 // CHECK-NEXT:   kernel_name : virtual_node[{{.*}}]
@@ -35,9 +35,9 @@
 // CHECK-NEXT: Task begin
 // CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
-// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
-// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piKernelCreate
 // CHECK-NEXT: PI Call Begin : piKernelSetExecInfo
@@ -47,16 +47,16 @@
 // CHECK-NEXT: Signal
 // CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
-// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
-// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   sycl_device : {{.*}}
 // CHECK-NEXT: Task end
 // CHECK-NEXT:   sym_line_no : {{.*}}
 // CHECK-NEXT:   sym_source_file_name : {{.*}}
-// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   sym_function_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   from_source : false
-// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(cl::sycl::handler&)#1}::operator()(cl::sycl::handler&) const::{lambda()#1}
+// CHECK-NEXT:   kernel_name : typeinfo name for main::{lambda(sycl::handler&)#1}::operator()(sycl::handler&) const::{lambda()#1}
 // CHECK-NEXT:   sycl_device : {{.*}}
 // CHECK-NEXT: Wait begin
 // CHECK-NEXT: PI Call Begin : piEventsWait

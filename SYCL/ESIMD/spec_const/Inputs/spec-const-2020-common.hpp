@@ -10,7 +10,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename AccessorTy>
 ESIMD_INLINE void do_store(AccessorTy acc, int i, spec_const_t val) {

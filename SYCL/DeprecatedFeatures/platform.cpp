@@ -12,7 +12,7 @@
 #include <sycl/sycl.hpp>
 #include <typeinfo>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int i = 1;
@@ -21,8 +21,7 @@ int main() {
     std::cout << "Platform " << i++
               << " is available: " << ((plt.is_host()) ? "host: " : "OpenCL: ")
               << std::hex
-              << ((plt.is_host() ||
-                   plt.get_backend() != cl::sycl::backend::opencl)
+              << ((plt.is_host() || plt.get_backend() != sycl::backend::opencl)
                       ? nullptr
                       : plt.get())
               << std::endl;
@@ -39,7 +38,7 @@ int main() {
     assert(hash == std::hash<platform>()(MovedPlatform));
     assert(platformA.is_host() == MovedPlatform.is_host());
     if (!platformA.is_host() &&
-        platformA.get_backend() == cl::sycl::backend::opencl) {
+        platformA.get_backend() == sycl::backend::opencl) {
       assert(MovedPlatform.get() != nullptr);
     }
   }
@@ -52,7 +51,7 @@ int main() {
     assert(hash == std::hash<platform>()(WillMovedPlatform));
     assert(platformA.is_host() == WillMovedPlatform.is_host());
     if (!platformA.is_host() &&
-        platformA.get_backend() == cl::sycl::backend::opencl) {
+        platformA.get_backend() == sycl::backend::opencl) {
       assert(WillMovedPlatform.get() != nullptr);
     }
   }

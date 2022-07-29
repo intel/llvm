@@ -18,7 +18,7 @@
 #include <sycl/context.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   {
@@ -108,10 +108,10 @@ int main() {
         Out << 0.0003 << endl;
         Out << -1.0 / 0.0 << endl;
         Out << 1.0 / 0.0 << endl;
-        Out << cl::sycl::sqrt(-1.0) << endl;
+        Out << sycl::sqrt(-1.0) << endl;
         Out << -1.0f / 0.0f << endl;
         Out << 1.0f / 0.0f << endl;
-        Out << cl::sycl::sqrt(-1.0f) << endl;
+        Out << sycl::sqrt(-1.0f) << endl;
         // CHECK-NEXT: 33.4
         // CHECK-NEXT: 5.2
         // CHECK-NEXT: -33.4
@@ -195,8 +195,8 @@ int main() {
         Out << range<1>(32) << endl;
         Out << id<3>(11, 12, 13) << endl;
         Out << range<3>(11, 12, 13) << endl;
-        Out << cl::sycl::nd_range<3>(cl::sycl::range<3>(2, 4, 1),
-                                     cl::sycl::range<3>(1, 2, 1))
+        Out << sycl::nd_range<3>(sycl::range<3>(2, 4, 1),
+                                 sycl::range<3>(1, 2, 1))
             << endl;
         // CHECK-NEXT: {23}
         // CHECK-NEXT: {32}

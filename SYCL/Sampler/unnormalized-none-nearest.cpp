@@ -15,7 +15,7 @@
 #include "common.hpp"
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // pixel data-type for RGBA operations (which is the minimum image type)
 using pixelT = sycl::uint4;

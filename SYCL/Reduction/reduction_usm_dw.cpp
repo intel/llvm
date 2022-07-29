@@ -16,7 +16,7 @@
 
 #include "reduction_utils.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T1, typename T2> class KName;
 

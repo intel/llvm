@@ -16,7 +16,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main(void) {
   constexpr unsigned SIZE = 16;
@@ -46,10 +46,10 @@ int main(void) {
     RES[i] = 0;
   }
 
-  cl::sycl::range<1> GroupRange{1};
+  sycl::range<1> GroupRange{1};
 
-  cl::sycl::range<1> TaskRange{GROUPSIZE};
-  cl::sycl::nd_range<1> Range(GroupRange, TaskRange);
+  sycl::range<1> TaskRange{GROUPSIZE};
+  sycl::nd_range<1> Range(GroupRange, TaskRange);
 
   try {
     auto e = q.submit([&](handler &cgh) {
@@ -71,7 +71,7 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
   }

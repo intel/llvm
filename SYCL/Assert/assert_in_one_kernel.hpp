@@ -2,8 +2,8 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
-using namespace cl::sycl::access;
+using namespace sycl;
+using namespace sycl::access;
 
 void kernelFunc(int *Buf, int wiID) {
   Buf[wiID] = 0;
@@ -12,8 +12,8 @@ void kernelFunc(int *Buf, int wiID) {
 
 void assertTest() {
   std::array<int, 4> Vec = {1, 2, 3, 4};
-  cl::sycl::range<1> numOfItems{Vec.size()};
-  cl::sycl::buffer<int, 1> Buf(Vec.data(), numOfItems);
+  sycl::range<1> numOfItems{Vec.size()};
+  sycl::buffer<int, 1> Buf(Vec.data(), numOfItems);
 
   queue Q;
   Q.submit([&](handler &CGH) {

@@ -18,7 +18,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr unsigned int VL = 16;
 
@@ -34,8 +34,7 @@ int main() {
 
     q.submit([&](handler &cgh) {
       std::cout << "Running on "
-                << q.get_device().get_info<cl::sycl::info::device::name>()
-                << "\n";
+                << q.get_device().get_info<sycl::info::device::name>() << "\n";
 
       auto acc0 = buf0.get_access<access::mode::read_write>(cgh);
 
@@ -47,7 +46,7 @@ int main() {
                                    });
     });
     q.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 1;
   }

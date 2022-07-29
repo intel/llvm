@@ -23,7 +23,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 #ifdef _WIN32
 #define setenv(name, value, overwrite) _putenv_s(name, value)

@@ -21,31 +21,31 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  cl::sycl::queue Q;
+  sycl::queue Q;
   int A_Data[10] = {0};
   int B_Data[10] = {4};
   int C_Data[10] = {-1};
 
   {
-    cl::sycl::buffer<int, 1> A_Buf(A_Data, cl::sycl::range<1>(10));
+    sycl::buffer<int, 1> A_Buf(A_Data, sycl::range<1>(10));
 
-    Q.submit([&](cl::sycl::handler &Cgh) {
-      auto A_Acc = A_Buf.get_access<cl::sycl::access::mode::write>(Cgh);
-      Cgh.parallel_for(cl::sycl::range<1>{5},
-                       [=](cl::sycl::id<1> index) { A_Acc[index] = 5; });
+    Q.submit([&](sycl::handler &Cgh) {
+      auto A_Acc = A_Buf.get_access<sycl::access::mode::write>(Cgh);
+      Cgh.parallel_for(sycl::range<1>{5},
+                       [=](sycl::id<1> index) { A_Acc[index] = 5; });
     });
   }
 
   assert(A_Data[0] == 5);
 
   {
-    cl::sycl::buffer<int, 1> B_Buf(B_Data, cl::sycl::range<1>(10));
-    cl::sycl::buffer<int, 1> C_Buf(C_Data, cl::sycl::range<1>(10));
+    sycl::buffer<int, 1> B_Buf(B_Data, sycl::range<1>(10));
+    sycl::buffer<int, 1> C_Buf(C_Data, sycl::range<1>(10));
 
-    Q.submit([&](cl::sycl::handler &Cgh) {
-      auto B_Acc = B_Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
-      auto C_Acc = C_Buf.get_access<cl::sycl::access::mode::read>(Cgh);
-      Cgh.parallel_for(cl::sycl::range<1>{5}, [=](cl::sycl::id<1> index) {
+    Q.submit([&](sycl::handler &Cgh) {
+      auto B_Acc = B_Buf.get_access<sycl::access::mode::read_write>(Cgh);
+      auto C_Acc = C_Buf.get_access<sycl::access::mode::read>(Cgh);
+      Cgh.parallel_for(sycl::range<1>{5}, [=](sycl::id<1> index) {
         B_Acc[index] += C_Acc[index];
       });
     });
@@ -54,15 +54,14 @@ int main() {
   assert(B_Data[0] == 3);
 
   {
-    cl::sycl::buffer<int, 1> B_Buf(B_Data, cl::sycl::range<1>(10));
-    cl::sycl::buffer<int, 1> C_Buf(C_Data, cl::sycl::range<1>(10));
+    sycl::buffer<int, 1> B_Buf(B_Data, sycl::range<1>(10));
+    sycl::buffer<int, 1> C_Buf(C_Data, sycl::range<1>(10));
 
-    Q.submit([&](cl::sycl::handler &Cgh) {
-      auto B_Acc = B_Buf.get_access<cl::sycl::access::mode::read>(Cgh);
-      auto C_Acc = C_Buf.get_access<cl::sycl::access::mode::write>(Cgh);
-      Cgh.parallel_for(cl::sycl::range<1>{5}, [=](cl::sycl::id<1> index) {
-        C_Acc[index] = B_Acc[index];
-      });
+    Q.submit([&](sycl::handler &Cgh) {
+      auto B_Acc = B_Buf.get_access<sycl::access::mode::read>(Cgh);
+      auto C_Acc = C_Buf.get_access<sycl::access::mode::write>(Cgh);
+      Cgh.parallel_for(sycl::range<1>{5},
+                       [=](sycl::id<1> index) { C_Acc[index] = B_Acc[index]; });
     });
   }
 

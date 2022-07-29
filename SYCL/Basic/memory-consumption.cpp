@@ -36,7 +36,7 @@ long get_cpu_mem() {
 }
 #endif
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   constexpr auto dev_type = info::device_type::gpu;
@@ -46,7 +46,7 @@ int main() {
   std::cout << startSize << " kb" << std::endl;
 
   for (int i = 0; i < 1000; i++) {
-    devices = cl::sycl::device::get_devices(dev_type);
+    devices = sycl::device::get_devices(dev_type);
   }
   int endSize = get_cpu_mem();
   std::cout << endSize << " kb" << std::endl;

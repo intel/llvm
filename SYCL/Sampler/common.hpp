@@ -4,7 +4,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename vecType, int numOfElems>
 std::string vec2string(const vec<vecType, numOfElems> &vec) {

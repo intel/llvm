@@ -12,7 +12,7 @@
 #include <cassert>
 #include <string>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   {

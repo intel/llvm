@@ -9,7 +9,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr size_t c_num_items = 10;
 range<1> num_items{c_num_items}; // range<1>(num_items)
@@ -78,14 +78,13 @@ bool test_accessor_array_in_struct(queue &myQueue) {
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class accessor_array_in_struct>(
-        num_items, [=](cl::sycl::id<1> index) {
+        num_items, [=](sycl::id<1> index) {
           S.a[0][index]++;
           S.a[1][index]++;
           output_accessor[index] = S.a[0][index] + S.a[1][index] + S.x + S.y;
         });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
 
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
@@ -109,12 +108,11 @@ bool test_templated_array_in_struct(queue &myQueue) {
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class templated_array_in_struct>(
-        num_items, [=](cl::sycl::id<1> index) {
+        num_items, [=](sycl::id<1> index) {
           output_accessor[index] = sint.a[index] + sll.a[index];
         });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
 
   return verify_1D("Templated array in struct", c_num_items, output, ref);
 }
@@ -127,7 +125,7 @@ bool run_tests() {
       } catch (std::exception &E) {
         std::cout << "*** std exception caught:\n";
         std::cout << E.what();
-      } catch (cl::sycl::exception const &E1) {
+      } catch (sycl::exception const &E1) {
         std::cout << "*** SYCL exception caught:\n";
         std::cout << E1.what();
       }
@@ -156,7 +154,7 @@ int main(int argc, char *argv[]) {
   auto D = selector.select_device();
   const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
   std::cout << "Running on device " << devType << " ("
-            << D.get_info<cl::sycl::info::device::name>() << ")\n";
+            << D.get_info<sycl::info::device::name>() << ")\n";
   try {
     passed &= run_tests();
   } catch (exception e) {

@@ -55,7 +55,7 @@ bool test(queue q, bool flag) {
                                    scalar_store(acc, 0, res);
                                  });
     });
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;
     return false;
   }

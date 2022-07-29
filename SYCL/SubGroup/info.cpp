@@ -16,7 +16,7 @@
 #include "helper.hpp"
 #include <sycl/sycl.hpp>
 class kernel_sg;
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   queue Queue;
@@ -42,7 +42,7 @@ int main() {
 
     buffer<double, 2> ABuf{GlobalRange}, BBuf{GlobalRange}, CBuf{GlobalRange};
 
-    Queue.submit([&](cl::sycl::handler &cgh) {
+    Queue.submit([&](sycl::handler &cgh) {
       auto A = ABuf.get_access<access::mode::read_write>(cgh);
       auto B = BBuf.get_access<access::mode::read>(cgh);
       auto C = CBuf.get_access<access::mode::read>(cgh);

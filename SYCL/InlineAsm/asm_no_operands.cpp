@@ -9,8 +9,8 @@ class no_operands_kernel;
 
 int main() {
   // Creating SYCL queue
-  cl::sycl::queue Queue;
-  cl::sycl::device Device = Queue.get_device();
+  sycl::queue Queue;
+  sycl::device Device = Queue.get_device();
 
   auto Vec = Device.get_info<sycl::info::device::extensions>();
   if (!isInlineASMSupported(Device) ||
@@ -20,17 +20,17 @@ int main() {
     return 0;
   }
   // Size of index space for kernel
-  cl::sycl::range<1> NumOfWorkItems{16};
+  sycl::range<1> NumOfWorkItems{16};
 
   // Submitting command group(work) to queue
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     // Executing kernel
-    cgh.parallel_for<no_operands_kernel>(
-        NumOfWorkItems, [=](cl::sycl::id<1> WIid)
-                            [[intel::reqd_sub_group_size(8)]] {
+    cgh.parallel_for<no_operands_kernel>(NumOfWorkItems,
+                                         [=](sycl::id<1> WIid)
+                                             [[intel::reqd_sub_group_size(8)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
-                              asm("barrier");
+                                               asm("barrier");
 #endif
-                            });
+                                             });
   });
 }

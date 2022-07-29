@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
   std::string pluginName =
       D.get_platform().get_info<sycl::info::platform::name>();
   std::cout << "Running on device " << devType << " ("
-            << D.get_info<cl::sycl::info::device::name>() << ") " << pluginName
+            << D.get_info<sycl::info::device::name>() << ") " << pluginName
             << " plugin\n";
 
   if (*argv[1] == 'h') {

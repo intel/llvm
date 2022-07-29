@@ -16,7 +16,7 @@
 #include <memory>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int data = 5;
@@ -28,11 +28,11 @@ int main() {
         auto B = buf.get_access<access::mode::read_write>(cgh);
         cgh.single_task<class kernel_name1>([=]() { B[0] = 0; });
       });
-    } catch (cl::sycl::runtime_error &e) {
+    } catch (sycl::runtime_error &e) {
       // Exit immediately, otherwise the buffer destructor may actually try to
       // enqueue the command once again, and throw another exception.
       exit(0);
-    } catch (cl::sycl::compile_program_error &e) {
+    } catch (sycl::compile_program_error &e) {
       exit(0);
     }
     assert(0 && "Expected exception was *not* thrown");

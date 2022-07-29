@@ -11,7 +11,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct NontriviallyCopyable {
   int i;

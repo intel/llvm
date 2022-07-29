@@ -265,7 +265,7 @@ int main() {
     // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
     // CHECK-NEXT:---> pi_result : PI_SUCCESS
 
-    cl::sycl::buffer<int, 1> Buf(sycl::range<1>{1});
+    sycl::buffer<int, 1> Buf(sycl::range<1>{1});
 
     Q.submit([&](sycl::handler &CGH) {
       auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);

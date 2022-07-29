@@ -14,8 +14,8 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
-using namespace cl::sycl::ext::oneapi;
+using namespace sycl;
+using namespace sycl::ext::oneapi;
 
 int main() {
   std::vector<device> Devs;

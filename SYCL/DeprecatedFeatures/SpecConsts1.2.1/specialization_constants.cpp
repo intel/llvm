@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
     ext::oneapi::experimental::spec_constant<uint64_t, MyUInt64Const> ui64 =
         prog.set_spec_constant<MyUInt64Const>(uint64_ref);
 #if HALF
-    ext::oneapi::experimental::spec_constant<cl::sycl::half, MyHalfConst> f16 =
+    ext::oneapi::experimental::spec_constant<sycl::half, MyHalfConst> f16 =
         prog.set_spec_constant<MyHalfConst>(half_ref);
 #endif
     ext::oneapi::experimental::spec_constant<float, MyFloatConst> f32 =

@@ -16,7 +16,7 @@
 
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 const int N = 8;
 

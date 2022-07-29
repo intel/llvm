@@ -21,7 +21,7 @@
 
 #include <algorithm>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename... Ts> class KernelNameGroup;
 

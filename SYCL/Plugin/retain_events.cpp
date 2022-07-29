@@ -21,12 +21,12 @@ void print_device_properties(sycl::device const &dev) {
   fprintf(stdout, "driver version: %s\n", driver_version.c_str());
 }
 
-void async_sycl_error(cl::sycl::exception_list el) {
+void async_sycl_error(sycl::exception_list el) {
   fprintf(stderr, "async exceptions caught:\n");
   for (auto l = el.begin(); l != el.end(); ++l) {
     try {
       std::rethrow_exception(*l);
-    } catch (const cl::sycl::exception &e) {
+    } catch (const sycl::exception &e) {
       fprintf(stderr, "what: %s code: %d\n", e.what(), e.get_cl_code());
       std::exit(-1);
     }

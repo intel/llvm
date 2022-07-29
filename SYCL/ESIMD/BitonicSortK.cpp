@@ -17,7 +17,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace std;
 
@@ -588,9 +588,9 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   uint32_t total_threads = size / base_sort_size_;
   // create ranges
   // We need that many workitems
-  auto SortGlobalRange = cl::sycl::range<1>(total_threads);
+  auto SortGlobalRange = sycl::range<1>(total_threads);
   // Number of workitems in a workgroup
-  cl::sycl::range<1> SortLocalRange{1};
+  sycl::range<1> SortLocalRange{1};
 
   // Start Timer
   esimd_test::Timer timer;
@@ -602,7 +602,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
 
   // Reducing number of iterations for esimd_emulator backend in order
   // to avoid timeout failure
-  if (pQueue_->get_backend() == cl::sycl::backend::ext_intel_esimd_emulator) {
+  if (pQueue_->get_backend() == sycl::backend::ext_intel_esimd_emulator) {
     num_iters = 2;
   }
 
@@ -625,7 +625,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
       double etime = esimd_test::report_time("kernel1 time", e, e);
       if (iter > 0)
         kernel_times += etime;
-    } catch (cl::sycl::exception const &e) {
+    } catch (sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
       return 0;
     }
@@ -635,9 +635,9 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
     total_threads = size / (base_sort_size_ * 2);
     // create ranges
     // We need that many workitems
-    auto MergeGlobalRange = cl::sycl::range<1>(total_threads);
+    auto MergeGlobalRange = sycl::range<1>(total_threads);
     // Number of workitems in a workgroup
-    cl::sycl::range<1> MergeLocalRange{1};
+    sycl::range<1> MergeLocalRange{1};
 
     // enqueue merge kernel multiple times
     // this loop is for stage 8 to stage LOG2_ELEMENTS.
@@ -667,7 +667,7 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
           k++;
         }
       }
-    } catch (cl::sycl::exception const &e) {
+    } catch (sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
       return 0;
     }

@@ -10,7 +10,7 @@
 #include <math.h>
 #include <type_traits>
 
-constexpr cl::sycl::access::mode sycl_write = cl::sycl::access::mode::write;
+constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
 
 template <typename To, typename From> class BitCastKernel;
 
@@ -35,13 +35,13 @@ template <typename To, typename From> int test(const From &Value) {
   if (std::is_integral<From>::value) {
     isOriginalValueEqualsToConvertedTwoTimes = Value == ValueConvertedTwoTimes;
   } else if ((std::is_floating_point<From>::value) ||
-             std::is_same<From, cl::sycl::half>::value) {
+             std::is_same<From, sycl::half>::value) {
     static const float Epsilon = 0.0000001f;
     isOriginalValueEqualsToConvertedTwoTimes =
         fabs(Value - ValueConvertedTwoTimes) < Epsilon;
   } else {
     std::cerr << "Type " << typeid(From).name()
-              << " neither integral nor floating point nor cl::sycl::half\n";
+              << " neither integral nor floating point nor sycl::half\n";
     return 1;
   }
   if (!isOriginalValueEqualsToConvertedTwoTimes) {
@@ -57,17 +57,17 @@ template <typename To, typename From> int test(const From &Value) {
 int main() {
   int ReturnCode = 0;
 
-  std::cout << "cl::sycl::half to unsigned short ...\n";
-  ReturnCode += test<unsigned short>(cl::sycl::half(1.0f));
+  std::cout << "sycl::half to unsigned short ...\n";
+  ReturnCode += test<unsigned short>(sycl::half(1.0f));
 
-  std::cout << "unsigned short to cl::sycl::half ...\n";
-  ReturnCode += test<cl::sycl::half>(static_cast<unsigned short>(16384));
+  std::cout << "unsigned short to sycl::half ...\n";
+  ReturnCode += test<sycl::half>(static_cast<unsigned short>(16384));
 
-  std::cout << "cl::sycl::half to short ...\n";
-  ReturnCode += test<short>(cl::sycl::half(1.0f));
+  std::cout << "sycl::half to short ...\n";
+  ReturnCode += test<short>(sycl::half(1.0f));
 
-  std::cout << "short to cl::sycl::half ...\n";
-  ReturnCode += test<cl::sycl::half>(static_cast<short>(16384));
+  std::cout << "short to sycl::half ...\n";
+  ReturnCode += test<sycl::half>(static_cast<short>(16384));
 
   std::cout << "int to float ...\n";
   ReturnCode += test<float>(static_cast<int>(2));

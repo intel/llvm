@@ -7,8 +7,8 @@
 #include <vector>
 
 #include <string>
-constexpr cl::sycl::access::mode sycl_read = cl::sycl::access::mode::read;
-constexpr cl::sycl::access::mode sycl_write = cl::sycl::access::mode::write;
+constexpr sycl::access::mode sycl_read = sycl::access::mode::read;
+constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
 
 using namespace std;
 
@@ -24,12 +24,12 @@ float find_prime_s(work *w) {
   auto niter = w->niter;
   auto nitems = w->nitems;
 
-  cl::sycl::range<1> numOfItems{nitems};
-  cl::sycl::buffer<cl::sycl::cl_short, 1> bufferR(VRI.data(), N);
+  sycl::range<1> numOfItems{nitems};
+  sycl::buffer<sycl::cl_short, 1> bufferR(VRI.data(), N);
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  cl::sycl::event event;
+  sycl::event event;
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define CONSTANT __attribute__((opencl_constant))
@@ -40,18 +40,18 @@ float find_prime_s(work *w) {
   if (w->queueLock) {
     w->queueLock->lock();
   }
-  event = w->deviceQueue->submit([&](cl::sycl::handler &cgh) {
+  event = w->deviceQueue->submit([&](sycl::handler &cgh) {
     auto accessorR = bufferR.template get_access<sycl_write>(cgh);
     sycl::stream cout(1024, 256, cgh);
 
-    auto k2 = [=](cl::sycl::item<1> item) {
+    auto k2 = [=](sycl::item<1> item) {
       size_t maxstride = 1 + N / nitems;
       for (size_t istride = 0; istride < maxstride; ++istride) {
         unsigned int number = istride * nitems + item.get_linear_id();
         if (number < N) {
           for (size_t i = 0; i < niter; ++i) {
             bool is_prime = !(number % 2 == 0);
-            const int upper_bound = cl::sycl::sqrt(1.0 * number) + 1;
+            const int upper_bound = sycl::sqrt(1.0 * number) + 1;
             int k = 3;
             while (k < upper_bound && is_prime) {
               is_prime = !(number % k == 0);
@@ -80,13 +80,12 @@ float find_prime_s(work *w) {
 
   auto stop = std::chrono::high_resolution_clock::now();
 
-  auto submit_time = event.get_profiling_info<
-      cl::sycl::info::event_profiling::command_submit>();
+  auto submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
   auto start_time =
-      event
-          .get_profiling_info<cl::sycl::info::event_profiling::command_start>();
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
   auto end_time =
-      event.get_profiling_info<cl::sycl::info::event_profiling::command_end>();
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
 
   w->start_time = start_time;
   w->end_time = end_time;

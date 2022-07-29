@@ -15,7 +15,7 @@
 #include <algorithm>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   queue Q;
@@ -24,7 +24,7 @@ int main() {
   if (std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") !=
       std::end(Vec)) {
     std::vector<size_t> SubGroupSizes =
-        Dev.get_info<cl::sycl::info::device::sub_group_sizes>();
+        Dev.get_info<sycl::info::device::sub_group_sizes>();
     std::vector<size_t>::const_iterator MaxIter =
         std::max_element(SubGroupSizes.begin(), SubGroupSizes.end());
     int MaxSubGroup_size = *MaxIter;

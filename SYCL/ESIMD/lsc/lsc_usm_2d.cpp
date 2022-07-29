@@ -20,7 +20,7 @@
 #include <sycl/sycl.hpp>
 
 int main() {
-  using namespace cl::sycl;
+  using namespace sycl;
   using namespace sycl::ext::intel::esimd;
   using namespace sycl::ext::intel::experimental::esimd;
   unsigned data_height = 4;

@@ -7,7 +7,7 @@
 #include <sycl/sycl.hpp>
 #include <unistd.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static buffer<char, 1> *inBufP = nullptr;
 

@@ -17,7 +17,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 #define NUM_BINS 256
 #define IMG_WIDTH 1024

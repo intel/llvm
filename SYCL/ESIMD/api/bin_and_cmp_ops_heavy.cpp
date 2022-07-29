@@ -29,7 +29,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 template <class T1, class T2, int VL, class OpClass, class Ops> class TestID;

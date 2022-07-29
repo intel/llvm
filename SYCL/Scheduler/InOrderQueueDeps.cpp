@@ -21,8 +21,6 @@
 
 class KernelA;
 
-using namespace cl;
-
 void submitKernel(sycl::queue &Queue, sycl::buffer<int, 1> &Buf) {
   Queue.submit([&](sycl::handler &Cgh) {
     auto BufAcc = Buf.get_access<sycl::access::mode::read_write>(Cgh);

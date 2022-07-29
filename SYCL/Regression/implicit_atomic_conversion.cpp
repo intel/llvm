@@ -6,7 +6,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void test_conversion(queue q) {
   int init = 0;
@@ -16,7 +16,7 @@ void test_conversion(queue q) {
     q.submit([&](handler &cgh) {
       auto in = in_buf.template get_access<access::mode::atomic>(cgh);
       cgh.single_task<class conversion>([=]() {
-        cl::sycl::atomic<int, access::address_space::global_space> atm = in[0];
+        sycl::atomic<int, access::address_space::global_space> atm = in[0];
         atm.store(42);
       });
     });

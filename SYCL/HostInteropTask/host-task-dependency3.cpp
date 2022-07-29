@@ -13,8 +13,8 @@
 #include <sycl/sycl.hpp>
 #include <thread>
 
-using namespace cl::sycl;
-using namespace cl::sycl::access;
+using namespace sycl;
+using namespace sycl::access;
 
 static constexpr size_t BUFFER_SIZE = 1024;
 

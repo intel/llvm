@@ -9,14 +9,14 @@ constexpr const size_t DEFAULT_PROBLEM_SIZE = 16;
 template <typename T> struct WithOutputBuffer {
   WithOutputBuffer(size_t size) {
     _output_buffer_data.resize(size);
-    _output_buffer.reset(new cl::sycl::buffer<T>(_output_buffer_data.data(),
-                                                 _output_buffer_data.size()));
+    _output_buffer.reset(new sycl::buffer<T>(_output_buffer_data.data(),
+                                             _output_buffer_data.size()));
   }
 
   WithOutputBuffer(const std::vector<T> &data) {
     _output_buffer_data = data;
-    _output_buffer.reset(new cl::sycl::buffer<T>(_output_buffer_data.data(),
-                                                 _output_buffer_data.size()));
+    _output_buffer.reset(new sycl::buffer<T>(_output_buffer_data.data(),
+                                             _output_buffer_data.size()));
   }
 
   const std::vector<T> &getOutputBufferData() {
@@ -28,12 +28,12 @@ template <typename T> struct WithOutputBuffer {
   size_t getOutputBufferSize() const { return _output_buffer_data.size(); }
 
 protected:
-  cl::sycl::buffer<T> &getOutputBuffer() { return *_output_buffer; }
+  sycl::buffer<T> &getOutputBuffer() { return *_output_buffer; }
 
-  // Functor is being passed by-copy into cl::sycl::queue::submit and destroyed
+  // Functor is being passed by-copy into sycl::queue::submit and destroyed
   // one more time in there. We need to make sure that buffer is only released
   // once.
-  std::shared_ptr<cl::sycl::buffer<T>> _output_buffer = nullptr;
+  std::shared_ptr<sycl::buffer<T>> _output_buffer = nullptr;
   std::vector<T> _output_buffer_data;
 };
 
@@ -45,19 +45,17 @@ template <typename T, size_t N> struct WithInputBuffers {
     constructorHelper<0>(inputs...);
   }
 
-  cl::sycl::buffer<T> &getInputBuffer(size_t i = 0) {
-    return *_input_buffers[i];
-  }
+  sycl::buffer<T> &getInputBuffer(size_t i = 0) { return *_input_buffers[i]; }
 
 protected:
-  std::shared_ptr<cl::sycl::buffer<T>> _input_buffers[N] = {nullptr};
+  std::shared_ptr<sycl::buffer<T>> _input_buffers[N] = {nullptr};
   std::vector<T> _input_buffers_data[N];
 
 private:
   template <int Index, typename... Args>
   void constructorHelper(const std::vector<T> &data, Args... rest) {
     _input_buffers_data[Index] = data;
-    _input_buffers[Index].reset(new cl::sycl::buffer<T>(
+    _input_buffers[Index].reset(new sycl::buffer<T>(
         _input_buffers_data[Index].data(), _input_buffers_data[Index].size()));
     _input_buffers[Index]->set_final_data(nullptr);
     constructorHelper<Index + 1>(rest...);
@@ -94,8 +92,8 @@ auto exception_handler = [](sycl::exception_list exceptions) {
 
 template <typename F>
 bool launchInlineASMTestImpl(F &f, bool requires_particular_sg_size = true) {
-  cl::sycl::queue deviceQueue(cl::sycl::gpu_selector{}, exception_handler);
-  cl::sycl::device device = deviceQueue.get_device();
+  sycl::queue deviceQueue(sycl::gpu_selector{}, exception_handler);
+  sycl::device device = deviceQueue.get_device();
 
   if (!isInlineASMSupported(device)) {
     std::cout << "Skipping test\n";
@@ -124,7 +122,7 @@ bool launchInlineASMTest(F &f, bool requires_particular_sg_size = true,
   bool result = false;
   try {
     result = launchInlineASMTestImpl(f, requires_particular_sg_size);
-  } catch (cl::sycl::exception &e) {
+  } catch (sycl::exception &e) {
     std::string what = e.what();
     if (!exception_string.empty()) {
       if (what.find(exception_string) != std::string::npos) {

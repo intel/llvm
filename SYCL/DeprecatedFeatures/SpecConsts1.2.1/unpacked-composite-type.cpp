@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class sc_kernel_t;
 
@@ -34,9 +34,9 @@ public:
   using sc_t =
       sycl::ext::oneapi::experimental::spec_constant<pod_t, sc_kernel_t>;
 
-  kernel_t(const sc_t &sc, cl::sycl::stream &strm) : sc_(sc), strm_(strm) {}
+  kernel_t(const sc_t &sc, sycl::stream &strm) : sc_(sc), strm_(strm) {}
 
-  void operator()(cl::sycl::id<1> i) const {
+  void operator()(sycl::id<1> i) const {
     strm_ << "--------> " << sc_.get().a << sycl::endl;
     strm_ << "--------> " << sc_.get().b << sycl::endl;
     strm_ << "--------> " << sc_.get().c << sycl::endl;
@@ -44,7 +44,7 @@ public:
   }
 
   sc_t sc_;
-  cl::sycl::stream strm_;
+  sycl::stream strm_;
 };
 
 template <typename T> class kernel_driver_t {
@@ -54,16 +54,16 @@ public:
     context ctx = context(dev);
     queue q(dev);
 
-    cl::sycl::program p(q.get_context());
+    sycl::program p(q.get_context());
     auto sc = p.set_spec_constant<sc_kernel_t>(pod);
     p.build_with_kernel_type<kernel_t<T>>();
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      cl::sycl::stream strm(1024, 256, cgh);
+    q.submit([&](sycl::handler &cgh) {
+      sycl::stream strm(1024, 256, cgh);
       kernel_t<T> func(sc, strm);
 
       auto sycl_kernel = p.get_kernel<kernel_t<T>>();
-      cgh.parallel_for(sycl_kernel, cl::sycl::range<1>(1), func);
+      cgh.parallel_for(sycl_kernel, sycl::range<1>(1), func);
     });
     q.wait();
   }

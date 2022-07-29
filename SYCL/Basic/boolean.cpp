@@ -7,8 +7,8 @@
 
 #include <cassert>
 
-using namespace cl::sycl;
-namespace s = cl::sycl;
+using namespace sycl;
+namespace s = sycl;
 namespace d = s::detail;
 
 d::Boolean<3> foo() {

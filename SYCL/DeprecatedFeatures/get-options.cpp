@@ -16,9 +16,8 @@
 
 class KernelName;
 void submitKernel() {
-  cl::sycl::queue q;
-  q.submit(
-      [&](cl::sycl::handler &cgh) { cgh.single_task<KernelName>([]() {}); });
+  sycl::queue q;
+  q.submit([&](sycl::handler &cgh) { cgh.single_task<KernelName>([]() {}); });
 }
 
 int main() {
@@ -26,8 +25,8 @@ int main() {
   const std::string LinkOpts{"-cl-fast-relaxed-math"};
   const std::string BuildOpts{"-cl-opt-disable -cl-fast-relaxed-math"};
 
-  cl::sycl::context Ctx;
-  cl::sycl::program PrgA{Ctx};
+  sycl::context Ctx;
+  sycl::program PrgA{Ctx};
   assert(PrgA.get_compile_options().empty());
   assert(PrgA.get_link_options().empty());
   assert(PrgA.get_build_options().empty());
@@ -37,7 +36,7 @@ int main() {
   assert(PrgA.get_link_options().empty());
   assert(PrgA.get_build_options() == (PrgA.is_host() ? "" : BuildOpts));
 
-  cl::sycl::program PrgB{Ctx};
+  sycl::program PrgB{Ctx};
   PrgB.compile_with_kernel_type<KernelName>(CompileOpts);
   assert(PrgB.get_compile_options() == (PrgB.is_host() ? "" : CompileOpts));
   assert(PrgB.get_link_options().empty());

@@ -19,7 +19,7 @@
 #define WIDTH 16
 #define HEIGHT 16
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void InitializeSquareMatrix(float *matrix, size_t const Dim,
                             bool const bSkipDataGeneration) {
@@ -82,11 +82,11 @@ int main(int argc, char *argv[]) {
       (DIM_SIZE - 10) / WIDTH + (((DIM_SIZE - 10) % WIDTH == 0) ? 0 : 1);
   uint range_height =
       (DIM_SIZE - 10) / HEIGHT + (((DIM_SIZE - 10) % HEIGHT == 0) ? 0 : 1);
-  cl::sycl::range<2> GlobalRange{range_width, range_height};
+  sycl::range<2> GlobalRange{range_width, range_height};
 
   std::cout << "width = " << range_width << " height = " << range_height
             << std::endl;
-  cl::sycl::range<2> LocalRange{1, 1};
+  sycl::range<2> LocalRange{1, 1};
 
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     free(inputMatrix, ctxt);
     free(outputMatrix, ctxt);

@@ -17,7 +17,7 @@
 #include <mutex>
 #include <thread>
 
-namespace S = cl::sycl;
+namespace S = sycl;
 
 template <typename T> class NameGen;
 

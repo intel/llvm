@@ -16,7 +16,7 @@
 //CHECK:   pi_buff_rect_region width_bytes/height/depth : 64/5/1
 //CHECK:   pi_buff_rect_region width_bytes/height/depth : 64/5/1
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   constexpr unsigned Width = 16;
@@ -45,11 +45,11 @@ int main() {
   constexpr unsigned Size = 64;
   std::vector<int> Data(Size);
   {
-    cl::sycl::buffer<int, 1> Buf(Data.data(), Size);
-    cl::sycl::buffer<int, 1> SubBuf(Buf, Size / 2, 8);
+    sycl::buffer<int, 1> Buf(Data.data(), Size);
+    sycl::buffer<int, 1> SubBuf(Buf, Size / 2, 8);
 
-    Queue.submit([&](cl::sycl::handler &CGH) {
-      auto Acc = SubBuf.get_access<cl::sycl::access::mode::write>(CGH);
+    Queue.submit([&](sycl::handler &CGH) {
+      auto Acc = SubBuf.get_access<sycl::access::mode::write>(CGH);
       CGH.single_task<class empty_task>([=]() {});
     });
   }

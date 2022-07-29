@@ -2,8 +2,8 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
-using namespace cl::sycl::access;
+using namespace sycl;
+using namespace sycl::access;
 
 void kernelFunc1(int *Buf, int wiID) {
   Buf[wiID] = 9;
@@ -15,8 +15,7 @@ void assertTest1(queue &Q, buffer<int, 1> &Buf) {
     auto Acc = Buf.template get_access<mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_1>(
-        Buf.get_range(),
-        [=](cl::sycl::id<1> wiID) { kernelFunc1(&Acc[0], wiID); });
+        Buf.get_range(), [=](sycl::id<1> wiID) { kernelFunc1(&Acc[0], wiID); });
   });
 }
 
@@ -31,8 +30,7 @@ void assertTest2(queue &Q, buffer<int, 1> &Buf) {
     auto Acc = Buf.template get_access<mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_2>(
-        Buf.get_range(),
-        [=](cl::sycl::id<1> wiID) { kernelFunc2(&Acc[0], wiID); });
+        Buf.get_range(), [=](sycl::id<1> wiID) { kernelFunc2(&Acc[0], wiID); });
   });
 }
 
@@ -47,15 +45,14 @@ void assertTest3(queue &Q, buffer<int, 1> &Buf) {
     auto Acc = Buf.template get_access<mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_3>(
-        Buf.get_range(),
-        [=](cl::sycl::id<1> wiID) { kernelFunc3(&Acc[0], wiID); });
+        Buf.get_range(), [=](sycl::id<1> wiID) { kernelFunc3(&Acc[0], wiID); });
   });
 }
 
 int main(int Argc, const char *Argv[]) {
   std::array<int, 4> Vec = {1, 2, 3, 4};
-  cl::sycl::range<1> numOfItems{Vec.size()};
-  cl::sycl::buffer<int, 1> Buf(Vec.data(), numOfItems);
+  sycl::range<1> numOfItems{Vec.size()};
+  sycl::buffer<int, 1> Buf(Vec.data(), numOfItems);
 
   queue Q;
   assertTest1(Q, Buf);

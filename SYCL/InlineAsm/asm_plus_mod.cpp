@@ -8,22 +8,24 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = cl::sycl::cl_int;
+using dataType = sycl::cl_int;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
   KernelFunctor(const std::vector<T> &input1, const std::vector<T> &input2)
       : WithInputBuffers<T, 1>(input1), WithOutputBuffer<T>(input2) {}
 
-  void operator()(cl::sycl::handler &cgh) {
-    auto A = this->getInputBuffer(0)
-                 .template get_access<cl::sycl::access::mode::read>(cgh);
-    auto B = this->getOutputBuffer()
-                 .template get_access<cl::sycl::access::mode::write>(cgh);
+  void operator()(sycl::handler &cgh) {
+    auto A =
+        this->getInputBuffer(0).template get_access<sycl::access::mode::read>(
+            cgh);
+    auto B =
+        this->getOutputBuffer().template get_access<sycl::access::mode::write>(
+            cgh);
 
     cgh.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=
-    ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        sycl::range<1>{this->getOutputBufferSize()},
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm("add (M1, 16) %0(0, 0)<1> %0(0, 0)<1;1,0> %1(0, 0)<1;1,0>"
               : "+rw"(B[wiID])

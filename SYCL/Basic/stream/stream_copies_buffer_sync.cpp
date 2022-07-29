@@ -6,7 +6,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void dev_func(stream out) { out << "dev_func print\n"; }
 

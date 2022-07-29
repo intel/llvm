@@ -21,22 +21,22 @@ int main() {
 
   // Test program and kernel APIs when building a kernel.
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     int data = 0;
     {
-      cl::sycl::buffer<int, 1> buf(&data, cl::sycl::range<1>(1));
-      cl::sycl::program prg(q.get_context());
-      assert(prg.get_state() == cl::sycl::program_state::none);
+      sycl::buffer<int, 1> buf(&data, sycl::range<1>(1));
+      sycl::program prg(q.get_context());
+      assert(prg.get_state() == sycl::program_state::none);
       prg.build_with_kernel_type<class BuiltKernel>();
-      assert(prg.get_state() == cl::sycl::program_state::linked);
+      assert(prg.get_state() == sycl::program_state::linked);
       std::vector<std::vector<char>> binaries = prg.get_binaries();
       assert(prg.has_kernel<class BuiltKernel>());
-      cl::sycl::kernel krn = prg.get_kernel<class BuiltKernel>();
-      std::string name = krn.get_info<cl::sycl::info::kernel::function_name>();
+      sycl::kernel krn = prg.get_kernel<class BuiltKernel>();
+      std::string name = krn.get_info<sycl::info::kernel::function_name>();
       assert(prg.has_kernel(name));
 
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.single_task<class BuiltKernel>(krn, [=]() { acc[0] = acc[0] + 1; });
       });
     }
@@ -45,24 +45,24 @@ int main() {
 
   // Test program and kernel APIs when compiling / linking a kernel.
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     int data = 0;
     {
-      cl::sycl::buffer<int, 1> buf(&data, cl::sycl::range<1>(1));
-      cl::sycl::program prg(q.get_context());
-      assert(prg.get_state() == cl::sycl::program_state::none);
+      sycl::buffer<int, 1> buf(&data, sycl::range<1>(1));
+      sycl::program prg(q.get_context());
+      assert(prg.get_state() == sycl::program_state::none);
       prg.compile_with_kernel_type<class CompiledKernel>();
-      assert(prg.get_state() == cl::sycl::program_state::compiled);
+      assert(prg.get_state() == sycl::program_state::compiled);
       prg.link();
-      assert(prg.get_state() == cl::sycl::program_state::linked);
+      assert(prg.get_state() == sycl::program_state::linked);
       std::vector<std::vector<char>> binaries = prg.get_binaries();
       assert(prg.has_kernel<class CompiledKernel>());
-      cl::sycl::kernel krn = prg.get_kernel<class CompiledKernel>();
-      std::string name = krn.get_info<cl::sycl::info::kernel::function_name>();
+      sycl::kernel krn = prg.get_kernel<class CompiledKernel>();
+      std::string name = krn.get_info<sycl::info::kernel::function_name>();
       assert(prg.has_kernel(name));
 
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.single_task<class CompiledKernel>(krn,
                                               [=]() { acc[0] = acc[0] + 1; });
       });

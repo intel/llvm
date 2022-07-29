@@ -50,8 +50,8 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
 #endif // RUN_KERNELS
 
 int main(int argc, char **argv) {
-  cl::sycl::queue Q;
-  cl::sycl::device Device = Q.get_device();
+  sycl::queue Q;
+  sycl::device Device = Q.get_device();
 
   { // Compile and run a trivial OpenCL kernel.
     std::cout << "Test case1\n";

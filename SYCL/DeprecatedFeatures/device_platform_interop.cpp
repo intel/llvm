@@ -19,7 +19,7 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 #include <unordered_map>
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   default_selector device_selector;

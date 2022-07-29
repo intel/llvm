@@ -9,7 +9,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr long width = 16;
 constexpr long height = 5;

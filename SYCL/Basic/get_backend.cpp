@@ -12,7 +12,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 bool check(backend be) {
   switch (be) {

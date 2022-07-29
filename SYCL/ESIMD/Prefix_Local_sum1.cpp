@@ -34,7 +34,7 @@
 // minimum number of threads to launch a kernel (power of 2)
 #define MIN_NUM_THREADS 1
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 void compute_local_prefixsum(const unsigned int input[],
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
   unsigned log2_element = atoi(argv[1]);
   unsigned int size = 1 << log2_element;
 
-  cl::sycl::range<2> LocalRange{1, 1};
+  sycl::range<2> LocalRange{1, 1};
 
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
   compute_local_prefixsum(pInputs, pExpectOutputs, size);
 
   // compute local sum for every chunk of PREFIX_ENTRIES
-  cl::sycl::range<2> GlobalRange{size / PREFIX_ENTRIES, 1};
+  sycl::range<2> GlobalRange{size / PREFIX_ENTRIES, 1};
 
   // Start Timer
   esimd_test::Timer timer;
@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     free(pDeviceOutputs, q);
     free(pExpectOutputs);

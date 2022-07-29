@@ -35,11 +35,11 @@ int global_val = 10;
 int get_value() { return global_val; }
 
 int main(int argc, char **argv) {
-  cl::sycl::queue q(default_selector{}, [](exception_list l) {
+  sycl::queue q(default_selector{}, [](exception_list l) {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << e0.what();
       } catch (std::exception &e1) {
         std::cout << e1.what();
@@ -52,28 +52,28 @@ int main(int argc, char **argv) {
   std::cout << "Running on " << q.get_device().get_info<info::device::name>()
             << "\n";
   std::cout << "global_val = " << global_val << "\n";
-  cl::sycl::program program(q.get_context());
+  sycl::program program(q.get_context());
 
   int goldi = (int)get_value();
   float goldf = (float)get_value();
 
   POD gold = {{{goldi, goldf}, {goldi, goldf}}, goldi};
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<POD, MyPODConst> pod =
+  sycl::ext::oneapi::experimental::spec_constant<POD, MyPODConst> pod =
       program.set_spec_constant<MyPODConst>(gold);
 
   program.build_with_kernel_type<Test>();
 
   POD result;
   try {
-    cl::sycl::buffer<POD, 1> bufi(&result, 1);
+    sycl::buffer<POD, 1> bufi(&result, 1);
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acci = bufi.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto acci = bufi.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<Test>(program.get_kernel<Test>(),
                             [=]() { acci[0] = pod.get(); });
     });
-  } catch (cl::sycl::exception &e) {
+  } catch (sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";
     return 1;
   }

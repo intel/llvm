@@ -19,7 +19,7 @@ template <typename T> class test_2d_read_class;
 template <typename T> class test_3d_write_class;
 template <typename T> class test_3d_read_class;
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
 bool test1d_coord(s::queue myQueue, dataT *hostPtr, coordT coord,

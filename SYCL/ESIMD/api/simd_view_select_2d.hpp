@@ -15,7 +15,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -121,7 +121,7 @@ bool test_impl(queue q, int off_m, int off_n, int off_k) {
           });
     });
     e.wait_and_throw();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "  SYCL exception caught: " << e.what() << '\n';
     sycl::free(mat_a, q);
     sycl::free(mat_b, q);

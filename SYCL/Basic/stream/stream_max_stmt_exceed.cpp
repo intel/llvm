@@ -8,8 +8,6 @@
 
 #include <cassert>
 
-using namespace cl;
-
 int main() {
   sycl::queue Queue;
   try {

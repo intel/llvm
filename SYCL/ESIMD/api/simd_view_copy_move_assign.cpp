@@ -20,7 +20,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 template <unsigned VL, class T, class F>

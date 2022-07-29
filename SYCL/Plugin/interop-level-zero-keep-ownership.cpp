@@ -10,7 +10,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
 

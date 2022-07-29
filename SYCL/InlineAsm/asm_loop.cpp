@@ -9,7 +9,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using DataType = cl::sycl::cl_int;
+using DataType = sycl::cl_int;
 
 template <typename T = DataType>
 struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
@@ -17,16 +17,19 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
       : WithInputBuffers<T, 2>(input1, input2), WithOutputBuffer<T>(
                                                     input1.size()) {}
 
-  void operator()(cl::sycl::handler &CGH) {
-    auto A = this->getInputBuffer(0)
-                 .template get_access<cl::sycl::access::mode::read>(CGH);
-    auto B = this->getInputBuffer(1)
-                 .template get_access<cl::sycl::access::mode::read>(CGH);
-    auto C = this->getOutputBuffer()
-                 .template get_access<cl::sycl::access::mode::write>(CGH);
+  void operator()(sycl::handler &CGH) {
+    auto A =
+        this->getInputBuffer(0).template get_access<sycl::access::mode::read>(
+            CGH);
+    auto B =
+        this->getInputBuffer(1).template get_access<sycl::access::mode::read>(
+            CGH);
+    auto C =
+        this->getOutputBuffer().template get_access<sycl::access::mode::write>(
+            CGH);
     CGH.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=
-    ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        sycl::range<1>{this->getOutputBufferSize()},
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("{\n"
                        ".decl P1 v_type=P num_elts=8\n"

@@ -24,7 +24,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 #ifndef ENABLE_SIMD
 #define ENABLE_SIMD 1
@@ -90,7 +90,7 @@ bool test_esimd(queue q) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
 
     delete[] A;
@@ -133,7 +133,7 @@ bool test_sycl(queue q) {
                                        [=](id<1> i) { PC[i] = PA[i] + PB[i]; });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
 
     delete[] A;

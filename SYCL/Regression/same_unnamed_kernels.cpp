@@ -16,28 +16,30 @@
 #include <sycl/sycl.hpp>
 
 template <typename F, typename B>
-void run(cl::sycl::queue &q, B &buf, const F &func) {
-  auto e = q.submit([&](cl::sycl::handler &cgh) {
-    auto acc = buf.template get_access<cl::sycl::access::mode::write>(cgh);
+void run(sycl::queue &q, B &buf, const F &func) {
+  auto e = q.submit([&](sycl::handler &cgh) {
+    auto acc = buf.template get_access<sycl::access::mode::write>(cgh);
     cgh.single_task([=]() { func(acc); });
   });
   e.wait();
 }
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
   int A[1] = {1};
   int B[1] = {1};
-  cl::sycl::buffer<int, 1> bufA(A, 1);
-  cl::sycl::buffer<int, 1> bufB(B, 1);
+  sycl::buffer<int, 1> bufA(A, 1);
+  sycl::buffer<int, 1> bufB(B, 1);
 
   run(q, bufA,
-      [&](const cl::sycl::accessor<int, 1, cl::sycl::access::mode::write>
-              &acc) { acc[0] = 0; });
+      [&](const sycl::accessor<int, 1, sycl::access::mode::write> &acc) {
+        acc[0] = 0;
+      });
   run(q, bufB,
-      [&](const cl::sycl::accessor<int, 1, cl::sycl::access::mode::write>
-              &acc) { acc[0] *= 2; });
+      [&](const sycl::accessor<int, 1, sycl::access::mode::write> &acc) {
+        acc[0] *= 2;
+      });
 
   if (A[0] != 0 || B[0] != 2)
     return -1;

@@ -63,17 +63,17 @@ cl_context createOpenCLContext(cl_platform_id platform, cl_device_id device) {
 
 int main() {
   cl_platform_id ocl_platform = selectOpenCLPlatform();
-  cl::sycl::platform syclPlt(ocl_platform);
+  sycl::platform syclPlt(ocl_platform);
   assert(ocl_platform == syclPlt.get() &&
          "SYCL returns invalid OpenCL platform id");
 
   cl_device_id ocl_device = selectOpenCLDevice(ocl_platform);
-  cl::sycl::device syclDev(ocl_device);
+  sycl::device syclDev(ocl_device);
   assert(ocl_device == syclDev.get() &&
          "SYCL returns invalid OpenCL device id");
 
   cl_context ocl_context = createOpenCLContext(ocl_platform, ocl_device);
-  cl::sycl::context syclContext(ocl_context);
+  sycl::context syclContext(ocl_context);
   assert(ocl_context == syclContext.get() &&
          "SYCL returns invalid OpenCL context id");
 

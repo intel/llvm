@@ -13,38 +13,36 @@
 #include <sycl/ext/intel/fpga_extensions.hpp>
 #include <sycl/sycl.hpp>
 
-int test_dsp_control(cl::sycl::queue Queue) {
+int test_dsp_control(sycl::queue Queue) {
   std::vector<float> input_data = {1.23f, 2.34f};
   std::vector<float> output_data = {.0f, .0f};
 
   {
-    cl::sycl::buffer input_buffer(input_data);
-    cl::sycl::buffer output_buffer(output_data);
+    sycl::buffer input_buffer(input_data);
+    sycl::buffer output_buffer(output_data);
 
-    Queue.submit([&](cl::sycl::handler &cgh) {
+    Queue.submit([&](sycl::handler &cgh) {
       auto input_accessor =
-          input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+          input_buffer.get_access<sycl::access::mode::read>(cgh);
 
       auto output_accessor =
-          output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+          output_buffer.get_access<sycl::access::mode::write>(cgh);
 
       cgh.single_task<class kernel>([=] {
-        cl::sycl::ext::intel::math_dsp_control<
-            cl::sycl::ext::intel::Preference::DSP>(
+        sycl::ext::intel::math_dsp_control<sycl::ext::intel::Preference::DSP>(
             [&] { output_accessor[0] = input_accessor[0] + 1.0f; });
 
-        cl::sycl::ext::intel::math_dsp_control<
-            cl::sycl::ext::intel::Preference::DSP,
-            cl::sycl::ext::intel::Propagate::Off>(
+        sycl::ext::intel::math_dsp_control<sycl::ext::intel::Preference::DSP,
+                                           sycl::ext::intel::Propagate::Off>(
             [&] { output_accessor[0] -= 1.0f; });
 
-        cl::sycl::ext::intel::math_dsp_control<
-            cl::sycl::ext::intel::Preference::Softlogic>(
+        sycl::ext::intel::math_dsp_control<
+            sycl::ext::intel::Preference::Softlogic>(
             [&] { output_accessor[1] = input_accessor[1] + 1.0f; });
 
-        cl::sycl::ext::intel::math_dsp_control<
-            cl::sycl::ext::intel::Preference::Softlogic,
-            cl::sycl::ext::intel::Propagate::Off>(
+        sycl::ext::intel::math_dsp_control<
+            sycl::ext::intel::Preference::Softlogic,
+            sycl::ext::intel::Propagate::Off>(
             [&] { output_accessor[1] -= 1.0f; });
       });
     });
@@ -62,7 +60,7 @@ int test_dsp_control(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
 
   return test_dsp_control(Queue);
 }

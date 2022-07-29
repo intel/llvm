@@ -18,8 +18,6 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl;
-
 int main() {
   sycl::buffer<int, 1> Buf(sycl::range<1>{1});
   auto Acc = Buf.get_access<sycl::access::mode::read>();

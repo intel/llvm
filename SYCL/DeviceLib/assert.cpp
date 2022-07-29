@@ -83,8 +83,8 @@
 //
 // CHECK-MESSAGE: {{.*}}assert.cpp:{{[0-9]+}}: auto simple_vadd(const
 // std::array<int, 3UL> &, const std::array<int, 3UL> &, std::array<int, 3UL>
-// &)::(anonymous class)::operator()(cl::sycl::handler &)::(anonymous
-// class)::operator()(cl::sycl::id<1>) const: global id: [{{[0-3]}},0,0], local
+// &)::(anonymous class)::operator()(sycl::handler &)::(anonymous
+// class)::operator()(sycl::id<1>) const: global id: [{{[0-3]}},0,0], local
 // id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 && "Invalid value"`
 // failed.
 //
@@ -99,21 +99,21 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-using namespace cl::sycl;
+using namespace sycl;
 
-constexpr auto sycl_read = cl::sycl::access::mode::read;
-constexpr auto sycl_write = cl::sycl::access::mode::write;
+constexpr auto sycl_read = sycl::access::mode::read;
+constexpr auto sycl_write = sycl::access::mode::write;
 
 const int EXIT_SKIP_TEST = 42;
 
 template <typename T, size_t N>
 void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
                  std::array<T, N> &VC) {
-  queue deviceQueue([](cl::sycl::exception_list ExceptionList) {
+  queue deviceQueue([](sycl::exception_list ExceptionList) {
     for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
         std::rethrow_exception(ExceptionPtr);
-      } catch (cl::sycl::exception &E) {
+      } catch (sycl::exception &E) {
         std::cerr << E.what() << std::endl;
       } catch (...) {
         std::cerr << "Unknown async exception was caught." << std::endl;
@@ -133,17 +133,17 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
     exit(EXIT_SKIP_TEST);
   }
 
-  cl::sycl::range<1> numOfItems{N};
-  cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
-  cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
-  cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
+  sycl::range<1> numOfItems{N};
+  sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
+  sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
+  sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
 
-  deviceQueue.submit([&](cl::sycl::handler &cgh) {
+  deviceQueue.submit([&](sycl::handler &cgh) {
     auto accessorA = bufferA.template get_access<sycl_read>(cgh);
     auto accessorB = bufferB.template get_access<sycl_read>(cgh);
     auto accessorC = bufferC.template get_access<sycl_write>(cgh);
 
-    cgh.parallel_for<class SimpleVaddT>(numOfItems, [=](cl::sycl::id<1> wiID) {
+    cgh.parallel_for<class SimpleVaddT>(numOfItems, [=](sycl::id<1> wiID) {
       accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
       assert(accessorC[wiID] == 0 && "Invalid value");
     });

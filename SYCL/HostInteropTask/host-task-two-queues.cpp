@@ -9,7 +9,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-namespace S = cl::sycl;
+namespace S = sycl;
 
 #define WIDTH 5
 #define HEIGHT 5

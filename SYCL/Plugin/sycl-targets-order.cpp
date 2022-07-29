@@ -21,37 +21,36 @@
 int main(int argc, char **argv) {
 
   // select the default SYCL device
-  cl::sycl::device device{cl::sycl::default_selector{}};
+  sycl::device device{sycl::default_selector{}};
   std::cout << "Running on SYCL device "
-            << device.get_info<cl::sycl::info::device::name>()
+            << device.get_info<sycl::info::device::name>()
             << ", driver version "
-            << device.get_info<cl::sycl::info::device::driver_version>()
+            << device.get_info<sycl::info::device::driver_version>()
             << std::endl;
 
   // create a queue
-  cl::sycl::queue queue{device};
+  sycl::queue queue{device};
 
   // create a buffer of 4 ints to be used inside the kernel code
-  cl::sycl::buffer<unsigned int, 1> buffer(4);
+  sycl::buffer<unsigned int, 1> buffer(4);
 
   // size of the index space for the kernel
-  cl::sycl::range<1> NumOfWorkItems{buffer.get_count()};
+  sycl::range<1> NumOfWorkItems{buffer.get_count()};
 
   // submit a command group(work) to the queue
-  queue.submit([&](cl::sycl::handler &cgh) {
+  queue.submit([&](sycl::handler &cgh) {
     // get write only access to the buffer on a device
-    auto accessor = buffer.get_access<cl::sycl::access::mode::write>(cgh);
+    auto accessor = buffer.get_access<sycl::access::mode::write>(cgh);
     // executing the kernel
-    cgh.parallel_for<class FillBuffer>(NumOfWorkItems,
-                                       [=](cl::sycl::id<1> WIid) {
-                                         // fill the buffer with indexes
-                                         accessor[WIid] = WIid.get(0);
-                                       });
+    cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
+      // fill the buffer with indexes
+      accessor[WIid] = WIid.get(0);
+    });
   });
 
   // get read-only access to the buffer on the host
   // introduce an implicit barrier waiting for queue to complete the work
-  const auto host_accessor = buffer.get_access<cl::sycl::access::mode::read>();
+  const auto host_accessor = buffer.get_access<sycl::access::mode::read>();
 
   // check the results
   bool mismatch = false;

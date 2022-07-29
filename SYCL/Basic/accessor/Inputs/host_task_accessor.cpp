@@ -14,7 +14,7 @@ int main() {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(9),
-                                  {cl::sycl::property::buffer::use_host_ptr()});
+                                  {sycl::property::buffer::use_host_ptr()});
 
     sycl::queue Queue;
 
@@ -80,7 +80,7 @@ int main() {
     int data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     sycl::buffer<int, 1> buf_data(data, sycl::range<1>(9),
-                                  {cl::sycl::property::buffer::use_host_ptr()});
+                                  {sycl::property::buffer::use_host_ptr()});
 
     sycl::queue Queue;
 

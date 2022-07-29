@@ -12,9 +12,9 @@ constexpr size_t problem_size = 100;
 class kernel_name;
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
 
-  cl::sycl::device Device = q.get_device();
+  sycl::device Device = q.get_device();
 
   auto Vec = Device.get_info<sycl::info::device::extensions>();
   if (!isInlineASMSupported(Device) ||
@@ -34,10 +34,10 @@ int main() {
     a[i] = i;
   }
 
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
      cgh.parallel_for<kernel_name>(
-         cl::sycl::range<1>(problem_size), [=
-     ](cl::sycl::id<1> idx) [[intel::reqd_sub_group_size(16)]] {
+         sycl::range<1>(problem_size),
+         [=](sycl::id<1> idx) [[intel::reqd_sub_group_size(16)]] {
            int i = idx[0];
            volatile int tmp = a[i];
            tmp += 1;
@@ -63,13 +63,13 @@ int main() {
 
   if (!currect) {
     std::cerr << "Error" << std::endl;
-    cl::sycl::free(a, ctx);
-    cl::sycl::free(b, ctx);
+    sycl::free(a, ctx);
+    sycl::free(b, ctx);
     return 1;
   }
 
   std::cerr << "Pass" << std::endl;
-  cl::sycl::free(a, ctx);
-  cl::sycl::free(b, ctx);
+  sycl::free(a, ctx);
+  sycl::free(b, ctx);
   return 0;
 }

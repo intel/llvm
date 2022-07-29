@@ -36,7 +36,7 @@
 #define MIN_NUM_THREADS 1
 #define REMAINING_ENTRIES 64
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 void compute_local_prefixsum(unsigned int prefixSum[], unsigned int size,
@@ -285,7 +285,7 @@ double hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
       e.wait();
       kernel_times += esimd_test::report_time("kernel3 time", e, e);
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
   }
 
@@ -322,7 +322,7 @@ int main(int argc, char *argv[]) {
   unsigned log2_element = 26;
   unsigned int size = 1 << log2_element;
 
-  cl::sycl::range<2> LocalRange{1, 1};
+  sycl::range<2> LocalRange{1, 1};
 
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});

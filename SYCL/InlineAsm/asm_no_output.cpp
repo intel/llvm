@@ -8,17 +8,18 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using dataType = cl::sycl::cl_int;
+using dataType = sycl::cl_int;
 
 template <typename T = dataType> struct KernelFunctor : WithOutputBuffer<T> {
   KernelFunctor(size_t problem_size) : WithOutputBuffer<T>(problem_size) {}
 
-  void operator()(cl::sycl::handler &cgh) {
-    auto C = this->getOutputBuffer()
-                 .template get_access<cl::sycl::access::mode::write>(cgh);
+  void operator()(sycl::handler &cgh) {
+    auto C =
+        this->getOutputBuffer().template get_access<sycl::access::mode::write>(
+            cgh);
     cgh.parallel_for<KernelFunctor<T>>(
-        cl::sycl::range<1>{this->getOutputBufferSize()}, [=
-    ](cl::sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
+        sycl::range<1>{this->getOutputBufferSize()},
+        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(8)]] {
           volatile int local_var = 47;
           local_var += C[0];
 #if defined(__SYCL_DEVICE_ONLY__)

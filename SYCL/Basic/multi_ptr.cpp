@@ -22,7 +22,7 @@
 #include <sycl/sycl.hpp>
 #include <type_traits>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 /* This is the class used to name the kernel for the runtime.
  * This must be done when the kernel is expressed as a lambda. */

@@ -12,7 +12,6 @@
 #define DEBUG 0
 
 using namespace std;
-namespace sycl = cl::sycl;
 
 class gpu_tsk {
 public:

@@ -27,21 +27,19 @@
 int main() {
   const int Size = 10;
 
-  cl::sycl::queue Q;
-  cl::sycl::device D = Q.get_device();
-  cl::sycl::context C = Q.get_context();
-  cl::sycl::program P(C);
+  sycl::queue Q;
+  sycl::device D = Q.get_device();
+  sycl::context C = Q.get_context();
+  sycl::program P(C);
 
   P.build_with_kernel_type<class K>();
-  cl::sycl::kernel KE = P.get_kernel<class K>();
+  sycl::kernel KE = P.get_kernel<class K>();
 
-  cl::sycl::buffer<cl::sycl::ext::oneapi::device_func_ptr_holder_t>
-      DispatchTable(2);
+  sycl::buffer<sycl::ext::oneapi::device_func_ptr_holder_t> DispatchTable(2);
   {
-    auto DTAcc =
-        DispatchTable.get_access<cl::sycl::access::mode::discard_write>();
-    DTAcc[0] = cl::sycl::ext::oneapi::get_device_func_ptr(&add, "add", P, D);
-    DTAcc[1] = cl::sycl::ext::oneapi::get_device_func_ptr(&sub, "sub", P, D);
+    auto DTAcc = DispatchTable.get_access<sycl::access::mode::discard_write>();
+    DTAcc[0] = sycl::ext::oneapi::get_device_func_ptr(&add, "add", P, D);
+    DTAcc[1] = sycl::ext::oneapi::get_device_func_ptr(&sub, "sub", P, D);
     if (!D.is_host()) {
       // FIXME: update this check with query to supported extension
       // For now, we don't have runtimes that report required OpenCL extension
@@ -60,25 +58,24 @@ int main() {
     std::vector<int> A(Size, 1);
     std::vector<int> B(Size, 2);
 
-    cl::sycl::buffer<int> bufA(A.data(), cl::sycl::range<1>(Size));
-    cl::sycl::buffer<int> bufB(B.data(), cl::sycl::range<1>(Size));
+    sycl::buffer<int> bufA(A.data(), sycl::range<1>(Size));
+    sycl::buffer<int> bufB(B.data(), sycl::range<1>(Size));
 
-    Q.submit([&](cl::sycl::handler &CGH) {
-      auto AccA =
-          bufA.template get_access<cl::sycl::access::mode::read_write>(CGH);
-      auto AccB = bufB.template get_access<cl::sycl::access::mode::read>(CGH);
+    Q.submit([&](sycl::handler &CGH) {
+      auto AccA = bufA.template get_access<sycl::access::mode::read_write>(CGH);
+      auto AccB = bufB.template get_access<sycl::access::mode::read>(CGH);
       auto AccDT =
-          DispatchTable.template get_access<cl::sycl::access::mode::read>(CGH);
+          DispatchTable.template get_access<sycl::access::mode::read>(CGH);
       CGH.parallel_for<class K>(
-          KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
-            auto FP = cl::sycl::ext::oneapi::to_device_func_ptr<int(int, int)>(
+          KE, sycl::range<1>(Size), [=](sycl::id<1> Index) {
+            auto FP = sycl::ext::oneapi::to_device_func_ptr<int(int, int)>(
                 AccDT[Mode]);
 
             AccA[Index] = FP(AccA[Index], AccB[Index]);
           });
     });
 
-    auto HostAcc = bufA.get_access<cl::sycl::access::mode::read>();
+    auto HostAcc = bufA.get_access<sycl::access::mode::read>();
 
     int Reference = Mode == 0 ? 3 : -1;
     auto *Data = HostAcc.get_pointer();

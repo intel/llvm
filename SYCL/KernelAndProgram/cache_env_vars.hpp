@@ -66,7 +66,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 class Inc;
-template <class Kernel> void check_build_time(cl::sycl::queue &q) {
+template <class Kernel> void check_build_time(sycl::queue &q) {
   auto start = std::chrono::steady_clock::now();
   auto KB =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
@@ -79,18 +79,18 @@ int main(int argc, char **argv) {
   auto start = std::chrono::steady_clock::now();
   // Test program and kernel APIs when building a kernel.
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     check_build_time<Inc>(q);
 
     int data = 0;
     {
-      cl::sycl::buffer<int, 1> buf(&data, cl::sycl::range<1>(1));
-      cl::sycl::range<1> NumOfWorkItems{buf.get_count()};
+      sycl::buffer<int, 1> buf(&data, sycl::range<1>(1));
+      sycl::range<1> NumOfWorkItems{buf.get_count()};
 
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.parallel_for<class Inc>(
-            NumOfWorkItems, [=](cl::sycl::id<1> WIid) { TARGET_IMAGE(acc[0]) });
+            NumOfWorkItems, [=](sycl::id<1> WIid) { TARGET_IMAGE(acc[0]) });
       });
     }
     // check_build_time<Inc>(q);

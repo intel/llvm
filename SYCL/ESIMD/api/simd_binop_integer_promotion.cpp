@@ -24,7 +24,7 @@
 #include <iostream>
 #include <limits>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 template <typename T> struct KernelName;

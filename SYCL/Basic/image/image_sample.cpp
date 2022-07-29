@@ -12,7 +12,7 @@ class test_1d_class;
 class test_2d_class;
 class test_3d_class;
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename dataT>
 bool check_result(dataT resultData, dataT expectedData, float epsilon = 0.1) {

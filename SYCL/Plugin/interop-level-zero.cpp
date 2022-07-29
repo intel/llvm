@@ -11,7 +11,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
@@ -55,8 +55,7 @@ int main() {
       ZeEvent};
   // ZeEvent isn't owning the resource (it's owned by Event object), we cannot \
   // transfer ownership that we don't have. As such, use "keep".
-  EventInteropInput.Ownership =
-      cl::sycl::ext::oneapi::level_zero::ownership::keep;
+  EventInteropInput.Ownership = sycl::ext::oneapi::level_zero::ownership::keep;
   auto EventInterop = make_event<backend::ext_oneapi_level_zero>(
       EventInteropInput, ContextInterop);
 
@@ -72,9 +71,9 @@ int main() {
   // Verify re-created objects
   int Arr[] = {2};
   {
-    cl::sycl::buffer<int, 1> Buf(Arr, 1);
-    QueueInterop.submit([&](cl::sycl::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+    sycl::buffer<int, 1> Buf(Arr, 1);
+    QueueInterop.submit([&](sycl::handler &CGH) {
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel>([=]() { Acc[0] *= 3; });
     });
   }

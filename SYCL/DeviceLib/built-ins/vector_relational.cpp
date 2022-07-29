@@ -12,7 +12,7 @@
 #include <cmath>
 #include <iostream>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 int main() {
   // isequal

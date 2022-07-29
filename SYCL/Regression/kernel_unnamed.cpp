@@ -19,9 +19,9 @@
 static int NumTestCases = 0;
 
 template <class F>
-void foo(cl::sycl::queue &deviceQueue, cl::sycl::buffer<int, 1> &buf, F f) {
-  deviceQueue.submit([&](cl::sycl::handler &cgh) {
-    auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+void foo(sycl::queue &deviceQueue, sycl::buffer<int, 1> &buf, F f) {
+  deviceQueue.submit([&](sycl::handler &cgh) {
+    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
     cgh.single_task([=]() { acc[0] = f(acc[0], GOLD); });
   });
 }
@@ -33,10 +33,10 @@ struct Wrapper {
     int arr[] = {0};
     {
       // Simple test
-      cl::sycl::queue deviceQueue;
-      cl::sycl::buffer<int, 1> buf(arr, 1);
-      deviceQueue.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      sycl::queue deviceQueue;
+      sycl::buffer<int, 1> buf(arr, 1);
+      deviceQueue.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.single_task([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;
@@ -45,8 +45,8 @@ struct Wrapper {
 #ifdef __SYCL_DEVICE_ONLY__
       [] {}();
 #endif
-      deviceQueue.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+      deviceQueue.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
         cgh.single_task([=]() { acc[0] += GOLD; });
       });
       ++NumTestCases;

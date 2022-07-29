@@ -22,7 +22,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 template <class T> bool test(queue &q) {

@@ -15,7 +15,7 @@
 // CHECK:  usm_atomic_host_allocations: 0
 // CHECK:  usm_atomic_shared_allocations: 0
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   auto D = device(gpu_selector());

@@ -24,7 +24,7 @@ int main() {
     {
       sycl::buffer<int> buf(data, sycl::range<1>(length));
       sycl::queue q;
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
@@ -42,7 +42,7 @@ int main() {
     {
       sycl::buffer<int> buf(data, sycl::range<1>(length));
       sycl::queue q;
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));
@@ -60,7 +60,7 @@ int main() {
     {
       sycl::buffer<int> buf(data, sycl::range<1>(length));
       sycl::queue q;
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));

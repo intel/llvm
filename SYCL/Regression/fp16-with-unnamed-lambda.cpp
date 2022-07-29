@@ -8,7 +8,7 @@
 #include <iostream>
 
 int main() {
-  auto AsyncHandler = [](cl::sycl::exception_list EL) {
+  auto AsyncHandler = [](sycl::exception_list EL) {
     for (std::exception_ptr const &P : EL) {
       try {
         std::rethrow_exception(P);
@@ -18,22 +18,22 @@ int main() {
     }
   };
 
-  cl::sycl::queue Q(AsyncHandler);
+  sycl::queue Q(AsyncHandler);
 
-  cl::sycl::device D = Q.get_device();
+  sycl::device D = Q.get_device();
   if (!D.has(sycl::aspect::fp16))
     return 0; // Skip the test if halfs are not supported
 
-  cl::sycl::buffer<cl::sycl::cl_half> Buf(1);
+  sycl::buffer<sycl::cl_half> Buf(1);
 
-  Q.submit([&](cl::sycl::handler &CGH) {
-    auto Acc = Buf.get_access<cl::sycl::access::mode::write>(CGH);
+  Q.submit([&](sycl::handler &CGH) {
+    auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
     CGH.single_task([=]() { Acc[0] = 1; });
   });
 
   Q.wait_and_throw();
 
-  auto Acc = Buf.get_access<cl::sycl::access::mode::read>();
+  auto Acc = Buf.get_access<sycl::access::mode::read>();
   if (1 != Acc[0]) {
     std::cerr << "Incorrect result, got: " << Acc[0] << ", expected: 1"
               << std::endl;

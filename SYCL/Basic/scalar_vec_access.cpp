@@ -22,10 +22,10 @@ typedef float float4_t __attribute__((ext_vector_type(4)));
 
 int main() {
 
-  cl::sycl::queue Q;
+  sycl::queue Q;
 
-  Q.submit([=](cl::sycl::handler &cgh) {
-    cl::sycl::stream out(1024, 100, cgh);
+  Q.submit([=](sycl::handler &cgh) {
+    sycl::stream out(1024, 100, cgh);
     cgh.single_task<class K>([=]() {
       // Test that it is possible to get a reference to single element of the
       // vector type. This behavior could possibly change in the future, this
@@ -37,18 +37,18 @@ int main() {
         if (f[i] != i)
           out << "Error: unexpected behavior because of accessing element of "
                  "the vector by reference"
-              << cl::sycl::endl;
+              << sycl::endl;
       }
 
       // Test that there is no template resolution error
-      cl::sycl::float4 a = {1.0, 2.0, 3.0, 4.0};
-      out << cl::sycl::native::recip(a.x()) << cl::sycl::endl;
+      sycl::float4 a = {1.0, 2.0, 3.0, 4.0};
+      out << sycl::native::recip(a.x()) << sycl::endl;
     });
   });
   Q.wait();
 
   // Test that there is no ambiguity in overload resolution.
-  cl::sycl::float4 a = {1.0, 2.0, 3.0, 4.0};
+  sycl::float4 a = {1.0, 2.0, 3.0, 4.0};
   std::cout << a.x() << std::endl;
 
   return 0;

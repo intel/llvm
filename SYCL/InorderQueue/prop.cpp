@@ -17,7 +17,7 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr int numNodes = 4;
 
@@ -51,10 +51,10 @@ int main() {
   if (res != 0)
     return res;
 
-  device dev{cl::sycl::default_selector{}};
+  device dev{sycl::default_selector{}};
   context ctx{dev};
 
-  auto exception_handler = [](cl::sycl::exception_list exceptions) {};
+  auto exception_handler = [](sycl::exception_list exceptions) {};
 
   queue q2{ctx, dev, exception_handler, {sycl::property::queue::in_order()}};
 

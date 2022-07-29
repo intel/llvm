@@ -31,7 +31,7 @@ int main() {
   assert(KernelBundle.get_kernel_ids().size() == 1);
   assert(KernelBundle.has_kernel(KernelID));
 
-  cl::sycl::buffer<int, 1> Buf(sycl::range<1>{1});
+  sycl::buffer<int, 1> Buf(sycl::range<1>{1});
   Q.submit([&](sycl::handler &CGH) {
     auto Acc = Buf.get_access<sycl::access::mode::write>(CGH);
     CGH.use_kernel_bundle(KernelBundle);

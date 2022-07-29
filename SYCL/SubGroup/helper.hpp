@@ -11,7 +11,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T1, int N> struct utils {
   static T1 add_vec(const vec<T1, N> &v);

@@ -18,7 +18,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static constexpr int count = 100;
 

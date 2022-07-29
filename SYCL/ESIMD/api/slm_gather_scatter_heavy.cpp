@@ -33,7 +33,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <class T>
 using Acc = accessor<T, 1, access_mode::read_write, access::target::device>;
@@ -389,7 +389,7 @@ bool test_impl(queue q) {
       cgh.parallel_for(nd_range<1>{glob_range, range<1>(WG_SIZE)}, kernel);
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     delete[] A;
     delete[] B;

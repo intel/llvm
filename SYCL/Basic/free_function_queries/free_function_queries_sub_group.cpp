@@ -44,7 +44,7 @@ int main() {
         return 0;
       }
       sycl::nd_range<1> NDR(sycl::range<1>{n}, sycl::range<1>{2});
-      q.submit([&](cl::sycl::handler &cgh) {
+      q.submit([&](sycl::handler &cgh) {
         sycl::accessor<int, 1, sycl::access::mode::write,
                        sycl::access::target::device>
             acc(buf.get_access<sycl::access::mode::write>(cgh));

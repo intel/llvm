@@ -9,7 +9,7 @@
 #include <array>
 #include <cassert>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 int main() {
   // max
@@ -281,15 +281,15 @@ int main() {
     char r(0);
     char exp(120);
     {
-      cl::sycl::buffer<char, 1> buf(&r, cl::sycl::range<1>(1));
-      cl::sycl::queue q;
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
+      sycl::buffer<char, 1> buf(&r, sycl::range<1>(1));
+      sycl::queue q;
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::write>(cgh);
         cgh.single_task<class kernel>([=]() {
           signed char inputData_0(-17);
           signed char inputData_1(-10);
           signed char inputData_2(-50);
-          acc[0] = cl::sycl::mad_sat(inputData_0, inputData_1, inputData_2);
+          acc[0] = sycl::mad_sat(inputData_0, inputData_1, inputData_2);
         });
       });
     }

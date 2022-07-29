@@ -15,8 +15,7 @@
 
 #include <iostream>
 
-using namespace cl;
-using sycl_access_mode = cl::sycl::access::mode;
+using sycl_access_mode = sycl::access::mode;
 
 // Execute functor provided passing a queue created with default device selector
 // and async handler then waits for the tasks submitted to queue to finish. If

@@ -6,12 +6,12 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct F1 {};
 struct F2 {};
 struct F : F1, F2 {
-  cl::sycl::cl_char x;
+  sycl::cl_char x;
 };
 
 bool test0() {

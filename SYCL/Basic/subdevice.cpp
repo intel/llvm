@@ -19,7 +19,7 @@
 #include <sycl/sycl.hpp>
 #include <utility>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   try {

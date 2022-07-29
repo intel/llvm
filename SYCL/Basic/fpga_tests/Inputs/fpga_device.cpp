@@ -8,7 +8,7 @@
 
 #include "CL/sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 const double big[] = {3, 2, 1, 5, 6, 7};
 void foo(double &result, queue q, int x) {

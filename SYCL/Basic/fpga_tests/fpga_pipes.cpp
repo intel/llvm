@@ -32,7 +32,7 @@ template <int N> class templ_nb_pipe;
 
 // For non-blocking multiple pipes
 template <int N>
-using PipeMulNb = cl::sycl::ext::intel::pipe<class templ_nb_pipe<N>, int>;
+using PipeMulNb = sycl::ext::intel::pipe<class templ_nb_pipe<N>, int>;
 static_assert(std::is_same_v<typename PipeMulNb<0>::value_type, int>);
 static_assert(PipeMulNb<0>::min_capacity == 0);
 
@@ -49,7 +49,7 @@ template <int N> class templ_bl_pipe;
 
 // For blocking multiple pipes
 template <int N>
-using PipeMulBl = cl::sycl::ext::intel::pipe<class templ_bl_pipe<N>, int>;
+using PipeMulBl = sycl::ext::intel::pipe<class templ_bl_pipe<N>, int>;
 static_assert(std::is_same_v<typename PipeMulBl<0>::value_type, int>);
 static_assert(PipeMulBl<0>::min_capacity == 0);
 
@@ -59,15 +59,15 @@ template <int TestNumber, int KernelNumber = 0> class reader;
 
 // Test for simple non-blocking pipes
 template <typename PipeName, int TestNumber>
-int test_simple_nb_pipe(cl::sycl::queue Queue) {
+int test_simple_nb_pipe(sycl::queue Queue) {
   int data[] = {0};
 
-  using Pipe = cl::sycl::ext::intel::pipe<PipeName, int>;
+  using Pipe = sycl::ext::intel::pipe<PipeName, int>;
   static_assert(std::is_same_v<typename Pipe::value_type, int>);
   static_assert(Pipe::min_capacity == 0);
 
-  cl::sycl::buffer<int, 1> readBuf(data, 1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  sycl::buffer<int, 1> readBuf(data, 1);
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
       bool SuccessCode = false;
       do {
@@ -76,9 +76,9 @@ int test_simple_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  cl::sycl::buffer<int, 1> writeBuf(data, 1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(data, 1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
 
     cgh.single_task<class reader<TestNumber>>([=]() {
       bool SuccessCode = false;
@@ -88,7 +88,7 @@ int test_simple_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -100,10 +100,10 @@ int test_simple_nb_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for multiple non-blocking pipes
-template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_multiple_nb_pipe(sycl::queue Queue) {
   int data[] = {0};
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber, /*KernelNumber*/ 1>>([=]() {
       bool SuccessCode = false;
       do {
@@ -112,7 +112,7 @@ template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber, /*KernelNumber*/ 2>>([=]() {
       bool SuccessCode = false;
       do {
@@ -121,9 +121,9 @@ template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  cl::sycl::buffer<int, 1> writeBuf(data, 1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(data, 1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
     cgh.single_task<class reader<TestNumber>>([=]() {
       bool SuccessCodeA = false;
       int Value = 0;
@@ -139,7 +139,7 @@ template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -151,13 +151,13 @@ template <int TestNumber> int test_multiple_nb_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for array passing through a non-blocking pipe
-template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
   int data[N] = {0};
-  using AnotherNbPipe = cl::sycl::ext::intel::pipe<class another_nb_pipe, int>;
+  using AnotherNbPipe = sycl::ext::intel::pipe<class another_nb_pipe, int>;
   static_assert(std::is_same_v<typename AnotherNbPipe::value_type, int>);
   static_assert(AnotherNbPipe::min_capacity == 0);
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
       bool SuccessCode = false;
       for (size_t i = 0; i != N; ++i) {
@@ -168,9 +168,9 @@ template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  cl::sycl::buffer<int, 1> writeBuf(data, N);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(data, N);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
     cgh.single_task<class reader<TestNumber>>([=]() {
       for (size_t i = 0; i != N; ++i) {
         bool SuccessCode = false;
@@ -181,7 +181,7 @@ template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   for (size_t i = 0; i != N; ++i) {
     if (readHostBuffer[i] != i)
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
@@ -194,30 +194,30 @@ template <int TestNumber> int test_array_th_nb_pipe(cl::sycl::queue Queue) {
 
 // Test for simple blocking pipes
 template <typename PipeName, int TestNumber>
-int test_simple_bl_pipe(cl::sycl::queue Queue) {
+int test_simple_bl_pipe(sycl::queue Queue) {
   int data[] = {0};
 
-  using Pipe = cl::sycl::ext::intel::pipe<PipeName, int>;
+  using Pipe = sycl::ext::intel::pipe<PipeName, int>;
   static_assert(std::is_same_v<typename Pipe::value_type, int>);
   static_assert(Pipe::min_capacity == 0);
 
-  cl::sycl::buffer<int, 1> readBuf(data, 1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  sycl::buffer<int, 1> readBuf(data, 1);
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
       Pipe::write(42);
     });
   });
 
-  cl::sycl::buffer<int, 1> writeBuf(data, 1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(data, 1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
 
     cgh.single_task<class reader<TestNumber>>([=]() {
       write_acc[0] = Pipe::read();
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -229,31 +229,31 @@ int test_simple_bl_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for multiple blocking pipes
-template <int TestNumber> int test_multiple_bl_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_multiple_bl_pipe(sycl::queue Queue) {
   int data[] = {0};
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber, /*KernelNumber*/ 1>>([=]() {
       PipeMulBl<1>::write(19);
     });
   });
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber, /*KernelNumber*/ 2>>([=]() {
       PipeMulBl<2>::write(23);
     });
   });
 
-  cl::sycl::buffer<int, 1> writeBuf(data, 1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(data, 1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
     cgh.single_task<class reader<TestNumber>>([=]() {
       write_acc[0] = PipeMulBl<1>::read();
       write_acc[0] += PipeMulBl<2>::read();
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   if (readHostBuffer[0] != 42) {
     std::cout << "Test: " << TestNumber << "\nResult mismatches "
               << readHostBuffer[0] << " Vs expected " << 42 << std::endl;
@@ -265,29 +265,29 @@ template <int TestNumber> int test_multiple_bl_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for array passing through a blocking pipe
-template <int TestNumber> int test_array_th_bl_pipe(cl::sycl::queue Queue) {
+template <int TestNumber> int test_array_th_bl_pipe(sycl::queue Queue) {
   int data[N] = {0};
-  using AnotherBlPipe = cl::sycl::ext::intel::pipe<class another_bl_pipe, int>;
+  using AnotherBlPipe = sycl::ext::intel::pipe<class another_bl_pipe, int>;
   static_assert(std::is_same_v<typename AnotherBlPipe::value_type, int>);
   static_assert(AnotherBlPipe::min_capacity == 0);
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task<class writer<TestNumber>>([=]() {
       for (size_t i = 0; i != N; ++i)
         AnotherBlPipe::write(i);
     });
   });
 
-  cl::sycl::buffer<int, 1> writeBuf(data, N);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(data, N);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
     cgh.single_task<class reader<TestNumber>>([=]() {
       for (size_t i = 0; i != N; ++i)
         write_acc[i] = AnotherBlPipe::read();
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   for (size_t i = 0; i != N; ++i) {
     if (readHostBuffer[i] != i)
       std::cout << "Test: " << TestNumber << "\nResult mismatches "
@@ -299,10 +299,10 @@ template <int TestNumber> int test_array_th_bl_pipe(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue;
+  sycl::queue Queue;
 
   if (!Queue.get_device()
-           .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
+           .get_info<sycl::info::device::kernel_kernel_pipe_support>()) {
     std::cout << "SYCL_ext_intel_data_flow_pipes not supported, skipping"
               << std::endl;
     return 0;

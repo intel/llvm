@@ -26,7 +26,7 @@
 #include <cmath>
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 
 // --- Data initialization functions
@@ -333,10 +333,10 @@ bool test(queue &Q, const std::string &Name,
     buffer<T, 1> BufC(C, range<1>(Size));
 
     // number of workgroups
-    cl::sycl::range<1> GlobalRange{Size / N};
+    sycl::range<1> GlobalRange{Size / N};
 
     // threads (workitems) in each workgroup
-    cl::sycl::range<1> LocalRange{1};
+    sycl::range<1> LocalRange{1};
 
     auto E = Q.submit([&](handler &CGH) {
       auto PA = BufA.template get_access<access::mode::read>(CGH);

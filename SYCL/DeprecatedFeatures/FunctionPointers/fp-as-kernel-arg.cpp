@@ -25,16 +25,15 @@ int main() {
   std::vector<long> A(Size, 1);
   std::vector<long> B(Size, 2);
 
-  cl::sycl::queue Q;
-  cl::sycl::device D = Q.get_device();
-  cl::sycl::context C = Q.get_context();
-  cl::sycl::program P(C);
+  sycl::queue Q;
+  sycl::device D = Q.get_device();
+  sycl::context C = Q.get_context();
+  sycl::program P(C);
 
   P.build_with_kernel_type<class K>();
-  cl::sycl::kernel KE = P.get_kernel<class K>();
+  sycl::kernel KE = P.get_kernel<class K>();
 
-  auto FptrStorage =
-      cl::sycl::ext::oneapi::get_device_func_ptr(&add, "add", P, D);
+  auto FptrStorage = sycl::ext::oneapi::get_device_func_ptr(&add, "add", P, D);
   if (!D.is_host()) {
     // FIXME: update this check with query to supported extension
     // For now, we don't have runtimes that report required OpenCL extension and
@@ -48,22 +47,20 @@ int main() {
     }
   }
 
-  cl::sycl::buffer<long> BufA(A.data(), cl::sycl::range<1>(Size));
-  cl::sycl::buffer<long> BufB(B.data(), cl::sycl::range<1>(Size));
+  sycl::buffer<long> BufA(A.data(), sycl::range<1>(Size));
+  sycl::buffer<long> BufB(B.data(), sycl::range<1>(Size));
 
-  Q.submit([&](cl::sycl::handler &CGH) {
-    auto AccA =
-        BufA.template get_access<cl::sycl::access::mode::read_write>(CGH);
-    auto AccB = BufB.template get_access<cl::sycl::access::mode::read>(CGH);
-    CGH.parallel_for<class K>(
-        KE, cl::sycl::range<1>(Size), [=](cl::sycl::id<1> Index) {
-          auto Fptr = cl::sycl::ext::oneapi::to_device_func_ptr<decltype(add)>(
-              FptrStorage);
-          AccA[Index] = Fptr(AccA[Index], AccB[Index]);
-        });
+  Q.submit([&](sycl::handler &CGH) {
+    auto AccA = BufA.template get_access<sycl::access::mode::read_write>(CGH);
+    auto AccB = BufB.template get_access<sycl::access::mode::read>(CGH);
+    CGH.parallel_for<class K>(KE, sycl::range<1>(Size), [=](sycl::id<1> Index) {
+      auto Fptr =
+          sycl::ext::oneapi::to_device_func_ptr<decltype(add)>(FptrStorage);
+      AccA[Index] = Fptr(AccA[Index], AccB[Index]);
+    });
   });
 
-  auto HostAcc = BufA.get_access<cl::sycl::access::mode::read>();
+  auto HostAcc = BufA.get_access<sycl::access::mode::read>();
   auto *Data = HostAcc.get_pointer();
 
   if (std::all_of(Data, Data + Size, [](long V) { return V == 3; })) {

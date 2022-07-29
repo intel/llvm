@@ -19,7 +19,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 static constexpr unsigned NAllChs =

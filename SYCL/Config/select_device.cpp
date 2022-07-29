@@ -63,7 +63,7 @@
 #include <string>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 #ifdef _WIN32
 #define setenv(name, value, overwrite) _putenv_s(name, value)
@@ -221,7 +221,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        cl::sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector{});
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if ((std::regex_match(dev.get_info<info::device::name>(),
@@ -275,7 +275,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        cl::sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector{});
         device dev = deviceQueue.get_device();
         const auto &plt = dev.get_platform();
         for (const DevDescT &desc : components) {
@@ -334,7 +334,7 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          cl::sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector{});
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
@@ -392,7 +392,7 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          cl::sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector{});
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
@@ -458,7 +458,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        cl::sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector{});
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if ((std::regex_match(dev.get_info<info::device::name>(),
@@ -514,7 +514,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        cl::sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector{});
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if (std::regex_match(dev.get_info<info::device::name>(),
@@ -561,7 +561,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        cl::sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector{});
         device dev = deviceQueue.get_device();
         const auto &plt = dev.get_platform();
         for (const DevDescT &desc : components) {
@@ -622,7 +622,7 @@ int main() {
         std::vector<DevDescT> components(getAllowListDesc(allowlist));
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
-        cl::sycl::queue deviceQueue(gpu_selector{});
+        sycl::queue deviceQueue(gpu_selector{});
         device dev = deviceQueue.get_device();
         for (const DevDescT &desc : components) {
           if ((std::regex_match(dev.get_info<info::device::name>(),
@@ -679,7 +679,7 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          cl::sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector{});
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
@@ -738,7 +738,7 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          cl::sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector{});
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
@@ -803,7 +803,7 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          cl::sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector{});
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {
@@ -864,7 +864,7 @@ int main() {
         std::cout << "SYCL_DEVICE_ALLOWLIST=" << allowlist << std::endl;
 
         try {
-          cl::sycl::queue deviceQueue(gpu_selector{});
+          sycl::queue deviceQueue(gpu_selector{});
           device dev = deviceQueue.get_device();
           const auto &plt = dev.get_platform();
         } catch (sycl::runtime_error &E) {

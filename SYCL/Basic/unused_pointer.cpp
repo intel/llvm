@@ -29,11 +29,11 @@ int main(int argc, char **argv) {
   struct_with_pointer obj;
   obj.data = 10;
   int data = 0;
-  cl::sycl::queue queue;
+  sycl::queue queue;
   {
-    cl::sycl::buffer<int, 1> buf(&data, 1);
-    queue.submit([&](cl::sycl::handler &cgh) {
-      auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+    sycl::buffer<int, 1> buf(&data, 1);
+    queue.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
       cgh.single_task<class test>([=]() { acc[0] = obj.data; });
     });
   }

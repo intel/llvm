@@ -16,7 +16,7 @@
 #include <sycl/sycl.hpp>
 #include <utility>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   std::cout << "Creating q1" << std::endl;

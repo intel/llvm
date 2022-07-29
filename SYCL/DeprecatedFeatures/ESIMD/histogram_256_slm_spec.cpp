@@ -21,7 +21,7 @@ static constexpr int SLM_SIZE = (NUM_BINS * 4);
 static constexpr int BLOCK_WIDTH = 32;
 static constexpr int NUM_BLOCKS = 32;
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
     std::cout << "new num_blocks = " << num_blocks << "\n";
   }
 
-  cl::sycl::program prg(q.get_context());
+  sycl::program prg(q.get_context());
   sycl::ext::oneapi::experimental::spec_constant<unsigned int, NumBlocksConst>
       num_blocks_const = prg.set_spec_constant<NumBlocksConst>(num_blocks);
   prg.build_with_kernel_type<histogram_slm>();
@@ -167,21 +167,21 @@ int main(int argc, char **argv) {
   unsigned int num_threads;
   num_threads = width * height / (num_blocks * BLOCK_WIDTH * sizeof(int));
 
-  auto GlobalRange = cl::sycl::range<1>(num_threads);
-  auto LocalRange = cl::sycl::range<1>(NUM_BINS / 16);
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  auto GlobalRange = sycl::range<1>(num_threads);
+  auto LocalRange = sycl::range<1>(NUM_BINS / 16);
+  sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
   try {
-    auto e = q.submit([&](cl::sycl::handler &cgh) {
+    auto e = q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<histogram_slm>(
           prg.get_kernel<histogram_slm>(), Range,
-          [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+          [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             histogram_atomic(input_ptr, output_surface, ndi.get_group(0),
                              ndi.get_local_id(0), 16, num_blocks_const.get());
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return e.get_cl_code();
   }

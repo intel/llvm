@@ -44,7 +44,7 @@
         (fail_cond) ? "FAILED" : "PASSED");                                    \
   } while (0)
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace std;
 using namespace sycl::ext::intel::esimd;
 

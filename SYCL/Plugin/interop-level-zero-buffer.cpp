@@ -13,7 +13,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class DiscreteSelector : public sycl::device_selector {
 public:
@@ -72,13 +72,11 @@ int main() {
         make_buffer<backend::ext_oneapi_level_zero, int, 1>(
             HostBufferInteropInput2, Context, Event);
 
-    Queue.submit([&](cl::sycl::handler &CGH) {
+    Queue.submit([&](sycl::handler &CGH) {
       auto Acc1 =
-          HostBufferInterop1.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
-      auto Acc2 =
-          HostBufferInterop2.get_access<cl::sycl::access::mode::read_write>(
-              CGH, range<1>(12));
+          HostBufferInterop1.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc2 = HostBufferInterop2.get_access<sycl::access::mode::read_write>(
+          CGH, range<1>(12));
 
       CGH.single_task<class SimpleKernel1>([=]() {
         for (int i = 0; i < 10; i++) {
@@ -109,11 +107,9 @@ int main() {
     auto SubBuffer1 = buffer(HostBufferInterop2, id<1>(0), range<1>(3));
     auto SubBuffer2 = buffer(HostBufferInterop2, id<1>(3), range<1>(9));
 
-    Queue.submit([&](cl::sycl::handler &CGH) {
-      auto Acc1 =
-          SubBuffer1.get_access<cl::sycl::access::mode::read_write>(CGH);
-      auto Acc2 =
-          SubBuffer2.get_access<cl::sycl::access::mode::read_write>(CGH);
+    Queue.submit([&](sycl::handler &CGH) {
+      auto Acc1 = SubBuffer1.get_access<sycl::access::mode::read_write>(CGH);
+      auto Acc2 = SubBuffer2.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel2>([=]() {
         for (int i = 0; i < 3; i++) {
           Acc1[i] = 77;
@@ -143,10 +139,9 @@ int main() {
     // Use buffer in two different contexts
     context Context1;
     queue Queue1(Context1, default_selector{});
-    Queue1.submit([&](cl::sycl::handler &CGH) {
+    Queue1.submit([&](sycl::handler &CGH) {
       auto Acc =
-          HostBufferInterop2.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          HostBufferInterop2.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel3>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] = 99;
@@ -156,10 +151,9 @@ int main() {
 
     context Context2;
     queue Queue2(Context2, default_selector{});
-    Queue2.submit([&](cl::sycl::handler &CGH) {
+    Queue2.submit([&](sycl::handler &CGH) {
       auto Acc =
-          HostBufferInterop2.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          HostBufferInterop2.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel4>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] *= 2;
@@ -232,13 +226,11 @@ int main() {
         make_buffer<backend::ext_oneapi_level_zero, int, 1>(
             DeviceBufferInteropInput, Context);
 
-    Queue.submit([&](cl::sycl::handler &CGH) {
+    Queue.submit([&](sycl::handler &CGH) {
       auto Acc1 =
-          SharedBufferInterop.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          SharedBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
       auto Acc2 =
-          DeviceBufferInterop.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel5>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc1[i] = 77;
@@ -262,10 +254,9 @@ int main() {
 
     // Test case #5
     // Use device buffer in two different contexts
-    Queue.submit([&](cl::sycl::handler &CGH) {
+    Queue.submit([&](sycl::handler &CGH) {
       auto Acc =
-          DeviceBufferInterop.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel6>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] = 99;
@@ -277,10 +268,9 @@ int main() {
     device Dev2 = Devices.size() > 1 ? Devices[1] : Devices[0];
     context Context2{Dev2};
     queue Queue2{Context2, Dev2};
-    Queue2.submit([&](cl::sycl::handler &CGH) {
+    Queue2.submit([&](sycl::handler &CGH) {
       auto Acc =
-          DeviceBufferInterop.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel7>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] *= 2;
@@ -290,10 +280,9 @@ int main() {
 
     // Submit in a different context with possibly multiple device
     queue Queue3;
-    Queue3.submit([&](cl::sycl::handler &CGH) {
+    Queue3.submit([&](sycl::handler &CGH) {
       auto Acc =
-          DeviceBufferInterop.get_access<cl::sycl::access::mode::read_write>(
-              CGH);
+          DeviceBufferInterop.get_access<sycl::access::mode::read_write>(CGH);
       CGH.single_task<class SimpleKernel8>([=]() {
         for (int i = 0; i < 12; i++) {
           Acc[i] += 2;

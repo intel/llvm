@@ -8,7 +8,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   // buffer created from contiguous container copies back

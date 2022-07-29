@@ -9,13 +9,13 @@
 
 int main() {
 
-  cl::sycl::device dev{cl::sycl::default_selector{}};
-  cl::sycl::queue q{dev};
+  sycl::device dev{sycl::default_selector{}};
+  sycl::queue q{dev};
 
   q.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel1>([]() {}); });
 
-  cl::sycl::event e = q.ext_oneapi_submit_barrier();
+  sycl::event e = q.ext_oneapi_submit_barrier();
   e.wait_and_throw();
 
   return 0;

@@ -11,7 +11,7 @@
 //
 
 #include <sycl/sycl.hpp>
-using namespace cl;
+
 int main(int argc, char **argv) {
   sycl::queue Q;
   const unsigned n_chunk = 1000;

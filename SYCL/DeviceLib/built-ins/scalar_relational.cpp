@@ -9,7 +9,7 @@
 #include <cassert>
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 int main() {
   // isequal-float

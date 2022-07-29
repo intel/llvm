@@ -16,7 +16,7 @@ template <typename T> class test_1d_class;
 template <typename T> class test_2d_class;
 template <typename T> class test_3d_class;
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename dataT, typename coordT, s::image_channel_type channelType>
 bool test1d_coord(s::queue myQueue, dataT *hostPtr, coordT coord,

@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 using acc_w = accessor<int, 2, access::mode::write, access::target::device>;
 
 int main() {

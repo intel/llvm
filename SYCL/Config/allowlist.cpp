@@ -17,8 +17,6 @@
 #include <string>
 #include <sycl/sycl.hpp>
 
-using namespace cl;
-
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character
   std::replace_if(

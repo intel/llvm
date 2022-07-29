@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main(int argc, char const *argv[]) {
   std::vector<platform> platforms = platform::get_platforms();

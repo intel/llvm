@@ -9,7 +9,7 @@
 #include <array>
 #include <cassert>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 int main() {
   // max

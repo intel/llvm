@@ -22,7 +22,7 @@
 
 template <typename T, int N> class sycl_subgr;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T, int N> void check(queue &Queue) {
   const int G = 512, L = 256;

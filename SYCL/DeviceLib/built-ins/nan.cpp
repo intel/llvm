@@ -9,7 +9,7 @@
 
 #include <cassert>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 using namespace std;
 
 template <typename T, typename R, bool Expected = true> void test_nan_call() {
@@ -48,11 +48,11 @@ int main() {
   test_nan_call<s::ulong2, s::double2>();
   test_nan_call<s::ulonglong2, s::double2>();
 
-  s::queue Queue([](cl::sycl::exception_list ExceptionList) {
+  s::queue Queue([](sycl::exception_list ExceptionList) {
     for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
         std::rethrow_exception(ExceptionPtr);
-      } catch (cl::sycl::exception &E) {
+      } catch (sycl::exception &E) {
         std::cerr << E.what() << std::endl;
       } catch (...) {
         std::cerr << "Unknown async exception was caught." << std::endl;

@@ -11,7 +11,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
   T *buf;

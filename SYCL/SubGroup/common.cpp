@@ -13,7 +13,7 @@
 
 #include "helper.hpp"
 #include <sycl/sycl.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 struct Data {
   unsigned int local_id;
   unsigned int local_range;

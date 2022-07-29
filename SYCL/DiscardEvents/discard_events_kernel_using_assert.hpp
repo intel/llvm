@@ -2,7 +2,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 static constexpr int MAGIC_NUM = -1;
 static constexpr size_t BUFFER_SIZE = 16;
 

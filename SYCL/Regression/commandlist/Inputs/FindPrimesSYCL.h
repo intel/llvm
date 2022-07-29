@@ -14,7 +14,7 @@ struct work {
   size_t niter;
   size_t nitems;
 
-  std::vector<cl::sycl::cl_short> VRI;
+  std::vector<sycl::cl_short> VRI;
 
   size_t result;
 
@@ -27,7 +27,7 @@ struct work {
 
   std::mutex *queueLock{nullptr};
 
-  cl::sycl::queue *deviceQueue{nullptr};
+  sycl::queue *deviceQueue{nullptr};
 };
 
 float find_prime_s(work *w);

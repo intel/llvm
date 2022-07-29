@@ -14,10 +14,7 @@
 #include <cassert>
 #include <sycl/sycl.hpp>
 
-using namespace cl;
-
 int main() {
-
   sycl::queue Queue([](sycl::exception_list ExceptionList) {
     if (ExceptionList.size() != 1) {
       std::cerr << "Should be one exception in exception list" << std::endl;

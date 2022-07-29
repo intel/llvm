@@ -14,7 +14,7 @@
 
 #include "reduction_nd_range_scalar.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T, access::mode M> class MName;
 

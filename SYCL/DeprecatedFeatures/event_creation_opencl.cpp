@@ -18,11 +18,11 @@
 int main() {
   try {
     std::cout << "Try create OpenCL event" << std::endl;
-    cl::sycl::context c;
+    sycl::context c;
     if (!c.is_host()) {
       ::cl_int error;
       cl_event u_e = clCreateUserEvent(c.get(), &error);
-      cl::sycl::event cl_e(u_e, c);
+      sycl::event cl_e(u_e, c);
       std::cout << "OpenCL event: " << std::hex << cl_e.get()
                 << ((cl_e.get() == u_e) ? " matches " : " does not match ")
                 << u_e << std::endl;
@@ -30,7 +30,7 @@ int main() {
     } else {
       std::cout << "Failed to create OpenCL context" << std::endl;
     }
-  } catch (cl::sycl::device_error e) {
+  } catch (sycl::device_error e) {
     std::cout << "Failed to create device for context" << std::endl;
   }
 }

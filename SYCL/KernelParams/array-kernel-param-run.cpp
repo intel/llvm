@@ -9,7 +9,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr size_t c_num_items = 4;
 range<1> num_items{c_num_items}; // range<1>(num_items)
@@ -72,12 +72,11 @@ bool test_one_array(queue &myQueue) {
   myQueue.submit([&](handler &cgh) {
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
-    cgh.parallel_for<class one_array>(num_items, [=](cl::sycl::id<1> index) {
+    cgh.parallel_for<class one_array>(num_items, [=](sycl::id<1> index) {
       output_accessor[index] = input1[0][index] + input2[2][1][index] + 1;
     });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
 
   return verify_1D<int *>("One array", c_num_items, output, ref);
 }
@@ -96,12 +95,11 @@ bool test_two_arrays(queue &myQueue) {
   myQueue.submit([&](handler &cgh) {
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
-    cgh.parallel_for<class two_arrays>(num_items, [=](cl::sycl::id<1> index) {
+    cgh.parallel_for<class two_arrays>(num_items, [=](sycl::id<1> index) {
       output_accessor[index] = input1[index] + input2[index];
     });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
 
   return verify_1D<int *>("Two arrays", c_num_items, output, ref);
 }
@@ -130,12 +128,11 @@ bool test_accessor_arrays_1(queue &myQueue) {
     };
 
     cgh.parallel_for<class accessor_arrays_1>(
-        num_items, [=](cl::sycl::id<1> index) {
+        num_items, [=](sycl::id<1> index) {
           a[0][index] = a[1][index] + input3[index] + input4[index] + 2;
         });
   });
-  const auto HostAccessor =
-      in_buffer1.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = in_buffer1.get_access<sycl::access::mode::read>();
 
   return verify_1D<std::array<int, c_num_items>>("Accessor arrays 1",
                                                  c_num_items, input1, ref);
@@ -164,12 +161,11 @@ bool test_accessor_arrays_2(queue &myQueue) {
     auto output_accessor = out_buffer.get_access<access::mode::write>(cgh);
 
     cgh.parallel_for<class accessor_arrays_2>(
-        num_items, [=](cl::sycl::id<1> index) {
+        num_items, [=](sycl::id<1> index) {
           output_accessor[index] = a[0][index] + a[3][index];
         });
   });
-  const auto HostAccessor =
-      out_buffer.get_access<cl::sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
 
   return verify_1D<std::array<int, c_num_items>>("Accessor arrays 2",
                                                  c_num_items, output, ref);
@@ -183,7 +179,7 @@ bool run_tests() {
       } catch (std::exception &E) {
         std::cout << "*** std exception caught:\n";
         std::cout << E.what();
-      } catch (cl::sycl::exception const &E1) {
+      } catch (sycl::exception const &E1) {
         std::cout << "*** SYCL exception caught:\n";
         std::cout << E1.what();
       }
@@ -218,7 +214,7 @@ int main(int argc, char *argv[]) {
   auto D = selector.select_device();
   const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
   std::cout << "Running on device " << devType << " ("
-            << D.get_info<cl::sycl::info::device::name>() << ")\n";
+            << D.get_info<sycl::info::device::name>() << ")\n";
   try {
     passed &= run_tests();
   } catch (exception e) {

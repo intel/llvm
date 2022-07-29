@@ -14,7 +14,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 static constexpr int N = 100;
 static constexpr int VAL = 42;

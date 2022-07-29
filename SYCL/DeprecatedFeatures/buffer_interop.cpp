@@ -18,7 +18,7 @@
 #include <iostream>
 #include <memory>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   bool Failed = false;
@@ -58,7 +58,7 @@ int main() {
     constexpr size_t Size = 32;
     int Init[Size] = {5};
     cl_int Error = CL_SUCCESS;
-    cl::sycl::range<1> InteropRange{Size};
+    sycl::range<1> InteropRange{Size};
     size_t InteropSize = Size * sizeof(int);
 
     queue MyQueue;
@@ -176,7 +176,7 @@ int main() {
       CGH.parallel_for<class HostAccess>(range<1>{Size},
                                          [=](id<1> Index) { B[Index] = 10; });
     });
-    auto Acc = Buffer.get_access<cl::sycl::access::mode::read>();
+    auto Acc = Buffer.get_access<sycl::access::mode::read>();
     for (size_t i = 0; i < Size; ++i) {
       if (Acc[i] != 10) {
         std::cout << " array[" << i << "] is " << Acc[i] << " expected " << 10
@@ -240,12 +240,12 @@ int main() {
         Program.build_with_source(
             "kernel void override_source(global int* Acc) "
             "{Acc[get_global_id(0)] = 0; }\n");
-        cl::sycl::kernel Kernel = Program.get_kernel("override_source");
+        sycl::kernel Kernel = Program.get_kernel("override_source");
         Queue.submit([&](handler &CGH) {
           auto AccA = BufferA.get_access<access::mode::read_write>(CGH);
           CGH.set_arg(0, AccA);
           auto AccB = BufferB.get_access<access::mode::read_write>(CGH);
-          CGH.parallel_for(cl::sycl::range<1>(10), Kernel);
+          CGH.parallel_for(sycl::range<1>(10), Kernel);
         });
       } // Data is copied back
       for (int i = 0; i < 10; i++) {
@@ -286,14 +286,13 @@ int main() {
         Program.build_with_source(
             "kernel void override_source_placeholder(global "
             "int* Acc) {Acc[get_global_id(0)] = 0; }\n");
-        cl::sycl::kernel Kernel =
-            Program.get_kernel("override_source_placeholder");
+        sycl::kernel Kernel = Program.get_kernel("override_source_placeholder");
 
         Queue.submit([&](handler &CGH) {
           CGH.require(AccA);
           CGH.set_arg(0, AccA);
           CGH.require(AccB);
-          CGH.parallel_for(cl::sycl::range<1>(10), Kernel);
+          CGH.parallel_for(sycl::range<1>(10), Kernel);
         });
       } // Data is copied back
       for (int i = 0; i < 10; i++) {

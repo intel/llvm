@@ -29,7 +29,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 #ifdef MAIN_APP
 void init_buf(queue &q, buffer<int, 1> &b, range<1> &r, int i);

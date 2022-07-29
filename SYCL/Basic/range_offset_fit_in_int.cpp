@@ -4,7 +4,7 @@
 #include <climits>
 #include <sycl/sycl.hpp>
 
-namespace S = cl::sycl;
+namespace S = sycl;
 
 void checkRangeException(S::runtime_error &E) {
   constexpr char Msg[] = "Provided range is out of integer limits. "
@@ -64,7 +64,7 @@ void test() {
   // no offset, either dim of range exceeds limit
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ROL>(RangeOutOfLimits,
                                      [=](S::id<2> Id) { Acc[0] += 1; });
@@ -80,7 +80,7 @@ void test() {
   // no offset, all dims of range are in limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_RIL>(RangeInLimits,
                                      [Acc](S::id<2> Id) { Acc[0] += 1; });
@@ -92,7 +92,7 @@ void test() {
   // no offset, all dims of range are in limits, linear id exceeds limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_RIL_POL>(RangeInLimits_POL,
                                          [Acc](S::id<2> Id) { Acc[0] += 1; });
@@ -108,7 +108,7 @@ void test() {
   // small offset, either dim of range exceeds limit
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ROL_OIL>(RangeOutOfLimits, OffsetInLimits,
                                          [Acc](S::id<2> Id) { Acc[0] += 1; });
@@ -124,7 +124,7 @@ void test() {
   // large offset, neither dim of range exceeds limit, offset + range > limit
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_RIL_OIL_SOL>(
           RangeInLimits_Large, OffsetInLimits_Large,
@@ -141,7 +141,7 @@ void test() {
   // large offset, neither dim of range exceeds limit
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_RIL_OOL>(RangeInLimits, OffsetOutOfLimits,
                                          [Acc](S::id<2> Id) { Acc[0] += 1; });
@@ -157,7 +157,7 @@ void test() {
   // small offset, neither range dim exceeds limit
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_RIL_OIL>(RangeInLimits, OffsetInLimits,
                                          [Acc](S::id<2> Id) { Acc[0] += 1; });
@@ -169,7 +169,7 @@ void test() {
   // small offset, global range's dim is out of limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GOL_LIL_OIL>(
           NDRange_ROL_LIL_OIL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
@@ -185,7 +185,7 @@ void test() {
   // small offset, local range is out of limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LOL_OIL>(
           NDRange_RIL_LOL_OIL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
@@ -201,7 +201,7 @@ void test() {
   // large offset, ranges are in limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LIL_OOL>(
           NDRange_RIL_LIL_OOL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
@@ -217,7 +217,7 @@ void test() {
   // small offset, ranges are in limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LIL_OIL>(
           NDRange_RIL_LIL_OIL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
@@ -229,7 +229,7 @@ void test() {
   // small offset, ranges are in limits, linear id out of limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LIL_OIL_POL>(
           NDRange_RIL_LIL_OIL_POL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });
@@ -245,7 +245,7 @@ void test() {
   // small offset, ranges are in limits, range + offset exceeds limits
   try {
     Queue.submit([&](S::handler &CGH) {
-      auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(CGH);
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
 
       CGH.parallel_for<class PF_ND_GIL_LIL_OIL_SOL>(
           NDRange_RIL_LIL_OIL_POL, [Acc](S::nd_item<2> Id) { Acc[0] += 1; });

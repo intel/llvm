@@ -4,7 +4,7 @@
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
 #include <sycl/sycl.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   queue testQueue;

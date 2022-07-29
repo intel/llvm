@@ -22,7 +22,7 @@
 
 #include <sycl/ext/intel/esimd.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -56,7 +56,7 @@ template <typename T, int N> bool test(queue &Q) {
          scatter<T, N>(Dst, Offsets, gather<T, N>(Src, Offsets));
        });
      }).wait();
-  } catch (cl::sycl::exception const &E) {
+  } catch (sycl::exception const &E) {
     std::cout << "ERROR. SYCL exception caught: " << E.what() << std::endl;
     return false;
   }
@@ -100,7 +100,7 @@ int main(void) {
   Pass &= test<int32_t, 16>(Q);
   Pass &= test<int32_t, 32>(Q);
 
-  if (Q.get_backend() != cl::sycl::backend::ext_intel_esimd_emulator) {
+  if (Q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
     /// TODO: Enable 'half' type support for esimd_emulator
     Pass &= test<half, 1>(Q);
     Pass &= test<half, 2>(Q);

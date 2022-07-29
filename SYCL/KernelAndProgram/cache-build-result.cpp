@@ -10,7 +10,7 @@ SYCL_EXTERNAL
 void undefined();
 
 void test() {
-  cl::sycl::queue Queue;
+  sycl::queue Queue;
 
   auto Kernel = []() {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -27,11 +27,11 @@ void test() {
 
   for (int Idx = 0; Idx < 2; ++Idx) {
     try {
-      Queue.submit([&](cl::sycl::handler &CGH) {
+      Queue.submit([&](sycl::handler &CGH) {
         CGH.single_task<class SingleTask>(Kernel);
       });
       assert(false && "There must be compilation error");
-    } catch (const cl::sycl::compile_program_error &e) {
+    } catch (const sycl::compile_program_error &e) {
       fprintf(stderr, "Exception: %s, %d\n", e.what(), e.get_cl_code());
       if (Idx == 0) {
         Msg = e.what();
@@ -43,7 +43,7 @@ void test() {
         assert(Result == e.get_cl_code() && "Exception code differs");
       }
     } catch (...) {
-      assert(false && "There must be cl::sycl::compile_program_error");
+      assert(false && "There must be sycl::compile_program_error");
     }
   }
 }

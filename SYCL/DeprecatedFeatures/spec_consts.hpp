@@ -17,18 +17,19 @@ int global_val = 10;
 // Fetch a value at runtime.
 int get_value() { return global_val; }
 
-float foo(const cl::sycl::ext::oneapi::experimental::spec_constant<
-          float, MyFloatConst> &f32) {
+float foo(
+    const sycl::ext::oneapi::experimental::spec_constant<float, MyFloatConst>
+        &f32) {
   return f32;
 }
 
 struct SCWrapper {
-  SCWrapper(cl::sycl::program &p)
+  SCWrapper(sycl::program &p)
       : SC1(p.set_spec_constant<class sc_name1, int>(4)),
         SC2(p.set_spec_constant<class sc_name2, int>(2)) {}
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1> SC1;
-  cl::sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2> SC2;
+  sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1> SC1;
+  sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 // MyKernel is used to test default constructor
@@ -48,11 +49,11 @@ struct MyKernel {
 int main(int argc, char **argv) {
   global_val = argc + 16;
 
-  cl::sycl::queue q(default_selector{}, [](exception_list l) {
+  sycl::queue q(default_selector{}, [](exception_list l) {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << e0.what();
       } catch (std::exception &e1) {
         std::cout << e1.what();
@@ -65,22 +66,22 @@ int main(int argc, char **argv) {
   std::cout << "Running on " << q.get_device().get_info<info::device::name>()
             << "\n";
   std::cout << "global_val = " << global_val << "\n";
-  cl::sycl::program program1(q.get_context());
-  cl::sycl::program program2(q.get_context());
-  cl::sycl::program program3(q.get_context());
-  cl::sycl::program program4(q.get_context());
+  sycl::program program1(q.get_context());
+  sycl::program program2(q.get_context());
+  sycl::program program3(q.get_context());
+  sycl::program program4(q.get_context());
 
   const int goldi = get_value();
   // TODO make this floating point once supported by the compiler
   const float goldf = get_value();
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const>
-      i32 = program1.set_spec_constant<MyInt32Const>(goldi);
+  sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+      program1.set_spec_constant<MyInt32Const>(goldi);
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<float, MyFloatConst> f32 =
+  sycl::ext::oneapi::experimental::spec_constant<float, MyFloatConst> f32 =
       program2.set_spec_constant<MyFloatConst>(goldf);
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<int, MyConst> sc =
+  sycl::ext::oneapi::experimental::spec_constant<int, MyConst> sc =
       program4.set_spec_constant<MyConst>(goldi);
 
   program1.build_with_kernel_type<KernelAAAi>();
@@ -100,42 +101,42 @@ int main(int argc, char **argv) {
   std::vector<int> vecw(1);
   std::vector<int> vec(1);
   try {
-    cl::sycl::buffer<int, 1> bufi(veci.data(), veci.size());
-    cl::sycl::buffer<float, 1> buff(vecf.data(), vecf.size());
-    cl::sycl::buffer<int, 1> bufw(vecw.data(), vecw.size());
-    cl::sycl::buffer<int, 1> buf(vec.data(), vec.size());
+    sycl::buffer<int, 1> bufi(veci.data(), veci.size());
+    sycl::buffer<float, 1> buff(vecf.data(), vecf.size());
+    sycl::buffer<int, 1> bufw(vecw.data(), vecw.size());
+    sycl::buffer<int, 1> buf(vec.data(), vec.size());
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acci = bufi.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto acci = bufi.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<KernelAAAi>(program1.get_kernel<KernelAAAi>(),
                                   [=]() { acci[0] = i32.get(); });
     });
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto accf = buff.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto accf = buff.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<KernelBBBf>(program2.get_kernel<KernelBBBf>(),
                                   [=]() { accf[0] = foo(f32); });
     });
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto accw = bufw.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto accw = bufw.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<KernelWrappedSC>(
           program3.get_kernel<KernelWrappedSC>(),
           [=]() { accw[0] = W.SC1.get() + W.SC2.get(); });
     });
     // Check spec_constant default construction with subsequent initialization
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access<sycl::access::mode::write>(cgh);
       // Specialization constants specification says:
-      //   cl::sycl::experimental::spec_constant is default constructible,
+      //   sycl::experimental::spec_constant is default constructible,
       //   although the object is not considered initialized until the result of
-      //   the call to cl::sycl::program::set_spec_constant is assigned to it.
+      //   the call to sycl::program::set_spec_constant is assigned to it.
       MyKernel Kernel(acc); // default construct inside MyKernel instance
       Kernel.setConst(sc);  // initialize to sc, returned by set_spec_constant
 
       cgh.single_task<MyKernel>(program4.get_kernel<MyKernel>(), Kernel);
     });
 
-  } catch (cl::sycl::exception &e) {
+  } catch (sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";
     return 1;
   }

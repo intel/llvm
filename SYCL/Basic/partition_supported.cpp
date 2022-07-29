@@ -20,16 +20,16 @@ not support the info::partition_affinity_domain provided, an exception with the
 /** returns true if the device supports a particular affinity domain
  */
 static bool
-supports_affinity_domain(const cl::sycl::device &dev,
-                         cl::sycl::info::partition_property partitionProp,
-                         cl::sycl::info::partition_affinity_domain domain) {
+supports_affinity_domain(const sycl::device &dev,
+                         sycl::info::partition_property partitionProp,
+                         sycl::info::partition_affinity_domain domain) {
   if (partitionProp !=
-      cl::sycl::info::partition_property::partition_by_affinity_domain) {
+      sycl::info::partition_property::partition_by_affinity_domain) {
     return true;
   }
   auto supported =
-      dev.get_info<cl::sycl::info::device::partition_affinity_domains>();
-  for (cl::sycl::info::partition_affinity_domain dom : supported) {
+      dev.get_info<sycl::info::device::partition_affinity_domains>();
+  for (sycl::info::partition_affinity_domain dom : supported) {
     if (dom == domain) {
       return true;
     }
@@ -40,10 +40,10 @@ supports_affinity_domain(const cl::sycl::device &dev,
 /** returns true if the device supports a particular partition property
  */
 static bool
-supports_partition_property(const cl::sycl::device &dev,
-                            cl::sycl::info::partition_property partitionProp) {
-  auto supported = dev.get_info<cl::sycl::info::device::partition_properties>();
-  for (cl::sycl::info::partition_property prop : supported) {
+supports_partition_property(const sycl::device &dev,
+                            sycl::info::partition_property partitionProp) {
+  auto supported = dev.get_info<sycl::info::device::partition_properties>();
+  for (sycl::info::partition_property prop : supported) {
     if (prop == partitionProp) {
       return true;
     }
@@ -53,11 +53,11 @@ supports_partition_property(const cl::sycl::device &dev,
 
 int main() {
 
-  auto dev = cl::sycl::device(cl::sycl::default_selector());
+  auto dev = sycl::device(sycl::default_selector());
 
   // 1 - check exceed max_compute_units
-  cl::sycl::info::partition_property partitionEqually =
-      cl::sycl::info::partition_property::partition_equally;
+  sycl::info::partition_property partitionEqually =
+      sycl::info::partition_property::partition_equally;
   if (supports_partition_property(dev, partitionEqually)) {
     auto maxUnits = dev.get_info<sycl::info::device::max_compute_units>();
     try {
@@ -80,14 +80,14 @@ int main() {
   }
 
   // 2 - check affinity
-  cl::sycl::info::partition_property partitionProperty =
-      cl::sycl::info::partition_property::partition_by_affinity_domain;
-  cl::sycl::info::partition_affinity_domain affinityDomain =
-      cl::sycl::info::partition_affinity_domain::next_partitionable;
+  sycl::info::partition_property partitionProperty =
+      sycl::info::partition_property::partition_by_affinity_domain;
+  sycl::info::partition_affinity_domain affinityDomain =
+      sycl::info::partition_affinity_domain::next_partitionable;
   if (supports_partition_property(dev, partitionProperty)) {
     if (supports_affinity_domain(dev, partitionProperty, affinityDomain)) {
       auto subDevices = dev.create_sub_devices<
-          cl::sycl::info::partition_property::partition_by_affinity_domain>(
+          sycl::info::partition_property::partition_by_affinity_domain>(
           affinityDomain);
 
       if (subDevices.size() < 2) {
@@ -100,13 +100,13 @@ int main() {
   } else {
     try {
       auto subDevices = dev.create_sub_devices<
-          cl::sycl::info::partition_property::partition_by_affinity_domain>(
+          sycl::info::partition_property::partition_by_affinity_domain>(
           affinityDomain);
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
                    "should have thrown an exception"
                 << std::endl;
       return -1;
-    } catch (const cl::sycl::feature_not_supported &e) {
+    } catch (const sycl::feature_not_supported &e) {
       if (e.code() != sycl::errc::feature_not_supported) {
         std::cerr
             << "error code should be errc::feature_not_supported instead of "
@@ -115,7 +115,7 @@ int main() {
       }
     } catch (...) {
       std::cerr << "device::create_sub_device(info::partition_affinity_domain) "
-                   "should have thrown cl::sycl::feature_not_supported"
+                   "should have thrown sycl::feature_not_supported"
                 << std::endl;
       return -1;
     }

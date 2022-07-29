@@ -22,7 +22,7 @@
 #include <iostream>
 #endif
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename WriteDataT, int ImgType, int read_write> class kernel_class;
 

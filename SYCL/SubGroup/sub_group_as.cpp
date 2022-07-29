@@ -19,9 +19,9 @@
 #include <sycl/sycl.hpp>
 
 int main(int argc, char *argv[]) {
-  cl::sycl::queue queue;
+  sycl::queue queue;
   printf("Device Name = %s\n",
-         queue.get_device().get_info<cl::sycl::info::device::name>().c_str());
+         queue.get_device().get_info<sycl::info::device::name>().c_str());
 
   // Initialize some host memory
   constexpr int N = 64;
@@ -32,17 +32,17 @@ int main(int argc, char *argv[]) {
 
   // Use the device to transform each value
   {
-    cl::sycl::buffer<int, 1> buf(host_mem, N);
-    queue.submit([&](cl::sycl::handler &cgh) {
-      auto global = buf.get_access<cl::sycl::access::mode::read_write,
-                                   cl::sycl::access::target::device>(cgh);
+    sycl::buffer<int, 1> buf(host_mem, N);
+    queue.submit([&](sycl::handler &cgh) {
+      auto global = buf.get_access<sycl::access::mode::read_write,
+                                   sycl::access::target::device>(cgh);
       sycl::accessor<int, 1, sycl::access::mode::read_write,
                      sycl::access::target::local>
           local(N, cgh);
 
       cgh.parallel_for<class test>(
-          cl::sycl::nd_range<1>(N, 32), [=](cl::sycl::nd_item<1> it) {
-            cl::sycl::ext::oneapi::sub_group sg = it.get_sub_group();
+          sycl::nd_range<1>(N, 32), [=](sycl::nd_item<1> it) {
+            sycl::ext::oneapi::sub_group sg = it.get_sub_group();
             if (!it.get_local_id(0)) {
               int end = it.get_global_id(0) + it.get_local_range()[0];
               for (int i = it.get_global_id(0); i < end; i++) {

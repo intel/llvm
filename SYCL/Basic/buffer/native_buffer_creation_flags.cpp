@@ -4,7 +4,7 @@
 #include <sycl/sycl.hpp>
 
 class Foo;
-using namespace cl::sycl;
+using namespace sycl;
 int main() {
   const int BufVal = 42;
   buffer<int, 1> Buf{&BufVal, range<1>(1)};

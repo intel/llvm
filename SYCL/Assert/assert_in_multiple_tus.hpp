@@ -10,8 +10,8 @@
 
 #include <cassert>
 
-using namespace cl::sycl;
-using namespace cl::sycl::access;
+using namespace sycl;
+using namespace sycl::access;
 
 static constexpr size_t BUFFER_SIZE = 16;
 
@@ -22,15 +22,15 @@ int checkFunction() {
 }
 
 void enqueueKernel_1_fromFile1(queue *Q) {
-  cl::sycl::range<1> numOfItems{BUFFER_SIZE};
-  cl::sycl::buffer<int, 1> Buf(numOfItems);
+  sycl::range<1> numOfItems{BUFFER_SIZE};
+  sycl::buffer<int, 1> Buf(numOfItems);
 
   Q->submit([&](handler &CGH) {
     auto Acc = Buf.template get_access<mode::read_write>(CGH);
 
     CGH.parallel_for<class Kernel_1>(
-        cl::sycl::nd_range(Buf.get_range(), cl::sycl::range<1>(4)),
-        [=](cl::sycl::id<1> wiID) {
+        sycl::nd_range(Buf.get_range(), sycl::range<1>(4)),
+        [=](sycl::id<1> wiID) {
           int X = 0;
           if (wiID == 5)
             X = checkFunction();

@@ -223,8 +223,6 @@
 #include <cmath>
 #include <iostream>
 
-namespace sycl = cl::sycl;
-
 void validate(uint32_t *result, uint32_t *expect, size_t n) {
   int error = 0;
   for (int i = 0; i < n; i++) {

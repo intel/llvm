@@ -15,7 +15,7 @@ int main() {
     std::cout << "Skipping test\n";
     return 0;
   }
-  check<class KernelName_oMg, cl::sycl::half>(Queue);
+  check<class KernelName_oMg, sycl::half>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;
 }

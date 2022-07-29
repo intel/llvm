@@ -13,7 +13,7 @@
 
 #include "helper.hpp"
 #include <sycl/sycl.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 
 void check(queue Queue, const int G, const int L, const int D, const int R) {
   try {

@@ -39,11 +39,11 @@ int get_value() { return val; }
 int main(int argc, char **argv) {
   val = argc;
 
-  cl::sycl::queue q(default_selector{}, [](exception_list l) {
+  sycl::queue q(default_selector{}, [](exception_list l) {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << e0.what();
       } catch (std::exception &e1) {
         std::cout << e1.what();
@@ -68,24 +68,24 @@ int main(int argc, char **argv) {
   std::vector<int> vec(n_sc_sets);
 
   for (int i = 0; i < n_sc_sets; i++) {
-    cl::sycl::program program(q.get_context());
+    sycl::program program(q.get_context());
     const int *sc_set = &sc_vals[i][0];
-    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, SC0> sc0 =
+    sycl::ext::oneapi::experimental::spec_constant<int32_t, SC0> sc0 =
         program.set_spec_constant<SC0>(sc_set[0]);
-    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, SC1> sc1 =
+    sycl::ext::oneapi::experimental::spec_constant<int32_t, SC1> sc1 =
         program.set_spec_constant<SC1>(sc_set[1]);
 
     program.build_with_kernel_type<KernelAAA>();
 
     try {
-      cl::sycl::buffer<int, 1> buf(vec.data(), vec.size());
+      sycl::buffer<int, 1> buf(vec.data(), vec.size());
 
-      q.submit([&](cl::sycl::handler &cgh) {
-        auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
+      q.submit([&](sycl::handler &cgh) {
+        auto acc = buf.get_access<sycl::access::mode::write>(cgh);
         cgh.single_task<KernelAAA>(program.get_kernel<KernelAAA>(),
                                    [=]() { acc[i] = sc0.get() + sc1.get(); });
       });
-    } catch (cl::sycl::exception &e) {
+    } catch (sycl::exception &e) {
       std::cout << "*** Exception caught: " << e.what() << "\n";
       return 1;
     }

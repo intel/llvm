@@ -10,7 +10,7 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Log to the same stream as SYCL_PI_TRACE
 static void log_pi(const char *msg) { std::cout << msg << std::endl; }

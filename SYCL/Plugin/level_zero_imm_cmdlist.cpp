@@ -8,8 +8,8 @@
 
 // The test checks that immediate commandlists are used and not regular ones.
 
-#include <CL/sycl.hpp>
-using namespace cl;
+#include <sycl/sycl.hpp>
+
 int main(int argc, char **argv) {
   sycl::queue Q;
   const unsigned n_chunk = 1000;

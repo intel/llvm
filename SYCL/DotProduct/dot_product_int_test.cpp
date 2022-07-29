@@ -17,9 +17,9 @@
 static int testCount = 4;
 static int passCount;
 
-using namespace cl::sycl;
-using namespace cl::sycl::detail::gtl;
-using namespace cl::sycl::ext::oneapi;
+using namespace sycl;
+using namespace sycl::detail::gtl;
+using namespace sycl::ext::oneapi;
 
 constexpr int RangeLength = 100;
 
@@ -79,7 +79,7 @@ static bool testss(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<cl::sycl::access::mode::read>();
+  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
 
   return verify_1D("testss D", RangeLength, D, D_ref);
 }
@@ -118,7 +118,7 @@ static bool testuu(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<cl::sycl::access::mode::read>();
+  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
 
   return verify_1D("testuu D", RangeLength, D, D_ref);
 }
@@ -157,7 +157,7 @@ static bool testsu(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<cl::sycl::access::mode::read>();
+  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
 
   return verify_1D("testsu D", RangeLength, D, D_ref);
 }
@@ -196,7 +196,7 @@ static bool testus(queue &Q) {
       Dp[I] = dot_acc(Ap[I], Bp[I], Cp[I]);
     });
   });
-  const auto HAcc = Dbuf.get_access<cl::sycl::access::mode::read>();
+  const auto HAcc = Dbuf.get_access<sycl::access::mode::read>();
 
   return verify_1D("testus D", RangeLength, D, D_ref);
 }
@@ -236,7 +236,7 @@ int main(int argc, char *argv[]) {
   auto D = selector.select_device();
   const char *devType = D.is_host() ? "Host" : D.is_cpu() ? "CPU" : "GPU";
   std::cout << "Running on device " << devType << " ("
-            << D.get_info<cl::sycl::info::device::name>() << ")\n";
+            << D.get_info<sycl::info::device::name>() << ")\n";
   passed &= run_tests();
 
   if (!passed) {

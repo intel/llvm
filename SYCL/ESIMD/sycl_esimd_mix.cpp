@@ -23,7 +23,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 bool checkResult(const std::vector<float> &A, int Inc) {
   int err_cnt = 0;
@@ -59,9 +59,9 @@ int main(void) {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
 
     // We need that many workgroups
-    cl::sycl::range<1> GlobalRange{Size};
+    sycl::range<1> GlobalRange{Size};
     // We need that many threads in each group
-    cl::sycl::range<1> LocalRange{1};
+    sycl::range<1> LocalRange{1};
 
     queue q(gpu_selector{}, esimd_test::createExceptionHandler());
 
@@ -74,7 +74,7 @@ int main(void) {
                                          [=](id<1> i) { PA[i] = PA[i] + 1; });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 2;
   }
@@ -90,9 +90,9 @@ int main(void) {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
 
     // We need that many workgroups
-    cl::sycl::range<1> GlobalRange{Size / VL};
+    sycl::range<1> GlobalRange{Size / VL};
     // We need that many threads in each group
-    cl::sycl::range<1> LocalRange{1};
+    sycl::range<1> LocalRange{1};
 
     queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
@@ -112,7 +112,7 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 2;
   }

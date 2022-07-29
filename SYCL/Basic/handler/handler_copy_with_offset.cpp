@@ -19,7 +19,7 @@
 #include <numeric>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 constexpr access::mode read = access::mode::read;
 constexpr access::mode write = access::mode::write;
 constexpr access::target ondevice = access::target::device;

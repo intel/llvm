@@ -8,7 +8,7 @@
 
 #include <cassert>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void check(info::device_type DT) {
   std::vector<device> Devices = device::get_devices(DT);

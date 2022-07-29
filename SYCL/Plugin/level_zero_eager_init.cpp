@@ -17,38 +17,37 @@
 #include <array>
 #include <iostream>
 
-constexpr cl::sycl::access::mode sycl_read = cl::sycl::access::mode::read;
-constexpr cl::sycl::access::mode sycl_write = cl::sycl::access::mode::write;
+constexpr sycl::access::mode sycl_read = sycl::access::mode::read;
+constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
 
 /* This is the class used to name the kernel for the runtime.
  * This must be done when the kernel is expressed as a lambda. */
 template <typename T> class SimpleVadd;
 
 template <typename T, size_t N>
-void simple_vadd(cl::sycl::queue &Queue, const std::array<T, N> &VA,
+void simple_vadd(sycl::queue &Queue, const std::array<T, N> &VA,
                  const std::array<T, N> &VB, std::array<T, N> &VC) {
-  cl::sycl::range<1> numOfItems{N};
-  cl::sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
-  cl::sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
-  cl::sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
+  sycl::range<1> numOfItems{N};
+  sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
+  sycl::buffer<T, 1> bufferB(VB.data(), numOfItems);
+  sycl::buffer<T, 1> bufferC(VC.data(), numOfItems);
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     auto accessorA = bufferA.template get_access<sycl_read>(cgh);
     auto accessorB = bufferB.template get_access<sycl_read>(cgh);
     auto accessorC = bufferC.template get_access<sycl_write>(cgh);
 
-    cgh.parallel_for<class SimpleVadd<T>>(
-        numOfItems, [=](cl::sycl::id<1> wiID) {
-          accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-        });
+    cgh.parallel_for<class SimpleVadd<T>>(numOfItems, [=](sycl::id<1> wiID) {
+      accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
+    });
   });
 }
 
 int main() {
   const size_t array_size = 4;
-  std::array<cl::sycl::cl_int, array_size> A = {{1, 2, 3, 4}},
-                                           B = {{1, 2, 3, 4}}, C;
-  cl::sycl::queue Q;
+  std::array<sycl::cl_int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}},
+                                       C;
+  sycl::queue Q;
 
   // simple_vadd(Q, A, B, C);
   std::cerr << "\n\n\nHOT HOT HOT\n\n\n";

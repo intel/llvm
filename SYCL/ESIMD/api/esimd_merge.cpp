@@ -21,7 +21,7 @@
 
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel;
-using namespace cl::sycl;
+using namespace sycl;
 
 template <class T> void prn(T *arr, int size, const char *title) {
   std::cout << title << ": ";

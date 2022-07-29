@@ -26,10 +26,9 @@
 #include <numeric>
 #include <vector>
 
-void checkHostAccessor(cl::sycl::queue &q) {
+void checkHostAccessor(sycl::queue &q) {
   std::size_t subbuf_align =
-      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() /
-      8;
+      q.get_device().get_info<sycl::info::device::mem_base_addr_align>() / 8;
   std::size_t size =
       std::max(subbuf_align, 10 * 2 * sizeof(int)); // hold at least 20 elements
   size /= sizeof(int);
@@ -38,23 +37,23 @@ void checkHostAccessor(cl::sycl::queue &q) {
   std::vector<int> data(size);
   std::iota(data.begin(), data.end(), 0);
   {
-    cl::sycl::buffer<int, 1> buf(data.data(), size);
-    cl::sycl::buffer<int, 1> subbuf(buf, {size / 2}, {10});
+    sycl::buffer<int, 1> buf(data.data(), size);
+    sycl::buffer<int, 1> subbuf(buf, {size / 2}, {10});
 
     {
-      auto host_acc = subbuf.get_access<cl::sycl::access::mode::write>();
+      auto host_acc = subbuf.get_access<sycl::access::mode::write>();
       for (int i = 0; i < 10; ++i)
         host_acc[i] *= 10;
     }
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acc = subbuf.get_access<cl::sycl::access::mode::write>(cgh);
-      cgh.parallel_for<class foobar_2>(
-          cl::sycl::range<1>(10), [=](cl::sycl::id<1> i) { acc[i] *= -10; });
+    q.submit([&](sycl::handler &cgh) {
+      auto acc = subbuf.get_access<sycl::access::mode::write>(cgh);
+      cgh.parallel_for<class foobar_2>(sycl::range<1>(10),
+                                       [=](sycl::id<1> i) { acc[i] *= -10; });
     });
 
     {
-      auto host_acc = subbuf.get_access<cl::sycl::access::mode::read>();
+      auto host_acc = subbuf.get_access<sycl::access::mode::read>();
       for (int i = 0; i < 10; ++i)
         assert(host_acc[i] == ((size / 2 + i) * -100) &&
                "Sub buffer host accessor test failed.");
@@ -64,10 +63,9 @@ void checkHostAccessor(cl::sycl::queue &q) {
          data[size / 2] == (size / 2 * -100) && "Loss of data");
 }
 
-void check1DSubBuffer(cl::sycl::queue &q) {
+void check1DSubBuffer(sycl::queue &q) {
   std::size_t subbuf_align =
-      q.get_device().get_info<cl::sycl::info::device::mem_base_addr_align>() /
-      8;
+      q.get_device().get_info<sycl::info::device::mem_base_addr_align>() / 8;
   std::size_t size =
       std::max(subbuf_align, 32 * sizeof(int)); // hold at least 32 elements
   size /= sizeof(int);
@@ -83,49 +81,48 @@ void check1DSubBuffer(cl::sycl::queue &q) {
             << std::endl;
 
   try {
-    cl::sycl::buffer<int, 1> buf(vec.data(), size);
-    cl::sycl::buffer<int, 1> buf2(vec2.data(), subbuf_size);
+    sycl::buffer<int, 1> buf(vec.data(), size);
+    sycl::buffer<int, 1> buf2(vec2.data(), subbuf_size);
     // subbuffer is 10 elements, starting at midpoint. (typically 32)
-    cl::sycl::buffer<int, 1> subbuf(buf, cl::sycl::id<1>(offset),
-                                    cl::sycl::range<1>(subbuf_size));
+    sycl::buffer<int, 1> subbuf(buf, sycl::id<1>(offset),
+                                sycl::range<1>(subbuf_size));
 
     // test offset accessor against a subbuffer
-    q.submit([&](cl::sycl::handler &cgh) {
+    q.submit([&](sycl::handler &cgh) {
       // accessor starts at the third element of the subbuffer
       // and can read for 7 more (ie to the end of the subbuffer)
-      auto acc = subbuf.get_access<cl::sycl::access::mode::read_write>(
-          cgh, cl::sycl::range<1>(subbuffer_access_range),
-          cl::sycl::id<1>(offset_inside_subbuf));
+      auto acc = subbuf.get_access<sycl::access::mode::read_write>(
+          cgh, sycl::range<1>(subbuffer_access_range),
+          sycl::id<1>(offset_inside_subbuf));
       // subrange is made negative. ( 32 33 34 -35 -36 -37 -38 -39 -40 -41)
-      cgh.parallel_for<class foobar>(cl::sycl::range<1>(subbuffer_access_range),
-                                     [=](cl::sycl::id<1> i) { acc[i] *= -1; });
+      cgh.parallel_for<class foobar>(sycl::range<1>(subbuffer_access_range),
+                                     [=](sycl::id<1> i) { acc[i] *= -1; });
     });
 
     // copy results of last operation back to buf2/vec2
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acc_sub = subbuf.get_access<cl::sycl::access::mode::read>(cgh);
-      auto acc_buf = buf2.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto acc_sub = subbuf.get_access<sycl::access::mode::read>(cgh);
+      auto acc_buf = buf2.get_access<sycl::access::mode::write>(cgh);
       cgh.parallel_for<class foobar_0>(
-          subbuf.get_range(),
-          [=](cl::sycl::id<1> i) { acc_buf[i] = acc_sub[i]; });
+          subbuf.get_range(), [=](sycl::id<1> i) { acc_buf[i] = acc_sub[i]; });
     });
 
     // multiple entire subbuffer by 10.
     // now original buffer will be
     // (..29 30 31 | 320 330 340 -350 -360 -370 -380 -390 -400 -410 | 42 43 44
     // ...)
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acc_sub = subbuf.get_access<cl::sycl::access::mode::read_write>(
-          cgh, cl::sycl::range<1>(subbuf_size));
+    q.submit([&](sycl::handler &cgh) {
+      auto acc_sub = subbuf.get_access<sycl::access::mode::read_write>(
+          cgh, sycl::range<1>(subbuf_size));
       cgh.parallel_for<class foobar_1>(
-          cl::sycl::range<1>(subbuf_size),
-          [=](cl::sycl::id<1> i) { acc_sub[i] *= 10; });
+          sycl::range<1>(subbuf_size),
+          [=](sycl::id<1> i) { acc_sub[i] *= 10; });
     });
     q.wait_and_throw();
 
     // buffers go out of scope. data must be copied back to vector no later than
     // this.
-  } catch (const cl::sycl::exception &e) {
+  } catch (const sycl::exception &e) {
     std::cerr << e.what() << std::endl;
     assert(false && "Exception was caught");
   }
@@ -157,86 +154,86 @@ void check1DSubBuffer(cl::sycl::queue &q) {
 void checkExceptions() {
   size_t row = 8, col = 8;
   std::vector<int> vec(1, 0);
-  cl::sycl::buffer<int, 2> buf2d(vec.data(), {row, col});
-  cl::sycl::buffer<int, 3> buf3d(vec.data(), {row / 2, col / 2, col / 2});
+  sycl::buffer<int, 2> buf2d(vec.data(), {row, col});
+  sycl::buffer<int, 3> buf3d(vec.data(), {row / 2, col / 2, col / 2});
 
   // non-contiguous region
   try {
-    cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 0},
-                                     /*size*/ cl::sycl::range<2>{2, 2}};
+    sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 0},
+                                 /*size*/ sycl::range<2>{2, 2}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   try {
-    cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 2},
-                                     /*size*/ cl::sycl::range<2>{2, 6}};
+    sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
+                                 /*size*/ sycl::range<2>{2, 6}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   try {
-    cl::sycl::buffer<int, 3> sub_buf{buf3d,
-                                     /*offset*/ cl::sycl::range<3>{0, 2, 1},
-                                     /*size*/ cl::sycl::range<3>{1, 2, 3}};
+    sycl::buffer<int, 3> sub_buf{buf3d,
+                                 /*offset*/ sycl::range<3>{0, 2, 1},
+                                 /*size*/ sycl::range<3>{1, 2, 3}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   try {
-    cl::sycl::buffer<int, 3> sub_buf{buf3d,
-                                     /*offset*/ cl::sycl::range<3>{0, 0, 0},
-                                     /*size*/ cl::sycl::range<3>{2, 3, 4}};
+    sycl::buffer<int, 3> sub_buf{buf3d,
+                                 /*offset*/ sycl::range<3>{0, 0, 0},
+                                 /*size*/ sycl::range<3>{2, 3, 4}};
     assert(!"non contiguous region exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   // out of bounds
   try {
-    cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 2},
-                                     /*size*/ cl::sycl::range<2>{2, 8}};
+    sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 2},
+                                 /*size*/ sycl::range<2>{2, 8}};
     assert(!"out of bounds exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   try {
-    cl::sycl::buffer<int, 3> sub_buf{buf3d,
-                                     /*offset*/ cl::sycl::range<3>{1, 1, 1},
-                                     /*size*/ cl::sycl::range<3>{1, 1, 4}};
+    sycl::buffer<int, 3> sub_buf{buf3d,
+                                 /*offset*/ sycl::range<3>{1, 1, 1},
+                                 /*size*/ sycl::range<3>{1, 1, 4}};
     assert(!"out of bounds exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   try {
-    cl::sycl::buffer<int, 3> sub_buf{buf3d,
-                                     /*offset*/ cl::sycl::range<3>{3, 3, 0},
-                                     /*size*/ cl::sycl::range<3>{1, 2, 4}};
+    sycl::buffer<int, 3> sub_buf{buf3d,
+                                 /*offset*/ sycl::range<3>{3, 3, 0},
+                                 /*size*/ sycl::range<3>{1, 2, 4}};
     assert(!"out of bounds exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 
   // subbuffer from subbuffer
   try {
-    cl::sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ cl::sycl::range<2>{2, 0},
-                                     /*size*/ cl::sycl::range<2>{2, 8}};
-    cl::sycl::buffer<int, 2> sub_sub_buf(sub_buf, cl::sycl::range<2>{0, 0},
-                                         /*size*/ cl::sycl::range<2>{0, 0});
+    sycl::buffer<int, 2> sub_buf{buf2d, /*offset*/ sycl::range<2>{2, 0},
+                                 /*size*/ sycl::range<2>{2, 8}};
+    sycl::buffer<int, 2> sub_sub_buf(sub_buf, sycl::range<2>{0, 0},
+                                     /*size*/ sycl::range<2>{0, 0});
     assert(!"invalid subbuffer exception wasn't caught");
-  } catch (const cl::sycl::invalid_object_error &e) {
+  } catch (const sycl::invalid_object_error &e) {
     std::cerr << e.what() << std::endl;
   }
 }
 
 void copyBlock() {
-  using typename cl::sycl::access::mode;
-  using buffer = cl::sycl::buffer<int, 1>;
+  using typename sycl::access::mode;
+  using buffer = sycl::buffer<int, 1>;
 
   auto CopyF = [](buffer &Buffer, buffer &Block, size_t Idx, size_t BlockSize) {
     auto Subbuf = buffer(Buffer, Idx * BlockSize, BlockSize);
@@ -281,7 +278,7 @@ void copyBlock() {
                "Invalid data in block buffer");
       }
     }
-  } catch (cl::sycl::exception &ex) {
+  } catch (sycl::exception &ex) {
     assert(false && "Unexpected exception captured!");
   }
 }
@@ -327,7 +324,7 @@ void checkMultipleContexts() {
 }
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
   check1DSubBuffer(q);
   checkHostAccessor(q);
   checkExceptions();

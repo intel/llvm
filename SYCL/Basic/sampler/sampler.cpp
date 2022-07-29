@@ -17,7 +17,7 @@
 #include <sycl/sycl.hpp>
 
 namespace sycl {
-using namespace cl::sycl;
+using namespace sycl;
 }
 
 struct SamplerWrapper {
@@ -58,7 +58,7 @@ int main() {
   assert(B.get_filtering_mode() == sycl::filtering_mode::linear);
 
   // Check hasher
-  std::hash<cl::sycl::sampler> Hasher;
+  std::hash<sycl::sampler> Hasher;
   assert(Hasher(A) != Hasher(B));
 
   // Check move assignment

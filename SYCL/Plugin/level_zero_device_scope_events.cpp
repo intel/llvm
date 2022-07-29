@@ -33,15 +33,15 @@
 #include <sycl/sycl.hpp>
 
 int main(int argc, char **argv) {
-  cl::sycl::gpu_selector device_selector;
-  cl::sycl::queue queue(device_selector);
+  sycl::gpu_selector device_selector;
+  sycl::queue queue(device_selector);
 
   int N = (argc >= 2 ? std::atoi(argv[1]) : 100);
   std::cout << N << " kernels" << std::endl;
 
-  cl::sycl::event e; // completed event
+  sycl::event e; // completed event
   for (int i = 0; i < N; i++) {
-    e = queue.submit([&](cl::sycl::handler &h) {
+    e = queue.submit([&](sycl::handler &h) {
       h.depends_on(e);
       h.single_task<class kernel>([=] {});
     });

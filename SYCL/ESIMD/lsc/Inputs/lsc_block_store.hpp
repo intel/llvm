@@ -13,7 +13,7 @@
 
 #include "common.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace sycl::ext::intel::experimental::esimd::detail;
@@ -44,10 +44,10 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
   auto ctx = q.get_context();
 
   // workgroups
-  cl::sycl::range<1> GlobalRange{Groups};
+  sycl::range<1> GlobalRange{Groups};
   // threads in each group
-  cl::sycl::range<1> LocalRange{Threads};
-  cl::sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+  sycl::range<1> LocalRange{Threads};
+  sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
   unsigned SurfaceSize = SurfacePitch * SurfaceHeight;
   unsigned Size = SurfaceSize * Groups * Threads;
@@ -59,7 +59,7 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<KernelID<case_num>>(
-          Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+          Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             uint16_t globalID = ndi.get_global_id(0);
             uint32_t off = globalID * SurfaceSize;
 
@@ -71,7 +71,7 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     sycl::free(out, ctx);
     return false;

@@ -21,8 +21,6 @@
 
 #include "../../helpers.hpp"
 
-using namespace cl;
-
 int main() {
   const sycl::image_channel_order ChanOrder = sycl::image_channel_order::rgba;
   const sycl::image_channel_type ChanType = sycl::image_channel_type::fp32;
@@ -53,8 +51,8 @@ int main() {
     TestQueue Q{sycl::default_selector()};
 
     constexpr auto SYCLRead = sycl::access::mode::read;
-    constexpr auto SYCLWrite = cl::sycl::access::mode::write;
-    constexpr auto SYCLReadWrite = cl::sycl::access::mode::read_write;
+    constexpr auto SYCLWrite = sycl::access::mode::write;
+    constexpr auto SYCLReadWrite = sycl::access::mode::read_write;
 
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLRead>(CGH);

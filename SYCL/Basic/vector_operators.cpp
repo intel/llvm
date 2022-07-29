@@ -14,7 +14,7 @@
 
 #define SYCL_SIMPLE_SWIZZLES
 #include <sycl/sycl.hpp>
-namespace s = cl::sycl;
+namespace s = sycl;
 
 template <typename ResultVecT>
 void check_result_length_4(ResultVecT &res, ResultVecT &expected_res) {
@@ -59,9 +59,8 @@ int main() {
     }
     // 1-element vector operators follow vector 0/-1 logic
     vec_type expected_res(-1);
-    assert(
-        static_cast<bool>(res.template swizzle<cl::sycl::elem::s0>() ==
-                          expected_res.template swizzle<cl::sycl::elem::s0>()));
+    assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
+                             expected_res.template swizzle<sycl::elem::s0>()));
   }
 
   {
@@ -81,9 +80,8 @@ int main() {
     }
     // 1-element vector operators follow vector 0/-1 logic
     vec_type expected_res(-1);
-    assert(
-        static_cast<bool>(res.template swizzle<cl::sycl::elem::s0>() ==
-                          expected_res.template swizzle<cl::sycl::elem::s0>()));
+    assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
+                             expected_res.template swizzle<sycl::elem::s0>()));
   }
 
   /* Test different operators, different types

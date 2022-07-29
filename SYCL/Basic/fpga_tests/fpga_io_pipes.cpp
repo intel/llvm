@@ -57,12 +57,12 @@ int validateOutputFile(const std::string &filename) {
 }
 
 // Test for simple non-blocking pipes
-int test_io_nb_pipe(cl::sycl::queue Queue) {
+int test_io_nb_pipe(sycl::queue Queue) {
   createInputFile(InputFileName);
 
-  cl::sycl::buffer<int, 1> writeBuf(1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
 
     cgh.single_task<class nb_io_transfer>([=]() {
       bool SuccessCodeI = false;
@@ -76,7 +76,7 @@ int test_io_nb_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   if (readHostBuffer[0] != InputData) {
     std::cout << "Read from a file mismatches " << readHostBuffer[0]
               << " Vs expected " << InputData << std::endl;
@@ -88,12 +88,12 @@ int test_io_nb_pipe(cl::sycl::queue Queue) {
 }
 
 // Test for simple blocking pipes
-int test_io_bl_pipe(cl::sycl::queue Queue) {
+int test_io_bl_pipe(sycl::queue Queue) {
   createInputFile(InputFileName);
 
-  cl::sycl::buffer<int, 1> writeBuf(1);
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    auto write_acc = writeBuf.get_access<cl::sycl::access::mode::write>(cgh);
+  sycl::buffer<int, 1> writeBuf(1);
+  Queue.submit([&](sycl::handler &cgh) {
+    auto write_acc = writeBuf.get_access<sycl::access::mode::write>(cgh);
 
     cgh.single_task<class bl_io_transfer>([=]() {
       write_acc[0] = intelfpga::ethernet_read_pipe::read();
@@ -101,7 +101,7 @@ int test_io_bl_pipe(cl::sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<cl::sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
   if (readHostBuffer[0] != InputData) {
     std::cout << "Read from a file mismatches " << readHostBuffer[0]
               << " Vs expected " << InputData << std::endl;
@@ -113,10 +113,10 @@ int test_io_bl_pipe(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
 
   if (!Queue.get_device()
-           .get_info<cl::sycl::info::device::kernel_kernel_pipe_support>()) {
+           .get_info<sycl::info::device::kernel_kernel_pipe_support>()) {
     std::cout << "SYCL_ext_intel_data_flow_pipes not supported, skipping"
               << std::endl;
     return 0;

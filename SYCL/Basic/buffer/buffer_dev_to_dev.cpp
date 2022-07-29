@@ -16,7 +16,7 @@
 #include <memory>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   int Data[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};

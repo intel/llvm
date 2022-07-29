@@ -14,7 +14,7 @@
 #include <math.h>
 #include <sycl/sycl.hpp>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
@@ -45,7 +45,7 @@ void device_math_test(s::queue &deviceQueue) {
     s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
     s::buffer<double, 1> buffer3(&iptr, s::range<1>{1});
     s::buffer<int, 1> buffer4(&quo, s::range<1>{1});
-    deviceQueue.submit([&](cl::sycl::handler &cgh) {
+    deviceQueue.submit([&](sycl::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
       auto exp_access = buffer2.template get_access<sycl_write>(cgh);
       auto iptr_access = buffer3.template get_access<sycl_write>(cgh);

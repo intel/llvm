@@ -7,7 +7,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr long width = 16;
 constexpr long height = 5;
@@ -375,17 +375,17 @@ void testFill_Buffer() {
 
     queue myQueue;
     auto e1 = myQueue.submit([&](handler &cgh) {
-      auto acc1D = buffer_1D.get_access<cl::sycl::access::mode::write>(cgh);
+      auto acc1D = buffer_1D.get_access<sycl::access::mode::write>(cgh);
       cgh.fill(acc1D, float{1});
     });
     auto e2 = myQueue.submit([&](handler &cgh) {
       cgh.depends_on(e1);
-      auto acc2D = buffer_2D.get_access<cl::sycl::access::mode::write>(cgh);
+      auto acc2D = buffer_2D.get_access<sycl::access::mode::write>(cgh);
       cgh.fill(acc2D, float{2});
     });
     auto e3 = myQueue.submit([&](handler &cgh) {
       cgh.depends_on(e2);
-      auto acc3D = buffer_3D.get_access<cl::sycl::access::mode::write>(cgh);
+      auto acc3D = buffer_3D.get_access<sycl::access::mode::write>(cgh);
       cgh.fill(acc3D, float{3});
     });
   } // ~buffer

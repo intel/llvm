@@ -16,14 +16,14 @@
 int main() {
   size_t size = 3;
 
-  cl::sycl::buffer<int, 1> buf(size);
+  sycl::buffer<int, 1> buf(size);
   {
-    cl::sycl::queue q;
-    auto host_acc = buf.get_access<cl::sycl::access::mode::read_write>();
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+    sycl::queue q;
+    auto host_acc = buf.get_access<sycl::access::mode::read_write>();
+    q.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class SingleTask>(
-          cl::sycl::range<1>{size}, [=](cl::sycl::id<1> id) { (void)acc[id]; });
+          sycl::range<1>{size}, [=](sycl::id<1> id) { (void)acc[id]; });
     });
     std::cout << "host acc destructor call" << std::endl;
   }

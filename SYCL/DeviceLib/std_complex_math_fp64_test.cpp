@@ -16,7 +16,7 @@
 #include "math_utils.hpp"
 
 using std::complex;
-namespace s = cl::sycl;
+namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 

@@ -22,7 +22,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
 using ptr = float *;
@@ -59,11 +59,11 @@ int main(void) {
   }
 
   // We need that many workitems. Each processes VL elements of data.
-  cl::sycl::range<1> GlobalRange{Size / VL};
+  sycl::range<1> GlobalRange{Size / VL};
   // Number of workitems in each workgroup.
-  cl::sycl::range<1> LocalRange{GroupSize};
+  sycl::range<1> LocalRange{GroupSize};
 
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
   try {
     auto e = q.submit([&](handler &cgh) {
@@ -74,7 +74,7 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
 
     free(A, ctxt);

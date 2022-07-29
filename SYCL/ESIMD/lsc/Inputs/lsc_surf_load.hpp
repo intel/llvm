@@ -13,7 +13,7 @@
 
 #include "common.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 using namespace sycl::ext::intel::experimental::esimd;
 
@@ -59,10 +59,10 @@ bool test(uint32_t pmask = 0xffffffff) {
   auto ctx = q.get_context();
 
   // workgroups
-  cl::sycl::range<1> GlobalRange{Groups};
+  sycl::range<1> GlobalRange{Groups};
   // threads in each group
-  cl::sycl::range<1> LocalRange{Threads};
-  cl::sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+  sycl::range<1> LocalRange{Threads};
+  sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
   std::vector<T> out(Size, old_val);
   std::vector<T> in(Size);
@@ -77,7 +77,7 @@ bool test(uint32_t pmask = 0xffffffff) {
       auto acco = bufo.template get_access<access::mode::write>(cgh);
       auto acci = bufi.template get_access<access::mode::read>(cgh);
       cgh.parallel_for<KernelID<case_num>>(
-          Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+          Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             uint16_t globalID = ndi.get_global_id(0);
             uint32_t elem_off = globalID * VL * VS;
             uint32_t byte_off = elem_off * sizeof(T);
@@ -117,7 +117,7 @@ bool test(uint32_t pmask = 0xffffffff) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return false;
   }

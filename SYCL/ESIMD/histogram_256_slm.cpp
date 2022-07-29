@@ -21,7 +21,7 @@ static constexpr int SLM_SIZE = (NUM_BINS * 4);
 static constexpr int BLOCK_WIDTH = 32;
 static constexpr int NUM_BLOCKS = 32;
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -105,7 +105,7 @@ int CheckHistogram(unsigned int *cpu_histogram, unsigned int *gpu_histogram) {
 
 int main() {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          cl::sycl::property::queue::enable_profiling{});
+          sycl::property::queue::enable_profiling{});
 
   const char *input_file = nullptr;
   unsigned int width = 1024;

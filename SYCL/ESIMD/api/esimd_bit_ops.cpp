@@ -19,7 +19,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -77,7 +77,7 @@ template <typename T, int N, int Op> bool test(queue q) {
       });
     });
     e.wait_and_throw();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "  SYCL exception caught: " << e.what() << '\n';
     sycl::free(A, q);
     return false;

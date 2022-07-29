@@ -18,7 +18,7 @@
 #include "common.hpp"
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 using pixelT = sycl::float4;
 

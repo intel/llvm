@@ -17,7 +17,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename AccessorTy>
 ESIMD_INLINE void do_store(AccessorTy acc, int i, spec_const_t val) {
@@ -58,8 +58,8 @@ int main(int argc, char **argv) {
 
       // Checking that already initialized constant can be overwritten.
       // According to standards proposals:
-      //   A cl::sycl::experimental::spec_constant object is considered
-      //   initialized once the result of a cl::sycl::program::set_spec_constant
+      //   A sycl::experimental::spec_constant object is considered
+      //   initialized once the result of a sycl::program::set_spec_constant
       //   is assigned to it.
       //   A specialization constant value can be overwritten if the program was
       //   not built before by recalling set_spec_constant with the same ID and
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
             prg.get_kernel<TestKernel>(),
             [=]() SYCL_ESIMD_KERNEL { do_store(acc, i, spec_const.get()); });
       });
-    } catch (cl::sycl::exception const &e) {
+    } catch (sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
       return e.get_cl_code();
     }

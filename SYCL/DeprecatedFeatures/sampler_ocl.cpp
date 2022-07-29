@@ -18,7 +18,7 @@
 #include <sycl/sycl.hpp>
 
 namespace sycl {
-using namespace cl::sycl;
+using namespace sycl;
 }
 
 int main() {

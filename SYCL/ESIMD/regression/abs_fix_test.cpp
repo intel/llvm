@@ -12,7 +12,7 @@
 
 #include <CL/sycl.hpp>
 #include <ext/intel/esimd.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
 #define SIMD 16

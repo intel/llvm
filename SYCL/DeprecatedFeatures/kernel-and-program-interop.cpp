@@ -24,14 +24,14 @@
 int main() {
   // Single task invocation methods
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     int data = 0;
 
     // OpenCL interoperability kernel invocation
     if (!q.is_host()) {
       {
         cl_int err;
-        cl::sycl::context ctx = q.get_context();
+        sycl::context ctx = q.get_context();
         cl_context clCtx = ctx.get();
         cl_command_queue clQ = q.get();
         cl_mem clBuffer =
@@ -40,10 +40,10 @@ int main() {
                                    &data, 0, NULL, NULL);
         assert(err == CL_SUCCESS);
         clFinish(clQ);
-        cl::sycl::program prog(ctx);
+        sycl::program prog(ctx);
         prog.build_with_source(
             "kernel void SingleTask(global int* a) {*a+=1; }\n");
-        q.submit([&](cl::sycl::handler &cgh) {
+        q.submit([&](sycl::handler &cgh) {
           cgh.set_args(clBuffer);
           cgh.single_task(prog.get_kernel("SingleTask"));
         });
@@ -56,19 +56,19 @@ int main() {
         assert(data == 1);
       }
       {
-        cl::sycl::queue sycl_queue;
-        cl::sycl::program prog(sycl_queue.get_context());
+        sycl::queue sycl_queue;
+        sycl::program prog(sycl_queue.get_context());
         prog.build_with_source("kernel void foo(global int* a, global int* b, "
                                "global int* c) {*a=*b+*c; }\n");
         int a = 13, b = 14, c = 15;
         {
-          cl::sycl::buffer<int, 1> bufa(&a, cl::sycl::range<1>(1));
-          cl::sycl::buffer<int, 1> bufb(&b, cl::sycl::range<1>(1));
-          cl::sycl::buffer<int, 1> bufc(&c, cl::sycl::range<1>(1));
-          sycl_queue.submit([&](cl::sycl::handler &cgh) {
-            auto A = bufa.get_access<cl::sycl::access::mode::write>(cgh);
-            auto B = bufb.get_access<cl::sycl::access::mode::read>(cgh);
-            auto C = bufc.get_access<cl::sycl::access::mode::read>(cgh);
+          sycl::buffer<int, 1> bufa(&a, sycl::range<1>(1));
+          sycl::buffer<int, 1> bufb(&b, sycl::range<1>(1));
+          sycl::buffer<int, 1> bufc(&c, sycl::range<1>(1));
+          sycl_queue.submit([&](sycl::handler &cgh) {
+            auto A = bufa.get_access<sycl::access::mode::write>(cgh);
+            auto B = bufb.get_access<sycl::access::mode::read>(cgh);
+            auto C = bufc.get_access<sycl::access::mode::read>(cgh);
             cgh.set_args(A, B, C);
             cgh.single_task(prog.get_kernel("foo"));
           });
@@ -77,22 +77,21 @@ int main() {
       }
     }
     {
-      cl::sycl::queue Queue;
+      sycl::queue Queue;
       if (!Queue.is_host()) {
-        cl::sycl::sampler first(
-            cl::sycl::coordinate_normalization_mode::normalized,
-            cl::sycl::addressing_mode::clamp, cl::sycl::filtering_mode::linear);
-        cl::sycl::sampler second(
-            cl::sycl::coordinate_normalization_mode::unnormalized,
-            cl::sycl::addressing_mode::clamp_to_edge,
-            cl::sycl::filtering_mode::nearest);
-        cl::sycl::program prog(Queue.get_context());
+        sycl::sampler first(sycl::coordinate_normalization_mode::normalized,
+                            sycl::addressing_mode::clamp,
+                            sycl::filtering_mode::linear);
+        sycl::sampler second(sycl::coordinate_normalization_mode::unnormalized,
+                             sycl::addressing_mode::clamp_to_edge,
+                             sycl::filtering_mode::nearest);
+        sycl::program prog(Queue.get_context());
         prog.build_with_source(
             "kernel void sampler_args(int a, sampler_t first, "
             "int b, sampler_t second, int c) {}\n");
-        cl::sycl::kernel krn = prog.get_kernel("sampler_args");
+        sycl::kernel krn = prog.get_kernel("sampler_args");
 
-        Queue.submit([&](cl::sycl::handler &cgh) {
+        Queue.submit([&](sycl::handler &cgh) {
           cgh.set_args(0, first, 2, second, 3);
           cgh.single_task(krn);
         });
@@ -101,14 +100,14 @@ int main() {
   }
   // Parallel for with range
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     std::vector<int> dataVec(10);
     std::iota(dataVec.begin(), dataVec.end(), 0);
 
     if (!q.is_host()) {
       cl_int err;
       {
-        cl::sycl::context ctx = q.get_context();
+        sycl::context ctx = q.get_context();
         cl_context clCtx = ctx.get();
         cl_command_queue clQ = q.get();
         cl_mem clBuffer = clCreateBuffer(
@@ -118,21 +117,20 @@ int main() {
                                    0, NULL, NULL);
         assert(err == CL_SUCCESS);
 
-        cl::sycl::program prog(ctx);
+        sycl::program prog(ctx);
         prog.build_with_source(
             "kernel void ParallelFor(__global int* a, int v, __local int *l) "
             "{ size_t index = get_global_id(0); l[index] = a[index];"
             " l[index] += v; a[index] = l[index]; }\n");
 
-        q.submit([&](cl::sycl::handler &cgh) {
+        q.submit([&](sycl::handler &cgh) {
           const int value = 1;
           auto local_acc =
-              cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
-                                 cl::sycl::access::target::local>(
-                  cl::sycl::range<1>(10), cgh);
+              sycl::accessor<int, 1, sycl::access::mode::read_write,
+                             sycl::access::target::local>(sycl::range<1>(10),
+                                                          cgh);
           cgh.set_args(clBuffer, value, local_acc);
-          cgh.parallel_for(cl::sycl::range<1>(10),
-                           prog.get_kernel("ParallelFor"));
+          cgh.parallel_for(sycl::range<1>(10), prog.get_kernel("ParallelFor"));
         });
 
         q.wait();
@@ -151,14 +149,14 @@ int main() {
 
   // Parallel for with nd_range
   {
-    cl::sycl::queue q;
+    sycl::queue q;
     std::vector<int> dataVec(10);
     std::iota(dataVec.begin(), dataVec.end(), 0);
 
     if (!q.is_host()) {
       cl_int err;
       {
-        cl::sycl::context ctx = q.get_context();
+        sycl::context ctx = q.get_context();
         cl_context clCtx = ctx.get();
         cl_command_queue clQ = q.get();
         cl_mem clBuffer = clCreateBuffer(
@@ -168,7 +166,7 @@ int main() {
                                    0, NULL, NULL);
         assert(err == CL_SUCCESS);
 
-        cl::sycl::program prog(ctx);
+        sycl::program prog(ctx);
         prog.build_with_source(
             "kernel void ParallelForND( local int* l,global int* a)"
             "{  size_t idx = get_global_id(0);"
@@ -179,14 +177,13 @@ int main() {
             "  a[idx]=l[opp]; }");
 
         // TODO is there no way to set local memory size via interoperability?
-        cl::sycl::kernel krn = prog.get_kernel("ParallelForND");
+        sycl::kernel krn = prog.get_kernel("ParallelForND");
         clSetKernelArg(krn.get(), 0, sizeof(int) * 2, NULL);
 
-        q.submit([&](cl::sycl::handler &cgh) {
+        q.submit([&](sycl::handler &cgh) {
           cgh.set_arg(1, clBuffer);
-          cgh.parallel_for(cl::sycl::nd_range<1>(cl::sycl::range<1>(10),
-                                                 cl::sycl::range<1>(2)),
-                           krn);
+          cgh.parallel_for(
+              sycl::nd_range<1>(sycl::range<1>(10), sycl::range<1>(2)), krn);
         });
 
         q.wait();

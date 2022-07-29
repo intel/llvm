@@ -19,7 +19,7 @@
 #include <memory>
 #include <numeric>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 const std::string clKernelSourceCodeSimple = "\
 __kernel void test(__global int* a, __global int* b) {\
@@ -87,7 +87,7 @@ int main() {
 
       assert(Error == CL_SUCCESS);
 
-      buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
+      buffer<int, 1> BufA(AMem, sycl::range<1>(NSize));
       buffer<int, 1> BufB(BufA, NSize / 2, NSize / 2);
 
       kernel TestKernel(clKernel, TestQueue.get_context());
@@ -152,7 +152,7 @@ int main() {
 
       assert(Error == CL_SUCCESS);
 
-      buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
+      buffer<int, 1> BufA(AMem, sycl::range<1>(NSize));
       buffer<int, 1> BufB(BufA, 0, NSize / 4);
       buffer<int, 1> BufC(BufA, 2 * NSize / 4, NSize / 4);
 
@@ -233,7 +233,7 @@ int main() {
       cl_kernel clKernel2 = clCreateKernel(clProgram, "test2", &Error);
       assert(Error == CL_SUCCESS);
 
-      buffer<int, 1> BufA(AMem, cl::sycl::range<1>(NSize));
+      buffer<int, 1> BufA(AMem, sycl::range<1>(NSize));
       buffer<int, 1> BufB(BufA, 0, NSize / 2);
       buffer<int, 1> BufC(BufA, NSize / 4, NSize / 4);
 
@@ -291,7 +291,7 @@ int main() {
                        "}";
 
   {
-    cl::sycl::queue Q;
+    sycl::queue Q;
 
     // Create OpenCL program
     cl_int err;
@@ -301,27 +301,26 @@ int main() {
         clCreateProgramWithSource(context_cl, 1, &cl_src, nullptr, &err);
     err = clBuildProgram(program_cl, 1, &device_cl, nullptr, nullptr, nullptr);
     cl_kernel kernel_cl = clCreateKernel(program_cl, "test", &err);
-    cl::sycl::kernel kernel_sycl(kernel_cl, Q.get_context());
+    sycl::kernel kernel_sycl(kernel_cl, Q.get_context());
 
     // Create buffer
     constexpr int N = 256;
     std::vector<int> v(2 * N);
     std::iota(v.begin(), v.end(), 0);
-    cl::sycl::buffer<int, 1> buf(v.data(), v.size());
-    cl::sycl::buffer<int, 1> subbuf(buf, N, N);
+    sycl::buffer<int, 1> buf(v.data(), v.size());
+    sycl::buffer<int, 1> subbuf(buf, N, N);
 
-    auto subbuf_copy =
-        new cl::sycl::buffer<int, 1>(subbuf.reinterpret<int, 1>(N));
+    auto subbuf_copy = new sycl::buffer<int, 1>(subbuf.reinterpret<int, 1>(N));
 
     // Test offsets
     {
-      auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
+      auto host_acc = subbuf_copy->get_access<sycl::access::mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
       assert(host_acc[0] == 256 && "Invalid subbuffer origin");
     }
 
-    Q.submit([&](cl::sycl::handler &cgh) {
-      auto acc = subbuf_copy->get_access<cl::sycl::access::mode::write>(cgh);
+    Q.submit([&](sycl::handler &cgh) {
+      auto acc = subbuf_copy->get_access<sycl::access::mode::write>(cgh);
       cgh.set_args(acc);
       cgh.single_task(kernel_sycl);
     });
@@ -329,7 +328,7 @@ int main() {
     Q.wait_and_throw();
 
     {
-      auto host_acc = subbuf_copy->get_access<cl::sycl::access::mode::read>();
+      auto host_acc = subbuf_copy->get_access<sycl::access::mode::read>();
       std::cout << "On host: offset = " << host_acc[0] << std::endl;
       assert(host_acc[0] == 256 * 3 && "Invalid subbuffer origin");
     }

@@ -30,7 +30,7 @@
 #include <sycl/ext/intel/fpga_extensions.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr size_t N = 10;
 
@@ -44,12 +44,12 @@ void producer(queue &q) {
   // Launch the producer kernel
   q.submit([&](handler &cgh) {
     // Get read access to src buffer
-    cl::sycl::stream out(1024, 16, cgh);
+    sycl::stream out(1024, 16, cgh);
     cgh.single_task<producer_task>([=] {
       for (int i = 0; i < N; i++) {
         // Blocking write an int to the pipe
         my_pipe::write(i);
-        out << i << cl::sycl::endl;
+        out << i << sycl::endl;
       }
     });
   });
@@ -59,12 +59,12 @@ void consumer(queue &q) {
   // Launch the consumer kernel
   q.submit([&](handler &cgh) {
     // Get write access to dst buffer
-    cl::sycl::stream out(1024, 16, cgh);
+    sycl::stream out(1024, 16, cgh);
     cgh.single_task<consumer_task>([=] {
       for (int i = 0; i < N; i++) {
         // Blocking read an int from the pipe
         int tmp = my_pipe::read();
-        out << tmp << cl::sycl::endl;
+        out << tmp << sycl::endl;
       }
     });
   });

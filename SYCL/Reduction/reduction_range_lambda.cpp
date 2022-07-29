@@ -9,7 +9,7 @@
 
 #include "reduction_range_scalar.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr access::mode RW = access::mode::read_write;
 constexpr access::mode DW = access::mode::discard_write;

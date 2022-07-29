@@ -15,7 +15,7 @@
 #include <map>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace std;
 
 const std::map<info::device_type, std::string> DeviceTypeStringMap = {

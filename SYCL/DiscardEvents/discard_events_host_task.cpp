@@ -21,7 +21,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 void CheckArray(sycl::queue Q, int *x, size_t buffer_size, int expected) {
   Q.wait();

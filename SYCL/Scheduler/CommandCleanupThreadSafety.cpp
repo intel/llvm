@@ -14,7 +14,7 @@
 
 // This test checks that the command graph cleanup works properly when
 // invoked from multiple threads.
-using namespace cl::sycl;
+using namespace sycl;
 
 class Foo;
 

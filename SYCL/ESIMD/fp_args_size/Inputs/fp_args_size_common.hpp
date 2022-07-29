@@ -26,7 +26,7 @@ static_assert(SIZE >= VL, "Size must greater than or equal to VL");
 static_assert(SIZE % VL == 0, "Size must be multiple of VL");
 constexpr unsigned ROWS = SIZE / VL;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class KernelID;
 

@@ -14,8 +14,6 @@
 
 #include "../../helpers.hpp"
 
-using namespace cl;
-
 template <typename SrcAccType, typename DstAccType>
 void copyAndAdd(SrcAccType SrcAcc, DstAccType DstAcc, int Var) {
   for (int I = 0; I < (int)DstAcc.get_count(); ++I)

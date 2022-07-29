@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
                                    scalar_store(acc, 0, res);
                                  });
     });
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;
     return e.get_cl_code();
   }

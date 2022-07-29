@@ -17,7 +17,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr unsigned VL = 8;
 constexpr unsigned SZ = 800; // big enough to use TPM

@@ -15,7 +15,7 @@
 
 #include "reduction_range_scalar.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int NumErrors = 0;
 

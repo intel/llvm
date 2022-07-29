@@ -33,36 +33,35 @@ using namespace sycl::ext::oneapi;
 // Query the device and platform from a queue (constructed with a default device
 // selector) and check if they can be found in the devices and platforms lists
 // that were generated above.
-int queryFromQueue(std::vector<cl::sycl::platform> *platform_list,
-                   std::vector<cl::sycl::device> *device_list) {
+int queryFromQueue(std::vector<sycl::platform> *platform_list,
+                   std::vector<sycl::device> *device_list) {
   int failures = 0;
-  cl::sycl::queue Q{cl::sycl::default_selector{}};
-  cl::sycl::device dev = Q.get_info<cl::sycl::info::queue::device>();
+  sycl::queue Q{sycl::default_selector{}};
+  sycl::device dev = Q.get_info<sycl::info::queue::device>();
   auto plt = dev.get_platform();
 
   std::cout << "Platform queried from Queue : "
-            << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
-  auto plt_result =
-      std::find_if(platform_list->begin(), platform_list->end(),
-                   [&](cl::sycl::platform &p) { return p == plt; });
+            << plt.get_info<sycl::info::platform::name>() << std::endl;
+  auto plt_result = std::find_if(platform_list->begin(), platform_list->end(),
+                                 [&](sycl::platform &p) { return p == plt; });
   if (plt_result != platform_list->end()) {
     std::cout << "The platform list contains: "
-              << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
+              << plt.get_info<sycl::info::platform::name>() << std::endl;
   } else {
-    std::cout << plt.get_info<cl::sycl::info::platform::name>()
+    std::cout << plt.get_info<sycl::info::platform::name>()
               << " was not in the platform list.\n";
     failures++;
   }
 
   std::cout << "Device queried from Queue : "
-            << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
+            << plt.get_info<sycl::info::platform::name>() << std::endl;
   auto dev_result = std::find_if(device_list->begin(), device_list->end(),
-                                 [&](cl::sycl::device &d) { return d == dev; });
+                                 [&](sycl::device &d) { return d == dev; });
   if (dev_result != device_list->end()) {
     std::cout << "The device list contains: "
-              << dev.get_info<cl::sycl::info::device::name>() << std::endl;
+              << dev.get_info<sycl::info::device::name>() << std::endl;
   } else {
-    std::cout << dev.get_info<cl::sycl::info::device::name>()
+    std::cout << dev.get_info<sycl::info::device::name>()
               << " was not in the device list.\n";
     failures++;
   }
@@ -71,8 +70,8 @@ int queryFromQueue(std::vector<cl::sycl::platform> *platform_list,
 
 // Create both a platform and a device object using a native handle, and check
 // if those are in the platform and device lists.
-int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
-                          std::vector<cl::sycl::device> *device_list) {
+int queryFromNativeHandle(std::vector<sycl::platform> *platform_list,
+                          std::vector<sycl::device> *device_list) {
   int failures = 0;
   uint32_t l0_driver_count = 0;
   zeDriverGet(&l0_driver_count, nullptr);
@@ -93,34 +92,33 @@ int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
   zeDeviceGet(l0_drivers[0], &l0_device_count, l0_devices.data());
 
   // Create the platform and device objects using the native handle.
-  auto plt = level_zero::make<cl::sycl::platform>(l0_drivers[0]);
-  auto dev = level_zero::make<cl::sycl::device>(plt, l0_devices[0]);
+  auto plt = level_zero::make<sycl::platform>(l0_drivers[0]);
+  auto dev = level_zero::make<sycl::device>(plt, l0_devices[0]);
 
   // Check to see if this platform is in the platform list.
   std::cout << "Platform created with native handle: "
-            << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
-  auto plt_result =
-      std::find_if(platform_list->begin(), platform_list->end(),
-                   [&](cl::sycl::platform &p) { return p == plt; });
+            << plt.get_info<sycl::info::platform::name>() << std::endl;
+  auto plt_result = std::find_if(platform_list->begin(), platform_list->end(),
+                                 [&](sycl::platform &p) { return p == plt; });
   if (plt_result != platform_list->end()) {
     std::cout << "The platform list contains: "
-              << plt.get_info<cl::sycl::info::platform::name>() << std::endl;
+              << plt.get_info<sycl::info::platform::name>() << std::endl;
   } else {
-    std::cout << plt.get_info<cl::sycl::info::platform::name>()
+    std::cout << plt.get_info<sycl::info::platform::name>()
               << " was not in the platform list.\n";
     failures++;
   }
 
   // Check to see if this device is in the device list.
   std::cout << "Device created with native handle: "
-            << dev.get_info<cl::sycl::info::device::name>() << std::endl;
+            << dev.get_info<sycl::info::device::name>() << std::endl;
   auto dev_result = std::find_if(device_list->begin(), device_list->end(),
-                                 [&](cl::sycl::device &d) { return d == dev; });
+                                 [&](sycl::device &d) { return d == dev; });
   if (dev_result != device_list->end()) {
     std::cout << "The device list contains: "
-              << dev.get_info<cl::sycl::info::device::name>() << std::endl;
+              << dev.get_info<sycl::info::device::name>() << std::endl;
   } else {
-    std::cout << dev.get_info<cl::sycl::info::device::name>()
+    std::cout << dev.get_info<sycl::info::device::name>()
               << " was not in the device list.\n";
     failures++;
   }
@@ -132,21 +130,19 @@ int main() {
 
   // Query for a list of all of the available platforms and devices.
   int pindex = 1;
-  std::vector<cl::sycl::platform> platform_list;
-  std::vector<cl::sycl::device> device_list;
-  for (const auto &plt : cl::sycl::platform::get_platforms()) {
+  std::vector<sycl::platform> platform_list;
+  std::vector<sycl::device> device_list;
+  for (const auto &plt : sycl::platform::get_platforms()) {
     std::cout << "Platform " << pindex++ << " "
               << ((plt.is_host()) ? "host" : "") << " ("
-              << plt.get_info<cl::sycl::info::platform::name>() << ")"
-              << std::endl;
+              << plt.get_info<sycl::info::platform::name>() << ")" << std::endl;
     platform_list.push_back(plt);
 
     int dindex = 1;
     for (const auto &dev : plt.get_devices()) {
       std::cout << "  "
                 << "Device " << dindex++ << " ("
-                << dev.get_info<cl::sycl::info::device::name>() << ")"
-                << std::endl;
+                << dev.get_info<sycl::info::device::name>() << ")" << std::endl;
       device_list.push_back(dev);
     }
   }

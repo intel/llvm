@@ -4,7 +4,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 #include <sycl/sycl.hpp>
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T> class foo;
 

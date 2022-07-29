@@ -35,7 +35,7 @@
 #define aligned_free(ptr) std::free(ptr)
 #endif // _WIN32
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::intel::esimd;
 
@@ -57,7 +57,7 @@ bool testUSM(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
          Vals.copy_to(Dst + Off, Flags{});
        });
      }).wait();
-  } catch (cl::sycl::exception const &E) {
+  } catch (sycl::exception const &E) {
     std::cout << "ERROR. SYCL exception caught: " << E.what() << std::endl;
     return false;
   }
@@ -97,7 +97,7 @@ bool testAcc(queue &Q, T *Src, T *Dst, unsigned Off, Flags) {
          Vals.copy_to(DstA, Off * sizeof(T), Flags{});
        });
      }).wait();
-  } catch (cl::sycl::exception const &E) {
+  } catch (sycl::exception const &E) {
     std::cout << "ERROR. SYCL exception caught: " << E.what() << std::endl;
     return false;
   }

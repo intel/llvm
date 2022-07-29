@@ -27,11 +27,11 @@ using namespace sycl;
 class KernelAAAi;
 
 int main(int argc, char **argv) {
-  cl::sycl::queue q(default_selector{}, [](exception_list l) {
+  sycl::queue q(default_selector{}, [](exception_list l) {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << e0.what();
       } catch (std::exception &e1) {
         std::cout << e1.what();
@@ -43,10 +43,10 @@ int main(int argc, char **argv) {
 
   std::cout << "Running on " << q.get_device().get_info<info::device::name>()
             << "\n";
-  cl::sycl::program program1(q.get_context());
+  sycl::program program1(q.get_context());
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const>
-      i32 = program1.set_spec_constant<MyInt32Const>(10);
+  sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+      program1.set_spec_constant<MyInt32Const>(10);
 
   std::vector<int> veci(1);
   bool passed = false;
@@ -56,19 +56,19 @@ int main(int argc, char **argv) {
   try {
     // This is an attempt to set a spec constant after the program has been
     // built - spec_const_error should be thrown
-    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const>
-        i32 = program1.set_spec_constant<MyInt32Const>(10);
+    sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+        program1.set_spec_constant<MyInt32Const>(10);
 
-    cl::sycl::buffer<int, 1> bufi(veci.data(), veci.size());
+    sycl::buffer<int, 1> bufi(veci.data(), veci.size());
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acci = bufi.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto acci = bufi.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<KernelAAAi>(program1.get_kernel<KernelAAAi>(),
                                   [=]() { acci[0] = i32.get(); });
     });
-  } catch (cl::sycl::ext::oneapi::experimental::spec_const_error &sc_err) {
+  } catch (sycl::ext::oneapi::experimental::spec_const_error &sc_err) {
     passed = true;
-  } catch (cl::sycl::exception &e) {
+  } catch (sycl::exception &e) {
     std::cout << "*** Exception caught: " << e.what() << "\n";
     return 1;
   }

@@ -18,11 +18,11 @@ using namespace sycl;
 class Kernel;
 
 int main(int argc, char **argv) {
-  cl::sycl::queue q(default_selector{}, [](exception_list l) {
+  sycl::queue q(default_selector{}, [](exception_list l) {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << e0.what();
       } catch (std::exception &e1) {
         std::cout << e1.what();
@@ -34,19 +34,19 @@ int main(int argc, char **argv) {
 
   std::cout << "Running on " << q.get_device().get_info<info::device::name>()
             << "\n";
-  cl::sycl::program prog(q.get_context());
+  sycl::program prog(q.get_context());
 
-  cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const>
-      i32 = prog.set_spec_constant<MyInt32Const>(10);
+  sycl::ext::oneapi::experimental::spec_constant<int32_t, MyInt32Const> i32 =
+      prog.set_spec_constant<MyInt32Const>(10);
 
   prog.build_with_kernel_type<Kernel>();
 
   std::vector<int> vec(1);
   {
-    cl::sycl::buffer<int, 1> buf(vec.data(), vec.size());
+    sycl::buffer<int, 1> buf(vec.data(), vec.size());
 
-    q.submit([&](cl::sycl::handler &cgh) {
-      auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
+    q.submit([&](sycl::handler &cgh) {
+      auto acc = buf.get_access<sycl::access::mode::write>(cgh);
       cgh.single_task<Kernel>(prog.get_kernel<Kernel>(),
                               [=]() { acc[0] = i32.get(); });
     });

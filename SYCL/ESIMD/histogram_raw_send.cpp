@@ -22,7 +22,7 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 #define NUM_BINS 256
 #define IMG_WIDTH 1024
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 
   // Allocate Input Buffer
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          cl::sycl::property::queue::enable_profiling{});
+          sycl::property::queue::enable_profiling{});
 
   auto dev = q.get_device();
   auto ctxt = q.get_context();
@@ -162,9 +162,9 @@ int main(int argc, char *argv[]) {
   memset(cpuHistogram, 0, sizeof(cpuHistogram));
   histogram_CPU(width, height, srcY, cpuHistogram);
 
-  cl::sycl::image<2> Img(srcY, image_channel_order::rgba,
-                         image_channel_type::unsigned_int32,
-                         range<2>{width / sizeof(uint4), height});
+  sycl::image<2> Img(srcY, image_channel_order::rgba,
+                     image_channel_type::unsigned_int32,
+                     range<2>{width / sizeof(uint4), height});
 
   // Start Timer
   esimd_test::Timer timer;
@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
       nd_range<1> Range(GlobalRange, LocalRange);
 
       auto e = q.submit([&](handler &cgh) {
-        auto readAcc = Img.get_access<uint4, cl::sycl::access::mode::read>(cgh);
+        auto readAcc = Img.get_access<uint4, sycl::access::mode::read>(cgh);
 
         cgh.parallel_for<class Hist>(
             Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -259,7 +259,7 @@ int main(int argc, char *argv[]) {
     // SYCL will enqueue and run the kernel. Recall that the buffer's data is
     // given back to the host at the end of scope.
     // make sure data is given back to the host at the end of this scope
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 1;
   }

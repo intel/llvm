@@ -12,7 +12,7 @@
 #include <sycl/ext/intel/fpga_extensions.hpp>
 #include <sycl/sycl.hpp>
 
-int test_lsu(cl::sycl::queue Queue) {
+int test_lsu(sycl::queue Queue) {
   int output_data[2];
   for (size_t i = 0; i < 2; i++) {
     output_data[i] = -1;
@@ -24,33 +24,33 @@ int test_lsu(cl::sycl::queue Queue) {
   }
 
   {
-    cl::sycl::buffer<int, 1> output_buffer(output_data, 1);
-    cl::sycl::buffer<int, 1> input_buffer(input_data, 1);
+    sycl::buffer<int, 1> output_buffer(output_data, 1);
+    sycl::buffer<int, 1> input_buffer(input_data, 1);
 
-    Queue.submit([&](cl::sycl::handler &cgh) {
+    Queue.submit([&](sycl::handler &cgh) {
       auto output_accessor =
-          output_buffer.get_access<cl::sycl::access::mode::write>(cgh);
+          output_buffer.get_access<sycl::access::mode::write>(cgh);
       auto input_accessor =
-          input_buffer.get_access<cl::sycl::access::mode::read>(cgh);
+          input_buffer.get_access<sycl::access::mode::read>(cgh);
 
       cgh.single_task<class kernel>([=] {
         auto input_ptr = input_accessor.get_pointer();
         auto output_ptr = output_accessor.get_pointer();
 
-        using PrefetchingLSU = cl::sycl::ext::intel::lsu<
-            cl::sycl::ext::intel::prefetch<true>,
-            cl::sycl::ext::intel::statically_coalesce<false>>;
+        using PrefetchingLSU =
+            sycl::ext::intel::lsu<sycl::ext::intel::prefetch<true>,
+                                  sycl::ext::intel::statically_coalesce<false>>;
 
-        using BurstCoalescedLSU = cl::sycl::ext::intel::lsu<
-            cl::sycl::ext::intel::burst_coalesce<true>,
-            cl::sycl::ext::intel::statically_coalesce<false>>;
+        using BurstCoalescedLSU =
+            sycl::ext::intel::lsu<sycl::ext::intel::burst_coalesce<true>,
+                                  sycl::ext::intel::statically_coalesce<false>>;
 
-        using CachingLSU = cl::sycl::ext::intel::lsu<
-            cl::sycl::ext::intel::burst_coalesce<true>,
-            cl::sycl::ext::intel::cache<1024>,
-            cl::sycl::ext::intel::statically_coalesce<false>>;
+        using CachingLSU =
+            sycl::ext::intel::lsu<sycl::ext::intel::burst_coalesce<true>,
+                                  sycl::ext::intel::cache<1024>,
+                                  sycl::ext::intel::statically_coalesce<false>>;
 
-        using PipelinedLSU = cl::sycl::ext::intel::lsu<>;
+        using PipelinedLSU = sycl::ext::intel::lsu<>;
 
         int X = PrefetchingLSU::load(input_ptr); // int X = input_ptr[0]
         int Y = CachingLSU::load(input_ptr + 1); // int Y = input_ptr[1]
@@ -73,7 +73,7 @@ int test_lsu(cl::sycl::queue Queue) {
 }
 
 int main() {
-  cl::sycl::queue Queue{cl::sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
 
   return test_lsu(Queue);
 }

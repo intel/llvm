@@ -11,7 +11,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // ---- utils
 template <typename T1, int N> struct utils {

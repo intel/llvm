@@ -16,7 +16,7 @@
 
 #include <cassert>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // This test checks that SYCL kernel interoperabitily constructor is implemented
 // in accordance with SYCL spec:
@@ -55,7 +55,7 @@ int main() {
   context OtherContext{Context.get_devices()[0]};
   try {
     kernel Kernel(ClKernel, OtherContext);
-  } catch (cl::sycl::invalid_parameter_error e) {
+  } catch (sycl::invalid_parameter_error e) {
     Pass = true;
   }
   assert(Pass);

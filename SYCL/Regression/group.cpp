@@ -4,7 +4,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-//==-- group.cpp - Regression tests for cl::sycl::group API bug fixes. -----==//
+//==-- group.cpp - Regression tests for sycl::group API bug fixes. -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,10 +15,10 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct AsyncHandler {
-  void operator()(cl::sycl::exception_list L) {
+  void operator()(sycl::exception_list L) {
     for (auto &E : L) {
       std::rethrow_exception(E);
     }
@@ -53,7 +53,7 @@ bool group__get_group_range() {
             Ptr[Off + 2] = GR.get(2);
           });
     });
-  } catch (cl::sycl::exception const &E) {
+  } catch (sycl::exception const &E) {
     std::cout << "SYCL exception caught: " << E.what() << '\n';
     return 2;
   }
@@ -119,7 +119,7 @@ bool group__get_linear_id() {
             Ptr[Off + 2] = LI;
           });
     });
-  } catch (cl::sycl::exception const &E) {
+  } catch (sycl::exception const &E) {
     std::cout << "SYCL exception caught: " << E.what() << '\n';
     return 2;
   }
@@ -215,7 +215,7 @@ bool group__async_work_group_copy() {
               }
             });
       });
-    } catch (cl::sycl::exception const &E) {
+    } catch (sycl::exception const &E) {
       std::cout << "SYCL exception caught: " << E.what() << '\n';
       return 2;
     }

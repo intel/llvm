@@ -18,8 +18,6 @@
 #include <chrono>
 #include <thread>
 
-using namespace cl;
-
 int main() {
   constexpr size_t BufSize = 4;
 

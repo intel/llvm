@@ -7,7 +7,7 @@
 // The test checks that pi_events are released without queue destruction
 // or call to queue::wait, when the corresponding commands are cleaned up.
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class Foo;
 

@@ -14,7 +14,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 16;
 
 void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {

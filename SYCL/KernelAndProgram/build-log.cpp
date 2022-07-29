@@ -18,7 +18,7 @@ SYCL_EXTERNAL
 void symbol_that_does_not_exist();
 
 void test() {
-  cl::sycl::queue Queue;
+  sycl::queue Queue;
 
   // Submitting this kernel should result in a compile_program_error exception
   // with a message indicating "PI_ERROR_BUILD_PROGRAM_FAILURE".
@@ -36,16 +36,15 @@ void test() {
   int Result;
 
   try {
-    Queue.submit([&](cl::sycl::handler &CGH) {
-      CGH.single_task<class SingleTask>(Kernel);
-    });
+    Queue.submit(
+        [&](sycl::handler &CGH) { CGH.single_task<class SingleTask>(Kernel); });
     assert(false && "There must be compilation error");
-  } catch (const cl::sycl::compile_program_error &e) {
+  } catch (const sycl::compile_program_error &e) {
     std::string Msg(e.what());
     std::cerr << Msg << std::endl;
     assert(Msg.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos);
   } catch (...) {
-    assert(false && "There must be cl::sycl::compile_program_error");
+    assert(false && "There must be sycl::compile_program_error");
   }
 }
 
