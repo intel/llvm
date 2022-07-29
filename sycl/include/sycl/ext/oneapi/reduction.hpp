@@ -1178,12 +1178,12 @@ bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
   if constexpr (Reduction::has_fast_atomics)
     return reduCGFuncForRangeFastAtomics<KernelName>(CGH, KernelFunc, Range,
                                                      NDRange, Redu);
-
-  if constexpr (Reduction::has_fast_reduce)
+  else if constexpr (Reduction::has_fast_reduce)
     return reduCGFuncForRangeFastReduce<KernelName>(CGH, KernelFunc, Range,
                                                     NDRange, Redu);
-  return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
-                                             Redu);
+  else
+    return reduCGFuncForRangeBasic<KernelName>(CGH, KernelFunc, Range, NDRange,
+                                               Redu);
 }
 
 namespace reduction {
