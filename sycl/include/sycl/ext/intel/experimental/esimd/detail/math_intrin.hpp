@@ -434,11 +434,10 @@ __esimd_dpas_bits_precision(__ESIMD_ENS::argument_type precisionType) {
              : 1;
 }
 
-// TODO : 'src0' argument type other than 'void*'?
 template <typename RT, typename T1, typename T2, __ESIMD_NS::uint SZ,
           __ESIMD_NS::uint N1, __ESIMD_NS::uint N2>
 inline __ESIMD_DNS::vector_type_t<RT, SZ>
-__esimd_dpas_inner(const void *src0,
+__esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<RT, SZ> *src0,
                    const __ESIMD_DNS::vector_type_t<T1, N1> &src1,
                    const __ESIMD_DNS::vector_type_t<T2, N2> &src2,
                    __ESIMD_ENS::argument_type src1_precision,
@@ -557,9 +556,7 @@ __esimd_dpas_inner(const void *src0,
 
     for (uint n = 0; n < SIMDSize; n++) {
       if (src0 != nullptr) {
-        __ESIMD_DNS::vector_type_t<RT, SZ> *src0Casted =
-            (__ESIMD_DNS::vector_type_t<RT, SZ> *)(src0);
-        auto src0El = src0Casted[0][r * SIMDSize + n];
+        auto src0El = src0[0][r * SIMDSize + n];
 
         if (pvcBfDest) {
           const auto tmp = (uint32_t)(src0El) << 16;
@@ -657,7 +654,7 @@ __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
   ARG_UNUSED(sign_res);
   ARG_UNUSED(sign_acc);
   return __esimd_dpas_inner<T, T1, T2, N, N1, N2>(
-      (void *)std::addressof(src0), src1, src2,
+      std::addressof(src0), src1, src2,
       (__ESIMD_ENS::argument_type)(src1_precision - 1),
       (__ESIMD_ENS::argument_type)(src2_precision - 1), depth, repeat);
 }
