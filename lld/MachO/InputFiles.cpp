@@ -65,6 +65,7 @@
 #include "llvm/LTO/LTO.h"
 #include "llvm/Support/BinaryStreamReader.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/LEB128.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TarWriter.h"
@@ -262,11 +263,15 @@ static Optional<size_t> getRecordSize(StringRef segname, StringRef name) {
     if (segname == segment_names::ld)
       return target->wordSize == 8 ? 32 : 20;
   }
-  if (config->icfLevel == ICFLevel::none)
+  if (!config->dedupLiterals)
     return {};
 
   if (name == section_names::cfString && segname == segment_names::data)
     return target->wordSize == 8 ? 32 : 16;
+
+  if (config->icfLevel == ICFLevel::none)
+    return {};
+
   if (name == section_names::objcClassRefs && segname == segment_names::data)
     return target->wordSize;
   return {};
@@ -346,7 +351,7 @@ void ObjFile::parseSections(ArrayRef<SectionHeader> sectionHeaders) {
       section.subsections.push_back({0, isec});
     } else if (auto recordSize = getRecordSize(segname, name)) {
       splitRecords(*recordSize);
-    } else if (config->parseEhFrames && name == section_names::ehFrame &&
+    } else if (name == section_names::ehFrame &&
                segname == segment_names::text) {
       splitEhFrames(data, *sections.back());
     } else if (segname == segment_names::llvm) {
@@ -447,6 +452,154 @@ static Defined *findSymbolAtOffset(const ConcatInputSection *isec,
     return nullptr;
   }
   return *it;
+}
+
+// Linker optimization hints mark a sequence of instructions used for
+// synthesizing an address which that be transformed into a faster sequence. The
+// transformations depend on conditions that are determined at link time, like
+// the distance to the referenced symbol or its alignment.
+//
+// Each hint has a type and refers to 2 or 3 instructions. Each of those
+// instructions must have a corresponding relocation. After addresses have been
+// finalized and relocations have been performed, we check if the requirements
+// hold, and perform the optimizations if they do.
+//
+// Similar linker relaxations exist for ELF as well, with the difference being
+// that the explicit marking allows for the relaxation of non-consecutive
+// relocations too.
+//
+// The specific types of hints are documented in Arch/ARM64.cpp
+void ObjFile::parseOptimizationHints(ArrayRef<uint8_t> data) {
+  auto expectedArgCount = [](uint8_t type) {
+    switch (type) {
+    case LOH_ARM64_ADRP_ADRP:
+    case LOH_ARM64_ADRP_LDR:
+    case LOH_ARM64_ADRP_ADD:
+    case LOH_ARM64_ADRP_LDR_GOT:
+      return 2;
+    case LOH_ARM64_ADRP_ADD_LDR:
+    case LOH_ARM64_ADRP_ADD_STR:
+    case LOH_ARM64_ADRP_LDR_GOT_LDR:
+    case LOH_ARM64_ADRP_LDR_GOT_STR:
+      return 3;
+    }
+    return -1;
+  };
+
+  // Each hint contains at least 4 ULEB128-encoded fields, so in the worst case,
+  // there are data.size() / 4 LOHs. It's a huge overestimation though, as
+  // offsets are unlikely to fall in the 0-127 byte range, so we pre-allocate
+  // half as much.
+  optimizationHints.reserve(data.size() / 8);
+
+  for (const uint8_t *p = data.begin(); p < data.end();) {
+    const ptrdiff_t inputOffset = p - data.begin();
+    unsigned int n = 0;
+    uint8_t type = decodeULEB128(p, &n, data.end());
+    p += n;
+
+    // An entry of type 0 terminates the list.
+    if (type == 0)
+      break;
+
+    int expectedCount = expectedArgCount(type);
+    if (LLVM_UNLIKELY(expectedCount == -1)) {
+      error("Linker optimization hint at offset " + Twine(inputOffset) +
+            " has unknown type " + Twine(type));
+      return;
+    }
+
+    uint8_t argCount = decodeULEB128(p, &n, data.end());
+    p += n;
+
+    if (LLVM_UNLIKELY(argCount != expectedCount)) {
+      error("Linker optimization hint at offset " + Twine(inputOffset) +
+            " has " + Twine(argCount) + " arguments instead of the expected " +
+            Twine(expectedCount));
+      return;
+    }
+
+    uint64_t offset0 = decodeULEB128(p, &n, data.end());
+    p += n;
+
+    int16_t delta[2];
+    for (int i = 0; i < argCount - 1; ++i) {
+      uint64_t address = decodeULEB128(p, &n, data.end());
+      p += n;
+      int64_t d = address - offset0;
+      if (LLVM_UNLIKELY(d > std::numeric_limits<int16_t>::max() ||
+                        d < std::numeric_limits<int16_t>::min())) {
+        error("Linker optimization hint at offset " + Twine(inputOffset) +
+              " has addresses too far apart");
+        return;
+      }
+      delta[i] = d;
+    }
+
+    optimizationHints.push_back({offset0, {delta[0], delta[1]}, type});
+  }
+
+  // We sort the per-object vector of optimization hints so each section only
+  // needs to hold an ArrayRef to a contiguous range of hints.
+  llvm::sort(optimizationHints,
+             [](const OptimizationHint &a, const OptimizationHint &b) {
+               return a.offset0 < b.offset0;
+             });
+
+  auto section = sections.begin();
+  auto subsection = (*section)->subsections.begin();
+  uint64_t subsectionBase = 0;
+  uint64_t subsectionEnd = 0;
+
+  auto updateAddr = [&]() {
+    subsectionBase = (*section)->addr + subsection->offset;
+    subsectionEnd = subsectionBase + subsection->isec->getSize();
+  };
+
+  auto advanceSubsection = [&]() {
+    if (section == sections.end())
+      return;
+    ++subsection;
+    if (subsection == (*section)->subsections.end()) {
+      ++section;
+      if (section == sections.end())
+        return;
+      subsection = (*section)->subsections.begin();
+    }
+  };
+
+  updateAddr();
+  auto hintStart = optimizationHints.begin();
+  for (auto hintEnd = hintStart, end = optimizationHints.end(); hintEnd != end;
+       ++hintEnd) {
+    if (hintEnd->offset0 >= subsectionEnd) {
+      subsection->isec->optimizationHints =
+          ArrayRef<OptimizationHint>(&*hintStart, hintEnd - hintStart);
+
+      hintStart = hintEnd;
+      while (hintStart->offset0 >= subsectionEnd) {
+        advanceSubsection();
+        if (section == sections.end())
+          break;
+        updateAddr();
+      }
+    }
+
+    hintEnd->offset0 -= subsectionBase;
+    for (int i = 0, count = expectedArgCount(hintEnd->type); i < count - 1;
+         ++i) {
+      if (LLVM_UNLIKELY(
+              hintEnd->delta[i] < -static_cast<int64_t>(hintEnd->offset0) ||
+              hintEnd->delta[i] >=
+                  static_cast<int64_t>(subsectionEnd - hintEnd->offset0))) {
+        error("Linker optimization hint spans multiple sections");
+        return;
+      }
+    }
+  }
+  if (section != sections.end())
+    subsection->isec->optimizationHints = ArrayRef<OptimizationHint>(
+        &*hintStart, optimizationHints.end() - hintStart);
 }
 
 template <class SectionHeader>
@@ -949,6 +1102,11 @@ template <class LP> void ObjFile::parse() {
     if (!sections[i]->subsections.empty())
       parseRelocations(sectionHeaders, sectionHeaders[i], *sections[i]);
 
+  if (!config->ignoreOptimizationHints)
+    if (auto *cmd = findCommand<linkedit_data_command>(
+            hdr, LC_LINKER_OPTIMIZATION_HINT))
+      parseOptimizationHints({buf + cmd->dataoff, cmd->datasize});
+
   parseDebugInfo();
 
   Section *ehFrameSection = nullptr;
@@ -963,7 +1121,7 @@ template <class LP> void ObjFile::parse() {
   }
   if (compactUnwindSection)
     registerCompactUnwind(*compactUnwindSection);
-  if (config->parseEhFrames && ehFrameSection)
+  if (ehFrameSection)
     registerEhFrames(*ehFrameSection);
 }
 
@@ -1032,14 +1190,27 @@ ArrayRef<data_in_code_entry> ObjFile::getDataInCode() const {
 void ObjFile::registerCompactUnwind(Section &compactUnwindSection) {
   for (const Subsection &subsection : compactUnwindSection.subsections) {
     ConcatInputSection *isec = cast<ConcatInputSection>(subsection.isec);
-    // Hack!! Since each CUE contains a different function address, if ICF
-    // operated naively and compared the entire contents of each CUE, entries
-    // with identical unwind info but belonging to different functions would
-    // never be considered equivalent. To work around this problem, we slice
-    // away the function address here. (Note that we do not adjust the offsets
-    // of the corresponding relocations.) We rely on `relocateCompactUnwind()`
-    // to correctly handle these truncated input sections.
-    isec->data = isec->data.slice(target->wordSize);
+    // Hack!! Each compact unwind entry (CUE) has its UNSIGNED relocations embed
+    // their addends in its data. Thus if ICF operated naively and compared the
+    // entire contents of each CUE, entries with identical unwind info but e.g.
+    // belonging to different functions would never be considered equivalent. To
+    // work around this problem, we remove some parts of the data containing the
+    // embedded addends. In particular, we remove the function address and LSDA
+    // pointers.  Since these locations are at the start and end of the entry,
+    // we can do this using a simple, efficient slice rather than performing a
+    // copy.  We are not losing any information here because the embedded
+    // addends have already been parsed in the corresponding Reloc structs.
+    //
+    // Removing these pointers would not be safe if they were pointers to
+    // absolute symbols. In that case, there would be no corresponding
+    // relocation. However, (AFAIK) MC cannot emit references to absolute
+    // symbols for either the function address or the LSDA. However, it *can* do
+    // so for the personality pointer, so we are not slicing that field away.
+    //
+    // Note that we do not adjust the offsets of the corresponding relocations;
+    // instead, we rely on `relocateCompactUnwind()` to correctly handle these
+    // truncated input sections.
+    isec->data = isec->data.slice(target->wordSize, 8 + target->wordSize);
     uint32_t encoding = read32le(isec->data.data() + sizeof(uint32_t));
     // llvm-mc omits CU entries for functions that need DWARF encoding, but
     // `ld -r` doesn't. We can ignore them because we will re-synthesize these
@@ -1086,11 +1257,23 @@ void ObjFile::registerCompactUnwind(Section &compactUnwindSection) {
         continue;
       }
       d->unwindEntry = isec;
-      // Since we've sliced away the functionAddress, we should remove the
-      // corresponding relocation too. Given that clang emits relocations in
-      // reverse order of address, this relocation should be at the end of the
-      // vector for most of our input object files, so this is typically an O(1)
-      // operation.
+      // Now that the symbol points to the unwind entry, we can remove the reloc
+      // that points from the unwind entry back to the symbol.
+      //
+      // First, the symbol keeps the unwind entry alive (and not vice versa), so
+      // this keeps dead-stripping simple.
+      //
+      // Moreover, it reduces the work that ICF needs to do to figure out if
+      // functions with unwind info are foldable.
+      //
+      // However, this does make it possible for ICF to fold CUEs that point to
+      // distinct functions (if the CUEs are otherwise identical).
+      // UnwindInfoSection takes care of this by re-duplicating the CUEs so that
+      // each one can hold a distinct functionAddress value.
+      //
+      // Given that clang emits relocations in reverse order of address, this
+      // relocation should be at the end of the vector for most of our input
+      // object files, so this erase() is typically an O(1) operation.
       it = isec->relocs.erase(it);
     }
   }
@@ -1533,7 +1716,6 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
     umbrella = this;
   this->umbrella = umbrella;
 
-  auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
   auto *hdr = reinterpret_cast<const mach_header *>(mb.getBufferStart());
 
   // Initialize installName.
@@ -1568,39 +1750,53 @@ DylibFile::DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
 
   // Initialize symbols.
   exportingFile = isImplicitlyLinked(installName) ? this : this->umbrella;
-  if (const load_command *cmd = findCommand(hdr, LC_DYLD_INFO_ONLY)) {
-    auto *c = reinterpret_cast<const dyld_info_command *>(cmd);
-    struct TrieEntry {
-      StringRef name;
-      uint64_t flags;
-    };
 
-    std::vector<TrieEntry> entries;
-    // Find all the $ld$* symbols to process first.
-    parseTrie(buf + c->export_off, c->export_size,
-              [&](const Twine &name, uint64_t flags) {
-                StringRef savedName = saver().save(name);
-                if (handleLDSymbol(savedName))
-                  return;
-                entries.push_back({savedName, flags});
-              });
-
-    // Process the "normal" symbols.
-    for (TrieEntry &entry : entries) {
-      if (exportingFile->hiddenSymbols.contains(
-              CachedHashStringRef(entry.name)))
-        continue;
-
-      bool isWeakDef = entry.flags & EXPORT_SYMBOL_FLAGS_WEAK_DEFINITION;
-      bool isTlv = entry.flags & EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL;
-
-      symbols.push_back(
-          symtab->addDylib(entry.name, exportingFile, isWeakDef, isTlv));
-    }
-
-  } else {
-    error("LC_DYLD_INFO_ONLY not found in " + toString(this));
+  const auto *dyldInfo = findCommand<dyld_info_command>(hdr, LC_DYLD_INFO_ONLY);
+  const auto *exportsTrie =
+      findCommand<linkedit_data_command>(hdr, LC_DYLD_EXPORTS_TRIE);
+  if (dyldInfo && exportsTrie) {
+    // It's unclear what should happen in this case. Maybe we should only error
+    // out if the two load commands refer to different data?
+    error("dylib " + toString(this) +
+          " has both LC_DYLD_INFO_ONLY and LC_DYLD_EXPORTS_TRIE");
     return;
+  } else if (dyldInfo) {
+    parseExportedSymbols(dyldInfo->export_off, dyldInfo->export_size);
+  } else if (exportsTrie) {
+    parseExportedSymbols(exportsTrie->dataoff, exportsTrie->datasize);
+  } else {
+    error("No LC_DYLD_INFO_ONLY or LC_DYLD_EXPORTS_TRIE found in " +
+          toString(this));
+    return;
+  }
+}
+
+void DylibFile::parseExportedSymbols(uint32_t offset, uint32_t size) {
+  struct TrieEntry {
+    StringRef name;
+    uint64_t flags;
+  };
+
+  auto *buf = reinterpret_cast<const uint8_t *>(mb.getBufferStart());
+  std::vector<TrieEntry> entries;
+  // Find all the $ld$* symbols to process first.
+  parseTrie(buf + offset, size, [&](const Twine &name, uint64_t flags) {
+    StringRef savedName = saver().save(name);
+    if (handleLDSymbol(savedName))
+      return;
+    entries.push_back({savedName, flags});
+  });
+
+  // Process the "normal" symbols.
+  for (TrieEntry &entry : entries) {
+    if (exportingFile->hiddenSymbols.contains(CachedHashStringRef(entry.name)))
+      continue;
+
+    bool isWeakDef = entry.flags & EXPORT_SYMBOL_FLAGS_WEAK_DEFINITION;
+    bool isTlv = entry.flags & EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL;
+
+    symbols.push_back(
+        symtab->addDylib(entry.name, exportingFile, isWeakDef, isTlv));
   }
 }
 

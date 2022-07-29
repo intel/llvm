@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/config.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 
@@ -116,8 +117,8 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   // The default of 16 was chosen based on empirical benchmarking results;
   // an environment variable is provided to allow users to override this
   // behavior.
-  using PrefWGConfig =
-      detail::SYCLConfig<detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE>;
+  using PrefWGConfig = sycl::detail::SYCLConfig<
+      sycl::detail::SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE>;
   if (Dev.is_cpu()) {
     size_t CPUMaxWGSize = PrefWGConfig::get(info::device_type::cpu);
     if (CPUMaxWGSize == 0)

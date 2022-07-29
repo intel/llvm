@@ -17,6 +17,7 @@
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Host/OptionParser.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/CommandOptionArgumentTable.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Interpreter/OptionGroupPythonClassWithDict.h"
@@ -33,7 +34,7 @@
 #include "lldb/Target/ThreadPlan.h"
 #include "lldb/Target/ThreadPlanStepInRange.h"
 #include "lldb/Target/Trace.h"
-#include "lldb/Target/TraceInstructionDumper.h"
+#include "lldb/Target/TraceDumper.h"
 #include "lldb/Utility/State.h"
 
 using namespace lldb;
@@ -238,16 +239,6 @@ protected:
 };
 
 enum StepScope { eStepScopeSource, eStepScopeInstruction };
-
-static constexpr OptionEnumValueElement g_tri_running_mode[] = {
-    {eOnlyThisThread, "this-thread", "Run only this thread"},
-    {eAllThreads, "all-threads", "Run all threads"},
-    {eOnlyDuringStepping, "while-stepping",
-     "Run only this thread while stepping"}};
-
-static constexpr OptionEnumValues TriRunningModes() {
-  return OptionEnumValues(g_tri_running_mode);
-}
 
 #define LLDB_OPTIONS_thread_step_scope
 #include "CommandOptions.inc"
@@ -813,14 +804,6 @@ public:
 
 // CommandObjectThreadUntil
 
-static constexpr OptionEnumValueElement g_duo_running_mode[] = {
-    {eOnlyThisThread, "this-thread", "Run only this thread"},
-    {eAllThreads, "all-threads", "Run all threads"}};
-
-static constexpr OptionEnumValues DuoRunningModes() {
-  return OptionEnumValues(g_duo_running_mode);
-}
-
 #define LLDB_OPTIONS_thread_until
 #include "CommandOptions.inc"
 
@@ -894,8 +877,8 @@ public:
       return llvm::makeArrayRef(g_thread_until_options);
     }
 
-    uint32_t m_step_thread_idx;
-    bool m_stop_others;
+    uint32_t m_step_thread_idx = LLDB_INVALID_THREAD_ID;
+    bool m_stop_others = false;
     std::vector<lldb::addr_t> m_until_addrs;
 
     // Instance variables to hold the values for command options.
@@ -1033,11 +1016,21 @@ protected:
         line_table->FindLineEntryByAddress(fun_end_addr, function_start,
                                            &end_ptr);
 
+        // Since not all source lines will contribute code, check if we are
+        // setting the breakpoint on the exact line number or the nearest
+        // subsequent line number and set breakpoints at all the line table
+        // entries of the chosen line number (exact or nearest subsequent).
         for (uint32_t line_number : line_numbers) {
+          LineEntry line_entry;
+          bool exact = false;
           uint32_t start_idx_ptr = index_ptr;
+          start_idx_ptr = sc.comp_unit->FindLineEntry(
+              index_ptr, line_number, nullptr, exact, &line_entry);
+          if (start_idx_ptr != UINT32_MAX)
+            line_number = line_entry.line;
+          exact = true;
+          start_idx_ptr = index_ptr;
           while (start_idx_ptr <= end_ptr) {
-            LineEntry line_entry;
-            const bool exact = false;
             start_idx_ptr = sc.comp_unit->FindLineEntry(
                 start_idx_ptr, line_number, nullptr, exact, &line_entry);
             if (start_idx_ptr == UINT32_MAX)
@@ -2164,6 +2157,10 @@ public:
         m_dumper_options.forwards = true;
         break;
       }
+      case 'k': {
+        m_dumper_options.show_control_flow_kind = true;
+        break;
+      }
       case 't': {
         m_dumper_options.show_tsc = true;
         break;
@@ -2208,7 +2205,7 @@ public:
     size_t m_count;
     size_t m_continue;
     llvm::Optional<FileSpec> m_output_file;
-    TraceInstructionDumperOptions m_dumper_options;
+    TraceDumperOptions m_dumper_options;
   };
 
   CommandObjectTraceDumpInstructions(CommandInterpreter &interpreter)
@@ -2219,7 +2216,10 @@ public:
             nullptr,
             eCommandRequiresProcess | eCommandRequiresThread |
                 eCommandTryTargetAPILock | eCommandProcessMustBeLaunched |
-                eCommandProcessMustBePaused | eCommandProcessMustBeTraced) {}
+                eCommandProcessMustBePaused | eCommandProcessMustBeTraced) {
+    CommandArgumentData thread_arg{eArgTypeThreadIndex, eArgRepeatOptional};
+    m_arguments.push_back({thread_arg});
+  }
 
   ~CommandObjectTraceDumpInstructions() override = default;
 
@@ -2269,8 +2269,14 @@ protected:
       m_options.m_dumper_options.id = m_last_id;
     }
 
-    TraceCursorUP cursor_up =
-        m_exe_ctx.GetTargetSP()->GetTrace()->GetCursor(*thread_sp);
+    llvm::Expected<TraceCursorUP> cursor_or_error =
+        m_exe_ctx.GetTargetSP()->GetTrace()->CreateNewCursor(*thread_sp);
+
+    if (!cursor_or_error) {
+      result.AppendError(llvm::toString(cursor_or_error.takeError()));
+      return false;
+    }
+    TraceCursorUP &cursor_up = *cursor_or_error;
 
     if (m_options.m_dumper_options.id &&
         !cursor_up->HasId(*m_options.m_dumper_options.id)) {
@@ -2285,15 +2291,16 @@ protected:
                        lldb::eFilePermissionsFileDefault);
     }
 
-    TraceInstructionDumper dumper(
-        std::move(cursor_up), out_file ? *out_file : result.GetOutputStream(),
-        m_options.m_dumper_options);
-
     if (m_options.m_continue && !m_last_id) {
-      // We need to tell the dumper to stop processing data when
-      // we already ran out of instructions in a previous command
-      dumper.SetNoMoreData();
+      // We need to stop processing data when we already ran out of instructions
+      // in a previous command. We can fake this by setting the cursor past the
+      // end of the trace.
+      cursor_up->Seek(1, TraceCursor::SeekType::End);
     }
+
+    TraceDumper dumper(std::move(cursor_up),
+                       out_file ? *out_file : result.GetOutputStream(),
+                       m_options.m_dumper_options);
 
     m_last_id = dumper.DumpInstructions(m_options.m_count);
     return true;
@@ -2327,6 +2334,10 @@ public:
         m_verbose = true;
         break;
       }
+      case 'j': {
+        m_json = true;
+        break;
+      }
       default:
         llvm_unreachable("Unimplemented option");
       }
@@ -2335,6 +2346,7 @@ public:
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
       m_verbose = false;
+      m_json = false;
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
@@ -2343,14 +2355,8 @@ public:
 
     // Instance variables to hold the values for command options.
     bool m_verbose;
+    bool m_json;
   };
-
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
-    Target &target = m_exe_ctx.GetTargetRef();
-    result.GetOutputStream().Format("Trace technology: {0}\n",
-                                    target.GetTrace()->GetPluginName());
-    return CommandObjectIterateOverThreads::DoExecute(command, result);
-  }
 
   CommandObjectTraceDumpInfo(CommandInterpreter &interpreter)
       : CommandObjectIterateOverThreads(
@@ -2373,7 +2379,7 @@ protected:
     ThreadSP thread_sp =
         m_exe_ctx.GetProcessPtr()->GetThreadList().FindThreadByID(tid);
     trace_sp->DumpTraceInfo(*thread_sp, result.GetOutputStream(),
-                            m_options.m_verbose);
+                            m_options.m_verbose, m_options.m_json);
     return true;
   }
 

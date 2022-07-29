@@ -32,9 +32,9 @@ defm new_symbol_visibility : Eq<"new-symbol-visibility", "Visibility of "
 def compress_debug_sections : Flag<["--"], "compress-debug-sections">;
 def compress_debug_sections_eq
     : Joined<["--"], "compress-debug-sections=">,
-      MetaVarName<"[ zlib | zlib-gnu ]">,
+      MetaVarName<"[ zlib ]">,
       HelpText<"Compress DWARF debug sections using specified style. Supported "
-               "styles: 'zlib-gnu' and 'zlib'">;
+               "formats: 'zlib'">;
 def decompress_debug_sections : Flag<["--"], "decompress-debug-sections">,
                                 HelpText<"Decompress DWARF debug sections.">;
 defm split_dwo
@@ -86,6 +86,11 @@ defm set_section_flags
          "compatibility: alloc, load, noload, readonly, exclude, debug, code, "
          "data, rom, share, contents, merge, strings.">,
       MetaVarName<"section=flag1[,flag2,...]">;
+
+defm set_section_type
+    : Eq<"set-section-type",
+         "Set the type of section <section> to the integer <type>">,
+      MetaVarName<"section=type">;
 
 def S : Flag<["-"], "S">,
         Alias<strip_all>,

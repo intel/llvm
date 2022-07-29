@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/sycl_mem_obj_t.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/detail/memory_manager.hpp>
+#include <sycl/detail/sycl_mem_obj_t.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

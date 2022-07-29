@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/interop_handler.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/interop_handler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

@@ -31,10 +31,6 @@ const PrototypeDescriptor PrototypeDescriptor::VL =
 const PrototypeDescriptor PrototypeDescriptor::Vector =
     PrototypeDescriptor(BaseTypeModifier::Vector);
 
-// Concat BasicType, LMUL and Proto as key
-static std::unordered_map<uint64_t, RVVType> LegalTypes;
-static std::set<uint64_t> IllegalTypes;
-
 //===----------------------------------------------------------------------===//
 // Type implementation
 //===----------------------------------------------------------------------===//
@@ -114,11 +110,11 @@ bool RVVType::verifyType() const {
     return false;
   if (isScalar())
     return true;
-  if (!Scale.hasValue())
+  if (!Scale)
     return false;
   if (isFloat() && ElementBitwidth == 8)
     return false;
-  unsigned V = Scale.getValue();
+  unsigned V = Scale.value();
   switch (ElementBitwidth) {
   case 1:
   case 8:
@@ -799,10 +795,10 @@ RVVType::computeTypes(BasicType BT, int Log2LMUL, unsigned NF,
   RVVTypes Types;
   for (const PrototypeDescriptor &Proto : Prototype) {
     auto T = computeType(BT, Log2LMUL, Proto);
-    if (!T.hasValue())
+    if (!T)
       return llvm::None;
     // Record legal type index
-    Types.push_back(T.getValue());
+    Types.push_back(T.value());
   }
   return Types;
 }
@@ -822,6 +818,9 @@ static uint64_t computeRVVTypeHashValue(BasicType BT, int Log2LMUL,
 
 Optional<RVVTypePtr> RVVType::computeType(BasicType BT, int Log2LMUL,
                                           PrototypeDescriptor Proto) {
+  // Concat BasicType, LMUL and Proto as key
+  static std::unordered_map<uint64_t, RVVType> LegalTypes;
+  static std::set<uint64_t> IllegalTypes;
   uint64_t Idx = computeRVVTypeHashValue(BT, Log2LMUL, Proto);
   // Search first
   auto It = LegalTypes.find(Idx);

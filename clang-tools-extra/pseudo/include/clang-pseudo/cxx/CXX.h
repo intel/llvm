@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 //
 //  This file defines public interfaces for the C++ grammar
-//  (pseudo/lib/cxx.bnf). It provides a fast way to access core building pieces
-//  of the LR parser, e.g. Grammar, LRTable, rather than parsing the grammar
-//  file at the runtime.
+//  (pseudo/lib/cxx/cxx.bnf). It provides a fast way to access core building
+//  pieces of the LR parser, e.g. Grammar, LRTable, rather than parsing the
+//  grammar file at the runtime.
 //
 //  We do a compilation of the C++ BNF grammar at build time, and generate
 //  critical data sources. The implementation of the interfaces are based on the
@@ -23,12 +23,11 @@
 #ifndef CLANG_PSEUDO_CXX_CXX_H
 #define CLANG_PSEUDO_CXX_CXX_H
 
+#include "clang-pseudo/Language.h"
 #include "clang-pseudo/grammar/Grammar.h"
 
 namespace clang {
 namespace pseudo {
-class LRTable;
-
 namespace cxx {
 // Symbol represents nonterminal symbols in the C++ grammar.
 // It provides a simple uniform way to access a particular nonterminal.
@@ -38,10 +37,20 @@ enum class Symbol : SymbolID {
 #undef NONTERMINAL
 };
 
-// Returns the C++ grammar.
-const Grammar &getGrammar();
-// Returns the corresponding LRTable for the C++ grammar.
-const LRTable &getLRTable();
+enum class Rule : RuleID {
+#define RULE(X, Y) X = Y,
+#include "CXXSymbols.inc"
+#undef RULE
+};
+
+enum class Extension : ExtensionID {
+#define EXTENSION(X, Y) X = Y,
+#include "CXXSymbols.inc"
+#undef EXTENSION
+};
+
+// Returns the Language for the cxx.bnf grammar.
+const Language &getLanguage();
 
 } // namespace cxx
 

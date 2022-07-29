@@ -3,8 +3,8 @@
 
 // UNSUPPORTED: system-windows
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 int main() {
   std::cout << "Passed" << std::endl;

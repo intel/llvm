@@ -1,8 +1,8 @@
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/properties/property_traits.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/property_helper.hpp>
+#include <sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

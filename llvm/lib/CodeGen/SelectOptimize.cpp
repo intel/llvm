@@ -433,7 +433,7 @@ void SelectOptimize::convertProfitableSIGroups(SelectGroups &ProfSIGroups) {
         DebugPseudoINS.push_back(&*DIt);
       DIt++;
     }
-    for (auto DI : DebugPseudoINS) {
+    for (auto *DI : DebugPseudoINS) {
       DI->moveBefore(&*EndBlock->getFirstInsertionPt());
     }
 
@@ -870,8 +870,8 @@ bool SelectOptimize::computeLoopCosts(
           ORE->emit(ORmissL);
           return false;
         }
-        IPredCost += Scaled64::get(ILatency.getValue());
-        INonPredCost += Scaled64::get(ILatency.getValue());
+        IPredCost += Scaled64::get(ILatency.value());
+        INonPredCost += Scaled64::get(ILatency.value());
 
         // For a select that can be converted to branch,
         // compute its cost as a branch (non-predicated cost).

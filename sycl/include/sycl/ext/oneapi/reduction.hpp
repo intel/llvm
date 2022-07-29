@@ -11,14 +11,15 @@
 #if __cplusplus >= 201703L
 // Entire feature is dependent on C++17.
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/atomic.hpp>
-#include <CL/sycl/detail/tuple.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/known_identity.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/atomic.hpp>
+#include <sycl/atomic_ref.hpp>
+#include <sycl/detail/tuple.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/group_algorithm.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/kernel.hpp>
+#include <sycl/known_identity.hpp>
 
 #include <tuple>
 
@@ -28,6 +29,14 @@ namespace ext {
 namespace oneapi {
 
 namespace detail {
+
+template <class FunctorTy>
+event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+                     FunctorTy Func) {
+  handler AuxHandler(Queue, IsHost);
+  Func(AuxHandler);
+  return AuxHandler.finalize();
+}
 
 using cl::sycl::detail::bool_constant;
 using cl::sycl::detail::enable_if_t;
@@ -117,17 +126,17 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
 /// functions and representing users' reduction variable.
 /// The generic version of the class represents those reductions of those
 /// types and operations for which the identity value is not known.
-/// The Algorithm template can be used to specialize reducers for different
-/// reduction algorithms. The View template describes whether the reducer
-/// owns its data or not: if View is 'true', then the reducer does not own
-/// its data and instead provides a view of data allocated elsewhere (i.e.
-/// via a reference or pointer member); if View is 'false', then the reducer
-/// owns its data. With the current default reduction algorithm, the top-level
-/// reducers that are passed to the user's lambda contain a private copy of
-/// the reduction variable, whereas any reducer created by a subscript operator
-/// contains a reference to a reduction variable allocated elsewhere.
+/// The View template describes whether the reducer owns its data or not: if
+/// View is 'true', then the reducer does not own its data and instead provides
+/// a view of data allocated elsewhere (i.e. via a reference or pointer member);
+/// if View is 'false', then the reducer owns its data. With the current default
+/// reduction algorithm, the top-level reducers that are passed to the user's
+/// lambda contain a private copy of the reduction variable, whereas any reducer
+/// created by a subscript operator contains a reference to a reduction variable
+/// allocated elsewhere. The Subst parameter is an implementation detail and is
+/// used to spell out restrictions using 'enable_if'.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View = false, typename Subst = void>
+          bool View = false, typename Subst = void>
 class reducer;
 
 /// Helper class for accessing reducer-defined types in CRTP
@@ -135,9 +144,8 @@ class reducer;
 template <typename Reducer> struct ReducerTraits;
 
 template <typename T, class BinaryOperation, int Dims, std::size_t Extent,
-          class Algorithm, bool View, typename Subst>
-struct ReducerTraits<
-    reducer<T, BinaryOperation, Dims, Extent, Algorithm, View, Subst>> {
+          bool View, typename Subst>
+struct ReducerTraits<reducer<T, BinaryOperation, Dims, Extent, View, Subst>> {
   using type = T;
   using op = BinaryOperation;
   static constexpr int dims = Dims;
@@ -224,8 +232,8 @@ private:
     auto reducer = static_cast<const Reducer *>(this);
     for (size_t E = 0; E < Extent; ++E) {
       auto AtomicRef =
-          atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(), Space>(
-              multi_ptr<T, Space>(ReduVarPtr)[E]);
+          sycl::atomic_ref<T, memory_order::relaxed, getMemoryScope<Space>(),
+                           Space>(multi_ptr<T, Space>(ReduVarPtr)[E]);
       Functor(AtomicRef, reducer->getElement(E));
     }
   }
@@ -312,15 +320,16 @@ public:
 ///
 /// It stores a copy of the identity and binary operation associated with the
 /// reduction.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                          !IsKnownIdentityOp<T, BinaryOperation>::value>>
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+          reducer<T, BinaryOperation, Dims, Extent, View,
                   enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                              !IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                              !sycl::detail::IsKnownIdentityOp<
+                                  T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
@@ -343,15 +352,16 @@ private:
 ///
 /// It allows to reduce the size of the 'reducer' object by not holding
 /// the identity field inside it and allows to add a default constructor.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                          IsKnownIdentityOp<T, BinaryOperation>::value>>
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    enable_if_t<Dims == 0 && Extent == 1 && View == false &&
+                sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
     : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+          reducer<T, BinaryOperation, Dims, Extent, View,
                   enable_if_t<Dims == 0 && Extent == 1 && View == false &&
-                              IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+                              sycl::detail::IsKnownIdentityOp<
+                                  T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
@@ -362,7 +372,7 @@ public:
   }
 
   static T getIdentity() {
-    return known_identity_impl<BinaryOperation, T>::value;
+    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t) { return MValue; }
@@ -372,11 +382,10 @@ public:
 
 /// Component of 'reducer' class for array reductions, representing a single
 /// element of the span (as returned by the subscript operator).
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+class reducer<T, BinaryOperation, Dims, Extent, View,
               enable_if_t<Dims == 0 && View == true>>
-    : public combiner<reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, View,
                               enable_if_t<Dims == 0 && View == true>>> {
 public:
   reducer(T &Ref, BinaryOperation BOp) : MElement(Ref), MBinaryOp(BOp) {}
@@ -390,21 +399,20 @@ private:
 
 /// Specialization of 'reducer' class for array reductions exposing the
 /// subscript operator.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 1 && View == false &&
-                          !IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-                  enable_if_t<Dims == 1 && View == false &&
-                              !IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    enable_if_t<Dims == 1 && View == false &&
+                !sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, View,
+                              enable_if_t<Dims == 1 && View == false &&
+                                          !sycl::detail::IsKnownIdentityOp<
+                                              T, BinaryOperation>::value>>> {
 public:
   reducer(const T &Identity, BinaryOperation BOp)
       : MValue(Identity), MIdentity(Identity), MBinaryOp(BOp) {}
 
-  reducer<T, BinaryOperation, Dims - 1, Extent, Algorithm, true>
-  operator[](size_t Index) {
+  reducer<T, BinaryOperation, Dims - 1, Extent, true> operator[](size_t Index) {
     return {MValue[Index], MBinaryOp};
   }
 
@@ -420,28 +428,27 @@ private:
 
 /// Specialization of 'reducer' class for array reductions accepting a span
 /// in cases where the identity value is known.
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm, bool View>
-class reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-              enable_if_t<Dims == 1 && View == false &&
-                          IsKnownIdentityOp<T, BinaryOperation>::value>>
-    : public combiner<
-          reducer<T, BinaryOperation, Dims, Extent, Algorithm, View,
-                  enable_if_t<Dims == 1 && View == false &&
-                              IsKnownIdentityOp<T, BinaryOperation>::value>>> {
+template <typename T, class BinaryOperation, int Dims, size_t Extent, bool View>
+class reducer<
+    T, BinaryOperation, Dims, Extent, View,
+    enable_if_t<Dims == 1 && View == false &&
+                sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+    : public combiner<reducer<T, BinaryOperation, Dims, Extent, View,
+                              enable_if_t<Dims == 1 && View == false &&
+                                          sycl::detail::IsKnownIdentityOp<
+                                              T, BinaryOperation>::value>>> {
 public:
   reducer() : MValue(getIdentity()) {}
   reducer(const T & /* Identity */, BinaryOperation) : MValue(getIdentity()) {}
 
   // SYCL 2020 revision 4 says this should be const, but this is a bug
   // see https://github.com/KhronosGroup/SYCL-Docs/pull/252
-  reducer<T, BinaryOperation, Dims - 1, Extent, Algorithm, true>
-  operator[](size_t Index) {
+  reducer<T, BinaryOperation, Dims - 1, Extent, true> operator[](size_t Index) {
     return {MValue[Index], BinaryOperation()};
   }
 
   static T getIdentity() {
-    return known_identity_impl<BinaryOperation, T>::value;
+    return sycl::detail::known_identity_impl<BinaryOperation, T>::value;
   }
 
   T &getElement(size_t E) { return MValue[E]; }
@@ -466,14 +473,14 @@ protected:
 public:
   /// Returns the statically known identity value.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<IsKnownIdentityOp<_T, _BinaryOperation>::value,
+  enable_if_t<sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value,
               _T> constexpr getIdentity() {
-    return known_identity_impl<_BinaryOperation, _T>::value;
+    return sycl::detail::known_identity_impl<_BinaryOperation, _T>::value;
   }
 
   /// Returns the identity value given by user.
   template <typename _T = T, class _BinaryOperation = BinaryOperation>
-  enable_if_t<!IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
+  enable_if_t<!sycl::detail::IsKnownIdentityOp<_T, _BinaryOperation>::value, _T>
   getIdentity() {
     return MIdentity;
   }
@@ -491,82 +498,96 @@ protected:
   bool InitializeToIdentity;
 };
 
-/// Types representing specific reduction algorithms
-/// Enables reduction_impl_algo to take additional algorithm-specific templates
-template <bool IsUSM, access::placeholder IsPlaceholder, int AccessorDims>
-class default_reduction_algorithm {};
+template <class T> struct is_rw_acc_t : public std::false_type {};
 
-/// Templated class for implementations of specific reduction algorithms
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
-class reduction_impl_algo;
+template <class T, int AccessorDims, access::placeholder IsPlaceholder,
+          typename PropList>
+struct is_rw_acc_t<accessor<T, AccessorDims, access::mode::read_write,
+                            access::target::device, IsPlaceholder, PropList>>
+    : public std::true_type {};
 
-/// Original reduction algorithm is the default. It supports both USM and
-/// accessors via a single class
+template <class T> struct is_dw_acc_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::placeholder IsPlaceholder,
+          typename PropList>
+struct is_dw_acc_t<accessor<T, AccessorDims, access::mode::discard_write,
+                            access::target::device, IsPlaceholder, PropList>>
+    : public std::true_type {};
+
+template <class T> struct is_placeholder_t : public std::false_type {};
+
+template <class T, int AccessorDims, access::mode Mode, typename PropList>
+struct is_placeholder_t<accessor<T, AccessorDims, Mode, access::target::device,
+                                 access::placeholder::true_t, PropList>>
+    : public std::true_type {};
+
+// Used for determining dimensions for temporary storage (mainly).
+template <class T> struct data_dim_t {
+  static constexpr int value = 1;
+};
+
+template <class T, int AccessorDims, access::mode Mode,
+          access::placeholder IsPH, typename PropList>
+struct data_dim_t<
+    accessor<T, AccessorDims, Mode, access::target::device, IsPH, PropList>> {
+  static constexpr int value = AccessorDims;
+};
+
+template <class T> struct get_red_t;
+template <class T> struct get_red_t<T *> {
+  using type = T;
+};
+
+template <class T, int AccessorDims, access::mode Mode,
+          access::placeholder IsPH, typename PropList>
+struct get_red_t<
+    accessor<T, AccessorDims, Mode, access::target::device, IsPH, PropList>> {
+  using type = T;
+};
+
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          bool IsUSM, access::placeholder IsPlaceholder, int AccessorDims>
-class reduction_impl_algo<
-    T, BinaryOperation, Dims, Extent,
-    default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>
-    : public reduction_impl_common<T, BinaryOperation> {
+          typename RedOutVar>
+class reduction_impl_algo : public reduction_impl_common<T, BinaryOperation> {
   using base = reduction_impl_common<T, BinaryOperation>;
+  using self = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar>;
 
 public:
-  using reducer_type =
-      reducer<T, BinaryOperation, Dims, Extent,
-              default_reduction_algorithm<IsUSM, IsPlaceholder, AccessorDims>>;
+  using reducer_type = reducer<T, BinaryOperation, Dims, Extent>;
   using result_type = T;
   using binary_operation = BinaryOperation;
 
   // Buffers and accessors always describe scalar reductions (i.e. Dims == 0)
   // The input buffer/accessor is allowed to have different dimensionality
   // AccessorDims also determines the dimensionality of some temp storage
-  static constexpr int accessor_dim = AccessorDims;
-  static constexpr int buffer_dim = (AccessorDims == 0) ? 1 : AccessorDims;
-  using rw_accessor_type = accessor<T, AccessorDims, access::mode::read_write,
-                                    access::target::device, IsPlaceholder,
+  static constexpr int accessor_dim = data_dim_t<RedOutVar>::value;
+  static constexpr int buffer_dim = (accessor_dim == 0) ? 1 : accessor_dim;
+  static constexpr access::placeholder is_placeholder =
+      is_placeholder_t<RedOutVar>::value ? access::placeholder::true_t
+                                         : access::placeholder::false_t;
+  using rw_accessor_type = accessor<T, accessor_dim, access::mode::read_write,
+                                    access::target::device, is_placeholder,
                                     ext::oneapi::accessor_property_list<>>;
-  using dw_accessor_type =
-      accessor<T, AccessorDims, access::mode::discard_write,
-               access::target::device, IsPlaceholder,
-               ext::oneapi::accessor_property_list<>>;
-
   static constexpr bool has_atomic_add_float64 =
       IsReduOptForAtomic64Add<T, BinaryOperation>::value;
   static constexpr bool has_fast_atomics =
       IsReduOptForFastAtomicFetch<T, BinaryOperation>::value;
   static constexpr bool has_fast_reduce =
       IsReduOptForFastReduce<T, BinaryOperation>::value;
-  static constexpr bool is_usm = IsUSM;
-  static constexpr bool is_placeholder =
-      (IsPlaceholder == access::placeholder::true_t);
+
+  static constexpr bool is_usm = std::is_same_v<RedOutVar, T *>;
+
+  static constexpr bool is_rw_acc = is_rw_acc_t<RedOutVar>::value;
+  static constexpr bool is_dw_acc = is_dw_acc_t<RedOutVar>::value;
+  static constexpr bool is_acc = is_rw_acc | is_dw_acc;
+  static_assert(!is_rw_acc || !is_dw_acc, "Can be only one at once!");
+  static_assert(!is_usm || !is_acc, "Can be only one at once!");
 
   static constexpr size_t dims = Dims;
   static constexpr size_t num_elements = Extent;
 
   reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
-                      std::shared_ptr<rw_accessor_type> AccPointer)
-      : base(Identity, BinaryOp, Init), MRWAcc(AccPointer){};
-  reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
-                      std::shared_ptr<dw_accessor_type> AccPointer)
-      : base(Identity, BinaryOp, Init), MDWAcc(AccPointer){};
-  reduction_impl_algo(const T &Identity, BinaryOperation BinaryOp, bool Init,
-                      T *USMPointer)
-      : base(Identity, BinaryOp, Init), MUSMPointer(USMPointer){};
-
-  /// Associates the reduction accessor to user's memory with \p CGH handler
-  /// to keep the accessor alive until the command group finishes the work.
-  /// This function does not do anything for USM reductions.
-  void associateWithHandler(handler &CGH) {
-#ifndef __SYCL_DEVICE_ONLY__
-    if (MRWAcc)
-      CGH.associateWithHandler(MRWAcc.get(), access::target::device);
-    else if (MDWAcc)
-      CGH.associateWithHandler(MDWAcc.get(), access::target::device);
-#else
-    (void)CGH;
-#endif
-  }
+                      RedOutVar RedOut)
+      : base(Identity, BinaryOp, Init), MRedOut(std::move(RedOut)){};
 
   /// Creates and returns a local accessor with the \p Size elements.
   /// By default the local accessor elements are of the same type as the
@@ -585,32 +606,21 @@ public:
     return {*MOutBufPtr, CGH};
   }
 
-  /// Returns user's USM pointer passed to reduction for editing.
-  template <bool IsOneWG, bool _IsUSM = is_usm>
-  std::enable_if_t<IsOneWG && _IsUSM, result_type *>
-  getWriteMemForPartialReds(size_t, handler &) {
-    return getUSMPointer();
-  }
-
-  /// Returns user's accessor passed to reduction for editing if that is
-  /// the read-write accessor. Otherwise, create a new buffer and return
-  /// read-write accessor to it.
-  template <bool IsOneWG, bool _IsUSM = is_usm>
-  std::enable_if_t<IsOneWG && !_IsUSM, rw_accessor_type>
-  getWriteMemForPartialReds(size_t, handler &CGH) {
-    if (MRWAcc)
-      return *MRWAcc;
-    return getWriteMemForPartialReds<false>(1, CGH);
-  }
-
-  /// Constructs a new temporary buffer to hold partial sums and returns
-  /// the accessor for that buffer.
   template <bool IsOneWG>
-  std::enable_if_t<!IsOneWG, rw_accessor_type>
-  getWriteMemForPartialReds(size_t Size, handler &CGH) {
-    MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
-    CGH.addReduction(MOutBufPtr);
-    return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+  auto getWriteMemForPartialReds(size_t Size, handler &CGH) {
+    // If there is only one WG we can avoid creation of temporary buffer with
+    // partial sums and write directly into user's reduction variable.
+    //
+    // Current implementation doesn't allow that in case of DW accessor used for
+    // reduction because C++ types for it and for temporary storage don't match,
+    // hence the second part of the check.
+    if constexpr (IsOneWG && !is_dw_acc) {
+      return MRedOut;
+    } else {
+      MOutBufPtr = std::make_shared<buffer<T, buffer_dim>>(range<1>(Size));
+      CGH.addReduction(MOutBufPtr);
+      return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
+    }
   }
 
   /// Returns an accessor accessing the memory that will hold the reduction
@@ -620,9 +630,11 @@ public:
   /// Otherwise, a new buffer is created and accessor to that buffer is
   /// returned.
   rw_accessor_type getWriteAccForPartialReds(size_t Size, handler &CGH) {
-    if (Size == 1 && MRWAcc != nullptr) {
-      associateWithHandler(CGH);
-      return *MRWAcc;
+    if constexpr (is_rw_acc) {
+      if (Size == 1) {
+        CGH.associateWithHandler(&MRedOut, access::target::device);
+        return MRedOut;
+      }
     }
 
     // Create a new output buffer and return an accessor to it.
@@ -638,8 +650,12 @@ public:
   template <bool HasFastAtomics = (has_fast_atomics || has_atomic_add_float64)>
   std::enable_if_t<HasFastAtomics, rw_accessor_type>
   getReadWriteAccessorToInitializedMem(handler &CGH) {
-    if (!is_usm && !base::initializeToIdentity())
-      return *MRWAcc;
+    if constexpr (is_rw_acc) {
+      if (!base::initializeToIdentity())
+        return MRedOut;
+    }
+    assert(!(is_dw_acc && !base::initializeToIdentity()) &&
+           "Unexpected condition!");
 
     // TODO: Move to T[] in C++20 to simplify handling here
     // auto RWReduVal = std::make_shared<T[num_elements]>();
@@ -666,22 +682,7 @@ public:
     return {*CounterBuf, CGH};
   }
 
-  bool hasUserDiscardWriteAccessor() { return MDWAcc != nullptr; }
-
-  template <bool _IsUSM = IsUSM>
-  std::enable_if_t<!_IsUSM, rw_accessor_type &> getUserReadWriteAccessor() {
-    return *MRWAcc;
-  }
-
-  template <bool _IsUSM = IsUSM>
-  std::enable_if_t<!_IsUSM, dw_accessor_type &> getUserDiscardWriteAccessor() {
-    return *MDWAcc;
-  }
-
-  result_type *getUSMPointer() {
-    assert(is_usm && "Unexpected call of getUSMPointer().");
-    return MUSMPointer;
-  }
+  RedOutVar &getUserRedVar() { return MRedOut; }
 
   static inline result_type *getOutPointer(const rw_accessor_type &OutAcc) {
     return OutAcc.get_pointer().get();
@@ -692,29 +693,27 @@ public:
   }
 
 private:
-  template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
-  std::enable_if_t<IsPH == access::placeholder::false_t, rw_accessor_type>
-  createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
-    return {Buffer, CGH};
+  template <typename BufferT>
+  rw_accessor_type createHandlerWiredReadWriteAccessor(handler &CGH,
+                                                       BufferT Buffer) {
+    // TODO:
+    // SYCL 2020: The accessor template parameter IsPlaceholder is allowed to be
+    // specified, but it has no bearing on whether the accessor instance is a
+    // placeholder. This is determined solely by the constructor used to create
+    // the instance. The associated type access::placeholder is also deprecated.
+    if constexpr (is_placeholder == access::placeholder::true_t) {
+      rw_accessor_type Acc(Buffer);
+      CGH.require(Acc);
+      return Acc;
+    } else {
+      return {Buffer, CGH};
+    }
   }
-
-  template <typename BufferT, access::placeholder IsPH = IsPlaceholder>
-  std::enable_if_t<IsPH == access::placeholder::true_t, rw_accessor_type>
-  createHandlerWiredReadWriteAccessor(handler &CGH, BufferT Buffer) {
-    rw_accessor_type Acc(Buffer);
-    CGH.require(Acc);
-    return Acc;
-  }
-
-  /// User's accessor to where the reduction must be written.
-  std::shared_ptr<rw_accessor_type> MRWAcc;
-  std::shared_ptr<dw_accessor_type> MDWAcc;
 
   std::shared_ptr<buffer<T, buffer_dim>> MOutBufPtr;
 
-  /// USM pointer referencing the memory to where the result of the reduction
-  /// must be written. Applicable/used only for USM reductions.
-  T *MUSMPointer = nullptr;
+  /// User's accessor/USM pointer to where the reduction must be written.
+  RedOutVar MRedOut;
 };
 
 /// Predicate returning true if all template type parameters except the last one
@@ -732,181 +731,59 @@ template <typename T> struct AreAllButLastReductions<T> {
   static constexpr bool value =
       !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
 };
-
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
+          typename RedOutVar>
 class reduction_impl
     : private reduction_impl_base,
-      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, Algorithm> {
+      public reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar> {
 private:
-  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, Algorithm>;
+  using algo = reduction_impl_algo<T, BinaryOperation, Dims, Extent, RedOutVar>;
+  using self = reduction_impl<T, BinaryOperation, Dims, Extent, RedOutVar>;
+
+  static constexpr bool is_known_identity =
+      sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value;
+
+  // TODO: Do we also need chooseBinOp?
+  static constexpr T chooseIdentity(const T &Identity) {
+    // For now the implementation ignores the identity value given by user
+    // when the implementation knows the identity.
+    // The SPEC could prohibit passing identity parameter to operations with
+    // known identity, but that could have some bad consequences too.
+    // For example, at some moment the implementation may NOT know the identity
+    // for COMPLEX-PLUS reduction. User may create a program that would pass
+    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
+    // when the implementation starts handling COMPLEX-PLUS as known operation
+    // the existing user's program remains compilable and working correctly.
+    // I.e. with this constructor here, adding more reduction operations to the
+    // list of known operations does not break the existing programs.
+    if constexpr (is_known_identity) {
+      (void)Identity;
+      return reducer_type::getIdentity();
+
+    } else {
+      return Identity;
+    }
+  }
 
 public:
+  using algo::is_acc;
+  using algo::is_dw_acc;
+  using algo::is_rw_acc;
+  using algo::is_usm;
+
   using reducer_type = typename algo::reducer_type;
   using rw_accessor_type = typename algo::rw_accessor_type;
-  using dw_accessor_type = typename algo::dw_accessor_type;
 
   // Only scalar and 1D array reductions are supported by SYCL 2020.
   static_assert(Dims <= 1, "Multi-dimensional reductions are not supported.");
 
-  /// SYCL-2020.
   /// Constructs reduction_impl when the identity value is statically known.
-  template <typename _T, typename AllocatorT,
-            std::enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * =
-                nullptr>
-  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
-                 bool InitializeToIdentity)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, std::make_shared<rw_accessor_type>(Buffer)) {
-    algo::associateWithHandler(CGH);
-    if (Buffer.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(rw_accessor_type &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false,
-             std::make_shared<rw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(dw_accessor_type &Acc)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), true,
-             std::make_shared<dw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  template <
-      typename _T, typename AllocatorT,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
-                 const T & /*Identity*/, BinaryOperation,
-                 bool InitializeToIdentity)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, std::make_shared<rw_accessor_type>(Buffer)) {
-    algo::associateWithHandler(CGH);
-    if (Buffer.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(rw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), false,
-             std::make_shared<rw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(dw_accessor_type &Acc, const T & /*Identity*/, BinaryOperation)
-      : algo(reducer_type::getIdentity(), BinaryOperation(), true,
-             std::make_shared<dw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
-  }
-
-  /// SYCL-2020.
-  /// Constructs reduction_impl when the identity value is NOT known statically.
-  template <
-      typename _T, typename AllocatorT,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(buffer<_T, 1, AllocatorT> Buffer, handler &CGH,
-                 const T &Identity, BinaryOperation BOp,
-                 bool InitializeToIdentity)
-      : algo(Identity, BOp, InitializeToIdentity,
-             std::make_shared<rw_accessor_type>(Buffer)) {
-    algo::associateWithHandler(CGH);
-    if (Buffer.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is unknown.
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(rw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(Identity, BOp, false, std::make_shared<rw_accessor_type>(Acc)) {
-    if (Acc.size() != 1)
-      throw sycl::runtime_error(errc::invalid,
-                                "Reduction variable must be a scalar.",
-                                PI_ERROR_INVALID_VALUE);
-  }
-
-  /// Constructs reduction_impl when the identity value is unknown.
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(dw_accessor_type &Acc, const T &Identity, BinaryOperation BOp)
-      : algo(Identity, BOp, true, std::make_shared<dw_accessor_type>(Acc)) {
+  template <typename _self = self,
+            enable_if_t<_self::is_known_identity && _self::is_acc> * = nullptr>
+  reduction_impl(RedOutVar &Acc)
+      : algo(reducer_type::getIdentity(), BinaryOperation(), is_dw_acc, Acc) {
     if (Acc.size() != 1)
       throw sycl::runtime_error(errc::invalid,
                                 "Reduction variable must be a scalar.",
@@ -917,74 +794,65 @@ public:
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, bool InitializeToIdentity = false)
+  template <typename _self = self,
+            enable_if_t<_self::is_known_identity && _self::is_usm> * = nullptr>
+  reduction_impl(RedOutVar VarPtr, bool InitializeToIdentity = false)
       : algo(reducer_type::getIdentity(), BinaryOperation(),
              InitializeToIdentity, VarPtr) {}
 
-  /// Constructs reduction_impl when the identity value is statically known,
-  /// and user still passed the identity value.
-  /// The \param VarPtr is a USM pointer to memory, to where the computed
-  /// reduction value is added using BinaryOperation, i.e. it is expected that
-  /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation,
-                 bool InitializeToIdentity = false)
-      : algo(Identity, BinaryOperation(), InitializeToIdentity, VarPtr) {
-    // For now the implementation ignores the identity value given by user
-    // when the implementation knows the identity.
-    // The SPEC could prohibit passing identity parameter to operations with
-    // known identity, but that could have some bad consequences too.
-    // For example, at some moment the implementation may NOT know the identity
-    // for COMPLEX-PLUS reduction. User may create a program that would pass
-    // COMPLEX value (0,0) as identity for PLUS reduction. At some later moment
-    // when the implementation starts handling COMPLEX-PLUS as known operation
-    // the existing user's program remains compilable and working correctly.
-    // I.e. with this constructor here, adding more reduction operations to the
-    // list of known operations does not break the existing programs.
+  /// SYCL-2020.
+  /// Constructs reduction_impl when the identity value is statically known.
+  template <typename _self = self,
+            std::enable_if_t<_self::is_known_identity && _self::is_rw_acc> * =
+                nullptr>
+  reduction_impl(RedOutVar &Acc, handler &CGH, bool InitializeToIdentity)
+      : algo(reducer_type::getIdentity(), BinaryOperation(),
+             InitializeToIdentity, Acc) {
+    associateWithHandler(CGH, &Acc, access::target::device);
+    if (Acc.size() != 1)
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_ERROR_INVALID_VALUE);
   }
 
   /// Constructs reduction_impl when the identity value is unknown.
+  template <typename _self = self, enable_if_t<_self::is_acc> * = nullptr>
+  reduction_impl(RedOutVar &Acc, const T &Identity, BinaryOperation BOp)
+      : algo(chooseIdentity(Identity), BOp, is_dw_acc, Acc) {
+    if (Acc.size() != 1)
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_ERROR_INVALID_VALUE);
+  }
+
   /// The \param VarPtr is a USM pointer to memory, to where the computed
   /// reduction value is added using BinaryOperation, i.e. it is expected that
   /// the memory is pre-initialized with some meaningful value.
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(T *VarPtr, const T &Identity, BinaryOperation BOp,
+  template <typename _self = self, enable_if_t<_self::is_usm> * = nullptr>
+  reduction_impl(RedOutVar VarPtr, const T &Identity, BinaryOperation BOp,
                  bool InitializeToIdentity = false)
-      : algo(Identity, BOp, InitializeToIdentity, VarPtr) {}
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, VarPtr) {}
 
-  /// Constructs reduction_impl when the identity value is statically known
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(span<_T, Extent> Span, bool InitializeToIdentity = false)
-      : algo(reducer_type::getIdentity(), BinaryOperation(),
-             InitializeToIdentity, Span.data()) {}
-
-  /// Constructs reduction_impl when the identity value is statically known
-  /// and user passed an identity value anyway
-  template <
-      typename _T = T,
-      enable_if_t<IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(span<_T, Extent> Span, const T & /* Identity */,
-                 BinaryOperation BOp, bool InitializeToIdentity = false)
-      : algo(reducer_type::getIdentity(), BOp, InitializeToIdentity,
-             Span.data()) {}
-
-  /// Constructs reduction_impl when the identity value is not statically known
-  template <
-      typename _T = T,
-      enable_if_t<!IsKnownIdentityOp<_T, BinaryOperation>::value> * = nullptr>
-  reduction_impl(span<T, Extent> Span, const T &Identity, BinaryOperation BOp,
-                 bool InitializeToIdentity = false)
-      : algo(Identity, BOp, InitializeToIdentity, Span.data()) {}
+  /// For placeholder accessor.
+  template <typename _self = self, enable_if_t<_self::is_rw_acc> * = nullptr>
+  reduction_impl(RedOutVar &Acc, handler &CGH, const T &Identity,
+                 BinaryOperation BOp, bool InitializeToIdentity)
+      : algo(chooseIdentity(Identity), BOp, InitializeToIdentity, Acc) {
+    associateWithHandler(CGH, &Acc, access::target::device);
+    if (Acc.size() != 1)
+      throw sycl::runtime_error(errc::invalid,
+                                "Reduction variable must be a scalar.",
+                                PI_ERROR_INVALID_VALUE);
+  }
 };
+
+template <class BinaryOp, int Dims, size_t Extent, typename RedOutVar,
+          typename... RestTy>
+auto make_reduction(RedOutVar RedVar, RestTy &&...Rest) {
+  return reduction_impl<typename get_red_t<RedOutVar>::type, BinaryOp, Dims,
+                        Extent, RedOutVar>{RedVar,
+                                           std::forward<RestTy>(Rest)...};
+}
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
@@ -1122,8 +990,8 @@ void reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
     // Signal this work-group has finished after all values are reduced
     if (LID == 0) {
       auto NFinished =
-          atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                     access::address_space::global_space>(
+          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                           access::address_space::global_space>(
               NWorkGroupsFinished[0]);
       DoReducePartialSumsInLastWG[0] =
           ++NFinished == NWorkGroups && NWorkGroups > 1;
@@ -1222,8 +1090,8 @@ void reduCGFuncForRangeBasic(handler &CGH, KernelType KernelFunc,
     // Signal this work-group has finished after all values are reduced
     if (LID == 0) {
       auto NFinished =
-          atomic_ref<int, memory_order::relaxed, memory_scope::device,
-                     access::address_space::global_space>(
+          sycl::atomic_ref<int, memory_order::relaxed, memory_scope::device,
+                           access::address_space::global_space>(
               NWorkGroupsFinished[0]);
       DoReducePartialSumsInLastWG[0] =
           ++NFinished == NWorkGroups && NWorkGroups > 1;
@@ -1320,7 +1188,7 @@ void reduCGFuncForNDRangeBothFastReduceAndAtomics(
     typename Reduction::binary_operation BOp;
     for (int E = 0; E < NElements; ++E) {
       Reducer.getElement(E) =
-          ext::oneapi::reduce(NDIt.get_group(), Reducer.getElement(E), BOp);
+          reduce_over_group(NDIt.get_group(), Reducer.getElement(E), BOp);
     }
     if (NDIt.get_local_linear_id() == 0)
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
@@ -1404,7 +1272,6 @@ void reduCGFuncForNDRangeFastAtomicsOnly(
     if (LID == 0) {
       Reducer.atomic_combine(Reduction::getOutPointer(Out));
     }
-
   });
 }
 
@@ -1444,7 +1311,7 @@ void reduCGFuncForNDRangeFastReduceOnly(
     for (int E = 0; E < NElements; ++E) {
       typename Reduction::result_type PSum;
       PSum = Reducer.getElement(E);
-      PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
+      PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
           PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
@@ -1574,7 +1441,7 @@ void reduAuxCGFuncFastReduceImpl(handler &CGH, bool UniformWG,
           (UniformWG || (GID < NWorkItems))
               ? In[GID * NElements + E]
               : Reduction::reducer_type::getIdentity();
-      PSum = ext::oneapi::reduce(NDIt.get_group(), PSum, BOp);
+      PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
       if (NDIt.get_local_linear_id() == 0) {
         if (IsUpdateOfUserVar)
           PSum = BOp(Reduction::getOutPointer(Out)[E], PSum);
@@ -1710,11 +1577,8 @@ template <typename KernelName, class Reduction>
 std::enable_if_t<!Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  Redu.associateWithHandler(CGH);
-  if (Redu.hasUserDiscardWriteAccessor())
-    CGH.copy(InAcc, Redu.getUserDiscardWriteAccessor());
-  else
-    CGH.copy(InAcc, Redu.getUserReadWriteAccessor());
+  associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
+  CGH.copy(InAcc, Redu.getUserRedVar());
 }
 
 // This method is used for implementation of parallel_for accepting 1 reduction.
@@ -1727,7 +1591,7 @@ std::enable_if_t<Reduction::is_usm>
 reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   constexpr size_t NElements = Reduction::num_elements;
   auto InAcc = Redu.getReadAccToPreviousPartialReds(CGH);
-  auto UserVarPtr = Redu.getUSMPointer();
+  auto UserVarPtr = Redu.getUserRedVar();
   bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
   auto BOp = Redu.getBinaryOperation();
   CGH.single_task<KernelName>([=] {
@@ -1935,7 +1799,9 @@ struct IsNonUsmReductionPredicate {
 };
 
 struct EmptyReductionPredicate {
-  template <typename T> struct Func { static constexpr bool value = false; };
+  template <typename T> struct Func {
+    static constexpr bool value = false;
+  };
 };
 
 template <bool Cond, size_t I> struct FilterElement {
@@ -2191,6 +2057,7 @@ namespace main_krn {
 template <class KernelName> struct NDRangeAtomic64;
 } // namespace main_krn
 } // namespace reduction
+
 // Specialization for devices with the atomic64 aspect, which guarantees 64 (and
 // temporarily 32) bit floating point support for atomic add.
 // TODO 32 bit floating point atomics are eventually expected to be supported by
@@ -2198,9 +2065,9 @@ template <class KernelName> struct NDRangeAtomic64;
 // IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
 // be made.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
-                            const nd_range<Dims> &Range, Reduction &,
-                            typename Reduction::rw_accessor_type Out) {
+void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
+                        const nd_range<Dims> &Range, Reduction &Redu) {
+  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
   static_assert(Reduction::has_atomic_add_float64,
                 "Only suitable for reductions that have FP64 atomic add.");
   constexpr size_t NElements = Reduction::num_elements;
@@ -2225,40 +2092,16 @@ void reduCGFuncImplAtomic64(handler &CGH, KernelType KernelFunc,
   });
 }
 
-// Specialization for devices with the atomic64 aspect, which guarantees 64 (and
-// temporarily 32) bit floating point support for atomic add.
-// TODO 32 bit floating point atomics are eventually expected to be supported by
-// the has_fast_atomics specialization. Corresponding changes to
-// IsReduOptForAtomic64Add, as prescribed in its documentation, should then also
-// be made.
-template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncAtomic64(handler &CGH, KernelType KernelFunc,
-                        const nd_range<Dims> &Range, Reduction &Redu) {
-  auto Out = Redu.getReadWriteAccessorToInitializedMem(CGH);
-  reduCGFuncImplAtomic64<KernelName, KernelType, Dims, Reduction>(
-      CGH, KernelFunc, Range, Redu, Out);
-}
-
-inline void associateReduAccsWithHandlerHelper(handler &) {}
-
-template <typename ReductionT>
-void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu) {
-  Redu.associateWithHandler(CGH);
-}
-
-template <typename ReductionT, typename... RestT,
-          enable_if_t<(sizeof...(RestT) > 0), int> Z = 0>
-void associateReduAccsWithHandlerHelper(handler &CGH, ReductionT &Redu,
-                                        RestT &... Rest) {
-  Redu.associateWithHandler(CGH);
-  associateReduAccsWithHandlerHelper(CGH, Rest...);
-}
-
 template <typename... Reductions, size_t... Is>
 void associateReduAccsWithHandler(handler &CGH,
                                   std::tuple<Reductions...> &ReduTuple,
                                   std::index_sequence<Is...>) {
-  associateReduAccsWithHandlerHelper(CGH, std::get<Is>(ReduTuple)...);
+  auto ProcessOne = [&CGH](auto Redu) {
+    if constexpr (decltype(Redu)::is_acc) {
+      associateWithHandler(CGH, &Redu.getUserRedVar(), access::target::device);
+    }
+  };
+  (ProcessOne(std::get<Is>(ReduTuple)), ...);
 }
 
 /// All scalar reductions are processed together; there is one loop of log2(N)
@@ -2459,6 +2302,7 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 
   bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
   bool IsOneWG = NWorkGroups == 1;
+  bool HasUniformWG = Pow2WG && (NWorkGroups * WGSize == NWorkItems);
 
   // Like reduCGFuncImpl, we also have to split out scalar and array reductions
   IsScalarReduction ScalarPredicate;
@@ -2467,28 +2311,27 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
   IsArrayReduction ArrayPredicate;
   auto ArrayIs = filterSequence<Reductions...>(ArrayPredicate, ReduIndices);
 
+  size_t LocalAccSize = WGSize + (HasUniformWG ? 0 : 1);
+  auto LocalAccsTuple =
+      createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
+  auto InAccsTuple =
+      getReadAccsToPreviousPartialReds(CGH, ReduTuple, ReduIndices);
+
+  auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
+  auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
+  auto InitToIdentityProps =
+      getInitToIdentityProperties(ReduTuple, ReduIndices);
+
   // Predicate/OutAccsTuple below have different type depending on us having
   // just a single WG or multiple WGs. Use this lambda to avoid code
   // duplication.
   auto Rest = [&](auto Predicate, auto OutAccsTuple) {
     auto AccReduIndices = filterSequence<Reductions...>(Predicate, ReduIndices);
     associateReduAccsWithHandler(CGH, ReduTuple, AccReduIndices);
-
-    size_t LocalAccSize = WGSize + (Pow2WG ? 0 : 1);
-    auto LocalAccsTuple =
-        createReduLocalAccs<Reductions...>(LocalAccSize, CGH, ReduIndices);
-    auto InAccsTuple =
-        getReadAccsToPreviousPartialReds(CGH, ReduTuple, ReduIndices);
-
-    auto IdentitiesTuple = getReduIdentities(ReduTuple, ReduIndices);
-    auto BOPsTuple = getReduBOPs(ReduTuple, ReduIndices);
-    auto InitToIdentityProps =
-        getInitToIdentityProperties(ReduTuple, ReduIndices);
-
     using Name = __sycl_reduction_kernel<reduction::aux_krn::Multi, KernelName,
                                          decltype(OutAccsTuple)>;
     // TODO: Opportunity to parallelize across number of elements
-    range<1> GlobalRange = {Pow2WG ? NWorkItems : NWorkGroups * WGSize};
+    range<1> GlobalRange = {HasUniformWG ? NWorkItems : NWorkGroups * WGSize};
     nd_range<1> Range{GlobalRange, range<1>(WGSize)};
     CGH.parallel_for<Name>(Range, [=](nd_item<1> NDIt) {
       size_t WGSize = NDIt.get_local_range().size();
@@ -2497,12 +2340,12 @@ size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,
 
       // Handle scalar and array reductions
       reduAuxCGFuncImplScalar<Reductions...>(
-          Pow2WG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple,
-          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          HasUniformWG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize,
+          LocalAccsTuple, InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
           InitToIdentityProps, ScalarIs);
       reduAuxCGFuncImplArray<Reductions...>(
-          Pow2WG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize, LocalAccsTuple,
-          InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
+          HasUniformWG, IsOneWG, NDIt, LID, GID, NWorkItems, WGSize,
+          LocalAccsTuple, InAccsTuple, OutAccsTuple, IdentitiesTuple, BOPsTuple,
           InitToIdentityProps, ArrayIs);
     });
   };
@@ -2524,21 +2367,17 @@ template <typename Reduction, typename... RestT>
 void reduSaveFinalResultToUserMemHelper(
     std::vector<event> &Events, std::shared_ptr<detail::queue_impl> Queue,
     bool IsHost, Reduction &Redu, RestT... Rest) {
-  // Reductions initialized with USM pointer currently do not require copying
-  // because the last kernel writes directly to the USM memory.
-  if constexpr (!Reduction::is_usm) {
-    if (Redu.hasUserDiscardWriteAccessor()) {
-      event CopyEvent =
-          handler::withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
-            auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
-            auto OutAcc = Redu.getUserDiscardWriteAccessor();
-            Redu.associateWithHandler(CopyHandler);
-            if (!Events.empty())
-              CopyHandler.depends_on(Events.back());
-            CopyHandler.copy(InAcc, OutAcc);
-          });
-      Events.push_back(CopyEvent);
-    }
+  if constexpr (Reduction::is_dw_acc) {
+    event CopyEvent = withAuxHandler(Queue, IsHost, [&](handler &CopyHandler) {
+      auto InAcc = Redu.getReadAccToPreviousPartialReds(CopyHandler);
+      auto OutAcc = Redu.getUserRedVar();
+      associateWithHandler(CopyHandler, &Redu.getUserRedVar(),
+                           access::target::device);
+      if (!Events.empty())
+        CopyHandler.depends_on(Events.back());
+      CopyHandler.copy(InAcc, OutAcc);
+    });
+    Events.push_back(CopyEvent);
   }
   reduSaveFinalResultToUserMemHelper(Events, Queue, IsHost, Rest...);
 }
@@ -2592,11 +2431,9 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 /// operation used in the reduction.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
-detail::reduction_impl<T, BinaryOperation, 0, 1,
-                       detail::default_reduction_algorithm<false, IsPH, Dims>>
-reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
-          const T &Identity, BinaryOperation BOp) {
-  return {Acc, Identity, BOp};
+auto reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
+               const T &Identity, BinaryOperation BOp) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(Acc, Identity, BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -2604,14 +2441,12 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// must be stored \param Acc and the binary operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
-          access::placeholder IsPH>
-std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-                 detail::reduction_impl<
-                     T, BinaryOperation, 0, 1,
-                     detail::default_reduction_algorithm<false, IsPH, Dims>>>
-reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
-          BinaryOperation) {
-  return {Acc};
+          access::placeholder IsPH,
+          typename = std::enable_if_t<
+              sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+auto reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
+               BinaryOperation) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(Acc);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -2619,11 +2454,8 @@ reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
 /// the computed reduction must be stored \param VarPtr, identity value
 /// \param Identity, and the binary operation used in the reduction.
 template <typename T, class BinaryOperation>
-detail::reduction_impl<
-    T, BinaryOperation, 0, 1,
-    detail::default_reduction_algorithm<true, access::placeholder::false_t, 1>>
-reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
-  return {VarPtr, Identity, BOp};
+auto reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(VarPtr, Identity, BOp);
 }
 
 /// Creates and returns an object implementing the reduction functionality.
@@ -2631,14 +2463,11 @@ reduction(T *VarPtr, const T &Identity, BinaryOperation BOp) {
 /// the computed reduction must be stored \param VarPtr, and the binary
 /// operation used in the reduction.
 /// The identity value is not passed to this version as it is statically known.
-template <typename T, class BinaryOperation>
-std::enable_if_t<
-    detail::IsKnownIdentityOp<T, BinaryOperation>::value,
-    detail::reduction_impl<T, BinaryOperation, 0, 1,
-                           detail::default_reduction_algorithm<
-                               true, access::placeholder::false_t, 1>>>
-reduction(T *VarPtr, BinaryOperation) {
-  return {VarPtr};
+template <typename T, class BinaryOperation,
+          typename = std::enable_if_t<
+              sycl::detail::IsKnownIdentityOp<T, BinaryOperation>::value>>
+auto reduction(T *VarPtr, BinaryOperation) {
+  return detail::make_reduction<BinaryOperation, 0, 1>(VarPtr);
 }
 
 // ---- has_known_identity
@@ -2663,15 +2492,15 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 
 #ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  namespace detail {
-  using cl::sycl::detail::queue_impl;
-  __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
-                                        size_t LocalMemBytesPerWorkItem);
-  __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
-                                         size_t &NWorkGroups);
-  } // namespace detail
-} // namespace ONEAPI
+using namespace ext::oneapi;
+namespace detail {
+using cl::sycl::detail::queue_impl;
+__SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
+                                      size_t LocalMemBytesPerWorkItem);
+__SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                       size_t &NWorkGroups);
+} // namespace detail
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

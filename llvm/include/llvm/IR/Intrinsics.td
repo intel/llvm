@@ -1308,7 +1308,7 @@ def int_coro_noop : Intrinsic<[llvm_ptr_ty], [], [IntrNoMem]>;
 def int_coro_size : Intrinsic<[llvm_anyint_ty], [], [IntrNoMem]>;
 def int_coro_align : Intrinsic<[llvm_anyint_ty], [], [IntrNoMem]>;
 
-def int_coro_save : Intrinsic<[llvm_token_ty], [llvm_ptr_ty], []>;
+def int_coro_save : Intrinsic<[llvm_token_ty], [llvm_ptr_ty], [IntrNoMerge]>;
 def int_coro_suspend : Intrinsic<[llvm_i8_ty], [llvm_token_ty, llvm_i1_ty], []>;
 def int_coro_suspend_retcon : Intrinsic<[llvm_any_ty], [llvm_vararg_ty], []>;
 def int_coro_prepare_retcon : Intrinsic<[llvm_ptr_ty], [llvm_ptr_ty],
@@ -1961,13 +1961,13 @@ def int_experimental_vector_splice : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
 def int_vscale : DefaultAttrsIntrinsic<[llvm_anyint_ty], [], [IntrNoMem]>;
 
 //===---------- Intrinsics to perform subvector insertion/extraction ------===//
-def int_experimental_vector_insert : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
-                                                           [LLVMMatchType<0>, llvm_anyvector_ty, llvm_i64_ty],
-                                                           [IntrNoMem, ImmArg<ArgIndex<2>>]>;
+def int_vector_insert : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                                              [LLVMMatchType<0>, llvm_anyvector_ty, llvm_i64_ty],
+                                              [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<2>>]>;
 
-def int_experimental_vector_extract : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
-                                                            [llvm_anyvector_ty, llvm_i64_ty],
-                                                            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_vector_extract : DefaultAttrsIntrinsic<[llvm_anyvector_ty],
+                                               [llvm_anyvector_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<1>>]>;
 
 //===----------------- Pointer Authentication Intrinsics ------------------===//
 //
@@ -2044,3 +2044,4 @@ include "llvm/IR/IntrinsicsWebAssembly.td"
 include "llvm/IR/IntrinsicsRISCV.td"
 include "llvm/IR/IntrinsicsSPIRV.td"
 include "llvm/IR/IntrinsicsVE.td"
+include "llvm/IR/IntrinsicsDirectX.td"

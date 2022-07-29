@@ -585,6 +585,8 @@ def opt_remarks_with_hotness: FF<"opt-remarks-with-hotness">,
 def opt_remarks_format: Separate<["--"], "opt-remarks-format">,
   HelpText<"The format used for serializing remarks (default: YAML)">;
 def save_temps: F<"save-temps">, HelpText<"Save intermediate LTO compilation results">;
+def save_temps_eq: JJ<"save-temps=">, HelpText<"Save select intermediate LTO compilation results">,
+  Values<"resolution,preopt,promote,internalize,import,opt,precodegen,prelink,combinedindex">;
 def lto_basic_block_sections: JJ<"lto-basic-block-sections=">,
   HelpText<"Enable basic block sections for LTO">;
 defm lto_unique_basic_block_section_names: BB<"lto-unique-basic-block-section-names",
@@ -693,7 +695,6 @@ def plugin_opt_eq : J<"plugin-opt=">;
 // Options listed below are silently ignored for now for compatibility.
 def: F<"detect-odr-violations">;
 def: Flag<["-"], "d">;
-def: Flag<["-"], "dc">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;
 def: FF<"no-add-needed">;

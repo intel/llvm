@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -73,7 +73,7 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
       FAIL() << "Unexpected exception was thrown.";
     }
 
-    CGH.single_task<TestKernel>([=]() {});
+    CGH.single_task<TestKernel<>>([=]() {});
   });
 
   ASSERT_EQ(GBufferCreateCounter, 0u) << "Buffers were unexpectedly created.";

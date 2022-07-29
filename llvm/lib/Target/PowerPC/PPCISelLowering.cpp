@@ -392,8 +392,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
 
   // MASS transformation for LLVM intrinsics with replicating fast-math flag
   // to be consistent to PPCGenScalarMASSEntries pass
-  if (TM.getOptLevel() == CodeGenOpt::Aggressive &&
-      TM.Options.PPCGenScalarMASSEntries) {
+  if (TM.getOptLevel() == CodeGenOpt::Aggressive) {
     setOperationAction(ISD::FSIN , MVT::f64, Custom);
     setOperationAction(ISD::FCOS , MVT::f64, Custom);
     setOperationAction(ISD::FPOW , MVT::f64, Custom);
@@ -9073,7 +9072,7 @@ SDValue PPCTargetLowering::LowerBITCAST(SDValue Op, SelectionDAG &DAG) const {
 
 static const SDValue *getNormalLoadInput(const SDValue &Op, bool &IsPermuted) {
   const SDValue *InputLoad = &Op;
-  if (InputLoad->getOpcode() == ISD::BITCAST)
+  while (InputLoad->getOpcode() == ISD::BITCAST)
     InputLoad = &InputLoad->getOperand(0);
   if (InputLoad->getOpcode() == ISD::SCALAR_TO_VECTOR ||
       InputLoad->getOpcode() == PPCISD::SCALAR_TO_VECTOR_PERMUTED) {
@@ -17886,13 +17885,17 @@ bool PPCTargetLowering::isLowringToMASSSafe(SDValue Op) const {
   return Op.getNode()->getFlags().hasApproximateFuncs();
 }
 
+bool PPCTargetLowering::isScalarMASSConversionEnabled() const {
+  return getTargetMachine().Options.PPCGenScalarMASSEntries;
+}
+
 SDValue PPCTargetLowering::lowerLibCallBase(const char *LibCallDoubleName,
                                             const char *LibCallFloatName,
                                             const char *LibCallDoubleNameFinite,
                                             const char *LibCallFloatNameFinite,
                                             SDValue Op,
                                             SelectionDAG &DAG) const {
-  if (!isLowringToMASSSafe(Op))
+  if (!isScalarMASSConversionEnabled() || !isLowringToMASSSafe(Op))
     return SDValue();
 
   if (!isLowringToMASSFiniteSafe(Op))

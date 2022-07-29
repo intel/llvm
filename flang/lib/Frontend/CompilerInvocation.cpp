@@ -12,6 +12,7 @@
 
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Common/Fortran-features.h"
+#include "flang/Frontend/CodeGenOptions.h"
 #include "flang/Frontend/PreprocessorOptions.h"
 #include "flang/Frontend/TargetOptions.h"
 #include "flang/Semantics/semantics.h"
@@ -20,6 +21,7 @@
 #include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/OptionUtils.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -88,11 +90,40 @@ static bool parseShowColorsArgs(const llvm::opt::ArgList &args,
           llvm::sys::Process::StandardErrHasColors());
 }
 
+/// Extracts the optimisation level from \a args.
+static unsigned getOptimizationLevel(llvm::opt::ArgList &args,
+                                     clang::DiagnosticsEngine &diags) {
+  unsigned defaultOpt = llvm::CodeGenOpt::None;
+
+  if (llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_O_Group)) {
+    if (a->getOption().matches(clang::driver::options::OPT_O0))
+      return llvm::CodeGenOpt::None;
+
+    assert(a->getOption().matches(clang::driver::options::OPT_O));
+
+    return getLastArgIntValue(args, clang::driver::options::OPT_O, defaultOpt,
+                              diags);
+  }
+
+  return defaultOpt;
+}
+
 bool Fortran::frontend::parseDiagnosticArgs(clang::DiagnosticOptions &opts,
                                             llvm::opt::ArgList &args) {
   opts.ShowColors = parseShowColorsArgs(args);
 
   return true;
+}
+
+static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
+                             llvm::opt::ArgList &args,
+                             clang::DiagnosticsEngine &diags) {
+  opts.OptimizationLevel = getOptimizationLevel(args, diags);
+
+  if (args.hasFlag(clang::driver::options::OPT_fdebug_pass_manager,
+                   clang::driver::options::OPT_fno_debug_pass_manager, false))
+    opts.DebugPassManager = 1;
 }
 
 /// Parses all target input arguments and populates the target
@@ -616,6 +647,7 @@ bool CompilerInvocation::createFromArgs(
   success &= parseFrontendArgs(res.getFrontendOpts(), args, diags);
   parseTargetArgs(res.getTargetOpts(), args);
   parsePreprocessorArgs(res.getPreprocessorOpts(), args);
+  parseCodeGenArgs(res.getCodeGenOpts(), args, diags);
   success &= parseSemaArgs(res, args, diags);
   success &= parseDialectArgs(res, args, diags);
   success &= parseDiagArgs(res, args, diags);

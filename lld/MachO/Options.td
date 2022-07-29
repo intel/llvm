@@ -505,7 +505,6 @@ def reexported_symbols_list : Separate<["-"], "reexported_symbols_list">,
 def alias : MultiArg<["-"], "alias", 2>,
     MetaVarName<"<symbol_name> <alternate_name>">,
     HelpText<"Create a symbol alias with default global visibility">,
-    Flags<[HelpHidden]>,
     Group<grp_resolve>;
 def alias_list : Separate<["-"], "alias_list">,
     MetaVarName<"<file>">,
@@ -1257,8 +1256,7 @@ def ignore_auto_link : Flag<["-"], "ignore_auto_link">,
     Flags<[HelpHidden]>,
     Group<grp_undocumented>;
 def ignore_optimization_hints : Flag<["-"], "ignore_optimization_hints">,
-    HelpText<"This option is undocumented in ld64">,
-    Flags<[HelpHidden]>,
+    HelpText<"Ignore Linker Optimization Hints">,
     Group<grp_undocumented>;
 def init_offsets : Flag<["-"], "init_offsets">,
     HelpText<"This option is undocumented in ld64">,

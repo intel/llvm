@@ -15,6 +15,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
@@ -629,9 +630,10 @@ computeUnlikelySuccessors(const BasicBlock *BB, Loop *L,
       if (!CmpLHSConst || !llvm::is_contained(successors(BB), B))
         continue;
       // First collapse InstChain
+      const DataLayout &DL = BB->getModule()->getDataLayout();
       for (Instruction *I : llvm::reverse(InstChain)) {
-        CmpLHSConst = ConstantExpr::get(I->getOpcode(), CmpLHSConst,
-                                        cast<Constant>(I->getOperand(1)), true);
+        CmpLHSConst = ConstantFoldBinaryOpOperands(
+            I->getOpcode(), CmpLHSConst, cast<Constant>(I->getOperand(1)), DL);
         if (!CmpLHSConst)
           break;
       }
@@ -826,9 +828,8 @@ void BranchProbabilityInfo::computeEestimateBlockWeight(
     if (auto BBWeight = getInitialEstimatedBlockWeight(BB))
       // If we were able to find estimated weight for the block set it to this
       // block and propagate up the IR.
-      propagateEstimatedBlockWeight(getLoopBlock(BB), DT, PDT,
-                                    BBWeight.getValue(), BlockWorkList,
-                                    LoopWorkList);
+      propagateEstimatedBlockWeight(getLoopBlock(BB), DT, PDT, BBWeight.value(),
+                                    BlockWorkList, LoopWorkList);
 
   // BlockWorklist/LoopWorkList contains blocks/loops with at least one
   // successor/exit having estimated weight. Try to propagate weight to such
@@ -1249,7 +1250,7 @@ void BranchProbabilityInfo::calculate(const Function &F, const LoopInfo &LoopI,
 
   // Walk the basic blocks in post-order so that we can build up state about
   // the successors of a block iteratively.
-  for (auto BB : post_order(&F.getEntryBlock())) {
+  for (const auto *BB : post_order(&F.getEntryBlock())) {
     LLVM_DEBUG(dbgs() << "Computing probabilities for " << BB->getName()
                       << "\n");
     // If there is no at least two successors, no sense to set probability.

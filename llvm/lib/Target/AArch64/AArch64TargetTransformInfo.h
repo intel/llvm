@@ -334,8 +334,10 @@ public:
     return 2;
   }
 
-  bool emitGetActiveLaneMask() const {
-    return ST->hasSVE();
+  PredicationStyle emitGetActiveLaneMask() const {
+    if (ST->hasSVE())
+      return PredicationStyle::DataAndControlFlow;
+    return PredicationStyle::None;
   }
 
   bool supportsScalableVectors() const { return ST->hasSVE(); }
@@ -344,6 +346,11 @@ public:
 
   bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const;
+
+  bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
+                                       TTI::ReductionFlags Flags) const {
+    return ST->hasSVE();
+  }
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                                              Optional<FastMathFlags> FMF,

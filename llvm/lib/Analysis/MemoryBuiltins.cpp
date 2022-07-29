@@ -179,6 +179,11 @@ static const Function *getCalledFunction(const Value *V,
 static Optional<AllocFnsTy>
 getAllocationDataForFunction(const Function *Callee, AllocType AllocTy,
                              const TargetLibraryInfo *TLI) {
+  // Don't perform a slow TLI lookup, if this function doesn't return a pointer
+  // and thus can't be an allocation function.
+  if (!Callee->getReturnType()->isPointerTy())
+    return None;
+
   // Make sure that the function is available.
   LibFunc TLIFn;
   if (!TLI || !TLI->getLibFunc(*Callee, TLIFn) || !TLI->has(TLIFn))
@@ -270,65 +275,63 @@ static Optional<AllocFnsTy> getAllocationSize(const Value *V,
 /// allocates or reallocates memory (either malloc, calloc, realloc, or strdup
 /// like).
 bool llvm::isAllocationFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, AnyAlloc, TLI).hasValue();
+  return getAllocationData(V, AnyAlloc, TLI).has_value();
 }
 bool llvm::isAllocationFn(
     const Value *V, function_ref<const TargetLibraryInfo &(Function &)> GetTLI) {
-  return getAllocationData(V, AnyAlloc, GetTLI).hasValue();
+  return getAllocationData(V, AnyAlloc, GetTLI).has_value();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates uninitialized memory (such as malloc).
 static bool isMallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, MallocOrOpNewLike, TLI).hasValue();
+  return getAllocationData(V, MallocOrOpNewLike, TLI).has_value();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates uninitialized memory with alignment (such as aligned_alloc).
 static bool isAlignedAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, AlignedAllocLike, TLI)
-      .hasValue();
+  return getAllocationData(V, AlignedAllocLike, TLI).has_value();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates zero-filled memory (such as calloc).
 static bool isCallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, CallocLike, TLI).hasValue();
+  return getAllocationData(V, CallocLike, TLI).has_value();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates memory similar to malloc or calloc.
 bool llvm::isMallocOrCallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, MallocOrCallocLike, TLI).hasValue();
+  return getAllocationData(V, MallocOrCallocLike, TLI).has_value();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// allocates memory (either malloc, calloc, or strdup like).
 bool llvm::isAllocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, AllocLike, TLI).hasValue();
+  return getAllocationData(V, AllocLike, TLI).has_value();
 }
 
 /// Tests if a value is a call or invoke to a library function that
 /// reallocates memory (e.g., realloc).
 bool llvm::isReallocLikeFn(const Value *V, const TargetLibraryInfo *TLI) {
-  return getAllocationData(V, ReallocLike, TLI).hasValue();
+  return getAllocationData(V, ReallocLike, TLI).has_value();
 }
 
 /// Tests if a functions is a call or invoke to a library function that
 /// reallocates memory (e.g., realloc).
 bool llvm::isReallocLikeFn(const Function *F, const TargetLibraryInfo *TLI) {
-  return getAllocationDataForFunction(F, ReallocLike, TLI).hasValue();
+  return getAllocationDataForFunction(F, ReallocLike, TLI).has_value();
 }
 
-bool llvm::isAllocRemovable(const CallBase *CB, const TargetLibraryInfo *TLI) {
-  assert(isAllocationFn(CB, TLI));
-
+bool llvm::isRemovableAlloc(const CallBase *CB, const TargetLibraryInfo *TLI) {
   // Note: Removability is highly dependent on the source language.  For
   // example, recent C++ requires direct calls to the global allocation
   // [basic.stc.dynamic.allocation] to be observable unless part of a new
   // expression [expr.new paragraph 13].
 
-  // Historically we've treated the C family allocation routines as removable
+  // Historically we've treated the C family allocation routines and operator
+  // new as removable
   return isAllocLikeFn(CB, TLI);
 }
 
@@ -358,9 +361,8 @@ static bool CheckedZextOrTrunc(APInt &I, unsigned IntTyBits) {
 }
 
 Optional<APInt>
-llvm::getAllocSize(const CallBase *CB,
-                   const TargetLibraryInfo *TLI,
-                   std::function<const Value*(const Value*)> Mapper) {
+llvm::getAllocSize(const CallBase *CB, const TargetLibraryInfo *TLI,
+                   function_ref<const Value *(const Value *)> Mapper) {
   // Note: This handles both explicitly listed allocation functions and
   // allocsize.  The code structure could stand to be cleaned up a bit.
   Optional<AllocFnsTy> FnData = getAllocationSize(CB, TLI);
@@ -420,10 +422,12 @@ llvm::getAllocSize(const CallBase *CB,
   return Size;
 }
 
-Constant *llvm::getInitialValueOfAllocation(const CallBase *Alloc,
+Constant *llvm::getInitialValueOfAllocation(const Value *V,
                                             const TargetLibraryInfo *TLI,
                                             Type *Ty) {
-  assert(isAllocationFn(Alloc, TLI));
+  auto *Alloc = dyn_cast<CallBase>(V);
+  if (!Alloc)
+    return nullptr;
 
   // malloc and aligned_alloc are uninitialized (undef)
   if (isMallocLikeFn(Alloc, TLI) || isAlignedAllocLikeFn(Alloc, TLI))
@@ -499,18 +503,18 @@ Optional<StringRef> llvm::getAllocationFamily(const Value *I,
   if (!TLI || !TLI->getLibFunc(*Callee, TLIFn) || !TLI->has(TLIFn))
     return None;
   const auto AllocData = getAllocationDataForFunction(Callee, AnyAlloc, TLI);
-  if (AllocData.hasValue())
-    return mangledNameForMallocFamily(AllocData.getValue().Family);
+  if (AllocData)
+    return mangledNameForMallocFamily(AllocData.value().Family);
   const auto FreeData = getFreeFunctionDataForFunction(Callee, TLIFn);
-  if (FreeData.hasValue())
-    return mangledNameForMallocFamily(FreeData.getValue().Family);
+  if (FreeData)
+    return mangledNameForMallocFamily(FreeData.value().Family);
   return None;
 }
 
 /// isLibFreeFunction - Returns true if the function is a builtin free()
 bool llvm::isLibFreeFunction(const Function *F, const LibFunc TLIFn) {
   Optional<FreeFnsTy> FnData = getFreeFunctionDataForFunction(F, TLIFn);
-  if (!FnData.hasValue())
+  if (!FnData)
     return false;
 
   // Check free prototype.
@@ -527,20 +531,21 @@ bool llvm::isLibFreeFunction(const Function *F, const LibFunc TLIFn) {
   return true;
 }
 
-/// isFreeCall - Returns non-null if the value is a call to the builtin free()
-const CallInst *llvm::isFreeCall(const Value *I, const TargetLibraryInfo *TLI) {
+Value *llvm::getFreedOperand(const CallBase *CB, const TargetLibraryInfo *TLI) {
   bool IsNoBuiltinCall;
-  const Function *Callee = getCalledFunction(I, IsNoBuiltinCall);
+  const Function *Callee = getCalledFunction(CB, IsNoBuiltinCall);
   if (Callee == nullptr || IsNoBuiltinCall)
     return nullptr;
 
   LibFunc TLIFn;
-  if (!TLI || !TLI->getLibFunc(*Callee, TLIFn) || !TLI->has(TLIFn))
-    return nullptr;
+  if (TLI && TLI->getLibFunc(*Callee, TLIFn) && TLI->has(TLIFn) &&
+      isLibFreeFunction(Callee, TLIFn)) {
+    // All currently supported free functions free the first argument.
+    return CB->getArgOperand(0);
+  }
 
-  return isLibFreeFunction(Callee, TLIFn) ? dyn_cast<CallInst>(I) : nullptr;
+  return nullptr;
 }
-
 
 //===----------------------------------------------------------------------===//
 //  Utility functions to compute size of objects.
@@ -764,8 +769,7 @@ SizeOffsetType ObjectSizeOffsetVisitor::visitArgument(Argument &A) {
 }
 
 SizeOffsetType ObjectSizeOffsetVisitor::visitCallBase(CallBase &CB) {
-  auto Mapper = [](const Value *V) { return V; };
-  if (Optional<APInt> Size = getAllocSize(&CB, TLI, Mapper))
+  if (Optional<APInt> Size = getAllocSize(&CB, TLI))
     return std::make_pair(*Size, Zero);
   return unknown();
 }
@@ -1013,7 +1017,7 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::compute(Value *V) {
 
     // Erase any instructions we inserted as part of the traversal.
     for (Instruction *I : InsertedInstructions) {
-      I->replaceAllUsesWith(UndefValue::get(I->getType()));
+      I->replaceAllUsesWith(PoisonValue::get(I->getType()));
       I->eraseFromParent();
     }
   }
@@ -1160,10 +1164,10 @@ SizeOffsetEvalType ObjectSizeOffsetEvaluator::visitPHINode(PHINode &PHI) {
     SizeOffsetEvalType EdgeData = compute_(PHI.getIncomingValue(i));
 
     if (!bothKnown(EdgeData)) {
-      OffsetPHI->replaceAllUsesWith(UndefValue::get(IntTy));
+      OffsetPHI->replaceAllUsesWith(PoisonValue::get(IntTy));
       OffsetPHI->eraseFromParent();
       InsertedInstructions.erase(OffsetPHI);
-      SizePHI->replaceAllUsesWith(UndefValue::get(IntTy));
+      SizePHI->replaceAllUsesWith(PoisonValue::get(IntTy));
       SizePHI->eraseFromParent();
       InsertedInstructions.erase(SizePHI);
       return unknown();

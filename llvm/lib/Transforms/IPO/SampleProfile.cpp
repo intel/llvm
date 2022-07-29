@@ -546,53 +546,6 @@ private:
     return AnnotatedPassName.c_str();
   }
 };
-
-class SampleProfileLoaderLegacyPass : public ModulePass {
-public:
-  // Class identification, replacement for typeinfo
-  static char ID;
-
-  SampleProfileLoaderLegacyPass(
-      StringRef Name = SampleProfileFile,
-      ThinOrFullLTOPhase LTOPhase = ThinOrFullLTOPhase::None)
-      : ModulePass(ID), SampleLoader(
-                            Name, SampleProfileRemappingFile, LTOPhase,
-                            [&](Function &F) -> AssumptionCache & {
-                              return ACT->getAssumptionCache(F);
-                            },
-                            [&](Function &F) -> TargetTransformInfo & {
-                              return TTIWP->getTTI(F);
-                            },
-                            [&](Function &F) -> TargetLibraryInfo & {
-                              return TLIWP->getTLI(F);
-                            }) {
-    initializeSampleProfileLoaderLegacyPassPass(
-        *PassRegistry::getPassRegistry());
-  }
-
-  void dump() { SampleLoader.dump(); }
-
-  bool doInitialization(Module &M) override {
-    return SampleLoader.doInitialization(M);
-  }
-
-  StringRef getPassName() const override { return "Sample profile pass"; }
-  bool runOnModule(Module &M) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<AssumptionCacheTracker>();
-    AU.addRequired<TargetTransformInfoWrapperPass>();
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-    AU.addRequired<ProfileSummaryInfoWrapperPass>();
-  }
-
-private:
-  SampleProfileLoader SampleLoader;
-  AssumptionCacheTracker *ACT = nullptr;
-  TargetTransformInfoWrapperPass *TTIWP = nullptr;
-  TargetLibraryInfoWrapperPass *TLIWP = nullptr;
-};
-
 } // end anonymous namespace
 
 ErrorOr<uint64_t> SampleProfileLoader::getInstWeight(const Instruction &Inst) {
@@ -1073,8 +1026,7 @@ void SampleProfileLoader::findExternalInlineCandidate(
     return;
   }
 
-  ContextTrieNode *Caller =
-      ContextTracker->getContextFor(Samples->getContext());
+  ContextTrieNode *Caller = ContextTracker->getContextNodeForProfile(Samples);
   std::queue<ContextTrieNode *> CalleeList;
   CalleeList.push(Caller);
   while (!CalleeList.empty()) {
@@ -1351,14 +1303,14 @@ SampleProfileLoader::getExternalInlineAdvisorCost(CallBase &CB) {
 
 bool SampleProfileLoader::getExternalInlineAdvisorShouldInline(CallBase &CB) {
   Optional<InlineCost> Cost = getExternalInlineAdvisorCost(CB);
-  return Cost ? !!Cost.getValue() : false;
+  return Cost ? !!Cost.value() : false;
 }
 
 InlineCost
 SampleProfileLoader::shouldInlineCandidate(InlineCandidate &Candidate) {
   if (Optional<InlineCost> ReplayCost =
           getExternalInlineAdvisorCost(*Candidate.CallInstr))
-    return ReplayCost.getValue();
+    return ReplayCost.value();
   // Adjust threshold based on call site hotness, only do this for callsite
   // prioritized inliner because otherwise cost-benefit check is done earlier.
   int SampleThreshold = SampleColdCallSiteThreshold;
@@ -1826,17 +1778,6 @@ bool SampleProfileLoader::emitAnnotations(Function &F) {
   return Changed;
 }
 
-char SampleProfileLoaderLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(SampleProfileLoaderLegacyPass, "sample-profile",
-                      "Sample Profile loader", false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
-INITIALIZE_PASS_END(SampleProfileLoaderLegacyPass, "sample-profile",
-                    "Sample Profile loader", false, false)
-
 std::unique_ptr<ProfiledCallGraph>
 SampleProfileLoader::buildProfiledCallGraph(CallGraph &CG) {
   std::unique_ptr<ProfiledCallGraph> ProfiledCG;
@@ -2015,7 +1956,7 @@ bool SampleProfileLoader::doInitialization(Module &M,
                               ProfileInlineReplayScope,
                               ProfileInlineReplayFallback,
                               {ProfileInlineReplayFormat}},
-        /*EmitRemarks=*/false);
+        /*EmitRemarks=*/false, InlineContext{LTOPhase, InlinePass::ReplaySampleProfileInliner});
   }
 
   // Apply tweaks if context-sensitive or probe-based profile is available.
@@ -2072,14 +2013,6 @@ bool SampleProfileLoader::doInitialization(Module &M,
   }
 
   return true;
-}
-
-ModulePass *llvm::createSampleProfileLoaderPass() {
-  return new SampleProfileLoaderLegacyPass();
-}
-
-ModulePass *llvm::createSampleProfileLoaderPass(StringRef Name) {
-  return new SampleProfileLoaderLegacyPass(Name);
 }
 
 bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
@@ -2140,15 +2073,6 @@ bool SampleProfileLoader::runOnModule(Module &M, ModuleAnalysisManager *AM,
       updateProfileCallee(pair.first, pair.second.entryCount);
 
   return retval;
-}
-
-bool SampleProfileLoaderLegacyPass::runOnModule(Module &M) {
-  ACT = &getAnalysis<AssumptionCacheTracker>();
-  TTIWP = &getAnalysis<TargetTransformInfoWrapperPass>();
-  TLIWP = &getAnalysis<TargetLibraryInfoWrapperPass>();
-  ProfileSummaryInfo *PSI =
-      &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
-  return SampleLoader.runOnModule(M, nullptr, PSI, nullptr);
 }
 
 bool SampleProfileLoader::runOnFunction(Function &F, ModuleAnalysisManager *AM) {

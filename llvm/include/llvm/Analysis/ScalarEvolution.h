@@ -535,8 +535,10 @@ public:
 
   /// Parse NSW/NUW flags from add/sub/mul IR binary operation \p Op into
   /// SCEV no-wrap flags, and deduce flag[s] that aren't known yet.
-  /// Does not mutate the original instruction.
-  std::pair<SCEV::NoWrapFlags, bool /*Deduced*/>
+  /// Does not mutate the original instruction. Returns None if it could not
+  /// deduce more precise flags than the instruction already has, otherwise
+  /// returns proven flags.
+  Optional<SCEV::NoWrapFlags>
   getStrengthenedNoWrapFlagsFromBinOp(const OverflowingBinaryOperator *OBO);
 
   /// Notify this ScalarEvolution that \p User directly uses SCEVs in \p Ops.
@@ -1575,8 +1577,16 @@ private:
   ConstantRange getRangeForUnknownRecurrence(const SCEVUnknown *U);
 
   /// We know that there is no SCEV for the specified value.  Analyze the
-  /// expression.
+  /// expression recursively.
   const SCEV *createSCEV(Value *V);
+
+  /// We know that there is no SCEV for the specified value. Create a new SCEV
+  /// for \p V iteratively.
+  const SCEV *createSCEVIter(Value *V);
+  /// Collect operands of \p V for which SCEV expressions should be constructed
+  /// first. Returns a SCEV directly if it can be constructed trivially for \p
+  /// V.
+  const SCEV *getOperandsToCreate(Value *V, SmallVectorImpl<Value *> &Ops);
 
   /// Provide the special handling we need to analyze PHI SCEVs.
   const SCEV *createNodeForPHI(PHINode *PN);

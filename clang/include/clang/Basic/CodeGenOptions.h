@@ -389,6 +389,9 @@ public:
   /// On AArch64 this can only be "sp_el0".
   std::string StackProtectorGuardReg;
 
+  /// Specify a symbol to be the guard value.
+  std::string StackProtectorGuardSymbol;
+
   /// Path to ignorelist file specifying which objects
   /// (files, functions) listed for instrumentation by sanitizer
   /// coverage pass should actually not be instrumented.
@@ -468,7 +471,7 @@ public:
 
   /// Check if type and variable info should be emitted.
   bool hasReducedDebugInfo() const {
-    return getDebugInfo() >= codegenoptions::LimitedDebugInfo;
+    return getDebugInfo() >= codegenoptions::DebugInfoConstructor;
   }
 
   /// Check if maybe unused type info should be emitted.

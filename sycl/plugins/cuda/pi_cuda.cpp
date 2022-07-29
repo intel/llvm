@@ -11,10 +11,10 @@
 ///
 /// \ingroup sycl_pi_cuda
 
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -133,17 +133,21 @@ pi_result check_error(CUresult result, const char *function, int line,
     return PI_SUCCESS;
   }
 
-  const char *errorString = nullptr;
-  const char *errorName = nullptr;
-  cuGetErrorName(result, &errorName);
-  cuGetErrorString(result, &errorString);
-  std::cerr << "\nPI CUDA ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    const char *errorString = nullptr;
+    const char *errorName = nullptr;
+    cuGetErrorName(result, &errorName);
+    cuGetErrorString(result, &errorString);
+    std::stringstream ss;
+    ss << "\nPI CUDA ERROR:"
+       << "\n\tValue:           " << result
+       << "\n\tName:            " << errorName
+       << "\n\tDescription:     " << errorString
+       << "\n\tFunction:        " << function << "\n\tSource Location: " << file
+       << ":" << line << "\n"
+       << std::endl;
+    std::cerr << ss.str();
+  }
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -5095,7 +5099,8 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
   if (advice == PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION ||
       advice == PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION ||
       advice == PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY ||
-      advice == PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY) {
+      advice == PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY ||
+      advice == PI_MEM_ADVICE_RESET) {
     pi_device device = queue->get_context()->get_device();
     if (!getAttribute(device, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
       setErrorMessage("Mem advise ignored as device does not support "
@@ -5143,6 +5148,17 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
                          (PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST -
                           PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION)),
           CU_DEVICE_CPU));
+      break;
+    case PI_MEM_ADVICE_RESET:
+      PI_CHECK_ERROR(cuMemAdvise((CUdeviceptr)ptr, length,
+                                 CU_MEM_ADVISE_UNSET_READ_MOSTLY,
+                                 queue->get_context()->get_device()->get()));
+      PI_CHECK_ERROR(cuMemAdvise((CUdeviceptr)ptr, length,
+                                 CU_MEM_ADVISE_UNSET_PREFERRED_LOCATION,
+                                 queue->get_context()->get_device()->get()));
+      PI_CHECK_ERROR(cuMemAdvise((CUdeviceptr)ptr, length,
+                                 CU_MEM_ADVISE_UNSET_ACCESSED_BY,
+                                 queue->get_context()->get_device()->get()));
       break;
     default:
       cl::sycl::detail::pi::die("Unknown advice");

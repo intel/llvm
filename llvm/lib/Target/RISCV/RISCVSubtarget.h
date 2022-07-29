@@ -86,6 +86,10 @@ private:
   bool HasStdExtZks = false;
   bool HasStdExtZkt = false;
   bool HasStdExtZk = false;
+  bool HasStdExtZicbom = false;
+  bool HasStdExtZicboz = false;
+  bool HasStdExtZicbop = false;
+  bool HasStdExtZmmul = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
   bool EnableLinkerRelax = false;
@@ -178,6 +182,10 @@ public:
   bool hasStdExtZksed() const { return HasStdExtZksed; }
   bool hasStdExtZksh() const { return HasStdExtZksh; }
   bool hasStdExtZkr() const { return HasStdExtZkr; }
+  bool hasStdExtZicbom() const { return HasStdExtZicbom; }
+  bool hasStdExtZicboz() const { return HasStdExtZicboz; }
+  bool hasStdExtZicbop() const { return HasStdExtZicbop; }
+  bool hasStdExtZmmul() const { return HasStdExtZmmul; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
   bool enableLinkerRelax() const { return EnableLinkerRelax; }
@@ -201,15 +209,13 @@ public:
     assert(hasVInstructions() && "Expected V extension");
     return hasVInstructionsI64() ? 64 : 32;
   }
-  unsigned getMinVLen() const { return ZvlLen; }
-  unsigned getMaxVLen() const { return 65536; }
   unsigned getRealMinVLen() const {
     unsigned VLen = getMinRVVVectorSizeInBits();
-    return VLen == 0 ? getMinVLen() : VLen;
+    return VLen == 0 ? getArchMinVLen() : VLen;
   }
   unsigned getRealMaxVLen() const {
     unsigned VLen = getMaxRVVVectorSizeInBits();
-    return VLen == 0 ? getMaxVLen() : VLen;
+    return VLen == 0 ? getArchMaxVLen() : VLen;
   }
   RISCVABI::ABI getTargetABI() const { return TargetABI; }
   bool isRegisterReservedByUser(Register i) const {
@@ -240,6 +246,18 @@ protected:
   std::unique_ptr<LegalizerInfo> Legalizer;
   std::unique_ptr<RegisterBankInfo> RegBankInfo;
 
+  // Return the known range for the bit length of RVV data registers as set
+  // at the command line. A value of 0 means nothing is known about that particular
+  // limit beyond what's implied by the architecture.
+  // NOTE: Please use getRealMinVLen and getRealMaxVLen instead!
+  unsigned getMaxRVVVectorSizeInBits() const;
+  unsigned getMinRVVVectorSizeInBits() const;
+
+  // Return the known range for the bit length of RVV data registers as indicated
+  // by -march and -mattr.
+  unsigned getArchMinVLen() const { return ZvlLen; }
+  unsigned getArchMaxVLen() const { return 65536; }
+
 public:
   const CallLowering *getCallLowering() const override;
   InstructionSelector *getInstructionSelector() const override;
@@ -252,11 +270,6 @@ public:
   // pool if exceeded.
   unsigned getMaxBuildIntsCost() const;
 
-  // Return the known range for the bit length of RVV data registers. A value
-  // of 0 means nothing is known about that particular limit beyond what's
-  // implied by the architecture.
-  unsigned getMaxRVVVectorSizeInBits() const;
-  unsigned getMinRVVVectorSizeInBits() const;
   unsigned getMaxLMULForFixedLengthVectors() const;
   bool useRVVForFixedLengthVectors() const;
 

@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/helpers.hpp>
+#include <sycl/detail/helpers.hpp>
 
-#include <CL/sycl/event.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <sycl/event.hpp>
 
 #include <memory>
 

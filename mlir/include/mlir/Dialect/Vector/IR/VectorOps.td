@@ -69,15 +69,6 @@ def Vector_CombiningKindAttr : DialectAttr<
           "::mlir::vector::CombiningKindAttr::get($0, $_builder.getContext())";
 }
 
-def Vector_AffineMapArrayAttr : TypedArrayAttrBase<AffineMapAttr,
-                                      "AffineMap array attribute"> {
-  let returnType = [{ ::llvm::SmallVector<::mlir::AffineMap, 4> }];
-  let convertFromStorage = [{
-    llvm::to_vector<4>($_self.getAsValueRange<::mlir::AffineMapAttr>());
-  }];
-  let constBuilderCall = "$_builder.getAffineMapArrayAttr($0)";
-}
-
 // TODO: Add an attribute to specify a different algebra with operators other
 // than the current set: {*, +}.
 def Vector_ContractionOp :
@@ -90,8 +81,8 @@ def Vector_ContractionOp :
     ]>,
     Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyType:$acc,
                Variadic<VectorOf<[I1]>>:$masks,
-               Vector_AffineMapArrayAttr:$indexing_maps,
-	       ArrayAttr:$iterator_types,
+               ArrayAttr:$indexing_maps,
+               ArrayAttr:$iterator_types,
                DefaultValuedAttr<Vector_CombiningKindAttr,
                                  "CombiningKind::ADD">:$kind)>,
     Results<(outs AnyType)> {
@@ -241,6 +232,10 @@ def Vector_ContractionOp :
     ArrayRef<StringRef> getTraitAttrNames();
     static unsigned getAccOperandIndex() { return 2; }
 
+    llvm::SmallVector<::mlir::AffineMap, 4> getIndexingMapsArray() {
+      return llvm::to_vector<4>(getIndexingMaps().getAsValueRange<::mlir::AffineMapAttr>());
+    }
+
     // Returns the bounds of each dimension in the iteration space spanned
     // by the iterator types of this operation.
     void getIterationBounds(SmallVectorImpl<int64_t> &iterationBounds);
@@ -280,8 +275,7 @@ def Vector_ReductionOp :
   let description = [{
     Reduces an 1-D vector "horizontally" into a scalar using the given
     operation (add/mul/min/max for int/fp and and/or/xor for int only).
-    Some reductions (add/mul for fp) also allow an optional fused
-    accumulator.
+    Reductions also allow an optional fused accumulator.
 
     Note that these operations are restricted to 1-D vectors to remain
     close to the corresponding LLVM intrinsics:
@@ -319,6 +313,7 @@ def Vector_ReductionOp :
 
 def Vector_MultiDimReductionOp :
   Vector_Op<"multi_reduction", [NoSideEffect,
+     AllTypesMatch<["dest", "acc"]>,
      PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>,
      DeclareOpInterfaceMethods<InferTypeOpInterface>,
@@ -326,6 +321,7 @@ def Vector_MultiDimReductionOp :
                                ["getShapeForUnroll"]>]>,
     Arguments<(ins Vector_CombiningKindAttr:$kind,
                    AnyVector:$source,
+                   AnyType:$acc,
                    I64ArrayAttr:$reduction_dims)>,
     Results<(outs AnyType:$dest)> {
   let summary = "Multi-dimensional reduction operation";
@@ -333,19 +329,20 @@ def Vector_MultiDimReductionOp :
     Reduces an n-D vector into an (n-k)-D vector (or a scalar when k == n)
     using the given operation (add/mul/min/max for int/fp and and/or/xor for
     int only).
+    Takes an initial accumulator operand.
 
     Example:
 
     ```mlir
-    %1 = vector.multi_reduction <add>, %0 [1, 3] :
+    %1 = vector.multi_reduction <add>, %0, %acc0 [1, 3] :
       vector<4x8x16x32xf32> into vector<4x16xf32>
-    %2 = vector.multi_reduction <add>, %1 [0, 1] :
+    %2 = vector.multi_reduction <add>, %1, %acc1 [0, 1] :
       vector<4x16xf32> into f32
     ```
   }];
   let builders = [
-    OpBuilder<(ins "Value":$source, "ArrayRef<bool>":$reductionMask,
-                   "CombiningKind":$kind)>
+    OpBuilder<(ins "Value":$source, "Value":$acc,
+                   "ArrayRef<bool>":$reductionMask, "CombiningKind":$kind)>                   
   ];
   let extraClassDeclaration = [{
     static StringRef getKindAttrStrName() { return "kind"; }
@@ -379,8 +376,9 @@ def Vector_MultiDimReductionOp :
     }
   }];
   let assemblyFormat =
-    "$kind `,` $source attr-dict $reduction_dims `:` type($source) `to` type($dest)";
+    "$kind `,` $source `,` $acc attr-dict $reduction_dims `:` type($source) `to` type($dest)";
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Vector_BroadcastOp :
@@ -488,6 +486,7 @@ def Vector_ShuffleOp :
   }];
   let assemblyFormat = "operands $mask attr-dict `:` type(operands)";
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Vector_ExtractElementOp :
@@ -887,6 +886,7 @@ def Vector_InsertStridedSliceOp :
 
   let hasFolder = 1;
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Vector_OuterProductOp :
@@ -1760,7 +1760,7 @@ def Vector_GatherOp :
   Vector_Op<"gather">,
     Arguments<(ins Arg<AnyMemRef, "", [MemRead]>:$base,
                Variadic<Index>:$indices,
-	       VectorOfRankAndType<[1], [AnyInteger, Index]>:$index_vec,
+               VectorOfRankAndType<[1], [AnyInteger, Index]>:$index_vec,
                VectorOfRankAndType<[1], [I1]>:$mask,
                VectorOfRank<[1]>:$pass_thru)>,
     Results<(outs VectorOfRank<[1]>:$result)> {
@@ -1826,7 +1826,7 @@ def Vector_ScatterOp :
   Vector_Op<"scatter">,
     Arguments<(ins Arg<AnyMemRef, "", [MemWrite]>:$base,
                Variadic<Index>:$indices,
-	       VectorOfRankAndType<[1], [AnyInteger, Index]>:$index_vec,
+               VectorOfRankAndType<[1], [AnyInteger, Index]>:$index_vec,
                VectorOfRankAndType<[1], [I1]>:$mask,
                VectorOfRank<[1]>:$valueToStore)> {
 

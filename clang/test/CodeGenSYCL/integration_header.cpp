@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2020 -fsycl-int-header=%t.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.h %s
 //
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 //
 // CHECK: class first_kernel;
 // CHECK-NEXT: namespace second_namespace {

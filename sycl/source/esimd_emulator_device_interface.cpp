@@ -15,7 +15,7 @@
 ///
 /// \ingroup sycl_pi_esimd_emulator
 
-#include <CL/sycl/detail/common.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

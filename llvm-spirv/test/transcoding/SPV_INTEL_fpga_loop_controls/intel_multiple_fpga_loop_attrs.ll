@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 < %s > %t.bc
+; RUN: llvm-as < %s > %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o - -spirv-text | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_loop_controls -o %t.spv

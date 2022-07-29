@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <cstring>

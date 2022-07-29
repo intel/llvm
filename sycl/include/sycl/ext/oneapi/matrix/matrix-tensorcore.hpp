@@ -10,8 +10,11 @@
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl::ext::oneapi {
-namespace experimental::matrix {
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace matrix {
 
 enum class matrix_use { a, b, accumulator };
 
@@ -169,7 +172,8 @@ joint_matrix_fill(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace experimental::matrix
+} // namespace matrix
+} // namespace experimental
 
 namespace detail {
 
@@ -199,6 +203,7 @@ constexpr int get_layout_id<
   return 1;
 }
 
+#if __cplusplus >= 201703L // if constexpr usage
 template <typename S, typename T,
           sycl::ext::oneapi::experimental::matrix::matrix_use Use,
           size_t NumRows, size_t NumCols,
@@ -379,6 +384,7 @@ struct joint_matrix_load_impl<
     }
   }
 };
+#endif // __cplusplus >= 201703L
 
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
@@ -391,6 +397,7 @@ struct joint_matrix_store_impl {
         multi_ptr<T, Space> dst, size_t stride);
 };
 
+#if __cplusplus >= 201703L // if constexpr usage
 template <typename T, size_t NumRows, size_t NumCols,
           sycl::ext::oneapi::experimental::matrix::matrix_layout Layout,
           access::address_space Space>
@@ -454,6 +461,7 @@ struct joint_matrix_store_impl<
     }
   }
 };
+#endif // __cplusplus >= 201703L
 
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
@@ -510,6 +518,7 @@ constexpr int get_layout_pair_id<
   return 3;
 }
 
+#if __cplusplus >= 201703L // if constexpr usage
 template <typename T1, typename T2, std::size_t M, std::size_t K, std::size_t N,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutA,
           sycl::ext::oneapi::experimental::matrix::matrix_layout LayoutB,
@@ -675,10 +684,12 @@ struct joint_matrix_mad_impl<
     return D;
   }
 };
+#endif // __cplusplus >= 201703L
 
 } // namespace detail
 
-namespace experimental::matrix {
+namespace experimental {
+namespace matrix {
 
 template <typename Group, typename S, typename T, matrix_use Use,
           size_t NumRows, size_t NumCols, matrix_layout Layout,
@@ -766,6 +777,9 @@ float round_to_tf32(float a) {
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 }
 
-} // namespace experimental::matrix
-} // namespace sycl::ext::oneapi
+} // namespace matrix
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
