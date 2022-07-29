@@ -735,6 +735,10 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
+  /// Use the new offload driver for OpenMP
+  bool UseNewOffloadingDriver = false;
+  void setUseNewOffloadingDriver() { UseNewOffloadingDriver = true; }
+
   /// FPGA Emulation Mode.  By default, this is true due to the fact that
   /// an external option setting is required to target hardware.
   bool FPGAEmulationMode = true;
@@ -799,6 +803,9 @@ public:
   static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// getUseNewOffloadingDriver - use the new offload driver for OpenMP.
+  bool getUseNewOffloadingDriver() const { return UseNewOffloadingDriver; };
 
   /// addFPGATempDepFile - Add a file to be added to the bundling step of
   /// an FPGA object.
