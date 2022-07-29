@@ -12,6 +12,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/exception_list.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -159,7 +160,8 @@ public:
   /// Queries this SYCL context for information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_context_info_desc<Param>::return_type get_info() const;
 
   context(const context &rhs) = default;
 

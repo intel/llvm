@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <detail/info_desc_helpers.hpp>
 #include <detail/plugin.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/common_info.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
 

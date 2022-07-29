@@ -88,11 +88,15 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
       detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
 }
 
+template <typename Param>
+typename detail::is_context_info_desc<Param>::return_type
+context::get_info() const {
+  return impl->template get_info<Param>();
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <>                                                                  \
-  __SYCL_EXPORT ReturnT context::get_info<info::DescType::Desc>() const {      \
-    return impl->get_info<info::DescType::Desc>();                             \
-  }
+  template __SYCL_EXPORT ReturnT context::get_info<info::DescType::Desc>()     \
+      const;
 
 #include <sycl/info/context_traits.def>
 

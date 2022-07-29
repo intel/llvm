@@ -13,6 +13,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/stl.hpp>
@@ -157,7 +158,8 @@ public:
   /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_device_info_desc<Param>::return_type get_info() const;
 
   /// Check SYCL extension support by device
   ///

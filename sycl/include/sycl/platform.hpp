@@ -13,6 +13,7 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/stl.hpp>
 
 // 4.6.2 Platform class
@@ -101,7 +102,8 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
 
   /// Returns all available SYCL platforms in the system.
   ///

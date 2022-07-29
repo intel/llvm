@@ -142,7 +142,9 @@ bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }
 
-template <typename Param> typename Param::return_type device::get_info() const {
+template <typename Param>
+typename detail::is_device_info_desc<Param>::return_type
+device::get_info() const {
   return impl->template get_info<Param>();
 }
 

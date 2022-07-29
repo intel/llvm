@@ -69,11 +69,14 @@ std::vector<event> event::get_wait_list() {
 event::event(std::shared_ptr<detail::event_impl> event_impl)
     : impl(event_impl) {}
 
+template <typename Param>
+typename detail::is_event_info_desc<Param>::return_type
+event::get_info() const {
+  return impl->template get_info<Param>();
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <>                                                                  \
-  __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const {           \
-    return impl->get_info<info::event::Desc>();                                \
-  }
+  template __SYCL_EXPORT ReturnT event::get_info<info::event::Desc>() const;
 
 #include <sycl/info/event_traits.def>
 

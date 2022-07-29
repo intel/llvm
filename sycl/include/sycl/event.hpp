@@ -12,6 +12,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stl.hpp>
 
@@ -105,7 +106,8 @@ public:
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_event_info_desc<Param>::return_type get_info() const;
 
   /// Queries this SYCL event for profiling information.
   ///
@@ -119,7 +121,8 @@ public:
   ///
   /// \return depends on template parameter.
   template <typename Param>
-  typename Param::return_type get_profiling_info() const;
+  typename detail::is_event_profiling_info_desc<Param>::return_type
+  get_profiling_info() const;
 
   /// Returns the backend associated with this platform.
   ///

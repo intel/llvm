@@ -124,36 +124,36 @@ int main() {
   sycl::byte B;
   (void)B;
 
-  // expected-warning@+1{{'image_support' is deprecated: use device::has(aspect::image) instead}}
+  // expected-warning@+1{{'image_support' is deprecated: deprecated in SYCL 2020, use device::has(aspect::image) instead}}
   using IS = sycl::info::device::image_support;
-  // expected-warning@+1{{'max_constant_buffer_size' is deprecated}}
+  // expected-warning@+1{{'max_constant_buffer_size' is deprecated: deprecated in SYCL 2020}}
   using MCBS = sycl::info::device::max_constant_buffer_size;
-  // expected-warning@+1{{'max_constant_args' is deprecated}}
+  // expected-warning@+1{{'max_constant_args' is deprecated: deprecated in SYCL 2020}}
   using MCA = sycl::info::device::max_constant_args;
-  // expected-warning@+1{{'host_unified_memory' is deprecated: use device::has() with one of the aspect::usm_* aspects instead}}
+  // expected-warning@+1{{'host_unified_memory' is deprecated: deprecated in SYCL 2020, use device::has() with one of the aspect::usm_* aspects instead}}
   using HUM = sycl::info::device::host_unified_memory;
-  // expected-warning@+1{{'is_endian_little' is deprecated: check the byte order of the host system instead, the host and the device are required to have the same byte order}}
+  // expected-warning@+1{{'is_endian_little' is deprecated: deprecated in SYCL 2020, check the byte order of the host system instead, the host and the device are required to have the same byte order}}
   using IEL = sycl::info::device::is_endian_little;
-  // expected-warning@+1{{'is_compiler_available' is deprecated: use device::has(aspect::online_compiler) instead}}
+  // expected-warning@+1{{'is_compiler_available' is deprecated: deprecated in SYCL 2020, use device::has(aspect::online_compiler) instead}}
   using ICA = sycl::info::device::is_compiler_available;
-  // expected-warning@+1{{'is_linker_available' is deprecated: use device::has(aspect::online_linker) instead}}
+  // expected-warning@+1{{'is_linker_available' is deprecated: deprecated in SYCL 2020, use device::has(aspect::online_linker) instead}}
   using ILA = sycl::info::device::is_linker_available;
-  // expected-warning@+1{{'queue_profiling' is deprecated: use device::has(aspect::queue_profiling) instead}}
+  // expected-warning@+1{{'queue_profiling' is deprecated: deprecated in SYCL 2020, use device::has(aspect::queue_profiling) instead}}
   using QP = sycl::info::device::queue_profiling;
-  // expected-warning@+1{{'built_in_kernels' is deprecated: use info::device::built_in_kernel_ids instead}}
+  // expected-warning@+1{{'built_in_kernels' is deprecated: deprecated in SYCL 2020, use info::device::built_in_kernel_ids instead}}
   using BIK = sycl::info::device::built_in_kernels;
-  // expected-warning@+1{{'profile' is deprecated}}
+  // expected-warning@+1{{'profile' is deprecated: deprecated in SYCL 2020}}
   using DP = sycl::info::device::profile;
-  // expected-warning@+1{{'extensions' is deprecated: use info::device::aspects instead}}
+  // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use info::device::aspects instead}}
   using DE = sycl::info::device::extensions;
-  // expected-warning@+1{{'printf_buffer_size' is deprecated}}
+  // expected-warning@+1{{'printf_buffer_size' is deprecated: deprecated in SYCL 2020}}
   using PBS = sycl::info::device::printf_buffer_size;
-  // expected-warning@+1{{'preferred_interop_user_sync' is deprecated}}
+  // expected-warning@+1{{'preferred_interop_user_sync' is deprecated: deprecated in SYCL 2020}}
   using PIUS = sycl::info::device::preferred_interop_user_sync;
   // expected-warning@+1{{'usm_system_allocator' is deprecated: use info::device::usm_system_allocations instead}}
   using USA = sycl::info::device::usm_system_allocator;
 
-  // expected-warning@+1{{'extensions' is deprecated: use device::get_info() with info::device::aspects instead}}
+  // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;
 
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}

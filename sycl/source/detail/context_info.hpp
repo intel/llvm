@@ -9,8 +9,8 @@
 #pragma once
 
 #include <detail/context_impl.hpp>
-#include <detail/info_desc_helpers.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {

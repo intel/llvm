@@ -11,6 +11,7 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
@@ -138,7 +139,8 @@ public:
   /// descriptor.
   ///
   /// \return depends on information being queried.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_kernel_info_desc<Param>::return_type get_info() const;
 
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
@@ -146,7 +148,8 @@ public:
   /// \param Device is a valid SYCL device to query info for.
   /// \return depends on information being queried.
   template <typename Param>
-  typename Param::return_type get_info(const device &Device) const;
+  typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+  get_info(const device &Device) const;
 
   /// Query device-specific information from a kernel using the
   /// info::kernel_device_specific descriptor for a specific device and value.
@@ -156,8 +159,9 @@ public:
   /// \param WGSize is the work-group size the sub-group size is requested for.
   /// \return depends on information being queried.
   template <typename Param>
-  typename Param::return_type get_info(const device &Device,
-                                       const range<3> &WGSize) const;
+  typename detail::is_kernel_device_specific_info_desc<
+      Param>::with_input_return_type
+  get_info(const device &Device, const range<3> &WGSize) const;
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")

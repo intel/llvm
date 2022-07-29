@@ -50,7 +50,8 @@ std::vector<platform> platform::get_platforms() {
 backend platform::get_backend() const noexcept { return getImplBackend(impl); }
 
 template <typename Param>
-typename Param::return_type platform::get_info() const {
+typename detail::is_platform_info_desc<Param>::return_type
+platform::get_info() const {
   return impl->get_info<Param>();
 }
 

@@ -163,7 +163,9 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-template <typename Param> typename Param::return_type queue::get_info() const {
+template <typename Param>
+typename detail::is_queue_info_desc<Param>::return_type
+queue::get_info() const {
   return impl->get_info<Param>();
 }
 

@@ -12,6 +12,7 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
@@ -234,7 +235,8 @@ public:
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <typename Param> typename Param::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_queue_info_desc<Param>::return_type get_info() const;
 
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker

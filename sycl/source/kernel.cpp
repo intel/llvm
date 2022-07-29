@@ -42,7 +42,9 @@ program kernel::get_program() const {
   return impl->get_info<info::kernel::program>();
 }
 
-template <typename Param> typename Param::return_type kernel::get_info() const {
+template <typename Param>
+typename detail::is_kernel_info_desc<Param>::return_type
+kernel::get_info() const {
   return impl->get_info<Param>();
 }
 
@@ -54,13 +56,15 @@ template <typename Param> typename Param::return_type kernel::get_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 template <typename Param>
-typename Param::return_type kernel::get_info(const device &Dev) const {
+typename detail::is_kernel_device_specific_info_desc<Param>::return_type
+kernel::get_info(const device &Dev) const {
   return impl->get_info<Param>(Dev);
 }
 
 template <typename Param>
-typename Param::return_type kernel::get_info(const device &Device,
-                                             const range<3> &WGSize) const {
+typename detail::is_kernel_device_specific_info_desc<
+    Param>::with_input_return_type
+kernel::get_info(const device &Device, const range<3> &WGSize) const {
   return impl->get_info<Param>(Device, WGSize);
 }
 
