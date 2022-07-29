@@ -270,6 +270,24 @@ def StringElementsAttrOp : TEST_Op<"string_elements_attr"> {
   );
 }
 
+def DenseArrayAttrOp : TEST_Op<"dense_array_attr"> {
+  let arguments = (ins
+    DenseI8ArrayAttr:$i8attr,
+    DenseI16ArrayAttr:$i16attr,
+    DenseI32ArrayAttr:$i32attr,
+    DenseI64ArrayAttr:$i64attr,
+    DenseF32ArrayAttr:$f32attr,
+    DenseF64ArrayAttr:$f64attr,
+    DenseI32ArrayAttr:$emptyattr
+  );
+  let assemblyFormat = [{
+   `i8attr` `=` $i8attr `i16attr` `=` $i16attr `i32attr` `=` $i32attr
+   `i64attr` `=` $i64attr  `f32attr` `=` $f32attr `f64attr` `=` $f64attr
+   `emptyattr` `=` $emptyattr
+   attr-dict
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // Test Enum Attributes
 //===----------------------------------------------------------------------===//
@@ -627,8 +645,14 @@ def IndexElementsAttrOp : TEST_Op<"indexElementsAttr"> {
 }
 
 def OpWithInferTypeInterfaceOp : TEST_Op<"op_with_infer_type_if", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let arguments = (ins AnyTensor, AnyTensor);
+  let results = (outs AnyTensor);
+}
+
+def OpWithRefineTypeInterfaceOp : TEST_Op<"op_with_refine_type_if", [
     DeclareOpInterfaceMethods<InferTypeOpInterface,
-        ["inferReturnTypeComponents"]>]> {
+        ["refineReturnTypes"]>]> {
   let arguments = (ins AnyTensor, AnyTensor);
   let results = (outs AnyTensor);
 }
@@ -2726,7 +2750,7 @@ def TestLinalgConvOp :
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("iterator_types");
     }
 
-    mlir::ArrayAttr indexing_maps() {
+    mlir::ArrayAttr getIndexingMaps() {
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("indexing_maps");
     }
 
@@ -2784,7 +2808,7 @@ def TestLinalgFillOp :
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("iterator_types");
     }
 
-    mlir::ArrayAttr indexing_maps() {
+    mlir::ArrayAttr getIndexingMaps() {
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("indexing_maps");
     }
 
@@ -2842,6 +2866,10 @@ def TestEffectsRead : TEST_Op<"op_with_memread",
 
 def TestEffectsWrite : TEST_Op<"op_with_memwrite",
     [MemoryEffects<[MemWrite]>]>;
+
+def TestEffectsResult : TEST_Op<"test_effects_result"> {
+  let results = (outs Res<I32, "", [MemAlloc, MemWrite]>);
+}
 
 //===----------------------------------------------------------------------===//
 // Test Ops with verifiers

@@ -588,8 +588,7 @@ public:
 
   /// Return true if operand \p OpIdx is a subregister index.
   bool isOperandSubregIdx(unsigned OpIdx) const {
-    assert(getOperand(OpIdx).getType() == MachineOperand::MO_Immediate &&
-           "Expected MO_Immediate operand type.");
+    assert(getOperand(OpIdx).isImm() && "Expected MO_Immediate operand type.");
     if (isExtractSubreg() && OpIdx == 2)
       return true;
     if (isInsertSubreg() && OpIdx == 3)
@@ -1621,7 +1620,7 @@ public:
   /// argument area of a function (if it does not change).  If the instruction
   /// does multiple loads, this returns true only if all of the loads are
   /// dereferenceable and invariant.
-  bool isDereferenceableInvariantLoad(AAResults *AA) const;
+  bool isDereferenceableInvariantLoad() const;
 
   /// If the specified instruction is a PHI that always merges together the
   /// same virtual register, return the register, otherwise return 0.

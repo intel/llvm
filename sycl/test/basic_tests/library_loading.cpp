@@ -3,7 +3,7 @@
 // RUN: env SYCL_PI_TRACE=-1 %t.out 2>&1 | FileCheck %s
 
 // Checks pi traces on library loading
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace cl::sycl;
 

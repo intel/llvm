@@ -410,7 +410,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     if (TI.getTriple().getOS() == llvm::Triple::ShaderModel) {
       VersionTuple Version = TI.getTriple().getOSVersion();
       Builder.defineMacro("__SHADER_TARGET_MAJOR", Twine(Version.getMajor()));
-      unsigned Minor = Version.getMinor().getValueOr(0);
+      unsigned Minor = Version.getMinor().value_or(0);
       Builder.defineMacro("__SHADER_TARGET_MINOR", Twine(Minor));
     }
     return;
@@ -834,21 +834,15 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       if (version >= VersionTuple(2, 0))
         Builder.defineMacro("__OBJC_GNUSTEP_RUNTIME_ABI__", "20");
       else
-        Builder.defineMacro("__OBJC_GNUSTEP_RUNTIME_ABI__",
-            "1" + Twine(std::min(8U, version.getMinor().getValueOr(0))));
+        Builder.defineMacro(
+            "__OBJC_GNUSTEP_RUNTIME_ABI__",
+            "1" + Twine(std::min(8U, version.getMinor().value_or(0))));
     }
 
     if (LangOpts.ObjCRuntime.getKind() == ObjCRuntime::ObjFW) {
       VersionTuple tuple = LangOpts.ObjCRuntime.getVersion();
-
-      unsigned minor = 0;
-      if (tuple.getMinor().hasValue())
-        minor = tuple.getMinor().getValue();
-
-      unsigned subminor = 0;
-      if (tuple.getSubminor().hasValue())
-        subminor = tuple.getSubminor().getValue();
-
+      unsigned minor = tuple.getMinor().value_or(0);
+      unsigned subminor = tuple.getSubminor().value_or(0);
       Builder.defineMacro("__OBJFW_RUNTIME_ABI__",
                           Twine(tuple.getMajor() * 10000 + minor * 100 +
                                 subminor));
@@ -1303,6 +1297,9 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+
+    if (LangOpts.SYCLESIMDForceStatelessMem)
+      Builder.defineMacro("__ESIMD_FORCE_STATELESS_MEM");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");

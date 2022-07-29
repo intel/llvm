@@ -11,10 +11,10 @@
 ///
 /// \ingroup sycl_pi_cuda
 
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -133,17 +133,21 @@ pi_result check_error(CUresult result, const char *function, int line,
     return PI_SUCCESS;
   }
 
-  const char *errorString = nullptr;
-  const char *errorName = nullptr;
-  cuGetErrorName(result, &errorName);
-  cuGetErrorString(result, &errorString);
-  std::cerr << "\nPI CUDA ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    const char *errorString = nullptr;
+    const char *errorName = nullptr;
+    cuGetErrorName(result, &errorName);
+    cuGetErrorString(result, &errorString);
+    std::stringstream ss;
+    ss << "\nPI CUDA ERROR:"
+       << "\n\tValue:           " << result
+       << "\n\tName:            " << errorName
+       << "\n\tDescription:     " << errorString
+       << "\n\tFunction:        " << function << "\n\tSource Location: " << file
+       << ":" << line << "\n"
+       << std::endl;
+    std::cerr << ss.str();
+  }
 
   if (std::getenv("PI_CUDA_ABORT") != nullptr) {
     std::abort();
@@ -476,7 +480,9 @@ _pi_event::_pi_event(pi_context context, CUevent eventNative)
       hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
       evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, context_{
-                                                                  context} {}
+                                                                  context} {
+  cuda_piContextRetain(context_);
+}
 
 _pi_event::~_pi_event() {
   if (queue_ != nullptr) {

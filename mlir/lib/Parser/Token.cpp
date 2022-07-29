@@ -78,12 +78,15 @@ Optional<bool> Token::getIntTypeSignedness() const {
 /// removing the quote characters and unescaping the contents of the string. The
 /// lexer has already verified that this token is valid.
 std::string Token::getStringValue() const {
-  assert(getKind() == string ||
+  assert(getKind() == string || getKind() == code_complete ||
          (getKind() == at_identifier && getSpelling()[1] == '"'));
   // Start by dropping the quotes.
-  StringRef bytes = getSpelling().drop_front().drop_back();
-  if (getKind() == at_identifier)
-    bytes = bytes.drop_front();
+  StringRef bytes = getSpelling().drop_front();
+  if (getKind() != Token::code_complete) {
+    bytes = bytes.drop_back();
+    if (getKind() == at_identifier)
+      bytes = bytes.drop_front();
+  }
 
   std::string result;
   result.reserve(bytes.size());
@@ -129,9 +132,12 @@ Optional<std::string> Token::getHexStringValue() const {
   // Get the internal string data, without the quotes.
   StringRef bytes = getSpelling().drop_front().drop_back();
 
-  // Try to extract the binary data from the hex string.
+  // Try to extract the binary data from the hex string. We expect the hex
+  // string to start with `0x` and have an even number of hex nibbles (nibbles
+  // should come in pairs).
   std::string hex;
-  if (!bytes.consume_front("0x") || !llvm::tryGetFromHex(bytes, hex))
+  if (!bytes.consume_front("0x") || (bytes.size() & 1) ||
+      !llvm::tryGetFromHex(bytes, hex))
     return llvm::None;
   return hex;
 }
@@ -185,5 +191,24 @@ bool Token::isKeyword() const {
   case kw_##SPELLING:                                                          \
     return true;
 #include "TokenKinds.def"
+  }
+}
+
+bool Token::isCodeCompletionFor(Kind kind) const {
+  if (!isCodeCompletion() || spelling.empty())
+    return false;
+  switch (kind) {
+  case Kind::string:
+    return spelling[0] == '"';
+  case Kind::hash_identifier:
+    return spelling[0] == '#';
+  case Kind::percent_identifier:
+    return spelling[0] == '%';
+  case Kind::caret_identifier:
+    return spelling[0] == '^';
+  case Kind::exclamation_identifier:
+    return spelling[0] == '!';
+  default:
+    return false;
   }
 }

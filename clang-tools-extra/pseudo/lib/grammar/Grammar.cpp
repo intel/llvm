@@ -45,6 +45,28 @@ llvm::StringRef Grammar::symbolName(SymbolID SID) const {
   return T->Nonterminals[SID].Name;
 }
 
+std::string Grammar::mangleSymbol(SymbolID SID) const {
+  static const char *const TokNames[] = {
+#define TOK(X) #X,
+#define KEYWORD(X, Y) #X,
+#include "clang/Basic/TokenKinds.def"
+      nullptr};
+  if (clang::pseudo::isToken(SID))
+    return TokNames[clang::pseudo::symbolToToken(SID)];
+  std::string Name = symbolName(SID).str();
+  // translation-unit -> translation_unit
+  std::replace(Name.begin(), Name.end(), '-', '_');
+  return Name;
+}
+
+std::string Grammar::mangleRule(RuleID RID) const {
+  const auto &R = lookupRule(RID);
+  std::string MangleName = mangleSymbol(R.Target);
+  for (size_t I = 0; I < R.seq().size(); ++I)
+    MangleName += llvm::formatv("_{0}{1}", I, mangleSymbol(R.seq()[I]));
+  return MangleName;
+}
+
 llvm::Optional<SymbolID> Grammar::findNonterminal(llvm::StringRef Name) const {
   auto It = llvm::partition_point(
       T->Nonterminals,
@@ -59,8 +81,11 @@ std::string Grammar::dumpRule(RuleID RID) const {
   llvm::raw_string_ostream OS(Result);
   const Rule &R = T->Rules[RID];
   OS << symbolName(R.Target) << " :=";
-  for (SymbolID SID : R.seq())
-    OS << " " << symbolName(SID);
+  for (unsigned I = 0; I < R.Size; ++I) {
+    OS << " " << symbolName(R.Sequence[I]);
+    if (R.RecoveryIndex == I)
+      OS << " [recover=" << T->AttributeValues[R.Recovery] << "]";
+  }
   if (R.Guard)
     OS << " [guard=" << T->AttributeValues[R.Guard] << "]";
   return Result;

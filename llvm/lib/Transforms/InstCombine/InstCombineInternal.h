@@ -152,7 +152,7 @@ public:
   Instruction *visitGEPOfBitcast(BitCastInst *BCI, GetElementPtrInst &GEP);
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
-  Instruction *visitFree(CallInst &FI);
+  Instruction *visitFree(CallInst &FI, Value *FreedOp);
   Instruction *visitLoadInst(LoadInst &LI);
   Instruction *visitStoreInst(StoreInst &SI);
   Instruction *visitAtomicRMWInst(AtomicRMWInst &SI);
@@ -173,6 +173,7 @@ public:
   Instruction *visitVAEndInst(VAEndInst &I);
   Value *pushFreezeToPreventPoisonFromPropagating(FreezeInst &FI);
   bool freezeOtherUses(FreezeInst &FI);
+  Instruction *foldFreezeIntoRecurrence(FreezeInst &I, PHINode *PN);
   Instruction *visitFreeze(FreezeInst &I);
 
   /// Specify what to return for unhandled instructions.

@@ -8,6 +8,7 @@
 
 #include "clang/Tooling/DependencyScanning/ModuleDepCollector.h"
 
+#include "clang/Basic/MakeSupport.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/DependencyScanning/DependencyScanningWorker.h"
@@ -56,6 +57,9 @@ CompilerInvocation ModuleDepCollector::makeInvocationForModuleBuildWithoutPaths(
   CI.getFrontendOpts().OutputFile.clear();
   CI.getCodeGenOpts().MainFileName.clear();
   CI.getCodeGenOpts().DwarfDebugFlags.clear();
+  CI.getDiagnosticOpts().DiagnosticSerializationFile.clear();
+  CI.getDependencyOutputOpts().OutputFile.clear();
+  CI.getDependencyOutputOpts().Targets.clear();
 
   CI.getFrontendOpts().ProgramAction = frontend::GenerateModule;
   CI.getLangOpts()->ModuleName = Deps.ID.ModuleName;
@@ -107,18 +111,47 @@ serializeCompilerInvocation(const CompilerInvocation &CI) {
   return std::vector<std::string>{Args.begin(), Args.end()};
 }
 
+static std::vector<std::string> splitString(std::string S, char Separator) {
+  SmallVector<StringRef> Segments;
+  StringRef(S).split(Segments, Separator, /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  std::vector<std::string> Result;
+  Result.reserve(Segments.size());
+  for (StringRef Segment : Segments)
+    Result.push_back(Segment.str());
+  return Result;
+}
+
 std::vector<std::string> ModuleDeps::getCanonicalCommandLine(
-    std::function<StringRef(ModuleID)> LookupPCMPath) const {
+    llvm::function_ref<std::string(const ModuleID &, ModuleOutputKind)>
+        LookupModuleOutput) const {
   CompilerInvocation CI(BuildInvocation);
   FrontendOptions &FrontendOpts = CI.getFrontendOpts();
 
   InputKind ModuleMapInputKind(FrontendOpts.DashX.getLanguage(),
                                InputKind::Format::ModuleMap);
   FrontendOpts.Inputs.emplace_back(ClangModuleMapFile, ModuleMapInputKind);
-  FrontendOpts.OutputFile = std::string(LookupPCMPath(ID));
+  FrontendOpts.OutputFile =
+      LookupModuleOutput(ID, ModuleOutputKind::ModuleFile);
+  if (HadSerializedDiagnostics)
+    CI.getDiagnosticOpts().DiagnosticSerializationFile =
+        LookupModuleOutput(ID, ModuleOutputKind::DiagnosticSerializationFile);
+  if (HadDependencyFile) {
+    DependencyOutputOptions &DepOpts = CI.getDependencyOutputOpts();
+    DepOpts.OutputFile =
+        LookupModuleOutput(ID, ModuleOutputKind::DependencyFile);
+    DepOpts.Targets = splitString(
+        LookupModuleOutput(ID, ModuleOutputKind::DependencyTargets), '\0');
+    if (!DepOpts.OutputFile.empty() && DepOpts.Targets.empty()) {
+      // Fallback to -o as dependency target, as in the driver.
+      SmallString<128> Target;
+      quoteMakeTarget(FrontendOpts.OutputFile, Target);
+      DepOpts.Targets.push_back(std::string(Target));
+    }
+  }
 
   for (ModuleID MID : ClangModuleDeps)
-    FrontendOpts.ModuleFiles.emplace_back(LookupPCMPath(MID));
+    FrontendOpts.ModuleFiles.push_back(
+        LookupModuleOutput(MID, ModuleOutputKind::ModuleFile));
 
   return serializeCompilerInvocation(CI);
 }
@@ -309,6 +342,12 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
           optimizeHeaderSearchOpts(BuildInvocation.getHeaderSearchOpts(),
                                    *MDC.ScanInstance.getASTReader(), *MF);
       });
+  MD.HadSerializedDiagnostics = !MDC.OriginalInvocation.getDiagnosticOpts()
+                                     .DiagnosticSerializationFile.empty();
+  MD.HadDependencyFile =
+      !MDC.OriginalInvocation.getDependencyOutputOpts().OutputFile.empty();
+  // FIXME: HadSerializedDiagnostics and HadDependencyFile should be included in
+  // the context hash since it can affect the command-line.
   MD.ID.ContextHash = MD.BuildInvocation.getModuleHash();
 
   llvm::DenseSet<const Module *> AddedModules;
@@ -317,13 +356,28 @@ ModuleID ModuleDepCollectorPP::handleTopLevelModule(const Module *M) {
   return MD.ID;
 }
 
+static void forEachSubmoduleSorted(const Module *M,
+                                   llvm::function_ref<void(const Module *)> F) {
+  // Submodule order depends on order of header includes for inferred submodules
+  // we don't care about the exact order, so sort so that it's consistent across
+  // TUs to improve sharing.
+  SmallVector<const Module *> Submodules(M->submodule_begin(),
+                                         M->submodule_end());
+  llvm::stable_sort(Submodules, [](const Module *A, const Module *B) {
+    return A->Name < B->Name;
+  });
+  for (const Module *SubM : Submodules)
+    F(SubM);
+}
+
 void ModuleDepCollectorPP::addAllSubmodulePrebuiltDeps(
     const Module *M, ModuleDeps &MD,
     llvm::DenseSet<const Module *> &SeenSubmodules) {
   addModulePrebuiltDeps(M, MD, SeenSubmodules);
 
-  for (const Module *SubM : M->submodules())
+  forEachSubmoduleSorted(M, [&](const Module *SubM) {
     addAllSubmodulePrebuiltDeps(SubM, MD, SeenSubmodules);
+  });
 }
 
 void ModuleDepCollectorPP::addModulePrebuiltDeps(
@@ -341,8 +395,9 @@ void ModuleDepCollectorPP::addAllSubmoduleDeps(
     llvm::DenseSet<const Module *> &AddedModules) {
   addModuleDep(M, MD, AddedModules);
 
-  for (const Module *SubM : M->submodules())
+  forEachSubmoduleSorted(M, [&](const Module *SubM) {
     addAllSubmoduleDeps(SubM, MD, AddedModules);
+  });
 }
 
 void ModuleDepCollectorPP::addModuleDep(

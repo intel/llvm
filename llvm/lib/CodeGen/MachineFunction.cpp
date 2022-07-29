@@ -152,11 +152,11 @@ void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
   MBB->getParent()->deleteMachineBasicBlock(MBB);
 }
 
-static inline unsigned getFnStackAlignment(const TargetSubtargetInfo *STI,
+static inline Align getFnStackAlignment(const TargetSubtargetInfo *STI,
                                            const Function &F) {
   if (auto MA = F.getFnStackAlign())
-    return MA->value();
-  return STI->getFrameLowering()->getStackAlign().value();
+    return *MA;
+  return STI->getFrameLowering()->getStackAlign();
 }
 
 MachineFunction::MachineFunction(Function &F, const LLVMTargetMachine &Target,
@@ -911,8 +911,8 @@ static const MachineInstr *getCallInstr(const MachineInstr *MI) {
   if (!MI->isBundle())
     return MI;
 
-  for (auto &BMI : make_range(getBundleStart(MI->getIterator()),
-                              getBundleEnd(MI->getIterator())))
+  for (const auto &BMI : make_range(getBundleStart(MI->getIterator()),
+                                    getBundleEnd(MI->getIterator())))
     if (BMI.isCandidateForCallSiteEntry())
       return &BMI;
 

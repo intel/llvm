@@ -6,15 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
@@ -24,7 +15,16 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/spec_constant.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -913,7 +913,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-      (cl_uint)RawImgs.size(), &ImgInd);
+      (pi_uint32)RawImgs.size(), &ImgInd);
 
   if (JITCompilationIsRequired) {
     // If the image is already compiled with AOT, throw an exception.
@@ -1466,7 +1466,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       const_cast<pi_device_binary>(&BinImage->getRawData());
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextDeviceSelectBinary>(
       PIDeviceHandle, &DevBin,
-      /*num bin images = */ (cl_uint)1, &SuitableImageID);
+      /*num bin images = */ (pi_uint32)1, &SuitableImageID);
   if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
     throw runtime_error("Invalid binary image or device",
                         PI_ERROR_INVALID_VALUE);

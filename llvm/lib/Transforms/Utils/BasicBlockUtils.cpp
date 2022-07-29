@@ -188,8 +188,10 @@ bool llvm::MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU,
 
   // Don't break self-loops.
   if (PredBB == BB) return false;
-  // Don't break unwinding instructions.
-  if (PredBB->getTerminator()->isExceptionalTerminator())
+
+  // Don't break unwinding instructions or terminators with other side-effects.
+  Instruction *PTI = PredBB->getTerminator();
+  if (PTI->isExceptionalTerminator() || PTI->mayHaveSideEffects())
     return false;
 
   // Can't merge if there are multiple distinct successors.
@@ -202,7 +204,7 @@ bool llvm::MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU,
   BasicBlock *NewSucc = nullptr;
   unsigned FallThruPath;
   if (PredecessorWithTwoSuccessors) {
-    if (!(PredBB_BI = dyn_cast<BranchInst>(PredBB->getTerminator())))
+    if (!(PredBB_BI = dyn_cast<BranchInst>(PTI)))
       return false;
     BranchInst *BB_JmpI = dyn_cast<BranchInst>(BB->getTerminator());
     if (!BB_JmpI || !BB_JmpI->isUnconditional())
@@ -256,7 +258,6 @@ bool llvm::MergeBlockIntoPredecessor(BasicBlock *BB, DomTreeUpdater *DTU,
     Updates.push_back({DominatorTree::Delete, PredBB, BB});
   }
 
-  Instruction *PTI = PredBB->getTerminator();
   Instruction *STI = BB->getTerminator();
   Instruction *Start = &*BB->begin();
   // If there's nothing to move, mark the starting instruction as the last
@@ -769,8 +770,7 @@ llvm::SplitAllCriticalEdges(Function &F,
   unsigned NumBroken = 0;
   for (BasicBlock &BB : F) {
     Instruction *TI = BB.getTerminator();
-    if (TI->getNumSuccessors() > 1 && !isa<IndirectBrInst>(TI) &&
-        !isa<CallBrInst>(TI))
+    if (TI->getNumSuccessors() > 1 && !isa<IndirectBrInst>(TI))
       for (unsigned i = 0, e = TI->getNumSuccessors(); i != e; ++i)
         if (SplitCriticalEdge(TI, i, Options))
           ++NumBroken;
@@ -1132,9 +1132,7 @@ SplitBlockPredecessorsImpl(BasicBlock *BB, ArrayRef<BasicBlock *> Preds,
     // all BlockAddress uses would need to be updated.
     assert(!isa<IndirectBrInst>(Preds[i]->getTerminator()) &&
            "Cannot split an edge from an IndirectBrInst");
-    assert(!isa<CallBrInst>(Preds[i]->getTerminator()) &&
-           "Cannot split an edge from a CallBrInst");
-    Preds[i]->getTerminator()->replaceUsesOfWith(BB, NewBB);
+    Preds[i]->getTerminator()->replaceSuccessorWith(BB, NewBB);
   }
 
   // Insert a new PHI node into NewBB for every PHI node in BB and that new PHI

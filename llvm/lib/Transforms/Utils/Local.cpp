@@ -439,6 +439,10 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
     return true;
   }
 
+  if (auto *CB = dyn_cast<CallBase>(I))
+    if (isRemovableAlloc(CB, TLI))
+      return true;
+
   if (!I->willReturn())
     return false;
 
@@ -485,20 +489,17 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
 
     if (auto *FPI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
       Optional<fp::ExceptionBehavior> ExBehavior = FPI->getExceptionBehavior();
-      return ExBehavior.getValue() != fp::ebStrict;
+      return *ExBehavior != fp::ebStrict;
     }
   }
 
-  if (isAllocationFn(I, TLI) && isAllocRemovable(cast<CallBase>(I), TLI))
-    return true;
-
-  if (CallInst *CI = isFreeCall(I, TLI))
-    if (Constant *C = dyn_cast<Constant>(CI->getArgOperand(0)))
-      return C->isNullValue() || isa<UndefValue>(C);
-
-  if (auto *Call = dyn_cast<CallBase>(I))
+  if (auto *Call = dyn_cast<CallBase>(I)) {
+    if (Value *FreedOp = getFreedOperand(Call, TLI))
+      if (Constant *C = dyn_cast<Constant>(FreedOp))
+        return C->isNullValue() || isa<UndefValue>(C);
     if (isMathLibCallNoop(Call, TLI))
       return true;
+  }
 
   // Non-volatile atomic loads from constants can be removed.
   if (auto *LI = dyn_cast<LoadInst>(I))

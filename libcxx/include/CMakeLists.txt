@@ -79,33 +79,74 @@ set(files
   __algorithm/ranges_count.h
   __algorithm/ranges_count_if.h
   __algorithm/ranges_equal.h
+  __algorithm/ranges_equal_range.h
   __algorithm/ranges_fill.h
   __algorithm/ranges_fill_n.h
   __algorithm/ranges_find.h
+  __algorithm/ranges_find_end.h
   __algorithm/ranges_find_first_of.h
   __algorithm/ranges_find_if.h
   __algorithm/ranges_find_if_not.h
   __algorithm/ranges_for_each.h
   __algorithm/ranges_for_each_n.h
+  __algorithm/ranges_generate.h
+  __algorithm/ranges_generate_n.h
+  __algorithm/ranges_includes.h
+  __algorithm/ranges_inplace_merge.h
+  __algorithm/ranges_is_heap.h
+  __algorithm/ranges_is_heap_until.h
   __algorithm/ranges_is_partitioned.h
   __algorithm/ranges_is_sorted.h
   __algorithm/ranges_is_sorted_until.h
+  __algorithm/ranges_iterator_concept.h
   __algorithm/ranges_lexicographical_compare.h
   __algorithm/ranges_lower_bound.h
+  __algorithm/ranges_make_heap.h
   __algorithm/ranges_max.h
   __algorithm/ranges_max_element.h
+  __algorithm/ranges_merge.h
   __algorithm/ranges_min.h
   __algorithm/ranges_min_element.h
   __algorithm/ranges_minmax.h
   __algorithm/ranges_minmax_element.h
   __algorithm/ranges_mismatch.h
+  __algorithm/ranges_move.h
+  __algorithm/ranges_move_backward.h
   __algorithm/ranges_none_of.h
+  __algorithm/ranges_nth_element.h
+  __algorithm/ranges_partial_sort.h
+  __algorithm/ranges_partial_sort_copy.h
+  __algorithm/ranges_partition.h
+  __algorithm/ranges_partition_copy.h
+  __algorithm/ranges_partition_point.h
+  __algorithm/ranges_pop_heap.h
+  __algorithm/ranges_push_heap.h
+  __algorithm/ranges_remove.h
+  __algorithm/ranges_remove_copy.h
+  __algorithm/ranges_remove_copy_if.h
+  __algorithm/ranges_remove_if.h
   __algorithm/ranges_replace.h
+  __algorithm/ranges_replace_copy.h
+  __algorithm/ranges_replace_copy_if.h
   __algorithm/ranges_replace_if.h
   __algorithm/ranges_reverse.h
+  __algorithm/ranges_reverse_copy.h
+  __algorithm/ranges_rotate_copy.h
+  __algorithm/ranges_search.h
+  __algorithm/ranges_search_n.h
+  __algorithm/ranges_set_difference.h
+  __algorithm/ranges_set_intersection.h
+  __algorithm/ranges_set_symmetric_difference.h
+  __algorithm/ranges_set_union.h
+  __algorithm/ranges_shuffle.h
   __algorithm/ranges_sort.h
+  __algorithm/ranges_sort_heap.h
+  __algorithm/ranges_stable_partition.h
+  __algorithm/ranges_stable_sort.h
   __algorithm/ranges_swap_ranges.h
   __algorithm/ranges_transform.h
+  __algorithm/ranges_unique.h
+  __algorithm/ranges_unique_copy.h
   __algorithm/ranges_upper_bound.h
   __algorithm/remove.h
   __algorithm/remove_copy.h
@@ -213,6 +254,7 @@ set(files
   __coroutine/noop_coroutine_handle.h
   __coroutine/trivial_awaitables.h
   __debug
+  __debug_utils/randomize_range.h
   __errc
   __filesystem/copy_options.h
   __filesystem/directory_entry.h
@@ -233,6 +275,7 @@ set(files
   __format/buffer.h
   __format/concepts.h
   __format/enable_insertable.h
+  __format/extended_grapheme_cluster_table.h
   __format/format_arg.h
   __format/format_arg_store.h
   __format/format_args.h
@@ -248,9 +291,11 @@ set(files
   __format/formatter_floating_point.h
   __format/formatter_integer.h
   __format/formatter_integral.h
+  __format/formatter_output.h
   __format/formatter_pointer.h
   __format/formatter_string.h
   __format/parser_std_format_spec.h
+  __format/unicode.h
   __functional/binary_function.h
   __functional/binary_negate.h
   __functional/bind.h
@@ -258,6 +303,7 @@ set(files
   __functional/bind_front.h
   __functional/binder1st.h
   __functional/binder2nd.h
+  __functional/boyer_moore_searcher.h
   __functional/compose.h
   __functional/default_searcher.h
   __functional/function.h
@@ -285,6 +331,7 @@ set(files
   __iterator/access.h
   __iterator/advance.h
   __iterator/back_insert_iterator.h
+  __iterator/bounded_iter.h
   __iterator/common_iterator.h
   __iterator/concepts.h
   __iterator/counted_iterator.h
@@ -337,6 +384,7 @@ set(files
   __memory/ranges_uninitialized_algorithms.h
   __memory/raw_storage_iterator.h
   __memory/shared_ptr.h
+  __memory/swap_allocator.h
   __memory/temporary_buffer.h
   __memory/uninitialized_algorithms.h
   __memory/unique_ptr.h
@@ -433,10 +481,8 @@ set(files
   __support/android/locale_bionic.h
   __support/fuchsia/xlocale.h
   __support/ibm/gettod_zos.h
-  __support/ibm/limits.h
   __support/ibm/locale_mgmt_zos.h
   __support/ibm/nanosleep.h
-  __support/ibm/support.h
   __support/ibm/xlocale.h
   __support/musl/xlocale.h
   __support/newlib/xlocale.h

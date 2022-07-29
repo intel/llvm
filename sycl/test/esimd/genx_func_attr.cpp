@@ -4,9 +4,9 @@
 
 // Checks ESIMD intrinsic translation.
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/detail/image_ocl_types.hpp>
+#include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
 

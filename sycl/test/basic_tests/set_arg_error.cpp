@@ -1,7 +1,7 @@
 // RUN: %clangxx %fsycl-host-only -DUSE_DEPRECATED_LOCAL_ACC -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct TriviallyCopyable {
   int a;

@@ -19,6 +19,21 @@
 #include "sanitizer_internal_defs.h"
 #include "sanitizer_platform.h"
 
+#if SANITIZER_APPLE
+#include <sys/cdefs.h>
+#if !__DARWIN_ONLY_64_BIT_INO_T
+#define SANITIZER_HAS_STAT64 1
+#define SANITIZER_HAS_STATFS64 1
+#else
+#define SANITIZER_HAS_STAT64 0
+#define SANITIZER_HAS_STATFS64 0
+#endif
+#else
+// Must be SANITIZER_LINUX then
+#define SANITIZER_HAS_STAT64 1
+#define SANITIZER_HAS_STATFS64 1
+#endif
+
 #if defined(__sparc__)
 // FIXME: This can't be included from tsan which does not support sparc yet.
 #include "sanitizer_glibc_version.h"
@@ -29,7 +44,7 @@
 namespace __sanitizer {
 extern unsigned struct_utsname_sz;
 extern unsigned struct_stat_sz;
-#if !SANITIZER_IOS
+#if SANITIZER_HAS_STAT64
 extern unsigned struct_stat64_sz;
 #endif
 extern unsigned struct_rusage_sz;
@@ -49,7 +64,9 @@ extern unsigned struct_itimerspec_sz;
 extern unsigned struct_sigevent_sz;
 extern unsigned struct_stack_t_sz;
 extern unsigned struct_sched_param_sz;
+#if SANITIZER_HAS_STATFS64
 extern unsigned struct_statfs64_sz;
+#endif
 extern unsigned struct_regex_sz;
 extern unsigned struct_regmatch_sz;
 
@@ -105,6 +122,9 @@ const unsigned struct_kernel_stat64_sz = 0;  // RISCV64 does not use stat64
 #    elif defined(__hexagon__)
 const unsigned struct_kernel_stat_sz = 128;
 const unsigned struct_kernel_stat64_sz = 0;
+#    elif defined(__loongarch__)
+const unsigned struct_kernel_stat_sz = 128;
+const unsigned struct_kernel_stat64_sz = 0;
 #    endif
 struct __sanitizer_perf_event_attr {
   unsigned type;
@@ -125,7 +145,7 @@ const unsigned struct_kexec_segment_sz = 4 * sizeof(unsigned long);
 
 #if SANITIZER_LINUX
 
-#if defined(__powerpc64__) || defined(__s390__)
+#if defined(__powerpc64__) || defined(__s390__) || defined(__loongarch__)
 const unsigned struct___old_kernel_stat_sz = 0;
 #elif !defined(__sparc__)
 const unsigned struct___old_kernel_stat_sz = 32;

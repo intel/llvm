@@ -13,15 +13,18 @@
 #include "Parser.h"
 #include "AsmParserImpl.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/AsmState.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser/AsmParserState.h"
+#include "mlir/Parser/CodeComplete.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/bit.h"
+#include "llvm/Support/Endian.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/SourceMgr.h"
 #include <algorithm>
@@ -30,6 +33,12 @@ using namespace mlir;
 using namespace mlir::detail;
 using llvm::MemoryBuffer;
 using llvm::SourceMgr;
+
+//===----------------------------------------------------------------------===//
+// CodeComplete
+//===----------------------------------------------------------------------===//
+
+AsmParserCodeCompleteContext::~AsmParserCodeCompleteContext() = default;
 
 //===----------------------------------------------------------------------===//
 // Parser
@@ -275,7 +284,7 @@ ParseResult Parser::parseFloatFromIntegerLiteral(
   }
 
   Optional<uint64_t> value = tok.getUInt64IntegerValue();
-  if (!value.hasValue())
+  if (!value)
     return emitError(loc, "hexadecimal float constant out of range for type");
 
   if (&semantics == &APFloat::IEEEdouble()) {
@@ -289,6 +298,131 @@ ParseResult Parser::parseFloatFromIntegerLiteral(
   result = APFloat(semantics, apInt);
 
   return success();
+}
+
+ParseResult Parser::parseOptionalKeyword(StringRef *keyword) {
+  // Check that the current token is a keyword.
+  if (!isCurrentTokenAKeyword())
+    return failure();
+
+  *keyword = getTokenSpelling();
+  consumeToken();
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Resource Parsing
+
+FailureOr<AsmDialectResourceHandle>
+Parser::parseResourceHandle(const OpAsmDialectInterface *dialect,
+                            StringRef &name) {
+  assert(dialect && "expected valid dialect interface");
+  SMLoc nameLoc = getToken().getLoc();
+  if (failed(parseOptionalKeyword(&name)))
+    return emitError("expected identifier key for 'resource' entry");
+  auto &resources = getState().symbols.dialectResources;
+
+  // If this is the first time encountering this handle, ask the dialect to
+  // resolve a reference to this handle. This allows for us to remap the name of
+  // the handle if necessary.
+  std::pair<std::string, AsmDialectResourceHandle> &entry =
+      resources[dialect][name];
+  if (entry.first.empty()) {
+    FailureOr<AsmDialectResourceHandle> result = dialect->declareResource(name);
+    if (failed(result)) {
+      return emitError(nameLoc)
+             << "unknown 'resource' key '" << name << "' for dialect '"
+             << dialect->getDialect()->getNamespace() << "'";
+    }
+    entry.first = dialect->getResourceKey(*result);
+    entry.second = *result;
+  }
+
+  name = entry.first;
+  return entry.second;
+}
+
+//===----------------------------------------------------------------------===//
+// Code Completion
+
+ParseResult Parser::codeCompleteDialectName() {
+  state.codeCompleteContext->completeDialectName();
+  return failure();
+}
+
+ParseResult Parser::codeCompleteOperationName(StringRef dialectName) {
+  // Perform some simple validation on the dialect name. This doesn't need to be
+  // extensive, it's more of an optimization (to avoid checking completion
+  // results when we know they will fail).
+  if (dialectName.empty() || dialectName.contains('.'))
+    return failure();
+  state.codeCompleteContext->completeOperationName(dialectName);
+  return failure();
+}
+
+ParseResult Parser::codeCompleteDialectOrElidedOpName(SMLoc loc) {
+  // Check to see if there is anything else on the current line. This check
+  // isn't strictly necessary, but it does avoid unnecessarily triggering
+  // completions for operations and dialects in situations where we don't want
+  // them (e.g. at the end of an operation).
+  auto shouldIgnoreOpCompletion = [&]() {
+    const char *bufBegin = state.lex.getBufferBegin();
+    const char *it = loc.getPointer() - 1;
+    for (; it > bufBegin && *it != '\n'; --it)
+      if (!llvm::is_contained(StringRef(" \t\r"), *it))
+        return true;
+    return false;
+  };
+  if (shouldIgnoreOpCompletion())
+    return failure();
+
+  // The completion here is either for a dialect name, or an operation name
+  // whose dialect prefix was elided. For this we simply invoke both of the
+  // individual completion methods.
+  (void)codeCompleteDialectName();
+  return codeCompleteOperationName(state.defaultDialectStack.back());
+}
+
+ParseResult Parser::codeCompleteStringDialectOrOperationName(StringRef name) {
+  // If the name is empty, this is the start of the string and contains the
+  // dialect.
+  if (name.empty())
+    return codeCompleteDialectName();
+
+  // Otherwise, we treat this as completing an operation name. The current name
+  // is used as the dialect namespace.
+  if (name.consume_back("."))
+    return codeCompleteOperationName(name);
+  return failure();
+}
+
+ParseResult Parser::codeCompleteExpectedTokens(ArrayRef<StringRef> tokens) {
+  state.codeCompleteContext->completeExpectedTokens(tokens, /*optional=*/false);
+  return failure();
+}
+ParseResult Parser::codeCompleteOptionalTokens(ArrayRef<StringRef> tokens) {
+  state.codeCompleteContext->completeExpectedTokens(tokens, /*optional=*/true);
+  return failure();
+}
+
+Attribute Parser::codeCompleteAttribute() {
+  state.codeCompleteContext->completeAttribute(
+      state.symbols.attributeAliasDefinitions);
+  return {};
+}
+Type Parser::codeCompleteType() {
+  state.codeCompleteContext->completeType(state.symbols.typeAliasDefinitions);
+  return {};
+}
+
+Attribute
+Parser::codeCompleteDialectSymbol(const llvm::StringMap<Attribute> &aliases) {
+  state.codeCompleteContext->completeDialectAttributeOrAlias(aliases);
+  return {};
+}
+Type Parser::codeCompleteDialectSymbol(const llvm::StringMap<Type> &aliases) {
+  state.codeCompleteContext->completeDialectTypeOrAlias(aliases);
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -453,6 +587,17 @@ public:
   /// already exist.  The location specified is the point of use, which allows
   /// us to diagnose references to blocks that are not defined precisely.
   Block *getBlockNamed(StringRef name, SMLoc loc);
+
+  //===--------------------------------------------------------------------===//
+  // Code Completion
+  //===--------------------------------------------------------------------===//
+
+  /// The set of various code completion methods. Every completion method
+  /// returns `failure` to stop the parsing process after providing completion
+  /// results.
+
+  ParseResult codeCompleteSSAUse();
+  ParseResult codeCompleteBlock();
 
 private:
   /// This class represents a definition of a Block.
@@ -747,7 +892,7 @@ ParseResult OperationParser::addDefinition(UnresolvedOperand useInfo,
 ///
 ParseResult OperationParser::parseOptionalSSAUseList(
     SmallVectorImpl<UnresolvedOperand> &results) {
-  if (getToken().isNot(Token::percent_identifier))
+  if (!getToken().isOrIsCodeCompletionFor(Token::percent_identifier))
     return success();
   return parseCommaSeparatedList([&]() -> ParseResult {
     UnresolvedOperand result;
@@ -764,6 +909,9 @@ ParseResult OperationParser::parseOptionalSSAUseList(
 ///
 ParseResult OperationParser::parseSSAUse(UnresolvedOperand &result,
                                          bool allowResultNumber) {
+  if (getToken().isCodeCompletion())
+    return codeCompleteSSAUse();
+
   result.name = getTokenSpelling();
   result.number = 0;
   result.location = getToken().getLoc();
@@ -776,7 +924,7 @@ ParseResult OperationParser::parseSSAUse(UnresolvedOperand &result,
       return emitError("result number not allowed in argument list");
 
     if (auto value = getToken().getHashIdentifierNumber())
-      result.number = value.getValue();
+      result.number = *value;
     else
       return emitError("invalid SSA value result number");
     consumeToken(Token::hash_identifier);
@@ -949,7 +1097,7 @@ ParseResult OperationParser::parseOperation() {
 
         // Check that number of results is > 0.
         auto val = getToken().getUInt64IntegerValue();
-        if (!val.hasValue() || val.getValue() < 1)
+        if (!val || *val < 1)
           return emitError(
               "expected named operation to have at least 1 result");
         consumeToken(Token::integer);
@@ -974,6 +1122,10 @@ ParseResult OperationParser::parseOperation() {
     op = parseCustomOperation(resultIDs);
   else if (nameTok.is(Token::string))
     op = parseGenericOperation();
+  else if (nameTok.isCodeCompletionFor(Token::string))
+    return codeCompleteStringDialectOrOperationName(nameTok.getStringValue());
+  else if (nameTok.isCodeCompletion())
+    return codeCompleteDialectOrElidedOpName(loc);
   else
     return emitWrongTokenError("expected operation name in quotes");
 
@@ -1028,6 +1180,9 @@ ParseResult OperationParser::parseOperation() {
 ///   successor ::= block-id
 ///
 ParseResult OperationParser::parseSuccessor(Block *&dest) {
+  if (getToken().isCodeCompletion())
+    return codeCompleteBlock();
+
   // Verify branch is identifier and get the matching block.
   if (!getToken().is(Token::caret_identifier))
     return emitWrongTokenError("expected block name");
@@ -1348,7 +1503,7 @@ public:
   OptionalParseResult
   parseOptionalOperand(UnresolvedOperand &result,
                        bool allowResultNumber = true) override {
-    if (parser.getToken().is(Token::percent_identifier))
+    if (parser.getToken().isOrIsCodeCompletionFor(Token::percent_identifier))
       return parseOperand(result, allowResultNumber);
     return llvm::None;
   }
@@ -1363,14 +1518,15 @@ public:
     if (delimiter == Delimiter::None) {
       // parseCommaSeparatedList doesn't handle the missing case for "none",
       // so we handle it custom here.
-      if (parser.getToken().isNot(Token::percent_identifier)) {
+      Token tok = parser.getToken();
+      if (!tok.isOrIsCodeCompletionFor(Token::percent_identifier)) {
         // If we didn't require any operands or required exactly zero (weird)
         // then this is success.
         if (requiredOperandCount == -1 || requiredOperandCount == 0)
           return success();
 
         // Otherwise, try to produce a nice error message.
-        if (parser.getToken().isAny(Token::l_paren, Token::l_square))
+        if (tok.isAny(Token::l_paren, Token::l_square))
           return parser.emitError("unexpected delimiter");
         return parser.emitWrongTokenError("expected operand");
       }
@@ -1554,7 +1710,7 @@ public:
 
   /// Parse an optional operation successor and its operand list.
   OptionalParseResult parseOptionalSuccessor(Block *&dest) override {
-    if (parser.getToken().isNot(Token::caret_identifier))
+    if (!parser.getToken().isOrIsCodeCompletionFor(Token::caret_identifier))
       return llvm::None;
     return parseSuccessor(dest);
   }
@@ -1638,7 +1794,8 @@ private:
 } // namespace
 
 FailureOr<OperationName> OperationParser::parseCustomOperationName() {
-  std::string opName = getTokenSpelling().str();
+  Token nameTok = getToken();
+  StringRef opName = nameTok.getSpelling();
   if (opName.empty())
     return (emitError("empty operation name is invalid"), failure());
   consumeToken();
@@ -1651,11 +1808,17 @@ FailureOr<OperationName> OperationParser::parseCustomOperationName() {
 
   // If the operation doesn't have a dialect prefix try using the default
   // dialect.
-  auto opNameSplit = StringRef(opName).split('.');
+  auto opNameSplit = opName.split('.');
   StringRef dialectName = opNameSplit.first;
+  std::string opNameStorage;
   if (opNameSplit.second.empty()) {
+    // If the name didn't have a prefix, check for a code completion request.
+    if (getToken().isCodeCompletion() && opName.back() == '.')
+      return codeCompleteOperationName(dialectName);
+
     dialectName = getState().defaultDialectStack.back();
-    opName = (dialectName + "." + opName).str();
+    opNameStorage = (dialectName + "." + opName).str();
+    opName = opNameStorage;
   }
 
   // Try to load the dialect before returning the operation name to make sure
@@ -1691,7 +1854,7 @@ OperationParser::parseCustomOperation(ArrayRef<ResultRecord> resultIDs) {
     Optional<Dialect::ParseOpHook> dialectHook;
     if (Dialect *dialect = opNameInfo->getDialect())
       dialectHook = dialect->getParseOperationHook(opName);
-    if (!dialectHook.hasValue()) {
+    if (!dialectHook) {
       InFlightDiagnostic diag =
           emitError(opLoc) << "custom op '" << originalOpName << "' is unknown";
       if (originalOpName != opName)
@@ -1857,8 +2020,8 @@ ParseResult OperationParser::parseRegionBody(Region &region, SMLoc startLoc,
                    .attachNote(getEncodedSourceLocation(*defLoc))
                << "previously referenced here";
       }
-      Location loc = entryArg.sourceLoc.hasValue()
-                         ? entryArg.sourceLoc.getValue()
+      Location loc = entryArg.sourceLoc.has_value()
+                         ? entryArg.sourceLoc.value()
                          : getEncodedSourceLocation(argInfo.location);
       BlockArgument arg = block->addArgument(entryArg.type, loc);
 
@@ -2049,6 +2212,58 @@ ParseResult OperationParser::parseOptionalBlockArgList(Block *owner) {
 }
 
 //===----------------------------------------------------------------------===//
+// Code Completion
+//===----------------------------------------------------------------------===//
+
+ParseResult OperationParser::codeCompleteSSAUse() {
+  std::string detailData;
+  llvm::raw_string_ostream detailOS(detailData);
+  for (IsolatedSSANameScope &scope : isolatedNameScopes) {
+    for (auto &it : scope.values) {
+      if (it.second.empty())
+        continue;
+      Value frontValue = it.second.front().value;
+
+      // If the value isn't a forward reference, we also add the name of the op
+      // to the detail.
+      if (auto result = frontValue.dyn_cast<OpResult>()) {
+        if (!forwardRefPlaceholders.count(result))
+          detailOS << result.getOwner()->getName() << ": ";
+      } else {
+        detailOS << "arg #" << frontValue.cast<BlockArgument>().getArgNumber()
+                 << ": ";
+      }
+
+      // Emit the type of the values to aid with completion selection.
+      detailOS << frontValue.getType();
+
+      // FIXME: We should define a policy for packed values, e.g. with a limit
+      // on the detail size, but it isn't clear what would be useful right now.
+      // For now we just only emit the first type.
+      if (it.second.size() > 1)
+        detailOS << ", ...";
+
+      state.codeCompleteContext->appendSSAValueCompletion(
+          it.getKey(), std::move(detailOS.str()));
+    }
+  }
+
+  return failure();
+}
+
+ParseResult OperationParser::codeCompleteBlock() {
+  // Don't provide completions if the token isn't empty, e.g. this avoids
+  // weirdness when we encounter a `.` within the identifier.
+  StringRef spelling = getTokenSpelling();
+  if (!(spelling.empty() || spelling == "^"))
+    return failure();
+
+  for (const auto &it : blocksByName.back())
+    state.codeCompleteContext->appendBlockCompletion(it.getFirst());
+  return failure();
+}
+
+//===----------------------------------------------------------------------===//
 // Top-level entity parsing.
 //===----------------------------------------------------------------------===//
 
@@ -2064,17 +2279,103 @@ public:
 
 private:
   /// Parse an attribute alias declaration.
+  ///
+  ///   attribute-alias-def ::= '#' alias-name `=` attribute-value
+  ///
   ParseResult parseAttributeAliasDef();
 
-  /// Parse an attribute alias declaration.
+  /// Parse a type alias declaration.
+  ///
+  ///   type-alias-def ::= '!' alias-name `=` type
+  ///
   ParseResult parseTypeAliasDef();
+
+  /// Parse a top-level file metadata dictionary.
+  ///
+  ///   file-metadata-dict ::= '{-#' file-metadata-entry* `#-}'
+  ///
+  ParseResult parseFileMetadataDictionary();
+
+  /// Parse a resource metadata dictionary.
+  ParseResult parseResourceFileMetadata(
+      function_ref<ParseResult(StringRef, SMLoc)> parseBody);
+  ParseResult parseDialectResourceFileMetadata();
+  ParseResult parseExternalResourceFileMetadata();
+};
+
+/// This class represents an implementation of a resource entry for the MLIR
+/// textual format.
+class ParsedResourceEntry : public AsmParsedResourceEntry {
+public:
+  ParsedResourceEntry(StringRef key, SMLoc keyLoc, Token value, Parser &p)
+      : key(key), keyLoc(keyLoc), value(value), p(p) {}
+  ~ParsedResourceEntry() override = default;
+
+  StringRef getKey() const final { return key; }
+
+  InFlightDiagnostic emitError() const final { return p.emitError(keyLoc); }
+
+  FailureOr<bool> parseAsBool() const final {
+    if (value.is(Token::kw_true))
+      return true;
+    if (value.is(Token::kw_false))
+      return false;
+    return p.emitError(value.getLoc(),
+                       "expected 'true' or 'false' value for key '" + key +
+                           "'");
+  }
+
+  FailureOr<std::string> parseAsString() const final {
+    if (value.isNot(Token::string))
+      return p.emitError(value.getLoc(),
+                         "expected string value for key '" + key + "'");
+    return value.getStringValue();
+  }
+
+  FailureOr<AsmResourceBlob>
+  parseAsBlob(BlobAllocatorFn allocator) const final {
+    // Blob data within then textual format is represented as a hex string.
+    // TODO: We could avoid an additional alloc+copy here if we pre-allocated
+    // the buffer to use during hex processing.
+    Optional<std::string> blobData =
+        value.is(Token::string) ? value.getHexStringValue() : llvm::None;
+    if (!blobData)
+      return p.emitError(value.getLoc(),
+                         "expected hex string blob for key '" + key + "'");
+
+    // Extract the alignment of the blob data, which gets stored at the
+    // beginning of the string.
+    if (blobData->size() < sizeof(uint32_t)) {
+      return p.emitError(value.getLoc(),
+                         "expected hex string blob for key '" + key +
+                             "' to encode alignment in first 4 bytes");
+    }
+    llvm::support::ulittle32_t align;
+    memcpy(&align, blobData->data(), sizeof(uint32_t));
+
+    // Get the data portion of the blob.
+    StringRef data = StringRef(*blobData).drop_front(sizeof(uint32_t));
+    if (data.empty())
+      return AsmResourceBlob();
+
+    // Allocate memory for the blob using the provided allocator and copy the
+    // data into it.
+    AsmResourceBlob blob = allocator(data.size(), align);
+    assert(llvm::isAddrAligned(llvm::Align(align), blob.getData().data()) &&
+           blob.isMutable() &&
+           "blob allocator did not return a properly aligned address");
+    memcpy(blob.getMutableData().data(), data.data(), data.size());
+    return blob;
+  }
+
+private:
+  StringRef key;
+  SMLoc keyLoc;
+  Token value;
+  Parser &p;
 };
 } // namespace
 
-/// Parses an attribute alias declaration.
-///
-///   attribute-alias-def ::= '#' alias-name `=` attribute-value
-///
 ParseResult TopLevelOperationParser::parseAttributeAliasDef() {
   assert(getToken().is(Token::hash_identifier));
   StringRef aliasName = getTokenSpelling().drop_front();
@@ -2103,10 +2404,6 @@ ParseResult TopLevelOperationParser::parseAttributeAliasDef() {
   return success();
 }
 
-/// Parse a type alias declaration.
-///
-///   type-alias-def ::= '!' alias-name `=` type
-///
 ParseResult TopLevelOperationParser::parseTypeAliasDef() {
   assert(getToken().is(Token::exclamation_identifier));
   StringRef aliasName = getTokenSpelling().drop_front();
@@ -2133,6 +2430,108 @@ ParseResult TopLevelOperationParser::parseTypeAliasDef() {
   // Register this alias with the parser state.
   state.symbols.typeAliasDefinitions.try_emplace(aliasName, aliasedType);
   return success();
+}
+
+ParseResult TopLevelOperationParser::parseFileMetadataDictionary() {
+  consumeToken(Token::file_metadata_begin);
+  return parseCommaSeparatedListUntil(
+      Token::file_metadata_end, [&]() -> ParseResult {
+        // Parse the key of the metadata dictionary.
+        SMLoc keyLoc = getToken().getLoc();
+        StringRef key;
+        if (failed(parseOptionalKeyword(&key)))
+          return emitError("expected identifier key in file "
+                           "metadata dictionary");
+        if (parseToken(Token::colon, "expected ':'"))
+          return failure();
+
+        // Process the metadata entry.
+        if (key == "dialect_resources")
+          return parseDialectResourceFileMetadata();
+        if (key == "external_resources")
+          return parseExternalResourceFileMetadata();
+        return emitError(keyLoc, "unknown key '" + key +
+                                     "' in file metadata dictionary");
+      });
+}
+
+ParseResult TopLevelOperationParser::parseResourceFileMetadata(
+    function_ref<ParseResult(StringRef, SMLoc)> parseBody) {
+  if (parseToken(Token::l_brace, "expected '{'"))
+    return failure();
+
+  return parseCommaSeparatedListUntil(Token::r_brace, [&]() -> ParseResult {
+    // Parse the top-level name entry.
+    SMLoc nameLoc = getToken().getLoc();
+    StringRef name;
+    if (failed(parseOptionalKeyword(&name)))
+      return emitError("expected identifier key for 'resource' entry");
+
+    if (parseToken(Token::colon, "expected ':'") ||
+        parseToken(Token::l_brace, "expected '{'"))
+      return failure();
+    return parseBody(name, nameLoc);
+  });
+}
+
+ParseResult TopLevelOperationParser::parseDialectResourceFileMetadata() {
+  return parseResourceFileMetadata([&](StringRef name,
+                                       SMLoc nameLoc) -> ParseResult {
+    // Lookup the dialect and check that it can handle a resource entry.
+    Dialect *dialect = getContext()->getOrLoadDialect(name);
+    if (!dialect)
+      return emitError(nameLoc, "dialect '" + name + "' is unknown");
+    const auto *handler = dyn_cast<OpAsmDialectInterface>(dialect);
+    if (!handler) {
+      return emitError() << "unexpected 'resource' section for dialect '"
+                         << dialect->getNamespace() << "'";
+    }
+
+    return parseCommaSeparatedListUntil(Token::r_brace, [&]() -> ParseResult {
+      // Parse the name of the resource entry.
+      SMLoc keyLoc = getToken().getLoc();
+      StringRef key;
+      if (failed(parseResourceHandle(handler, key)) ||
+          parseToken(Token::colon, "expected ':'"))
+        return failure();
+      Token valueTok = getToken();
+      consumeToken();
+
+      ParsedResourceEntry entry(key, keyLoc, valueTok, *this);
+      return handler->parseResource(entry);
+    });
+  });
+}
+
+ParseResult TopLevelOperationParser::parseExternalResourceFileMetadata() {
+  return parseResourceFileMetadata([&](StringRef name,
+                                       SMLoc nameLoc) -> ParseResult {
+    AsmResourceParser *handler = state.config.getResourceParser(name);
+
+    // TODO: Should we require handling external resources in some scenarios?
+    if (!handler) {
+      emitWarning(getEncodedSourceLocation(nameLoc))
+          << "ignoring unknown external resources for '" << name << "'";
+    }
+
+    return parseCommaSeparatedListUntil(Token::r_brace, [&]() -> ParseResult {
+      // Parse the name of the resource entry.
+      SMLoc keyLoc = getToken().getLoc();
+      StringRef key;
+      if (failed(parseOptionalKeyword(&key)))
+        return emitError(
+            "expected identifier key for 'external_resources' entry");
+      if (parseToken(Token::colon, "expected ':'"))
+        return failure();
+      Token valueTok = getToken();
+      consumeToken();
+
+      if (!handler)
+        return success();
+      ParsedResourceEntry entry(key, keyLoc, valueTok, *this);
+      return handler->parseResource(entry);
+    });
+  });
 }
 
 ParseResult TopLevelOperationParser::parse(Block *topLevelBlock,
@@ -2179,57 +2578,66 @@ ParseResult TopLevelOperationParser::parse(Block *topLevelBlock,
       if (parseTypeAliasDef())
         return failure();
       break;
+
+      // Parse a file-level metadata dictionary.
+    case Token::file_metadata_begin:
+      if (parseFileMetadataDictionary())
+        return failure();
+      break;
     }
   }
 }
 
 //===----------------------------------------------------------------------===//
 
-LogicalResult mlir::parseSourceFile(const llvm::SourceMgr &sourceMgr,
-                                    Block *block, MLIRContext *context,
-                                    LocationAttr *sourceFileLoc,
-                                    AsmParserState *asmState) {
+LogicalResult
+mlir::parseSourceFile(const llvm::SourceMgr &sourceMgr, Block *block,
+                      const ParserConfig &config, LocationAttr *sourceFileLoc,
+                      AsmParserState *asmState,
+                      AsmParserCodeCompleteContext *codeCompleteContext) {
   const auto *sourceBuf = sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
 
-  Location parserLoc = FileLineColLoc::get(
-      context, sourceBuf->getBufferIdentifier(), /*line=*/0, /*column=*/0);
+  Location parserLoc =
+      FileLineColLoc::get(config.getContext(), sourceBuf->getBufferIdentifier(),
+                          /*line=*/0, /*column=*/0);
   if (sourceFileLoc)
     *sourceFileLoc = parserLoc;
 
   SymbolState aliasState;
-  ParserState state(sourceMgr, context, aliasState, asmState);
+  ParserState state(sourceMgr, config, aliasState, asmState,
+                    codeCompleteContext);
   return TopLevelOperationParser(state).parse(block, parserLoc);
 }
 
 LogicalResult mlir::parseSourceFile(llvm::StringRef filename, Block *block,
-                                    MLIRContext *context,
+                                    const ParserConfig &config,
                                     LocationAttr *sourceFileLoc) {
   llvm::SourceMgr sourceMgr;
-  return parseSourceFile(filename, sourceMgr, block, context, sourceFileLoc);
+  return parseSourceFile(filename, sourceMgr, block, config, sourceFileLoc);
 }
 
 LogicalResult mlir::parseSourceFile(llvm::StringRef filename,
                                     llvm::SourceMgr &sourceMgr, Block *block,
-                                    MLIRContext *context,
+                                    const ParserConfig &config,
                                     LocationAttr *sourceFileLoc,
                                     AsmParserState *asmState) {
   if (sourceMgr.getNumBuffers() != 0) {
     // TODO: Extend to support multiple buffers.
-    return emitError(mlir::UnknownLoc::get(context),
+    return emitError(mlir::UnknownLoc::get(config.getContext()),
                      "only main buffer parsed at the moment");
   }
   auto fileOrErr = llvm::MemoryBuffer::getFileOrSTDIN(filename);
   if (std::error_code error = fileOrErr.getError())
-    return emitError(mlir::UnknownLoc::get(context),
+    return emitError(mlir::UnknownLoc::get(config.getContext()),
                      "could not open input file " + filename);
 
   // Load the MLIR source file.
   sourceMgr.AddNewSourceBuffer(std::move(*fileOrErr), SMLoc());
-  return parseSourceFile(sourceMgr, block, context, sourceFileLoc, asmState);
+  return parseSourceFile(sourceMgr, block, config, sourceFileLoc, asmState);
 }
 
 LogicalResult mlir::parseSourceString(llvm::StringRef sourceStr, Block *block,
-                                      MLIRContext *context,
+                                      const ParserConfig &config,
                                       LocationAttr *sourceFileLoc) {
   auto memBuffer = MemoryBuffer::getMemBuffer(sourceStr);
   if (!memBuffer)
@@ -2237,5 +2645,5 @@ LogicalResult mlir::parseSourceString(llvm::StringRef sourceStr, Block *block,
 
   SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(memBuffer), SMLoc());
-  return parseSourceFile(sourceMgr, block, context, sourceFileLoc);
+  return parseSourceFile(sourceMgr, block, config, sourceFileLoc);
 }

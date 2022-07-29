@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/memory_manager.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
 
 #include <cstring>
 #include <utility>
@@ -25,7 +25,8 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-template <> cl_uint queue_impl::get_info<info::queue::reference_count>() const {
+template <>
+uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   RT::PiResult result = PI_SUCCESS;
   if (!is_host())
     getPlugin().call<PiApiKind::piQueueGetInfo>(
@@ -48,6 +49,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
   EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
+  EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 

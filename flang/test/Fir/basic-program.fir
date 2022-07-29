@@ -1,6 +1,8 @@
 // RUN: tco %s | FileCheck %s
 // RUN: tco %s --mlir-pass-statistics --mlir-pass-statistics-display=pipeline 2>&1 | FileCheck %s --check-prefix=PASSES
 
+// REQUIRES: asserts
+
 // Check that tco is working with a basic test.
 // Also check the passes in the default pipeline.
 
@@ -14,11 +16,13 @@ func.func @_QQmain() {
 
 // PASSES: Pass statistics report
 
+// PASSES: CSE
 // PASSES-LABEL: 'func.func' Pipeline
 // PASSES: ArrayValueCopy
 // PASSES: CharacterConversion
 // PASSES: Canonicalizer
 // PASSES: SimplifyRegionLite
+// PASSES: CSE
 
 // PASSES-LABEL: 'func.func' Pipeline
 // PASSES: MemoryAllocationOpt
@@ -30,6 +34,7 @@ func.func @_QQmain() {
 // PASSES: SCFToControlFlow
 // PASSES: Canonicalizer
 // PASSES: SimplifyRegionLite
+// PASSES: CSE
 // PASSES: BoxedProcedurePass
 
 // PASSES-LABEL: 'func.func' Pipeline

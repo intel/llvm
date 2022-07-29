@@ -51,9 +51,7 @@ public:
 
   /// Get the location of the next token and store it into the argument.  This
   /// always succeeds.
-  SMLoc getCurrentLocation() override {
-    return parser.getToken().getLoc();
-  }
+  SMLoc getCurrentLocation() override { return parser.getToken().getLoc(); }
 
   /// Re-encode the given source location as an MLIR location and return it.
   Location getEncodedSourceLoc(SMLoc loc) override {
@@ -242,61 +240,6 @@ public:
     return success();
   }
 
-  /// Returns true if the current token corresponds to a keyword.
-  bool isCurrentTokenAKeyword() const {
-    return parser.getToken().isAny(Token::bare_identifier, Token::inttype) ||
-           parser.getToken().isKeyword();
-  }
-
-  /// Parse the given keyword if present.
-  ParseResult parseOptionalKeyword(StringRef keyword) override {
-    // Check that the current token has the same spelling.
-    if (!isCurrentTokenAKeyword() || parser.getTokenSpelling() != keyword)
-      return failure();
-    parser.consumeToken();
-    return success();
-  }
-
-  /// Parse a keyword, if present, into 'keyword'.
-  ParseResult parseOptionalKeyword(StringRef *keyword) override {
-    // Check that the current token is a keyword.
-    if (!isCurrentTokenAKeyword())
-      return failure();
-
-    *keyword = parser.getTokenSpelling();
-    parser.consumeToken();
-    return success();
-  }
-
-  /// Parse a keyword if it is one of the 'allowedKeywords'.
-  ParseResult
-  parseOptionalKeyword(StringRef *keyword,
-                       ArrayRef<StringRef> allowedKeywords) override {
-    // Check that the current token is a keyword.
-    if (!isCurrentTokenAKeyword())
-      return failure();
-
-    StringRef currentKeyword = parser.getTokenSpelling();
-    if (llvm::is_contained(allowedKeywords, currentKeyword)) {
-      *keyword = currentKeyword;
-      parser.consumeToken();
-      return success();
-    }
-
-    return failure();
-  }
-
-  /// Parse an optional keyword or string and set instance into 'result'.`
-  ParseResult parseOptionalKeywordOrString(std::string *result) override {
-    StringRef keyword;
-    if (succeeded(parseOptionalKeyword(&keyword))) {
-      *result = keyword.str();
-      return success();
-    }
-
-    return parseOptionalString(result);
-  }
-
   /// Parse a floating point value from the stream.
   ParseResult parseFloat(double &result) override {
     bool isNegative = parser.consumeIf(Token::minus);
@@ -306,7 +249,7 @@ public:
     // Check for a floating point value.
     if (curTok.is(Token::floatliteral)) {
       auto val = curTok.getFloatingPointValue();
-      if (!val.hasValue())
+      if (!val)
         return emitError(loc, "floating point value too large");
       parser.consumeToken(Token::floatliteral);
       result = isNegative ? -*val : *val;
@@ -341,6 +284,77 @@ public:
                                       function_ref<ParseResult()> parseElt,
                                       StringRef contextMessage) override {
     return parser.parseCommaSeparatedList(delimiter, parseElt, contextMessage);
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Keyword Parsing
+  //===--------------------------------------------------------------------===//
+
+  ParseResult parseKeyword(StringRef keyword, const Twine &msg) override {
+    if (parser.getToken().isCodeCompletion())
+      return parser.codeCompleteExpectedTokens(keyword);
+
+    auto loc = getCurrentLocation();
+    if (parseOptionalKeyword(keyword))
+      return emitError(loc, "expected '") << keyword << "'" << msg;
+    return success();
+  }
+  using AsmParser::parseKeyword;
+
+  /// Parse the given keyword if present.
+  ParseResult parseOptionalKeyword(StringRef keyword) override {
+    if (parser.getToken().isCodeCompletion())
+      return parser.codeCompleteOptionalTokens(keyword);
+
+    // Check that the current token has the same spelling.
+    if (!parser.isCurrentTokenAKeyword() ||
+        parser.getTokenSpelling() != keyword)
+      return failure();
+    parser.consumeToken();
+    return success();
+  }
+
+  /// Parse a keyword, if present, into 'keyword'.
+  ParseResult parseOptionalKeyword(StringRef *keyword) override {
+    // Check that the current token is a keyword.
+    if (!parser.isCurrentTokenAKeyword())
+      return failure();
+
+    *keyword = parser.getTokenSpelling();
+    parser.consumeToken();
+    return success();
+  }
+
+  /// Parse a keyword if it is one of the 'allowedKeywords'.
+  ParseResult
+  parseOptionalKeyword(StringRef *keyword,
+                       ArrayRef<StringRef> allowedKeywords) override {
+    if (parser.getToken().isCodeCompletion())
+      return parser.codeCompleteOptionalTokens(allowedKeywords);
+
+    // Check that the current token is a keyword.
+    if (!parser.isCurrentTokenAKeyword())
+      return failure();
+
+    StringRef currentKeyword = parser.getTokenSpelling();
+    if (llvm::is_contained(allowedKeywords, currentKeyword)) {
+      *keyword = currentKeyword;
+      parser.consumeToken();
+      return success();
+    }
+
+    return failure();
+  }
+
+  /// Parse an optional keyword or string and set instance into 'result'.`
+  ParseResult parseOptionalKeywordOrString(std::string *result) override {
+    StringRef keyword;
+    if (succeeded(parseOptionalKeyword(&keyword))) {
+      *result = keyword.str();
+      return success();
+    }
+
+    return parseOptionalString(result);
   }
 
   //===--------------------------------------------------------------------===//
@@ -440,6 +454,22 @@ public:
   }
 
   //===--------------------------------------------------------------------===//
+  // Resource Parsing
+  //===--------------------------------------------------------------------===//
+
+  /// Parse a handle to a resource within the assembly format.
+  FailureOr<AsmDialectResourceHandle>
+  parseResourceHandle(Dialect *dialect) override {
+    const auto *interface = dyn_cast_or_null<OpAsmDialectInterface>(dialect);
+    if (!interface) {
+      return parser.emitError() << "dialect '" << dialect->getNamespace()
+                                << "' does not expect resource handles";
+    }
+    StringRef resourceName;
+    return parser.parseResourceHandle(interface, resourceName);
+  }
+
+  //===--------------------------------------------------------------------===//
   // Type Parsing
   //===--------------------------------------------------------------------===//
 
@@ -499,6 +529,28 @@ public:
 
   ParseResult parseXInDimensionList() override {
     return parser.parseXInDimensionList();
+  }
+
+  //===--------------------------------------------------------------------===//
+  // Code Completion
+  //===--------------------------------------------------------------------===//
+
+  /// Parse a keyword, or an empty string if the current location signals a code
+  /// completion.
+  ParseResult parseKeywordOrCompletion(StringRef *keyword) override {
+    Token tok = parser.getToken();
+    if (tok.isCodeCompletion() && tok.getSpelling().empty()) {
+      *keyword = "";
+      return success();
+    }
+    return parseKeyword(keyword);
+  }
+
+  /// Signal the code completion of a set of expected tokens.
+  void codeCompleteExpectedTokens(ArrayRef<StringRef> tokens) override {
+    Token tok = parser.getToken();
+    if (tok.isCodeCompletion() && tok.getSpelling().empty())
+      (void)parser.codeCompleteExpectedTokens(tokens);
   }
 
 protected:

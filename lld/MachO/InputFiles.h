@@ -12,6 +12,7 @@
 #include "MachOStructs.h"
 #include "Target.h"
 
+#include "lld/Common/DWARF.h"
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
 #include "llvm/ADT/CachedHashString.h"
@@ -21,6 +22,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFUnit.h"
 #include "llvm/Object/Archive.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 
 #include <vector>
@@ -159,14 +161,22 @@ public:
 
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
+  std::string sourceFile() const;
+  // Parses line table information for diagnostics. compileUnit should be used
+  // for other purposes.
+  lld::DWARFCache *getDwarf();
+
   llvm::DWARFUnit *compileUnit = nullptr;
+  std::unique_ptr<lld::DWARFCache> dwarfCache;
   Section *addrSigSection = nullptr;
   const uint32_t modTime;
   std::vector<ConcatInputSection *> debugSections;
   std::vector<CallGraphEntry> callGraph;
   llvm::DenseMap<ConcatInputSection *, FDE> fdes;
+  std::vector<OptimizationHint> optimizationHints;
 
 private:
+  llvm::once_flag initDwarf;
   template <class LP> void parseLazy();
   template <class SectionHeader> void parseSections(ArrayRef<SectionHeader>);
   template <class LP>
@@ -179,6 +189,7 @@ private:
   void parseRelocations(ArrayRef<SectionHeader> sectionHeaders,
                         const SectionHeader &, Section &);
   void parseDebugInfo();
+  void parseOptimizationHints(ArrayRef<uint8_t> data);
   void splitEhFrames(ArrayRef<uint8_t> dataArr, Section &ehFrameSection);
   void registerCompactUnwind(Section &compactUnwindSection);
   void registerEhFrames(Section &ehFrameSection);
@@ -239,6 +250,7 @@ private:
   void handleLDInstallNameSymbol(StringRef name, StringRef originalName);
   void handleLDHideSymbol(StringRef name, StringRef originalName);
   void checkAppExtensionSafety(bool dylibIsAppExtensionSafe) const;
+  void parseExportedSymbols(uint32_t offset, uint32_t size);
 
   llvm::DenseSet<llvm::CachedHashStringRef> hiddenSymbols;
 };

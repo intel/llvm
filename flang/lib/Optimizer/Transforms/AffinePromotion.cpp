@@ -22,7 +22,7 @@
 #include "flang/Optimizer/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Visitors.h"
@@ -171,7 +171,7 @@ struct AffineIfCondition {
       fromCmpIOp(condDef);
   }
 
-  bool hasIntegerSet() const { return integerSet.hasValue(); }
+  bool hasIntegerSet() const { return integerSet.has_value(); }
 
   mlir::IntegerSet getIntegerSet() const {
     assert(hasIntegerSet() && "integer set is missing");
@@ -188,8 +188,8 @@ private:
 
   MaybeAffineExpr affineBinaryOp(mlir::AffineExprKind kind, MaybeAffineExpr lhs,
                                  MaybeAffineExpr rhs) {
-    if (lhs.hasValue() && rhs.hasValue())
-      return mlir::getAffineBinaryOpExpr(kind, lhs.getValue(), rhs.getValue());
+    if (lhs && rhs)
+      return mlir::getAffineBinaryOpExpr(kind, *lhs, *rhs);
     return {};
   }
 
@@ -233,7 +233,7 @@ private:
   void fromCmpIOp(mlir::arith::CmpIOp cmpOp) {
     auto lhsAffine = toAffineExpr(cmpOp.getLhs());
     auto rhsAffine = toAffineExpr(cmpOp.getRhs());
-    if (!lhsAffine.hasValue() || !rhsAffine.hasValue())
+    if (!lhsAffine || !rhsAffine)
       return;
     auto constraintPair = constraint(
         cmpOp.getPredicate(), rhsAffine.getValue() - lhsAffine.getValue());
@@ -242,7 +242,6 @@ private:
     integerSet = mlir::IntegerSet::get(dimCount, symCount,
                                        {constraintPair.getValue().first},
                                        {constraintPair.getValue().second});
-    return;
   }
 
   llvm::Optional<std::pair<AffineExpr, bool>>
@@ -392,7 +391,6 @@ static void populateIndexArgs(fir::ArrayCoorOp acoOp,
     return populateIndexArgs(acoOp, shapeShift, indexArgs, rewriter);
   if (auto slice = acoOp.getShape().getDefiningOp<SliceOp>())
     return populateIndexArgs(acoOp, slice, indexArgs, rewriter);
-  return;
 }
 
 /// Returns affine.apply and fir.convert from array_coor and gendims

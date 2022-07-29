@@ -8,14 +8,6 @@
 
 #include <algorithm>
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stream.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
@@ -24,6 +16,14 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/event.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stream.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -245,12 +245,12 @@ event handler::finalize() {
 
     auto EnqueueKernel = [&]() {
       // 'Result' for single point of return
-      cl_int Result = CL_INVALID_VALUE;
+      pi_int32 Result = PI_ERROR_INVALID_VALUE;
 
       if (MQueue->is_host()) {
         MHostKernel->call(
             MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
-        Result = CL_SUCCESS;
+        Result = PI_SUCCESS;
       } else {
         if (MQueue->getPlugin().getBackend() ==
             backend::ext_intel_esimd_emulator) {
@@ -258,14 +258,13 @@ event handler::finalize() {
               nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
               MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
               &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
-          Result = CL_SUCCESS;
+          Result = PI_SUCCESS;
         } else {
           Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                     MKernel, MKernelName, MOSModuleHandle,
                                     RawEvents, OutEvent, nullptr);
         }
       }
-      // assert(Result != CL_INVALID_VALUE);
       return Result;
     };
 
@@ -280,15 +279,16 @@ event handler::finalize() {
     }
 
     if (DiscardEvent) {
-      if (CL_SUCCESS != EnqueueKernel())
+      if (PI_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
     } else {
       NewEvent = std::make_shared<detail::event_impl>(MQueue);
       NewEvent->setContextImpl(MQueue->getContextImplPtr());
+      NewEvent->setStateIncomplete();
       OutEvent = &NewEvent->getHandleRef();
 
-      if (CL_SUCCESS != EnqueueKernel())
+      if (PI_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.",
                             PI_ERROR_INVALID_OPERATION);
       else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)

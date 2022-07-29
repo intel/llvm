@@ -19,6 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
 
@@ -33,6 +34,7 @@ static const char *LegalSYCLFunctions[] = {
     "^cl::sycl::accessor<.+>::~accessor",
     "^cl::sycl::accessor<.+>::getNativeImageObj",
     "^cl::sycl::accessor<.+>::__init_esimd",
+    "^cl::sycl::ext::oneapi::experimental::printf",
     "^cl::sycl::id<.+>::.+",
     "^cl::sycl::item<.+>::.+",
     "^cl::sycl::nd_item<.+>::.+",
@@ -48,6 +50,12 @@ static const char *LegalSYCLFunctions[] = {
     "^cl::sycl::ext::oneapi::sub_group::.+",
     "^cl::sycl::ext::oneapi::experimental::spec_constant<.+>::.+",
     "^cl::sycl::ext::oneapi::experimental::this_sub_group"};
+
+static const char *LegalSYCLFunctionsInStatelessMode[] = {
+    "^cl::sycl::multi_ptr<.+>::get", "^cl::sycl::multi_ptr<.+>::multi_ptr",
+    "^cl::sycl::accessor<.+>::get_pointer.+",
+    "^cl::sycl::accessor<.+>::getPointerAdjusted",
+    "^cl::sycl::accessor<.+>::getQualifiedPtr"};
 
 namespace {
 
@@ -83,9 +91,11 @@ public:
 
 class ESIMDVerifierImpl {
   const Module &M;
+  bool ForceStatelessMem;
 
 public:
-  ESIMDVerifierImpl(const Module &M) : M(M) {}
+  ESIMDVerifierImpl(const Module &M, bool ForceStatelessMem)
+      : M(M), ForceStatelessMem(ForceStatelessMem) {}
 
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
@@ -142,11 +152,14 @@ public:
             continue;
 
           // Check if function name matches any allowed SYCL function name.
-          if (any_of(LegalSYCLFunctions, [Name](const char *LegalName) {
-                Regex LegalNameRE(LegalName);
-                assert(LegalNameRE.isValid() && "invalid function name regex");
-                return LegalNameRE.match(Name);
-              }))
+          auto checkLegalFunc = [Name](const char *LegalName) {
+            Regex LegalNameRE(LegalName);
+            assert(LegalNameRE.isValid() && "invalid function name regex");
+            return LegalNameRE.match(Name);
+          };
+          if (any_of(LegalSYCLFunctions, checkLegalFunc) ||
+              (ForceStatelessMem &&
+               any_of(LegalSYCLFunctionsInStatelessMode, checkLegalFunc)))
             continue;
 
           // If not, report an error.
@@ -163,7 +176,7 @@ public:
 } // end anonymous namespace
 
 PreservedAnalyses ESIMDVerifierPass::run(Module &M, ModuleAnalysisManager &AM) {
-  ESIMDVerifierImpl(M).verify();
+  ESIMDVerifierImpl(M, ForceStatelessMem).verify();
   return PreservedAnalyses::all();
 }
 
@@ -171,6 +184,7 @@ namespace {
 
 struct ESIMDVerifier : public ModulePass {
   static char ID;
+  bool ForceStatelessMem;
 
   ESIMDVerifier() : ModulePass(ID) {
     initializeESIMDVerifierPass(*PassRegistry::getPassRegistry());
@@ -181,7 +195,7 @@ struct ESIMDVerifier : public ModulePass {
   }
 
   bool runOnModule(Module &M) override {
-    ESIMDVerifierImpl(M).verify();
+    ESIMDVerifierImpl(M, ForceStatelessMem).verify();
     return false;
   }
 };
