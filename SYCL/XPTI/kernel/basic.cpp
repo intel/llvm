@@ -19,27 +19,27 @@ constexpr sycl::specialization_id<int> int_id(42);
 class Functor1 {
 public:
   Functor1(short X_,
-           cl::sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
+           sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()() const { Acc[0] += X; }
 
 private:
   short X;
-  cl::sycl::accessor<int, 1, mode::read_write, target::device> Acc;
+  sycl::accessor<int, 1, mode::read_write, target::device> Acc;
 };
 
 class Functor2 {
 public:
   Functor2(short X_,
-           cl::sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
+           sycl::accessor<int, 1, mode::read_write, target::device> &Acc_)
       : X(X_), Acc(Acc_) {}
 
   void operator()(sycl::id<1> id = 0) const { Acc[id] += X; }
 
 private:
   short X;
-  cl::sycl::accessor<int, 1, mode::read_write, target::device> Acc;
+  sycl::accessor<int, 1, mode::read_write, target::device> Acc;
 };
 
 int main() {
@@ -84,7 +84,7 @@ int main() {
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:15
   { auto HA = Buf.get_access<mode::read>(); }
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:16
     auto Acc = Buf.get_access<mode::read_write>(cgh);
     Functor1 F(Val, Acc);
@@ -96,7 +96,7 @@ int main() {
     // CHECK-OPT: arg2 : {1, [[ACCID4]], 8, 2}
   });
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
+  Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID5:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:16
     auto Acc = Buf.get_access<mode::read_write>(cgh);
     Functor2 F(Val, Acc);

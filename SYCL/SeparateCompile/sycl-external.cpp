@@ -42,19 +42,18 @@ int main(void) {
   int C[Size];
 
   {
-    cl::sycl::range<1> range{Size};
-    cl::sycl::buffer<int, 1> bufA(A, range);
-    cl::sycl::buffer<int, 1> bufB(B, range);
-    cl::sycl::buffer<int, 1> bufC(C, range);
+    sycl::range<1> range{Size};
+    sycl::buffer<int, 1> bufA(A, range);
+    sycl::buffer<int, 1> bufB(B, range);
+    sycl::buffer<int, 1> bufC(C, range);
 
-    cl::sycl::queue().submit([&](cl::sycl::handler &cgh) {
-      auto accA = bufA.get_access<cl::sycl::access::mode::read>(cgh);
-      auto accB = bufB.get_access<cl::sycl::access::mode::read>(cgh);
-      auto accC = bufC.get_access<cl::sycl::access::mode::write>(cgh);
+    sycl::queue().submit([&](sycl::handler &cgh) {
+      auto accA = bufA.get_access<sycl::access::mode::read>(cgh);
+      auto accB = bufB.get_access<sycl::access::mode::read>(cgh);
+      auto accC = bufC.get_access<sycl::access::mode::write>(cgh);
 
-      cgh.parallel_for<class Test>(range, [=](cl::sycl::id<1> ID) {
-        accC[ID] = foo(accA[ID], accB[ID]);
-      });
+      cgh.parallel_for<class Test>(
+          range, [=](sycl::id<1> ID) { accC[ID] = foo(accA[ID], accB[ID]); });
     });
   }
 

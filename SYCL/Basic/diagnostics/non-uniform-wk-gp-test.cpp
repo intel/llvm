@@ -11,24 +11,23 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int test() {
   queue q = queue();
   auto device = q.get_device();
-  auto deviceName = device.get_info<cl::sycl::info::device::name>();
+  auto deviceName = device.get_info<sycl::info::device::name>();
   std::cout << " Device Name: " << deviceName << std::endl;
 
   int res = 1;
   try {
     const int N = 1;
     q.submit([&](handler &cgh) {
-      cl::sycl::stream kernelout(108 * 64 + 128, 64, cgh);
+      sycl::stream kernelout(108 * 64 + 128, 64, cgh);
       cgh.parallel_for<class test_kernel>(
           nd_range<3>(range<3>{1, 1, N}, range<3>{1, 1, 16}),
           [=](nd_item<3> itm) {
-            kernelout << "Coordinates: " << itm.get_global_id()
-                      << cl::sycl::endl;
+            kernelout << "Coordinates: " << itm.get_global_id() << sycl::endl;
           });
     });
     std::cout << "Test failed: no exception thrown." << std::endl;

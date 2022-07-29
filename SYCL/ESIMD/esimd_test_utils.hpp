@@ -22,7 +22,7 @@
 #include <string>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 namespace esimd_test {
 
