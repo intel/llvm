@@ -47,8 +47,10 @@
 // 8.10 Added new optional device argument to piextQueueCreateWithNativeHandle
 // 9.11 Use values of OpenCL enums directly, rather than including `<CL/cl.h>`;
 // NOTE that this results in a changed API for `piProgramGetBuildInfo`.
+// 10.12 Change enum value PI_MEM_ADVICE_UNKNOWN from 0 to 999, and set enum
+// PI_MEM_ADVISE_RESET to 0.
 
-#define _PI_H_VERSION_MAJOR 9
+#define _PI_H_VERSION_MAJOR 10
 #define _PI_H_VERSION_MINOR 12
 
 #define _PI_STRING_HELPER(a) #a
