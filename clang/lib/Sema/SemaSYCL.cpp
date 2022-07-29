@@ -1472,7 +1472,7 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    HandlerTys &... Handlers) {
   RecordDecl *RD = RecordTy->getAsRecordDecl();
   assert(RD && "should not be null.");
-  if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
+  if (RD->hasAttr<SYCLRequiresDecompositionAttr>() || RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
     // If this container requires decomposition, we have to visit it as
     // 'complex', so all handlers are called in this case with the 'complex'
     // case.
@@ -1740,9 +1740,13 @@ public:
   }
 };
 
-// A type to mark whether a collection requires decomposition.
+// A type to mark whether a collection requires decomposition
+// or needs to be transformed to a new type. If a collection
+// contains pointers, and is not decomposed, a new type must
+// be generated with all pointers in global address space.
 class SyclKernelDecompMarker : public SyclKernelFieldHandler {
   llvm::SmallVector<bool, 16> CollectionStack;
+  llvm::SmallVector<bool, 16> PointerStack;
 
 public:
   static constexpr const bool VisitUnionBody = false;
@@ -1752,6 +1756,7 @@ public:
     // In order to prevent checking this over and over, just add a dummy-base
     // entry.
     CollectionStack.push_back(true);
+    PointerStack.push_back(true);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &,
@@ -1770,12 +1775,13 @@ public:
   }
 
   bool handlePointerType(FieldDecl *, QualType) final {
-    CollectionStack.back() = true;
+    PointerStack.back() = true;
     return true;
   }
 
   bool enterStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     CollectionStack.push_back(false);
+    PointerStack.push_back(false);
     return true;
   }
 
@@ -1787,6 +1793,14 @@ public:
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      RecordDecl *RD = Ty->getAsRecordDecl();
+      assert(RD && "should not be null.");
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+        RD->addAttr(
+            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      PointerStack.back() = true;
     }
     return true;
   }
@@ -1794,6 +1808,7 @@ public:
   bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &,
                    QualType) final {
     CollectionStack.push_back(false);
+    PointerStack.push_back(false);
     return true;
   }
 
@@ -1806,8 +1821,15 @@ public:
         RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
             SemaRef.getASTContext()));
       CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
+      RecordDecl *RD = Ty->getAsRecordDecl();
+      assert(RD && "should not be null.");
+      if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
+        RD->addAttr(
+            SYCLGenerateNewTypeAttr::CreateImplicit(SemaRef.getASTContext()));
+      PointerStack.back() = true;
     }
-
     return true;
   }
 
@@ -2051,7 +2073,18 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
+  bool leaveStruct(const CXXRecordDecl *RD, FieldDecl *, QualType) final {
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
+      auto NumFields = std::distance(RD->field_begin(), RD->field_end()); 
+      for (unsigned I = 0; I < NumFields; I++) {
+        // Pop out from Params
+	auto PVD = Params.pop_back_val();
+	// Remember this won't match order of fields in original class. So should store this is right order in temporary vector
+	// How do I create a new type here? Look at ASTContext::buildImplicitRecord, createPrivatesRecordDecl, addFieldToRecordDecl() 
+	
+      }  
+    }
+
     --StructDepth;
     return true;
   }
@@ -2062,8 +2095,21 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
+  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
                    QualType FieldTy) final {
+    if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
+      auto NumFields = std::distance(RD->field_begin(), RD->field_end()); 
+      for (unsigned I = 0; I < NumFields; I++) {
+        // Pop out from Params
+	auto PVD = Params.pop_back_val();
+	auto test = PVD;
+	// Remember this won't match order of fields in original class. So should store this is right order in temporary vector
+	// Can I pop it out in right order by starting iteration at Params.size() - NumOfFields?
+	// How do I create a new global type here? - Look at how we create a kernel object
+	
+      }  
+    }
+
     --StructDepth;
     return true;
   }
