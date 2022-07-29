@@ -60,6 +60,8 @@ constexpr void dangling_both(Func&& func, Input& in1, Input& in2, Args&& ...args
   static_assert(std::same_as<decltype(result), ExpectedT>);
 }
 
+std::mt19937 rand_gen() { return std::mt19937(); }
+
 // TODO: also check the iterator values for algorithms that return `*_result` types.
 constexpr bool test_all() {
   using std::ranges::dangling;
@@ -90,8 +92,7 @@ constexpr bool test_all() {
 
   auto unary_pred = [](int i) { return i > 0; };
   auto binary_pred = [](int i, int j) { return i < j; };
-  //auto gen = [] { return 42; };
-  //std::mt19937 rand_gen;
+  auto gen = [] { return 42; };
 
   std::array in = {1, 2, 3};
   std::array in2 = {4, 5, 6};
@@ -124,7 +125,7 @@ constexpr bool test_all() {
   dangling_1st(std::ranges::search_n, in, count, x);
   dangling_1st(std::ranges::find_end, in, in2);
   dangling_1st(std::ranges::is_sorted_until, in);
-  //dangling_1st(std::ranges::is_heap_until, in);
+  dangling_1st(std::ranges::is_heap_until, in);
   dangling_1st<for_each_result<dangling, decltype(unary_pred)>>(std::ranges::for_each, in, unary_pred);
   dangling_1st<copy_result<dangling, int*>>(std::ranges::copy, in, out);
   // TODO: uncomment `copy_backward` once https://reviews.llvm.org/D128864 lands.
@@ -144,7 +145,7 @@ constexpr bool test_all() {
     dangling_both<binary_transform_result<dangling, dangling, bool*>>(
         std::ranges::transform, in, in2, out_transform.begin(), binary_pred);
   }
-  //dangling_1st(std::ranges::generate, in, gen);
+  dangling_1st(std::ranges::generate, in, gen);
   //dangling_1st<remove_copy_result<dangling, int*>>(std::ranges::remove_copy, in, out, x);
   //dangling_1st<remove_copy_if_result<dangling, int*>>(std::ranges::remove_copy_if, in, out, unary_pred);
   dangling_1st(std::ranges::replace, in, x, x);
@@ -181,7 +182,8 @@ constexpr bool test_all() {
   dangling_1st(std::ranges::remove_if, in, unary_pred);
   dangling_1st(std::ranges::reverse, in);
   //dangling_1st(std::ranges::rotate, in, mid);
-  //dangling_1st(std::ranges::shuffle, in, rand_gen);
+  if (!std::is_constant_evaluated()) // `shuffle` isn't `constexpr`.
+    dangling_1st(std::ranges::shuffle, in, rand_gen());
   //dangling_1st(std::ranges::unique, in);
   dangling_1st(std::ranges::partition, in, unary_pred);
   if (!std::is_constant_evaluated())
@@ -191,8 +193,8 @@ constexpr bool test_all() {
     dangling_1st(std::ranges::stable_sort, in);
   dangling_1st(std::ranges::partial_sort, in, mid);
   dangling_1st(std::ranges::nth_element, in, mid);
-  //if (!std::is_constant_evaluated())
-  //  dangling_1st(std::ranges::inplace_merge, in, mid);
+  if (!std::is_constant_evaluated())
+    dangling_1st(std::ranges::inplace_merge, in, mid);
   dangling_1st(std::ranges::make_heap, in);
   dangling_1st(std::ranges::push_heap, in);
   dangling_1st(std::ranges::pop_heap, in);

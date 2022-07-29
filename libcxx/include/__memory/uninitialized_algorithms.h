@@ -503,16 +503,17 @@ template <class _Alloc, class _Iter, class _Sent>
 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX17 void
 __allocator_destroy(_Alloc& __alloc, _Iter __first, _Sent __last) {
   for (; __first != __last; ++__first)
-    allocator_traits<_Alloc>::destroy(__alloc, std::__to_address(__first));
+     allocator_traits<_Alloc>::destroy(__alloc, std::__to_address(__first));
 }
 
 template <class _Alloc, class _Iter>
 class _AllocatorDestroyRangeReverse {
 public:
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11
   _AllocatorDestroyRangeReverse(_Alloc& __alloc, _Iter& __first, _Iter& __last)
       : __alloc_(__alloc), __first_(__first), __last_(__last) {}
 
-  _LIBCPP_CONSTEXPR_AFTER_CXX11 void operator()() const {
+  _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX11 void operator()() const {
     std::__allocator_destroy(__alloc_, std::reverse_iterator<_Iter>(__last_), std::reverse_iterator<_Iter>(__first_));
   }
 
@@ -529,15 +530,21 @@ private:
 template <class _Alloc, class _Iter1, class _Sent1, class _Iter2>
 _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX17 _Iter2
 __uninitialized_allocator_copy(_Alloc& __alloc, _Iter1 __first1, _Sent1 __last1, _Iter2 __first2) {
+#ifndef _LIBCPP_NO_EXCEPTIONS
   auto __destruct_first = __first2;
-  auto __guard =
-      std::__make_transaction(_AllocatorDestroyRangeReverse<_Alloc, _Iter2>(__alloc, __destruct_first, __first2));
+  try {
+#endif
   while (__first1 != __last1) {
     allocator_traits<_Alloc>::construct(__alloc, std::__to_address(__first2), *__first1);
     ++__first1;
     ++__first2;
   }
-  __guard.__complete();
+#ifndef _LIBCPP_NO_EXCEPTIONS
+  } catch (...) {
+    _AllocatorDestroyRangeReverse<_Alloc, _Iter2>(__alloc, __destruct_first, __first2)();
+    throw;
+  }
+#endif
   return __first2;
 }
 
@@ -579,10 +586,10 @@ _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX17 _Iter2 __uninitialized_alloc
     _Alloc& __alloc, _Iter1 __first1, _Sent1 __last1, _Iter2 __first2) {
   static_assert(__is_cpp17_move_insertable<_Alloc>::value,
                 "The specified type does not meet the requirements of Cpp17MoveInsertable");
+#ifndef _LIBCPP_NO_EXCEPTIONS
   auto __destruct_first = __first2;
-  auto __guard =
-      std::__make_transaction(_AllocatorDestroyRangeReverse<_Alloc, _Iter2>(__alloc, __destruct_first, __first2));
-
+  try {
+#endif
   while (__first1 != __last1) {
 #ifndef _LIBCPP_NO_EXCEPTIONS
     allocator_traits<_Alloc>::construct(__alloc, std::__to_address(__first2), std::move_if_noexcept(*__first1));
@@ -592,7 +599,12 @@ _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX17 _Iter2 __uninitialized_alloc
     ++__first1;
     ++__first2;
   }
-  __guard.__complete();
+#ifndef _LIBCPP_NO_EXCEPTIONS
+  } catch (...) {
+    _AllocatorDestroyRangeReverse<_Alloc, _Iter2>(__alloc, __destruct_first, __first2)();
+    throw;
+  }
+#endif
   return __first2;
 }
 
@@ -610,7 +622,7 @@ template <
     class _Type = typename iterator_traits<_Iter1>::value_type,
     class = __enable_if_t<is_trivially_move_constructible<_Type>::value && is_trivially_move_assignable<_Type>::value &&
                           __allocator_has_trivial_move_construct<_Alloc, _Type>::value> >
-_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX17 _Iter1
+_LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_AFTER_CXX17 _Iter2
 __uninitialized_allocator_move_if_noexcept(_Alloc&, _Iter1 __first1, _Iter1 __last1, _Iter2 __first2) {
   if (__libcpp_is_constant_evaluated()) {
     while (__first1 != __last1) {
