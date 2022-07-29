@@ -61,7 +61,6 @@ int main(int argc, char **argv, char *env[]) {
   };
   const auto EnableCUTrace = [&]() {
     NewEnv.push_back("SYCL_TRACE_CU_ENABLE=1");
-    NewEnv.push_back("SYCL_PI_CUDA_ENABLE_TRACING=1");
   };
 
   for (auto Mode : Modes) {
