@@ -2073,18 +2073,7 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *RD, FieldDecl *, QualType) final {
-    if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
-      auto NumFields = std::distance(RD->field_begin(), RD->field_end()); 
-      for (unsigned I = 0; I < NumFields; I++) {
-        // Pop out from Params
-	auto PVD = Params.pop_back_val();
-	// Remember this won't match order of fields in original class. So should store this is right order in temporary vector
-	// How do I create a new type here? Look at ASTContext::buildImplicitRecord, createPrivatesRecordDecl, addFieldToRecordDecl() 
-	
-      }  
-    }
-
+  bool leaveStruct(const CXXRecordDecl *, FieldDecl *, QualType) final {
     --StructDepth;
     return true;
   }
@@ -2095,21 +2084,8 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
+  bool leaveStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
                    QualType FieldTy) final {
-    if (RD->hasAttr<SYCLGenerateNewTypeAttr>()) {
-      auto NumFields = std::distance(RD->field_begin(), RD->field_end()); 
-      for (unsigned I = 0; I < NumFields; I++) {
-        // Pop out from Params
-	auto PVD = Params.pop_back_val();
-	auto test = PVD;
-	// Remember this won't match order of fields in original class. So should store this is right order in temporary vector
-	// Can I pop it out in right order by starting iteration at Params.size() - NumOfFields?
-	// How do I create a new global type here? - Look at how we create a kernel object
-	
-      }  
-    }
-
     --StructDepth;
     return true;
   }
