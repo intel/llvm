@@ -14,7 +14,7 @@
 // This test checks that if there is a submit failure, the asynchronous
 // exception is associated with the returned event.
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class KernelName;
 

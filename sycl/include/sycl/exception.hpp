@@ -333,5 +333,5 @@ public:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct is_error_code_enum<cl::sycl::errc> : true_type {};
+template <> struct is_error_code_enum<sycl::errc> : true_type {};
 } // namespace std

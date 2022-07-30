@@ -115,21 +115,20 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 } // namespace ext
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-  namespace detail {
-  __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
-                                         size_t &NWorkGroups) {
-    return ext::oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
-                                                  NWorkGroups);
-  }
+using namespace ext::oneapi;
+namespace detail {
+__SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                       size_t &NWorkGroups) {
+  return ext::oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
+                                                NWorkGroups);
+}
 
-  __SYCL_EXPORT size_t
-  reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
-                   size_t LocalMemBytesPerWorkItem) {
-    return ext::oneapi::detail::reduGetMaxWGSize(Queue,
-                                                 LocalMemBytesPerWorkItem);
-  }
-  } // namespace detail
-} // namespace ONEAPI
+__SYCL_EXPORT size_t
+reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+                 size_t LocalMemBytesPerWorkItem) {
+  return ext::oneapi::detail::reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
+}
+} // namespace detail
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

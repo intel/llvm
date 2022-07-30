@@ -7,7 +7,7 @@
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 void kernel() __attribute__((sycl_device)) {
   simd<int, 32> v1(0, 1);

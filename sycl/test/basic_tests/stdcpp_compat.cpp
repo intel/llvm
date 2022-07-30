@@ -28,7 +28,7 @@ int main() {
   sycl::queue Q;
 
   Q.submit([&](sycl::handler &CGH) {
-    auto Acc = Buf.get_access<cl::sycl::access::mode::read>(CGH);
+    auto Acc = Buf.get_access<sycl::access::mode::read>(CGH);
 
     CGH.parallel_for<KernelName1>(sycl::range<1>{42},
                                   [=](sycl::id<1> ID) { (void)Acc; });

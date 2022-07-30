@@ -6,7 +6,7 @@
 
 #include <sycl/accessor.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 //----------------------------------------------------------------------------//
 // Global buffer accessor.

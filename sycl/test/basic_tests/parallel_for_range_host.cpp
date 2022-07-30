@@ -5,7 +5,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   auto AsyncHandler = [](exception_list ES) {
