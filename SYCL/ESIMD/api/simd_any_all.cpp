@@ -18,6 +18,7 @@
 #include <sycl/sycl.hpp>
 
 #include <iostream>
+#include <string>
 
 using namespace sycl;
 using namespace sycl::ext::intel;

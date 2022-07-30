@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "shuffle.hpp"
+#include <iostream>
 
 int main() {
   queue Queue;

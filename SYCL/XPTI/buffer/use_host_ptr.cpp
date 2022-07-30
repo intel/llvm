@@ -9,8 +9,8 @@
 
 #else
 
+#include <iostream>
 #include <sycl/sycl.hpp>
-
 int main() {
   bool MismatchFound = false;
   sycl::queue Queue{};

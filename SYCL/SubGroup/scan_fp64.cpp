@@ -7,7 +7,7 @@
 // exclusive_scan() and inclusive_scan().
 
 #include "scan.hpp"
-
+#include <iostream>
 int main() {
   queue Queue;
   if (!core_sg_supported(Queue.get_device()) ||

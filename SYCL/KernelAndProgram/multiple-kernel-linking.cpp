@@ -21,6 +21,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t_off.out %CPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t_off.out %ACC_CHECK_PLACEHOLDER
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

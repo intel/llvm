@@ -1,4 +1,6 @@
+#include <iostream>
 #include <sycl/sycl.hpp>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 

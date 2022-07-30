@@ -12,7 +12,7 @@
 // used with MUL operation.
 
 #include "reduce.hpp"
-
+#include <iostream>
 int main() {
   queue Queue;
   if (!core_sg_supported(Queue.get_device()) ||

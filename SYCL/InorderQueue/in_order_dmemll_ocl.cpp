@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <iostream>
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 

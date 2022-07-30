@@ -14,10 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
-
 #include <cassert>
+#include <iostream>
 #include <memory>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

@@ -1,5 +1,6 @@
 #pragma once
 #include "interop-level-zero-buffer-helpers.hpp"
+#include <iostream>
 #include <sycl/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>

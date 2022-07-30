@@ -10,6 +10,7 @@
 #include "support.h"
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <limits>
 #include <numeric>
 #include <sycl/sycl.hpp>

@@ -9,7 +9,7 @@
 #include "../Inputs/buffer_info_collector.cpp"
 
 #else
-
+#include <iostream>
 #include <sycl/sycl.hpp>
 bool func(sycl::queue &Queue, int depth = 0) {
   bool MismatchFound = false;

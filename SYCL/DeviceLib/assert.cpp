@@ -93,6 +93,7 @@
 
 #include <array>
 #include <assert.h>
+#include <iostream>
 #include <stdlib.h>
 #include <sycl/sycl.hpp>
 #include <sys/types.h>

@@ -26,6 +26,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <deque>
+#include <iostream>
 #include <level_zero/ze_api.h>
 #include <mutex>
 #include <sycl/backend/level_zero.hpp>

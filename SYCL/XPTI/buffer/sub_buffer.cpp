@@ -8,7 +8,7 @@
 #include "../Inputs/buffer_info_collector.cpp"
 
 #else
-
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 int main() {

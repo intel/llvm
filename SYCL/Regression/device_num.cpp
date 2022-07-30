@@ -11,6 +11,7 @@
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
 
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <sycl/sycl.hpp>

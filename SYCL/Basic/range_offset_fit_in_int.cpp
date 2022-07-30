@@ -2,6 +2,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 
 #include <climits>
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 namespace S = sycl;

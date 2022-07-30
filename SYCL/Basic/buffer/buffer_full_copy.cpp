@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 void check_copy_device_to_host(sycl::queue &Queue) {

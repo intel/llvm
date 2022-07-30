@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
+#include <iostream>
 #include <sycl/context.hpp>
 #include <sycl/sycl.hpp>
 

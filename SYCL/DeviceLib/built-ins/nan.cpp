@@ -5,6 +5,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 #include <cassert>

@@ -6,6 +6,7 @@
 #include "support.h"
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <numeric>
 #include <sycl/sycl.hpp>
 using namespace sycl;

@@ -4,9 +4,9 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 
 #include <algorithm>
+#include <iostream>
 #include <level_zero/ze_api.h>
 #include <stdio.h>
-
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/sycl.hpp>
 

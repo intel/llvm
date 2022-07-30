@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
+#include <iostream>
 #include <limits>
 #include <sycl/sycl.hpp>
 

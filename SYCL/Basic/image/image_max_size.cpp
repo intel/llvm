@@ -9,6 +9,7 @@
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 using namespace sycl;
 

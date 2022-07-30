@@ -13,6 +13,7 @@
 // CHECK-NEXT: 3
 // CHECK-NEXT: 4 : 5
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

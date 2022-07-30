@@ -3,6 +3,7 @@
 // accessing a scalar holding the reduction result.
 
 #include "reduction_utils.hpp"
+#include <iostream>
 
 using namespace sycl;
 

@@ -11,6 +11,7 @@
 
 #include "atomic_memory_order.h"
 #include <cassert>
+#include <iostream>
 using namespace sycl;
 
 int main() {

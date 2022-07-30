@@ -1,3 +1,4 @@
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

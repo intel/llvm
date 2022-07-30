@@ -19,6 +19,7 @@
 // clang-format on
 //
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 using namespace sycl;
 

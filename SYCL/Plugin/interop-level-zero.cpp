@@ -5,6 +5,7 @@
 
 // Test for Level Zero interop API
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>

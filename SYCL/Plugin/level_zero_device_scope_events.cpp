@@ -30,6 +30,7 @@
 // zeCommandQueueExecuteCommandLists(ZeCommandQueue, 1, &ZeCommandList,
 // CommandList->second.ZeFence)
 ///
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 int main(int argc, char **argv) {

@@ -12,6 +12,7 @@
 // inclusive_scan() algoriths used with the operation MUL, bitwise OR, XOR, AND.
 
 #include "scan.hpp"
+#include <iostream>
 
 int main() {
   queue Queue;

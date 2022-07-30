@@ -7,6 +7,7 @@
 // -fsycl-device-code-split is not supported for cuda
 // UNSUPPORTED: cuda || hip
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 #include <algorithm>

@@ -5,8 +5,8 @@
 // Test for Level Zero interop_task.
 
 // Level-Zero
+#include <iostream>
 #include <level_zero/ze_api.h>
-
 // SYCL
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/sycl.hpp>

@@ -1,3 +1,4 @@
+#include <iostream>
 #include <sycl/ext/oneapi/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>
 

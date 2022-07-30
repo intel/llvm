@@ -12,7 +12,7 @@
 // used with the operation MUL, bitwise OR, XOR, AND.
 
 #include "reduce.hpp"
-
+#include <iostream>
 int main() {
   queue Queue;
   if (!core_sg_supported(Queue.get_device())) {

@@ -6,6 +6,7 @@
 // Intel OpenCL CPU Runtime supports device partition on all (multi-core)
 // platforms. Other devices may not support this.
 
+#include <iostream>
 #include <string>
 #include <sycl/sycl.hpp>
 #include <vector>

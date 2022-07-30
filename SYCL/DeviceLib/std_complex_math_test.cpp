@@ -11,6 +11,7 @@
 #include <array>
 #include <cassert>
 #include <complex>
+#include <iostream>
 #include <sycl/sycl.hpp>
 
 #include "math_utils.hpp"

@@ -13,6 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 using namespace sycl;
 #ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK

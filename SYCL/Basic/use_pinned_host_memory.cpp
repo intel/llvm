@@ -3,6 +3,7 @@
 
 #include <sycl/sycl.hpp>
 
+#include <iostream>
 #include <string>
 
 int main() {

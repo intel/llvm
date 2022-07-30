@@ -9,6 +9,7 @@
 
 #include <cstdint>
 
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 

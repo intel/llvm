@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "helpers.hpp"
+#include <iostream>
 #include <sycl/sycl.hpp>
 template <typename T, int N> class sycl_subgr;
 

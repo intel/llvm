@@ -6,6 +6,7 @@
 // Test for OpenCL interop_task.
 
 #include <CL/opencl.h>
+#include <iostream>
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 

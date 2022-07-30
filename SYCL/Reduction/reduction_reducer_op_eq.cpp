@@ -10,6 +10,7 @@
 // whent the corresponding std::plus<>, std::multiplies, etc are defined.
 
 #include "reduction_utils.hpp"
+#include <iostream>
 
 using namespace sycl;
 

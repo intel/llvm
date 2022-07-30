@@ -4,6 +4,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 
+#include <iostream>
 #include <numeric>
 #include <sycl/sycl.hpp>
 #include <vector>

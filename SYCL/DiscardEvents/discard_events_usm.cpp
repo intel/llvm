@@ -117,7 +117,7 @@
 // CHECK: The test passed.
 
 #include "discard_events_test_queue_ops.hpp"
-
+#include <iostream>
 int main(int Argc, const char *Argv[]) {
 
   sycl::property_list Props{

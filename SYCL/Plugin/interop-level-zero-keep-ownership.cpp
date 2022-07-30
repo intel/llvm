@@ -4,6 +4,7 @@
 
 // Test for Level Zero interop API where SYCL RT doesn't take ownership
 
+#include <iostream>
 #include <sycl/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>

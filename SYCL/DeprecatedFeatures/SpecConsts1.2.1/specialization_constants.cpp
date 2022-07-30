@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <iostream>
 #include <random>
 #include <sycl/sycl.hpp>
 

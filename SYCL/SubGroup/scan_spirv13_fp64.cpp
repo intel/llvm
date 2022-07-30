@@ -9,6 +9,7 @@
 // inclusive_scan() algoriths used with the MUL operation.
 
 #include "scan.hpp"
+#include <iostream>
 
 int main() {
   queue Queue;
