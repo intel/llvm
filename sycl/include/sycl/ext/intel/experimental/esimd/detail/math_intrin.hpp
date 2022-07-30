@@ -654,7 +654,7 @@ __esimd_dpas(__ESIMD_DNS::vector_type_t<T0, N> src0,
   ARG_UNUSED(sign_res);
   ARG_UNUSED(sign_acc);
   return __esimd_dpas_inner<T, T1, T2, N, N1, N2>(
-      std::addressof(src0), src1, src2,
+      (__ESIMD_DNS::vector_type_t<T, N> *)std::addressof(src0), src1, src2,
       (__ESIMD_ENS::argument_type)(src1_precision - 1),
       (__ESIMD_ENS::argument_type)(src2_precision - 1), depth, repeat);
 }
