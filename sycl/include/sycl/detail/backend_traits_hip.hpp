@@ -54,6 +54,10 @@ template <> struct interop<backend::ext_oneapi_hip, queue> {
   using type = HIPstream;
 };
 
+template <> struct interop<backend::ext_oneapi_hip, platform> {
+  using type = std::vector<HIPdevice>;
+};
+
 #ifdef __SYCL_INTERNAL_API
 template <> struct interop<backend::ext_oneapi_hip, program> {
   using type = HIPmodule;
@@ -130,6 +134,17 @@ template <> struct BackendReturn<backend::ext_oneapi_hip, program> {
   using type = HIPmodule;
 };
 #endif
+
+template <> struct InteropFeatureSupportMap<backend::ext_oneapi_hip> {
+  static constexpr bool MakePlatform = false;
+  static constexpr bool MakeDevice = false;
+  static constexpr bool MakeContext = false;
+  static constexpr bool MakeQueue = false;
+  static constexpr bool MakeEvent = true;
+  static constexpr bool MakeBuffer = false;
+  static constexpr bool MakeKernel = false;
+  static constexpr bool MakeKernelBundle = false;
+};
 
 } // namespace detail
 } // namespace sycl

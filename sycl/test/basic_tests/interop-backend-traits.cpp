@@ -3,6 +3,7 @@
 // RUN: %clangxx -fsycl -DUSE_CUDA %s
 // RUN: %clangxx -fsycl -DUSE_HIP %s
 // RUN: %clangxx -fsycl -DUSE_CUDA_EXPERIMENTAL %s
+// RUN: %clangxx -fsycl -DUSE_HIP_EXPERIMENTAL %s
 
 #ifdef USE_OPENCL
 #include <CL/cl.h>
@@ -40,6 +41,14 @@ constexpr auto Backend = sycl::backend::ext_oneapi_hip;
 constexpr auto Backend = sycl::backend::ext_oneapi_cuda;
 #endif
 
+#ifdef USE_HIP_EXPERIMENTAL
+#define SYCL_EXT_ONEAPI_BACKEND_HIP_EXPERIMENTAL 1
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_hip.hpp>
+#include <sycl/ext/oneapi/experimental/backend/hip.hpp>
+
+constexpr auto Backend = sycl::backend::ext_oneapi_hip;
+#endif
+
 #include <sycl/sycl.hpp>
 
 int main() {
@@ -72,8 +81,8 @@ int main() {
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::return_type<sycl::device>,
                      sycl::detail::interop<Backend, sycl::device>::type>);
-// CUDA experimental return type is different to inpt type
-#ifndef USE_CUDA_EXPERIMENTAL
+// CUDA/HIP experimental return type is different to inpt type
+#if !(defined(USE_CUDA_EXPERIMENTAL) || defined(USE_HIP_EXPERIMENTAL))
   static_assert(
       std::is_same_v<sycl::backend_traits<Backend>::return_type<sycl::context>,
                      sycl::detail::interop<Backend, sycl::context>::type>);

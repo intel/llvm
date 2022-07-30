@@ -501,8 +501,8 @@ hipStream_t _pi_queue::get_next_transfer_stream() {
 
 _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
                      hipStream_t stream, pi_uint32 stream_token)
-    : commandType_{type}, refCount_{1}, hasBeenWaitedOn_{false},
-      isRecorded_{false}, isStarted_{false},
+    : commandType_{type}, refCount_{1}, has_ownership_{true},
+      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
       streamToken_{stream_token}, evEnd_{nullptr}, evStart_{nullptr},
       evQueued_{nullptr}, queue_{queue}, stream_{stream}, context_{context} {
 
@@ -521,6 +521,15 @@ _pi_event::_pi_event(pi_command_type type, pi_context context, pi_queue queue,
   if (queue_ != nullptr) {
     hip_piQueueRetain(queue_);
   }
+  hip_piContextRetain(context_);
+}
+
+_pi_event::_pi_event(pi_context context, hipEvent_t eventNative)
+    : commandType_{PI_COMMAND_TYPE_USER}, refCount_{1}, has_ownership_{false},
+      hasBeenWaitedOn_{false}, isRecorded_{false}, isStarted_{false},
+      streamToken_{std::numeric_limits<pi_uint32>::max()}, evEnd_{eventNative},
+      evStart_{nullptr}, evQueued_{nullptr}, queue_{nullptr}, stream_{nullptr},
+      context_{context} {
   hip_piContextRetain(context_);
 }
 
@@ -634,6 +643,9 @@ pi_result _pi_event::wait() {
 }
 
 pi_result _pi_event::release() {
+  if (!backend_has_ownership())
+    return PI_SUCCESS;
+
   assert(queue_ != nullptr);
   PI_CHECK_ERROR(hipEventDestroy(evEnd_));
 
@@ -3749,14 +3761,15 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                pi_context context,
                                                bool ownNativeHandle,
                                                pi_event *event) {
-  (void)nativeHandle;
-  (void)context;
   (void)ownNativeHandle;
-  (void)event;
+  assert(!ownNativeHandle);
 
-  cl::sycl::detail::pi::die(
-      "Creation of PI event from native handle not implemented");
-  return {};
+  std::unique_ptr<_pi_event> event_ptr{nullptr};
+
+  *event = _pi_event::make_with_native(context,
+                                       reinterpret_cast<hipEvent_t>(nativeHandle));
+
+  return PI_SUCCESS;
 }
 
 /// Creates a PI sampler object
