@@ -139,14 +139,14 @@ bool isESIMDFunction(const Function &F) {
 
 // This function makes one or two groups depending on kernel types (SYCL, ESIMD)
 EntryPointGroupVec
-groupEntryPointsByKernelType(const ModuleDesc &MD,
+groupEntryPointsByKernelType(ModuleDesc &MD,
                              bool EmitOnlyKernelsAsEntryPoints) {
-  const Module &M = MD.getModule();
+  Module &M = MD.getModule();
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
 
   // Only process module entry points:
-  for (const auto &F : M.functions()) {
+  for (Function &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
@@ -187,16 +187,16 @@ groupEntryPointsByKernelType(const ModuleDesc &MD,
 // which contains pairs of group id and entry points for that group. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-EntryPointGroupVec groupEntryPointsByScope(const ModuleDesc &MD,
+EntryPointGroupVec groupEntryPointsByScope(ModuleDesc &MD,
                                            EntryPointsGroupScope EntryScope,
                                            bool EmitOnlyKernelsAsEntryPoints) {
   EntryPointGroupVec EntryPointGroups{};
   // Use MapVector for deterministic order of traversal (helps tests).
   MapVector<StringRef, EntryPointSet> EntryPointMap;
-  const Module &M = MD.getModule();
+  Module &M = MD.getModule();
 
   // Only process module entry points:
-  for (const auto &F : M.functions()) {
+  for (Function &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F))
       continue;
@@ -246,15 +246,15 @@ EntryPointGroupVec groupEntryPointsByScope(const ModuleDesc &MD,
 
 template <class EntryPoinGroupFunc>
 EntryPointGroupVec
-groupEntryPointsByAttribute(const ModuleDesc &MD, StringRef AttrName,
+groupEntryPointsByAttribute(ModuleDesc &MD, StringRef AttrName,
                             bool EmitOnlyKernelsAsEntryPoints,
                             EntryPoinGroupFunc F) {
   EntryPointGroupVec EntryPointGroups{};
   std::map<StringRef, EntryPointSet> EntryPointMap;
-  const Module &M = MD.getModule();
+  Module &M = MD.getModule();
 
   // Only process module entry points:
-  for (const auto &F : M.functions()) {
+  for (auto &F : M.functions()) {
     if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
         !MD.isEntryPointCandidate(F)) {
       continue;
@@ -669,7 +669,7 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   auto It0 = Names.cbegin();
   auto It1 = Names.cend();
   std::for_each(It0, It1, [&](const std::string &Name) {
-    const Function *F = M.getFunction(Name);
+    Function *F = M.getFunction(Name);
     assert(F && "entry point lost");
     Functions.insert(F);
   });
