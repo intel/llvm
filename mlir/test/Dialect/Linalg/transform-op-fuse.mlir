@@ -16,17 +16,9 @@ func.func @fuse_unary(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  pdl.pattern @pdl_target : benefit(1) {
-    %args = operands
-    %results = types
-    %0 = pdl.operation "linalg.elemwise_binary"(%args : !pdl.range<value>) -> (%results : !pdl.range<type>)
-    // TODO: we don't want this, but it is the required terminator for pdl.pattern
-    rewrite %0 with "transform.dialect"
-  }
-
   transform.sequence %arg0 {
   ^bb1(%arg1: !pdl.operation):
-    %0 = pdl_match @pdl_target in %arg1
+    %0 = transform.structured.match ops{["linalg.elemwise_binary"]} in %arg1
     %1, %loops:2 = transform.structured.fuse %0 {tile_sizes = [32, 32], tile_interchange = [0, 1]}
   }
 }
@@ -53,17 +45,9 @@ func.func @fuse_unary(%arg0: tensor<?x?xf32>, %arg1: tensor<?x?xf32>) -> tensor<
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  pdl.pattern @pdl_target : benefit(1) {
-    %args = operands
-    %results = types
-    %0 = pdl.operation "linalg.elemwise_binary"(%args : !pdl.range<value>) -> (%results : !pdl.range<type>)
-    // TODO: we don't want this, but it is the required terminator for pdl.pattern
-    rewrite %0 with "transform.dialect"
-  }
-
   transform.sequence %arg0 {
   ^bb1(%arg1: !pdl.operation):
-    %0 = pdl_match @pdl_target in %arg1
+    %0 = transform.structured.match ops{["linalg.elemwise_binary"]} in %arg1
     %1, %loops:2 = transform.structured.fuse %0 {tile_sizes = [32, 32], tile_interchange = [0, 1]}
     transform.loop.peel %loops#0
   }
@@ -77,15 +61,14 @@ func.func @interchange_reduction(%input: tensor<12x7x25xf32>) -> tensor<12x25xf3
   %five = arith.constant 5.0 : f32
   %init = linalg.init_tensor [12, 25] : tensor<12x25xf32>
 
-//   CHECK-DAG:  %[[C4:.+]] = arith.constant 4 : index
-//   CHECK-DAG:  %[[C5:.+]] = arith.constant 5 : index
-//   CHECK-DAG:  %[[C7:.+]] = arith.constant 7 : index
-
 //       CHECK: %[[INIT:.+]] = linalg.init_tensor [12, 25]
+//   CHECK-DAG: %[[C5:.+]] = arith.constant 5 : index
+//   CHECK-DAG: %[[C7:.+]] = arith.constant 7 : index
 //       CHECK: scf.for %[[IV0:.+]] = %{{.+}} to %{{.+}} step %[[C5]] iter_args(%[[FOR_ARG0:.+]] = %[[INIT]])
 //       CHECK:   scf.for %[[IV1:.+]] = %{{.+}} to %{{.+}} step %[[C7]] iter_args(%[[FOR_ARG1:.+]] = %[[FOR_ARG0]])
 //       CHECK:     %[[OUT_SLICE0:.+]] = tensor.extract_slice %[[FOR_ARG1]][%[[IV0]], %[[IV1]]]
 //       CHECK:     %[[FILL:.+]] = linalg.fill {{.+}} outs(%[[OUT_SLICE0]] : tensor<?x?xf32>)
+//       CHECK:     %[[C4:.+]] = arith.constant 4 : index
 //       CHECK:     scf.for %[[IV2:.+]] = %{{.+}} to %{{.+}} step %[[C4]] iter_args(%[[FOR_ARG2:.+]] = %[[FILL]])
 //       CHECK:       %[[IN_SLICE:.+]] = tensor.extract_slice %[[INPUT]]
 //       CHECK:       %[[OUT_SLICE2:.+]] = tensor.extract_slice %[[FOR_ARG2]][0, 0]
@@ -105,17 +88,9 @@ func.func @interchange_reduction(%input: tensor<12x7x25xf32>) -> tensor<12x25xf3
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  pdl.pattern @pdl_target : benefit(1) {
-    %args = operands
-    %results = types
-    %0 = pdl.operation "linalg.generic"(%args : !pdl.range<value>) -> (%results : !pdl.range<type>)
-    // TODO: we don't want this, but it is the required terminator for pdl.pattern
-    rewrite %0 with "transform.dialect"
-  }
-
   transform.sequence %arg0 {
   ^bb1(%arg1: !pdl.operation):
-    %0 = pdl_match @pdl_target in %arg1
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1
     %1, %loops:3 = transform.structured.fuse %0 {tile_sizes = [5, 4, 7], tile_interchange = [0, 2, 1]}
   }
 }

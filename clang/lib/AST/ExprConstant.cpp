@@ -5266,10 +5266,14 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
       }
     }
     bool Cond;
-    if (IS->isConsteval())
+    if (IS->isConsteval()) {
       Cond = IS->isNonNegatedConsteval();
-    else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
-                           Cond))
+      // If we are not in a constant context, if consteval should not evaluate
+      // to true.
+      if (!Info.InConstantContext)
+        Cond = !Cond;
+    } else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
+                             Cond))
       return ESR_Failed;
 
     if (const Stmt *SubStmt = Cond ? IS->getThen() : IS->getElse()) {
@@ -13543,6 +13547,37 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
         return Info.Ctx.getTypeSize(DestType) <= Info.Ctx.getTypeSize(SrcType);
       // Only allow casts of lvalues if they are lossless.
       return Info.Ctx.getTypeSize(DestType) == Info.Ctx.getTypeSize(SrcType);
+    }
+
+    if (DestType->isEnumeralType()) {
+      const EnumType *ET = dyn_cast<EnumType>(DestType.getCanonicalType());
+      const EnumDecl *ED = ET->getDecl();
+      // Check that the value is within the range of the enumeration values.
+      //
+      // This corressponds to [expr.static.cast]p10 which says:
+      // A value of integral or enumeration type can be explicitly converted
+      // to a complete enumeration type ... If the enumeration type does not
+      // have a fixed underlying type, the value is unchanged if the original
+      // value is within the range of the enumeration values ([dcl.enum]), and
+      // otherwise, the behavior is undefined.
+      //
+      // This was resolved as part of DR2338 which has CD5 status.
+      if (!ED->isFixed()) {
+        llvm::APInt Min;
+        llvm::APInt Max;
+
+        ED->getValueRange(Max, Min);
+
+        if (ED->getNumNegativeBits() &&
+            (Max.sle(Result.getInt().getSExtValue()) ||
+             Min.sgt(Result.getInt().getSExtValue())))
+          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
+              << Result.getInt() << Min.getSExtValue() << Max.getSExtValue();
+        else if (!ED->getNumNegativeBits() &&
+                 Max.ule(Result.getInt().getZExtValue()))
+          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
+              << Result.getInt() << Min.getZExtValue() << Max.getZExtValue();
+      }
     }
 
     return Success(HandleIntToIntCast(Info, E, DestType, SrcType,

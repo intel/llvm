@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.h"
 
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -19,6 +20,7 @@
 #include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/StringSet.h"
 
 using namespace mlir;
 using namespace mlir::linalg;
@@ -213,6 +215,160 @@ LogicalResult transform::FuseOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// FuseIntoContainingOp
+//===----------------------------------------------------------------------===//
+
+static FailureOr<SmallVector<Operation *>> tileAndFuse(Operation *producerOp,
+                                                       Operation *containingOp,
+                                                       RewriterBase &rewriter) {
+  auto tileableProducer = dyn_cast<TilingInterface>(producerOp);
+  if (!tileableProducer)
+    return failure();
+
+  // Search the producer slices accessed within the containing operation.
+  // TODO: Generalize to more extract/insert/parallel_insert triples. Maybe
+  // evolve into an interface.
+  SmallVector<tensor::ExtractSliceOp> sliceOps;
+  for (Operation *user : tileableProducer->getUsers()) {
+    auto sliceOp = dyn_cast<tensor::ExtractSliceOp>(user);
+    if (!sliceOp)
+      continue;
+    if (!containingOp->isProperAncestor(sliceOp))
+      continue;
+    sliceOps.push_back(sliceOp);
+  }
+
+  // Check for a non-empty list of fusion opportunities.
+  if (sliceOps.empty())
+    return failure();
+
+  SmallVector<Value> destinationOperands =
+      tileableProducer.getDestinationOperands(rewriter);
+
+  // Try to fuse the producer in-place.
+  SmallVector<Operation *> fusedOps;
+  for (tensor::ExtractSliceOp sliceOp : sliceOps) {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPoint(sliceOp);
+
+    // Tile the producer.
+    FailureOr<Value> tiledProducer = tileableProducer.generateResultTileValue(
+        rewriter, /*resultNumber=*/0, destinationOperands,
+        sliceOp.getMixedOffsets(), sliceOp.getMixedSizes(), true);
+    if (failed(tiledProducer))
+      return failure();
+    fusedOps.push_back(tiledProducer->getDefiningOp());
+  }
+
+  // Replace the extract op.
+  for (const auto &en : enumerate(sliceOps))
+    rewriter.replaceOp(en.value(), fusedOps[en.index()]->getResult(0));
+  return fusedOps;
+}
+
+static FailureOr<SmallVector<Operation *>>
+cloneAndFuse(Operation *producerOp, Operation *containingOp,
+             RewriterBase &rewriter) {
+  // Gather all uses inside the containing op.
+  SmallVector<OpOperand *> uses;
+  for (OpResult result : producerOp->getOpResults())
+    for (OpOperand &use : result.getUses())
+      if (containingOp->isProperAncestor(use.getOwner()))
+        uses.push_back(&use);
+
+  // Check for a non-empty list of fusion opportunities.
+  if (uses.empty())
+    return failure();
+
+  // Clone and fuse inside the containing op.
+  SmallVector<Operation *> fusedOps;
+  for (OpOperand *use : uses) {
+    unsigned resultNumber = use->get().cast<OpResult>().getResultNumber();
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPoint(use->getOwner());
+    Operation *cloned = rewriter.clone(*producerOp);
+    rewriter.updateRootInPlace(
+        use->getOwner(), [&] { use->set(cloned->getOpResult(resultNumber)); });
+    fusedOps.push_back(cloned);
+  }
+
+  return fusedOps;
+}
+
+DiagnosedSilenceableFailure
+transform::FuseIntoContainingOp::apply(transform::TransformResults &results,
+                                       transform::TransformState &state) {
+  SmallVector<Operation *> fusedOps;
+  ArrayRef<Operation *> producerOps = state.getPayloadOps(getProducerOp());
+  for (Operation *producerOp : producerOps) {
+    if (producerOp->getNumResults() != 1) {
+      Diagnostic diag(producerOp->getLoc(), DiagnosticSeverity::Note);
+      diag << "op with != 1 results not supported";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+  }
+  ArrayRef<Operation *> containingOps = state.getPayloadOps(getContainingOp());
+  if (containingOps.size() != 1)
+    return DiagnosedSilenceableFailure(
+        this->emitOpError("requires exactly one containing_op handle"));
+  Operation *containingOp = containingOps.front();
+
+  // Helper function to find the next producer that should be fused. Take any
+  // producer that has a use inside the containing op.
+  SmallVector<Operation *> remainingProducers(producerOps.begin(),
+                                              producerOps.end());
+  auto getNextProducer = [&]() -> FailureOr<Operation *> {
+    for (const auto &it : enumerate(remainingProducers)) {
+      Operation *producerOp = it.value();
+      bool hasUseInContainingOp =
+          any_of(producerOp->getUsers(), [&](Operation *op) {
+            return containingOp->isProperAncestor(op);
+          });
+      // TODO: When resolving the TODO below (no duplicate ops), take an op that
+      // has no use among the remaining producers. This is a topological
+      // sorting.
+      if (hasUseInContainingOp) {
+        remainingProducers.erase(remainingProducers.begin() + it.index());
+        return producerOp;
+      }
+    }
+    return failure();
+  };
+
+  IRRewriter rewriter(getContext());
+  while (!remainingProducers.empty()) {
+    auto nextProducer = getNextProducer();
+    if (failed(nextProducer)) {
+      Diagnostic diag(containingOp->getLoc(), DiagnosticSeverity::Note);
+      diag << "could not fuse ops into container";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+
+    Operation *producerOp = *nextProducer;
+    // TODO: If there are multiple uses of the producer in the containing op, we
+    // currently tile/clone the op multiple times (once per use). In some cases,
+    // we can tile/clone once and reuse the value for each use. Futhermore,
+    // producers should then be traversed according to a topological sorting.
+    auto tiled = tileAndFuse(producerOp, containingOp, rewriter);
+    if (succeeded(tiled))
+      fusedOps.append(*tiled);
+
+    auto cloned = cloneAndFuse(producerOp, containingOp, rewriter);
+    if (succeeded(cloned))
+      fusedOps.append(*cloned);
+
+    if (failed(tiled) && failed(cloned)) {
+      Diagnostic diag(producerOp->getLoc(), DiagnosticSeverity::Note);
+      diag << "could not fuse into containing op";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+  }
+
+  results.set(getFusedOp().cast<OpResult>(), fusedOps);
+  return DiagnosedSilenceableFailure::success();
+}
+
+//===----------------------------------------------------------------------===//
 // GeneralizeOp
 //===----------------------------------------------------------------------===//
 
@@ -269,6 +425,53 @@ LogicalResult transform::InterchangeOp::verify() {
            << getIteratorInterchange();
   }
   return success();
+}
+
+//===---------------------------------------------------------------------===//
+// MatchOp
+//===---------------------------------------------------------------------===//
+
+DiagnosedSilenceableFailure
+transform::MatchOp::apply(transform::TransformResults &results,
+                          transform::TransformState &state) {
+  llvm::StringSet<> strs;
+  if (getOps().has_value())
+    strs.insert(getOps()->getAsValueRange<StringAttr>().begin(),
+                getOps()->getAsValueRange<StringAttr>().end());
+
+  ArrayRef<Operation *> payloadOps = state.getPayloadOps(getTarget());
+  if (payloadOps.size() != 1)
+    return DiagnosedSilenceableFailure(
+        this->emitOpError("requires exactly one target handle"));
+
+  SmallVector<Operation *> res;
+  auto matchFun = [&](Operation *op) {
+    if (getOps().has_value() && !strs.contains(op->getName().getStringRef()))
+      return WalkResult::advance();
+
+    // Interfaces cannot be matched by name, just by ID.
+    // So we specifically encode the interfaces we care about for this op.
+    if (getInterface().has_value()) {
+      auto iface = getInterface().value();
+      if (iface == transform::MatchInterfaceEnum::LinalgOp &&
+          !isa<linalg::LinalgOp>(op))
+        return WalkResult::advance();
+      if (iface == transform::MatchInterfaceEnum::TilingInterface &&
+          isa<TilingInterface>(op))
+        return WalkResult::advance();
+    }
+
+    if (getAttribute().has_value() && !op->hasAttr(getAttribute().value()))
+      return WalkResult::advance();
+
+    // All constraints are satisfied.
+    res.push_back(op);
+    return WalkResult::advance();
+  };
+
+  payloadOps.front()->walk(matchFun);
+  results.set(getResult().cast<OpResult>(), res);
+  return DiagnosedSilenceableFailure(success());
 }
 
 //===---------------------------------------------------------------------===//
@@ -537,8 +740,9 @@ DiagnosedSilenceableFailure SplitOp::apply(TransformResults &results,
     }
 
     rewriter.setInsertionPoint(linalgOp);
-    std::tie(first.emplace_back(), second.emplace_back()) =
-        linalg::splitOp(rewriter, linalgOp, getDimension(), std::get<1>(pair));
+    std::tie(first.emplace_back(), second.emplace_back()) = linalg::splitOp(
+        rewriter, cast<TilingInterface>(linalgOp.getOperation()),
+        getDimension(), std::get<1>(pair));
   }
 
   results.set(getFirst().cast<OpResult>(), first);
@@ -800,12 +1004,20 @@ DiagnosedSilenceableFailure transform::TileToForeachThreadOp::applyToOne(
   IRRewriter rewriter(getContext());
   rewriter.setInsertionPoint(target);
   auto maybeThreadDimMappingAttr = getThreadDimMapping();
-  FailureOr<ForeachThreadTilingResult> tilingResult =
-      linalg::tileToForeachThreadOp(
-          rewriter, target, getAsOpFoldResult(getNumThreads()),
-          maybeThreadDimMappingAttr
-              ? extractFromI64ArrayAttr(*maybeThreadDimMappingAttr)
-              : ArrayRef<int64_t>{});
+  auto dimMapping =
+      llvm::to_vector(maybeThreadDimMappingAttr
+                          ? extractFromI64ArrayAttr(*maybeThreadDimMappingAttr)
+                          : ArrayRef<int64_t>{});
+
+  FailureOr<ForeachThreadTilingResult> tilingResult = failure();
+  if (Optional<ArrayAttr> numThreads = getNumThreads())
+    tilingResult = linalg::tileToForeachThreadOp(
+        rewriter, target, getAsOpFoldResult(*numThreads), dimMapping);
+
+  if (Optional<ArrayAttr> tileSizes = getTileSizes())
+    tilingResult = linalg::tileToForeachThreadOpUsingTileSizes(
+        rewriter, target, getAsOpFoldResult(*tileSizes), dimMapping);
+
   if (failed(tilingResult))
     return emitDefaultSilenceableFailure(target);
   rewriter.replaceOp(target, tilingResult->tileOp->getResults());
@@ -859,12 +1071,16 @@ class LinalgTransformDialectExtension
     : public transform::TransformDialectExtension<
           LinalgTransformDialectExtension> {
 public:
-  LinalgTransformDialectExtension() {
-    declareDependentDialect<AffineDialect>();
-    declareDependentDialect<arith::ArithmeticDialect>();
+  using Base::Base;
+
+  void init() {
     declareDependentDialect<pdl::PDLDialect>();
-    declareDependentDialect<scf::SCFDialect>();
-    declareDependentDialect<vector::VectorDialect>();
+
+    declareGeneratedDialect<AffineDialect>();
+    declareGeneratedDialect<arith::ArithmeticDialect>();
+    declareGeneratedDialect<scf::SCFDialect>();
+    declareGeneratedDialect<vector::VectorDialect>();
+
     registerTransformOps<
 #define GET_OP_LIST
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.cpp.inc"
@@ -872,6 +1088,8 @@ public:
   }
 };
 } // namespace
+
+#include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOpsEnums.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Linalg/TransformOps/LinalgTransformOps.cpp.inc"

@@ -260,9 +260,7 @@ static void predictValueUseListOrderImpl(const Value *V, const Function *F,
     return LU->getOperandNo() > RU->getOperandNo();
   });
 
-  if (llvm::is_sorted(List, [](const Entry &L, const Entry &R) {
-        return L.second < R.second;
-      }))
+  if (llvm::is_sorted(List, llvm::less_second()))
     // Order is already correct.
     return;
 
@@ -809,7 +807,7 @@ void ValueEnumerator::organizeMetadata() {
   //   - by function, then
   //   - by isa<MDString>
   // and then sort by the original/current ID.  Since the IDs are guaranteed to
-  // be unique, the result of std::sort will be deterministic.  There's no need
+  // be unique, the result of llvm::sort will be deterministic.  There's no need
   // for std::stable_sort.
   llvm::sort(Order, [this](MDIndex LHS, MDIndex RHS) {
     return std::make_tuple(LHS.F, getMetadataTypeOrder(LHS.get(MDs)), LHS.ID) <

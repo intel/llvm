@@ -150,7 +150,7 @@ public:
 private:
   // Convenient shortcuts.
   using PQueue = std::priority_queue<std::pair<unsigned, unsigned>>;
-  using SmallLISet = SmallPtrSet<const LiveInterval *, 4>;
+  using SmallLISet = SmallSetVector<const LiveInterval *, 4>;
 
   // We need to track all tentative recolorings so we can roll back any
   // successful and unsuccessful recoloring attempts.
@@ -269,6 +269,8 @@ private:
   /// Flags for the live range priority calculation, determined once per
   /// machine function.
   bool RegClassPriorityTrumpsGlobalness;
+
+  bool ReverseLocalAssignment;
 
 public:
   RAGreedy(const RegClassFilterFunc F = allocateAllRegClasses);
