@@ -7,6 +7,7 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
+#include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/usm/usm_allocator.hpp>
@@ -14,276 +15,254 @@
 
 #include <cstddef>
 
-// The C++ FE may instrument USM calls with code location metadata.
-// If it does then that will appear as an extra last argument.
-// If it does not then we use dummy  default initialized code location.
-// The below macros provide the machinery to make code more readable
-// whenever this metadata is used.
-//
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define __CODE_LOCATION_METADATA(...)                                          \
-  (__VA_ARGS__,                                                                \
-   const detail::code_location & = detail::code_location::current())
-#define __START_CODE_LOCATION_METADATA_DEFAULT(CL, ...)                        \
-  (__VA_ARGS__,                                                                \
-   const detail::code_location &CL = detail::code_location::current()) {
-#define __START_CODE_LOCATION_METADATA(CL, ...)                                \
-  (__VA_ARGS__, const detail::code_location &CL) {
-#else
-#define __START_CODE_LOCATION_METADATA(CL, ...)                                \
-  (__VA_ARGS__) {                                                              \
-    const detail::code_location &CL = {};
-#define __START_CODE_LOCATION_METADATA_DEFAULT(CL, ...)                        \
-  __START_CODE_LOCATION_METADATA(CL, __VA_ARGS__)
-#endif
-#define __END_CODE_LOCATION_METADATA }
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 ///
 // Explicit USM
 ///
-__SYCL_EXPORT void *malloc_device __CODE_LOCATION_METADATA(size_t size,
-                                                           const device &dev,
-                                                           const context &ctxt);
-__SYCL_EXPORT void *malloc_device
-__CODE_LOCATION_METADATA(size_t size, const device &dev, const context &ctxt,
-                         const property_list &propList);
-__SYCL_EXPORT void *malloc_device __CODE_LOCATION_METADATA(size_t size,
-                                                           const queue &q);
-__SYCL_EXPORT void *malloc_device __CODE_LOCATION_METADATA(
-    size_t size, const queue &q, const property_list &propList);
+__SYCL_EXPORT void *malloc_device(size_t size, const device &dev,
+                                  const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+malloc_device(size_t size, const device &dev, const context &ctxt,
+              const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *malloc_device(size_t size,
+                                  const queue &q _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+malloc_device(size_t size, const queue &q,
+              const property_list &propList _CODELOCPARAM(&CL));
 
-__SYCL_EXPORT void *aligned_alloc_device __CODE_LOCATION_METADATA(
-    size_t alignment, size_t size, const device &dev, const context &ctxt);
-__SYCL_EXPORT void *aligned_alloc_device
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const device &dev,
-                         const context &ctxt, const property_list &propList);
-__SYCL_EXPORT void *aligned_alloc_device
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q);
-__SYCL_EXPORT void *aligned_alloc_device
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q,
-                         const property_list &propList);
+__SYCL_EXPORT void *
+aligned_alloc_device(size_t alignment, size_t size, const device &dev,
+                     const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc_device(size_t alignment, size_t size, const device &dev,
+                     const context &ctxt,
+                     const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *aligned_alloc_device(size_t alignment, size_t size,
+                                         const queue &q _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc_device(size_t alignment, size_t size, const queue &q,
+                     const property_list &propList _CODELOCPARAM(&CL));
 
-__SYCL_EXPORT void free __CODE_LOCATION_METADATA(void *ptr,
-                                                 const context &ctxt);
-__SYCL_EXPORT void free __CODE_LOCATION_METADATA(void *ptr, const queue &q);
+__SYCL_EXPORT void free(void *ptr, const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void free(void *ptr, const queue &q _CODELOCPARAM(&CL));
 
 ///
 // Restricted USM
 ///
-__SYCL_EXPORT void *malloc_host __CODE_LOCATION_METADATA(size_t size,
-                                                         const context &ctxt);
-__SYCL_EXPORT void *malloc_host __CODE_LOCATION_METADATA(
-    size_t size, const context &ctxt, const property_list &propList);
-__SYCL_EXPORT void *malloc_host __CODE_LOCATION_METADATA(size_t size,
-                                                         const queue &q);
-__SYCL_EXPORT void *malloc_host __CODE_LOCATION_METADATA(
-    size_t size, const queue &q, const property_list &propList);
+__SYCL_EXPORT void *malloc_host(size_t size,
+                                const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+malloc_host(size_t size, const context &ctxt,
+            const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *malloc_host(size_t size, const queue &q _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+malloc_host(size_t size, const queue &q,
+            const property_list &propList _CODELOCPARAM(&CL));
 
-__SYCL_EXPORT void *malloc_shared __CODE_LOCATION_METADATA(size_t size,
-                                                           const device &dev,
-                                                           const context &ctxt);
-__SYCL_EXPORT void *malloc_shared
-__CODE_LOCATION_METADATA(size_t size, const device &dev, const context &ctxt,
-                         const property_list &propList);
-__SYCL_EXPORT void *malloc_shared __CODE_LOCATION_METADATA(size_t size,
-                                                           const queue &q);
-__SYCL_EXPORT void *malloc_shared __CODE_LOCATION_METADATA(
-    size_t size, const queue &q, const property_list &propList);
+__SYCL_EXPORT void *malloc_shared(size_t size, const device &dev,
+                                  const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+malloc_shared(size_t size, const device &dev, const context &ctxt,
+              const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *malloc_shared(size_t size,
+                                  const queue &q _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+malloc_shared(size_t size, const queue &q,
+              const property_list &propList _CODELOCPARAM(&CL));
 
-__SYCL_EXPORT void *aligned_alloc_host
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const context &ctxt);
-__SYCL_EXPORT void *aligned_alloc_host
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const context &ctxt,
-                         const property_list &propList);
-__SYCL_EXPORT void *aligned_alloc_host
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q);
-__SYCL_EXPORT void *aligned_alloc_host
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q,
-                         const property_list &propList);
+__SYCL_EXPORT void *aligned_alloc_host(size_t alignment, size_t size,
+                                       const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc_host(size_t alignment, size_t size, const context &ctxt,
+                   const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *aligned_alloc_host(size_t alignment, size_t size,
+                                       const queue &q _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc_host(size_t alignment, size_t size, const queue &q,
+                   const property_list &propList _CODELOCPARAM(&CL));
 
-__SYCL_EXPORT void *aligned_alloc_shared __CODE_LOCATION_METADATA(
-    size_t alignment, size_t size, const device &dev, const context &ctxt);
-__SYCL_EXPORT void *aligned_alloc_shared
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const device &dev,
-                         const context &ctxt, const property_list &propList);
-__SYCL_EXPORT void *aligned_alloc_shared
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q);
-__SYCL_EXPORT void *aligned_alloc_shared
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q,
-                         const property_list &propList);
+__SYCL_EXPORT void *
+aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
+                     const context &ctxt _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc_shared(size_t alignment, size_t size, const device &dev,
+                     const context &ctxt,
+                     const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *aligned_alloc_shared(size_t alignment, size_t size,
+                                         const queue &q _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc_shared(size_t alignment, size_t size, const queue &q,
+                     const property_list &propList _CODELOCPARAM(&CL));
 
 ///
 // single form
 ///
-__SYCL_EXPORT void *malloc __CODE_LOCATION_METADATA(size_t size,
-                                                    const device &dev,
-                                                    const context &ctxt,
-                                                    usm::alloc kind);
-__SYCL_EXPORT void *malloc
-__CODE_LOCATION_METADATA(size_t size, const device &dev, const context &ctxt,
-                         usm::alloc kind, const property_list &propList);
-__SYCL_EXPORT void *malloc __CODE_LOCATION_METADATA(size_t size, const queue &q,
-                                                    usm::alloc kind);
-__SYCL_EXPORT void *malloc
-__CODE_LOCATION_METADATA(size_t size, const queue &q, usm::alloc kind,
-                         const property_list &propList);
+__SYCL_EXPORT void *malloc(size_t size, const device &dev, const context &ctxt,
+                           usm::alloc kind _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *malloc(size_t size, const device &dev, const context &ctxt,
+                           usm::alloc kind,
+                           const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *malloc(size_t size, const queue &q,
+                           usm::alloc kind _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *malloc(size_t size, const queue &q, usm::alloc kind,
+                           const property_list &propList _CODELOCPARAM(&CL));
 
-__SYCL_EXPORT void *aligned_alloc __CODE_LOCATION_METADATA(size_t alignment,
-                                                           size_t size,
-                                                           const device &dev,
-                                                           const context &ctxt,
-                                                           usm::alloc kind);
-__SYCL_EXPORT void *aligned_alloc __CODE_LOCATION_METADATA(
-    size_t alignment, size_t size, const device &dev, const context &ctxt,
-    usm::alloc kind, const property_list &propList);
-__SYCL_EXPORT void *aligned_alloc __CODE_LOCATION_METADATA(size_t alignment,
-                                                           size_t size,
-                                                           const queue &q,
-                                                           usm::alloc kind);
-__SYCL_EXPORT void *aligned_alloc
-__CODE_LOCATION_METADATA(size_t alignment, size_t size, const queue &q,
-                         usm::alloc kind, const property_list &propList);
+__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
+                                  const device &dev, const context &ctxt,
+                                  usm::alloc kind _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc(size_t alignment, size_t size, const device &dev,
+              const context &ctxt, usm::alloc kind,
+              const property_list &propList _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size, const queue &q,
+                                  usm::alloc kind _CODELOCPARAM(&CL));
+__SYCL_EXPORT void *
+aligned_alloc(size_t alignment, size_t size, const queue &q, usm::alloc kind,
+              const property_list &propList _CODELOCPARAM(&CL));
 
 ///
 // Template forms
 ///
 template <typename T>
-T *malloc_device __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const device &Dev, const context &Ctxt,
-    const property_list &PropList = {}) {
+T *malloc_device(
+    size_t Count, const device &Dev, const context &Ctxt,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc_device(alignof(T), Count * sizeof(T),
                                                Dev, Ctxt, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc_device __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const queue &Q, const property_list &PropList = {}) {
+T *malloc_device(
+    size_t Count, const queue &Q,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return malloc_device<T>(Count, Q.get_device(), Q.get_context(), PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc_device __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
-    const property_list &PropList = {}) {
+T *aligned_alloc_device(
+    size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc_device(
       max(Alignment, alignof(T)), Count * sizeof(T), Dev, Ctxt, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc_device __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const queue &Q,
-    const property_list &PropList = {}) {
+T *aligned_alloc_device(
+    size_t Alignment, size_t Count, const queue &Q,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return aligned_alloc_device<T>(Alignment, Count, Q.get_device(),
                                  Q.get_context(), PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc_host __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const context &Ctxt, const property_list &PropList = {}) {
+T *malloc_host(
+    size_t Count, const context &Ctxt,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(
       aligned_alloc_host(alignof(T), Count * sizeof(T), Ctxt, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc_host __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const queue &Q, const property_list &PropList = {}) {
+T *malloc_host(
+    size_t Count, const queue &Q,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return malloc_host<T>(Count, Q.get_context(), PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc_shared __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const device &Dev, const context &Ctxt,
-    const property_list &PropList = {}) {
+T *malloc_shared(
+    size_t Count, const device &Dev, const context &Ctxt,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc_shared(alignof(T), Count * sizeof(T),
                                                Dev, Ctxt, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc_shared __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const queue &Q, const property_list &PropList = {}) {
+T *malloc_shared(
+    size_t Count, const queue &Q,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return malloc_shared<T>(Count, Q.get_device(), Q.get_context(), PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc_host __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const context &Ctxt,
-    const property_list &PropList = {}) {
+T *aligned_alloc_host(
+    size_t Alignment, size_t Count, const context &Ctxt,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc_host(
       std ::max(Alignment, alignof(T)), Count * sizeof(T), Ctxt, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc_host __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const queue &Q,
-    const property_list &PropList = {}) {
+T *aligned_alloc_host(
+    size_t Alignment, size_t Count, const queue &Q,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return aligned_alloc_host<T>(Alignment, Count, Q.get_context(), PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc_shared __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
-    const property_list &PropList = {}) {
+T *aligned_alloc_shared(
+    size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc_shared(
       max(Alignment, alignof(T)), Count * sizeof(T), Dev, Ctxt, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc_shared __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const queue &Q,
-    const property_list &PropList = {}) {
+T *aligned_alloc_shared(
+    size_t Alignment, size_t Count, const queue &Q,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return aligned_alloc_shared<T>(Alignment, Count, Q.get_device(),
                                  Q.get_context(), PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const device &Dev, const context &Ctxt, usm::alloc Kind,
-    const property_list &PropList = {}) {
+T *malloc(
+    size_t Count, const device &Dev, const context &Ctxt, usm::alloc Kind,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc(alignof(T), Count * sizeof(T), Dev,
                                         Ctxt, Kind, PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *malloc __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Count, const queue &Q, usm::alloc Kind,
-    const property_list &PropList = {}) {
+T *malloc(
+    size_t Count, const queue &Q, usm::alloc Kind,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return malloc<T>(Count, Q.get_device(), Q.get_context(), Kind, PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
-    usm::alloc Kind, const property_list &PropList = {}) {
+T *aligned_alloc(
+    size_t Alignment, size_t Count, const device &Dev, const context &Ctxt,
+    usm::alloc Kind, const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return static_cast<T *>(aligned_alloc(max(Alignment, alignof(T)),
                                         Count * sizeof(T), Dev, Ctxt, Kind,
                                         PropList, CL));
 }
-__END_CODE_LOCATION_METADATA
 
 template <typename T>
-T *aligned_alloc __START_CODE_LOCATION_METADATA_DEFAULT(
-    CL, size_t Alignment, size_t Count, const queue &Q, usm::alloc Kind,
-    const property_list &PropList = {}) {
+T *aligned_alloc(
+    size_t Alignment, size_t Count, const queue &Q, usm::alloc Kind,
+    const property_list &PropList = {} _CODELOCPARAM(&CL)) {
+  _CODELOCARG(&CL);
   return aligned_alloc<T>(Alignment, Count, Q.get_device(), Q.get_context(),
                           Kind, PropList, CL);
 }
-__END_CODE_LOCATION_METADATA
 
 // Pointer queries
 /// Query the allocation type from a USM pointer

@@ -32,33 +32,9 @@
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
-// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
-// _CODELOCARG(&CodeLoc) Similarly, the KernelFunc param is simplified to be
+// Here we simplify the KernelFunc param is simplified to be
 // _KERNELFUNCPARAM(KernelFunc) Once the queue kernel functions are defined,
 // these macros are #undef immediately.
-
-// replace _CODELOCPARAM(&CodeLoc) with nothing
-// or :   , const detail::code_location &CodeLoc =
-// detail::code_location::current()
-// replace _CODELOCARG(&CodeLoc) with nothing
-// or :  const detail::code_location &CodeLoc = {}
-
-#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
-#define _CODELOCONLYPARAM(a)                                                   \
-  const detail::code_location a = detail::code_location::current()
-#define _CODELOCPARAM(a)                                                       \
-  , const detail::code_location a = detail::code_location::current()
-
-#define _CODELOCARG(a)
-#define _CODELOCFW(a) , a
-#else
-#define _CODELOCONLYPARAM(a)
-#define _CODELOCPARAM(a)
-
-#define _CODELOCARG(a) const detail::code_location a = {}
-#define _CODELOCFW(a)
-#endif
-
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
 #ifdef __SYCL_NONCONST_FUNCTOR__
@@ -1081,11 +1057,7 @@ public:
         CodeLoc);
   }
 
-// Clean up CODELOC and KERNELFUNC macros.
-#undef _CODELOCPARAM
-#undef _CODELOCONLYPARAM
-#undef _CODELOCARG
-#undef _CODELOCFW
+// Clean KERNELFUNC macros.
 #undef _KERNELFUNCPARAM
 
   /// Returns whether the queue is in order or OoO
