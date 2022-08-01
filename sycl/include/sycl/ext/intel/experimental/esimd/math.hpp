@@ -296,9 +296,7 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  constexpr auto nrOfDigits = std::numeric_limits<T1>::digits;
-  __ESIMD_NS::simd<T1, SZ> Src1 = src1 % nrOfDigits;
-
+  __ESIMD_NS::simd<T1, SZ> Src1 = src1;
   return esimd::rol<T0>(src0, Src1);
 }
 
@@ -353,8 +351,7 @@ __ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
                                  std::is_integral<U>::value,
                              __ESIMD_NS::simd<T0, SZ>>
 ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
-  constexpr auto nrOfDigits = std::numeric_limits<T1>::digits;
-  __ESIMD_NS::simd<T1, SZ> Src1 = src1 % nrOfDigits;
+  __ESIMD_NS::simd<T1, SZ> Src1 = src1;
   return esimd::ror<T0>(src0, Src1);
 }
 
