@@ -37,6 +37,10 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND compile_opts
     "-fno-sycl-libspirv"
     "-fno-bundle-offload-arch")
+  if(CUDA_TOOLKIT_ROOT_DIR)
+    list(APPEND compile_opts
+      "--cuda-path=${CUDA_TOOLKIT_ROOT_DIR}")
+  endif()
 endif()
 
 if (WIN32)
