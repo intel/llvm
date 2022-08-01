@@ -13832,7 +13832,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
           return;
         // If there is a precision conversion between floating point types when
         // -Wimplicit-float-size-conversion is passed but
-        // -Wimplicit-float-conversion is not, make sure we emit atleast a size
+        // -Wimplicit-float-conversion is not, make sure we emit at least a size
         // warning.
         if (S.Diags.isIgnored(diag::warn_impcast_float_precision, CC) &&
             !S.Diags.isIgnored(diag::warn_imp_float_size_conversion, CC)) {
