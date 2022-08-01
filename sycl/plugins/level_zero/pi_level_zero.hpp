@@ -274,9 +274,10 @@ template <class T> struct ZeCache : private T {
 // thread can reach ref count equal to zero, i.e. only a single thread can pass
 // through this check.
 struct ReferenceCounter {
-  ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
+  ReferenceCounter() : RefCount{1} {}
 
-  void reset(pi_uint32 InitVal) { RefCount = InitVal; }
+  // Reset the counter to the initial value.
+  void reset() { RefCount = 1; }
 
   // Used when retaining an object.
   void increment() { RefCount++; }
@@ -308,7 +309,7 @@ private:
 
 // Base class to store common data
 struct _pi_object {
-  _pi_object() : RefCount{1} {}
+  _pi_object() : RefCount{} {}
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.

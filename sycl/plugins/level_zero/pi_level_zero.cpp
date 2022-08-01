@@ -5466,7 +5466,7 @@ pi_result _pi_event::reset() {
   CommandData = nullptr;
   CommandType = PI_COMMAND_TYPE_USER;
   WaitList = {};
-  RefCount.reset(1);
+  RefCount.reset();
 
   if (!isHostVisible())
     HostVisibleEvent = nullptr;
