@@ -14,6 +14,10 @@
 
 #include <sycl/sycl.hpp>
 
+// FIXME: Modify <sycl/details/iostream_proxy.hpp> so that it would require proper
+// libs via "#pragma comment(lib, ...)".
+#include <iostream>
+
 #ifndef DEFINE_CHECK
 #error predefined macro not set
 #endif // DEFINE_CHECK
