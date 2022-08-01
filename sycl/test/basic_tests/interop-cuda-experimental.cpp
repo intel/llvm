@@ -1,6 +1,7 @@
 // REQUIRES: cuda
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s -o %t.out
+// expected-no-diagnostics
 
 // Test for experimental CUDA interop API
 
@@ -28,6 +29,7 @@ int main() {
   device Device;
   context Context(Device);
   queue Queue(Device);
+  event Event;
 
   // 4.5.1.1 For each SYCL runtime class T which supports SYCL application
   // interoperability with the SYCL backend, a specialization of return_type
@@ -40,6 +42,8 @@ int main() {
 
   backend_traits<backend::ext_oneapi_cuda>::return_type<device> cu_device;
   backend_traits<backend::ext_oneapi_cuda>::return_type<context> cu_context;
+  backend_traits<backend::ext_oneapi_cuda>::return_type<event> cu_event;
+  backend_traits<backend::ext_oneapi_cuda>::return_type<queue> cu_queue;
 
   // 4.5.1.2 For each SYCL runtime class T which supports SYCL application
   // interoperability, a specialization of get_native must be defined, which
@@ -50,14 +54,8 @@ int main() {
 
   cu_device = get_native<backend::ext_oneapi_cuda>(Device);
   cu_context = get_native<backend::ext_oneapi_cuda>(Context);
-
-  // Check deprecated
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_cuda>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  cu_device = Device.get_native<backend::ext_oneapi_cuda>();
-  // expected-warning@+2 {{'get_native' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  // expected-warning@+1 {{'get_native<sycl::backend::ext_oneapi_cuda>' is deprecated: Use SYCL 2020 sycl::get_native free function}}
-  cu_context = Context.get_native<backend::ext_oneapi_cuda>();
+  cu_event = get_native<backend::ext_oneapi_cuda>(Event);
+  cu_queue = get_native<backend::ext_oneapi_cuda>(Queue);
 
   // 4.5.1.1 For each SYCL runtime class T which supports SYCL application
   // interoperability with the SYCL backend, a specialization of input_type must
@@ -84,6 +82,9 @@ int main() {
       cu_context[0]};
   context InteropContext =
       make_context<backend::ext_oneapi_cuda>(InteropContextInput);
+  event InteropEvent = make_event<backend::ext_oneapi_cuda>(cu_event, Context);
+
+  queue InteropQueue = make_queue<backend::ext_oneapi_cuda>(cu_queue, Context);
 
   return 0;
 }

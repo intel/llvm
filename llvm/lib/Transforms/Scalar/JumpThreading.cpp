@@ -788,6 +788,7 @@ bool JumpThreadingPass::computeValueKnownInPredecessorsImpl(
     if (Preference != WantInteger)
       return false;
     if (ConstantInt *CI = dyn_cast<ConstantInt>(BO->getOperand(1))) {
+      const DataLayout &DL = BO->getModule()->getDataLayout();
       PredValueInfoTy LHSVals;
       computeValueKnownInPredecessorsImpl(BO->getOperand(0), BB, LHSVals,
                                           WantInteger, RecursionSet, CxtI);
@@ -795,7 +796,8 @@ bool JumpThreadingPass::computeValueKnownInPredecessorsImpl(
       // Try to use constant folding to simplify the binary operator.
       for (const auto &LHSVal : LHSVals) {
         Constant *V = LHSVal.first;
-        Constant *Folded = ConstantExpr::get(BO->getOpcode(), V, CI);
+        Constant *Folded =
+            ConstantFoldBinaryOpOperands(BO->getOpcode(), V, CI, DL);
 
         if (Constant *KC = getKnownConstant(Folded, WantInteger))
           Result.emplace_back(KC, LHSVal.second);
@@ -831,7 +833,7 @@ bool JumpThreadingPass::computeValueKnownInPredecessorsImpl(
           LHS = CmpLHS->DoPHITranslation(BB, PredBB);
           RHS = PN->getIncomingValue(i);
         }
-        Value *Res = SimplifyCmpInst(Pred, LHS, RHS, {DL});
+        Value *Res = simplifyCmpInst(Pred, LHS, RHS, {DL});
         if (!Res) {
           if (!isa<Constant>(RHS))
             continue;
@@ -1331,10 +1333,10 @@ bool JumpThreadingPass::simplifyPartiallyRedundantLoad(LoadInst *LoadI) {
       combineMetadataForCSE(NLoadI, LoadI, false);
     };
 
-    // If the returned value is the load itself, replace with an undef. This can
+    // If the returned value is the load itself, replace with poison. This can
     // only happen in dead loops.
     if (AvailableVal == LoadI)
-      AvailableVal = UndefValue::get(LoadI->getType());
+      AvailableVal = PoisonValue::get(LoadI->getType());
     if (AvailableVal->getType() != LoadI->getType())
       AvailableVal = CastInst::CreateBitOrPointerCast(
           AvailableVal, LoadI->getType(), "", LoadI);
@@ -1457,9 +1459,7 @@ bool JumpThreadingPass::simplifyPartiallyRedundantLoad(LoadInst *LoadI) {
     // Add all the unavailable predecessors to the PredsToSplit list.
     for (BasicBlock *P : predecessors(LoadBB)) {
       // If the predecessor is an indirect goto, we can't split the edge.
-      // Same for CallBr.
-      if (isa<IndirectBrInst>(P->getTerminator()) ||
-          isa<CallBrInst>(P->getTerminator()))
+      if (isa<IndirectBrInst>(P->getTerminator()))
         return false;
 
       if (!AvailablePredSet.count(P))
@@ -1683,9 +1683,8 @@ bool JumpThreadingPass::processThreadableEdges(Value *Cond, BasicBlock *BB,
     }
 
     // If the predecessor ends with an indirect goto, we can't change its
-    // destination. Same for CallBr.
-    if (isa<IndirectBrInst>(Pred->getTerminator()) ||
-        isa<CallBrInst>(Pred->getTerminator()))
+    // destination.
+    if (isa<IndirectBrInst>(Pred->getTerminator()))
       continue;
 
     PredToDestList.emplace_back(Pred, DestBB);
@@ -1922,10 +1921,9 @@ bool JumpThreadingPass::processBranchOnXOR(BinaryOperator *BO) {
   }
 
   // If any of predecessors end with an indirect goto, we can't change its
-  // destination. Same for CallBr.
+  // destination.
   if (any_of(BlocksToFoldInto, [](BasicBlock *Pred) {
-        return isa<IndirectBrInst>(Pred->getTerminator()) ||
-               isa<CallBrInst>(Pred->getTerminator());
+        return isa<IndirectBrInst>(Pred->getTerminator());
       }))
     return false;
 
@@ -2171,6 +2169,9 @@ bool JumpThreadingPass::maybethreadThroughTwoBasicBlocks(BasicBlock *BB,
   BasicBlock *ZeroPred = nullptr;
   BasicBlock *OnePred = nullptr;
   for (BasicBlock *P : predecessors(PredBB)) {
+    // If PredPred ends with IndirectBrInst, we can't handle it.
+    if (isa<IndirectBrInst>(P->getTerminator()))
+      continue;
     if (ConstantInt *CI = dyn_cast_or_null<ConstantInt>(
             evaluateOnPredecessorEdge(BB, P, Cond))) {
       if (CI->isZero()) {
@@ -2662,7 +2663,7 @@ bool JumpThreadingPass::duplicateCondBranchOnPHIIntoPred(
     // If this instruction can be simplified after the operands are updated,
     // just use the simplified value instead.  This frequently happens due to
     // phi translation.
-    if (Value *IV = SimplifyInstruction(
+    if (Value *IV = simplifyInstruction(
             New,
             {BB->getModule()->getDataLayout(), TLI, nullptr, nullptr, New})) {
       ValueMapping[&*BI] = IV;

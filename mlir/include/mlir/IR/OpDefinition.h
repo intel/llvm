@@ -44,10 +44,10 @@ public:
   OptionalParseResult(llvm::NoneType) : impl(llvm::None) {}
 
   /// Returns true if we contain a valid ParseResult value.
-  bool hasValue() const { return impl.hasValue(); }
+  bool hasValue() const { return impl.has_value(); }
 
   /// Access the internal ParseResult value.
-  ParseResult getValue() const { return impl.getValue(); }
+  ParseResult getValue() const { return impl.value(); }
   ParseResult operator*() const { return getValue(); }
 
 private:
@@ -181,6 +181,10 @@ public:
   /// supports, for use by the canonicalization pass.
   static void getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {}
+
+  /// This hook populates any unset default attrs.
+  static void populateDefaultAttrs(const RegisteredOperationName &,
+                                   NamedAttrList &) {}
 
 protected:
   /// If the concrete type didn't implement a custom verifier hook, just fall
@@ -1679,8 +1683,8 @@ public:
         reinterpret_cast<Operation *>(const_cast<void *>(pointer)));
   }
 
-  /// Attach the given models as implementations of the corresponding interfaces
-  /// for the concrete operation.
+  /// Attach the given models as implementations of the corresponding
+  /// interfaces for the concrete operation.
   template <typename... Models>
   static void attachInterface(MLIRContext &context) {
     Optional<RegisteredOperationName> info = RegisteredOperationName::lookup(
@@ -1689,6 +1693,7 @@ public:
       llvm::report_fatal_error(
           "Attempting to attach an interface to an unregistered operation " +
           ConcreteType::getOperationName() + ".");
+    (void)std::initializer_list<int>{(checkInterfaceTarget<Models>(), 0)...};
     info->attachInterface<Models...>();
   }
 
@@ -1713,6 +1718,34 @@ private:
       decltype(std::declval<T>().print(std::declval<OpAsmPrinter &>()));
   template <typename T>
   using detect_has_print = llvm::is_detected<has_print, T>;
+
+  /// Trait to check if T provides a 'ConcreteEntity' type alias.
+  template <typename T>
+  using has_concrete_entity_t = typename T::ConcreteEntity;
+
+  /// A struct-wrapped type alias to T::ConcreteEntity if provided and to
+  /// ConcreteType otherwise. This is akin to std::conditional but doesn't fail
+  /// on the missing typedef. Useful for checking if the interface is targeting
+  /// the right class.
+  template <typename T,
+            bool = llvm::is_detected<has_concrete_entity_t, T>::value>
+  struct InterfaceTargetOrOpT {
+    using type = typename T::ConcreteEntity;
+  };
+  template <typename T>
+  struct InterfaceTargetOrOpT<T, false> {
+    using type = ConcreteType;
+  };
+
+  /// A hook for static assertion that the external interface model T is
+  /// targeting the concrete type of this op. The model can also be a fallback
+  /// model that works for every op.
+  template <typename T>
+  static void checkInterfaceTarget() {
+    static_assert(std::is_same<typename InterfaceTargetOrOpT<T>::type,
+                               ConcreteType>::value,
+                  "attaching an interface to the wrong op kind");
+  }
 
   /// Returns an interface map containing the interfaces registered to this
   /// operation.
@@ -1842,6 +1875,10 @@ private:
     OpState::printOpName(op, p, defaultDialect);
     return cast<ConcreteType>(op).print(p);
   }
+  /// Implementation of `PopulateDefaultAttrsFn` OperationName hook.
+  static OperationName::PopulateDefaultAttrsFn getPopulateDefaultAttrsFn() {
+    return ConcreteType::populateDefaultAttrs;
+  }
   /// Implementation of `VerifyInvariantsFn` OperationName hook.
   static LogicalResult verifyInvariants(Operation *op) {
     static_assert(hasNoDataMembers(),
@@ -1936,8 +1973,9 @@ LogicalResult verifyCastInterfaceOp(
 namespace llvm {
 
 template <typename T>
-struct DenseMapInfo<
-    T, std::enable_if_t<std::is_base_of<mlir::OpState, T>::value>> {
+struct DenseMapInfo<T,
+                    std::enable_if_t<std::is_base_of<mlir::OpState, T>::value &&
+                                     !mlir::detail::IsInterface<T>::value>> {
   static inline T getEmptyKey() {
     auto *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return T::getFromOpaquePointer(pointer);

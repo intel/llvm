@@ -14,6 +14,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "arith-to-spirv-pattern"
@@ -50,7 +51,7 @@ struct ConstantScalarOpPattern final
 ///
 /// This cannot be merged into the template unary/binary pattern due to Vulkan
 /// restrictions over spv.SRem and spv.SMod.
-struct RemSIOpGLSLPattern final : public OpConversionPattern<arith::RemSIOp> {
+struct RemSIOpGLPattern final : public OpConversionPattern<arith::RemSIOp> {
   using OpConversionPattern<arith::RemSIOp>::OpConversionPattern;
 
   LogicalResult
@@ -59,7 +60,7 @@ struct RemSIOpGLSLPattern final : public OpConversionPattern<arith::RemSIOp> {
 };
 
 /// Converts arith.remsi to OpenCL SPIR-V ops.
-struct RemSIOpOCLPattern final : public OpConversionPattern<arith::RemSIOp> {
+struct RemSIOpCLPattern final : public OpConversionPattern<arith::RemSIOp> {
   using OpConversionPattern<arith::RemSIOp>::OpConversionPattern;
 
   LogicalResult
@@ -275,6 +276,22 @@ static bool isBoolScalarOrVector(Type type) {
   return false;
 }
 
+/// Returns true if scalar/vector type `a` and `b` have the same number of
+/// bitwidth.
+static bool hasSameBitwidth(Type a, Type b) {
+  auto getNumBitwidth = [](Type type) {
+    unsigned bw = 0;
+    if (type.isIntOrFloat())
+      bw = type.getIntOrFloatBitWidth();
+    else if (auto vecType = type.dyn_cast<VectorType>())
+      bw = vecType.getElementTypeBitWidth() * vecType.getNumElements();
+    return bw;
+  };
+  unsigned aBW = getNumBitwidth(a);
+  unsigned bBW = getNumBitwidth(b);
+  return aBW != 0 && bBW != 0 && aBW == bBW;
+}
+
 //===----------------------------------------------------------------------===//
 // ConstantOp with composite type
 //===----------------------------------------------------------------------===//
@@ -425,7 +442,7 @@ LogicalResult ConstantScalarOpPattern::matchAndRewrite(
 }
 
 //===----------------------------------------------------------------------===//
-// RemSIOpGLSLPattern
+// RemSIOpGLPattern
 //===----------------------------------------------------------------------===//
 
 /// Returns signed remainder for `lhs` and `rhs` and lets the result follow
@@ -459,9 +476,9 @@ static Value emulateSignedRemainder(Location loc, Value lhs, Value rhs,
 }
 
 LogicalResult
-RemSIOpGLSLPattern::matchAndRewrite(arith::RemSIOp op, OpAdaptor adaptor,
-                                    ConversionPatternRewriter &rewriter) const {
-  Value result = emulateSignedRemainder<spirv::GLSLSAbsOp>(
+RemSIOpGLPattern::matchAndRewrite(arith::RemSIOp op, OpAdaptor adaptor,
+                                  ConversionPatternRewriter &rewriter) const {
+  Value result = emulateSignedRemainder<spirv::GLSAbsOp>(
       op.getLoc(), adaptor.getOperands()[0], adaptor.getOperands()[1],
       adaptor.getOperands()[0], rewriter);
   rewriter.replaceOp(op, result);
@@ -470,13 +487,13 @@ RemSIOpGLSLPattern::matchAndRewrite(arith::RemSIOp op, OpAdaptor adaptor,
 }
 
 //===----------------------------------------------------------------------===//
-// RemSIOpOCLPattern
+// RemSIOpCLPattern
 //===----------------------------------------------------------------------===//
 
 LogicalResult
-RemSIOpOCLPattern::matchAndRewrite(arith::RemSIOp op, OpAdaptor adaptor,
-                                   ConversionPatternRewriter &rewriter) const {
-  Value result = emulateSignedRemainder<spirv::OCLSAbsOp>(
+RemSIOpCLPattern::matchAndRewrite(arith::RemSIOp op, OpAdaptor adaptor,
+                                  ConversionPatternRewriter &rewriter) const {
+  Value result = emulateSignedRemainder<spirv::CLSAbsOp>(
       op.getLoc(), adaptor.getOperands()[0], adaptor.getOperands()[1],
       adaptor.getOperands()[0], rewriter);
   rewriter.replaceOp(op, result);
@@ -649,22 +666,44 @@ LogicalResult TypeCastingOpPattern<Op, SPIRVOp>::matchAndRewrite(
 LogicalResult CmpIOpBooleanPattern::matchAndRewrite(
     arith::CmpIOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  Type operandType = op.getLhs().getType();
-  if (!isBoolScalarOrVector(operandType))
+  Type srcType = op.getLhs().getType();
+  if (!isBoolScalarOrVector(srcType))
+    return failure();
+  Type dstType = getTypeConverter()->convertType(srcType);
+  if (!dstType)
     return failure();
 
   switch (op.getPredicate()) {
-#define DISPATCH(cmpPredicate, spirvOp)                                        \
-  case cmpPredicate:                                                           \
-    rewriter.replaceOpWithNewOp<spirvOp>(op, op.getResult().getType(),         \
-                                         adaptor.getLhs(), adaptor.getRhs());  \
+  case arith::CmpIPredicate::eq: {
+    rewriter.replaceOpWithNewOp<spirv::LogicalEqualOp>(op, adaptor.getLhs(),
+                                                       adaptor.getRhs());
     return success();
+  }
+  case arith::CmpIPredicate::ne: {
+    rewriter.replaceOpWithNewOp<spirv::LogicalNotEqualOp>(op, adaptor.getLhs(),
+                                                          adaptor.getRhs());
+    return success();
+  }
+  case arith::CmpIPredicate::uge:
+  case arith::CmpIPredicate::ugt:
+  case arith::CmpIPredicate::ule:
+  case arith::CmpIPredicate::ult: {
+    // There are no direct corresponding instructions in SPIR-V for such cases.
+    // Extend them to 32-bit and do comparision then.
+    Type type = rewriter.getI32Type();
+    if (auto vectorType = dstType.dyn_cast<VectorType>())
+      type = VectorType::get(vectorType.getShape(), type);
+    auto extLhs =
+        rewriter.create<arith::ExtUIOp>(op.getLoc(), type, adaptor.getLhs());
+    auto extRhs =
+        rewriter.create<arith::ExtUIOp>(op.getLoc(), type, adaptor.getRhs());
 
-    DISPATCH(arith::CmpIPredicate::eq, spirv::LogicalEqualOp);
-    DISPATCH(arith::CmpIPredicate::ne, spirv::LogicalNotEqualOp);
-
-#undef DISPATCH
-  default:;
+    rewriter.replaceOpWithNewOp<arith::CmpIOp>(op, op.getPredicate(), extLhs,
+                                               extRhs);
+    return success();
+  }
+  default:
+    break;
   }
   return failure();
 }
@@ -676,20 +715,23 @@ LogicalResult CmpIOpBooleanPattern::matchAndRewrite(
 LogicalResult
 CmpIOpPattern::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
                                ConversionPatternRewriter &rewriter) const {
-  Type operandType = op.getLhs().getType();
-  if (isBoolScalarOrVector(operandType))
+  Type srcType = op.getLhs().getType();
+  if (isBoolScalarOrVector(srcType))
+    return failure();
+  Type dstType = getTypeConverter()->convertType(srcType);
+  if (!dstType)
     return failure();
 
   switch (op.getPredicate()) {
 #define DISPATCH(cmpPredicate, spirvOp)                                        \
   case cmpPredicate:                                                           \
     if (spirvOp::template hasTrait<OpTrait::spirv::UnsignedOp>() &&            \
-        operandType != this->getTypeConverter()->convertType(operandType)) {   \
+        srcType != dstType && !hasSameBitwidth(srcType, dstType)) {            \
       return op.emitError(                                                     \
           "bitwidth emulation is not implemented yet on unsigned op");         \
     }                                                                          \
-    rewriter.replaceOpWithNewOp<spirvOp>(op, op.getResult().getType(),         \
-                                         adaptor.getLhs(), adaptor.getRhs());  \
+    rewriter.replaceOpWithNewOp<spirvOp>(op, adaptor.getLhs(),                 \
+                                         adaptor.getRhs());                    \
     return success();
 
     DISPATCH(arith::CmpIPredicate::eq, spirv::IEqualOp);
@@ -718,8 +760,8 @@ CmpFOpPattern::matchAndRewrite(arith::CmpFOp op, OpAdaptor adaptor,
   switch (op.getPredicate()) {
 #define DISPATCH(cmpPredicate, spirvOp)                                        \
   case cmpPredicate:                                                           \
-    rewriter.replaceOpWithNewOp<spirvOp>(op, op.getResult().getType(),         \
-                                         adaptor.getLhs(), adaptor.getRhs());  \
+    rewriter.replaceOpWithNewOp<spirvOp>(op, adaptor.getLhs(),                 \
+                                         adaptor.getRhs());                    \
     return success();
 
     // Ordered.
@@ -820,7 +862,7 @@ void mlir::arith::populateArithmeticToSPIRVPatterns(
     spirv::ElementwiseOpPattern<arith::DivUIOp, spirv::UDivOp>,
     spirv::ElementwiseOpPattern<arith::DivSIOp, spirv::SDivOp>,
     spirv::ElementwiseOpPattern<arith::RemUIOp, spirv::UModOp>,
-    RemSIOpGLSLPattern, RemSIOpOCLPattern,
+    RemSIOpGLPattern, RemSIOpCLPattern,
     BitwiseOpPattern<arith::AndIOp, spirv::LogicalAndOp, spirv::BitwiseAndOp>,
     BitwiseOpPattern<arith::OrIOp, spirv::LogicalOrOp, spirv::BitwiseOrOp>,
     XOrIOpLogicalPattern, XOrIOpBooleanPattern,
@@ -847,12 +889,12 @@ void mlir::arith::populateArithmeticToSPIRVPatterns(
     CmpFOpNanNonePattern, CmpFOpPattern,
     SelectOpPattern,
 
-    spirv::ElementwiseOpPattern<arith::MaxFOp, spirv::GLSLFMaxOp>,
-    spirv::ElementwiseOpPattern<arith::MaxSIOp, spirv::GLSLSMaxOp>,
-    spirv::ElementwiseOpPattern<arith::MaxUIOp, spirv::GLSLUMaxOp>,
-    spirv::ElementwiseOpPattern<arith::MinFOp, spirv::GLSLFMinOp>,
-    spirv::ElementwiseOpPattern<arith::MinSIOp, spirv::GLSLSMinOp>,
-    spirv::ElementwiseOpPattern<arith::MinUIOp, spirv::GLSLUMinOp>
+    spirv::ElementwiseOpPattern<arith::MaxFOp, spirv::GLFMaxOp>,
+    spirv::ElementwiseOpPattern<arith::MaxSIOp, spirv::GLSMaxOp>,
+    spirv::ElementwiseOpPattern<arith::MaxUIOp, spirv::GLUMaxOp>,
+    spirv::ElementwiseOpPattern<arith::MinFOp, spirv::GLFMinOp>,
+    spirv::ElementwiseOpPattern<arith::MinSIOp, spirv::GLSMinOp>,
+    spirv::ElementwiseOpPattern<arith::MinUIOp, spirv::GLUMinOp>
   >(typeConverter, patterns.getContext());
   // clang-format on
 
@@ -878,10 +920,19 @@ struct ConvertArithmeticToSPIRVPass
     options.emulateNon32BitScalarTypes = this->emulateNon32BitScalarTypes;
     SPIRVTypeConverter typeConverter(targetAttr, options);
 
+    // Use UnrealizedConversionCast as the bridge so that we don't need to pull
+    // in patterns for other dialects.
+    auto addUnrealizedCast = [](OpBuilder &builder, Type type,
+                                ValueRange inputs, Location loc) {
+      auto cast = builder.create<UnrealizedConversionCastOp>(loc, type, inputs);
+      return Optional<Value>(cast.getResult(0));
+    };
+    typeConverter.addSourceMaterialization(addUnrealizedCast);
+    typeConverter.addTargetMaterialization(addUnrealizedCast);
+    target->addLegalOp<UnrealizedConversionCastOp>();
+
     RewritePatternSet patterns(&getContext());
     arith::populateArithmeticToSPIRVPatterns(typeConverter, patterns);
-    populateFuncToSPIRVPatterns(typeConverter, patterns);
-    populateBuiltinFuncToSPIRVPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(module, *target, std::move(patterns))))
       signalPassFailure();

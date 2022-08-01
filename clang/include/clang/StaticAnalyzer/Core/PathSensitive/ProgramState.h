@@ -55,8 +55,6 @@ template <typename T> struct ProgramStateTrait {
   }
 };
 
-class RangeSet;
-
 /// \class ProgramState
 /// ProgramState - This class encapsulates:
 ///
@@ -727,7 +725,7 @@ inline ProgramStateRef ProgramState::assumeInclusiveRange(
   if (Val.isUnknown())
     return this;
 
-  assert(Val.getAs<NonLoc>() && "Only NonLocs are supported!");
+  assert(isa<NonLoc>(Val) && "Only NonLocs are supported!");
 
   return getStateManager().ConstraintMgr->assumeInclusiveRange(
       this, Val.castAs<NonLoc>(), From, To, Assumption);
@@ -740,7 +738,7 @@ ProgramState::assumeInclusiveRange(DefinedOrUnknownSVal Val,
   if (Val.isUnknown())
     return std::make_pair(this, this);
 
-  assert(Val.getAs<NonLoc>() && "Only NonLocs are supported!");
+  assert(isa<NonLoc>(Val) && "Only NonLocs are supported!");
 
   return getStateManager().ConstraintMgr->assumeInclusiveRangeDual(
       this, Val.castAs<NonLoc>(), From, To);

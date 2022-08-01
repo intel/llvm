@@ -378,10 +378,10 @@ void AArch64AsmPrinter::emitHwasanMemaccessSymbols(Module &M) {
     bool CompileKernel =
         (AccessInfo >> HWASanAccessInfo::CompileKernelShift) & 1;
 
-    OutStreamer->SwitchSection(OutContext.getELFSection(
+    OutStreamer->switchSection(OutContext.getELFSection(
         ".text.hot", ELF::SHT_PROGBITS,
-        ELF::SHF_EXECINSTR | ELF::SHF_ALLOC | ELF::SHF_GROUP, 0,
-        Sym->getName(), /*IsComdat=*/true));
+        ELF::SHF_EXECINSTR | ELF::SHF_ALLOC | ELF::SHF_GROUP, 0, Sym->getName(),
+        /*IsComdat=*/true));
 
     OutStreamer->emitSymbolAttribute(Sym, MCSA_ELF_TypeFunction);
     OutStreamer->emitSymbolAttribute(Sym, MCSA_Weak);
@@ -827,7 +827,7 @@ void AArch64AsmPrinter::emitJumpTableInfo() {
 
   const TargetLoweringObjectFile &TLOF = getObjFileLowering();
   MCSection *ReadOnlySec = TLOF.getSectionForJumpTable(MF->getFunction(), TM);
-  OutStreamer->SwitchSection(ReadOnlySec);
+  OutStreamer->switchSection(ReadOnlySec);
 
   auto AFI = MF->getInfo<AArch64FunctionInfo>();
   for (unsigned JTI = 0, e = JT.size(); JTI != e; ++JTI) {
@@ -865,7 +865,7 @@ void AArch64AsmPrinter::emitFunctionEntryLabel() {
   if (MF->getFunction().getCallingConv() == CallingConv::AArch64_VectorCall ||
       MF->getFunction().getCallingConv() ==
           CallingConv::AArch64_SVE_VectorCall ||
-      STI->getRegisterInfo()->hasSVEArgsOrReturn(MF)) {
+      MF->getInfo<AArch64FunctionInfo>()->isSVECC()) {
     auto *TS =
         static_cast<AArch64TargetStreamer *>(OutStreamer->getTargetStreamer());
     TS->emitDirectiveVariantPCS(CurrentFnSym);
@@ -1173,6 +1173,8 @@ void AArch64AsmPrinter::emitFMov0(const MachineInstr &MI) {
 #include "AArch64GenMCPseudoLowering.inc"
 
 void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
+  AArch64_MC::verifyInstructionPredicates(MI->getOpcode(), STI->getFeatureBits());
+
   // Do any auto-generated pseudo lowerings.
   if (emitPseudoExpansionLowering(*OutStreamer, MI))
     return;

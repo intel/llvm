@@ -8,6 +8,7 @@
 
 #include <utility>
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
@@ -106,20 +107,20 @@ verifyTypesAlongAllEdges(Operation *op, Optional<unsigned> sourceNo,
     auto printEdgeName = [&](InFlightDiagnostic &diag) -> InFlightDiagnostic & {
       diag << "from ";
       if (sourceNo)
-        diag << "Region #" << sourceNo.getValue();
+        diag << "Region #" << sourceNo.value();
       else
         diag << "parent operands";
 
       diag << " to ";
       if (succRegionNo)
-        diag << "Region #" << succRegionNo.getValue();
+        diag << "Region #" << succRegionNo.value();
       else
         diag << "parent results";
       return diag;
     };
 
     Optional<TypeRange> sourceTypes = getInputsTypesForRegion(succRegionNo);
-    if (!sourceTypes.hasValue())
+    if (!sourceTypes.has_value())
       continue;
 
     TypeRange succInputsTypes = succ.getSuccessorInputs().getTypes();
@@ -151,16 +152,7 @@ LogicalResult detail::verifyTypesAlongControlFlowEdges(Operation *op) {
   auto regionInterface = cast<RegionBranchOpInterface>(op);
 
   auto inputTypesFromParent = [&](Optional<unsigned> regionNo) -> TypeRange {
-    if (regionNo.hasValue()) {
-      return regionInterface.getSuccessorEntryOperands(regionNo.getValue())
-          .getTypes();
-    }
-
-    // If the successor of a parent op is the parent itself
-    // RegionBranchOpInterface does not have an API to query what the entry
-    // operands will be in that case. Vend out the result types of the op in
-    // that case so that type checking succeeds for this case.
-    return op->getResultTypes();
+    return regionInterface.getSuccessorEntryOperands(regionNo).getTypes();
   };
 
   // Verify types along control flow edges originating from the parent.

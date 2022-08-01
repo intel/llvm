@@ -92,12 +92,6 @@ cl::opt<std::string>
                     "output binary via bolt info section"),
            cl::cat(BoltCategory));
 
-cl::opt<bool>
-AllowStripped("allow-stripped",
-  cl::desc("allow processing of stripped binaries"),
-  cl::Hidden,
-  cl::cat(BoltCategory));
-
 cl::opt<bool> DumpDotAll(
     "dump-dot-all",
     cl::desc("dump function CFGs to graphviz format after each stage;"
@@ -308,10 +302,9 @@ namespace {
 
 bool refersToReorderedSection(ErrorOr<BinarySection &> Section) {
   auto Itr =
-      std::find_if(opts::ReorderData.begin(), opts::ReorderData.end(),
-                   [&](const std::string &SectionName) {
-                     return (Section && Section->getName() == SectionName);
-                   });
+      llvm::find_if(opts::ReorderData, [&](const std::string &SectionName) {
+        return (Section && Section->getName() == SectionName);
+      });
   return Itr != opts::ReorderData.end();
 }
 
@@ -839,8 +832,8 @@ void RewriteInstance::discoverFileObjects() {
     return Section.isAllocatable();
   };
   std::vector<SymbolRef> SortedFileSymbols;
-  std::copy_if(InputFile->symbol_begin(), InputFile->symbol_end(),
-               std::back_inserter(SortedFileSymbols), isSymbolInMemory);
+  llvm::copy_if(InputFile->symbols(), std::back_inserter(SortedFileSymbols),
+                isSymbolInMemory);
   auto CompareSymbols = [this](const SymbolRef &A, const SymbolRef &B) {
     // Marker symbols have the highest precedence, while
     // SECTIONs have the lowest.
@@ -865,10 +858,11 @@ void RewriteInstance::discoverFileObjects() {
     return false;
   };
 
-  std::stable_sort(SortedFileSymbols.begin(), SortedFileSymbols.end(),
-                   CompareSymbols);
+  llvm::stable_sort(SortedFileSymbols, CompareSymbols);
 
-  auto LastSymbol = SortedFileSymbols.end() - 1;
+  auto LastSymbol = SortedFileSymbols.end();
+  if (!SortedFileSymbols.empty())
+    --LastSymbol;
 
   // For aarch64, the ABI defines mapping symbols so we identify data in the
   // code section (see IHI0056B). $d identifies data contents.
@@ -914,13 +908,16 @@ void RewriteInstance::discoverFileObjects() {
     LastSymbol = std::stable_partition(
         SortedFileSymbols.begin(), SortedFileSymbols.end(),
         [this](const SymbolRef &Symbol) { return !BC->isMarker(Symbol); });
-    --LastSymbol;
+    if (!SortedFileSymbols.empty())
+      --LastSymbol;
   }
 
   BinaryFunction *PreviousFunction = nullptr;
   unsigned AnonymousId = 0;
 
-  const auto SortedSymbolsEnd = std::next(LastSymbol);
+  const auto SortedSymbolsEnd = LastSymbol == SortedFileSymbols.end()
+                                    ? LastSymbol
+                                    : std::next(LastSymbol);
   for (auto ISym = SortedFileSymbols.begin(); ISym != SortedSymbolsEnd;
        ++ISym) {
     const SymbolRef &Symbol = *ISym;
@@ -1559,6 +1556,7 @@ Error RewriteInstance::readSpecialSections() {
                      TimerGroupName, TimerGroupDesc, opts::TimeRewrite);
 
   bool HasTextRelocations = false;
+  bool HasSymbolTable = false;
   bool HasDebugInfo = false;
 
   // Process special sections.
@@ -1590,6 +1588,7 @@ Error RewriteInstance::readSpecialSections() {
   }
 
   HasTextRelocations = (bool)BC->getUniqueSectionByName(".rela.text");
+  HasSymbolTable = (bool)BC->getUniqueSectionByName(".symtab");
   LSDASection = BC->getUniqueSectionByName(".gcc_except_table");
   EHFrameSection = BC->getUniqueSectionByName(".eh_frame");
   GOTPLTSection = BC->getUniqueSectionByName(".got.plt");
@@ -1626,6 +1625,8 @@ Error RewriteInstance::readSpecialSections() {
   BC->HasRelocations =
       HasTextRelocations && (opts::RelocationMode != cl::BOU_FALSE);
 
+  BC->IsStripped = !HasSymbolTable;
+
   // Force non-relocation mode for heatmap generation
   if (opts::HeatmapMode)
     BC->HasRelocations = false;
@@ -1633,6 +1634,10 @@ Error RewriteInstance::readSpecialSections() {
   if (BC->HasRelocations)
     outs() << "BOLT-INFO: enabling " << (opts::StrictMode ? "strict " : "")
            << "relocation mode\n";
+
+  if (BC->IsStripped)
+    outs() << "BOLT-INFO: input binary is stripped. The support is limited and "
+           << "is considered experimental.\n";
 
   // Read EH frame for function boundaries info.
   Expected<const DWARFDebugFrame *> EHFrameOrError = BC->DwCtx->getEHFrame();
@@ -1683,11 +1688,6 @@ void RewriteInstance::adjustCommandLineOptions() {
 
   if (opts::SplitEH && !BC->HasRelocations) {
     errs() << "BOLT-WARNING: disabling -split-eh in non-relocation mode\n";
-    opts::SplitEH = false;
-  }
-
-  if (opts::SplitEH && !BC->HasFixedLoadAddress) {
-    errs() << "BOLT-WARNING: disabling -split-eh for shared object\n";
     opts::SplitEH = false;
   }
 
@@ -2332,7 +2332,7 @@ void RewriteInstance::readRelocations(const SectionRef &Section) {
     SmallString<16> TypeName;
     Rel.getTypeName(TypeName);
     uint64_t RType = Rel.getType();
-    if (Relocation::isNone(RType))
+    if (Relocation::skipRelocationType(RType))
       continue;
 
     // Adjust the relocation type as the linker might have skewed it.
@@ -2707,11 +2707,10 @@ void RewriteInstance::selectFunctionsToProcess() {
       if (ProfileReader->mayHaveProfileData(Function))
         TopFunctions.push_back(&Function);
     }
-    std::sort(TopFunctions.begin(), TopFunctions.end(),
-              [](const BinaryFunction *A, const BinaryFunction *B) {
-                return
-                    A->getKnownExecutionCount() < B->getKnownExecutionCount();
-              });
+    llvm::sort(
+        TopFunctions, [](const BinaryFunction *A, const BinaryFunction *B) {
+          return A->getKnownExecutionCount() < B->getKnownExecutionCount();
+        });
 
     size_t Index = TopFunctions.size() * opts::LiteThresholdPct / 100;
     if (Index)
@@ -2808,13 +2807,11 @@ void RewriteInstance::preprocessProfileData() {
   if (Error E = ProfileReader->preprocessProfile(*BC.get()))
     report_error("cannot pre-process profile", std::move(E));
 
-  if (!BC->hasSymbolsWithFileName() && ProfileReader->hasLocalsWithFileName() &&
-      !opts::AllowStripped) {
+  if (!BC->hasSymbolsWithFileName() && ProfileReader->hasLocalsWithFileName()) {
     errs() << "BOLT-ERROR: input binary does not have local file symbols "
               "but profile data includes function names with embedded file "
               "names. It appears that the input binary was stripped while a "
-              "profiled binary was not. If you know what you are doing and "
-              "wish to proceed, use -allow-stripped option.\n";
+              "profiled binary was not\n";
     exit(1);
   }
 }
@@ -2899,12 +2896,10 @@ void RewriteInstance::disassembleFunctions() {
 
     if (opts::PrintAll || opts::PrintDisasm)
       Function.print(outs(), "after disassembly", true);
-
-    BC->processInterproceduralReferences(Function);
   }
 
+  BC->processInterproceduralReferences();
   BC->populateJumpTables();
-  BC->skipMarkedFragments();
 
   for (auto &BFI : BC->getBinaryFunctions()) {
     BinaryFunction &Function = BFI.second;
@@ -2916,6 +2911,7 @@ void RewriteInstance::disassembleFunctions() {
     Function.postProcessJumpTables();
   }
 
+  BC->clearJumpTableTempData();
   BC->adjustCodePadding();
 
   for (auto &BFI : BC->getBinaryFunctions()) {
@@ -2925,7 +2921,8 @@ void RewriteInstance::disassembleFunctions() {
       continue;
 
     if (!Function.isSimple()) {
-      assert((!BC->HasRelocations || Function.getSize() == 0) &&
+      assert((!BC->HasRelocations || Function.getSize() == 0 ||
+              Function.hasIndirectTargetToSplitFragment()) &&
              "unexpected non-simple function in relocation mode");
       continue;
     }
@@ -2943,7 +2940,8 @@ void RewriteInstance::disassembleFunctions() {
     }
 
     // Parse LSDA.
-    if (Function.getLSDAAddress() != 0)
+    if (Function.getLSDAAddress() != 0 &&
+        !BC->getFragmentsToSkip().count(&Function))
       Function.parseLSDA(getLSDAData(), getLSDAAddress());
   }
 }
@@ -2981,6 +2979,11 @@ void RewriteInstance::buildFunctionsCFG() {
 }
 
 void RewriteInstance::postProcessFunctions() {
+  // We mark fragments as non-simple here, not during disassembly,
+  // So we can build their CFGs.
+  BC->skipMarkedFragments();
+  BC->clearFragmentsToSkip();
+
   BC->TotalScore = 0;
   BC->SumExecutionCount = 0;
   for (auto &BFI : BC->getBinaryFunctions()) {
@@ -3298,7 +3301,7 @@ void RewriteInstance::updatePseudoProbes() {
     std::vector<uint64_t> Addresses;
     for (auto &Entry : Address2ProbesMap)
       Addresses.push_back(Entry.first);
-    std::sort(Addresses.begin(), Addresses.end());
+    llvm::sort(Addresses);
     for (uint64_t Key : Addresses) {
       for (MCDecodedPseudoProbe &Probe : Address2ProbesMap[Key]) {
         if (Probe.getAddress() == INT64_MAX)
@@ -3572,7 +3575,7 @@ std::vector<BinarySection *> RewriteInstance::getCodeSections() {
   };
 
   // Determine the order of sections.
-  std::stable_sort(CodeSections.begin(), CodeSections.end(), compareSections);
+  llvm::stable_sort(CodeSections, compareSections);
 
   return CodeSections;
 }
@@ -3604,12 +3607,9 @@ void RewriteInstance::mapCodeSections(RuntimeDyld &RTDyld) {
     std::vector<BinarySection *> CodeSections = getCodeSections();
 
     // Remove sections that were pre-allocated (patch sections).
-    CodeSections.erase(
-        std::remove_if(CodeSections.begin(), CodeSections.end(),
-                       [](BinarySection *Section) {
-                         return Section->getOutputAddress();
-                       }),
-        CodeSections.end());
+    llvm::erase_if(CodeSections, [](BinarySection *Section) {
+      return Section->getOutputAddress();
+    });
     LLVM_DEBUG(dbgs() << "Code sections in the order of output:\n";
       for (const BinarySection *Section : CodeSections)
         dbgs() << Section->getName() << '\n';
@@ -4266,11 +4266,11 @@ RewriteInstance::getOutputSections(ELFObjectFile<ELFT> *File,
   }
 
   // Sort all allocatable sections by their offset.
-  std::stable_sort(OutputSections.begin(), OutputSections.end(),
-      [] (const std::pair<std::string, ELFShdrTy> &A,
-          const std::pair<std::string, ELFShdrTy> &B) {
-        return A.second.sh_offset < B.second.sh_offset;
-      });
+  llvm::stable_sort(OutputSections,
+                    [](const std::pair<std::string, ELFShdrTy> &A,
+                       const std::pair<std::string, ELFShdrTy> &B) {
+                      return A.second.sh_offset < B.second.sh_offset;
+                    });
 
   // Fix section sizes to prevent overlapping.
   ELFShdrTy *PrevSection = nullptr;
@@ -4379,11 +4379,10 @@ RewriteInstance::getOutputSections(ELFObjectFile<ELFT> *File,
   }
 
   std::vector<ELFShdrTy> SectionsOnly(OutputSections.size());
-  std::transform(OutputSections.begin(), OutputSections.end(),
-                 SectionsOnly.begin(),
-                 [](std::pair<std::string, ELFShdrTy> &SectionInfo) {
-                   return SectionInfo.second;
-                 });
+  llvm::transform(OutputSections, SectionsOnly.begin(),
+                  [](std::pair<std::string, ELFShdrTy> &SectionInfo) {
+                    return SectionInfo.second;
+                  });
 
   return SectionsOnly;
 }
@@ -4471,6 +4470,14 @@ void RewriteInstance::updateELFSymbolTable(
   std::vector<ELFSymTy> Symbols;
 
   auto getNewSectionIndex = [&](uint32_t OldIndex) {
+    // For dynamic symbol table, the section index could be wrong on the input,
+    // and its value is ignored by the runtime if it's different from
+    // SHN_UNDEF and SHN_ABS.
+    // However, we still need to update dynamic symbol table, so return a
+    // section index, even though the index is broken.
+    if (IsDynSym && OldIndex >= NewSectionIndex.size())
+      return OldIndex;
+
     assert(OldIndex < NewSectionIndex.size() && "section index out of bounds");
     const uint32_t NewIndex = NewSectionIndex[OldIndex];
 
@@ -4780,13 +4787,11 @@ void RewriteInstance::updateELFSymbolTable(
   }
 
   // Put local symbols at the beginning.
-  std::stable_sort(Symbols.begin(), Symbols.end(),
-                   [](const ELFSymTy &A, const ELFSymTy &B) {
-                     if (A.getBinding() == ELF::STB_LOCAL &&
-                         B.getBinding() != ELF::STB_LOCAL)
-                       return true;
-                     return false;
-                   });
+  llvm::stable_sort(Symbols, [](const ELFSymTy &A, const ELFSymTy &B) {
+    if (A.getBinding() == ELF::STB_LOCAL && B.getBinding() != ELF::STB_LOCAL)
+      return true;
+    return false;
+  });
 
   for (const ELFSymTy &Symbol : Symbols)
     Write(0, Symbol);
@@ -5204,8 +5209,6 @@ uint64_t RewriteInstance::getNewFunctionAddress(uint64_t OldAddress) {
   const BinaryFunction *Function = BC->getBinaryFunctionAtAddress(OldAddress);
   if (!Function)
     return 0;
-
-  assert(!Function->isFragment() && "cannot get new address for a fragment");
 
   return Function->getOutputAddress();
 }

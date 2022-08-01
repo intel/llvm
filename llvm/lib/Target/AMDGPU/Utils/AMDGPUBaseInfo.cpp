@@ -33,6 +33,11 @@ static llvm::cl::opt<unsigned>
                             llvm::cl::desc("AMDHSA Code Object Version"),
                             llvm::cl::init(4));
 
+// TODO-GFX11: Remove this when full 16-bit codegen is implemented.
+static llvm::cl::opt<bool>
+    LimitTo128VGPRs("amdgpu-limit-to-128-vgprs", llvm::cl::Hidden,
+                    llvm::cl::desc("Never use more than 128 VGPRs"));
+
 namespace {
 
 /// \returns Bit mask for given bit \p Shift and bit \p Width.
@@ -268,6 +273,22 @@ struct VOPInfo {
   bool IsSingle;
 };
 
+struct VOPC64DPPInfo {
+  uint16_t Opcode;
+};
+
+struct VOPDComponentInfo {
+  uint16_t BaseVOP;
+  uint16_t VOPDOp;
+  bool CanBeVOPDX;
+};
+
+struct VOPDInfo {
+  uint16_t Opcode;
+  uint16_t OpX;
+  uint16_t OpY;
+};
+
 #define GET_MTBUFInfoTable_DECL
 #define GET_MTBUFInfoTable_IMPL
 #define GET_MUBUFInfoTable_DECL
@@ -280,6 +301,18 @@ struct VOPInfo {
 #define GET_VOP2InfoTable_IMPL
 #define GET_VOP3InfoTable_DECL
 #define GET_VOP3InfoTable_IMPL
+#define GET_VOPC64DPPTable_DECL
+#define GET_VOPC64DPPTable_IMPL
+#define GET_VOPC64DPP8Table_DECL
+#define GET_VOPC64DPP8Table_IMPL
+#define GET_VOPDComponentTable_DECL
+#define GET_VOPDComponentTable_IMPL
+#define GET_VOPDPairs_DECL
+#define GET_VOPDPairs_IMPL
+#define GET_WMMAOpcode2AddrMappingTable_DECL
+#define GET_WMMAOpcode2AddrMappingTable_IMPL
+#define GET_WMMAOpcode3AddrMappingTable_DECL
+#define GET_WMMAOpcode3AddrMappingTable_IMPL
 #include "AMDGPUGenSearchableTables.inc"
 
 int getMTBUFBaseOpcode(unsigned Opc) {
@@ -367,6 +400,10 @@ bool getVOP3IsSingle(unsigned Opc) {
   return Info ? Info->IsSingle : false;
 }
 
+bool isVOPC64DPP(unsigned Opc) {
+  return isVOPC64DPPOpcodeHelper(Opc) || isVOPC64DPP8OpcodeHelper(Opc);
+}
+
 bool getMAIIsDGEMM(unsigned Opc) {
   const MAIInstInfo *Info = getMAIInstInfoHelper(Opc);
   return Info ? Info->is_dgemm : false;
@@ -377,11 +414,39 @@ bool getMAIIsGFX940XDL(unsigned Opc) {
   return Info ? Info->is_gfx940_xdl : false;
 }
 
+CanBeVOPD getCanBeVOPD(unsigned Opc) {
+  const VOPDComponentInfo *Info = getVOPDComponentHelper(Opc);
+  if (Info)
+    return {Info->CanBeVOPDX, true};
+  else
+    return {false, false};
+}
+
+unsigned getVOPDOpcode(unsigned Opc) {
+  const VOPDComponentInfo *Info = getVOPDComponentHelper(Opc);
+  return Info ? Info->VOPDOp : ~0u;
+}
+
+unsigned mapWMMA2AddrTo3AddrOpcode(unsigned Opc) {
+  const WMMAOpcodeMappingInfo *Info = getWMMAMappingInfoFrom2AddrOpcode(Opc);
+  return Info ? Info->Opcode3Addr : ~0u;
+}
+
+unsigned mapWMMA3AddrTo2AddrOpcode(unsigned Opc) {
+  const WMMAOpcodeMappingInfo *Info = getWMMAMappingInfoFrom3AddrOpcode(Opc);
+  return Info ? Info->Opcode2Addr : ~0u;
+}
+
 // Wrapper for Tablegen'd function.  enum Subtarget is not defined in any
 // header files, so we need to wrap it in a function that takes unsigned
 // instead.
 int getMCOpcode(uint16_t Opcode, unsigned Gen) {
   return getMCOpcodeGen(Opcode, static_cast<Subtarget>(Gen));
+}
+
+int getVOPDFull(unsigned OpX, unsigned OpY) {
+  const VOPDInfo *Info = getVOPDInfoFromComponentOpcodes(OpX, OpY);
+  return Info ? Info->Opcode : -1;
 }
 
 namespace IsaInfo {
@@ -795,6 +860,15 @@ unsigned getTotalNumVGPRs(const MCSubtargetInfo *STI) {
 }
 
 unsigned getAddressableNumVGPRs(const MCSubtargetInfo *STI) {
+  if (LimitTo128VGPRs.getNumOccurrences() ? LimitTo128VGPRs
+                                          : isGFX11Plus(*STI)) {
+    // GFX11 changes the encoding of 16-bit operands in VOP1/2/C instructions
+    // such that values 128..255 no longer mean v128..v255, they mean
+    // v0.hi..v127.hi instead. Until the compiler understands this, it is not
+    // safe to use v128..v255.
+    // TODO-GFX11: Remove this when full 16-bit codegen is implemented.
+    return 128;
+  }
   if (STI->getFeatureBits().test(FeatureGFX90AInsts))
     return 512;
   return 256;
@@ -1757,6 +1831,10 @@ bool hasMAIInsts(const MCSubtargetInfo &STI) {
   return STI.getFeatureBits()[AMDGPU::FeatureMAIInsts];
 }
 
+bool hasVOPD(const MCSubtargetInfo &STI) {
+  return STI.getFeatureBits()[AMDGPU::FeatureVOPD];
+}
+
 int32_t getTotalNumVGPRs(bool has90AInsts, int32_t ArgNumAGPR,
                          int32_t ArgNumVGPR) {
   if (has90AInsts && ArgNumAGPR)
@@ -1812,6 +1890,7 @@ bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
   CASE_VI_GFX9PLUS(TTMP0_TTMP1_TTMP2_TTMP3_TTMP4_TTMP5_TTMP6_TTMP7_TTMP8_TTMP9_TTMP10_TTMP11_TTMP12_TTMP13_TTMP14_TTMP15) \
   CASE_GFXPRE11_GFX11PLUS(M0) \
   CASE_GFXPRE11_GFX11PLUS(SGPR_NULL) \
+  CASE_GFXPRE11_GFX11PLUS_TO(SGPR_NULL64, SGPR_NULL) \
   }
 
 #define CASE_CI_VI(node) \
@@ -1824,6 +1903,9 @@ bool isSGPR(unsigned Reg, const MCRegisterInfo* TRI) {
 #define CASE_GFXPRE11_GFX11PLUS(node) \
   case node: return isGFX11Plus(STI) ? node##_gfx11plus : node##_gfxpre11;
 
+#define CASE_GFXPRE11_GFX11PLUS_TO(node, result) \
+  case node: return isGFX11Plus(STI) ? result##_gfx11plus : result##_gfxpre11;
+
 unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI) {
   if (STI.getTargetTriple().getArch() == Triple::r600)
     return Reg;
@@ -1833,10 +1915,12 @@ unsigned getMCReg(unsigned Reg, const MCSubtargetInfo &STI) {
 #undef CASE_CI_VI
 #undef CASE_VI_GFX9PLUS
 #undef CASE_GFXPRE11_GFX11PLUS
+#undef CASE_GFXPRE11_GFX11PLUS_TO
 
 #define CASE_CI_VI(node)   case node##_ci: case node##_vi:   return node;
 #define CASE_VI_GFX9PLUS(node) case node##_vi: case node##_gfx9plus: return node;
 #define CASE_GFXPRE11_GFX11PLUS(node) case node##_gfx11plus: case node##_gfxpre11: return node;
+#define CASE_GFXPRE11_GFX11PLUS_TO(node, result)
 
 unsigned mc2PseudoReg(unsigned Reg) {
   MAP_REG2REG
@@ -1845,6 +1929,7 @@ unsigned mc2PseudoReg(unsigned Reg) {
 #undef CASE_CI_VI
 #undef CASE_VI_GFX9PLUS
 #undef CASE_GFXPRE11_GFX11PLUS
+#undef CASE_GFXPRE11_GFX11PLUS_TO
 #undef MAP_REG2REG
 
 bool isSISrcOperand(const MCInstrDesc &Desc, unsigned OpNo) {

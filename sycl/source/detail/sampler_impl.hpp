@@ -9,9 +9,9 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/property_list.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/property_list.hpp>
 
 #include <unordered_map>
 

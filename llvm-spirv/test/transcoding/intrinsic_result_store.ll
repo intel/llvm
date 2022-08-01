@@ -1,7 +1,7 @@
 ; Regression test for intrinsic calls' translation edge cases
 ; with subsequent store instructions.
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM

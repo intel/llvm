@@ -395,11 +395,11 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
 
   if (const auto *AI = dyn_cast<AllocaInst>(L)) {
     T = AI->getAllocatedType();
-    LocAlign = MaybeAlign(AI->getAlignment());
+    LocAlign = AI->getAlign();
   } else {
     auto Arg = cast<Argument>(L);
     T = Arg->getParamByValType();
-    LocAlign = MaybeAlign(Arg->getParamAlignment());
+    LocAlign = Arg->getParamAlign();
   }
 
   assert(T && "Unexpected type");

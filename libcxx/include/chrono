@@ -13,6 +13,8 @@
 /*
     chrono synopsis
 
+#include <compare> // C++20
+
 namespace std
 {
 namespace chrono
@@ -325,11 +327,7 @@ struct last_spec;
 
 class day;
 constexpr bool operator==(const day& x, const day& y) noexcept;
-constexpr bool operator!=(const day& x, const day& y) noexcept;
-constexpr bool operator< (const day& x, const day& y) noexcept;
-constexpr bool operator> (const day& x, const day& y) noexcept;
-constexpr bool operator<=(const day& x, const day& y) noexcept;
-constexpr bool operator>=(const day& x, const day& y) noexcept;
+constexpr strong_ordering operator<=>(const day& x, const day& y) noexcept;
 constexpr day  operator+(const day&  x, const days& y) noexcept;
 constexpr day  operator+(const days& x, const day&  y) noexcept;
 constexpr day  operator-(const day&  x, const days& y) noexcept;
@@ -338,11 +336,8 @@ constexpr days operator-(const day&  x, const day&  y) noexcept;
 // 25.8.4, class month    // C++20
 class month;
 constexpr bool operator==(const month& x, const month& y) noexcept;
-constexpr bool operator!=(const month& x, const month& y) noexcept;
-constexpr bool operator< (const month& x, const month& y) noexcept;
-constexpr bool operator> (const month& x, const month& y) noexcept;
-constexpr bool operator<=(const month& x, const month& y) noexcept;
-constexpr bool operator>=(const month& x, const month& y) noexcept;
+constexpr strong_ordering operator<=>(const month& x, const month& y) noexcept;
+
 constexpr month  operator+(const month&  x, const months& y) noexcept;
 constexpr month  operator+(const months& x,  const month& y) noexcept;
 constexpr month  operator-(const month&  x, const months& y) noexcept;
@@ -351,11 +346,8 @@ constexpr months operator-(const month&  x,  const month& y) noexcept;
 // 25.8.5, class year    // C++20
 class year;
 constexpr bool operator==(const year& x, const year& y) noexcept;
-constexpr bool operator!=(const year& x, const year& y) noexcept;
-constexpr bool operator< (const year& x, const year& y) noexcept;
-constexpr bool operator> (const year& x, const year& y) noexcept;
-constexpr bool operator<=(const year& x, const year& y) noexcept;
-constexpr bool operator>=(const year& x, const year& y) noexcept;
+constexpr strong_ordering operator<=>(const year& x, const year& y) noexcept;
+
 constexpr year  operator+(const year&  x, const years& y) noexcept;
 constexpr year  operator+(const years& x, const year&  y) noexcept;
 constexpr year  operator-(const year&  x, const years& y) noexcept;
@@ -387,22 +379,14 @@ constexpr bool operator!=(const weekday_last& x, const weekday_last& y) noexcept
 class month_day;
 
 constexpr bool operator==(const month_day& x, const month_day& y) noexcept;
-constexpr bool operator!=(const month_day& x, const month_day& y) noexcept;
-constexpr bool operator< (const month_day& x, const month_day& y) noexcept;
-constexpr bool operator> (const month_day& x, const month_day& y) noexcept;
-constexpr bool operator<=(const month_day& x, const month_day& y) noexcept;
-constexpr bool operator>=(const month_day& x, const month_day& y) noexcept;
+constexpr strong_ordering operator<=>(const month_day& x, const month_day& y) noexcept;
 
 
 // 25.8.10, class month_day_last    // C++20
 class month_day_last;
 
 constexpr bool operator==(const month_day_last& x, const month_day_last& y) noexcept;
-constexpr bool operator!=(const month_day_last& x, const month_day_last& y) noexcept;
-constexpr bool operator< (const month_day_last& x, const month_day_last& y) noexcept;
-constexpr bool operator> (const month_day_last& x, const month_day_last& y) noexcept;
-constexpr bool operator<=(const month_day_last& x, const month_day_last& y) noexcept;
-constexpr bool operator>=(const month_day_last& x, const month_day_last& y) noexcept;
+constexpr strong_ordering operator<=>(const month_day_last& x, const month_day_last& y) noexcept;
 
 // 25.8.11, class month_weekday    // C++20
 class month_weekday;
@@ -421,11 +405,7 @@ constexpr bool operator!=(const month_weekday_last& x, const month_weekday_last&
 class year_month;
 
 constexpr bool operator==(const year_month& x, const year_month& y) noexcept;
-constexpr bool operator!=(const year_month& x, const year_month& y) noexcept;
-constexpr bool operator< (const year_month& x, const year_month& y) noexcept;
-constexpr bool operator> (const year_month& x, const year_month& y) noexcept;
-constexpr bool operator<=(const year_month& x, const year_month& y) noexcept;
-constexpr bool operator>=(const year_month& x, const year_month& y) noexcept;
+constexpr strong_ordering operator<=>(const year_month& x, const year_month& y) noexcept;
 
 constexpr year_month operator+(const year_month& ym, const months& dm) noexcept;
 constexpr year_month operator+(const months& dm, const year_month& ym) noexcept;
@@ -439,11 +419,7 @@ constexpr year_month operator-(const year_month& ym, const years& dy) noexcept;
 year_month_day;
 
 constexpr bool operator==(const year_month_day& x, const year_month_day& y) noexcept;
-constexpr bool operator!=(const year_month_day& x, const year_month_day& y) noexcept;
-constexpr bool operator< (const year_month_day& x, const year_month_day& y) noexcept;
-constexpr bool operator> (const year_month_day& x, const year_month_day& y) noexcept;
-constexpr bool operator<=(const year_month_day& x, const year_month_day& y) noexcept;
-constexpr bool operator>=(const year_month_day& x, const year_month_day& y) noexcept;
+constexpr strong_ordering operator<=>(const year_month_day& x, const year_month_day& y) noexcept;
 
 constexpr year_month_day operator+(const year_month_day& ymd, const months& dm) noexcept;
 constexpr year_month_day operator+(const months& dm, const year_month_day& ymd) noexcept;
@@ -456,18 +432,8 @@ constexpr year_month_day operator-(const year_month_day& ymd, const years& dy) n
 // 25.8.15, class year_month_day_last    // C++20
 class year_month_day_last;
 
-constexpr bool operator==(const year_month_day_last& x,
-                          const year_month_day_last& y) noexcept;
-constexpr bool operator!=(const year_month_day_last& x,
-                          const year_month_day_last& y) noexcept;
-constexpr bool operator< (const year_month_day_last& x,
-                          const year_month_day_last& y) noexcept;
-constexpr bool operator> (const year_month_day_last& x,
-                          const year_month_day_last& y) noexcept;
-constexpr bool operator<=(const year_month_day_last& x,
-                          const year_month_day_last& y) noexcept;
-constexpr bool operator>=(const year_month_day_last& x,
-                          const year_month_day_last& y) noexcept;
+constexpr bool operator==(const year_month_day_last& x, const year_month_day_last& y) noexcept;
+constexpr strong_ordering operator<=>(const year_month_day_last_day& x, const year_month_day_last_day& y) noexcept;
 
 constexpr year_month_day_last
   operator+(const year_month_day_last& ymdl, const months& dm) noexcept;
@@ -715,8 +681,10 @@ constexpr chrono::year                                  operator ""y(unsigned lo
 #include <__chrono/year_month_day.h>
 #include <__chrono/year_month_weekday.h>
 #include <__config>
-#include <compare>
 #include <version>
+
+// standard-mandated includes
+#include <compare>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header

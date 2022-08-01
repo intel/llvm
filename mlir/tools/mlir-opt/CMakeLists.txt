@@ -33,6 +33,7 @@ if(MLIR_INCLUDE_TESTS)
     MLIRTestRewrite
     MLIRTestTransformDialect
     MLIRTestTransforms
+    MLIRTilingInterfaceTestPasses
     MLIRVectorTestPasses
     )
 endif()
@@ -64,7 +65,7 @@ add_mlir_library(MLIRMlirOptMain
   ${LIBS}
   )
 
-add_llvm_tool(mlir-opt
+add_mlir_tool(mlir-opt
   mlir-opt.cpp
 
   DEPENDS

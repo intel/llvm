@@ -35,7 +35,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm> // std::sort
+#include <algorithm>
 
 using namespace clang;
 using namespace CodeGen;
@@ -260,6 +260,11 @@ bool ABIInfo::isHomogeneousAggregateSmallEnough(const Type *Base,
   return false;
 }
 
+bool ABIInfo::isZeroLengthBitfieldPermittedInHomogeneousAggregate() const {
+  // For compatibility with GCC, ignore empty bitfields in C++ mode.
+  return getContext().getLangOpts().CPlusPlus;
+}
+
 LLVM_DUMP_METHOD void ABIArgInfo::dump() const {
   raw_ostream &OS = llvm::errs();
   OS << "(ABIArgInfo Kind=";
@@ -457,6 +462,9 @@ static Address emitMergePHI(CodeGenFunction &CGF,
   CharUnits Align = std::min(Addr1.getAlignment(), Addr2.getAlignment());
   return Address(PHI, Addr1.getElementType(), Align);
 }
+
+TargetCodeGenInfo::TargetCodeGenInfo(std::unique_ptr<ABIInfo> Info)
+    : Info(std::move(Info)) {}
 
 TargetCodeGenInfo::~TargetCodeGenInfo() = default;
 
@@ -5233,8 +5241,7 @@ bool ABIInfo::isHomogeneousAggregate(QualType Ty, const Type *&Base,
       if (isEmptyRecord(getContext(), FT, true))
         continue;
 
-      // For compatibility with GCC, ignore empty bitfields in C++ mode.
-      if (getContext().getLangOpts().CPlusPlus &&
+      if (isZeroLengthBitfieldPermittedInHomogeneousAggregate() &&
           FD->isZeroLengthBitField(getContext()))
         continue;
 
@@ -5531,6 +5538,7 @@ private:
   bool isHomogeneousAggregateBaseType(QualType Ty) const override;
   bool isHomogeneousAggregateSmallEnough(const Type *Ty,
                                          uint64_t Members) const override;
+  bool isZeroLengthBitfieldPermittedInHomogeneousAggregate() const override;
 
   bool isIllegalVectorType(QualType Ty) const;
 
@@ -5990,6 +5998,16 @@ bool AArch64ABIInfo::isHomogeneousAggregateSmallEnough(const Type *Base,
   return Members <= 4;
 }
 
+bool AArch64ABIInfo::isZeroLengthBitfieldPermittedInHomogeneousAggregate()
+    const {
+  // AAPCS64 says that the rule for whether something is a homogeneous
+  // aggregate is applied to the output of the data layout decision. So
+  // anything that doesn't affect the data layout also does not affect
+  // homogeneity. In particular, zero-length bitfields don't stop a struct
+  // being homogeneous.
+  return true;
+}
+
 Address AArch64ABIInfo::EmitAAPCSVAArg(Address VAListAddr, QualType Ty,
                                        CodeGenFunction &CGF) const {
   ABIArgInfo AI = classifyArgumentType(Ty, /*IsVariadic=*/true,
@@ -6359,6 +6377,7 @@ private:
   bool isHomogeneousAggregateBaseType(QualType Ty) const override;
   bool isHomogeneousAggregateSmallEnough(const Type *Ty,
                                          uint64_t Members) const override;
+  bool isZeroLengthBitfieldPermittedInHomogeneousAggregate() const override;
 
   bool isEffectivelyAAPCS_VFP(unsigned callConvention, bool acceptHalf) const;
 
@@ -7020,6 +7039,15 @@ bool ARMABIInfo::isHomogeneousAggregateBaseType(QualType Ty) const {
 bool ARMABIInfo::isHomogeneousAggregateSmallEnough(const Type *Base,
                                                    uint64_t Members) const {
   return Members <= 4;
+}
+
+bool ARMABIInfo::isZeroLengthBitfieldPermittedInHomogeneousAggregate() const {
+  // AAPCS32 says that the rule for whether something is a homogeneous
+  // aggregate is applied to the output of the data layout decision. So
+  // anything that doesn't affect the data layout also does not affect
+  // homogeneity. In particular, zero-length bitfields don't stop a struct
+  // being homogeneous.
+  return true;
 }
 
 bool ARMABIInfo::isEffectivelyAAPCS_VFP(unsigned callConvention,
@@ -9500,7 +9528,7 @@ AMDGPUTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
   if (CGM.isTypeConstant(D->getType(), false) &&
       D->hasConstantInitialization()) {
     if (auto ConstAS = CGM.getTarget().getConstantAddressSpace())
-      return ConstAS.getValue();
+      return *ConstAS;
   }
   return DefaultGlobalAS;
 }
@@ -10585,6 +10613,15 @@ ABIArgInfo SPIRVABIInfo::classifyKernelArgumentType(QualType Ty) const {
       LTy = llvm::PointerType::getWithSamePointeeType(PtrTy, GlobalAS);
       return ABIArgInfo::getDirect(LTy, 0, nullptr, false);
     }
+
+    // Force copying aggregate type in kernel arguments by value when
+    // compiling CUDA targeting SPIR-V. This is required for the object
+    // copied to be valid on the device.
+    // This behavior follows the CUDA spec
+    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#global-function-argument-processing,
+    // and matches the NVPTX implementation.
+    if (isAggregateTypeForABI(Ty))
+      return getNaturalAlignIndirect(Ty, /* byval */ true);
   }
   return classifyArgumentType(Ty);
 }

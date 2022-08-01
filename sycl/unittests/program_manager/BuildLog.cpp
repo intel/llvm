@@ -9,7 +9,6 @@
 #include "gtest/internal/gtest-internal.h"
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
@@ -17,6 +16,7 @@
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -94,11 +94,16 @@ TEST(BuildLog, OutputNothingOnLevel1) {
     GTEST_SKIP_("Test is not supported on this platform");
   }
 
+  const sycl::device Dev = Plt.get_devices()[0];
+  if (!Dev.has(sycl::aspect::online_compiler)) {
+    GTEST_SKIP_("Test is not supported on this device due to missing support "
+                "for sycl::aspect::online_compiler");
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
-  const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 
@@ -127,11 +132,16 @@ TEST(BuildLog, OutputLogOnLevel2) {
     GTEST_SKIP_("Test is not supported on this platform");
   }
 
+  const sycl::device Dev = Plt.get_devices()[0];
+  if (!Dev.has(sycl::aspect::online_compiler)) {
+    GTEST_SKIP_("Test is not supported on this device due to missing support "
+                "for sycl::aspect::online_compiler");
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   setupCommonTestAPIs(Mock);
 
-  const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};
 

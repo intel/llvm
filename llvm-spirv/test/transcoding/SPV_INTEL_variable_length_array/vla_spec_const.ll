@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=0 < %s -o %t.bc
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_variable_length_array
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv  --spec-const=0:i64:28 -o %t.rev.bc

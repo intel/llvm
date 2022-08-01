@@ -17,9 +17,9 @@
 #include "flang/Lower/PFTBuilder.h"
 #include "flang/Lower/Runtime.h"
 #include "flang/Lower/StatementContext.h"
-#include "flang/Lower/Todo.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
 #include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
+#include "flang/Optimizer/Builder/Todo.h"
 #include "flang/Optimizer/Dialect/FIROps.h"
 #include "flang/Optimizer/Dialect/FIROpsSupport.h"
 #include "flang/Optimizer/Support/FatalError.h"
@@ -430,7 +430,7 @@ private:
     if (const Fortran::semantics::DerivedTypeSpec *derived =
             typeSpec->AsDerived())
       if (Fortran::semantics::CountLenParameters(*derived) > 0)
-        TODO(loc, "TODO: setting derived type params in allocation");
+        TODO(loc, "setting derived type params in allocation");
     if (typeSpec->category() ==
         Fortran::semantics::DeclTypeSpec::Category::Character) {
       Fortran::semantics::ParamValue lenParam =
@@ -462,13 +462,13 @@ private:
   }
 
   void genSourceAllocation(const Allocation &, const fir::MutableBoxValue &) {
-    TODO(loc, "SOURCE allocation lowering");
+    TODO(loc, "SOURCE allocation");
   }
   void genMoldAllocation(const Allocation &, const fir::MutableBoxValue &) {
-    TODO(loc, "MOLD allocation lowering");
+    TODO(loc, "MOLD allocation");
   }
   void genSetType(const Allocation &, const fir::MutableBoxValue &) {
-    TODO(loc, "Polymorphic entity allocation lowering");
+    TODO(loc, "polymorphic entity allocation");
   }
 
   /// Returns a pointer to the DeclTypeSpec if a type-spec is provided in the
@@ -500,7 +500,6 @@ void Fortran::lower::genAllocateStmt(
     Fortran::lower::AbstractConverter &converter,
     const Fortran::parser::AllocateStmt &stmt, mlir::Location loc) {
   AllocateStmtHelper{converter, stmt, loc}.lower();
-  return;
 }
 
 //===----------------------------------------------------------------------===//

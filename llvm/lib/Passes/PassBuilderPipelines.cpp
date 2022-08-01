@@ -172,7 +172,7 @@ static cl::opt<bool> EnableEagerlyInvalidateAnalyses(
     cl::desc("Eagerly invalidate more analyses in default pipelines"));
 
 static cl::opt<bool> EnableNoRerunSimplificationPipeline(
-    "enable-no-rerun-simplification-pipeline", cl::init(false), cl::Hidden,
+    "enable-no-rerun-simplification-pipeline", cl::init(true), cl::Hidden,
     cl::desc(
         "Prevent running the simplification pipeline on a function more "
         "than once in the case that SCC mutations cause a function to be "
@@ -637,7 +637,8 @@ void PassBuilder::addRequiredLTOPreLinkPasses(ModulePassManager &MPM) {
 void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
                                     OptimizationLevel Level, bool RunProfileGen,
                                     bool IsCS, std::string ProfileFile,
-                                    std::string ProfileRemappingFile) {
+                                    std::string ProfileRemappingFile,
+                                    ThinOrFullLTOPhase LTOPhase) {
   assert(Level != OptimizationLevel::O0 && "Not expecting O0 here!");
   if (!IsCS && !DisablePreInliner) {
     InlineParams IP;
@@ -649,7 +650,9 @@ void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
     // performance testing.
     // FIXME: this comment is cargo culted from the old pass manager, revisit).
     IP.HintThreshold = Level.isOptimizingForSize() ? PreInlineThreshold : 325;
-    ModuleInlinerWrapperPass MIWP(IP);
+    ModuleInlinerWrapperPass MIWP(
+        IP, /* MandatoryFirst */ true,
+        InlineContext{LTOPhase, InlinePass::EarlyInliner});
     CGSCCPassManager &CGPipeline = MIWP.getPM();
 
     FunctionPassManager FPM;
@@ -747,8 +750,10 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
   if (PGOOpt)
     IP.EnableDeferral = EnablePGOInlineDeferral;
 
-  ModuleInlinerWrapperPass MIWP(IP, PerformMandatoryInliningsFirst,
-                                UseInlineAdvisor, MaxDevirtIterations);
+  ModuleInlinerWrapperPass MIWP(
+      IP, PerformMandatoryInliningsFirst,
+      InlineContext{Phase, InlinePass::CGSCCInliner},
+      UseInlineAdvisor, MaxDevirtIterations);
 
   // Require the GlobalsAA analysis for the module so we can query it within
   // the CGSCC pipeline.
@@ -834,7 +839,7 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
   // inline deferral logic in module inliner.
   IP.EnableDeferral = false;
 
-  MPM.addPass(ModuleInlinerPass(IP, UseInlineAdvisor));
+  MPM.addPass(ModuleInlinerPass(IP, UseInlineAdvisor, Phase));
 
   MPM.addPass(createModuleToFunctionPassAdaptor(
       buildFunctionSimplificationPipeline(Level, Phase),
@@ -994,7 +999,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
     addPGOInstrPasses(MPM, Level,
                       /* RunProfileGen */ PGOOpt->Action == PGOOptions::IRInstr,
                       /* IsCS */ false, PGOOpt->ProfileFile,
-                      PGOOpt->ProfileRemappingFile);
+                      PGOOpt->ProfileRemappingFile, Phase);
     MPM.addPass(PGOIndirectCallPromotion(false, false));
   }
   if (PGOOpt && Phase != ThinOrFullLTOPhase::ThinLTOPostLink &&
@@ -1148,7 +1153,9 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
 
 ModulePassManager
 PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
-                                             bool LTOPreLink) {
+                                             ThinOrFullLTOPhase LTOPhase) {
+  const bool LTOPreLink = (LTOPhase == ThinOrFullLTOPhase::ThinLTOPreLink ||
+                           LTOPhase == ThinOrFullLTOPhase::FullLTOPreLink);
   ModulePassManager MPM;
 
   // Optimize globals now that the module is fully simplified.
@@ -1188,11 +1195,11 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
     if (PGOOpt->CSAction == PGOOptions::CSIRInstr)
       addPGOInstrPasses(MPM, Level, /* RunProfileGen */ true,
                         /* IsCS */ true, PGOOpt->CSProfileGenFile,
-                        PGOOpt->ProfileRemappingFile);
+                        PGOOpt->ProfileRemappingFile, LTOPhase);
     else if (PGOOpt->CSAction == PGOOptions::CSIRUse)
       addPGOInstrPasses(MPM, Level, /* RunProfileGen */ false,
                         /* IsCS */ true, PGOOpt->ProfileFile,
-                        PGOOpt->ProfileRemappingFile);
+                        PGOOpt->ProfileRemappingFile, LTOPhase);
   }
 
   // Re-compute GlobalsAA here prior to function passes. This is particularly
@@ -1267,6 +1274,9 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   // flattening of blocks.
   OptimizePM.addPass(DivRemPairsPass());
 
+  // Try to annotate calls that were created during optimization.
+  OptimizePM.addPass(TailCallElimPass());
+
   // LoopSink (and other loop passes since the last simplifyCFG) might have
   // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
   OptimizePM.addPass(
@@ -1296,15 +1306,15 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   if (PTO.MergeFunctions)
     MPM.addPass(MergeFunctionsPass());
 
-  if (PTO.CallGraphProfile)
-    MPM.addPass(CGProfilePass());
-
   // Now we need to do some global optimization transforms.
   // FIXME: It would seem like these should come first in the optimization
   // pipeline and maybe be the bottom of the canonicalization pipeline? Weird
   // ordering here.
   MPM.addPass(GlobalDCEPass());
   MPM.addPass(ConstantMergePass());
+
+  if (PTO.CallGraphProfile && !LTOPreLink)
+    MPM.addPass(CGProfilePass());
 
   // TODO: Relative look table converter pass caused an issue when full lto is
   // enabled. See https://reviews.llvm.org/D94355 for more details.
@@ -1336,13 +1346,14 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   if (PGOOpt && PGOOpt->DebugInfoForProfiling)
     MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
 
+  const ThinOrFullLTOPhase LTOPhase = LTOPreLink
+                                          ? ThinOrFullLTOPhase::FullLTOPreLink
+                                          : ThinOrFullLTOPhase::None;
   // Add the core simplification pipeline.
-  MPM.addPass(buildModuleSimplificationPipeline(
-      Level, LTOPreLink ? ThinOrFullLTOPhase::FullLTOPreLink
-                        : ThinOrFullLTOPhase::None));
+  MPM.addPass(buildModuleSimplificationPipeline(Level, LTOPhase));
 
   // Now add the optimization pipeline.
-  MPM.addPass(buildModuleOptimizationPipeline(Level, LTOPreLink));
+  MPM.addPass(buildModuleOptimizationPipeline(Level, LTOPhase));
 
   if (PGOOpt && PGOOpt->PseudoProbeForProfiling &&
       PGOOpt->Action == PGOOptions::SampleUse)
@@ -1461,7 +1472,8 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
       Level, ThinOrFullLTOPhase::ThinLTOPostLink));
 
   // Now add the optimization pipeline.
-  MPM.addPass(buildModuleOptimizationPipeline(Level));
+  MPM.addPass(buildModuleOptimizationPipeline(
+      Level, ThinOrFullLTOPhase::ThinLTOPostLink));
 
   // Emit annotation remarks.
   addAnnotationRemarksPass(MPM);
@@ -1624,7 +1636,11 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // valuable as the inliner doesn't currently care whether it is inlining an
   // invoke or a call.
   // Run the inliner now.
-  MPM.addPass(ModuleInlinerWrapperPass(getInlineParamsFromOptLevel(Level)));
+  MPM.addPass(ModuleInlinerWrapperPass(
+      getInlineParamsFromOptLevel(Level),
+      /* MandatoryFirst */ true,
+      InlineContext{ThinOrFullLTOPhase::FullLTOPostLink,
+                          InlinePass::CGSCCInliner}));
 
   // Optimize globals again after we ran the inliner.
   MPM.addPass(GlobalOptPass());
@@ -1649,11 +1665,13 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
     if (PGOOpt->CSAction == PGOOptions::CSIRInstr)
       addPGOInstrPasses(MPM, Level, /* RunProfileGen */ true,
                         /* IsCS */ true, PGOOpt->CSProfileGenFile,
-                        PGOOpt->ProfileRemappingFile);
+                        PGOOpt->ProfileRemappingFile,
+                        ThinOrFullLTOPhase::FullLTOPostLink);
     else if (PGOOpt->CSAction == PGOOptions::CSIRUse)
       addPGOInstrPasses(MPM, Level, /* RunProfileGen */ false,
                         /* IsCS */ true, PGOOpt->ProfileFile,
-                        PGOOpt->ProfileRemappingFile);
+                        PGOOpt->ProfileRemappingFile,
+                        ThinOrFullLTOPhase::FullLTOPostLink);
   }
 
   // Break up allocas
@@ -1738,8 +1756,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   // in ICP (which is performed earlier than this in the regular LTO pipeline).
   MPM.addPass(LowerTypeTestsPass(nullptr, nullptr, true));
 
-  // Enable splitting late in the FullLTO post-link pipeline. This is done in
-  // the same stage in the old pass manager (\ref addLateLTOOptimizationPasses).
+  // Enable splitting late in the FullLTO post-link pipeline.
   if (EnableHotColdSplit)
     MPM.addPass(HotColdSplittingPass());
 
@@ -1757,6 +1774,9 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
 
   if (PTO.MergeFunctions)
     MPM.addPass(MergeFunctionsPass());
+
+  if (PTO.CallGraphProfile)
+    MPM.addPass(CGProfilePass());
 
   for (auto &C : FullLinkTimeOptimizationLastEPCallbacks)
     C(MPM, Level);

@@ -63,11 +63,9 @@ public:
 
 private:
   struct GEPInfo {
-    const MachineInstr &GEP;
     SmallVector<unsigned, 2> SgprParts;
     SmallVector<unsigned, 2> VgprParts;
-    int64_t Imm;
-    GEPInfo(const MachineInstr &GEP) : GEP(GEP), Imm(0) { }
+    int64_t Imm = 0;
   };
 
   bool isSGPR(Register Reg) const;
@@ -150,8 +148,9 @@ private:
   bool selectSMFMACIntrin(MachineInstr &I) const;
   bool selectWaveAddress(MachineInstr &I) const;
 
-  std::pair<Register, unsigned> selectVOP3ModsImpl(MachineOperand &Root,
-                                                   bool AllowAbs = true) const;
+  std::pair<Register, unsigned>
+  selectVOP3ModsImpl(MachineOperand &Root, bool AllowAbs = true,
+                     bool OpSel = false, bool ForceVGPR = false) const;
 
   InstructionSelector::ComplexRendererFns
   selectVCSRC(MachineOperand &Root) const;
@@ -186,14 +185,29 @@ private:
   selectVOP3PModsDOT(MachineOperand &Root) const;
 
   InstructionSelector::ComplexRendererFns
+  selectDotIUVOP3PMods(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectWMMAOpSelVOP3PMods(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
   selectVOP3OpSelMods(MachineOperand &Root) const;
 
+  InstructionSelector::ComplexRendererFns
+  selectVINTERPMods(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectVINTERPModsHi(MachineOperand &Root) const;
+
+  bool selectSmrdOffset(MachineOperand &Root, Register &Base, Register *SOffset,
+                        int64_t *Offset) const;
   InstructionSelector::ComplexRendererFns
   selectSmrdImm(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectSmrdImm32(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectSmrdSgpr(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectSmrdSgprImm(MachineOperand &Root) const;
 
   std::pair<Register, int> selectFlatOffsetImpl(MachineOperand &Root,
                                                 uint64_t FlatVariant) const;
@@ -210,6 +224,8 @@ private:
 
   InstructionSelector::ComplexRendererFns
   selectScratchSAddr(MachineOperand &Root) const;
+  bool checkFlatScratchSVSSwizzleBug(Register VAddr, Register SAddr,
+                                     uint64_t ImmOffset) const;
   InstructionSelector::ComplexRendererFns
   selectScratchSVAddr(MachineOperand &Root) const;
 

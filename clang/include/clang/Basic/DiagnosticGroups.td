@@ -15,6 +15,8 @@ def Implicit : DiagGroup<"implicit", [
     ImplicitInt
 ]>;
 
+def DeprecatedStaticAnalyzerFlag : DiagGroup<"deprecated-static-analyzer-flag">;
+
 // Empty DiagGroups are recognized by clang but ignored.
 def ODR : DiagGroup<"odr">;
 def : DiagGroup<"abi">;
@@ -29,10 +31,11 @@ def GNUAnonymousStruct : DiagGroup<"gnu-anonymous-struct">;
 def GNUAutoType : DiagGroup<"gnu-auto-type">;
 def ArrayBounds : DiagGroup<"array-bounds">;
 def ArrayBoundsPointerArithmetic : DiagGroup<"array-bounds-pointer-arithmetic">;
+def ArrayParameter : DiagGroup<"array-parameter">;
 def AutoDisableVptrSanitizer : DiagGroup<"auto-disable-vptr-sanitizer">;
 def Availability : DiagGroup<"availability">;
 def Section : DiagGroup<"section">;
-def AutoImport : DiagGroup<"auto-import">;
+def : DiagGroup<"auto-import">;
 def FrameworkHdrQuotedInclude : DiagGroup<"quoted-include-in-framework-header">;
 def FrameworkIncludePrivateFromPublic :
   DiagGroup<"framework-include-private-from-public">;
@@ -185,6 +188,7 @@ def UnguardedAvailability : DiagGroup<"unguarded-availability",
 def : DiagGroup<"partial-availability", [UnguardedAvailability]>;
 def DeprecatedDynamicExceptionSpec
     : DiagGroup<"deprecated-dynamic-exception-spec">;
+def DeprecatedBuiltins : DiagGroup<"deprecated-builtins">;
 def DeprecatedImplementations :DiagGroup<"deprecated-implementations">;
 def DeprecatedIncrementBool : DiagGroup<"deprecated-increment-bool">;
 def DeprecatedRegister : DiagGroup<"deprecated-register">;
@@ -207,6 +211,7 @@ def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedEnumCompareConditional,
                                           DeprecatedEnumEnumConversion,
                                           DeprecatedEnumFloatConversion,
+                                          DeprecatedBuiltins,
                                           DeprecatedIncrementBool,
                                           DeprecatedPragma,
                                           DeprecatedRegister,
@@ -488,6 +493,7 @@ def ModuleBuild : DiagGroup<"module-build">;
 def ModuleImport : DiagGroup<"module-import">;
 def ModuleConflict : DiagGroup<"module-conflict">;
 def ModuleFileExtension : DiagGroup<"module-file-extension">;
+def ModuleIncludeDirectiveTranslation : DiagGroup<"module-include-translation">;
 def RoundTripCC1Args : DiagGroup<"round-trip-cc1-args">;
 def NewlineEOF : DiagGroup<"newline-eof">;
 def Nullability : DiagGroup<"nullability">;
@@ -735,9 +741,10 @@ def NSobjectAttribute : DiagGroup<"NSObject-attribute">;
 def NSConsumedMismatch : DiagGroup<"nsconsumed-mismatch">;
 def NSReturnsMismatch : DiagGroup<"nsreturns-mismatch">;
 
+def SyclIvdepAttribute : DiagGroup<"ivdep-compat">;
 def IndependentClassAttribute : DiagGroup<"IndependentClass-attribute">;
 def UnknownAttributes : DiagGroup<"unknown-attributes">;
-def IgnoredAttributes : DiagGroup<"ignored-attributes">;
+def IgnoredAttributes : DiagGroup<"ignored-attributes", [SyclIvdepAttribute]>;
 def AcceptedAttributes : DiagGroup<"accepted-attributes">;
 def Attributes : DiagGroup<"attributes", [UnknownAttributes,
                                           IgnoredAttributes,
@@ -981,6 +988,7 @@ def Extra : DiagGroup<"extra", [
   ]>;
 
 def Most : DiagGroup<"most", [
+    ArrayParameter,
     BoolOperation,
     CharSubscript,
     Comment,

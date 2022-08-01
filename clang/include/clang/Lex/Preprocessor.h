@@ -67,7 +67,6 @@ namespace clang {
 class CodeCompletionHandler;
 class CommentHandler;
 class DirectoryEntry;
-class DirectoryLookup;
 class EmptylineHandler;
 class ExternalPreprocessorSource;
 class FileEntry;
@@ -385,6 +384,7 @@ private:
 
     bool atTopLevel() { return S <= 0; }
     bool afterImportSeq() { return S == AfterImportSeq; }
+    bool afterTopLevelSeq() { return S == AfterTopLevelTokenSeq; }
 
   private:
     State S;
@@ -396,6 +396,67 @@ private:
 
   /// Our current position within a C++20 import-seq.
   ImportSeq ImportSeqState = ImportSeq::AfterTopLevelTokenSeq;
+
+  /// Track whether we are in a Global Module Fragment
+  class TrackGMF {
+  public:
+    enum GMFState : int {
+      GMFActive = 1,
+      MaybeGMF = 0,
+      BeforeGMFIntroducer = -1,
+      GMFAbsentOrEnded = -2,
+    };
+
+    TrackGMF(GMFState S) : S(S) {}
+
+    /// Saw a semicolon.
+    void handleSemi() {
+      // If it is immediately after the first instance of the module keyword,
+      // then that introduces the GMF.
+      if (S == MaybeGMF)
+        S = GMFActive;
+    }
+
+    /// Saw an 'export' identifier.
+    void handleExport() {
+      // The presence of an 'export' keyword always ends or excludes a GMF.
+      S = GMFAbsentOrEnded;
+    }
+
+    /// Saw an 'import' identifier.
+    void handleImport(bool AfterTopLevelTokenSeq) {
+      // If we see this before any 'module' kw, then we have no GMF.
+      if (AfterTopLevelTokenSeq && S == BeforeGMFIntroducer)
+        S = GMFAbsentOrEnded;
+    }
+
+    /// Saw a 'module' identifier.
+    void handleModule(bool AfterTopLevelTokenSeq) {
+      // This was the first module identifier and not preceded by any token
+      // that would exclude a GMF.  It could begin a GMF, but only if directly
+      // followed by a semicolon.
+      if (AfterTopLevelTokenSeq && S == BeforeGMFIntroducer)
+        S = MaybeGMF;
+      else
+        S = GMFAbsentOrEnded;
+    }
+
+    /// Saw any other token.
+    void handleMisc() {
+      // We saw something other than ; after the 'module' kw, so not a GMF.
+      if (S == MaybeGMF)
+        S = GMFAbsentOrEnded;
+    }
+
+    bool inGMF() { return S == GMFActive; }
+
+  private:
+    /// Track the transitions into and out of a Global Module Fragment,
+    /// if one is present.
+    GMFState S;
+  };
+
+  TrackGMF TrackGMFState = TrackGMF::BeforeGMFIntroducer;
 
   /// Whether the module import expects an identifier next. Otherwise,
   /// it expects a '.' or ';'.
@@ -517,7 +578,7 @@ private:
 
     bool hasRecordedPreamble() const { return !ConditionalStack.empty(); }
 
-    bool reachedEOFWhileSkipping() const { return SkipInfo.hasValue(); }
+    bool reachedEOFWhileSkipping() const { return SkipInfo.has_value(); }
 
     void clearSkipInfo() { SkipInfo.reset(); }
 
@@ -951,6 +1012,18 @@ private:
   /// MacroInfos are managed as a chain for easy disposal.  This is the head
   /// of that list.
   MacroInfoChain *MIChainHead = nullptr;
+
+  /// True if \p Preprocessor::SkipExcludedConditionalBlock() is running.
+  /// This is used to guard against calling this function recursively.
+  ///
+  /// See comments at the use-site for more context about why it is needed.
+  bool SkippingExcludedConditionalBlock = false;
+
+  /// Keeps track of skipped range mappings that were recorded while skipping
+  /// excluded conditional directives. It maps the source buffer pointer at
+  /// the beginning of a skipped block, to the number of bytes that should be
+  /// skipped.
+  llvm::DenseMap<const char *, unsigned> RecordedSkippedRanges;
 
   void updateOutOfDateIdentifier(IdentifierInfo &II) const;
 
@@ -2243,10 +2316,7 @@ private:
   ///
   /// \param Tok - Token that represents the directive
   /// \param Directive - String reference for the directive name
-  /// \param EndLoc - End location for fixit
-  void SuggestTypoedDirective(const Token &Tok,
-                              StringRef Directive,
-                              const SourceLocation &EndLoc) const;
+  void SuggestTypoedDirective(const Token &Tok, StringRef Directive) const;
 
   /// We just read a \#if or related directive and decided that the
   /// subsequent tokens are in the \#if'd out portion of the
@@ -2405,6 +2475,7 @@ private:
       None,
       ModuleBegin,
       ModuleImport,
+      HeaderUnitImport,
       SkippedModuleImport,
       Failure,
     } Kind;

@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/program.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/kernel.hpp>
+#include <sycl/program.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -52,7 +52,7 @@ kernel::get_info() const {
   template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>()  \
       const;
 
-#include <CL/sycl/info/kernel_traits.def>
+#include <sycl/info/kernel_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -78,24 +78,10 @@ kernel::get_info(const device &Device,
   template __SYCL_EXPORT ret_type kernel::get_info<info::param_type::param>(   \
       const device &, in_type) const;
 
-#include <CL/sycl/info/kernel_device_specific_traits.def>
+#include <sycl/info/kernel_device_specific_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT
-
-template <info::kernel_work_group param>
-typename info::param_traits<info::kernel_work_group, param>::return_type
-kernel::get_work_group_info(const device &dev) const {
-  return impl->get_work_group_info<param>(dev);
-}
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  kernel::get_work_group_info<info::param_type::param>(const device &) const;
-
-#include <CL/sycl/info/kernel_work_group_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 template <info::kernel_sub_group param>
 typename info::param_traits<info::kernel_sub_group, param>::return_type
@@ -121,7 +107,7 @@ kernel::get_sub_group_info(
   kernel::get_sub_group_info<info::param_type::param>(const device &, in_type) \
       const;
 
-#include <CL/sycl/info/kernel_sub_group_traits.def>
+#include <sycl/info/kernel_sub_group_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_WITH_INPUT

@@ -432,8 +432,8 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *gv) {
 
   uint64_t alignment = 0;
   llvm::MaybeAlign maybeAlign = gv->getAlign();
-  if (maybeAlign.hasValue()) {
-    llvm::Align align = maybeAlign.getValue();
+  if (maybeAlign.has_value()) {
+    llvm::Align align = maybeAlign.value();
     alignment = align.value();
   }
 
@@ -533,15 +533,28 @@ Value Importer::processConstant(llvm::Constant *c) {
     Type rootType = processType(c->getType());
     if (!rootType)
       return nullptr;
+    bool useInsertValue = rootType.isa<LLVMArrayType, LLVMStructType>();
+    assert((useInsertValue || LLVM::isCompatibleVectorType(rootType)) &&
+           "unrecognized aggregate type");
     Value root = bEntry.create<UndefOp>(unknownLoc, rootType);
     for (unsigned i = 0; i < numElements; ++i) {
       llvm::Constant *element = getElement(i);
       Value elementValue = processConstant(element);
       if (!elementValue)
         return nullptr;
-      ArrayAttr indexAttr = bEntry.getI32ArrayAttr({static_cast<int32_t>(i)});
-      root = bEntry.create<InsertValueOp>(UnknownLoc::get(context), rootType,
-                                          root, elementValue, indexAttr);
+      if (useInsertValue) {
+        ArrayAttr indexAttr = bEntry.getI32ArrayAttr({static_cast<int32_t>(i)});
+        root = bEntry.create<InsertValueOp>(UnknownLoc::get(context), rootType,
+                                            root, elementValue, indexAttr);
+      } else {
+        Attribute indexAttr = bEntry.getI32IntegerAttr(static_cast<int32_t>(i));
+        Value indexValue = bEntry.create<ConstantOp>(
+            unknownLoc, bEntry.getI32Type(), indexAttr);
+        if (!indexValue)
+          return nullptr;
+        root = bEntry.create<InsertElementOp>(
+            UnknownLoc::get(context), rootType, root, elementValue, indexValue);
+      }
     }
     return root;
   }

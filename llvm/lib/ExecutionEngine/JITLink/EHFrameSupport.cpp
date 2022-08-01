@@ -33,7 +33,7 @@ Error EHFrameEdgeFixer::operator()(LinkGraph &G) {
   if (!EHFrame) {
     LLVM_DEBUG({
       dbgs() << "EHFrameEdgeFixer: No " << EHFrameSectionName
-             << " section. Nothing to do\n";
+             << " section in \"" << G.getName() << "\". Nothing to do.\n";
     });
     return Error::success();
   }
@@ -44,7 +44,8 @@ Error EHFrameEdgeFixer::operator()(LinkGraph &G) {
         "EHFrameEdgeFixer only supports 32 and 64 bit targets");
 
   LLVM_DEBUG({
-    dbgs() << "EHFrameEdgeFixer: Processing " << EHFrameSectionName << "...\n";
+    dbgs() << "EHFrameEdgeFixer: Processing " << EHFrameSectionName << " in \""
+           << G.getName() << "\"...\n";
   });
 
   ParseContext PC(G);
@@ -213,10 +214,6 @@ Error EHFrameEdgeFixer::processCIE(ParseContext &PC, Block &B,
     uint64_t CodeAlignmentFactor = 0;
     if (auto Err = RecordReader.readULEB128(CodeAlignmentFactor))
       return Err;
-    if (CodeAlignmentFactor != 1)
-      return make_error<JITLinkError>("Unsupported CIE code alignment factor " +
-                                      Twine(CodeAlignmentFactor) +
-                                      " (expected 1)");
   }
 
   // Read and validate the data alignment factor.
@@ -224,10 +221,6 @@ Error EHFrameEdgeFixer::processCIE(ParseContext &PC, Block &B,
     int64_t DataAlignmentFactor = 0;
     if (auto Err = RecordReader.readSLEB128(DataAlignmentFactor))
       return Err;
-    if (DataAlignmentFactor != -8)
-      return make_error<JITLinkError>("Unsupported CIE data alignment factor " +
-                                      Twine(DataAlignmentFactor) +
-                                      " (expected -8)");
   }
 
   // Skip the return address register field.

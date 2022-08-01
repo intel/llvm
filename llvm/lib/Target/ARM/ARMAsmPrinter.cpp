@@ -535,7 +535,7 @@ void ARMAsmPrinter::emitEndOfAsmFile(Module &M) {
 
     if (!Stubs.empty()) {
       // Switch with ".non_lazy_symbol_pointer" directive.
-      OutStreamer->SwitchSection(TLOFMacho.getNonLazySymbolPointerSection());
+      OutStreamer->switchSection(TLOFMacho.getNonLazySymbolPointerSection());
       emitAlignment(Align(4));
 
       for (auto &Stub : Stubs)
@@ -548,7 +548,7 @@ void ARMAsmPrinter::emitEndOfAsmFile(Module &M) {
     Stubs = MMIMacho.GetThreadLocalGVStubList();
     if (!Stubs.empty()) {
       // Switch with ".non_lazy_symbol_pointer" directive.
-      OutStreamer->SwitchSection(TLOFMacho.getThreadLocalPointerSection());
+      OutStreamer->switchSection(TLOFMacho.getThreadLocalPointerSection());
       emitAlignment(Align(4));
 
       for (auto &Stub : Stubs)
@@ -1337,6 +1337,10 @@ void ARMAsmPrinter::EmitUnwindingInstruction(const MachineInstr *MI) {
 #include "ARMGenMCPseudoLowering.inc"
 
 void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  // TODOD FIXME: Enable feature predicate checks once all the test pass.
+  // ARM_MC::verifyInstructionPredicates(MI->getOpcode(),
+  //                                   getSubtargetInfo().getFeatureBits());
+
   const DataLayout &DL = getDataLayout();
   MCTargetStreamer &TS = *OutStreamer->getTargetStreamer();
   ARMTargetStreamer &ATS = static_cast<ARMTargetStreamer &>(TS);

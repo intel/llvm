@@ -544,7 +544,7 @@ BinaryBasicBlock::getBranchStats(const BinaryBasicBlock *Succ) const {
     }
 
     if (TotalCount > 0) {
-      auto Itr = std::find(Successors.begin(), Successors.end(), Succ);
+      auto Itr = llvm::find(Successors, Succ);
       assert(Itr != Successors.end());
       const BinaryBranchInfo &BI = BranchInfo[Itr - Successors.begin()];
       if (BI.Count && BI.Count != COUNT_NO_PROFILE) {
@@ -563,7 +563,7 @@ void BinaryBasicBlock::dump() const {
   if (Label)
     outs() << Label->getName() << ":\n";
   BC.printInstructions(outs(), Instructions.begin(), Instructions.end(),
-                       getOffset());
+                       getOffset(), Function);
   outs() << "preds:";
   for (auto itr = pred_begin(); itr != pred_end(); ++itr) {
     outs() << " " << (*itr)->getName();
@@ -608,7 +608,7 @@ BinaryBasicBlock::getBranchInfo(const MCSymbol *Label) {
 BinaryBasicBlock *BinaryBasicBlock::splitAt(iterator II) {
   assert(II != end() && "expected iterator pointing to instruction");
 
-  BinaryBasicBlock *NewBlock = getFunction()->addBasicBlock(0);
+  BinaryBasicBlock *NewBlock = getFunction()->addBasicBlock();
 
   // Adjust successors/predecessors and propagate the execution count.
   moveAllSuccessorsTo(NewBlock);

@@ -140,7 +140,7 @@ static Value *foldMulSelectToNegate(BinaryOperator &I,
 }
 
 Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
-  if (Value *V = SimplifyMulInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyMulInst(I.getOperand(0), I.getOperand(1),
                                  SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -460,7 +460,7 @@ Instruction *InstCombinerImpl::foldFPSignBitOps(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
-  if (Value *V = SimplifyFMulInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFMulInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -505,20 +505,23 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       Constant *C1;
       if (match(Op0, m_OneUse(m_FDiv(m_Constant(C1), m_Value(X))))) {
         // (C1 / X) * C --> (C * C1) / X
-        Constant *CC1 = ConstantExpr::getFMul(C, C1);
-        if (CC1->isNormalFP())
+        Constant *CC1 =
+            ConstantFoldBinaryOpOperands(Instruction::FMul, C, C1, DL);
+        if (CC1 && CC1->isNormalFP())
           return BinaryOperator::CreateFDivFMF(CC1, X, &I);
       }
       if (match(Op0, m_FDiv(m_Value(X), m_Constant(C1)))) {
         // (X / C1) * C --> X * (C / C1)
-        Constant *CDivC1 = ConstantExpr::getFDiv(C, C1);
-        if (CDivC1->isNormalFP())
+        Constant *CDivC1 =
+            ConstantFoldBinaryOpOperands(Instruction::FDiv, C, C1, DL);
+        if (CDivC1 && CDivC1->isNormalFP())
           return BinaryOperator::CreateFMulFMF(X, CDivC1, &I);
 
         // If the constant was a denormal, try reassociating differently.
         // (X / C1) * C --> X / (C1 / C)
-        Constant *C1DivC = ConstantExpr::getFDiv(C1, C);
-        if (Op0->hasOneUse() && C1DivC->isNormalFP())
+        Constant *C1DivC =
+            ConstantFoldBinaryOpOperands(Instruction::FDiv, C1, C, DL);
+        if (C1DivC && Op0->hasOneUse() && C1DivC->isNormalFP())
           return BinaryOperator::CreateFDivFMF(X, C1DivC, &I);
       }
 
@@ -527,15 +530,19 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
       // further folds and (X * C) + C2 is 'fma'.
       if (match(Op0, m_OneUse(m_FAdd(m_Value(X), m_Constant(C1))))) {
         // (X + C1) * C --> (X * C) + (C * C1)
-        Constant *CC1 = ConstantExpr::getFMul(C, C1);
-        Value *XC = Builder.CreateFMulFMF(X, C, &I);
-        return BinaryOperator::CreateFAddFMF(XC, CC1, &I);
+        if (Constant *CC1 = ConstantFoldBinaryOpOperands(
+                Instruction::FMul, C, C1, DL)) {
+          Value *XC = Builder.CreateFMulFMF(X, C, &I);
+          return BinaryOperator::CreateFAddFMF(XC, CC1, &I);
+        }
       }
       if (match(Op0, m_OneUse(m_FSub(m_Constant(C1), m_Value(X))))) {
         // (C1 - X) * C --> (C * C1) - (X * C)
-        Constant *CC1 = ConstantExpr::getFMul(C, C1);
-        Value *XC = Builder.CreateFMulFMF(X, C, &I);
-        return BinaryOperator::CreateFSubFMF(CC1, XC, &I);
+        if (Constant *CC1 = ConstantFoldBinaryOpOperands(
+                Instruction::FMul, C, C1, DL)) {
+          Value *XC = Builder.CreateFMulFMF(X, C, &I);
+          return BinaryOperator::CreateFSubFMF(CC1, XC, &I);
+        }
       }
     }
 
@@ -1020,7 +1027,7 @@ static Instruction *narrowUDivURem(BinaryOperator &I,
 }
 
 Instruction *InstCombinerImpl::visitUDiv(BinaryOperator &I) {
-  if (Value *V = SimplifyUDivInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyUDivInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1090,7 +1097,7 @@ Instruction *InstCombinerImpl::visitUDiv(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitSDiv(BinaryOperator &I) {
-  if (Value *V = SimplifySDivInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifySDivInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1232,8 +1239,10 @@ static Instruction *foldFDivConstantDivisor(BinaryOperator &I) {
   // on all targets.
   // TODO: Use Intrinsic::canonicalize or let function attributes tell us that
   // denorms are flushed?
-  auto *RecipC = ConstantExpr::getFDiv(ConstantFP::get(I.getType(), 1.0), C);
-  if (!RecipC->isNormalFP())
+  const DataLayout &DL = I.getModule()->getDataLayout();
+  auto *RecipC = ConstantFoldBinaryOpOperands(
+      Instruction::FDiv, ConstantFP::get(I.getType(), 1.0), C, DL);
+  if (!RecipC || !RecipC->isNormalFP())
     return nullptr;
 
   // X / C --> X * (1 / C)
@@ -1256,12 +1265,13 @@ static Instruction *foldFDivConstantDividend(BinaryOperator &I) {
 
   // Try to reassociate C / X expressions where X includes another constant.
   Constant *C2, *NewC = nullptr;
+  const DataLayout &DL = I.getModule()->getDataLayout();
   if (match(I.getOperand(1), m_FMul(m_Value(X), m_Constant(C2)))) {
     // C / (X * C2) --> (C / C2) / X
-    NewC = ConstantExpr::getFDiv(C, C2);
+    NewC = ConstantFoldBinaryOpOperands(Instruction::FDiv, C, C2, DL);
   } else if (match(I.getOperand(1), m_FDiv(m_Value(X), m_Constant(C2)))) {
     // C / (X / C2) --> (C * C2) / X
-    NewC = ConstantExpr::getFMul(C, C2);
+    NewC = ConstantFoldBinaryOpOperands(Instruction::FMul, C, C2, DL);
   }
   // Disallow denormal constants because we don't know what would happen
   // on all targets.
@@ -1321,7 +1331,7 @@ static Instruction *foldFDivPowDivisor(BinaryOperator &I,
 Instruction *InstCombinerImpl::visitFDiv(BinaryOperator &I) {
   Module *M = I.getModule();
 
-  if (Value *V = SimplifyFDivInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFDivInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
@@ -1484,7 +1494,7 @@ Instruction *InstCombinerImpl::commonIRemTransforms(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
-  if (Value *V = SimplifyURemInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyURemInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1537,7 +1547,7 @@ Instruction *InstCombinerImpl::visitURem(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitSRem(BinaryOperator &I) {
-  if (Value *V = SimplifySRemInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifySRemInst(I.getOperand(0), I.getOperand(1),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);
 
@@ -1609,7 +1619,7 @@ Instruction *InstCombinerImpl::visitSRem(BinaryOperator &I) {
 }
 
 Instruction *InstCombinerImpl::visitFRem(BinaryOperator &I) {
-  if (Value *V = SimplifyFRemInst(I.getOperand(0), I.getOperand(1),
+  if (Value *V = simplifyFRemInst(I.getOperand(0), I.getOperand(1),
                                   I.getFastMathFlags(),
                                   SQ.getWithInstruction(&I)))
     return replaceInstUsesWith(I, V);

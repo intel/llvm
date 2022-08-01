@@ -559,6 +559,7 @@ BUILTIN(__builtin_memcpy_inline, "vv*vC*Iz", "n")
 BUILTIN(__builtin_memmove, "v*v*vC*z", "nF")
 BUILTIN(__builtin_mempcpy, "v*v*vC*z", "nF")
 BUILTIN(__builtin_memset, "v*v*iz", "nF")
+BUILTIN(__builtin_memset_inline, "vv*iIz", "n")
 BUILTIN(__builtin_printf, "icC*.", "Fp:0:")
 BUILTIN(__builtin_stpcpy, "c*c*cC*", "nF")
 BUILTIN(__builtin_stpncpy, "c*c*cC*z", "nF")
@@ -1698,7 +1699,8 @@ BUILTIN(__builtin_os_log_format, "v*v*cC*.", "p:0:nt")
 LANGBUILTIN(__builtin_get_device_side_mangled_name, "cC*.", "ncT", CUDA_LANG)
 
 // HLSL
-LANGBUILTIN(WaveActiveCountBits, "Uib", "nc", HLSL_LANG)
+LANGBUILTIN(__builtin_hlsl_wave_active_count_bits, "Uib", "nc", HLSL_LANG)
+LANGBUILTIN(__builtin_hlsl_create_handle, "v*Uc", "nc", HLSL_LANG)
 
 // Builtins for XRay
 BUILTIN(__xray_customevent, "vcC*z", "")

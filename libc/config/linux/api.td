@@ -150,6 +150,9 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
   let Macros = [
     SimpleMacroDef<"stderr", "stderr">,
     SimpleMacroDef<"stdout", "stdout">,
+    SimpleMacroDef<"_IOFBF", "0">,
+    SimpleMacroDef<"_IOLBF", "1">,
+    SimpleMacroDef<"_IONBF", "2">,
   ];
   let Types = ["size_t", "FILE", "cookie_io_functions_t"];
 }
@@ -249,6 +252,14 @@ def PThreadAPI : PublicAPI<"pthread.h"> {
       "pthread_mutex_t",
       "pthread_mutexattr_t",
       "pthread_t",
+  ];
+}
+
+def DirentAPI : PublicAPI<"dirent.h"> {
+  let Types = [
+    "ino_t",
+    "DIR",
+    "struct dirent",
   ];
 }
 

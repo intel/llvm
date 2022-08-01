@@ -7,16 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "AttrOrTypeFormatGen.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/TableGen/AttrOrTypeDef.h"
 #include "mlir/TableGen/Class.h"
 #include "mlir/TableGen/CodeGenHelpers.h"
 #include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
 #include "mlir/TableGen/Interfaces.h"
-#include "llvm/ADT/Sequence.h"
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/TableGen/Error.h"
@@ -30,13 +26,6 @@ using namespace mlir::tblgen;
 //===----------------------------------------------------------------------===//
 // Utility Functions
 //===----------------------------------------------------------------------===//
-
-std::string mlir::tblgen::getParameterAccessorName(StringRef name) {
-  assert(!name.empty() && "parameter has empty name");
-  auto ret = "get" + name.str();
-  ret[3] = llvm::toUpper(ret[3]); // uppercase first letter of the name
-  return ret;
-}
 
 /// Find all the AttrOrTypeDef for the specified dialect. If no dialect
 /// specified and can only find one dialect's defs, use that.
@@ -225,14 +214,26 @@ void DefGen::createParentWithTraits() {
   defCls.addParent(std::move(defParent));
 }
 
+/// Extra class definitions have a `$cppClass` substitution that is to be
+/// replaced by the C++ class name.
+static std::string formatExtraDefinitions(const AttrOrTypeDef &def) {
+  if (Optional<StringRef> extraDef = def.getExtraDefs()) {
+    FmtContext ctx = FmtContext().addSubst("cppClass", def.getCppClassName());
+    return tgfmt(*extraDef, &ctx).str();
+  }
+  return "";
+}
+
 void DefGen::emitTopLevelDeclarations() {
   // Inherit constructors from the attribute or type class.
   defCls.declare<VisibilityDeclaration>(Visibility::Public);
   defCls.declare<UsingDeclaration>("Base::Base");
 
   // Emit the extra declarations first in case there's a definition in there.
-  if (Optional<StringRef> extraDecl = def.getExtraDecls())
-    defCls.declare<ExtraClassDeclaration>(*extraDecl);
+  Optional<StringRef> extraDecl = def.getExtraDecls();
+  std::string extraDef = formatExtraDefinitions(def);
+  defCls.declare<ExtraClassDeclaration>(extraDecl ? *extraDecl : "",
+                                        std::move(extraDef));
 }
 
 void DefGen::emitBuilders() {
@@ -262,7 +263,7 @@ void DefGen::emitParserPrinter() {
   mnemonic->body().indent() << strfmt("return {\"{0}\"};", *def.getMnemonic());
 
   // Declare the parser and printer, if needed.
-  bool hasAssemblyFormat = def.getAssemblyFormat().hasValue();
+  bool hasAssemblyFormat = def.getAssemblyFormat().has_value();
   if (!def.hasCustomAssemblyFormat() && !hasAssemblyFormat)
     return;
 
@@ -288,7 +289,7 @@ void DefGen::emitParserPrinter() {
 void DefGen::emitAccessors() {
   for (auto &param : params) {
     Method *m = defCls.addMethod(
-        param.getCppAccessorType(), getParameterAccessorName(param.getName()),
+        param.getCppAccessorType(), param.getAccessorName(),
         def.genStorageClass() ? Method::Const : Method::ConstDeclaration);
     // Generate accessor definitions only if we also generate the storage
     // class. Otherwise, let the user define the exact accessor definition.
@@ -327,7 +328,8 @@ void DefGen::emitDefaultBuilder() {
       getBuilderParams({{"::mlir::MLIRContext *", "context"}}));
   MethodBody &body = m->body().indent();
   auto scope = body.scope("return Base::get(context", ");");
-  llvm::for_each(params, [&](auto &param) { body << ", " << param.getName(); });
+  for (const auto &param : params)
+    body << ", " << param.getName();
 }
 
 void DefGen::emitCheckedBuilder() {
@@ -338,7 +340,8 @@ void DefGen::emitCheckedBuilder() {
            {"::mlir::MLIRContext *", "context"}}));
   MethodBody &body = m->body().indent();
   auto scope = body.scope("return Base::getChecked(emitError, context", ");");
-  llvm::for_each(params, [&](auto &param) { body << ", " << param.getName(); });
+  for (const auto &param : params)
+    body << ", " << param.getName();
 }
 
 static SmallVector<MethodParameter>
@@ -359,7 +362,10 @@ getCustomBuilderParams(std::initializer_list<MethodParameter> prefix,
 void DefGen::emitCustomBuilder(const AttrOrTypeBuilder &builder) {
   // Don't emit a body if there isn't one.
   auto props = builder.getBody() ? Method::Static : Method::StaticDeclaration;
-  Method *m = defCls.addMethod(def.getCppClassName(), "get", props,
+  StringRef returnType = def.getCppClassName();
+  if (Optional<StringRef> builderReturnType = builder.getReturnType())
+    returnType = *builderReturnType;
+  Method *m = defCls.addMethod(returnType, "get", props,
                                getCustomBuilderParams({}, builder));
   if (!builder.getBody())
     return;
@@ -384,8 +390,11 @@ static std::string replaceInStr(std::string str, StringRef from, StringRef to) {
 void DefGen::emitCheckedCustomBuilder(const AttrOrTypeBuilder &builder) {
   // Don't emit a body if there isn't one.
   auto props = builder.getBody() ? Method::Static : Method::StaticDeclaration;
+  StringRef returnType = def.getCppClassName();
+  if (Optional<StringRef> builderReturnType = builder.getReturnType())
+    returnType = *builderReturnType;
   Method *m = defCls.addMethod(
-      def.getCppClassName(), "getChecked", props,
+      returnType, "getChecked", props,
       getCustomBuilderParams(
           {{"::llvm::function_ref<::mlir::InFlightDiagnostic()>", "emitError"}},
           builder));
@@ -684,11 +693,9 @@ static const char *const dialectDefaultAttrPrinterParserDispatch = R"(
                                       ::mlir::Type type) const {{
   ::llvm::SMLoc typeLoc = parser.getCurrentLocation();
   ::llvm::StringRef attrTag;
-  if (::mlir::failed(parser.parseKeyword(&attrTag)))
-    return {{};
   {{
     ::mlir::Attribute attr;
-    auto parseResult = generatedAttributeParser(parser, attrTag, type, attr);
+    auto parseResult = generatedAttributeParser(parser, &attrTag, type, attr);
     if (parseResult.hasValue())
       return attr;
   }
@@ -734,10 +741,8 @@ static const char *const dialectDefaultTypePrinterParserDispatch = R"(
 ::mlir::Type {0}::parseType(::mlir::DialectAsmParser &parser) const {{
   ::llvm::SMLoc typeLoc = parser.getCurrentLocation();
   ::llvm::StringRef mnemonic;
-  if (parser.parseKeyword(&mnemonic))
-    return ::mlir::Type();
   ::mlir::Type genType;
-  auto parseResult = generatedTypeParser(parser, mnemonic, genType);
+  auto parseResult = generatedTypeParser(parser, &mnemonic, genType);
   if (parseResult.hasValue())
     return genType;
   {1}
@@ -776,13 +781,13 @@ static const char *const dialectDynamicTypePrinterDispatch = R"(
 /// functions from their dialect's print/parse methods.
 void DefGenerator::emitParsePrintDispatch(ArrayRef<AttrOrTypeDef> defs) {
   if (llvm::none_of(defs, [](const AttrOrTypeDef &def) {
-        return def.getMnemonic().hasValue();
+        return def.getMnemonic().has_value();
       })) {
     return;
   }
   // Declare the parser.
   SmallVector<MethodParameter> params = {{"::mlir::AsmParser &", "parser"},
-                                         {"::llvm::StringRef", "mnemonic"}};
+                                         {"::llvm::StringRef *", "mnemonic"}};
   if (isAttrGenerator)
     params.emplace_back("::mlir::Type", "type");
   params.emplace_back(strfmt("::mlir::{0} &", valueType), "value");
@@ -795,14 +800,18 @@ void DefGenerator::emitParsePrintDispatch(ArrayRef<AttrOrTypeDef> defs) {
                  {{strfmt("::mlir::{0}", valueType), "def"},
                   {"::mlir::AsmPrinter &", "printer"}});
 
-  // The parser dispatch is just a list of if-elses, matching on the mnemonic
-  // and calling the def's parse function.
+  // The parser dispatch uses a KeywordSwitch, matching on the mnemonic and
+  // calling the def's parse function.
+  parse.body() << "  return "
+                  "::mlir::AsmParser::KeywordSwitch<::mlir::"
+                  "OptionalParseResult>(parser)\n";
   const char *const getValueForMnemonic =
-      R"(  if (mnemonic == {0}::getMnemonic()) {{
-    value = {0}::{1};
-    return ::mlir::success(!!value);
-  }
+      R"(    .Case({0}::getMnemonic(), [&](llvm::StringRef, llvm::SMLoc) {{
+      value = {0}::{1};
+      return ::mlir::success(!!value);
+    })
 )";
+
   // The printer dispatch uses llvm::TypeSwitch to find and call the correct
   // printer.
   printer.body() << "  return ::llvm::TypeSwitch<::mlir::" << valueType
@@ -833,7 +842,10 @@ void DefGenerator::emitParsePrintDispatch(ArrayRef<AttrOrTypeDef> defs) {
       printDef = "\nt.print(printer);";
     printer.body() << llvm::formatv(printValue, defClass, printDef);
   }
-  parse.body() << "  return {};";
+  parse.body() << "    .Default([&](llvm::StringRef keyword, llvm::SMLoc) {\n"
+                  "      *mnemonic = keyword;\n"
+                  "      return llvm::None;\n"
+                  "    });";
   printer.body() << "    .Default([](auto) { return ::mlir::failure(); });";
 
   raw_indented_ostream indentedOs(os);

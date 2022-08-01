@@ -14,13 +14,13 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/backend_traits.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/kernel_bundle.hpp>
-#include <CL/sycl/queue.hpp>
+#include <sycl/accessor.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/backend_traits.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/queue.hpp>
 
 #include <vector>
 
@@ -131,8 +131,8 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_cuda> {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = true;
   static constexpr bool MakeContext = true;
-  static constexpr bool MakeQueue = false;
-  static constexpr bool MakeEvent = false;
+  static constexpr bool MakeQueue = true;
+  static constexpr bool MakeEvent = true;
   static constexpr bool MakeBuffer = false;
   static constexpr bool MakeKernel = false;
   static constexpr bool MakeKernelBundle = false;

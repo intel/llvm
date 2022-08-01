@@ -97,6 +97,19 @@ add_libc_unittest(
     libc.src.stdio.fread
 )
 
+
+add_libc_unittest(
+  printf_test
+  SUITE
+    libc_stdio_unittests
+  SRCS
+    printf_test.cpp
+  DEPENDS
+    libc.src.stdio.printf
+    libc.src.fenv.fesetround
+    libc.src.__support.FPUtil.fputil
+)
+
 add_subdirectory(printf_core)
 
 add_subdirectory(testdata)

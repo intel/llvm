@@ -64,6 +64,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/LaneBitmask.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
@@ -292,6 +293,7 @@ namespace {
       }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
+      AU.addUsedIfAvailable<LiveStacks>();
       AU.setPreservesAll();
       MachineFunctionPass::getAnalysisUsage(AU);
     }
@@ -2212,6 +2214,11 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
     }
     break;
 
+  case MachineOperand::MO_CFIIndex:
+    if (MO->getCFIIndex() >= MF->getFrameInstructions().size())
+      report("CFI instruction has invalid index", MO, MONum);
+    break;
+
   default:
     break;
   }
@@ -2795,8 +2802,8 @@ void MachineVerifier::visitMachineFunctionAfter() {
   // tracking numbers.
   if (MF->getFunction().getSubprogram()) {
     DenseSet<unsigned> SeenNumbers;
-    for (auto &MBB : *MF) {
-      for (auto &MI : MBB) {
+    for (const auto &MBB : *MF) {
+      for (const auto &MI : MBB) {
         if (auto Num = MI.peekDebugInstrNum()) {
           auto Result = SeenNumbers.insert((unsigned)Num);
           if (!Result.second)

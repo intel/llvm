@@ -38,9 +38,11 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
         accepts as arguments the object that must be populated with results of
         the current transformation and a transformation state object that can be
         used for queries, e.g., to obtain the list of operations on which the
-        transformation represented by the current op is targeted.
+        transformation represented by the current op is targeted. Returns a
+        special status object indicating whether the transformation succeeded
+        or failed, and, if it failed, whether the failure is recoverable or not.
       }],
-      /*returnType=*/"::mlir::LogicalResult",
+      /*returnType=*/"::mlir::DiagnosedSilenceableFailure",
       /*name=*/"apply",
       /*arguments=*/(ins
           "::mlir::transform::TransformResults &":$transformResults,
@@ -58,6 +60,23 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
       ::mlir::InFlightDiagnostic diag = $_op->emitError() << "failed to apply";
       diag.attachNote(target->getLoc()) << "attempted to apply to this op";
       return diag;
+    }
+
+    /// Creates the silenceable failure object with a diagnostic located at the
+    /// current operation.
+    DiagnosedSilenceableFailure emitSilenceableError() {
+      Diagnostic diag($_op->getLoc(), DiagnosticSeverity::Error);
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
+    }
+
+    /// Creates the default silenceable failure for a transform op that failed
+    /// to properly apply to a target.
+    DiagnosedSilenceableFailure emitDefaultSilenceableFailure(
+        Operation *target) {
+      Diagnostic diag($_op->getLoc(), DiagnosticSeverity::Error);
+      diag << $_op->getName() << " failed to apply";
+      diag.attachNote(target->getLoc()) << "when applied to this op";
+      return DiagnosedSilenceableFailure::silenceableFailure(std::move(diag));
     }
   }];
 }

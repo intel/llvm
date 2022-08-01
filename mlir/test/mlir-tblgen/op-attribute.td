@@ -9,6 +9,9 @@ include "mlir/IR/OpBase.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "foobar";
+
+  // TODO: Flip to _Prefixed
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 class NS_Op<string mnemonic, list<Trait> traits> :
     Op<Test_Dialect, mnemonic, traits>;
@@ -155,7 +158,7 @@ def Test2_Dialect : Dialect {
 def AgetOp : Op<Test2_Dialect, "a_get_op", []> {
   let arguments = (ins
       SomeAttr:$aAttr,
-      DefaultValuedAttr<SomeAttr, "4.2">:$bAttr,
+      DefaultValuedOptionalAttr<SomeAttr, "4.2">:$bAttr,
       OptionalAttr<SomeAttr>:$cAttr
   );
 }
@@ -252,7 +255,7 @@ def AgetOp : Op<Test2_Dialect, "a_get_op", []> {
 // DEF-NEXT:     odsState.addAttribute(getCAttrAttrName(odsState.name), cAttr);
 
 // DEF:      void AgetOp::build(
-// DEF:        some-return-type aAttr, some-return-type bAttr, /*optional*/some-attr-kind cAttr
+// DEF:        some-return-type aAttr, /*optional*/some-return-type bAttr, /*optional*/some-attr-kind cAttr
 // DEF:        odsState.addAttribute(getAAttrAttrName(odsState.name), some-const-builder-call(odsBuilder, aAttr));
 
 // DEF:      void AgetOp::build(
@@ -480,19 +483,3 @@ def SomeTypedArrayAttr : TypedArrayAttrBase<SomeAttr, "SomeAttr array">;
 
 // RECORD-LABEL: def SomeTypedArrayAttr
 // RECORD: Attr elementAttr = SomeAttr;
-
-def Test_Dialect_2 : Dialect {
-  let name = "dialect_2";
-}
-def MyStruct : StructAttr<"MyStruct", Test_Dialect_2,
-[StructFieldAttr<"potatoes", I64ElementsAttr>]> {
-  let summary = "A structure describing a number of potatoes.";
-}
-
-def StructAttrOp : NS_Op<"struct_attr_op", []> {
-  let arguments = (ins
-    MyStruct:$potatoes
-  );
-}
-
-// DECL: dialect_2::MyStruct potatoes();

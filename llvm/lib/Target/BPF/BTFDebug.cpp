@@ -998,7 +998,7 @@ void BTFDebug::emitBTFSection() {
   MCContext &Ctx = OS.getContext();
   MCSectionELF *Sec = Ctx.getELFSection(".BTF", ELF::SHT_PROGBITS, 0);
   Sec->setAlignment(Align(4));
-  OS.SwitchSection(Sec);
+  OS.switchSection(Sec);
 
   // Emit header.
   emitCommonHeader();
@@ -1038,7 +1038,7 @@ void BTFDebug::emitBTFExtSection() {
   MCContext &Ctx = OS.getContext();
   MCSectionELF *Sec = Ctx.getELFSection(".BTF.ext", ELF::SHT_PROGBITS, 0);
   Sec->setAlignment(Align(4));
-  OS.SwitchSection(Sec);
+  OS.switchSection(Sec);
 
   // Emit header.
   emitCommonHeader();
@@ -1526,9 +1526,8 @@ void BTFDebug::processFuncPrototypes(const Function *F) {
     return;
 
   // Do not emit again if already emitted.
-  if (ProtoFunctions.find(F) != ProtoFunctions.end())
+  if (!ProtoFunctions.insert(F).second)
     return;
-  ProtoFunctions.insert(F);
 
   uint32_t ProtoTypeId;
   const std::unordered_map<uint32_t, StringRef> FuncArgNames;

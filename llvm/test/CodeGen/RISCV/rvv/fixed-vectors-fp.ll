@@ -456,10 +456,9 @@ declare <4 x half> @llvm.copysign.v4f16(<4 x half>, <4 x half>)
 define void @copysign_neg_ext_v2f64_v2f32(<2 x double>* %x, <2 x float>* %y) {
 ; CHECK-LABEL: copysign_neg_ext_v2f64_v2f32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e32, mf2, ta, mu
 ; CHECK-NEXT:    vle32.v v8, (a1)
 ; CHECK-NEXT:    vle64.v v9, (a0)
-; CHECK-NEXT:    vsetvli zero, zero, e32, mf2, ta, mu
 ; CHECK-NEXT:    vfwcvt.f.f.v v10, v8
 ; CHECK-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; CHECK-NEXT:    vfsgnjn.vv v8, v9, v10
@@ -2203,11 +2202,10 @@ define void @round_v8f16(<8 x half>* %x) {
 ; CHECK-NEXT:    flh ft1, %lo(.LCPI100_1)(a1)
 ; CHECK-NEXT:    vfabs.v v9, v8
 ; CHECK-NEXT:    vmflt.vf v0, v9, ft0
-; CHECK-NEXT:    vfadd.vf v9, v9, ft1
-; CHECK-NEXT:    vfcvt.rtz.x.f.v v9, v9
-; CHECK-NEXT:    vfcvt.f.x.v v9, v9
-; CHECK-NEXT:    vfsgnj.vv v9, v9, v8
-; CHECK-NEXT:    vmerge.vvm v8, v8, v9, v0
+; CHECK-NEXT:    vfadd.vf v9, v9, ft1, v0.t
+; CHECK-NEXT:    vfcvt.rtz.x.f.v v9, v9, v0.t
+; CHECK-NEXT:    vfcvt.f.x.v v9, v9, v0.t
+; CHECK-NEXT:    vfsgnj.vv v8, v9, v8, v0.t
 ; CHECK-NEXT:    vse16.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <8 x half>, <8 x half>* %x
@@ -2228,11 +2226,10 @@ define void @round_v4f32(<4 x float>* %x) {
 ; CHECK-NEXT:    flw ft1, %lo(.LCPI101_1)(a1)
 ; CHECK-NEXT:    vfabs.v v9, v8
 ; CHECK-NEXT:    vmflt.vf v0, v9, ft0
-; CHECK-NEXT:    vfadd.vf v9, v9, ft1
-; CHECK-NEXT:    vfcvt.rtz.x.f.v v9, v9
-; CHECK-NEXT:    vfcvt.f.x.v v9, v9
-; CHECK-NEXT:    vfsgnj.vv v9, v9, v8
-; CHECK-NEXT:    vmerge.vvm v8, v8, v9, v0
+; CHECK-NEXT:    vfadd.vf v9, v9, ft1, v0.t
+; CHECK-NEXT:    vfcvt.rtz.x.f.v v9, v9, v0.t
+; CHECK-NEXT:    vfcvt.f.x.v v9, v9, v0.t
+; CHECK-NEXT:    vfsgnj.vv v8, v9, v8, v0.t
 ; CHECK-NEXT:    vse32.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <4 x float>, <4 x float>* %x
@@ -2253,11 +2250,10 @@ define void @round_v2f64(<2 x double>* %x) {
 ; CHECK-NEXT:    fld ft1, %lo(.LCPI102_1)(a1)
 ; CHECK-NEXT:    vfabs.v v9, v8
 ; CHECK-NEXT:    vmflt.vf v0, v9, ft0
-; CHECK-NEXT:    vfadd.vf v9, v9, ft1
-; CHECK-NEXT:    vfcvt.rtz.x.f.v v9, v9
-; CHECK-NEXT:    vfcvt.f.x.v v9, v9
-; CHECK-NEXT:    vfsgnj.vv v9, v9, v8
-; CHECK-NEXT:    vmerge.vvm v8, v8, v9, v0
+; CHECK-NEXT:    vfadd.vf v9, v9, ft1, v0.t
+; CHECK-NEXT:    vfcvt.rtz.x.f.v v9, v9, v0.t
+; CHECK-NEXT:    vfcvt.f.x.v v9, v9, v0.t
+; CHECK-NEXT:    vfsgnj.vv v8, v9, v8, v0.t
 ; CHECK-NEXT:    vse64.v v8, (a0)
 ; CHECK-NEXT:    ret
   %a = load <2 x double>, <2 x double>* %x

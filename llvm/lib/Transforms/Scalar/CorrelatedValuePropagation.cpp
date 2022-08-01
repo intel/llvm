@@ -276,7 +276,7 @@ static bool processPHI(PHINode *P, LazyValueInfo *LVI, DominatorTree *DT,
     }
   }
 
-  if (Value *V = SimplifyInstruction(P, SQ)) {
+  if (Value *V = simplifyInstruction(P, SQ)) {
     P->replaceAllUsesWith(V);
     P->eraseFromParent();
     Changed = true;
@@ -581,7 +581,7 @@ static bool processOverflowIntrinsic(WithOverflowInst *WO, LazyValueInfo *LVI) {
 
   StructType *ST = cast<StructType>(WO->getType());
   Constant *Struct = ConstantStruct::get(ST,
-      { UndefValue::get(ST->getElementType(0)),
+      { PoisonValue::get(ST->getElementType(0)),
         ConstantInt::getFalse(ST->getElementType(1)) });
   Value *NewI = B.CreateInsertValue(Struct, NewOp, 0);
   WO->replaceAllUsesWith(NewI);

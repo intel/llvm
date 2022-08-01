@@ -188,9 +188,11 @@ def SparseTensor_LexInsertOp : SparseTensor_Op<"lex_insert", []>,
     is solely defined by side-effects and not SSA values. The semantics
     may be refined over time as our sparse abstractions evolve.
 
+    Example:
+
     ```mlir
     sparse_tensor.lex_insert %tensor, %indices, %val
-      : tensor<1024x1024xf64, #CSR>, memref<?xindex>, f64
+      : tensor<1024x1024xf64, #CSR>, memref<?xindex>, memref<f64>
     ```
   }];
   let assemblyFormat = "$tensor `,` $indices `,` $value attr-dict `:`"
@@ -304,31 +306,6 @@ def SparseTensor_LoadOp : SparseTensor_Op<"load", [SameOperandsAndResultType]>,
   let assemblyFormat = "$tensor (`hasInserts` $hasInserts^)? attr-dict `:` type($tensor)";
 }
 
-def SparseTensor_ReleaseOp : SparseTensor_Op<"release", []>,
-    Arguments<(ins AnySparseTensor:$tensor)> {
-  string summary = "Releases underlying sparse storage format of given tensor";
-  string description = [{
-    Releases the underlying sparse storage format for a tensor that
-    materialized earlier through a `new` operation, a `convert` operation
-    with annotated destination tensor type (unless the convert is folded
-    away), or a `bufferization.alloc_tensor` operation. The release operation
-    should only be called once for any materialized tensor. After this
-    operation, any subsequent `memref` querying operation on the tensor
-    returns undefined results.
-
-    Note that this operation is "impure" in the sense that its behavior
-    is solely defined by side-effects and not SSA values. The semantics
-    may be refined over time as our sparse abstractions evolve.
-
-    Example:
-
-    ```mlir
-    sparse_tensor.release %tensor : tensor<1024x1024xf64, #CSR>
-    ```
-  }];
-  let assemblyFormat = "$tensor attr-dict `:` type($tensor)";
-}
-
 def SparseTensor_OutOp : SparseTensor_Op<"out", []>,
     Arguments<(ins AnySparseTensor:$tensor, AnyType:$dest)> {
   string summary = "Outputs a sparse tensor to the given destination";
@@ -385,7 +362,8 @@ def SparseTensor_BinaryOp : SparseTensor_Op<"binary", [NoSideEffect]>,
       would be equivalent to a union operation where non-overlapping values
       in the inputs are copied to the output unchanged.
 
-      Example of isEqual applied to intersecting elements only.
+      Example of isEqual applied to intersecting elements only:
+
       ```mlir
       %C = bufferization.alloc_tensor...
       %0 = linalg.generic #trait
@@ -405,8 +383,8 @@ def SparseTensor_BinaryOp : SparseTensor_Op<"binary", [NoSideEffect]>,
       } -> tensor<?xi8, #SparseVec>
       ```
 
-      Example of A+B in upper triangle, A-B in lower triangle
-      (not working yet, but construct will be available soon).
+      Example of A+B in upper triangle, A-B in lower triangle:
+
       ```mlir
       %C = bufferization.alloc_tensor...
       %1 = linalg.generic #trait
@@ -438,7 +416,8 @@ def SparseTensor_BinaryOp : SparseTensor_Op<"binary", [NoSideEffect]>,
 
       Example of set difference. Returns a copy of A where its sparse structure
       is *not* overlapped by B. The element type of B can be different than A
-      because we never use its values, only its sparse structure.
+      because we never use its values, only its sparse structure:
+
       ```mlir
       %C = bufferization.alloc_tensor...
       %2 = linalg.generic #trait
@@ -486,6 +465,7 @@ def SparseTensor_UnaryOp : SparseTensor_Op<"unary", [NoSideEffect]>,
       region does not contribute to the output.
 
       Example of A+1, restricted to existing elements:
+
       ```mlir
       %C = bufferization.alloc_tensor...
       %0 = linalg.generic #trait
@@ -539,6 +519,56 @@ def SparseTensor_UnaryOp : SparseTensor_Op<"unary", [NoSideEffect]>,
   let hasVerifier = 1;
 }
 
+def SparseTensor_ReduceOp : SparseTensor_Op<"reduce", [NoSideEffect, SameOperandsAndResultType]>,
+    Arguments<(ins AnyType:$x, AnyType:$y, AnyType:$identity)>,
+    Results<(outs AnyType:$output)> {
+  let summary = "Custom reduction operation utilized within linalg.generic";
+  let description = [{
+      Defines a computation with a `linalg.generic` operation that takes two
+      operands and an identity value and reduces all values down to a single
+      result based on the computation in the region.
+
+      The region must contain exactly one block taking two arguments. The block
+      must end with a sparse_tensor.yield and the output must match the input
+      argument types.
+
+      Note that this operation is only required for custom reductions beyond the
+
+      standard operations (add, mul, and, or, etc). The `linalg.generic`
+      `iterator_types` defines which indices are being reduced. When the associated
+      operands are used in an operation, a reduction will occur. The use of this
+      explicit `reduce` operation is not required in most cases.
+
+      Example of Matrix->Vector reduction using max(product(x_i), 100):
+
+      ```mlir
+      %cf1 = arith.constant 1.0 : f64
+      %cf100 = arith.constant 100.0 : f64
+      %C = bufferization.alloc_tensor...
+      %0 = linalg.generic #trait
+        ins(%A: tensor<?x?xf64, #SparseMatrix>)
+        outs(%C: tensor<?xf64, #SparseVec>) {
+        ^bb0(%a: f64, %c: f64) :
+          %result = sparse_tensor.reduce %c, %a, %cf1 : f64 {
+              ^bb0(%arg0: f64, %arg1: f64):
+                %0 = arith.mulf %arg0, %arg1 : f64
+                %cmp = arith.cmpf "ogt", %0, %cf100 : f64
+                %ret = arith.select %cmp, %cf100, %0 : f64
+                sparse_tensor.yield %ret : f64
+            }
+          linalg.yield %result : f64
+      } -> tensor<?xf64, #SparseVec>
+      ```
+  }];
+
+  let regions = (region SizedRegion<1>:$region);
+
+  let assemblyFormat = [{
+         $x `,` $y `,` $identity attr-dict `:` type($output) $region
+  }];
+  let hasVerifier = 1;
+}
+
 def SparseTensor_YieldOp : SparseTensor_Op<"yield", [NoSideEffect, Terminator]>,
     Arguments<(ins AnyType:$result)> {
   let summary = "Yield from sparse_tensor set-like operations";
@@ -546,6 +576,7 @@ def SparseTensor_YieldOp : SparseTensor_Op<"yield", [NoSideEffect, Terminator]>,
       Yields a value from within a `binary` or `unary` block.
 
       Example:
+
       ```
       %0 = sparse_tensor.unary %a : i64 to i64 {
         ^bb0(%arg0: i64):

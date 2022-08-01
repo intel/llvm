@@ -150,8 +150,8 @@ contains
   ! CHECK:         %[[VAL_19:.*]] = arith.constant 3 : i64
   ! CHECK:         %[[VAL_20:.*]] = fir.convert %[[VAL_19]] : (i64) -> index
   ! CHECK:         %[[VAL_21:.*]] = fir.slice %[[VAL_10]], %[[VAL_14]], %[[VAL_12]], %[[VAL_16]], %[[VAL_20]], %[[VAL_18]] : (index, index, index, index, index, index) -> !fir.slice<2>
-  ! CHECK:         %[[VAL_22:.*]] = fir.rebox %[[VAL_1]] {{\[}}%[[VAL_21]]] : (!fir.box<!fir.array<?x?xi32>>, !fir.slice<2>) -> !fir.box<!fir.array<?x?xi32>>
-  ! CHECK:         %[[VAL_23:.*]] = fir.rebox %[[VAL_22]] : (!fir.box<!fir.array<?x?xi32>>) -> !fir.box<!fir.ptr<!fir.array<?x?xi32>>>
+  ! CHECK:         %[[VAL_22:.*]] = fir.rebox %[[VAL_1]] {{\[}}%[[VAL_21]]] : (!fir.box<!fir.array<?x?xi32>>, !fir.slice<2>) -> !fir.box<!fir.array<2x3xi32>>
+  ! CHECK:         %[[VAL_23:.*]] = fir.rebox %[[VAL_22]] : (!fir.box<!fir.array<2x3xi32>>) -> !fir.box<!fir.ptr<!fir.array<?x?xi32>>>
   ! CHECK:         fir.store %[[VAL_23]] to %[[VAL_8]] : !fir.ref<!fir.box<!fir.ptr<!fir.array<?x?xi32>>>>
   ! CHECK:         fir.call @_QMm_struct_ctorPprint_ptr(%[[VAL_3]]) : (!fir.ref<!fir.type<_QMm_struct_ctorTt_ptr{x:f32,p:!fir.box<!fir.ptr<!fir.array<?x?xi32>>>}>>) -> ()
   ! CHECK:         return
@@ -177,12 +177,14 @@ contains
   ! CHECK:         %[[VAL_7:.*]] = fir.coordinate_of %[[VAL_2]], %[[VAL_6]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_nested{x:f32,dt:!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>}>>, !fir.field) -> !fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>
   ! CHECK:         %[[VAL_8:.*]] = fir.field_index x, !fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>
   ! CHECK:         %[[VAL_9:.*]] = fir.coordinate_of %[[VAL_1]], %[[VAL_8]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>, !fir.field) -> !fir.ref<f32>
-  ! CHECK:         %[[VAL_10:.*]] = fir.coordinate_of %[[VAL_7]], %[[VAL_8]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>, !fir.field) -> !fir.ref<f32>
+  ! CHECK:         %[[VAL_8b:.*]] = fir.field_index x, !fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>
+  ! CHECK:         %[[VAL_10:.*]] = fir.coordinate_of %[[VAL_7]], %[[VAL_8b]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>, !fir.field) -> !fir.ref<f32>
   ! CHECK:         %[[VAL_11:.*]] = fir.load %[[VAL_9]] : !fir.ref<f32>
   ! CHECK:         fir.store %[[VAL_11]] to %[[VAL_10]] : !fir.ref<f32>
   ! CHECK:         %[[VAL_12:.*]] = fir.field_index i, !fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>
   ! CHECK:         %[[VAL_13:.*]] = fir.coordinate_of %[[VAL_1]], %[[VAL_12]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>, !fir.field) -> !fir.ref<!fir.array<5xi32>>
-  ! CHECK:         %[[VAL_14:.*]] = fir.coordinate_of %[[VAL_7]], %[[VAL_12]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>, !fir.field) -> !fir.ref<!fir.array<5xi32>>
+  ! CHECK:         %[[VAL_12b:.*]] = fir.field_index i, !fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>
+  ! CHECK:         %[[VAL_14:.*]] = fir.coordinate_of %[[VAL_7]], %[[VAL_12b]] : (!fir.ref<!fir.type<_QMm_struct_ctorTt_array{x:f32,i:!fir.array<5xi32>}>>, !fir.field) -> !fir.ref<!fir.array<5xi32>>
   ! CHECK:         %[[VAL_15:.*]] = arith.constant 0 : index
   ! CHECK:         %[[VAL_16:.*]] = arith.constant 1 : index
   ! CHECK:         %[[VAL_17:.*]] = arith.constant 4 : index

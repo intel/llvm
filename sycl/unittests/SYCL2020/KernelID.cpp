@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -32,6 +32,7 @@ template <> struct KernelInfo<TestKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernel2> {
@@ -44,6 +45,7 @@ template <> struct KernelInfo<TestKernel2> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernel3> {
@@ -56,6 +58,7 @@ template <> struct KernelInfo<TestKernel3> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<ServiceKernel1> {
@@ -70,6 +73,7 @@ template <> struct KernelInfo<ServiceKernel1> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 } // namespace detail
 } // namespace sycl
@@ -329,7 +333,7 @@ TEST(KernelID, InvalidKernelName) {
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
     EXPECT_EQ(std::string("No kernel found with the specified name -46 "
-                          "(CL_INVALID_KERNEL_NAME)"),
+                          "(PI_ERROR_INVALID_KERNEL_NAME)"),
               e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";

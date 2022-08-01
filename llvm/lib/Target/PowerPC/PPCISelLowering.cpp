@@ -131,6 +131,11 @@ static cl::opt<bool>
                           cl::desc("disable vector permute decomposition"),
                           cl::init(true), cl::Hidden);
 
+cl::opt<bool> DisableAutoPairedVecSt(
+    "disable-auto-paired-vec-st",
+    cl::desc("disable automatically generated 32byte paired vector stores"),
+    cl::init(true), cl::Hidden);
+
 STATISTIC(NumTailCalls, "Number of tail calls");
 STATISTIC(NumSiblingCalls, "Number of sibling calls");
 STATISTIC(ShufflesHandledWithVPERM, "Number of shuffles lowered to a VPERM");
@@ -387,8 +392,7 @@ PPCTargetLowering::PPCTargetLowering(const PPCTargetMachine &TM,
 
   // MASS transformation for LLVM intrinsics with replicating fast-math flag
   // to be consistent to PPCGenScalarMASSEntries pass
-  if (TM.getOptLevel() == CodeGenOpt::Aggressive &&
-      TM.Options.PPCGenScalarMASSEntries) {
+  if (TM.getOptLevel() == CodeGenOpt::Aggressive) {
     setOperationAction(ISD::FSIN , MVT::f64, Custom);
     setOperationAction(ISD::FCOS , MVT::f64, Custom);
     setOperationAction(ISD::FPOW , MVT::f64, Custom);
@@ -9068,7 +9072,7 @@ SDValue PPCTargetLowering::LowerBITCAST(SDValue Op, SelectionDAG &DAG) const {
 
 static const SDValue *getNormalLoadInput(const SDValue &Op, bool &IsPermuted) {
   const SDValue *InputLoad = &Op;
-  if (InputLoad->getOpcode() == ISD::BITCAST)
+  while (InputLoad->getOpcode() == ISD::BITCAST)
     InputLoad = &InputLoad->getOperand(0);
   if (InputLoad->getOpcode() == ISD::SCALAR_TO_VECTOR ||
       InputLoad->getOpcode() == PPCISD::SCALAR_TO_VECTOR_PERMUTED) {
@@ -14552,6 +14556,11 @@ SDValue PPCTargetLowering::combineFPToIntToFP(SDNode *N,
 // builtins) into loads with swaps.
 SDValue PPCTargetLowering::expandVSXLoadForLE(SDNode *N,
                                               DAGCombinerInfo &DCI) const {
+  // Delay VSX load for LE combine until after LegalizeOps to prioritize other
+  // load combines.
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
+
   SelectionDAG &DAG = DCI.DAG;
   SDLoc dl(N);
   SDValue Chain;
@@ -14586,13 +14595,6 @@ SDValue PPCTargetLowering::expandVSXLoadForLE(SDNode *N,
 
   MVT VecTy = N->getValueType(0).getSimpleVT();
 
-  // Do not expand to PPCISD::LXVD2X + PPCISD::XXSWAPD when the load is
-  // aligned and the type is a vector with elements up to 4 bytes
-  if (Subtarget.needsSwapsForVSXMemOps() && MMO->getAlign() >= Align(16) &&
-      VecTy.getScalarSizeInBits() <= 32) {
-    return SDValue();
-  }
-
   SDValue LoadOps[] = { Chain, Base };
   SDValue Load = DAG.getMemIntrinsicNode(PPCISD::LXVD2X, dl,
                                          DAG.getVTList(MVT::v2f64, MVT::Other),
@@ -14620,6 +14622,11 @@ SDValue PPCTargetLowering::expandVSXLoadForLE(SDNode *N,
 // builtins) into stores with swaps.
 SDValue PPCTargetLowering::expandVSXStoreForLE(SDNode *N,
                                                DAGCombinerInfo &DCI) const {
+  // Delay VSX store for LE combine until after LegalizeOps to prioritize other
+  // store combines.
+  if (DCI.isBeforeLegalizeOps())
+    return SDValue();
+
   SelectionDAG &DAG = DCI.DAG;
   SDLoc dl(N);
   SDValue Chain;
@@ -14656,13 +14663,6 @@ SDValue PPCTargetLowering::expandVSXStoreForLE(SDNode *N,
 
   SDValue Src = N->getOperand(SrcOpnd);
   MVT VecTy = Src.getValueType().getSimpleVT();
-
-  // Do not expand to PPCISD::XXSWAPD and PPCISD::STXVD2X when the load is
-  // aligned and the type is a vector with elements up to 4 bytes
-  if (Subtarget.needsSwapsForVSXMemOps() && MMO->getAlign() >= Align(16) &&
-      VecTy.getScalarSizeInBits() <= 32) {
-    return SDValue();
-  }
 
   // All stores are done as v2f64 and possible bit cast.
   if (VecTy != MVT::v2f64) {
@@ -14889,6 +14889,17 @@ SDValue PPCTargetLowering::combineVectorShuffle(ShuffleVectorSDNode *SVN,
   SDValue SToVLHS = isScalarToVec(LHS);
   SDValue SToVRHS = isScalarToVec(RHS);
   if (SToVLHS || SToVRHS) {
+    // FIXME: If both LHS and RHS are SCALAR_TO_VECTOR, but are not the
+    // same type and have differing element sizes, then do not perform
+    // the following transformation. The current transformation for
+    // SCALAR_TO_VECTOR assumes that both input vectors have the same
+    // element size. This will be updated in the future to account for
+    // differing sizes of the LHS and RHS.
+    if (SToVLHS && SToVRHS &&
+        (SToVLHS.getValueType().getScalarSizeInBits() !=
+         SToVRHS.getValueType().getScalarSizeInBits()))
+      return Res;
+
     int NumEltsIn = SToVLHS ? SToVLHS.getValueType().getVectorNumElements()
                             : SToVRHS.getValueType().getVectorNumElements();
     int NumEltsOut = ShuffV.size();
@@ -14972,24 +14983,36 @@ SDValue PPCTargetLowering::combineVectorShuffle(ShuffleVectorSDNode *SVN,
     // Example (even elements from first vector):
     // vector_shuffle<0,16,1,17,2,18,3,19,4,20,5,21,6,22,7,23> t1, <zero>
     if (Mask[0] < NumElts)
-      for (int i = 1, e = Mask.size(); i < e; i += 2)
+      for (int i = 1, e = Mask.size(); i < e; i += 2) {
+        if (ShuffV[i] < 0)
+          continue;
         ShuffV[i] = (ShuffV[i - 1] + NumElts);
+      }
     // Example (odd elements from first vector):
     // vector_shuffle<16,0,17,1,18,2,19,3,20,4,21,5,22,6,23,7> t1, <zero>
     else
-      for (int i = 0, e = Mask.size(); i < e; i += 2)
+      for (int i = 0, e = Mask.size(); i < e; i += 2) {
+        if (ShuffV[i] < 0)
+          continue;
         ShuffV[i] = (ShuffV[i + 1] + NumElts);
+      }
   } else {
     // Example (even elements from first vector):
     // vector_shuffle<0,16,1,17,2,18,3,19,4,20,5,21,6,22,7,23> <zero>, t1
     if (Mask[0] < NumElts)
-      for (int i = 0, e = Mask.size(); i < e; i += 2)
+      for (int i = 0, e = Mask.size(); i < e; i += 2) {
+        if (ShuffV[i] < 0)
+          continue;
         ShuffV[i] = ShuffV[i + 1] - NumElts;
+      }
     // Example (odd elements from first vector):
     // vector_shuffle<16,0,17,1,18,2,19,3,20,4,21,5,22,6,23,7> <zero>, t1
     else
-      for (int i = 1, e = Mask.size(); i < e; i += 2)
+      for (int i = 1, e = Mask.size(); i < e; i += 2) {
+        if (ShuffV[i] < 0)
+          continue;
         ShuffV[i] = ShuffV[i - 1] - NumElts;
+      }
   }
 
   // If the RHS has undefs, we need to remove them since we may have created
@@ -15392,7 +15415,7 @@ SDValue PPCTargetLowering::PerformDAGCombine(SDNode *N,
       MachineFunction &MF = DAG.getMachineFunction();
       MachineMemOperand *BaseMMO =
         MF.getMachineMemOperand(LD->getMemOperand(),
-                                -(long)MemVT.getStoreSize()+1,
+                                -(int64_t)MemVT.getStoreSize()+1,
                                 2*MemVT.getStoreSize()-1);
 
       // Create the new base load.
@@ -17862,13 +17885,17 @@ bool PPCTargetLowering::isLowringToMASSSafe(SDValue Op) const {
   return Op.getNode()->getFlags().hasApproximateFuncs();
 }
 
+bool PPCTargetLowering::isScalarMASSConversionEnabled() const {
+  return getTargetMachine().Options.PPCGenScalarMASSEntries;
+}
+
 SDValue PPCTargetLowering::lowerLibCallBase(const char *LibCallDoubleName,
                                             const char *LibCallFloatName,
                                             const char *LibCallDoubleNameFinite,
                                             const char *LibCallFloatNameFinite,
                                             SDValue Op,
                                             SelectionDAG &DAG) const {
-  if (!isLowringToMASSSafe(Op))
+  if (!isScalarMASSConversionEnabled() || !isLowringToMASSSafe(Op))
     return SDValue();
 
   if (!isLowringToMASSFiniteSafe(Op))

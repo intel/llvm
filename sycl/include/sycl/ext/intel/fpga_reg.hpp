@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines.hpp>
+#include <sycl/detail/defines.hpp>
 #include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -55,6 +55,6 @@ namespace intelfpga {
 template <typename _T>
 [[deprecated("intelfpga::fpga_reg will be removed in a future release.")]] _T
 fpga_reg(const _T &t) {
-  return cl::sycl::ext::intel::fpga_reg(t);
+  return sycl::ext::intel::fpga_reg(t);
 }
 } // namespace intelfpga

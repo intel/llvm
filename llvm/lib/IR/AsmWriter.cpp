@@ -1590,10 +1590,6 @@ static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
         Out << ", ";
     }
 
-    if (CE->hasIndices())
-      for (unsigned I : CE->getIndices())
-        Out << ", " << I;
-
     if (CE->isCast()) {
       Out << " to ";
       WriterCtx.TypePrinter->print(CE->getType(), Out);
@@ -2075,7 +2071,7 @@ static void writeDIFile(raw_ostream &Out, const DIFile *N, AsmWriterContext &) {
   // Print all values for checksum together, or not at all.
   if (N->getChecksum())
     Printer.printChecksum(*N->getChecksum());
-  Printer.printString("source", N->getSource().getValueOr(StringRef()),
+  Printer.printString("source", N->getSource().value_or(StringRef()),
                       /* ShouldSkipEmpty */ true);
   Out << ")";
 }
@@ -3535,6 +3531,19 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
     Out << '"';
   }
 
+  using SanitizerMetadata = llvm::GlobalValue::SanitizerMetadata;
+  if (GV->hasSanitizerMetadata()) {
+    SanitizerMetadata MD = GV->getSanitizerMetadata();
+    if (MD.NoAddress)
+      Out << ", no_sanitize_address";
+    if (MD.NoHWAddress)
+      Out << ", no_sanitize_hwaddress";
+    if (MD.Memtag)
+      Out << ", sanitize_memtag";
+    if (MD.IsDynInit)
+      Out << ", sanitize_address_dyninit";
+  }
+
   maybePrintComdat(Out, *GV);
   if (MaybeAlign A = GV->getAlign())
     Out << ", align " << A->value();
@@ -4286,9 +4295,9 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     bool PrintAllTypes = false;
     Type *TheType = Operand->getType();
 
-    // Select, Store and ShuffleVector always print all types.
-    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I)
-        || isa<ReturnInst>(I)) {
+    // Select, Store, ShuffleVector and CmpXchg always print all types.
+    if (isa<SelectInst>(I) || isa<StoreInst>(I) || isa<ShuffleVectorInst>(I) ||
+        isa<ReturnInst>(I) || isa<AtomicCmpXchgInst>(I)) {
       PrintAllTypes = true;
     } else {
       for (unsigned i = 1, E = I.getNumOperands(); i != E; ++i) {
@@ -4712,9 +4721,8 @@ struct MDTreeAsmWriterContext : public AsmWriterContext {
       : AsmWriterContext(TP, ST, M), Level(0U), Visited({InitMD}), MainOS(OS) {}
 
   void onWriteMetadataAsOperand(const Metadata *MD) override {
-    if (Visited.count(MD))
+    if (!Visited.insert(MD).second)
       return;
-    Visited.insert(MD);
 
     std::string Str;
     raw_string_ostream SS(Str);

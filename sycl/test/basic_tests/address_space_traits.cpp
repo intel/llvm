@@ -1,9 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -D__ENABLE_USM_ADDR_SPACE__ -fsycl-targets=%sycl_triple %s -c
 
-#include <CL/sycl.hpp>
 #include <cassert>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 int main() {
 
   queue myQueue;

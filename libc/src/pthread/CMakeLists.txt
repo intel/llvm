@@ -253,6 +253,9 @@ add_entrypoint_object(
     libc.include.errno
     libc.include.pthread
     libc.src.__support.threads.thread
+  COMPILE_OPTIONS
+    -O3
+    -fno-omit-frame-pointer
 )
 
 add_entrypoint_object(
@@ -261,6 +264,39 @@ add_entrypoint_object(
     pthread_join.cpp
   HDRS
     pthread_join.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_detach
+  SRCS
+    pthread_detach.cpp
+  HDRS
+    pthread_detach.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_equal
+  SRCS
+    pthread_equal.cpp
+  HDRS
+    pthread_equal.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_self
+  SRCS
+    pthread_self.cpp
+  HDRS
+    pthread_self.h
   DEPENDS
     libc.include.pthread
     libc.src.__support.threads.thread

@@ -6,15 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
@@ -24,7 +15,16 @@
 #include <detail/program_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/spec_constant.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -41,7 +41,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 
 static constexpr int DbgProgMgr = 0;
 
@@ -380,6 +380,12 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
   }
 }
 
+static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
+                                const char *PropName) {
+  pi_device_binary_property Prop = Img.getProperty(PropName);
+  return Prop && (pi::DeviceBinaryProperty(Prop).asUint32() != 0);
+}
+
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img) {
   // Build options are overridden if environment variables are present.
@@ -387,7 +393,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  pi_device_binary_property isEsimdImage = Img.getProperty("isEsimdImage");
   // Update only if compile options are not overwritten by environment
   // variable
   if (!CompileOptsEnv) {
@@ -397,9 +402,14 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     if (TemporaryStr != nullptr)
       CompileOpts += std::string(TemporaryStr);
   }
+  bool isEsimdImage = getUint32PropAsBool(Img, "isEsimdImage");
+  bool isDoubleGRFEsimdImage =
+      getUint32PropAsBool(Img, "isDoubleGRFEsimdImage");
+  assert((!isDoubleGRFEsimdImage || isEsimdImage) &&
+         "doubleGRF applies only to ESIMD binary images");
   // The -vc-codegen option is always preserved for ESIMD kernels, regardless
   // of the contents SYCL_PROGRAM_COMPILE_OPTIONS environment variable.
-  if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
+  if (isEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     CompileOpts += "-vc-codegen";
@@ -407,6 +417,10 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
     // level is at least 1.
     if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() == 0)
       CompileOpts += " -disable-finalizer-msg";
+  }
+  if (isDoubleGRFEsimdImage) {
+    assert(!CompileOpts.empty()); // -vc-codegen must be present
+    CompileOpts += " -doubleGRF";
   }
 }
 
@@ -899,7 +913,7 @@ ProgramManager::getDeviceImage(OSModuleHandle M, KernelSetId KSId,
 
   Ctx->getPlugin().call<PiApiKind::piextDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-      (cl_uint)RawImgs.size(), &ImgInd);
+      (pi_uint32)RawImgs.size(), &ImgInd);
 
   if (JITCompilationIsRequired) {
     // If the image is already compiled with AOT, throw an exception.
@@ -1452,7 +1466,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
       const_cast<pi_device_binary>(&BinImage->getRawData());
   RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextDeviceSelectBinary>(
       PIDeviceHandle, &DevBin,
-      /*num bin images = */ (cl_uint)1, &SuitableImageID);
+      /*num bin images = */ (pi_uint32)1, &SuitableImageID);
   if (Error != PI_SUCCESS && Error != PI_ERROR_INVALID_BINARY)
     throw runtime_error("Invalid binary image or device",
                         PI_ERROR_INVALID_VALUE);
@@ -2036,7 +2050,7 @@ std::pair<RT::PiKernel, std::mutex *> ProgramManager::getOrCreateKernel(
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {
-  cl::sycl::detail::ProgramManager::getInstance().addImages(desc);
+  sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization

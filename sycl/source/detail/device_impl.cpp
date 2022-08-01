@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/device.hpp>
 
 #include <algorithm>
 
@@ -161,7 +161,7 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -171,8 +171,8 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
                           "Total counts exceed max compute units");
 
   size_t SubDevicesCount = MaxComputeUnits / ComputeUnits;
-  const cl_device_partition_property Properties[3] = {
-      CL_DEVICE_PARTITION_EQUALLY, (cl_device_partition_property)ComputeUnits,
+  const pi_device_partition_property Properties[3] = {
+      PI_DEVICE_PARTITION_EQUALLY, (pi_device_partition_property)ComputeUnits,
       0};
   return create_sub_devices(Properties, SubDevicesCount);
 }
@@ -187,11 +187,11 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
-  static const cl_device_partition_property P[] = {
-      CL_DEVICE_PARTITION_BY_COUNTS, CL_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
-  std::vector<cl_device_partition_property> Properties(P, P + 3);
+  static const pi_device_partition_property P[] = {
+      PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
+  std::vector<pi_device_partition_property> Properties(P, P + 3);
 
   // Fill the properties vector with counts and validate it
   auto It = Properties.begin() + 1;
@@ -234,7 +234,7 @@ std::vector<device> device_impl::create_sub_devices(
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
       !is_affinity_supported(AffinityDomain)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,

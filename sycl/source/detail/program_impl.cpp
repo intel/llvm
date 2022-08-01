@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/pi.h>
-#include <CL/sycl/kernel.hpp>
-#include <CL/sycl/property_list.hpp>
 #include <detail/config.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/kernel.hpp>
+#include <sycl/property_list.hpp>
 
 #include <algorithm>
 #include <fstream>
@@ -166,7 +166,7 @@ program_impl::program_impl(ContextImplPtr Context,
   Plugin.call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
-  if (BinaryType == CL_PROGRAM_BINARY_TYPE_NONE) {
+  if (BinaryType == PI_PROGRAM_BINARY_TYPE_NONE) {
     throw invalid_object_error(
         "The native program passed to the program constructor has to be either "
         "compiled or linked",
@@ -181,16 +181,16 @@ program_impl::program_impl(ContextImplPtr Context,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
-  case CL_PROGRAM_BINARY_TYPE_NONE:
+  case PI_PROGRAM_BINARY_TYPE_NONE:
     assert(false);
     break;
-  case CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
+  case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
     MCompileOptions = Options;
     MBuildOptions = Options;
     break;
-  case CL_PROGRAM_BINARY_TYPE_LIBRARY:
-  case CL_PROGRAM_BINARY_TYPE_EXECUTABLE:
+  case PI_PROGRAM_BINARY_TYPE_LIBRARY:
+  case PI_PROGRAM_BINARY_TYPE_EXECUTABLE:
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
@@ -505,7 +505,7 @@ void program_impl::create_pi_program_with_kernel_name(
 }
 
 template <>
-cl_uint program_impl::get_info<info::program::reference_count>() const {
+uint32_t program_impl::get_info<info::program::reference_count>() const {
   if (is_host()) {
     throw invalid_object_error("This instance of program is a host instance",
                                PI_ERROR_INVALID_PROGRAM);
@@ -530,7 +530,7 @@ std::vector<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::ext::oneapi::experimental::spec_const_error(
+    throw sycl::ext::oneapi::experimental::spec_const_error(
         "Invalid program state", PI_ERROR_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();

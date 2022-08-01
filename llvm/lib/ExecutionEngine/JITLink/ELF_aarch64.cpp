@@ -11,23 +11,21 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/ELF_aarch64.h"
+#include "EHFrameSupportImpl.h"
 #include "ELFLinkGraphBuilder.h"
 #include "JITLinkGeneric.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.h"
 #include "llvm/ExecutionEngine/JITLink/aarch64.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Support/MathExtras.h"
-
-#include "PerGraphGOTAndPLTStubsBuilder.h"
 
 #define DEBUG_TYPE "jitlink"
 
 using namespace llvm;
 using namespace llvm::jitlink;
 
-namespace llvm {
-namespace jitlink {
+namespace {
 
 class ELFJITLinker_aarch64 : public JITLinker<ELFJITLinker_aarch64> {
   friend class JITLinker<ELFJITLinker_aarch64>;
@@ -56,11 +54,19 @@ private:
     ELFLdSt32Abs12,
     ELFLdSt64Abs12,
     ELFLdSt128Abs12,
+    ELFMovwAbsG0,
+    ELFMovwAbsG1,
+    ELFMovwAbsG2,
+    ELFMovwAbsG3,
     ELFAbs64,
     ELFPrel32,
     ELFPrel64,
     ELFAdrGOTPage21,
     ELFLd64GOTLo12,
+    ELFTLSDescAdrPage21,
+    ELFTLSDescAddLo12,
+    ELFTLSDescLd64Lo12,
+    ELFTLSDescCall,
   };
 
   static Expected<ELFAArch64RelocationKind>
@@ -68,6 +74,7 @@ private:
     using namespace aarch64;
     switch (Type) {
     case ELF::R_AARCH64_CALL26:
+    case ELF::R_AARCH64_JUMP26:
       return ELFCall26;
     case ELF::R_AARCH64_ADR_PREL_PG_HI21:
       return ELFAdrPage21;
@@ -83,6 +90,14 @@ private:
       return ELFLdSt64Abs12;
     case ELF::R_AARCH64_LDST128_ABS_LO12_NC:
       return ELFLdSt128Abs12;
+    case ELF::R_AARCH64_MOVW_UABS_G0_NC:
+      return ELFMovwAbsG0;
+    case ELF::R_AARCH64_MOVW_UABS_G1_NC:
+      return ELFMovwAbsG1;
+    case ELF::R_AARCH64_MOVW_UABS_G2_NC:
+      return ELFMovwAbsG2;
+    case ELF::R_AARCH64_MOVW_UABS_G3:
+      return ELFMovwAbsG3;
     case ELF::R_AARCH64_ABS64:
       return ELFAbs64;
     case ELF::R_AARCH64_PREL32:
@@ -93,10 +108,19 @@ private:
       return ELFAdrGOTPage21;
     case ELF::R_AARCH64_LD64_GOT_LO12_NC:
       return ELFLd64GOTLo12;
+    case ELF::R_AARCH64_TLSDESC_ADR_PAGE21:
+      return ELFTLSDescAdrPage21;
+    case ELF::R_AARCH64_TLSDESC_ADD_LO12:
+      return ELFTLSDescAddLo12;
+    case ELF::R_AARCH64_TLSDESC_LD64_LO12:
+      return ELFTLSDescLd64Lo12;
+    case ELF::R_AARCH64_TLSDESC_CALL:
+      return ELFTLSDescCall;
     }
 
-    return make_error<JITLinkError>("Unsupported aarch64 relocation:" +
-                                    formatv("{0:d}", Type));
+    return make_error<JITLinkError>(
+        "Unsupported aarch64 relocation:" + formatv("{0:d}: ", Type) +
+        object::getELFRelocationTypeName(ELF::EM_AARCH64, Type));
   }
 
   Error addRelocations() override {
@@ -216,6 +240,50 @@ private:
       Kind = aarch64::PageOffset12;
       break;
     }
+    case ELFMovwAbsG0: {
+      uint32_t Instr = *(const ulittle32_t *)FixupContent;
+      if (!aarch64::isMoveWideImm16(Instr) ||
+          aarch64::getMoveWide16Shift(Instr) != 0)
+        return make_error<JITLinkError>(
+            "R_AARCH64_MOVW_UABS_G0_NC target is not a "
+            "MOVK/MOVZ (imm16, LSL #0) instruction");
+
+      Kind = aarch64::MoveWide16;
+      break;
+    }
+    case ELFMovwAbsG1: {
+      uint32_t Instr = *(const ulittle32_t *)FixupContent;
+      if (!aarch64::isMoveWideImm16(Instr) ||
+          aarch64::getMoveWide16Shift(Instr) != 16)
+        return make_error<JITLinkError>(
+            "R_AARCH64_MOVW_UABS_G1_NC target is not a "
+            "MOVK/MOVZ (imm16, LSL #16) instruction");
+
+      Kind = aarch64::MoveWide16;
+      break;
+    }
+    case ELFMovwAbsG2: {
+      uint32_t Instr = *(const ulittle32_t *)FixupContent;
+      if (!aarch64::isMoveWideImm16(Instr) ||
+          aarch64::getMoveWide16Shift(Instr) != 32)
+        return make_error<JITLinkError>(
+            "R_AARCH64_MOVW_UABS_G2_NC target is not a "
+            "MOVK/MOVZ (imm16, LSL #32) instruction");
+
+      Kind = aarch64::MoveWide16;
+      break;
+    }
+    case ELFMovwAbsG3: {
+      uint32_t Instr = *(const ulittle32_t *)FixupContent;
+      if (!aarch64::isMoveWideImm16(Instr) ||
+          aarch64::getMoveWide16Shift(Instr) != 48)
+        return make_error<JITLinkError>(
+            "R_AARCH64_MOVW_UABS_G3 target is not a "
+            "MOVK/MOVZ (imm16, LSL #48) instruction");
+
+      Kind = aarch64::MoveWide16;
+      break;
+    }
     case ELFAbs64: {
       Kind = aarch64::Pointer64;
       break;
@@ -236,6 +304,21 @@ private:
       Kind = aarch64::GOTPageOffset12;
       break;
     }
+    case ELFTLSDescAdrPage21: {
+      Kind = aarch64::TLSDescPage21;
+      break;
+    }
+    case ELFTLSDescAddLo12: {
+      Kind = aarch64::TLSDescPageOffset12;
+      break;
+    }
+    case ELFTLSDescLd64Lo12: {
+      Kind = aarch64::TLSDescPageOffset12;
+      break;
+    }
+    case ELFTLSDescCall: {
+      return Error::success();
+    }
     };
 
     Edge GE(Kind, Offset, *GraphSymbol, Addend);
@@ -246,6 +329,7 @@ private:
     });
 
     BlockToFix.addEdge(std::move(GE));
+
     return Error::success();
   }
 
@@ -268,6 +352,14 @@ private:
       return "ELFLdSt64Abs12";
     case ELFLdSt128Abs12:
       return "ELFLdSt128Abs12";
+    case ELFMovwAbsG0:
+      return "ELFMovwAbsG0";
+    case ELFMovwAbsG1:
+      return "ELFMovwAbsG1";
+    case ELFMovwAbsG2:
+      return "ELFMovwAbsG2";
+    case ELFMovwAbsG3:
+      return "ELFMovwAbsG3";
     case ELFAbs64:
       return "ELFAbs64";
     case ELFPrel32:
@@ -278,6 +370,14 @@ private:
       return "ELFAdrGOTPage21";
     case ELFLd64GOTLo12:
       return "ELFLd64GOTLo12";
+    case ELFTLSDescAdrPage21:
+      return "ELFTLSDescAdrPage21";
+    case ELFTLSDescAddLo12:
+      return "ELFTLSDescAddLo12";
+    case ELFTLSDescLd64Lo12:
+      return "ELFTLSDescLd64Lo12";
+    case ELFTLSDescCall:
+      return "ELFTLSDescCall";
     default:
       return getGenericEdgeKindName(static_cast<Edge::Kind>(R));
     }
@@ -290,63 +390,140 @@ public:
                                   aarch64::getEdgeKindName) {}
 };
 
-class PerGraphGOTAndPLTStubsBuilder_ELF_arm64
-    : public PerGraphGOTAndPLTStubsBuilder<
-          PerGraphGOTAndPLTStubsBuilder_ELF_arm64> {
+// TLS Info Builder.
+class TLSInfoTableManager_ELF_aarch64
+    : public TableManager<TLSInfoTableManager_ELF_aarch64> {
 public:
-  using PerGraphGOTAndPLTStubsBuilder<
-      PerGraphGOTAndPLTStubsBuilder_ELF_arm64>::PerGraphGOTAndPLTStubsBuilder;
+  static StringRef getSectionName() { return "$__TLSINFO"; }
 
-  bool isGOTEdgeToFix(Edge &E) const {
-    return E.getKind() == aarch64::GOTPage21 ||
-           E.getKind() == aarch64::GOTPageOffset12;
+  static const uint8_t TLSInfoEntryContent[16];
+
+  bool visitEdge(LinkGraph &G, Block *B, Edge &E) { return false; }
+
+  Symbol &createEntry(LinkGraph &G, Symbol &Target) {
+    // the TLS Info entry's key value will be written by the fixTLVSectionByName
+    // pass, so create mutable content.
+    auto &TLSInfoEntry = G.createMutableContentBlock(
+        getTLSInfoSection(G), G.allocateContent(getTLSInfoEntryContent()),
+        orc::ExecutorAddr(), 8, 0);
+    TLSInfoEntry.addEdge(aarch64::Pointer64, 8, Target, 0);
+    return G.addAnonymousSymbol(TLSInfoEntry, 0, 16, false, false);
   }
-
-  Symbol &createGOTEntry(Symbol &Target) {
-    auto &GOTEntryBlock = G.createContentBlock(
-        getGOTSection(), getGOTEntryBlockContent(), orc::ExecutorAddr(), 8, 0);
-    GOTEntryBlock.addEdge(aarch64::Pointer64, 0, Target, 0);
-    return G.addAnonymousSymbol(GOTEntryBlock, 0, 8, false, false);
-  }
-
-  void fixGOTEdge(Edge &E, Symbol &GOTEntry) {
-    if (E.getKind() == aarch64::GOTPage21) {
-      E.setKind(aarch64::Page21);
-      E.setTarget(GOTEntry);
-    } else if (E.getKind() == aarch64::GOTPageOffset12) {
-      E.setKind(aarch64::PageOffset12);
-      E.setTarget(GOTEntry);
-    } else
-      llvm_unreachable("Not a GOT edge?");
-  }
-
-  bool isExternalBranchEdge(Edge &E) { return false; }
-
-  Symbol &createPLTStub(Symbol &Target) {
-    assert(false && "unimplemetned");
-    return Target;
-  }
-
-  void fixPLTEdge(Edge &E, Symbol &Stub) { assert(false && "unimplemetned"); }
 
 private:
-  Section &getGOTSection() {
+  Section &getTLSInfoSection(LinkGraph &G) {
+    if (!TLSInfoTable)
+      TLSInfoTable = &G.createSection(getSectionName(), MemProt::Read);
+    return *TLSInfoTable;
+  }
+
+  ArrayRef<char> getTLSInfoEntryContent() const {
+    return {reinterpret_cast<const char *>(TLSInfoEntryContent),
+            sizeof(TLSInfoEntryContent)};
+  }
+
+  Section *TLSInfoTable = nullptr;
+};
+
+const uint8_t TLSInfoTableManager_ELF_aarch64::TLSInfoEntryContent[16] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /*pthread key */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /*data address*/
+};
+
+// TLS Descriptor Builder.
+class TLSDescTableManager_ELF_aarch64
+    : public TableManager<TLSDescTableManager_ELF_aarch64> {
+public:
+  TLSDescTableManager_ELF_aarch64(
+      TLSInfoTableManager_ELF_aarch64 &TLSInfoTableManager)
+      : TLSInfoTableManager(TLSInfoTableManager) {}
+
+  static StringRef getSectionName() { return "$__TLSDESC"; }
+
+  static const uint8_t TLSDescEntryContent[16];
+
+  bool visitEdge(LinkGraph &G, Block *B, Edge &E) {
+    Edge::Kind KindToSet = Edge::Invalid;
+    switch (E.getKind()) {
+    case aarch64::TLSDescPage21: {
+      KindToSet = aarch64::Page21;
+      break;
+    }
+    case aarch64::TLSDescPageOffset12: {
+      KindToSet = aarch64::PageOffset12;
+      break;
+    }
+    default:
+      return false;
+    }
+    assert(KindToSet != Edge::Invalid &&
+           "Fell through switch, but no new kind to set");
+    DEBUG_WITH_TYPE("jitlink", {
+      dbgs() << "  Fixing " << G.getEdgeKindName(E.getKind()) << " edge at "
+             << B->getFixupAddress(E) << " (" << B->getAddress() << " + "
+             << formatv("{0:x}", E.getOffset()) << ")\n";
+    });
+    E.setKind(KindToSet);
+    E.setTarget(getEntryForTarget(G, E.getTarget()));
+    return true;
+  }
+
+  Symbol &createEntry(LinkGraph &G, Symbol &Target) {
+    auto &EntryBlock =
+        G.createContentBlock(getTLSDescSection(G), getTLSDescBlockContent(),
+                             orc::ExecutorAddr(), 8, 0);
+    EntryBlock.addEdge(aarch64::Pointer64, 0, getTLSDescResolver(G), 0);
+    EntryBlock.addEdge(aarch64::Pointer64, 8,
+                       TLSInfoTableManager.getEntryForTarget(G, Target), 0);
+    return G.addAnonymousSymbol(EntryBlock, 0, 8, false, false);
+  }
+
+private:
+  Section &getTLSDescSection(LinkGraph &G) {
     if (!GOTSection)
-      GOTSection = &G.createSection("$__GOT", MemProt::Read | MemProt::Exec);
+      GOTSection = &G.createSection(getSectionName(), MemProt::Read);
     return *GOTSection;
   }
 
-  ArrayRef<char> getGOTEntryBlockContent() {
-    return {reinterpret_cast<const char *>(NullGOTEntryContent),
-            sizeof(NullGOTEntryContent)};
+  Symbol &getTLSDescResolver(LinkGraph &G) {
+    if (!TLSDescResolver)
+      TLSDescResolver =
+          &G.addExternalSymbol("__tlsdesc_resolver", 8, Linkage::Strong);
+    return *TLSDescResolver;
   }
 
-  static const uint8_t NullGOTEntryContent[8];
+  ArrayRef<char> getTLSDescBlockContent() {
+    return {reinterpret_cast<const char *>(TLSDescEntryContent),
+            sizeof(TLSDescEntryContent)};
+  }
+
   Section *GOTSection = nullptr;
+  Symbol *TLSDescResolver = nullptr;
+  TLSInfoTableManager_ELF_aarch64 &TLSInfoTableManager;
 };
 
-const uint8_t PerGraphGOTAndPLTStubsBuilder_ELF_arm64::NullGOTEntryContent[8] =
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+const uint8_t TLSDescTableManager_ELF_aarch64::TLSDescEntryContent[16] = {
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, /*resolver function pointer*/
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00 /*pointer to tls info*/
+};
+
+Error buildTables_ELF_aarch64(LinkGraph &G) {
+  LLVM_DEBUG(dbgs() << "Visiting edges in graph:\n");
+
+  aarch64::GOTTableManager GOT;
+  aarch64::PLTTableManager PLT(GOT);
+  TLSInfoTableManager_ELF_aarch64 TLSInfo;
+  TLSDescTableManager_ELF_aarch64 TLSDesc(TLSInfo);
+  visitExistingEdges(G, GOT, PLT, TLSDesc, TLSInfo);
+  return Error::success();
+}
+
+} // namespace
+
+namespace llvm {
+namespace jitlink {
 
 Expected<std::unique_ptr<LinkGraph>>
 createLinkGraphFromELFObject_aarch64(MemoryBufferRef ObjectBuffer) {
@@ -374,14 +551,21 @@ void link_ELF_aarch64(std::unique_ptr<LinkGraph> G,
   PassConfiguration Config;
   const Triple &TT = G->getTargetTriple();
   if (Ctx->shouldAddDefaultTargetPasses(TT)) {
+    // Add eh-frame passses.
+    Config.PrePrunePasses.push_back(DWARFRecordSectionSplitter(".eh_frame"));
+    Config.PrePrunePasses.push_back(EHFrameEdgeFixer(
+        ".eh_frame", 8, aarch64::Pointer32, aarch64::Pointer64,
+        aarch64::Delta32, aarch64::Delta64, aarch64::NegDelta32));
+
+    // Add a mark-live pass.
     if (auto MarkLive = Ctx->getMarkLivePass(TT))
       Config.PrePrunePasses.push_back(std::move(MarkLive));
     else
       Config.PrePrunePasses.push_back(markAllSymbolsLive);
-  }
 
-  Config.PostPrunePasses.push_back(
-      PerGraphGOTAndPLTStubsBuilder_ELF_arm64::asPass);
+    // Add an in-place GOT/TLS/Stubs build pass.
+    Config.PostPrunePasses.push_back(buildTables_ELF_aarch64);
+  }
 
   if (auto Err = Ctx->modifyPassConfig(*G, Config))
     return Ctx->notifyFailed(std::move(Err));

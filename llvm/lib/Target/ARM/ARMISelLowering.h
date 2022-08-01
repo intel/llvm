@@ -581,7 +581,7 @@ class VectorType;
     getRegClassFor(MVT VT, bool isDivergent = false) const override;
 
     bool shouldAlignPointerArgs(CallInst *CI, unsigned &MinSize,
-                                unsigned &PrefAlign) const override;
+                                Align &PrefAlign) const override;
 
     /// createFastISel - This method returns a target specific FastISel object,
     /// or null if the target does not support "fast" ISel.
@@ -732,6 +732,8 @@ class VectorType;
 
     bool isDesirableToCommuteWithShift(const SDNode *N,
                                        CombineLevel Level) const override;
+
+    bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
 
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;

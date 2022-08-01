@@ -206,6 +206,10 @@ int ExternalIoStatementBase::EndIoStatement() {
   return result;
 }
 
+void ExternalIoStatementBase::SetAsynchronous() {
+  asynchronousID_ = unit().GetAsynchronousId(*this);
+}
+
 void OpenStatementState::set_path(const char *path, std::size_t length) {
   pathLength_ = TrimTrailingSpaces(path, length);
   path_ = SaveDefaultCharacter(path, pathLength_, *this);
@@ -283,6 +287,7 @@ int CloseStatementState::EndIoStatement() {
 }
 
 void NoUnitIoStatementState::CompleteOperation() {
+  SignalPendingError();
   IoStatementBase::CompleteOperation();
 }
 
@@ -315,20 +320,18 @@ void ExternalIoStatementState<DIR>::CompleteOperation() {
   }
   if constexpr (DIR == Direction::Input) {
     BeginReadingRecord(); // in case there were no I/O items
-    if (mutableModes().nonAdvancing) {
+    if (mutableModes().nonAdvancing && !InError()) {
       unit().leftTabLimit = unit().furthestPositionInRecord;
-    }
-    if (!mutableModes().nonAdvancing || GetIoStat() == IostatEor) {
+    } else {
       FinishReadingRecord();
     }
   } else { // output
     if (mutableModes().nonAdvancing) {
       // Make effects of positioning past the last Emit() visible with blanks.
       std::int64_t n{unit().positionInRecord - unit().furthestPositionInRecord};
-      unit().positionInRecord = unit().furthestPositionInRecord;
       while (n-- > 0 && unit().Emit(" ", 1, 1, *this)) {
       }
-      unit().leftTabLimit = unit().furthestPositionInRecord;
+      unit().leftTabLimit = unit().positionInRecord;
     } else {
       unit().AdvanceRecord(*this);
     }
@@ -627,7 +630,6 @@ std::optional<char32_t> IoStatementState::NextInField(
         switch (*next) {
         case ' ':
         case '\t':
-        case ';':
         case '/':
         case '(':
         case ')':
@@ -637,11 +639,15 @@ std::optional<char32_t> IoStatementState::NextInField(
         case '\n': // for stream access
           return std::nullopt;
         case ',':
-          if (edit.modes.editingFlags & decimalComma) {
-            break;
-          } else {
+          if (!(edit.modes.editingFlags & decimalComma)) {
             return std::nullopt;
           }
+          break;
+        case ';':
+          if (edit.modes.editingFlags & decimalComma) {
+            return std::nullopt;
+          }
+          break;
         default:
           break;
         }
@@ -674,7 +680,8 @@ bool IoStatementState::CheckForEndOfRecord() {
     if (auto length{connection.EffectiveRecordLength()}) {
       if (connection.positionInRecord >= *length) {
         IoErrorHandler &handler{GetIoErrorHandler()};
-        if (mutableModes().nonAdvancing) {
+        const auto &modes{mutableModes()};
+        if (modes.nonAdvancing) {
           if (connection.access == Access::Stream &&
               connection.unterminatedRecord) {
             // Reading final unterminated record left by a
@@ -684,10 +691,10 @@ bool IoStatementState::CheckForEndOfRecord() {
           } else {
             handler.SignalEor();
           }
-        } else if (!connection.modes.pad) {
+        } else if (!modes.pad) {
           handler.SignalError(IostatRecordReadOverrun);
         }
-        return connection.modes.pad; // PAD='YES'
+        return modes.pad; // PAD='YES'
       }
     }
   }
@@ -796,7 +803,9 @@ ListDirectedStatementState<Direction::Input>::GetNextDataEdit(
     if (remaining_ > 0) {
       repeatPosition_.emplace(io);
     }
-    return edit;
+    if (!imaginaryPart_) {
+      return edit;
+    }
   }
   // Skip separators, handle a "r*c" repeat count; see 13.10.2 in Fortran 2018
   if (imaginaryPart_) {
@@ -1024,6 +1033,8 @@ void ExternalMiscIoStatementState::CompleteOperation() {
   case Rewind:
     ext.Rewind(*this);
     break;
+  case Wait:
+    break; // handled in io-api.cpp BeginWait
   }
   return IoStatementBase::CompleteOperation();
 }
@@ -1332,7 +1343,7 @@ bool InquireNoUnitState::Inquire(
   case HashInquiryKeyword("STREAM"):
   case HashInquiryKeyword("WRITE"):
   case HashInquiryKeyword("UNFORMATTED"):
-    ToFortranDefaultCharacter(result, length, "UNKNONN");
+    ToFortranDefaultCharacter(result, length, "UNKNOWN");
     return true;
   default:
     BadInquiryKeywordHashCrash(inquiry);

@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};

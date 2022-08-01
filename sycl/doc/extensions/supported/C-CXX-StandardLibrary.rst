@@ -115,7 +115,7 @@ Example of usage
 
 .. code: c++
    #include <assert.h>
-   #include <CL/sycl.hpp>
+   #include <sycl/sycl.hpp>
 
    template <typename T, size_t N>
    void simple_vadd(const std::array<T, N>& VA, const std::array<T, N>& VB,
@@ -143,7 +143,7 @@ Example of usage
 
 .. code: c++
    #include <math.h>
-   #include <CL/sycl.hpp>
+   #include <sycl/sycl.hpp>
 
    void device_sin_test() {
      cl::sycl::queue deviceQueue;

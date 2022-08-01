@@ -3009,6 +3009,9 @@ DEF_TRAVERSE_STMT(OMPParallelForSimdDirective,
 DEF_TRAVERSE_STMT(OMPParallelMasterDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
+DEF_TRAVERSE_STMT(OMPParallelMaskedDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
 DEF_TRAVERSE_STMT(OMPParallelSectionsDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
@@ -3088,6 +3091,18 @@ DEF_TRAVERSE_STMT(OMPParallelMasterTaskLoopDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
 DEF_TRAVERSE_STMT(OMPParallelMasterTaskLoopSimdDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPMaskedTaskLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPMaskedTaskLoopSimdDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPParallelMaskedTaskLoopDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPParallelMaskedTaskLoopSimdDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
 DEF_TRAVERSE_STMT(OMPDistributeDirective,

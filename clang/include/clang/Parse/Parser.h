@@ -215,6 +215,7 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> AttributePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensHerePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensTotalPragmaHandler;
+  std::unique_ptr<PragmaHandler> RISCVPragmaHandler;
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -728,6 +729,8 @@ private:
                               SourceLocation PragmaLocation);
   bool HandlePragmaMSAllocText(StringRef PragmaName,
                                SourceLocation PragmaLocation);
+  bool HandlePragmaMSOptimize(StringRef PragmaName,
+                              SourceLocation PragmaLocation);
 
   /// Handle the annotation token produced for
   /// #pragma align...
@@ -1041,7 +1044,7 @@ private:
   /// If the next token is not a semicolon, this emits the specified diagnostic,
   /// or, if there's just some closing-delimiter noise (e.g., ')' or ']') prior
   /// to the semicolon, consumes that extra token.
-  bool ExpectAndConsumeSemi(unsigned DiagID);
+  bool ExpectAndConsumeSemi(unsigned DiagID , StringRef TokenUsed = "");
 
   /// The kind of extra semi diagnostic to emit.
   enum ExtraSemiKind {
@@ -2076,7 +2079,8 @@ private:
       SourceLocation *TrailingElseLoc = nullptr);
   StmtResult ParseStatementOrDeclarationAfterAttributes(
       StmtVector &Stmts, ParsedStmtContext StmtCtx,
-      SourceLocation *TrailingElseLoc, ParsedAttributes &Attrs);
+      SourceLocation *TrailingElseLoc, ParsedAttributes &DeclAttrs,
+      ParsedAttributes &DeclSpecAttrs);
   StmtResult ParseExprStatement(ParsedStmtContext StmtCtx);
   StmtResult ParseLabeledStatement(ParsedAttributes &Attrs,
                                    ParsedStmtContext StmtCtx);
@@ -2325,15 +2329,18 @@ private:
 
   DeclGroupPtrTy ParseDeclaration(DeclaratorContext Context,
                                   SourceLocation &DeclEnd,
-                                  ParsedAttributes &Attrs,
+                                  ParsedAttributes &DeclAttrs,
+                                  ParsedAttributes &DeclSpecAttrs,
                                   SourceLocation *DeclSpecStart = nullptr);
   DeclGroupPtrTy
   ParseSimpleDeclaration(DeclaratorContext Context, SourceLocation &DeclEnd,
-                         ParsedAttributes &Attrs, bool RequireSemi,
+                         ParsedAttributes &DeclAttrs,
+                         ParsedAttributes &DeclSpecAttrs, bool RequireSemi,
                          ForRangeInit *FRI = nullptr,
                          SourceLocation *DeclSpecStart = nullptr);
   bool MightBeDeclarator(DeclaratorContext Context);
   DeclGroupPtrTy ParseDeclGroup(ParsingDeclSpec &DS, DeclaratorContext Context,
+                                ParsedAttributes &Attrs,
                                 SourceLocation *DeclEnd = nullptr,
                                 ForRangeInit *FRI = nullptr);
   Decl *ParseDeclarationAfterDeclarator(Declarator &D,

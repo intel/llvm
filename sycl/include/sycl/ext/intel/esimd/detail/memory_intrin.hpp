@@ -13,19 +13,19 @@
 
 #pragma once
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/accessor_impl.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
+#include <sycl/types.hpp>
 
 #include <cstdint>
 
 #ifndef __SYCL_DEVICE_ONLY__
 // ESIMD_CPU Emulation support using esimd_cpu plugin
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
 #include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
@@ -1099,6 +1099,10 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// getter methods returning surface index are not available when stateless
+// memory accesses are enforced.
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getNativeImageObj(acc)
@@ -1130,5 +1134,7 @@ __ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
+
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

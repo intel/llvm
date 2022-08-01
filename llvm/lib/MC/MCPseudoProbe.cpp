@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCPseudoProbe.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -183,7 +184,7 @@ void MCPseudoProbeSection::emit(MCObjectStreamer *MCOS) {
     if (auto *S =
             Ctx.getObjectFileInfo()->getPseudoProbeSection(ProbeSec.first)) {
       // Switch to the .pseudoprobe section or a comdat group.
-      MCOS->SwitchSection(S);
+      MCOS->switchSection(S);
       // Emit probes grouped by GUID.
       ProbeSec.second.emit(MCOS, LastProbe);
     }
@@ -519,7 +520,7 @@ void MCPseudoProbeDecoder::printProbesForAllAddresses(raw_ostream &OS) {
   std::vector<uint64_t> Addresses;
   for (auto Entry : Address2ProbesMap)
     Addresses.push_back(Entry.first);
-  std::sort(Addresses.begin(), Addresses.end());
+  llvm::sort(Addresses);
   for (auto K : Addresses) {
     OS << "Address:\t";
     OS << K;
