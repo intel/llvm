@@ -52,9 +52,9 @@ static int getDevicePreference(const device &Device) {
   return Score;
 }
 
-static void traceDeviceSelection(const device &Device, int score, bool chosen) {
+static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
   bool shouldTrace = false;
-  if (chosen) {
+  if (Chosen) {
     shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
   } else {
     shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL);
@@ -63,11 +63,11 @@ static void traceDeviceSelection(const device &Device, int score, bool chosen) {
     std::string PlatformName = Device.get_info<info::device::platform>()
                                    .get_info<info::platform::name>();
     std::string DeviceName = Device.get_info<info::device::name>();
-    auto selectionMsg = chosen ? "Selected device: -> final score = "
+    auto selectionMsg = Chosen ? "Selected device: -> final score = "
                                : "Candidate device: -> score = ";
 
-    std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << score
-              << ((score < 0) ? " (REJECTED)" : "") << std::endl
+    std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << Score
+              << ((Score < 0) ? " (REJECTED)" : "") << std::endl
               << "SYCL_PI_TRACE[all]: "
               << "  platform: " << PlatformName << std::endl
               << "SYCL_PI_TRACE[all]: "
@@ -77,7 +77,7 @@ static void traceDeviceSelection(const device &Device, int score, bool chosen) {
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
                      std::vector<device> &devices) {
-  int score = REJECT_DEVICE_SCORE;
+  int score = detail::REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
   for (const auto &dev : devices) {
@@ -171,7 +171,7 @@ int default_selector::operator()(const device &dev) const {
 }
 
 int gpu_selector::operator()(const device &dev) const {
-  int Score = REJECT_DEVICE_SCORE;
+  int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_gpu()) {
     Score = 1000;
@@ -181,7 +181,7 @@ int gpu_selector::operator()(const device &dev) const {
 }
 
 int cpu_selector::operator()(const device &dev) const {
-  int Score = REJECT_DEVICE_SCORE;
+  int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_cpu()) {
     Score = 1000;
@@ -191,7 +191,7 @@ int cpu_selector::operator()(const device &dev) const {
 }
 
 int accelerator_selector::operator()(const device &dev) const {
-  int Score = REJECT_DEVICE_SCORE;
+  int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_accelerator()) {
     Score = 1000;
@@ -201,7 +201,7 @@ int accelerator_selector::operator()(const device &dev) const {
 }
 
 int host_selector::operator()(const device &dev) const {
-  int Score = REJECT_DEVICE_SCORE;
+  int Score = detail::REJECT_DEVICE_SCORE;
 
   if (dev.is_host()) {
     Score = 1000;

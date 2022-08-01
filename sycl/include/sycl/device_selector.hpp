@@ -16,9 +16,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-// SYCL 1.2.1 defines a negative score to reject a device from selection
-static constexpr int REJECT_DEVICE_SCORE = -1;
-
 // Forward declarations
 class device;
 
@@ -89,6 +86,9 @@ public:
 };
 
 namespace detail {
+
+// SYCL 1.2.1 defines a negative score to reject a device from selection
+static constexpr int REJECT_DEVICE_SCORE = -1;
 
 using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 
