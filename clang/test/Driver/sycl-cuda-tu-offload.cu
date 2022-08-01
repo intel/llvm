@@ -1,4 +1,4 @@
-// RUN: %clangxx -ccc-print-phases -target x86_64-unknown-linux-gnu  -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -target x86_64-unknown-linux-gnu  -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 -c %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES
 
 // Test the correct placement of the offloading actions for compiling CUDA sources (*.cu) in SYCL.
 
@@ -19,7 +19,7 @@
 // DEFAULT-PHASES:|- 14: assembler, {13}, object, (host-cuda-sycl)
 // DEFAULT-PHASES:15: clang-offload-bundler, {3, 14}, object, (host-cuda-sycl)
 
-// RUN: %clangxx -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES2
+// RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=nvptx64-nvidia-cuda  -Xsycl-target-backend  --cuda-gpu-arch=sm_80 --cuda-gpu-arch=sm_80 %s 2>&1 | FileCheck %s --check-prefix=DEFAULT-PHASES2
 
 // DEFAULT-PHASES2:                     +- 0: input, "{{.*}}", cuda, (host-cuda)
 // DEFAULT-PHASES2:                  +- 1: preprocessor, {0}, cuda-cpp-output, (host-cuda)
@@ -93,8 +93,8 @@
 // DEFAULT-PHASES2:|           |     +- 69: input, "{{.*}}", object
 // DEFAULT-PHASES2:|           |  +- 70: clang-offload-unbundler, {69}, object
 // DEFAULT-PHASES2:|           |- 71: offload, " (nvptx64-nvidia-cuda)" {70}, object
-// DEFAULT-PHASES2:|           |- 72: input, "{{.*}}nvidiacl.bc", ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:|           |- 73: input, "{{.*}}libdevice.10.bc", ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|           |- 72: input, "{{.*}}nvidiacl{{.*}}", ir, (device-sycl, sm_80)
+// DEFAULT-PHASES2:|           |- 73: input, "{{.*}}libdevice{{.*}}", ir, (device-sycl, sm_80)
 // DEFAULT-PHASES2:|        +- 74: linker, {17, 20, 23, 26, 29, 32, 35, 38, 41, 44, 47, 50, 53, 56, 59, 62, 65, 68, 71, 72, 73}, ir, (device-sycl, sm_80)
 // DEFAULT-PHASES2:|     +- 75: sycl-post-link, {74}, ir, (device-sycl, sm_80)
 // DEFAULT-PHASES2:|     |  +- 76: file-table-tform, {75}, ir, (device-sycl, sm_80)
