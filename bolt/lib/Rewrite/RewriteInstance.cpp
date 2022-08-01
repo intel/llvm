@@ -301,11 +301,9 @@ MCPlusBuilder *createMCPlusBuilder(const Triple::ArchType Arch,
 namespace {
 
 bool refersToReorderedSection(ErrorOr<BinarySection &> Section) {
-  auto Itr =
-      llvm::find_if(opts::ReorderData, [&](const std::string &SectionName) {
-        return (Section && Section->getName() == SectionName);
-      });
-  return Itr != opts::ReorderData.end();
+  return llvm::any_of(opts::ReorderData, [&](const std::string &SectionName) {
+    return Section && Section->getName() == SectionName;
+  });
 }
 
 } // anonymous namespace
@@ -356,7 +354,7 @@ RewriteInstance::RewriteInstance(ELFObjectFileBase *File, const int Argc,
   BC->initializeTarget(std::unique_ptr<MCPlusBuilder>(createMCPlusBuilder(
       BC->TheTriple->getArch(), BC->MIA.get(), BC->MII.get(), BC->MRI.get())));
 
-  BAT = std::make_unique<BoltAddressTranslation>(*BC);
+  BAT = std::make_unique<BoltAddressTranslation>();
 
   if (opts::UpdateDebugSections)
     DebugInfoRewriter = std::make_unique<DWARFRewriter>(*BC);
@@ -2739,7 +2737,7 @@ void RewriteInstance::selectFunctionsToProcess() {
           Function.forEachName([&ForceFunctionsNR](StringRef Name) {
             return ForceFunctionsNR.count(Name.str());
           });
-      return Match.hasValue();
+      return Match.has_value();
     }
 
     for (std::string &Name : opts::SkipFunctionNames)
@@ -4163,7 +4161,7 @@ void RewriteInstance::encodeBATSection() {
   std::string DescStr;
   raw_string_ostream DescOS(DescStr);
 
-  BAT->write(DescOS);
+  BAT->write(*BC, DescOS);
   DescOS.flush();
 
   const std::string BoltInfo =
@@ -5054,7 +5052,7 @@ void RewriteInstance::patchELFDynamic(ELFObjectFile<ELFT> *File) {
 
   // Locate DYNAMIC by looking through program headers.
   uint64_t DynamicOffset = 0;
-  const Elf_Phdr *DynamicPhdr = 0;
+  const Elf_Phdr *DynamicPhdr = nullptr;
   for (const Elf_Phdr &Phdr : cantFail(Obj.program_headers())) {
     if (Phdr.p_type == ELF::PT_DYNAMIC) {
       DynamicOffset = Phdr.p_offset;
@@ -5139,7 +5137,7 @@ Error RewriteInstance::readELFDynamic(ELFObjectFile<ELFT> *File) {
   using Elf_Dyn = typename ELFFile<ELFT>::Elf_Dyn;
 
   // Locate DYNAMIC by looking through program headers.
-  const Elf_Phdr *DynamicPhdr = 0;
+  const Elf_Phdr *DynamicPhdr = nullptr;
   for (const Elf_Phdr &Phdr : cantFail(Obj.program_headers())) {
     if (Phdr.p_type == ELF::PT_DYNAMIC) {
       DynamicPhdr = &Phdr;

@@ -1688,7 +1688,7 @@ Error OffloadBundler::UnbundleArchive() {
 
     Optional<StringRef> OptionalCurBundleID = *CurBundleIDOrErr;
     // No device code in this child, skip.
-    if (!OptionalCurBundleID.hasValue())
+    if (!OptionalCurBundleID)
       continue;
     StringRef CodeObject = *OptionalCurBundleID;
 
@@ -1752,7 +1752,7 @@ Error OffloadBundler::UnbundleArchive() {
       if (!NextTripleOrErr)
         return NextTripleOrErr.takeError();
 
-      CodeObject = ((*NextTripleOrErr).hasValue()) ? **NextTripleOrErr : "";
+      CodeObject = ((*NextTripleOrErr).has_value()) ? **NextTripleOrErr : "";
     } // End of processing of all bundle entries of this child of input archive.
   }   // End of while over children of input archive.
 
