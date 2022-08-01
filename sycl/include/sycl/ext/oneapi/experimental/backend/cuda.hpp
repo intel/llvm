@@ -10,6 +10,7 @@
 
 #include <sycl/backend.hpp>
 #include <sycl/context.hpp>
+#include <sycl/ext/oneapi/experimental/backend/backend_traits_cuda.hpp>
 
 #include <vector>
 
@@ -52,13 +53,6 @@ inline auto get_native<backend::ext_oneapi_cuda, context>(const context &C)
   return ret;
 }
 
-// Specialisation of non-free context get_native
-template <>
-inline backend_return_t<backend::ext_oneapi_cuda, context>
-context::get_native<backend::ext_oneapi_cuda>() const {
-  return sycl::get_native<backend::ext_oneapi_cuda, context>(*this);
-}
-
 // Specialisation of interop_handles get_native_context
 template <>
 inline backend_return_t<backend::ext_oneapi_cuda, context>
@@ -77,6 +71,20 @@ inline device make_device<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, device> &BackendObject) {
   pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
+}
+
+template <>
+backend_return_t<backend::ext_oneapi_cuda, device>
+get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
+  // TODO use SYCL 2020 exception when implemented
+  if (Obj.get_backend() != backend::ext_oneapi_cuda) {
+    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
+                              PI_ERROR_INVALID_OPERATION);
+  }
+  // CUDA uses a 32-bit int instead of an opaque pointer like other backends,
+  // so we need a specialization with static_cast instead of reinterpret_cast.
+  return static_cast<backend_return_t<backend::ext_oneapi_cuda, device>>(
+      Obj.getNative());
 }
 
 // CUDA event specialization
