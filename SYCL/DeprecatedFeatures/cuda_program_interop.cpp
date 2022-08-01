@@ -12,7 +12,7 @@ int main() {
   sycl::program Prog{Queue.get_context()};
   Prog.build_with_kernel_type<class TestKernel>();
 
-  auto NativeProgram = Prog.get_native<sycl::backend::ext_oneapi_cuda>();
+  auto NativeProgram = sycl::get_native<sycl::backend::ext_oneapi_cuda>(Prog);
 
   assert(NativeProgram != 0);
 
