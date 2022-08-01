@@ -115,7 +115,7 @@ event ext_oneapi_memcpy2d(void *dest, size_t destPitch,
   size_t width, size_t height,
   event depEvent)
 
-event ext_oneapi_memcpy2D(void *dest, size_t destPitch,
+event ext_oneapi_memcpy2d(void *dest, size_t destPitch,
   const void *src, size_t srcPitch,
   size_t width, size_t height,
   const std::vector<event> &depEvents)
