@@ -3,8 +3,18 @@
 #include <ostream>
 
 namespace std {
-extern istream cin;  /// Linked to standard input
-extern ostream cout; /// Linked to standard output
-extern ostream cerr; /// Linked to standard error (unbuffered)
-extern ostream clog; /// Linked to standard error (buffered)
+#ifdef _WIN32
+#define __SYCL_EXTERN_STREAM_ATTRS __declspec(dllimport)
+#else
+#define __SYCL_EXTERN_STREAM_ATTRS
+#endif // _WIN32
+/// Linked to standard input
+extern __SYCL_EXTERN_STREAM_ATTRS istream cin;
+/// Linked to standard output
+extern __SYCL_EXTERN_STREAM_ATTRS ostream cout;
+/// Linked to standard error (unbuffered)
+extern __SYCL_EXTERN_STREAM_ATTRS ostream cerr;
+/// Linked to standard error (buffered)
+extern __SYCL_EXTERN_STREAM_ATTRS ostream clog;
+#undef __SYCL_EXTERN_STREAM_ATTRS
 } // namespace std
