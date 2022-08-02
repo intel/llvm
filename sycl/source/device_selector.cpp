@@ -76,11 +76,11 @@ static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
 }
 
 device select_device(DSelectorInvocableType DeviceSelectorInvocable,
-                     std::vector<device> &devices) {
+                     std::vector<device> &Devices) {
   int score = detail::REJECT_DEVICE_SCORE;
   const device *res = nullptr;
 
-  for (const auto &dev : devices) {
+  for (const auto &dev : Devices) {
     int dev_score = std::invoke(DeviceSelectorInvocable, dev);
 
     traceDeviceSelection(dev, dev_score, false);
@@ -90,7 +90,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
       continue;
 
     // Section 4.6 of SYCL 1.2.1 spec:
-    // says: "If more than one device receives the high score then
+    // "If more than one device receives the high score then
     // one of those tied devices will be returned, but which of the devices
     // from the tied set is to be returned is not defined". So use the device
     // preference score to resolve ties, this is necessary for custom_selectors
