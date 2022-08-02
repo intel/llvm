@@ -17,7 +17,6 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Types.h"
-#include "mlir/Interfaces/DecodeAttributesInterfaces.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/Support/Endian.h"
@@ -885,7 +884,7 @@ struct denseArrayAttrEltTypeBuilder<int8_t> {
   constexpr static auto eltType = DenseArrayBaseAttr::EltType::I8;
   static ShapedType getShapedType(MLIRContext *context,
                                   ArrayRef<int64_t> shape) {
-    return VectorType::get(shape, IntegerType::get(context, 8));
+    return RankedTensorType::get(shape, IntegerType::get(context, 8));
   }
 };
 template <>
@@ -893,7 +892,7 @@ struct denseArrayAttrEltTypeBuilder<int16_t> {
   constexpr static auto eltType = DenseArrayBaseAttr::EltType::I16;
   static ShapedType getShapedType(MLIRContext *context,
                                   ArrayRef<int64_t> shape) {
-    return VectorType::get(shape, IntegerType::get(context, 16));
+    return RankedTensorType::get(shape, IntegerType::get(context, 16));
   }
 };
 template <>
@@ -901,7 +900,7 @@ struct denseArrayAttrEltTypeBuilder<int32_t> {
   constexpr static auto eltType = DenseArrayBaseAttr::EltType::I32;
   static ShapedType getShapedType(MLIRContext *context,
                                   ArrayRef<int64_t> shape) {
-    return VectorType::get(shape, IntegerType::get(context, 32));
+    return RankedTensorType::get(shape, IntegerType::get(context, 32));
   }
 };
 template <>
@@ -909,7 +908,7 @@ struct denseArrayAttrEltTypeBuilder<int64_t> {
   constexpr static auto eltType = DenseArrayBaseAttr::EltType::I64;
   static ShapedType getShapedType(MLIRContext *context,
                                   ArrayRef<int64_t> shape) {
-    return VectorType::get(shape, IntegerType::get(context, 64));
+    return RankedTensorType::get(shape, IntegerType::get(context, 64));
   }
 };
 template <>
@@ -917,7 +916,7 @@ struct denseArrayAttrEltTypeBuilder<float> {
   constexpr static auto eltType = DenseArrayBaseAttr::EltType::F32;
   static ShapedType getShapedType(MLIRContext *context,
                                   ArrayRef<int64_t> shape) {
-    return VectorType::get(shape, Float32Type::get(context));
+    return RankedTensorType::get(shape, Float32Type::get(context));
   }
 };
 template <>
@@ -925,7 +924,7 @@ struct denseArrayAttrEltTypeBuilder<double> {
   constexpr static auto eltType = DenseArrayBaseAttr::EltType::F64;
   static ShapedType getShapedType(MLIRContext *context,
                                   ArrayRef<int64_t> shape) {
-    return VectorType::get(shape, Float64Type::get(context));
+    return RankedTensorType::get(shape, Float64Type::get(context));
   }
 };
 } // namespace
@@ -935,8 +934,8 @@ template <typename T>
 DenseArrayAttr<T> DenseArrayAttr<T>::get(MLIRContext *context,
                                          ArrayRef<T> content) {
   auto size = static_cast<int64_t>(content.size());
-  auto shapedType = denseArrayAttrEltTypeBuilder<T>::getShapedType(
-      context, size ? ArrayRef<int64_t>{size} : ArrayRef<int64_t>{});
+  auto shapedType =
+      denseArrayAttrEltTypeBuilder<T>::getShapedType(context, size);
   auto eltType = denseArrayAttrEltTypeBuilder<T>::eltType;
   auto rawArray = ArrayRef<char>(reinterpret_cast<const char *>(content.data()),
                                  content.size() * sizeof(T));
@@ -1699,29 +1698,6 @@ template class DenseResourceElementsAttrBase<float>;
 template class DenseResourceElementsAttrBase<double>;
 } // namespace detail
 } // namespace mlir
-
-//===----------------------------------------------------------------------===//
-// OpaqueElementsAttr
-//===----------------------------------------------------------------------===//
-
-bool OpaqueElementsAttr::decode(ElementsAttr &result) {
-  Dialect *dialect = getContext()->getLoadedDialect(getDialect());
-  if (!dialect)
-    return true;
-  auto *interface = llvm::dyn_cast<DialectDecodeAttributesInterface>(dialect);
-  if (!interface)
-    return true;
-  return failed(interface->decode(*this, result));
-}
-
-LogicalResult
-OpaqueElementsAttr::verify(function_ref<InFlightDiagnostic()> emitError,
-                           StringAttr dialect, StringRef value,
-                           ShapedType type) {
-  if (!Dialect::isValidNamespace(dialect.strref()))
-    return emitError() << "invalid dialect namespace '" << dialect << "'";
-  return success();
-}
 
 //===----------------------------------------------------------------------===//
 // SparseElementsAttr
