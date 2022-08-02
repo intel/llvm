@@ -13834,8 +13834,7 @@ static void CheckImplicitConversion(Sema &S, Expr *E, QualType T,
         // -Wimplicit-float-size-conversion is passed but
         // -Wimplicit-float-conversion is not, make sure we emit at least a size
         // warning.
-        if (S.Diags.isIgnored(diag::warn_impcast_float_precision, CC) &&
-            !S.Diags.isIgnored(diag::warn_imp_float_size_conversion, CC)) {
+        if (S.Diags.isIgnored(diag::warn_impcast_float_precision, CC)) {
           if (S.getLangOpts().SYCLIsDevice)
             S.SYCLDiagIfDeviceCode(CC, diag::warn_imp_float_size_conversion);
           else
