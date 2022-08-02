@@ -956,7 +956,6 @@
 ?Ordered@__host_std@cl@@YAHVhalf@half_impl@detail@sycl@2@0@Z
 ?PushBack@exception_list@sycl@cl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@sycl@cl@@AEAAXAEBVexception_ptr@std@@@Z
-?REJECT_DEVICE_SCORE@device_selector@sycl@cl@@1HB
 ?RangeRoundingTrace@handler@sycl@cl@@AEAA_NXZ
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$00@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$00@42@@Z
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$01@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@42@@Z
