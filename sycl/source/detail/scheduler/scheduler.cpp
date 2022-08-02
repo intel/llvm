@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sycl/detail/sycl_mem_obj_i.hpp"
+#include "detail/sycl_mem_obj_i.hpp"
 #include <detail/global_handler.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>

@@ -13,6 +13,8 @@
 #include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 
+#include <detail/buffer_impl.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <memory>

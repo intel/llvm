@@ -39,6 +39,9 @@ class queue;
 
 namespace detail {
 
+class event_impl;
+using EventImplPtr = std::shared_ptr<event_impl>;
+
 // Periodically there is a need to extend handler and CG classes to hold more
 // data(members) than it has now. But any modification of the layout of those
 // classes is an ABI break. To have an ability to have more data the following

@@ -16,6 +16,8 @@
 
 #include <gtest/gtest.h>
 
+#include <detail/buffer_impl.hpp>
+
 const uint64_t DEFAULT_VALUE = 7777;
 static uint64_t PassedLocation = DEFAULT_VALUE;
 

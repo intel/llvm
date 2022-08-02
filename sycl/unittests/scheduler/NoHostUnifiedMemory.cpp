@@ -11,6 +11,8 @@
 
 #include <helpers/PiMock.hpp>
 
+#include <detail/buffer_impl.hpp>
+
 #include <iostream>
 #include <memory>
 

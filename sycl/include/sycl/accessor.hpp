@@ -19,12 +19,14 @@
 #include <sycl/detail/handler_proxy.hpp>
 #include <sycl/detail/image_accessor_util.hpp>
 #include <sycl/detail/image_ocl_types.hpp>
+#include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/properties/accessor_properties.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/property_list_conversion.hpp>
 #include <sycl/sampler.hpp>
@@ -247,20 +249,6 @@ struct IsCxPropertyList<ext::oneapi::accessor_property_list<Props...>> {
 template <> struct IsCxPropertyList<ext::oneapi::accessor_property_list<>> {
   constexpr static bool value = false;
 };
-
-// The function extends or truncates number of dimensions of objects of id
-// or ranges classes. When extending the new values are filled with
-// DefaultValue, truncation just removes extra values.
-template <int NewDim, int DefaultValue, template <int> class T, int OldDim>
-static T<NewDim> convertToArrayOfN(T<OldDim> OldObj) {
-  T<NewDim> NewObj = InitializedVal<NewDim, T>::template get<0>();
-  const int CopyDims = NewDim > OldDim ? OldDim : NewDim;
-  for (int I = 0; I < CopyDims; ++I)
-    NewObj[I] = OldObj[I];
-  for (int I = CopyDims; I < NewDim; ++I)
-    NewObj[I] = DefaultValue;
-  return NewObj;
-}
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
 
@@ -510,15 +498,14 @@ public:
     // host.
   }
 #else
-      : AccessorBaseHost({detail::getSyclObjImpl(ImageRef)->getRowPitch(),
-                          detail::getSyclObjImpl(ImageRef)->getSlicePitch(), 0},
+      : AccessorBaseHost({ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
         MImageCount(ImageRef.size()),
-        MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
-        MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
+        MImgChannelOrder(ImageRef.getChannelOrder()),
+        MImgChannelType(ImageRef.getChannelType()) {
     addHostAccessorAndWait(AccessorBaseHost::impl.get());
   }
 #endif
@@ -541,15 +528,14 @@ public:
     // host.
   }
 #else
-      : AccessorBaseHost({detail::getSyclObjImpl(ImageRef)->getRowPitch(),
-                          detail::getSyclObjImpl(ImageRef)->getSlicePitch(), 0},
+      : AccessorBaseHost({ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
                          Dimensions, ImageElementSize),
         MImageCount(ImageRef.size()),
-        MImgChannelOrder(detail::getSyclObjImpl(ImageRef)->getChannelOrder()),
-        MImgChannelType(detail::getSyclObjImpl(ImageRef)->getChannelType()) {
+        MImgChannelOrder(ImageRef.getChannelOrder()),
+        MImgChannelType(ImageRef.getChannelType()) {
     checkDeviceFeatureSupported<info::device::image_support>(
         getDeviceFromHandler(CommandGroupHandlerRef));
   }
@@ -1197,7 +1183,7 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1212,7 +1198,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 #endif
 
@@ -1291,7 +1277,7 @@ public:
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1307,7 +1293,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
 #endif
@@ -1351,7 +1337,7 @@ public:
       TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1367,7 +1353,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, {}, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 #endif
 
@@ -1413,7 +1399,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1430,7 +1416,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, {}, PropertyList,
                  CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 #endif
 
@@ -1526,7 +1512,7 @@ public:
       id<Dimensions> AccessOffset, TagT, const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1542,7 +1528,7 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, AccessRange, AccessOffset, PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 #endif
 
@@ -1639,7 +1625,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
@@ -1656,7 +1642,7 @@ public:
       const detail::code_location CodeLoc = detail::code_location::current())
       : accessor(BufferRef, CommandGroupHandler, AccessRange, AccessOffset,
                  PropertyList, CodeLoc) {
-    adjustAccPropsInBuf(detail::getSyclObjImpl(BufferRef).get());
+    adjustAccPropsInBuf(BufferRef);
   }
 #endif
 
@@ -1829,8 +1815,8 @@ private:
   }
 
 #if __cplusplus >= 201703L
-  template <typename... PropTypes>
-  void adjustAccPropsInBuf(detail::SYCLMemObjI *SYCLMemObject) {
+  template <typename BufT, typename... PropTypes>
+  void adjustAccPropsInBuf(BufT &Buffer) {
     if constexpr (PropertyListT::template has_property<
                       sycl::ext::intel::property::buffer_location>()) {
       auto location = (PropertyListT::template get_property<
@@ -1838,18 +1824,14 @@ private:
                           .get_location();
       property_list PropList{
           sycl::property::buffer::detail::buffer_location(location)};
-      detail::SYCLMemObjT *SYCLMemObjectT =
-          dynamic_cast<detail::SYCLMemObjT *>(SYCLMemObject);
-      SYCLMemObjectT->addOrReplaceAccessorProperties(PropList);
+      Buffer.addOrReplaceAccessorProperties(PropList);
     } else {
-      deleteAccPropsFromBuf(SYCLMemObject);
+      deleteAccPropsFromBuf(Buffer);
     }
   }
 
-  void deleteAccPropsFromBuf(detail::SYCLMemObjI *SYCLMemObject) {
-    detail::SYCLMemObjT *SYCLMemObjectT =
-        dynamic_cast<detail::SYCLMemObjT *>(SYCLMemObject);
-    SYCLMemObjectT->deleteAccessorProperty(
+  template <typename BufT> void deleteAccPropsFromBuf(BufT &Buffer) {
+    Buffer.deleteAccProps(
         sycl::detail::PropWithDataKind::AccPropBufferLocation);
   }
 #endif
@@ -2236,8 +2218,7 @@ public:
            handler &CommandGroupHandler)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler,
-            (detail::getSyclObjImpl(Image))->getElementSize()) {
+            Image, CommandGroupHandler, Image.getElementSize()) {
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,
                                  access::target::image);
@@ -2249,8 +2230,7 @@ public:
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler,
-            (detail::getSyclObjImpl(Image))->getElementSize()) {
+            Image, CommandGroupHandler, Image.getElementSize()) {
     (void)propList;
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,
@@ -2294,14 +2274,14 @@ public:
   accessor(sycl::image<Dimensions, AllocatorT> &Image)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
-            Image, (detail::getSyclObjImpl(Image))->getElementSize()) {}
+            Image, Image.getElementSize()) {}
 
   template <typename AllocatorT>
   accessor(sycl::image<Dimensions, AllocatorT> &Image,
            const property_list &propList)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
                                access::target::host_image, IsPlaceholder>(
-            Image, (detail::getSyclObjImpl(Image))->getElementSize()) {
+            Image, Image.getElementSize()) {
     (void)propList;
   }
 };
@@ -2343,8 +2323,7 @@ public:
            handler &CommandGroupHandler)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler,
-            (detail::getSyclObjImpl(Image))->getElementSize()) {
+            Image, CommandGroupHandler, Image.getElementSize()) {
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,
                                  access::target::image_array);
@@ -2356,8 +2335,7 @@ public:
            handler &CommandGroupHandler, const property_list &propList)
       : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler,
-            (detail::getSyclObjImpl(Image))->getElementSize()) {
+            Image, CommandGroupHandler, Image.getElementSize()) {
     (void)propList;
 #ifndef __SYCL_DEVICE_ONLY__
     detail::associateWithHandler(CommandGroupHandler, this,

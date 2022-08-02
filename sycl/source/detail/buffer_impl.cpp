@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/buffer_impl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
-#include <sycl/detail/buffer_impl.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -37,12 +37,6 @@ void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
                                           uint32_t ElemSize, size_t Range[3]) {
   XPTIRegistry::bufferConstructorNotification(UserObj, CodeLoc, HostObj, Type,
                                               Dim, ElemSize, Range);
-}
-// TODO: remove once ABI break is allowed
-void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
-                                          void *UserObj) {
-  size_t r[3] = {0, 0, 0};
-  constructorNotification(CodeLoc, UserObj, nullptr, "", 0, 0, r);
 }
 
 void buffer_impl::destructorNotification(void *UserObj) {

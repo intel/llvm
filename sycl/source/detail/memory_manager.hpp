@@ -8,9 +8,9 @@
 
 #pragma once
 
+#include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/sycl_mem_obj_i.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
