@@ -295,7 +295,7 @@ void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
                                         const sycl::property_list &) {
-  // Can return user pointer directly if it points to writable memory.
+  // Can return user pointer directly if it is not a nullptr.
   if (UserPtr)
     return UserPtr;
 

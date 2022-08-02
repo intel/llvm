@@ -394,7 +394,7 @@ public:
   /// Indicates that the command owns memory allocation in case of connected
   /// alloca command.
   bool MIsLeaderAlloca = true;
-  // Indicates tha thte data in this allocation must not be modified
+  // Indicates that the data in this allocation must not be modified
   bool MIsConst = false;
 
 protected:

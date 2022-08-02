@@ -629,16 +629,16 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 // requirement.
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
-    bool allowConst) {
+    bool AllowConst) {
   auto IsSuitableAlloca = [&Context, Req,
-                           allowConst](AllocaCommandBase *AllocaCmd) {
+                           AllowConst](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
       Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
-      Res &= allowConst || !AllocaCmd->MIsConst;
+      Res &= AllowConst || !AllocaCmd->MIsConst;
     }
     return Res;
   };

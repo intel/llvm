@@ -619,7 +619,7 @@ protected:
     AllocaCommandBase *findAllocaForReq(MemObjRecord *Record,
                                         const Requirement *Req,
                                         const ContextImplPtr &Context,
-                                        bool allowConst = true);
+                                        bool AllowConst = true);
 
     friend class Command;
 
