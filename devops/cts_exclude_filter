@@ -1,10 +1,6 @@
 buffer
 exceptions
 multi_ptr
-opencl_interop
 reduction
-group
-kernel
-math_builtin_api
-nd_item
+vector_swizzles
 optional_kernel_features
