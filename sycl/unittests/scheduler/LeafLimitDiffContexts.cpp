@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 inline constexpr auto DisablePostEnqueueCleanupName =
     "SYCL_DISABLE_POST_ENQUEUE_CLEANUP";

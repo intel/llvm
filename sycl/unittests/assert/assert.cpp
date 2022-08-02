@@ -21,8 +21,8 @@
 #define SYCL_FALLBACK_ASSERT 1
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/opencl.hpp>
+#include <sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -50,6 +50,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 static constexpr const kernel_param_desc_t Signatures[] = {
@@ -68,6 +69,11 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   static constexpr bool isESIMD() { return 0; }
   static constexpr bool callsThisItem() { return 0; }
   static constexpr bool callsAnyThisFreeFunction() { return 0; }
+  static constexpr int64_t getKernelSize() {
+    // The AssertInfoCopier service kernel lambda captures an accessor.
+    return sizeof(sycl::accessor<sycl::detail::AssertHappened, 1,
+                                 sycl::access::mode::write>);
+  }
 };
 } // namespace detail
 } // namespace sycl

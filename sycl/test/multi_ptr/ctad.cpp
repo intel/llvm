@@ -7,9 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
-
-namespace sycl = cl::sycl;
+#include <sycl/sycl.hpp>
 
 int main() {
   using sycl::access::address_space;

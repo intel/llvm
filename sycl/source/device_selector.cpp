@@ -6,18 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/filter_selector_impl.hpp>
 #include <detail/force_device.hpp>
 #include <detail/global_handler.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/device.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/stl.hpp>
 // 4.6.1 Device selection class
 
 #include <algorithm>
@@ -38,7 +38,7 @@ static int getDevicePreference(const device &Device) {
     return Score;
 
   // Strongly prefer devices with available images.
-  auto &program_manager = cl::sycl::detail::ProgramManager::getInstance();
+  auto &program_manager = sycl::detail::ProgramManager::getInstance();
   if (program_manager.hasCompatibleImage(Device))
     Score += 1000;
 
@@ -103,8 +103,8 @@ device device_selector::select_device() const {
     return *res;
   }
 
-  throw cl::sycl::runtime_error("No device of requested type available.",
-                                PI_ERROR_DEVICE_NOT_FOUND);
+  throw sycl::runtime_error("No device of requested type available.",
+                            PI_ERROR_DEVICE_NOT_FOUND);
 }
 
 /// Devices of different kinds are prioritized in the following order:

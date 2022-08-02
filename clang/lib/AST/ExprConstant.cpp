@@ -2584,14 +2584,14 @@ static bool checkFloatingPointResult(EvalInfo &Info, const Expr *E,
 
   if ((St != APFloat::opOK) &&
       (FPO.getRoundingMode() == llvm::RoundingMode::Dynamic ||
-       FPO.getFPExceptionMode() != LangOptions::FPE_Ignore ||
+       FPO.getExceptionMode() != LangOptions::FPE_Ignore ||
        FPO.getAllowFEnvAccess())) {
     Info.FFDiag(E, diag::note_constexpr_float_arithmetic_strict);
     return false;
   }
 
   if ((St & APFloat::opStatus::opInvalidOp) &&
-      FPO.getFPExceptionMode() != LangOptions::FPE_Ignore) {
+      FPO.getExceptionMode() != LangOptions::FPE_Ignore) {
     // There is no usefully definable result.
     Info.FFDiag(E);
     return false;
@@ -5266,10 +5266,14 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
       }
     }
     bool Cond;
-    if (IS->isConsteval())
+    if (IS->isConsteval()) {
       Cond = IS->isNonNegatedConsteval();
-    else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
-                           Cond))
+      // If we are not in a constant context, if consteval should not evaluate
+      // to true.
+      if (!Info.InConstantContext)
+        Cond = !Cond;
+    } else if (!EvaluateCond(Info, IS->getConditionVariable(), IS->getCond(),
+                             Cond))
       return ESR_Failed;
 
     if (const Stmt *SubStmt = Cond ? IS->getThen() : IS->getElse()) {
@@ -8783,7 +8787,7 @@ public:
                                                      ArrayType::Normal, 0);
 
     StringLiteral *SL =
-        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ascii,
+        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ordinary,
                               /*Pascal*/ false, ArrayTy, E->getLocation());
 
     evaluateLValue(SL, Result);
@@ -8801,7 +8805,7 @@ public:
                                                      ArrayType::Normal, 0);
 
     StringLiteral *SL =
-        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ascii,
+        StringLiteral::Create(Info.Ctx, ResultStr, StringLiteral::Ordinary,
                               /*Pascal*/ false, ArrayTy, E->getLocation());
 
     evaluateLValue(SL, Result);
@@ -11622,9 +11626,15 @@ static bool isUserWritingOffTheEnd(const ASTContext &Ctx, const LValue &LVal) {
   //   conservative with the last element in structs (if it's an array), so our
   //   current behavior is more compatible than an explicit list approach would
   //   be.
+  int StrictFlexArraysLevel = Ctx.getLangOpts().StrictFlexArrays;
   return LVal.InvalidBase &&
          Designator.Entries.size() == Designator.MostDerivedPathLength &&
          Designator.MostDerivedIsArrayElement &&
+         (Designator.isMostDerivedAnUnsizedArray() ||
+          Designator.getMostDerivedArraySize() == 0 ||
+          (Designator.getMostDerivedArraySize() == 1 &&
+           StrictFlexArraysLevel < 2) ||
+          StrictFlexArraysLevel == 0) &&
          isDesignatorAtObjectEnd(Ctx, LVal);
 }
 
@@ -13537,6 +13547,37 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
         return Info.Ctx.getTypeSize(DestType) <= Info.Ctx.getTypeSize(SrcType);
       // Only allow casts of lvalues if they are lossless.
       return Info.Ctx.getTypeSize(DestType) == Info.Ctx.getTypeSize(SrcType);
+    }
+
+    if (DestType->isEnumeralType()) {
+      const EnumType *ET = dyn_cast<EnumType>(DestType.getCanonicalType());
+      const EnumDecl *ED = ET->getDecl();
+      // Check that the value is within the range of the enumeration values.
+      //
+      // This corressponds to [expr.static.cast]p10 which says:
+      // A value of integral or enumeration type can be explicitly converted
+      // to a complete enumeration type ... If the enumeration type does not
+      // have a fixed underlying type, the value is unchanged if the original
+      // value is within the range of the enumeration values ([dcl.enum]), and
+      // otherwise, the behavior is undefined.
+      //
+      // This was resolved as part of DR2338 which has CD5 status.
+      if (!ED->isFixed()) {
+        llvm::APInt Min;
+        llvm::APInt Max;
+
+        ED->getValueRange(Max, Min);
+
+        if (ED->getNumNegativeBits() &&
+            (Max.sle(Result.getInt().getSExtValue()) ||
+             Min.sgt(Result.getInt().getSExtValue())))
+          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
+              << Result.getInt() << Min.getSExtValue() << Max.getSExtValue();
+        else if (!ED->getNumNegativeBits() &&
+                 Max.ule(Result.getInt().getZExtValue()))
+          CCEDiag(E, diag::note_constexpr_unscoped_enum_out_of_range)
+              << Result.getInt() << Min.getZExtValue() << Max.getZExtValue();
+      }
     }
 
     return Success(HandleIntToIntCast(Info, E, DestType, SrcType,

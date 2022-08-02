@@ -1,9 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
-#include <CL/sycl.hpp>
-
-namespace sycl = cl::sycl;
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue().submit([&](sycl::handler &h) {

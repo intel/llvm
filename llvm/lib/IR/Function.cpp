@@ -36,6 +36,7 @@
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/IntrinsicsBPF.h"
+#include "llvm/IR/IntrinsicsDirectX.h"
 #include "llvm/IR/IntrinsicsHexagon.h"
 #include "llvm/IR/IntrinsicsMips.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
@@ -353,6 +354,8 @@ Function *Function::createWithDefaultAttr(FunctionType *Ty,
     B.addAttribute("frame-pointer", "all");
     break;
   }
+  if (M->getModuleFlag("function_return_thunk_extern"))
+    B.addAttribute(Attribute::FnRetThunkExtern);
   F->addFnAttrs(B);
   return F;
 }
@@ -1420,16 +1423,15 @@ Function *Intrinsic::getDeclaration(Module *M, ID id, ArrayRef<Type*> Tys) {
   // because intrinsics must be a specific type.
   auto *FT = getType(M->getContext(), id, Tys);
   return cast<Function>(
-      M->getOrInsertFunction(Tys.empty() ? getName(id)
-                                         : getName(id, Tys, M, FT),
-                             getType(M->getContext(), id, Tys))
+      M->getOrInsertFunction(
+           Tys.empty() ? getName(id) : getName(id, Tys, M, FT), FT)
           .getCallee());
 }
 
-// This defines the "Intrinsic::getIntrinsicForGCCBuiltin()" method.
-#define GET_LLVM_INTRINSIC_FOR_GCC_BUILTIN
+// This defines the "Intrinsic::getIntrinsicForClangBuiltin()" method.
+#define GET_LLVM_INTRINSIC_FOR_CLANG_BUILTIN
 #include "llvm/IR/IntrinsicImpl.inc"
-#undef GET_LLVM_INTRINSIC_FOR_GCC_BUILTIN
+#undef GET_LLVM_INTRINSIC_FOR_CLANG_BUILTIN
 
 // This defines the "Intrinsic::getIntrinsicForMSBuiltin()" method.
 #define GET_LLVM_INTRINSIC_FOR_MS_BUILTIN
@@ -1971,7 +1973,7 @@ void Function::setEntryCount(ProfileCount Count,
                              const DenseSet<GlobalValue::GUID> *S) {
 #if !defined(NDEBUG)
   auto PrevCount = getEntryCount();
-  assert(!PrevCount.hasValue() || PrevCount->getType() == Count.getType());
+  assert(!PrevCount || PrevCount->getType() == Count.getType());
 #endif
 
   auto ImportGUIDs = getImportGUIDs();

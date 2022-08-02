@@ -11,10 +11,10 @@
 ///
 /// \ingroup sycl_pi_hip
 
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/hip_definitions.hpp>
-#include <CL/sycl/detail/pi.hpp>
 #include <pi_hip.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/hip_definitions.hpp>
+#include <sycl/detail/pi.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -189,17 +189,21 @@ pi_result check_error(hipError_t result, const char *function, int line,
     return PI_SUCCESS;
   }
 
-  const char *errorString = nullptr;
-  const char *errorName = nullptr;
-  errorName = hipGetErrorName(result);
-  errorString = hipGetErrorString(result);
-  std::cerr << "\nPI HIP ERROR:"
-            << "\n\tValue:           " << result
-            << "\n\tName:            " << errorName
-            << "\n\tDescription:     " << errorString
-            << "\n\tFunction:        " << function
-            << "\n\tSource Location: " << file << ":" << line << "\n"
-            << std::endl;
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    const char *errorString = nullptr;
+    const char *errorName = nullptr;
+    errorName = hipGetErrorName(result);
+    errorString = hipGetErrorString(result);
+    std::stringstream ss;
+    ss << "\nPI HIP ERROR:"
+       << "\n\tValue:           " << result
+       << "\n\tName:            " << errorName
+       << "\n\tDescription:     " << errorString
+       << "\n\tFunction:        " << function << "\n\tSource Location: " << file
+       << ":" << line << "\n"
+       << std::endl;
+    std::cerr << ss.str();
+  }
 
   if (std::getenv("PI_HIP_ABORT") != nullptr) {
     std::abort();

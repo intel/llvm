@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend.hpp>
-#include <CL/sycl/program.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/program.hpp>
 
 #include <vector>
 
@@ -219,21 +219,6 @@ make_buffer(
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
       TargetContext, event{},
       !(BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep));
-}
-
-// TODO: remove this specialization when generic is changed to call
-// .GetNative() instead of .get_native() member of kernel_bundle.
-template <>
-inline auto get_native<backend::ext_oneapi_level_zero>(
-    const kernel_bundle<bundle_state::executable> &Obj)
-    -> backend_return_t<backend::ext_oneapi_level_zero,
-                        kernel_bundle<bundle_state::executable>> {
-  // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != backend::ext_oneapi_level_zero)
-    throw runtime_error(errc::backend_mismatch, "Backends mismatch",
-                        PI_ERROR_INVALID_OPERATION);
-
-  return Obj.template getNative<backend::ext_oneapi_level_zero>();
 }
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")

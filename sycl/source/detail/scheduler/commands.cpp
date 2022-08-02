@@ -8,13 +8,6 @@
 
 #include <detail/error_handling/error_handling.hpp>
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/cg_types.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/detail/memory_manager.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/sampler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
@@ -28,6 +21,13 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/memory_manager.hpp>
+#include <sycl/program.hpp>
+#include <sycl/sampler.hpp>
 
 #include <cassert>
 #include <optional>
@@ -1947,8 +1947,7 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
-      range<3>,
-      cl::sycl::info::kernel_device_specific::compile_work_group_size>::
+      range<3>, sycl::info::kernel_device_specific::compile_work_group_size>::
       get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
@@ -2025,7 +2024,7 @@ static pi_result SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_specialization_constants_buffer: {
       if (Queue->is_host()) {
-        throw cl::sycl::feature_not_supported(
+        throw sycl::feature_not_supported(
             "SYCL2020 specialization constants are not yet supported on host "
             "device",
             PI_ERROR_INVALID_OPERATION);
@@ -2351,13 +2350,13 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
     switch (Error) {
     case PI_ERROR_INVALID_OPERATION:
-      throw cl::sycl::runtime_error(
+      throw sycl::runtime_error(
           "Device doesn't support run_on_host_intel tasks.", Error);
     case PI_SUCCESS:
       return Error;
     default:
-      throw cl::sycl::runtime_error(
-          "Enqueueing run_on_host_intel task has failed.", Error);
+      throw sycl::runtime_error("Enqueueing run_on_host_intel task has failed.",
+                                Error);
     }
   }
   case CG::CGTYPE::Kernel: {

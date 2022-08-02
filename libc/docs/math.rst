@@ -26,7 +26,7 @@ Implementation Requirements / Goals
   computations and produce the final results.
 
   - To test for correctness, we compare the outputs with other correctly rounded
-    multiple-precision math libraries such as the `GNU MPFR library <https://www.mpfr.org/>_`
+    multiple-precision math libraries such as the `GNU MPFR library <https://www.mpfr.org/>`_
     or the `CORE-MATH library <https://core-math.gitlabpages.inria.fr/>`_.
 
 * Our next requirement is that the outputs are consistent across all platforms.
@@ -76,7 +76,7 @@ fdim           |check|          |check|         |check|
 floor          |check|          |check|         |check|  
 fmax           |check|          |check|         |check|  
 fmin           |check|          |check|         |check|  
-fmod
+fmod           |check|          |check|
 fpclassify
 frexp          |check|          |check|         |check|  
 ilogb          |check|          |check|         |check|  
@@ -164,7 +164,7 @@ log            |check|
 log10          |check|
 log1p          |check|
 log2           |check|
-sin            0.561 ULPs       large
+sin            |check|          large
 sincos         0.776 ULPs       large
 sqrt           |check|          |check|         |check|
 ============== ================ =============== ======================
@@ -188,9 +188,9 @@ Performance
 
 * We also use the *perf* tool from the `CORE-MATH <https://core-math.gitlabpages.inria.fr/>`_
   project: `link <https://gitlab.inria.fr/core-math/core-math/-/tree/master>`_.
-  The performance results from the CORE-MATH's perf tool is reported in the
+  The performance results from the CORE-MATH's perf tool are reported in the
   table below, using the system library as reference (such as the `GNU C library <https://www.gnu.org/software/libc/>`_
-  on Linux).
+  on Linux). Fmod performance results obtained with "differential_testing".
 
 +--------------+-------------------------------+-------------------------------+-------------------------------------+---------------------------------------------------------------------+
 | <Func>       | Reciprocal throughput (ns)    | Latency (ns)                  | Testing ranges                      | Testing configuration                                               |
@@ -199,11 +199,19 @@ Performance
 +==============+===========+===================+===========+===================+=====================================+============+=========================+==============+===============+
 | cosf         |        37 |                32 |        73 |                72 | :math:`[0, 2\pi]`                   | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
-| expf         |        14 |                 9 |        58 |                42 | :math:`[-10, 10]`                   | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
+| expf         |         9 |                 7 |        44 |                38 | :math:`[-10, 10]`                   | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
-| exp2f        |        25 |                 8 |        81 |                37 | :math:`[-10, 10]`                   | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
+| exp2f        |         8 |                 6 |        35 |                23 | :math:`[-10, 10]`                   | i5-1135G7  | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
-| expm1f       |        14 |                53 |        59 |               146 | :math:`[-10, 10]`                   | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
+| expm1f       |         9 |                44 |        42 |               121 | :math:`[-10, 10]`                   | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
++--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
+| fmodf        |        73 |               263 |        -  |                 - | [MIN_NORMAL, MAX_NORMAL]            | i5 mobile  | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
+|              +-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
+|              |         9 |                11 |        -  |                 - | [0, MAX_SUBNORMAL]                  | i5 mobile  | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
++--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
+| fmod         |       595 |              3297 |        -  |                 - | [MIN_NORMAL, MAX_NORMAL]            | i5 mobile  | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
+|              +-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
+|              |        14 |                13 |        -  |                 - | [0, MAX_SUBNORMAL]                  | i5 mobile  | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
 | hypotf       |        25 |                15 |        64 |                49 | :math:`[-10, 10] \times [-10, 10]`  | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
@@ -215,7 +223,7 @@ Performance
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
 | log2f        |        13 |                10 |        57 |                46 | :math:`[e^{-1}, e]`                 | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
-| sinf         |        36 |                31 |        72 |                71 | :math:`[-\pi, \pi]`                 | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 |               |
+| sinf         |        13 |                25 |        54 |                57 | :math:`[-\pi, \pi]`                 | Ryzen 1700 | Ubuntu 20.04 LTS x86_64 | Clang 12.0.0 | FMA           |
 +--------------+-----------+-------------------+-----------+-------------------+-------------------------------------+------------+-------------------------+--------------+---------------+
 
 References

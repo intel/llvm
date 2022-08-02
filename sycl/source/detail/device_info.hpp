@@ -7,19 +7,19 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/memory_enums.hpp>
-#include <CL/sycl/platform.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/detail/common_info.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/memory_enums.hpp>
+#include <sycl/platform.hpp>
 
 #include <chrono>
 #include <thread>
@@ -78,10 +78,18 @@ read_execution_bitfield(pi_device_exec_capabilities bits) {
 }
 
 // Mapping expected SYCL return types to those returned by PI calls
-template <typename T> struct sycl_to_pi { using type = T; };
-template <> struct sycl_to_pi<bool> { using type = pi_bool; };
-template <> struct sycl_to_pi<device> { using type = RT::PiDevice; };
-template <> struct sycl_to_pi<platform> { using type = RT::PiPlatform; };
+template <typename T> struct sycl_to_pi {
+  using type = T;
+};
+template <> struct sycl_to_pi<bool> {
+  using type = pi_bool;
+};
+template <> struct sycl_to_pi<device> {
+  using type = RT::PiDevice;
+};
+template <> struct sycl_to_pi<platform> {
+  using type = RT::PiPlatform;
+};
 
 // Mapping fp_config device info types to the values used to check fp support
 template <info::device param> struct check_fp_support {};

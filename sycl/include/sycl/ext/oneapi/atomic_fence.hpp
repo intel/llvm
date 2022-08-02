@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/detail/spirv.hpp>
+#include <sycl/detail/spirv.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -21,7 +21,7 @@ namespace sycl {
 namespace ext {
 namespace oneapi {
 namespace detail {
-using namespace cl::sycl::detail;
+using namespace sycl::detail;
 }
 
 __SYCL2020_DEPRECATED("use sycl::atomic_fence instead")

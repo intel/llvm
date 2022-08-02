@@ -10,17 +10,17 @@
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/generic_type_traits.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/id.hpp>
-#include <CL/sycl/memory_enums.hpp>
-#include <CL/sycl/range.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/id.hpp>
+#include <sycl/memory_enums.hpp>
+#include <sycl/range.hpp>
+#include <sycl/types.hpp>
 
 #include <type_traits>
 
@@ -736,7 +736,7 @@ struct sub_group {
   }
 
 protected:
-  template <int dimensions> friend class cl::sycl::nd_item;
+  template <int dimensions> friend class sycl::nd_item;
   friend sub_group this_sub_group();
   friend sub_group experimental::this_sub_group();
   sub_group() = default;

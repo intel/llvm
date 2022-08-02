@@ -546,6 +546,9 @@ public:
     return BypassSlowDivWidths;
   }
 
+  /// Return true only if vscale must be a power of two.
+  virtual bool isVScaleKnownToBeAPowerOfTwo() const { return false; }
+
   /// Return true if Flow Control is an expensive operation that should be
   /// avoided.
   bool isJumpExpensive() const { return JumpIsExpensive; }
@@ -2196,6 +2199,18 @@ public:
     return false;
   }
 
+  /// Return true if it is beneficial to expand an @llvm.powi.* intrinsic.
+  /// If not optimizing for size, expanding @llvm.powi.* intrinsics is always
+  /// considered beneficial.
+  /// If optimizing for size, expansion is only considered beneficial for upto
+  /// 5 multiplies and a divide (if the exponent is negative).
+  bool isBeneficialToExpandPowI(int Exponent, bool OptForSize) const {
+    if (Exponent < 0)
+      Exponent = -Exponent;
+    return !OptForSize ||
+           (countPopulation((unsigned int)Exponent) + Log2_32(Exponent) < 7);
+  }
+
   //===--------------------------------------------------------------------===//
   // TargetLowering Configuration Methods - These methods should be invoked by
   // the derived class constructor to configure this object for the target.
@@ -2286,12 +2301,14 @@ protected:
   /// Indicate that the specified operation does not work with the specified
   /// type and indicate what to do about it. Note that VT may refer to either
   /// the type of a result or that of an operand of Op.
+  void setOperationAction(unsigned Op, MVT VT, LegalizeAction Action) {
+    assert(Op < array_lengthof(OpActions[0]) && "Table isn't big enough!");
+    OpActions[(unsigned)VT.SimpleTy][Op] = Action;
+  }
   void setOperationAction(ArrayRef<unsigned> Ops, MVT VT,
                           LegalizeAction Action) {
-    for (auto Op : Ops) {
-      assert(Op < array_lengthof(OpActions[0]) && "Table isn't big enough!");
-      OpActions[(unsigned)VT.SimpleTy][Op] = Action;
-    }
+    for (auto Op : Ops)
+      setOperationAction(Op, VT, Action);
   }
   void setOperationAction(ArrayRef<unsigned> Ops, ArrayRef<MVT> VTs,
                           LegalizeAction Action) {
@@ -2301,20 +2318,20 @@ protected:
 
   /// Indicate that the specified load with extension does not work with the
   /// specified type and indicate what to do about it.
+  void setLoadExtAction(unsigned ExtType, MVT ValVT, MVT MemVT,
+                        LegalizeAction Action) {
+    assert(ExtType < ISD::LAST_LOADEXT_TYPE && ValVT.isValid() &&
+           MemVT.isValid() && "Table isn't big enough!");
+    assert((unsigned)Action < 0x10 && "too many bits for bitfield array");
+    unsigned Shift = 4 * ExtType;
+    LoadExtActions[ValVT.SimpleTy][MemVT.SimpleTy] &= ~((uint16_t)0xF << Shift);
+    LoadExtActions[ValVT.SimpleTy][MemVT.SimpleTy] |= (uint16_t)Action << Shift;
+  }
   void setLoadExtAction(ArrayRef<unsigned> ExtTypes, MVT ValVT, MVT MemVT,
                         LegalizeAction Action) {
-    for (auto ExtType : ExtTypes) {
-      assert(ExtType < ISD::LAST_LOADEXT_TYPE && ValVT.isValid() &&
-             MemVT.isValid() && "Table isn't big enough!");
-      assert((unsigned)Action < 0x10 && "too many bits for bitfield array");
-      unsigned Shift = 4 * ExtType;
-      LoadExtActions[ValVT.SimpleTy][MemVT.SimpleTy] &=
-          ~((uint16_t)0xF << Shift);
-      LoadExtActions[ValVT.SimpleTy][MemVT.SimpleTy] |= (uint16_t)Action
-                                                        << Shift;
-    }
+    for (auto ExtType : ExtTypes)
+      setLoadExtAction(ExtType, ValVT, MemVT, Action);
   }
-
   void setLoadExtAction(ArrayRef<unsigned> ExtTypes, MVT ValVT,
                         ArrayRef<MVT> MemVTs, LegalizeAction Action) {
     for (auto MemVT : MemVTs)
@@ -3054,9 +3071,12 @@ public:
   //
 
   /// Rename the default libcall routine name for the specified libcall.
+  void setLibcallName(RTLIB::Libcall Call, const char *Name) {
+    LibcallRoutineNames[Call] = Name;
+  }
   void setLibcallName(ArrayRef<RTLIB::Libcall> Calls, const char *Name) {
     for (auto Call : Calls)
-      LibcallRoutineNames[Call] = Name;
+      setLibcallName(Call, Name);
   }
 
   /// Get the libcall routine name for the specified libcall.
@@ -3780,6 +3800,12 @@ public:
                                          APInt &UndefElts,
                                          unsigned Depth = 0) const;
 
+  /// Returns true if the given Opc is considered a canonical constant for the
+  /// target, which should not be transformed back into a BUILD_VECTOR.
+  virtual bool isTargetCanonicalConstantNode(SDValue Op) const {
+    return Op.getOpcode() == ISD::SPLAT_VECTOR;
+  }
+
   struct DAGCombinerInfo {
     void *DC;  // The DAG Combiner object.
     CombineLevel Level;
@@ -3848,7 +3874,7 @@ public:
   virtual SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const;
 
   /// Return true if it is profitable to move this shift by a constant amount
-  /// though its operand, adjusting any immediate operands as necessary to
+  /// through its operand, adjusting any immediate operands as necessary to
   /// preserve semantics. This transformation may not be desirable if it
   /// disrupts a particularly auspicious target-specific tree (e.g. bitfield
   /// extraction in AArch64). By default, it returns true.
@@ -3857,6 +3883,14 @@ public:
   /// @param Level the current DAGCombine legalization level.
   virtual bool isDesirableToCommuteWithShift(const SDNode *N,
                                              CombineLevel Level) const {
+    return true;
+  }
+
+  /// Return true if it is profitable to combine an XOR of a logical shift
+  /// to create a logical shift of NOT. This transformation may not be desirable
+  /// if it disrupts a particularly auspicious target-specific tree (e.g.
+  /// BIC on ARM/AArch64). By default, it returns true.
+  virtual bool isDesirableToCommuteXorWithShift(const SDNode *N) const {
     return true;
   }
 

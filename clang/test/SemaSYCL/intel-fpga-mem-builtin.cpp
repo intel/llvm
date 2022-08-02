@@ -32,7 +32,7 @@ void foo(float *A, int *B, State *C) {
   x = __builtin_intel_fpga_mem(A, PARAM_1 | PARAM_2, -1);
   // expected-error@-1{{builtin parameter must be a non-negative integer constant}}
   x = __builtin_intel_fpga_mem(A, PARAM_1 | PARAM_2);
-  // expected-error@-1{{too few arguments to function call, expected at least 3, have 2}}
+  // expected-error@-1{{too few arguments to function call, expected 3, have 2}}
   y = __builtin_intel_fpga_mem(B, 0, i);
   // expected-error@-1{{argument to '__builtin_intel_fpga_mem' must be a constant integer}}
   z = __builtin_intel_fpga_mem(C, i, 0);

@@ -81,7 +81,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
 
   // HACK we believe here that read accessors never overlap as it doesn't add
   // any real dependency (e.g. data copy to device) except for blocking.
-  if (Cmd->getRequirement()->MAccessMode == cl::sycl::access::mode::read)
+  if (Cmd->getRequirement()->MAccessMode == sycl::access::mode::read)
     OldCmdIt = MHostAccessorCommands.end();
   else
     OldCmdIt = std::find_if(

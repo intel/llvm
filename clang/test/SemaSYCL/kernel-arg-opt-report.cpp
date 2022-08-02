@@ -70,11 +70,11 @@ int main() {
 // SPIR-NEXT: Argument:        '0'
 // SPIR-NEXT: String:          ':'
 // SPIR-NEXT: String:          Compiler generated argument for base class,
-// SPIR-NEXT: String:          struct NotDecomposedBase
+// SPIR-NEXT: String:          NotDecomposedBase
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
 // SPIR-NEXT: String:          'Type:'
-// SPIR-NEXT: String:          struct NotDecomposedBase
+// SPIR-NEXT: String:          NotDecomposedBase
 // SPIR-NEXT: String:          ', '
 // SPIR-NEXT: String:          'Size: '
 // SPIR-NEXT: Argument:        '4'

@@ -478,7 +478,7 @@ def HI16 : SDNodeXForm<imm, [{
 
 def HA16 : SDNodeXForm<imm, [{
   // Transformation function: shift the immediate value down into the low bits.
-  long Val = N->getZExtValue();
+  int64_t Val = N->getZExtValue();
   return getI32Imm((Val - (signed short)Val) >> 16, SDLoc(N));
 }]>;
 def MB : SDNodeXForm<imm, [{
@@ -2548,6 +2548,13 @@ def MTCTRloop : XFXForm_7_ext<31, 467, 9, (outs), (ins gprc:$rS),
                               "mtctr $rS", IIC_SprMTSPR>,
                 PPC970_DGroup_First, PPC970_Unit_FXU;
 }
+
+let hasSideEffects = 1, Defs = [CTR] in
+def MTCTRPseudo : PPCEmitTimePseudo<(outs), (ins gprc:$rS), "#MTCTRPseudo", []>;
+
+let hasSideEffects = 1, Uses = [CTR], Defs = [CTR] in
+def DecreaseCTRPseudo : PPCEmitTimePseudo<(outs crbitrc:$rT), (ins i32imm:$stride),
+                                          "#DecreaseCTRPseudo", []>;
 
 let hasSideEffects = 0 in {
 let Defs = [LR] in {

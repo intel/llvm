@@ -37,7 +37,7 @@ functions will always return `1`.
 
 *Functor kernel*
 ```cpp
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 using AccTy = sycl::accessor<int, 1, sycl::access::mode::read_write,
@@ -56,7 +56,7 @@ private:
 
 *Lambda kernel and function*
 ```cpp
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>
@@ -620,7 +620,7 @@ The parameter and the return type in the ABI form will be `<8 x float>`.
 ## Examples
 ### Vector addition (USM)
 ```cpp
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 
 #include <iostream>

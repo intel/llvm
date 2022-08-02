@@ -25,24 +25,24 @@
 #define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
   _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
 
-#include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <sycl/detail/pi.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include <level_zero/ze_api.h>
 #include <level_zero/zes_api.h>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include "usm_allocator.hpp"
 
@@ -705,13 +705,16 @@ struct _pi_context : _pi_object {
   // If AllowBatching is true, then the command list returned may already have
   // command in it, if AllowBatching is false, any open command lists that
   // already exist in Queue will be closed and executed.
+  // If ForcedCmdQueue is not nullptr, the resulting command list must be tied
+  // to the contained command queue. This option is ignored if immediate
+  // command lists are used.
   // When using immediate commandlists, retrieves an immediate command list
   // for executing on this device. Immediate commandlists are created only
   // once for each SYCL Queue and after that they are reused.
-  pi_result getAvailableCommandList(pi_queue Queue,
-                                    pi_command_list_ptr_t &CommandList,
-                                    bool UseCopyEngine,
-                                    bool AllowBatching = false);
+  pi_result
+  getAvailableCommandList(pi_queue Queue, pi_command_list_ptr_t &CommandList,
+                          bool UseCopyEngine, bool AllowBatching = false,
+                          ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
 
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
@@ -832,6 +835,9 @@ struct _pi_queue : _pi_object {
     // round robin strategy and the queue group ordinal.
     uint32_t getQueueIndex(uint32_t *QueueGroupOrdinal, uint32_t *QueueIndex);
 
+    // Get the ordinal for a command queue handle.
+    int32_t getCmdQueueOrdinal(ze_command_queue_handle_t CmdQueue);
+
     // This function will return one of possibly multiple available native
     // queues and the value of the queue group ordinal.
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
@@ -948,6 +954,14 @@ struct _pi_queue : _pi_object {
   // For non-copy commands, IsCopy is set to 'false'.
   void adjustBatchSizeForPartialBatch(bool IsCopy);
 
+  // Helper function to create a new command-list to this queue and associated
+  // fence tracking its completion. This command list & fence are added to the
+  // map of command lists in this queue with ZeFenceInUse = false.
+  // The caller must hold a lock of the queue already.
+  pi_result
+  createCommandList(bool UseCopyEngine, pi_command_list_ptr_t &CommandList,
+                    ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
+
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
   // needs to be set to true. The caller must verify that this command list and
@@ -1001,6 +1015,16 @@ struct _pi_queue : _pi_object {
       return Res;
     return PI_SUCCESS;
   }
+
+  // Inserts a barrier waiting for all unfinished events in ActiveBarriers into
+  // CmdList. Any finished events will be removed from ActiveBarriers.
+  pi_result insertActiveBarriers(pi_command_list_ptr_t &CmdList,
+                                 bool UseCopyEngine);
+
+  // A collection of currently active barriers.
+  // These should be inserted into a command list whenever an available command
+  // list is needed for a command.
+  std::vector<pi_event> ActiveBarriers;
 
   // Besides each PI object keeping a total reference count in
   // _pi_object::RefCount we keep special track of the queue *external*

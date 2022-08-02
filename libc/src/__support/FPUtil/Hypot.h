@@ -14,7 +14,8 @@
 #include "FPBits.h"
 #include "builtin_wrappers.h"
 #include "src/__support/CPP/Bit.h"
-#include "src/__support/CPP/TypeTraits.h"
+#include "src/__support/CPP/UInt128.h"
+#include "src/__support/CPP/type_traits.h"
 
 namespace __llvm_libc {
 namespace fputil {
@@ -25,7 +26,7 @@ template <typename T>
 static inline T find_leading_one(T mant, int &shift_length) {
   shift_length = 0;
   if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - clz(mant);
+    shift_length = (sizeof(mant) * 8) - 1 - unsafe_clz(mant);
   }
   return T(1) << shift_length;
 }
@@ -38,7 +39,9 @@ template <> struct DoubleLength<uint16_t> { using Type = uint32_t; };
 
 template <> struct DoubleLength<uint32_t> { using Type = uint64_t; };
 
-template <> struct DoubleLength<uint64_t> { using Type = __uint128_t; };
+template <> struct DoubleLength<uint64_t> {
+  using Type = UInt128;
+};
 
 // Correctly rounded IEEE 754 HYPOT(x, y) with round to nearest, ties to even.
 //
@@ -94,8 +97,7 @@ template <> struct DoubleLength<uint64_t> { using Type = __uint128_t; };
 //   - HYPOT(x, y) is +Inf if x or y is +Inf or -Inf; else
 //   - HYPOT(x, y) is NaN if x or y is NaN.
 //
-template <typename T,
-          cpp::EnableIfType<cpp::IsFloatingPointType<T>::Value, int> = 0>
+template <typename T, cpp::enable_if_t<cpp::is_floating_point_v<T>, int> = 0>
 static inline T hypot(T x, T y) {
   using FPBits_t = FPBits<T>;
   using UIntType = typename FPBits<T>::UIntType;

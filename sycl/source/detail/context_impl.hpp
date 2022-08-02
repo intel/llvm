@@ -7,17 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <map>
 #include <memory>
@@ -54,7 +54,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const std::vector<cl::sycl::device> DeviceList,
+  context_impl(const std::vector<sycl::device> DeviceList,
                async_handler AsyncHandler, const property_list &PropList);
 
   /// Construct a context_impl using plug-in interoperability handle.
@@ -164,6 +164,10 @@ public:
 
   /// Returns true if and only if context contains the given device.
   bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
+
+  /// Given a PiDevice, returns the matching shared_ptr<device_impl>
+  /// within this context. May return nullptr if no match discovered.
+  DeviceImplPtr findMatchingDeviceImpl(RT::PiDevice &DevicePI) const;
 
   /// Gets the native handle of the SYCL context.
   ///

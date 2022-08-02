@@ -9,7 +9,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/exception.hpp>
+#include <sycl/exception.hpp>
 
 // This function implements atomic update of pre-existing variable in the
 // absense of C++ 20's atomic_ref.

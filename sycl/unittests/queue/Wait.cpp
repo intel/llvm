@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <memory>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   bool SupportOOO = true;

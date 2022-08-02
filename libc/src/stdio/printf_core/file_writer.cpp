@@ -8,6 +8,7 @@
 
 #include "src/stdio/printf_core/file_writer.h"
 #include "src/__support/File/file.h"
+#include "src/stdio/printf_core/core_structs.h"
 #include <stddef.h>
 
 namespace __llvm_libc {
@@ -15,10 +16,10 @@ namespace printf_core {
 
 int FileWriter::write(const char *__restrict to_write, size_t len) {
   int written = file->write_unlocked(to_write, len);
-  if (written != len)
-    written = -1;
+  if (written != static_cast<int>(len))
+    written = FILE_WRITE_ERROR;
   if (file->error_unlocked())
-    written = -2;
+    written = FILE_STATUS_ERROR;
   return written;
 }
 

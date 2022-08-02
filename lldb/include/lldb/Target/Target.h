@@ -59,16 +59,17 @@ enum LoadCWDlldbinitFile {
   eLoadCWDlldbinitWarn
 };
 
-enum LoadDependentFiles {
-  eLoadDependentsDefault,
-  eLoadDependentsYes,
-  eLoadDependentsNo,
-};
-
 enum ImportStdModule {
   eImportStdModuleFalse,
   eImportStdModuleFallback,
   eImportStdModuleTrue,
+};
+
+enum DynamicClassInfoHelper {
+  eDynamicClassInfoHelperAuto,
+  eDynamicClassInfoHelperRealizedClassesStruct,
+  eDynamicClassInfoHelperCopyRealizedClassList,
+  eDynamicClassInfoHelperGetRealizedClassList,
 };
 
 class TargetExperimentalProperties : public Properties {
@@ -151,6 +152,8 @@ public:
   bool GetEnableAutoImportClangModules() const;
 
   ImportStdModule GetImportStdModule() const;
+
+  DynamicClassInfoHelper GetDynamicClassInfoHelper() const;
 
   bool GetEnableAutoApplyFixIts() const;
 
@@ -1289,7 +1292,7 @@ public:
 
   class StopHookCommandLine : public StopHook {
   public:
-    virtual ~StopHookCommandLine() = default;
+    ~StopHookCommandLine() override = default;
 
     StringList &GetCommands() { return m_commands; }
     void SetActionFromString(const std::string &strings);
@@ -1312,7 +1315,7 @@ public:
 
   class StopHookScripted : public StopHook {
   public:
-    virtual ~StopHookScripted() = default;
+    ~StopHookScripted() override = default;
     StopHookResult HandleStop(ExecutionContext &exc_ctx,
                               lldb::StreamSP output) override;
 
