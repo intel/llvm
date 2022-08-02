@@ -71,7 +71,7 @@ inline typename Group::linear_id_type get_local_linear_id(Group g);
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
   template <>                                                                  \
   inline group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {    \
-    nd_item<D> it = cl::sycl::detail::Builder::getNDItem<D>();                 \
+    nd_item<D> it = sycl::detail::Builder::getNDItem<D>();                     \
     return it.get_local_linear_id();                                           \
   }
 __SYCL_GROUP_GET_LOCAL_LINEAR_ID(1);

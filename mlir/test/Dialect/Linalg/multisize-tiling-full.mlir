@@ -2,17 +2,10 @@
 
 transform.with_pdl_patterns {
 ^bb0(%arg0: !pdl.operation):
-  pdl.pattern @linalg_generic : benefit(1) {
-    %0 = pdl.operands
-    %1 = pdl.types
-    %2 = pdl.operation "linalg.generic"(%0 : !pdl.range<value>) -> (%1 : !pdl.range<type>)
-    pdl.rewrite %2 with "transform.dialect"
-  }
-
   // This implements a 2D multisize tiling with target sizes [3, 10].
   transform.sequence %arg0 {
   ^bb1(%arg1: !pdl.operation):
-    %0 = pdl_match @linalg_generic in %arg1
+    %0 = transform.structured.match ops{["linalg.generic"]} in %arg1
     %1:3 = transform.structured.multitile_sizes %0 { dimension = 0, target_size = 3}
     %t:3 = transform.structured.multitile_sizes %0 { dimension = 1, target_size = 10}
     %2:2 = transform.structured.split %0 after %1#2 { dimension = 0 }
@@ -56,18 +49,17 @@ func.func @two_d(%arg0: tensor<10x34xf32>,
 
   // CHECK:      %[[SLICE_1:.+]] = tensor.extract_slice %[[OUT]][0, 0] [4, 34] [1, 1]
   // CHECK:      scf.for %[[I1:.+]] = %{{.*}} to %{{.*}} step %{{.*}} iter_args(%[[ITERARG_1:.+]] = %[[SLICE_1]])
-  // CHECK:        %[[INSLICE_1:.+]] = tensor.extract_slice %[[IN]][%[[I1]], 0] [2, 34] [1, 1]
   // CHECK:        %[[OUTSLICE_1:.+]] = tensor.extract_slice %[[ITERARG_1]][%[[I1]], 0] [2, 34] [1, 1]
 
-  // CHECK:        %[[SLICE_2:.+]] = tensor.extract_slice %[[OUTSLICE_1]][0, 0] [2, 16] [1, 1]
+  // CHECK:        %[[SLICE_2:.+]] = tensor.extract_slice %[[ITERARG_1]][%[[I1]], 0] [2, 16] [1, 1]
   // CHECK:        %[[LOOPRES:.+]] = scf.for %[[I2:.+]] = %{{.*}} to %{{.*}} step %{{.*}} iter_args(%[[ITERARG_2:.+]] = %[[SLICE_2]])
-  // CHECK:          %[[INSLICE_2:.+]] = tensor.extract_slice %[[INSLICE_1]][0, %[[I2]]] [2, 8] [1, 1]
+  // CHECK:          %[[INSLICE_2:.+]] = tensor.extract_slice %[[IN]][%[[I1]], %[[I2]]] [2, 8] [1, 1]
   // CHECK:          %[[OUTSLICE_2:.+]] = tensor.extract_slice %[[ITERARG_2]][0, %[[I2]]] [2, 8] [1, 1]
   // CHECK:          %[[RESSLICE_1:.+]] = linalg.generic {{.*}} ins(%[[INSLICE_2]] : tensor<2x8xf32>) outs(%[[OUTSLICE_2]] : tensor<2x8xf32>)
   // CHECK:          %[[RESPARTIAL:.+]] = tensor.insert_slice %[[RESSLICE_1]] into %[[ITERARG_2]]
   // CHECK:          scf.yield %[[RESPARTIAL]]
 
-  // CHECK:        %[[INSERTED:.+]] = tensor.insert_slice %[[LOOPRES]] into %[[OUTSLICE_1]][0, 0] [2, 16] [1, 1]
+  // CHECK:        %[[INSERTED:.+]] = tensor.insert_slice %[[LOOPRES]] into %[[OUTSLICE_1]][%[[I1]], 0] [2, 16] [1, 1]
   // CHECK:        %[[OUTSLICE_3:.+]] = tensor.extract_slice %[[INSERTED]][0, 16] [2, 18] [1, 1]
   // CHECK:        scf.for %{{.*}} iter_args(%{{.*}} = %[[OUTSLICE_3]])
   // CHECK-COUNT-2:  tensor.extract_slice
@@ -81,7 +73,7 @@ func.func @two_d(%arg0: tensor<10x34xf32>,
   // CHECK:        tensor.insert_slice
   // CHECK:        tensor.extract_slice
   // CHECK:        scf.for
-  // CHECK-COUNT-3:  tensor.extract_slice
+  // CHECK-COUNT-2:  tensor.extract_slice
   // CHECK:          scf.for
   // CHECK-COUNT-2:    tensor.extract_slice
   // CHECK:            linalg.generic {{.*}} ins(%{{.*}} : tensor<3x8xf32>)

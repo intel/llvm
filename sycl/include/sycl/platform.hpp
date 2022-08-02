@@ -24,6 +24,9 @@ namespace sycl {
 // Forward declaration
 class device_selector;
 class device;
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class platform_impl;
 }
@@ -117,15 +120,6 @@ public:
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
 
-  /// Gets the native handle of the SYCL platform.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, platform> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, platform>>(getNative());
-  }
-
   /// Indicates if all of the SYCL devices on this platform have the
   /// given feature.
   ///
@@ -152,15 +146,18 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 }; // class platform
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::platform> {
-  size_t operator()(const cl::sycl::platform &p) const {
-    return hash<std::shared_ptr<cl::sycl::detail::platform_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(p));
+template <> struct hash<sycl::platform> {
+  size_t operator()(const sycl::platform &p) const {
+    return hash<std::shared_ptr<sycl::detail::platform_impl>>()(
+        sycl::detail::getSyclObjImpl(p));
   }
 };
 } // namespace std

@@ -161,7 +161,7 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -187,7 +187,7 @@ device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
         PI_ERROR_INVALID_DEVICE);
 
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
   static const pi_device_partition_property P[] = {
       PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
@@ -234,7 +234,7 @@ std::vector<device> device_impl::create_sub_devices(
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain) ||
       !is_affinity_supported(AffinityDomain)) {
-    throw cl::sycl::feature_not_supported();
+    throw sycl::feature_not_supported();
   }
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,

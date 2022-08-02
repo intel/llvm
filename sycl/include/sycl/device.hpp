@@ -24,6 +24,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declarations
 class device_selector;
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class device_impl;
 auto getDeviceComparisonLambda();
@@ -184,19 +187,6 @@ public:
   /// \return the backend associated with this device.
   backend get_backend() const noexcept;
 
-  /// Gets the native handle of the SYCL device.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, device> get_native() const {
-    // In CUDA CUdevice isn't an opaque pointer, unlike a lot of the others,
-    // but instead a 32-bit int (on all relevant systems). Different
-    // backends use the same function for this purpose so static_cast is
-    // needed in some cases but not others, so a C-style cast was chosen.
-    return (backend_return_t<Backend, device>)getNative();
-  }
-
   /// Indicates if the SYCL device has the given feature.
   ///
   /// \param Aspect is one of the values in Table 4.20 of the SYCL 2020
@@ -223,16 +213,20 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   friend auto detail::getDeviceComparisonLambda();
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::device> {
-  size_t operator()(const cl::sycl::device &Device) const {
-    return hash<std::shared_ptr<cl::sycl::detail::device_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Device));
+template <> struct hash<sycl::device> {
+  size_t operator()(const sycl::device &Device) const {
+    return hash<std::shared_ptr<sycl::detail::device_impl>>()(
+        sycl::detail::getSyclObjImpl(Device));
   }
 };
 } // namespace std

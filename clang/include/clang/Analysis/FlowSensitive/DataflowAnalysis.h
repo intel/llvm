@@ -63,8 +63,15 @@ public:
   using Lattice = LatticeT;
 
   explicit DataflowAnalysis(ASTContext &Context) : Context(Context) {}
+
+  /// Deprecated. Use the `DataflowAnalysisOptions` constructor instead.
   explicit DataflowAnalysis(ASTContext &Context, bool ApplyBuiltinTransfer)
-      : TypeErasedDataflowAnalysis(ApplyBuiltinTransfer), Context(Context) {}
+      : DataflowAnalysis(Context, DataflowAnalysisOptions{ApplyBuiltinTransfer,
+                                                          TransferOptions{}}) {}
+
+  explicit DataflowAnalysis(ASTContext &Context,
+                            DataflowAnalysisOptions Options)
+      : TypeErasedDataflowAnalysis(Options), Context(Context) {}
 
   ASTContext &getASTContext() final { return Context; }
 

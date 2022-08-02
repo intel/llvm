@@ -217,15 +217,6 @@ public:
   /// \return a vector of valid SYCL device instances.
   std::vector<device> get_devices() const;
 
-  /// Gets the native handle of the SYCL context.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, context> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, context>>(getNative());
-  }
-
 private:
   /// Constructs a SYCL context object from a valid context_impl instance.
   context(std::shared_ptr<detail::context_impl> Impl);
@@ -253,10 +244,10 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::context> {
-  size_t operator()(const cl::sycl::context &Context) const {
-    return hash<std::shared_ptr<cl::sycl::detail::context_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Context));
+template <> struct hash<sycl::context> {
+  size_t operator()(const sycl::context &Context) const {
+    return hash<std::shared_ptr<sycl::detail::context_impl>>()(
+        sycl::detail::getSyclObjImpl(Context));
   }
 };
 } // namespace std

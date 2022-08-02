@@ -678,11 +678,6 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::FRINT, VT, Expand);
       setOperationAction(ISD::FNEARBYINT, VT, Expand);
 
-      setOperationAction(ISD::VECREDUCE_FADD, VT, Custom);
-      setOperationAction(ISD::VECREDUCE_SEQ_FADD, VT, Custom);
-      setOperationAction(ISD::VECREDUCE_FMIN, VT, Custom);
-      setOperationAction(ISD::VECREDUCE_FMAX, VT, Custom);
-
       setOperationAction(ISD::FCOPYSIGN, VT, Legal);
 
       setOperationAction({ISD::LOAD, ISD::STORE}, VT, Custom);
@@ -1313,6 +1308,25 @@ bool RISCVTargetLowering::shouldSinkOperands(
   return true;
 }
 
+bool RISCVTargetLowering::shouldScalarizeBinop(SDValue VecOp) const {
+  unsigned Opc = VecOp.getOpcode();
+
+  // Assume target opcodes can't be scalarized.
+  // TODO - do we have any exceptions?
+  if (Opc >= ISD::BUILTIN_OP_END)
+    return false;
+
+  // If the vector op is not supported, try to convert to scalar.
+  EVT VecVT = VecOp.getValueType();
+  if (!isOperationLegalOrCustomOrPromote(Opc, VecVT))
+    return true;
+
+  // If the vector op is supported, but the scalar op is not, the transform may
+  // not be worthwhile.
+  EVT ScalarVT = VecVT.getScalarType();
+  return isOperationLegalOrCustomOrPromote(Opc, ScalarVT);
+}
+
 bool RISCVTargetLowering::isOffsetFoldingLegal(
     const GlobalAddressSDNode *GA) const {
   // In order to maximise the opportunity for common subexpression elimination,
@@ -1387,18 +1401,28 @@ static void translateSetCCForBranch(const SDLoc &DL, SDValue &LHS, SDValue &RHS,
     }
   }
 
-  // Convert X > -1 to X >= 0.
-  if (CC == ISD::SETGT && isAllOnesConstant(RHS)) {
-    RHS = DAG.getConstant(0, DL, RHS.getValueType());
-    CC = ISD::SETGE;
-    return;
-  }
-  // Convert X < 1 to 0 >= X.
-  if (CC == ISD::SETLT && isOneConstant(RHS)) {
-    RHS = LHS;
-    LHS = DAG.getConstant(0, DL, RHS.getValueType());
-    CC = ISD::SETGE;
-    return;
+  if (auto *RHSC = dyn_cast<ConstantSDNode>(RHS)) {
+    int64_t C = RHSC->getSExtValue();
+    switch (CC) {
+    default: break;
+    case ISD::SETGT:
+      // Convert X > -1 to X >= 0.
+      if (C == -1) {
+        RHS = DAG.getConstant(0, DL, RHS.getValueType());
+        CC = ISD::SETGE;
+        return;
+      }
+      break;
+    case ISD::SETLT:
+      // Convert X < 1 to 0 <= X.
+      if (C == 1) {
+        RHS = LHS;
+        LHS = DAG.getConstant(0, DL, RHS.getValueType());
+        CC = ISD::SETGE;
+        return;
+      }
+      break;
+    }
   }
 
   switch (CC) {
@@ -1852,50 +1876,79 @@ static SDValue lowerFTRUNC_FCEIL_FFLOOR(SDValue Op, SelectionDAG &DAG) {
 // floor(X + copysign(nextafter(0.5, 0.0), X)).
 // FIXME: Could be shorter by changing rounding mode, but we don't have FRM
 // dependencies modeled yet.
-// FIXME: Use masked operations to avoid final merge.
-static SDValue lowerFROUND(SDValue Op, SelectionDAG &DAG) {
+static SDValue lowerFROUND(SDValue Op, SelectionDAG &DAG,
+                           const RISCVSubtarget &Subtarget) {
   MVT VT = Op.getSimpleValueType();
   assert(VT.isVector() && "Unexpected type");
 
   SDLoc DL(Op);
 
+  SDValue Src = Op.getOperand(0);
+
+  MVT ContainerVT = VT;
+  if (VT.isFixedLengthVector()) {
+    ContainerVT = getContainerForFixedLengthVector(DAG, VT, Subtarget);
+    Src = convertToScalableVector(ContainerVT, Src, DAG, Subtarget);
+  }
+
+  SDValue TrueMask, VL;
+  std::tie(TrueMask, VL) = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
+
   // Freeze the source since we are increasing the number of uses.
-  SDValue Src = DAG.getFreeze(Op.getOperand(0));
+  Src = DAG.getFreeze(Src);
 
   // We do the conversion on the absolute value and fix the sign at the end.
-  SDValue Abs = DAG.getNode(ISD::FABS, DL, VT, Src);
-
-  const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(VT);
-  bool Ignored;
-  APFloat Point5Pred = APFloat(0.5f);
-  Point5Pred.convert(FltSem, APFloat::rmNearestTiesToEven, &Ignored);
-  Point5Pred.next(/*nextDown*/ true);
-
-  // Add the adjustment.
-  SDValue Adjust = DAG.getNode(ISD::FADD, DL, VT, Abs,
-                               DAG.getConstantFP(Point5Pred, DL, VT));
-
-  // Truncate to integer and convert back to fp.
-  MVT IntVT = VT.changeVectorElementTypeToInteger();
-  SDValue Truncated = DAG.getNode(ISD::FP_TO_SINT, DL, IntVT, Adjust);
-  Truncated = DAG.getNode(ISD::SINT_TO_FP, DL, VT, Truncated);
-
-  // Restore the original sign.
-  Truncated = DAG.getNode(ISD::FCOPYSIGN, DL, VT, Truncated, Src);
+  SDValue Abs =
+      DAG.getNode(RISCVISD::FABS_VL, DL, ContainerVT, Src, TrueMask, VL);
 
   // Determine the largest integer that can be represented exactly. This and
   // values larger than it don't have any fractional bits so don't need to
   // be converted.
+  const fltSemantics &FltSem = DAG.EVTToAPFloatSemantics(ContainerVT);
   unsigned Precision = APFloat::semanticsPrecision(FltSem);
   APFloat MaxVal = APFloat(FltSem);
   MaxVal.convertFromAPInt(APInt::getOneBitSet(Precision, Precision - 1),
                           /*IsSigned*/ false, APFloat::rmNearestTiesToEven);
-  SDValue MaxValNode = DAG.getConstantFP(MaxVal, DL, VT);
+  SDValue MaxValNode =
+      DAG.getConstantFP(MaxVal, DL, ContainerVT.getVectorElementType());
+  SDValue MaxValSplat = DAG.getNode(RISCVISD::VFMV_V_F_VL, DL, ContainerVT,
+                                    DAG.getUNDEF(ContainerVT), MaxValNode, VL);
 
   // If abs(Src) was larger than MaxVal or nan, keep it.
-  MVT SetccVT = MVT::getVectorVT(MVT::i1, VT.getVectorElementCount());
-  SDValue Setcc = DAG.getSetCC(DL, SetccVT, Abs, MaxValNode, ISD::SETOLT);
-  return DAG.getSelect(DL, VT, Setcc, Truncated, Src);
+  MVT SetccVT = MVT::getVectorVT(MVT::i1, ContainerVT.getVectorElementCount());
+  SDValue Mask = DAG.getNode(RISCVISD::SETCC_VL, DL, SetccVT, Abs, MaxValSplat,
+                             DAG.getCondCode(ISD::SETOLT), TrueMask, VL);
+
+  bool Ignored;
+  APFloat Point5Pred = APFloat(0.5f);
+  Point5Pred.convert(FltSem, APFloat::rmNearestTiesToEven, &Ignored);
+  Point5Pred.next(/*nextDown*/ true);
+  SDValue SplatVal =
+      DAG.getConstantFP(Point5Pred, DL, ContainerVT.getVectorElementType());
+  SDValue Splat = DAG.getNode(RISCVISD::VFMV_V_F_VL, DL, ContainerVT,
+                              DAG.getUNDEF(ContainerVT), SplatVal, VL);
+
+  // Add the adjustment.
+  SDValue Adjust =
+      DAG.getNode(RISCVISD::FADD_VL, DL, ContainerVT, Abs, Splat, Mask, VL);
+
+  // Truncate to integer and convert back to fp.
+  MVT IntVT = ContainerVT.changeVectorElementTypeToInteger();
+  SDValue Truncated =
+      DAG.getNode(RISCVISD::FP_TO_SINT_VL, DL, IntVT, Adjust, Mask, VL);
+
+  Truncated = DAG.getNode(RISCVISD::SINT_TO_FP_VL, DL, ContainerVT, Truncated,
+                          Mask, VL);
+
+  // Restore the original sign and merge the original source to masked off
+  // lanes.
+  Truncated = DAG.getNode(RISCVISD::FCOPYSIGN_VL, DL, ContainerVT, Truncated,
+                          Src, Mask, Src, VL);
+
+  if (!VT.isFixedLengthVector())
+    return Truncated;
+
+  return convertFromScalableVector(VT, Truncated, DAG, Subtarget);
 }
 
 struct VIDSequence {
@@ -3390,7 +3443,7 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::FFLOOR:
     return lowerFTRUNC_FCEIL_FFLOOR(Op, DAG);
   case ISD::FROUND:
-    return lowerFROUND(Op, DAG);
+    return lowerFROUND(Op, DAG, Subtarget);
   case ISD::VECREDUCE_ADD:
   case ISD::VECREDUCE_UMAX:
   case ISD::VECREDUCE_SMAX:
@@ -6078,8 +6131,8 @@ SDValue RISCVTargetLowering::lowerFixedLengthVectorFCOPYSIGNToRVV(
   SDValue Mask, VL;
   std::tie(Mask, VL) = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
 
-  SDValue CopySign =
-      DAG.getNode(RISCVISD::FCOPYSIGN_VL, DL, ContainerVT, Mag, Sign, Mask, VL);
+  SDValue CopySign = DAG.getNode(RISCVISD::FCOPYSIGN_VL, DL, ContainerVT, Mag,
+                                 Sign, Mask, DAG.getUNDEF(ContainerVT), VL);
 
   return convertFromScalableVector(VT, CopySign, DAG, Subtarget);
 }
@@ -6981,8 +7034,9 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
            "Unexpected custom legalisation");
     // Don't promote division/remainder by constant since we should expand those
     // to multiply by magic constant.
-    // FIXME: What if the expansion is disabled for minsize.
-    if (N->getOperand(1).getOpcode() == ISD::Constant)
+    AttributeList Attr = DAG.getMachineFunction().getFunction().getAttributes();
+    if (N->getOperand(1).getOpcode() == ISD::Constant &&
+        !isIntDivCheap(N->getValueType(0), Attr))
       return;
 
     // If the input is i32, use ANY_EXTEND since the W instructions don't read
@@ -10072,15 +10126,15 @@ static MachineBasicBlock *emitSelectPseudo(MachineInstr &MI,
       LastSelectPseudo = &*SequenceMBBI;
       SequenceMBBI->collectDebugValues(SelectDebugValues);
       SelectDests.insert(SequenceMBBI->getOperand(0).getReg());
-    } else {
-      if (SequenceMBBI->hasUnmodeledSideEffects() ||
-          SequenceMBBI->mayLoadOrStore())
-        break;
-      if (llvm::any_of(SequenceMBBI->operands(), [&](MachineOperand &MO) {
-            return MO.isReg() && MO.isUse() && SelectDests.count(MO.getReg());
-          }))
-        break;
+      continue;
     }
+    if (SequenceMBBI->hasUnmodeledSideEffects() ||
+        SequenceMBBI->mayLoadOrStore())
+      break;
+    if (llvm::any_of(SequenceMBBI->operands(), [&](MachineOperand &MO) {
+          return MO.isReg() && MO.isUse() && SelectDests.count(MO.getReg());
+        }))
+      break;
   }
 
   const RISCVInstrInfo &TII = *Subtarget.getInstrInfo();
@@ -12216,7 +12270,8 @@ bool RISCVTargetLowering::isVScaleKnownToBeAPowerOfTwo() const {
   // FIXME: This doesn't work for zve32, but that's already broken
   // elsewhere for the same reason.
   assert(Subtarget.getRealMinVLen() >= 64 && "zve32* unsupported");
-  assert(RISCV::RVVBitsPerBlock == 64 && "RVVBitsPerBlock changed, audit needed");
+  static_assert(RISCV::RVVBitsPerBlock == 64,
+                "RVVBitsPerBlock changed, audit needed");
   return true;
 }
 
@@ -12501,6 +12556,14 @@ RISCVTargetLowering::BuildSDIVPow2(SDNode *N, const APInt &Divisor,
 
   Created.push_back(SRA.getNode());
   return DAG.getNode(ISD::SUB, DL, VT, DAG.getConstant(0, DL, VT), SRA);
+}
+
+bool RISCVTargetLowering::isIntDivCheap(EVT VT, AttributeList Attr) const {
+  // When aggressively optimizing for code size, we prefer to use a div
+  // instruction, as it is usually smaller than the alternative sequence.
+  // TODO: Add vector division?
+  bool OptSize = Attr.hasFnAttr(Attribute::MinSize);
+  return OptSize && !VT.isVector();
 }
 
 #define GET_REGISTER_MATCHER

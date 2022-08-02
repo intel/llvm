@@ -119,8 +119,8 @@ private:
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
-  template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-            cl::sycl::access::target AccessTarget,
+  template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+            sycl::access::target AccessTarget,
             access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
@@ -128,14 +128,14 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::sampler> {
-  size_t operator()(const cl::sycl::sampler &s) const {
+template <> struct hash<sycl::sampler> {
+  size_t operator()(const sycl::sampler &s) const {
 #ifdef __SYCL_DEVICE_ONLY__
     (void)s;
     return 0;
 #else
-    return hash<std::shared_ptr<cl::sycl::detail::sampler_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(s));
+    return hash<std::shared_ptr<sycl::detail::sampler_impl>>()(
+        sycl::detail::getSyclObjImpl(s));
 #endif
   }
 };

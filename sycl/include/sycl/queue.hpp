@@ -81,8 +81,13 @@ class context;
 class device;
 class queue;
 
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
+
 namespace detail {
 class queue_impl;
+
 #if __SYCL_USE_FALLBACK_ASSERT
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
@@ -1033,15 +1038,6 @@ public:
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
 
-  /// Gets the native handle of the SYCL queue.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, queue> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, queue>>(getNative());
-  }
-
 private:
   pi_native_handle getNative() const;
 
@@ -1052,6 +1048,10 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,
@@ -1245,10 +1245,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::queue> {
-  size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Q));
+template <> struct hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const {
+    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
+        sycl::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std

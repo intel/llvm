@@ -23,6 +23,7 @@
 #include "clang/Analysis/FlowSensitive/Value.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/Compiler.h"
 #include <cassert>
 #include <memory>
 #include <type_traits>
@@ -251,6 +252,8 @@ public:
   /// `Val2` imposed by the flow condition.
   bool equivalentBoolValues(BoolValue &Val1, BoolValue &Val2);
 
+  LLVM_DUMP_METHOD void dumpFlowCondition(AtomicBoolValue &Token);
+
 private:
   struct NullableQualTypeDenseMapInfo : private llvm::DenseMapInfo<QualType> {
     static QualType getEmptyKey() {
@@ -337,6 +340,10 @@ private:
   llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, DisjunctionValue *>
       DisjunctionVals;
   llvm::DenseMap<BoolValue *, NegationValue *> NegationVals;
+  llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, ImplicationValue *>
+      ImplicationVals;
+  llvm::DenseMap<std::pair<BoolValue *, BoolValue *>, BiconditionalValue *>
+      BiconditionalVals;
 
   // Flow conditions are tracked symbolically: each unique flow condition is
   // associated with a fresh symbolic variable (token), bound to the clause that

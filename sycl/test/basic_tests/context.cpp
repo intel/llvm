@@ -6,7 +6,7 @@
 #include <sycl/sycl.hpp>
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   try {

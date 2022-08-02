@@ -33,7 +33,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
   MKernelProgramCache.setContextPtr(this);
 }
 
-context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
+context_impl::context_impl(const std::vector<sycl::device> Devices,
                            async_handler AsyncHandler,
                            const property_list &PropList)
     : MAsyncHandler(AsyncHandler), MDevices(Devices), MContext(nullptr),
@@ -97,7 +97,7 @@ context_impl::context_impl(RT::PiContext PiContext, async_handler AsyncHandler,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getPlugin().getBackend() == cl::sycl::backend::opencl) {
+  if (getPlugin().getBackend() == sycl::backend::opencl) {
     getPlugin().call<PiApiKind::piContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
@@ -144,18 +144,18 @@ template <> platform context_impl::get_info<info::context::platform>() const {
   return createSyclObjFromImpl<platform>(MPlatform);
 }
 template <>
-std::vector<cl::sycl::device>
+std::vector<sycl::device>
 context_impl::get_info<info::context::devices>() const {
   return MDevices;
 }
 template <>
-std::vector<cl::sycl::memory_order>
+std::vector<sycl::memory_order>
 context_impl::get_info<info::context::atomic_memory_order_capabilities>()
     const {
   if (is_host())
-    return {cl::sycl::memory_order::relaxed, cl::sycl::memory_order::acquire,
-            cl::sycl::memory_order::release, cl::sycl::memory_order::acq_rel,
-            cl::sycl::memory_order::seq_cst};
+    return {sycl::memory_order::relaxed, sycl::memory_order::acquire,
+            sycl::memory_order::release, sycl::memory_order::acq_rel,
+            sycl::memory_order::seq_cst};
 
   pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
@@ -166,14 +166,13 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
   return readMemoryOrderBitfield(Result);
 }
 template <>
-std::vector<cl::sycl::memory_scope>
+std::vector<sycl::memory_scope>
 context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
     const {
   if (is_host())
-    return {cl::sycl::memory_scope::work_item,
-            cl::sycl::memory_scope::sub_group,
-            cl::sycl::memory_scope::work_group, cl::sycl::memory_scope::device,
-            cl::sycl::memory_scope::system};
+    return {sycl::memory_scope::work_item, sycl::memory_scope::sub_group,
+            sycl::memory_scope::work_group, sycl::memory_scope::device,
+            sycl::memory_scope::system};
 
   pi_memory_scope_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(

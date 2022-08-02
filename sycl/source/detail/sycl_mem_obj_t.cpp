@@ -38,7 +38,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
   if (MInteropContext->is_host())
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Creation of interoperability memory object using host context is "
         "not allowed",
         PI_ERROR_INVALID_CONTEXT);
@@ -58,7 +58,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_mem",
         PI_ERROR_INVALID_CONTEXT);
 
