@@ -242,7 +242,7 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
+          typename RedOutVar>
 class reduction_impl_algo;
 
 using cl::sycl::detail::enable_if_t;
@@ -1655,7 +1655,7 @@ public:
         *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
     if (Reduction::is_usm ||
         (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
-        (!Reduction::has_fast_atomics && Redu.hasUserDiscardWriteAccessor())) {
+        (!Reduction::has_fast_atomics && Reduction::is_dw_acc)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
@@ -1782,7 +1782,7 @@ public:
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm || Redu.hasUserDiscardWriteAccessor()) {
+    if (Reduction::is_usm || Reduction::is_dw_acc) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
             CopyHandler, Redu);
@@ -2667,7 +2667,7 @@ private:
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
-            class Algorithm>
+            typename RedOutVar>
   friend class ext::oneapi::detail::reduction_impl_algo;
 
 #ifndef __SYCL_DEVICE_ONLY__

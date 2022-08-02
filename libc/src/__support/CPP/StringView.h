@@ -107,19 +107,14 @@ public:
 
   // Moves the start of the view forward by n characters.
   // The behavior is undefined if n > size().
-  StringView remove_prefix(size_t N) const {
-    if (N >= Len)
-      return StringView();
-    return StringView(Data + N, Len - N);
+  void remove_prefix(size_t N) {
+    Len -= N;
+    Data += N;
   }
 
   // Moves the end of the view back by n characters.
   // The behavior is undefined if n > size().
-  StringView remove_suffix(size_t N) const {
-    if (N >= Len)
-      return StringView();
-    return StringView(Data, Len - N);
-  }
+  void remove_suffix(size_t N) { Len -= N; }
 
   // An equivalent method is not available in std::string_view.
   StringView trim(const char C) const {
@@ -177,6 +172,20 @@ public:
       if (S.front() == c)
         return size() - S.size();
       S = S.drop_front();
+    }
+    return npos;
+  }
+
+  // Search for the last character matching the character
+  //
+  // Return the index of the last character equal to the |c| before End.
+  size_t find_last_of(const char c, size_t End = npos) const {
+    End = End > size() ? size() : End + 1;
+    StringView S = drop_back(size() - End);
+    while (!S.empty()) {
+      if (S.back() == c)
+        return S.size() - 1;
+      S = S.drop_back();
     }
     return npos;
   }
