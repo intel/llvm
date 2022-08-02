@@ -27,7 +27,7 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are tradema
 
 NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
 
-This document describes an extension that introduces the `sycl::intel::atomic_ref` class, which exposes additional functionality aligned with the +std::atomic_ref+ class from {cpp}20.
+This document describes an extension that introduces the `cl::sycl::intel::atomic_ref` class, which exposes additional functionality aligned with the +std::atomic_ref+ class from {cpp}20.
 
 == Name Strings
 
@@ -62,7 +62,7 @@ This extension is written against the SYCL 1.2.1 specification, Revision 6 and t
 
 == Overview
 
-The SYCL atomic library (+sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces a new fence function (+sycl::intel::atomic_fence+) and an alternative atomic class (+sycl::intel::atomic_ref+) including additional features from {cpp}20:
+The SYCL atomic library (+cl::sycl::atomic+) defined in SYCL 1.2.1 is based on the standard atomic libary (+std::atomic+) but has some differences.  This extension introduces a new fence function (+cl::sycl::intel::atomic_fence+) and an alternative atomic class (+cl::sycl::intel::atomic_ref+) including additional features from {cpp}20:
 
 - Overloaded operators to reduce the verbosity of using atomics
 - Missing functions (e.g. `is_lock_free()`)
@@ -70,13 +70,13 @@ The SYCL atomic library (+sycl::atomic+) defined in SYCL 1.2.1 is based on the s
 - Support for additional memory orderings besides `relaxed`
 - Support for scopes denoting the set of work-items and devices to which memory ordering applies
 
-This extension deprecates the SYCL 1.2.1 +sycl::atomic+ class and accessors created with mode +access::mode::atomic+.
+This extension deprecates the SYCL 1.2.1 +cl::sycl::atomic+ class and accessors created with mode +access::mode::atomic+.
 
 The extension can be enabled using the `-fsycl-extended-atomics` flag, and applications can check whether the extension is enabled using `__has_extension(sycl_extended_atomics)`.
 
 === Overloaded Operators
 
-In SYCL 1.2.1, the +sycl::atomic+ class provides atomic operations by way of member functions (e.g. +fetch_add+) without defining the corresponding operators (e.g. `+=`).  This increases the verbosity of simple uses of atomics.
+In SYCL 1.2.1, the +cl::sycl::atomic+ class provides atomic operations by way of member functions (e.g. +fetch_add+) without defining the corresponding operators (e.g. `+=`).  This increases the verbosity of simple uses of atomics.
 
 The operators defined by this extension match those defined for +std::atomic_ref+ in {cpp}20.  The functionality of each operator is equivalent to calling a corresponding member function of the +atomic_ref+ class -- the operators do not expose any new functionality of the class, but act as shorthands for common use-cases.
 
@@ -121,7 +121,7 @@ This extension extends support for floating-point types to the +compare_exchange
 
 === Support for Additional Memory Orderings
 
-The atomic operations in SYCL 1.2.1 default to +memory_order_relaxed+, which is inconsistent with the default of +memory_order_seq_cst+ used by the +std::atomic+ class.  Defaulting to +memory_order_relaxed+ may improve the performance and portability of SYCL 1.2.1 code across multiple target devices, but may also lead to unexpected behavior when code is migrated between {cpp} and SYCL.  Different users have different understandings of which memory orders are the most common or useful, and the performance difference between memory orders is also expected to vary between devices.  This extension therefore makes the default memory order of +sycl::intel::atomic_ref+ dependent upon a template argument that must be specified by the user.
+The atomic operations in SYCL 1.2.1 default to +memory_order_relaxed+, which is inconsistent with the default of +memory_order_seq_cst+ used by the +std::atomic+ class.  Defaulting to +memory_order_relaxed+ may improve the performance and portability of SYCL 1.2.1 code across multiple target devices, but may also lead to unexpected behavior when code is migrated between {cpp} and SYCL.  Different users have different understandings of which memory orders are the most common or useful, and the performance difference between memory orders is also expected to vary between devices.  This extension therefore makes the default memory order of +cl::sycl::intel::atomic_ref+ dependent upon a template argument that must be specified by the user.
 
 All devices must support +memory_order_relaxed+, and the host device must support all {cpp} memory orders.  These changes bring the SYCL memory model in line with modern {cpp} while allowing a device/compiler to implement only a subset of {cpp} memory orders.  Supporting the standard {cpp} memory model in SYCL requires that disjoint address spaces (e.g. local and global memory) are treated as though they are part of a single address space (i.e. there must be a single happens-before relationship for all addresses).
 
@@ -153,7 +153,7 @@ All devices must support +memory_scope::work_group+, and the host device must su
 
 === The +atomic_ref+ Class
 
-The +sycl::intel::atomic_ref+ class is constructed from a reference, and enables atomic operations to the referenced object.  If any non-atomic access to the referenced object is made during the lifetime of the +sycl::intel::atomic_ref+ class then the behavior is undefined.  No subobject of the object referenced by an +atomic_ref+ shall be concurrently referenced by any other +atomic_ref+ object.
+The +cl::sycl::intel::atomic_ref+ class is constructed from a reference, and enables atomic operations to the referenced object.  If any non-atomic access to the referenced object is made during the lifetime of the +cl::sycl::intel::atomic_ref+ class then the behavior is undefined.  No subobject of the object referenced by an +atomic_ref+ shall be concurrently referenced by any other +atomic_ref+ object.
 
 The address space specified by the template argument +Space+ must be +access::address_space::global_space+ or +access::address_space::local_space+.  It is illegal for an +atomic_ref+ to reference an object in +access::address_space::constant_space+ or +access::address_space::private_space+.
 

@@ -24,27 +24,27 @@ kernel:
 
 ```cpp
   for (int i = 0; i < n_sc_sets; i++) {
-    sycl::program program(q.get_context());
+    cl::sycl::program program(q.get_context());
     const int *sc_set = &sc_vals[i][0];
-    sycl::ext::oneapi::experimental::spec_constant<int32_t, SC0> sc0 =
+    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, SC0> sc0 =
         program.set_spec_constant<SC0>(sc_set[0]);
-    sycl::ext::oneapi::experimental::spec_constant<int32_t, SC1> sc1 =
+    cl::sycl::ext::oneapi::experimental::spec_constant<int32_t, SC1> sc1 =
         program.set_spec_constant<SC1>(sc_set[1]);
 
     program.build_with_kernel_type<KernelAAA>();
 
     try {
-      sycl::buffer<int, 1> buf(vec.data(), vec.size());
+      cl::sycl::buffer<int, 1> buf(vec.data(), vec.size());
 
-      q.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+      q.submit([&](cl::sycl::handler &cgh) {
+        auto acc = buf.get_access<cl::sycl::access::mode::write>(cgh);
         cgh.single_task<KernelAAA>(
             program.get_kernel<KernelAAA>(),
             [=]() {
               acc[i] = sc0.get() + sc1.get();
             });
       });
-    } catch (sycl::exception &e) {
+    } catch (cl::sycl::exception &e) {
       std::cout << "*** Exception caught: " << e.what() << "\n";
       return 1;
     }
