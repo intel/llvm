@@ -15,9 +15,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.exe
 // RUN: %GPU_RUN_PLACEHOLDER %t.exe
 // RUN: %ACC_RUN_PLACEHOLDER %t.exe
-//
-// Linking issues with HIP AMD
-// XFAIL: hip_amd
 
 #include <iostream>
 #include <sycl/sycl.hpp>
