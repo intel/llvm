@@ -117,9 +117,9 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
 // select_device(selector)
 __SYCL_EXPORT device
 select_device(DSelectorInvocableType DeviceSelectorInvocable) {
-  std::vector<device> devices = device::get_devices();
+  std::vector<device> Devices = device::get_devices();
 
-  return select_device(DeviceSelectorInvocable, devices);
+  return select_device(DeviceSelectorInvocable, Devices);
 }
 
 // select_device(selector, context)
