@@ -11243,7 +11243,7 @@ TreeTransform<Derived>::TransformBinaryOperator(BinaryOperator *E) {
     return getDerived().RebuildBinaryOperator(
         E->getOperatorLoc(), E->getOpcode(), LHS.get(), RHS.get());
   Sema::FPFeaturesStateRAII FPFeaturesState(getSema());
-  FPOptionsOverride NewOverrides(E->getFPFeatures(getSema().getLangOpts()));
+  FPOptionsOverride NewOverrides(E->getFPFeatures());
   getSema().CurFPFeatures =
       NewOverrides.applyOverrides(getSema().getLangOpts());
   getSema().FpPragmaStack.CurrentValue = NewOverrides;
@@ -11310,7 +11310,7 @@ ExprResult
 TreeTransform<Derived>::TransformCompoundAssignOperator(
                                                       CompoundAssignOperator *E) {
   Sema::FPFeaturesStateRAII FPFeaturesState(getSema());
-  FPOptionsOverride NewOverrides(E->getFPFeatures(getSema().getLangOpts()));
+  FPOptionsOverride NewOverrides(E->getFPFeatures());
   getSema().CurFPFeatures =
       NewOverrides.applyOverrides(getSema().getLangOpts());
   getSema().FpPragmaStack.CurrentValue = NewOverrides;
