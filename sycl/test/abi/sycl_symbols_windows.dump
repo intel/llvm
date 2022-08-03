@@ -3939,8 +3939,8 @@
 ?select@__host_std@cl@@YA_K_K00@Z
 ?select@__host_std@cl@@YA_K_K0_J@Z
 ?select_device@device_selector@sycl@cl@@UEBA?AVdevice@23@XZ
-?select_device@detail@sycl@cl@@YA?AVdevice@23@V?$function@$$A6AHAEBVdevice@sycl@cl@@@Z@std@@@Z
-?select_device@detail@sycl@cl@@YA?AVdevice@23@V?$function@$$A6AHAEBVdevice@sycl@cl@@@Z@std@@AEBVcontext@23@@Z
+?select_device@detail@sycl@cl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@sycl@cl@@@Z@std@@@Z
+?select_device@detail@sycl@cl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@sycl@cl@@@Z@std@@AEBVcontext@23@@Z
 ?select_device@filter_selector@ONEAPI@sycl@cl@@UEBA?AVdevice@34@XZ
 ?select_device@filter_selector@oneapi@ext@sycl@cl@@UEBA?AVdevice@45@XZ
 ?setAlign@SYCLMemObjT@detail@sycl@cl@@QEAAX_K@Z
