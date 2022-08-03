@@ -16,7 +16,7 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct CudaDeviceTests : public ::testing::Test {
 

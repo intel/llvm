@@ -46,7 +46,7 @@ public:
   /// command group, and returns the underlying OpenCL memory object that is
   /// used by the SYCL runtime. If the accessor passed as parameter is not part
   /// of the command group requirements (e.g. it is an unregistered placeholder
-  /// accessor), the exception `cl::sycl::invalid_object` is thrown
+  /// accessor), the exception `sycl::invalid_object` is thrown
   /// asynchronously.
   template <backend Backend = backend::opencl, typename DataT, int Dims,
             access::mode Mode, access::target Target, access::placeholder IsPlh,
