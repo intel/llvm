@@ -87,16 +87,18 @@ public:
 
 namespace detail {
 
-// SYCL 1.2.1 defines a negative score to reject a device from selection
+// SYCL 2020 section 4.6.1.1 defines a negative score to reject a device from
+// selection
 static constexpr int REJECT_DEVICE_SCORE = -1;
 
 using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 
 __SYCL_EXPORT device
-select_device(DSelectorInvocableType DeviceSelectorInvocable);
+select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
 
-__SYCL_EXPORT device select_device(
-    DSelectorInvocableType DeviceSelectorInvocable, const context &SyclContext);
+__SYCL_EXPORT device
+select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
+              const context &SyclContext);
 
 } // namespace detail
 } // namespace sycl

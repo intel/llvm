@@ -67,7 +67,7 @@ public:
   template <
       typename DeviceSelector,
       typename = std::enable_if_t<
-          std::is_invocable_r<int, DeviceSelector &, device &>::value &&
+          std::is_invocable_r_v<int, DeviceSelector &, device &> &&
           !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
   // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit device(const DeviceSelector &deviceSelector)

@@ -81,7 +81,8 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
   const device *res = nullptr;
 
   for (const auto &dev : Devices) {
-    int dev_score = std::invoke(DeviceSelectorInvocable, dev);
+    int dev_score = DeviceSelectorInvocable(
+        dev); // std::invoke(DeviceSelectorInvocable, dev);
 
     traceDeviceSelection(dev, dev_score, false);
 
@@ -116,7 +117,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
 
 // select_device(selector)
 __SYCL_EXPORT device
-select_device(DSelectorInvocableType DeviceSelectorInvocable) {
+select_device(const DSelectorInvocableType &DeviceSelectorInvocable) {
   std::vector<device> Devices = device::get_devices();
 
   return select_device(DeviceSelectorInvocable, Devices);
@@ -124,7 +125,7 @@ select_device(DSelectorInvocableType DeviceSelectorInvocable) {
 
 // select_device(selector, context)
 __SYCL_EXPORT device
-select_device(DSelectorInvocableType DeviceSelectorInvocable,
+select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
               const context &SyclContext) {
   std::vector<device> devices = SyclContext.get_devices();
 
@@ -226,8 +227,10 @@ void filter_selector::reset() const { impl->reset(); }
 // because of the requirement that the filter_selector "reset()" itself
 // between invocations, the filter_selector operator() is not purely callable
 // and cannot be used interchangeably as a SYCL2020 callable device selector.
-// TODO: remove this reset() requirement
-// and remove ! std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
+// TODO: replace the FilterSelector subclass with something that
+// doesn't pretend to be a device_selector, and instead is something that
+// just returns a device (rather than a score).
+// Then remove ! std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>
 // from device/platform/queue constructors
 device filter_selector::select_device() const {
   std::lock_guard<std::mutex> Guard(
