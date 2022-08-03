@@ -4,7 +4,7 @@
 #include <iostream>
 
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::experimental::bfloat16;
+using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 static constexpr auto TILE_SZ = 16;
 static constexpr auto TM = TILE_SZ - 1;
