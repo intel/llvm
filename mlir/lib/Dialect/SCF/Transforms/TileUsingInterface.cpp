@@ -14,6 +14,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -117,23 +118,25 @@ generateTileLoopNest(OpBuilder &builder, Location loc,
   AffineMap minMap = AffineMap::get(1, 2, {s0, s1 - d0}, builder.getContext());
 
   for (auto loopRange : llvm::enumerate(loopRanges)) {
+    Value offset =
+        getValueOrCreateConstantIndexOp(builder, loc, loopRange.value().offset);
+    Value size =
+        getValueOrCreateConstantIndexOp(builder, loc, loopRange.value().size);
     // No loops if tile size is zero. Set offset and size to the loop
     // offset and size.
     if (matchPattern(tileSizeVals[loopRange.index()], m_Zero())) {
-      offsets[loopRange.index()] = loopRange.value().offset;
-      sizes[loopRange.index()] = loopRange.value().size;
+      offsets[loopRange.index()] = offset;
+      sizes[loopRange.index()] = size;
       continue;
     }
 
     auto loop = builder.create<scf::ForOp>(
-        loc, loopRange.value().offset, loopRange.value().size,
-        tileSizeVals[loopRange.index()], ValueRange{},
+        loc, offset, size, tileSizeVals[loopRange.index()], ValueRange{},
         [&](OpBuilder &bodyBuilder, Location bodyLoc, Value iv,
             ValueRange /*iterArgs*/) {
           Value boundedTileSize = builder.create<AffineMinOp>(
               bodyLoc, minMap,
-              ValueRange{iv, tileSizeVals[loopRange.index()],
-                         loopRange.value().size});
+              ValueRange{iv, tileSizeVals[loopRange.index()], size});
           sizes[loopRange.index()] = boundedTileSize;
           builder.create<scf::YieldOp>(loc);
         });
@@ -490,4 +493,42 @@ scf::TileConsumerAndFuseProducersUsingSCFForOp::returningMatchAndRewrite(
   replaceIterArgs(tileAndFuseResult.loops.front(),
                   tileAndFuseResult.loops.back(), rewriter);
   return tileAndFuseResult;
+}
+
+//===----------------------------------------------------------------------===//
+// LowerToLoopsUsingSCFForOp
+//===----------------------------------------------------------------------===//
+
+FailureOr<SmallVector<scf::ForOp>>
+scf::LowerToLoopsUsingSCFForOp::returningMatchAndRewrite(
+    TilingInterface op, PatternRewriter &rewriter) const {
+  SmallVector<Range> domain = op.getIterationDomain(rewriter);
+
+  // TODO: Handle cases where the op has results if needed.
+  if (op->getNumResults() > 0) {
+    return rewriter.notifyMatchFailure(
+        op, "unable to lower to loops operations with return values");
+  }
+
+  SmallVector<Value> ivs;
+  SmallVector<scf::ForOp> loops;
+  Location loc = op.getLoc();
+  for (auto loopRange : domain) {
+    Value offsetVal =
+        getValueOrCreateConstantIndexOp(rewriter, loc, loopRange.offset);
+    Value sizeVal =
+        getValueOrCreateConstantIndexOp(rewriter, loc, loopRange.size);
+    Value strideVal =
+        getValueOrCreateConstantIndexOp(rewriter, loc, loopRange.stride);
+    auto loop = rewriter.create<scf::ForOp>(op.getLoc(), offsetVal, sizeVal,
+                                            strideVal, ValueRange{});
+    loops.push_back(loop);
+    ivs.push_back(loop.getInductionVar());
+    rewriter.setInsertionPoint(loop.getBody()->getTerminator());
+  }
+  if (failed(op.generateScalarImplementation(rewriter, op.getLoc(), ivs))) {
+    return failure();
+  }
+  rewriter.eraseOp(op);
+  return loops;
 }

@@ -102,31 +102,11 @@ TEST_F(GrammarTest, RuleIDSorted) {
 TEST_F(GrammarTest, Annotation) {
   build(R"bnf(
     _ := x
-
-    x := y [guard=value]
-    y := IDENTIFIER [guard=final]
-
+    x := IDENTIFIER [guard]
   )bnf");
-  ASSERT_TRUE(Diags.empty());
-  EXPECT_EQ(G.lookupRule(ruleFor("_")).Guard, 0);
-  EXPECT_GT(G.lookupRule(ruleFor("x")).Guard, 0);
-  EXPECT_GT(G.lookupRule(ruleFor("y")).Guard, 0);
-  EXPECT_NE(G.lookupRule(ruleFor("x")).Guard, G.lookupRule(ruleFor("y")).Guard);
-}
-
-TEST_F(GrammarTest, MangleName) {
-  build(R"bnf(
-    _ := declaration
-
-    declaration := ptr-declarator ;
-    ptr-declarator := * IDENTIFIER
-
-  )bnf");
-  ASSERT_TRUE(Diags.empty());
-  EXPECT_EQ(G.mangleRule(ruleFor("declaration")),
-            "declaration_0ptr_declarator_1semi");
-  EXPECT_EQ(G.mangleRule(ruleFor("ptr-declarator")),
-            "ptr_declarator_0star_1identifier");
+  ASSERT_THAT(Diags, IsEmpty());
+  EXPECT_FALSE(G.lookupRule(ruleFor("_")).Guarded);
+  EXPECT_TRUE(G.lookupRule(ruleFor("x")).Guarded);
 }
 
 TEST_F(GrammarTest, Diagnostics) {

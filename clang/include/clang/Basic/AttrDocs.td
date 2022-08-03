@@ -257,6 +257,28 @@ applies to copies of the block. For example:
   }];
 }
 
+def MaybeUndefDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``maybe_undef`` attribute can be placed on a function parameter. It indicates
+that the parameter is allowed to use undef values. It informs the compiler
+to insert a freeze LLVM IR instruction on the function parameter.
+Please note that this is an attribute that is used as an internal
+implementation detail and not intended to be used by external users.
+
+In languages HIP, CUDA etc., some functions have multi-threaded semantics and
+it is enough for only one or some threads to provide defined arguments.
+Depending on semantics, undef arguments in some threads don't produce
+undefined results in the function call. Since, these functions accept undefined
+arguments, ``maybe_undef`` attribute can be placed.
+
+Sample usage:
+.. code-block:: c
+
+  void maybeundeffunc(int __attribute__((maybe_undef))param);
+  }];
+}
+
 def CarriesDependencyDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -6673,6 +6695,12 @@ general this requires the template to be declared at least twice. For example:
                                 clang::preferred_name(wstring)]] basic_string {
     // ...
   };
+
+
+Note that the ``preferred_name`` attribute will be ignored when the compiler
+writes a C++20 Module interface now. This is due to a compiler issue
+(https://github.com/llvm/llvm-project/issues/56490) that blocks users to modularize
+declarations with `preferred_name`. This is intended to be fixed in the future.
   }];
 }
 
