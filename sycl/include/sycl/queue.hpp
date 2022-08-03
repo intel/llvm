@@ -128,7 +128,7 @@ public:
   template <
       typename DeviceSelector,
       typename = std::enable_if_t<
-          std::is_invocable_r_v<int, DeviceSelector &, device &> &&
+          std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
           !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
   // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const DeviceSelector &deviceSelector,
@@ -144,7 +144,7 @@ public:
   template <
       typename DeviceSelector,
       typename = std::enable_if_t<
-          std::is_invocable_r_v<int, DeviceSelector &, device &> &&
+          std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
           !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
   // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const DeviceSelector &deviceSelector,
@@ -162,7 +162,7 @@ public:
   template <
       typename DeviceSelector,
       typename = std::enable_if_t<
-          std::is_invocable_r_v<int, DeviceSelector &, device &> &&
+          std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
           !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
   // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const context &syclContext,
@@ -181,7 +181,7 @@ public:
   template <
       typename DeviceSelector,
       typename = std::enable_if_t<
-          std::is_invocable_r_v<int, DeviceSelector &, device &> &&
+          std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
           !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
   // see [filter_selectors not "Callable"] in device_selectors.cpp
   explicit queue(const context &syclContext,
