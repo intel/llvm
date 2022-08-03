@@ -133,67 +133,6 @@ inline __SYCL_CONSTEXPR_HALF float half2Float(const uint16_t &Val) {
 
 namespace host_half_impl {
 
-// This class is legacy and it is needed only to avoid breaking ABI
-class __SYCL_EXPORT half {
-public:
-  half() = default;
-  constexpr half(const half &) = default;
-  constexpr half(half &&) = default;
-
-  half(const float &rhs);
-
-  half &operator=(const half &rhs) = default;
-
-  // Operator +=, -=, *=, /=
-  half &operator+=(const half &rhs);
-
-  half &operator-=(const half &rhs);
-
-  half &operator*=(const half &rhs);
-
-  half &operator/=(const half &rhs);
-
-  // Operator ++, --
-  half &operator++() {
-    *this += 1;
-    return *this;
-  }
-
-  half operator++(int) {
-    half ret(*this);
-    operator++();
-    return ret;
-  }
-
-  half &operator--() {
-    *this -= 1;
-    return *this;
-  }
-
-  half operator--(int) {
-    half ret(*this);
-    operator--();
-    return ret;
-  }
-
-  // Operator neg
-  constexpr half &operator-() {
-    Buf ^= 0x8000;
-    return *this;
-  }
-
-  // Operator float
-  operator float() const;
-
-  template <typename Key> friend struct std::hash;
-
-  // Initialize underlying data
-  constexpr explicit half(uint16_t x) : Buf(x) {}
-
-private:
-  uint16_t Buf;
-};
-
 // The main host half class
 class __SYCL_EXPORT half_v2 {
 public:
