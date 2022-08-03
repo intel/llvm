@@ -352,10 +352,9 @@ define <32 x i64> @vwadd_v32i64(<32 x i32>* %x, <32 x i32>* %y) nounwind {
 define <2 x i32> @vwadd_v2i32_v2i8(<2 x i8>* %x, <2 x i8>* %y) {
 ; CHECK-LABEL: vwadd_v2i32_v2i8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 2, e8, mf8, ta, mu
+; CHECK-NEXT:    vsetivli zero, 2, e16, mf4, ta, mu
 ; CHECK-NEXT:    vle8.v v8, (a1)
 ; CHECK-NEXT:    vle8.v v9, (a0)
-; CHECK-NEXT:    vsetvli zero, zero, e16, mf4, ta, mu
 ; CHECK-NEXT:    vsext.vf2 v10, v8
 ; CHECK-NEXT:    vsext.vf2 v11, v9
 ; CHECK-NEXT:    vwadd.vv v8, v11, v10
@@ -371,10 +370,9 @@ define <2 x i32> @vwadd_v2i32_v2i8(<2 x i8>* %x, <2 x i8>* %y) {
 define <4 x i32> @vwadd_v4i32_v4i8_v4i16(<4 x i8>* %x, <4 x i16>* %y) {
 ; CHECK-LABEL: vwadd_v4i32_v4i8_v4i16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, mu
+; CHECK-NEXT:    vsetivli zero, 4, e16, mf2, ta, mu
 ; CHECK-NEXT:    vle8.v v8, (a0)
 ; CHECK-NEXT:    vle16.v v9, (a1)
-; CHECK-NEXT:    vsetvli zero, zero, e16, mf2, ta, mu
 ; CHECK-NEXT:    vsext.vf2 v10, v8
 ; CHECK-NEXT:    vwadd.vv v8, v10, v9
 ; CHECK-NEXT:    ret
@@ -411,8 +409,8 @@ define <2 x i16> @vwadd_vx_v2i16(<2 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v9, a1
 ; CHECK-NEXT:    ret
   %a = load <2 x i8>, <2 x i8>* %x
-  %b = insertelement <2 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <2 x i8> %b, <2 x i8> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <2 x i8> %b, <2 x i8> poison, <2 x i32> zeroinitializer
   %d = sext <2 x i8> %a to <2 x i16>
   %e = sext <2 x i8> %c to <2 x i16>
   %f = add <2 x i16> %d, %e
@@ -427,8 +425,8 @@ define <4 x i16> @vwadd_vx_v4i16(<4 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v9, a1
 ; CHECK-NEXT:    ret
   %a = load <4 x i8>, <4 x i8>* %x
-  %b = insertelement <4 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <4 x i8> %b, <4 x i8> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <4 x i8> %b, <4 x i8> poison, <4 x i32> zeroinitializer
   %d = sext <4 x i8> %a to <4 x i16>
   %e = sext <4 x i8> %c to <4 x i16>
   %f = add <4 x i16> %d, %e
@@ -443,8 +441,8 @@ define <2 x i32> @vwadd_vx_v2i32(<2 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v9, a1
 ; CHECK-NEXT:    ret
   %a = load <2 x i16>, <2 x i16>* %x
-  %b = insertelement <2 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <2 x i16> %b, <2 x i16> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <2 x i16> %b, <2 x i16> poison, <2 x i32> zeroinitializer
   %d = sext <2 x i16> %a to <2 x i32>
   %e = sext <2 x i16> %c to <2 x i32>
   %f = add <2 x i32> %d, %e
@@ -459,8 +457,8 @@ define <8 x i16> @vwadd_vx_v8i16(<8 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v9, a1
 ; CHECK-NEXT:    ret
   %a = load <8 x i8>, <8 x i8>* %x
-  %b = insertelement <8 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <8 x i8> %b, <8 x i8> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <8 x i8> %b, <8 x i8> poison, <8 x i32> zeroinitializer
   %d = sext <8 x i8> %a to <8 x i16>
   %e = sext <8 x i8> %c to <8 x i16>
   %f = add <8 x i16> %d, %e
@@ -475,8 +473,8 @@ define <4 x i32> @vwadd_vx_v4i32(<4 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v9, a1
 ; CHECK-NEXT:    ret
   %a = load <4 x i16>, <4 x i16>* %x
-  %b = insertelement <4 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <4 x i16> %b, <4 x i16> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <4 x i16> %b, <4 x i16> poison, <4 x i32> zeroinitializer
   %d = sext <4 x i16> %a to <4 x i32>
   %e = sext <4 x i16> %c to <4 x i32>
   %f = add <4 x i32> %d, %e
@@ -491,8 +489,8 @@ define <2 x i64> @vwadd_vx_v2i64(<2 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v9, a1
 ; CHECK-NEXT:    ret
   %a = load <2 x i32>, <2 x i32>* %x
-  %b = insertelement <2 x i32> undef, i32 %y, i64 0
-  %c = shufflevector <2 x i32> %b, <2 x i32> undef, <2 x i32> zeroinitializer
+  %b = insertelement <2 x i32> poison, i32 %y, i64 0
+  %c = shufflevector <2 x i32> %b, <2 x i32> poison, <2 x i32> zeroinitializer
   %d = sext <2 x i32> %a to <2 x i64>
   %e = sext <2 x i32> %c to <2 x i64>
   %f = add <2 x i64> %d, %e
@@ -507,8 +505,8 @@ define <16 x i16> @vwadd_vx_v16i16(<16 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v10, a1
 ; CHECK-NEXT:    ret
   %a = load <16 x i8>, <16 x i8>* %x
-  %b = insertelement <16 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <16 x i8> %b, <16 x i8> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <16 x i8> %b, <16 x i8> poison, <16 x i32> zeroinitializer
   %d = sext <16 x i8> %a to <16 x i16>
   %e = sext <16 x i8> %c to <16 x i16>
   %f = add <16 x i16> %d, %e
@@ -523,8 +521,8 @@ define <8 x i32> @vwadd_vx_v8i32(<8 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v10, a1
 ; CHECK-NEXT:    ret
   %a = load <8 x i16>, <8 x i16>* %x
-  %b = insertelement <8 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <8 x i16> %b, <8 x i16> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <8 x i16> %b, <8 x i16> poison, <8 x i32> zeroinitializer
   %d = sext <8 x i16> %a to <8 x i32>
   %e = sext <8 x i16> %c to <8 x i32>
   %f = add <8 x i32> %d, %e
@@ -539,8 +537,8 @@ define <4 x i64> @vwadd_vx_v4i64(<4 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v10, a1
 ; CHECK-NEXT:    ret
   %a = load <4 x i32>, <4 x i32>* %x
-  %b = insertelement <4 x i32> undef, i32 %y, i64 0
-  %c = shufflevector <4 x i32> %b, <4 x i32> undef, <4 x i32> zeroinitializer
+  %b = insertelement <4 x i32> poison, i32 %y, i64 0
+  %c = shufflevector <4 x i32> %b, <4 x i32> poison, <4 x i32> zeroinitializer
   %d = sext <4 x i32> %a to <4 x i64>
   %e = sext <4 x i32> %c to <4 x i64>
   %f = add <4 x i64> %d, %e
@@ -556,8 +554,8 @@ define <32 x i16> @vwadd_vx_v32i16(<32 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v12, a1
 ; CHECK-NEXT:    ret
   %a = load <32 x i8>, <32 x i8>* %x
-  %b = insertelement <32 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <32 x i8> %b, <32 x i8> undef, <32 x i32> zeroinitializer
+  %b = insertelement <32 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <32 x i8> %b, <32 x i8> poison, <32 x i32> zeroinitializer
   %d = sext <32 x i8> %a to <32 x i16>
   %e = sext <32 x i8> %c to <32 x i16>
   %f = add <32 x i16> %d, %e
@@ -572,8 +570,8 @@ define <16 x i32> @vwadd_vx_v16i32(<16 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v12, a1
 ; CHECK-NEXT:    ret
   %a = load <16 x i16>, <16 x i16>* %x
-  %b = insertelement <16 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <16 x i16> %b, <16 x i16> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <16 x i16> %b, <16 x i16> poison, <16 x i32> zeroinitializer
   %d = sext <16 x i16> %a to <16 x i32>
   %e = sext <16 x i16> %c to <16 x i32>
   %f = add <16 x i32> %d, %e
@@ -588,8 +586,8 @@ define <8 x i64> @vwadd_vx_v8i64(<8 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v12, a1
 ; CHECK-NEXT:    ret
   %a = load <8 x i32>, <8 x i32>* %x
-  %b = insertelement <8 x i32> undef, i32 %y, i64 0
-  %c = shufflevector <8 x i32> %b, <8 x i32> undef, <8 x i32> zeroinitializer
+  %b = insertelement <8 x i32> poison, i32 %y, i64 0
+  %c = shufflevector <8 x i32> %b, <8 x i32> poison, <8 x i32> zeroinitializer
   %d = sext <8 x i32> %a to <8 x i64>
   %e = sext <8 x i32> %c to <8 x i64>
   %f = add <8 x i64> %d, %e
@@ -605,8 +603,8 @@ define <64 x i16> @vwadd_vx_v64i16(<64 x i8>* %x, i8 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v16, a1
 ; CHECK-NEXT:    ret
   %a = load <64 x i8>, <64 x i8>* %x
-  %b = insertelement <64 x i8> undef, i8 %y, i32 0
-  %c = shufflevector <64 x i8> %b, <64 x i8> undef, <64 x i32> zeroinitializer
+  %b = insertelement <64 x i8> poison, i8 %y, i32 0
+  %c = shufflevector <64 x i8> %b, <64 x i8> poison, <64 x i32> zeroinitializer
   %d = sext <64 x i8> %a to <64 x i16>
   %e = sext <64 x i8> %c to <64 x i16>
   %f = add <64 x i16> %d, %e
@@ -622,8 +620,8 @@ define <32 x i32> @vwadd_vx_v32i32(<32 x i16>* %x, i16 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v16, a1
 ; CHECK-NEXT:    ret
   %a = load <32 x i16>, <32 x i16>* %x
-  %b = insertelement <32 x i16> undef, i16 %y, i32 0
-  %c = shufflevector <32 x i16> %b, <32 x i16> undef, <32 x i32> zeroinitializer
+  %b = insertelement <32 x i16> poison, i16 %y, i32 0
+  %c = shufflevector <32 x i16> %b, <32 x i16> poison, <32 x i32> zeroinitializer
   %d = sext <32 x i16> %a to <32 x i32>
   %e = sext <32 x i16> %c to <32 x i32>
   %f = add <32 x i32> %d, %e
@@ -638,8 +636,8 @@ define <16 x i64> @vwadd_vx_v16i64(<16 x i32>* %x, i32 %y) {
 ; CHECK-NEXT:    vwadd.vx v8, v16, a1
 ; CHECK-NEXT:    ret
   %a = load <16 x i32>, <16 x i32>* %x
-  %b = insertelement <16 x i32> undef, i32 %y, i64 0
-  %c = shufflevector <16 x i32> %b, <16 x i32> undef, <16 x i32> zeroinitializer
+  %b = insertelement <16 x i32> poison, i32 %y, i64 0
+  %c = shufflevector <16 x i32> %b, <16 x i32> poison, <16 x i32> zeroinitializer
   %d = sext <16 x i32> %a to <16 x i64>
   %e = sext <16 x i32> %c to <16 x i64>
   %f = add <16 x i64> %d, %e
@@ -657,8 +655,8 @@ define <8 x i16> @vwadd_vx_v8i16_i8(<8 x i8>* %x, i8* %y) {
   %a = load <8 x i8>, <8 x i8>* %x
   %b = load i8, i8* %y
   %c = sext i8 %b to i16
-  %d = insertelement <8 x i16> undef, i16 %c, i32 0
-  %e = shufflevector <8 x i16> %d, <8 x i16> undef, <8 x i32> zeroinitializer
+  %d = insertelement <8 x i16> poison, i16 %c, i32 0
+  %e = shufflevector <8 x i16> %d, <8 x i16> poison, <8 x i32> zeroinitializer
   %f = sext <8 x i8> %a to <8 x i16>
   %g = add <8 x i16> %e, %f
   ret <8 x i16> %g
@@ -674,8 +672,8 @@ define <8 x i16> @vwadd_vx_v8i16_i16(<8 x i8>* %x, i16* %y) {
 ; CHECK-NEXT:    ret
   %a = load <8 x i8>, <8 x i8>* %x
   %b = load i16, i16* %y
-  %d = insertelement <8 x i16> undef, i16 %b, i32 0
-  %e = shufflevector <8 x i16> %d, <8 x i16> undef, <8 x i32> zeroinitializer
+  %d = insertelement <8 x i16> poison, i16 %b, i32 0
+  %e = shufflevector <8 x i16> %d, <8 x i16> poison, <8 x i32> zeroinitializer
   %f = sext <8 x i8> %a to <8 x i16>
   %g = add <8 x i16> %e, %f
   ret <8 x i16> %g
@@ -692,8 +690,8 @@ define <4 x i32> @vwadd_vx_v4i32_i8(<4 x i16>* %x, i8* %y) {
   %a = load <4 x i16>, <4 x i16>* %x
   %b = load i8, i8* %y
   %c = sext i8 %b to i32
-  %d = insertelement <4 x i32> undef, i32 %c, i32 0
-  %e = shufflevector <4 x i32> %d, <4 x i32> undef, <4 x i32> zeroinitializer
+  %d = insertelement <4 x i32> poison, i32 %c, i32 0
+  %e = shufflevector <4 x i32> %d, <4 x i32> poison, <4 x i32> zeroinitializer
   %f = sext <4 x i16> %a to <4 x i32>
   %g = add <4 x i32> %e, %f
   ret <4 x i32> %g
@@ -710,8 +708,8 @@ define <4 x i32> @vwadd_vx_v4i32_i16(<4 x i16>* %x, i16* %y) {
   %a = load <4 x i16>, <4 x i16>* %x
   %b = load i16, i16* %y
   %c = sext i16 %b to i32
-  %d = insertelement <4 x i32> undef, i32 %c, i32 0
-  %e = shufflevector <4 x i32> %d, <4 x i32> undef, <4 x i32> zeroinitializer
+  %d = insertelement <4 x i32> poison, i32 %c, i32 0
+  %e = shufflevector <4 x i32> %d, <4 x i32> poison, <4 x i32> zeroinitializer
   %f = sext <4 x i16> %a to <4 x i32>
   %g = add <4 x i32> %e, %f
   ret <4 x i32> %g
@@ -727,8 +725,8 @@ define <4 x i32> @vwadd_vx_v4i32_i32(<4 x i16>* %x, i32* %y) {
 ; CHECK-NEXT:    ret
   %a = load <4 x i16>, <4 x i16>* %x
   %b = load i32, i32* %y
-  %d = insertelement <4 x i32> undef, i32 %b, i32 0
-  %e = shufflevector <4 x i32> %d, <4 x i32> undef, <4 x i32> zeroinitializer
+  %d = insertelement <4 x i32> poison, i32 %b, i32 0
+  %e = shufflevector <4 x i32> %d, <4 x i32> poison, <4 x i32> zeroinitializer
   %f = sext <4 x i16> %a to <4 x i32>
   %g = add <4 x i32> %e, %f
   ret <4 x i32> %g
@@ -760,8 +758,8 @@ define <2 x i64> @vwadd_vx_v2i64_i8(<2 x i32>* %x, i8* %y) nounwind {
   %a = load <2 x i32>, <2 x i32>* %x
   %b = load i8, i8* %y
   %c = sext i8 %b to i64
-  %d = insertelement <2 x i64> undef, i64 %c, i64 0
-  %e = shufflevector <2 x i64> %d, <2 x i64> undef, <2 x i32> zeroinitializer
+  %d = insertelement <2 x i64> poison, i64 %c, i64 0
+  %e = shufflevector <2 x i64> %d, <2 x i64> poison, <2 x i32> zeroinitializer
   %f = sext <2 x i32> %a to <2 x i64>
   %g = add <2 x i64> %e, %f
   ret <2 x i64> %g
@@ -793,8 +791,8 @@ define <2 x i64> @vwadd_vx_v2i64_i16(<2 x i32>* %x, i16* %y) nounwind {
   %a = load <2 x i32>, <2 x i32>* %x
   %b = load i16, i16* %y
   %c = sext i16 %b to i64
-  %d = insertelement <2 x i64> undef, i64 %c, i64 0
-  %e = shufflevector <2 x i64> %d, <2 x i64> undef, <2 x i32> zeroinitializer
+  %d = insertelement <2 x i64> poison, i64 %c, i64 0
+  %e = shufflevector <2 x i64> %d, <2 x i64> poison, <2 x i32> zeroinitializer
   %f = sext <2 x i32> %a to <2 x i64>
   %g = add <2 x i64> %e, %f
   ret <2 x i64> %g
@@ -826,8 +824,8 @@ define <2 x i64> @vwadd_vx_v2i64_i32(<2 x i32>* %x, i32* %y) nounwind {
   %a = load <2 x i32>, <2 x i32>* %x
   %b = load i32, i32* %y
   %c = sext i32 %b to i64
-  %d = insertelement <2 x i64> undef, i64 %c, i64 0
-  %e = shufflevector <2 x i64> %d, <2 x i64> undef, <2 x i32> zeroinitializer
+  %d = insertelement <2 x i64> poison, i64 %c, i64 0
+  %e = shufflevector <2 x i64> %d, <2 x i64> poison, <2 x i32> zeroinitializer
   %f = sext <2 x i32> %a to <2 x i64>
   %g = add <2 x i64> %e, %f
   ret <2 x i64> %g
@@ -858,8 +856,8 @@ define <2 x i64> @vwadd_vx_v2i64_i64(<2 x i32>* %x, i64* %y) nounwind {
 ; RV64-NEXT:    ret
   %a = load <2 x i32>, <2 x i32>* %x
   %b = load i64, i64* %y
-  %d = insertelement <2 x i64> undef, i64 %b, i64 0
-  %e = shufflevector <2 x i64> %d, <2 x i64> undef, <2 x i32> zeroinitializer
+  %d = insertelement <2 x i64> poison, i64 %b, i64 0
+  %e = shufflevector <2 x i64> %d, <2 x i64> poison, <2 x i32> zeroinitializer
   %f = sext <2 x i32> %a to <2 x i64>
   %g = add <2 x i64> %e, %f
   ret <2 x i64> %g

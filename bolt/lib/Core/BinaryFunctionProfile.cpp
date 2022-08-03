@@ -27,43 +27,37 @@ namespace opts {
 
 extern cl::OptionCategory BoltOptCategory;
 
-cl::opt<IndirectCallPromotionType>
-IndirectCallPromotion("indirect-call-promotion",
-  cl::init(ICP_NONE),
-  cl::desc("indirect call promotion"),
-  cl::values(
-    clEnumValN(ICP_NONE, "none", "do not perform indirect call promotion"),
-    clEnumValN(ICP_CALLS, "calls", "perform ICP on indirect calls"),
-    clEnumValN(ICP_JUMP_TABLES, "jump-tables", "perform ICP on jump tables"),
-    clEnumValN(ICP_ALL, "all", "perform ICP on calls and jump tables")),
-  cl::ZeroOrMore,
-  cl::cat(BoltOptCategory));
+cl::opt<IndirectCallPromotionType> ICP(
+    "indirect-call-promotion", cl::init(ICP_NONE),
+    cl::desc("indirect call promotion"),
+    cl::values(
+        clEnumValN(ICP_NONE, "none", "do not perform indirect call promotion"),
+        clEnumValN(ICP_CALLS, "calls", "perform ICP on indirect calls"),
+        clEnumValN(ICP_JUMP_TABLES, "jump-tables",
+                   "perform ICP on jump tables"),
+        clEnumValN(ICP_ALL, "all", "perform ICP on calls and jump tables")),
+    cl::ZeroOrMore, cl::cat(BoltOptCategory));
+
+static cl::alias ICPAlias("icp",
+                          cl::desc("Alias for --indirect-call-promotion"),
+                          cl::aliasopt(ICP));
 
 extern cl::opt<JumpTableSupportLevel> JumpTables;
 
-static cl::opt<bool>
-FixFuncCounts("fix-func-counts",
-  cl::desc("adjust function counts based on basic blocks execution count"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
+static cl::opt<bool> FixFuncCounts(
+    "fix-func-counts",
+    cl::desc("adjust function counts based on basic blocks execution count"),
+    cl::Hidden, cl::cat(BoltOptCategory));
+
+static cl::opt<bool> FixBlockCounts(
+    "fix-block-counts",
+    cl::desc("adjust block counts based on outgoing branch counts"),
+    cl::init(true), cl::Hidden, cl::cat(BoltOptCategory));
 
 static cl::opt<bool>
-FixBlockCounts("fix-block-counts",
-  cl::desc("adjust block counts based on outgoing branch counts"),
-  cl::init(true),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
-
-static cl::opt<bool>
-InferFallThroughs("infer-fall-throughs",
-  cl::desc("infer execution count for fall-through blocks"),
-  cl::init(false),
-  cl::ZeroOrMore,
-  cl::Hidden,
-  cl::cat(BoltOptCategory));
+    InferFallThroughs("infer-fall-throughs",
+                      cl::desc("infer execution count for fall-through blocks"),
+                      cl::Hidden, cl::cat(BoltOptCategory));
 
 } // namespace opts
 
@@ -173,8 +167,7 @@ void BinaryFunction::postProcessProfile() {
     }
     JT->Count += TotalBranchCount;
 
-    if (opts::IndirectCallPromotion < ICP_JUMP_TABLES &&
-        opts::JumpTables < JTS_AGGRESSIVE)
+    if (opts::ICP < ICP_JUMP_TABLES && opts::JumpTables < JTS_AGGRESSIVE)
       continue;
 
     if (JT->Counts.empty())

@@ -49,6 +49,19 @@ SmallVector<OpFoldResult, 4> getMixedStrides(OffsetSizeAndStrideOpInterface op,
                                              ArrayAttr staticStrides,
                                              ValueRange strides);
 
+/// Decompose a vector of mixed static or dynamic strides/offsets into the
+/// corresponding pair of arrays. This is the inverse function of
+/// `getMixedStrides` and `getMixedOffsets`.
+std::pair<ArrayAttr, SmallVector<Value>> decomposeMixedStridesOrOffsets(
+    OpBuilder &b, const SmallVectorImpl<OpFoldResult> &mixedValues);
+
+/// Decompose a vector of mixed static or dynamic strides/offsets into the
+/// corresponding pair of arrays. This is the inverse function of
+/// `getMixedSizes`.
+std::pair<ArrayAttr, SmallVector<Value>>
+decomposeMixedSizes(OpBuilder &b,
+                    const SmallVectorImpl<OpFoldResult> &mixedValues);
+
 namespace detail {
 LogicalResult verifyOffsetSizeAndStrideOp(OffsetSizeAndStrideOpInterface op);
 
@@ -105,7 +118,8 @@ void printOperandsOrIntegersSizesList(OpAsmPrinter &printer, Operation *op,
 ///   1. `result` is filled with the i64 ArrayAttr "[`dynVal`, 7, 42, `dynVal`]"
 ///   2. `ssa` is filled with "[%arg0, %arg1]".
 ParseResult parseOperandsOrIntegersOffsetsOrStridesList(
-    OpAsmParser &parser, SmallVectorImpl<OpAsmParser::OperandType> &values,
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
     ArrayAttr &integers);
 
 /// Pasrer hook for custom directive in assemblyFormat.
@@ -122,7 +136,8 @@ ParseResult parseOperandsOrIntegersOffsetsOrStridesList(
 ///   1. `result` is filled with the i64 ArrayAttr "[`dynVal`, 7, 42, `dynVal`]"
 ///   2. `ssa` is filled with "[%arg0, %arg1]".
 ParseResult parseOperandsOrIntegersSizesList(
-    OpAsmParser &parser, SmallVectorImpl<OpAsmParser::OperandType> &values,
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
     ArrayAttr &integers);
 
 /// Verify that a the `values` has as many elements as the number of entries in

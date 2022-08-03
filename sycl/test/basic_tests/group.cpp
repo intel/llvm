@@ -8,9 +8,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace std;
 using cl::sycl::detail::Builder;
@@ -33,6 +33,7 @@ int main() {
 
   try {
     one_dim.get_local_id();
+    assert(one_dim.get_local_id(0) == one_dim.get_local_id()[0]);
     assert(0); // get_local_id() is not implemented on host device
   } catch (cl::sycl::runtime_error) {
   }
@@ -64,6 +65,8 @@ int main() {
 
   try {
     two_dim.get_local_id();
+    assert(two_dim.get_local_id(0) == two_dim.get_local_id()[0]);
+    assert(two_dim.get_local_id(1) == two_dim.get_local_id()[1]);
     assert(0); // get_local_id() is not implemented on host device
   } catch (cl::sycl::runtime_error) {
   }
@@ -101,6 +104,9 @@ int main() {
 
   try {
     three_dim.get_local_id();
+    assert(three_dim.get_local_id(0) == three_dim.get_local_id()[0]);
+    assert(three_dim.get_local_id(1) == three_dim.get_local_id()[1]);
+    assert(three_dim.get_local_id(2) == three_dim.get_local_id()[2]);
     assert(0); // get_local_id() is not implemented on host device
   } catch (cl::sycl::runtime_error) {
   }

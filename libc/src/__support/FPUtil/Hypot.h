@@ -12,8 +12,10 @@
 #include "BasicOperations.h"
 #include "FEnvImpl.h"
 #include "FPBits.h"
+#include "builtin_wrappers.h"
 #include "src/__support/CPP/Bit.h"
 #include "src/__support/CPP/TypeTraits.h"
+#include "src/__support/CPP/UInt128.h"
 
 namespace __llvm_libc {
 namespace fputil {
@@ -21,43 +23,12 @@ namespace fputil {
 namespace internal {
 
 template <typename T>
-static inline T find_leading_one(T mant, int &shift_length);
-
-// The following overloads are matched based on what is accepted by
-// __builtin_clz* rather than using the exactly-sized aliases from stdint.h
-// (such as uint32_t). There are 3 overloads even though 2 will only ever be
-// used by a specific platform, since unsigned long varies in size depending on
-// the word size of the architecture.
-
-template <>
-inline unsigned int find_leading_one<unsigned int>(unsigned int mant,
-                                                   int &shift_length) {
+static inline T find_leading_one(T mant, int &shift_length) {
   shift_length = 0;
   if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - __builtin_clz(mant);
+    shift_length = (sizeof(mant) * 8) - 1 - unsafe_clz(mant);
   }
-  return 1U << shift_length;
-}
-
-template <>
-inline unsigned long find_leading_one<unsigned long>(unsigned long mant,
-                                                     int &shift_length) {
-  shift_length = 0;
-  if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - __builtin_clzl(mant);
-  }
-  return 1UL << shift_length;
-}
-
-template <>
-inline unsigned long long
-find_leading_one<unsigned long long>(unsigned long long mant,
-                                     int &shift_length) {
-  shift_length = 0;
-  if (mant > 0) {
-    shift_length = (sizeof(mant) * 8) - 1 - __builtin_clzll(mant);
-  }
-  return 1ULL << shift_length;
+  return T(1) << shift_length;
 }
 
 } // namespace internal
@@ -68,7 +39,9 @@ template <> struct DoubleLength<uint16_t> { using Type = uint32_t; };
 
 template <> struct DoubleLength<uint32_t> { using Type = uint64_t; };
 
-template <> struct DoubleLength<uint64_t> { using Type = __uint128_t; };
+template <> struct DoubleLength<uint64_t> {
+  using Type = UInt128;
+};
 
 // Correctly rounded IEEE 754 HYPOT(x, y) with round to nearest, ties to even.
 //
@@ -143,38 +116,28 @@ static inline T hypot(T x, T y) {
     return y;
   }
 
+  uint16_t x_exp = x_bits.get_unbiased_exponent();
+  uint16_t y_exp = y_bits.get_unbiased_exponent();
+  uint16_t exp_diff = (x_exp > y_exp) ? (x_exp - y_exp) : (y_exp - x_exp);
+
+  if ((exp_diff >= MantissaWidth<T>::VALUE + 2) || (x == 0) || (y == 0)) {
+    return abs(x) + abs(y);
+  }
+
   uint16_t a_exp, b_exp, out_exp;
   UIntType a_mant, b_mant;
   DUIntType a_mant_sq, b_mant_sq;
   bool sticky_bits;
 
-  if ((x_bits.get_unbiased_exponent() >=
-       y_bits.get_unbiased_exponent() + MantissaWidth<T>::VALUE + 2) ||
-      (y == 0)) {
-    if ((y != 0) && (get_round() == FE_UPWARD)) {
-      UIntType out_bits = FPBits_t(abs(x)).uintval();
-      return T(FPBits_t(++out_bits));
-    }
-    return abs(x);
-  } else if ((y_bits.get_unbiased_exponent() >=
-              x_bits.get_unbiased_exponent() + MantissaWidth<T>::VALUE + 2) ||
-             (x == 0)) {
-    if ((x != 0) && (get_round() == FE_UPWARD)) {
-      UIntType out_bits = FPBits_t(abs(y)).uintval();
-      return T(FPBits_t(++out_bits));
-    }
-    return abs(y);
-  }
-
   if (abs(x) >= abs(y)) {
-    a_exp = x_bits.get_unbiased_exponent();
+    a_exp = x_exp;
     a_mant = x_bits.get_mantissa();
-    b_exp = y_bits.get_unbiased_exponent();
+    b_exp = y_exp;
     b_mant = y_bits.get_mantissa();
   } else {
-    a_exp = y_bits.get_unbiased_exponent();
+    a_exp = y_exp;
     a_mant = y_bits.get_mantissa();
-    b_exp = x_bits.get_unbiased_exponent();
+    b_exp = x_exp;
     b_mant = x_bits.get_mantissa();
   }
 

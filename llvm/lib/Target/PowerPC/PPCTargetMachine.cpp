@@ -26,6 +26,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/GlobalISel/IRTranslator.h"
 #include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
+#include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
 #include "llvm/CodeGen/GlobalISel/Legalizer.h"
 #include "llvm/CodeGen/GlobalISel/Localizer.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
@@ -133,6 +134,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializePowerPCTarget() {
   initializePPCGenScalarMASSEntriesPass(PR);
   initializePPCExpandAtomicPseudoPass(PR);
   initializeGlobalISel(PR);
+  initializePPCCTRLoopsPass(PR);
 }
 
 static bool isLittleEndianTriple(const Triple &T) {
@@ -244,10 +246,10 @@ static PPCTargetMachine::PPCABI computeTargetABI(const Triple &TT,
 
 static Reloc::Model getEffectiveRelocModel(const Triple &TT,
                                            Optional<Reloc::Model> RM) {
-  assert((!TT.isOSAIX() || !RM.hasValue() || *RM == Reloc::PIC_) &&
+  assert((!TT.isOSAIX() || !RM || *RM == Reloc::PIC_) &&
          "Invalid relocation model for AIX.");
 
-  if (RM.hasValue())
+  if (RM)
     return *RM;
 
   // Big Endian PPC and AIX default to PIC.
@@ -538,6 +540,16 @@ void PPCPassConfig::addPreRegAlloc() {
   if (EnableExtraTOCRegDeps)
     addPass(createPPCTOCRegDepsPass());
 
+  // Run CTR loops pass before MachinePipeliner pass.
+  // MachinePipeliner will pipeline all instructions before the terminator, but
+  // we don't want DecreaseCTRPseudo to be pipelined.
+  // Note we may lose some MachinePipeliner opportunities if we run CTR loops
+  // generation pass before MachinePipeliner and the loop is converted back to
+  // a normal loop. We can revisit this later for running PPCCTRLoops after
+  // MachinePipeliner and handling DecreaseCTRPseudo in MachinePipeliner pass.
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createPPCCTRLoopsPass());
+
   if (getOptLevel() != CodeGenOpt::None)
     addPass(&MachinePipelinerID);
 }
@@ -565,7 +577,7 @@ void PPCPassConfig::addPreEmitPass2() {
 }
 
 TargetTransformInfo
-PPCTargetMachine::getTargetTransformInfo(const Function &F) {
+PPCTargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(PPCTTIImpl(this, F));
 }
 

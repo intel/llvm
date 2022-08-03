@@ -1,5 +1,4 @@
-//===- TosaDecomposeDepthwise.cpp
-//------------------------------------------===//
+//===- TosaDecomposeDepthwise.cpp -----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -117,5 +116,5 @@ struct DepthwiseConv2DIsMul : public OpRewritePattern<tosa::DepthwiseConv2DOp> {
 
 void mlir::tosa::populateTosaDecomposeDepthwise(MLIRContext *ctx,
                                                 RewritePatternSet &patterns) {
-  patterns.insert<DepthwiseConv2DIsMul>(ctx);
+  patterns.add<DepthwiseConv2DIsMul>(ctx);
 }

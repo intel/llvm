@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/device.hpp>
 #include <detail/allowlist.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
@@ -14,6 +13,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <sycl/device.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -255,8 +255,23 @@ platform_impl::get_devices(info::device_type DeviceType) const {
       MPlatform, pi::cast<RT::PiDeviceType>(DeviceType), 0,
       pi::cast<RT::PiDevice *>(nullptr), &NumDevices);
 
-  if (NumDevices == 0)
+  if (NumDevices == 0) {
+    // If platform doesn't have devices (even without filter)
+    // LastDeviceIds[PlatformId] stay 0 that affects next platform devices num
+    // analysis. Doing adjustment by simple copy of last device num from
+    // previous platform.
+    // Needs non const plugin reference.
+    std::vector<plugin> &Plugins = RT::initialize();
+    auto It = std::find_if(Plugins.begin(), Plugins.end(),
+                           [&Platform = MPlatform](plugin &Plugin) {
+                             return Plugin.containsPiPlatform(Platform);
+                           });
+    if (It != Plugins.end()) {
+      std::lock_guard<std::mutex> Guard(*(It->getPluginMutex()));
+      (*It).adjustLastDeviceId(MPlatform);
+    }
     return Res;
+  }
 
   std::vector<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -323,7 +338,7 @@ bool platform_impl::has(aspect Aspect) const {
 #define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
   template ret_type platform_impl::get_info<info::param_type::param>() const;
 
-#include <CL/sycl/info/platform_traits.def>
+#include <sycl/info/platform_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail

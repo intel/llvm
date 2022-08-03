@@ -1,4 +1,4 @@
-//===- TosaDecomposeConv2D.cpp ------------------------------------------===//
+//===- TosaDecomposeConv2D.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -87,7 +87,7 @@ struct Conv2DIsFullyConnected : public OpRewritePattern<tosa::Conv2DOp> {
           rewriter
               .create<tosa::FullyConnectedOp>(
                   op.getLoc(), fullyConnectedShapeType, reshapedInput,
-                  reshapedWeight, op.bias(), op.quantization_info().getValue())
+                  reshapedWeight, op.bias(), *op.quantization_info())
               .getResult();
     } else {
       fullyConnectedValue = rewriter
@@ -111,5 +111,5 @@ struct Conv2DIsFullyConnected : public OpRewritePattern<tosa::Conv2DOp> {
 
 void mlir::tosa::populateTosaDecomposeConv2D(MLIRContext *ctx,
                                              RewritePatternSet &patterns) {
-  patterns.insert<Conv2DIsFullyConnected>(ctx);
+  patterns.add<Conv2DIsFullyConnected>(ctx);
 }

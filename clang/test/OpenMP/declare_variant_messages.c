@@ -1,6 +1,5 @@
-// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp -x c -std=c99 -fms-extensions -Wno-pragma-pack %s
-
-// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp-simd -x c -std=c99 -fms-extensions -Wno-pragma-pack %s
+// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp -std=c99 -fms-extensions -Wno-pragma-pack -Wno-strict-prototypes %s
+// RUN: %clang_cc1 -triple=x86_64-pc-win32 -verify -fopenmp-simd -std=c99 -fms-extensions -Wno-pragma-pack -Wno-strict-prototypes %s
 
 
 #pragma omp declare // expected-error {{expected an OpenMP directive}}
@@ -113,6 +112,15 @@ int bar(void) {
   return after_use();
 }
 
+// expected-error@+1 {{variant in '#pragma omp declare variant' is the same as the base function}}
+#pragma omp declare variant (self) \
+  match(construct={dispatch}, device={arch(arm)})
+void self(int n);
+
+void self_test(int n, int d_no) {
+  #pragma omp dispatch device(d_no) nowait
+  self(n);
+}
 
 #pragma omp declare variant(after_use_variant) match(xxx={}) // expected-warning {{'xxx' is not a valid context set in a `declare variant`; set ignored}} expected-warning {{'#pragma omp declare variant' cannot be applied for function after first usage; the original function might be used}} expected-note {{context set options are: 'construct' 'device' 'implementation' 'user'}} expected-note {{the ignored set spans until here}}
 int after_use(void);
@@ -133,6 +141,29 @@ int diff_ret_variant(void);
 
 #pragma omp declare variant(diff_ret_variant) match(xxx={}) // expected-error {{variant in '#pragma omp declare variant' with type 'int (void)' is incompatible with type 'void (void)'}} expected-warning {{'xxx' is not a valid context set in a `declare variant`; set ignored}} expected-note {{context set options are: 'construct' 'device' 'implementation' 'user'}} expected-note {{the ignored set spans until here}}
 void diff_ret(void);
+
+void incompat_attr_variant(void);
+
+#pragma omp declare variant(incompat_attr_variant) match(implementation={vendor(llvm)})
+__attribute__((cpu_dispatch(generic))) void incompat_attr_cpu_dispatch(void); // expected-error {{'#pragma omp declare variant' is not compatible with any target-specific attributes}}
+
+#pragma omp declare variant(incompat_attr_variant) match(implementation={vendor(llvm)})
+__attribute__((cpu_specific(generic))) void incompat_attr_cpu_specific(void); // expected-error {{'#pragma omp declare variant' is not compatible with any target-specific attributes}}
+
+// 'incompat_attr_target' is not a multiversion function until...
+#pragma omp declare variant(incompat_attr_variant) match(implementation={vendor(llvm)})
+__attribute__((target("mmx"))) void incompat_attr_target(void); // expected-error {{'#pragma omp declare variant' is not compatible with any target-specific attributes}}
+
+// This declaration makes it one.
+#pragma omp declare variant(incompat_attr_variant) match(implementation={vendor(llvm)})
+__attribute__((target("sse"))) void incompat_attr_target(void); // expected-error {{'#pragma omp declare variant' is not compatible with any target-specific attributes}}
+
+// 'incompat_attr_target_default' is always a multiversion function.
+#pragma omp declare variant(incompat_attr_variant) match(implementation={vendor(llvm)})
+__attribute__((target("default"))) void incompat_attr_target_default(void); // expected-error {{'#pragma omp declare variant' is not compatible with any target-specific attributes}}
+
+#pragma omp declare variant(incompat_attr_variant) match(implementation={vendor(llvm)})
+__attribute__((target_clones("sse,default"))) void incompat_attr_target_clones(void); // expected-error {{'#pragma omp declare variant' is not compatible with any target-specific attributes}}
 
 void marked(void);
 void not_marked(void);

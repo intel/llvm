@@ -246,7 +246,7 @@ void StackLayoutModifier::checkFramePointerInitialization(MCInst &Point) {
     SP = std::make_pair(0, 0);
 
   int64_t Output;
-  if (!BC.MIB->evaluateSimple(Point, Output, SP, FP))
+  if (!BC.MIB->evaluateStackOffsetExpr(Point, Output, SP, FP))
     return;
 
   // Not your regular frame pointer initialization... bail
@@ -294,7 +294,7 @@ void StackLayoutModifier::checkStackPointerRestore(MCInst &Point) {
     SP = std::make_pair(0, 0);
 
   int64_t Output;
-  if (!BC.MIB->evaluateSimple(Point, Output, SP, FP))
+  if (!BC.MIB->evaluateStackOffsetExpr(Point, Output, SP, FP))
     return;
 
   // If the value is the same of FP, no need to adjust it
@@ -710,8 +710,8 @@ void StackLayoutModifier::initialize() {
   IsInitialized = true;
 }
 
-uint64_t ShrinkWrapping::SpillsMovedRegularMode = 0;
-uint64_t ShrinkWrapping::SpillsMovedPushPopMode = 0;
+std::atomic_uint64_t ShrinkWrapping::SpillsMovedRegularMode{0};
+std::atomic_uint64_t ShrinkWrapping::SpillsMovedPushPopMode{0};
 
 using BBIterTy = BinaryBasicBlock::iterator;
 
@@ -729,7 +729,7 @@ void ShrinkWrapping::classifyCSRUses() {
       BitVector BV = BitVector(BC.MRI->getNumRegs(), false);
       BC.MIB->getTouchedRegs(Inst, BV);
       BV &= CSA.CalleeSaved;
-      for (int I = BV.find_first(); I != -1; I = BV.find_next(I)) {
+      for (int I : BV.set_bits()) {
         if (I == 0)
           continue;
         if (CSA.getSavedReg(Inst) != I && CSA.getRestoredReg(Inst) != I)
@@ -739,7 +739,7 @@ void ShrinkWrapping::classifyCSRUses() {
         continue;
       BV = CSA.CalleeSaved;
       BV &= FPAliases;
-      for (int I = BV.find_first(); I > 0; I = BV.find_next(I))
+      for (int I : BV.set_bits())
         UsesByReg[I].set(DA.ExprToIdx[&Inst]);
     }
   }
@@ -802,8 +802,7 @@ void ShrinkWrapping::computeSaveLocations() {
         continue;
 
       BitVector BBDominatedUses = BitVector(DA.NumInstrs, false);
-      for (int J = UsesByReg[I].find_first(); J > 0;
-           J = UsesByReg[I].find_next(J))
+      for (int J : UsesByReg[I].set_bits())
         if (DA.doesADominateB(*First, J))
           BBDominatedUses.set(J);
       LLVM_DEBUG(dbgs() << "\t\tBB " << BB.getName() << " dominates "
@@ -817,8 +816,7 @@ void ShrinkWrapping::computeSaveLocations() {
         SavePos[I].insert(First);
         LLVM_DEBUG({
           dbgs() << "Dominated uses are:\n";
-          for (int J = UsesByReg[I].find_first(); J > 0;
-               J = UsesByReg[I].find_next(J)) {
+          for (int J : UsesByReg[I].set_bits()) {
             dbgs() << "Idx " << J << ": ";
             DA.Expressions[J]->dump();
           }
@@ -855,24 +853,21 @@ void ShrinkWrapping::computeDomOrder() {
 
   DominatorAnalysis<false> &DA = Info.getDominatorAnalysis();
   auto &InsnToBB = Info.getInsnToBBMap();
-  std::sort(Order.begin(), Order.end(),
-            [&](const MCPhysReg &A, const MCPhysReg &B) {
-              BinaryBasicBlock *BBA =
-                  BestSavePos[A] ? InsnToBB[BestSavePos[A]] : nullptr;
-              BinaryBasicBlock *BBB =
-                  BestSavePos[B] ? InsnToBB[BestSavePos[B]] : nullptr;
-              if (BBA == BBB)
-                return A < B;
-              if (!BBA && BBB)
-                return false;
-              if (BBA && !BBB)
-                return true;
-              if (DA.doesADominateB(*BestSavePos[A], *BestSavePos[B]))
-                return true;
-              if (DA.doesADominateB(*BestSavePos[B], *BestSavePos[A]))
-                return false;
-              return A < B;
-            });
+  llvm::sort(Order, [&](const MCPhysReg &A, const MCPhysReg &B) {
+    BinaryBasicBlock *BBA = BestSavePos[A] ? InsnToBB[BestSavePos[A]] : nullptr;
+    BinaryBasicBlock *BBB = BestSavePos[B] ? InsnToBB[BestSavePos[B]] : nullptr;
+    if (BBA == BBB)
+      return A < B;
+    if (!BBA && BBB)
+      return false;
+    if (BBA && !BBB)
+      return true;
+    if (DA.doesADominateB(*BestSavePos[A], *BestSavePos[B]))
+      return true;
+    if (DA.doesADominateB(*BestSavePos[B], *BestSavePos[A]))
+      return false;
+    return A < B;
+  });
 
   for (MCPhysReg I = 0, E = BC.MRI->getNumRegs(); I != E; ++I)
     DomOrder[Order[I]] = I;
@@ -1823,21 +1818,17 @@ BBIterTy ShrinkWrapping::processInsertionsList(
   }
 
   // Reorder POPs to obey the correct dominance relation between them
-  std::stable_sort(TodoList.begin(), TodoList.end(),
-                   [&](const WorklistItem &A, const WorklistItem &B) {
-                     if ((A.Action != WorklistItem::InsertPushOrPop ||
-                          !A.FIEToInsert.IsLoad) &&
-                         (B.Action != WorklistItem::InsertPushOrPop ||
-                          !B.FIEToInsert.IsLoad))
-                       return false;
-                     if ((A.Action != WorklistItem::InsertPushOrPop ||
-                          !A.FIEToInsert.IsLoad))
-                       return true;
-                     if ((B.Action != WorklistItem::InsertPushOrPop ||
-                          !B.FIEToInsert.IsLoad))
-                       return false;
-                     return DomOrder[B.AffectedReg] < DomOrder[A.AffectedReg];
-                   });
+  llvm::stable_sort(TodoList, [&](const WorklistItem &A,
+                                  const WorklistItem &B) {
+    if ((A.Action != WorklistItem::InsertPushOrPop || !A.FIEToInsert.IsLoad) &&
+        (B.Action != WorklistItem::InsertPushOrPop || !B.FIEToInsert.IsLoad))
+      return false;
+    if ((A.Action != WorklistItem::InsertPushOrPop || !A.FIEToInsert.IsLoad))
+      return true;
+    if ((B.Action != WorklistItem::InsertPushOrPop || !B.FIEToInsert.IsLoad))
+      return false;
+    return DomOrder[B.AffectedReg] < DomOrder[A.AffectedReg];
+  });
 
   // Process insertions
   for (WorklistItem &Item : TodoList) {

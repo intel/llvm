@@ -24,8 +24,7 @@ auto InitialImage::Add(ConstantSubscript offset, std::size_t bytes,
       return SizeMismatch;
     } else {
       auto at{x.lbounds()};
-      for (auto elements{TotalElementCount(x.shape())}; elements-- > 0;
-           x.IncrementSubscripts(at)) {
+      for (; elements-- > 0; x.IncrementSubscripts(at)) {
         auto scalar{x.At(at)};
         // TODO: length type parameter values?
         for (const auto &[symbolRef, indExpr] : scalar) {
@@ -38,7 +37,7 @@ auto InitialImage::Add(ConstantSubscript offset, std::size_t bytes,
             Result added{Add(offset + component.offset(), component.size(),
                 indExpr.value(), context)};
             if (added != Ok) {
-              return Ok;
+              return added;
             }
           }
         }
@@ -115,7 +114,7 @@ public:
                 typedValue[j].emplace(component, std::move(*value));
               }
             }
-          } else {
+          } else if (!IsAllocatable(component)) {
             auto componentType{DynamicType::From(component)};
             CHECK(componentType.has_value());
             auto componentExtents{GetConstantExtents(context_, component)};

@@ -121,7 +121,7 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
 
   llvm::Optional<std::string> reg_data = GetInterface()->GetRegisterContext();
   if (!reg_data)
-    return GetInterface()->ErrorWithMessage<lldb::RegisterContextSP>(
+    return ScriptedInterface::ErrorWithMessage<lldb::RegisterContextSP>(
         LLVM_PRETTY_FUNCTION, "Failed to get scripted thread registers data.",
         error, LLDBLog::Thread);
 
@@ -129,7 +129,7 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
       std::make_shared<DataBufferHeap>(reg_data->c_str(), reg_data->size()));
 
   if (!data_sp->GetByteSize())
-    return GetInterface()->ErrorWithMessage<lldb::RegisterContextSP>(
+    return ScriptedInterface::ErrorWithMessage<lldb::RegisterContextSP>(
         LLVM_PRETTY_FUNCTION, "Failed to copy raw registers data.", error,
         LLDBLog::Thread);
 
@@ -137,7 +137,7 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
       std::make_shared<RegisterContextMemory>(
           *this, 0, *GetDynamicRegisterInfo(), LLDB_INVALID_ADDRESS);
   if (!reg_ctx_memory)
-    return GetInterface()->ErrorWithMessage<lldb::RegisterContextSP>(
+    return ScriptedInterface::ErrorWithMessage<lldb::RegisterContextSP>(
         LLVM_PRETTY_FUNCTION, "Failed to create a register context.", error,
         LLDBLog::Thread);
 
@@ -147,12 +147,79 @@ ScriptedThread::CreateRegisterContextForFrame(StackFrame *frame) {
   return m_reg_context_sp;
 }
 
+bool ScriptedThread::LoadArtificialStackFrames() {
+  StructuredData::ArraySP arr_sp = GetInterface()->GetStackFrames();
+
+  Status error;
+  if (!arr_sp)
+    return ScriptedInterface::ErrorWithMessage<bool>(
+        LLVM_PRETTY_FUNCTION, "Failed to get scripted thread stackframes.",
+        error, LLDBLog::Thread);
+
+  size_t arr_size = arr_sp->GetSize();
+  if (arr_size > std::numeric_limits<uint32_t>::max())
+    return ScriptedInterface::ErrorWithMessage<bool>(
+        LLVM_PRETTY_FUNCTION,
+        llvm::Twine(
+            "StackFrame array size (" + llvm::Twine(arr_size) +
+            llvm::Twine(
+                ") is greater than maximum autorized for a StackFrameList."))
+            .str(),
+        error, LLDBLog::Thread);
+
+  StackFrameListSP frames = GetStackFrameList();
+
+  for (size_t idx = 0; idx < arr_size; idx++) {
+
+    StructuredData::Dictionary *dict;
+
+    if (!arr_sp->GetItemAtIndexAsDictionary(idx, dict) || !dict)
+      return ScriptedInterface::ErrorWithMessage<bool>(
+          LLVM_PRETTY_FUNCTION,
+          llvm::Twine(
+              "Couldn't get artificial stackframe dictionary at index (" +
+              llvm::Twine(idx) + llvm::Twine(") from stackframe array."))
+              .str(),
+          error, LLDBLog::Thread);
+
+    lldb::addr_t pc;
+    if (!dict->GetValueForKeyAsInteger("pc", pc))
+      return ScriptedInterface::ErrorWithMessage<bool>(
+          LLVM_PRETTY_FUNCTION,
+          "Couldn't find value for key 'pc' in stackframe dictionary.", error,
+          LLDBLog::Thread);
+
+    Address symbol_addr;
+    symbol_addr.SetLoadAddress(pc, &this->GetProcess()->GetTarget());
+
+    lldb::addr_t cfa = LLDB_INVALID_ADDRESS;
+    bool cfa_is_valid = false;
+    const bool behaves_like_zeroth_frame = false;
+    SymbolContext sc;
+    symbol_addr.CalculateSymbolContext(&sc);
+
+    StackFrameSP synth_frame_sp = std::make_shared<StackFrame>(
+        this->shared_from_this(), idx, idx, cfa, cfa_is_valid, pc,
+        StackFrame::Kind::Artificial, behaves_like_zeroth_frame, &sc);
+
+    if (!frames->SetFrameAtIndex(static_cast<uint32_t>(idx), synth_frame_sp))
+      return ScriptedInterface::ErrorWithMessage<bool>(
+          LLVM_PRETTY_FUNCTION,
+          llvm::Twine("Couldn't add frame (" + llvm::Twine(idx) +
+                      llvm::Twine(") to ScriptedThread StackFrameList."))
+              .str(),
+          error, LLDBLog::Thread);
+  }
+
+  return true;
+}
+
 bool ScriptedThread::CalculateStopInfo() {
   StructuredData::DictionarySP dict_sp = GetInterface()->GetStopReason();
 
   Status error;
   if (!dict_sp)
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION, "Failed to get scripted thread stop info.", error,
         LLDBLog::Thread);
 
@@ -160,14 +227,14 @@ bool ScriptedThread::CalculateStopInfo() {
   lldb::StopReason stop_reason_type;
 
   if (!dict_sp->GetValueForKeyAsInteger("type", stop_reason_type))
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         "Couldn't find value for key 'type' in stop reason dictionary.", error,
         LLDBLog::Thread);
 
   StructuredData::Dictionary *data_dict;
   if (!dict_sp->GetValueForKeyAsDictionary("data", data_dict))
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         "Couldn't find value for key 'data' in stop reason dictionary.", error,
         LLDBLog::Thread);
@@ -199,7 +266,7 @@ bool ScriptedThread::CalculateStopInfo() {
         StopInfo::CreateStopReasonWithException(*this, description.data());
   } break;
   default:
-    return GetInterface()->ErrorWithMessage<bool>(
+    return ScriptedInterface::ErrorWithMessage<bool>(
         LLVM_PRETTY_FUNCTION,
         llvm::Twine("Unsupported stop reason type (" +
                     llvm::Twine(stop_reason_type) + llvm::Twine(")."))
@@ -216,6 +283,7 @@ bool ScriptedThread::CalculateStopInfo() {
 
 void ScriptedThread::RefreshStateAfterStop() {
   GetRegisterContext()->InvalidateIfNeeded(/*force=*/false);
+  LoadArtificialStackFrames();
 }
 
 lldb::ScriptedThreadInterfaceSP ScriptedThread::GetInterface() const {

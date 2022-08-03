@@ -17,19 +17,21 @@
 struct RuntimeCallTest : public testing::Test {
 public:
   void SetUp() override {
+    fir::support::loadDialects(context);
+
     mlir::OpBuilder builder(&context);
     auto loc = builder.getUnknownLoc();
 
     // Set up a Module with a dummy function operation inside.
     // Set the insertion point in the function entry block.
     mlir::ModuleOp mod = builder.create<mlir::ModuleOp>(loc);
-    mlir::FuncOp func = mlir::FuncOp::create(loc, "runtime_unit_tests_func",
-        builder.getFunctionType(llvm::None, llvm::None));
+    mlir::func::FuncOp func =
+        mlir::func::FuncOp::create(loc, "runtime_unit_tests_func",
+            builder.getFunctionType(llvm::None, llvm::None));
     auto *entryBlock = func.addEntryBlock();
     mod.push_back(mod);
     builder.setInsertionPointToStart(entryBlock);
 
-    fir::support::loadDialects(context);
     kindMap = std::make_unique<fir::KindMapping>(&context);
     firBuilder = std::make_unique<fir::FirOpBuilder>(mod, *kindMap);
 
@@ -85,13 +87,13 @@ static inline void checkCallOp(mlir::Operation *op, llvm::StringRef fctName,
     unsigned nbArgs, bool addLocArgs = true) {
   EXPECT_TRUE(mlir::isa<fir::CallOp>(*op));
   auto callOp = mlir::dyn_cast<fir::CallOp>(*op);
-  EXPECT_TRUE(callOp.callee().hasValue());
-  mlir::SymbolRefAttr callee = *callOp.callee();
+  EXPECT_TRUE(callOp.getCallee().hasValue());
+  mlir::SymbolRefAttr callee = *callOp.getCallee();
   EXPECT_EQ(fctName, callee.getRootReference().getValue());
   // sourceFile and sourceLine are added arguments.
   if (addLocArgs)
     nbArgs += 2;
-  EXPECT_EQ(nbArgs, callOp.args().size());
+  EXPECT_EQ(nbArgs, callOp.getArgs().size());
 }
 
 /// Check the call operation from the \p result value. In some cases the
@@ -133,8 +135,8 @@ static inline void checkBlockForCallOp(
   assert(block && "mlir::Block given is a nullptr");
   for (auto &op : block->getOperations()) {
     if (auto callOp = mlir::dyn_cast<fir::CallOp>(op)) {
-      if (fctName == callOp.callee()->getRootReference().getValue()) {
-        EXPECT_EQ(nbArgs, callOp.args().size());
+      if (fctName == callOp.getCallee()->getRootReference().getValue()) {
+        EXPECT_EQ(nbArgs, callOp.getArgs().size());
         return;
       }
     }

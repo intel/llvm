@@ -17,16 +17,18 @@ using FPBits = __llvm_libc::fputil::FPBits<float>;
 namespace mpfr = __llvm_libc::testing::mpfr;
 
 struct LlvmLibclog1pfExhaustiveTest : public LlvmLibcExhaustiveTest<uint32_t> {
-  void check(uint32_t start, uint32_t stop,
+  bool check(uint32_t start, uint32_t stop,
              mpfr::RoundingMode rounding) override {
     mpfr::ForceRoundingMode r(rounding);
     uint32_t bits = start;
+    bool result = true;
     do {
       FPBits xbits(bits);
       float x = float(xbits);
-      EXPECT_MPFR_MATCH(mpfr::Operation::Log1p, x, __llvm_libc::log1pf(x), 0.5,
-                        rounding);
+      result &= EXPECT_MPFR_MATCH(mpfr::Operation::Log1p, x,
+                                  __llvm_libc::log1pf(x), 0.5, rounding);
     } while (bits++ < stop);
+    return result;
   }
 };
 
@@ -36,20 +38,19 @@ static constexpr uint32_t STOP = 0x7f80'0000U;
 // Range: [-1, 0];
 // static constexpr uint32_t START = 0x8000'0000U;
 // static constexpr uint32_t STOP  = 0xbf80'0000U;
-static constexpr int NUM_THREADS = 16;
 
 TEST_F(LlvmLibclog1pfExhaustiveTest, RoundNearestTieToEven) {
-  test_full_range(START, STOP, NUM_THREADS, mpfr::RoundingMode::Nearest);
+  test_full_range(START, STOP, mpfr::RoundingMode::Nearest);
 }
 
 TEST_F(LlvmLibclog1pfExhaustiveTest, RoundUp) {
-  test_full_range(START, STOP, NUM_THREADS, mpfr::RoundingMode::Upward);
+  test_full_range(START, STOP, mpfr::RoundingMode::Upward);
 }
 
 TEST_F(LlvmLibclog1pfExhaustiveTest, RoundDown) {
-  test_full_range(START, STOP, NUM_THREADS, mpfr::RoundingMode::Downward);
+  test_full_range(START, STOP, mpfr::RoundingMode::Downward);
 }
 
 TEST_F(LlvmLibclog1pfExhaustiveTest, RoundTowardZero) {
-  test_full_range(START, STOP, NUM_THREADS, mpfr::RoundingMode::TowardZero);
+  test_full_range(START, STOP, mpfr::RoundingMode::TowardZero);
 }

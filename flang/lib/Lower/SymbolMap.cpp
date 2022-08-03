@@ -31,9 +31,38 @@ void Fortran::lower::SymMap::addSymbol(Fortran::semantics::SymbolRef sym,
 }
 
 Fortran::lower::SymbolBox
-Fortran::lower::SymMap::lookupSymbol(Fortran::semantics::SymbolRef sym) {
+Fortran::lower::SymMap::lookupSymbol(Fortran::semantics::SymbolRef symRef) {
+  Fortran::semantics::SymbolRef sym = symRef.get().GetUltimate();
   for (auto jmap = symbolMapStack.rbegin(), jend = symbolMapStack.rend();
        jmap != jend; ++jmap) {
+    auto iter = jmap->find(&*sym);
+    if (iter != jmap->end())
+      return iter->second;
+  }
+  return SymbolBox::None{};
+}
+
+Fortran::lower::SymbolBox Fortran::lower::SymMap::shallowLookupSymbol(
+    Fortran::semantics::SymbolRef symRef) {
+  auto &map = symbolMapStack.back();
+  auto iter = map.find(&symRef.get().GetUltimate());
+  if (iter != map.end())
+    return iter->second;
+  return SymbolBox::None{};
+}
+
+/// Skip one level when looking up the symbol. The use case is such as looking
+/// up the host variable symbol box by skipping the associated level in
+/// host-association in OpenMP code.
+Fortran::lower::SymbolBox Fortran::lower::SymMap::lookupOneLevelUpSymbol(
+    Fortran::semantics::SymbolRef symRef) {
+  Fortran::semantics::SymbolRef sym = symRef.get().GetUltimate();
+  auto jmap = symbolMapStack.rbegin();
+  auto jend = symbolMapStack.rend();
+  if (jmap == jend)
+    return SymbolBox::None{};
+  // Skip one level in symbol map stack.
+  for (++jmap; jmap != jend; ++jmap) {
     auto iter = jmap->find(&*sym);
     if (iter != jmap->end())
       return iter->second;

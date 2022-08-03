@@ -21,6 +21,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
@@ -38,11 +39,9 @@ extern llvm::cl::OptionCategory BoltCategory;
 extern llvm::cl::opt<unsigned> Verbosity;
 
 static llvm::cl::opt<bool>
-PrintExceptions("print-exceptions",
-  llvm::cl::desc("print exception handling data"),
-  llvm::cl::ZeroOrMore,
-  llvm::cl::Hidden,
-  llvm::cl::cat(BoltCategory));
+    PrintExceptions("print-exceptions",
+                    llvm::cl::desc("print exception handling data"),
+                    llvm::cl::Hidden, llvm::cl::cat(BoltCategory));
 
 } // namespace opts
 
@@ -494,7 +493,7 @@ bool CFIReaderWriter::fillCFIInfoFor(BinaryFunction &Function) const {
   Optional<uint64_t> LSDA = CurFDE.getLSDAAddress();
   Function.setLSDAAddress(LSDA ? *LSDA : 0);
 
-  uint64_t Offset = 0;
+  uint64_t Offset = Function.getFirstInstructionOffset();
   uint64_t CodeAlignment = CurFDE.getLinkedCIE()->getCodeAlignmentFactor();
   uint64_t DataAlignment = CurFDE.getLinkedCIE()->getDataAlignmentFactor();
   if (CurFDE.getLinkedCIE()->getPersonalityAddress()) {
@@ -658,7 +657,7 @@ std::vector<char> CFIReaderWriter::generateEHFrameHeader(
   std::map<uint64_t, uint64_t> PCToFDE;
 
   // Presort array for binary search.
-  std::sort(FailedAddresses.begin(), FailedAddresses.end());
+  llvm::sort(FailedAddresses);
 
   // Initialize PCToFDE using NewEHFrame.
   for (dwarf::FrameEntry &Entry : NewEHFrame.entries()) {
@@ -684,9 +683,7 @@ std::vector<char> CFIReaderWriter::generateEHFrameHeader(
   };
 
   LLVM_DEBUG(dbgs() << "BOLT-DEBUG: new .eh_frame contains "
-                    << std::distance(NewEHFrame.entries().begin(),
-                                     NewEHFrame.entries().end())
-                    << " entries\n");
+                    << llvm::size(NewEHFrame.entries()) << " entries\n");
 
   // Add entries from the original .eh_frame corresponding to the functions
   // that we did not update.
@@ -708,9 +705,7 @@ std::vector<char> CFIReaderWriter::generateEHFrameHeader(
   };
 
   LLVM_DEBUG(dbgs() << "BOLT-DEBUG: old .eh_frame contains "
-                    << std::distance(OldEHFrame.entries().begin(),
-                                     OldEHFrame.entries().end())
-                    << " entries\n");
+                    << llvm::size(OldEHFrame.entries()) << " entries\n");
 
   // Generate a new .eh_frame_hdr based on the new map.
 

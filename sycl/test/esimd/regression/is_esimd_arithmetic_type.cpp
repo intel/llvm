@@ -4,16 +4,16 @@
 // Check that is_esimd_arithmetic_type works as expected on simd and simd_view
 // types.
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 
-using namespace sycl::ext::intel::experimental::esimd;
+using namespace sycl::ext::intel::esimd;
 
 constexpr bool foo0() {
-  return __SEIEED::is_esimd_arithmetic_type_v<simd<int, 8>>;
+  return __ESIMD_DNS::is_esimd_arithmetic_type_v<simd<int, 8>>;
 }
 
 constexpr bool foo1() {
-  return __SEIEED::is_esimd_arithmetic_type_v<
+  return __ESIMD_DNS::is_esimd_arithmetic_type_v<
       simd_view<simd<int, 8>, region1d_t<int, 8, 1>>>;
 }
 

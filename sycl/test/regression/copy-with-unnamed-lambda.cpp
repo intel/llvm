@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-unnamed-lambda %s -o %t.out
 // The purpose of this test is to check that the following code can be
 // successfully compiled
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <iostream>
 

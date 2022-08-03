@@ -30,8 +30,9 @@
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/Support/Base64.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 #include <algorithm>
 
 namespace clang {
@@ -314,21 +315,26 @@ unsigned evaluateHighlightPriority(const HighlightingToken &Tok) {
 //
 // In particular, heuristically resolved dependent names get their heuristic
 // kind, plus the dependent modifier.
+llvm::Optional<HighlightingToken> resolveConflict(const HighlightingToken &A,
+                                                  const HighlightingToken &B) {
+  unsigned Priority1 = evaluateHighlightPriority(A);
+  unsigned Priority2 = evaluateHighlightPriority(B);
+  if (Priority1 == Priority2 && A.Kind != B.Kind)
+    return llvm::None;
+  auto Result = Priority1 > Priority2 ? A : B;
+  Result.Modifiers = A.Modifiers | B.Modifiers;
+  return Result;
+}
 llvm::Optional<HighlightingToken>
 resolveConflict(ArrayRef<HighlightingToken> Tokens) {
   if (Tokens.size() == 1)
     return Tokens[0];
 
-  if (Tokens.size() != 2)
-    return llvm::None;
-
-  unsigned Priority1 = evaluateHighlightPriority(Tokens[0]);
-  unsigned Priority2 = evaluateHighlightPriority(Tokens[1]);
-  if (Priority1 == Priority2 && Tokens[0].Kind != Tokens[1].Kind)
-    return llvm::None;
-  auto Result = Priority1 > Priority2 ? Tokens[0] : Tokens[1];
-  Result.Modifiers = Tokens[0].Modifiers | Tokens[1].Modifiers;
-  return Result;
+  assert(Tokens.size() >= 2);
+  Optional<HighlightingToken> Winner = resolveConflict(Tokens[0], Tokens[1]);
+  for (size_t I = 2; Winner && I < Tokens.size(); ++I)
+    Winner = resolveConflict(*Winner, Tokens[I]);
+  return Winner;
 }
 
 /// Consumes source locations and maps them to text ranges for highlightings.
@@ -533,13 +539,22 @@ public:
     if (isa<UserDefinedLiteral>(E))
       return true;
 
-    // FIXME ...here it would make sense though.
-    if (isa<CXXOperatorCallExpr>(E))
-      return true;
+    // FIXME: consider highlighting parameters of some other overloaded
+    // operators as well
+    llvm::ArrayRef<const Expr *> Args = {E->getArgs(), E->getNumArgs()};
+    if (const auto callOp = dyn_cast<CXXOperatorCallExpr>(E)) {
+      switch (callOp->getOperator()) {
+      case OO_Call:
+      case OO_Subscript:
+        Args = Args.drop_front(); // Drop object parameter
+        break;
+      default:
+        return true;
+      }
+    }
 
     highlightMutableReferenceArguments(
-        dyn_cast_or_null<FunctionDecl>(E->getCalleeDecl()),
-        {E->getArgs(), E->getNumArgs()});
+        dyn_cast_or_null<FunctionDecl>(E->getCalleeDecl()), Args);
 
     return true;
   }
@@ -758,6 +773,7 @@ public:
     case TemplateName::QualifiedTemplate:
     case TemplateName::SubstTemplateTemplateParm:
     case TemplateName::SubstTemplateTemplateParmPack:
+    case TemplateName::UsingTemplate:
       // Names that could be resolved to a TemplateDecl are handled elsewhere.
       break;
     }
@@ -908,38 +924,74 @@ bool operator==(const HighlightingToken &L, const HighlightingToken &R) {
          std::tie(R.R, R.Kind, R.Modifiers);
 }
 bool operator<(const HighlightingToken &L, const HighlightingToken &R) {
-  return std::tie(L.R, L.Kind, R.Modifiers) <
+  return std::tie(L.R, L.Kind, L.Modifiers) <
          std::tie(R.R, R.Kind, R.Modifiers);
 }
 
 std::vector<SemanticToken>
-toSemanticTokens(llvm::ArrayRef<HighlightingToken> Tokens) {
+toSemanticTokens(llvm::ArrayRef<HighlightingToken> Tokens,
+                 llvm::StringRef Code) {
   assert(std::is_sorted(Tokens.begin(), Tokens.end()));
   std::vector<SemanticToken> Result;
+  // In case we split a HighlightingToken into multiple tokens (e.g. because it
+  // was spanning multiple lines), this tracks the last one. This prevents
+  // having a copy all the time.
+  HighlightingToken Scratch;
   const HighlightingToken *Last = nullptr;
   for (const HighlightingToken &Tok : Tokens) {
     Result.emplace_back();
-    SemanticToken &Out = Result.back();
+    SemanticToken *Out = &Result.back();
     // deltaStart/deltaLine are relative if possible.
     if (Last) {
-      assert(Tok.R.start.line >= Last->R.start.line);
-      Out.deltaLine = Tok.R.start.line - Last->R.start.line;
-      if (Out.deltaLine == 0) {
+      assert(Tok.R.start.line >= Last->R.end.line);
+      Out->deltaLine = Tok.R.start.line - Last->R.end.line;
+      if (Out->deltaLine == 0) {
         assert(Tok.R.start.character >= Last->R.start.character);
-        Out.deltaStart = Tok.R.start.character - Last->R.start.character;
+        Out->deltaStart = Tok.R.start.character - Last->R.start.character;
       } else {
-        Out.deltaStart = Tok.R.start.character;
+        Out->deltaStart = Tok.R.start.character;
       }
     } else {
-      Out.deltaLine = Tok.R.start.line;
-      Out.deltaStart = Tok.R.start.character;
+      Out->deltaLine = Tok.R.start.line;
+      Out->deltaStart = Tok.R.start.character;
     }
-    assert(Tok.R.end.line == Tok.R.start.line);
-    Out.length = Tok.R.end.character - Tok.R.start.character;
-    Out.tokenType = static_cast<unsigned>(Tok.Kind);
-    Out.tokenModifiers = Tok.Modifiers;
-
+    Out->tokenType = static_cast<unsigned>(Tok.Kind);
+    Out->tokenModifiers = Tok.Modifiers;
     Last = &Tok;
+
+    if (Tok.R.end.line == Tok.R.start.line) {
+      Out->length = Tok.R.end.character - Tok.R.start.character;
+    } else {
+      // If the token spans a line break, split it into multiple pieces for each
+      // line.
+      // This is slow, but multiline tokens are rare.
+      // FIXME: There's a client capability for supporting multiline tokens,
+      // respect that.
+      auto TokStartOffset = llvm::cantFail(positionToOffset(Code, Tok.R.start));
+      // Note that the loop doesn't cover the last line, which has a special
+      // length.
+      for (int I = Tok.R.start.line; I < Tok.R.end.line; ++I) {
+        auto LineEnd = Code.find('\n', TokStartOffset);
+        assert(LineEnd != Code.npos);
+        Out->length = LineEnd - TokStartOffset;
+        // Token continues on next line, right after the line break.
+        TokStartOffset = LineEnd + 1;
+        Result.emplace_back();
+        Out = &Result.back();
+        *Out = Result[Result.size() - 2];
+        // New token starts at the first column of the next line.
+        Out->deltaLine = 1;
+        Out->deltaStart = 0;
+      }
+      // This is the token on last line.
+      Out->length = Tok.R.end.character;
+      // Update the start location for last token, as that's used in the
+      // relative delta calculation for following tokens.
+      Scratch = *Last;
+      Scratch.R.start.line = Tok.R.end.line;
+      Scratch.R.start.character = 0;
+      Last = &Scratch;
+    }
   }
   return Result;
 }

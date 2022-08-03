@@ -9,7 +9,7 @@
 #pragma once
 
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <CL/sycl/detail/group_sort_impl.hpp>
+#include <sycl/detail/group_sort_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -53,7 +53,7 @@ public:
     (void)first;
     (void)last;
     throw sycl::exception(
-        std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
         "default_sorter constructor is not supported on host device.");
 #endif
   }
@@ -74,7 +74,7 @@ public:
 #else
     (void)g;
     throw sycl::exception(
-        std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
         "default_sorter operator() is not supported on host device.");
 #endif
     return val;

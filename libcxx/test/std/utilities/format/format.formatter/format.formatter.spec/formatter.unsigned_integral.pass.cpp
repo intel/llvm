@@ -6,10 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
-// TODO FMT Evaluate gcc-11 status
-// UNSUPPORTED: gcc-11
 
 // <format>
 
@@ -86,9 +83,11 @@ void test_unsigned_integral_type() {
   if (sizeof(A) > 4)
     test_termination_condition(STR("8446744073709551615"), STR("}"),
                                A(8446744073709551615));
-
-  // TODO FMT Implement the __uint128_t maximum once the formatter can handle
-  // these values.
+#ifndef TEST_HAS_NO_INT128
+  if (sizeof(A) > 8)
+    test_termination_condition(
+        STR("340282366920938463463374607431768211455"), STR("}"), A(std::numeric_limits<__uint128_t>::max()));
+#endif
 }
 
 template <class CharT>

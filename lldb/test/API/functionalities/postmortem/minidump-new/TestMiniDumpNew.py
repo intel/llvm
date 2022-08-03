@@ -14,8 +14,6 @@ from lldbsuite.test import lldbutil
 
 class MiniDumpNewTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     _linux_x86_64_pid = 29917
@@ -65,7 +63,7 @@ class MiniDumpNewTestCase(TestBase):
         error = lldb.SBError()
         self.process = self.target.LoadCore(minidump_path, error)
         self.assertTrue(self.process, PROCESS_IS_VALID)
-        self.assertTrue(error.Success())
+        self.assertSuccess(error)
 
     def test_loadcore_error_status_failure(self):
         """Test the SBTarget.LoadCore(core, error) overload."""

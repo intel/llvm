@@ -137,6 +137,10 @@ FloatType FloatType::scaleElementBitwidth(unsigned scale) {
   return FloatType();
 }
 
+unsigned FloatType::getFPMantissaWidth() {
+  return APFloat::semanticsPrecision(getFloatSemantics());
+}
+
 //===----------------------------------------------------------------------===//
 // FunctionType
 //===----------------------------------------------------------------------===//
@@ -254,7 +258,7 @@ void VectorType::walkImmediateSubElements(
 
 VectorType VectorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
                                  Type elementType) const {
-  return VectorType::get(shape.getValueOr(getShape()), elementType,
+  return VectorType::get(shape.value_or(getShape()), elementType,
                          getNumScalableDims());
 }
 
@@ -286,8 +290,8 @@ TensorType TensorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
   if (!shape)
     return RankedTensorType::get(rankedTy.getShape(), elementType,
                                  rankedTy.getEncoding());
-  return RankedTensorType::get(shape.getValueOr(rankedTy.getShape()),
-                               elementType, rankedTy.getEncoding());
+  return RankedTensorType::get(shape.value_or(rankedTy.getShape()), elementType,
+                               rankedTy.getEncoding());
 }
 
 // Check if "elementType" can be an element type of a tensor.
@@ -456,7 +460,7 @@ mlir::isRankReducedType(ShapedType originalType,
       computeRankReductionMask(originalShape, candidateReducedShape);
 
   // Sizes cannot be matched in case empty vector is returned.
-  if (!optionalUnusedDimsMask.hasValue())
+  if (!optionalUnusedDimsMask)
     return SliceVerificationResult::SizeMismatch;
 
   if (originalShapedType.getElementType() !=
@@ -941,13 +945,11 @@ MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
                                                 ArrayRef<AffineExpr> exprs,
                                                 MLIRContext *context) {
-  assert(!sizes.empty() && !exprs.empty() &&
-         "expected non-empty sizes and exprs");
-
   // Size 0 corner case is useful for canonicalizations.
-  if (llvm::is_contained(sizes, 0))
+  if (sizes.empty() || llvm::is_contained(sizes, 0))
     return getAffineConstantExpr(0, context);
 
+  assert(!exprs.empty() && "expected exprs");
   auto maps = AffineMap::inferFromExprList(exprs);
   assert(!maps.empty() && "Expected one non-empty map");
   unsigned numDims = maps[0].getNumDims(), nSymbols = maps[0].getNumSymbols();

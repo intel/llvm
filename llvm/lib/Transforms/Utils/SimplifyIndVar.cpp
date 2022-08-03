@@ -13,11 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Utils/SimplifyIndVar.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
@@ -81,6 +79,7 @@ namespace {
 
     bool eliminateIdentitySCEV(Instruction *UseInst, Instruction *IVOperand);
     bool replaceIVUserWithLoopInvariant(Instruction *UseInst);
+    bool replaceFloatIVWithIntegerIV(Instruction *UseInst);
 
     bool eliminateOverflowIntrinsic(WithOverflowInst *WO);
     bool eliminateSaturatingIntrinsic(SaturatingInst *SI);
@@ -161,11 +160,12 @@ Value *SimplifyIndvar::foldIVUser(Instruction *UseInst, Instruction *IVOperand) 
       D = ConstantInt::get(UseInst->getContext(),
                            APInt::getOneBitSet(BitWidth, D->getZExtValue()));
     }
-    FoldedExpr = SE->getUDivExpr(SE->getSCEV(IVSrc), SE->getSCEV(D));
+    const auto *LHS = SE->getSCEV(IVSrc);
+    const auto *RHS = SE->getSCEV(D);
+    FoldedExpr = SE->getUDivExpr(LHS, RHS);
     // We might have 'exact' flag set at this point which will no longer be
     // correct after we make the replacement.
-    if (UseInst->isExact() &&
-        SE->getSCEV(IVSrc) != SE->getMulExpr(FoldedExpr, SE->getSCEV(D)))
+    if (UseInst->isExact() && LHS != SE->getMulExpr(FoldedExpr, RHS))
       MustDropExactFlag = true;
   }
   // We have something that might fold it's operand. Compare SCEVs.
@@ -674,6 +674,35 @@ bool SimplifyIndvar::replaceIVUserWithLoopInvariant(Instruction *I) {
   return true;
 }
 
+/// Eliminate redundant type cast between integer and float.
+bool SimplifyIndvar::replaceFloatIVWithIntegerIV(Instruction *UseInst) {
+  if (UseInst->getOpcode() != CastInst::SIToFP)
+    return false;
+
+  Value *IVOperand = UseInst->getOperand(0);
+  // Get the symbolic expression for this instruction.
+  ConstantRange IVRange = SE->getSignedRange(SE->getSCEV(IVOperand));
+  unsigned DestNumSigBits = UseInst->getType()->getFPMantissaWidth();
+  if (IVRange.getActiveBits() <= DestNumSigBits) {
+    for (User *U : UseInst->users()) {
+      // Match for fptosi of sitofp and with same type.
+      auto *CI = dyn_cast<FPToSIInst>(U);
+      if (!CI || IVOperand->getType() != CI->getType())
+        continue;
+
+      CI->replaceAllUsesWith(IVOperand);
+      DeadInsts.push_back(CI);
+      LLVM_DEBUG(dbgs() << "INDVARS: Replace IV user: " << *CI
+                        << " with: " << *IVOperand << '\n');
+
+      ++NumFoldedUser;
+      Changed = true;
+    }
+  }
+
+  return Changed;
+}
+
 /// Eliminate any operation that SCEV can prove is an identity function.
 bool SimplifyIndvar::eliminateIdentitySCEV(Instruction *UseInst,
                                            Instruction *IVOperand) {
@@ -872,6 +901,7 @@ void SimplifyIndvar::simplifyUsers(PHINode *CurrIV, IVVisitor *V) {
     Instruction *IVOperand = UseOper.second;
     for (unsigned N = 0; IVOperand; ++N) {
       assert(N <= Simplified.size() && "runaway iteration");
+      (void) N;
 
       Value *NewOper = foldIVUser(UseInst, IVOperand);
       if (!NewOper)
@@ -894,6 +924,13 @@ void SimplifyIndvar::simplifyUsers(PHINode *CurrIV, IVVisitor *V) {
         // through to the checks that remain.
         pushIVUsers(IVOperand, L, Simplified, SimpleIVUsers);
       }
+    }
+
+    // Try to use integer induction for FPToSI of float induction directly.
+    if (replaceFloatIVWithIntegerIV(UseInst)) {
+      // Re-queue the potentially new direct uses of IVOperand.
+      pushIVUsers(IVOperand, L, Simplified, SimpleIVUsers);
+      continue;
     }
 
     CastInst *Cast = dyn_cast<CastInst>(UseInst);
@@ -1757,10 +1794,6 @@ Instruction *WidenIV::widenIVUse(WidenIV::NarrowIVDefUse DU, SCEVExpander &Rewri
     truncateIVUse(DU, DT, LI);
     return nullptr;
   }
-  // Assume block terminators cannot evaluate to a recurrence. We can't to
-  // insert a Trunc after a terminator if there happens to be a critical edge.
-  assert(DU.NarrowUse != DU.NarrowUse->getParent()->getTerminator() &&
-         "SCEV is not expected to evaluate a block terminator");
 
   // Reuse the IV increment that SCEVExpander created as long as it dominates
   // NarrowUse.

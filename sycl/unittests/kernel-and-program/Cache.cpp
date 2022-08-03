@@ -8,14 +8,14 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include "CL/sycl/detail/pi.h"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
-#include <CL/sycl.hpp>
+#include "sycl/detail/pi.h"
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -46,6 +46,7 @@ struct MockKernelInfo {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<TestKernel> : public MockKernelInfo {

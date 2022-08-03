@@ -70,10 +70,12 @@ __CLC_NVVM_ATOMIC(unsigned long, m, unsigned long, ul, max,
 
 #define __CLC_NVVM_ATOMIC_MAX(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,  \
                               OP_MANGLED)                                      \
+  __attribute__((always_inline))                                               \
   __CLC_NVVM_ATOMIC_MAX_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
                              OP_MANGLED, __global, AS1)                        \
-  __CLC_NVVM_ATOMIC_MAX_IMPL(TYPE, TYPE_MANGLED, TYPE_INT, TYPE_INT_MANGLED,   \
-                             OP_MANGLED, __local, AS3)
+      __attribute__((always_inline))                                           \
+      __CLC_NVVM_ATOMIC_MAX_IMPL(TYPE, TYPE_MANGLED, TYPE_INT,                 \
+                                 TYPE_INT_MANGLED, OP_MANGLED, __local, AS3)
 
 __CLC_NVVM_ATOMIC_MAX(float, f, int, i, FMaxEXT)
 __CLC_NVVM_ATOMIC_MAX(double, d, long, l, FMaxEXT)

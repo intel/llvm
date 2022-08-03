@@ -1,0 +1,7 @@
+__SYCL_PARAM_TRAITS_SPEC(kernel_work_group, compile_work_group_size,
+                  cl::sycl::range<3>)
+__SYCL_PARAM_TRAITS_SPEC(kernel_work_group, global_work_size, cl::sycl::range<3>)
+__SYCL_PARAM_TRAITS_SPEC(kernel_work_group, preferred_work_group_size_multiple, size_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_work_group, private_mem_size, uint64_t)
+__SYCL_PARAM_TRAITS_SPEC(kernel_work_group, work_group_size, size_t)
+

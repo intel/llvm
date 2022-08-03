@@ -263,7 +263,7 @@ bool X86_64::deleteFallThruJmpInsn(InputSection &is, InputFile *file,
   Relocation &r = is.relocations[rIndex];
 
   // Check if the relocation corresponds to a direct jmp.
-  const uint8_t *secContents = is.data().data();
+  const uint8_t *secContents = is.rawData.data();
   // If it is not a direct jmp instruction, there is nothing to do here.
   if (*(secContents + r.offset - 1) != 0xe9)
     return false;
@@ -279,7 +279,7 @@ bool X86_64::deleteFallThruJmpInsn(InputSection &is, InputFile *file,
 
   // Now, check if flip and delete is possible.
   const unsigned sizeOfJmpCCInsn = 6;
-  // To flip, there must be atleast one JmpCC and one direct jmp.
+  // To flip, there must be at least one JmpCC and one direct jmp.
   if (is.getSize() < sizeOfDirectJmpInsn + sizeOfJmpCCInsn)
     return false;
 

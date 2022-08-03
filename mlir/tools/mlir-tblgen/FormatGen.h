@@ -54,6 +54,7 @@ public:
     greater,
     question,
     star,
+    pipe,
 
     // Keywords.
     keyword_start,
@@ -61,6 +62,7 @@ public:
     kw_attr_dict_w_keyword,
     kw_custom,
     kw_functional_type,
+    kw_oilist,
     kw_operands,
     kw_params,
     kw_qualified,
@@ -271,6 +273,7 @@ public:
     AttrDict,
     Custom,
     FunctionalType,
+    OIList,
     Operands,
     Ref,
     Regions,
@@ -333,6 +336,22 @@ private:
   /// variables (for which the functions are responsible for populating) or
   /// references to variables.
   std::vector<FormatElement *> arguments;
+};
+
+/// This class represents a reference directive. This directive can be used to
+/// reference but not bind a previously bound variable or format object. Its
+/// current only use is to pass variables as arguments to the custom directive.
+class RefDirective : public DirectiveElementBase<DirectiveElement::Ref> {
+public:
+  /// Create a reference directive with the single referenced child.
+  RefDirective(FormatElement *arg) : arg(arg) {}
+
+  /// Get the reference argument.
+  FormatElement *getArg() const { return arg; }
+
+private:
+  /// The referenced argument.
+  FormatElement *arg;
 };
 
 /// This class represents a group of elements that are optionally emitted based

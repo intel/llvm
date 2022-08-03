@@ -12,9 +12,13 @@
 #include "flang/Optimizer/Support/InitFIR.h"
 #include "flang/Optimizer/Support/KindMapping.h"
 
+using namespace mlir;
+
 struct FIRBuilderTest : public testing::Test {
 public:
   void SetUp() override {
+    fir::support::loadDialects(context);
+
     llvm::ArrayRef<fir::KindTy> defs;
     fir::KindMapping kindMap(&context, defs);
     mlir::OpBuilder builder(&context);
@@ -23,13 +27,12 @@ public:
     // Set up a Module with a dummy function operation inside.
     // Set the insertion point in the function entry block.
     mlir::ModuleOp mod = builder.create<mlir::ModuleOp>(loc);
-    mlir::FuncOp func = mlir::FuncOp::create(
+    mlir::func::FuncOp func = mlir::func::FuncOp::create(
         loc, "func1", builder.getFunctionType(llvm::None, llvm::None));
     auto *entryBlock = func.addEntryBlock();
     mod.push_back(mod);
     builder.setInsertionPointToStart(entryBlock);
 
-    fir::support::loadDialects(context);
     firBuilder = std::make_unique<fir::FirOpBuilder>(mod, kindMap);
   }
 
@@ -99,23 +102,23 @@ TEST_F(FIRBuilderTest, genIfWithThenAndElse) {
 // Helper functions tests
 //===----------------------------------------------------------------------===//
 
-TEST_F(FIRBuilderTest, genIsNotNull) {
+TEST_F(FIRBuilderTest, genIsNotNullAddr) {
   auto builder = getBuilder();
   auto loc = builder.getUnknownLoc();
   auto dummyValue =
       builder.createIntegerConstant(loc, builder.getIndexType(), 0);
-  auto res = builder.genIsNotNull(loc, dummyValue);
+  auto res = builder.genIsNotNullAddr(loc, dummyValue);
   EXPECT_TRUE(mlir::isa<arith::CmpIOp>(res.getDefiningOp()));
   auto cmpOp = dyn_cast<arith::CmpIOp>(res.getDefiningOp());
   EXPECT_EQ(arith::CmpIPredicate::ne, cmpOp.getPredicate());
 }
 
-TEST_F(FIRBuilderTest, genIsNull) {
+TEST_F(FIRBuilderTest, genIsNullAddr) {
   auto builder = getBuilder();
   auto loc = builder.getUnknownLoc();
   auto dummyValue =
       builder.createIntegerConstant(loc, builder.getIndexType(), 0);
-  auto res = builder.genIsNull(loc, dummyValue);
+  auto res = builder.genIsNullAddr(loc, dummyValue);
   EXPECT_TRUE(mlir::isa<arith::CmpIOp>(res.getDefiningOp()));
   auto cmpOp = dyn_cast<arith::CmpIOp>(res.getDefiningOp());
   EXPECT_EQ(arith::CmpIPredicate::eq, cmpOp.getPredicate());
@@ -185,13 +188,13 @@ TEST_F(FIRBuilderTest, createGlobal1) {
   auto global = builder.createGlobal(
       loc, i64Type, "global1", builder.createInternalLinkage(), {}, true);
   EXPECT_TRUE(mlir::isa<fir::GlobalOp>(global));
-  EXPECT_EQ("global1", global.sym_name());
-  EXPECT_TRUE(global.constant().hasValue());
-  EXPECT_EQ(i64Type, global.type());
-  EXPECT_TRUE(global.linkName().hasValue());
-  EXPECT_EQ(
-      builder.createInternalLinkage().getValue(), global.linkName().getValue());
-  EXPECT_FALSE(global.initVal().hasValue());
+  EXPECT_EQ("global1", global.getSymName());
+  EXPECT_TRUE(global.getConstant().hasValue());
+  EXPECT_EQ(i64Type, global.getType());
+  EXPECT_TRUE(global.getLinkName().hasValue());
+  EXPECT_EQ(builder.createInternalLinkage().getValue(),
+      global.getLinkName().getValue());
+  EXPECT_FALSE(global.getInitVal().hasValue());
 
   auto g1 = builder.getNamedGlobal("global1");
   EXPECT_EQ(global, g1);
@@ -209,16 +212,16 @@ TEST_F(FIRBuilderTest, createGlobal2) {
   auto global = builder.createGlobal(
       loc, i32Type, "global2", builder.createLinkOnceLinkage(), attr, false);
   EXPECT_TRUE(mlir::isa<fir::GlobalOp>(global));
-  EXPECT_EQ("global2", global.sym_name());
-  EXPECT_FALSE(global.constant().hasValue());
-  EXPECT_EQ(i32Type, global.type());
-  EXPECT_TRUE(global.initVal().hasValue());
-  EXPECT_TRUE(global.initVal().getValue().isa<mlir::IntegerAttr>());
+  EXPECT_EQ("global2", global.getSymName());
+  EXPECT_FALSE(global.getConstant().hasValue());
+  EXPECT_EQ(i32Type, global.getType());
+  EXPECT_TRUE(global.getInitVal().hasValue());
+  EXPECT_TRUE(global.getInitVal().getValue().isa<mlir::IntegerAttr>());
   EXPECT_EQ(
-      16, global.initVal().getValue().cast<mlir::IntegerAttr>().getValue());
-  EXPECT_TRUE(global.linkName().hasValue());
-  EXPECT_EQ(
-      builder.createLinkOnceLinkage().getValue(), global.linkName().getValue());
+      16, global.getInitVal().getValue().cast<mlir::IntegerAttr>().getValue());
+  EXPECT_TRUE(global.getLinkName().hasValue());
+  EXPECT_EQ(builder.createLinkOnceLinkage().getValue(),
+      global.getLinkName().getValue());
 }
 
 TEST_F(FIRBuilderTest, uniqueCFIdent) {
@@ -263,7 +266,7 @@ TEST_F(FIRBuilderTest, locationToFilename) {
       mlir::FileLineColLoc::get(builder.getStringAttr("file1.f90"), 10, 5);
   mlir::Value locToFile = fir::factory::locationToFilename(builder, loc);
   auto addrOp = dyn_cast<fir::AddrOfOp>(locToFile.getDefiningOp());
-  auto symbol = addrOp.symbol().getRootReference().getValue();
+  auto symbol = addrOp.getSymbol().getRootReference().getValue();
   auto global = builder.getNamedGlobal(symbol);
   auto stringLitOps = global.getRegion().front().getOps<fir::StringLitOp>();
   EXPECT_TRUE(llvm::hasSingleElement(stringLitOps));
@@ -305,12 +308,12 @@ TEST_F(FIRBuilderTest, createStringLiteral) {
   auto addr = charBox->getBuffer();
   EXPECT_TRUE(mlir::isa<fir::AddrOfOp>(addr.getDefiningOp()));
   auto addrOp = dyn_cast<fir::AddrOfOp>(addr.getDefiningOp());
-  auto symbol = addrOp.symbol().getRootReference().getValue();
+  auto symbol = addrOp.getSymbol().getRootReference().getValue();
   auto global = builder.getNamedGlobal(symbol);
-  EXPECT_EQ(
-      builder.createLinkOnceLinkage().getValue(), global.linkName().getValue());
+  EXPECT_EQ(builder.createLinkOnceLinkage().getValue(),
+      global.getLinkName().getValue());
   EXPECT_EQ(fir::CharacterType::get(builder.getContext(), 1, strValue.size()),
-      global.type());
+      global.getType());
 
   auto stringLitOps = global.getRegion().front().getOps<fir::StringLitOp>();
   EXPECT_TRUE(llvm::hasSingleElement(stringLitOps));
@@ -329,13 +332,13 @@ TEST_F(FIRBuilderTest, allocateLocal) {
       loc, builder.getI64Type(), "", varName, {}, {}, false);
   EXPECT_TRUE(mlir::isa<fir::AllocaOp>(var.getDefiningOp()));
   auto allocaOp = dyn_cast<fir::AllocaOp>(var.getDefiningOp());
-  EXPECT_EQ(builder.getI64Type(), allocaOp.in_type());
-  EXPECT_TRUE(allocaOp.bindc_name().hasValue());
-  EXPECT_EQ(varName, allocaOp.bindc_name().getValue());
-  EXPECT_FALSE(allocaOp.uniq_name().hasValue());
-  EXPECT_FALSE(allocaOp.pinned());
-  EXPECT_EQ(0u, allocaOp.typeparams().size());
-  EXPECT_EQ(0u, allocaOp.shape().size());
+  EXPECT_EQ(builder.getI64Type(), allocaOp.getInType());
+  EXPECT_TRUE(allocaOp.getBindcName().hasValue());
+  EXPECT_EQ(varName, allocaOp.getBindcName().getValue());
+  EXPECT_FALSE(allocaOp.getUniqName().hasValue());
+  EXPECT_FALSE(allocaOp.getPinned());
+  EXPECT_EQ(0u, allocaOp.getTypeparams().size());
+  EXPECT_EQ(0u, allocaOp.getShape().size());
 }
 
 static void checkShapeOp(mlir::Value shape, mlir::Value c10, mlir::Value c100) {
@@ -401,7 +404,7 @@ TEST_F(FIRBuilderTest, getExtents) {
   auto loc = builder.getUnknownLoc();
   llvm::StringRef strValue("length");
   auto strLit = fir::factory::createStringLiteral(builder, loc, strValue);
-  auto ext = fir::factory::getExtents(builder, loc, strLit);
+  auto ext = fir::factory::getExtents(loc, builder, strLit);
   EXPECT_EQ(0u, ext.size());
   auto c10 = builder.createIntegerConstant(loc, builder.getI64Type(), 10);
   auto c100 = builder.createIntegerConstant(loc, builder.getI64Type(), 100);
@@ -411,7 +414,7 @@ TEST_F(FIRBuilderTest, getExtents) {
   mlir::Value array = builder.create<fir::UndefOp>(loc, arrayTy);
   fir::ArrayBoxValue aab(array, extents, {});
   fir::ExtendedValue ex(aab);
-  auto readExtents = fir::factory::getExtents(builder, loc, ex);
+  auto readExtents = fir::factory::getExtents(loc, builder, ex);
   EXPECT_EQ(2u, readExtents.size());
 }
 
@@ -494,12 +497,12 @@ TEST_F(FIRBuilderTest, getBaseTypeOf) {
   for (const auto &scalar : f32Scalars) {
     EXPECT_EQ(fir::getBaseTypeOf(scalar), f32Ty);
     EXPECT_EQ(fir::getElementTypeOf(scalar), f32Ty);
-    EXPECT_FALSE(fir::isDerivedWithLengthParameters(scalar));
+    EXPECT_FALSE(fir::isDerivedWithLenParameters(scalar));
   }
   for (const auto &array : f32Arrays) {
     EXPECT_EQ(fir::getBaseTypeOf(array), f32SeqTy);
     EXPECT_EQ(fir::getElementTypeOf(array), f32Ty);
-    EXPECT_FALSE(fir::isDerivedWithLengthParameters(array));
+    EXPECT_FALSE(fir::isDerivedWithLenParameters(array));
   }
 
   auto derivedWithLengthTy =
@@ -517,11 +520,11 @@ TEST_F(FIRBuilderTest, getBaseTypeOf) {
   for (const auto &scalar : derivedWithLengthScalars) {
     EXPECT_EQ(fir::getBaseTypeOf(scalar), derivedWithLengthTy);
     EXPECT_EQ(fir::getElementTypeOf(scalar), derivedWithLengthTy);
-    EXPECT_TRUE(fir::isDerivedWithLengthParameters(scalar));
+    EXPECT_TRUE(fir::isDerivedWithLenParameters(scalar));
   }
   for (const auto &array : derivedWithLengthArrays) {
     EXPECT_EQ(fir::getBaseTypeOf(array), derivedWithLengthSeqTy);
     EXPECT_EQ(fir::getElementTypeOf(array), derivedWithLengthTy);
-    EXPECT_TRUE(fir::isDerivedWithLengthParameters(array));
+    EXPECT_TRUE(fir::isDerivedWithLenParameters(array));
   }
 }

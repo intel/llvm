@@ -66,7 +66,7 @@ argument for an op with trait `AffineScope` (eg. `FuncOp`), 2. a value defined
 at the top level of an `AffineScope` op (i.e., immediately enclosed by the
 latter), 3. a value that dominates the `AffineScope` op enclosing the value's
 use, 4. the result of a
-[`constant` operation](Standard.md/#stdconstant-constantop), 5. the result of an
+constant operation, 5. the result of an
 [`affine.apply` operation](#affineapply-affineapplyop) that recursively takes as
 arguments any valid symbolic identifiers, or 6. the result of a
 [`dim` operation](MemRef.md/#memrefdim-mlirmemrefdimop) on either a memref that
@@ -257,8 +257,9 @@ while its symbols are enclosed in square brackets.
 Syntax of affine constraints:
 
 ```
-affine-constraint ::= affine-expr `>=` `0`
-                    | affine-expr `==` `0`
+affine-constraint ::= affine-expr `>=` `affine-expr`
+                    | affine-expr `<=` `affine-expr`
+                    | affine-expr `==` `affine-expr`
 affine-constraint-conjunction ::= affine-constraint (`,` affine-constraint)*
 ```
 

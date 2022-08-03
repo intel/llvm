@@ -82,37 +82,34 @@ class SPV_OCLBinaryArithmeticOp<string mnemonic, int opcode, Type type,
   let assemblyFormat = "operands attr-dict `:` type($result)";
 }
 
-// -----
+// Base class for OpenCL binary ops.
+class SPV_OCLTernaryOp<string mnemonic, int opcode, Type resultType,
+                      Type operandType, list<Trait> traits = []> :
+  SPV_OCLOp<mnemonic, opcode, !listconcat([NoSideEffect], traits)> {
 
-def SPV_OCLErfOp : SPV_OCLUnaryArithmeticOp<"erf", 18, SPV_Float> {
-  let summary = [{
-    Error function of x encountered in integrating the normal distribution.
-  }];
+  let arguments = (ins
+    SPV_ScalarOrVectorOf<operandType>:$x,
+    SPV_ScalarOrVectorOf<operandType>:$y,
+    SPV_ScalarOrVectorOf<operandType>:$z
+  );
 
-  let description = [{
-    Result Type and x must be floating-point or vector(2,3,4,8,16) of
-    floating-point values.
+  let results = (outs
+    SPV_ScalarOrVectorOf<resultType>:$result
+  );
 
-    All of the operands, including the Result Type operand, must be of the
-    same type.
-
-    <!-- End of AutoGen section -->
-
-    ```
-    float-scalar-vector-type ::= float-type |
-                                 `vector<` integer-literal `x` float-type `>`
-    erf-op ::= ssa-id `=` `spv.OCL.erf` ssa-use `:`
-               float-scalar-vector-type
-    ```mlir
-
-    #### Example:
-
-    ```
-    %2 = spv.OCL.erf %0 : f32
-    %3 = spv.OCL.erf %1 : vector<3xf16>
-    ```
-  }];
+  let hasVerifier = 0;
 }
+
+// Base class for OpenCL Ternary arithmetic ops where operand types and
+// return type matches.
+class SPV_OCLTernaryArithmeticOp<string mnemonic, int opcode, Type type,
+                                list<Trait> traits = []> :
+  SPV_OCLTernaryOp<mnemonic, opcode, type, type,
+                  traits # [SameOperandsAndResultType]> {
+  let assemblyFormat = "operands attr-dict `:` type($result)";
+}
+
+
 
 // -----
 
@@ -173,6 +170,38 @@ def SPV_OCLCosOp : SPV_OCLUnaryArithmeticOp<"cos", 14, SPV_Float> {
     ```
     %2 = spv.OCL.cos %0 : f32
     %3 = spv.OCL.cos %1 : vector<3xf16>
+    ```
+  }];
+}
+
+// -----
+
+def SPV_OCLErfOp : SPV_OCLUnaryArithmeticOp<"erf", 18, SPV_Float> {
+  let summary = [{
+    Error function of x encountered in integrating the normal distribution.
+  }];
+
+  let description = [{
+    Result Type and x must be floating-point or vector(2,3,4,8,16) of
+    floating-point values.
+
+    All of the operands, including the Result Type operand, must be of the
+    same type.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    erf-op ::= ssa-id `=` `spv.OCL.erf` ssa-use `:`
+               float-scalar-vector-type
+    ```mlir
+
+    #### Example:
+
+    ```
+    %2 = spv.OCL.erf %0 : f32
+    %3 = spv.OCL.erf %1 : vector<3xf16>
     ```
   }];
 }
@@ -272,6 +301,37 @@ def SPV_OCLFloorOp : SPV_OCLUnaryArithmeticOp<"floor", 25, SPV_Float> {
 
 // -----
 
+def SPV_OCLFmaOp : SPV_OCLTernaryArithmeticOp<"fma", 26, SPV_Float> {
+  let summary = [{
+    Compute the correctly rounded floating-point representation of the sum
+    of c with the infinitely precise product of a and b. Rounding of
+    intermediate products shall not occur. Edge case results are per the
+    IEEE 754-2008 standard.
+  }];
+
+  let description = [{
+    Result Type, a, b and c must be floating-point or vector(2,3,4,8,16) of
+    floating-point values.
+
+    All of the operands, including the Result Type operand, must be of the
+    same type.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    fma-op ::= ssa-id `=` `spv.OCL.fma` ssa-use, ssa-use, ssa-use `:`
+               float-scalar-vector-type
+    ```mlir
+
+    ```
+    %0 = spv.OCL.fma %a, %b, %c : f32
+    %1 = spv.OCL.fma %a, %b, %c : vector<3xf16>
+    ```
+  }];
+}
+
+// -----
+
 def SPV_OCLLogOp : SPV_OCLUnaryArithmeticOp<"log", 37, SPV_Float> {
   let summary = "Compute the natural logarithm of x.";
 
@@ -327,6 +387,38 @@ def SPV_OCLPowOp : SPV_OCLBinaryArithmeticOp<"pow", 48, SPV_Float> {
     ```mlir
     %2 = spv.OCL.pow %0, %1 : f32
     %3 = spv.OCL.pow %0, %1 : vector<3xf16>
+    ```
+  }];
+}
+
+// -----
+
+def SPV_OCLRoundOp : SPV_OCLUnaryArithmeticOp<"round", 55, SPV_Float> {
+  let summary = [{
+    Return the integral value nearest to x rounding halfway cases away from
+    zero, regardless of the current rounding direction.
+  }];
+
+  let description = [{
+    Result Type and x must be floating-point or vector(2,3,4,8,16) of
+    floating-point values.
+
+    All of the operands, including the Result Type operand, must be of the
+    same type.
+
+    <!-- End of AutoGen section -->
+
+    ```
+    float-scalar-vector-type ::= float-type |
+                                 `vector<` integer-literal `x` float-type `>`
+    round-op ::= ssa-id `=` `spv.OCL.round` ssa-use `:`
+               float-scalar-vector-type
+    ```
+    #### Example:
+
+    ```mlir
+    %2 = spv.OCL.round %0 : f32
+    %3 = spv.OCL.round %0 : vector<3xf16>
     ```
   }];
 }

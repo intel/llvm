@@ -47,7 +47,7 @@ body:             |
 # SYM-NEXT:      SectionLen: 8
 # SYM-NEXT:      ParameterHashIndex: 0x0
 # SYM-NEXT:      TypeChkSectNum: 0x0
-# SYM-NEXT:      SymbolAlignmentLog2: 4
+# SYM-NEXT:      SymbolAlignmentLog2: 5
 # SYM-NEXT:      SymbolType: XTY_SD (0x1)
 # SYM-NEXT:      StorageMappingClass: XMC_PR (0x0)
 # SYM-NEXT:      StabInfoIndex: 0x0
@@ -75,7 +75,7 @@ body:             |
 
 # DIS:      Disassembly of section .text:
 # DIS-EMPTY:
-# DIS-NEXT: 00000000 <.text>:
+# DIS-NEXT: 00000000 <.foo>:
 # DIS-NEXT:        0: 80 62 00 00                   lwz 3, 0(2)
 # DIS-NEXT:        4: 4e 80 00 20                   blr
 # DIS-EMPTY:

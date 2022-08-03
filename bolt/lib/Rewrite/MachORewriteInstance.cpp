@@ -21,8 +21,10 @@
 #include "bolt/Utils/Utils.h"
 #include "llvm/MC/MCAsmLayout.h"
 #include "llvm/MC/MCObjectStreamer.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include <memory>
 
 namespace opts {
 
@@ -81,11 +83,28 @@ MCPlusBuilder *createMCPlusBuilder(const Triple::ArchType Arch,
 
 #define DEBUG_TYPE "bolt"
 
+Expected<std::unique_ptr<MachORewriteInstance>>
+MachORewriteInstance::createMachORewriteInstance(
+    object::MachOObjectFile *InputFile, StringRef ToolPath) {
+  Error Err = Error::success();
+  auto MachORI =
+      std::make_unique<MachORewriteInstance>(InputFile, ToolPath, Err);
+  if (Err)
+    return std::move(Err);
+  return std::move(MachORI);
+}
+
 MachORewriteInstance::MachORewriteInstance(object::MachOObjectFile *InputFile,
-                                           StringRef ToolPath)
-    : InputFile(InputFile), ToolPath(ToolPath),
-      BC(BinaryContext::createBinaryContext(InputFile, /* IsPIC */ true,
-                                            DWARFContext::create(*InputFile))) {
+                                           StringRef ToolPath, Error &Err)
+    : InputFile(InputFile), ToolPath(ToolPath) {
+  ErrorAsOutParameter EAO(&Err);
+  auto BCOrErr = BinaryContext::createBinaryContext(
+      InputFile, /* IsPIC */ true, DWARFContext::create(*InputFile));
+  if (Error E = BCOrErr.takeError()) {
+    Err = std::move(E);
+    return;
+  }
+  BC = std::move(BCOrErr.get());
   BC->initializeTarget(std::unique_ptr<MCPlusBuilder>(createMCPlusBuilder(
       BC->TheTriple->getArch(), BC->MIA.get(), BC->MII.get(), BC->MRI.get())));
   if (opts::Instrument)
@@ -172,10 +191,9 @@ std::vector<DataInCodeRegion> readDataInCode(const MachOObjectFile &O) {
   DataInCode.reserve(NumberOfEntries);
   for (auto I = O.begin_dices(), E = O.end_dices(); I != E; ++I)
     DataInCode.emplace_back(*I);
-  std::stable_sort(DataInCode.begin(), DataInCode.end(),
-                   [](DataInCodeRegion LHS, DataInCodeRegion RHS) {
-                     return LHS.Offset < RHS.Offset;
-                   });
+  llvm::stable_sort(DataInCode, [](DataInCodeRegion LHS, DataInCodeRegion RHS) {
+    return LHS.Offset < RHS.Offset;
+  });
   return DataInCode;
 }
 
@@ -225,10 +243,10 @@ void MachORewriteInstance::discoverFileObjects() {
   }
   if (FunctionSymbols.empty())
     return;
-  std::stable_sort(FunctionSymbols.begin(), FunctionSymbols.end(),
-                   [](const SymbolRef &LHS, const SymbolRef &RHS) {
-                     return cantFail(LHS.getValue()) < cantFail(RHS.getValue());
-                   });
+  llvm::stable_sort(
+      FunctionSymbols, [](const SymbolRef &LHS, const SymbolRef &RHS) {
+        return cantFail(LHS.getValue()) < cantFail(RHS.getValue());
+      });
   for (size_t Index = 0; Index < FunctionSymbols.size(); ++Index) {
     const uint64_t Address = cantFail(FunctionSymbols[Index].getValue());
     ErrorOr<BinarySection &> Section = BC->getSectionForAddress(Address);
@@ -475,7 +493,7 @@ void MachORewriteInstance::emitAndLink() {
   auto Streamer = BC->createStreamer(*OS);
 
   emitBinaryContext(*Streamer, *BC, getOrgSecPrefix());
-  Streamer->Finish();
+  Streamer->finish();
 
   std::unique_ptr<MemoryBuffer> ObjectMemBuffer =
       MemoryBuffer::getMemBuffer(BOS->str(), "in-memory object file", false);

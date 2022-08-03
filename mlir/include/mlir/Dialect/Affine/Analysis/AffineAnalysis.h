@@ -16,7 +16,6 @@
 #define MLIR_DIALECT_AFFINE_ANALYSIS_AFFINEANALYSIS_H
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
@@ -54,8 +53,10 @@ bool isLoopParallel(
     SmallVectorImpl<LoopReduction> *parallelReductions = nullptr);
 
 /// Returns true if `forOp' doesn't have memory dependences preventing
-/// parallelization. This function doesn't check iter_args and should be used
-/// only as a building block for full parallel-checking functions.
+/// parallelization. Memrefs that are allocated inside `forOp` do not impact its
+/// dependences and parallelism. This function does not check iter_args (for
+/// values other than memref types) and should be used only as a building block
+/// for complete parallelism-checking functions.
 bool isLoopMemoryParallel(AffineForOp forOp);
 
 /// Returns in `affineApplyOps`, the sequence of those AffineApplyOp
@@ -64,7 +65,7 @@ bool isLoopMemoryParallel(AffineForOp forOp);
 void getReachableAffineApplyOps(ArrayRef<Value> operands,
                                 SmallVectorImpl<Operation *> &affineApplyOps);
 
-/// Builds a system of constraints with dimensional identifiers corresponding to
+/// Builds a system of constraints with dimensional variables corresponding to
 /// the loop IVs of the forOps and AffineIfOp's operands appearing in
 /// that order. Bounds of the loop are used to add appropriate inequalities.
 /// Constraints from the index sets of AffineIfOp are also added. Any symbols

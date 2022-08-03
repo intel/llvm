@@ -75,22 +75,22 @@ TEST(ElfYamlTextAPI, YAMLReadsTBESymbols) {
   ASSERT_THAT_ERROR(StubOrErr.takeError(), Succeeded());
   std::unique_ptr<IFSStub> Stub = std::move(StubOrErr.get());
   EXPECT_NE(Stub.get(), nullptr);
-  EXPECT_TRUE(Stub->SoName.hasValue());
+  EXPECT_TRUE(Stub->SoName);
   EXPECT_STREQ(Stub->SoName->c_str(), "test.so");
   EXPECT_EQ(Stub->Symbols.size(), 5u);
 
   auto Iterator = Stub->Symbols.begin();
   IFSSymbol const &SymBar = *Iterator++;
   EXPECT_STREQ(SymBar.Name.c_str(), "bar");
-  EXPECT_EQ(SymBar.Size, 42u);
+  EXPECT_EQ(*SymBar.Size, 42u);
   EXPECT_EQ(SymBar.Type, IFSSymbolType::Object);
   EXPECT_FALSE(SymBar.Undefined);
   EXPECT_FALSE(SymBar.Weak);
-  EXPECT_FALSE(SymBar.Warning.hasValue());
+  EXPECT_FALSE(SymBar.Warning);
 
   IFSSymbol const &SymBaz = *Iterator++;
   EXPECT_STREQ(SymBaz.Name.c_str(), "baz");
-  EXPECT_EQ(SymBaz.Size, 3u);
+  EXPECT_EQ(*SymBaz.Size, 3u);
   EXPECT_EQ(SymBaz.Type, IFSSymbolType::TLS);
   EXPECT_FALSE(SymBaz.Undefined);
   EXPECT_FALSE(SymBaz.Weak);
@@ -98,7 +98,7 @@ TEST(ElfYamlTextAPI, YAMLReadsTBESymbols) {
 
   IFSSymbol const &SymFoo = *Iterator++;
   EXPECT_STREQ(SymFoo.Name.c_str(), "foo");
-  EXPECT_EQ(SymFoo.Size, 0u);
+  EXPECT_FALSE(SymFoo.Size.hasValue());
   EXPECT_EQ(SymFoo.Type, IFSSymbolType::Func);
   EXPECT_FALSE(SymFoo.Undefined);
   EXPECT_FALSE(SymFoo.Weak);
@@ -107,7 +107,7 @@ TEST(ElfYamlTextAPI, YAMLReadsTBESymbols) {
 
   IFSSymbol const &SymNor = *Iterator++;
   EXPECT_STREQ(SymNor.Name.c_str(), "nor");
-  EXPECT_EQ(SymNor.Size, 0u);
+  EXPECT_FALSE(SymNor.Size.hasValue());
   EXPECT_EQ(SymNor.Type, IFSSymbolType::NoType);
   EXPECT_TRUE(SymNor.Undefined);
   EXPECT_FALSE(SymNor.Weak);
@@ -115,11 +115,11 @@ TEST(ElfYamlTextAPI, YAMLReadsTBESymbols) {
 
   IFSSymbol const &SymNot = *Iterator++;
   EXPECT_STREQ(SymNot.Name.c_str(), "not");
-  EXPECT_EQ(SymNot.Size, 111u);
+  EXPECT_EQ(*SymNot.Size, 111u);
   EXPECT_EQ(SymNot.Type, IFSSymbolType::Unknown);
   EXPECT_TRUE(SymNot.Undefined);
   EXPECT_TRUE(SymNot.Weak);
-  EXPECT_TRUE(SymNot.Warning.hasValue());
+  EXPECT_TRUE(SymNot.Warning);
   EXPECT_STREQ(SymNot.Warning->c_str(), "All fields populated!");
 }
 

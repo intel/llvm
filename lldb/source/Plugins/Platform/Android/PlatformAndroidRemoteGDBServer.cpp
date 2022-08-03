@@ -74,8 +74,6 @@ static Status FindUnusedPort(uint16_t &port) {
   return error;
 }
 
-PlatformAndroidRemoteGDBServer::PlatformAndroidRemoteGDBServer() = default;
-
 PlatformAndroidRemoteGDBServer::~PlatformAndroidRemoteGDBServer() {
   for (const auto &it : m_port_forwards)
     DeleteForwardPortWithAdb(it.second, m_device_id);
@@ -130,7 +128,7 @@ Status PlatformAndroidRemoteGDBServer::ConnectRemote(Args &args) {
 
   std::string connect_url;
   auto error =
-      MakeConnectURL(g_remote_platform_pid, parsed_url->port.getValueOr(0),
+      MakeConnectURL(g_remote_platform_pid, parsed_url->port.value_or(0),
                      parsed_url->path, connect_url);
 
   if (error.Fail())
@@ -219,7 +217,7 @@ lldb::ProcessSP PlatformAndroidRemoteGDBServer::ConnectProcess(
 
   std::string new_connect_url;
   error = MakeConnectURL(s_remote_gdbserver_fake_pid--,
-                         parsed_url->port.getValueOr(0), parsed_url->path,
+                         parsed_url->port.value_or(0), parsed_url->path,
                          new_connect_url);
   if (error.Fail())
     return nullptr;

@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/ValueHandle.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -698,8 +699,11 @@ public:
       case scUMinExpr:
       case scSequentialUMinExpr:
       case scAddRecExpr:
-        for (const auto *Op : cast<SCEVNAryExpr>(S)->operands())
+        for (const auto *Op : cast<SCEVNAryExpr>(S)->operands()) {
           push(Op);
+          if (Visitor.isDone())
+            break;
+        }
         continue;
       case scUDivExpr: {
         const SCEVUDivExpr *UDiv = cast<SCEVUDivExpr>(S);

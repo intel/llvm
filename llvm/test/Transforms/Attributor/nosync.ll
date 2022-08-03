@@ -32,7 +32,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; CHECK: @[[A:[a-zA-Z0-9_$"\\.-]+]] = common global i32 0, align 4
 ;.
 define i32* @foo(%struct.ST* %s) nounwind uwtable readnone optsize ssp {
-; CHECK: Function Attrs: nofree norecurse nosync nounwind optsize readnone ssp uwtable willreturn
+; CHECK: Function Attrs: nofree norecurse nosync nounwind optsize readnone ssp willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@foo
 ; CHECK-SAME: (%struct.ST* nofree readnone "no-capture-maybe-returned" [[S:%.*]]) #[[ATTR0:[0-9]+]] {
 ; CHECK-NEXT:  entry:
@@ -52,7 +52,7 @@ entry:
 ; }
 
 define i32 @load_monotonic(i32* nocapture readonly %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nosync nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nosync nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@load_monotonic
 ; CHECK-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[TMP0:%.*]]) #[[ATTR1:[0-9]+]] {
 ; CHECK-NEXT:    [[TMP2:%.*]] = load atomic i32, i32* [[TMP0]] monotonic, align 4
@@ -70,7 +70,7 @@ define i32 @load_monotonic(i32* nocapture readonly %0) norecurse nounwind uwtabl
 ; }
 
 define void @store_monotonic(i32* nocapture %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nosync nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nosync nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@store_monotonic
 ; CHECK-SAME: (i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[TMP0:%.*]]) #[[ATTR1]] {
 ; CHECK-NEXT:    store atomic i32 10, i32* [[TMP0]] monotonic, align 4
@@ -88,7 +88,7 @@ define void @store_monotonic(i32* nocapture %0) norecurse nounwind uwtable {
 ; }
 
 define i32 @load_acquire(i32* nocapture readonly %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@load_acquire
 ; CHECK-SAME: (i32* nocapture nofree noundef nonnull readonly align 4 dereferenceable(4) [[TMP0:%.*]]) #[[ATTR2:[0-9]+]] {
 ; CHECK-NEXT:    [[TMP2:%.*]] = load atomic i32, i32* [[TMP0]] acquire, align 4
@@ -105,7 +105,7 @@ define i32 @load_acquire(i32* nocapture readonly %0) norecurse nounwind uwtable 
 ; }
 
 define void @load_release(i32* nocapture %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@load_release
 ; CHECK-SAME: (i32* nocapture nofree noundef writeonly align 4 [[TMP0:%.*]]) #[[ATTR2]] {
 ; CHECK-NEXT:    store atomic volatile i32 10, i32* [[TMP0]] release, align 4
@@ -118,7 +118,7 @@ define void @load_release(i32* nocapture %0) norecurse nounwind uwtable {
 ; TEST 6 - negative volatile, relaxed atomic
 
 define void @load_volatile_release(i32* nocapture %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@load_volatile_release
 ; CHECK-SAME: (i32* nocapture nofree noundef writeonly align 4 [[TMP0:%.*]]) #[[ATTR2]] {
 ; CHECK-NEXT:    store atomic volatile i32 10, i32* [[TMP0]] release, align 4
@@ -135,7 +135,7 @@ define void @load_volatile_release(i32* nocapture %0) norecurse nounwind uwtable
 ; }
 
 define void @volatile_store(i32* %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@volatile_store
 ; CHECK-SAME: (i32* nofree noundef align 4 [[TMP0:%.*]]) #[[ATTR2]] {
 ; CHECK-NEXT:    store volatile i32 14, i32* [[TMP0]], align 4
@@ -153,7 +153,7 @@ define void @volatile_store(i32* %0) norecurse nounwind uwtable {
 ; }
 
 define i32 @volatile_load(i32* %0) norecurse nounwind uwtable {
-; CHECK: Function Attrs: argmemonly nofree norecurse nounwind uwtable willreturn
+; CHECK: Function Attrs: argmemonly nofree norecurse nounwind willreturn uwtable
 ; CHECK-LABEL: define {{[^@]+}}@volatile_load
 ; CHECK-SAME: (i32* nofree noundef align 4 [[TMP0:%.*]]) #[[ATTR2]] {
 ; CHECK-NEXT:    [[TMP2:%.*]] = load volatile i32, i32* [[TMP0]], align 4
@@ -444,7 +444,7 @@ declare float @llvm.cos(float %val) readnone
 ; TEST 19 - positive, readnone & non-convergent intrinsic.
 
 define i32 @cos_test(float %x) {
-; CHECK: Function Attrs: nofree nosync nounwind readnone willreturn
+; CHECK: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
 ; CHECK-LABEL: define {{[^@]+}}@cos_test
 ; CHECK-SAME: (float [[X:%.*]]) #[[ATTR15:[0-9]+]] {
 ; CHECK-NEXT:    ret i32 4
@@ -454,13 +454,13 @@ define i32 @cos_test(float %x) {
 }
 
 define float @cos_test2(float %x) {
-; NOT_CGSCC_OPM: Function Attrs: nofree nosync nounwind readnone willreturn
+; NOT_CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
 ; NOT_CGSCC_OPM-LABEL: define {{[^@]+}}@cos_test2
 ; NOT_CGSCC_OPM-SAME: (float [[X:%.*]]) #[[ATTR15]] {
 ; NOT_CGSCC_OPM-NEXT:    [[C:%.*]] = call float @llvm.cos.f32(float [[X]]) #[[ATTR21:[0-9]+]]
 ; NOT_CGSCC_OPM-NEXT:    ret float [[C]]
 ;
-; IS__CGSCC_OPM: Function Attrs: nofree nosync nounwind readnone willreturn
+; IS__CGSCC_OPM: Function Attrs: nofree norecurse nosync nounwind readnone willreturn
 ; IS__CGSCC_OPM-LABEL: define {{[^@]+}}@cos_test2
 ; IS__CGSCC_OPM-SAME: (float [[X:%.*]]) #[[ATTR15]] {
 ; IS__CGSCC_OPM-NEXT:    [[C:%.*]] = call float @llvm.cos.f32(float [[X]]) #[[ATTR22:[0-9]+]]
@@ -470,9 +470,9 @@ define float @cos_test2(float %x) {
   ret float %c
 }
 ;.
-; NOT_CGSCC_OPM: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind optsize readnone ssp uwtable willreturn }
-; NOT_CGSCC_OPM: attributes #[[ATTR1]] = { argmemonly nofree norecurse nosync nounwind uwtable willreturn }
-; NOT_CGSCC_OPM: attributes #[[ATTR2]] = { argmemonly nofree norecurse nounwind uwtable willreturn }
+; NOT_CGSCC_OPM: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind optsize readnone ssp willreturn uwtable }
+; NOT_CGSCC_OPM: attributes #[[ATTR1]] = { argmemonly nofree norecurse nosync nounwind willreturn uwtable }
+; NOT_CGSCC_OPM: attributes #[[ATTR2]] = { argmemonly nofree norecurse nounwind willreturn uwtable }
 ; NOT_CGSCC_OPM: attributes #[[ATTR3]] = { noinline nosync nounwind uwtable }
 ; NOT_CGSCC_OPM: attributes #[[ATTR4]] = { noinline nounwind uwtable }
 ; NOT_CGSCC_OPM: attributes #[[ATTR5]] = { argmemonly nofree noinline nounwind uwtable }
@@ -485,17 +485,17 @@ define float @cos_test2(float %x) {
 ; NOT_CGSCC_OPM: attributes #[[ATTR12:[0-9]+]] = { convergent readnone }
 ; NOT_CGSCC_OPM: attributes #[[ATTR13]] = { readnone }
 ; NOT_CGSCC_OPM: attributes #[[ATTR14]] = { nounwind }
-; NOT_CGSCC_OPM: attributes #[[ATTR15]] = { nofree nosync nounwind readnone willreturn }
+; NOT_CGSCC_OPM: attributes #[[ATTR15]] = { nofree norecurse nosync nounwind readnone willreturn }
 ; NOT_CGSCC_OPM: attributes #[[ATTR16:[0-9]+]] = { argmemonly nofree nounwind willreturn writeonly }
-; NOT_CGSCC_OPM: attributes #[[ATTR17:[0-9]+]] = { nofree nosync nounwind readnone speculatable willreturn }
+; NOT_CGSCC_OPM: attributes #[[ATTR17:[0-9]+]] = { nocallback nofree nosync nounwind readnone speculatable willreturn }
 ; NOT_CGSCC_OPM: attributes #[[ATTR18]] = { nofree nounwind }
 ; NOT_CGSCC_OPM: attributes #[[ATTR19]] = { willreturn }
 ; NOT_CGSCC_OPM: attributes #[[ATTR20]] = { willreturn writeonly }
 ; NOT_CGSCC_OPM: attributes #[[ATTR21]] = { readnone willreturn }
 ;.
-; IS__CGSCC_OPM: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind optsize readnone ssp uwtable willreturn }
-; IS__CGSCC_OPM: attributes #[[ATTR1]] = { argmemonly nofree norecurse nosync nounwind uwtable willreturn }
-; IS__CGSCC_OPM: attributes #[[ATTR2]] = { argmemonly nofree norecurse nounwind uwtable willreturn }
+; IS__CGSCC_OPM: attributes #[[ATTR0]] = { nofree norecurse nosync nounwind optsize readnone ssp willreturn uwtable }
+; IS__CGSCC_OPM: attributes #[[ATTR1]] = { argmemonly nofree norecurse nosync nounwind willreturn uwtable }
+; IS__CGSCC_OPM: attributes #[[ATTR2]] = { argmemonly nofree norecurse nounwind willreturn uwtable }
 ; IS__CGSCC_OPM: attributes #[[ATTR3]] = { noinline nosync nounwind uwtable }
 ; IS__CGSCC_OPM: attributes #[[ATTR4]] = { noinline nounwind uwtable }
 ; IS__CGSCC_OPM: attributes #[[ATTR5]] = { argmemonly nofree noinline nounwind uwtable }
@@ -508,9 +508,9 @@ define float @cos_test2(float %x) {
 ; IS__CGSCC_OPM: attributes #[[ATTR12:[0-9]+]] = { convergent readnone }
 ; IS__CGSCC_OPM: attributes #[[ATTR13]] = { readnone }
 ; IS__CGSCC_OPM: attributes #[[ATTR14]] = { nounwind }
-; IS__CGSCC_OPM: attributes #[[ATTR15]] = { nofree nosync nounwind readnone willreturn }
+; IS__CGSCC_OPM: attributes #[[ATTR15]] = { nofree norecurse nosync nounwind readnone willreturn }
 ; IS__CGSCC_OPM: attributes #[[ATTR16:[0-9]+]] = { argmemonly nofree nounwind willreturn writeonly }
-; IS__CGSCC_OPM: attributes #[[ATTR17:[0-9]+]] = { nofree nosync nounwind readnone speculatable willreturn }
+; IS__CGSCC_OPM: attributes #[[ATTR17:[0-9]+]] = { nocallback nofree nosync nounwind readnone speculatable willreturn }
 ; IS__CGSCC_OPM: attributes #[[ATTR18]] = { nofree nounwind }
 ; IS__CGSCC_OPM: attributes #[[ATTR19]] = { nounwind willreturn }
 ; IS__CGSCC_OPM: attributes #[[ATTR20]] = { willreturn }

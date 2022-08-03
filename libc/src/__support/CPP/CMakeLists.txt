@@ -1,23 +1,99 @@
-# TODO(michaelrj): separate the standalone_cpp library into individual targets.
 add_header_library(
-  standalone_cpp
+  array
   HDRS
     Array.h
-    ArrayRef.h
-    Bit.h
-    Bitset.h
-    Functional.h
-    Limits.h
-    StringView.h
-    TypeTraits.h
 )
 
-if(LLVM_LIBC_INCLUDE_SCUDO OR NOT LLVM_LIBC_FULL_BUILD)
-  add_header_library(
-    vector
-    HDRS
-      vector.h
-    DEPENDS
-      libc.include.stdlib
-  )
-endif()
+add_header_library(
+  uint
+  HDRS
+    UInt.h
+  DEPENDS
+    .array
+)
+
+add_header_library(
+  uint128
+  HDRS
+    UInt128.h
+  DEPENDS
+    .uint
+)
+
+add_header_library(
+  array_ref
+  HDRS
+    ArrayRef.h
+)
+
+add_header_library(
+  bit
+  HDRS
+    Bit.h
+)
+
+add_header_library(
+  bitset
+  HDRS
+    Bitset.h
+)
+
+add_header_library(
+  functional
+  HDRS
+    Functional.h
+)
+
+add_header_library(
+  limits
+  HDRS
+    Limits.h
+  DEPENDS
+    .uint
+)
+
+add_header_library(
+  string_view
+  HDRS
+    StringView.h
+)
+
+add_header_library(
+  type_traits
+  HDRS
+    TypeTraits.h
+  DEPENDS
+    .uint
+)
+
+add_header_library(
+  utility
+  HDRS
+    Utility.h
+)
+
+add_header_library(
+  vector
+  HDRS
+    vector.h
+  DEPENDS
+    libc.include.stdlib
+)
+
+add_header_library(
+  atomic
+  HDRS
+    atomic.h
+)
+
+add_header_library(
+  blockstore
+  HDRS
+    blockstore.h
+)
+
+add_header_library(
+  error
+  HDRS
+    error.h
+)

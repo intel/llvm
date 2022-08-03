@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AST.h"
 #include "Annotations.h"
 #include "Compiler.h"
 #include "Headers.h"
@@ -26,8 +25,6 @@
 #include "index/SymbolID.h"
 #include "support/Threading.h"
 #include "clang/Frontend/CompilerInvocation.h"
-#include "clang/Frontend/Utils.h"
-#include "clang/Index/IndexSymbol.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -653,7 +650,7 @@ TEST(FileShardedIndexTest, Sharding) {
                              Relation{Sym3.ID, RelationKind::BaseOf, Sym1.ID}));
     ASSERT_THAT(Shard->Sources->keys(), UnorderedElementsAre(AHeaderUri));
     EXPECT_THAT(Shard->Sources->lookup(AHeaderUri).DirectIncludes, IsEmpty());
-    EXPECT_TRUE(Shard->Cmd.hasValue());
+    EXPECT_TRUE(Shard->Cmd);
   }
   {
     auto Shard = ShardedIndex.getShard(BHeaderUri);
@@ -668,7 +665,7 @@ TEST(FileShardedIndexTest, Sharding) {
                 UnorderedElementsAre(BHeaderUri, AHeaderUri));
     EXPECT_THAT(Shard->Sources->lookup(BHeaderUri).DirectIncludes,
                 UnorderedElementsAre(AHeaderUri));
-    EXPECT_TRUE(Shard->Cmd.hasValue());
+    EXPECT_TRUE(Shard->Cmd);
   }
   {
     auto Shard = ShardedIndex.getShard(BSourceUri);
@@ -680,7 +677,7 @@ TEST(FileShardedIndexTest, Sharding) {
                 UnorderedElementsAre(BSourceUri, BHeaderUri));
     EXPECT_THAT(Shard->Sources->lookup(BSourceUri).DirectIncludes,
                 UnorderedElementsAre(BHeaderUri));
-    EXPECT_TRUE(Shard->Cmd.hasValue());
+    EXPECT_TRUE(Shard->Cmd);
   }
 }
 

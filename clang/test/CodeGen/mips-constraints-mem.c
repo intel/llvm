@@ -1,9 +1,9 @@
-// RUN: %clang -target mipsel-unknown-linux -S -o - -emit-llvm %s \
+// RUN: %clang_cc1 -no-opaque-pointers -triple mipsel-unknown-linux -o - -emit-llvm %s \
 // RUN: | FileCheck %s
 
 // This checks that the frontend will accept inline asm memory constraints.
 
-int foo()
+int foo(void)
 {
 
  // 'R': An address that can be used in a non-macro load or stor'

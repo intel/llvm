@@ -7,7 +7,7 @@ int main() {
   cl::sycl::kernel_single_task<class first_kernel>([]() {});
 }
 
-// CHECK: #include <CL/sycl/detail/defines_elementary.hpp>
+// CHECK: #include <sycl/detail/defines_elementary.hpp>
 
 using namespace cl::sycl;
 
@@ -127,7 +127,7 @@ specialization_id<int> AnonNSSpecID;
 // CHECK: namespace Foo {
 // CHECK: namespace {
 // CHECK-NEXT: namespace __sycl_detail {
-// CHECK-NEXT: static constexpr decltype(AnonNSSpecID) &__spec_id_shim_[[SHIM0:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(AnonNSSpecID) &__shim_[[SHIM0:[0-9]+]]() {
 // CHECK-NEXT: return AnonNSSpecID;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -137,7 +137,7 @@ specialization_id<int> AnonNSSpecID;
 // CHECK: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::__sycl_detail::__spec_id_shim_[[SHIM0]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::Foo::__sycl_detail::__shim_[[SHIM0]]()>() {
 // CHECK-NEXT: return "____ZN3Foo12_GLOBAL__N_112AnonNSSpecIDE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -174,7 +174,7 @@ struct HasVarTemplate {
 auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK: namespace {
 // CHECK-NEXT: namespace __sycl_detail
-// CHECK-NEXT: static constexpr decltype(HasVarTemplate::VarTempl<int, 2>) &__spec_id_shim_[[SHIM1:[0-9]+]]() {
+// CHECK-NEXT: static constexpr decltype(HasVarTemplate::VarTempl<int, 2>) &__shim_[[SHIM1:[0-9]+]]() {
 // CHECK-NEXT: return HasVarTemplate::VarTempl<int, 2>;
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace __sycl_detail
@@ -183,7 +183,7 @@ auto x = HasVarTemplate::VarTempl<int, 2>.getDefaultValue();
 // CHECK-NEXT: namespace sycl {
 // CHECK-NEXT: namespace detail {
 // CHECK-NEXT: template<>
-// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__spec_id_shim_[[SHIM1]]()>() {
+// CHECK-NEXT: inline const char *get_spec_constant_symbolic_ID_impl<::__sycl_detail::__shim_[[SHIM1]]()>() {
 // CHECK-NEXT: return "____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiLi2EEE";
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace detail
@@ -200,4 +200,4 @@ auto &y = GlobalWrapper<int>::template sc<20>;
 // CHECK-NOT: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalWrapper<int>::sc>()
 // CHECK: inline const char *get_spec_constant_symbolic_ID_impl<::GlobalWrapper<int>::sc<20>>()
 
-// CHECK: #include <CL/sycl/detail/spec_const_integration.hpp>
+// CHECK: #include <sycl/detail/spec_const_integration.hpp>

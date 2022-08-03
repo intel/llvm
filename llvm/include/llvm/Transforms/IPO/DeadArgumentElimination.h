@@ -67,27 +67,26 @@ public:
     }
   };
 
-  /// Liveness enum - During our initial pass over the program, we determine
-  /// that things are either alive or maybe alive. We don't mark anything
-  /// explicitly dead (even if we know they are), since anything not alive
-  /// with no registered uses (in Uses) will never be marked alive and will
-  /// thus become dead in the end.
+  /// During our initial pass over the program, we determine that things are
+  /// either alive or maybe alive. We don't mark anything explicitly dead (even
+  /// if we know they are), since anything not alive with no registered uses
+  /// (in Uses) will never be marked alive and will thus become dead in the end.
   enum Liveness { Live, MaybeLive };
 
-  DeadArgumentEliminationPass(bool ShouldHackArguments_ = false,
-                              bool CheckSYCLKernels_ = false)
-      : ShouldHackArguments(ShouldHackArguments_),
-        CheckSYCLKernels(CheckSYCLKernels_) {}
+  DeadArgumentEliminationPass(bool ShouldHackArguments = false,
+                              bool CheckSYCLKernels = false)
+      : ShouldHackArguments(ShouldHackArguments),
+        CheckSYCLKernels(CheckSYCLKernels) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
   /// Convenience wrapper
-  RetOrArg CreateRet(const Function *F, unsigned Idx) {
+  RetOrArg createRet(const Function *F, unsigned Idx) {
     return RetOrArg(F, Idx, false);
   }
 
   /// Convenience wrapper
-  RetOrArg CreateArg(const Function *F, unsigned Idx) {
+  RetOrArg createArg(const Function *F, unsigned Idx) {
     return RetOrArg(F, Idx, true);
   }
 
@@ -129,21 +128,21 @@ public:
   bool CheckSYCLKernels = false;
 
 private:
-  Liveness MarkIfNotLive(RetOrArg Use, UseVector &MaybeLiveUses);
-  Liveness SurveyUse(const Use *U, UseVector &MaybeLiveUses,
+  Liveness markIfNotLive(RetOrArg Use, UseVector &MaybeLiveUses);
+  Liveness surveyUse(const Use *U, UseVector &MaybeLiveUses,
                      unsigned RetValNum = -1U);
-  Liveness SurveyUses(const Value *V, UseVector &MaybeLiveUses);
+  Liveness surveyUses(const Value *V, UseVector &MaybeLiveUses);
 
-  void SurveyFunction(const Function &F);
-  bool IsLive(const RetOrArg &RA);
-  void MarkValue(const RetOrArg &RA, Liveness L,
+  void surveyFunction(const Function &F);
+  bool isLive(const RetOrArg &RA);
+  void markValue(const RetOrArg &RA, Liveness L,
                  const UseVector &MaybeLiveUses);
-  void MarkLive(const RetOrArg &RA);
-  void MarkLive(const Function &F);
-  void PropagateLiveness(const RetOrArg &RA);
-  bool RemoveDeadStuffFromFunction(Function *F);
-  bool DeleteDeadVarargs(Function &Fn);
-  bool RemoveDeadArgumentsFromCallers(Function &Fn);
+  void markLive(const RetOrArg &RA);
+  void markLive(const Function &F);
+  void propagateLiveness(const RetOrArg &RA);
+  bool removeDeadStuffFromFunction(Function *F);
+  bool deleteDeadVarargs(Function &F);
+  bool removeDeadArgumentsFromCallers(Function &F);
 
   void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
   llvm::DenseSet<Function *> NVPTXKernelSet;

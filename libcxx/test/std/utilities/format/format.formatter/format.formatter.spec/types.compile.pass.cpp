@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
@@ -23,9 +22,6 @@
 #include <complex>
 #include <concepts>
 #include <deque>
-#ifndef _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY
-#  include <filesystem>
-#endif
 #include <format>
 #include <forward_list>
 #include <list>
@@ -36,9 +32,6 @@
 #include <set>
 #include <stack>
 #include <span>
-#ifndef _LIBCPP_HAS_NO_THREADS
-#  include <thread>
-#endif
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -48,8 +41,14 @@
 
 #include "test_macros.h"
 
+#ifndef TEST_HAS_NO_FILESYSTEM_LIBRARY
+#  include <filesystem>
+#endif
 #ifndef TEST_HAS_NO_LOCALIZATION
 #  include <regex>
+#endif
+#ifndef TEST_HAS_NO_THREADS
+#  include <thread>
 #endif
 
 // Validate default template argument.
@@ -124,6 +123,7 @@ void test_P0645() {
 
   assert_formatter_is_enabled<CharT*, CharT>();
   assert_formatter_is_enabled<const CharT*, CharT>();
+  assert_formatter_is_enabled<CharT[42], CharT>();
   assert_formatter_is_enabled<const CharT[42], CharT>();
   assert_formatter_is_enabled<std::basic_string<CharT>, CharT>();
   assert_formatter_is_enabled<std::basic_string_view<CharT>, CharT>();
@@ -135,7 +135,7 @@ void test_P0645() {
   assert_formatter_is_enabled<signed int, CharT>();
   assert_formatter_is_enabled<signed long, CharT>();
   assert_formatter_is_enabled<signed long long, CharT>();
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
   assert_formatter_is_enabled<__int128_t, CharT>();
 #endif
 
@@ -144,7 +144,7 @@ void test_P0645() {
   assert_formatter_is_enabled<unsigned int, CharT>();
   assert_formatter_is_enabled<unsigned long, CharT>();
   assert_formatter_is_enabled<unsigned long long, CharT>();
-#ifndef _LIBCPP_HAS_NO_INT128
+#ifndef TEST_HAS_NO_INT128
   assert_formatter_is_enabled<__uint128_t, CharT>();
 #endif
 
@@ -210,14 +210,14 @@ void test_P1636() {
   assert_formatter_is_disabled<std::bitset<42>, CharT>();
   assert_formatter_is_disabled<std::complex<double>, CharT>();
   assert_formatter_is_disabled<std::error_code, CharT>();
-#ifndef _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY
+#ifndef TEST_HAS_NO_FILESYSTEM_LIBRARY
   assert_formatter_is_disabled<std::filesystem::path, CharT>();
 #endif
   assert_formatter_is_disabled<std::shared_ptr<int>, CharT>();
 #ifndef TEST_HAS_NO_LOCALIZATION
   assert_formatter_is_disabled<std::sub_match<CharT*>, CharT>();
 #endif
-#ifndef _LIBCPP_HAS_NO_THREADS
+#ifndef TEST_HAS_NO_THREADS
   assert_formatter_is_disabled<std::thread::id, CharT>();
 #endif
   assert_formatter_is_disabled<std::unique_ptr<int>, CharT>();

@@ -9,7 +9,6 @@
 #ifndef LLVM_DEBUGINFO_CODEVIEW_CODEVIEWRECORDIO_H
 #define LLVM_DEBUGINFO_CODEVIEW_CODEVIEWRECORDIO_H
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
@@ -24,6 +23,7 @@
 
 namespace llvm {
 
+template <typename T> class ArrayRef;
 class APSInt;
 
 namespace codeview {
@@ -248,7 +248,7 @@ private:
     Optional<uint32_t> MaxLength;
 
     Optional<uint32_t> bytesRemaining(uint32_t CurrentOffset) const {
-      if (!MaxLength.hasValue())
+      if (!MaxLength)
         return None;
       assert(CurrentOffset >= BeginOffset);
 

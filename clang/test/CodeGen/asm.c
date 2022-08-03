@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s
 
 // PR10415
 __asm__ ("foo1");
@@ -20,7 +20,7 @@ void t3(unsigned char *src, unsigned long long temp) {
   __asm__ volatile("" : "+m"(temp), "+r"(src));
 }
 
-void t4() {
+void t4(void) {
   unsigned long long a;
   struct reg { unsigned long long a, b; } b;
 
@@ -43,7 +43,7 @@ void t7(int a) {
   // CHECK: T7 NAMED: $1
 }
 
-void t8() {
+void t8(void) {
   __asm__ volatile("T8 NAMED MODIFIER: %c[input]" :: [input] "i" (4));
   // CHECK: @t8()
   // CHECK: T8 NAMED MODIFIER: ${0:c}
@@ -110,7 +110,7 @@ void t14(struct S *P) {
 }
 
 // PR4938
-int t16() {
+int t16(void) {
   int a,b;
   asm ( "nop;"
        :"=%c" (a)
@@ -120,7 +120,7 @@ int t16() {
 }
 
 // PR6475
-void t17() {
+void t17(void) {
   int i;
   __asm__ ( "nop": "=m"(i));
 
@@ -273,4 +273,14 @@ loop:
   return 0;
 label_true:
   return 1;
+}
+
+void *t33(void *ptr)
+{
+  void *ret;
+  asm ("lea %1, %0" : "=r" (ret) : "p" (ptr));
+  return ret;
+
+  // CHECK: @t33
+  // CHECK: %1 = call i8* asm "lea $1, $0", "=r,p,~{dirflag},~{fpsr},~{flags}"(i8* %0)
 }

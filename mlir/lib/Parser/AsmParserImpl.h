@@ -221,6 +221,16 @@ public:
     return success(parser.consumeIf(Token::plus));
   }
 
+  /// Parse a '|' token.
+  ParseResult parseVerticalBar() override {
+    return parser.parseToken(Token::vertical_bar, "expected '|'");
+  }
+
+  /// Parse a '|' token if present.
+  ParseResult parseOptionalVerticalBar() override {
+    return success(parser.consumeIf(Token::vertical_bar));
+  }
+
   /// Parses a quoted string token if present.
   ParseResult parseOptionalString(std::string *string) override {
     if (!parser.getToken().is(Token::string))
@@ -232,16 +242,11 @@ public:
     return success();
   }
 
-  /// Returns true if the current token corresponds to a keyword.
-  bool isCurrentTokenAKeyword() const {
-    return parser.getToken().isAny(Token::bare_identifier, Token::inttype) ||
-           parser.getToken().isKeyword();
-  }
-
   /// Parse the given keyword if present.
   ParseResult parseOptionalKeyword(StringRef keyword) override {
     // Check that the current token has the same spelling.
-    if (!isCurrentTokenAKeyword() || parser.getTokenSpelling() != keyword)
+    if (!parser.isCurrentTokenAKeyword() ||
+        parser.getTokenSpelling() != keyword)
       return failure();
     parser.consumeToken();
     return success();
@@ -250,7 +255,7 @@ public:
   /// Parse a keyword, if present, into 'keyword'.
   ParseResult parseOptionalKeyword(StringRef *keyword) override {
     // Check that the current token is a keyword.
-    if (!isCurrentTokenAKeyword())
+    if (!parser.isCurrentTokenAKeyword())
       return failure();
 
     *keyword = parser.getTokenSpelling();
@@ -263,7 +268,7 @@ public:
   parseOptionalKeyword(StringRef *keyword,
                        ArrayRef<StringRef> allowedKeywords) override {
     // Check that the current token is a keyword.
-    if (!isCurrentTokenAKeyword())
+    if (!parser.isCurrentTokenAKeyword())
       return failure();
 
     StringRef currentKeyword = parser.getTokenSpelling();
@@ -296,7 +301,7 @@ public:
     // Check for a floating point value.
     if (curTok.is(Token::floatliteral)) {
       auto val = curTok.getFloatingPointValue();
-      if (!val.hasValue())
+      if (!val)
         return emitError(loc, "floating point value too large");
       parser.consumeToken(Token::floatliteral);
       result = isNegative ? -*val : *val;
@@ -430,6 +435,22 @@ public:
   }
 
   //===--------------------------------------------------------------------===//
+  // Resource Parsing
+  //===--------------------------------------------------------------------===//
+
+  /// Parse a handle to a resource within the assembly format.
+  FailureOr<AsmDialectResourceHandle>
+  parseResourceHandle(Dialect *dialect) override {
+    const auto *interface = dyn_cast_or_null<OpAsmDialectInterface>(dialect);
+    if (!interface) {
+      return parser.emitError() << "dialect '" << dialect->getNamespace()
+                                << "' does not expect resource handles";
+    }
+    StringRef resourceName;
+    return parser.parseResourceHandle(interface, resourceName);
+  }
+
+  //===--------------------------------------------------------------------===//
   // Type Parsing
   //===--------------------------------------------------------------------===//
 
@@ -481,8 +502,10 @@ public:
   }
 
   ParseResult parseDimensionList(SmallVectorImpl<int64_t> &dimensions,
-                                 bool allowDynamic) override {
-    return parser.parseDimensionListRanked(dimensions, allowDynamic);
+                                 bool allowDynamic,
+                                 bool withTrailingX) override {
+    return parser.parseDimensionListRanked(dimensions, allowDynamic,
+                                           withTrailingX);
   }
 
   ParseResult parseXInDimensionList() override {

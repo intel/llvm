@@ -87,6 +87,7 @@ def _executeScriptInternal(test, commands):
     noExecute=False,
     debug=False,
     isWindows=platform.system() == 'Windows',
+    order='smart',
     params={})
   _, tmpBase = libcxx.test.format._getTempPaths(test)
   execDir = os.path.dirname(test.getExecPath())
@@ -175,6 +176,22 @@ def programOutput(config, program, args=None):
     actualOut = actualOut.group(1) if actualOut else ""
     return actualOut
 
+@_memoizeExpensiveOperation(lambda c, p, args=None: (c.substitutions, c.environment, p, args))
+def programSucceeds(config, program, args=None):
+  """
+  Compiles a program for the test target, run it on the test target and return
+  whether it completed successfully.
+
+  Note that execution of the program is done through the %{exec} substitution,
+  which means that the program may be run on a remote host depending on what
+  %{exec} does.
+  """
+  try:
+    programOutput(config, program, args)
+  except ConfigurationRuntimeError:
+    return False
+  return True
+
 @_memoizeExpensiveOperation(lambda c, f: (c.substitutions, c.environment, f))
 def hasCompileFlag(config, flag):
   """
@@ -200,6 +217,21 @@ def runScriptExitCode(config, script):
   with _makeConfigTest(config) as test:
     _, _, exitCode, _ = _executeScriptInternal(test, script)
     return exitCode
+
+@_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
+def commandOutput(config, command):
+  """
+  Runs the given script as a Lit test, and returns the output.
+  If the exit code isn't 0 an exception is raised.
+
+  The script must be a list of commands, each of which being something that
+  could appear on the right-hand-side of a `RUN:` keyword.
+  """
+  with _makeConfigTest(config) as test:
+    out, _, exitCode, _ = _executeScriptInternal(test, command)
+    if exitCode != 0:
+     raise ConfigurationRuntimeError()
+    return out
 
 @_memoizeExpensiveOperation(lambda c, l: (c.substitutions, c.environment, l))
 def hasAnyLocale(config, locales):
@@ -229,11 +261,7 @@ def hasAnyLocale(config, locales):
       }
     #endif
   """
-  try:
-    programOutput(config, program, args=[pipes.quote(l) for l in locales])
-  except ConfigurationRuntimeError:
-    return False
-  return True
+  return programSucceeds(config, program, args=[pipes.quote(l) for l in locales])
 
 @_memoizeExpensiveOperation(lambda c, flags='': (c.substitutions, c.environment, flags))
 def compilerMacros(config, flags=''):
@@ -248,9 +276,11 @@ def compilerMacros(config, flags=''):
   """
   with _makeConfigTest(config) as test:
     with open(test.getSourcePath(), 'w') as sourceFile:
-      # Make sure files like <__config> are included, since they can define
-      # additional macros.
-      sourceFile.write("#include <stddef.h>")
+      sourceFile.write("""
+      #if __has_include(<__config_site>)
+      #  include <__config_site>
+      #endif
+      """)
     unparsedOutput, err, exitCode, _ = _executeScriptInternal(test, [
       "%{{cxx}} %s -dM -E %{{flags}} %{{compile_flags}} {}".format(flags)
     ])

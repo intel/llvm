@@ -39,7 +39,7 @@ define i32 @sadd_add_imm(i32 %x, i32 %y) {
   ret i32 %r
 }
 
-define i32 @sadd_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+define i32 @sadd_add_load(i32 %x, i32 %y, ptr %pz) nounwind {
 ; X64-LABEL: sadd_add_load:
 ; X64:       # %bb.0:
 ; X64-NEXT:    # kill: def $esi killed $esi def $rsi
@@ -79,7 +79,7 @@ define i32 @sadd_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   %o = tail call { i32, i1 } @llvm.sadd.with.overflow.i32(i32 %x, i32 %y)
   %v1 = extractvalue { i32, i1 } %o, 1
   %v2 = extractvalue { i32, i1 } %o, 0
-  %z = load i32, i32* %pz
+  %z = load i32, ptr %pz
   %a = add i32 %v2, %z
   %r = select i1 %v1, i32 %a, i32 %v2
   ret i32 %r
@@ -119,7 +119,7 @@ define i32 @uadd_add_imm(i32 %x, i32 %y) {
   ret i32 %r
 }
 
-define i32 @uadd_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+define i32 @uadd_add_load(i32 %x, i32 %y, ptr %pz) nounwind {
 ; X64-LABEL: uadd_add_load:
 ; X64:       # %bb.0:
 ; X64-NEXT:    # kill: def $esi killed $esi def $rsi
@@ -159,7 +159,7 @@ define i32 @uadd_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   %o = tail call { i32, i1 } @llvm.uadd.with.overflow.i32(i32 %x, i32 %y)
   %v1 = extractvalue { i32, i1 } %o, 1
   %v2 = extractvalue { i32, i1 } %o, 0
-  %z = load i32, i32* %pz
+  %z = load i32, ptr %pz
   %a = add i32 %v2, %z
   %r = select i1 %v1, i32 %a, i32 %v2
   ret i32 %r
@@ -199,7 +199,7 @@ define i32 @ssub_add_imm(i32 %x, i32 %y) {
   ret i32 %r
 }
 
-define i32 @ssub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+define i32 @ssub_add_load(i32 %x, i32 %y, ptr %pz) nounwind {
 ; X64-LABEL: ssub_add_load:
 ; X64:       # %bb.0:
 ; X64-NEXT:    movl %edi, %eax
@@ -240,7 +240,7 @@ define i32 @ssub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   %o = tail call { i32, i1 } @llvm.ssub.with.overflow.i32(i32 %x, i32 %y)
   %v1 = extractvalue { i32, i1 } %o, 1
   %v2 = extractvalue { i32, i1 } %o, 0
-  %z = load i32, i32* %pz
+  %z = load i32, ptr %pz
   %a = add i32 %v2, %z
   %r = select i1 %v1, i32 %a, i32 %v2
   ret i32 %r
@@ -280,7 +280,7 @@ define i32 @usub_add_imm(i32 %x, i32 %y) {
   ret i32 %r
 }
 
-define i32 @usub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+define i32 @usub_add_load(i32 %x, i32 %y, ptr %pz) nounwind {
 ; X64-LABEL: usub_add_load:
 ; X64:       # %bb.0:
 ; X64-NEXT:    movl %edi, %eax
@@ -321,7 +321,7 @@ define i32 @usub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   %o = tail call { i32, i1 } @llvm.usub.with.overflow.i32(i32 %x, i32 %y)
   %v1 = extractvalue { i32, i1 } %o, 1
   %v2 = extractvalue { i32, i1 } %o, 0
-  %z = load i32, i32* %pz
+  %z = load i32, ptr %pz
   %a = add i32 %v2, %z
   %r = select i1 %v1, i32 %a, i32 %v2
   ret i32 %r
@@ -330,35 +330,27 @@ define i32 @usub_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
 define i32 @smul_add_imm(i32 %x, i32 %y) {
 ; X64-LABEL: smul_add_imm:
 ; X64:       # %bb.0:
-; X64-NEXT:    movl %edi, %eax
-; X64-NEXT:    imull %esi, %eax
-; X64-NEXT:    addl $100, %eax
+; X64-NEXT:    # kill: def $edi killed $edi def $rdi
 ; X64-NEXT:    imull %esi, %edi
+; X64-NEXT:    leal 100(%rdi), %eax
 ; X64-NEXT:    cmovnol %edi, %eax
 ; X64-NEXT:    retq
 ;
 ; CMOV-LABEL: smul_add_imm:
 ; CMOV:       # %bb.0:
-; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CMOV-NEXT:    movl %eax, %edx
-; CMOV-NEXT:    imull %ecx, %edx
-; CMOV-NEXT:    addl $100, %edx
-; CMOV-NEXT:    imull %ecx, %eax
-; CMOV-NEXT:    cmovol %edx, %eax
+; CMOV-NEXT:    imull {{[0-9]+}}(%esp), %ecx
+; CMOV-NEXT:    leal 100(%ecx), %eax
+; CMOV-NEXT:    cmovnol %ecx, %eax
 ; CMOV-NEXT:    retl
 ;
 ; NOCMOV-LABEL: smul_add_imm:
 ; NOCMOV:       # %bb.0:
 ; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
-; NOCMOV-NEXT:    movl {{[0-9]+}}(%esp), %edx
-; NOCMOV-NEXT:    movl %eax, %ecx
-; NOCMOV-NEXT:    imull %edx, %ecx
-; NOCMOV-NEXT:    imull %edx, %eax
+; NOCMOV-NEXT:    imull {{[0-9]+}}(%esp), %eax
 ; NOCMOV-NEXT:    jno .LBB8_2
 ; NOCMOV-NEXT:  # %bb.1:
-; NOCMOV-NEXT:    addl $100, %ecx
-; NOCMOV-NEXT:    movl %ecx, %eax
+; NOCMOV-NEXT:    addl $100, %eax
 ; NOCMOV-NEXT:  .LBB8_2:
 ; NOCMOV-NEXT:    retl
   %o = tail call { i32, i1 } @llvm.smul.with.overflow.i32(i32 %x, i32 %y)
@@ -369,7 +361,7 @@ define i32 @smul_add_imm(i32 %x, i32 %y) {
   ret i32 %r
 }
 
-define i32 @smul_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+define i32 @smul_add_load(i32 %x, i32 %y, ptr %pz) nounwind {
 ; X64-LABEL: smul_add_load:
 ; X64:       # %bb.0:
 ; X64-NEXT:    movl %edi, %eax
@@ -410,7 +402,7 @@ define i32 @smul_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   %o = tail call { i32, i1 } @llvm.smul.with.overflow.i32(i32 %x, i32 %y)
   %v1 = extractvalue { i32, i1 } %o, 1
   %v2 = extractvalue { i32, i1 } %o, 0
-  %z = load i32, i32* %pz
+  %z = load i32, ptr %pz
   %a = add i32 %v2, %z
   %r = select i1 %v1, i32 %a, i32 %v2
   ret i32 %r
@@ -422,10 +414,8 @@ define i32 @umul_add_imm(i32 %x, i32 %y) {
 ; X64-NEXT:    movl %edi, %eax
 ; X64-NEXT:    mull %esi
 ; X64-NEXT:    # kill: def $eax killed $eax def $rax
-; X64-NEXT:    seto %cl
-; X64-NEXT:    leal 100(%rax), %edx
-; X64-NEXT:    testb %cl, %cl
-; X64-NEXT:    cmovnel %edx, %eax
+; X64-NEXT:    leal 100(%rax), %ecx
+; X64-NEXT:    cmovol %ecx, %eax
 ; X64-NEXT:    # kill: def $eax killed $eax killed $rax
 ; X64-NEXT:    retq
 ;
@@ -433,10 +423,8 @@ define i32 @umul_add_imm(i32 %x, i32 %y) {
 ; CMOV:       # %bb.0:
 ; CMOV-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CMOV-NEXT:    mull {{[0-9]+}}(%esp)
-; CMOV-NEXT:    seto %cl
-; CMOV-NEXT:    leal 100(%eax), %edx
-; CMOV-NEXT:    testb %cl, %cl
-; CMOV-NEXT:    cmovnel %edx, %eax
+; CMOV-NEXT:    leal 100(%eax), %ecx
+; CMOV-NEXT:    cmovol %ecx, %eax
 ; CMOV-NEXT:    retl
 ;
 ; NOCMOV-LABEL: umul_add_imm:
@@ -456,7 +444,7 @@ define i32 @umul_add_imm(i32 %x, i32 %y) {
   ret i32 %r
 }
 
-define i32 @umul_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
+define i32 @umul_add_load(i32 %x, i32 %y, ptr %pz) nounwind {
 ; X64-LABEL: umul_add_load:
 ; X64:       # %bb.0:
 ; X64-NEXT:    movq %rdx, %rcx
@@ -494,7 +482,7 @@ define i32 @umul_add_load(i32 %x, i32 %y, i32* %pz) nounwind {
   %o = tail call { i32, i1 } @llvm.umul.with.overflow.i32(i32 %x, i32 %y)
   %v1 = extractvalue { i32, i1 } %o, 1
   %v2 = extractvalue { i32, i1 } %o, 0
-  %z = load i32, i32* %pz
+  %z = load i32, ptr %pz
   %a = add i32 %v2, %z
   %r = select i1 %v1, i32 %a, i32 %v2
   ret i32 %r

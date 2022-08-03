@@ -299,22 +299,17 @@ unsigned AffineMap::getNumSymbols() const {
   assert(map && "uninitialized map storage");
   return map->numSymbols;
 }
-unsigned AffineMap::getNumResults() const {
-  assert(map && "uninitialized map storage");
-  return map->results.size();
-}
+unsigned AffineMap::getNumResults() const { return getResults().size(); }
 unsigned AffineMap::getNumInputs() const {
   assert(map && "uninitialized map storage");
   return map->numDims + map->numSymbols;
 }
-
 ArrayRef<AffineExpr> AffineMap::getResults() const {
   assert(map && "uninitialized map storage");
-  return map->results;
+  return map->results();
 }
 AffineExpr AffineMap::getResult(unsigned idx) const {
-  assert(map && "uninitialized map storage");
-  return map->results[idx];
+  return getResults()[idx];
 }
 
 unsigned AffineMap::getDimPosition(unsigned idx) const {
@@ -534,7 +529,7 @@ AffineMap AffineMap::getMajorSubMap(unsigned numResults) const {
     return AffineMap();
   if (numResults > getNumResults())
     return *this;
-  return getSubMap(llvm::to_vector<4>(llvm::seq<unsigned>(0, numResults)));
+  return getSliceMap(0, numResults);
 }
 
 AffineMap AffineMap::getMinorSubMap(unsigned numResults) const {
@@ -542,8 +537,7 @@ AffineMap AffineMap::getMinorSubMap(unsigned numResults) const {
     return AffineMap();
   if (numResults > getNumResults())
     return *this;
-  return getSubMap(llvm::to_vector<4>(
-      llvm::seq<unsigned>(getNumResults() - numResults, getNumResults())));
+  return getSliceMap(getNumResults() - numResults, numResults);
 }
 
 AffineMap mlir::compressDims(AffineMap map,
@@ -566,12 +560,7 @@ AffineMap mlir::compressDims(AffineMap map,
 }
 
 AffineMap mlir::compressUnusedDims(AffineMap map) {
-  llvm::SmallBitVector unusedDims(map.getNumDims(), true);
-  map.walkExprs([&](AffineExpr expr) {
-    if (auto dimExpr = expr.dyn_cast<AffineDimExpr>())
-      unusedDims.reset(dimExpr.getPosition());
-  });
-  return compressDims(map, unusedDims);
+  return compressDims(map, getUnusedDimsBitVector({map}));
 }
 
 static SmallVector<AffineMap>
@@ -685,7 +674,7 @@ AffineMap mlir::inversePermutation(AffineMap map) {
   return AffineMap::get(map.getNumResults(), 0, seenExprs, map.getContext());
 }
 
-AffineMap mlir::inverseAndBroadcastProjectedPermuation(AffineMap map) {
+AffineMap mlir::inverseAndBroadcastProjectedPermutation(AffineMap map) {
   assert(map.isProjectedPermutation(/*allowZeroInResults=*/true));
   MLIRContext *context = map.getContext();
   AffineExpr zero = mlir::getAffineConstantExpr(0, context);
@@ -728,24 +717,33 @@ AffineMap mlir::getProjectedMap(AffineMap map,
   return compressUnusedSymbols(compressDims(map, unusedDims));
 }
 
+llvm::SmallBitVector mlir::getUnusedDimsBitVector(ArrayRef<AffineMap> maps) {
+  unsigned numDims = maps[0].getNumDims();
+  llvm::SmallBitVector numDimsBitVector(numDims, true);
+  for (const auto &m : maps) {
+    for (unsigned i = 0; i < numDims; ++i) {
+      if (m.isFunctionOfDim(i))
+        numDimsBitVector.reset(i);
+    }
+  }
+  return numDimsBitVector;
+}
+
 //===----------------------------------------------------------------------===//
 // MutableAffineMap.
 //===----------------------------------------------------------------------===//
 
 MutableAffineMap::MutableAffineMap(AffineMap map)
-    : numDims(map.getNumDims()), numSymbols(map.getNumSymbols()),
-      context(map.getContext()) {
-  for (auto result : map.getResults())
-    results.push_back(result);
-}
+    : results(map.getResults().begin(), map.getResults().end()),
+      numDims(map.getNumDims()), numSymbols(map.getNumSymbols()),
+      context(map.getContext()) {}
 
 void MutableAffineMap::reset(AffineMap map) {
   results.clear();
   numDims = map.getNumDims();
   numSymbols = map.getNumSymbols();
   context = map.getContext();
-  for (auto result : map.getResults())
-    results.push_back(result);
+  llvm::append_range(results, map.getResults());
 }
 
 bool MutableAffineMap::isMultipleOf(unsigned idx, int64_t factor) const {

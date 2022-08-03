@@ -204,8 +204,8 @@ public:
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
     switch (static_cast<int>(Dec)) {
-    case internal::DecorationAliasScopeINTEL:
-    case internal::DecorationNoAliasINTEL:
+    case DecorationAliasScopeINTEL:
+    case DecorationNoAliasINTEL:
       return ExtensionID::SPV_INTEL_memory_access_aliasing;
     default:
       return {};
@@ -677,16 +677,14 @@ class SPIRVDecorateAliasScopeINTEL : public SPIRVDecorateId {
 public:
   // Complete constructor for SPIRVDecorateAliasScopeINTEL
   SPIRVDecorateAliasScopeINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
-      : SPIRVDecorateId(spv::internal::DecorationAliasScopeINTEL, TheTarget,
-                        AliasList){};
+      : SPIRVDecorateId(spv::DecorationAliasScopeINTEL, TheTarget, AliasList){};
 };
 
 class SPIRVDecorateNoAliasINTEL : public SPIRVDecorateId {
 public:
   // Complete constructor for SPIRVDecorateNoAliasINTEL
   SPIRVDecorateNoAliasINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
-      : SPIRVDecorateId(spv::internal::DecorationNoAliasINTEL, TheTarget,
-                        AliasList){};
+      : SPIRVDecorateId(spv::DecorationNoAliasINTEL, TheTarget, AliasList){};
 };
 
 class SPIRVDecorateInitiationIntervalINTEL : public SPIRVDecorate {

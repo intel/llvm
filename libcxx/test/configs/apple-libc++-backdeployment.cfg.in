@@ -30,19 +30,28 @@ BACKDEPLOYMENT_PARAMETERS = [
         The dylib in that hierarchy is the one that will be used at runtime when running
         the tests.
         """),
+    libcxx.test.dsl.Parameter(name='unwind_runtime_root', type=str,
+        actions=lambda root: [libcxx.test.dsl.AddSubstitution('%{unwind-runtime-root}', root)],
+        help="""
+        The simulated root of the system (for libunwind) when running tests.
+
+        This should be a directory hierarchy under which the libunwind dylib can be found.
+        The dylib in that hierarchy is the one that will be used at runtime when running
+        the tests.
+        """),
 ]
 
 config.substitutions.append(('%{flags}',
     '-isysroot {}'.format('@CMAKE_OSX_SYSROOT@') if '@CMAKE_OSX_SYSROOT@' else ''
 ))
 config.substitutions.append(('%{compile_flags}',
-    '-nostdinc++ -isystem %{install}/include/c++/v1 -I %{libcxx}/test/support'
+    '-nostdinc++ -I %{include} -I %{libcxx}/test/support'
 ))
 config.substitutions.append(('%{link_flags}',
-    '-nostdlib++ -L %{install}/lib -lc++'
+    '-nostdlib++ -L %{lib} -lc++'
 ))
 config.substitutions.append(('%{exec}',
-    '%{executor} --execdir %T --env DYLD_LIBRARY_PATH="%{cxx-runtime-root}:%{abi-runtime-root}" -- '
+    '%{executor} --execdir %T --env DYLD_LIBRARY_PATH="%{cxx-runtime-root}:%{abi-runtime-root}:%{unwind-runtime-root}" -- '
 ))
 
 libcxx.test.newconfig.configure(

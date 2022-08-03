@@ -2,8 +2,10 @@
 
 ; RUN: opt < %s -mtriple=x86_64-apple-macosx10.10.0 -passes=instrprof -S | FileCheck %s --check-prefixes=MACHO
 ; RUN: opt < %s -mtriple=x86_64 -passes=instrprof -S | FileCheck %s --check-prefix=ELF_GENERIC
-; RUN: opt < %s -mtriple=x86_64-unknown-linux -passes=instrprof -S | FileCheck %s --check-prefixes=ELF
-; RUN: opt < %s -mtriple=x86_64-unknown-fuchsia -passes=instrprof -S | FileCheck %s --check-prefixes=ELF
+; RUN: opt < %s -mtriple=x86_64-unknown-linux -passes=instrprof -S | FileCheck %s --check-prefixes=ELF,ELFRT
+; RUN: opt < %s -mtriple=x86_64-unknown-fuchsia -passes=instrprof -S | FileCheck %s --check-prefixes=ELF,ELFRT
+; RUN: opt < %s -mtriple=x86_64-scei-ps4 -passes=instrprof -S | FileCheck %s --check-prefixes=ELF,PS
+; RUN: opt < %s -mtriple=x86_64-sie-ps5 -passes=instrprof -S | FileCheck %s --check-prefixes=ELF,PS
 ; RUN: opt < %s  -mtriple=x86_64-pc-win32-coff -passes=instrprof -S | FileCheck %s --check-prefixes=COFF
 ; RUN: opt < %s -mtriple=powerpc64-ibm-aix-xcoff -passes=instrprof -S | FileCheck %s --check-prefixes=XCOFF
 
@@ -104,8 +106,10 @@ declare void @llvm.instrprof.increment(i8*, i64, i32, i32)
 ; MACHO:   ret i32 %[[REG]]
 ; MACHO: }
 ; COFF: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} comdat {
-; ELF-NOT: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} {
-; ELF-NOT:   %[[REG:.*]] = load i32, i32* @__llvm_profile_runtime
+; ELFRT-NOT: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} {
+; ELFRT-NOT:   %[[REG:.*]] = load i32, i32* @__llvm_profile_runtime
+; PS: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} {
+; PS:   %[[REG:.*]] = load i32, i32* @__llvm_profile_runtime
 ; XCOFF: define linkonce_odr hidden i32 @__llvm_profile_runtime_user() {{.*}} {
 ; XCOFF:   %[[REG:.*]] = load i32, i32* @__llvm_profile_runtime
 ; XCOFF:   ret i32 %[[REG]]
@@ -119,9 +123,4 @@ declare void @llvm.instrprof.increment(i8*, i64, i32, i32)
 ; ELF_GENERIC-NEXT:   ret void
 ; ELF_GENERIC-NEXT: }
 
-; XCOFF:      define internal void @__llvm_profile_register_functions() unnamed_addr {
-; XCOFF-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo to i8*))
-; XCOFF-NEXT:   call void @__llvm_profile_register_function(i8* bitcast ({ i64, i64, i64, i8*, i8*, i32, [{{.*}} x i16] }* @__profd_foo_weak to i8*))
-; XCOFF:   call void @__llvm_profile_register_names_function(i8* getelementptr inbounds {{.*}} @__llvm_prf_nm
-; XCOFF-NEXT:   ret void
-; XCOFF-NEXT: }
+; XCOFF-NOT:  internal void @__llvm_profile_register_functions() 

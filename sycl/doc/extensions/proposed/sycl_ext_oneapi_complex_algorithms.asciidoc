@@ -1,0 +1,129 @@
+= sycl_ext_oneapi_complex_algorithms
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+This extension adds limited support for `std::complex<float>` and
+`std::complex<double>` to several SYCL group functions and algorithms.
+
+== Notice
+
+Copyright (c) 2021-2022 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a proposed extension specification, intended to gather community
+feedback. Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state. The specification itself may also change in
+incompatible ways before it is finalized. Shipping software products should not
+rely on APIs defined in this specification.
+
+== Version
+
+Revision: 1
+
+== Contacts
+
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_COMPLEX_ALGORITHMS` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+== Overview
+
+The types supported by some group functions and algorithms in SYCL 2020 are
+restricted to built-in scalar types and SYCL vector types. This extension
+relaxes these restrictions to permit `std::complex<float>` and
+`std::complex<double>` types.
+
+Note that the following group functions and algorithms already accept
+`std::complex<float>` arguments and `std::complex<double>` because they
+are trivially copyable:
+
+- `group_broadcast`
+- `group_shift_left`
+- `group_shift_right`
+- `permute_group_by_xor`
+- `select_from_group`
+
+Usage of `std::complex<double>` requires support for double precision,
+and specifically the `sycl::aspect::fp64` device aspect.
+
+== Extended Functions and Algorithms
+
+The following group functions and algorithms accept `std::complex<float>`
+and `std::complex<double>` arguments only when used with a `BinaryOperation`
+argument of `sycl::plus`:
+
+- `joint_reduce`
+- `reduce_over_group`
+- `joint_exclusive_scan`
+- `exclusive_scan_over_group`
+- `joint_inclusive_scan`
+- `inclusive_scan_over_group`
+
+NOTE: `sycl::multiplies` is not currently supported because it cannot be
+implemented as an element-wise operation on the real and imaginary components.
+This restriction may be lifted in a future version of the extension.
+
+NOTE: `sycl::bit_and`, `sycl::bit_or`, `sycl::bit_xor`, `sycl::logical_and`,
+`sycl::logical_or`, `sycl::minimum` and `sycl::maximum` are not supported
+because their behaviors are defined in terms of operators that `std::complex`
+does not implement.
+
+== Issues
+
+None.
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-12-08|John Pennycook|*Initial public working draft*
+|========================================

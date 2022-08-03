@@ -36,13 +36,13 @@ using namespace llvm::object;
 static mc::RegisterMCTargetOptionsFlags MCTargetOptionsFlags;
 
 cl::OptionCategory DwpCategory("Specific Options");
-static cl::list<std::string> InputFiles(cl::Positional, cl::ZeroOrMore,
-                                        cl::desc("<input files>"),
-                                        cl::cat(DwpCategory));
+static cl::list<std::string>
+    InputFiles(cl::Positional, cl::desc("<input files>"), cl::cat(DwpCategory));
 
 static cl::list<std::string> ExecFilenames(
-    "e", cl::ZeroOrMore,
-    cl::desc("Specify the executable/library files to get the list of *.dwo from"),
+    "e",
+    cl::desc(
+        "Specify the executable/library files to get the list of *.dwo from"),
     cl::value_desc("filename"), cl::cat(DwpCategory));
 
 static cl::opt<std::string> OutputFilename(cl::Required, "o",
@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
   if (!MII)
     return error("no instr info info for target " + TripleName, Context);
 
-  MCCodeEmitter *MCE = TheTarget->createMCCodeEmitter(*MII, *MRI, MC);
+  MCCodeEmitter *MCE = TheTarget->createMCCodeEmitter(*MII, MC);
   if (!MCE)
     return error("no code emitter for target " + TripleName, Context);
 
@@ -196,7 +196,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  MS->Finish();
+  MS->finish();
   OutFile.keep();
   return 0;
 }

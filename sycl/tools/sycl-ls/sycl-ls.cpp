@@ -16,7 +16,7 @@
 // In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors.
 //
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cstdlib>
 #include <iostream>
@@ -107,9 +107,9 @@ int main(int argc, char **argv) {
 
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
-    std::cout << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
+    std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
               << filter << "." << std::endl;
-    std::cout
+    std::cerr
         << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
         << std::endl
         << std::endl;

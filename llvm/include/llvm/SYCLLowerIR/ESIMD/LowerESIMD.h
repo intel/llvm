@@ -19,7 +19,9 @@
 #ifndef LLVM_SYCLLOWERIR_LOWERESIMD_H
 #define LLVM_SYCLLOWERIR_LOWERESIMD_H
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
@@ -66,6 +68,13 @@ private:
 
 ModulePass *createESIMDLowerVecArgPass();
 void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
+
+// Lowers calls to __esimd_set_kernel_properties
+class SYCLLowerESIMDKernelPropsPass
+    : public PassInfoMixin<SYCLLowerESIMDKernelPropsPass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
 
 } // namespace llvm
 

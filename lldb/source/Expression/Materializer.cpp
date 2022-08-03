@@ -68,7 +68,7 @@ public:
     const bool zero_memory = false;
 
     lldb::addr_t mem = map.Malloc(
-        m_persistent_variable_sp->GetByteSize().getValueOr(0), 8,
+        m_persistent_variable_sp->GetByteSize().value_or(0), 8,
         lldb::ePermissionsReadable | lldb::ePermissionsWritable,
         IRMemoryMap::eAllocationPolicyMirror, zero_memory, allocate_error);
 
@@ -107,7 +107,7 @@ public:
     Status write_error;
 
     map.WriteMemory(mem, m_persistent_variable_sp->GetValueBytes(),
-                    m_persistent_variable_sp->GetByteSize().getValueOr(0),
+                    m_persistent_variable_sp->GetByteSize().value_or(0),
                     write_error);
 
     if (!write_error.Success()) {
@@ -236,7 +236,7 @@ public:
             map.GetBestExecutionContextScope(),
             m_persistent_variable_sp.get()->GetCompilerType(),
             m_persistent_variable_sp->GetName(), location, eAddressTypeLoad,
-            m_persistent_variable_sp->GetByteSize().getValueOr(0));
+            m_persistent_variable_sp->GetByteSize().value_or(0));
 
         if (frame_top != LLDB_INVALID_ADDRESS &&
             frame_bottom != LLDB_INVALID_ADDRESS && location >= frame_bottom &&
@@ -282,7 +282,7 @@ public:
                   m_persistent_variable_sp->GetName().GetCString(),
                   (uint64_t)mem,
                   (unsigned long long)m_persistent_variable_sp->GetByteSize()
-                      .getValueOr(0));
+                      .value_or(0));
 
         // Read the contents of the spare memory area
 
@@ -291,7 +291,8 @@ public:
         Status read_error;
 
         map.ReadMemory(m_persistent_variable_sp->GetValueBytes(), mem,
-                       m_persistent_variable_sp->GetByteSize().getValueOr(0), read_error);
+                       m_persistent_variable_sp->GetByteSize().value_or(0),
+                       read_error);
 
         if (!read_error.Success()) {
           err.SetErrorStringWithFormat(
@@ -372,11 +373,12 @@ public:
       if (!err.Success()) {
         dump_stream.Printf("  <could not be read>\n");
       } else {
-        DataBufferHeap data(
-            m_persistent_variable_sp->GetByteSize().getValueOr(0), 0);
+        DataBufferHeap data(m_persistent_variable_sp->GetByteSize().value_or(0),
+                            0);
 
         map.ReadMemory(data.GetBytes(), target_address,
-                       m_persistent_variable_sp->GetByteSize().getValueOr(0), err);
+                       m_persistent_variable_sp->GetByteSize().value_or(0),
+                       err);
 
         if (!err.Success()) {
           dump_stream.Printf("  <could not be read>\n");
@@ -413,9 +415,7 @@ uint32_t Materializer::AddPersistentVariable(
 class EntityVariable : public Materializer::Entity {
 public:
   EntityVariable(lldb::VariableSP &variable_sp)
-      : Entity(), m_variable_sp(variable_sp), m_is_reference(false),
-        m_temporary_allocation(LLDB_INVALID_ADDRESS),
-        m_temporary_allocation_size(0) {
+      : Entity(), m_variable_sp(variable_sp) {
     // Hard-coding to maximum size of a pointer since all variables are
     // materialized by reference
     m_size = 8;
@@ -529,7 +529,7 @@ public:
                 "size of variable %s (%" PRIu64
                 ") is larger than the ValueObject's size (%" PRIu64 ")",
                 m_variable_sp->GetName().AsCString(),
-                m_variable_sp->GetType()->GetByteSize(scope).getValueOr(0),
+                m_variable_sp->GetType()->GetByteSize(scope).value_or(0),
                 data.GetByteSize());
           }
           return;
@@ -626,7 +626,7 @@ public:
       Status extract_error;
 
       map.GetMemoryData(data, m_temporary_allocation,
-                        valobj_sp->GetByteSize().getValueOr(0), extract_error);
+                        valobj_sp->GetByteSize().value_or(0), extract_error);
 
       if (!extract_error.Success()) {
         err.SetErrorStringWithFormat("couldn't get the data for variable %s",
@@ -749,9 +749,9 @@ public:
 
 private:
   lldb::VariableSP m_variable_sp;
-  bool m_is_reference;
-  lldb::addr_t m_temporary_allocation;
-  size_t m_temporary_allocation_size;
+  bool m_is_reference = false;
+  lldb::addr_t m_temporary_allocation = LLDB_INVALID_ADDRESS;
+  size_t m_temporary_allocation_size = 0;
   lldb::DataBufferSP m_original_data;
 };
 
@@ -769,9 +769,7 @@ public:
                        bool keep_in_memory,
                        Materializer::PersistentVariableDelegate *delegate)
       : Entity(), m_type(type), m_is_program_reference(is_program_reference),
-        m_keep_in_memory(keep_in_memory),
-        m_temporary_allocation(LLDB_INVALID_ADDRESS),
-        m_temporary_allocation_size(0), m_delegate(delegate) {
+        m_keep_in_memory(keep_in_memory), m_delegate(delegate) {
     // Hard-coding to maximum size of a pointer since all results are
     // materialized by reference
     m_size = 8;
@@ -925,7 +923,7 @@ public:
 
     ret->ValueUpdated();
 
-    const size_t pvar_byte_size = ret->GetByteSize().getValueOr(0);
+    const size_t pvar_byte_size = ret->GetByteSize().value_or(0);
     uint8_t *pvar_data = ret->GetValueBytes();
 
     map.ReadMemory(pvar_data, address, pvar_byte_size, read_error);
@@ -1030,8 +1028,8 @@ private:
   bool m_is_program_reference;
   bool m_keep_in_memory;
 
-  lldb::addr_t m_temporary_allocation;
-  size_t m_temporary_allocation_size;
+  lldb::addr_t m_temporary_allocation = LLDB_INVALID_ADDRESS;
+  size_t m_temporary_allocation_size = 0;
   Materializer::PersistentVariableDelegate *m_delegate;
 };
 

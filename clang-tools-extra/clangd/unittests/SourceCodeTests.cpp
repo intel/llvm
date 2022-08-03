@@ -15,7 +15,6 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Format/Format.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Testing/Support/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
@@ -377,7 +376,7 @@ protected:
   SpelledWord word(const char *Text) {
     auto Result = tryWord(Text);
     EXPECT_TRUE(Result) << Text;
-    return Result.getValueOr(SpelledWord());
+    return Result.value_or(SpelledWord());
   }
 
   void noWord(const char *Text) { EXPECT_FALSE(tryWord(Text)) << Text; }

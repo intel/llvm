@@ -1,18 +1,12 @@
-// RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparse-compiler | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
+// RUN: mlir-opt %s --sparse-compiler | \
+// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 //
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
-// RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
-// RUN:   --sparse-compiler="vectorization-strategy=2 vl=2" | \
-// RUN: mlir-cpu-runner \
-// RUN:  -e entry -entry-point-result=void  \
+// RUN: mlir-opt %s --sparse-compiler="vectorization-strategy=2 vl=2" | \
+// RUN: mlir-cpu-runner -e entry -entry-point-result=void \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 
@@ -24,7 +18,7 @@
 // operation.
 module {
 
-  func @quantized_matmul(%input1: tensor<5x3xi8>,
+  func.func @quantized_matmul(%input1: tensor<5x3xi8>,
                          %input2: tensor<3x6xi8, #DCSR>,
                          %output: tensor<5x6xi32>) -> tensor<5x6xi32> {
     %c0 = arith.constant 0 : i32
@@ -35,7 +29,7 @@ module {
     return %0: tensor<5x6xi32>
   }
 
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %i0 = arith.constant 0 : i32
 

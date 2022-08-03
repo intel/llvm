@@ -36,6 +36,7 @@
 // Markers
 TOK_MARKER(eof)
 TOK_MARKER(error)
+TOK_MARKER(code_complete)
 
 // Identifiers.
 TOK_IDENTIFIER(bare_identifier)        // foo
@@ -70,6 +71,10 @@ TOK_PUNCTUATION(r_brace, "}")
 TOK_PUNCTUATION(r_paren, ")")
 TOK_PUNCTUATION(r_square, "]")
 TOK_PUNCTUATION(star, "*")
+TOK_PUNCTUATION(vertical_bar, "|")
+
+TOK_PUNCTUATION(file_metadata_begin, "{-#")
+TOK_PUNCTUATION(file_metadata_end, "#-}")
 
 // Keywords.  These turn "foo" into Token::kw_foo enums.
 

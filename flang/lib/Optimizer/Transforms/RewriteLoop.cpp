@@ -12,12 +12,13 @@
 #include "flang/Optimizer/Transforms/Passes.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace fir;
+using namespace mlir;
 
 namespace {
 
@@ -49,20 +50,20 @@ public:
     // Split the first DoLoopOp block in two parts. The part before will be the
     // conditional block since it already has the induction variable and
     // loop-carried values as arguments.
-    auto *conditionalBlock = &loop.region().front();
+    auto *conditionalBlock = &loop.getRegion().front();
     conditionalBlock->addArgument(rewriter.getIndexType(), loc);
     auto *firstBlock =
         rewriter.splitBlock(conditionalBlock, conditionalBlock->begin());
-    auto *lastBlock = &loop.region().back();
+    auto *lastBlock = &loop.getRegion().back();
 
     // Move the blocks from the DoLoopOp between initBlock and endBlock
-    rewriter.inlineRegionBefore(loop.region(), endBlock);
+    rewriter.inlineRegionBefore(loop.getRegion(), endBlock);
 
     // Get loop values from the DoLoopOp
-    auto low = loop.lowerBound();
-    auto high = loop.upperBound();
+    auto low = loop.getLowerBound();
+    auto high = loop.getUpperBound();
     assert(low && high && "must be a Value");
-    auto step = loop.step();
+    auto step = loop.getStep();
 
     // Initalization block
     rewriter.setInsertionPointToEnd(initBlock);
@@ -102,8 +103,8 @@ public:
 
     llvm::SmallVector<mlir::Value> loopCarried;
     loopCarried.push_back(steppedIndex);
-    auto begin = loop.finalValue() ? std::next(terminator->operand_begin())
-                                   : terminator->operand_begin();
+    auto begin = loop.getFinalValue() ? std::next(terminator->operand_begin())
+                                      : terminator->operand_begin();
     loopCarried.append(begin, terminator->operand_end());
     loopCarried.push_back(itersMinusOne);
     rewriter.create<mlir::cf::BranchOp>(loc, conditionalBlock, loopCarried);
@@ -121,7 +122,7 @@ public:
 
     // The result of the loop operation is the values of the condition block
     // arguments except the induction variable on the last iteration.
-    auto args = loop.finalValue()
+    auto args = loop.getFinalValue()
                     ? conditionalBlock->getArguments()
                     : conditionalBlock->getArguments().drop_front();
     rewriter.replaceOp(loop, args.drop_back());
@@ -154,14 +155,15 @@ public:
     if (ifOp.getNumResults() == 0) {
       continueBlock = remainingOpsBlock;
     } else {
-      continueBlock =
-          rewriter.createBlock(remainingOpsBlock, ifOp.getResultTypes());
+      continueBlock = rewriter.createBlock(
+          remainingOpsBlock, ifOp.getResultTypes(),
+          llvm::SmallVector<mlir::Location>(ifOp.getNumResults(), loc));
       rewriter.create<mlir::cf::BranchOp>(loc, remainingOpsBlock);
     }
 
     // Move blocks from the "then" region to the region containing 'fir.if',
     // place it before the continuation block, and branch to it.
-    auto &ifOpRegion = ifOp.thenRegion();
+    auto &ifOpRegion = ifOp.getThenRegion();
     auto *ifOpBlock = &ifOpRegion.front();
     auto *ifOpTerminator = ifOpRegion.back().getTerminator();
     auto ifOpTerminatorOperands = ifOpTerminator->getOperands();
@@ -175,7 +177,7 @@ public:
     // 'fir.if', place it before the continuation block and branch to it.  It
     // will be placed after the "then" regions.
     auto *otherwiseBlock = continueBlock;
-    auto &otherwiseRegion = ifOp.elseRegion();
+    auto &otherwiseRegion = ifOp.getElseRegion();
     if (!otherwiseRegion.empty()) {
       otherwiseBlock = &otherwiseRegion.front();
       auto *otherwiseTerm = otherwiseRegion.back().getTerminator();
@@ -189,7 +191,7 @@ public:
 
     rewriter.setInsertionPointToEnd(condBlock);
     rewriter.create<mlir::cf::CondBranchOp>(
-        loc, ifOp.condition(), ifOpBlock, llvm::ArrayRef<mlir::Value>(),
+        loc, ifOp.getCondition(), ifOpBlock, llvm::ArrayRef<mlir::Value>(),
         otherwiseBlock, llvm::ArrayRef<mlir::Value>());
     rewriter.replaceOp(ifOp, continueBlock->getArguments());
     return success();
@@ -221,11 +223,11 @@ public:
     // arguments. Split out all operations from the first block into a new
     // block. Move all body blocks from the loop body region to the region
     // containing the loop.
-    auto *conditionBlock = &whileOp.region().front();
+    auto *conditionBlock = &whileOp.getRegion().front();
     auto *firstBodyBlock =
         rewriter.splitBlock(conditionBlock, conditionBlock->begin());
-    auto *lastBodyBlock = &whileOp.region().back();
-    rewriter.inlineRegionBefore(whileOp.region(), endBlock);
+    auto *lastBodyBlock = &whileOp.getRegion().back();
+    rewriter.inlineRegionBefore(whileOp.getRegion(), endBlock);
     auto iv = conditionBlock->getArgument(0);
     auto iterateVar = conditionBlock->getArgument(1);
 
@@ -234,22 +236,23 @@ public:
     // operands of the loop terminator.
     auto *terminator = lastBodyBlock->getTerminator();
     rewriter.setInsertionPointToEnd(lastBodyBlock);
-    auto step = whileOp.step();
+    auto step = whileOp.getStep();
     mlir::Value stepped = rewriter.create<mlir::arith::AddIOp>(loc, iv, step);
     assert(stepped && "must be a Value");
 
     llvm::SmallVector<mlir::Value> loopCarried;
     loopCarried.push_back(stepped);
-    auto begin = whileOp.finalValue() ? std::next(terminator->operand_begin())
-                                      : terminator->operand_begin();
+    auto begin = whileOp.getFinalValue()
+                     ? std::next(terminator->operand_begin())
+                     : terminator->operand_begin();
     loopCarried.append(begin, terminator->operand_end());
     rewriter.create<mlir::cf::BranchOp>(loc, conditionBlock, loopCarried);
     rewriter.eraseOp(terminator);
 
     // Compute loop bounds before branching to the condition.
     rewriter.setInsertionPointToEnd(initBlock);
-    auto lowerBound = whileOp.lowerBound();
-    auto upperBound = whileOp.upperBound();
+    auto lowerBound = whileOp.getLowerBound();
+    auto upperBound = whileOp.getUpperBound();
     assert(lowerBound && upperBound && "must be a Value");
 
     // The initial values of loop-carried values is obtained from the operands
@@ -285,7 +288,7 @@ public:
         endBlock, llvm::ArrayRef<mlir::Value>());
     // The result of the loop operation is the values of the condition block
     // arguments except the induction variable on the last iteration.
-    auto args = whileOp.finalValue()
+    auto args = whileOp.getFinalValue()
                     ? conditionBlock->getArguments()
                     : conditionBlock->getArguments().drop_front();
     rewriter.replaceOp(whileOp, args);
@@ -303,7 +306,7 @@ public:
         context, forceLoopToExecuteOnce);
     mlir::ConversionTarget target(*context);
     target.addLegalDialect<mlir::AffineDialect, mlir::cf::ControlFlowDialect,
-                           FIROpsDialect, mlir::StandardOpsDialect>();
+                           FIROpsDialect, mlir::func::FuncDialect>();
 
     // apply the patterns
     target.addIllegalOp<ResultOp, DoLoopOp, IfOp, IterWhileOp>();

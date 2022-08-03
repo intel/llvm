@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple amdgcn---amdgiz -emit-llvm < %s | FileCheck -check-prefixes=CHECK %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple amdgcn---amdgiz -emit-llvm < %s | FileCheck -check-prefixes=CHECK %s
 
 // CHECK-DAG: @foo ={{.*}} addrspace(1) global i32 0
 int foo;
@@ -13,7 +13,7 @@ int *B;
 
 // CHECK-LABEL: define{{.*}} i32 @test1()
 // CHECK: load i32, i32* addrspacecast{{[^@]+}} @foo
-int test1() { return foo; }
+int test1(void) { return foo; }
 
 // CHECK-LABEL: define{{.*}} i32 @test2(i32 noundef %i)
 // CHECK: %[[addr:.*]] = getelementptr
@@ -26,7 +26,7 @@ int test2(int i) { return ban[i]; }
 // CHECK: load i32, i32*
 // CHECK: load i32*, i32** addrspacecast{{.*}} @A
 // CHECK: store i32 {{.*}}, i32*
-void test3() {
+void test3(void) {
   *A = *B;
 }
 

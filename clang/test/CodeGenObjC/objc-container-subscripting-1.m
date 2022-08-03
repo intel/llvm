@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -emit-llvm -triple x86_64-apple-darwin -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -emit-llvm -triple x86_64-apple-darwin -o - %s | FileCheck %s
 
 typedef unsigned int size_t;
 @protocol P @end
@@ -13,7 +13,7 @@ typedef unsigned int size_t;
 - (void)setObject:(id)object forKeyedSubscript:(id)key;
 @end
 
-int main() {
+int main(void) {
   NSMutableArray *array;
   id val;
 

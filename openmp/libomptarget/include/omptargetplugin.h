@@ -48,6 +48,10 @@ int64_t __tgt_rtl_init_requires(int64_t RequiresFlags);
 // return an error code.
 int32_t __tgt_rtl_init_device(int32_t ID);
 
+// Deinitialize the specified device. In case of success return 0; otherwise
+// return an error code.
+int32_t __tgt_rtl_deinit_device(int32_t ID);
+
 // Pass an executable image section described by image to the specified
 // device and prepare an address table of target entities. In case of error,
 // return NULL. Otherwise, return a pointer to the built address table.
@@ -127,12 +131,12 @@ int32_t __tgt_rtl_run_target_region_async(int32_t ID, void *Entry, void **Args,
 int32_t __tgt_rtl_run_target_team_region(int32_t ID, void *Entry, void **Args,
                                          ptrdiff_t *Offsets, int32_t NumArgs,
                                          int32_t NumTeams, int32_t ThreadLimit,
-                                         uint64_t loop_tripcount);
+                                         uint64_t LoopTripcount);
 
 // Asynchronous version of __tgt_rtl_run_target_team_region
 int32_t __tgt_rtl_run_target_team_region_async(
     int32_t ID, void *Entry, void **Args, ptrdiff_t *Offsets, int32_t NumArgs,
-    int32_t NumTeams, int32_t ThreadLimit, uint64_t loop_tripcount,
+    int32_t NumTeams, int32_t ThreadLimit, uint64_t LoopTripcount,
     __tgt_async_info *AsyncInfo);
 
 // Device synchronization. In case of success, return zero. Otherwise, return an

@@ -83,8 +83,9 @@ define dso_local void @test2(<4 x float>* nocapture %c, float* nocapture readonl
 ; P8:       # %bb.0: # %entry
 ; P8-NEXT:    addi r4, r4, 12
 ; P8-NEXT:    lfiwzx f0, 0, r4
-; P8-NEXT:    xxspltw v2, vs0, 1
-; P8-NEXT:    stvx v2, 0, r3
+; P8-NEXT:    xxspltw vs0, vs0, 1
+; P8-NEXT:    xxswapd vs0, vs0
+; P8-NEXT:    stxvd2x vs0, 0, r3
 ; P8-NEXT:    blr
 ;
 ; P7-LABEL: test2:
@@ -139,8 +140,9 @@ define dso_local void @test3(<4 x i32>* nocapture %c, i32* nocapture readonly %a
 ; P8:       # %bb.0: # %entry
 ; P8-NEXT:    addi r4, r4, 12
 ; P8-NEXT:    lfiwzx f0, 0, r4
-; P8-NEXT:    xxspltw v2, vs0, 1
-; P8-NEXT:    stvx v2, 0, r3
+; P8-NEXT:    xxspltw vs0, vs0, 1
+; P8-NEXT:    xxswapd vs0, vs0
+; P8-NEXT:    stxvd2x vs0, 0, r3
 ; P8-NEXT:    blr
 ;
 ; P7-LABEL: test3:
@@ -211,45 +213,45 @@ define dso_local void @test4(<2 x i64>* nocapture %c, i64* nocapture readonly %a
 ; P9-AIX32-NEXT:    lwz r5, 24(r4)
 ; P9-AIX32-NEXT:    lwz r4, 28(r4)
 ; P9-AIX32-NEXT:    stw r4, -16(r1)
+; P9-AIX32-NEXT:    lwz r4, L..C0(r2) # %const.0
 ; P9-AIX32-NEXT:    stw r5, -32(r1)
-; P9-AIX32-NEXT:    lxv v2, -16(r1)
-; P9-AIX32-NEXT:    lxv v3, -32(r1)
-; P9-AIX32-NEXT:    vmrghw v2, v3, v2
-; P9-AIX32-NEXT:    xxswapd vs0, v2
-; P9-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P9-AIX32-NEXT:    stxv vs0, 0(r3)
+; P9-AIX32-NEXT:    lxv v3, -16(r1)
+; P9-AIX32-NEXT:    lxv v4, -32(r1)
+; P9-AIX32-NEXT:    lxv v2, 0(r4)
+; P9-AIX32-NEXT:    vperm v2, v4, v3, v2
+; P9-AIX32-NEXT:    stxv v2, 0(r3)
 ; P9-AIX32-NEXT:    blr
 ;
 ; P8-AIX32-LABEL: test4:
 ; P8-AIX32:       # %bb.0: # %entry
-; P8-AIX32-NEXT:    lwz r5, 24(r4)
-; P8-AIX32-NEXT:    lwz r4, 28(r4)
-; P8-AIX32-NEXT:    stw r4, -16(r1)
-; P8-AIX32-NEXT:    stw r5, -32(r1)
+; P8-AIX32-NEXT:    lwz r5, L..C0(r2) # %const.0
+; P8-AIX32-NEXT:    lwz r6, 28(r4)
+; P8-AIX32-NEXT:    lwz r4, 24(r4)
+; P8-AIX32-NEXT:    stw r6, -16(r1)
+; P8-AIX32-NEXT:    stw r4, -32(r1)
 ; P8-AIX32-NEXT:    addi r4, r1, -16
+; P8-AIX32-NEXT:    lxvw4x v2, 0, r5
 ; P8-AIX32-NEXT:    addi r5, r1, -32
-; P8-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P8-AIX32-NEXT:    lxvw4x v3, 0, r5
-; P8-AIX32-NEXT:    vmrghw v2, v3, v2
-; P8-AIX32-NEXT:    xxswapd vs0, v2
-; P8-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P8-AIX32-NEXT:    stxvw4x vs0, 0, r3
+; P8-AIX32-NEXT:    lxvw4x v3, 0, r4
+; P8-AIX32-NEXT:    lxvw4x v4, 0, r5
+; P8-AIX32-NEXT:    vperm v2, v4, v3, v2
+; P8-AIX32-NEXT:    stxvw4x v2, 0, r3
 ; P8-AIX32-NEXT:    blr
 ;
 ; P7-AIX32-LABEL: test4:
 ; P7-AIX32:       # %bb.0: # %entry
-; P7-AIX32-NEXT:    lwz r6, 28(r4)
-; P7-AIX32-NEXT:    lwz r4, 24(r4)
-; P7-AIX32-NEXT:    addi r5, r1, -16
-; P7-AIX32-NEXT:    stw r6, -16(r1)
-; P7-AIX32-NEXT:    stw r4, -32(r1)
-; P7-AIX32-NEXT:    addi r4, r1, -32
+; P7-AIX32-NEXT:    lwz r5, L..C0(r2) # %const.0
+; P7-AIX32-NEXT:    lwz r6, 24(r4)
+; P7-AIX32-NEXT:    lwz r4, 28(r4)
+; P7-AIX32-NEXT:    stw r4, -16(r1)
+; P7-AIX32-NEXT:    stw r6, -32(r1)
 ; P7-AIX32-NEXT:    lxvw4x v2, 0, r5
+; P7-AIX32-NEXT:    addi r4, r1, -16
+; P7-AIX32-NEXT:    addi r5, r1, -32
 ; P7-AIX32-NEXT:    lxvw4x v3, 0, r4
-; P7-AIX32-NEXT:    vmrghw v2, v3, v2
-; P7-AIX32-NEXT:    xxswapd vs0, v2
-; P7-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P7-AIX32-NEXT:    stxvw4x vs0, 0, r3
+; P7-AIX32-NEXT:    lxvw4x v4, 0, r5
+; P7-AIX32-NEXT:    vperm v2, v4, v3, v2
+; P7-AIX32-NEXT:    stxvw4x v2, 0, r3
 ; P7-AIX32-NEXT:    blr
 entry:
   %arrayidx = getelementptr inbounds i64, i64* %a, i64 3
@@ -288,45 +290,45 @@ define void @test5(<2 x i64>* %a, i32* %in) {
 ; P9-AIX32-NEXT:    lwz r4, 0(r4)
 ; P9-AIX32-NEXT:    srawi r5, r4, 31
 ; P9-AIX32-NEXT:    stw r4, -16(r1)
-; P9-AIX32-NEXT:    lxv v2, -16(r1)
+; P9-AIX32-NEXT:    lwz r4, L..C1(r2) # %const.0
+; P9-AIX32-NEXT:    lxv v3, -16(r1)
 ; P9-AIX32-NEXT:    stw r5, -32(r1)
-; P9-AIX32-NEXT:    lxv v3, -32(r1)
-; P9-AIX32-NEXT:    vmrghw v2, v3, v2
-; P9-AIX32-NEXT:    xxswapd vs0, v2
-; P9-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P9-AIX32-NEXT:    stxv vs0, 0(r3)
+; P9-AIX32-NEXT:    lxv v4, -32(r1)
+; P9-AIX32-NEXT:    lxv v2, 0(r4)
+; P9-AIX32-NEXT:    vperm v2, v4, v3, v2
+; P9-AIX32-NEXT:    stxv v2, 0(r3)
 ; P9-AIX32-NEXT:    blr
 ;
 ; P8-AIX32-LABEL: test5:
 ; P8-AIX32:       # %bb.0: # %entry
+; P8-AIX32-NEXT:    lwz r5, L..C1(r2) # %const.0
 ; P8-AIX32-NEXT:    lwz r4, 0(r4)
-; P8-AIX32-NEXT:    srawi r5, r4, 31
 ; P8-AIX32-NEXT:    stw r4, -16(r1)
+; P8-AIX32-NEXT:    srawi r4, r4, 31
+; P8-AIX32-NEXT:    stw r4, -32(r1)
+; P8-AIX32-NEXT:    lxvw4x v2, 0, r5
 ; P8-AIX32-NEXT:    addi r4, r1, -16
-; P8-AIX32-NEXT:    stw r5, -32(r1)
 ; P8-AIX32-NEXT:    addi r5, r1, -32
-; P8-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P8-AIX32-NEXT:    lxvw4x v3, 0, r5
-; P8-AIX32-NEXT:    vmrghw v2, v3, v2
-; P8-AIX32-NEXT:    xxswapd vs0, v2
-; P8-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P8-AIX32-NEXT:    stxvw4x vs0, 0, r3
+; P8-AIX32-NEXT:    lxvw4x v3, 0, r4
+; P8-AIX32-NEXT:    lxvw4x v4, 0, r5
+; P8-AIX32-NEXT:    vperm v2, v4, v3, v2
+; P8-AIX32-NEXT:    stxvw4x v2, 0, r3
 ; P8-AIX32-NEXT:    blr
 ;
 ; P7-AIX32-LABEL: test5:
 ; P7-AIX32:       # %bb.0: # %entry
 ; P7-AIX32-NEXT:    lwz r4, 0(r4)
-; P7-AIX32-NEXT:    addi r5, r1, -16
+; P7-AIX32-NEXT:    lwz r5, L..C1(r2) # %const.0
+; P7-AIX32-NEXT:    srawi r6, r4, 31
 ; P7-AIX32-NEXT:    stw r4, -16(r1)
-; P7-AIX32-NEXT:    srawi r4, r4, 31
-; P7-AIX32-NEXT:    stw r4, -32(r1)
-; P7-AIX32-NEXT:    addi r4, r1, -32
+; P7-AIX32-NEXT:    addi r4, r1, -16
+; P7-AIX32-NEXT:    stw r6, -32(r1)
 ; P7-AIX32-NEXT:    lxvw4x v2, 0, r5
+; P7-AIX32-NEXT:    addi r5, r1, -32
 ; P7-AIX32-NEXT:    lxvw4x v3, 0, r4
-; P7-AIX32-NEXT:    vmrghw v2, v3, v2
-; P7-AIX32-NEXT:    xxswapd vs0, v2
-; P7-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P7-AIX32-NEXT:    stxvw4x vs0, 0, r3
+; P7-AIX32-NEXT:    lxvw4x v4, 0, r5
+; P7-AIX32-NEXT:    vperm v2, v4, v3, v2
+; P7-AIX32-NEXT:    stxvw4x v2, 0, r3
 ; P7-AIX32-NEXT:    blr
 entry:
   %0 = load i32, i32* %in, align 4
@@ -365,45 +367,45 @@ define void @test6(<2 x i64>* %a, i32* %in) {
 ; P9-AIX32-NEXT:    lwz r4, 0(r4)
 ; P9-AIX32-NEXT:    li r5, 0
 ; P9-AIX32-NEXT:    stw r5, -32(r1)
-; P9-AIX32-NEXT:    lxv v2, -32(r1)
+; P9-AIX32-NEXT:    lxv v3, -32(r1)
 ; P9-AIX32-NEXT:    stw r4, -16(r1)
-; P9-AIX32-NEXT:    lxv v3, -16(r1)
-; P9-AIX32-NEXT:    vmrghw v2, v2, v3
-; P9-AIX32-NEXT:    xxswapd vs0, v2
-; P9-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P9-AIX32-NEXT:    stxv vs0, 0(r3)
+; P9-AIX32-NEXT:    lwz r4, L..C2(r2) # %const.0
+; P9-AIX32-NEXT:    lxv v4, -16(r1)
+; P9-AIX32-NEXT:    lxv v2, 0(r4)
+; P9-AIX32-NEXT:    vperm v2, v3, v4, v2
+; P9-AIX32-NEXT:    stxv v2, 0(r3)
 ; P9-AIX32-NEXT:    blr
 ;
 ; P8-AIX32-LABEL: test6:
 ; P8-AIX32:       # %bb.0: # %entry
+; P8-AIX32-NEXT:    lwz r6, L..C2(r2) # %const.0
 ; P8-AIX32-NEXT:    lwz r4, 0(r4)
 ; P8-AIX32-NEXT:    li r5, 0
 ; P8-AIX32-NEXT:    stw r5, -32(r1)
 ; P8-AIX32-NEXT:    addi r5, r1, -16
 ; P8-AIX32-NEXT:    stw r4, -16(r1)
 ; P8-AIX32-NEXT:    addi r4, r1, -32
-; P8-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P8-AIX32-NEXT:    lxvw4x v3, 0, r5
-; P8-AIX32-NEXT:    vmrghw v2, v2, v3
-; P8-AIX32-NEXT:    xxswapd vs0, v2
-; P8-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P8-AIX32-NEXT:    stxvw4x vs0, 0, r3
+; P8-AIX32-NEXT:    lxvw4x v2, 0, r6
+; P8-AIX32-NEXT:    lxvw4x v3, 0, r4
+; P8-AIX32-NEXT:    lxvw4x v4, 0, r5
+; P8-AIX32-NEXT:    vperm v2, v3, v4, v2
+; P8-AIX32-NEXT:    stxvw4x v2, 0, r3
 ; P8-AIX32-NEXT:    blr
 ;
 ; P7-AIX32-LABEL: test6:
 ; P7-AIX32:       # %bb.0: # %entry
+; P7-AIX32-NEXT:    lwz r5, L..C2(r2) # %const.0
 ; P7-AIX32-NEXT:    lwz r4, 0(r4)
-; P7-AIX32-NEXT:    li r5, 0
-; P7-AIX32-NEXT:    stw r5, -32(r1)
-; P7-AIX32-NEXT:    addi r5, r1, -16
+; P7-AIX32-NEXT:    li r6, 0
+; P7-AIX32-NEXT:    stw r6, -32(r1)
 ; P7-AIX32-NEXT:    stw r4, -16(r1)
 ; P7-AIX32-NEXT:    addi r4, r1, -32
-; P7-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P7-AIX32-NEXT:    lxvw4x v3, 0, r5
-; P7-AIX32-NEXT:    vmrghw v2, v2, v3
-; P7-AIX32-NEXT:    xxswapd vs0, v2
-; P7-AIX32-NEXT:    xxsldwi vs0, vs0, v2, 2
-; P7-AIX32-NEXT:    stxvw4x vs0, 0, r3
+; P7-AIX32-NEXT:    lxvw4x v2, 0, r5
+; P7-AIX32-NEXT:    addi r5, r1, -16
+; P7-AIX32-NEXT:    lxvw4x v3, 0, r4
+; P7-AIX32-NEXT:    lxvw4x v4, 0, r5
+; P7-AIX32-NEXT:    vperm v2, v3, v4, v2
+; P7-AIX32-NEXT:    stxvw4x v2, 0, r3
 ; P7-AIX32-NEXT:    blr
 entry:
   %0 = load i32, i32* %in, align 4
@@ -428,7 +430,8 @@ define void @test7(<8 x i16>* %a, i16* %in) {
 ; P8-NEXT:    lhzx r4, 0, r4
 ; P8-NEXT:    mtvsrwz v2, r4
 ; P8-NEXT:    vsplth v2, v2, 3
-; P8-NEXT:    stvx v2, 0, r3
+; P8-NEXT:    xxswapd vs0, v2
+; P8-NEXT:    stxvd2x vs0, 0, r3
 ; P8-NEXT:    blr
 ;
 ; P7-LABEL: test7:
@@ -489,7 +492,8 @@ define void @test8(<16 x i8>* %a, i8* %in) {
 ; P8-NEXT:    lbzx r4, 0, r4
 ; P8-NEXT:    mtvsrwz v2, r4
 ; P8-NEXT:    vspltb v2, v2, 7
-; P8-NEXT:    stvx v2, 0, r3
+; P8-NEXT:    xxswapd vs0, v2
+; P8-NEXT:    stxvd2x vs0, 0, r3
 ; P8-NEXT:    blr
 ;
 ; P7-LABEL: test8:
@@ -546,11 +550,8 @@ define <16 x i8> @unadjusted_lxvwsx(i32* %s, i32* %t) {
 ;
 ; P7-LABEL: unadjusted_lxvwsx:
 ; P7:       # %bb.0: # %entry
-; P7-NEXT:    lwz r3, 0(r3)
-; P7-NEXT:    addi r4, r1, -16
-; P7-NEXT:    stw r3, -16(r1)
-; P7-NEXT:    lxvw4x vs0, 0, r4
-; P7-NEXT:    xxspltw v2, vs0, 0
+; P7-NEXT:    lfiwzx f0, 0, r3
+; P7-NEXT:    xxspltw v2, vs0, 1
 ; P7-NEXT:    blr
 ;
 ; P9-AIX32-LABEL: unadjusted_lxvwsx:
@@ -560,18 +561,14 @@ define <16 x i8> @unadjusted_lxvwsx(i32* %s, i32* %t) {
 ;
 ; P8-AIX32-LABEL: unadjusted_lxvwsx:
 ; P8-AIX32:       # %bb.0: # %entry
-; P8-AIX32-NEXT:    lwz r3, 0(r3)
-; P8-AIX32-NEXT:    mtfprwz f0, r3
+; P8-AIX32-NEXT:    lfiwzx f0, 0, r3
 ; P8-AIX32-NEXT:    xxspltw v2, vs0, 1
 ; P8-AIX32-NEXT:    blr
 ;
 ; P7-AIX32-LABEL: unadjusted_lxvwsx:
 ; P7-AIX32:       # %bb.0: # %entry
-; P7-AIX32-NEXT:    lwz r3, 0(r3)
-; P7-AIX32-NEXT:    addi r4, r1, -16
-; P7-AIX32-NEXT:    stw r3, -16(r1)
-; P7-AIX32-NEXT:    lxvw4x vs0, 0, r4
-; P7-AIX32-NEXT:    xxspltw v2, vs0, 0
+; P7-AIX32-NEXT:    lfiwzx f0, 0, r3
+; P7-AIX32-NEXT:    xxspltw v2, vs0, 1
 ; P7-AIX32-NEXT:    blr
   entry:
     %0 = bitcast i32* %s to <4 x i8>*
@@ -604,31 +601,22 @@ define <16 x i8> @adjusted_lxvwsx(i64* %s, i64* %t) {
 ;
 ; P9-AIX32-LABEL: adjusted_lxvwsx:
 ; P9-AIX32:       # %bb.0: # %entry
-; P9-AIX32-NEXT:    lwz r3, 4(r3)
-; P9-AIX32-NEXT:    stw r3, -16(r1)
-; P9-AIX32-NEXT:    lxv v2, -16(r1)
-; P9-AIX32-NEXT:    vmrghw v2, v2, v2
-; P9-AIX32-NEXT:    xxspltw v2, v2, 1
+; P9-AIX32-NEXT:    addi r3, r3, 4
+; P9-AIX32-NEXT:    lxvwsx v2, 0, r3
 ; P9-AIX32-NEXT:    blr
 ;
 ; P8-AIX32-LABEL: adjusted_lxvwsx:
 ; P8-AIX32:       # %bb.0: # %entry
-; P8-AIX32-NEXT:    lwz r3, 4(r3)
-; P8-AIX32-NEXT:    addi r4, r1, -16
-; P8-AIX32-NEXT:    stw r3, -16(r1)
-; P8-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P8-AIX32-NEXT:    vmrghw v2, v2, v2
-; P8-AIX32-NEXT:    xxspltw v2, v2, 1
+; P8-AIX32-NEXT:    addi r3, r3, 4
+; P8-AIX32-NEXT:    lfiwzx f0, 0, r3
+; P8-AIX32-NEXT:    xxspltw v2, vs0, 1
 ; P8-AIX32-NEXT:    blr
 ;
 ; P7-AIX32-LABEL: adjusted_lxvwsx:
 ; P7-AIX32:       # %bb.0: # %entry
-; P7-AIX32-NEXT:    lwz r3, 4(r3)
-; P7-AIX32-NEXT:    addi r4, r1, -16
-; P7-AIX32-NEXT:    stw r3, -16(r1)
-; P7-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P7-AIX32-NEXT:    vmrghw v2, v2, v2
-; P7-AIX32-NEXT:    xxspltw v2, v2, 1
+; P7-AIX32-NEXT:    addi r3, r3, 4
+; P7-AIX32-NEXT:    lfiwzx f0, 0, r3
+; P7-AIX32-NEXT:    xxspltw v2, vs0, 1
 ; P7-AIX32-NEXT:    blr
   entry:
     %0 = bitcast i64* %s to <8 x i8>*
@@ -645,7 +633,8 @@ define <16 x i8> @unadjusted_lxvwsx_v16i8(<16 x i8> *%s, <16 x i8> %t) {
 ;
 ; P8-LABEL: unadjusted_lxvwsx_v16i8:
 ; P8:       # %bb.0: # %entry
-; P8-NEXT:    lvx v2, 0, r3
+; P8-NEXT:    lxvd2x vs0, 0, r3
+; P8-NEXT:    xxswapd v2, vs0
 ; P8-NEXT:    xxspltw v2, v2, 3
 ; P8-NEXT:    blr
 ;
@@ -686,7 +675,8 @@ define <16 x i8> @adjusted_lxvwsx_v16i8(<16 x i8> *%s, <16 x i8> %t) {
 ;
 ; P8-LABEL: adjusted_lxvwsx_v16i8:
 ; P8:       # %bb.0: # %entry
-; P8-NEXT:    lvx v2, 0, r3
+; P8-NEXT:    lxvd2x vs0, 0, r3
+; P8-NEXT:    xxswapd v2, vs0
 ; P8-NEXT:    xxspltw v2, v2, 2
 ; P8-NEXT:    blr
 ;
@@ -728,7 +718,8 @@ define <16 x i8> @adjusted_lxvwsx_v16i8_2(<16 x i8> *%s, <16 x i8> %t) {
 ;
 ; P8-LABEL: adjusted_lxvwsx_v16i8_2:
 ; P8:       # %bb.0: # %entry
-; P8-NEXT:    lvx v2, 0, r3
+; P8-NEXT:    lxvd2x vs0, 0, r3
+; P8-NEXT:    xxswapd v2, vs0
 ; P8-NEXT:    xxspltw v2, v2, 1
 ; P8-NEXT:    blr
 ;
@@ -770,7 +761,8 @@ define <16 x i8> @adjusted_lxvwsx_v16i8_3(<16 x i8> *%s, <16 x i8> %t) {
 ;
 ; P8-LABEL: adjusted_lxvwsx_v16i8_3:
 ; P8:       # %bb.0: # %entry
-; P8-NEXT:    lvx v2, 0, r3
+; P8-NEXT:    lxvd2x vs0, 0, r3
+; P8-NEXT:    xxswapd v2, vs0
 ; P8-NEXT:    xxspltw v2, v2, 0
 ; P8-NEXT:    blr
 ;
@@ -821,43 +813,42 @@ define <16 x i8> @unadjusted_lxvdsx(i64* %s, i64* %t) {
 ;
 ; P9-AIX32-LABEL: unadjusted_lxvdsx:
 ; P9-AIX32:       # %bb.0: # %entry
-; P9-AIX32-NEXT:    lwz r4, 0(r3)
+; P9-AIX32-NEXT:    lwz r4, 4(r3)
 ; P9-AIX32-NEXT:    stw r4, -16(r1)
-; P9-AIX32-NEXT:    lwz r3, 4(r3)
-; P9-AIX32-NEXT:    lxv vs1, -16(r1)
-; P9-AIX32-NEXT:    mtfprwz f0, r3
-; P9-AIX32-NEXT:    xxinsertw vs1, vs0, 4
-; P9-AIX32-NEXT:    xxmrghd v2, vs1, vs1
+; P9-AIX32-NEXT:    lwz r3, 0(r3)
+; P9-AIX32-NEXT:    lxv vs0, -16(r1)
+; P9-AIX32-NEXT:    stw r3, -32(r1)
+; P9-AIX32-NEXT:    lxv vs1, -32(r1)
+; P9-AIX32-NEXT:    xxmrghw vs0, vs1, vs0
+; P9-AIX32-NEXT:    xxmrghd v2, vs0, vs0
 ; P9-AIX32-NEXT:    blr
 ;
 ; P8-AIX32-LABEL: unadjusted_lxvdsx:
 ; P8-AIX32:       # %bb.0: # %entry
 ; P8-AIX32-NEXT:    lwz r4, 4(r3)
-; P8-AIX32-NEXT:    stw r4, -32(r1)
-; P8-AIX32-NEXT:    addi r4, r1, -16
+; P8-AIX32-NEXT:    stw r4, -16(r1)
+; P8-AIX32-NEXT:    addi r4, r1, -32
 ; P8-AIX32-NEXT:    lwz r3, 0(r3)
-; P8-AIX32-NEXT:    stw r3, -16(r1)
-; P8-AIX32-NEXT:    addi r3, r1, -32
-; P8-AIX32-NEXT:    lxvw4x v2, 0, r3
-; P8-AIX32-NEXT:    lxvw4x v3, 0, r4
-; P8-AIX32-NEXT:    vmrghw v2, v3, v2
-; P8-AIX32-NEXT:    xxsldwi vs0, v3, v2, 2
-; P8-AIX32-NEXT:    xxmrgld v2, vs0, vs0
+; P8-AIX32-NEXT:    stw r3, -32(r1)
+; P8-AIX32-NEXT:    addi r3, r1, -16
+; P8-AIX32-NEXT:    lxvw4x vs0, 0, r3
+; P8-AIX32-NEXT:    lxvw4x vs1, 0, r4
+; P8-AIX32-NEXT:    xxmrghw vs0, vs1, vs0
+; P8-AIX32-NEXT:    xxmrghd v2, vs0, vs0
 ; P8-AIX32-NEXT:    blr
 ;
 ; P7-AIX32-LABEL: unadjusted_lxvdsx:
 ; P7-AIX32:       # %bb.0: # %entry
 ; P7-AIX32-NEXT:    lwz r5, 4(r3)
-; P7-AIX32-NEXT:    addi r4, r1, -32
-; P7-AIX32-NEXT:    stw r5, -32(r1)
+; P7-AIX32-NEXT:    addi r4, r1, -16
+; P7-AIX32-NEXT:    stw r5, -16(r1)
 ; P7-AIX32-NEXT:    lwz r3, 0(r3)
-; P7-AIX32-NEXT:    stw r3, -16(r1)
-; P7-AIX32-NEXT:    addi r3, r1, -16
-; P7-AIX32-NEXT:    lxvw4x v2, 0, r4
-; P7-AIX32-NEXT:    lxvw4x v3, 0, r3
-; P7-AIX32-NEXT:    vmrghw v2, v3, v2
-; P7-AIX32-NEXT:    xxsldwi vs0, v3, v2, 2
-; P7-AIX32-NEXT:    xxmrgld v2, vs0, vs0
+; P7-AIX32-NEXT:    stw r3, -32(r1)
+; P7-AIX32-NEXT:    addi r3, r1, -32
+; P7-AIX32-NEXT:    lxvw4x vs0, 0, r4
+; P7-AIX32-NEXT:    lxvw4x vs1, 0, r3
+; P7-AIX32-NEXT:    xxmrghw vs0, vs1, vs0
+; P7-AIX32-NEXT:    xxmrghd v2, vs0, vs0
 ; P7-AIX32-NEXT:    blr
   entry:
     %0 = bitcast i64* %s to <8 x i8>*
@@ -1330,4 +1321,83 @@ entry:
   %vecinit = insertelement <2 x double> undef, double %conv, i64 0
   %vecinit5 = shufflevector <2 x double> %vecinit, <2 x double> poison, <2 x i32> zeroinitializer
   ret <2 x double> %vecinit5
+}
+
+define <4 x i32> @test_splatW(<8 x i16>* %ptr) {
+; P9-LABEL: test_splatW:
+; P9:       # %bb.0: # %entry
+; P9-NEXT:    lxvwsx v2, 0, r3
+; P9-NEXT:    blr
+;
+; P8-LABEL: test_splatW:
+; P8:       # %bb.0: # %entry
+; P8-NEXT:    lxvd2x vs0, 0, r3
+; P8-NEXT:    xxswapd v2, vs0
+; P8-NEXT:    xxspltw v2, v2, 3
+; P8-NEXT:    blr
+;
+; P7-LABEL: test_splatW:
+; P7:       # %bb.0: # %entry
+; P7-NEXT:    lxvw4x vs0, 0, r3
+; P7-NEXT:    xxspltw v2, vs0, 0
+; P7-NEXT:    blr
+;
+; P9-AIX32-LABEL: test_splatW:
+; P9-AIX32:       # %bb.0: # %entry
+; P9-AIX32-NEXT:    lxvwsx v2, 0, r3
+; P9-AIX32-NEXT:    blr
+;
+; P8-AIX32-LABEL: test_splatW:
+; P8-AIX32:       # %bb.0: # %entry
+; P8-AIX32-NEXT:    lxvw4x vs0, 0, r3
+; P8-AIX32-NEXT:    xxspltw v2, vs0, 0
+; P8-AIX32-NEXT:    blr
+;
+; P7-AIX32-LABEL: test_splatW:
+; P7-AIX32:       # %bb.0: # %entry
+; P7-AIX32-NEXT:    lxvw4x vs0, 0, r3
+; P7-AIX32-NEXT:    xxspltw v2, vs0, 0
+; P7-AIX32-NEXT:    blr
+entry:
+  %0 = load <8 x i16>, <8 x i16>* %ptr, align 16
+  %1 = shufflevector <8 x i16> %0, <8 x i16> undef, <8 x i32> <i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1>
+  %2 = bitcast<8 x i16> %1 to <4 x i32>
+  ret <4 x i32> %2
+}
+
+define <4 x i32> @test_splatD(<8 x i16>* %ptr) {
+; P9-LABEL: test_splatD:
+; P9:       # %bb.0: # %entry
+; P9-NEXT:    lxvdsx v2, 0, r3
+; P9-NEXT:    blr
+;
+; P8-LABEL: test_splatD:
+; P8:       # %bb.0: # %entry
+; P8-NEXT:    lxvdsx v2, 0, r3
+; P8-NEXT:    blr
+;
+; P7-LABEL: test_splatD:
+; P7:       # %bb.0: # %entry
+; P7-NEXT:    lxvdsx v2, 0, r3
+; P7-NEXT:    blr
+;
+; P9-AIX32-LABEL: test_splatD:
+; P9-AIX32:       # %bb.0: # %entry
+; P9-AIX32-NEXT:    lxvdsx v2, 0, r3
+; P9-AIX32-NEXT:    blr
+;
+; P8-AIX32-LABEL: test_splatD:
+; P8-AIX32:       # %bb.0: # %entry
+; P8-AIX32-NEXT:    lxvdsx v2, 0, r3
+; P8-AIX32-NEXT:    blr
+;
+; P7-AIX32-LABEL: test_splatD:
+; P7-AIX32:       # %bb.0: # %entry
+; P7-AIX32-NEXT:    lxvdsx v2, 0, r3
+; P7-AIX32-NEXT:    blr
+entry:
+  %0 = load <8 x i16>, <8 x i16>* %ptr, align 16
+  %1 = shufflevector <8 x i16> %0, <8 x i16> undef, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>
+  %2 = bitcast<8 x i16> %1 to <4 x i32>
+  ret <4 x i32> %2
 }

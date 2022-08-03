@@ -6,22 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 #include "Annotations.h"
-#include "Compiler.h"
-#include "Matchers.h"
+#include "AST.h"
 #include "ParsedAST.h"
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "SyncAPI.h"
 #include "TestFS.h"
-#include "TestIndex.h"
 #include "TestTU.h"
 #include "XRefs.h"
-#include "index/FileIndex.h"
 #include "index/MemIndex.h"
-#include "index/SymbolCollector.h"
 #include "clang/AST/Decl.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Index/IndexingAction.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
@@ -813,6 +808,12 @@ TEST(LocateSymbol, All) {
           static Bar x;
           return x;
         }
+      )cpp",
+
+      R"cpp(// auto lambda param where there's a single instantiation
+        struct [[Bar]] {};
+        auto Lambda = [](^auto){ return 0; };
+        int x = Lambda(Bar{});
       )cpp",
 
       R"cpp(// decltype(auto) in function return
@@ -1849,6 +1850,8 @@ TEST(FindType, All) {
 void checkFindRefs(llvm::StringRef Test, bool UseIndex = false) {
   Annotations T(Test);
   auto TU = TestTU::withCode(T.code());
+  TU.ExtraArgs.push_back("-std=c++20");
+
   auto AST = TU.build();
   std::vector<Matcher<ReferencesResult::Reference>> ExpectedLocations;
   for (const auto &R : T.ranges())
@@ -2061,6 +2064,51 @@ TEST(FindReferences, WithinAST) {
   };
   for (const char *Test : Tests)
     checkFindRefs(Test);
+}
+
+TEST(FindReferences, ConceptsWithinAST) {
+  constexpr llvm::StringLiteral Code = R"cpp(
+    template <class T>
+    concept $def[[IsSmal^l]] = sizeof(T) <= 8;
+
+    template <class T>
+    concept IsSmallPtr = requires(T x) {
+      { *x } -> [[IsSmal^l]];
+    };
+
+    [[IsSmall]] auto i = 'c';
+    template<[[IsSmal^l]] U> void foo();
+    template<class U> void bar() requires [[IsSmal^l]]<U>;
+    template<class U> requires [[IsSmal^l]]<U> void baz();
+    static_assert([[IsSma^ll]]<char>);
+  )cpp";
+  checkFindRefs(Code);
+}
+
+TEST(FindReferences, ConceptReq) {
+  constexpr llvm::StringLiteral Code = R"cpp(
+    template <class T>
+    concept $def[[IsSmal^l]] = sizeof(T) <= 8;
+
+    template <class T>
+    concept IsSmallPtr = requires(T x) {
+      { *x } -> [[IsSmal^l]];
+    };
+  )cpp";
+  checkFindRefs(Code);
+}
+
+TEST(FindReferences, RequiresExprParameters) {
+  constexpr llvm::StringLiteral Code = R"cpp(
+    template <class T>
+    concept IsSmall = sizeof(T) <= 8;
+
+    template <class T>
+    concept IsSmallPtr = requires(T $def[[^x]]) {
+      { *[[^x]] } -> IsSmall;
+    };
+  )cpp";
+  checkFindRefs(Code);
 }
 
 TEST(FindReferences, IncludeOverrides) {

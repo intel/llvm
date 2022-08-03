@@ -86,7 +86,7 @@ function(add_sycl_rt_library LIB_NAME)
       ${CMAKE_CURRENT_SOURCE_DIR}
       "${sycl_inc_dir}"
   )
-  #TODO: Remove dependency on icd loader and opencl headers.
+  #TODO: Remove dependency on opencl headers.
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
@@ -95,11 +95,8 @@ function(add_sycl_rt_library LIB_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      OpenCL-ICD
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
   )
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})

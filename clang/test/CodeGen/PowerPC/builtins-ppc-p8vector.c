@@ -1,6 +1,6 @@
 // REQUIRES: powerpc-registered-target
-// RUN: %clang_cc1 -target-feature +altivec -target-feature +power8-vector -triple powerpc64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -target-feature +altivec -target-feature +power8-vector -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK-LE
+// RUN: %clang_cc1 -flax-vector-conversions=none -target-feature +altivec -target-feature +power8-vector -triple powerpc64-unknown-unknown -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -flax-vector-conversions=none -target-feature +altivec -target-feature +power8-vector -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s -check-prefix=CHECK-LE
 // RUN: not %clang_cc1 -target-feature +altivec -target-feature +vsx -triple powerpc64-unknown-unknown -emit-llvm %s -o - 2>&1 | FileCheck %s -check-prefix=CHECK-PPC
 // Added -target-feature +vsx above to avoid errors about "vector double" and to
 // generate the correct errors for functions that are only overloaded with VSX
@@ -131,11 +131,11 @@ void test1() {
 // CHECK: @llvm.ppc.altivec.vaddecuq
 // CHECK-LE: @llvm.ppc.altivec.vaddecuq
 
-  /* vec_mergee */  
+  /* vec_mergee */
   res_vbi = vec_mergee(vbi, vbi);
 // CHECK: @llvm.ppc.altivec.vperm
 // CHECK-LE: @llvm.ppc.altivec.vperm
-  
+
   res_vsi = vec_mergee(vsi, vsi);
 // CHECK: @llvm.ppc.altivec.vperm
 // CHECK-LE: @llvm.ppc.altivec.vperm
@@ -143,7 +143,7 @@ void test1() {
   res_vui = vec_mergee(vui, vui);
 // CHECK: @llvm.ppc.altivec.vperm
 // CHECK-LE: @llvm.ppc.altivec.vperm
-// CHECK-PPC: warning: implicit declaration of function 'vec_mergee'
+// CHECK-PPC: error: call to undeclared function 'vec_mergee'
 
   res_vbll = vec_mergee(vbll, vbll);
 // CHECK: @llvm.ppc.altivec.vperm
@@ -177,8 +177,8 @@ void test1() {
   res_vui = vec_mergeo(vui, vui);
 // CHECK: @llvm.ppc.altivec.vperm
 // CHECK-LE: @llvm.ppc.altivec.vperm
-// CHECK-PPC: warning: implicit declaration of function 'vec_mergeo'
-  
+// CHECK-PPC: error: call to undeclared function 'vec_mergeo'
+
   /* vec_cmpeq */
   res_vbll = vec_cmpeq(vbll, vbll);
 // CHECK: @llvm.ppc.altivec.vcmpequd
@@ -240,7 +240,7 @@ void test1() {
 // CHECK-LE: bitcast <4 x i32> [[T3]] to <16 x i8>
 // CHECK-PPC: error: assigning to
 
-  res_vsc =  vec_eqv(vbc, vbc);
+  res_vbc =  vec_eqv(vbc, vbc);
 // CHECK: [[T1:%.+]] = bitcast <16 x i8> {{.+}} to <4 x i32>
 // CHECK: [[T2:%.+]] = bitcast <16 x i8> {{.+}} to <4 x i32>
 // CHECK: [[T3:%.+]] = call <4 x i32> @llvm.ppc.vsx.xxleqv(<4 x i32> [[T1]], <4 x i32> [[T2]])
@@ -273,7 +273,7 @@ void test1() {
 // CHECK-LE: bitcast <4 x i32> [[T3]] to <8 x i16>
 // CHECK-PPC: error: assigning to
 
-  res_vss =  vec_eqv(vbs, vbs);
+  res_vbs =  vec_eqv(vbs, vbs);
 // CHECK: [[T1:%.+]] = bitcast <8 x i16> {{.+}} to <4 x i32>
 // CHECK: [[T2:%.+]] = bitcast <8 x i16> {{.+}} to <4 x i32>
 // CHECK: [[T3:%.+]] = call <4 x i32> @llvm.ppc.vsx.xxleqv(<4 x i32> [[T1]], <4 x i32> [[T2]])
@@ -300,7 +300,7 @@ void test1() {
 // CHECK-LE: call <4 x i32> @llvm.ppc.vsx.xxleqv(<4 x i32> {{.*}}, <4 x i32> {{.+}})
 // CHECK-PPC: error: assigning to
 
-  res_vsi =  vec_eqv(vbi, vbi);
+  res_vbi =  vec_eqv(vbi, vbi);
 // CHECK: call <4 x i32> @llvm.ppc.vsx.xxleqv(<4 x i32> {{.*}}, <4 x i32> {{.+}})
 // CHECK-LE: call <4 x i32> @llvm.ppc.vsx.xxleqv(<4 x i32> {{.*}}, <4 x i32> {{.+}})
 // CHECK-PPC: error: assigning to
@@ -321,7 +321,7 @@ void test1() {
 // CHECK-LE: bitcast <4 x i32> [[T3]] to <2 x i64>
 // CHECK-PPC: error: assigning to
 
-  res_vsll =  vec_eqv(vbll, vbll);
+  res_vbll =  vec_eqv(vbll, vbll);
 // CHECK: [[T1:%.+]] = bitcast <2 x i64> {{.+}} to <4 x i32>
 // CHECK: [[T2:%.+]] = bitcast <2 x i64> {{.+}} to <4 x i32>
 // CHECK: [[T3:%.+]] = call <4 x i32> @llvm.ppc.vsx.xxleqv(<4 x i32> [[T1]], <4 x i32> [[T2]])
@@ -403,7 +403,7 @@ void test1() {
   res_vsc = vec_cntlz(vsc);
 // CHECK: call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %{{.+}}, i1 false)
 // CHECK-LE: call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %{{.+}}, i1 false)
-// CHECK-PPC: warning: implicit declaration of function 'vec_cntlz' is invalid in C99
+// CHECK-PPC: error: call to undeclared function 'vec_cntlz'
 
   res_vuc = vec_cntlz(vuc);
 // CHECK: call <16 x i8> @llvm.ctlz.v16i8(<16 x i8> %{{.+}}, i1 false)
@@ -754,19 +754,19 @@ void test1() {
   res_vsi = vec_vpksdss(vsll, vsll);
 // CHECK: llvm.ppc.altivec.vpksdss
 // CHECK-LE: llvm.ppc.altivec.vpksdss
-// CHECK-PPC: warning: implicit declaration of function 'vec_vpksdss'
+// CHECK-PPC: error: call to undeclared function 'vec_vpksdss'
 
   /* vec_vpksdus */
   res_vui = vec_vpksdus(vsll, vsll);
 // CHECK: llvm.ppc.altivec.vpksdus
 // CHECK-LE: llvm.ppc.altivec.vpksdus
-// CHECK-PPC: warning: implicit declaration of function 'vec_vpksdus'
+// CHECK-PPC: error: call to undeclared function 'vec_vpksdus'
 
   /* vec_vpkudum */
   res_vsi = vec_vpkudum(vsll, vsll);
 // CHECK: vperm
 // CHECK-LE: vperm
-// CHECK-PPC: warning: implicit declaration of function 'vec_vpkudum'
+// CHECK-PPC: error: call to undeclared function 'vec_vpkudum'
 
   res_vui = vec_vpkudum(vull, vull);
 // CHECK: vperm
@@ -775,13 +775,13 @@ void test1() {
   res_vui = vec_vpkudus(vull, vull);
 // CHECK: llvm.ppc.altivec.vpkudus
 // CHECK-LE: llvm.ppc.altivec.vpkudus
-// CHECK-PPC: warning: implicit declaration of function 'vec_vpkudus'
+// CHECK-PPC: error: call to undeclared function 'vec_vpkudus'
 
   /* vec_vupkhsw */
   res_vsll = vec_vupkhsw(vsi);
 // CHECK: llvm.ppc.altivec.vupkhsw
 // CHECK-LE: llvm.ppc.altivec.vupklsw
-// CHECK-PPC: warning: implicit declaration of function 'vec_vupkhsw'
+// CHECK-PPC: error: call to undeclared function 'vec_vupkhsw'
 
   res_vbll = vec_vupkhsw(vbi);
 // CHECK: llvm.ppc.altivec.vupkhsw
@@ -791,7 +791,7 @@ void test1() {
   res_vsll = vec_vupklsw(vsi);
 // CHECK: llvm.ppc.altivec.vupklsw
 // CHECK-LE: llvm.ppc.altivec.vupkhsw
-// CHECK-PPC: warning: implicit declaration of function 'vec_vupklsw'
+// CHECK-PPC: error: call to undeclared function 'vec_vupklsw'
 
   res_vbll = vec_vupklsw(vbi);
 // CHECK: llvm.ppc.altivec.vupklsw
@@ -845,27 +845,27 @@ void test1() {
 // CHECK: xor <16 x i8> [[T1]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
 // CHECK-LE: [[T1:%.+]] = and <16 x i8>
 // CHECK-LE: xor <16 x i8> [[T1]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
-// CHECK-PPC: warning: implicit declaration of function 'vec_nand' is invalid in C99
+// CHECK-PPC: error: call to undeclared function 'vec_nand'
 
-  res_vsc = vec_nand(vbc, vbc);
+  res_vbc = vec_nand(vbc, vbc);
 // CHECK: [[T1:%.+]] = and <16 x i8>
 // CHECK: xor <16 x i8> [[T1]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
 // CHECK-LE: [[T1:%.+]] = and <16 x i8>
 // CHECK-LE: xor <16 x i8> [[T1]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
-  
+
   res_vuc = vec_nand(vuc, vuc);
 // CHECK: [[T1:%.+]] = and <16 x i8>
 // CHECK: xor <16 x i8> [[T1]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
 // CHECK-LE: [[T1:%.+]] = and <16 x i8>
 // CHECK-LE: xor <16 x i8> [[T1]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
-  
+
   res_vss = vec_nand(vss, vss);
 // CHECK: [[T1:%.+]] = and <8 x i16>
 // CHECK: xor <8 x i16> [[T1]], <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>
 // CHECK-LE: [[T1:%.+]] = and <8 x i16>
 // CHECK-LE: xor <8 x i16> [[T1]], <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>
 
-  res_vss = vec_nand(vbs, vbs);
+  res_vbs = vec_nand(vbs, vbs);
 // CHECK: [[T1:%.+]] = and <8 x i16>
 // CHECK: xor <8 x i16> [[T1]], <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>
 // CHECK-LE: [[T1:%.+]] = and <8 x i16>
@@ -883,7 +883,7 @@ void test1() {
 // CHECK-LE: [[T1:%.+]] = and <4 x i32>
 // CHECK-LE: xor <4 x i32> [[T1]], <i32 -1, i32 -1, i32 -1, i32 -1>
 
-  res_vsi = vec_nand(vbi, vbi);
+  res_vbi = vec_nand(vbi, vbi);
 // CHECK: [[T1:%.+]] = and <4 x i32>
 // CHECK: xor <4 x i32> [[T1]], <i32 -1, i32 -1, i32 -1, i32 -1>
 // CHECK-LE: [[T1:%.+]] = and <4 x i32>
@@ -907,7 +907,7 @@ void test1() {
 // CHECK-LE: [[T1:%.+]] = and <2 x i64>
 // CHECK-LE: xor <2 x i64> [[T1]], <i64 -1, i64 -1>
 
-  res_vsll = vec_nand(vbll, vbll);
+  res_vbll = vec_nand(vbll, vbll);
 // CHECK: [[T1:%.+]] = and <2 x i64>
 // CHECK: xor <2 x i64> [[T1]], <i64 -1, i64 -1>
 // CHECK-LE: [[T1:%.+]] = and <2 x i64>
@@ -937,7 +937,7 @@ void test1() {
 // CHECK: or <16 x i8> {{%.+}}, [[T1]]
 // CHECK-LE: [[T1:%.+]] = xor <16 x i8> {{%.+}}, <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
 // CHECK-LE: or <16 x i8> {{%.+}}, [[T1]]
-// CHECK-PPC: warning: implicit declaration of function 'vec_orc' is invalid in C99
+// CHECK-PPC: error: call to undeclared function 'vec_orc'
 
   res_vsc = vec_orc(vsc, vbc);
 // CHECK: [[T1:%.+]] = xor <16 x i8> {{%.+}}, <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
@@ -1163,10 +1163,10 @@ void test1() {
 // CHECK: llvm.ppc.altivec.vbpermq
 // CHECK-LE: llvm.ppc.altivec.vbpermq
 
-  res_vull = vec_vbpermq(vuc, vuc);
+  res_vsll = vec_vbpermq(vuc, vuc);
 // CHECK: llvm.ppc.altivec.vbpermq
 // CHECK-LE: llvm.ppc.altivec.vbpermq
-// CHECK-PPC: warning: implicit declaration of function 'vec_vbpermq'
+// CHECK-PPC: error: call to undeclared function 'vec_vbpermq'
 
   /* vec_vgbbd */
   res_vsc = vec_vgbbd(vsc);
@@ -1176,12 +1176,12 @@ void test1() {
   res_vuc = vec_vgbbd(vuc);
 // CHECK: llvm.ppc.altivec.vgbbd
 // CHECK-LE: llvm.ppc.altivec.vgbbd
-// CHECK-PPC: warning: implicit declaration of function 'vec_vgbbd'
+// CHECK-PPC: error: call to undeclared function 'vec_vgbbd'
 
   res_vuc = vec_gb(vuc);
 // CHECK: llvm.ppc.altivec.vgbbd
 // CHECK-LE: llvm.ppc.altivec.vgbbd
-// CHECK-PPC: warning: implicit declaration of function 'vec_gb'
+// CHECK-PPC: error: call to undeclared function 'vec_gb'
 
   res_vsll = vec_gbb(vsll);
 // CHECK: llvm.ppc.altivec.vgbbd
@@ -1195,7 +1195,7 @@ void test1() {
   // CHECK: llvm.ppc.altivec.vbpermq
   // CHECK-LE: llvm.ppc.altivec.vbpermq
 
-  res_vull = vec_bperm(vuc, vuc);
+  res_vuc = vec_bperm(vuc, vuc);
   // CHECK: llvm.ppc.altivec.vbpermq
   // CHECK-LE: llvm.ppc.altivec.vbpermq
 

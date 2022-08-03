@@ -32,7 +32,11 @@ template <class RefTy> class MapEntryOptionalStorage;
 /// Cached information about one directory (either on disk or in
 /// the virtual file system).
 class DirectoryEntry {
+  DirectoryEntry() = default;
+  DirectoryEntry(const DirectoryEntry &) = delete;
+  DirectoryEntry &operator=(const DirectoryEntry &) = delete;
   friend class FileManager;
+  friend class FileEntryTestHelper;
 
   // FIXME: We should not be storing a directory entry name here.
   StringRef Name; // Name of the directory.
@@ -126,18 +130,31 @@ public:
 
   void reset() { MaybeRef = optional_none_tag(); }
 
+  bool has_value() const { return MaybeRef.hasOptionalValue(); }
   bool hasValue() const { return MaybeRef.hasOptionalValue(); }
 
+  RefTy &value() & {
+    assert(has_value());
+    return MaybeRef;
+  }
   RefTy &getValue() & {
-    assert(hasValue());
+    assert(has_value());
+    return MaybeRef;
+  }
+  RefTy const &value() const & {
+    assert(has_value());
     return MaybeRef;
   }
   RefTy const &getValue() const & {
-    assert(hasValue());
+    assert(has_value());
     return MaybeRef;
   }
+  RefTy &&value() && {
+    assert(has_value());
+    return std::move(MaybeRef);
+  }
   RefTy &&getValue() && {
-    assert(hasValue());
+    assert(has_value());
     return std::move(MaybeRef);
   }
 
@@ -282,7 +299,7 @@ public:
   /// DirectoryEntry::getName have been deleted, delete this class and replace
   /// instances with Optional<DirectoryEntryRef>
   operator const DirectoryEntry *() const {
-    return hasValue() ? &getValue().getDirEntry() : nullptr;
+    return has_value() ? &value().getDirEntry() : nullptr;
   }
 };
 

@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -triple x86_64-apple-darwin10 -fobjc-runtime=macosx-fragile-10.5 -emit-llvm -fobjc-exceptions -mllvm -simplifycfg-sink-common=false -O2 -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple x86_64-apple-darwin10 -fobjc-runtime=macosx-fragile-10.5 -emit-llvm -fobjc-exceptions -mllvm -simplifycfg-sink-common=false -O2 -o - %s | FileCheck %s
 //
 // <rdar://problem/7471679> [irgen] [eh] Exception code built with clang (x86_64) crashes
 
 // Just check that we don't emit any dead blocks.
 @interface NSArray @end
-void f0() {
+void f0(void) {
   @try {
     @try {
       @throw @"a";
@@ -15,7 +15,7 @@ void f0() {
 }
 
 // CHECK-LABEL: define{{.*}} void @f1()
-void f1() {
+void f1(void) {
   extern void foo(void);
 
   while (1) {
@@ -41,7 +41,7 @@ void f1() {
 // optimization.  rdar://problem/8160285
 
 // CHECK-LABEL: define{{.*}} i32 @f2()
-int f2() {
+int f2(void) {
   extern void foo(void);
 
   // CHECK:        [[X:%.*]] = alloca i32
@@ -76,7 +76,7 @@ int f2() {
 // Test that the cleanup destination is saved when entering a finally
 // block.  rdar://problem/8293901
 // CHECK-LABEL: define{{.*}} void @f3()
-void f3() {
+void f3(void) {
   extern void f3_helper(int, int*);
 
   // CHECK:      [[X:%.*]] = alloca i32
@@ -128,7 +128,7 @@ void f3() {
 }
 
 // rdar://problem/8440970
-void f4() {
+void f4(void) {
   extern void f4_help(int);
 
   // CHECK-LABEL: define{{.*}} void @f4()

@@ -569,14 +569,10 @@ define i64 @select_and(i32 %w0, i32 %w1, i64 %x2, i64 %x3) {
 ;
 ; GISEL-LABEL: select_and:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, w1
-; GISEL-NEXT:    cset w8, lt
-; GISEL-NEXT:    mov w9, #5
-; GISEL-NEXT:    cmp w9, w1
-; GISEL-NEXT:    cset w9, ne
-; GISEL-NEXT:    and w8, w8, w9
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel x0, x2, x3, ne
+; GISEL-NEXT:    mov w8, #5
+; GISEL-NEXT:    cmp w8, w1
+; GISEL-NEXT:    ccmp w0, w1, #0, ne
+; GISEL-NEXT:    csel x0, x2, x3, lt
 ; GISEL-NEXT:    ret
   %1 = icmp slt i32 %w0, %w1
   %2 = icmp ne i32 5, %w1
@@ -595,20 +591,38 @@ define i64 @select_or(i32 %w0, i32 %w1, i64 %x2, i64 %x3) {
 ;
 ; GISEL-LABEL: select_or:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, w1
-; GISEL-NEXT:    cset w8, lt
-; GISEL-NEXT:    mov w9, #5
-; GISEL-NEXT:    cmp w9, w1
-; GISEL-NEXT:    cset w9, ne
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel x0, x2, x3, ne
+; GISEL-NEXT:    mov w8, #5
+; GISEL-NEXT:    cmp w8, w1
+; GISEL-NEXT:    ccmp w0, w1, #8, eq
+; GISEL-NEXT:    csel x0, x2, x3, lt
 ; GISEL-NEXT:    ret
   %1 = icmp slt i32 %w0, %w1
   %2 = icmp ne i32 5, %w1
   %3 = or i1 %1, %2
   %sel = select i1 %3, i64 %x2, i64 %x3
   ret i64 %sel
+}
+
+define float @select_or_float(i32 %w0, i32 %w1, float %x2, float %x3) {
+; CHECK-LABEL: select_or_float:
+; CHECK:       ; %bb.0:
+; CHECK-NEXT:    cmp w1, #5
+; CHECK-NEXT:    ccmp w0, w1, #8, eq
+; CHECK-NEXT:    fcsel s0, s0, s1, lt
+; CHECK-NEXT:    ret
+;
+; GISEL-LABEL: select_or_float:
+; GISEL:       ; %bb.0:
+; GISEL-NEXT:    mov w8, #5
+; GISEL-NEXT:    cmp w8, w1
+; GISEL-NEXT:    ccmp w0, w1, #8, eq
+; GISEL-NEXT:    fcsel s0, s0, s1, lt
+; GISEL-NEXT:    ret
+  %1 = icmp slt i32 %w0, %w1
+  %2 = icmp ne i32 5, %w1
+  %3 = or i1 %1, %2
+  %sel = select i1 %3, float %x2,float %x3
+  ret float %sel
 }
 
 define i64 @gccbug(i64 %x0, i64 %x1) {
@@ -623,17 +637,12 @@ define i64 @gccbug(i64 %x0, i64 %x1) {
 ;
 ; GISEL-LABEL: gccbug:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp x1, #0
-; GISEL-NEXT:    cset w8, eq
-; GISEL-NEXT:    mov w9, #2
+; GISEL-NEXT:    mov w8, #2
+; GISEL-NEXT:    mov w9, #4
 ; GISEL-NEXT:    cmp x0, #2
-; GISEL-NEXT:    cset w10, eq
-; GISEL-NEXT:    cmp x0, #4
-; GISEL-NEXT:    cset w11, eq
-; GISEL-NEXT:    orr w10, w11, w10
-; GISEL-NEXT:    and w8, w10, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csinc x0, x9, xzr, ne
+; GISEL-NEXT:    ccmp x0, x9, #4, ne
+; GISEL-NEXT:    ccmp x1, xzr, #0, eq
+; GISEL-NEXT:    csinc x0, x8, xzr, eq
 ; GISEL-NEXT:    ret
   %cmp0 = icmp eq i64 %x1, 0
   %cmp1 = icmp eq i64 %x0, 2
@@ -658,19 +667,13 @@ define i32 @select_ororand(i32 %w0, i32 %w1, i32 %w2, i32 %w3) {
 ;
 ; GISEL-LABEL: select_ororand:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, #0
-; GISEL-NEXT:    cset w8, eq
-; GISEL-NEXT:    cmp w1, #13
-; GISEL-NEXT:    cset w9, hi
-; GISEL-NEXT:    cmp w2, #2
-; GISEL-NEXT:    cset w10, lt
+; GISEL-NEXT:    mov w8, #13
+; GISEL-NEXT:    mov w9, #2
 ; GISEL-NEXT:    cmp w3, #4
-; GISEL-NEXT:    cset w11, gt
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    and w9, w10, w11
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w3, wzr, ne
+; GISEL-NEXT:    ccmp w2, w9, #0, gt
+; GISEL-NEXT:    ccmp w1, w8, #2, ge
+; GISEL-NEXT:    ccmp w0, wzr, #4, ls
+; GISEL-NEXT:    csel w0, w3, wzr, eq
 ; GISEL-NEXT:    ret
   %c0 = icmp eq i32 %w0, 0
   %c1 = icmp ugt i32 %w1, 13
@@ -694,16 +697,10 @@ define i32 @select_andor(i32 %v1, i32 %v2, i32 %v3) {
 ;
 ; GISEL-LABEL: select_andor:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, w1
-; GISEL-NEXT:    cset w8, eq
 ; GISEL-NEXT:    cmp w1, w2
-; GISEL-NEXT:    cset w9, ge
-; GISEL-NEXT:    cmp w0, #0
-; GISEL-NEXT:    cset w10, eq
-; GISEL-NEXT:    orr w9, w10, w9
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    ccmp w0, wzr, #4, lt
+; GISEL-NEXT:    ccmp w0, w1, #0, eq
+; GISEL-NEXT:    csel w0, w0, w1, eq
 ; GISEL-NEXT:    ret
   %c0 = icmp eq i32 %v1, %v2
   %c1 = icmp sge i32 %v2, %v3
@@ -757,16 +754,12 @@ define i64 @select_noccmp1(i64 %v1, i64 %v2, i64 %v3, i64 %r) {
 
 @g = global i32 0
 
-; Should not use ccmp if we have to compute the or expression in an integer
-; register anyway because of other users.
 define i64 @select_noccmp2(i64 %v1, i64 %v2, i64 %v3, i64 %r) {
 ; CHECK-LABEL: select_noccmp2:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    cmp x0, #0
-; CHECK-NEXT:    cset w8, lt
-; CHECK-NEXT:    cmp x0, #13
-; CHECK-NEXT:    cset w9, gt
-; CHECK-NEXT:    orr w8, w8, w9
+; CHECK-NEXT:    ccmp x0, #13, #0, ge
+; CHECK-NEXT:    cset w8, gt
 ; CHECK-NEXT:    cmp w8, #0
 ; CHECK-NEXT:    csel x0, xzr, x3, ne
 ; CHECK-NEXT:    sbfx w8, w8, #0, #1
@@ -802,21 +795,17 @@ define i32 @select_noccmp3(i32 %v0, i32 %v1, i32 %v2) {
 ; CHECK-LABEL: select_noccmp3:
 ; CHECK:       ; %bb.0:
 ; CHECK-NEXT:    cmp w0, #0
-; CHECK-NEXT:    cset w8, lt
-; CHECK-NEXT:    cmp w0, #13
-; CHECK-NEXT:    cset w9, gt
+; CHECK-NEXT:    ccmp w0, #13, #0, ge
+; CHECK-NEXT:    cset w8, gt
 ; CHECK-NEXT:    cmp w0, #22
-; CHECK-NEXT:    cset w10, lt
-; CHECK-NEXT:    cmp w0, #44
-; CHECK-NEXT:    cset w11, gt
+; CHECK-NEXT:    mov w9, #44
+; CHECK-NEXT:    ccmp w0, w9, #0, ge
+; CHECK-NEXT:    cset w9, gt
 ; CHECK-NEXT:    cmp w0, #99
-; CHECK-NEXT:    cset w12, eq
-; CHECK-NEXT:    cmp w0, #77
-; CHECK-NEXT:    cset w13, eq
-; CHECK-NEXT:    orr w8, w8, w9
-; CHECK-NEXT:    orr w9, w10, w11
 ; CHECK-NEXT:    and w8, w8, w9
-; CHECK-NEXT:    orr w9, w12, w13
+; CHECK-NEXT:    mov w9, #77
+; CHECK-NEXT:    ccmp w0, w9, #4, ne
+; CHECK-NEXT:    cset w9, eq
 ; CHECK-NEXT:    tst w8, w9
 ; CHECK-NEXT:    csel w0, w1, w2, ne
 ; CHECK-NEXT:    ret
@@ -872,14 +861,9 @@ define i32 @select_and_olt_one(double %v0, double %v1, double %v2, double %v3, i
 ; GISEL-LABEL: select_and_olt_one:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    cset w10, gt
-; GISEL-NEXT:    orr w9, w9, w10
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d2, d3, #4, mi
+; GISEL-NEXT:    fccmp d2, d3, #1, ne
+; GISEL-NEXT:    csel w0, w0, w1, vc
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt double %v0, %v1
   %c1 = fcmp one double %v2, %v3
@@ -900,14 +884,9 @@ define i32 @select_and_one_olt(double %v0, double %v1, double %v2, double %v3, i
 ; GISEL-LABEL: select_and_one_olt:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    cset w9, gt
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d0, d1, #1, ne
+; GISEL-NEXT:    fccmp d2, d3, #0, vc
+; GISEL-NEXT:    csel w0, w0, w1, mi
 ; GISEL-NEXT:    ret
   %c0 = fcmp one double %v0, %v1
   %c1 = fcmp olt double %v2, %v3
@@ -928,14 +907,9 @@ define i32 @select_and_olt_ueq(double %v0, double %v1, double %v2, double %v3, i
 ; GISEL-LABEL: select_and_olt_ueq:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, eq
-; GISEL-NEXT:    cset w10, vs
-; GISEL-NEXT:    orr w9, w9, w10
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d2, d3, #0, mi
+; GISEL-NEXT:    fccmp d2, d3, #8, le
+; GISEL-NEXT:    csel w0, w0, w1, pl
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt double %v0, %v1
   %c1 = fcmp ueq double %v2, %v3
@@ -956,14 +930,9 @@ define i32 @select_and_ueq_olt(double %v0, double %v1, double %v2, double %v3, i
 ; GISEL-LABEL: select_and_ueq_olt:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, eq
-; GISEL-NEXT:    cset w9, vs
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d0, d1, #8, le
+; GISEL-NEXT:    fccmp d2, d3, #0, pl
+; GISEL-NEXT:    csel w0, w0, w1, mi
 ; GISEL-NEXT:    ret
   %c0 = fcmp ueq double %v0, %v1
   %c1 = fcmp olt double %v2, %v3
@@ -984,14 +953,9 @@ define i32 @select_or_olt_one(double %v0, double %v1, double %v2, double %v3, i3
 ; GISEL-LABEL: select_or_olt_one:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    cset w10, gt
-; GISEL-NEXT:    orr w9, w9, w10
-; GISEL-NEXT:    orr w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d2, d3, #0, pl
+; GISEL-NEXT:    fccmp d2, d3, #8, le
+; GISEL-NEXT:    csel w0, w0, w1, mi
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt double %v0, %v1
   %c1 = fcmp one double %v2, %v3
@@ -1012,14 +976,9 @@ define i32 @select_or_one_olt(double %v0, double %v1, double %v2, double %v3, i3
 ; GISEL-LABEL: select_or_one_olt:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    cset w9, gt
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    orr w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d0, d1, #8, le
+; GISEL-NEXT:    fccmp d2, d3, #8, pl
+; GISEL-NEXT:    csel w0, w0, w1, mi
 ; GISEL-NEXT:    ret
   %c0 = fcmp one double %v0, %v1
   %c1 = fcmp olt double %v2, %v3
@@ -1040,14 +999,9 @@ define i32 @select_or_olt_ueq(double %v0, double %v1, double %v2, double %v3, i3
 ; GISEL-LABEL: select_or_olt_ueq:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, eq
-; GISEL-NEXT:    cset w10, vs
-; GISEL-NEXT:    orr w9, w9, w10
-; GISEL-NEXT:    orr w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d2, d3, #4, pl
+; GISEL-NEXT:    fccmp d2, d3, #1, ne
+; GISEL-NEXT:    csel w0, w0, w1, vs
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt double %v0, %v1
   %c1 = fcmp ueq double %v2, %v3
@@ -1068,14 +1022,9 @@ define i32 @select_or_ueq_olt(double %v0, double %v1, double %v2, double %v3, i3
 ; GISEL-LABEL: select_or_ueq_olt:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, eq
-; GISEL-NEXT:    cset w9, vs
-; GISEL-NEXT:    orr w8, w8, w9
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    orr w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d0, d1, #1, ne
+; GISEL-NEXT:    fccmp d2, d3, #8, vc
+; GISEL-NEXT:    csel w0, w0, w1, mi
 ; GISEL-NEXT:    ret
   %c0 = fcmp ueq double %v0, %v1
   %c1 = fcmp olt double %v2, %v3
@@ -1097,17 +1046,10 @@ define i32 @select_or_olt_ogt_ueq(double %v0, double %v1, double %v2, double %v3
 ; GISEL-LABEL: select_or_olt_ogt_ueq:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, gt
-; GISEL-NEXT:    fcmp d4, d5
-; GISEL-NEXT:    cset w10, eq
-; GISEL-NEXT:    cset w11, vs
-; GISEL-NEXT:    orr w10, w10, w11
-; GISEL-NEXT:    orr w8, w9, w8
-; GISEL-NEXT:    orr w8, w10, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d2, d3, #0, pl
+; GISEL-NEXT:    fccmp d4, d5, #4, le
+; GISEL-NEXT:    fccmp d4, d5, #1, ne
+; GISEL-NEXT:    csel w0, w0, w1, vs
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt double %v0, %v1
   %c1 = fcmp ogt double %v2, %v3
@@ -1131,17 +1073,10 @@ define i32 @select_or_olt_ueq_ogt(double %v0, double %v1, double %v2, double %v3
 ; GISEL-LABEL: select_or_olt_ueq_ogt:
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcmp d0, d1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcmp d2, d3
-; GISEL-NEXT:    cset w9, eq
-; GISEL-NEXT:    cset w10, vs
-; GISEL-NEXT:    orr w9, w9, w10
-; GISEL-NEXT:    fcmp d4, d5
-; GISEL-NEXT:    cset w10, gt
-; GISEL-NEXT:    orr w8, w9, w8
-; GISEL-NEXT:    orr w8, w10, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp d2, d3, #4, pl
+; GISEL-NEXT:    fccmp d2, d3, #1, ne
+; GISEL-NEXT:    fccmp d4, d5, #0, vc
+; GISEL-NEXT:    csel w0, w0, w1, gt
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt double %v0, %v1
   %c1 = fcmp ueq double %v2, %v3
@@ -1170,15 +1105,11 @@ define i32 @half_select_and_olt_oge(half %v0, half %v1, half %v2, half %v3, i32 
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcvt s0, h0
 ; GISEL-NEXT:    fcvt s1, h1
+; GISEL-NEXT:    fcvt s2, h2
+; GISEL-NEXT:    fcvt s3, h3
 ; GISEL-NEXT:    fcmp s0, s1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcvt s0, h2
-; GISEL-NEXT:    fcvt s1, h3
-; GISEL-NEXT:    fcmp s0, s1
-; GISEL-NEXT:    cset w9, ge
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp s2, s3, #8, mi
+; GISEL-NEXT:    csel w0, w0, w1, ge
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt half %v0, %v1
   %c1 = fcmp oge half %v2, %v3
@@ -1204,17 +1135,12 @@ define i32 @half_select_and_olt_one(half %v0, half %v1, half %v2, half %v3, i32 
 ; GISEL:       ; %bb.0:
 ; GISEL-NEXT:    fcvt s0, h0
 ; GISEL-NEXT:    fcvt s1, h1
+; GISEL-NEXT:    fcvt s2, h2
+; GISEL-NEXT:    fcvt s3, h3
 ; GISEL-NEXT:    fcmp s0, s1
-; GISEL-NEXT:    cset w8, mi
-; GISEL-NEXT:    fcvt s0, h2
-; GISEL-NEXT:    fcvt s1, h3
-; GISEL-NEXT:    fcmp s0, s1
-; GISEL-NEXT:    cset w9, mi
-; GISEL-NEXT:    cset w10, gt
-; GISEL-NEXT:    orr w9, w9, w10
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
-; GISEL-NEXT:    csel w0, w0, w1, ne
+; GISEL-NEXT:    fccmp s2, s3, #4, mi
+; GISEL-NEXT:    fccmp s2, s3, #1, ne
+; GISEL-NEXT:    csel w0, w0, w1, vc
 ; GISEL-NEXT:    ret
   %c0 = fcmp olt half %v0, %v1
   %c1 = fcmp one half %v2, %v3
@@ -1294,18 +1220,11 @@ define i32 @deep_or(i32 %a0, i32 %a1, i32 %a2, i32 %a3, i32 %x, i32 %y) {
 ;
 ; GISEL-LABEL: deep_or:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, #0
-; GISEL-NEXT:    cset w8, ne
-; GISEL-NEXT:    cmp w1, #0
-; GISEL-NEXT:    cset w9, ne
-; GISEL-NEXT:    cmp w2, #15
-; GISEL-NEXT:    cset w10, eq
+; GISEL-NEXT:    mov w8, #15
 ; GISEL-NEXT:    cmp w2, #20
-; GISEL-NEXT:    cset w11, eq
-; GISEL-NEXT:    orr w10, w10, w11
-; GISEL-NEXT:    and w9, w10, w9
-; GISEL-NEXT:    and w8, w9, w8
-; GISEL-NEXT:    tst w8, #0x1
+; GISEL-NEXT:    ccmp w2, w8, #4, ne
+; GISEL-NEXT:    ccmp w1, wzr, #4, eq
+; GISEL-NEXT:    ccmp w0, wzr, #4, ne
 ; GISEL-NEXT:    csel w0, w4, w5, ne
 ; GISEL-NEXT:    ret
   %c0 = icmp ne i32 %a0, 0
@@ -1333,18 +1252,11 @@ define i32 @deep_or1(i32 %a0, i32 %a1, i32 %a2, i32 %a3, i32 %x, i32 %y) {
 ;
 ; GISEL-LABEL: deep_or1:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, #0
-; GISEL-NEXT:    cset w8, ne
-; GISEL-NEXT:    cmp w1, #0
-; GISEL-NEXT:    cset w9, ne
-; GISEL-NEXT:    cmp w2, #15
-; GISEL-NEXT:    cset w10, eq
+; GISEL-NEXT:    mov w8, #15
 ; GISEL-NEXT:    cmp w2, #20
-; GISEL-NEXT:    cset w11, eq
-; GISEL-NEXT:    orr w10, w10, w11
-; GISEL-NEXT:    and w8, w8, w10
-; GISEL-NEXT:    and w8, w8, w9
-; GISEL-NEXT:    tst w8, #0x1
+; GISEL-NEXT:    ccmp w2, w8, #4, ne
+; GISEL-NEXT:    ccmp w0, wzr, #4, eq
+; GISEL-NEXT:    ccmp w1, wzr, #4, ne
 ; GISEL-NEXT:    csel w0, w4, w5, ne
 ; GISEL-NEXT:    ret
   %c0 = icmp ne i32 %a0, 0
@@ -1372,18 +1284,11 @@ define i32 @deep_or2(i32 %a0, i32 %a1, i32 %a2, i32 %a3, i32 %x, i32 %y) {
 ;
 ; GISEL-LABEL: deep_or2:
 ; GISEL:       ; %bb.0:
-; GISEL-NEXT:    cmp w0, #0
-; GISEL-NEXT:    cset w8, ne
-; GISEL-NEXT:    cmp w1, #0
-; GISEL-NEXT:    cset w9, ne
-; GISEL-NEXT:    cmp w2, #15
-; GISEL-NEXT:    cset w10, eq
+; GISEL-NEXT:    mov w8, #15
 ; GISEL-NEXT:    cmp w2, #20
-; GISEL-NEXT:    cset w11, eq
-; GISEL-NEXT:    orr w10, w10, w11
-; GISEL-NEXT:    and w8, w8, w9
-; GISEL-NEXT:    and w8, w8, w10
-; GISEL-NEXT:    tst w8, #0x1
+; GISEL-NEXT:    ccmp w2, w8, #4, ne
+; GISEL-NEXT:    ccmp w1, wzr, #4, eq
+; GISEL-NEXT:    ccmp w0, wzr, #4, ne
 ; GISEL-NEXT:    csel w0, w4, w5, ne
 ; GISEL-NEXT:    ret
   %c0 = icmp ne i32 %a0, 0

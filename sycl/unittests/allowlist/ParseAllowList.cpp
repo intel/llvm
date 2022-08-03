@@ -49,11 +49,12 @@ TEST(ParseAllowListTests, CheckUnsupportedKeyNameIsHandledInSingleDeviceDesc) {
         "BackendName:level_zero,SomeUnsupportedKey:gpu");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
-                          "details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                          "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
+                    "details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -67,11 +68,12 @@ TEST(
         "DriverVersion:{{value}}|SomeUnsupportedKey:gpu");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
-                          "details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                          "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
+                    "details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -85,11 +87,12 @@ TEST(
         "BackendName:level_zero|SomeUnsupportedKey:gpu");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
-                          "details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                          "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
+                    "details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -102,11 +105,12 @@ TEST(ParseAllowListTests,
         "DriverVersion:{{value1}}|SomeUnsupportedKey:{{value2}}");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
-                          "details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                          "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("Unrecognized key in SYCL_DEVICE_ALLOWLIST. For "
+                    "details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -129,11 +133,10 @@ TEST(ParseAllowListTests, CheckMissingOpenDoubleCurlyBracesAreHandled) {
         "DeviceName:regex1}},DriverVersion:{{regex1|regex2}}");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(
-        std::string(
-            "Key DeviceName of SYCL_DEVICE_ALLOWLIST "
-            "should have value which starts with {{ -30 (CL_INVALID_VALUE)"),
-        e.what());
+    EXPECT_EQ(std::string("Key DeviceName of SYCL_DEVICE_ALLOWLIST "
+                          "should have value which starts with {{ -30 "
+                          "(PI_ERROR_INVALID_VALUE)"),
+              e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -145,11 +148,10 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
         "DeviceName:{{regex1}},DriverVersion:{{regex1|regex2");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(
-        std::string(
-            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST "
-            "should have value which ends with }} -30 (CL_INVALID_VALUE)"),
-        e.what());
+    EXPECT_EQ(std::string("Key DriverVersion of SYCL_DEVICE_ALLOWLIST "
+                          "should have value which ends with }} -30 "
+                          "(PI_ERROR_INVALID_VALUE)"),
+              e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -195,11 +197,12 @@ TEST(ParseAllowListTests, CheckIncorrectBackendNameValueIsHandled) {
         sycl::detail::parseAllowList("BackendName:blablabla");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("Value blablabla for key BackendName is not valid in "
-                          "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                          "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("Value blablabla for key BackendName is not valid in "
+                    "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -211,11 +214,12 @@ TEST(ParseAllowListTests, CheckIncorrectDeviceTypeValueIsHandled) {
         sycl::detail::parseAllowList("DeviceType:blablabla");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("Value blablabla for key DeviceType is not valid in "
-                          "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                          "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("Value blablabla for key DeviceType is not valid in "
+                    "SYCL_DEVICE_ALLOWLIST. For details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }
@@ -232,7 +236,7 @@ TEST(ParseAllowListTests, CheckIncorrectDeviceVendorIdValueIsHandled) {
                     "SYCL_DEVICE_ALLOWLIST. It should have the hex format. For "
                     "details, please refer to "
                     "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-                    "EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
+                    "EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
         e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
@@ -259,11 +263,12 @@ TEST(ParseAllowListTests, CheckExceptionIsThrownForValueWOColonDelim) {
         sycl::detail::parseAllowList("SomeValueWOColonDelimiter");
     throw std::logic_error("sycl::runtime_error didn't throw");
   } catch (sycl::runtime_error const &e) {
-    EXPECT_EQ(std::string("SYCL_DEVICE_ALLOWLIST has incorrect format. For "
-                          "details, please refer to "
-                          "https://github.com/intel/llvm/blob/sycl/sycl/"
-                          "doc/EnvironmentVariables.md -30 (CL_INVALID_VALUE)"),
-              e.what());
+    EXPECT_EQ(
+        std::string("SYCL_DEVICE_ALLOWLIST has incorrect format. For "
+                    "details, please refer to "
+                    "https://github.com/intel/llvm/blob/sycl/sycl/"
+                    "doc/EnvironmentVariables.md -30 (PI_ERROR_INVALID_VALUE)"),
+        e.what());
   } catch (...) {
     FAIL() << "Expected sycl::runtime_error";
   }

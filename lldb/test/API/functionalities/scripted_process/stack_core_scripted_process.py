@@ -7,13 +7,19 @@ from lldb.plugins.scripted_process import ScriptedProcess
 from lldb.plugins.scripted_process import ScriptedThread
 
 class StackCoreScriptedProcess(ScriptedProcess):
+    def get_module_with_name(self, target, name):
+        for module in target.modules:
+            if name in module.GetFileSpec().GetFilename():
+                return module
+        return None
+
     def __init__(self, target: lldb.SBTarget, args : lldb.SBStructuredData):
         super().__init__(target, args)
 
-        self.backing_target_idx = args.GetValueForKey("backing_target_idx")
-
         self.corefile_target = None
         self.corefile_process = None
+
+        self.backing_target_idx = args.GetValueForKey("backing_target_idx")
         if (self.backing_target_idx and self.backing_target_idx.IsValid()):
             if self.backing_target_idx.GetType() == lldb.eStructuredDataTypeInteger:
                 idx = self.backing_target_idx.GetIntegerValue(42)
@@ -30,8 +36,21 @@ class StackCoreScriptedProcess(ScriptedProcess):
 
                 self.threads[corefile_thread.GetThreadID()] = StackCoreScriptedThread(self, structured_data)
 
-        if len(self.threads) == 3:
+        if len(self.threads) == 2:
             self.threads[len(self.threads) - 1].is_stopped = True
+
+        corefile_module = self.get_module_with_name(self.corefile_target,
+                                                    "libbaz.dylib")
+        if not corefile_module or not corefile_module.IsValid():
+            return
+        module_path = os.path.join(corefile_module.GetFileSpec().GetDirectory(),
+                                   corefile_module.GetFileSpec().GetFilename())
+        if not os.path.exists(module_path):
+            return
+        module_load_addr = corefile_module.GetObjectFileHeaderAddress().GetLoadAddress(self.corefile_target)
+
+        self.loaded_images.append({"path": module_path,
+                                   "load_addr": module_load_addr})
 
     def get_memory_region_containing_address(self, addr: int) -> lldb.SBMemoryRegionInfo:
         mem_region = lldb.SBMemoryRegionInfo()
@@ -61,8 +80,6 @@ class StackCoreScriptedProcess(ScriptedProcess):
         return data
 
     def get_loaded_images(self):
-        # TODO: Iterate over corefile_target modules and build a data structure
-        # from it.
         return self.loaded_images
 
     def get_process_id(self) -> int:
@@ -138,21 +155,6 @@ class StackCoreScriptedThread(ScriptedThread):
                     stop_reason["type"] = self.corefile_thread.GetStopReason()
 
         return stop_reason
-
-    def get_stackframes(self):
-        class ScriptedStackFrame:
-            def __init__(idx, cfa, pc, symbol_ctx):
-                self.idx = idx
-                self.cfa = cfa
-                self.pc = pc
-                self.symbol_ctx = symbol_ctx
-
-
-        symbol_ctx = lldb.SBSymbolContext()
-        frame_zero = ScriptedStackFrame(0, 0x42424242, 0x5000000, symbol_ctx)
-        self.frames.append(frame_zero)
-
-        return self.frame_zero[0:0]
 
     def get_register_context(self) -> str:
         if not self.corefile_thread or self.corefile_thread.GetNumFrames() == 0:

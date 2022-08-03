@@ -7,16 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
 
 // template<class I>
 //   concept permutable = see below; // Since C++20
 
 #include <iterator>
 
-#include "MoveOnly.h"
 #include "test_iterators.h"
-#include "test_macros.h"
 
 using AllConstraintsSatisfied = forward_iterator<int*>;
 static_assert( std::forward_iterator<AllConstraintsSatisfied>);

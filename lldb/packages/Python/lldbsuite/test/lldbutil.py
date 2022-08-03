@@ -235,7 +235,7 @@ def state_type_to_str(enum):
     elif enum == lldb.eStateSuspended:
         return "suspended"
     else:
-        raise Exception("Unknown StateType enum")
+        raise Exception("Unknown StateType enum: " + str(enum))
 
 
 def stop_reason_to_str(enum):
@@ -945,7 +945,22 @@ def run_to_breakpoint_do_run(test, target, bkpt, launch_info = None,
     test.assertFalse(error.Fail(),
                      "Process launch failed: %s" % (error.GetCString()))
 
-    test.assertEqual(process.GetState(), lldb.eStateStopped)
+    def processStateInfo(process):
+        info = "state: {}".format(state_type_to_str(process.state))
+        if process.state == lldb.eStateExited:
+            info += ", exit code: {}".format(process.GetExitStatus())
+            if process.exit_description:
+                info += ", exit description: '{}'".format(process.exit_description)
+        stdout = process.GetSTDOUT(999)
+        if stdout:
+            info += ", stdout: '{}'".format(stdout)
+        stderr = process.GetSTDERR(999)
+        if stderr:
+            info += ", stderr: '{}'".format(stderr)
+        return info
+
+    if process.state != lldb.eStateStopped:
+        test.fail("Test process is not stopped at breakpoint: {}".format(processStateInfo(process)))
 
     # Frame #0 should be at our breakpoint.
     threads = get_threads_stopped_at_breakpoint(
@@ -1255,6 +1270,29 @@ def expect_state_changes(test, listener, process, states, timeout=30):
             lldb.SBProcess.GetStateFromEvent(event),
             expected_state)
 
+def start_listening_from(broadcaster, event_mask):
+    """Creates a listener for a specific event mask and add it to the source broadcaster."""
+
+    listener = lldb.SBListener("lldb.test.listener")
+    broadcaster.AddListener(listener, event_mask)
+    return listener
+
+def fetch_next_event(test, listener, broadcaster, timeout=10):
+    """Fetch one event from the listener and return it if it matches the provided broadcaster.
+    Fails otherwise."""
+
+    event = lldb.SBEvent()
+
+    if listener.WaitForEvent(timeout, event):
+        if event.BroadcasterMatchesRef(broadcaster):
+            return event
+
+        test.fail("received event '%s' from unexpected broadcaster '%s'." %
+                  (event.GetDescription(), event.GetBroadcaster().GetName()))
+
+    test.fail("couldn't fetch an event before reaching the timeout.")
+
+
 # ===================================
 # Utility functions related to Frames
 # ===================================
@@ -1504,6 +1542,42 @@ def get_signal_number(signal_name):
     # No remote platform; fall back to using local python signals.
     return getattr(signal, signal_name)
 
+def get_actions_for_signal(testcase, signal_name, from_target=False, expected_absent=False):
+    """Returns a triple of (pass, stop, notify)"""
+    return_obj = lldb.SBCommandReturnObject()
+    command = "process handle {0}".format(signal_name)
+    if from_target:
+        command += " -t"
+    testcase.dbg.GetCommandInterpreter().HandleCommand(
+        command, return_obj)
+    match = re.match(
+        'NAME *PASS *STOP *NOTIFY.*(false|true|not set) *(false|true|not set) *(false|true|not set)',
+        return_obj.GetOutput(),
+        re.IGNORECASE | re.DOTALL)
+    if match and expected_absent:
+        testcase.fail('Signal "{0}" was supposed to be absent'.format(signal_name))
+    if not match:
+        if expected_absent:
+            return (None, None, None)
+        testcase.fail('Unable to retrieve default signal disposition.')
+    return (match.group(1), match.group(2), match.group(3))
+
+
+
+def set_actions_for_signal(testcase, signal_name, pass_action, stop_action, notify_action, expect_success=True):
+        return_obj = lldb.SBCommandReturnObject()
+        command = "process handle {0}".format(signal_name)
+        if pass_action != None:
+            command += " -p {0}".format(pass_action)
+        if stop_action != None:
+            command += " -s {0}".format(stop_action)
+        if notify_action != None:
+            command +=" -n {0}".format(notify_action)
+            
+        testcase.dbg.GetCommandInterpreter().HandleCommand(command, return_obj)
+        testcase.assertEqual(expect_success,
+            return_obj.Succeeded(), 
+            "Setting signal handling for {0} worked as expected".format(signal_name))
 
 class PrintableRegex(object):
 

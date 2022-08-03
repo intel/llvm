@@ -327,15 +327,31 @@ void Operator::populateTypeInferenceInfo(
   if (getNumResults() == 0)
     return;
 
-  // Skip for ops with variadic operands/results.
-  // TODO: This can be relaxed.
-  if (isVariadic())
+  // Skip ops with variadic or optional results.
+  if (getNumVariableLengthResults() > 0)
     return;
 
   // Skip cases currently being custom generated.
   // TODO: Remove special cases.
-  if (getTrait("::mlir::OpTrait::SameOperandsAndResultType"))
+  if (getTrait("::mlir::OpTrait::SameOperandsAndResultType")) {
+    // Check for a non-variable length operand to use as the type anchor.
+    auto *operandI = llvm::find_if(arguments, [](const Argument &arg) {
+      NamedTypeConstraint *operand = arg.dyn_cast<NamedTypeConstraint *>();
+      return operand && !operand->isVariableLength();
+    });
+    if (operandI == arguments.end())
+      return;
+
+    // Map each of the result types to the anchor operation.
+    int operandIdx = operandI - arguments.begin();
+    resultTypeMapping.resize(getNumResults());
+    for (int i = 0; i < getNumResults(); ++i)
+      resultTypeMapping[i].emplace_back(operandIdx);
+
+    allResultsHaveKnownTypes = true;
+    traits.push_back(Trait::create(inferTrait->getDefInit()));
     return;
+  }
 
   // We create equivalence classes of argument/result types where arguments
   // and results are mapped into the same index space and indices corresponding
@@ -351,17 +367,13 @@ void Operator::populateTypeInferenceInfo(
     for (auto me = ecs.member_end(); mi != me; ++mi) {
       if (*mi < 0) {
         auto tc = getResultTypeConstraint(i);
-        if (tc.getBuilderCall().hasValue()) {
+        if (tc.getBuilderCall()) {
           resultTypeMapping[i].emplace_back(tc);
           found = true;
         }
         continue;
       }
 
-      if (getArg(*mi).is<NamedAttribute *>()) {
-        // TODO: Handle attributes.
-        continue;
-      }
       resultTypeMapping[i].emplace_back(*mi);
       found = true;
     }
@@ -701,8 +713,7 @@ getGetterOrSetterNames(bool isGetter, const Operator &op, StringRef name) {
   // is safer).
   auto skip = [&](StringRef newName) {
     bool shouldSkip = newName == "getAttributeNames" ||
-                      newName == "getAttributes" || newName == "getOperation" ||
-                      newName == "getType";
+                      newName == "getAttributes" || newName == "getOperation";
     if (newName == "getOperands") {
       // To reduce noise, skip generating the prefixed form and the warning if
       // $operands correspond to single variadic argument.
@@ -713,6 +724,11 @@ getGetterOrSetterNames(bool isGetter, const Operator &op, StringRef name) {
     if (newName == "getRegions") {
       if (op.getNumRegions() == 1 && op.getNumVariadicRegions() == 1)
         return true;
+      shouldSkip = true;
+    }
+    if (newName == "getType") {
+      if (op.getNumResults() == 0)
+        return false;
       shouldSkip = true;
     }
     if (!shouldSkip)

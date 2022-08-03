@@ -13,14 +13,11 @@
 #include "llvm/Analysis/LazyBlockFrequencyInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Instructions.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Transforms/Instrumentation.h"
-
-#include <array>
 
 using namespace llvm;
 
@@ -42,7 +39,8 @@ addModuleFlags(Module &M,
     Nodes.push_back(MDNode::get(Context, Vals));
   }
 
-  M.addModuleFlag(Module::Append, "CG Profile", MDNode::get(Context, Nodes));
+  M.addModuleFlag(Module::Append, "CG Profile",
+                  MDTuple::getDistinct(Context, Nodes));
   return true;
 }
 

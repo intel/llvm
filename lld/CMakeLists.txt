@@ -11,6 +11,10 @@ endif()
 include(GNUInstallDirs)
 
 if(LLD_BUILT_STANDALONE)
+  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+  set(CMAKE_CXX_STANDARD_REQUIRED YES)
+  set(CMAKE_CXX_EXTENSIONS NO)
+
   set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
   # Rely on llvm-config.
@@ -68,7 +72,7 @@ if(LLD_BUILT_STANDALONE)
     # path is removed.
     set(MAIN_INCLUDE_DIR "${LLVM_INCLUDE_DIR}")
     set(LLVM_OBJ_DIR "${LLVM_BINARY_DIR}")
-    # N.B. this is just a default value, the CACHE PATHs below can be overriden.
+    # N.B. this is just a default value, the CACHE PATHs below can be overridden.
     set(MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../llvm")
   endif()
 

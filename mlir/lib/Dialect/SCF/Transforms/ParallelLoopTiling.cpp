@@ -1,4 +1,4 @@
-//===- ParallelLoopTiling.cpp - Tiles scf.parallel ---------------===//
+//===- ParallelLoopTiling.cpp - Tiles scf.parallel ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -13,11 +13,10 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Transforms.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -48,7 +47,7 @@ using namespace mlir::scf;
 ///
 /// where the uses of %i0 and %i1 in the loop body are replaced by
 /// %i0 + j0 and %i1 + %j1.
-//
+///
 /// The old loop is replaced with the new one.
 std::pair<ParallelOp, ParallelOp>
 mlir::scf::tileParallelLoop(ParallelOp op, ArrayRef<int64_t> tileSizes,
@@ -196,8 +195,9 @@ struct ParallelLoopTiling
   }
 
   void runOnOperation() override {
+    auto *parentOp = getOperation();
     SmallVector<ParallelOp, 2> innermostPloops;
-    getInnermostParallelLoops(getOperation().getOperation(), innermostPloops);
+    getInnermostParallelLoops(parentOp, innermostPloops);
     for (ParallelOp ploop : innermostPloops) {
       // FIXME: Add reduction support.
       if (ploop.getNumReductions() == 0)

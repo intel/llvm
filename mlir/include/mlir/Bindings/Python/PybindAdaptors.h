@@ -125,11 +125,16 @@ struct type_caster<MlirContext> {
 };
 
 /// Casts object <-> MlirLocation.
-// TODO: Coerce None to default MlirLocation.
 template <>
 struct type_caster<MlirLocation> {
   PYBIND11_TYPE_CASTER(MlirLocation, _("MlirLocation"));
   bool load(handle src, bool) {
+    if (src.is_none()) {
+      // Gets the current thread-bound context.
+      src = py::module::import(MAKE_MLIR_PYTHON_QUALNAME("ir"))
+                .attr("Location")
+                .attr("current");
+    }
     py::object capsule = mlirApiObjectToCapsule(src);
     value = mlirPythonCapsuleToLocation(capsule.ptr());
     return !mlirLocationIsNull(value);
@@ -249,7 +254,7 @@ public:
   template <typename Func, typename... Extra>
   pure_subclass &def(const char *name, Func &&f, const Extra &... extra) {
     py::cpp_function cf(
-        std::forward<Func>(f), py::name(name), py::is_method(py::none()),
+        std::forward<Func>(f), py::name(name), py::is_method(thisClass),
         py::sibling(py::getattr(thisClass, name, py::none())), extra...);
     thisClass.attr(cf.name()) = cf;
     return *this;
@@ -259,7 +264,7 @@ public:
   pure_subclass &def_property_readonly(const char *name, Func &&f,
                                        const Extra &... extra) {
     py::cpp_function cf(
-        std::forward<Func>(f), py::name(name), py::is_method(py::none()),
+        std::forward<Func>(f), py::name(name), py::is_method(thisClass),
         py::sibling(py::getattr(thisClass, name, py::none())), extra...);
     auto builtinProperty =
         py::reinterpret_borrow<py::object>((PyObject *)&PyProperty_Type);

@@ -27,7 +27,11 @@ combined with other commands:
 
 .. option:: -d, --disassemble
 
-  Disassemble all executable sections found in the input files.
+  Disassemble all executable sections found in the input files. On some
+  architectures (AArch64, PPC64, x86), all known instructions are disassembled by
+  default. On the others, :option:`--mcpu` or :option:`--mattr` is needed to
+  enable some instruction sets. Disabled instructions are displayed as
+  ``<unknown>``.
 
 .. option:: -D, --disassemble-all
 
@@ -226,6 +230,8 @@ OPTIONS
 
   When printing a PC-relative global symbol reference, print it as an offset from the leading symbol.
 
+  When a bb-address-map section is present (i.e., the object file is built with ``-fbasic-block-sections=labels``), labels are retrieved from that section instead.
+
   Only works with PowerPC objects or X86 linked images.
 
   Example:
@@ -302,6 +308,11 @@ MACH-O ONLY OPTIONS AND COMMANDS
 
   Disassemble just the specified symbol's instructions.
 
+.. option:: --dyld_info
+
+  Print bind and rebase information used by dyld to resolve external
+  references in a final linked binary.
+
 .. option:: --dylibs-used
 
   Display the shared libraries used for linked files.
@@ -366,6 +377,10 @@ MACH-O ONLY OPTIONS AND COMMANDS
 .. option:: --objc-meta-data
 
   Display the Objective-C runtime meta data.
+
+.. option:: --offloading
+
+  Display the content of the LLVM offloading section.
 
 .. option:: --private-header
 

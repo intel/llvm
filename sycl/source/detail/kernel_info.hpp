@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/info/info_desc.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/common_info.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
+#include <sycl/info/info_desc.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -39,13 +39,13 @@ template <info::kernel Param> struct get_kernel_info<std::string, Param> {
   }
 };
 
-template <info::kernel Param> struct get_kernel_info<cl_uint, Param> {
-  static cl_uint get(RT::PiKernel Kernel, const plugin &Plugin) {
-    cl_uint Result;
+template <info::kernel Param> struct get_kernel_info<uint32_t, Param> {
+  static uint32_t get(RT::PiKernel Kernel, const plugin &Plugin) {
+    uint32_t Result;
 
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param),
-                                            sizeof(cl_uint), &Result, nullptr);
+                                            sizeof(uint32_t), &Result, nullptr);
     return Result;
   }
 };
@@ -115,7 +115,7 @@ template <>
 inline cl::sycl::range<3> get_kernel_device_specific_info_host<
     info::kernel_device_specific::global_work_size>(const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -141,7 +141,7 @@ inline size_t get_kernel_device_specific_info_host<
 }
 
 template <>
-inline cl_ulong get_kernel_device_specific_info_host<
+inline size_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::private_mem_size>(const cl::sycl::device &) {
   return 0;
 }
@@ -158,7 +158,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::max_num_sub_groups>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -166,7 +166,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::compile_num_sub_groups>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <>
@@ -174,7 +174,7 @@ inline uint32_t get_kernel_device_specific_info_host<
     info::kernel_device_specific::compile_sub_group_size>(
     const cl::sycl::device &) {
   throw invalid_object_error("This instance of kernel is a host instance",
-                             PI_INVALID_KERNEL);
+                             PI_ERROR_INVALID_KERNEL);
 }
 
 template <info::kernel_device_specific Param>

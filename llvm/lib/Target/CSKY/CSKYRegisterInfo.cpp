@@ -13,6 +13,7 @@
 #include "CSKYRegisterInfo.h"
 #include "CSKY.h"
 #include "CSKYSubtarget.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/MC/MCContext.h"
@@ -264,7 +265,6 @@ void CSKYRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     assert(isInt<32>(Offset) && "Int32 expected");
     // The offset won't fit in an immediate, so use a scratch register instead
     // Modify Offset and FrameReg appropriately
-    assert(Offset >= 0);
     Register ScratchReg = TII->movImm(MBB, NewII, DL, Offset);
     BuildMI(MBB, NewII, DL,
             TII->get(STI.hasE2() ? CSKY::ADDU32 : CSKY::ADDU16XZ), ScratchReg)
@@ -281,7 +281,7 @@ void CSKYRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     MI->setDesc(TII->get(TargetOpcode::COPY));
     MI->getOperand(FIOperandNum)
         .ChangeToRegister(FrameReg, false, false, FrameRegIsKill);
-    MI->RemoveOperand(FIOperandNum + 1);
+    MI->removeOperand(FIOperandNum + 1);
   } else {
     MI->getOperand(FIOperandNum)
         .ChangeToRegister(FrameReg, false, false, FrameRegIsKill);

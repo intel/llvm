@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/properties/all_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/sampler.hpp>
 #include <detail/sampler_impl.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/sampler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -47,7 +47,7 @@ bool sampler::operator!=(const sampler &rhs) const {
   template <> __SYCL_EXPORT bool sampler::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -56,7 +56,7 @@ bool sampler::operator!=(const sampler &rhs) const {
   __SYCL_EXPORT param_type sampler::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

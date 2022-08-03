@@ -328,9 +328,7 @@ static bool isDivisibleBySymbol(AffineExpr expr, unsigned symbolPos,
          "unexpected opKind");
   switch (expr.getKind()) {
   case AffineExprKind::Constant:
-    if (expr.cast<AffineConstantExpr>().getValue())
-      return false;
-    return true;
+    return expr.cast<AffineConstantExpr>().getValue() == 0;
   case AffineExprKind::DimId:
     return false;
   case AffineExprKind::SymbolId:
@@ -582,8 +580,7 @@ static AffineExpr simplifyAdd(AffineExpr lhs, AffineExpr rhs) {
   if (rLhsConst && rRhsConst && firstExpr == secondExpr)
     return getAffineBinaryOpExpr(
         AffineExprKind::Mul, firstExpr,
-        getAffineConstantExpr(rLhsConst.getValue() + rRhsConst.getValue(),
-                              lhs.getContext()));
+        getAffineConstantExpr(*rLhsConst + *rRhsConst, lhs.getContext()));
 
   // When doing successive additions, bring constant to the right: turn (d0 + 2)
   // + d1 into (d0 + d1) + 2.

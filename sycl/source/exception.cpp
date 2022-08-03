@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 // 4.9.2 Exception Class Interface
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/exception.hpp>
+#include <sycl/context.hpp>
+#include <sycl/exception.hpp>
 
 #include <cstring>
 
@@ -65,7 +65,7 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const std::string &WhatArg)
-    : MMsg(WhatArg + ReservedForErrorcode), MCLErr(PI_INVALID_VALUE),
+    : MMsg(WhatArg + ReservedForErrorcode), MPIErr(PI_ERROR_INVALID_VALUE),
       MContext(SharedPtrCtx) {
   // For compatibility with previous implementation, we are "hiding" the
   // std::error_code in the MMsg string, behind the null string terminator
@@ -111,7 +111,7 @@ context exception::get_context() const {
   return *MContext;
 }
 
-cl_int exception::get_cl_code() const { return MCLErr; }
+cl_int exception::get_cl_code() const { return MPIErr; }
 
 const std::error_category &sycl_category() noexcept {
   static const detail::SYCLCategory SYCLCategoryObj;

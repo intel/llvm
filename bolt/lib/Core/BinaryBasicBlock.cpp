@@ -39,10 +39,10 @@ bool BinaryBasicBlock::hasInstructions() const {
   return getParent()->hasInstructions();
 }
 
-bool BinaryBasicBlock::hasJumpTable() const {
+const JumpTable *BinaryBasicBlock::getJumpTable() const {
   const MCInst *Inst = getLastNonPseudoInstr();
   const JumpTable *JT = Inst ? Function->getJumpTable(*Inst) : nullptr;
-  return (JT != nullptr);
+  return JT;
 }
 
 void BinaryBasicBlock::adjustNumPseudos(const MCInst &Inst, int Sign) {
@@ -328,6 +328,7 @@ void BinaryBasicBlock::removePredecessor(BinaryBasicBlock *Pred,
     }
   }
   assert(Erased && "Pred is not a predecessor of this block!");
+  (void)Erased;
 }
 
 void BinaryBasicBlock::removeDuplicateConditionalSuccessor(MCInst *CondBranch) {
@@ -349,6 +350,36 @@ void BinaryBasicBlock::removeDuplicateConditionalSuccessor(MCInst *CondBranch) {
   if (CondBI.Count != COUNT_NO_PROFILE && UncondBI.Count != COUNT_NO_PROFILE)
     Count = CondBI.Count + UncondBI.Count;
   BranchInfo.push_back({Count, 0});
+}
+
+void BinaryBasicBlock::updateJumpTableSuccessors() {
+  const JumpTable *JT = getJumpTable();
+  assert(JT && "Expected jump table instruction.");
+
+  // Clear existing successors.
+  removeAllSuccessors();
+
+  // Generate the list of successors in deterministic order without duplicates.
+  SmallVector<BinaryBasicBlock *, 16> SuccessorBBs;
+  for (const MCSymbol *Label : JT->Entries) {
+    BinaryBasicBlock *BB = getFunction()->getBasicBlockForLabel(Label);
+    // Ignore __builtin_unreachable()
+    if (!BB) {
+      assert(Label == getFunction()->getFunctionEndLabel() &&
+             "JT label should match a block or end of function.");
+      continue;
+    }
+    SuccessorBBs.emplace_back(BB);
+  }
+  llvm::sort(SuccessorBBs,
+             [](const BinaryBasicBlock *BB1, const BinaryBasicBlock *BB2) {
+               return BB1->getInputOffset() < BB2->getInputOffset();
+             });
+  SuccessorBBs.erase(std::unique(SuccessorBBs.begin(), SuccessorBBs.end()),
+                     SuccessorBBs.end());
+
+  for (BinaryBasicBlock *BB : SuccessorBBs)
+    addSuccessor(BB);
 }
 
 void BinaryBasicBlock::adjustExecutionCount(double Ratio) {
@@ -513,7 +544,7 @@ BinaryBasicBlock::getBranchStats(const BinaryBasicBlock *Succ) const {
     }
 
     if (TotalCount > 0) {
-      auto Itr = std::find(Successors.begin(), Successors.end(), Succ);
+      auto Itr = llvm::find(Successors, Succ);
       assert(Itr != Successors.end());
       const BinaryBranchInfo &BI = BranchInfo[Itr - Successors.begin()];
       if (BI.Count && BI.Count != COUNT_NO_PROFILE) {
@@ -532,7 +563,7 @@ void BinaryBasicBlock::dump() const {
   if (Label)
     outs() << Label->getName() << ":\n";
   BC.printInstructions(outs(), Instructions.begin(), Instructions.end(),
-                       getOffset());
+                       getOffset(), Function);
   outs() << "preds:";
   for (auto itr = pred_begin(); itr != pred_end(); ++itr) {
     outs() << " " << (*itr)->getName();
@@ -577,7 +608,7 @@ BinaryBasicBlock::getBranchInfo(const MCSymbol *Label) {
 BinaryBasicBlock *BinaryBasicBlock::splitAt(iterator II) {
   assert(II != end() && "expected iterator pointing to instruction");
 
-  BinaryBasicBlock *NewBlock = getFunction()->addBasicBlock(0);
+  BinaryBasicBlock *NewBlock = getFunction()->addBasicBlock();
 
   // Adjust successors/predecessors and propagate the execution count.
   moveAllSuccessorsTo(NewBlock);

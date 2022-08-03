@@ -209,37 +209,36 @@ get_local_func_address:
 
 # DIS:      <__wasm_call_ctors>:
 # DIS-EMPTY:
-# DIS-NEXT:                 call    1
 # DIS-NEXT:                 end
 
 # DIS:      <__wasm_apply_data_relocs>:
 # DIS-EMPTY:
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       4
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 global.get      4
 # DIS-NEXT:                 i32.store       0
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       8
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 global.get      2
 # DIS-NEXT:                 i32.const       1
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 i32.store       0
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       12
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       0
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 i32.store       0
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       16
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 global.get      5
 # DIS-NEXT:                 i32.store       0
-# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.const       20
+# DIS-NEXT:                 global.get      1
 # DIS-NEXT:                 i32.add
 # DIS-NEXT:                 global.get      6
 # DIS-NEXT:                 i32.const       4

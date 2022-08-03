@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/program_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/sycl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -85,6 +85,15 @@ __SYCL_EXPORT queue make_queue(const context &Context,
                                bool KeepOwnership) {
   const auto &ContextImpl = getSyclObjImpl(Context);
   return detail::make_queue(NativeHandle, Context, KeepOwnership,
+                            ContextImpl->get_async_handler(),
+                            backend::ext_oneapi_level_zero);
+}
+
+__SYCL_EXPORT queue make_queue(const context &Context, const device &Device,
+                               pi_native_handle NativeHandle,
+                               bool KeepOwnership) {
+  const auto &ContextImpl = getSyclObjImpl(Context);
+  return detail::make_queue(NativeHandle, Context, Device, KeepOwnership,
                             ContextImpl->get_async_handler(),
                             backend::ext_oneapi_level_zero);
 }

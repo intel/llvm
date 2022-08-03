@@ -103,7 +103,7 @@ entry:
 }
 
 ; This device_global variable has no "device_image_scope" property
-attributes #0 = { "sycl-unique-id"="dg_int2" "host_access"="1" "implement_in_csr"="true" "init_mode"="0" "sycl-device-global-size"="4" }
+attributes #0 = { "sycl-unique-id"="dg_int2" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-device-global-size"="4" }
 attributes #1 = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }
 attributes #2 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test_global_variable_1.cpp" "uniform-work-group-size"="true" }
 attributes #3 = { convergent mustprogress noinline norecurse optnone "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="test_global_variable_2.cpp" "uniform-work-group-size"="true" }

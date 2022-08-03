@@ -7,16 +7,16 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/common_info.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/common_info.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/device.hpp>
+#include <sycl/program.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -364,7 +364,7 @@ private:
       if (!Device.get_info<param>()) {
         throw feature_not_supported(
             "Online compilation is not supported by this device",
-            PI_COMPILER_NOT_AVAILABLE);
+            PI_ERROR_COMPILER_NOT_AVAILABLE);
       }
     }
   }
@@ -455,7 +455,7 @@ private:
 };
 
 template <>
-cl_uint program_impl::get_info<info::program::reference_count>() const;
+uint32_t program_impl::get_info<info::program::reference_count>() const;
 
 template <> context program_impl::get_info<info::program::context>() const;
 

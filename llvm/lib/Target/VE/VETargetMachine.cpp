@@ -61,7 +61,7 @@ static std::string computeDataLayout(const Triple &T) {
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  return RM.getValueOr(Reloc::Static);
+  return RM.value_or(Reloc::Static);
 }
 
 class VEELFTargetObjectFile : public TargetLoweringObjectFileELF {
@@ -92,7 +92,8 @@ VETargetMachine::VETargetMachine(const Target &T, const Triple &TT,
 
 VETargetMachine::~VETargetMachine() = default;
 
-TargetTransformInfo VETargetMachine::getTargetTransformInfo(const Function &F) {
+TargetTransformInfo
+VETargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(VETTIImpl(this, F));
 }
 

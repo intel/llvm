@@ -27,14 +27,15 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/device_selector.hpp>
-#include <CL/sycl/platform.hpp>
-#include <CL/sycl/queue.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/platform.hpp>
+#include <sycl/queue.hpp>
 
 #include <functional>
+#include <optional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -57,7 +58,7 @@ namespace RT = detail::pi;
                                                  decltype(&::api) FuncPtr) {   \
     MPlugin->PiFunctionTable.api = FuncPtr;                                    \
   }
-#include <CL/sycl/detail/pi.def>
+#include <sycl/detail/pi.def>
 #undef _PI_API
 
 /// The PiMock class wraps an instance of a SYCL platform class,
@@ -133,14 +134,26 @@ public:
     MPiPluginMockPtr = &NewPluginPtr->getPiPlugin();
     // Save a copy of the platform resource
     MPlatform = OriginalPlatform;
+    OrigFuncTable = OriginalPiPlugin.getPiPlugin().PiFunctionTable;
   }
 
   /// Explicit construction from a host_selector is forbidden.
   PiMock(const cl::sycl::host_selector &HostSelector) = delete;
 
+  PiMock(PiMock &&Other) {
+    MPlatform = std::move(Other.MPlatform);
+    OrigFuncTable = std::move(Other.OrigFuncTable);
+    Other.OrigFuncTable = {}; // Move above doesn't reset the optional.
+    MPiPluginMockPtr = std::move(Other.MPiPluginMockPtr);
+  }
   PiMock(const PiMock &) = delete;
   PiMock &operator=(const PiMock &) = delete;
-  ~PiMock() = default;
+  ~PiMock() {
+    if (!OrigFuncTable)
+      return;
+
+    MPiPluginMockPtr->PiFunctionTable = *OrigFuncTable;
+  }
 
   /// Returns a handle to the SYCL platform instance.
   ///
@@ -184,6 +197,7 @@ public:
 
 private:
   cl::sycl::platform MPlatform;
+  std::optional<pi_plugin::FunctionPointers> OrigFuncTable;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.
   RT::PiPlugin *MPiPluginMockPtr;

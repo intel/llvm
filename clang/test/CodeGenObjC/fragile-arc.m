@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -triple i386-apple-darwin10 -emit-llvm -fblocks -fobjc-arc -fobjc-exceptions -fobjc-runtime=macosx-fragile-10.10 -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple i386-apple-darwin10 -emit-llvm -fblocks -fobjc-arc -fobjc-exceptions -fobjc-runtime=macosx-fragile-10.10 -o - %s | FileCheck %s -check-prefix=GLOBALS
+// RUN: %clang_cc1 -no-opaque-pointers -triple i386-apple-darwin10 -emit-llvm -fblocks -fobjc-arc -fobjc-exceptions -fobjc-runtime=macosx-fragile-10.10 -o - %s | FileCheck %s
+// RUN: %clang_cc1 -no-opaque-pointers -triple i386-apple-darwin10 -emit-llvm -fblocks -fobjc-arc -fobjc-exceptions -fobjc-runtime=macosx-fragile-10.10 -o - %s | FileCheck %s -check-prefix=GLOBALS
 
 @class Opaque;
 
@@ -163,7 +163,7 @@ void testBlockLayoutWeak(__weak id x) {
 // CHECK: call void @checkpoint(i32 noundef 2)
 // CHECK: call void @llvm.objc.storeStrong(i8** [[Y]], i8* null)
 extern void checkpoint(int n);
-void testCatch() {
+void testCatch(void) {
   @try {
     checkpoint(0);
   } @catch (A *x) {

@@ -151,9 +151,9 @@ Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicLoad(CallInst *CI) {
         Args.resize(1);
         // There is no atomic_load in OpenCL 1.2 spec.
         // Emit this builtin via call of atomic_add(*p, 0).
-        Type *ptrElemTy = Args[0]->getType()->getPointerElementType();
-        Args.push_back(Constant::getNullValue(ptrElemTy));
-        return mapAtomicName(OpAtomicIAdd, ptrElemTy);
+        Type *PtrElemTy = CI->getType();
+        Args.push_back(Constant::getNullValue(PtrElemTy));
+        return mapAtomicName(OpAtomicIAdd, PtrElemTy);
       },
       &Attrs);
 }
@@ -165,9 +165,9 @@ Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicStore(CallInst *CI) {
       [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
         std::swap(Args[1], Args[3]);
         Args.resize(2);
-        // The type of the value pointed to by Pointer (1st argument)
-        // must be the same as Result Type.
-        RetTy = Args[0]->getType()->getPointerElementType();
+        // The type of the value pointed to by Pointer (1st argument), or the
+        // value being exchanged (2nd argument) must be the same as Result Type.
+        RetTy = Args[1]->getType();
         return mapAtomicName(OpAtomicExchange, RetTy);
       },
       [=](CallInst *CI) -> Instruction * { return CI; }, &Attrs);

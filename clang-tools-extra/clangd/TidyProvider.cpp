@@ -18,10 +18,8 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/VirtualFileSystem.h"
 #include <memory>
 
 namespace clang {
@@ -127,7 +125,7 @@ public:
     for (const DotClangTidyCache *Cache : Caches)
       if (auto Config = Cache->get(FS, FreshTime)) {
         OptionStack.push_back(std::move(Config));
-        if (!OptionStack.back()->InheritParentConfig.getValueOr(false))
+        if (!OptionStack.back()->InheritParentConfig.value_or(false))
           break;
       }
     unsigned Order = 1u;

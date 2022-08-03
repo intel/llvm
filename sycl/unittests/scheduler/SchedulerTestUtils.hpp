@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <sycl/detail/cl.h>
 
 #include <functional>
 #include <gmock/gmock.h>
@@ -124,7 +124,9 @@ public:
   void cleanupCommandsForRecord(cl::sycl::detail::MemObjRecord *Rec) {
     std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
         StreamsToDeallocate;
-    MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate);
+    std::vector<std::shared_ptr<const void>> AuxiliaryResourcesToDeallocate;
+    MGraphBuilder.cleanupCommandsForRecord(Rec, StreamsToDeallocate,
+                                           AuxiliaryResourcesToDeallocate);
   }
 
   void addNodeToLeaves(cl::sycl::detail::MemObjRecord *Rec,

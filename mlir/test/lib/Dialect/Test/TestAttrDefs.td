@@ -15,7 +15,9 @@
 
 // To get the test dialect definition.
 include "TestDialect.td"
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
+include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SubElementInterfaces.td"
 
 // All of the attributes will extend this class.
@@ -42,6 +44,7 @@ def CompoundAttrA : Test_Attr<"CompoundA"> {
       "An example of an array of ints" // Parameter description.
       >: $arrayOfInts
   );
+  let hasCustomAssemblyFormat = 1;
 }
 def CompoundAttrNested : Test_Attr<"CompoundAttrNested"> {
   let mnemonic = "cmpnd_nested";
@@ -53,6 +56,7 @@ def CompoundAttrNested : Test_Attr<"CompoundAttrNested"> {
 def AttrWithSelfTypeParam : Test_Attr<"AttrWithSelfTypeParam"> {
   let mnemonic = "attr_with_self_type_param";
   let parameters = (ins AttributeSelfTypeParameter<"">:$type);
+  let assemblyFormat = "";
 }
 
 // An attribute testing AttributeSelfTypeParameter.
@@ -60,6 +64,7 @@ def AttrWithTypeBuilder : Test_Attr<"AttrWithTypeBuilder"> {
   let mnemonic = "attr_with_type_builder";
   let parameters = (ins "::mlir::IntegerAttr":$attr);
   let typeBuilder = "$_attr.getType()";
+  let hasCustomAssemblyFormat = 1;
 }
 
 def TestAttrTrait : NativeAttrTrait<"TestAttrTrait">;
@@ -67,7 +72,6 @@ def TestAttrTrait : NativeAttrTrait<"TestAttrTrait">;
 // The definition of a singleton attribute that has a trait.
 def AttrWithTrait : Test_Attr<"AttrWithTrait", [TestAttrTrait]> {
   let mnemonic = "attr_with_trait";
-  let parameters = (ins );
 }
 
 // Test support for ElementsAttrInterface.
@@ -105,6 +109,7 @@ def TestI64ElementsAttr : Test_Attr<"TestI64Elements", [
     }
   }];
   let genVerifyDecl = 1;
+  let hasCustomAssemblyFormat = 1;
 }
 
 def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
@@ -119,6 +124,7 @@ def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
     "::mlir::Attribute":$second,
     "::mlir::Attribute":$third
   );
+  let hasCustomAssemblyFormat = 1;
 }
 
 // A more complex parameterized attribute with multiple level of nesting.
@@ -170,11 +176,19 @@ def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
     TestParamOne:$one,
     TestParamTwo:$two,
     "::mlir::IntegerAttr":$three,
-    TestParamFour:$four
+    TestParamFour:$four,
+    // Array of another attribute.
+    ArrayRefParameter<
+      "AttrWithTypeBuilderAttr", // The parameter C++ type.
+      "An example of an array of another Attribute" // Parameter description.
+      >: $arrayOfAttrWithTypeBuilderAttr
   );
 
   let mnemonic = "attr_with_format";
-  let assemblyFormat = "`<` $one `:` struct($two, $four) `:` $three `>`";
+  let assemblyFormat = [{
+    `<` $one `:` struct($two, $four) `:` $three `,`
+    `[` `` $arrayOfAttrWithTypeBuilderAttr `]` `>`
+  }];
   let genVerifyDecl = 1;
 }
 
@@ -198,6 +212,40 @@ def TestAttrWithTypeParam : Test_Attr<"TestAttrWithTypeParam"> {
                         "::mlir::Type":$any_type);
   let mnemonic = "attr_with_type";
   let assemblyFormat = "`<` $int_type `,` $any_type `>`";
+}
+
+// Test self type parameter with assembly format.
+def TestAttrSelfTypeParameterFormat
+    : Test_Attr<"TestAttrSelfTypeParameterFormat"> {
+  let parameters = (ins "int":$a, AttributeSelfTypeParameter<"">:$type);
+
+  let mnemonic = "attr_self_type_format";
+  let assemblyFormat = "`<` $a `>`";
+}
+
+// Test simple extern 1D vector using ElementsAttrInterface.
+def TestExtern1DI64ElementsAttr : Test_Attr<"TestExtern1DI64Elements", [
+    ElementsAttrInterface
+  ]> {
+  let mnemonic = "e1di64_elements";
+  let parameters = (ins
+    AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
+    ResourceHandleParameter<"TestExternalElementsDataHandle">:$handle
+  );
+  let extraClassDeclaration = [{
+    /// Return the elements referenced by this attribute.
+    llvm::ArrayRef<uint64_t> getElements() const;
+
+    /// The set of data types that can be iterated by this attribute.
+    using ContiguousIterableTypesT = std::tuple<uint64_t>;
+
+    /// Provide begin iterators for the various iterable types.
+    // * uint64_t
+    auto value_begin_impl(OverloadToken<uint64_t>) const {
+      return getElements().begin();
+    }
+  }];
+  let assemblyFormat = "`<` $handle `>`";
 }
 
 #endif // TEST_ATTRDEFS

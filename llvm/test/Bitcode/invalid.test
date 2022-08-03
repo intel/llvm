@@ -275,7 +275,7 @@ INVALID-VALUE-SYMBOL-TABLE: Invalid value reference in symbol table
 RUN: not llvm-dis -disable-output %p/Inputs/unterminated-vbr.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=UNTERMINATED-VBR %s
 
-UNTERMINATED-VBR: Unterminated VBR
+UNTERMINATED-VBR: Failed to read size: Unterminated VBR
 
 RUN: not llvm-dis -disable-output %p/Inputs/comdat-name-too-large.bc 2>&1 | \
 RUN:   FileCheck --check-prefix=COMDAT-NAME-TOO-LARGE %s
@@ -291,3 +291,8 @@ RUN: not llvm-dis -disable-output %p/Inputs/invalid-diimportedentity-record.bc 2
 RUN:   FileCheck --check-prefix=INVALID-DIIMPORTEDENTITY-RECORD %s
 
 INVALID-DIIMPORTEDENTITY-RECORD: Invalid DIImportedEntity record
+
+RUN: not llvm-dis -disable-output -opaque-pointers %p/Inputs/invalid-forward-declare.bc 2>&1 | \
+RUN:   FileCheck --check-prefix=INVALID-FORWARD-DECLARE %s
+
+INVALID-FORWARD-DECLARE: Assigned value does not match type of forward declaration

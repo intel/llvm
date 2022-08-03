@@ -17,6 +17,8 @@
 
 namespace lld {
 namespace elf {
+class InputFile;
+class Symbol;
 
 extern std::unique_ptr<class LinkerDriver> driver;
 
@@ -42,6 +44,9 @@ private:
   std::unique_ptr<BitcodeCompiler> lto;
 
   std::vector<InputFile *> files;
+
+public:
+  SmallVector<std::pair<StringRef, unsigned>, 0> archiveFiles;
 };
 
 // Parses command line options.

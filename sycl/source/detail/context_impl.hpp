@@ -7,17 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_program_cache.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <map>
 #include <memory>
@@ -140,6 +140,9 @@ public:
   /// reference.
   const std::vector<device> &getDevices() const { return MDevices; }
 
+  using CachedLibProgramsT =
+      std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>;
+
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
   /// corresponding extension:
@@ -148,13 +151,13 @@ public:
   ///  cl_intel_devicelib_complex -> #<pi_program with complex functions>
   ///  etc.
   ///
-  /// See `doc/extensions/C-CXX-StandardLibrary/DeviceLibExtensions.rst' for
+  /// See `doc/design/DeviceLibExtensions.rst' for
   /// more details.
   ///
-  /// \returns a map with device library programs.
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram> &
-  getCachedLibPrograms() {
-    return MCachedLibPrograms;
+  /// \returns an instance of sycl::detail::Locked which wraps a map with device
+  /// library programs and the corresponding lock for synchronized access.
+  Locked<CachedLibProgramsT> acquireCachedLibPrograms() {
+    return {MCachedLibPrograms, MCachedLibProgramsMutex};
   }
 
   KernelProgramCache &getKernelProgramCache() const;
@@ -162,10 +165,19 @@ public:
   /// Returns true if and only if context contains the given device.
   bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
 
+  /// Given a PiDevice, returns the matching shared_ptr<device_impl>
+  /// within this context. May return nullptr if no match discovered.
+  DeviceImplPtr findMatchingDeviceImpl(RT::PiDevice &DevicePI) const;
+
   /// Gets the native handle of the SYCL context.
   ///
   /// \return a native handle.
   pi_native_handle getNative() const;
+
+  // Returns true if buffer_location property is supported by devices
+  bool isBufferLocationSupported() const;
+
+  enum PropertySupport { NotSupported = 0, Supported = 1, NotChecked = 2 };
 
 private:
   async_handler MAsyncHandler;
@@ -174,9 +186,10 @@ private:
   PlatformImplPtr MPlatform;
   property_list MPropList;
   bool MHostContext;
-  std::map<std::pair<DeviceLibExt, RT::PiDevice>, RT::PiProgram>
-      MCachedLibPrograms;
+  CachedLibProgramsT MCachedLibPrograms;
+  std::mutex MCachedLibProgramsMutex;
   mutable KernelProgramCache MKernelProgramCache;
+  mutable PropertySupport MSupportBufferLocationByDevices;
 };
 
 } // namespace detail
