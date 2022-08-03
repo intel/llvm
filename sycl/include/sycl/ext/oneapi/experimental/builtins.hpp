@@ -73,7 +73,7 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 // argument has 'long' type which is 64-bit wide by the OpenCL C spec. However,
 // by C++ spec long is just at least 32-bit wide, so, you need to ensure (by
 // performing a cast, for example) that if you use %ld specifier, you pass
-// 64-bit argument to the cl::sycl::experimental::printf
+// 64-bit argument to the sycl::experimental::printf
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are
@@ -100,10 +100,9 @@ inline __SYCL_ALWAYS_INLINE
                               T>
     tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
-  using _ocl_T = cl::sycl::detail::ConvertToOpenCLType_t<T>;
-  _ocl_T arg1 = cl::sycl::detail::convertDataToType<T, _ocl_T>(x);
-  return cl::sycl::detail::convertDataToType<_ocl_T, T>(
-      __clc_native_tanh(arg1));
+  using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
+  _ocl_T arg1 = sycl::detail::convertDataToType<T, _ocl_T>(x);
+  return sycl::detail::convertDataToType<_ocl_T, T>(__clc_native_tanh(arg1));
 #else
   return __sycl_std::__invoke_tanh<T>(x);
 #endif
@@ -115,10 +114,9 @@ inline __SYCL_ALWAYS_INLINE
     sycl::detail::enable_if_t<sycl::detail::is_genfloath<T>::value, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
-  using _ocl_T = cl::sycl::detail::ConvertToOpenCLType_t<T>;
-  _ocl_T arg1 = cl::sycl::detail::convertDataToType<T, _ocl_T>(x);
-  return cl::sycl::detail::convertDataToType<_ocl_T, T>(
-      __clc_native_exp2(arg1));
+  using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
+  _ocl_T arg1 = sycl::detail::convertDataToType<T, _ocl_T>(x);
+  return sycl::detail::convertDataToType<_ocl_T, T>(__clc_native_exp2(arg1));
 #else
   return __sycl_std::__invoke_exp2<T>(x);
 #endif
