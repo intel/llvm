@@ -171,7 +171,6 @@ set(SYCL_SOURCES
     "exception.cpp"
     "exception_list.cpp"
     "function_pointer.cpp"
-    "half_type.cpp"
     "handler.cpp"
     "interop_handle.cpp"
     "interop_handler.cpp"
