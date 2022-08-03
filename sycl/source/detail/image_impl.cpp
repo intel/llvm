@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <sycl/detail/image_impl.hpp>
-#include <sycl/detail/memory_manager.hpp>
 #include <sycl/image.hpp>
 
 #include <algorithm>
