@@ -15,7 +15,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
-namespace experimental {
 
 class bfloat16 {
   using storage_t = uint16_t;
@@ -165,7 +164,6 @@ public:
   // for floating-point types.
 };
 
-} // namespace experimental
 } // namespace oneapi
 } // namespace ext
 

@@ -15,7 +15,7 @@
 #include <sycl/detail/type_traits.hpp>
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/ext/oneapi/experimental/bfloat16.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
