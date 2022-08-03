@@ -170,4 +170,4 @@
 /// test clang-cl behavior for linking sycl-devicelib-host.lib by default
 // RUN: %clang_cl -fsycl %s /winsysroot=%S/Inputs/SYCL-windows -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_HOST_LIB
-// SYCL_DEVICE_HOST_LIB: {{.*}} "-defaultlib:sycl-devicelib-host.lib" {{.*}}
+// SYCL_DEVICE_HOST_LIB: {{.*}} "--dependent-lib=sycl-devicelib-host" {{.*}}

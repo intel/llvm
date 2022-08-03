@@ -142,9 +142,6 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
 
-  if (C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl))
-    CmdArgs.push_back("-defaultlib::sycl-devicelib-host.lib");
-
   for (const auto *A : Args.filtered(options::OPT_foffload_static_lib_EQ))
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-defaultlib:") + A->getValue()));
