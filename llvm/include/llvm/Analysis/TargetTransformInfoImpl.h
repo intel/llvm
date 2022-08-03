@@ -163,7 +163,8 @@ public:
   bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
                                    AssumptionCache &AC, TargetLibraryInfo *TLI,
                                    DominatorTree *DT,
-                                   LoopVectorizationLegality *LVL) const {
+                                   LoopVectorizationLegality *LVL,
+                                   InterleavedAccessInfo *IAI) const {
     return false;
   }
 
@@ -682,10 +683,16 @@ public:
     return 1;
   }
 
-  InstructionCost
-  getExtendedAddReductionCost(bool IsMLA, bool IsUnsigned, Type *ResTy,
-                              VectorType *Ty,
-                              TTI::TargetCostKind CostKind) const {
+  InstructionCost getExtendedReductionCost(unsigned Opcode, bool IsUnsigned,
+                                           Type *ResTy, VectorType *Ty,
+                                           Optional<FastMathFlags> FMF,
+                                           TTI::TargetCostKind CostKind) const {
+    return 1;
+  }
+
+  InstructionCost getMulAccReductionCost(bool IsUnsigned, Type *ResTy,
+                                         VectorType *Ty,
+                                         TTI::TargetCostKind CostKind) const {
     return 1;
   }
 

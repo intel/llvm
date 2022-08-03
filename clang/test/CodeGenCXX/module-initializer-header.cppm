@@ -18,7 +18,7 @@ export module M;
 // CHECK: @i = {{.*}}global i32 0
 // CHECK: void @__cxx_global_var_init()
 // CHECK-NEXT: entry:
-// CHECK-NEXT:  %call = call noundef i32 @_Z3foov()
+// CHECK-NEXT:  %call = call noundef{{.*}} i32 @_Z3foov()
 // CHECK-NEXT:  store i32 %call, ptr @i  
 
 //--- Use.cpp
@@ -27,5 +27,5 @@ import "header.h";
 // CHECK: @i = {{.*}}global i32 0
 // CHECK: void @__cxx_global_var_init()
 // CHECK-NEXT: entry:
-// CHECK-NEXT:  %call = call noundef i32 @_Z3foov()
+// CHECK-NEXT:  %call = call noundef{{.*}} i32 @_Z3foov()
 // CHECK-NEXT:  store i32 %call, ptr @i  

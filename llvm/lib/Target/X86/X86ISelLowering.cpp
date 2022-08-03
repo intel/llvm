@@ -1362,6 +1362,8 @@ X86TargetLowering::X86TargetLowering(const X86TargetMachine &TM,
 
     setOperationAction(ISD::SINT_TO_FP,         MVT::v8i32, Custom);
     setOperationAction(ISD::STRICT_SINT_TO_FP,  MVT::v8i32, Custom);
+    setOperationAction(ISD::FP_EXTEND,          MVT::v8f32, Expand);
+    setOperationAction(ISD::FP_ROUND,           MVT::v8f16, Expand);
     setOperationAction(ISD::FP_EXTEND,          MVT::v4f64, Custom);
     setOperationAction(ISD::STRICT_FP_EXTEND,   MVT::v4f64, Custom);
 
@@ -3461,7 +3463,7 @@ SDValue X86TargetLowering::LowerCallResult(
     if (RoundAfterCopy)
       Val = DAG.getNode(ISD::FP_ROUND, dl, VA.getValVT(), Val,
                         // This truncation won't change the value.
-                        DAG.getIntPtrConstant(1, dl));
+                        DAG.getIntPtrConstant(1, dl, /*isTarget=*/true));
 
     if (VA.isExtInLoc()) {
       if (VA.getValVT().isVector() &&
@@ -16097,16 +16099,18 @@ static SDValue lowerV8F16Shuffle(const SDLoc &DL, ArrayRef<int> Mask,
   assert(Mask.size() == 8 && "Unexpected mask size for v8 shuffle!");
   int NumV2Elements = count_if(Mask, [](int M) { return M >= 8; });
 
-  if (NumV2Elements == 0) {
-    // Check for being able to broadcast a single element.
-    if (SDValue Broadcast = lowerShuffleAsBroadcast(DL, MVT::v8f16, V1, V2,
-                                                    Mask, Subtarget, DAG))
-      return Broadcast;
+  if (Subtarget.hasFP16()) {
+    if (NumV2Elements == 0) {
+      // Check for being able to broadcast a single element.
+      if (SDValue Broadcast = lowerShuffleAsBroadcast(DL, MVT::v8f16, V1, V2,
+                                                      Mask, Subtarget, DAG))
+        return Broadcast;
+    }
+    if (NumV2Elements == 1 && Mask[0] >= 8)
+      if (SDValue V = lowerShuffleAsElementInsertion(
+              DL, MVT::v8f16, V1, V2, Mask, Zeroable, Subtarget, DAG))
+        return V;
   }
-  if (NumV2Elements == 1 && Mask[0] >= 8)
-    if (SDValue V = lowerShuffleAsElementInsertion(DL, MVT::v8f16, V1, V2, Mask,
-                                                   Zeroable, Subtarget, DAG))
-      return V;
 
   V1 = DAG.getBitcast(MVT::v8i16, V1);
   V2 = DAG.getBitcast(MVT::v8i16, V2);
@@ -21599,7 +21603,7 @@ SDValue X86TargetLowering::LowerUINT_TO_FP(SDValue Op,
   }
   SDValue Add = DAG.getNode(ISD::FADD, dl, MVT::f80, Fild, Fudge);
   return DAG.getNode(ISD::FP_ROUND, dl, DstVT, Add,
-                     DAG.getIntPtrConstant(0, dl));
+                     DAG.getIntPtrConstant(0, dl, /*isTarget=*/true));
 }
 
 // If the given FP_TO_SINT (IsSigned) or FP_TO_UINT (!IsSigned) operation
@@ -23217,8 +23221,8 @@ static SDValue LowerFCOPYSIGN(SDValue Op, SelectionDAG &DAG) {
 
   // And if it is bigger, shrink it first.
   if (Sign.getSimpleValueType().bitsGT(VT))
-    Sign =
-        DAG.getNode(ISD::FP_ROUND, dl, VT, Sign, DAG.getIntPtrConstant(0, dl));
+    Sign = DAG.getNode(ISD::FP_ROUND, dl, VT, Sign,
+                       DAG.getIntPtrConstant(0, dl, /*isTarget=*/true));
 
   // At this point the operands and the result should have the same
   // type, and that won't be f80 since that is not custom lowered.
