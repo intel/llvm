@@ -57,7 +57,7 @@ int main() {
                        matrix_layout::col_major>
               sub_b;
 
-          //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 8) #{{.*}}
+          //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 8)
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
           //CHECK: tail call i32 @llvm.nvvm.wmma.m8n8k128.load.a.row.stride.b1.p0i32(i32* %call.ascast.i.i{{.*}}.i, i32 128) #{{.*}}
           joint_matrix_load(sg, sub_a, accA.get_pointer(), K);
