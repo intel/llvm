@@ -22,9 +22,10 @@ include "mlir/Interfaces/CastInterfaces.td"
 def SYCL_Dialect : Dialect {
   let name = "sycl";
   let cppNamespace = "::mlir::sycl";
+  let useDefaultTypePrinterParser = 1;
 }
 
-class SYCL_Op<string mnemonic, list<OpTrait> traits = []>
+class SYCL_Op<string mnemonic, list<Trait> traits = []>
     : Op<SYCL_Dialect, mnemonic, traits>;
 
 def SYCL_IDType : DialectType<SYCL_Dialect, CPred<"$_self.isa<IDType>()">, "sycl::id type">;
