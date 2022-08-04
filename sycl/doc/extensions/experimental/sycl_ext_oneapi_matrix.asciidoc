@@ -33,11 +33,20 @@ SYCL specification refer to that revision.
 
 **_NOTE:_** _This document describes the current design and API for the matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX) and DPAS. We are going to work with the community on incrementally improving
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS, and Nvidia® Tensor Cores. We are going to work with the community on incrementally improving
 the API to bring them closer to standard C++ (aligned with the `std::mdspan` and `std::mdarray` proposals) and SYCL in the next several months._
 
 ## Introduction
-This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefit from the maximum performance these different hardware can offer.
+This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefits from the maximum performance these different hardware can offer.
+
+IMPORTANT: When compiling for Nvidia® GPUs the matrix extension requires specification of the GPU architecture version.
+
+This is the compilation command line needed to invoke the Tensor Cores matrix extension on program "matrix-nvidia.cpp":
+
+```c++
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 matrix-nvidia.cpp -o output
+```
+**_NOTE:_** _--cuda-gpu-arch may be set lower than sm_80 depending on the required matrix operation and whether it is supported by the desired arch._
 
 ## Feature test macro
 
@@ -57,11 +66,11 @@ value to determine which of the extension's APIs the implementation supports.
 |======================
 
 ## New `joint_matrix` class
-We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, shape, the memory layout, and the memory scope of the matrix. This results into the following description:
+We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, shape, the memory layout, and the memory scope of the matrix. This results in the following description:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
-template <typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent, 
+template <typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent,
           matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
 struct joint_matrix {
     joint_matrix(Group g) {}
@@ -71,7 +80,7 @@ struct joint_matrix {
 
 
 #### Memory Scope
-In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasis that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
+In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
 
 IMPORTANT: In the current implementation, only the subgroup scope is supported
 
@@ -88,7 +97,7 @@ IMPORTANT: In the current implementation, only the static extent is supported
 
 
 #### Layout
-Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts.
+Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce custom layouts such as symmetric or tiled layouts.
 	
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -101,7 +110,7 @@ enum class matrix_layout {
 }
 ```
 
-Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows: 
+Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows:
 
 ```c++
 joint_matrix<int8_t, K, N, packed_b> tB(sg);
@@ -117,7 +126,7 @@ The base pointer determines the starting address of the matrix to be loaded/stor
 
 Note that for getting maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` when matrix `C` is column major, `packed_b` when matrix `C` is row major), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
 	
-IMPORTANT: In the current implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
+IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
@@ -164,6 +173,80 @@ namespace sycl::ext::oneapi::experimental::matrix {
 ```
 The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
 
+#### Binary Multiply and Add - `joint_matrix_bmad` (Nvidia® only)
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+template <typename Group, std::size_t M,
+          std::size_t K, std::size_t N, matrix_layout LayoutC, class BinaryOperation>
+joint_matrix<precision::b1, matrix_use::accumulator, M, N, LayoutC, Group>
+joint_matrix_bmad(
+    Group sg, joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major, Group> A,
+    joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major, Group> B,
+    joint_matrix<int32_t, matrix_use::accumulator, M, N, LayoutC, Group> C, BinaryOperation Op);
+}
+```
+
+Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`matrix_use::a` with shape M by K) with a column of matrix B (`matrix_use::a` with shape K by N). Instead, a sequence of logical operations are performed: The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
+The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the matrix C (`matrix_use::accumulator`). Currently only the shape M = 8, N = 8, K = 128 is supported.
+An important difference with respect to the `joint_matrix_mad` interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
+
+`sycl::bit_and<precision::b1>()`
+
+or
+
+`sycl::bit_xor<precision::b1>()`
+
+The A, B, and C `joint_matrix` objects are constructed and loaded/stored in the normal way, using the previously defined `joint_matrix`, `joint_matrix_load`, and `joint_matrix_store` interfaces respectively.
+The C matrix must be loaded from an array of 32 bit signed integers, and the A, B single bit `joint_matrix` structs must be loaded from an array of unsigned 32-bit integers storing the packed binary matrix.
+Each element of the array of unsigned 32-bit integers, from which a `joint_matrix` of type `matrix_use::a` or `matrix_use::b` is loaded, should contain 32 elements of a matrix row in packed format.
+
+IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `matrix_use::a` must have `matrix_layout::row_major`, and a `joint_matrix` of type `matrix_use::b` must have `matrix_layout::row_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
+
+IMPORTANT: Binary Multiply and Add operations are an experimental hardware feature and all implementation details are subject to change.
+
+#### Motivation for BMAD (TODO: this may not be the correct place for this or it should be made more concise, however for the purpose of explaining BMAD within the context of the review I made it more verbose.)
+
+Single-bit MADs can be used as part of Binarized Neural Networks (BNNs) in the case that *both* the activations *and* weights are binarized. "Quantizing" a network to form a BNN represents the extreme limit of reducing the precision of the network degrees of freedom in order to gain performance and improve efficiency.
+Hubara et al. (I. Hubara, M. Courbariaux, D. Soudry, R. El-Yaniv, and Y. Bengio. Binarized Neural Networks, Advances in Neural Information Processing Systems 29 (NIPS 2016)) first demonstrated the utility of an algorithm that could use both binarized activations and weights with backpropagation, by keeping track of real valued weights which are mapped to the binarized weights. In the backwards pass the real valued weights are updated according to a heuristic named the "Straight Through Estimator", whereby the gradient of the loss function with respect to the real weights is set equal to the gradient of the loss function with respect to the binarized weights.
+This implies that the precision of the data type used in the matrix multiplications can be single bit, with the necessary addition of forward and backward element wise mappings between binarized and real valued representations of the matrices.
+This could prove a significant advantage for large models, since the computational cost of Matrix Multiplication scales with the number of elements per dimension, N, as O(N^3) for square matrices, whereas corresponding element wise operations scale as O(N^2).
+Further algorithms based on this binarized approach have been proposed, e.g. see Rastegari et al. (M. Rastegari, V Ordonez, J. Redmon, and A. Farhadi. Computer Vision – ECCV 2016, 525-542) who have made a comparison between a binarized version of a CNN (Using a XNOR Binary Dot Product) and corresponding full precision models, for both the accuracy and performance of image classification using the ImageNet data set.
+
+
+For an example of how binary MADs can be leveraged on current Nvidia® hardware see (A. Li, and S. Su. IEEE Transactions on Parallel and Distributed Systems, 32(7):1878-1891, 2021).
+See this paper of the details of the interfaces used in the Nvidia® CUDA runtime API.
+
+#### Example using bitwise operations with `joint_matrix_bmad`
+
+```c++
+using namespace sycl::ext::oneapi::experimental::matrix;
+
+queue q;
+  q.submit([&](handler &cgh) {
+    auto accC = bufC.template get_access<access::mode::read_write>(cgh);
+    auto accA = bufA.template get_access<access::mode::read_write>(cgh);
+    auto accB = bufB.template get_access<access::mode::read_write>(cgh);
+    auto accD = bufD.template get_access<access::mode::read_write>(cgh);
+    range<2> LocalRange = {1, N_THREADS_PER_MATRIX_OP};
+    range<2> GlobalRange = {Sub_Tiles_M, Sub_Tiles_N * N_THREADS_PER_MATRIX_OP};
+    cgh.parallel_for<KernelName<M, K, N, BinaryOperation>>(
+        nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) {
+          sycl::sub_group sg = item.get_sub_group();
+          const auto m = item.get_group().get_id()[0]; // row id of current submatrix of BIG C matrix
+          const auto n = item.get_group().get_id()[1]; // column id of current submatrix of BIG C matrix
+          joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major> sub_a;
+          joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major> sub_b;
+          joint_matrix<int32_t, matrix_use::accumulator, M, N, matrix_layout::row_major> sub_c;
+          joint_matrix_load(sg, sub_c, accC.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+          for (int k = 0; k < Sub_Tiles_K; k++) { // row/col id of current submatrix of BIG A/B matrices
+            joint_matrix_load(sg, sub_a, accA.get_pointer() + (k * (K / 32)) + (m * M * (Big_K / 32)), Big_K);
+            joint_matrix_load(sg, sub_b, accB.get_pointer() + (n * N * (Big_K / 32)) + (k * (K / 32)), Big_K);
+            sub_c = joint_matrix_bmad(sg, sub_a, sub_b, sub_c, Op);
+          }
+          joint_matrix_store(sg, sub_c, accD.get_pointer() + (m * M) * Big_N + n * N, Big_N);
+        });});
+```
 
 #### Matrix Initialization: `joint_matrix_fill`
 The current interface presented above assumes that all the matrices are directly loaded from memory. This new function called `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to `_tile_zero` intrinsic: 
