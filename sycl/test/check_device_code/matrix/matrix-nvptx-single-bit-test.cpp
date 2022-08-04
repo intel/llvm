@@ -43,17 +43,19 @@ int main() {
     cgh.parallel_for<class row_col>(
         nd_range<2>({1, 32}, {1, 32}),
         [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
-      sycl::sub_group sg = item.get_sub_group();
+          sycl::sub_group sg = item.get_sub_group();
 
-      joint_matrix<int32_t, matrix_use::accumulator, M, N,
-                   matrix_layout::row_major>
-          sub_c;
+          joint_matrix<int32_t, matrix_use::accumulator, M, N,
+                       matrix_layout::row_major>
+              sub_c;
 
-      joint_matrix<precision::b1, matrix_use::a, M, K, matrix_layout::row_major>
-          sub_a;
+          joint_matrix<precision::b1, matrix_use::a, M, K,
+                       matrix_layout::row_major>
+              sub_a;
 
-      joint_matrix<precision::b1, matrix_use::b, K, N, matrix_layout::col_major>
-          sub_b;
+          joint_matrix<precision::b1, matrix_use::b, K, N,
+                       matrix_layout::col_major>
+              sub_b;
 
           //CHECK: tail call { i32, i32 } @llvm.nvvm.wmma.m8n8k128.load.c.row.stride.s32.p1i32(i32 addrspace(1)* %_arg_accC, i32 8) #{{.*}}
           joint_matrix_load(sg, sub_c, accC.get_pointer(), N);
