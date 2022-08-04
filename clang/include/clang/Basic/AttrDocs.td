@@ -378,7 +378,7 @@ outlining job:
 
   int foo(int x) { return ++x; }
 
-  using namespace cl::sycl;
+  using namespace sycl;
   queue Q;
   buffer<int, 1> a(range<1>{1024});
   Q.submit([&](handler& cgh) {
@@ -3328,58 +3328,6 @@ or ``ivdep``.
   }];
 }
 
-def SYCLIntelFPGAPipelineAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::fpga_pipeline";
-  let Content = [{
-The ``intel::fpga_pipeline(N)`` attribute applies to a loop and it allows users
-to disable or enable pipelining iterations of a loop. The attribute optionally
-accepts an integer constant expression that is converted to `bool`. A `true`
-value enables pipelining while a `false` value disables pipelining. The
-optional argument defaults to `true`. This attribute cannot be applied to a
-loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
-``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
-
-.. code-block:: c++
-
-  // Disable loop pipelining
-  void bar() {
-    int a[10];
-    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  // Enable loop pipelining
-  void foo() {
-    int var = 0;
-    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
-  }
-
-  void Array(int *array, size_t n) {
-    // identical to [[intel::fpga_pipeline(1)]]
-    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void count () {
-  int a1[10], int i = 0;
-  [[intel::fpga_pipeline(1)]] while (i < 10) {
-    a1[i] += 3;
-  }
-
-  void check() {
-    int a = 10;
-    [[intel::fpga_pipeline(1)]] do {
-      a = a + 1;
-    } while (a < 20);
-  }
-
-  template<int A>
-  void func() {
-    [[intel::fpga_pipeline(A)]] for(;;) { }
-  }
-
-  }];
-}
-
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
@@ -3790,7 +3738,7 @@ cannot be optimized out due to reachability analysis or by any other
 optimization.
 
 This attribute allows to pass name and address of the function to a special
-``cl::sycl::intel::get_device_func_ptr`` API call which extracts the device
+``sycl::intel::get_device_func_ptr`` API call which extracts the device
 function pointer for the specified function.
 
 .. code-block:: c++
