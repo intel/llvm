@@ -48,16 +48,6 @@ public:
                         std::vector<EventImplPtr> DepEvents,
                         RT::PiEvent &OutEvent);
 
-  // Allocates memory buffer wrapped into an image. MemObj must be a buffer,
-  // not an image.
-  // TODO not used - remove.
-  static void *wrapIntoImageBuffer(ContextImplPtr TargetContext, void *MemBuf,
-                                   SYCLMemObjI *MemObj);
-
-  // Releases the image buffer created by wrapIntoImageBuffer.
-  // TODO not used - remove.
-  static void releaseImageBuffer(ContextImplPtr TargetContext, void *ImageBuf);
-
   // The following method creates OpenCL sub buffer for specified
   // offset, range, and memory object.
   static void *allocateMemSubBuffer(ContextImplPtr TargetContext,
@@ -144,43 +134,18 @@ public:
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent *OutEvent);
 
-  __SYCL_DEPRECATED("copy_usm() accepting PiEvent& is deprecated, use "
-                    "copy_usm() accepting PiEvent* instead")
-  static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
-                       void *DstMem, std::vector<RT::PiEvent> DepEvents,
-                       RT::PiEvent &OutEvent);
-
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent *OutEvent);
-
-  __SYCL_DEPRECATED("fill_usm() accepting PiEvent& is deprecated, use "
-                    "fill_usm() accepting PiEvent* instead")
-  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                       int Pattern, std::vector<RT::PiEvent> DepEvents,
-                       RT::PiEvent &OutEvent);
 
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<RT::PiEvent> DepEvents,
                            RT::PiEvent *OutEvent);
 
-  __SYCL_DEPRECATED("prefetch_usm() accepting PiEvent& is deprecated, use "
-                    "prefetch_usm() accepting PiEvent* instead")
-  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
-                           std::vector<RT::PiEvent> DepEvents,
-                           RT::PiEvent &OutEvent);
-
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          pi_mem_advice Advice,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent *OutEvent);
-
-  __SYCL_DEPRECATED("advise_usm() accepting PiEvent& is deprecated, use "
-                    "advise_usm() accepting PiEvent* instead")
-  static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
-                         pi_mem_advice Advice,
-                         std::vector<RT::PiEvent> DepEvents,
-                         RT::PiEvent &OutEvent);
 };
 } // namespace detail
 } // namespace sycl

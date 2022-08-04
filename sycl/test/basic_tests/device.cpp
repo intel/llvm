@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 #include <utility>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 std::string get_type(const device &dev) {
   if (dev.is_host()) {

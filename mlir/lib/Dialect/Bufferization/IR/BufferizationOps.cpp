@@ -204,22 +204,8 @@ LogicalResult AllocTensorOp::bufferize(RewriterBase &rewriter,
   }
 
   // Should the buffer be deallocated?
-  AnalysisState analysisState(options);
-  bool dealloc;
-  if (op->hasAttr(BufferizationDialect::kEscapeAttrName)) {
-    // AllocTensorOp has one result.
-    ArrayAttr escapeAttr =
-        op->getAttr(BufferizationDialect::kEscapeAttrName).cast<ArrayAttr>();
-    dealloc = !escapeAttr[0].cast<BoolAttr>().getValue();
-  } else {
-    // No "escape" annotation found.
-    if (options.createDeallocs) {
-      // Perform an ad-hoc analysis.
-      dealloc = !analysisState.isTensorYielded(getResult());
-    } else {
-      dealloc = false;
-    }
-  }
+  bool dealloc =
+      shouldDeallocateOpResult(getResult().cast<OpResult>(), options);
 
   // Replace op.
   replaceOpWithBufferizedValues(rewriter, getOperation(), *alloc);
@@ -522,6 +508,21 @@ struct SimplifyClones : public OpRewritePattern<CloneOp> {
 void CloneOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {
   results.add<SimplifyClones>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// DeallocTensorOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult DeallocTensorOp::bufferize(RewriterBase &rewriter,
+                                         const BufferizationOptions &options) {
+  FailureOr<Value> buffer = getBuffer(rewriter, getTensor(), options);
+  if (failed(buffer))
+    return failure();
+  if (failed(options.createDealloc(rewriter, getLoc(), *buffer)))
+    return failure();
+  rewriter.eraseOp(getOperation());
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

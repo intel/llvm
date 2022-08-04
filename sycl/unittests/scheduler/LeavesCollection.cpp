@@ -13,23 +13,22 @@
 #include <memory>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl::detail;
+using namespace sycl::detail;
 
 class LeavesCollectionTest : public ::testing::Test {
 protected:
-  cl::sycl::async_handler MAsyncHandler =
-      [](cl::sycl::exception_list ExceptionList) {
-        for (std::exception_ptr ExceptionPtr : ExceptionList) {
-          try {
-            std::rethrow_exception(ExceptionPtr);
-          } catch (cl::sycl::exception &E) {
-            std::cerr << E.what();
-          } catch (...) {
-            std::cerr << "Unknown async exception was caught." << std::endl;
-          }
-        }
-      };
-  cl::sycl::queue MQueue = cl::sycl::queue(cl::sycl::device(), MAsyncHandler);
+  sycl::async_handler MAsyncHandler = [](sycl::exception_list ExceptionList) {
+    for (std::exception_ptr ExceptionPtr : ExceptionList) {
+      try {
+        std::rethrow_exception(ExceptionPtr);
+      } catch (sycl::exception &E) {
+        std::cerr << E.what();
+      } catch (...) {
+        std::cerr << "Unknown async exception was caught." << std::endl;
+      }
+    }
+  };
+  sycl::queue MQueue = sycl::queue(sycl::device(), MAsyncHandler);
 };
 
 std::shared_ptr<Command>
@@ -51,13 +50,11 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   size_t TimesGenericWasFull;
 
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [&](Command *, Command *, MemObjRecord *,
-          std::vector<cl::sycl::detail::Command *> &) {
-        ++TimesGenericWasFull;
-      };
+          std::vector<sycl::detail::Command *> &) { ++TimesGenericWasFull; };
 
   // add only generic commands
   {
@@ -85,7 +82,7 @@ TEST_F(LeavesCollectionTest, PushBack) {
 
   // add mix of generic and empty commands
   {
-    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+    sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 
@@ -117,14 +114,14 @@ TEST_F(LeavesCollectionTest, PushBack) {
 TEST_F(LeavesCollectionTest, Remove) {
   static constexpr size_t GenericCmdsCapacity = 8;
 
-  std::vector<cl::sycl::detail::Command *> ToEnqueue;
+  std::vector<sycl::detail::Command *> ToEnqueue;
 
   LeavesCollection::AllocateDependencyF AllocateDependency =
       [](Command *, Command *Old, MemObjRecord *,
-         std::vector<cl::sycl::detail::Command *> &) { --Old->MLeafCounter; };
+         std::vector<sycl::detail::Command *> &) { --Old->MLeafCounter; };
 
   {
-    cl::sycl::buffer<int, 1> Buf(cl::sycl::range<1>(1));
+    sycl::buffer<int, 1> Buf(sycl::range<1>(1));
 
     Requirement MockReq = getMockRequirement(Buf);
 

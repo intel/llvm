@@ -96,6 +96,6 @@ TEST_F(SchedulerTest, CheckArgsBlobInPiEnqueueNativeKernelIsValid) {
   detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImpl};
   detail::EnqueueResultT EnqueueResult = detail::EnqueueResultT(
       detail::EnqueueResultT::SyclEnqueueReady, &ExecCGCmd);
-  std::vector<cl::sycl::detail::Command *> ToCleanUp;
+  std::vector<sycl::detail::Command *> ToCleanUp;
   ExecCGCmd.enqueue(EnqueueResult, detail::BlockingT::NON_BLOCKING, ToCleanUp);
 }

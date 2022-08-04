@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SparseTensor/Pipelines/Passes.h"
 
 #include "mlir/Conversion/Passes.h"
+#include "mlir/Dialect/Arithmetic/Transforms/Passes.h"
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
@@ -52,11 +53,6 @@ void mlir::sparse_tensor::buildSparseCompiler(
     OpPassManager &pm, const SparseCompilerOptions &options) {
   // TODO(wrengr): ensure the original `pm` is for ModuleOp
   pm.addNestedPass<func::FuncOp>(createLinalgGeneralizationPass());
-  // TODO(springerm): Reactivate element-wise op fusion pass. This pass does not
-  // fit well with bufferization because it replaces unused "out" operands of
-  // LinalgOps with InitTensorOps. This would result in additional buffer
-  // allocations during bufferization.
-  // pm.addPass(createLinalgElementwiseOpFusionPass());
   pm.addPass(
       bufferization::createTensorCopyInsertionPass(getBufferizationOptions(
           /*analysisOnly=*/options.testBufferizationAnalysisOnly)));
@@ -78,6 +74,8 @@ void mlir::sparse_tensor::buildSparseCompiler(
   pm.addPass(createConvertVectorToLLVMPass(options.lowerVectorToLLVMOptions()));
   pm.addPass(createMemRefToLLVMPass());
   pm.addNestedPass<func::FuncOp>(createConvertComplexToStandardPass());
+  pm.addNestedPass<mlir::func::FuncOp>(
+      mlir::arith::createArithmeticExpandOpsPass());
   pm.addNestedPass<func::FuncOp>(createConvertMathToLLVMPass());
   pm.addPass(createConvertMathToLibmPass());
   pm.addPass(createConvertComplexToLibmPass());

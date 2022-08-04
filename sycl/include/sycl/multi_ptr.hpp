@@ -30,7 +30,7 @@ template <typename ElementType, access::address_space Space> class multi_ptr {
 public:
   using element_type =
       detail::conditional_t<std::is_same<ElementType, half>::value,
-                            cl::sycl::detail::half_impl::BIsRepresentationT,
+                            sycl::detail::half_impl::BIsRepresentationT,
                             ElementType>;
   using difference_type = std::ptrdiff_t;
 

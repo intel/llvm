@@ -11,7 +11,7 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Trivially copyable type.
 struct A {

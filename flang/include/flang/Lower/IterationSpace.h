@@ -468,14 +468,14 @@ public:
   llvm::Optional<fir::ArrayLoadOp> getLhsLoad(size_t i) {
     assert(i < lhsBases.size());
     if (lhsBases[counter])
-      return findBinding(lhsBases[counter].getValue());
+      return findBinding(*lhsBases[counter]);
     return llvm::None;
   }
 
   /// Return the outermost loop in this FORALL nest.
   fir::DoLoopOp getOuterLoop() {
     assert(outerLoop.has_value());
-    return outerLoop.getValue();
+    return outerLoop.value();
   }
 
   /// Return the statement context for the entire, outermost FORALL construct.

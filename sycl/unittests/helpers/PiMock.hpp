@@ -41,7 +41,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace unittest {
 
-namespace detail = cl::sycl::detail;
+namespace detail = sycl::detail;
 namespace RT = detail::pi;
 
 /// Overwrites the input PiPlugin's PiFunctionTable entry for the given PI API
@@ -98,15 +98,15 @@ public:
   /// from a default_selector.
   ///
   /// \param DevSelector is a reference to a device_selector instance.
-  explicit PiMock(const cl::sycl::device_selector &DevSelector =
-                      cl::sycl::default_selector{})
-      : PiMock(cl::sycl::platform{DevSelector}) {}
+  explicit PiMock(
+      const sycl::device_selector &DevSelector = sycl::default_selector{})
+      : PiMock(sycl::platform{DevSelector}) {}
 
   /// Constructs PiMock from a queue.
   ///
   /// \param Queue is a reference to a SYCL queue to which
   ///        the mock redefinitions will apply.
-  explicit PiMock(cl::sycl::queue &Queue)
+  explicit PiMock(sycl::queue &Queue)
       : PiMock(Queue.get_device().get_platform()) {}
 
   /// Constructs PiMock from a reference to a SYCL platform instance.
@@ -117,7 +117,7 @@ public:
   /// held by the PiMock instance.
   ///
   /// \param OriginalPlatform is a reference to a SYCL platform.
-  explicit PiMock(const cl::sycl::platform &OriginalPlatform) {
+  explicit PiMock(const sycl::platform &OriginalPlatform) {
     assert(!OriginalPlatform.is_host() && "PI mock isn't supported for host");
     // Extract impl and plugin handles
     std::shared_ptr<detail::platform_impl> ImplPtr =
@@ -138,7 +138,7 @@ public:
   }
 
   /// Explicit construction from a host_selector is forbidden.
-  PiMock(const cl::sycl::host_selector &HostSelector) = delete;
+  PiMock(const sycl::host_selector &HostSelector) = delete;
 
   PiMock(PiMock &&Other) {
     MPlatform = std::move(Other.MPlatform);
@@ -158,7 +158,7 @@ public:
   /// Returns a handle to the SYCL platform instance.
   ///
   /// \return A reference to the SYCL platform.
-  cl::sycl::platform &getPlatform() { return MPlatform; }
+  sycl::platform &getPlatform() { return MPlatform; }
 
   template <detail::PiApiKind PiApiOffset>
   using FuncPtrT = typename RT::PiFuncInfo<PiApiOffset>::FuncPtrT;
@@ -196,7 +196,7 @@ public:
   }
 
 private:
-  cl::sycl::platform MPlatform;
+  sycl::platform MPlatform;
   std::optional<pi_plugin::FunctionPointers> OrigFuncTable;
   // Extracted at initialization for convenience purposes. The resource
   // itself is owned by the platform instance.

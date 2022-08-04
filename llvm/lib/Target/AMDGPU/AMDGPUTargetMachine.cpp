@@ -555,11 +555,14 @@ StringRef AMDGPUTargetMachine::getFeatureString(const Function &F) const {
 }
 
 /// Predicate for Internalize pass.
+/// Functions with the 'sycl-module-id' attribute are SYCL_EXTERNAL functions
+/// and must be preserved.
 static bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
     return F->isDeclaration() || F->getName().startswith("__asan_") ||
            F->getName().startswith("__sanitizer_") ||
-           AMDGPU::isEntryFunctionCC(F->getCallingConv());
+           AMDGPU::isEntryFunctionCC(F->getCallingConv()) ||
+           F->hasFnAttribute("sycl-module-id");
 
   GV.removeDeadConstantUsers();
   return !GV.use_empty();
@@ -1604,6 +1607,9 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
        parseAndCheckArgument(YamlMFI.ArgInfo->PrivateSegmentSize,
                              AMDGPU::SGPR_32RegClass,
                              MFI->ArgInfo.PrivateSegmentSize, 0, 0) ||
+       parseAndCheckArgument(YamlMFI.ArgInfo->LDSKernelId,
+                             AMDGPU::SGPR_32RegClass,
+                             MFI->ArgInfo.LDSKernelId, 0, 1) ||
        parseAndCheckArgument(YamlMFI.ArgInfo->WorkGroupIDX,
                              AMDGPU::SGPR_32RegClass, MFI->ArgInfo.WorkGroupIDX,
                              0, 1) ||

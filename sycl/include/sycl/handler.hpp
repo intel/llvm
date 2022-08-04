@@ -41,31 +41,29 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __fill;
 
 template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
-          cl::sycl::access::target AccessTarget_Src, typename T_Dst,
-          int Dims_Dst, cl::sycl::access::mode AccessMode_Dst,
-          cl::sycl::access::target AccessTarget_Dst,
-          cl::sycl::access::placeholder IsPlaceholder_Src,
-          cl::sycl::access::placeholder IsPlaceholder_Dst>
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
+          sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
 // For unit testing purposes
@@ -242,11 +240,11 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          class Algorithm>
+          typename RedOutVar>
 class reduction_impl_algo;
 
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
 
 // Kernels with single reduction
 
@@ -315,6 +313,9 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>);
 
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
+template <class FunctorTy>
+event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
+                     FunctorTy Func);
 } // namespace detail
 } // namespace oneapi
 } // namespace ext
@@ -476,12 +477,9 @@ private:
   }
 
   template <class FunctorTy>
-  static event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
-                              bool IsHost, FunctorTy Func) {
-    handler AuxHandler(Queue, IsHost);
-    Func(AuxHandler);
-    return AuxHandler.finalize();
-  }
+  friend event
+  ext::oneapi::detail::withAuxHandler(std::shared_ptr<detail::queue_impl> Queue,
+                                      bool IsHost, FunctorTy Func);
   /// }@
 
   /// Saves buffers created by handling reduction feature in handler.
@@ -734,7 +732,7 @@ private:
                                                  LambdaArgType>::value;
 
     if (IsCallableWithKernelHandler && MIsHost) {
-      throw cl::sycl::feature_not_supported(
+      throw sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_ERROR_INVALID_OPERATION);
     }
@@ -1655,7 +1653,7 @@ public:
         *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
     if (Reduction::is_usm ||
         (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
-        (!Reduction::has_fast_atomics && Redu.hasUserDiscardWriteAccessor())) {
+        (!Reduction::has_fast_atomics && Reduction::is_dw_acc)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
@@ -1782,7 +1780,7 @@ public:
       });
     } // end while (NWorkItems > 1)
 
-    if (Reduction::is_usm || Redu.hasUserDiscardWriteAccessor()) {
+    if (Reduction::is_usm || Reduction::is_dw_acc) {
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
             CopyHandler, Redu);
@@ -2667,7 +2665,7 @@ private:
   // Make reduction friends to store buffers and arrays created for it
   // in handler from reduction methods.
   template <typename T, class BinaryOperation, int Dims, size_t Extent,
-            class Algorithm>
+            typename RedOutVar>
   friend class ext::oneapi::detail::reduction_impl_algo;
 
 #ifndef __SYCL_DEVICE_ONLY__

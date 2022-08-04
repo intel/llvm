@@ -677,8 +677,8 @@ static LogicalResult verifyOutputShape(
     // types fully define the result vector type. This assumes the affine maps
     // are well-formed, which must have been verified already.
     MLIRContext *ctx = op.getContext();
-    AffineMap lhsMap = op.getIndexingMaps()[0];
-    AffineMap rhsMap = op.getIndexingMaps()[1];
+    AffineMap lhsMap = op.getIndexingMapsArray()[0];
+    AffineMap rhsMap = op.getIndexingMapsArray()[1];
     if (getUnusedDimsBitVector({lhsMap, rhsMap}).any())
       return op.emitOpError(
           "expected all dimensions to be either a LHS or a RHS dimension");
@@ -697,7 +697,7 @@ static LogicalResult verifyOutputShape(
       return op.emitOpError("expected all dimensions to get an extent as "
                             "either a LHS or a RHS dimension");
 
-    AffineMap resMap = op.getIndexingMaps()[2];
+    AffineMap resMap = op.getIndexingMapsArray()[2];
     auto extentsMap = AffineMap::get(/*dimCount=*/extents.size(),
                                      /*symCount=*/0, extents, ctx);
     // Compose the resMap with the extentsMap, which is a constant map.
@@ -728,14 +728,14 @@ LogicalResult ContractionOp::verify() {
   auto resType = getResultType();
 
   // Verify that an indexing map was specified for each vector operand.
-  if (getIndexingMaps().size() != 3)
+  if (getIndexingMapsArray().size() != 3)
     return emitOpError("expected an indexing map for each vector operand");
 
   // Verify that each index map has 'numIterators' inputs, no symbols, and
   // that the number of map outputs equals the rank of its associated
   // vector operand.
   unsigned numIterators = getIteratorTypes().getValue().size();
-  for (const auto &it : llvm::enumerate(getIndexingMaps())) {
+  for (const auto &it : llvm::enumerate(getIndexingMapsArray())) {
     auto index = it.index();
     auto map = it.value();
     if (map.getNumSymbols() != 0)
@@ -833,7 +833,7 @@ void ContractionOp::getIterationBounds(
     SmallVectorImpl<int64_t> &iterationBounds) {
   auto lhsShape = getLhsType().getShape();
   auto resVectorType = getResultType().dyn_cast<VectorType>();
-  SmallVector<AffineMap, 4> indexingMaps(getIndexingMaps());
+  SmallVector<AffineMap, 4> indexingMaps(getIndexingMapsArray());
   SmallVector<int64_t, 2> iterationShape;
   for (const auto &it : llvm::enumerate(getIteratorTypes())) {
     // Search lhs/rhs map results for 'targetExpr'.
@@ -856,9 +856,9 @@ void ContractionOp::getIterationBounds(
 
 void ContractionOp::getIterationIndexMap(
     std::vector<DenseMap<int64_t, int64_t>> &iterationIndexMap) {
-  unsigned numMaps = getIndexingMaps().size();
+  unsigned numMaps = getIndexingMapsArray().size();
   iterationIndexMap.resize(numMaps);
-  for (const auto &it : llvm::enumerate(getIndexingMaps())) {
+  for (const auto &it : llvm::enumerate(getIndexingMapsArray())) {
     auto index = it.index();
     auto map = it.value();
     for (unsigned i = 0, e = map.getNumResults(); i < e; ++i) {
@@ -869,13 +869,13 @@ void ContractionOp::getIterationIndexMap(
 }
 
 std::vector<std::pair<int64_t, int64_t>> ContractionOp::getContractingDimMap() {
-  SmallVector<AffineMap, 4> indexingMaps(getIndexingMaps());
+  SmallVector<AffineMap, 4> indexingMaps(getIndexingMapsArray());
   return getDimMap(indexingMaps, getIteratorTypes(),
                    getReductionIteratorTypeName(), getContext());
 }
 
 std::vector<std::pair<int64_t, int64_t>> ContractionOp::getBatchDimMap() {
-  SmallVector<AffineMap, 4> indexingMaps(getIndexingMaps());
+  SmallVector<AffineMap, 4> indexingMaps(getIndexingMapsArray());
   return getDimMap(indexingMaps, getIteratorTypes(),
                    getParallelIteratorTypeName(), getContext());
 }
@@ -3284,11 +3284,91 @@ public:
     return success();
   }
 };
+
+/// Store to load forwarding for transfer operations with permuation maps.
+/// Even if the permutation maps are different we can still propagate the store
+/// into the load if the size of the dimensions read and written match. Then we
+/// can replace the transfer_read + transfer_write by vector.broadcast and
+/// vector.transpose.
+/// Example:
+/// ```
+/// %w0 = vector.transfer_write %v0, %arg0[%c0, %c0, %c0]
+///  {in_bounds = [true, true],
+///   permutation_map = affine_map<(d0, d1, d2) -> (d2, d1)>} :
+///   vector<4x1xf32>, tensor<4x4x4xf32>
+///  %r = vector.transfer_read %w0[%c0, %c0, %c0], %cf0
+///   {in_bounds = [true, true, true, true],
+///   permutation_map = affine_map<(d0, d1, d2) -> (d1, 0, d2, 0)>} :
+///   tensor<4x4x4xf32>, vector<1x100x4x5xf32>
+/// ```
+/// To:
+/// ```
+/// %0 = vector.broadcast %arg1 : vector<4x1xf32> to vector<100x5x4x1xf32>
+/// %r = vector.transpose %0, [3, 0, 2, 1] :
+///   vector<100x5x4x1xf32> to vector<1x100x4x5xf32>
+/// ```
+struct TransferReadAfterWriteToBroadcast
+    : public OpRewritePattern<TransferReadOp> {
+  using OpRewritePattern<TransferReadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TransferReadOp readOp,
+                                PatternRewriter &rewriter) const override {
+    if (readOp.hasOutOfBoundsDim() ||
+        !readOp.getShapedType().isa<RankedTensorType>())
+      return failure();
+    auto defWrite = readOp.getSource().getDefiningOp<vector::TransferWriteOp>();
+    if (!defWrite)
+      return failure();
+
+    SmallVector<int64_t> readDims = readOp.getTransferChunkAccessed();
+    Value vec;
+    if (readOp.getIndices() == defWrite.getIndices() &&
+        readOp.getMask() == defWrite.getMask()) {
+      SmallVector<int64_t> writeDims = defWrite.getTransferChunkAccessed();
+      // TODO: If the writeDim is a superset of the read dims we could do an
+      // extract_strided_slice.
+      if (writeDims == readDims)
+        vec = defWrite.getVector();
+    }
+    // TODO: loop through the chain of transfer_write if we can prove that they
+    // don't overlap with the transfer_read. This requires improving
+    // `isDisjointTransferIndices` helper.
+    if (!vec)
+      return failure();
+    SmallVector<unsigned> permutation;
+    AffineMap readMap = compressUnusedDims(readOp.getPermutationMap());
+    AffineMap writeMap = compressUnusedDims(defWrite.getPermutationMap());
+    AffineMap map = readMap.compose(writeMap);
+    if (map.getNumResults() == 0)
+      return failure();
+    // Calculate the permuation to apply to go from the vector stored to the
+    // vector read.
+    if (!map.isPermutationOfMinorIdentityWithBroadcasting(permutation))
+      return failure();
+
+    Location loc = readOp.getLoc();
+    // Calculate the broadcast shape by applying the reverse permuation to the
+    // final shape we want.
+    ArrayRef<int64_t> destShape = readOp.getVectorType().getShape();
+    SmallVector<int64_t> broadcastShape(destShape.size());
+    for (const auto &pos : llvm::enumerate(permutation))
+      broadcastShape[pos.value()] = destShape[pos.index()];
+    VectorType broadcastedType = VectorType::get(
+        broadcastShape, defWrite.getVectorType().getElementType());
+    vec = rewriter.create<vector::BroadcastOp>(loc, broadcastedType, vec);
+    SmallVector<int64_t> transposePerm(permutation.begin(), permutation.end());
+    rewriter.replaceOpWithNewOp<vector::TransposeOp>(readOp, vec,
+                                                     transposePerm);
+    return success();
+  }
+};
 } // namespace
 
 void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
-  results.add<FoldExtractSliceIntoTransferRead>(context);
+  results
+      .add<FoldExtractSliceIntoTransferRead, TransferReadAfterWriteToBroadcast>(
+          context);
 }
 
 //===----------------------------------------------------------------------===//

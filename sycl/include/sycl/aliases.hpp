@@ -26,7 +26,7 @@ class half;
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
-  using ALIAS##N = cl::sycl::vec<TYPE, N>;
+  using ALIAS##N = sycl::vec<TYPE, N>;
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
   __SYCL_MAKE_VECTOR_ALIAS(char, char, N)                                      \
@@ -38,17 +38,17 @@ class half;
   __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_OPENCL_TYPES(N)                         \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_char, cl::sycl::cl_char, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, cl::sycl::cl_uchar, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_short, cl::sycl::cl_short, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, cl::sycl::cl_ushort, N)                  \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_int, cl::sycl::cl_int, N)                        \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, cl::sycl::cl_uint, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_long, cl::sycl::cl_long, N)                      \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, cl::sycl::cl_ulong, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_float, cl::sycl::cl_float, N)                    \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_double, cl::sycl::cl_double, N)                  \
-  __SYCL_MAKE_VECTOR_ALIAS(cl_half, cl::sycl::cl_half, N)
+  __SYCL_MAKE_VECTOR_ALIAS(cl_char, sycl::cl_char, N)                          \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uchar, sycl::cl_uchar, N)                        \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_short, sycl::cl_short, N)                        \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ushort, sycl::cl_ushort, N)                      \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_int, sycl::cl_int, N)                            \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_uint, sycl::cl_uint, N)                          \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_long, sycl::cl_long, N)                          \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_ulong, sycl::cl_ulong, N)                        \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_float, sycl::cl_float, N)                        \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_double, sycl::cl_double, N)                      \
+  __SYCL_MAKE_VECTOR_ALIAS(cl_half, sycl::cl_half, N)
 
 #define __SYCL_MAKE_VECTOR_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES(N)            \
   __SYCL_MAKE_VECTOR_ALIAS(schar, signed char, N)                              \
@@ -74,7 +74,7 @@ using uint = unsigned int;
 using ulong = unsigned long;
 using longlong = long long;
 using ulonglong = unsigned long long;
-using half = cl::sycl::detail::half_impl::half;
+using half = sycl::detail::half_impl::half;
 using cl_bool = bool;
 using cl_char = std::int8_t;
 using cl_uchar = std::uint8_t;

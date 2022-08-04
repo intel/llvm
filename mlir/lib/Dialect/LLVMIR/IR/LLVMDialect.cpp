@@ -568,6 +568,13 @@ static Type extractVectorElementType(Type type) {
 }
 
 void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
+                  Type elementType, Value basePtr, ValueRange indices,
+                  ArrayRef<NamedAttribute> attributes) {
+  build(builder, result, resultType, elementType, basePtr, indices,
+        SmallVector<int32_t>(indices.size(), kDynamicIndex), attributes);
+}
+
+void GEPOp::build(OpBuilder &builder, OperationState &result, Type resultType,
                   Value basePtr, ValueRange indices,
                   ArrayRef<int32_t> structIndices,
                   ArrayRef<NamedAttribute> attributes) {
@@ -2692,7 +2699,7 @@ OpFoldResult LLVM::AddrSpaceCastOp::fold(ArrayRef<Attribute> operands) {
 OpFoldResult LLVM::GEPOp::fold(ArrayRef<Attribute> operands) {
   // gep %x:T, 0 -> %x
   if (getBase().getType() == getType() && getIndices().size() == 1 &&
-      matchPattern(getIndices()[0], m_Zero()))
+      getStructIndices().size() == 1 && matchPattern(getIndices()[0], m_Zero()))
     return getBase();
   return {};
 }

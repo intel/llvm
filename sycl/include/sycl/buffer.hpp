@@ -328,14 +328,14 @@ public:
                                   sizeof(T), rangeToArray(Range).data());
 
     if (b.is_sub_buffer())
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Cannot create sub buffer from sub buffer.", PI_ERROR_INVALID_VALUE);
     if (isOutOfBounds(baseIndex, subRange, b.Range))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Requested sub-buffer size exceeds the size of the parent buffer",
           PI_ERROR_INVALID_VALUE);
     if (!isContiguousRegion(baseIndex, subRange, b.Range))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Requested sub-buffer region is not contiguous",
           PI_ERROR_INVALID_VALUE);
   }
@@ -434,7 +434,7 @@ public:
       id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
           PI_ERROR_INVALID_VALUE);
 
@@ -450,7 +450,7 @@ public:
       range<dimensions> accessRange, id<dimensions> accessOffset = {},
       const detail::code_location CodeLoc = detail::code_location::current()) {
     if (isOutOfBounds(accessOffset, accessRange, this->Range))
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Requested accessor would exceed the bounds of the buffer",
           PI_ERROR_INVALID_VALUE);
 
@@ -495,7 +495,7 @@ public:
   buffer<ReinterpretT, ReinterpretDim, AllocatorT>
   reinterpret(range<ReinterpretDim> reinterpretRange) const {
     if (sizeof(ReinterpretT) * reinterpretRange.size() != byte_size())
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Total size in bytes represented by the type and range of the "
           "reinterpreted SYCL buffer does not equal the total size in bytes "
           "represented by the type and range of this SYCL buffer",
@@ -522,7 +522,7 @@ public:
   reinterpret() const {
     long sz = byte_size();
     if (sz % sizeof(ReinterpretT) != 0)
-      throw cl::sycl::invalid_object_error(
+      throw sycl::invalid_object_error(
           "Total byte size of buffer is not evenly divisible by the size of "
           "the reinterpreted type",
           PI_ERROR_INVALID_VALUE);
@@ -680,11 +680,10 @@ buffer(const T *, const range<dimensions> &, const property_list & = {})
 
 namespace std {
 template <typename T, int dimensions, typename AllocatorT>
-struct hash<cl::sycl::buffer<T, dimensions, AllocatorT>> {
-  size_t
-  operator()(const cl::sycl::buffer<T, dimensions, AllocatorT> &b) const {
-    return hash<std::shared_ptr<cl::sycl::detail::buffer_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(b));
+struct hash<sycl::buffer<T, dimensions, AllocatorT>> {
+  size_t operator()(const sycl::buffer<T, dimensions, AllocatorT> &b) const {
+    return hash<std::shared_ptr<sycl::detail::buffer_impl>>()(
+        sycl::detail::getSyclObjImpl(b));
   }
 };
 } // namespace std

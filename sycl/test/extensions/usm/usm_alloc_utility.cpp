@@ -13,7 +13,7 @@
 
 #include <cassert>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr int N = 8;
 
