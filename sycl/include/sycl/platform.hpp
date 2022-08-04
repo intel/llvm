@@ -67,12 +67,9 @@ public:
   /// identified by the device selector provided.
   /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
   /// takes a device and returns an int
-  template <
-      typename DeviceSelector,
-      typename = std::enable_if_t<
-          std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
-          !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>>
-  // see [filter_selectors not "Callable"] in device_selectors.cpp
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<
+                DeviceSelector, ext::oneapi::filter_selector>>
   explicit platform(const DeviceSelector &deviceSelector)
       : platform(detail::select_device(deviceSelector)) {}
 #endif

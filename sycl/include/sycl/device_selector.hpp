@@ -93,6 +93,16 @@ static constexpr int REJECT_DEVICE_SCORE = -1;
 
 using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 
+#if __cplusplus >= 201703L
+// Enable if DeviceSelector callable has matching signature, but
+// exclude if possible parent is not purely callable.
+// See [FilterSelector not Callable] in device_selector.cpp
+template <typename DeviceSelector, typename Exclude>
+using EnableIfDeviceSelectorInvocable = std::enable_if_t<
+    std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
+    !std::is_base_of_v<Exclude, DeviceSelector>>;
+#endif
+
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
 

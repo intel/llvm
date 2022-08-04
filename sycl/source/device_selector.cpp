@@ -81,8 +81,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
   const device *res = nullptr;
 
   for (const auto &dev : Devices) {
-    int dev_score = DeviceSelectorInvocable(
-        dev); // std::invoke(DeviceSelectorInvocable, dev);
+    int dev_score = DeviceSelectorInvocable(dev);
 
     traceDeviceSelection(dev, dev_score, false);
 
