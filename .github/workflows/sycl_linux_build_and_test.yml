@@ -52,11 +52,6 @@ on:
         type: number
         required: false
         default: 4
-      uniq:
-        description: Unique string to name dynamic runners in AWS
-        type: string
-        required: false
-        default: ${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   build:
@@ -166,7 +161,6 @@ jobs:
     if: ${{ inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
     runs-on: ubuntu-latest
@@ -247,7 +241,6 @@ jobs:
     if: ${{ always() && inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
-      max-parallel: ${{ inputs.max_parallel }}
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
     runs-on: ubuntu-latest

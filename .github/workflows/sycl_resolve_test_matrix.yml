@@ -19,6 +19,11 @@ on:
         type: string
         required: true
         default: ""
+      uniq:
+        description: Unique string to name dynamic runners in AWS
+        type: string
+        required: false
+        default: ${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       lts_matrix:
         description: "Generated Matrix"
