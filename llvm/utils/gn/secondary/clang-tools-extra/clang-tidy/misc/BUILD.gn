@@ -1,7 +1,7 @@
 import("//llvm/utils/gn/build/compiled_action.gni")
 
 compiled_action("Confusables.inc") {
-  tool = "ConfusableTable:make-confusable-table"
+  tool = "ConfusableTable:clang-tidy-confusable-chars-gen"
   inputs = [ "ConfusableTable/confusables.txt" ]
   outputs = [ "$target_gen_dir/$target_name" ]
   args = [
@@ -29,6 +29,7 @@ static_library("misc") {
   ]
   sources = [
     "ConfusableIdentifierCheck.cpp",
+    "ConstCorrectnessCheck.cpp",
     "DefinitionsInHeadersCheck.cpp",
     "MiscTidyModule.cpp",
     "MisleadingBidirectional.cpp",

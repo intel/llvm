@@ -40,7 +40,7 @@ static int getDevicePreference(const device &Device) {
     return Score;
 
   // Strongly prefer devices with available images.
-  auto &program_manager = cl::sycl::detail::ProgramManager::getInstance();
+  auto &program_manager = sycl::detail::ProgramManager::getInstance();
   if (program_manager.hasCompatibleImage(Device))
     Score += 1000;
 
@@ -110,8 +110,8 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
     return *res;
   }
 
-  throw cl::sycl::runtime_error("No device of requested type available.",
-                                PI_ERROR_DEVICE_NOT_FOUND);
+  throw sycl::runtime_error("No device of requested type available.",
+                            PI_ERROR_DEVICE_NOT_FOUND);
 }
 
 // select_device(selector)

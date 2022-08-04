@@ -28,12 +28,12 @@
 //  ), and an extension point corresponds to a piece of native code. For
 //  example, C++ grammar has a rule:
 //
-//    contextual-override := IDENTIFIER [guard=Override]
+//   compound_statement := { statement-seq [recover=Brackets] }
 //
-//  GLR parser only conducts the reduction of the rule if the IDENTIFIER
-//  content is `override`. This Override guard is implemented in CXX.cpp by
-//  binding the ExtensionID for the `Override` value to a specific C++ function
-//  that performs the check.
+//  The `recover` attribute instructs the parser that we should perform error
+//  recovery if parsing the statement-seq fails. The `Brackets` recovery
+//  heuristic is implemented in CXX.cpp by binding the ExtensionID for the
+//  `Recovery` value to a specific C++ function that finds the recovery point.
 //
 //  Notions about the BNF grammar:
 //  - "_" is the start symbol of the augmented grammar;
@@ -118,11 +118,8 @@ struct Rule {
   uint8_t Size : SizeBits; // Size of the Sequence
   SymbolID Sequence[MaxElements];
 
-  // A guard extension controls whether a reduction of a rule will be conducted
-  // by the GLR parser.
-  // 0 is sentinel unset extension ID, indicating there is no guard extension
-  // being set for this rule.
-  ExtensionID Guard = 0;
+  // A guarded rule has extra logic to determine whether the RHS is eligible.
+  bool Guarded = false;
 
   // Specifies the index within Sequence eligible for error recovery.
   // Given stmt := { stmt-seq_opt }, if we fail to parse the stmt-seq then we
@@ -136,7 +133,7 @@ struct Rule {
     return llvm::ArrayRef<SymbolID>(Sequence, Size);
   }
   friend bool operator==(const Rule &L, const Rule &R) {
-    return L.Target == R.Target && L.seq() == R.seq() && L.Guard == R.Guard;
+    return L.Target == R.Target && L.seq() == R.seq() && L.Guarded == R.Guarded;
   }
 };
 
@@ -164,21 +161,6 @@ public:
   // Gets symbol (terminal or nonterminal) name.
   // Terminals have names like "," (kw_comma) or "OPERATOR" (kw_operator).
   llvm::StringRef symbolName(SymbolID) const;
-
-  // Gets the mangled name for a terminal/nonterminal.
-  // Compared to names in the grammar,
-  //   nonterminals `ptr-declartor` becomes `ptr_declarator`;
-  //   terminal `,` becomes `comma`;
-  //   terminal `IDENTIFIER` becomes `identifier`;
-  //   terminal `INT` becomes `int`;
-  // NOTE: for nonterminals, the mangled name is the same as the cxx::Symbol
-  // enum class; for terminals, we deliberately stripped the `kw_` prefix in
-  // favor of the simplicity.
-  std::string mangleSymbol(SymbolID) const;
-  // Gets the mangled name for the rule.
-  // E.g. for the grammar rule `ptr-declarator := ptr-operator ptr-declarator`,
-  // it is `ptr_declarator_0ptr_operator_1ptr_declarator`.
-  std::string mangleRule(RuleID) const;
 
   // Lookup the SymbolID of the nonterminal symbol by Name.
   llvm::Optional<SymbolID> findNonterminal(llvm::StringRef Name) const;

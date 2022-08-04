@@ -953,6 +953,10 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   case FunctionDecl::TK_NonTemplate:
     mergeRedeclarable(FD, Redecl);
     break;
+  case FunctionDecl::TK_DependentNonTemplate:
+    mergeRedeclarable(FD, Redecl);
+    FD->setInstantiatedFromDecl(readDeclAs<FunctionDecl>());
+    break;
   case FunctionDecl::TK_FunctionTemplate:
     // Merged when we merge the template.
     FD->setDescribedFunctionTemplate(readDeclAs<FunctionTemplateDecl>());
@@ -2922,7 +2926,8 @@ Attr *ASTRecordReader::readAttr() {
 /// Reads attributes from the current stream position.
 void ASTRecordReader::readAttributes(AttrVec &Attrs) {
   for (unsigned I = 0, E = readInt(); I != E; ++I)
-    Attrs.push_back(readAttr());
+    if (auto *A = readAttr())
+      Attrs.push_back(A);
 }
 
 //===----------------------------------------------------------------------===//

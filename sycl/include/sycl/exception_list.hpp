@@ -50,7 +50,7 @@ private:
   std::vector<std::exception_ptr> MList;
 };
 
-using async_handler = std::function<void(cl::sycl::exception_list)>;
+using async_handler = std::function<void(sycl::exception_list)>;
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -14,6 +14,7 @@ include "mlir/Dialect/Transform/IR/TransformEffects.td"
 include "mlir/Dialect/Transform/IR/TransformInterfaces.td"
 include "mlir/Dialect/PDL/IR/PDLTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
 def DecomposeOp : Op<Transform_Dialect, "structured.decompose",
@@ -62,6 +63,54 @@ def FuseOp : Op<Transform_Dialect, "structured.fuse",
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+}
+
+def FuseIntoContainingOp :
+    Op<Transform_Dialect, "structured.fuse_into_containing_op",
+      [DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let description = [{Fuse a producer into a containing operation.}];
+
+  let summary = [{
+    Fuses the `producer_op` into the `containing_op`. Only producers with a
+    single result are supported at the moment. Returns a handle to the fused
+    ops.
+
+    The producer is typically a slice of a tileable op (i.e., implements
+    TilingInterface). In that case, this transform computes the accessed
+    producer slice inside of the containing op ("tile and fuse"). Otherwise,
+    the entire producer is cloned inside the containing op ("clone and fuse").
+
+    The containing op handle must be associated with exactly one payload op. The
+    producer op handle may be associated with multiple payload ops. This
+    transform fuses producers one-by-one, always picking an unspecified producer
+    that has at least one use inside the containing op among the 
+    producers.
+
+    Note: If a producer has multiple uses inside the containing op, it is
+    currently tiled and/or cloned multiple times into the containing op.
+    TODO: Reuse already fused OpResults instead of tiling/cloning a second time
+    when possible. Fuse producers according to a topological sorting to achieve
+    the largest amount of reuse.
+
+    #### Return modes
+
+    If at least one producer could not be fused, this operation fails silently.
+    This is the case when tiling fails or when no producer op could be found
+    among the remaining producers that has at least one use within the
+    containing op. I.e., "producers" that are not consumed within the containing
+    op are rejected by this operation. This operation reads and frees the
+    producer handle. It reads the containing op handle.
+  }];
+
+  let arguments = (ins Arg<PDL_Operation, "",
+                           [TransformMappingRead,
+                            TransformMappingFree]>:$producer_op,
+                       Arg<PDL_Operation, "",
+                           [TransformMappingRead]>:$containing_op);
+  let results = (outs Res<PDL_Operation, "",
+                          [TransformMappingAlloc,
+                           TransformMappingWrite]>:$fused_op);
+  let assemblyFormat = "$producer_op `into` $containing_op attr-dict";
 }
 
 def GeneralizeOp : Op<Transform_Dialect, "structured.generalize",
@@ -124,6 +173,61 @@ def InterchangeOp : Op<Transform_Dialect, "structured.interchange",
         ::mlir::linalg::GenericOp target, 
         ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
         ::mlir::transform::TransformState &state);
+  }];
+}
+
+def MatchInterfaceEnum : I32EnumAttr<"MatchInterfaceEnum", "An interface to match",
+    [
+      I32EnumAttrCase<"LinalgOp", 0>,
+      I32EnumAttrCase<"TilingInterface", 1>
+    ]>{
+  let cppNamespace = "mlir::transform";
+}
+
+def MatchOp : Op<Transform_Dialect, "structured.match",
+    [MemoryEffectsOpInterface,
+     NavigationTransformOpTrait,
+     DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let description = [{
+    Match op with the specified constraints, within the target op.
+
+    The following constraints are supported:
+      - interface: an optional MatchInterfaceEnum specifying an enum
+        representation for an interface to target.
+      - ops: an optional StrArrayAttr specifying the concrete name of an op.
+        Multiple names can be specified. Matched ops must have one of specified
+        names.
+      - attribute: an optional Str specifying the name of an attribute that
+        matched ops must have.
+      
+    Note: Only ops that satisfy all specified constraints are matched.
+
+    TODO: Extend with regions to allow a limited form of constraints.
+
+    #### Return modes
+    
+    This op traverses the ops nested under `target` and returns the handles to
+    all the operations that match the requirements.
+
+    This op fails if the target is not a handle to exactly one operation. 
+    Otherwise it succeeds.
+  
+    This operation does not consume the target handle and produces new handles:
+    it is a navigation op.
+  }];
+
+  let arguments = (ins PDL_Operation:$target,
+                       OptionalAttr<StrArrayAttr>:$ops,
+                       OptionalAttr<MatchInterfaceEnum>:$interface,
+                       OptionalAttr<StrAttr>:$attribute);
+  // TODO: variadic results when needed.
+  let results = (outs PDL_Operation:$results);
+
+  let assemblyFormat = [{
+    (`ops` `{` $ops^ `}`)? 
+    (`interface` `{` $interface^ `}`)? 
+    (`attribute` `{` $attribute^ `}`)? 
+    `in` $target attr-dict
   }];
 }
 
@@ -561,15 +665,17 @@ def TileToForeachThreadOp :
        TransformEachOpTrait,
        TransformOpInterface]> {
   let description = [{
-    Tile a TilingInterface `op` to a tiled `scf.foreach_thread`, applying
-    tiling by `num_threads`.
-    If non-empty, the `thread_dim_mapping` is added as an attribute to the 
+    Tile a TilingInterface op to a tiled `scf.foreach_thread`. Tiling is
+    applied by either specifying `num_threads` or `tile_size`. If `num_threads`
+    is specified, then the tile size for each dimension `i` is calculated
+    dynamically via `ceilDiv(dimSize[i], num_threads[i])`.
+    If non-empty, the `thread_dim_mapping` is added as an attribute to the
     resulting `scf.foreach_thread`.
-    Zero tile sizes indicate that the dimension is not tiled, and can be thought
-    of as tiling by the full size of data.
-    It is the user's responsibility to ensure that `num_threads` is a valid 
-    tiling specification (i.e. that only tiles parallel dimensions, e.g. in the 
-    Linalg case).
+    Zero tile sizes indicate that the dimension is not tiled and can be
+    thought of as tiling by the full size of data.
+    It is the user's responsibility to ensure that `num_threads/tile_sizes` is
+    a valid tiling specification (i.e. that only tiles parallel dimensions, 
+    e.g. in the Linalg case).
     
     #### Return modes
     
@@ -580,24 +686,39 @@ def TileToForeachThreadOp :
     successfully, the transform succeeds.
     Otherwise the transform silently fails.
     
-    The 2 returned handles point to only the subset of successfully produced 
+    The two returned handles point to only the subset of successfully produced
     tiled operations, which can all be empty.
     
-    These 2 returned handles point to:
+    These two returned handles point to:
       - the new scf.foreach_thread op,
       - the tiled op that implements TilingInterface.
+
+    ### Example using `num_threads`
+
+    ```
+    %0 = pdl_match @match_matmul in %arg1    
+    %3:2 = transform.structured.tile_to_foreach_thread_op %0 num_threads [10, 20]
+    ```
+
+    ### Example using `tile_sizes`
+    
+    ```
+    %0 = pdl_match @match_matmul in %arg1    
+    %3:2 = transform.structured.tile_to_foreach_thread_op %0 tile_sizes [10, 20, 0]
+    ```
   }];
 
   let arguments = (ins PDL_Operation:$target,
                    // TODO: dynamic number of threads.
-                   DefaultValuedAttr<I64ArrayAttr, "{}">:$num_threads,
+                   OptionalAttr<DefaultValuedAttr<I64ArrayAttr, "{}">>:$num_threads,
+                   OptionalAttr<DefaultValuedAttr<I64ArrayAttr, "{}">>:$tile_sizes,
                    OptionalAttr<I64ArrayAttr>:$thread_dim_mapping);
   let results = (outs PDL_Operation:$foreach_thread_op,
                       PDL_Operation:$tiled_op);
 
   let assemblyFormat = [{
-    $target $num_threads (`(` `mapped` `to` `dims` $thread_dim_mapping^ `)`)? 
-      attr-dict
+    $target  (`num_threads` $num_threads^) : (`tile_sizes` $tile_sizes)?
+      (`(` `mapped` `to` `dims` $thread_dim_mapping^ `)`)? attr-dict
   }];
 
   let extraClassDeclaration = [{

@@ -11,7 +11,7 @@
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   TestCtx(context &Ctx) : Ctx{Ctx} {};

@@ -60,6 +60,8 @@ constexpr void dangling_both(Func&& func, Input& in1, Input& in2, Args&& ...args
   static_assert(std::same_as<decltype(result), ExpectedT>);
 }
 
+std::mt19937 rand_gen() { return std::mt19937(); }
+
 // TODO: also check the iterator values for algorithms that return `*_result` types.
 constexpr bool test_all() {
   using std::ranges::dangling;
@@ -86,12 +88,11 @@ constexpr bool test_all() {
   using std::ranges::set_union_result;
   using std::ranges::swap_ranges_result;
   using std::ranges::unary_transform_result;
-  //using std::ranges::unique_copy_result;
+  using std::ranges::unique_copy_result;
 
   auto unary_pred = [](int i) { return i > 0; };
   auto binary_pred = [](int i, int j) { return i < j; };
-  //auto gen = [] { return 42; };
-  //std::mt19937 rand_gen;
+  auto gen = [] { return 42; };
 
   std::array in = {1, 2, 3};
   std::array in2 = {4, 5, 6};
@@ -116,7 +117,7 @@ constexpr bool test_all() {
   dangling_1st(std::ranges::partition_point, in, unary_pred);
   dangling_1st(std::ranges::lower_bound, in, x);
   dangling_1st(std::ranges::upper_bound, in, x);
-  //dangling_1st(std::ranges::equal_range, in, x);
+  dangling_1st(std::ranges::equal_range, in, x);
   dangling_1st(std::ranges::min_element, in);
   dangling_1st(std::ranges::max_element, in);
   dangling_1st<minmax_result<dangling>>(std::ranges::minmax_element, in);
@@ -124,7 +125,7 @@ constexpr bool test_all() {
   dangling_1st(std::ranges::search_n, in, count, x);
   dangling_1st(std::ranges::find_end, in, in2);
   dangling_1st(std::ranges::is_sorted_until, in);
-  //dangling_1st(std::ranges::is_heap_until, in);
+  dangling_1st(std::ranges::is_heap_until, in);
   dangling_1st<for_each_result<dangling, decltype(unary_pred)>>(std::ranges::for_each, in, unary_pred);
   dangling_1st<copy_result<dangling, int*>>(std::ranges::copy, in, out);
   // TODO: uncomment `copy_backward` once https://reviews.llvm.org/D128864 lands.
@@ -144,7 +145,7 @@ constexpr bool test_all() {
     dangling_both<binary_transform_result<dangling, dangling, bool*>>(
         std::ranges::transform, in, in2, out_transform.begin(), binary_pred);
   }
-  //dangling_1st(std::ranges::generate, in, gen);
+  dangling_1st(std::ranges::generate, in, gen);
   //dangling_1st<remove_copy_result<dangling, int*>>(std::ranges::remove_copy, in, out, x);
   //dangling_1st<remove_copy_if_result<dangling, int*>>(std::ranges::remove_copy_if, in, out, unary_pred);
   dangling_1st(std::ranges::replace, in, x, x);
@@ -156,7 +157,7 @@ constexpr bool test_all() {
   dangling_both<swap_ranges_result<dangling, dangling>>(std::ranges::swap_ranges, in, in2);
   dangling_1st<reverse_copy_result<dangling, int*>>(std::ranges::reverse_copy, in, out);
   dangling_1st<rotate_copy_result<dangling, int*>>(std::ranges::rotate_copy, in, mid, out);
-  //dangling_1st<unique_copy_result<dangling, int*>>(std::ranges::unique_copy, in, out);
+  dangling_1st<unique_copy_result<dangling, int*>>(std::ranges::unique_copy, in, out);
   dangling_1st<partition_copy_result<dangling, int*, int*>>(std::ranges::partition_copy, in, out, out2, unary_pred);
   //dangling_1st<partial_sort_copy_result<dangling, int*>>(std::ranges::partial_sort_copy, in, in2);
   //dangling_2nd<partial_sort_copy_result<int*, dangling>>(std::ranges::partial_sort_copy, in, in2);
@@ -181,8 +182,9 @@ constexpr bool test_all() {
   dangling_1st(std::ranges::remove_if, in, unary_pred);
   dangling_1st(std::ranges::reverse, in);
   //dangling_1st(std::ranges::rotate, in, mid);
-  //dangling_1st(std::ranges::shuffle, in, rand_gen);
-  //dangling_1st(std::ranges::unique, in);
+  if (!std::is_constant_evaluated()) // `shuffle` isn't `constexpr`.
+    dangling_1st(std::ranges::shuffle, in, rand_gen());
+  dangling_1st(std::ranges::unique, in);
   dangling_1st(std::ranges::partition, in, unary_pred);
   if (!std::is_constant_evaluated())
     dangling_1st(std::ranges::stable_partition, in, unary_pred);
@@ -191,8 +193,8 @@ constexpr bool test_all() {
     dangling_1st(std::ranges::stable_sort, in);
   dangling_1st(std::ranges::partial_sort, in, mid);
   dangling_1st(std::ranges::nth_element, in, mid);
-  //if (!std::is_constant_evaluated())
-  //  dangling_1st(std::ranges::inplace_merge, in, mid);
+  if (!std::is_constant_evaluated())
+    dangling_1st(std::ranges::inplace_merge, in, mid);
   dangling_1st(std::ranges::make_heap, in);
   dangling_1st(std::ranges::push_heap, in);
   dangling_1st(std::ranges::pop_heap, in);

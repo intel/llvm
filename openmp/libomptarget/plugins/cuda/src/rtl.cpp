@@ -507,6 +507,10 @@ public:
       DP("Failed to load CUDA shared library\n");
       return;
     }
+    if (Err == CUDA_ERROR_NO_DEVICE) {
+      DP("There are no devices supporting CUDA.\n");
+      return;
+    }
     if (!checkResult(Err, "Error returned from cuInit\n")) {
       return;
     }
@@ -1517,6 +1521,43 @@ extern "C" {
 
 int32_t __tgt_rtl_is_valid_binary(__tgt_device_image *Image) {
   return elf_check_machine(Image, /* EM_CUDA */ 190);
+}
+
+int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *image,
+                                       __tgt_image_info *info) {
+  if (!__tgt_rtl_is_valid_binary(image))
+    return false;
+
+  // A subarchitecture was not specified. Assume it is compatible.
+  if (!info->Arch)
+    return true;
+
+  int32_t NumberOfDevices = 0;
+  if (cuDeviceGetCount(&NumberOfDevices) != CUDA_SUCCESS)
+    return false;
+
+  for (int32_t DeviceId = 0; DeviceId < NumberOfDevices; ++DeviceId) {
+    CUdevice Device;
+    if (cuDeviceGet(&Device, DeviceId) != CUDA_SUCCESS)
+      return false;
+
+    int32_t Major, Minor;
+    if (cuDeviceGetAttribute(&Major,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                             Device) != CUDA_SUCCESS)
+      return false;
+    if (cuDeviceGetAttribute(&Minor,
+                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                             Device) != CUDA_SUCCESS)
+      return false;
+
+    std::string ArchStr = "sm_" + std::to_string(Major) + std::to_string(Minor);
+    if (ArchStr != info->Arch)
+      return false;
+  }
+
+  DP("Image has compatible compute capability: %s\n", info->Arch);
+  return true;
 }
 
 int32_t __tgt_rtl_number_of_devices() { return DeviceRTL.getNumOfDevices(); }

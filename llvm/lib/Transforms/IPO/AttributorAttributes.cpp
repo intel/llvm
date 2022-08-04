@@ -942,9 +942,6 @@ struct AAPointerInfoImpl
   using BaseTy = StateWrapper<AA::PointerInfo::State, AAPointerInfo>;
   AAPointerInfoImpl(const IRPosition &IRP, Attributor &A) : BaseTy(IRP) {}
 
-  /// See AbstractAttribute::initialize(...).
-  void initialize(Attributor &A) override { AAPointerInfo::initialize(A); }
-
   /// See AbstractAttribute::getAsStr().
   const std::string getAsStr() const override {
     return std::string("PointerInfo ") +
@@ -964,9 +961,14 @@ struct AAPointerInfoImpl
       const override {
     return State::forallInterferingAccesses(OAS, CB);
   }
-  bool forallInterferingAccesses(
-      Attributor &A, const AbstractAttribute &QueryingAA, Instruction &I,
-      function_ref<bool(const Access &, bool)> UserCB) const override {
+
+  bool
+  forallInterferingAccesses(Attributor &A, const AbstractAttribute &QueryingAA,
+                            Instruction &I,
+                            function_ref<bool(const Access &, bool)> UserCB,
+                            bool &HasBeenWrittenTo) const override {
+    HasBeenWrittenTo = false;
+
     SmallPtrSet<const Access *, 8> DominatingWrites;
     SmallVector<std::pair<const Access *, bool>, 8> InterferingAccesses;
 
@@ -1002,14 +1004,12 @@ struct AAPointerInfoImpl
 
     const bool FindInterferingWrites = I.mayReadFromMemory();
     const bool FindInterferingReads = I.mayWriteToMemory();
-    const bool UseDominanceReasoning = FindInterferingWrites;
+    const bool UseDominanceReasoning =
+        FindInterferingWrites && NoRecurseAA.isKnownNoRecurse();
     const bool CanUseCFGResoning = CanIgnoreThreading(I);
     InformationCache &InfoCache = A.getInfoCache();
     const DominatorTree *DT =
-        NoRecurseAA.isKnownNoRecurse() && UseDominanceReasoning
-            ? InfoCache.getAnalysisResultForFunction<DominatorTreeAnalysis>(
-                  Scope)
-            : nullptr;
+        InfoCache.getAnalysisResultForFunction<DominatorTreeAnalysis>(Scope);
 
     enum GPUAddressSpace : unsigned {
       Generic = 0,
@@ -1066,22 +1066,17 @@ struct AAPointerInfoImpl
           (!FindInterferingReads || !Acc.isRead()))
         return true;
 
+      bool Dominates = DT && Exact && Acc.isMustAccess() &&
+                       (Acc.getLocalInst()->getFunction() == &Scope) &&
+                       DT->dominates(Acc.getRemoteInst(), &I);
+      if (FindInterferingWrites && Dominates)
+        HasBeenWrittenTo = true;
+
       // For now we only filter accesses based on CFG reasoning which does not
       // work yet if we have threading effects, or the access is complicated.
-      if (CanUseCFGResoning) {
-        if ((!Acc.isWrite() ||
-             !AA::isPotentiallyReachable(A, *Acc.getLocalInst(), I, QueryingAA,
-                                         IsLiveInCalleeCB)) &&
-            (!Acc.isRead() ||
-             !AA::isPotentiallyReachable(A, I, *Acc.getLocalInst(), QueryingAA,
-                                         IsLiveInCalleeCB)))
-          return true;
-        if (DT && Exact && (Acc.getLocalInst()->getFunction() == &Scope) &&
-            IsSameThreadAsLoad(Acc)) {
-          if (DT->dominates(Acc.getLocalInst(), &I))
-            DominatingWrites.insert(&Acc);
-        }
-      }
+      if (CanUseCFGResoning && Dominates && UseDominanceReasoning &&
+          IsSameThreadAsLoad(Acc))
+        DominatingWrites.insert(&Acc);
 
       InterferingAccesses.push_back({&Acc, Exact});
       return true;
@@ -1089,19 +1084,27 @@ struct AAPointerInfoImpl
     if (!State::forallInterferingAccesses(I, AccessCB))
       return false;
 
-    // If we cannot use CFG reasoning we only filter the non-write accesses
-    // and are done here.
-    if (!CanUseCFGResoning) {
-      for (auto &It : InterferingAccesses)
-        if (!UserCB(*It.first, It.second))
-          return false;
-      return true;
+    if (HasBeenWrittenTo) {
+      const Function *ScopePtr = &Scope;
+      IsLiveInCalleeCB = [ScopePtr](const Function &Fn) {
+        return ScopePtr != &Fn;
+      };
     }
 
     // Helper to determine if we can skip a specific write access. This is in
     // the worst case quadratic as we are looking for another write that will
     // hide the effect of this one.
     auto CanSkipAccess = [&](const Access &Acc, bool Exact) {
+      if ((!Acc.isWrite() ||
+           !AA::isPotentiallyReachable(A, *Acc.getLocalInst(), I, QueryingAA,
+                                       IsLiveInCalleeCB)) &&
+          (!Acc.isRead() ||
+           !AA::isPotentiallyReachable(A, I, *Acc.getLocalInst(), QueryingAA,
+                                       IsLiveInCalleeCB)))
+        return true;
+
+      if (!DT || !UseDominanceReasoning)
+        return false;
       if (!IsSameThreadAsLoad(Acc))
         return false;
       if (!DominatingWrites.count(&Acc))
@@ -1123,7 +1126,7 @@ struct AAPointerInfoImpl
     // succeeded for all or not.
     unsigned NumInterferingAccesses = InterferingAccesses.size();
     for (auto &It : InterferingAccesses) {
-      if (!DT || NumInterferingAccesses > MaxInterferingAccesses ||
+      if (NumInterferingAccesses > MaxInterferingAccesses ||
           !CanSkipAccess(*It.first, It.second)) {
         if (!UserCB(*It.first, It.second))
           return false;
@@ -1159,8 +1162,9 @@ struct AAPointerInfoImpl
         if (FromCallee) {
           Content = A.translateArgumentToCallSiteContent(
               RAcc.getContent(), CB, *this, UsedAssumedInformation);
-          AK = AccessKind(
-              AK & (IsByval ? AccessKind::AK_READ : AccessKind::AK_READ_WRITE));
+          AK =
+              AccessKind(AK & (IsByval ? AccessKind::AK_R : AccessKind::AK_RW));
+          AK = AccessKind(AK | (RAcc.isMayAccess() ? AK_MAY : AK_MUST));
         }
         Changed =
             Changed | addAccess(A, OAS.getOffset(), OAS.getSize(), CB, Content,
@@ -1200,9 +1204,6 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
   using AccessKind = AAPointerInfo::AccessKind;
   AAPointerInfoFloating(const IRPosition &IRP, Attributor &A)
       : AAPointerInfoImpl(IRP, A) {}
-
-  /// See AbstractAttribute::initialize(...).
-  void initialize(Attributor &A) override { AAPointerInfoImpl::initialize(A); }
 
   /// Deal with an access and signal if it was handled successfully.
   bool handleAccess(Attributor &A, Instruction &I, Value &Ptr,
@@ -1351,21 +1352,37 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         return true;
       }
 
-      if (auto *LoadI = dyn_cast<LoadInst>(Usr))
-        return handleAccess(A, *LoadI, *CurPtr, /* Content */ nullptr,
-                            AccessKind::AK_READ, OffsetInfoMap[CurPtr].Offset,
-                            Changed, LoadI->getType());
+      if (auto *LoadI = dyn_cast<LoadInst>(Usr)) {
+        // If the access is to a pointer that may or may not be the associated
+        // value, e.g. due to a PHI, we cannot assume it will be read.
+        AccessKind AK = AccessKind::AK_R;
+        if (getUnderlyingObject(CurPtr) == &AssociatedValue)
+          AK = AccessKind(AK | AccessKind::AK_MUST);
+        else
+          AK = AccessKind(AK | AccessKind::AK_MAY);
+        return handleAccess(A, *LoadI, *CurPtr, /* Content */ nullptr, AK,
+                            OffsetInfoMap[CurPtr].Offset, Changed,
+                            LoadI->getType());
+      }
+
       if (auto *StoreI = dyn_cast<StoreInst>(Usr)) {
         if (StoreI->getValueOperand() == CurPtr) {
           LLVM_DEBUG(dbgs() << "[AAPointerInfo] Escaping use in store "
                             << *StoreI << "\n");
           return false;
         }
+        // If the access is to a pointer that may or may not be the associated
+        // value, e.g. due to a PHI, we cannot assume it will be written.
+        AccessKind AK = AccessKind::AK_W;
+        if (getUnderlyingObject(CurPtr) == &AssociatedValue)
+          AK = AccessKind(AK | AccessKind::AK_MUST);
+        else
+          AK = AccessKind(AK | AccessKind::AK_MAY);
         bool UsedAssumedInformation = false;
         Optional<Value *> Content =
             A.getAssumedSimplified(*StoreI->getValueOperand(), *this,
                                    UsedAssumedInformation, AA::Interprocedural);
-        return handleAccess(A, *StoreI, *CurPtr, Content, AccessKind::AK_WRITE,
+        return handleAccess(A, *StoreI, *CurPtr, Content, AK,
                             OffsetInfoMap[CurPtr].Offset, Changed,
                             StoreI->getValueOperand()->getType());
       }
@@ -1480,10 +1497,10 @@ struct AAPointerInfoCallSiteArgument final : AAPointerInfoFloating {
       unsigned ArgNo = getIRPosition().getCallSiteArgNo();
       ChangeStatus Changed = ChangeStatus::UNCHANGED;
       if (ArgNo == 0) {
-        handleAccess(A, *MI, Ptr, nullptr, AccessKind::AK_WRITE, 0, Changed,
-                     nullptr, LengthVal);
+        handleAccess(A, *MI, Ptr, nullptr, AccessKind::AK_MUST_WRITE, 0,
+                     Changed, nullptr, LengthVal);
       } else if (ArgNo == 1) {
-        handleAccess(A, *MI, Ptr, nullptr, AccessKind::AK_READ, 0, Changed,
+        handleAccess(A, *MI, Ptr, nullptr, AccessKind::AK_MUST_READ, 0, Changed,
                      nullptr, LengthVal);
       } else {
         LLVM_DEBUG(dbgs() << "[AAPointerInfo] Unhandled memory intrinsic "
@@ -3223,7 +3240,9 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
           }
         }
 
-        if (!AA::isPotentiallyReachable(A, *UserI, *getCtxI(), *this))
+        if (!AA::isPotentiallyReachable(
+                A, *UserI, *getCtxI(), *this,
+                [ScopeFn](const Function &Fn) { return &Fn != ScopeFn; }))
           return true;
       }
 
@@ -3309,7 +3328,7 @@ struct AANoAliasReturned final : AANoAliasImpl {
   }
 
   /// See AbstractAttribute::updateImpl(...).
-  virtual ChangeStatus updateImpl(Attributor &A) override {
+  ChangeStatus updateImpl(Attributor &A) override {
 
     auto CheckReturnValue = [&](Value &RV) -> bool {
       if (Constant *C = dyn_cast<Constant>(&RV))
@@ -3408,7 +3427,7 @@ struct AAIsDeadValueImpl : public AAIsDead {
   }
 
   /// See AbstractAttribute::getAsStr().
-  virtual const std::string getAsStr() const override {
+  const std::string getAsStr() const override {
     return isAssumedDead() ? "assumed-dead" : "assumed-live";
   }
 
@@ -4481,9 +4500,8 @@ struct AAAlignImpl : AAAlign {
   //       to avoid making the alignment explicit if it did not improve.
 
   /// See AbstractAttribute::getDeducedAttributes
-  virtual void
-  getDeducedAttributes(LLVMContext &Ctx,
-                       SmallVectorImpl<Attribute> &Attrs) const override {
+  void getDeducedAttributes(LLVMContext &Ctx,
+                            SmallVectorImpl<Attribute> &Attrs) const override {
     if (getAssumedAlign() > 1)
       Attrs.emplace_back(
           Attribute::getWithAlignment(Ctx, Align(getAssumedAlign())));
@@ -4690,7 +4708,7 @@ struct AANoReturnImpl : public AANoReturn {
   }
 
   /// See AbstractAttribute::updateImpl(Attributor &A).
-  virtual ChangeStatus updateImpl(Attributor &A) override {
+  ChangeStatus updateImpl(Attributor &A) override {
     auto CheckForNoReturn = [](Instruction &) { return false; };
     bool UsedAssumedInformation = false;
     if (!A.checkForAllInstructions(CheckForNoReturn, *this,
@@ -4815,7 +4833,9 @@ struct AAInstanceInfoImpl : public AAInstanceInfo {
           return false;
         // If this call base might reach the scope again we might forward the
         // argument back here. This is very conservative.
-        if (AA::isPotentiallyReachable(A, *CB, *Scope, *this, nullptr))
+        if (AA::isPotentiallyReachable(
+                A, *CB, *Scope, *this,
+                [Scope](const Function &Fn) { return &Fn != Scope; }))
           return false;
         return true;
       }
@@ -4951,9 +4971,8 @@ struct AANoCaptureImpl : public AANoCapture {
   ChangeStatus updateImpl(Attributor &A) override;
 
   /// see AbstractAttribute::isAssumedNoCaptureMaybeReturned(...).
-  virtual void
-  getDeducedAttributes(LLVMContext &Ctx,
-                       SmallVectorImpl<Attribute> &Attrs) const override {
+  void getDeducedAttributes(LLVMContext &Ctx,
+                            SmallVectorImpl<Attribute> &Attrs) const override {
     if (!isAssumedNoCaptureMaybeReturned())
       return;
 
@@ -6827,7 +6846,7 @@ struct AAPrivatizablePtrFloating : public AAPrivatizablePtrImpl {
       : AAPrivatizablePtrImpl(IRP, A) {}
 
   /// See AbstractAttribute::initialize(...).
-  virtual void initialize(Attributor &A) override {
+  void initialize(Attributor &A) override {
     // TODO: We can privatize more than arguments.
     indicatePessimisticFixpoint();
   }
@@ -7201,7 +7220,7 @@ struct AAMemoryBehaviorFunction final : public AAMemoryBehaviorImpl {
       : AAMemoryBehaviorImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(Attributor &A).
-  virtual ChangeStatus updateImpl(Attributor &A) override;
+  ChangeStatus updateImpl(Attributor &A) override;
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
@@ -7492,16 +7511,15 @@ struct AAMemoryLocationImpl : public AAMemoryLocation {
 
   AAMemoryLocationImpl(const IRPosition &IRP, Attributor &A)
       : AAMemoryLocation(IRP, A), Allocator(A.Allocator) {
-    for (unsigned u = 0; u < llvm::CTLog2<VALID_STATE>(); ++u)
-      AccessKind2Accesses[u] = nullptr;
+    AccessKind2Accesses.fill(nullptr);
   }
 
   ~AAMemoryLocationImpl() {
     // The AccessSets are allocated via a BumpPtrAllocator, we call
     // the destructor manually.
-    for (unsigned u = 0; u < llvm::CTLog2<VALID_STATE>(); ++u)
-      if (AccessKind2Accesses[u])
-        AccessKind2Accesses[u]->~AccessSet();
+    for (AccessSet *AS : AccessKind2Accesses)
+      if (AS)
+        AS->~AccessSet();
   }
 
   /// See AbstractAttribute::initialize(...).
@@ -7669,7 +7687,7 @@ protected:
   /// Mapping from *single* memory location kinds, e.g., LOCAL_MEM with the
   /// value of NO_LOCAL_MEM, to the accesses encountered for this memory kind.
   using AccessSet = SmallSet<AccessInfo, 2, AccessInfo>;
-  AccessSet *AccessKind2Accesses[llvm::CTLog2<VALID_STATE>()];
+  std::array<AccessSet *, llvm::CTLog2<VALID_STATE>()> AccessKind2Accesses;
 
   /// Categorize the pointer arguments of CB that might access memory in
   /// AccessedLoc and update the state and access map accordingly.
@@ -7914,7 +7932,7 @@ struct AAMemoryLocationFunction final : public AAMemoryLocationImpl {
       : AAMemoryLocationImpl(IRP, A) {}
 
   /// See AbstractAttribute::updateImpl(Attributor &A).
-  virtual ChangeStatus updateImpl(Attributor &A) override {
+  ChangeStatus updateImpl(Attributor &A) override {
 
     const auto &MemBehaviorAA =
         A.getAAFor<AAMemoryBehavior>(*this, getIRPosition(), DepClassTy::NONE);
@@ -9312,13 +9330,13 @@ struct AANoUndefCallSiteReturned final
 struct AACallEdgesImpl : public AACallEdges {
   AACallEdgesImpl(const IRPosition &IRP, Attributor &A) : AACallEdges(IRP, A) {}
 
-  virtual const SetVector<Function *> &getOptimisticEdges() const override {
+  const SetVector<Function *> &getOptimisticEdges() const override {
     return CalledFunctions;
   }
 
-  virtual bool hasUnknownCallee() const override { return HasUnknownCallee; }
+  bool hasUnknownCallee() const override { return HasUnknownCallee; }
 
-  virtual bool hasNonAsmUnknownCallee() const override {
+  bool hasNonAsmUnknownCallee() const override {
     return HasUnknownCalleeNonAsm;
   }
 
@@ -9650,13 +9668,9 @@ public:
   }
 
   bool instructionCanReach(Attributor &A, const Instruction &Inst,
-                           const Function &Fn,
-                           bool UseBackwards) const override {
+                           const Function &Fn) const override {
     if (!isValidState())
       return true;
-
-    if (UseBackwards)
-      return AA::isPotentiallyReachable(A, Inst, Fn, *this, nullptr);
 
     const auto &Reachability = A.getAAFor<AAReachability>(
         *this, IRPosition::function(*getAssociatedFunction()),

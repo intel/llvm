@@ -213,10 +213,12 @@ bool LoopDataPrefetchLegacyPass::runOnFunction(Function &F) {
 bool LoopDataPrefetch::run() {
   // If PrefetchDistance is not set, don't run the pass.  This gives an
   // opportunity for targets to run this pass for selected subtargets only
-  // (whose TTI sets PrefetchDistance).
-  if (getPrefetchDistance() == 0)
+  // (whose TTI sets PrefetchDistance and CacheLineSize).
+  if (getPrefetchDistance() == 0 || TTI->getCacheLineSize() == 0) {
+    LLVM_DEBUG(dbgs() << "Please set both PrefetchDistance and CacheLineSize "
+                         "for loop data prefetch.\n");
     return false;
-  assert(TTI->getCacheLineSize() && "Cache line size is not set for target");
+  }
 
   bool MadeChange = false;
 
@@ -336,7 +338,7 @@ bool LoopDataPrefetch::runOnLoop(Loop *L) {
       } else continue;
 
       unsigned PtrAddrSpace = PtrValue->getType()->getPointerAddressSpace();
-      if (PtrAddrSpace)
+      if (!TTI->shouldPrefetchAddressSpace(PtrAddrSpace))
         continue;
       NumMemAccesses++;
       if (L->isLoopInvariant(PtrValue))
@@ -396,7 +398,8 @@ bool LoopDataPrefetch::runOnLoop(Loop *L) {
     if (!SCEVE.isSafeToExpand(NextLSCEV))
       continue;
 
-    Type *I8Ptr = Type::getInt8PtrTy(BB->getContext(), 0/*PtrAddrSpace*/);
+    unsigned PtrAddrSpace = NextLSCEV->getType()->getPointerAddressSpace();
+    Type *I8Ptr = Type::getInt8PtrTy(BB->getContext(), PtrAddrSpace);
     Value *PrefPtrValue = SCEVE.expandCodeFor(NextLSCEV, I8Ptr, P.InsertPt);
 
     IRBuilder<> Builder(P.InsertPt);

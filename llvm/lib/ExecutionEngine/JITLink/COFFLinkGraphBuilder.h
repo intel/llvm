@@ -45,6 +45,7 @@ protected:
   const object::COFFObjectFile &getObject() const { return Obj; }
 
   virtual Error addRelocations() = 0;
+  virtual Symbol &createDLLImportEntry(StringRef StubName, Symbol &Target) = 0;
 
   Error graphifySections();
   Error graphifySymbols();
@@ -111,19 +112,19 @@ private:
   // COMDAT sequence.
   struct ComdatExportRequest {
     COFFSymbolIndex SymbolIndex;
-    COFFSectionIndex SectionIndex;
     jitlink::Linkage Linkage;
   };
-  Optional<ComdatExportRequest> PendingComdatExport;
+  std::vector<Optional<ComdatExportRequest>> PendingComdatExports;
 
   // This represents a pending request to create a weak external symbol with a
   // name.
-  struct WeakAliasRequest {
+  struct WeakExternalRequest {
     COFFSymbolIndex Alias;
     COFFSymbolIndex Target;
+    uint32_t Characteristics;
     StringRef SymbolName;
   };
-  std::vector<WeakAliasRequest> WeakAliasRequests;
+  std::vector<WeakExternalRequest> WeakExternalRequests;
 
   // Per COFF section jitlink symbol set sorted by offset.
   // Used for calculating implicit size of defined symbols.
@@ -152,6 +153,7 @@ private:
   static bool isComdatSection(const object::coff_section *Section);
   static unsigned getPointerSize(const object::COFFObjectFile &Obj);
   static support::endianness getEndianness(const object::COFFObjectFile &Obj);
+  static StringRef getDLLImportStubPrefix() { return "__imp_"; }
   StringRef getCOFFSectionName(COFFSectionIndex SectionIndex,
                                const object::coff_section *Sec,
                                object::COFFSymbolRef Sym);
@@ -162,6 +164,8 @@ private:
   Section *CommonSection = nullptr;
   std::vector<Block *> GraphBlocks;
   std::vector<Symbol *> GraphSymbols;
+
+  DenseMap<StringRef, Symbol *> ExternalSymbols;
 };
 
 template <typename RelocHandlerFunction>

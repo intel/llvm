@@ -47,10 +47,10 @@ class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 __SYCL_EXPORT std::vector<RT::PiEvent>
-getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                std::shared_ptr<cl::sycl::detail::context_impl> Context);
+getOrWaitEvents(std::vector<sycl::event> DepEvents,
+                std::shared_ptr<sycl::detail::context_impl> Context);
 
-__SYCL_EXPORT void waitEvents(std::vector<cl::sycl::event> DepEvents);
+__SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
@@ -121,7 +121,7 @@ public:
   }
 
   template <int Dims, bool WithOffset>
-  static void updateItemIndex(cl::sycl::item<Dims, WithOffset> &Item,
+  static void updateItemIndex(sycl::item<Dims, WithOffset> &Item,
                               const id<Dims> &NextIndex) {
     Item.MImpl.MIndex = NextIndex;
   }

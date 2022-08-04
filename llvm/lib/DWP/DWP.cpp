@@ -18,6 +18,7 @@
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include <limits>
 
 using namespace llvm;
 using namespace llvm::object;
@@ -251,16 +252,23 @@ static std::string buildDWODescription(StringRef Name, StringRef DWPName,
   std::string Text = "\'";
   Text += Name;
   Text += '\'';
-  if (!DWPName.empty()) {
+  bool HasDWO = !DWOName.empty();
+  bool HasDWP = !DWPName.empty();
+  if (HasDWO || HasDWP) {
     Text += " (from ";
-    if (!DWOName.empty()) {
+    if (HasDWO) {
       Text += '\'';
       Text += DWOName;
-      Text += "' in ";
+      Text += '\'';
     }
-    Text += '\'';
-    Text += DWPName;
-    Text += "')";
+    if (HasDWO && HasDWP)
+      Text += " in ";
+    if (!DWPName.empty()) {
+      Text += '\'';
+      Text += DWPName;
+      Text += '\'';
+    }
+    Text += ")";
   }
   return Text;
 }
@@ -654,6 +662,12 @@ Error write(MCStreamer &Out, ArrayRef<std::string> Inputs) {
                                                              IndexVersion)];
           C.Offset = InfoSectionOffset;
           C.Length = Header.Length + 4;
+
+          if (std::numeric_limits<uint32_t>::max() - InfoSectionOffset <
+              C.Length)
+            return make_error<DWPError>(
+                "debug information section offset is greater than 4GB");
+
           UnitOffset += C.Length;
           if (Header.Version < 5 ||
               Header.UnitType == dwarf::DW_UT_split_compile) {

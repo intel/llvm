@@ -10,8 +10,6 @@
 
 #include <sycl/sycl.hpp>
 
-using namespace cl;
-
 int main() {
 
   bool Fail = false;

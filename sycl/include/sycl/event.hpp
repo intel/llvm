@@ -21,6 +21,11 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 class context;
+
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
+
 namespace detail {
 class event_impl;
 }
@@ -128,15 +133,6 @@ public:
   /// \return the backend associated with this platform
   backend get_backend() const noexcept;
 
-  /// Gets the native handle of the SYCL event.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, event> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
-  }
-
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
@@ -161,10 +157,10 @@ private:
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::event> {
-  size_t operator()(const cl::sycl::event &e) const {
-    return hash<std::shared_ptr<cl::sycl::detail::event_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(e));
+template <> struct hash<sycl::event> {
+  size_t operator()(const sycl::event &e) const {
+    return hash<std::shared_ptr<sycl::detail::event_impl>>()(
+        sycl::detail::getSyclObjImpl(e));
   }
 };
 } // namespace std

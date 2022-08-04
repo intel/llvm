@@ -52,6 +52,8 @@ SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr) {
 /// Given a value, try to extract a constant Attribute. If this fails, return
 /// the original value.
 OpFoldResult getAsOpFoldResult(Value val) {
+  if (!val)
+    return OpFoldResult();
   Attribute attr;
   if (matchPattern(val, m_Constant(&attr)))
     return attr;
@@ -60,7 +62,7 @@ OpFoldResult getAsOpFoldResult(Value val) {
 
 /// Given an array of values, try to extract a constant Attribute from each
 /// value. If this fails, return the original value.
-SmallVector<OpFoldResult> getAsOpFoldResult(ArrayRef<Value> values) {
+SmallVector<OpFoldResult> getAsOpFoldResult(ValueRange values) {
   return llvm::to_vector<4>(
       llvm::map_range(values, [](Value v) { return getAsOpFoldResult(v); }));
 }

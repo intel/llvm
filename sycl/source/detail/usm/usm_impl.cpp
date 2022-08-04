@@ -40,7 +40,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-using alloc = cl::sycl::usm::alloc;
+using alloc = sycl::usm::alloc;
 
 namespace detail {
 namespace usm {
@@ -76,13 +76,13 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
       std::array<pi_usm_mem_properties, 3> Props;
       auto PropsIter = Props.begin();
 
-      if (PropList.has_property<cl::sycl::ext::intel::experimental::property::
-                                    usm::buffer_location>() &&
+      if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
+                                    buffer_location>() &&
           Ctxt.get_platform().has_extension(
               "cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
-                           .get_property<cl::sycl::ext::intel::experimental::
+                           .get_property<sycl::ext::intel::experimental::
                                              property::usm::buffer_location>()
                            .get_buffer_location();
       }
@@ -153,12 +153,12 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       auto PropsIter = Props.begin();
 
       // Buffer location is only supported on FPGA devices
-      if (PropList.has_property<cl::sycl::ext::intel::experimental::property::
-                                    usm::buffer_location>() &&
+      if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
+                                    buffer_location>() &&
           Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
-                           .get_property<cl::sycl::ext::intel::experimental::
+                           .get_property<sycl::ext::intel::experimental::
                                              property::usm::buffer_location>()
                            .get_buffer_location();
       }
@@ -178,17 +178,17 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
       auto PropsIter = Props.begin();
 
       if (PropList.has_property<
-              cl::sycl::ext::oneapi::property::usm::device_read_only>()) {
+              sycl::ext::oneapi::property::usm::device_read_only>()) {
         *PropsIter++ = PI_MEM_ALLOC_FLAGS;
         *PropsIter++ = PI_MEM_ALLOC_DEVICE_READ_ONLY;
       }
 
-      if (PropList.has_property<cl::sycl::ext::intel::experimental::property::
-                                    usm::buffer_location>() &&
+      if (PropList.has_property<sycl::ext::intel::experimental::property::usm::
+                                    buffer_location>() &&
           Dev.has_extension("cl_intel_mem_alloc_buffer_location")) {
         *PropsIter++ = PI_MEM_USM_ALLOC_BUFFER_LOCATION;
         *PropsIter++ = PropList
-                           .get_property<cl::sycl::ext::intel::experimental::
+                           .get_property<sycl::ext::intel::experimental::
                                              property::usm::buffer_location>()
                            .get_buffer_location();
       }

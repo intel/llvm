@@ -197,6 +197,10 @@ std::vector<std::pair<MemoryBufferRef, uint64_t>> static getArchiveMembers(
   return v;
 }
 
+static bool isBitcode(MemoryBufferRef mb) {
+  return identify_magic(mb.getBuffer()) == llvm::file_magic::bitcode;
+}
+
 // Opens a file and create a file object. Path has to be resolved already.
 void LinkerDriver::addFile(StringRef path, bool withLOption) {
   using namespace sys::fs;
@@ -217,8 +221,12 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     return;
   case file_magic::archive: {
     if (inWholeArchive) {
-      for (const auto &p : getArchiveMembers(mbref))
-        files.push_back(createObjectFile(p.first, path, p.second));
+      for (const auto &p : getArchiveMembers(mbref)) {
+        if (isBitcode(p.first))
+          files.push_back(make<BitcodeFile>(p.first, path, p.second, false));
+        else
+          files.push_back(createObjFile(p.first, path));
+      }
       return;
     }
 
@@ -241,8 +249,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     InputFile::isInGroup = true;
     for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
       auto magic = identify_magic(p.first.getBuffer());
-      if (magic == file_magic::bitcode || magic == file_magic::elf_relocatable)
-        files.push_back(createLazyFile(p.first, path, p.second));
+      if (magic == file_magic::elf_relocatable)
+        files.push_back(createObjFile(p.first, path, true));
+      else if (magic == file_magic::bitcode)
+        files.push_back(make<BitcodeFile>(p.first, path, p.second, true));
       else
         warn(path + ": archive member '" + p.first.getBufferIdentifier() +
              "' is neither ET_REL nor LLVM bitcode");
@@ -267,11 +277,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
         make<SharedFile>(mbref, withLOption ? path::filename(path) : path));
     return;
   case file_magic::bitcode:
+    files.push_back(make<BitcodeFile>(mbref, "", 0, inLib));
+    break;
   case file_magic::elf_relocatable:
-    if (inLib)
-      files.push_back(createLazyFile(mbref, "", 0));
-    else
-      files.push_back(createObjectFile(mbref));
+    files.push_back(createObjFile(mbref, "", inLib));
     break;
   default:
     error(path + ": unknown file type");
@@ -281,7 +290,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
   if (Optional<std::string> path = searchLibrary(name))
-    addFile(*path, /*withLOption=*/true);
+    addFile(saver().save(*path), /*withLOption=*/true);
   else
     error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
 }
@@ -800,12 +809,9 @@ static OrphanHandlingPolicy getOrphanHandling(opt::InputArgList &args) {
 // --build-id=sha1 are actually tree hashes for performance reasons.
 static std::pair<BuildIdKind, std::vector<uint8_t>>
 getBuildId(opt::InputArgList &args) {
-  auto *arg = args.getLastArg(OPT_build_id, OPT_build_id_eq);
+  auto *arg = args.getLastArg(OPT_build_id);
   if (!arg)
     return {BuildIdKind::None, {}};
-
-  if (arg->getOption().getID() == OPT_build_id)
-    return {BuildIdKind::Fast, {}};
 
   StringRef s = arg->getValue();
   if (s == "fast")
@@ -1617,7 +1623,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       break;
     case OPT_just_symbols:
       if (Optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
-        files.push_back(createObjectFile(*mb));
+        files.push_back(createObjFile(*mb));
         files.back()->justSymbols = true;
       }
       break;
@@ -1687,8 +1693,10 @@ void LinkerDriver::inferMachineType() {
 static uint64_t getMaxPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "max-page-size",
                                        target->defaultMaxPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("max-page-size: value isn't a power of 2");
+    return target->defaultMaxPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultMaxPageSize)
       warn("-z max-page-size set, but paging disabled by omagic or nmagic");
@@ -1702,8 +1710,10 @@ static uint64_t getMaxPageSize(opt::InputArgList &args) {
 static uint64_t getCommonPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "common-page-size",
                                        target->defaultCommonPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("common-page-size: value isn't a power of 2");
+    return target->defaultCommonPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultCommonPageSize)
       warn("-z common-page-size set, but paging disabled by omagic or nmagic");
@@ -2774,9 +2784,6 @@ void LinkerDriver::link(opt::InputArgList &args) {
     for (SectionCommand *cmd : script->sectionCommands)
       if (auto *osd = dyn_cast<OutputDesc>(cmd))
         osd->osec.finalizeInputSections();
-    llvm::erase_if(inputSections, [](InputSectionBase *s) {
-      return isa<MergeInputSection>(s);
-    });
   }
 
   // Two input sections with different output sections should not be folded.

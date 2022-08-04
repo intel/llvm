@@ -3,8 +3,6 @@
 
 #include <sycl/sycl.hpp>
 
-namespace sycl = cl::sycl;
-
 int main() {
   sycl::queue().submit([&](sycl::handler &h) {
     h.single_task<class task>([=]() {
