@@ -241,7 +241,7 @@ jobs:
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
-aws-stop-matrix:
+  aws-stop-matrix:
     name: Stop AWS Matrix
     needs: [ aws-start-matrix, llvm_test_suite ]
     if: ${{ always() && inputs.lts_matrix != '' }}
