@@ -29,6 +29,15 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
+
+namespace intel {
+namespace esimd {
+namespace detail {
+template <typename> struct is_one_element_simd_view;
+} // namespace detail
+} // namespace esimd
+} // namespace intel
+
 namespace oneapi {
 namespace experimental {
 namespace detail {
@@ -39,6 +48,30 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
   return res;
 }
 } // namespace detail
+
+// The printf() function defined lower takes arguments as is and may need
+// a conversion to some printable type for proper output.
+// The specializations of printf_arument_type_traits replaing T with some
+// printable type P must do so only when T is convertible to P.
+// Otherwise, the behavior is undefined.
+template <typename T, typename SFINAE = void>
+struct printf_arument_type_traits {
+  using type = T;
+};
+
+// simd_view to one element needs conversion to underlying element type
+// for proper output.
+template <typename T>
+struct printf_arument_type_traits<
+    T,
+    std::enable_if_t<
+        sycl::ext::intel::esimd::detail::is_one_element_simd_view<T>::value>> {
+  using type = typename T::element_type;
+};
+
+template <typename T>
+using printf_arument_type_traits_t =
+    typename printf_arument_type_traits<T>::type;
 
 // Provides functionality to print data from kernels in a C way:
 // - On non-host devices this function is directly mapped to printf from
@@ -84,9 +117,10 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 template <typename FormatT, typename... Args>
 int printf(const FormatT *__format, Args... args) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-  return __spirv_ocl_printf(__format, args...);
+  return __spirv_ocl_printf(__format,
+                            (printf_arument_type_traits_t<Args>)args...);
 #else
-  return ::printf(__format, args...);
+  return ::printf(__format, (printf_arument_type_traits_t<Args>)args...);
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
 }
 

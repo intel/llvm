@@ -235,6 +235,18 @@ struct is_any_simd_view_type<simd_view<BaseTy, RegionTy>> : std::true_type {};
 template <typename Ty>
 static inline constexpr bool is_any_simd_view_type_v =
     is_any_simd_view_type<Ty>::value;
+
+template <typename T>
+struct is_one_element_simd_view : public std::false_type {};
+
+template <typename BaseT, typename ElementT>
+struct is_one_element_simd_view<simd_view<BaseT, region1d_scalar_t<ElementT>>>
+    : public std::true_type {};
+
+template <typename BaseT, typename NestedRegionT, typename ElementT>
+struct is_one_element_simd_view<
+    simd_view<BaseT, std::pair<region1d_scalar_t<ElementT>, NestedRegionT>>>
+    : public std::true_type {};
 // @}
 
 // @{
