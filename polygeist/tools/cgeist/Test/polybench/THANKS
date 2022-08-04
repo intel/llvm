@@ -1,0 +1,20 @@
+We would like to thank the following people for giving reporting bugs and
+giving feedback to PolyBench:
+ * François Gindraud
+ * Tobias Grosser
+ * Guillaume Iooss
+ * Peng Li
+ * Sanjay Rajopadhye
+ * Sven Verdoolaege
+ * Willy Wolff
+
+and the following for providing reference C implementations:
+ * Dave Wonnacott, Haverford College <davew@cs.haverford.edu>
+   The nussinov implementation was provided by Dave with the help of
+    - Allison Lake
+    - Ting Zhou
+    - Tian Jin
+   based on algorithm by Nussinov, described in Allison Lake's senior thesis.
+
+ * Gael Deest, University of Rennes 1 <gael.deest@irisa.fr>
+   The Deriche filter implementation was provided by Gael.

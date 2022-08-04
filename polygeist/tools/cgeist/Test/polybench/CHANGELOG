@@ -1,0 +1,147 @@
+-------------------
+* Changes in 4.2.1:
+-------------------
+  - Fixed an issue with PAPI support.
+    Reported by Keyur Joshi <cs13b1014@iith.ac.in>
+  - Added support for PAPI 5.4.x.
+
+-----------------
+* Changes in 4.2:
+-----------------
+  - Fixed an issue with OpenMP pragma for flush_cache.
+    Reported by Sudheer Kumar <sudheer3@gmail.com>.
+  - Fixed a bug in Makefile generation (utilities/makefile-gen.pl).
+    Reported by Willy Wolff <willy.mh.wolff@gmail.com>.
+  - Fixed a bug in syr2k that caused the kernel to perform twice the work.
+    It was computing the full symmetric output whereas the BLAS version
+    only computes one side of the symmetry.
+  - Input generation for some of the kernels has been updated to produce
+    fewer zeros in output.
+  - Add support for inter-array padding when using heap allocation,
+    and adjust the allocation alignment with posix_memalign to 4096.
+
+-----------------
+* Changes in 4.1:
+-----------------
+  - Added LICENSE.txt
+  - Fixed a bug in documentation of cholesky. (Reported by François Gindraud)
+  - Removed two statements from cholesky, which were useless with inplace
+    memory allocation. (Reported by François Gindraud)
+  - Updated polybench.R in utilities to match the change in input generation
+    of lu/ludcmp/cholesky.
+  - Simplified the macros for switching between data types.
+      - Now users may specify DATA_TYPE_IS_XXX where XXX is one of
+        FLOAT/DOUBLE/INT to change all macros associated with data types.
+  - Fixed a typo in Jacobi-1d loop iterators.
+  - Fixed issues with SCALAR_VAL macro in some kernels.
+    (Reported by Sven Verdoolaege)
+  - Fixed a typo in POLYBENCH_GFLOPS system.
+
+-----------------
+* Changes in 4.0:
+-----------------
+
+This is a detailed ChangeLog for PolyBench/C 4.0 to indicate all
+changes made from version 3.2. Due to the high number of changes,
+users should be warned the baseline performance of kernels available
+in both PolyBench/C 3.2 and 4.0 may differ.
+
+
+= General
+  - tuned the initialization functions to reduce the possibility to have 'inf'
+    in outputs. Specifically, the initial values are much closer to 1 for most
+    linear algebra kernels now (was up to N in prior versions).
+  - changed the name of predefined problem sizes STANDARD to MEDIUM.
+  - changed the default dataset to LARGE.
+  - added a few perl scripts to utilities.
+  - replaced create_cpped_version.sh with a perl script.
+  - fixed a bug in polybench.h when 4D arrays were allocated. (extra comma)
+    (Reported by Amarin Phaosawasdi)
+  - added polybench.pdf as a documentation of all kernels and its
+    underlying algorithms
+  - added POLYBENCH_USE_RESTRICT to allow compilers to assume alias-free
+    (Patch by Tobias Grosser)
+  - added SCALAR_VAL, SQRT_FUN, EXP_FUN, and POW_FUN macros to switch
+    float/double versions of the math functions depending on the data type.
+  - changed naming of a variable in polybench.c/xmalloc to avoid
+    issues when compiled as C++ (Reported by Sven Verdoolaege)
+  - changed the outputs produced by POLYBENCH_DUMP_ARRAYS option to
+    separately print out each array.
+  - added polybench.R in utilities which defines datamining and
+    linear-algebra kernels using R script for testing.
+
+= Datamining
+  - fixed a bug in covariance where array size and loop bounds did not
+    match each other, causing out-of-bounds for certain parameters.
+    (Reported by Tobias Grosser)
+  - fixed a bug in covariance where division by N at the end was missing.
+  - fixed the initialization of float_n in covariance and correlation. The value
+    is supposed to be the input size N casted as floats to be used in division,
+    but was initialized to 1.2.
+  - changed the name of array 'symmat' in covariance to 'cov'.
+  - changed the name of array 'symmat' in correlation to 'corr'.
+  - changed the loop indices in covariance and correlation to match
+    the documentation.
+  - removed sqrt_of_array_cell macro from correlation
+
+= Linear Algebra
+  - fixed a bug in 2mm where array sizes did not match each other, causing
+    out-of-bounds for non-square inputs.
+    (Reported by Tobias Grosser)
+  - fixed a bug in syrk where the loop bounds were incorrect, having
+    rectangular loop instead of triangular.
+  - fixed a bug in trmm where loop bounds were incorrect, using the wrong
+    triangular region in the multiplication.
+  - reduced the size of 'sum' array in doitgen from 3D to 1D to avoid obvious
+    waste in memory.
+  - removed A from print_arrays in gramschmidt; A is updated, but is
+    not an output.
+  - removed dynprog; replaced by nussinov in medley.
+  - moved BLAS kernels (including updated BLAS) to its own sub-category.
+  - BLAS kernels are now commented with the parameters in original BLAS
+    which corresponds to the implementation in PolyBench.
+  - BLAS kernels now closely matches the original version. However, gemver and
+    gesummv remains the same as it is not part of current BLAS.
+  - moved cholesky and trisolv to solvers.
+  - re-implemented cholesky so that it computes the full L
+    inplace. Previously the diagonal was stored in a separate vector.
+  - re-implemented durbin to match Durbin's algorithm from a book. There were
+    off-by-one errors and an excessive memory allocation (due to expanding
+    accumulation of a summation).
+  - re-implemented lu. The original implementation was missing a inner most
+    loop for computing the U matrix.
+  - re-implemented ludcmp. There were off-by-one errors leading to
+    incorrect outputs.
+  - lu and ludcmp now use same input as cholesky to ensure it works.
+  - input of cholesky/lu/ludcmp now uses L.L^T instead of L^T.L to
+    create inputs.
+  - loop bounds of symm/syrk/syr2k/trmm are changed to match the documentation.
+
+= Medley
+  - changed default datatype of floyd_warshall from double to int.
+  - removed reg_detect; replaced by deriche.
+  - added nussinov; a dynamic programming algorithm for sequence alignment.
+     (Code by Dave Wonnacott and his students)
+  - added deriche; edge detector filter.
+     (Code by Gael Deest)
+
+= Stencils
+   - re-implemented adi based on a figure in "Automatic Data and
+     Computation Decomposition on Distributed Memory Parallel
+     Computers" by Peizong Lee and Zvi Meir Kedem, TOPLAS, 2002
+  - removed fdtd-apml; replaced by heat-3d
+  - added heat-3d; Heat equation over 3D data domain (4D iteration space)
+    (Original specification from Pochoir compiler test case)
+  - changed jacobi-1d-imper and jacobi-2d-imper to jacobi-1d and
+    jacobi-2d, respectively.
+  - jacobi-1d, jacobi-2d, and heat-3d performs two time steps using
+    alternating arrays per an iteration of the outermost loop. This is
+    to avoid the copy loop in the old xxx-imper versions. The number
+    of stencil iterations are now restricted to be even numbers (2x of
+    the parameter TSTEPS).
+
+= Known Issues
+  - output of correlation will always be mostly 1.0 due to how the input
+    is generated.  It is difficult to avoid this case when the input
+    is some function of the indices, and will be addressed with more
+    fundamental update in the future.

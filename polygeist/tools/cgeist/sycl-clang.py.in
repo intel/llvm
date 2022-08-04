@@ -1,0 +1,38 @@
+#!/usr/bin/python3
+
+# Copyright (C) Codeplay Software Limited
+
+#===--- sycl-clang.py.in ---------------------------------------------------===#
+#
+# Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+#===------------------------------------------------------------------------===#
+
+import sys
+import subprocess
+import shlex
+
+# run programs with
+# sycl-clang.py <file> 2> /dev/null
+
+def main():
+    bin_path = "@CMAKE_RUNTIME_OUTPUT_DIRECTORY@"
+    mlir_tool = bin_path + "/cgeist"
+    clang_tool = bin_path + "/clang++"
+    arg_file = sys.argv[1]
+    clang_args = [clang_tool, "-###", "-fsycl", "-fintel-halide"]
+    clang_args.extend(sys.argv[1:])
+    clang_res = subprocess.Popen(clang_args, stderr=subprocess.PIPE)
+    output = clang_res.stderr.readlines()
+    expanded_clang_args = output[6].decode("utf-8")
+    split_output = shlex.split(expanded_clang_args)
+
+    mlir_args = [mlir_tool, "-S", "--function=main", arg_file, "--args"]
+    mlir_args.extend(split_output[1:])
+    mlir_res = subprocess.Popen(mlir_args)
+    mlir_res.wait()
+
+if __name__ == "__main__":
+    main()
