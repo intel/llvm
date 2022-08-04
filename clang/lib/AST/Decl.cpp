@@ -4987,12 +4987,6 @@ bool ValueDecl::isWeak() const {
          MostRecent->hasAttr<WeakRefAttr>() || isWeakImported();
 }
 
-bool ValueDecl::isInitCapture() const {
-  if (auto *Var = llvm::dyn_cast<VarDecl>(this))
-    return Var->isInitCapture();
-  return false;
-}
-
 void ImplicitParamDecl::anchor() {}
 
 ImplicitParamDecl *ImplicitParamDecl::Create(ASTContext &C, DeclContext *DC,
