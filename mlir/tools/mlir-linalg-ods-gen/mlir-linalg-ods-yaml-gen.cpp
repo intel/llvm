@@ -14,9 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/IR/AffineMap.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Parser/Parser.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/Optional.h"
@@ -553,7 +554,7 @@ def {0} : LinalgStructuredBase_Op<"{1}", !listconcat([AttrSizedOperandSegments],
     let extraClassDeclaration = structuredOpsBaseDecls # [{{
       // Auto-generated.
       ArrayAttr iterator_types();
-      ArrayAttr indexing_maps();
+      ArrayAttr getIndexingMaps();
       static void regionBuilder(ImplicitLocOpBuilder &b,
                                 Block &block, ArrayRef<NamedAttribute> attrs);
       static std::function<void(ImplicitLocOpBuilder &,
@@ -612,7 +613,7 @@ ArrayAttr {0}::iterator_types() {{
 // {1}: Comma-separated list of dimension variable names.
 // {2}: Statements
 static const char structuredOpIndexingMapsFormat[] = R"FMT(
-ArrayAttr {0}::indexing_maps() {{
+ArrayAttr {0}::getIndexingMaps() {{
   static const char memoizeAttr[] = "linalg.memoized_indexing_maps";
   ArrayAttr cached = getOperation()->getAttrOfType<ArrayAttr>(memoizeAttr);
   if (cached)
@@ -631,7 +632,7 @@ ArrayAttr {0}::indexing_maps() {{
 // The indexing_maps() method for rank polymorphic structured ops. Parameters:
 // {0}: Class name
 static const char rankPolyStructuredOpIndexingMapsFormat[] = R"FMT(
-ArrayAttr {0}::indexing_maps() {{
+ArrayAttr {0}::getIndexingMaps() {{
   MLIRContext *context = getContext();
   AffineMap scalarMap = AffineMap::get(getNumParallelLoops(), 0, context);
   AffineMap tensorMap = AffineMap::getMultiDimIdentityMap(
@@ -819,7 +820,7 @@ generateNamedGenericOpDefns(LinalgOpConfig &opConfig,
     os << llvm::formatv(rankPolyStructuredOpIteratorTypesFormat, className);
   }
 
-  // Generating the indexing_maps() method.
+  // Generating the getIndexingMaps() method.
   if (auto &staticMaps =
           opConfig.structuredOp->indexingMaps.staticIndexingMaps) {
     if (staticMaps->empty())

@@ -67,7 +67,7 @@ std::string InputSection::getLocation(uint64_t off) const {
   // First, try to find a symbol that's near the offset. Use it as a reference
   // point.
   if (auto *sym = getContainingSymbol(off))
-    return (toString(getFile()) + ":(symbol " + sym->getName() + "+0x" +
+    return (toString(getFile()) + ":(symbol " + toString(*sym) + "+0x" +
             Twine::utohexstr(off - sym->value) + ")")
         .str();
 
@@ -342,6 +342,11 @@ bool macho::isClassRefsSection(const InputSection *isec) {
 
 bool macho::isEhFrameSection(const InputSection *isec) {
   return isec->getName() == section_names::ehFrame &&
+         isec->getSegName() == segment_names::text;
+}
+
+bool macho::isGccExceptTabSection(const InputSection *isec) {
+  return isec->getName() == section_names::gccExceptTab &&
          isec->getSegName() == segment_names::text;
 }
 

@@ -3,7 +3,7 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Wno-unknown-cuda-version -Wno-unused-parameter -Wno-unused-command-line-argument %t.ii
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 int main() {
   vec<long, 4> newVec;
   queue myQueue;

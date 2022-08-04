@@ -40,8 +40,8 @@ void addHostAccessorAndWait(Requirement *Req) {
 }
 
 void constructorNotification(void *BufferObj, void *AccessorObj,
-                             cl::sycl::access::target Target,
-                             cl::sycl::access::mode Mode,
+                             sycl::access::target Target,
+                             sycl::access::mode Mode,
                              const detail::code_location &CodeLoc) {
   XPTIRegistry::bufferAccessorNotification(
       BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);

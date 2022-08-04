@@ -530,7 +530,7 @@ std::vector<device> program_impl::get_info<info::program::devices>() const {
 void program_impl::set_spec_constant_impl(const char *Name, const void *ValAddr,
                                           size_t ValSize) {
   if (MState != program_state::none)
-    throw cl::sycl::ext::oneapi::experimental::spec_const_error(
+    throw sycl::ext::oneapi::experimental::spec_const_error(
         "Invalid program state", PI_ERROR_INVALID_PROGRAM);
   // Reuse cached programs lock as opposed to introducing a new lock.
   auto LockGuard = MContext->getKernelProgramCache().acquireCachedPrograms();

@@ -387,8 +387,7 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
-    detail::EventImplPtr Event =
-        std::make_shared<cl::sycl::detail::event_impl>();
+    detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
   }
@@ -576,8 +575,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw cl::sycl::invalid_parameter_error(
-          "Unsupported accessor target case.", PI_ERROR_INVALID_OPERATION);
+      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
+                                          PI_ERROR_INVALID_OPERATION);
       break;
     }
     }

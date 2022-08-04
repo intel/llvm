@@ -48,7 +48,7 @@ def Bufferization_AllocTensorOp : Bufferization_Op<"alloc_tensor",
 
     The optional `memory_space` attribute specifies the memory space when
     bufferizing this op. The memory space is inferred from `copy` if specified.
-    If neigher `copy` nor `memory_space` is specified, the default memory space
+    If neither `copy` nor `memory_space` is specified, the default memory space
     is used during bufferization.
 
     Both dense and sparse tensor types are supported. The result of a
@@ -83,7 +83,7 @@ def Bufferization_AllocTensorOp : Bufferization_Op<"alloc_tensor",
     bool bufferizesToAllocation(OpResult opResult) { return true; }
 
     FailureOr<unsigned> getMemorySpace(OpResult opResult) {
-      if (getMemorySpace().hasValue())
+      if (getMemorySpace().has_value())
         return static_cast<unsigned>(*getMemorySpace());
       return failure();
     }
@@ -186,6 +186,64 @@ def Bufferization_CloneOp : Bufferization_Op<"clone", [
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// DeallocTensorOp
+//===----------------------------------------------------------------------===//
+
+def Bufferization_DeallocTensorOp : Bufferization_Op<"dealloc_tensor",
+    [BufferizableOpInterface]> {
+  string summary = "Releases underlying sparse storage format of given tensor";
+  string description = [{
+    `bufferization.dealloc_tensor` is a buffer deallocation in tensor land. This
+    op can be used for manual buffer deallocation. Some bufferizations (such as
+    One-Shot Bufferize) take care of buffer deallocation, in which case this op
+    is usually not needed. Details can be found in the documentation of the
+    respective bufferization passes.
+
+    In case of a dense tensor, this op lowers to a `memref.dealloc` op during
+    bufferization.
+
+    In case of a sparse tensor, this op releases the underlying sparse storage
+    format for a tensor that materialized earlier through a `new` operation, a
+    `convert` operation with annotated destination tensor type (unless the
+    convert is folded away), or a `bufferization.alloc_tensor` operation. The
+    release operation should only be called once for any materialized tensor.
+    After this operation, any subsequent `memref` querying operation on the
+    tensor returns undefined results.
+
+    Example:
+
+    ```mlir
+    bufferization.dealloc_tensor %tensor : tensor<1024x1024xf64, #CSR>
+    ```
+  }];
+
+  let arguments = (ins AnyTensor:$tensor);
+  let results = (outs);
+  let assemblyFormat = "$tensor attr-dict `:` type($tensor)";
+
+  let extraClassDeclaration = [{
+    bool bufferizesToMemoryRead(OpOperand &opOperand,
+                                const AnalysisState &state) const {
+      return false;
+    }
+
+    bool bufferizesToMemoryWrite(OpOperand &opOperand,
+                                 const AnalysisState &state) const {
+      return false;
+    }
+
+    SmallVector<OpResult> getAliasingOpResult(
+        OpOperand &opOperand, const AnalysisState &state) const {
+      return {};
+    }
+
+    LogicalResult bufferize(RewriterBase &rewriter,
+                            const BufferizationOptions &options);
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // ToTensorOp
 //===----------------------------------------------------------------------===//
@@ -200,11 +258,11 @@ def Bufferization_ToTensorOp : Bufferization_Op<"to_tensor", [
   ]> {
   let summary = "memref to tensor operation";
   let description = [{
-    Create a tensor from a memref, making an independent copy of the element
+    Create a tensor from a `memref`, making an independent copy of the element
     data. The result value is a tensor whose shape and element type match the
     memref operand.
 
-    The opposite of this op is to_memref. Together, these two ops are
+    The opposite of this op is `to_memref`. Together, these two ops are
     useful for source/target materializations when doing type conversions
     involving tensors and memrefs.
 
@@ -293,15 +351,15 @@ def Bufferization_ToMemrefOp : Bufferization_Op<"to_memref", [
     Casts a tensor to a memref.
 
     ```mlir
-    // Result type is tensor<4x?xf32>
+    // Result type is memref<4x?xf32, #map0, 42>
     %12 = bufferization.to_memref %10 : memref<4x?xf32, #map0, 42>
     ```
 
-    Note, that mutating the result of the to_memref operation leads to
+    Note, that mutating the result of the `to_memref` operation leads to
     undefined behavior.
 
     This operation is a specialized variant of the built-in
-    unrealized_conversion_cast and is intended for use in the context of
+    `unrealized_conversion_cast` and is intended for use in the context of
     gradual bufferization.
   }];
 

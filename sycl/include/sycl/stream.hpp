@@ -64,23 +64,22 @@ using EnableIfFP =
                                      std::is_same<F, half>::value,
                                  T>;
 
-using GlobalBufAccessorT = accessor<char, 1, cl::sycl::access::mode::read_write,
-                                    cl::sycl::access::target::global_buffer,
-                                    cl::sycl::access::placeholder::false_t>;
+using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
+                                    sycl::access::target::global_buffer,
+                                    sycl::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalBufAS =
-    TargetToAS<cl::sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::global_buffer>::AS;
 using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
-using GlobalOffsetAccessorT =
-    accessor<unsigned, 1, cl::sycl::access::mode::atomic,
-             cl::sycl::access::target::global_buffer,
-             cl::sycl::access::placeholder::false_t>;
+using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
+                                       sycl::access::target::global_buffer,
+                                       sycl::access::placeholder::false_t>;
 
 constexpr static access::address_space GlobalOffsetAS =
-    TargetToAS<cl::sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::global_buffer>::AS;
 using GlobalOffsetPtrType =
     typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
@@ -646,11 +645,11 @@ template <typename> struct IsSwizzleOp : std::false_type {};
 
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-struct IsSwizzleOp<cl::sycl::detail::SwizzleOp<
+struct IsSwizzleOp<sycl::detail::SwizzleOp<
     VecT, OperationLeftT, OperationRightT, OperationCurrentT, Indexes...>>
     : std::true_type {
   using T = typename VecT::element_type;
-  using Type = typename cl::sycl::vec<T, (sizeof...(Indexes))>;
+  using Type = typename sycl::vec<T, (sizeof...(Indexes))>;
 };
 
 template <typename T>
@@ -1163,14 +1162,14 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 namespace std {
-template <> struct hash<cl::sycl::stream> {
-  size_t operator()(const cl::sycl::stream &S) const {
+template <> struct hash<sycl::stream> {
+  size_t operator()(const sycl::stream &S) const {
 #ifdef __SYCL_DEVICE_ONLY__
     (void)S;
     return 0;
 #else
-    return hash<std::shared_ptr<cl::sycl::detail::stream_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(S));
+    return hash<std::shared_ptr<sycl::detail::stream_impl>>()(
+        sycl::detail::getSyclObjImpl(S));
 #endif
   }
 };

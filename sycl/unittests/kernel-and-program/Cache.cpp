@@ -26,12 +26,12 @@ using namespace sycl;
 
 class TestKernel {
 public:
-  void operator()(cl::sycl::item<1>){};
+  void operator()(sycl::item<1>){};
 };
 
 class TestKernel2 {
 public:
-  void operator()(cl::sycl::item<1>){};
+  void operator()(sycl::item<1>){};
 };
 
 __SYCL_INLINE_NAMESPACE(cl) {

@@ -27,6 +27,9 @@ class program;
 class context;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
 class kernel_impl;
@@ -190,12 +193,6 @@ public:
                      param>::input_type Value) const;
   // clang-format on
 
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, kernel> get_native() const {
-    return detail::pi::cast<backend_return_t<Backend, kernel>>(getNative());
-  }
-
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
@@ -211,15 +208,18 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 };
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::kernel> {
-  size_t operator()(const cl::sycl::kernel &Kernel) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Kernel));
+template <> struct hash<sycl::kernel> {
+  size_t operator()(const sycl::kernel &Kernel) const {
+    return hash<std::shared_ptr<sycl::detail::kernel_impl>>()(
+        sycl::detail::getSyclObjImpl(Kernel));
   }
 };
 } // namespace std

@@ -1,6 +1,6 @@
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 // Initializes 'InBuf' buffer with pseudo-random values, computes the reduction
 // value for the buffer and writes it to 'ExpectedOut'.

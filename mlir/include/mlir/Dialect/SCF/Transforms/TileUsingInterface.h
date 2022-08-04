@@ -26,7 +26,7 @@ namespace mlir {
 namespace scf {
 
 using SCFTileSizeComputationFunction =
-    std::function<SmallVector<Value, 4>(OpBuilder &, Operation *)>;
+    std::function<SmallVector<Value>(OpBuilder &, Operation *)>;
 
 /// Options to use to control tiling.
 struct SCFTilingOptions {
@@ -51,6 +51,13 @@ struct SCFTilingOptions {
   /// function that computes tile sizes at the point they are needed. Allows
   /// proper interaction with folding.
   SCFTilingOptions &setTileSizes(ArrayRef<int64_t> ts);
+
+  /// The interchange vector to reorder the tiled loops.
+  SmallVector<unsigned> interchangeVector = {};
+  SCFTilingOptions &setInterchange(ArrayRef<unsigned> interchange) {
+    interchangeVector = llvm::to_vector(interchange);
+    return *this;
+  }
 };
 
 struct SCFTilingResult {
@@ -132,6 +139,23 @@ private:
   /// the patterns as private object that is instantiated at the same time as
   /// this pattern.
   TileUsingSCFForOp tilingPattern;
+};
+
+/// Pattern to lower operations that implement the `TilingInterface` to
+/// loops/scalar IR using `scf.for`.
+struct LowerToLoopsUsingSCFForOp
+    : public OpInterfaceRewritePattern<TilingInterface> {
+  using OpInterfaceRewritePattern<TilingInterface>::OpInterfaceRewritePattern;
+
+  /// `matchAndRewrite` implementation that returns the significant transformed
+  /// pieces of IR.
+  FailureOr<SmallVector<scf::ForOp>>
+  returningMatchAndRewrite(TilingInterface op, PatternRewriter &rewriter) const;
+
+  LogicalResult matchAndRewrite(TilingInterface op,
+                                PatternRewriter &rewriter) const override {
+    return returningMatchAndRewrite(op, rewriter);
+  }
 };
 
 } // namespace scf

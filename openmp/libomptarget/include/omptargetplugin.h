@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+// First method called on the plugin
+int32_t __tgt_rtl_init_plugin();
+
+// Last method called on the plugin
+int32_t __tgt_rtl_deinit_plugin();
+
 // Return the number of available devices of the type supported by the
 // target RTL.
 int32_t __tgt_rtl_number_of_devices(void);
@@ -30,6 +36,12 @@ int32_t __tgt_rtl_number_of_devices(void);
 // lightweight query to determine if the RTL is suitable for an image without
 // having to load the library, which can be expensive.
 int32_t __tgt_rtl_is_valid_binary(__tgt_device_image *Image);
+
+// This provides the same functionality as __tgt_rtl_is_valid_binary except we
+// also use additional information to determine if the image is valid. This
+// allows us to determine if an image has a compatible architecture.
+int32_t __tgt_rtl_is_valid_binary_info(__tgt_device_image *Image,
+                                       __tgt_image_info *Info);
 
 // Return an integer other than zero if the data can be exchaned from SrcDevId
 // to DstDevId. If it is data exchangable, the device plugin should provide

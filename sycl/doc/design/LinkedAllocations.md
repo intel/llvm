@@ -9,21 +9,21 @@ Instead, memory is allocated in each context whenever the SYCL memory object
 is first accessed there:
 
 ```
-  cl::sycl::buffer<int, 1> buf{cl::sycl::range<1>(1)}; // No allocation here
+  sycl::buffer<int, 1> buf{sycl::range<1>(1)}; // No allocation here
 
-  cl::sycl::queue q;
-  q.submit([&](cl::sycl::handler &cgh){
+  sycl::queue q;
+  q.submit([&](sycl::handler &cgh){
     // First access to buf in q's context: allocate memory
-    auto acc = buf.get_access<cl::sycl::access::mode::read_write>(cgh);
+    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
 	...
   });
 
   // First access to buf on host (assuming q is not host): allocate memory
-  auto acc = buf.get_access<cl::sycl::access::mode::read_write>();
+  auto acc = buf.get_access<sycl::access::mode::read_write>();
 ```
 
 In the DPCPP execution graph these allocations are represented by allocation
-command nodes (`cl::sycl::detail::AllocaCommand`). A finished allocation
+command nodes (`sycl::detail::AllocaCommand`). A finished allocation
 command means that the associated memory object is ready for its first use in
 that context, but for host allocation commands it might be the case that no
 actual memory allocation takes place: either because it is possible to reuse the
@@ -31,11 +31,11 @@ data pointer provided by the user:
 
 ```
   int val;
-  cl::sycl::buffer<int, 1> buf{&val, cl::sycl::range<1>(1)};
+  sycl::buffer<int, 1> buf{&val, sycl::range<1>(1)};
 
   // An alloca command is created, but it does not allocate new memory: &val
   // is reused instead.
-  auto acc = buf.get_access<cl::sycl::access::mode::read_write>();
+  auto acc = buf.get_access<sycl::access::mode::read_write>();
 ```
 
 Or because a mapped host pointer obtained from a native device memory object

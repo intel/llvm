@@ -26,8 +26,8 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-using memory_order = cl::sycl::memory_order;
-using memory_scope = cl::sycl::memory_scope;
+using memory_order = sycl::memory_order;
+using memory_scope = sycl::memory_scope;
 
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
@@ -39,8 +39,7 @@ template <typename T> struct IsValidAtomicRefType {
        std::is_pointer<T>::value);
 };
 
-template <cl::sycl::access::address_space AS>
-struct IsValidAtomicRefAddressSpace {
+template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
   static constexpr bool value =
       (AS == access::address_space::global_space ||
        AS == access::address_space::local_space ||

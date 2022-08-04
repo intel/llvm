@@ -645,8 +645,14 @@ def IndexElementsAttrOp : TEST_Op<"indexElementsAttr"> {
 }
 
 def OpWithInferTypeInterfaceOp : TEST_Op<"op_with_infer_type_if", [
+    DeclareOpInterfaceMethods<InferTypeOpInterface>]> {
+  let arguments = (ins AnyTensor, AnyTensor);
+  let results = (outs AnyTensor);
+}
+
+def OpWithRefineTypeInterfaceOp : TEST_Op<"op_with_refine_type_if", [
     DeclareOpInterfaceMethods<InferTypeOpInterface,
-        ["inferReturnTypeComponents"]>]> {
+        ["refineReturnTypes"]>]> {
   let arguments = (ins AnyTensor, AnyTensor);
   let results = (outs AnyTensor);
 }
@@ -1236,6 +1242,18 @@ def TestOpInPlaceFold : TEST_Op<"op_in_place_fold"> {
   let arguments = (ins I32:$op, I32Attr:$attr);
   let results = (outs I32);
   let hasFolder = 1;
+}
+
+// Test op that simply returns success.
+def TestOpInPlaceFoldSuccess : TEST_Op<"op_in_place_fold_success"> {
+  let results = (outs Variadic<I1>);
+  let hasFolder = 1;
+  let extraClassDefinition = [{
+    ::mlir::LogicalResult $cppClass::fold(ArrayRef<Attribute> operands,
+        SmallVectorImpl<OpFoldResult> &results) {
+      return success();
+    }
+  }];
 }
 
 // An op that always fold itself.
@@ -2744,7 +2762,7 @@ def TestLinalgConvOp :
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("iterator_types");
     }
 
-    mlir::ArrayAttr indexing_maps() {
+    mlir::ArrayAttr getIndexingMaps() {
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("indexing_maps");
     }
 
@@ -2802,7 +2820,7 @@ def TestLinalgFillOp :
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("iterator_types");
     }
 
-    mlir::ArrayAttr indexing_maps() {
+    mlir::ArrayAttr getIndexingMaps() {
       return getOperation()->getAttrOfType<mlir::ArrayAttr>("indexing_maps");
     }
 
@@ -2860,6 +2878,10 @@ def TestEffectsRead : TEST_Op<"op_with_memread",
 
 def TestEffectsWrite : TEST_Op<"op_with_memwrite",
     [MemoryEffects<[MemWrite]>]>;
+
+def TestEffectsResult : TEST_Op<"test_effects_result"> {
+  let results = (outs Res<I32, "", [MemAlloc, MemWrite]>);
+}
 
 //===----------------------------------------------------------------------===//
 // Test Ops with verifiers

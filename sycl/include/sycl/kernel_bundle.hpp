@@ -26,8 +26,9 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 template <backend Backend> class backend_traits;
-template <backend Backend, class SyclT>
-auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
+template <backend Backend, bundle_state State>
+auto get_native(const kernel_bundle<State> &Obj)
+    -> backend_return_t<Backend, kernel_bundle<State>>;
 
 namespace detail {
 class kernel_id_impl;
@@ -310,12 +311,6 @@ public:
     return reinterpret_cast<device_image_iterator>(kernel_bundle_plain::end());
   }
 
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, kernel_bundle<State>> get_native() const {
-    return getNative<Backend>();
-  }
-
 private:
   kernel_bundle(detail::KernelBundleImplPtr Impl)
       : kernel_bundle_plain(std::move(Impl)) {}
@@ -326,8 +321,9 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
-  template <backend Backend, class SyclT>
-  friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
+  template <backend Backend, bundle_state StateB>
+  friend auto get_native(const kernel_bundle<StateB> &Obj)
+      -> backend_return_t<Backend, kernel_bundle<StateB>>;
 
   template <backend Backend>
   backend_return_t<Backend, kernel_bundle<State>> getNative() const {
@@ -731,26 +727,24 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::kernel_id> {
-  size_t operator()(const cl::sycl::kernel_id &KernelID) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_id_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(KernelID));
+template <> struct hash<sycl::kernel_id> {
+  size_t operator()(const sycl::kernel_id &KernelID) const {
+    return hash<std::shared_ptr<sycl::detail::kernel_id_impl>>()(
+        sycl::detail::getSyclObjImpl(KernelID));
   }
 };
 
-template <cl::sycl::bundle_state State>
-struct hash<cl::sycl::device_image<State>> {
-  size_t operator()(const cl::sycl::device_image<State> &DeviceImage) const {
-    return hash<std::shared_ptr<cl::sycl::detail::device_image_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(DeviceImage));
+template <sycl::bundle_state State> struct hash<sycl::device_image<State>> {
+  size_t operator()(const sycl::device_image<State> &DeviceImage) const {
+    return hash<std::shared_ptr<sycl::detail::device_image_impl>>()(
+        sycl::detail::getSyclObjImpl(DeviceImage));
   }
 };
 
-template <cl::sycl::bundle_state State>
-struct hash<cl::sycl::kernel_bundle<State>> {
-  size_t operator()(const cl::sycl::kernel_bundle<State> &KernelBundle) const {
-    return hash<std::shared_ptr<cl::sycl::detail::kernel_bundle_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(KernelBundle));
+template <sycl::bundle_state State> struct hash<sycl::kernel_bundle<State>> {
+  size_t operator()(const sycl::kernel_bundle<State> &KernelBundle) const {
+    return hash<std::shared_ptr<sycl::detail::kernel_bundle_impl>>()(
+        sycl::detail::getSyclObjImpl(KernelBundle));
   }
 };
 } // namespace std

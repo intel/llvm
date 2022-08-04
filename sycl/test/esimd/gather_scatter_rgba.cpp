@@ -11,7 +11,7 @@
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 void kernel(int *ptr) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, sizeof(int) * 4);
@@ -30,7 +30,7 @@ void kernel1(int *ptr, simd<int, 32 * AGR_N_CHANNELS> v) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, sizeof(int) * 4);
   // only 1, 2, 3, 4-element masks covering consequitive channels starting from
   // R are supported
-  // expected-error-re@* {{static_assert failed{{.*}}Only ABGR, BGR, GR, R channel masks are valid in write operations}}
+  // expected-error-re@* {{static assertion failed{{.*}}Only ABGR, BGR, GR, R channel masks are valid in write operations}}
   // expected-note@* {{in instantiation }}
   // expected-note@+1 {{in instantiation }}
   scatter_rgba<rgba_channel_mask::AGR>(ptr, offsets, v);
