@@ -91,7 +91,7 @@ joint_matrix<int8_t, tM, tN> tA(sg);
 ```
 
 #### Shape
-The same class `joint_matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
+The same class, `joint_matrix`, should handle both cases where sizes are constant (GPU case) and when sizes are variable (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
 
 IMPORTANT: In the current implementation, only the static extent is supported
 
@@ -115,16 +115,16 @@ Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed lay
 ```c++
 joint_matrix<int8_t, K, N, packed_b> tB(sg);
 ```   
-IMPORTANT: In the current implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
-
+IMPORTANT: In the current AMX and DPAS implementation, it is only necessary to specify the `packed_b` layout for matrix B, the layouts on other matrices are ignored.
+IMPORTANT: In the Nvidia® Tensor Cores implementation only `row_major` and `col_major` layouts are supported.
 
 
 ## Matrix Operations and their Execution Scope
-We define three new functions needed to perform the main and common operations on matrices namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the tensor hardware implements new features.
+We define three new functions needed to perform the main and common operations on matrices; namely, load, store, and the actual multiply and add operation. This set of functions can be easily extended if the matrix hardware implements new features.
 
-The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data are being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). `stride` describes the number of elements between consecutive rows for row major and packed layout,  columns for column major layout. 
+The base pointer determines the starting address of the matrix to be loaded/stored. `layout` determines whether the data is being read/written in a row (`row_major`), column major (`column_major`) fashion, or if the data has already been transformed into VNNI format (`packed_a`, `packed_b`). `stride` describes the number of elements between consecutive rows for row major and packed layouts, or between columns for the column major layout.
 
-Note that for getting maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` when matrix `C` is column major, `packed_b` when matrix `C` is row major), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
+Note that in order to get maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` when matrix `C` is column major, `packed_b` when matrix `C` is row major), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in the `VNNI layout` section below.
 	
 IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
 
@@ -187,7 +187,7 @@ joint_matrix_bmad(
 }
 ```
 
-Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`matrix_use::a` with shape M by K) with a column of matrix B (`matrix_use::a` with shape K by N). Instead, a sequence of logical operations are performed: The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
+Binary Multiply and Add (BMAD) operations replace the usual dot product between a row of matrix A (`matrix_use::a` with shape M by K) with a column of matrix B (`matrix_use::b` with shape K by N). Instead, a sequence of logical operations are performed: The AND or XOR logical operations operate on the ith bit of a K bit row of matrix A with the ith bit of a K bit column of matrix B, to produce a 128 bit intermediate output.
 The Population Count (popc) operator then operates on this intermediate output and the result is added with the (M, N)th element of the matrix C (`matrix_use::accumulator`). Currently only the shape M = 8, N = 8, K = 128 is supported.
 An important difference with respect to the `joint_matrix_mad` interface is the addition of the `BinaryOperator Op`  parameter. `Op` may be either:
 
@@ -201,11 +201,11 @@ The A, B, and C `joint_matrix` objects are constructed and loaded/stored in the 
 The C matrix must be loaded from an array of 32 bit signed integers, and the A, B single bit `joint_matrix` structs must be loaded from an array of unsigned 32-bit integers storing the packed binary matrix.
 Each element of the array of unsigned 32-bit integers, from which a `joint_matrix` of type `matrix_use::a` or `matrix_use::b` is loaded, should contain 32 elements of a matrix row in packed format.
 
-IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `matrix_use::a` must have `matrix_layout::row_major`, and a `joint_matrix` of type `matrix_use::b` must have `matrix_layout::row_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
+IMPORTANT: When using Binary Multiply and Add, a `joint_matrix` of type `matrix_use::a` must have `matrix_layout::row_major`, and a `joint_matrix` of type `matrix_use::b` must have `matrix_layout::col_major`. In both cases the first template parameter of `joint_matrix` must be `precision::b1`.
 
 IMPORTANT: Binary Multiply and Add operations are an experimental hardware feature and all implementation details are subject to change.
 
-#### Motivation for BMAD (TODO: this may not be the correct place for this or it should be made more concise, however for the purpose of explaining BMAD within the context of the review I made it more verbose.)
+##### Motivation for BMAD (TODO: this may not be the correct place for this or it should be made more concise, however for the purpose of explaining BMAD within the context of the review I made it more verbose.)
 
 Single-bit MADs can be used as part of Binarized Neural Networks (BNNs) in the case that *both* the activations *and* weights are binarized. "Quantizing" a network to form a BNN represents the extreme limit of reducing the precision of the network degrees of freedom in order to gain performance and improve efficiency.
 Hubara et al. (I. Hubara, M. Courbariaux, D. Soudry, R. El-Yaniv, and Y. Bengio. Binarized Neural Networks, Advances in Neural Information Processing Systems 29 (NIPS 2016)) first demonstrated the utility of an algorithm that could use both binarized activations and weights with backpropagation, by keeping track of real valued weights which are mapped to the binarized weights. In the backwards pass the real valued weights are updated according to a heuristic named the "Straight Through Estimator", whereby the gradient of the loss function with respect to the real weights is set equal to the gradient of the loss function with respect to the binarized weights.
@@ -217,7 +217,7 @@ Further algorithms based on this binarized approach have been proposed, e.g. see
 For an example of how binary MADs can be leveraged on current Nvidia® hardware see (A. Li, and S. Su. IEEE Transactions on Parallel and Distributed Systems, 32(7):1878-1891, 2021).
 See this paper of the details of the interfaces used in the Nvidia® CUDA runtime API.
 
-#### Example using bitwise operations with `joint_matrix_bmad`
+##### Example using bitwise operations with `joint_matrix_bmad`
 
 ```c++
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -249,7 +249,7 @@ queue q;
 ```
 
 #### Matrix Initialization: `joint_matrix_fill`
-The current interface presented above assumes that all the matrices are directly loaded from memory. This new function called `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to `_tile_zero` intrinsic: 
+The current interface presented above assumes that all the matrices are directly loaded from memory. This new function called `joint_matrix_fill`  makes it possible to multiply a matrix which is not directly loaded from memory but rather initialized directly in the register. On Intel AMX, if the initialization constant is zero, this would map to the `_tile_zero` intrinsic:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -271,11 +271,11 @@ Class 2- Piece-wise operations where the operation depends on the element index 
 // We explored multiple options to enable this feature in the matrix interface: 1) Allowing non-restrictive element indexing on the matrix elements would result into slow indexing on the GPU, 2) Operator overloading can represent only element-wise operations and not the operations on pieces (row, column, diagonal, etc) of the matrix. 3) Providing specific functions for these piece-wise operations can resolve some of the functions we know of today like the ones involved in quantization but it is not general to any problem that may occur in the future. 
 
 ##### Explicit conversion with mapping from SIMD to SPMD
-The data elements in a joint_matrix are distributed or shared across the work-items in the Group in an implementation-defined way. There is no fixed allocation of matrix elements owned by a `joint_matrix` instance to the WIs comprising the group used to instantiate it. For instance, the matrix is a shared entity among the work items in the case of the AMX backend because the AMX tile that holds the matrix data is a 2d register that is shared among the work items. Therefore the partitioning among the WIs is implementation defined. However, it is necessary to allocate WIs to specific elements of the matrix. In order to be able to perform piece-wise operations in a general and efficient way, we provide a conversion function from the joint_matrix domain that is owned by a group of work items to the portion that is owned by each work item. This enables the WI to perform piece-wise operations on the matrix within the SYCL SPMD programming model. 
+The data elements in a `joint_matrix` are distributed or shared across the work-items in the Group in an implementation-defined way. There is no fixed allocation of matrix elements owned by a `joint_matrix` instance to the WIs comprising the group used to instantiate it. For instance, the matrix is a shared entity among the work items in the case of the AMX backend because the AMX tile that holds the matrix data is a 2d register that is shared among the work items. Therefore the partitioning among the WIs is implementation defined. However, it is necessary to allocate WIs to specific elements of the matrix in order to perform element wise operations. In order to be able to perform element-wise operations in a general and efficient way, we provide a conversion function from the `joint_matrix` domain that is owned by a group of work items to the portion that is owned by each work item. This enables the WI to perform piece-wise operations on the matrix within the SYCL SPMD programming model.
 
-We introduce a new function `get_wi_data` that provides a view of the portion of the matrix that is owned by the current WI. So modifying `wi_data` means also modifying the joint matrix corresponding elements. The indexing provided inside the `wi_data` class acesses only the portion of the current WI and returns  `wi_element`. This latter holds a reference to the original joint_matrix that `wi_data` was constructed from. Users can use the `=` operator to update the element of the `joint_matrix` represented by the `wi_element` after the element-wise operation.
+We introduce a new function `get_wi_data` that provides a view of the portion of the matrix that is owned by the current WI. The indexing provided inside the `wi_data` class accesses only the portion of the current WI and returns `wi_element`. This latter holds a reference to the original joint_matrix that `wi_data` was constructed from. This means that modifying `wi_data` also modifies the corresponding joint matrix elements. Users can use the `=` operator to update the element of the `joint_matrix` represented by the `wi_element` after the element-wise operation.
 
-Using `get_wi_data`, it is not possible to know which portions of data are owned by each thread in the group as this is implementation defined and change from one backend to the other. For general piece-wise operations like sum of rows of a matrix, the WI data to joint matrix mapping coordinates information must be known to reason about the matrix view and extract the relevant piece. But for element-wise operations where the same operation is performed on all the elements of the matrix, having all the WIs in the group apply the operation inside a loop iterating over the `length` of `wi_data` guarantees the whole matrix element-wise operation.   
+Using `get_wi_data`, it is not possible to know which portions of data are owned by each thread in the group as this is implementation defined and changes from one backend to the other. For general piece-wise operations, such as summing the of rows of a matrix, the WI data to joint matrix mapping must be known in order to reason about the matrix view and extract the relevant piece. However, for element-wise operations where the same operation is performed on all the elements of the matrix, having all the WIs in the group apply the operation inside a loop iterating over the `length` of `wi_data` guarantees the whole matrix element-wise operation.
 
 Therefore, this extension currently only supports class 1 of operations because the mapping between `get_wi_data` and `joint_matrix` elements is not required to be known for these operations. However, general piece-wise operations will be supported in the future as a new API will be provided to convey the mapping from `joint_matrix` domain to WI Domain (See Section "WI data to joint matrix mapping coordinates information for piece-wise operations for more information").
 
@@ -283,7 +283,7 @@ Also, note that `get_wi_data` cannot return a fixed size array length because th
 
 1- The main compilation mode of SYCL is JIT compilation and partitioning among WIs is implementation defined.
 
-2- SG size is not fixed (like in the CUDA backend where warp size is always 32).
+2- SG size is not generally fixed (in the CUDA backend the warp (subgroup) size is always 32).
 
 3- AMX has the flexibility of allowing variable sizes on the matrix (`dynamic_extent`).
 
