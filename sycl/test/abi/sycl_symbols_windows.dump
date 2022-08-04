@@ -1096,7 +1096,6 @@
 ?addOrReplaceAccessorProperties@SYCLMemObjT@detail@sycl@cl@@QEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
 ?addStream@handler@sycl@cl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@sycl@cl@@@std@@@Z
-?advise_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KW4_pi_mem_advice@@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?advise_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KW4_pi_mem_advice@@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?alignedAlloc@OSUtil@detail@sycl@cl@@SAPEAX_K0@Z
 ?alignedAlloc@usm@detail@sycl@cl@@YAPEAX_K0AEBVcontext@34@AEBVdevice@34@W4alloc@134@@Z
@@ -1523,7 +1522,6 @@
 ?convertChannelType@detail@sycl@cl@@YA?AW4_pi_image_channel_type@@W4image_channel_type@23@@Z
 ?convertChannelType@detail@sycl@cl@@YA?AW4image_channel_type@23@W4_pi_image_channel_type@@@Z
 ?copy@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@IV?$range@$02@34@3V?$id@$02@34@I12I334IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
-?copy_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEAXV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?copy_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEAXV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?copysign@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@0@Z
 ?copysign@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@0@Z
@@ -1852,6 +1850,7 @@
 ?ext_oneapi_submit_barrier@queue@sycl@cl@@QEAA?AVevent@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_submit_barrier@queue@sycl@cl@@QEAA?AVevent@23@AEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@sycl@cl@@AEAAXXZ
+?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@@Z
 ?extractArgsAndReqsFromLambda@handler@sycl@cl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
 ?fabs@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?fabs@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
@@ -1932,7 +1931,6 @@
 ?fdim@__host_std@cl@@YAMMM@Z
 ?fdim@__host_std@cl@@YANNN@Z
 ?fill@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEBDIV?$range@$02@34@5V?$id@$02@34@IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
-?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?finalize@handler@sycl@cl@@AEAA?AVevent@23@XZ
 ?find_device_intersection@detail@sycl@cl@@YA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@AEBV?$vector@V?$kernel_bundle@$00@sycl@cl@@V?$allocator@V?$kernel_bundle@$00@sycl@cl@@@std@@@5@@Z
@@ -2149,6 +2147,9 @@
 ?getChannelType@?$image_impl@$01@detail@sycl@cl@@QEBA?AW4image_channel_type@34@XZ
 ?getChannelType@?$image_impl@$02@detail@sycl@cl@@QEBA?AW4image_channel_type@34@XZ
 ?getCurrentDSODir@OSUtil@detail@sycl@cl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
+?getDelinearizedIndex@handler@sycl@cl@@CA?AV?$id@$00@23@V?$range@$00@23@_K@Z
+?getDelinearizedIndex@handler@sycl@cl@@CA?AV?$id@$01@23@V?$range@$01@23@_K@Z
+?getDelinearizedIndex@handler@sycl@cl@@CA?AV?$id@$02@23@V?$range@$02@23@_K@Z
 ?getDeviceFromHandler@detail@sycl@cl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDeviceFunctionPointerImpl@detail@sycl@cl@@YA_KAEAVdevice@23@AEAVprogram@23@PEBD@Z
 ?getDevices@?$image_impl@$00@detail@sycl@cl@@AEAA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@6@@Z
@@ -3115,9 +3116,9 @@
 ?prefetch@queue@sycl@cl@@QEAA?AVevent@23@PEBX_K@Z
 ?prefetch@queue@sycl@cl@@QEAA?AVevent@23@PEBX_KAEBV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@@Z
 ?prefetch@queue@sycl@cl@@QEAA?AVevent@23@PEBX_KV423@@Z
-?prefetch_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?prefetch_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?processArg@handler@sycl@cl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
+?processArg@handler@sycl@cl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N@Z
 ?radians@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?radians@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?radians@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
@@ -3146,7 +3147,6 @@
 ?reduGetMaxWGSize@detail@oneapi@ext@sycl@cl@@YA_KV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_K@Z
 ?release@MemoryManager@detail@sycl@cl@@SAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAVSYCLMemObjI@234@PEAXV?$vector@V?$shared_ptr@Vevent_impl@detail@sycl@cl@@@std@@V?$allocator@V?$shared_ptr@Vevent_impl@detail@sycl@cl@@@std@@@2@@6@AEAPEAU_pi_event@@@Z
 ?releaseHostMem@SYCLMemObjT@detail@sycl@cl@@UEAAXPEAX@Z
-?releaseImageBuffer@MemoryManager@detail@sycl@cl@@SAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAX@Z
 ?releaseMem@SYCLMemObjT@detail@sycl@cl@@UEAAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAX@Z
 ?releaseMemObj@MemoryManager@detail@sycl@cl@@SAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAVSYCLMemObjI@234@PEAX2@Z
 ?remainder@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@0@Z
@@ -4706,7 +4706,6 @@
 ?wait_and_throw_proxy@queue@sycl@cl@@QEAAXAEBUcode_location@detail@23@@Z
 ?wait_proxy@queue@sycl@cl@@QEAAXAEBUcode_location@detail@23@@Z
 ?what@exception@sycl@cl@@UEBAPEBDXZ
-?wrapIntoImageBuffer@MemoryManager@detail@sycl@cl@@SAPEAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAXPEAVSYCLMemObjI@234@@Z
 DllMain
 __sycl_register_lib
 __sycl_unregister_lib

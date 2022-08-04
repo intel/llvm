@@ -3,11 +3,12 @@
 #include <ostream>
 
 namespace std {
-#ifdef _WIN32
+#if defined(_MT) && defined(_DLL)
 #define __SYCL_EXTERN_STREAM_ATTRS __declspec(dllimport)
 #else
 #define __SYCL_EXTERN_STREAM_ATTRS
-#endif // _WIN32
+#endif // defined(_MT) && defined(_DLL)
+
 /// Linked to standard input
 extern __SYCL_EXTERN_STREAM_ATTRS istream cin;
 /// Linked to standard output
