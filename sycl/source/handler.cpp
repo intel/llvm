@@ -458,7 +458,6 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   }
 }
 
-
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
@@ -626,7 +625,6 @@ void handler::extractArgsAndReqs() {
                false);
   }
 }
-
 
 void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,

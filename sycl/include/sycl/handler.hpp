@@ -402,7 +402,6 @@ private:
                                 PI_ERROR_INVALID_OPERATION);
   }
 
-
   /// Extracts and prepares kernel arguments from the lambda using integration
   /// header.
   void
@@ -412,7 +411,6 @@ private:
 
   /// Extracts and prepares kernel arguments set via set_arg(s).
   void extractArgsAndReqs();
-
 
   void processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                   const int Size, const size_t Index, size_t &IndexShift,
@@ -781,7 +779,6 @@ private:
     return true;
   }
 
-  
   /// Handles some special cases of the copy operation from one accessor
   /// to another accessor. Returns true if the copy is handled here.
   ///
