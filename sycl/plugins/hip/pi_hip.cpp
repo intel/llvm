@@ -316,7 +316,7 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
 
 int getAttribute(pi_device device, hipDeviceAttribute_t attribute) {
   int value;
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       hipDeviceGetAttribute(&value, attribute, device->get()) == hipSuccess);
   return value;
 }
@@ -615,7 +615,7 @@ pi_result _pi_event::record() {
   try {
     eventId_ = queue_->get_next_event_id();
     if (eventId_ == 0) {
-      cl::sycl::detail::pi::die(
+      sycl::detail::pi::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
     result = PI_CHECK_ERROR(hipEventRecord(evEnd_, stream_));
@@ -726,7 +726,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       query to PI and use hipModuleGetFunction to check for a kernel.
 std::string getKernelNames(pi_program program) {
   (void)program;
-  cl::sycl::detail::pi::die("getKernelNames not implemented");
+  sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
 
@@ -786,7 +786,7 @@ public:
         // HIP error for which it is unclear if the function that reported it
         // succeeded or not. Either way, the state of the program is compromised
         // and likely unrecoverable.
-        cl::sycl::detail::pi::die(
+        sycl::detail::pi::die(
             "Unrecoverable program state reached in hip_piMemRelease");
       }
     }
@@ -924,7 +924,7 @@ pi_result hip_piPlatformGetInfo(pi_platform platform,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Platform info request not implemented");
+  sycl::detail::pi::die("Platform info request not implemented");
   return {};
 }
 
@@ -1028,10 +1028,10 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
                                       pi_uint32 *selected_binary) {
   (void)device;
   if (!binaries) {
-    cl::sycl::detail::pi::die("No list of device images provided");
+    sycl::detail::pi::die("No list of device images provided");
   }
   if (num_binaries < 1) {
-    cl::sycl::detail::pi::die("No binary images in the list");
+    sycl::detail::pi::die("No binary images in the list");
   }
 
   // Look for an image for the HIP target, and return the first one that is
@@ -1112,11 +1112,11 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int compute_units = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&compute_units,
                               hipDeviceAttributeMultiprocessorCount,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(compute_units >= 0);
+    sycl::detail::pi::assertion(compute_units >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(compute_units));
   }
@@ -1128,20 +1128,20 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     size_t return_sizes[max_work_item_dimensions];
 
     int max_x = 0, max_y = 0, max_z = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxBlockDimX,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_x >= 0);
+    sycl::detail::pi::assertion(max_x >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxBlockDimY,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_y >= 0);
+    sycl::detail::pi::assertion(max_y >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxBlockDimZ,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_z >= 0);
+    sycl::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
     return_sizes[1] = size_t(max_y);
@@ -1153,20 +1153,20 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     size_t return_sizes[max_work_item_dimensions];
     int max_x = 0, max_y = 0, max_z = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_x, hipDeviceAttributeMaxGridDimX,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_x >= 0);
+    sycl::detail::pi::assertion(max_x >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_y, hipDeviceAttributeMaxGridDimY,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_y >= 0);
+    sycl::detail::pi::assertion(max_y >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_z, hipDeviceAttributeMaxGridDimZ,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(max_z >= 0);
+    sycl::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
     return_sizes[1] = size_t(max_y);
@@ -1177,12 +1177,12 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int max_work_group_size = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_work_group_size,
                               hipDeviceAttributeMaxThreadsPerBlock,
                               device->get()) == hipSuccess);
 
-    cl::sycl::detail::pi::assertion(max_work_group_size >= 0);
+    sycl::detail::pi::assertion(max_work_group_size >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    size_t(max_work_group_size));
@@ -1232,12 +1232,12 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int max_threads = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&max_threads,
                               hipDeviceAttributeMaxThreadsPerBlock,
                               device->get()) == hipSuccess);
     int warpSize = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                               device->get()) == hipSuccess);
     int maxWarps = (max_threads + warpSize - 1) / warpSize;
@@ -1248,7 +1248,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Volta provides independent thread scheduling
     // TODO: Revisit for previous generation GPUs
     int major = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&major, hipDeviceAttributeComputeCapabilityMajor,
                               device->get()) == hipSuccess);
     bool ifp = (major >= 7);
@@ -1256,7 +1256,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     int warpSize = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                               device->get()) == hipSuccess);
     size_t sizes[1] = {static_cast<size_t>(warpSize)};
@@ -1265,10 +1265,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int clock_freq = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&clock_freq, hipDeviceAttributeClockRate,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(clock_freq >= 0);
+    sycl::detail::pi::assertion(clock_freq >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(clock_freq) / 1000u);
   }
@@ -1284,8 +1284,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // CL_DEVICE_TYPE_HIPSTOM.
 
     size_t global = 0;
-    cl::sycl::detail::pi::assertion(hipDeviceTotalMem(&global, device->get()) ==
-                                    hipSuccess);
+    sycl::detail::pi::assertion(hipDeviceTotalMem(&global, device->get()) ==
+                                hipSuccess);
 
     auto quarter_global = static_cast<pi_uint32>(global / 4u);
 
@@ -1315,16 +1315,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture2DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    sycl::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_height,
                               hipDeviceAttributeMaxTexture2DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_height >= 0);
+    sycl::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
@@ -1333,15 +1333,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture2DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture2DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_width >= 0);
+    sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1350,16 +1350,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_height, hipDeviceAttributeMaxTexture3DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_height >= 0);
+    sycl::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_height,
                               hipDeviceAttributeMaxTexture3DHeight,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_height >= 0);
+    sycl::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
@@ -1368,15 +1368,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture3DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture3DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_width >= 0);
+    sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1385,15 +1385,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
     // Take the smaller of maximum surface and maximum texture depth.
     int tex_depth = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_depth, hipDeviceAttributeMaxTexture3DDepth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_depth >= 0);
+    sycl::detail::pi::assertion(tex_depth >= 0);
     int surf_depth = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_depth, hipDeviceAttributeMaxTexture3DDepth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_depth >= 0);
+    sycl::detail::pi::assertion(surf_depth >= 0);
 
     int min = std::min(tex_depth, surf_depth);
 
@@ -1402,15 +1402,15 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&tex_width, hipDeviceAttributeMaxTexture1DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(tex_width >= 0);
+    sycl::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&surf_width, hipDeviceAttributeMaxTexture1DWidth,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(surf_width >= 0);
+    sycl::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1433,7 +1433,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int mem_base_addr_align = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&mem_base_addr_align,
                               hipDeviceAttributeTextureAlignment,
                               device->get()) == hipSuccess);
@@ -1467,10 +1467,10 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
     int cache_size = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&cache_size, hipDeviceAttributeL2CacheSize,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(cache_size >= 0);
+    sycl::detail::pi::assertion(cache_size >= 0);
     // The L2 cache is global to the GPU.
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(cache_size));
@@ -1478,8 +1478,8 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     size_t bytes = 0;
     // Runtime API has easy access to this value, driver API info is scarse.
-    cl::sycl::detail::pi::assertion(hipDeviceTotalMem(&bytes, device->get()) ==
-                                    hipSuccess);
+    sycl::detail::pi::assertion(hipDeviceTotalMem(&bytes, device->get()) ==
+                                hipSuccess);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64{bytes});
   }
@@ -1490,7 +1490,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // memory on AMD GPU may be larger than what can fit in the positive part
     // of a signed integer, so use an unsigned integer and cast the pointer to
     // int*.
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(reinterpret_cast<int *>(&constant_memory),
                               hipDeviceAttributeTotalConstantMemory,
                               device->get()) == hipSuccess);
@@ -1513,32 +1513,31 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // HIP has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
     int local_mem_size = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&local_mem_size,
                               hipDeviceAttributeMaxSharedMemoryPerBlock,
                               device->get()) == hipSuccess);
-    cl::sycl::detail::pi::assertion(local_mem_size >= 0);
+    sycl::detail::pi::assertion(local_mem_size >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(local_mem_size));
   }
   case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ecc_enabled = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&ecc_enabled, hipDeviceAttributeEccEnabled,
                               device->get()) == hipSuccess);
 
-    cl::sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
+    sycl::detail::pi::assertion((ecc_enabled == 0) | (ecc_enabled == 1));
     auto result = static_cast<pi_bool>(ecc_enabled);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
     int is_integrated = 0;
-    cl::sycl::detail::pi::assertion(
+    sycl::detail::pi::assertion(
         hipDeviceGetAttribute(&is_integrated, hipDeviceAttributeIntegrated,
                               device->get()) == hipSuccess);
 
-    cl::sycl::detail::pi::assertion((is_integrated == 0) |
-                                    (is_integrated == 1));
+    sycl::detail::pi::assertion((is_integrated == 0) | (is_integrated == 1));
     auto result = static_cast<pi_bool>(is_integrated);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
@@ -1598,15 +1597,14 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_NAME: {
     static constexpr size_t MAX_DEVICE_NAME_LENGTH = 256u;
     char name[MAX_DEVICE_NAME_LENGTH];
-    cl::sycl::detail::pi::assertion(
-        hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH, device->get()) ==
-        hipSuccess);
+    sycl::detail::pi::assertion(hipDeviceGetName(name, MAX_DEVICE_NAME_LENGTH,
+                                                 device->get()) == hipSuccess);
 
     // On AMD GPUs hipDeviceGetName returns an empty string, so return the arch
     // name instead, this is also what AMD OpenCL devices return.
     if (strlen(name) == 0) {
       hipDeviceProp_t props;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipGetDeviceProperties(&props, device->get()) == hipSuccess);
 
       return getInfoArray(strlen(props.gcnArchName) + 1, param_value_size,
@@ -1802,7 +1800,7 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Device info request not implemented");
+  sycl::detail::pi::die("Device info request not implemented");
   return {};
 }
 
@@ -1833,7 +1831,7 @@ pi_result hip_piextDeviceCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)nativeHandle;
   (void)platform;
   (void)device;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI device from native handle not implemented");
   return {};
 }
@@ -1890,7 +1888,7 @@ pi_result hip_piContextCreate(const pi_context_properties *properties,
       break;
     default:
       // Unknown property.
-      cl::sycl::detail::pi::die(
+      sycl::detail::pi::die(
           "Unknown piContextCreate property in property list");
       return PI_ERROR_INVALID_VALUE;
     }
@@ -2013,7 +2011,7 @@ pi_result hip_piextContextCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)devices;
   (void)ownNativeHandle;
   (void)context;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI context from native handle not implemented");
   return {};
 }
@@ -2156,7 +2154,7 @@ pi_result hip_piMemRelease(pi_mem memObj) {
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    cl::sycl::detail::pi::die(
+    sycl::detail::pi::die(
         "Unrecoverable program state reached in hip_piMemRelease");
   }
 
@@ -2240,7 +2238,7 @@ pi_result hip_piMemGetInfo(pi_mem memObj, pi_mem_info queriedInfo,
   (void)queryOutput;
   (void)writtenQuerySize;
 
-  cl::sycl::detail::pi::die("hip_piMemGetInfo not implemented");
+  sycl::detail::pi::die("hip_piMemGetInfo not implemented");
 }
 
 /// Gets the native HIP handle of a PI mem object
@@ -2295,7 +2293,7 @@ pi_result hip_piextMemCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   (void)mem;
 
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
 }
@@ -2364,7 +2362,7 @@ pi_result hip_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Queue info request not implemented");
+  sycl::detail::pi::die("Queue info request not implemented");
   return {};
 }
 
@@ -2472,7 +2470,7 @@ pi_result hip_piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)device;
   (void)queue;
   (void)ownNativeHandle;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
 }
@@ -2678,7 +2676,7 @@ pi_result hip_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
       if (Format != HIP_AD_FORMAT_UNSIGNED_INT32 &&
           Format != HIP_AD_FORMAT_SIGNED_INT32 &&
           Format != HIP_AD_FORMAT_HALF && Format != HIP_AD_FORMAT_FLOAT) {
-        cl::sycl::detail::pi::die(
+        sycl::detail::pi::die(
             "PI HIP kernels only support images with channel types int32, "
             "uint32, float, and half.");
       }
@@ -2860,7 +2858,7 @@ hip_piEnqueueNativeKernel(pi_queue queue, void (*user_func)(void *), void *args,
   (void)event_wait_list;
   (void)event;
 
-  cl::sycl::detail::pi::die("Not implemented in HIP backend");
+  sycl::detail::pi::die("Not implemented in HIP backend");
   return {};
 }
 
@@ -2881,7 +2879,7 @@ pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
   // TODO: check SYCL CTS and spec. May also have to support BGRA
   if (image_format->image_channel_order !=
       pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
-    cl::sycl::detail::pi::die(
+    sycl::detail::pi::die(
         "hip_piMemImageCreate only supports RGBA channel order");
   }
 
@@ -2942,7 +2940,7 @@ pi_result hip_piMemImageCreate(pi_context context, pi_mem_flags flags,
     pixel_type_size_bytes = 4;
     break;
   default:
-    cl::sycl::detail::pi::die(
+    sycl::detail::pi::die(
         "hip_piMemImageCreate given unsupported image_channel_data_type");
   }
 
@@ -3029,7 +3027,7 @@ pi_result hip_piMemImageGetInfo(pi_mem image, pi_image_info param_name,
   (void)param_value;
   (void)param_value_size_ret;
 
-  cl::sycl::detail::pi::die("hip_piMemImageGetInfo not implemented");
+  sycl::detail::pi::die("hip_piMemImageGetInfo not implemented");
   return {};
 }
 
@@ -3053,8 +3051,7 @@ pi_result hip_piclProgramCreateWithSource(pi_context context, pi_uint32 count,
   (void)lengths;
   (void)program;
 
-  cl::sycl::detail::pi::hipPrint(
-      "hip_piclProgramCreateWithSource not implemented");
+  sycl::detail::pi::hipPrint("hip_piclProgramCreateWithSource not implemented");
   return PI_ERROR_INVALID_OPERATION;
 }
 
@@ -3094,7 +3091,7 @@ pi_result hip_piProgramCreate(pi_context context, const void *il, size_t length,
   (void)length;
   (void)res_program;
 
-  cl::sycl::detail::pi::die("hip_piProgramCreate not implemented");
+  sycl::detail::pi::die("hip_piProgramCreate not implemented");
   return {};
 }
 
@@ -3176,7 +3173,7 @@ pi_result hip_piProgramGetInfo(pi_program program, pi_program_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Program info request not implemented");
+  sycl::detail::pi::die("Program info request not implemented");
   return {};
 }
 
@@ -3196,7 +3193,7 @@ pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
   (void)pfn_notify;
   (void)user_data;
   (void)ret_program;
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "hip_piProgramLink: linking not supported with hip backend");
   return {};
 }
@@ -3254,7 +3251,7 @@ pi_result hip_piProgramGetBuildInfo(pi_program program, pi_device device,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Program Build info request not implemented");
+  sycl::detail::pi::die("Program Build info request not implemented");
   return {};
 }
 
@@ -3329,7 +3326,7 @@ pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   (void)program;
 
-  cl::sycl::detail::pi::die(
+  sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};
 }
@@ -3382,7 +3379,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     switch (param_name) {
     case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&max_threads,
                               HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                               kernel->get()) == hipSuccess);
@@ -3403,7 +3400,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
       // OpenCL LOCAL == HIP SHARED
       int bytes = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                               kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3412,7 +3409,7 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
       // Work groups should be multiples of the warp size
       int warpSize = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                                 device->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3421,15 +3418,15 @@ pi_result hip_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
       // OpenCL PRIVATE == HIP LOCAL
       int bytes = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
                               kernel->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
     case PI_KERNEL_GROUP_INFO_NUM_REGS: {
-      cl::sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
-                                "piKernelGetGroupInfo not implemented\n");
+      sycl::detail::pi::die("PI_KERNEL_GROUP_INFO_NUM_REGS in "
+                            "piKernelGetGroupInfo not implemented\n");
       return {};
     }
 
@@ -3453,7 +3450,7 @@ pi_result hip_piKernelGetSubGroupInfo(
     case PI_KERNEL_MAX_SUB_GROUP_SIZE: {
       // Sub-group size is equivalent to warp size
       int warpSize = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipDeviceGetAttribute(&warpSize, hipDeviceAttributeWarpSize,
                                 device->get()) == hipSuccess);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3462,7 +3459,7 @@ pi_result hip_piKernelGetSubGroupInfo(
     case PI_KERNEL_MAX_NUM_SUB_GROUPS: {
       // Number of sub-groups = max block size / warp size + possible remainder
       int max_threads = 0;
-      cl::sycl::detail::pi::assertion(
+      sycl::detail::pi::assertion(
           hipFuncGetAttribute(&max_threads,
                               HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                               kernel->get()) == hipSuccess);
@@ -3536,8 +3533,7 @@ pi_result hip_piextProgramSetSpecializationConstant(pi_program, pi_uint32,
                                                     size_t, const void *) {
   // This entry point is only used for native specialization constants (SPIR-V),
   // and the HIP plugin is AOT only so this entry point is not supported.
-  cl::sycl::detail::pi::die(
-      "Native specialization constants are not supported");
+  sycl::detail::pi::die("Native specialization constants are not supported");
   return {};
 }
 
@@ -3554,7 +3550,7 @@ pi_result hip_piEventCreate(pi_context context, pi_event *event) {
   (void)context;
   (void)event;
 
-  cl::sycl::detail::pi::die("PI Event Create not implemented in HIP backend");
+  sycl::detail::pi::die("PI Event Create not implemented in HIP backend");
 }
 
 pi_result hip_piEventGetInfo(pi_event event, pi_event_info param_name,
@@ -3615,7 +3611,7 @@ pi_result hip_piEventGetProfilingInfo(pi_event event,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  cl::sycl::detail::pi::die("Event Profiling info request not implemented");
+  sycl::detail::pi::die("Event Profiling info request not implemented");
   return {};
 }
 
@@ -3627,7 +3623,7 @@ pi_result hip_piEventSetCallback(pi_event event,
   (void)notify;
   (void)user_data;
 
-  cl::sycl::detail::pi::die("Event Callback not implemented in HIP backend");
+  sycl::detail::pi::die("Event Callback not implemented in HIP backend");
   return PI_SUCCESS;
 }
 
@@ -3635,7 +3631,7 @@ pi_result hip_piEventSetStatus(pi_event event, pi_int32 execution_status) {
   (void)event;
   (void)execution_status;
 
-  cl::sycl::detail::pi::die("Event Set Status not implemented in HIP backend");
+  sycl::detail::pi::die("Event Set Status not implemented in HIP backend");
   return PI_ERROR_INVALID_VALUE;
 }
 
@@ -3644,7 +3640,7 @@ pi_result hip_piEventRetain(pi_event event) {
 
   const auto refCount = event->increment_reference_count();
 
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       refCount != 0, "Reference count overflow detected in hip_piEventRetain.");
 
   return PI_SUCCESS;
@@ -3655,7 +3651,7 @@ pi_result hip_piEventRelease(pi_event event) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       event->get_reference_count() != 0,
       "Reference count overflow detected in hip_piEventRelease.");
 
@@ -3898,7 +3894,7 @@ pi_result hip_piSamplerRelease(pi_sampler sampler) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  cl::sycl::detail::pi::assertion(
+  sycl::detail::pi::assertion(
       sampler->get_reference_count() != 0,
       "Reference count overflow detected in hip_piSamplerRelease.");
 
@@ -4289,7 +4285,7 @@ static size_t imageElementByteSize(hipArray_Format array_format) {
   default:
     return 0;
   }
-  cl::sycl::detail::pi::die("Invalid iamge format.");
+  sycl::detail::pi::die("Invalid iamge format.");
   return 0;
 }
 
@@ -4590,7 +4586,7 @@ pi_result hip_piEnqueueMemImageFill(pi_queue command_queue, pi_mem image,
   (void)event_wait_list;
   (void)event;
 
-  cl::sycl::detail::pi::die("hip_piEnqueueMemImageFill not implemented");
+  sycl::detail::pi::die("hip_piEnqueueMemImageFill not implemented");
   return {};
 }
 

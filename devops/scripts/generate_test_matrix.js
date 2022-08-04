@@ -59,7 +59,7 @@ module.exports = ({core, process}) => {
             "ghcr.io/intel/llvm/ubuntu2004_base:latest");
       }
 
-      core.setOutput('lts', ltsString);
+      core.setOutput('lts_matrix', ltsString);
     }
   });
 }

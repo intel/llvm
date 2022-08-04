@@ -30,7 +30,7 @@ namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// Denotes build error data. The data is filled in from sycl::exception
   /// class instance.
   struct BuildError {
     std::string Msg;

@@ -92,12 +92,6 @@ cl::opt<std::string>
                     "output binary via bolt info section"),
            cl::cat(BoltCategory));
 
-cl::opt<bool>
-AllowStripped("allow-stripped",
-  cl::desc("allow processing of stripped binaries"),
-  cl::Hidden,
-  cl::cat(BoltCategory));
-
 cl::opt<bool> DumpDotAll(
     "dump-dot-all",
     cl::desc("dump function CFGs to graphviz format after each stage;"
@@ -866,7 +860,9 @@ void RewriteInstance::discoverFileObjects() {
 
   llvm::stable_sort(SortedFileSymbols, CompareSymbols);
 
-  auto LastSymbol = SortedFileSymbols.end() - 1;
+  auto LastSymbol = SortedFileSymbols.end();
+  if (!SortedFileSymbols.empty())
+    --LastSymbol;
 
   // For aarch64, the ABI defines mapping symbols so we identify data in the
   // code section (see IHI0056B). $d identifies data contents.
@@ -912,13 +908,16 @@ void RewriteInstance::discoverFileObjects() {
     LastSymbol = std::stable_partition(
         SortedFileSymbols.begin(), SortedFileSymbols.end(),
         [this](const SymbolRef &Symbol) { return !BC->isMarker(Symbol); });
-    --LastSymbol;
+    if (!SortedFileSymbols.empty())
+      --LastSymbol;
   }
 
   BinaryFunction *PreviousFunction = nullptr;
   unsigned AnonymousId = 0;
 
-  const auto SortedSymbolsEnd = std::next(LastSymbol);
+  const auto SortedSymbolsEnd = LastSymbol == SortedFileSymbols.end()
+                                    ? LastSymbol
+                                    : std::next(LastSymbol);
   for (auto ISym = SortedFileSymbols.begin(); ISym != SortedSymbolsEnd;
        ++ISym) {
     const SymbolRef &Symbol = *ISym;
@@ -1557,6 +1556,7 @@ Error RewriteInstance::readSpecialSections() {
                      TimerGroupName, TimerGroupDesc, opts::TimeRewrite);
 
   bool HasTextRelocations = false;
+  bool HasSymbolTable = false;
   bool HasDebugInfo = false;
 
   // Process special sections.
@@ -1588,6 +1588,7 @@ Error RewriteInstance::readSpecialSections() {
   }
 
   HasTextRelocations = (bool)BC->getUniqueSectionByName(".rela.text");
+  HasSymbolTable = (bool)BC->getUniqueSectionByName(".symtab");
   LSDASection = BC->getUniqueSectionByName(".gcc_except_table");
   EHFrameSection = BC->getUniqueSectionByName(".eh_frame");
   GOTPLTSection = BC->getUniqueSectionByName(".got.plt");
@@ -1624,6 +1625,8 @@ Error RewriteInstance::readSpecialSections() {
   BC->HasRelocations =
       HasTextRelocations && (opts::RelocationMode != cl::BOU_FALSE);
 
+  BC->IsStripped = !HasSymbolTable;
+
   // Force non-relocation mode for heatmap generation
   if (opts::HeatmapMode)
     BC->HasRelocations = false;
@@ -1631,6 +1634,10 @@ Error RewriteInstance::readSpecialSections() {
   if (BC->HasRelocations)
     outs() << "BOLT-INFO: enabling " << (opts::StrictMode ? "strict " : "")
            << "relocation mode\n";
+
+  if (BC->IsStripped)
+    outs() << "BOLT-INFO: input binary is stripped. The support is limited and "
+           << "is considered experimental.\n";
 
   // Read EH frame for function boundaries info.
   Expected<const DWARFDebugFrame *> EHFrameOrError = BC->DwCtx->getEHFrame();
@@ -2800,13 +2807,11 @@ void RewriteInstance::preprocessProfileData() {
   if (Error E = ProfileReader->preprocessProfile(*BC.get()))
     report_error("cannot pre-process profile", std::move(E));
 
-  if (!BC->hasSymbolsWithFileName() && ProfileReader->hasLocalsWithFileName() &&
-      !opts::AllowStripped) {
+  if (!BC->hasSymbolsWithFileName() && ProfileReader->hasLocalsWithFileName()) {
     errs() << "BOLT-ERROR: input binary does not have local file symbols "
               "but profile data includes function names with embedded file "
               "names. It appears that the input binary was stripped while a "
-              "profiled binary was not. If you know what you are doing and "
-              "wish to proceed, use -allow-stripped option.\n";
+              "profiled binary was not\n";
     exit(1);
   }
 }
@@ -4465,6 +4470,14 @@ void RewriteInstance::updateELFSymbolTable(
   std::vector<ELFSymTy> Symbols;
 
   auto getNewSectionIndex = [&](uint32_t OldIndex) {
+    // For dynamic symbol table, the section index could be wrong on the input,
+    // and its value is ignored by the runtime if it's different from
+    // SHN_UNDEF and SHN_ABS.
+    // However, we still need to update dynamic symbol table, so return a
+    // section index, even though the index is broken.
+    if (IsDynSym && OldIndex >= NewSectionIndex.size())
+      return OldIndex;
+
     assert(OldIndex < NewSectionIndex.size() && "section index out of bounds");
     const uint32_t NewIndex = NewSectionIndex[OldIndex];
 
