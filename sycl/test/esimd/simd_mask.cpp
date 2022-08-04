@@ -11,7 +11,7 @@
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 #define DEFINE_BIN_OP_TEST(op, name)                                           \
   template <int N>                                                             \

@@ -3,8 +3,8 @@
 #include <sycl/buffer.hpp>
 #include <sycl/detail/array.hpp>
 
-typedef cl::sycl::id<1> dummy_id;
-typedef cl::sycl::buffer<int> dummy_buffer;
+typedef sycl::id<1> dummy_id;
+typedef sycl::buffer<int> dummy_buffer;
 
 // array must have common_array field
 

@@ -301,7 +301,7 @@ public:
 };
 
 #define __SYCL_MAKE_MARRAY_ALIAS(ALIAS, TYPE, N)                               \
-  using ALIAS##N = cl::sycl::marray<TYPE, N>;
+  using ALIAS##N = sycl::marray<TYPE, N>;
 
 #define __SYCL_MAKE_MARRAY_ALIASES_FOR_ARITHMETIC_TYPES(N)                     \
   __SYCL_MAKE_MARRAY_ALIAS(mchar, char, N)                                     \

@@ -22,7 +22,7 @@
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 #endif // __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {

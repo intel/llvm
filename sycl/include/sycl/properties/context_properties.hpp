@@ -19,8 +19,8 @@ namespace oneapi {
 namespace cuda {
 namespace property {
 namespace context {
-class use_primary_context : public ::cl::sycl::detail::DataLessProperty<
-                                ::cl::sycl::detail::UsePrimaryContext> {};
+class use_primary_context : public ::sycl::detail::DataLessProperty<
+                                ::sycl::detail::UsePrimaryContext> {};
 } // namespace context
 } // namespace property
 } // namespace cuda
@@ -31,8 +31,9 @@ namespace property {
 namespace context {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::context' instead") cuda {
-class use_primary_context : public ::cl::sycl::ext::oneapi::cuda::property::
-                                context::use_primary_context {};
+class use_primary_context
+    : public ::sycl::ext::oneapi::cuda::property::context::use_primary_context {
+};
 // clang-format off
 } // namespace cuda
 // clang-format on

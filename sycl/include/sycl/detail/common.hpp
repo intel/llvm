@@ -116,14 +116,14 @@ static inline std::string codeToString(pi_int32 code) {
                           "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 // TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != PI_SUCCESS) {                                                  \
-      std::cerr << __SYCL_PI_ERROR_REPORT                                      \
-                << cl::sycl::detail::codeToString(code) << std::endl;          \
+      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
+                << std::endl;                                                  \
     }                                                                          \
   }
 #endif
@@ -137,15 +137,15 @@ static inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       std::string err_str =                                                    \
           str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT +                                       \
-                    cl::sycl::detail::codeToString(code) + err_str,            \
+      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
+                    err_str,                                                   \
                 code);                                                         \
     }                                                                          \
   }
 #define __SYCL_REPORT_PI_ERR_TO_EXC_THROW(code, exc, str)                      \
   __SYCL_REPORT_PI_ERR_TO_EXC(code, exc, str)
 #define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, cl::sycl::runtime_error, nullptr)
+  __SYCL_REPORT_PI_ERR_TO_EXC(code, sycl::runtime_error, nullptr)
 #else
 #define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
   __SYCL_REPORT_PI_ERR_TO_STREAM(code)
@@ -157,7 +157,7 @@ static inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       throw sycl::exception(sycl::make_error_code(errc),                       \
                             __SYCL_PI_ERROR_REPORT +                           \
-                                cl::sycl::detail::codeToString(code));         \
+                                sycl::detail::codeToString(code));             \
     }                                                                          \
   }
 #define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \

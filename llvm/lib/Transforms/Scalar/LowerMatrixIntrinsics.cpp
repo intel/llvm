@@ -338,6 +338,9 @@ class LowerMatrixIntrinsics {
     Value *extractVector(unsigned I, unsigned J, unsigned NumElts,
                          IRBuilder<> &Builder) const {
       Value *Vec = isColumnMajor() ? getColumn(J) : getRow(I);
+      assert(cast<FixedVectorType>(Vec->getType())->getNumElements() >=
+                 NumElts &&
+             "Extracted vector will contain poison values");
       return Builder.CreateShuffleVector(
           Vec, createSequentialMask(isColumnMajor() ? I : J, NumElts, 0),
           "block");
@@ -381,6 +384,9 @@ class LowerMatrixIntrinsics {
         return NumColumns;
       return NumRows;
     }
+
+    /// Returns the transposed shape.
+    ShapeInfo t() const { return ShapeInfo(NumColumns, NumRows); }
   };
 
   /// Maps instructions to their shape information. The shape information
@@ -681,6 +687,25 @@ public:
     return NewWorkList;
   }
 
+  /// (Op0 op Op1)^T -> Op0^T op Op1^T
+  /// Transpose \p Op0 and \p Op1 of shape \p Shape0 and \p Shape1, then use
+  /// them on both sides of \p Operation.
+  Instruction *distributeTransposes(
+      Value *Op0, ShapeInfo Shape0, Value *Op1, ShapeInfo Shape1,
+      MatrixBuilder &Builder,
+      function_ref<Instruction *(Value *, ShapeInfo, Value *, ShapeInfo)>
+          Operation) {
+    Value *T0 = Builder.CreateMatrixTranspose(
+        Op0, Shape0.NumRows, Shape0.NumColumns, Op0->getName() + "_t");
+    // We are being run after shape prop, add shape for newly created
+    // instructions so that we lower them later.
+    setShapeInfo(T0, Shape0.t());
+    Value *T1 = Builder.CreateMatrixTranspose(
+        Op1, Shape1.NumRows, Shape1.NumColumns, Op1->getName() + "_t");
+    setShapeInfo(T1, Shape1.t());
+    return Operation(T0, Shape0.t(), T1, Shape1.t());
+  }
+
   /// Try moving transposes in order to fold them away or into multiplies.
   void optimizeTransposes() {
     auto ReplaceAllUsesWith = [this](Instruction &Old, Value *New) {
@@ -738,19 +763,13 @@ public:
           else if (match(TA, m_Intrinsic<Intrinsic::matrix_multiply>(
                                  m_Value(TAMA), m_Value(TAMB), m_ConstantInt(R),
                                  m_ConstantInt(K), m_ConstantInt(C)))) {
-            Value *T0 = Builder.CreateMatrixTranspose(TAMB, K->getZExtValue(),
-                                                      C->getZExtValue(),
-                                                      TAMB->getName() + "_t");
-            // We are being run after shape prop, add shape for newly created
-            // instructions so that we lower them later.
-            setShapeInfo(T0, {C, K});
-            Value *T1 = Builder.CreateMatrixTranspose(TAMA, R->getZExtValue(),
-                                                      K->getZExtValue(),
-                                                      TAMA->getName() + "_t");
-            setShapeInfo(T1, {K, R});
-            NewInst = Builder.CreateMatrixMultiply(T0, T1, C->getZExtValue(),
-                                                   K->getZExtValue(),
-                                                   R->getZExtValue(), "mmul");
+            NewInst = distributeTransposes(
+                TAMB, {K, C}, TAMA, {R, K}, Builder,
+                [&](Value *T0, ShapeInfo Shape0, Value *T1, ShapeInfo Shape1) {
+                  return Builder.CreateMatrixMultiply(
+                      T0, T1, Shape0.NumRows, Shape0.NumColumns,
+                      Shape1.NumColumns, "mmul");
+                });
             ReplaceAllUsesWith(I, NewInst);
             EraseFromParent(&I);
             EraseFromParent(TA);
@@ -1423,13 +1442,13 @@ public:
         FixedVectorType::get(MatMul->getType()->getScalarType(), TileSize);
     MatrixTy TileResult;
     // Insert in the inner loop header.
-    Builder.SetInsertPoint(TI.InnerLoopHeader->getTerminator());
+    Builder.SetInsertPoint(TI.KLoop.Header->getTerminator());
     // Create PHI nodes for the result columns to accumulate across iterations.
     SmallVector<PHINode *, 4> ColumnPhis;
     for (unsigned I = 0; I < TileSize; I++) {
       auto *Phi = Builder.CreatePHI(TileVecTy, 2, "result.vec." + Twine(I));
       Phi->addIncoming(ConstantAggregateZero::get(TileVecTy),
-                       TI.RowLoopHeader->getSingleSuccessor());
+                       TI.RowLoop.Header->getSingleSuccessor());
       TileResult.addVector(Phi);
       ColumnPhis.push_back(Phi);
     }
@@ -1438,27 +1457,29 @@ public:
     //   Res += Load(CurrentRow, K) * Load(K, CurrentColumn)
     Builder.SetInsertPoint(InnerBody->getTerminator());
     // Load tiles of the operands.
-    MatrixTy A = loadMatrix(LPtr, {}, false, LShape, TI.CurrentRow, TI.CurrentK,
-                            {TileSize, TileSize}, EltType, Builder);
-    MatrixTy B = loadMatrix(RPtr, {}, false, RShape, TI.CurrentK, TI.CurrentCol,
-                            {TileSize, TileSize}, EltType, Builder);
+    MatrixTy A =
+        loadMatrix(LPtr, {}, false, LShape, TI.RowLoop.Index, TI.KLoop.Index,
+                   {TileSize, TileSize}, EltType, Builder);
+    MatrixTy B =
+        loadMatrix(RPtr, {}, false, RShape, TI.KLoop.Index, TI.ColumnLoop.Index,
+                   {TileSize, TileSize}, EltType, Builder);
     emitMatrixMultiply(TileResult, A, B, Builder, true, false,
                        getFastMathFlags(MatMul));
     // Store result after the inner loop is done.
-    Builder.SetInsertPoint(TI.RowLoopLatch->getTerminator());
+    Builder.SetInsertPoint(TI.RowLoop.Latch->getTerminator());
     storeMatrix(TileResult, Store->getPointerOperand(), Store->getAlign(),
                 Store->isVolatile(), {LShape.NumRows, RShape.NumColumns},
-                TI.CurrentRow, TI.CurrentCol, EltType, Builder);
+                TI.RowLoop.Index, TI.ColumnLoop.Index, EltType, Builder);
 
     for (unsigned I = 0; I < TileResult.getNumVectors(); I++)
-      ColumnPhis[I]->addIncoming(TileResult.getVector(I), TI.InnerLoopLatch);
+      ColumnPhis[I]->addIncoming(TileResult.getVector(I), TI.KLoop.Latch);
 
     // Force unrolling of a few iterations of the inner loop, to make sure there
     // is enough work per iteration.
     // FIXME: The unroller should make this decision directly instead, but
     // currently the cost-model is not up to the task.
     unsigned InnerLoopUnrollCount = std::min(10u, LShape.NumColumns / TileSize);
-    addStringMetadataToLoop(LI->getLoopFor(TI.InnerLoopHeader),
+    addStringMetadataToLoop(LI->getLoopFor(TI.KLoop.Header),
                             "llvm.loop.unroll.count", InnerLoopUnrollCount);
   }
 

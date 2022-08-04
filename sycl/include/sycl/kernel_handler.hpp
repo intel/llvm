@@ -29,7 +29,7 @@ public:
     return getSpecializationConstantOnDevice<S>();
 #else
     // TODO: add support of host device
-    throw cl::sycl::feature_not_supported(
+    throw sycl::feature_not_supported(
         "kernel_handler::get_specialization_constant() is not yet supported by "
         "host device.",
         PI_ERROR_INVALID_OPERATION);

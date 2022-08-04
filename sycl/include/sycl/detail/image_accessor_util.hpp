@@ -15,12 +15,12 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/image.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/types.hpp>
 
 #include <cmath>
-#include <iostream>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -295,7 +295,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // OpenCL Spec section 6.12.14.2 does not allow reading uint4 data from an
     // image with channel datatype other than unsigned_int8,unsigned_int16 and
     // unsigned_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of read data - cl_uint4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -317,7 +317,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // OpenCL Spec section 6.12.14.2 does not allow reading int4 data from an
     // image with channel datatype other than signed_int8,signed_int16 and
     // signed_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of read data - cl_int4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -333,12 +333,12 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::snorm_int8:
     //  max(-1.0f, (float)c / 127.0f)
     RetData = (PixelData.template convert<cl_float>()) / 127.0f;
-    RetData = cl::sycl::fmax(RetData, -1);
+    RetData = sycl::fmax(RetData, -1);
     break;
   case image_channel_type::snorm_int16:
     // max(-1.0f, (float)c / 32767.0f)
     RetData = (PixelData.template convert<cl_float>()) / 32767.0f;
-    RetData = cl::sycl::fmax(RetData, -1);
+    RetData = sycl::fmax(RetData, -1);
     break;
   case image_channel_type::unorm_int8:
     // (float)c / 255.0f
@@ -399,7 +399,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // OpenCL Spec section 6.12.14.2 does not allow reading float4 data from an
     // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of read data - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -423,12 +423,12 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::snorm_int8:
     //  max(-1.0f, (half)c / 127.0f)
     RetDataFloat = (PixelData.template convert<cl_float>()) / 127.0f;
-    RetDataFloat = cl::sycl::fmax(RetDataFloat, -1);
+    RetDataFloat = sycl::fmax(RetDataFloat, -1);
     break;
   case image_channel_type::snorm_int16:
     // max(-1.0f, (half)c / 32767.0f)
     RetDataFloat = (PixelData.template convert<cl_float>()) / 32767.0f;
-    RetDataFloat = cl::sycl::fmax(RetDataFloat, -1);
+    RetDataFloat = sycl::fmax(RetDataFloat, -1);
     break;
   case image_channel_type::unorm_int8:
     // (half)c / 255.0f
@@ -442,7 +442,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::unorm_short_555:
   case image_channel_type::unorm_int_101010:
     // TODO: Missing information in OpenCL spec.
-    throw cl::sycl::feature_not_supported(
+    throw sycl::feature_not_supported(
         "Currently unsupported datatype conversion from image_channel_type "
         "to cl_half4.",
         PI_ERROR_INVALID_OPERATION);
@@ -455,7 +455,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // OpenCL Spec section 6.12.14.2 does not allow reading float4 data to an
     // image with channel datatype - signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype to read- cl_half4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -463,7 +463,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     RetData = PixelData.template convert<cl_half>();
     return;
   case image_channel_type::fp32:
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype to read - cl_half4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -486,14 +486,14 @@ convertWriteData(const vec<cl_uint, 4> WriteData,
     // convert_uchar_sat(Data)
     cl_uint MinVal = min_v<cl_uchar>();
     cl_uint MaxVal = max_v<cl_uchar>();
-    vec<cl_uint, 4> PixelData = cl::sycl::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_uint, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int16: {
     // convert_ushort_sat(Data)
     cl_uint MinVal = min_v<cl_ushort>();
     cl_uint MaxVal = max_v<cl_ushort>();
-    vec<cl_uint, 4> PixelData = cl::sycl::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_uint, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::unsigned_int32:
@@ -503,7 +503,7 @@ convertWriteData(const vec<cl_uint, 4> WriteData,
     // OpenCL Spec section 6.12.14.4 does not allow writing uint4 data to an
     // image with channel datatype other than unsigned_int8,unsigned_int16 and
     // unsigned_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of data to write - cl_uint4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -520,14 +520,14 @@ convertWriteData(const vec<cl_int, 4> WriteData,
     // convert_char_sat(Data)
     cl_int MinVal = min_v<cl_char>();
     cl_int MaxVal = max_v<cl_char>();
-    vec<cl_int, 4> PixelData = cl::sycl::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_int, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int16: {
     // convert_short_sat(Data)
     cl_int MinVal = min_v<cl_short>();
     cl_int MaxVal = max_v<cl_short>();
-    vec<cl_int, 4> PixelData = cl::sycl::clamp(WriteData, MinVal, MaxVal);
+    vec<cl_int, 4> PixelData = sycl::clamp(WriteData, MinVal, MaxVal);
     return PixelData.convert<ChannelType>();
   }
   case image_channel_type::signed_int32:
@@ -536,7 +536,7 @@ convertWriteData(const vec<cl_int, 4> WriteData,
     // OpenCL Spec section 6.12.14.4 does not allow writing int4 data to an
     // image with channel datatype other than signed_int8,signed_int16 and
     // signed_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of data to write - cl_int4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -549,7 +549,7 @@ vec<ChannelType, 4> processFloatDataToPixel(vec<cl_float, 4> WriteData,
   vec<cl_float, 4> Temp = WriteData * MulFactor;
   vec<cl_int, 4> TempInInt = Temp.convert<int, rounding_mode::rte>();
   vec<cl_int, 4> TempInIntSaturated =
-      cl::sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
+      sycl::clamp(TempInInt, min_v<ChannelType>(), max_v<ChannelType>());
   return TempInIntSaturated.convert<ChannelType>();
 }
 
@@ -575,7 +575,7 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     return processFloatDataToPixel<ChannelType>(WriteData, 65535.0f);
   case image_channel_type::unorm_short_565:
     // TODO: Missing information in OpenCL spec.
-    throw cl::sycl::feature_not_supported(
+    throw sycl::feature_not_supported(
         "Currently unsupported datatype conversion from image_channel_type "
         "to cl_float4.",
         PI_ERROR_INVALID_OPERATION);
@@ -587,7 +587,7 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     {
       vec<cl_ushort, 4> PixelData =
           processFloatDataToPixel<cl_ushort>(WriteData, 32.0f);
-      PixelData = cl::sycl::min(PixelData, static_cast<ChannelType>(0x1f));
+      PixelData = sycl::min(PixelData, static_cast<ChannelType>(0x1f));
       // Compressing the data into the first element of PixelData.
       // This is needed so that the data can be directly stored into the pixel
       // location from the first element.
@@ -604,7 +604,7 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     {
       vec<cl_uint, 4> PixelData =
           processFloatDataToPixel<cl_uint>(WriteData, 1023.0f);
-      PixelData = cl::sycl::min(PixelData, static_cast<ChannelType>(0x3ff));
+      PixelData = sycl::min(PixelData, static_cast<ChannelType>(0x3ff));
       PixelData.x() =
           (PixelData.x() << 20) | (PixelData.y() << 10) | PixelData.z();
       return PixelData.convert<ChannelType>();
@@ -618,7 +618,7 @@ convertWriteData(const vec<cl_float, 4> WriteData,
     // OpenCL Spec section 6.12.14.4 does not allow writing float4 data to an
     // image with channel datatype -  signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -653,7 +653,7 @@ convertWriteData(const vec<cl_half, 4> WriteData,
   case image_channel_type::unorm_short_555:
   case image_channel_type::unorm_int_101010:
     // TODO: Missing information in OpenCL spec.
-    throw cl::sycl::feature_not_supported(
+    throw sycl::feature_not_supported(
         "Currently unsupported datatype conversion from image_channel_type "
         "to cl_half4.",
         PI_ERROR_INVALID_OPERATION);
@@ -666,14 +666,14 @@ convertWriteData(const vec<cl_half, 4> WriteData,
     // OpenCL Spec section 6.12.14.4 does not allow writing float4 data to an
     // image with channel datatype - signed/unsigned_int8,signed/unsigned_int16
     // and signed/unsigned_int32.
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
   case image_channel_type::fp16:
     return WriteData.convert<ChannelType>();
   case image_channel_type::fp32:
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Datatype of data to write - cl_float4 is incompatible with the "
         "image_channel_type of the image.",
         PI_ERROR_INVALID_VALUE);
@@ -1038,7 +1038,7 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const sampler &Smpl,
     switch (SmplAddrMode) {
     case addressing_mode::mirrored_repeat:
     case addressing_mode::repeat:
-      throw cl::sycl::feature_not_supported(
+      throw sycl::feature_not_supported(
           "Sampler used with unsupported configuration of "
           "mirrored_repeat/repeat filtering mode with unnormalized "
           "coordinates. ",

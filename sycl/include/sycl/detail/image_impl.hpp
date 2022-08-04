@@ -75,7 +75,7 @@ private:
   template <bool B>
   using EnableIfPitchT = typename detail::enable_if_t<B, range<Dimensions - 1>>;
   static_assert(Dimensions >= 1 || Dimensions <= 3,
-                "Dimensions of cl::sycl::image can be 1, 2 or 3");
+                "Dimensions of sycl::image can be 1, 2 or 3");
 
   void setPitches() {
     size_t WHD[3] = {1, 1, 1}; // Width, Height, Depth.

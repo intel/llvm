@@ -17,7 +17,7 @@
 
 namespace {
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class SamplerPropertiesTest
     : public ::testing::TestWithParam<std::tuple<

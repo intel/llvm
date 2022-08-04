@@ -15,7 +15,7 @@
 #include <helpers/PiMock.hpp>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 static int QueueRetainCalled = 0;
 pi_result redefinedQueueRetain(pi_queue Queue) {

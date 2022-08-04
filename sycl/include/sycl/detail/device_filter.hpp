@@ -10,9 +10,9 @@
 
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/info/info_desc.hpp>
 
-#include <iostream>
 #include <string>
 
 __SYCL_INLINE_NAMESPACE(cl) {

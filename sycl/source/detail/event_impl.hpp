@@ -27,11 +27,11 @@ class context;
 namespace detail {
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
-using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -76,7 +76,7 @@ public:
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -86,13 +86,13 @@ public:
   /// pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Clean up the command associated with the event. Assumes that the task this
   /// event is associated with has been completed.
   ///
   /// \param Self is a pointer to this event.
-  void cleanupCommand(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void cleanupCommand(std::shared_ptr<sycl::detail::event_impl> Self) const;
 
   /// Queries this event for profiling information.
   ///
@@ -264,8 +264,8 @@ private:
   std::condition_variable cv;
 
   friend std::vector<RT::PiEvent>
-  getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                  std::shared_ptr<cl::sycl::detail::context_impl> Context);
+  getOrWaitEvents(std::vector<sycl::event> DepEvents,
+                  std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail

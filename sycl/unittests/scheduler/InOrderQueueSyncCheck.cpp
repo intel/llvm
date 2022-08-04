@@ -23,7 +23,7 @@ public:
   virtual void depends_on(sycl::event) {}
 
   virtual event finalize() {
-    cl::sycl::detail::EventImplPtr NewEvent =
+    sycl::detail::EventImplPtr NewEvent =
         std::make_shared<detail::event_impl>();
     return sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   }

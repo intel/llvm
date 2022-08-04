@@ -14,6 +14,8 @@
 #include "device.h"
 #include "private.h"
 
+#include "llvm/Object/OffloadBinary.h"
+
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -65,6 +67,23 @@ __attribute__((constructor(101))) void init() {
 
 __attribute__((destructor(101))) void deinit() {
   DP("Deinit target library!\n");
+
+  for (auto *R : PM->RTLs.UsedRTLs) {
+    // Plugins can either destroy their local state using global variables
+    // or attribute(destructor) functions or by implementing deinit_plugin
+    // The hazard with plugin local destructors is they may be called before
+    // or after this destructor. If the plugin is destroyed using global
+    // state before this library finishes calling into it the plugin is
+    // likely to crash. If good fortune means the plugin outlives this
+    // library then there may be no crash.
+    // Using deinit_plugin and no global destructors from the plugin works.
+    if (R->deinit_plugin) {
+      if (R->deinit_plugin() != OFFLOAD_SUCCESS) {
+        DP("Failure deinitializing RTL %s!\n", R->RTLName.c_str());
+      }
+    }
+  }
+
   delete PM;
 
 #ifdef OMPTARGET_PROFILE_ENABLED
@@ -106,6 +125,17 @@ void RTLsTy::loadRTLs() {
 
     // Retrieve the RTL information from the runtime library.
     RTLInfoTy &R = AllRTLs.back();
+
+    // Remove plugin on failure to call optional init_plugin
+    *((void **)&R.init_plugin) = dlsym(DynlibHandle, "__tgt_rtl_init_plugin");
+    if (R.init_plugin) {
+      int32_t Rc = R.init_plugin();
+      if (Rc != OFFLOAD_SUCCESS) {
+        DP("Unable to initialize library '%s': %u!\n", Name, Rc);
+        AllRTLs.pop_back();
+        continue;
+      }
+    }
 
     bool ValidPlugin = true;
 
@@ -165,6 +195,10 @@ void RTLsTy::loadRTLs() {
        R.NumberOfDevices);
 
     // Optional functions
+    *((void **)&R.deinit_plugin) =
+        dlsym(DynlibHandle, "__tgt_rtl_deinit_plugin");
+    *((void **)&R.is_valid_binary_info) =
+        dlsym(DynlibHandle, "__tgt_rtl_is_valid_binary_info");
     *((void **)&R.deinit_device) =
         dlsym(DynlibHandle, "__tgt_rtl_deinit_device");
     *((void **)&R.init_requires) =
@@ -275,6 +309,39 @@ static void registerGlobalCtorsDtorsForImage(__tgt_bin_desc *Desc,
   }
 }
 
+static __tgt_device_image getExecutableImage(__tgt_device_image *Image) {
+  llvm::StringRef ImageStr(static_cast<char *>(Image->ImageStart),
+                           static_cast<char *>(Image->ImageEnd) -
+                               static_cast<char *>(Image->ImageStart));
+  auto BinaryOrErr =
+      llvm::object::OffloadBinary::create(llvm::MemoryBufferRef(ImageStr, ""));
+  if (!BinaryOrErr) {
+    llvm::consumeError(BinaryOrErr.takeError());
+    return *Image;
+  }
+
+  void *Begin = const_cast<void *>(
+      static_cast<const void *>((*BinaryOrErr)->getImage().bytes_begin()));
+  void *End = const_cast<void *>(
+      static_cast<const void *>((*BinaryOrErr)->getImage().bytes_end()));
+
+  return {Begin, End, Image->EntriesBegin, Image->EntriesEnd};
+}
+
+static __tgt_image_info getImageInfo(__tgt_device_image *Image) {
+  llvm::StringRef ImageStr(static_cast<char *>(Image->ImageStart),
+                           static_cast<char *>(Image->ImageEnd) -
+                               static_cast<char *>(Image->ImageStart));
+  auto BinaryOrErr =
+      llvm::object::OffloadBinary::create(llvm::MemoryBufferRef(ImageStr, ""));
+  if (!BinaryOrErr) {
+    llvm::consumeError(BinaryOrErr.takeError());
+    return __tgt_image_info{};
+  }
+
+  return __tgt_image_info{(*BinaryOrErr)->getArch().data()};
+}
+
 void RTLsTy::registerRequires(int64_t Flags) {
   // TODO: add more elaborate check.
   // Minimal check: only set requires flags if previous value
@@ -350,17 +417,30 @@ void RTLsTy::initAllRTLs() {
 
 void RTLsTy::registerLib(__tgt_bin_desc *Desc) {
   PM->RTLsMtx.lock();
+
+  // Extract the exectuable image and extra information if availible.
+  for (int32_t i = 0; i < Desc->NumDeviceImages; ++i)
+    PM->Images.emplace_back(getExecutableImage(&Desc->DeviceImages[i]),
+                            getImageInfo(&Desc->DeviceImages[i]));
+
   // Register the images with the RTLs that understand them, if any.
-  for (int32_t I = 0; I < Desc->NumDeviceImages; ++I) {
-    // Obtain the image.
-    __tgt_device_image *Img = &Desc->DeviceImages[I];
+  for (auto &ImageAndInfo : PM->Images) {
+    // Obtain the image and information that was previously extracted.
+    __tgt_device_image *Img = &ImageAndInfo.first;
+    __tgt_image_info *Info = &ImageAndInfo.second;
 
     RTLInfoTy *FoundRTL = nullptr;
 
     // Scan the RTLs that have associated images until we find one that supports
     // the current image.
     for (auto &R : AllRTLs) {
-      if (!R.is_valid_binary(Img)) {
+      if (R.is_valid_binary_info) {
+        if (!R.is_valid_binary_info(Img, Info)) {
+          DP("Image " DPxMOD " is NOT compatible with RTL %s!\n",
+             DPxPTR(Img->ImageStart), R.RTLName.c_str());
+          continue;
+        }
+      } else if (!R.is_valid_binary(Img)) {
         DP("Image " DPxMOD " is NOT compatible with RTL %s!\n",
            DPxPTR(Img->ImageStart), R.RTLName.c_str());
         continue;
@@ -412,9 +492,10 @@ void RTLsTy::unregisterLib(__tgt_bin_desc *Desc) {
 
   PM->RTLsMtx.lock();
   // Find which RTL understands each image, if any.
-  for (int32_t I = 0; I < Desc->NumDeviceImages; ++I) {
-    // Obtain the image.
-    __tgt_device_image *Img = &Desc->DeviceImages[I];
+  for (auto &ImageAndInfo : PM->Images) {
+    // Obtain the image and information that was previously extracted.
+    __tgt_device_image *Img = &ImageAndInfo.first;
+    __tgt_image_info *Info = &ImageAndInfo.second;
 
     RTLInfoTy *FoundRTL = NULL;
 
@@ -424,9 +505,15 @@ void RTLsTy::unregisterLib(__tgt_bin_desc *Desc) {
 
       assert(R->IsUsed && "Expecting used RTLs.");
 
-      if (!R->is_valid_binary(Img)) {
-        DP("Image " DPxMOD " is NOT compatible with RTL " DPxMOD "!\n",
-           DPxPTR(Img->ImageStart), DPxPTR(R->LibraryHandler));
+      if (R->is_valid_binary_info) {
+        if (!R->is_valid_binary_info(Img, Info)) {
+          DP("Image " DPxMOD " is NOT compatible with RTL %s!\n",
+             DPxPTR(Img->ImageStart), R->RTLName.c_str());
+          continue;
+        }
+      } else if (!R->is_valid_binary(Img)) {
+        DP("Image " DPxMOD " is NOT compatible with RTL %s!\n",
+           DPxPTR(Img->ImageStart), R->RTLName.c_str());
         continue;
       }
 
@@ -496,7 +583,6 @@ void RTLsTy::unregisterLib(__tgt_bin_desc *Desc) {
 
   PM->TblMapMtx.unlock();
 
-  // TODO: Remove RTL and the devices it manages if it's not used anymore?
   // TODO: Write some RTL->unload_image(...) function?
 
   DP("Done unregistering library!\n");
