@@ -97,7 +97,7 @@ language constructs (2) The instrumentation that handles capturing the
 relevant metadata.
 
 1. In order to capture end-user source code information, we have implemented
-`cl::sycl::detail::code_location` class that uses the builtin functions
+`sycl::detail::code_location` class that uses the builtin functions
 in the compiler. However, equivalent implementations are unavailable on
 Windows and separate cross-platform implementation might be used in the
 future. To mitigate this, the Windows implementation will always report
