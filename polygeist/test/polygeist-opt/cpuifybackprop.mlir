@@ -316,8 +316,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
 // CHECK-NEXT:                %14 = memref.load %13[] : memref<i32>
 // CHECK-NEXT:                %15 = arith.sitofp %14 : i32 to f32
 // CHECK-NEXT:                %16 = arith.cmpf ule, %15, %cst_0 : f32
-// CHECK-NEXT:                %17 = arith.cmpi eq, %c0, %arg8 : index
-// CHECK-NEXT:                %18 = arith.cmpi eq, %c0, %arg9 : index
+// CHECK-NEXT:                %17 = arith.cmpi eq, %arg8, %c0 : index
+// CHECK-NEXT:                %18 = arith.cmpi eq, %arg9, %c0 : index
 // CHECK-NEXT:                %19 = arith.andi %18, %17 : i1
 // CHECK-NEXT:                scf.if %19 {
 // CHECK-NEXT:                  memref.store %16, %10[] : memref<i1>

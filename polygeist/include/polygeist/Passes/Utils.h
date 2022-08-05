@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/IntegerSet.h"
 
@@ -66,13 +66,13 @@ static inline mlir::Region &getThenRegion(mlir::scf::IfOp op) {
   return op.getThenRegion();
 }
 static inline mlir::Region &getThenRegion(mlir::AffineIfOp op) {
-  return op.thenRegion();
+  return op.getThenRegion();
 }
 static inline mlir::Region &getElseRegion(mlir::scf::IfOp op) {
   return op.getElseRegion();
 }
 static inline mlir::Region &getElseRegion(mlir::AffineIfOp op) {
-  return op.elseRegion();
+  return op.getElseRegion();
 }
 
 static inline mlir::scf::YieldOp getThenYield(mlir::scf::IfOp op) {
@@ -105,5 +105,5 @@ static inline bool hasElse(mlir::scf::IfOp op) {
   return op.getElseRegion().getBlocks().size() > 0;
 }
 static inline bool hasElse(mlir::AffineIfOp op) {
-  return op.elseRegion().getBlocks().size() > 0;
+  return op.getElseRegion().getBlocks().size() > 0;
 }

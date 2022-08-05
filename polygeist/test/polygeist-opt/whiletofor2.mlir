@@ -80,7 +80,7 @@ module {
 // CHECK-DAG:     %true = arith.constant true
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %0 = arith.cmpi ult, %c0_i32, %arg0 : i32
+// CHECK-NEXT:     %0 = arith.cmpi ugt, %arg0, %c0_i32 : i32
 // CHECK-NEXT:     %1:2 = scf.if %0 -> (i32, f32) {
 // CHECK-NEXT:       %2 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:       %3:3 = scf.for %arg1 = %c0 to %2 step %c1 iter_args(%arg2 = %c0_i32, %arg3 = %[[cst_0]], %arg4 = %true) -> (i32, f32, i1) {
@@ -110,7 +110,7 @@ module {
 // CHECK-DAG:     %true = arith.constant true
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %0 = arith.cmpi ult, %c0_i32, %arg0 : i32
+// CHECK-NEXT:     %0 = arith.cmpi ugt, %arg0, %c0_i32 : i32
 // CHECK-NEXT:     %1:2 = scf.if %0 -> (i32, f32) {
 // CHECK-NEXT:       %2 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:       %3:3 = scf.for %arg1 = %c0 to %2 step %c1 iter_args(%arg2 = %c0_i32, %arg3 = %[[cst_0]], %arg4 = %true) -> (i32, f32, i1) {
@@ -145,7 +145,7 @@ module {
 // CHECK-DAG:     %true = arith.constant true
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
-// CHECK-DAG:     %0 = arith.cmpi slt, %c0_i32, %arg2 : i32
+// CHECK-DAG:     %0 = arith.cmpi sgt, %arg2, %c0_i32 : i32
 // CHECK-DAG:     %1:2 = scf.if %0 -> (i8, i32) {
 // CHECK-DAG:       %2 = arith.index_cast %arg2 : i32 to index
 // CHECK-NEXT:       %3:3 = scf.for %arg5 = %c0 to %2 step %c1 iter_args(%arg6 = %arg0, %arg7 = %c0_i32, %arg8 = %true) -> (i8, i32, i1) {

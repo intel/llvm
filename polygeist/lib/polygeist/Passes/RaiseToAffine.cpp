@@ -4,8 +4,8 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -142,7 +142,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       auto mergedYieldOp =
           cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
 
-      Block &newBlock = affineLoop.region().front();
+      Block &newBlock = affineLoop.getRegion().front();
 
       // The terminator is added if the iterator args are not provided.
       // see the ::build method.
@@ -152,8 +152,8 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       }
 
       SmallVector<Value> vals;
-      rewriter.setInsertionPointToStart(&affineLoop.region().front());
-      for (Value arg : affineLoop.region().front().getArguments()) {
+      rewriter.setInsertionPointToStart(&affineLoop.getRegion().front());
+      for (Value arg : affineLoop.getRegion().front().getArguments()) {
         if (rewrittenStep && arg == affineLoop.getInductionVar()) {
           arg = rewriter.create<AddIOp>(
               loop.getLoc(), loop.getLowerBound(),
@@ -163,7 +163,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       }
       assert(vals.size() == loop.getRegion().front().getNumArguments());
       rewriter.mergeBlocks(&loop.getRegion().front(),
-                           &affineLoop.region().front(), vals);
+                           &affineLoop.getRegion().front(), vals);
 
       rewriter.setInsertionPoint(mergedYieldOp);
       rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
@@ -186,8 +186,8 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundsOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundsOperands());
 
-    auto lbMap = forOp.lowerBoundsMap();
-    auto ubMap = forOp.upperBoundsMap();
+    auto lbMap = forOp.getLowerBoundsMap();
+    auto ubMap = forOp.getUpperBoundsMap();
 
     auto *scope = getAffineScope(forOp)->getParentOp();
     DominanceInfo DI(scope);
@@ -240,7 +240,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     auto mergedYieldOp =
         cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
 
-    Block &newBlock = affineLoop.region().front();
+    Block &newBlock = affineLoop.getRegion().front();
 
     // The terminator is added if the iterator args are not provided.
     // see the ::build method.
@@ -250,11 +250,11 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     }
 
     SmallVector<Value> vals;
-    for (Value arg : affineLoop.region().front().getArguments()) {
+    for (Value arg : affineLoop.getRegion().front().getArguments()) {
       vals.push_back(arg);
     }
     rewriter.mergeBlocks(&loop.getRegion().front(),
-                         &affineLoop.region().front(), vals);
+                         &affineLoop.getRegion().front(), vals);
 
     rewriter.setInsertionPoint(mergedYieldOp);
     rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),

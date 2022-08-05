@@ -23,7 +23,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/Passes.h"
@@ -1196,7 +1196,7 @@ bool Mem2Reg::forwardStoreToLoad(
       }
 
       if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
-        if (storeOp.value() == val) {
+        if (storeOp.getValue() == val) {
           captured = true;
         } else if (!modified) {
           switch (matchesIndices(storeOp.getAffineMapAttr().getValue(),
@@ -1500,9 +1500,9 @@ bool Mem2Reg::forwardStoreToLoad(
               }
               continue;
             } else if (auto ifOp = dyn_cast<mlir::AffineIfOp>(a)) {
-              handleBlock(*ifOp.thenRegion().begin(), lastVal);
-              if (ifOp.elseRegion().getBlocks().size()) {
-                handleBlock(*ifOp.elseRegion().begin(), lastVal);
+              handleBlock(*ifOp.getThenRegion().begin(), lastVal);
+              if (ifOp.getElseRegion().getBlocks().size()) {
+                handleBlock(*ifOp.getElseRegion().begin(), lastVal);
                 lastVal = metaMap.get(ifOp, emptyValue);
               } else {
                 lastVal = metaMap.get(ifOp, lastVal);
@@ -2022,7 +2022,7 @@ void Mem2Reg::runOnOperation() {
             }
             toErase.push_back(U);
           } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
-            if (SO.value() == val) {
+            if (SO.getValue() == val) {
               error = true;
               break;
             }

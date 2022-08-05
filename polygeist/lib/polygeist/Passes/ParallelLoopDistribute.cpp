@@ -12,8 +12,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -477,7 +477,7 @@ static bool isNormalized(AffineParallelOp op) {
       return ce.getValue() == 0;
     return false;
   };
-  return llvm::all_of(op.lowerBoundsMap().getResults(), isZero) &&
+  return llvm::all_of(op.getLowerBoundsMap().getResults(), isZero) &&
          llvm::all_of(op.getSteps(), [](int64_t s) { return s == 1; });
 }
 
@@ -608,12 +608,12 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
       if (v == std::get<0>(en.value()))
         found = true;
     if (found) {
-      innerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
-      innerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
+      innerLower.push_back(op.getLowerBoundsMap().getSliceMap(en.index(), 1));
+      innerUpper.push_back(op.getUpperBoundsMap().getSliceMap(en.index(), 1));
       innerStep.push_back(std::get<1>(en.value()));
     } else {
-      outerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
-      outerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
+      outerLower.push_back(op.getLowerBoundsMap().getSliceMap(en.index(), 1));
+      outerUpper.push_back(op.getUpperBoundsMap().getSliceMap(en.index(), 1));
       outerStep.push_back(std::get<1>(en.value()));
     }
     idx++;
@@ -638,16 +638,16 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
     auto expr = (std::get<1>(tup).getResult(0) -
                  std::get<0>(tup)
                      .getResult(0)
-                     .shiftDims(op.lowerBoundsMap().getNumDims(),
-                                op.upperBoundsMap().getNumDims())
-                     .shiftSymbols(op.lowerBoundsMap().getNumSymbols(),
-                                   op.upperBoundsMap().getNumSymbols()))
+                     .shiftDims(op.getLowerBoundsMap().getNumDims(),
+                                op.getUpperBoundsMap().getNumDims())
+                     .shiftSymbols(op.getLowerBoundsMap().getNumSymbols(),
+                                   op.getUpperBoundsMap().getNumSymbols()))
                     .floorDiv(std::get<2>(tup));
     SmallVector<Value> symbols;
     SmallVector<Value> dims;
     size_t idx = 0;
     for (auto v : op.getUpperBoundsOperands()) {
-      if (idx < op.upperBoundsMap().getNumDims())
+      if (idx < op.getUpperBoundsMap().getNumDims())
         dims.push_back(v);
       else
         symbols.push_back(v);
@@ -655,7 +655,7 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
     }
     idx = 0;
     for (auto v : op.getLowerBoundsOperands()) {
-      if (idx < op.lowerBoundsMap().getNumDims())
+      if (idx < op.getLowerBoundsMap().getNumDims())
         dims.push_back(v);
       else
         symbols.push_back(v);
@@ -1268,7 +1268,7 @@ mlir::OperandRange getLowerBounds(scf::ParallelOp op,
 SmallVector<Value> getLowerBounds(AffineParallelOp op,
                                   PatternRewriter &rewriter) {
   SmallVector<Value> vals;
-  for (AffineExpr expr : op.lowerBoundsMap().getResults()) {
+  for (AffineExpr expr : op.getLowerBoundsMap().getResults()) {
     vals.push_back(rewriter
                        .create<AffineApplyOp>(op.getLoc(), expr,
                                               op.getLowerBoundsOperands())

@@ -91,7 +91,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
         codegenops(codegenops),
-        CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
+        CGM(astContext, &SM.getFileManager().getVirtualFileSystem(), PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {

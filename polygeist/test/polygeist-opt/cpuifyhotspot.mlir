@@ -453,8 +453,8 @@ module {
 // CHECK-NEXT:                  %89 = memref.load %88[] : memref<i1>
 // CHECK-NEXT:                  %90 = arith.cmpi slt, %83, %45 : i32
 // CHECK-NEXT:                  %91 = arith.andi %90, %89 : i1
-// CHECK-NEXT:                  %92 = arith.cmpi eq, %c0, %arg15 : index
-// CHECK-NEXT:                  %93 = arith.cmpi eq, %c0, %arg16 : index
+// CHECK-NEXT:                  %92 = arith.cmpi eq, %arg15, %c0 : index
+// CHECK-NEXT:                  %93 = arith.cmpi eq, %arg16, %c0 : index
 // CHECK-NEXT:                  %94 = arith.andi %93, %92 : i1
 // CHECK-NEXT:                  scf.if %94 {
 // CHECK-NEXT:                    memref.store %91, %79[] : memref<i1>

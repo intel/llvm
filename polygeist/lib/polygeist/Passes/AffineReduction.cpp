@@ -40,8 +40,8 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   bool haveSameIndices(AffineLoadOp load, T storeOrLoad) const {
     static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
                   "applies to only AffineLoadOp or AffineStoreOp");
-    SmallVector<Value, 4> loadIndices(load.indices());
-    SmallVector<Value, 4> storeOrLoadIndices = storeOrLoad.indices();
+    SmallVector<Value, 4> loadIndices(load.getIndices());
+    SmallVector<Value, 4> storeOrLoadIndices = storeOrLoad.getIndices();
     if (loadIndices.size() != storeOrLoadIndices.size())
       return false;
     return std::equal(loadIndices.begin(), loadIndices.end(),
@@ -97,7 +97,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     SmallVector<SmallVector<Operation *>> loadsInFor;
     block->walk([&](Operation *operation) {
       if (auto load = dyn_cast<AffineLoadOp>(operation)) {
-        SmallVector<Value, 4> indices(load.indices());
+        SmallVector<Value, 4> indices(load.getIndices());
         // skip load if all dimensions are not reduced.
         if (!hasAllDimsReduced(indices, forOp.getInductionVar()))
           return WalkResult::advance();
@@ -242,7 +242,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       rewriter.create<AffineStoreOp>(
           newForOp.getLoc(),
           newForOp.getResults()[forOp.getResults().size() + i],
-          store.getMemRef(), store.getAffineMap(), store.indices());
+          store.getMemRef(), store.getAffineMap(), store.getIndices());
       rewriter.eraseOp(std::get<1>(pair));
       ++i;
     }

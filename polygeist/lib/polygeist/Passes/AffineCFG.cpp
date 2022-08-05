@@ -3,7 +3,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/FunctionInterfaces.h"
@@ -824,8 +824,8 @@ struct CanonicalizeAffineApply : public OpRewritePattern<AffineApplyOp> {
   LogicalResult matchAndRewrite(AffineApplyOp affineOp,
                                 PatternRewriter &rewriter) const override {
 
-    SmallVector<Value, 4> mapOperands(affineOp.mapOperands());
-    auto map = affineOp.map();
+    SmallVector<Value, 4> mapOperands(affineOp.getMapOperands());
+    auto map = affineOp.getMap();
     auto prevMap = map;
 
     auto *scope = getAffineScope(affineOp)->getParentOp();
@@ -1255,8 +1255,8 @@ void AffineFixup<AffinePrefetchOp>::replaceAffineOp(
     PatternRewriter &rewriter, AffinePrefetchOp prefetch, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<AffinePrefetchOp>(
-      prefetch, prefetch.memref(), map, mapOperands, prefetch.localityHint(),
-      prefetch.isWrite(), prefetch.isDataCache());
+      prefetch, prefetch.getMemref(), map, mapOperands, prefetch.getLocalityHint(),
+      prefetch.getIsWrite(), prefetch.getIsDataCache());
 }
 template <>
 void AffineFixup<AffineStoreOp>::replaceAffineOp(
@@ -1431,10 +1431,10 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
           ifOp.elseYield(), ifOp.elseYield().getOperands());
     }
 
-    rewriter.inlineRegionBefore(ifOp.getThenRegion(), affineIfOp.thenRegion(),
-                                affineIfOp.thenRegion().begin());
-    rewriter.inlineRegionBefore(ifOp.getElseRegion(), affineIfOp.elseRegion(),
-                                affineIfOp.elseRegion().begin());
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(), affineIfOp.getThenRegion(),
+                                affineIfOp.getThenRegion().begin());
+    rewriter.inlineRegionBefore(ifOp.getElseRegion(), affineIfOp.getElseRegion(),
+                                affineIfOp.getElseRegion().begin());
 
     rewriter.replaceOp(ifOp, affineIfOp.getResults());
     return success();

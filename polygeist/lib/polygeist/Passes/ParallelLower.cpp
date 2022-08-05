@@ -23,7 +23,7 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -420,8 +420,8 @@ void ParallelLower::runOnOperation() {
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      builder.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.value(),
-                                                  storeOp.memref(), indices);
+      builder.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.getValue(),
+                                                  storeOp.getMemref(), indices);
     });
 
     container.walk([&](AffineLoadOp storeOp) {
@@ -433,7 +433,7 @@ void ParallelLower::runOnOperation() {
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      builder.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.memref(),
+      builder.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.getMemref(),
                                                  indices);
     });
     builder.eraseOp(launchOp);

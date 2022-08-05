@@ -5,8 +5,8 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
@@ -258,17 +258,17 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     for (auto step : llvm::enumerate(looplike.getSteps())) {
       for (auto ub : looplike.getUpperBoundMap(step.index()).getResults()) {
         SmallVector<AffineExpr, 4> symbols;
-        for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumSymbols();
+        for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumSymbols();
              ++idx)
           symbols.push_back(getAffineSymbolExpr(
-              idx + looplike.lowerBoundsMap().getNumSymbols(),
+              idx + looplike.getLowerBoundsMap().getNumSymbols(),
               looplike.getContext()));
 
         SmallVector<AffineExpr, 4> dims;
-        for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumDims();
+        for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumDims();
              ++idx)
           dims.push_back(
-              getAffineDimExpr(idx + looplike.lowerBoundsMap().getNumDims(),
+              getAffineDimExpr(idx + looplike.getLowerBoundsMap().getNumDims(),
                                looplike.getContext()));
 
         ub = ub.replaceDimsAndSymbols(dims, symbols);
@@ -286,28 +286,28 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     SmallVector<Value> values;
     auto lb_ops = looplike.getLowerBoundsOperands();
     auto ub_ops = looplike.getUpperBoundsOperands();
-    for (unsigned idx = 0; idx < looplike.lowerBoundsMap().getNumDims();
+    for (unsigned idx = 0; idx < looplike.getLowerBoundsMap().getNumDims();
          ++idx) {
       values.push_back(lb_ops[idx]);
     }
-    for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumDims();
+    for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumDims();
          ++idx) {
       values.push_back(ub_ops[idx]);
     }
-    for (unsigned idx = 0; idx < looplike.lowerBoundsMap().getNumSymbols();
+    for (unsigned idx = 0; idx < looplike.getLowerBoundsMap().getNumSymbols();
          ++idx) {
-      values.push_back(lb_ops[idx + looplike.lowerBoundsMap().getNumDims()]);
+      values.push_back(lb_ops[idx + looplike.getLowerBoundsMap().getNumDims()]);
     }
-    for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumSymbols();
+    for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumSymbols();
          ++idx) {
-      values.push_back(ub_ops[idx + looplike.upperBoundsMap().getNumDims()]);
+      values.push_back(ub_ops[idx + looplike.getUpperBoundsMap().getNumDims()]);
     }
 
     auto iset =
-        IntegerSet::get(/*dim*/ looplike.lowerBoundsMap().getNumDims() +
-                            looplike.upperBoundsMap().getNumDims(),
-                        /*symbols*/ looplike.lowerBoundsMap().getNumSymbols() +
-                            looplike.upperBoundsMap().getNumSymbols(),
+        IntegerSet::get(/*dim*/ looplike.getLowerBoundsMap().getNumDims() +
+                            looplike.getUpperBoundsMap().getNumDims(),
+                        /*symbols*/ looplike.getLowerBoundsMap().getNumSymbols() +
+                            looplike.getUpperBoundsMap().getNumSymbols(),
                         exprs, eqflags);
     auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset,
                                      values, /*else*/ false);

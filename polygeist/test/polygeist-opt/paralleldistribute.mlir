@@ -68,7 +68,7 @@ module {
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:           %5 = memref.load %[[i1]][%arg1] : memref<2xi8>
 // CHECK-NEXT:           %6 = arith.cmpi ne, %5, %c0_i8 : i8
-// CHECK-NEXT:           %7 = arith.cmpi eq, %c0, %arg1 : index
+// CHECK-NEXT:           %7 = arith.cmpi eq, %arg1, %c0 : index
 // CHECK-NEXT:           scf.if %7 {
 // CHECK-NEXT:             memref.store %6, %3[] : memref<i1>
 // CHECK-NEXT:           }

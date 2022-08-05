@@ -12,7 +12,7 @@
 #include "TypeUtils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
