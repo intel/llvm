@@ -210,7 +210,9 @@ async function stop(label) {
     const label = core.getInput("label");
     if (mode == "start") {
       for (let c of runs_on_list) {
-        if (c["aws-type"]) await start(c["aws-type"], c["runs-on"], c["aws-ami"], c["aws-spot"], c["aws-disk"], c["aws-timebomb"], c["one-job"]);
+        const label = c["runs-on"];
+        if (c["aws-type"]) await start(c["aws-type"], label, c["aws-ami"], c["aws-spot"], c["aws-disk"], c["aws-timebomb"], c["one-job"]);
+        else core.info(`Skipping ${label} config`);
       }
     } else if (mode == "stop") {
       // last error that will be thrown in case something will break here
