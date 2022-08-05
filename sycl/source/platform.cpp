@@ -52,22 +52,21 @@ std::vector<platform> platform::get_platforms() {
 
 backend platform::get_backend() const noexcept { return getImplBackend(impl); }
 
-template <info::platform param>
-typename info::param_traits<info::platform, param>::return_type
+template <typename Param>
+typename detail::is_platform_info_desc<Param>::return_type
 platform::get_info() const {
-  return impl->get_info<param>();
+  return impl->get_info<Param>();
 }
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type                                              \
-  platform::get_info<info::param_type::param>() const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
+      const;
 
 #include <sycl/info/platform_traits.def>
-
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {
