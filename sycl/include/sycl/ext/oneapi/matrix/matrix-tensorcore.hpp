@@ -218,10 +218,7 @@ struct joint_matrix_load_impl<
   void load(sycl::ext::oneapi::experimental::matrix::joint_matrix<
                 S, Use, NumRows, NumCols, Layout, sycl::sub_group> &res,
             multi_ptr<T, Space> src, size_t stride) {
-    if constexpr (std::is_same<T, uint16_t>::value ||
-                  std::is_same<std::remove_const_t<T>, uint16_t>::value ||
-                  std::is_same<
-                      T, sycl::ext::oneapi::experimental::bfloat16>::value ||
+    if constexpr (std::is_same<std::remove_const_t<T>, uint16_t>::value ||
                   std::is_same<
                       std::remove_const_t<T>,
                       sycl::ext::oneapi::experimental::bfloat16>::value) {
@@ -250,8 +247,7 @@ struct joint_matrix_load_impl<
         __mma_bf16_m32n8k16_ld_b(destptr, tileptr, stride,
                                  get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, uint8_t>::value ||
-                         std::is_same<std::remove_const_t<T>, uint8_t>::value) {
+    } else if constexpr (std::is_same<std::remove_const_t<T>, uint8_t>::value) {
       auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -277,8 +273,7 @@ struct joint_matrix_load_impl<
         __imma_m32n8k16_ld_b_u8(destptr, tileptr, stride,
                                 get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, int8_t>::value ||
-                         std::is_same<std::remove_const_t<T>, int8_t>::value) {
+    } else if constexpr (std::is_same<std::remove_const_t<T>, int8_t>::value) {
       auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -304,8 +299,7 @@ struct joint_matrix_load_impl<
         __imma_m32n8k16_ld_b_s8(destptr, tileptr, stride,
                                 get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, half>::value ||
-                         std::is_same<std::remove_const_t<T>, half>::value) {
+    } else if constexpr (std::is_same<std::remove_const_t<T>, half>::value) {
       auto tileptr = reinterpret_cast<const int32_t *>(src.get());
       auto dstptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
@@ -338,8 +332,7 @@ struct joint_matrix_load_impl<
                                  get_layout_id<Layout>());
       }
 
-    } else if constexpr (std::is_same<T, int32_t>::value ||
-                         std::is_same<std::remove_const_t<T>, int32_t>::value) {
+    } else if constexpr (std::is_same<std::remove_const_t<T>, int32_t>::value) {
       auto destptr = reinterpret_cast<int32_t *>(&res.wi_marray);
       if constexpr (NumRows == 16 && NumCols == 16) {
         __imma_m16n16k16_ld_c(destptr, src.get(), stride,
@@ -351,8 +344,7 @@ struct joint_matrix_load_impl<
         __imma_m32n8k16_ld_c(destptr, src.get(), stride,
                              get_layout_id<Layout>());
       }
-    } else if constexpr (std::is_same<T, float>::value ||
-                         std::is_same<std::remove_const_t<T>, float>::value) {
+    } else if constexpr (std::is_same<std::remove_const_t<T>, float>::value) {
       if constexpr (std::is_same<S, float>::value) {
         auto dstptr = reinterpret_cast<float *>(&res.wi_marray);
         if constexpr (NumRows == 16 && NumCols == 16) {
@@ -378,8 +370,7 @@ struct joint_matrix_load_impl<
                                    get_layout_id<Layout>());
         }
       }
-    } else if constexpr (std::is_same<T, double>::value ||
-                         std::is_same<std::remove_const_t<T>, double>::value) {
+    } else if constexpr (std::is_same<std::remove_const_t<T>, double>::value) {
       auto dstptr = reinterpret_cast<double *>(&res.wi_marray);
       if constexpr (Use ==
                     sycl::ext::oneapi::experimental::matrix::matrix_use::a) {
@@ -704,11 +695,10 @@ namespace matrix {
 template <
     typename Group, typename S, typename T, matrix_use Use, size_t NumRows,
     size_t NumCols, matrix_layout Layout, access::address_space Space,
-    std::enable_if_t<std::is_same<S, T>::value ||
-                         std::is_same<S, std::remove_const_t<T>>::value ||
+    std::enable_if_t<std::is_same<S, std::remove_const_t<T>>::value ||
                          (std::is_same<S, precision::tf32>::value &&
-                          (std::is_same<T, float>::value ||
-                           std::is_same<std::remove_const_t<T>, float>::value)),
+
+                          std::is_same<std::remove_const_t<T>, float>::value),
                      bool> = true>
 void joint_matrix_load(
     Group sg, joint_matrix<S, Use, NumRows, NumCols, Layout, Group> &res,
