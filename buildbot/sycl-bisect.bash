@@ -18,7 +18,9 @@ while true; do
   case "$1" in
     '-h'|'--help')
       cat <<HELP
-Usage: $0 [opts] <bad commit> [<good commit>...]
+Usage:
+
+$0 [opts] <bad commit> [<good commit>...]
 
   -h,--help                       Print this help message
   -t,--test <test>                Test commits with LIT test <test>, a test file
@@ -31,6 +33,14 @@ Usage: $0 [opts] <bad commit> [<good commit>...]
                                   command to skip commits or stop bisection. If
                                   this option is not present, any non-zero
                                   return value is interpreted as a bad commit.
+
+Examples:
+
+"Clang :: SemaSYCL/accessor_inheritance.cpp" started failing on sycl-web because
+of one of the commits merged by 96f730774ac4. To find which one of these 96
+commits caused this test failure, sycl-bisect.bash can be run like this:
+
+$ buildbot/sycl-bisect.bash 96f730774ac4 96f730774ac4^ --test clang/test/SemaSYCL/accessor_inheritance.cpp
 HELP
       exit 0
       ;;
