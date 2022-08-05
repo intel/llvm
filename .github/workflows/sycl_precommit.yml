@@ -50,4 +50,3 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
-      lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}

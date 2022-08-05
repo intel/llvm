@@ -28,18 +28,20 @@ function rejectDelay(reason) {
 }
 
 // starts AWS EC2 instance that will spawn Github runner for a given label
-async function start(label) {
+async function start(param_type, param_label, param_ami, param_spot, param_disk, param_timebomb, param_onejob) {
   const ec2 = new AWS.EC2();
 
   // we better keep GH_PERSONAL_ACCESS_TOKEN here and do not pass it to AWS EC2
   // userscript so it will keep secret
   const reg_token    = await getGithubRegToken();
-  const timebomb     = core.getInput("aws-timebomb");
-  const raw_ec2types = JSON.parse(core.getInput("aws-type"));
+  const raw_ec2types = JSON.parse(param_type);
   const ec2types     = typeof raw_ec2types == "string" ? [ raw_ec2types ] : raw_ec2types;
-  const ec2disk      = core.getInput("aws-disk");
-  const ec2spot      = core.getInput("aws-spot") != "false";
-  const onejob       = core.getInput("one-job") != "false";
+  const label        = param_label;
+  const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
+  const ec2spot      = typeof param_spot     !== 'undefined' ? param_spot : true;
+  const ec2disk      = typeof param_disk     !== 'undefined' ? param_disk : "/dev/sda1:16";
+  const timebomb     = typeof param_timebomb !== 'undefined' ? param_timebomb : "1h";
+  const onejob       = typeof param_onejob   !== 'undefined' ? param_onejob : true;
   // ephemeral runner will exit after one job so we will terminate instance sooner
   const ephemeral_str = onejob ? "--ephemeral" : "";
 
@@ -67,7 +69,7 @@ async function start(label) {
       ];
       try {
         let params = {
-          ImageId:      core.getInput("aws-ami"),
+          ImageId:      ec2ami,
           InstanceType: ec2type,
           UserData:     Buffer.from(setup_github_actions_runner.join('\n')).toString('base64'),
           MinCount:     1,
@@ -202,12 +204,27 @@ async function stop(label) {
     });
     // mode is start or stop
     const mode = core.getInput("mode");
+    const runs_on_list = JSON.parse(core.getInput("runs-on-list"));
+
     // label used to indentify AWS EC2 instances and Github runners
     const label = core.getInput("label");
     if (mode == "start") {
-      await start(label);
+      for (let c of runs_on_list) {
+        if (c["aws-type"]) await start(c["aws-type"], c["runs-on"], c["aws-ami"], c["aws-spot"], c["aws-disk"], c["aws-timebomb"], c["one-job"]);
+      }
     } else if (mode == "stop") {
-      await stop(label);
+      // last error that will be thrown in case something will break here
+      let last_error;
+      for (let c of runs_on_list) {
+        const label = c["runs-on"];
+        try {
+          if (c["aws-type"]) await stop(label);
+        } catch (error) {
+          core.error(`Error removing runner with ${label}`);
+          last_error = error;
+        }
+      }
+      if (last_error) throw last_error;
     }
   } catch (error) {
     core.error(error);
