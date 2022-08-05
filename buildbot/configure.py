@@ -13,7 +13,7 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
       os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw'
+    llvm_external_projects = 'sycl;llvm-spirv;opencl;libdevice;xpti;xptifw;mlir;mlir-sycl;polygeist'
 
     libclc_amd_target_names = ';amdgcn--;amdgcn--amdhsa'
     libclc_nvidia_target_names = 'nvptx64--;nvptx64--nvidiacl'
@@ -27,6 +27,9 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
+    mlir_dir = os.path.join(abs_src_dir, "mlir")
+    mlir_sycl_dir = os.path.join(abs_src_dir, "mlir-sycl")
+    polygeist_dir = os.path.join(abs_src_dir, "polygeist")
     llvm_targets_to_build = 'X86'
     llvm_enable_projects = 'clang;' + llvm_external_projects
     libclc_targets_to_build = ''
@@ -136,6 +139,9 @@ def do_configure(args):
         "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
+        "-DLLVM_EXTERNAL_MLIR_SOURCE_DIR={}".format(mlir_dir),
+        "-DLLVM_EXTERNAL_MLIR_SYCL_SOURCE_DIR={}".format(mlir_sycl_dir),
+        "-DLLVM_EXTERNAL_POLYGEIST_SOURCE_DIR={}".format(polygeist_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
         "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants),
