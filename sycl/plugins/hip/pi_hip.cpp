@@ -3761,9 +3761,9 @@ pi_result hip_piextEventCreateWithNativeHandle(pi_native_handle nativeHandle,
   assert(!ownNativeHandle);
 
   std::unique_ptr<_pi_event> event_ptr{nullptr};
-
-  *event = _pi_event::make_with_native(context,
-                                       reinterpret_cast<hipEvent_t>(nativeHandle));
+  
+  *event = _pi_event::make_with_native(
+      context, reinterpret_cast<hipEvent_t>(nativeHandle));
 
   return PI_SUCCESS;
 }
