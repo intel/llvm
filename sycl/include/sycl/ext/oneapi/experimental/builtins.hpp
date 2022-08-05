@@ -29,15 +29,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
-
-namespace intel {
-namespace esimd {
-namespace detail {
-template <typename> struct is_one_element_simd_view;
-} // namespace detail
-} // namespace esimd
-} // namespace intel
-
 namespace oneapi {
 namespace experimental {
 namespace detail {
@@ -57,16 +48,6 @@ uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
 template <typename T, typename SFINAE = void>
 struct printf_arument_type_traits {
   using type = T;
-};
-
-// simd_view to one element needs conversion to underlying element type
-// for proper output.
-template <typename T>
-struct printf_arument_type_traits<
-    T,
-    std::enable_if_t<
-        sycl::ext::intel::esimd::detail::is_one_element_simd_view<T>::value>> {
-  using type = typename T::element_type;
 };
 
 template <typename T>

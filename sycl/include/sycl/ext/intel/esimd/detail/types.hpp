@@ -411,4 +411,20 @@ bitcast(vector_type_t<FromEltTy, FromN> Val) {
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;
 
 } // namespace __ESIMD_NS
+
+namespace sycl::ext::oneapi::experimental {
+
+template <typename, typename> struct printf_arument_type_traits;
+
+// simd_view to one element needs conversion to underlying element type
+// for proper output.
+template <typename T>
+struct printf_arument_type_traits<
+    T,
+    std::enable_if_t<
+        sycl::ext::intel::esimd::detail::is_one_element_simd_view<T>::value>> {
+  using type = typename T::element_type;
+};
+} // namespace sycl::ext::oneapi::experimental
+
 } // __SYCL_INLINE_NAMESPACE(cl)
