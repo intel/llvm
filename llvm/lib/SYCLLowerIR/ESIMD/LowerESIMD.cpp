@@ -1643,7 +1643,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
 
   size_t AmountOfESIMDIntrCalls = 0;
   for (auto &F : M.functions()) {
-    AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+    if (F.getMetadata("sycl_explicit_simd") != nullptr) {
+      AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+    }
   }
 
   // TODO FIXME ESIMD figure out less conservative result
