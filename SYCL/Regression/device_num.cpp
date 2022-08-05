@@ -5,9 +5,6 @@
 // RUN: env SYCL_DEVICE_FILTER=2 env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
 // RUN: env SYCL_DEVICE_FILTER=3 env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %t.out
 
-// The test is using all available BEs but CUDA machine in CI does not have
-// functional OpenCL RT
-// UNSUPPORTED: cuda || hip
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
 
@@ -29,7 +26,9 @@ const std::map<backend, std::string> BackendStringMap = {
     {backend::opencl, "opencl"},
     {backend::host, "host"},
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
-    {backend::ext_intel_esimd_emulator, "ext_intel_esimd_emulator"}};
+    {backend::ext_intel_esimd_emulator, "ext_intel_esimd_emulator"},
+    {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
+    {backend::ext_oneapi_hip, "ext_oneapi_hip"}};
 
 std::string getDeviceTypeName(const device &d) {
   auto DeviceType = d.get_info<info::device::device_type>();
