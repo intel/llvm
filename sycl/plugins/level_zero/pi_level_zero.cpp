@@ -670,7 +670,8 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 // \param Event a pointer to hold the newly created pi_event
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
-// \param ForceHostVisible tells if the event must be created in
+// \param IsInternal tells if the event is internal, i.e. visible in the L0
+// plugin only. \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
@@ -5465,9 +5466,9 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
       return Res;
 
     // Create a "proxy" host-visible event.
-    auto Res = createEventAndAssociateQueue(Queue, &HostVisibleEvent,
-                                            PI_COMMAND_TYPE_USER, CommandList);
-    // HostVisibleEvent->CleanedUp = true;
+    auto Res = createEventAndAssociateQueue(
+        Queue, &HostVisibleEvent, PI_COMMAND_TYPE_USER, CommandList,
+        /* IsInternal */ false, /* ForceHostVisible */ true);
     if (Res != PI_SUCCESS)
       return Res;
 
