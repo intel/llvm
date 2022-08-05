@@ -3,6 +3,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64 -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -Wimplicit-float-conversion -Wno-implicit-float-size-conversion -verify=prefer-precision %s
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64 -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -Wno-implicit-float-conversion -verify %s
 
+// This test checks that floating point conversion warnings are emitted correctly when used in conjunction.
+
 #include "sycl.hpp"
 class kernelA;
 

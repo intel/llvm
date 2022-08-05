@@ -18,7 +18,7 @@
 // RUN:   -nostdsysteminc -nobuiltininc -isystem %S/Inputs \
 // RUN:   -triple x86_64-apple-darwin %s -Wno-unreachable-code
 
-// This test checks that conversion warnings are emitted correctly when used in conjunction.
+// This test checks that floating point conversion warnings are emitted correctly when used in conjunction.
 
 #include <conversion.h>
 // expected-no-diagnostics
@@ -30,4 +30,3 @@ float PrecisionLoss = 1.1;
 double PrecisionIncrease = 2.1f;
 // size-change-warning@+1 {{implicit conversion between floating point types of different sizes}}
 float SizeChange = 3.0;
-
