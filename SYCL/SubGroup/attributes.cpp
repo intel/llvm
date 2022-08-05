@@ -145,8 +145,8 @@ int main() {
 
       auto Kernel = TheKernel[0];
 
-      auto Res = Kernel.get_sub_group_info<
-          sycl::info::kernel_sub_group::compile_sub_group_size>(Device);
+      auto Res = Kernel.get_info<
+          sycl::info::kernel_device_specific::compile_sub_group_size>(Device);
 
       exit_if_not_equal<size_t>(Res, ReqdSize, "compile_sub_group_size");
     }

@@ -11,11 +11,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/sycl.hpp>
+
+#include <cassert>
 #include <cstdint>
 #include <iostream>
 #include <string>
 #include <strstream>
-#include <sycl/sycl.hpp>
+#include <type_traits>
 
 using namespace sycl;
 
@@ -175,9 +178,9 @@ template <> std::string info_to_string(device info) {
   return "SYCL OpenCL device";
 }
 
-template <> std::string info_to_string(id<3> info) {
+template <int Dim> std::string info_to_string(id<Dim> info) {
   std::string str;
-  for (size_t i = 0; i < 3; ++i) {
+  for (size_t i = 0; i < Dim; ++i) {
     str += info_to_string(info[i]) + " ";
   }
   return str;
@@ -194,15 +197,21 @@ template <typename T> std::string info_to_string(std::vector<T> info) {
   return str;
 }
 
-template <info::device param, typename T>
+template <typename Param, typename ExpectedReturnT>
 void print_info(const device &dev, const std::string &name) {
-  T result(dev.get_info<param>());
+  static_assert(
+      std::is_same<typename Param::return_type, ExpectedReturnT>::value,
+      "Unexpected info query return type");
+  ExpectedReturnT result = dev.get_info<Param>();
   std::cout << name << ": " << info_to_string(result) << std::endl;
 }
 
-template <info::platform param, typename T>
+template <typename Param, typename ExpectedReturnT>
 void print_info(const platform &plt, const std::string &name) {
-  T result(plt.get_info<param>());
+  static_assert(
+      std::is_same<typename Param::return_type, ExpectedReturnT>::value,
+      "Unexpected info query return type");
+  ExpectedReturnT result(plt.get_info<Param>());
   std::cout << name << ": " << info_to_string(result) << std::endl;
 }
 
@@ -218,8 +227,12 @@ int main() {
       dev, "Max compute units");
   print_info<info::device::max_work_item_dimensions, sycl::cl_uint>(
       dev, "Max work item dimensions");
-  print_info<info::device::max_work_item_sizes, id<3>>(dev,
-                                                       "Max work item sizes");
+  print_info<info::device::max_work_item_sizes<1>, id<1>>(
+      dev, "Max work item sizes 1D");
+  print_info<info::device::max_work_item_sizes<2>, id<2>>(
+      dev, "Max work item sizes 2D");
+  print_info<info::device::max_work_item_sizes<3>, id<3>>(
+      dev, "Max work item sizes 3D");
   print_info<info::device::max_work_group_size, size_t>(dev,
                                                         "Max work group size");
   print_info<info::device::preferred_vector_width_char, sycl::cl_uint>(
