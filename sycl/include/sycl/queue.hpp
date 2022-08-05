@@ -131,8 +131,7 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<
-                DeviceSelector, ext::oneapi::filter_selector>>
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,
                  const property_list &PropList = {})
@@ -144,8 +143,7 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<
-                DeviceSelector, ext::oneapi::filter_selector>>
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const DeviceSelector &deviceSelector,
                  const property_list &PropList = {})
       : queue(detail::select_device(deviceSelector), async_handler{},
@@ -158,8 +156,7 @@ public:
   /// takes a device and returns an int
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<
-                DeviceSelector, ext::oneapi::filter_selector>>
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const property_list &propList = {})
@@ -174,8 +171,7 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   template <typename DeviceSelector,
-            typename = detail::EnableIfDeviceSelectorInvocable<
-                DeviceSelector, ext::oneapi::filter_selector>>
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
   explicit queue(const context &syclContext,
                  const DeviceSelector &deviceSelector,
                  const async_handler &AsyncHandler,

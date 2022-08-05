@@ -19,6 +19,12 @@ namespace sycl {
 // Forward declarations
 class device;
 
+namespace ext {
+namespace oneapi {
+class filter_selector;
+}
+} // namespace ext
+
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.
 ///
@@ -94,13 +100,14 @@ static constexpr int REJECT_DEVICE_SCORE = -1;
 using DSelectorInvocableType = std::function<int(const sycl::device &)>;
 
 #if __cplusplus >= 201703L
+
 // Enable if DeviceSelector callable has matching signature, but
-// exclude if possible parent is not purely callable.
+// exclude if descended from filter_selector which is not purely callable.
 // See [FilterSelector not Callable] in device_selector.cpp
-template <typename DeviceSelector, typename Exclude>
+template <typename DeviceSelector>
 using EnableIfDeviceSelectorInvocable = std::enable_if_t<
     std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
-    !std::is_base_of_v<Exclude, DeviceSelector>>;
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>;
 #endif
 
 __SYCL_EXPORT device
