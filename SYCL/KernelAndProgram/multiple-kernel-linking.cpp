@@ -1,10 +1,10 @@
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 // UNSUPPORTED: ze_debug-1,ze_debug4
 
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel %s -o %t_per_kernel.out
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-device-code-split=per_source %s -o %t_per_source.out
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-device-code-split=off %s -o %t_off.out
-// RUN: %clangxx -fsycl -fno-sycl-early-optimizations -fsycl-device-code-split=auto %s -o %t_auto.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel %s -o %t_per_kernel.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=per_source %s -o %t_per_source.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=off %s -o %t_off.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=auto %s -o %t_auto.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_per_kernel.out %GPU_CHECK_PLACEHOLDER
 // RUN: %CPU_RUN_PLACEHOLDER %t_per_kernel.out %CPU_CHECK_PLACEHOLDER
 // RUN: %ACC_RUN_PLACEHOLDER %t_per_kernel.out %ACC_CHECK_PLACEHOLDER

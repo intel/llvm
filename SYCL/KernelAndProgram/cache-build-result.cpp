@@ -1,9 +1,12 @@
-// RUN: %clangxx -fsycl -DSYCL_DISABLE_FALLBACK_ASSERT=1 %s -o %t.out
-// RUN: %clangxx -fsycl -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU %s -o %t_gpu.out
+// for CUDA and HIP the failure happens at compile time, not during runtime
+// UNSUPPORTED: cuda || hip
+
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSYCL_DISABLE_FALLBACK_ASSERT=1 %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DSYCL_DISABLE_FALLBACK_ASSERT=1 -DGPU %s -o %t_gpu.out
 // RUN: env SYCL_CACHE_PERSISTENT=1 %CPU_RUN_PLACEHOLDER %t.out
 // RUN: env SYCL_CACHE_PERSISTENT=1 %GPU_RUN_PLACEHOLDER %t_gpu.out
 // RUN: env SYCL_CACHE_PERSISTENT=1 %ACC_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda || hip
+
 #include <sycl/sycl.hpp>
 
 SYCL_EXTERNAL
