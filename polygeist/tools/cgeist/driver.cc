@@ -34,8 +34,8 @@
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
-#include "SYCL/SYCLOps.h"
-#include "SYCL/SYCLTypes.h"
+#include "SYCL/SYCLOps.h.inc"
+#include "SYCL/SYCLOpsTypes.h.inc"
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"

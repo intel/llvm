@@ -40,8 +40,10 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <SYCL/SYCLOps.h>
-#include <SYCL/SYCLTypes.h>
+#define GET_OP_CLASSES
+#include "SYCL/SYCLOps.h.inc"
+#include "SYCL/SYCLOpsDialect.h.inc"
+#include "SYCL/SYCLOpsTypes.h"
 
 static bool DEBUG_FUNCTION = false;
 static bool BREAKPOINT_FUNCTION = false;
@@ -4827,9 +4829,9 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
   NamedAttrList attrs(function->getAttrDictionary());
   attrs.set("llvm.linkage",
             mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
-  if (FD->hasAttr<SYCLHalideAttr>() && FD->hasAttr<SYCLKernelAttr>()) {
-    attrs.set("SYCLKernel", mlir::StringAttr::get(builder.getContext(), name));
-  }
+  //if (FD->hasAttr<SYCLHalideAttr>() && FD->hasAttr<SYCLKernelAttr>()) {
+  //  attrs.set("SYCLKernel", mlir::StringAttr::get(builder.getContext(), name));
+  //}
   function->setAttrs(attrs.getDictionary(builder.getContext()));
 
   functions[name] = function;
@@ -5057,7 +5059,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
 
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
-        emitIfFound.count(name) || fd->hasAttr<SYCLHalideAttr>()) {
+        emitIfFound.count(name) /*|| fd->hasAttr<SYCLHalideAttr>()*/) {
       functionsToEmit.push_back(fd);
     } else {
     }
