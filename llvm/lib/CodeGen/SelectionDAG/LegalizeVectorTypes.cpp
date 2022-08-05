@@ -1031,9 +1031,9 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FP_ROUND:
   case ISD::VP_FP_ROUND:
   case ISD::FP_TO_SINT:
-  case ISD::VP_FPTOSI:
+  case ISD::VP_FP_TO_SINT:
   case ISD::FP_TO_UINT:
-  case ISD::VP_FPTOUI:
+  case ISD::VP_FP_TO_UINT:
   case ISD::FRINT:
   case ISD::FROUND:
   case ISD::FROUNDEVEN:
@@ -1041,11 +1041,11 @@ void DAGTypeLegalizer::SplitVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FSQRT:
   case ISD::FTRUNC:
   case ISD::SINT_TO_FP:
-  case ISD::VP_SITOFP:
+  case ISD::VP_SINT_TO_FP:
   case ISD::TRUNCATE:
   case ISD::VP_TRUNCATE:
   case ISD::UINT_TO_FP:
-  case ISD::VP_UITOFP:
+  case ISD::VP_UINT_TO_FP:
   case ISD::FCANONICALIZE:
     SplitVecRes_UnaryOp(N, Lo, Hi);
     break;
@@ -2725,6 +2725,8 @@ bool DAGTypeLegalizer::SplitVectorOperand(SDNode *N, unsigned OpNo) {
   case ISD::STRICT_UINT_TO_FP:
   case ISD::SINT_TO_FP:
   case ISD::UINT_TO_FP:
+  case ISD::VP_SINT_TO_FP:
+  case ISD::VP_UINT_TO_FP:
     if (N->getValueType(0).bitsLT(
             N->getOperand(N->isStrictFPOpcode() ? 1 : 0).getValueType()))
       Res = SplitVecOp_TruncateHelper(N);
@@ -2737,6 +2739,8 @@ bool DAGTypeLegalizer::SplitVectorOperand(SDNode *N, unsigned OpNo) {
     break;
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:
+  case ISD::VP_FP_TO_SINT:
+  case ISD::VP_FP_TO_UINT:
   case ISD::STRICT_FP_TO_SINT:
   case ISD::STRICT_FP_TO_UINT:
   case ISD::STRICT_FP_EXTEND:
@@ -3809,17 +3813,17 @@ void DAGTypeLegalizer::WidenVectorResult(SDNode *N, unsigned ResNo) {
   case ISD::FP_ROUND:
   case ISD::VP_FP_ROUND:
   case ISD::FP_TO_SINT:
-  case ISD::VP_FPTOSI:
+  case ISD::VP_FP_TO_SINT:
   case ISD::FP_TO_UINT:
-  case ISD::VP_FPTOUI:
+  case ISD::VP_FP_TO_UINT:
   case ISD::SIGN_EXTEND:
   case ISD::VP_SIGN_EXTEND:
   case ISD::SINT_TO_FP:
-  case ISD::VP_SITOFP:
+  case ISD::VP_SINT_TO_FP:
   case ISD::VP_TRUNCATE:
   case ISD::TRUNCATE:
   case ISD::UINT_TO_FP:
-  case ISD::VP_UITOFP:
+  case ISD::VP_UINT_TO_FP:
   case ISD::ZERO_EXTEND:
   case ISD::VP_ZERO_EXTEND:
     Res = WidenVecRes_Convert(N);
