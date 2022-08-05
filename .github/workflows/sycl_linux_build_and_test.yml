@@ -40,6 +40,10 @@ on:
         type: string
         required: false
         default: ""
+      lts_aws_matrix:
+        type: string
+        required: false
+        default: ""
       lts_cmake_extra_args:
         type: string
         required: false
@@ -158,22 +162,19 @@ jobs:
   aws-start-matrix:
     name: Start AWS Matrix
     needs: build
-    if: ${{ inputs.lts_matrix != '' }}
+    if: ${{ inputs.lts_aws_matrix != '' }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
+        include: ${{ fromJSON(inputs.lts_aws_matrix) }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
       - uses: actions/checkout@v3
-        if: ${{ matrix.aws-type }}
         with:
           path: llvm
       - run: npm install ./llvm/devops/actions/aws-ec2
-        if: ${{ matrix.aws-type }}
       - name: Start AWS EC2 runner
-        if: ${{ matrix.aws-type }}
         uses: ./llvm/devops/actions/aws-ec2
         with:
           label: ${{ matrix.runs-on }}
@@ -238,22 +239,19 @@ jobs:
   aws-stop-matrix:
     name: Stop AWS Matrix
     needs: [ aws-start-matrix, llvm_test_suite ]
-    if: ${{ always() && inputs.lts_matrix != '' }}
+    if: ${{ always() && inputs.lts_aws_matrix != '' }}
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
+        include: ${{ fromJSON(inputs.lts_aws_matrix) }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
       - uses: actions/checkout@v3
-        if: ${{ matrix.aws-type }}
         with:
           path: llvm
       - run: npm install ./llvm/devops/actions/aws-ec2
-        if: ${{ matrix.aws-type }}
       - name: Stop AWS EC2 runner
-        if: ${{ matrix.aws-type }}
         uses: ./llvm/devops/actions/aws-ec2
         with:
           label: ${{ matrix.runs-on }}
