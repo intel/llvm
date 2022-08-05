@@ -671,7 +671,8 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
 // \param IsInternal tells if the event is internal, i.e. visible in the L0
-// plugin only. \param ForceHostVisible tells if the event must be created in
+//        plugin only.
+// \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
 inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
