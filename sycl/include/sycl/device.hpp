@@ -33,6 +33,13 @@ class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
+namespace ext {
+namespace oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace oneapi
+} // namespace ext
+
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
@@ -53,8 +60,19 @@ public:
   /// Constructs a SYCL device instance using the device selected
   /// by the DeviceSelector provided.
   ///
-  /// \param DeviceSelector SYCL device selector to be used (see 4.6.1.1).
+  /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
   explicit device(const device_selector &DeviceSelector);
+
+#if __cplusplus >= 201703L
+  /// Constructs a SYCL device instance using the device
+  /// identified by the device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit device(const DeviceSelector &deviceSelector)
+      : device(detail::select_device(deviceSelector)) {}
+#endif
 
   bool operator==(const device &rhs) const { return impl == rhs.impl; }
 

@@ -401,6 +401,7 @@
 ??0kernel_id@sycl@cl@@AEAA@PEBD@Z
 ??0kernel_id@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0kernel_id@sycl@cl@@QEAA@AEBV012@@Z
+??0platform@sycl@cl@@AEAA@AEBVdevice@12@@Z
 ??0platform@sycl@cl@@AEAA@V?$shared_ptr@Vplatform_impl@detail@sycl@cl@@@std@@@Z
 ??0platform@sycl@cl@@QEAA@$$QEAV012@@Z
 ??0platform@sycl@cl@@QEAA@AEBV012@@Z
@@ -953,7 +954,6 @@
 ?Ordered@__host_std@cl@@YAHVhalf@half_impl@detail@sycl@2@0@Z
 ?PushBack@exception_list@sycl@cl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@sycl@cl@@AEAAXAEBVexception_ptr@std@@@Z
-?REJECT_DEVICE_SCORE@device_selector@sycl@cl@@1HB
 ?RangeRoundingTrace@handler@sycl@cl@@AEAA_NXZ
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$00@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$00@42@@Z
 ?SignBitSet@__host_std@cl@@YA?AV?$vec@F$01@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@42@@Z
@@ -3931,6 +3931,8 @@
 ?select@__host_std@cl@@YA_J_J0_K@Z
 ?select@__host_std@cl@@YA_K_K00@Z
 ?select@__host_std@cl@@YA_K_K0_J@Z
+?select_device@detail@sycl@cl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@sycl@cl@@@Z@std@@@Z
+?select_device@detail@sycl@cl@@YA?AVdevice@23@AEBV?$function@$$A6AHAEBVdevice@sycl@cl@@@Z@std@@AEBVcontext@23@@Z
 ?select_device@device_selector@sycl@cl@@UEBA?AVdevice@23@XZ
 ?select_device@filter_selector@ONEAPI@sycl@cl@@UEBA?AVdevice@34@XZ
 ?select_device@filter_selector@oneapi@ext@sycl@cl@@UEBA?AVdevice@45@XZ
