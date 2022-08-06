@@ -204,10 +204,8 @@ async function stop(label) {
     });
     // mode is start or stop
     const mode = core.getInput("mode");
-    const runs_on_list = JSON.parse(core.getInput("runs-on-list"));
+    const runs_on_list = core.getInput("runs-on-list") ? JSON.parse(core.getInput("runs-on-list")) : [];
 
-    // label used to indentify AWS EC2 instances and Github runners
-    const label = core.getInput("label");
     if (mode == "start") {
       for (let c of runs_on_list) {
         const label = c["runs-on"];
