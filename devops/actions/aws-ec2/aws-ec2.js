@@ -219,6 +219,7 @@ async function stop(label) {
         const label = c["runs-on"];
         try {
           if (c["aws-type"]) await stop(label);
+          else core.info(`Skipping ${label} config`);
         } catch (error) {
           core.error(`Error removing runner with ${label}`);
           last_error = error;
