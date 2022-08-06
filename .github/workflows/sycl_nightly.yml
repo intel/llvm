@@ -18,7 +18,7 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       build_configure_extra_args: ''
-      lts_config: "ocl_gen9;ocl_x64"
+      lts_matrix: "ocl_gen9;ocl_x64"
 
   ubuntu2004_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
@@ -29,7 +29,7 @@ jobs:
       build_cache_suffix: opaque_pointers
       build_artifact_suffix: opaque_pointers
       build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DDPCPP_ENABLE_OPAQUE_POINTERS=TRUE"
-      lts_config: "ocl_gen9;ocl_x64"
+      lts_matrix: "ocl_gen9;ocl_x64"
 
   windows_default:
     name: Windows
