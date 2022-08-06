@@ -36,8 +36,8 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
   const ec2 = new AWS.EC2();
 
   reg_token = reg_token ? reg_token : await getGithubRegToken();
-  const ec2types     = typeof param_type === 'string' ? [ param_type ] : param_type;
-  const label        = param_label;
+  const ec2types     = typeof param_type     === 'string' ? [ param_type ] : param_type;
+  const label        = typeof param_label    === 'string' ? param_label : param_label[0];
   const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
   const ec2spot      = typeof param_spot     !== 'undefined' ? param_spot : true;
   const ec2disk      = typeof param_disk     !== 'undefined' ? param_disk : "/dev/sda1:16";
@@ -124,10 +124,12 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
 // terminate (completely remove) AWS EC instances (normally one instance) with
 // given tag label and also remove all Github actions runners (normally one
 // runner) with that label
-async function stop(label) {
+async function stop(param_label) {
   // last error that will be thrown in case something will break here
   let last_error;
   const ec2 = new AWS.EC2();
+
+  const label = typeof param_label === 'string' ? param_label : param_label[0];
 
   // find AWS EC2 instances with tag label
   let instances;
@@ -209,20 +211,22 @@ async function stop(label) {
 
     if (mode == "start") {
       for (let c of runs_on_list) {
-        const label = typeof c["runs-on"] === 'string' ? c["runs-on"] : c["runs-on"][0];
-        if (c["aws-type"]) await start(c["aws-type"], label, c["aws-ami"], c["aws-spot"], c["aws-disk"], c["aws-timebomb"], c["one-job"]);
-        else core.info(`Skipping ${label} config`);
+        const raw_label = c["runs-on"];
+        if (c["aws-type"]) {
+          await start(c["aws-type"], raw_label, c["aws-ami"], c["aws-spot"], c["aws-disk"], c["aws-timebomb"], c["one-job"]);
+        } else core.info(`Skipping ${raw_label} config`);
       }
     } else if (mode == "stop") {
       // last error that will be thrown in case something will break here
       let last_error;
       for (let c of runs_on_list) {
-        const label = typeof c["runs-on"] === 'string' ? c["runs-on"] : c["runs-on"][0];
+        const raw_label = c["runs-on"];
         try {
-          if (c["aws-type"]) await stop(label);
-          else core.info(`Skipping ${label} config`);
+          if (c["aws-type"]) {
+            await stop(raw_label);
+          } else core.info(`Skipping ${raw_label} config`);
         } catch (error) {
-          core.error(`Error removing runner with ${label}`);
+          core.error(`Error removing runner with ${raw_label}`);
           last_error = error;
         }
       }
