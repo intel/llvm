@@ -27,13 +27,15 @@ function rejectDelay(reason) {
   });
 }
 
+// we better keep GH_PERSONAL_ACCESS_TOKEN here and do not pass it to AWS EC2
+// userscript so it will keep secret
+let reg_token;
+
 // starts AWS EC2 instance that will spawn Github runner for a given label
 async function start(param_type, param_label, param_ami, param_spot, param_disk, param_timebomb, param_onejob) {
   const ec2 = new AWS.EC2();
 
-  // we better keep GH_PERSONAL_ACCESS_TOKEN here and do not pass it to AWS EC2
-  // userscript so it will keep secret
-  const reg_token    = await getGithubRegToken();
+  reg_token = reg_token ? reg_token : await getGithubRegToken();
   const ec2types     = typeof param_type == "string" ? [ param_type ] : param_type;
   const label        = param_label;
   const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
