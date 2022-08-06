@@ -155,8 +155,8 @@ jobs:
         name: sycl_lit_${{ inputs.build_artifact_suffix }}
         path: lit.tar.xz
 
-  aws-start-matrix:
-    name: Start AWS Matrix
+  aws-start:
+    name: Start AWS
     needs: build
     runs-on: ubuntu-latest
     environment: aws
@@ -165,7 +165,7 @@ jobs:
         with:
           path: llvm
       - run: npm install ./llvm/devops/actions/aws-ec2
-      - name: Start AWS EC2 runner
+      - name: Start AWS EC2 runners
         uses: ./llvm/devops/actions/aws-ec2
         with:
           runs-on-list: ${{ inputs.lts_matrix }}
@@ -174,7 +174,7 @@ jobs:
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
   llvm_test_suite:
-    needs: [build, aws-start-matrix]
+    needs: [build, aws-start]
     if: ${{ inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
@@ -222,9 +222,9 @@ jobs:
         results_name_suffix: ${{ matrix.config }}_${{ inputs.build_artifact_suffix }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
 
-  aws-stop-matrix:
-    name: Stop AWS Matrix
-    needs: [ aws-start-matrix, llvm_test_suite ]
+  aws-stop:
+    name: Stop AWS
+    needs: [ aws-start, llvm_test_suite ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     environment: aws
@@ -233,7 +233,7 @@ jobs:
         with:
           path: llvm
       - run: npm install ./llvm/devops/actions/aws-ec2
-      - name: Stop AWS EC2 runner
+      - name: Stop AWS EC2 runners
         uses: ./llvm/devops/actions/aws-ec2
         with:
           runs-on-list: ${{ inputs.lts_matrix }}
