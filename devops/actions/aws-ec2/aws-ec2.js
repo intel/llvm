@@ -34,8 +34,7 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
   // we better keep GH_PERSONAL_ACCESS_TOKEN here and do not pass it to AWS EC2
   // userscript so it will keep secret
   const reg_token    = await getGithubRegToken();
-  const raw_ec2types = JSON.parse(param_type);
-  const ec2types     = typeof raw_ec2types == "string" ? [ raw_ec2types ] : raw_ec2types;
+  const ec2types     = typeof param_type == "string" ? [ param_type ] : param_type;
   const label        = param_label;
   const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
   const ec2spot      = typeof param_spot     !== 'undefined' ? param_spot : true;
