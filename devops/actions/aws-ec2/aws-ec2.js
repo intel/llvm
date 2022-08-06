@@ -36,7 +36,7 @@ async function start(param_type, param_label, param_ami, param_spot, param_disk,
   const ec2 = new AWS.EC2();
 
   reg_token = reg_token ? reg_token : await getGithubRegToken();
-  const ec2types     = typeof param_type == "string" ? [ param_type ] : param_type;
+  const ec2types     = typeof param_type === 'string' ? [ param_type ] : param_type;
   const label        = param_label;
   const ec2ami       = typeof param_ami      !== 'undefined' ? param_ami : "ami-0966bccbb521ccb24";
   const ec2spot      = typeof param_spot     !== 'undefined' ? param_spot : true;
@@ -209,7 +209,7 @@ async function stop(label) {
 
     if (mode == "start") {
       for (let c of runs_on_list) {
-        const label = c["runs-on"];
+        const label = typeof c["runs-on"] === 'string' ? c["runs-on"] : c["runs-on"][0];
         if (c["aws-type"]) await start(c["aws-type"], label, c["aws-ami"], c["aws-spot"], c["aws-disk"], c["aws-timebomb"], c["one-job"]);
         else core.info(`Skipping ${label} config`);
       }
@@ -217,7 +217,7 @@ async function stop(label) {
       // last error that will be thrown in case something will break here
       let last_error;
       for (let c of runs_on_list) {
-        const label = c["runs-on"];
+        const label = typeof c["runs-on"] === 'string' ? c["runs-on"] : c["runs-on"][0];
         try {
           if (c["aws-type"]) await stop(label);
           else core.info(`Skipping ${label} config`);
