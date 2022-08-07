@@ -351,18 +351,11 @@ private:
 //
 // The default value is "0".
 //
-<<<<<<< HEAD
 static const std::pair<int, int> getRangeOfAllowedComputeEngines() {
   static const char *EnvVar =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
-  // If the environment variable is not set, all available compute engines
-  // can be used.
-=======
-static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
-  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
   // If the environment variable is not set only use "0" CCS for now.
   // TODO: allow all CCSs when HW support is complete.
->>>>>>> 64f0db7a3ba53daeea96543ccf590aaf9c1569c9
   if (!EnvVar)
     return std::pair<int, int>(0, 0);
 
