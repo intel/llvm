@@ -1181,13 +1181,17 @@ pi_result resetCommandLists(pi_queue Queue) {
     std::scoped_lock Lock(Queue->Mutex);
     for (auto &&it = Queue->CommandListMap.begin();
          it != Queue->CommandListMap.end(); ++it) {
-      // It is possible that the fence was already noted as signalled and
-      // reset. In that case the ZeFenceInUse flag will be false.
-      if (it->second.ZeFence != nullptr && it->second.ZeFenceInUse) {
-        ze_result_t ZeResult =
-            ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
-        if (ZeResult == ZE_RESULT_SUCCESS) {
-          PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
+      // Immediate commandlists don't use a fence but still need reset.
+      if (it->second.ZeFence == nullptr) {
+        PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
+      } else {
+        // It is possible that the fence was already noted as signalled and
+        // reset. In that case the ZeFenceInUse flag will be false.
+        if (it->second.ZeFenceInUse) {
+          ze_result_t ZeResult =
+              ZE_CALL_NOCHECK(zeFenceQueryStatus, (it->second.ZeFence));
+          if (ZeResult == ZE_RESULT_SUCCESS)
+            PI_CALL(Queue->resetCommandList(it, true, EventListToCleanup));
         }
       }
     }
@@ -3596,7 +3600,6 @@ pi_result piQueueFinish(pi_queue Queue) {
     std::scoped_lock Lock(Queue->Mutex);
 
     Queue->synchronize();
-    return PI_SUCCESS;
   } else {
     std::unique_lock Lock(Queue->Mutex);
     std::vector<ze_command_queue_handle_t> ZeQueues;
@@ -6372,7 +6375,10 @@ pi_result _pi_queue::synchronize() {
       return PI_SUCCESS;
 
     pi_event Event;
-    PI_CALL(EventCreate(Queue->Context, nullptr, true, &Event));
+    pi_result Res = createEventAndAssociateQueue(
+        Queue, &Event, PI_COMMAND_TYPE_USER, ImmCmdList, true);
+    if (Res != PI_SUCCESS)
+      return Res;
     auto zeEvent = Event->ZeEvent;
     ZE_CALL(zeCommandListAppendBarrier,
             (ImmCmdList->first, zeEvent, 0, nullptr));
