@@ -414,22 +414,18 @@ ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    lldb::offset_t file_offset,
                                    lldb::offset_t length)
     : ObjectFile(module_sp, file, file_offset, length, data_sp, data_offset),
-      m_dos_header(), m_coff_header(), m_sect_headers(),
-      m_entry_point_address(), m_deps_filespec() {
-  ::memset(&m_dos_header, 0, sizeof(m_dos_header));
-  ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-}
+      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
+      m_image_base(LLDB_INVALID_ADDRESS), m_entry_point_address(),
+      m_deps_filespec() {}
 
 ObjectFilePECOFF::ObjectFilePECOFF(const lldb::ModuleSP &module_sp,
                                    WritableDataBufferSP header_data_sp,
                                    const lldb::ProcessSP &process_sp,
                                    addr_t header_addr)
     : ObjectFile(module_sp, process_sp, header_addr, header_data_sp),
-      m_dos_header(), m_coff_header(), m_sect_headers(),
-      m_entry_point_address(), m_deps_filespec() {
-  ::memset(&m_dos_header, 0, sizeof(m_dos_header));
-  ::memset(&m_coff_header, 0, sizeof(m_coff_header));
-}
+      m_dos_header(), m_coff_header(), m_coff_header_opt(), m_sect_headers(),
+      m_image_base(LLDB_INVALID_ADDRESS), m_entry_point_address(),
+      m_deps_filespec() {}
 
 ObjectFilePECOFF::~ObjectFilePECOFF() = default;
 
@@ -1088,7 +1084,7 @@ uint32_t ObjectFilePECOFF::ParseDependentModules() {
     // with the help of the object file's directory.
     llvm::SmallString<128> dll_fullpath;
     FileSpec dll_specs(dll_name);
-    dll_specs.GetDirectory().SetString(m_file.GetDirectory().GetCString());
+    dll_specs.SetDirectory(m_file.GetDirectory());
 
     if (!llvm::sys::fs::real_path(dll_specs.GetPath(), dll_fullpath))
       m_deps_filespec->EmplaceBack(dll_fullpath);

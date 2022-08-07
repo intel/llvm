@@ -21,7 +21,7 @@
 
 const unsigned int LATEST_KNOWN_CUDA_DRIVER_API_VERSION = 3020u;
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class CudaBaseObjectsTest : public ::testing::Test {
 protected:

@@ -31,58 +31,59 @@ struct is_empty_type_list
 
 template <> struct type_list<> {};
 
-template <typename H, typename... T> struct type_list<H, T...> {
-  using head = H;
-  using tail = type_list<T...>;
+template <typename Head, typename... Tail> struct type_list<Head, Tail...> {
+  using head = Head;
+  using tail = type_list<Tail...>;
 };
 
-template <typename H, typename... T, typename... T2>
-struct type_list<type_list<H, T...>, T2...> {
+template <typename Head, typename... Tail, typename... Tail2>
+struct type_list<type_list<Head, Tail...>, Tail2...> {
 private:
-  using remainder = tail_t<type_list<H>>;
+  using remainder = tail_t<type_list<Head>>;
   static constexpr bool has_remainder = !is_empty_type_list<remainder>::value;
-  using without_remainder = type_list<T..., T2...>;
-  using with_remainder = type_list<remainder, T..., T2...>;
+  using without_remainder = type_list<Tail..., Tail2...>;
+  using with_remainder = type_list<remainder, Tail..., Tail2...>;
 
 public:
-  using head = head_t<type_list<H>>;
+  using head = head_t<type_list<Head>>;
   using tail = conditional_t<has_remainder, with_remainder, without_remainder>;
 };
 
 // is_contained
-template <typename T, typename L>
+template <typename T, typename TypeList>
 struct is_contained
-    : conditional_t<std::is_same<remove_cv_t<T>, head_t<L>>::value,
-                    std::true_type, is_contained<T, tail_t<L>>> {};
+    : conditional_t<std::is_same<remove_cv_t<T>, head_t<TypeList>>::value,
+                    std::true_type, is_contained<T, tail_t<TypeList>>> {};
 
 template <typename T>
 struct is_contained<T, empty_type_list> : std::false_type {};
 
 // value_list
-template <typename T, T... V> struct value_list;
+template <typename T, T... Values> struct value_list;
 
-template <typename T, T H, T... V> struct value_list<T, H, V...> {
-  static constexpr T head = H;
-  using tail = value_list<T, V...>;
+template <typename T, T Head, T... Tail> struct value_list<T, Head, Tail...> {
+  static constexpr T head = Head;
+  using tail = value_list<T, Tail...>;
 };
 
 template <typename T> struct value_list<T> {};
 
 // is_contained_value
-template <typename T, T V, typename TL>
+template <typename T, T Value, typename ValueList>
 struct is_contained_value
-    : conditional_t<V == TL::head, std::true_type,
-                    is_contained_value<T, V, tail_t<TL>>> {};
+    : conditional_t<Value == ValueList::head, std::true_type,
+                    is_contained_value<T, Value, tail_t<ValueList>>> {};
 
-template <typename T, T V>
-struct is_contained_value<T, V, value_list<T>> : std::false_type {};
+template <typename T, T Value>
+struct is_contained_value<T, Value, value_list<T>> : std::false_type {};
 
 //  address_space_list
-template <access::address_space... V>
-using address_space_list = value_list<access::address_space, V...>;
+template <access::address_space... Values>
+using address_space_list = value_list<access::address_space, Values...>;
 
-template <access::address_space AS, typename VL>
-using is_one_of_spaces = is_contained_value<access::address_space, AS, VL>;
+template <access::address_space AddressSpace, typename ValueList>
+using is_one_of_spaces =
+    is_contained_value<access::address_space, AddressSpace, ValueList>;
 
 // size type predicates
 template <typename T1, typename T2>
@@ -103,35 +104,39 @@ struct is_type_size_half_of : bool_constant<(sizeof(T1) == (sizeof(T2) / 2))> {
 };
 
 // find required type
-template <typename TL, template <typename, typename> class C, typename T>
+template <typename TypeList, template <typename, typename> class Comp,
+          typename T>
 struct find_type {
-  using head = head_t<TL>;
-  using tail = typename find_type<tail_t<TL>, C, T>::type;
-  using type = conditional_t<C<head, T>::value, head, tail>;
+  using head = head_t<TypeList>;
+  using tail = typename find_type<tail_t<TypeList>, Comp, T>::type;
+  using type = conditional_t<Comp<head, T>::value, head, tail>;
 };
 
-template <template <typename, typename> class C, typename T>
-struct find_type<empty_type_list, C, T> {
+template <template <typename, typename> class Comp, typename T>
+struct find_type<empty_type_list, Comp, T> {
   using type = void;
 };
 
-template <typename TL, template <typename, typename> class C, typename T>
-using find_type_t = typename find_type<TL, C, T>::type;
+template <typename TypeList, template <typename, typename> class Comp,
+          typename T>
+using find_type_t = typename find_type<TypeList, Comp, T>::type;
 
-template <typename TL, typename T>
-using find_same_size_type_t = find_type_t<TL, is_type_size_equal, T>;
+template <typename TypeList, typename T>
+using find_same_size_type_t = find_type_t<TypeList, is_type_size_equal, T>;
 
-template <typename TL, typename T>
-using find_smaller_type_t = find_type_t<TL, is_type_size_less, T>;
+template <typename TypeList, typename T>
+using find_smaller_type_t = find_type_t<TypeList, is_type_size_less, T>;
 
-template <typename TL, typename T>
-using find_larger_type_t = find_type_t<TL, is_type_size_greater, T>;
+template <typename TypeList, typename T>
+using find_larger_type_t = find_type_t<TypeList, is_type_size_greater, T>;
 
-template <typename TL, typename T>
-using find_twice_as_small_type_t = find_type_t<TL, is_type_size_half_of, T>;
+template <typename TypeList, typename T>
+using find_twice_as_small_type_t =
+    find_type_t<TypeList, is_type_size_half_of, T>;
 
-template <typename TL, typename T>
-using find_twice_as_large_type_t = find_type_t<TL, is_type_size_double_of, T>;
+template <typename TypeList, typename T>
+using find_twice_as_large_type_t =
+    find_type_t<TypeList, is_type_size_double_of, T>;
 
 } // namespace detail
 } // namespace sycl

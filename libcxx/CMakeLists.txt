@@ -101,11 +101,6 @@ option(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS
    to provide compile-time errors when using features unavailable on some version of
    the shared library they shipped should turn this on and see `include/__availability`
    for more details." OFF)
-option(LIBCXX_ENABLE_INCOMPLETE_FEATURES
-    "Whether to enable support for incomplete library features. Incomplete features
-    are new library features under development. These features don't guarantee
-    ABI stability nor the quality of completed library features. Vendors
-    shipping the library may want to disable this option." ON)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(LIBCXX_DEFAULT_TEST_CONFIG "llvm-libc++-shared-gcc.cfg.in")
@@ -205,12 +200,12 @@ set(LIBCXX_ABI_DEFINES "" CACHE STRING "A semicolon separated list of ABI macros
 option(LIBCXX_EXTRA_SITE_DEFINES "Extra defines to add into __config_site")
 option(LIBCXX_USE_COMPILER_RT "Use compiler-rt instead of libgcc" OFF)
 
-cmake_dependent_option(LIBCXX_ENABLE_BACKWARDS_COMPATIBILITY_DEBUG_MODE_SYMBOLS
+option(LIBCXX_ENABLE_BACKWARDS_COMPATIBILITY_DEBUG_MODE_SYMBOLS
   "Whether to include the old Debug mode symbols in the compiled library. This
    is provided for backwards compatibility since the compiled library used to
    always contain those symbols, regardless of whether the library was built
-   with the debug mode enabled." ON
-   "LIBCXX_ABI_VERSION EQUAL 1" OFF) # Always OFF in ABI version != 1
+   with the debug mode enabled. This is OFF by default, please contact the libc++
+   developers if you need to turn this on, as this will be removed in LLVM 16." OFF)
 
 # ABI Library options ---------------------------------------------------------
 if (LIBCXX_TARGETING_MSVC)
@@ -866,10 +861,6 @@ if (LIBCXX_ENABLE_ASSERTIONS)
 else()
   config_define(0 _LIBCPP_ENABLE_ASSERTIONS_DEFAULT)
 endif()
-# Incomplete features get their own specific disabling flags. This makes it
-# easier to grep for target specific flags once the feature is complete.
-config_define_if_not(LIBCXX_ENABLE_INCOMPLETE_FEATURES _LIBCPP_HAS_NO_INCOMPLETE_FORMAT)
-config_define_if_not(LIBCXX_ENABLE_INCOMPLETE_FEATURES _LIBCPP_HAS_NO_INCOMPLETE_RANGES)
 
 if (LIBCXX_ABI_DEFINES)
   set(abi_defines)

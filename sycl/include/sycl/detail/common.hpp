@@ -116,14 +116,14 @@ static inline std::string codeToString(pi_int32 code) {
                           "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 // TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != PI_SUCCESS) {                                                  \
-      std::cerr << __SYCL_PI_ERROR_REPORT                                      \
-                << cl::sycl::detail::codeToString(code) << std::endl;          \
+      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
+                << std::endl;                                                  \
     }                                                                          \
   }
 #endif
@@ -137,15 +137,15 @@ static inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       std::string err_str =                                                    \
           str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT +                                       \
-                    cl::sycl::detail::codeToString(code) + err_str,            \
+      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
+                    err_str,                                                   \
                 code);                                                         \
     }                                                                          \
   }
 #define __SYCL_REPORT_PI_ERR_TO_EXC_THROW(code, exc, str)                      \
   __SYCL_REPORT_PI_ERR_TO_EXC(code, exc, str)
 #define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, cl::sycl::runtime_error, nullptr)
+  __SYCL_REPORT_PI_ERR_TO_EXC(code, sycl::runtime_error, nullptr)
 #else
 #define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
   __SYCL_REPORT_PI_ERR_TO_STREAM(code)
@@ -157,7 +157,7 @@ static inline std::string codeToString(pi_int32 code) {
     if (code != PI_SUCCESS) {                                                  \
       throw sycl::exception(sycl::make_error_code(errc),                       \
                             __SYCL_PI_ERROR_REPORT +                           \
-                                cl::sycl::detail::codeToString(code));         \
+                                sycl::detail::codeToString(code));             \
     }                                                                          \
   }
 #define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
@@ -244,33 +244,33 @@ template <template <int> class T> struct InitializedVal<3, T> {
 };
 
 /// Helper class for the \c NDLoop.
-template <int NDIMS, int DIM, template <int> class LoopBoundTy, typename FuncTy,
+template <int NDims, int Dim, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
 struct NDLoopIterateImpl {
-  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
-                    const LoopBoundTy<NDIMS> &Stride,
-                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
-                    LoopIndexTy<NDIMS> &Index) {
-    constexpr size_t AdjIdx = NDIMS - 1 - DIM;
+  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
+                    const LoopBoundTy<NDims> &Stride,
+                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDims> &Index) {
+    constexpr size_t AdjIdx = NDims - 1 - Dim;
     for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
          Index[AdjIdx] += Stride[AdjIdx]) {
 
-      NDLoopIterateImpl<NDIMS, DIM - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+      NDLoopIterateImpl<NDims, Dim - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
           LowerBound, Stride, UpperBound, f, Index};
     }
   }
 };
 
-// Specialization for DIM=0 to terminate recursion
-template <int NDIMS, template <int> class LoopBoundTy, typename FuncTy,
+// Specialization for Dim=0 to terminate recursion
+template <int NDims, template <int> class LoopBoundTy, typename FuncTy,
           template <int> class LoopIndexTy>
-struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
-  NDLoopIterateImpl(const LoopIndexTy<NDIMS> &LowerBound,
-                    const LoopBoundTy<NDIMS> &Stride,
-                    const LoopBoundTy<NDIMS> &UpperBound, FuncTy f,
-                    LoopIndexTy<NDIMS> &Index) {
+struct NDLoopIterateImpl<NDims, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
+  NDLoopIterateImpl(const LoopIndexTy<NDims> &LowerBound,
+                    const LoopBoundTy<NDims> &Stride,
+                    const LoopBoundTy<NDims> &UpperBound, FuncTy f,
+                    LoopIndexTy<NDims> &Index) {
 
-    constexpr size_t AdjIdx = NDIMS - 1;
+    constexpr size_t AdjIdx = NDims - 1;
     for (Index[AdjIdx] = LowerBound[AdjIdx]; Index[AdjIdx] < UpperBound[AdjIdx];
          Index[AdjIdx] += Stride[AdjIdx]) {
 
@@ -279,43 +279,43 @@ struct NDLoopIterateImpl<NDIMS, 0, LoopBoundTy, FuncTy, LoopIndexTy> {
   }
 };
 
-/// Generates an NDIMS-dimensional perfect loop nest. The purpose of this class
+/// Generates an NDims-dimensional perfect loop nest. The purpose of this class
 /// is to better support handling of situations where there must be a loop nest
 /// over a multi-dimensional space - it allows to avoid generating unnecessary
 /// outer loops like 'for (int z=0; z<1; z++)' in case of 1D and 2D iteration
 /// spaces or writing specializations of the algorithms for 1D, 2D and 3D cases.
 /// Loop is unrolled in a reverse directions, i.e. ID = 0 is the inner-most one.
-template <int NDIMS> struct NDLoop {
+template <int NDims> struct NDLoop {
   /// Generates ND loop nest with {0,..0} .. \c UpperBound bounds with unit
   /// stride. Applies \c f at each iteration, passing current index of
-  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  /// \c LoopIndexTy<NDims> type as the parameter.
   template <template <int> class LoopBoundTy, typename FuncTy,
             template <int> class LoopIndexTy = LoopBoundTy>
-  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDIMS> &UpperBound,
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopBoundTy<NDims> &UpperBound,
                                            FuncTy f) {
-    const LoopIndexTy<NDIMS> LowerBound =
-        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
-    const LoopBoundTy<NDIMS> Stride =
-        InitializedVal<NDIMS, LoopBoundTy>::template get<1>();
-    LoopIndexTy<NDIMS> Index =
-        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
+    const LoopIndexTy<NDims> LowerBound =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+    const LoopBoundTy<NDims> Stride =
+        InitializedVal<NDims, LoopBoundTy>::template get<1>();
+    LoopIndexTy<NDims> Index =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
 
-    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
   }
 
   /// Generates ND loop nest with \c LowerBound .. \c UpperBound bounds and
   /// stride \c Stride. Applies \c f at each iteration, passing current index of
-  /// \c LoopIndexTy<NDIMS> type as the parameter.
+  /// \c LoopIndexTy<NDims> type as the parameter.
   template <template <int> class LoopBoundTy, typename FuncTy,
             template <int> class LoopIndexTy = LoopBoundTy>
-  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDIMS> &LowerBound,
-                                           const LoopBoundTy<NDIMS> &Stride,
-                                           const LoopBoundTy<NDIMS> &UpperBound,
+  static __SYCL_ALWAYS_INLINE void iterate(const LoopIndexTy<NDims> &LowerBound,
+                                           const LoopBoundTy<NDims> &Stride,
+                                           const LoopBoundTy<NDims> &UpperBound,
                                            FuncTy f) {
-    LoopIndexTy<NDIMS> Index =
-        InitializedVal<NDIMS, LoopIndexTy>::template get<0>();
-    NDLoopIterateImpl<NDIMS, NDIMS - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
+    LoopIndexTy<NDims> Index =
+        InitializedVal<NDims, LoopIndexTy>::template get<0>();
+    NDLoopIterateImpl<NDims, NDims - 1, LoopBoundTy, FuncTy, LoopIndexTy>{
         LowerBound, Stride, UpperBound, f, Index};
   }
 };

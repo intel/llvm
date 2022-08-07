@@ -85,6 +85,16 @@ static const bool UseMultipleCmdlistBarriers = [] {
   return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
+// This is an experimental option that allows to disable caching of events in
+// the context.
+static const bool DisableEventsCaching = [] {
+  const char *DisableEventsCachingFlag =
+      std::getenv("SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING");
+  if (!DisableEventsCachingFlag)
+    return false;
+  return std::stoi(DisableEventsCachingFlag) != 0;
+}();
+
 // This class encapsulates actions taken along with a call to Level Zero API.
 class ZeCall {
 private:
@@ -339,15 +349,22 @@ private:
 // with the given index in the compute command group. If it is instead set
 // to negative then all available compute engines may be used.
 //
-// The default value is "-1".
+// The default value is "0".
 //
+<<<<<<< HEAD
 static const std::pair<int, int> getRangeOfAllowedComputeEngines() {
   static const char *EnvVar =
       std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
   // If the environment variable is not set, all available compute engines
   // can be used.
+=======
+static const std::pair<int, int> getRangeOfAllowedComputeEngines = [] {
+  const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COMPUTE_ENGINE");
+  // If the environment variable is not set only use "0" CCS for now.
+  // TODO: allow all CCSs when HW support is complete.
+>>>>>>> 64f0db7a3ba53daeea96543ccf590aaf9c1569c9
   if (!EnvVar)
-    return std::pair<int, int>(0, INT_MAX);
+    return std::pair<int, int>(0, 0);
 
   auto EnvVarValue = std::atoi(EnvVar);
   if (EnvVarValue >= 0) {
@@ -427,10 +444,18 @@ _pi_context::getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &Pool,
   std::list<ze_event_pool_handle_t> *ZePoolCache =
       getZeEventPoolCache(HostVisible, ProfilingEnabled);
 
-  // Remove full pool from the cache.
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
-      ZePoolCache->erase(ZePoolCache->begin());
+      if (DisableEventsCaching) {
+        // Remove full pool from the cache if events caching is disabled.
+        ZePoolCache->erase(ZePoolCache->begin());
+      } else {
+        // If event caching is enabled then we don't destroy events so there is
+        // no need to remove pool from the cache and add it back when it has
+        // available slots. Just keep it in the tail of the cache so that all
+        // pools can be destroyed during context destruction.
+        ZePoolCache->push_front(nullptr);
+      }
     }
   }
   if (ZePoolCache->empty()) {
@@ -864,7 +889,18 @@ pi_result _pi_context::initialize() {
 pi_result _pi_context::finalize() {
   // This function is called when pi_context is deallocated, piContextRelease.
   // There could be some memory that may have not been deallocated.
-  // For example, event pool caches would be still alive.
+  // For example, event and event pool caches would be still alive.
+
+  if (!DisableEventsCaching) {
+    std::scoped_lock Lock(EventCacheMutex);
+    for (auto &EventCache : EventCaches) {
+      for (auto Event : EventCache) {
+        ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+        delete Event;
+      }
+      EventCache.clear();
+    }
+  }
   {
     std::scoped_lock Lock(ZeEventPoolCacheMutex);
     for (auto &ZePoolCache : ZeEventPoolCache) {
@@ -4976,8 +5012,11 @@ pi_result piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
   //       piextKernelSetArgMemObj.
   //
   std::scoped_lock Guard(Kernel->Mutex);
+  // The ArgValue may be a NULL pointer in which case a NULL value is used for
+  // the kernel argument declared as a pointer to global or constant memory.
+  auto Arg = ArgValue ? *ArgValue : nullptr;
   Kernel->PendingArguments.push_back(
-      {ArgIndex, sizeof(void *), *ArgValue, _pi_mem::read_write});
+      {ArgIndex, sizeof(void *), Arg, _pi_mem::read_write});
 
   return PI_SUCCESS;
 }
@@ -5201,9 +5240,13 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
 
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
-    char **ZeHandlePtr;
-    PI_CALL(
-        Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode, Queue->Device));
+    // The ArgValue may be a NULL pointer in which case a NULL value is used for
+    // the kernel argument declared as a pointer to global or constant memory.
+    char **ZeHandlePtr = nullptr;
+    if (Arg.Value) {
+      PI_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
+                                        Queue->Device));
+    }
     ZE_CALL(zeKernelSetArgumentValue,
             (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
   }
@@ -5424,6 +5467,42 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
   return PI_SUCCESS;
 }
 
+pi_result _pi_event::reset() {
+  Queue = nullptr;
+  CleanedUp = false;
+  Completed = false;
+  CommandData = nullptr;
+  CommandType = PI_COMMAND_TYPE_USER;
+  WaitList = {};
+  RefCount.reset();
+
+  if (!isHostVisible())
+    HostVisibleEvent = nullptr;
+
+  ZE_CALL(zeEventHostReset, (ZeEvent));
+  return PI_SUCCESS;
+}
+
+pi_event _pi_context::getEventFromCache(bool HostVisible, bool WithProfiling) {
+  std::scoped_lock Lock(EventCacheMutex);
+  auto Cache = getEventCache(HostVisible, WithProfiling);
+  if (Cache->empty())
+    return nullptr;
+
+  auto It = Cache->begin();
+  pi_event Event = *It;
+  Cache->erase(It);
+  return Event;
+}
+
+void _pi_context::addEventToCache(pi_event Event) {
+  std::scoped_lock Lock(EventCacheMutex);
+  auto Cache =
+      getEventCache(Event->isHostVisible(), Event->isProfilingEnabled());
+  Event->reset();
+  Cache->emplace_back(Event);
+}
+
 // Helper function for creating a PI event.
 // The "Queue" argument specifies the PI queue where a command is submitted.
 // The "HostVisible" argument specifies if event needs to be allocated from
@@ -5431,17 +5510,24 @@ _pi_event::getOrCreateHostVisibleEvent(ze_event_handle_t &ZeHostVisibleEvent) {
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
                              bool HostVisible, pi_event *RetEvent) {
-
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
 
-  size_t Index = 0;
+  if (auto CachedEvent =
+          Context->getEventFromCache(HostVisible, ProfilingEnabled)) {
+    *RetEvent = CachedEvent;
+    return PI_SUCCESS;
+  }
+
+  ze_event_handle_t ZeEvent;
   ze_event_pool_handle_t ZeEventPool = {};
+
+  size_t Index = 0;
+
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled))
     return Res;
 
-  ze_event_handle_t ZeEvent;
   ZeStruct<ze_event_desc_t> ZeEventDesc;
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
@@ -5450,9 +5536,9 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
-    // Set the scope to "device" for every event. This is sufficient for global
-    // device access and peer device access. If needed to be seen on the host
-    // we are doing special handling, see EventsScope options.
+    // Set the scope to "device" for every event. This is sufficient for
+    // global device access and peer device access. If needed to be seen on
+    // the host we are doing special handling, see EventsScope options.
     //
     // TODO: see if "sub-device" (ZE_EVENT_SCOPE_FLAG_SUBDEVICE) can better be
     //       used in some circumstances.
@@ -5829,7 +5915,12 @@ pi_result piEventRelease(pi_event Event) {
     Event->CommandData = nullptr;
   }
   if (Event->OwnZeEvent) {
-    ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+    if (DisableEventsCaching) {
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+      auto Context = Event->Context;
+      if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
+        return Res;
+    }
   }
   // It is possible that host-visible event was never created.
   // In case it was check if that's different from this same event
@@ -5839,10 +5930,6 @@ pi_result piEventRelease(pi_event Event) {
     PI_CALL(piEventRelease(Event->HostVisibleEvent));
   }
 
-  auto Context = Event->Context;
-  if (auto Res = Context->decrementUnreleasedEventsInPool(Event))
-    return Res;
-
   // We intentionally incremented the reference counter when an event is
   // created so that we can avoid pi_queue is released before the associated
   // pi_event is released. Here we have to decrement it so pi_queue
@@ -5850,7 +5937,12 @@ pi_result piEventRelease(pi_event Event) {
   if (Event->Queue) {
     PI_CALL(piQueueReleaseInternal(Event->Queue));
   }
-  delete Event;
+
+  if (DisableEventsCaching || !Event->OwnZeEvent) {
+    delete Event;
+  } else {
+    Event->Context->addEventToCache(Event);
+  }
 
   return PI_SUCCESS;
 }

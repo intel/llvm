@@ -278,10 +278,20 @@ def AArch64scvtf_mt  : SDNode<"AArch64ISD::SINT_TO_FP_MERGE_PASSTHRU", SDT_AArch
 def AArch64fcvtzu_mt : SDNode<"AArch64ISD::FCVTZU_MERGE_PASSTHRU", SDT_AArch64FCVT>;
 def AArch64fcvtzs_mt : SDNode<"AArch64ISD::FCVTZS_MERGE_PASSTHRU", SDT_AArch64FCVT>;
 
-def SDT_AArch64ReduceWithInit : SDTypeProfile<1, 3, [SDTCisVec<1>, SDTCisVec<3>]>;
-def AArch64clasta_n   : SDNode<"AArch64ISD::CLASTA_N",   SDT_AArch64ReduceWithInit>;
-def AArch64clastb_n   : SDNode<"AArch64ISD::CLASTB_N",   SDT_AArch64ReduceWithInit>;
-def AArch64fadda_p    : SDNode<"AArch64ISD::FADDA_PRED", SDT_AArch64ReduceWithInit>;
+def SDT_AArch64ReduceWithInit : SDTypeProfile<1, 3,
+   [SDTCisVec<1>, SDTCVecEltisVT<1,i1>, SDTCisVec<3>, SDTCisSameNumEltsAs<1,3>]>;
+def AArch64clasta_n     : SDNode<"AArch64ISD::CLASTA_N",   SDT_AArch64ReduceWithInit>;
+def AArch64clastb_n     : SDNode<"AArch64ISD::CLASTB_N",   SDT_AArch64ReduceWithInit>;
+def AArch64fadda_p_node : SDNode<"AArch64ISD::FADDA_PRED", SDT_AArch64ReduceWithInit>;
+
+def AArch64fadda_p : PatFrags<(ops node:$op1, node:$op2, node:$op3),
+    [(AArch64fadda_p_node node:$op1, node:$op2, node:$op3),
+     (AArch64fadda_p_node (SVEAllActive), node:$op2,
+             (vselect node:$op1, node:$op3, (splat_vector (f16 fpimm_minus0)))),
+     (AArch64fadda_p_node (SVEAllActive), node:$op2,
+             (vselect node:$op1, node:$op3, (splat_vector (f32 fpimm_minus0)))),
+     (AArch64fadda_p_node (SVEAllActive), node:$op2,
+             (vselect node:$op1, node:$op3, (splat_vector (f64 fpimm_minus0))))]>;
 
 def SDT_AArch64PTest : SDTypeProfile<0, 2, [SDTCisVec<0>, SDTCisSameAs<0,1>]>;
 def AArch64ptest     : SDNode<"AArch64ISD::PTEST", SDT_AArch64PTest>;
@@ -329,6 +339,22 @@ def AArch64bic : PatFrags<(ops node:$op1, node:$op2),
 
 def AArch64subr : PatFrag<(ops node:$op1, node:$op2),
                           (sub node:$op2, node:$op1)>;
+def AArch64add_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2),
+                             [(int_aarch64_sve_add node:$pred, node:$op1, node:$op2),
+                              (add node:$op1, (vselect node:$pred, node:$op2, (SVEDup0)))]>;
+def AArch64sub_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2),
+                             [(int_aarch64_sve_sub node:$pred, node:$op1, node:$op2),
+                              (sub node:$op1, (vselect node:$pred, node:$op2, (SVEDup0)))]>;
+def AArch64mla_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
+                             [(int_aarch64_sve_mla node:$pred, node:$op1, node:$op2, node:$op3),
+                              (add node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3)),
+                              // add(a, select(mask, mul(b, c), splat(0))) -> mla(a, mask, b, c)
+                              (add node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0)))]>;
+def AArch64mls_m1 : PatFrags<(ops node:$pred, node:$op1, node:$op2, node:$op3),
+                             [(int_aarch64_sve_mls node:$pred, node:$op1, node:$op2, node:$op3),
+                              (sub node:$op1, (AArch64mul_p_oneuse node:$pred, node:$op2, node:$op3)),
+                              // sub(a, select(mask, mul(b, c), splat(0))) -> mls(a, mask, b, c)
+                              (sub node:$op1, (vselect node:$pred, (AArch64mul_p_oneuse (SVEAllActive), node:$op2, node:$op3), (SVEDup0)))]>;
 
 let Predicates = [HasSVE] in {
   defm RDFFR_PPz  : sve_int_rdffr_pred<0b0, "rdffr", int_aarch64_sve_rdffr_z>;
@@ -351,8 +377,8 @@ let Predicates = [HasSVEorSME] in {
   defm EOR_ZZZ : sve_int_bin_cons_log<0b10, "eor", xor>;
   defm BIC_ZZZ : sve_int_bin_cons_log<0b11, "bic", AArch64bic>;
 
-  defm ADD_ZPmZ  : sve_int_bin_pred_arit_0<0b000, "add",  "ADD_ZPZZ", int_aarch64_sve_add, DestructiveBinaryComm>;
-  defm SUB_ZPmZ  : sve_int_bin_pred_arit_0<0b001, "sub",  "SUB_ZPZZ", int_aarch64_sve_sub, DestructiveBinaryCommWithRev, "SUBR_ZPmZ">;
+  defm ADD_ZPmZ  : sve_int_bin_pred_arit_0<0b000, "add",  "ADD_ZPZZ", AArch64add_m1, DestructiveBinaryComm>;
+  defm SUB_ZPmZ  : sve_int_bin_pred_arit_0<0b001, "sub",  "SUB_ZPZZ", AArch64sub_m1, DestructiveBinaryCommWithRev, "SUBR_ZPmZ">;
   defm SUBR_ZPmZ : sve_int_bin_pred_arit_0<0b011, "subr", "SUBR_ZPZZ", int_aarch64_sve_subr, DestructiveBinaryCommWithRev, "SUB_ZPmZ", /*isReverseInstr*/ 1>;
 
   defm ORR_ZPmZ : sve_int_bin_pred_log<0b000, "orr", "ORR_ZPZZ", int_aarch64_sve_orr, DestructiveBinaryComm>;
@@ -383,8 +409,8 @@ let Predicates = [HasSVEorSME] in {
 
   defm MAD_ZPmZZ : sve_int_mladdsub_vvv_pred<0b0, "mad", int_aarch64_sve_mad>;
   defm MSB_ZPmZZ : sve_int_mladdsub_vvv_pred<0b1, "msb", int_aarch64_sve_msb>;
-  defm MLA_ZPmZZ : sve_int_mlas_vvv_pred<0b0, "mla", int_aarch64_sve_mla, add, AArch64mul_p_oneuse>;
-  defm MLS_ZPmZZ : sve_int_mlas_vvv_pred<0b1, "mls", int_aarch64_sve_mls, sub, AArch64mul_p_oneuse>;
+  defm MLA_ZPmZZ : sve_int_mlas_vvv_pred<0b0, "mla", AArch64mla_m1>;
+  defm MLS_ZPmZZ : sve_int_mlas_vvv_pred<0b1, "mls", AArch64mls_m1>;
 
   // SVE predicated integer reductions.
   defm SADDV_VPZ : sve_int_reduce_0_saddv<0b000, "saddv", AArch64saddv_p>;
@@ -446,6 +472,16 @@ let Predicates = [HasSVEorSME] in {
   defm NOT_ZPmZ  : sve_int_un_pred_arit_1<   0b110, "not",  AArch64not_mt>;
   defm FABS_ZPmZ : sve_int_un_pred_arit_1_fp<0b100, "fabs", AArch64fabs_mt>;
   defm FNEG_ZPmZ : sve_int_un_pred_arit_1_fp<0b101, "fneg", AArch64fneg_mt>;
+
+  // zext(cmpeq(x, splat(0))) -> cnot(x)
+  def : Pat<(nxv16i8 (zext (nxv16i1 (AArch64setcc_z (nxv16i1 (SVEAllActive):$Pg), nxv16i8:$Op2, (SVEDup0), SETEQ)))),
+            (CNOT_ZPmZ_B $Op2, $Pg, $Op2)>;
+  def : Pat<(nxv8i16 (zext (nxv8i1 (AArch64setcc_z (nxv8i1 (SVEAllActive):$Pg), nxv8i16:$Op2, (SVEDup0), SETEQ)))),
+            (CNOT_ZPmZ_H $Op2, $Pg, $Op2)>;
+  def : Pat<(nxv4i32 (zext (nxv4i1 (AArch64setcc_z (nxv4i1 (SVEAllActive):$Pg), nxv4i32:$Op2, (SVEDup0), SETEQ)))),
+            (CNOT_ZPmZ_S $Op2, $Pg, $Op2)>;
+  def : Pat<(nxv2i64 (zext (nxv2i1 (AArch64setcc_z (nxv2i1 (SVEAllActive):$Pg), nxv2i64:$Op2, (SVEDup0), SETEQ)))),
+            (CNOT_ZPmZ_D $Op2, $Pg, $Op2)>;
 
   defm SMAX_ZPmZ : sve_int_bin_pred_arit_1<0b000, "smax", "SMAX_ZPZZ", int_aarch64_sve_smax, DestructiveBinaryComm>;
   defm UMAX_ZPmZ : sve_int_bin_pred_arit_1<0b001, "umax", "UMAX_ZPZZ", int_aarch64_sve_umax, DestructiveBinaryComm>;
@@ -694,6 +730,12 @@ let Predicates = [HasSVEorSME] in {
             (DUP_ZI_D $a, $b)>;
 
   // Duplicate immediate FP into all vector elements.
+  def : Pat<(nxv2f16 (splat_vector (f16 fpimm:$val))),
+            (DUP_ZR_H (MOVi32imm (bitcast_fpimm_to_i32 f16:$val)))>;
+  def : Pat<(nxv4f16 (splat_vector (f16 fpimm:$val))),
+            (DUP_ZR_H (MOVi32imm (bitcast_fpimm_to_i32 f16:$val)))>;
+  def : Pat<(nxv8f16 (splat_vector (f16 fpimm:$val))),
+            (DUP_ZR_H (MOVi32imm (bitcast_fpimm_to_i32 f16:$val)))>;
   def : Pat<(nxv2f32 (splat_vector (f32 fpimm:$val))),
             (DUP_ZR_S (MOVi32imm (bitcast_fpimm_to_i32 f32:$val)))>;
   def : Pat<(nxv4f32 (splat_vector (f32 fpimm:$val))),
@@ -856,6 +898,16 @@ let Predicates = [HasSVEorSME] in {
   defm LD1RQ_H      : sve_mem_ldqr_ss<0b01, "ld1rqh", Z_h, ZPR16, GPR64NoXZRshifted16>;
   defm LD1RQ_W      : sve_mem_ldqr_ss<0b10, "ld1rqw", Z_s, ZPR32, GPR64NoXZRshifted32>;
   defm LD1RQ_D      : sve_mem_ldqr_ss<0b11, "ld1rqd", Z_d, ZPR64, GPR64NoXZRshifted64>;
+
+  let AddedComplexity = 1 in {
+  class LD1RQPat<ValueType vt1, ValueType vt2, SDPatternOperator op, Instruction load_instr, Instruction ptrue> :
+          Pat<(vt1 (op (vt1 (vector_insert_subvec (vt1 undef), (vt2 (load GPR64sp:$Xn)), (i64 0))), (i64 0))),
+          (load_instr (ptrue 31), GPR64sp:$Xn, 0)>;
+  }
+  def : LD1RQPat<nxv16i8, v16i8, AArch64duplane128, LD1RQ_B_IMM, PTRUE_B>;
+  def : LD1RQPat<nxv8i16, v8i16, AArch64duplane128, LD1RQ_H_IMM, PTRUE_H>;
+  def : LD1RQPat<nxv4i32, v4i32, AArch64duplane128, LD1RQ_W_IMM, PTRUE_S>;
+  def : LD1RQPat<nxv2i64, v2i64, AArch64duplane128, LD1RQ_D_IMM, PTRUE_D>;
 
   // continuous load with reg+reg addressing.
   defm LD1B    : sve_mem_cld_ss<0b0000, "ld1b",  Z_b, ZPR8,  GPR64NoXZRshifted8>;

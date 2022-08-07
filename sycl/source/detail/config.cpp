@@ -9,11 +9,11 @@
 #include <detail/config.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/os_util.hpp>
 
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <limits>
 
 __SYCL_INLINE_NAMESPACE(cl) {

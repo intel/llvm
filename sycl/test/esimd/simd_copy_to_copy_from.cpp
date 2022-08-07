@@ -12,7 +12,7 @@
 #include <utility>
 
 using namespace sycl::ext::intel::esimd;
-using namespace cl::sycl;
+using namespace sycl;
 
 // --- Postive tests.
 

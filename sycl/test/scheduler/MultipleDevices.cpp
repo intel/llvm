@@ -13,7 +13,7 @@
 
 #include <iostream>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int multidevice_test(queue MyQueue1, queue MyQueue2) {
   const size_t N = 100;
@@ -99,7 +99,7 @@ int main() {
     queue MyQueue1(hostSelector);
     queue MyQueue2(hostSelector);
     Result &= multidevice_test(MyQueue1, MyQueue2);
-  } catch(cl::sycl::runtime_error &) {
+  } catch (sycl::runtime_error &) {
     std::cout << "Skipping host and host" << std::endl;
   }
 

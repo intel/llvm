@@ -52,8 +52,8 @@ int main() {
 // Base classes should be initialized first.
 // CHECK: VarDecl {{.*}} used derived 'derived' cinit
 // CHECK-NEXT: InitListExpr {{.*}} 'derived'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'base' 'void (const base &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const base' lvalue <NoOp>
+// CHECK-NEXT: CXXConstructExpr {{.*}}'base' 'void (const base &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}}'const base' lvalue <NoOp>
 // CHECK-NEXT: DeclRefExpr {{.*}} lvalue ParmVar {{.*}} '_arg__base' 'base'
 // CHECK-NEXT: InitListExpr {{.*}} 'second_base'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <AddressSpaceConversion>

@@ -31,7 +31,7 @@ def device_linker_args_EQ : Joined<["--"], "device-linker=">,
 def dry_run : Flag<["--"], "dry-run">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Print program arguments without running">;
-def verbose : Flag<["--"], "verbose">,
+def verbose : Flag<["--"], "wrapper-verbose">,
   Flags<[WrapperOnlyOption]>, HelpText<"Verbose output from tools">;
 def embed_bitcode : Flag<["--"], "embed-bitcode">,
   Flags<[WrapperOnlyOption]>, HelpText<"Embed linked bitcode in the module">;
@@ -80,6 +80,8 @@ def separator : Flag<["--"], "">, Flags<[WrapperOnlyOption]>,
 // Arguments for the LLVM backend.
 def mllvm : Separate<["-"], "mllvm">, Flags<[WrapperOnlyOption]>,
   MetaVarName<"<arg>">, HelpText<"Arguments passed to the LLVM invocation">;
+def offload_opt_eq_minus : Joined<["--", "-"], "offload-opt=-">, Flags<[HelpHidden, WrapperOnlyOption]>,
+  HelpText<"Options passed to LLVM">;
 
 // Standard linker flags also used by the linker wrapper.
 def sysroot_EQ : Joined<["--"], "sysroot">, HelpText<"Set the system root">;

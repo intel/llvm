@@ -2,7 +2,7 @@
 // UNSUPPORTED: windows
 #include <sycl/accessor.hpp>
 
-typedef cl::sycl::accessor<int, 1, cl::sycl::access::mode::read> dummy;
+typedef sycl::accessor<int, 1, sycl::access::mode::read> dummy;
 
 // AccessorImplDevice must have MemRange and Offset fields
 

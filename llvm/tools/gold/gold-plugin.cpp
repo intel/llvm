@@ -209,7 +209,11 @@ namespace options {
   // Asserts that LTO link has whole program visibility
   static bool whole_program_visibility = false;
   // Use opaque pointer types.
+#if ENABLE_OPAQUE_POINTERS
+  static bool opaque_pointers = true;
+#else
   static bool opaque_pointers = false;
+#endif
 
   // Optimization remarks filename, accepted passes and hotness options
   static std::string RemarksFilename;

@@ -788,7 +788,7 @@ struct CompletionRecorder : public CodeCompleteConsumer {
 
   void ProcessCodeCompleteResults(class Sema &S, CodeCompletionContext Context,
                                   CodeCompletionResult *InResults,
-                                  unsigned NumResults) override final {
+                                  unsigned NumResults) final {
     // Results from recovery mode are generally useless, and the callback after
     // recovery (if any) is usually more interesting. To make sure we handle the
     // future callback from sema, we just ignore all callbacks in recovery mode,
@@ -1019,10 +1019,12 @@ public:
         auto KindPriority = [&](OC::CandidateKind K) {
           switch (K) {
           case OC::CK_Aggregate:
-            return 1;
+            return 0;
           case OC::CK_Function:
-            return 2;
+            return 1;
           case OC::CK_FunctionType:
+            return 2;
+          case OC::CK_FunctionProtoTypeLoc:
             return 3;
           case OC::CK_FunctionTemplate:
             return 4;

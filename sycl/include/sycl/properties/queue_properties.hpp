@@ -26,16 +26,16 @@ namespace oneapi {
 
 namespace property {
 namespace queue {
-class discard_events : public ::cl::sycl::detail::DataLessProperty<
-                           ::cl::sycl::detail::DiscardEvents> {};
+class discard_events
+    : public ::sycl::detail::DataLessProperty<::sycl::detail::DiscardEvents> {};
 } // namespace queue
 } // namespace property
 
 namespace cuda {
 namespace property {
 namespace queue {
-class use_default_stream : public ::cl::sycl::detail::DataLessProperty<
-                               ::cl::sycl::detail::UseDefaultStream> {};
+class use_default_stream : public ::sycl::detail::DataLessProperty<
+                               ::sycl::detail::UseDefaultStream> {};
 } // namespace queue
 } // namespace property
 } // namespace cuda
@@ -46,8 +46,8 @@ namespace property {
 namespace queue {
 namespace __SYCL2020_DEPRECATED(
     "use 'sycl::ext::oneapi::cuda::property::queue' instead") cuda {
-class use_default_stream : public ::cl::sycl::ext::oneapi::cuda::property::
-                               queue::use_default_stream {};
+class use_default_stream
+    : public ::sycl::ext::oneapi::cuda::property::queue::use_default_stream {};
 // clang-format off
 } // namespace cuda
 // clang-format on

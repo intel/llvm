@@ -960,15 +960,10 @@ void CallBrInst::init(FunctionType *FTy, Value *Fn, BasicBlock *Fallthrough,
   setName(NameStr);
 }
 
-void CallBrInst::updateArgBlockAddresses(unsigned i, BasicBlock *B) {
-  assert(getNumIndirectDests() > i && "IndirectDest # out of range for callbr");
-  if (BasicBlock *OldBB = getIndirectDest(i)) {
-    BlockAddress *Old = BlockAddress::get(OldBB);
-    BlockAddress *New = BlockAddress::get(B);
-    for (unsigned ArgNo = 0, e = arg_size(); ArgNo != e; ++ArgNo)
-      if (dyn_cast<BlockAddress>(getArgOperand(ArgNo)) == Old)
-        setArgOperand(ArgNo, New);
-  }
+BlockAddress *
+CallBrInst::getBlockAddressForIndirectDest(unsigned DestNo) const {
+  return BlockAddress::get(const_cast<Function *>(getFunction()),
+                           getIndirectDest(DestNo));
 }
 
 CallBrInst::CallBrInst(const CallBrInst &CBI)
@@ -1632,6 +1627,10 @@ AtomicCmpXchgInst::AtomicCmpXchgInst(Value *Ptr, Value *Cmp, Value *NewVal,
 void AtomicRMWInst::Init(BinOp Operation, Value *Ptr, Value *Val,
                          Align Alignment, AtomicOrdering Ordering,
                          SyncScope::ID SSID) {
+  assert(Ordering != AtomicOrdering::NotAtomic &&
+         "atomicrmw instructions can only be atomic.");
+  assert(Ordering != AtomicOrdering::Unordered &&
+         "atomicrmw instructions cannot be unordered.");
   Op<0>() = Ptr;
   Op<1>() = Val;
   setOperation(Operation);

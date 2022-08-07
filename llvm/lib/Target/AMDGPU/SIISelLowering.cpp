@@ -1664,6 +1664,17 @@ SDValue SITargetLowering::getImplicitArgPtr(SelectionDAG &DAG,
   return lowerKernArgParameterPtr(DAG, SL, DAG.getEntryNode(), Offset);
 }
 
+SDValue SITargetLowering::getLDSKernelId(SelectionDAG &DAG,
+                                         const SDLoc &SL) const {
+
+  Function &F = DAG.getMachineFunction().getFunction();
+  Optional<uint32_t> KnownSize =
+      AMDGPUMachineFunction::getLDSKernelIdMetadata(F);
+  if (KnownSize.has_value())
+    return DAG.getConstant(KnownSize.value(), SL, MVT::i32);
+  return SDValue();
+}
+
 SDValue SITargetLowering::convertArgType(SelectionDAG &DAG, EVT VT, EVT MemVT,
                                          const SDLoc &SL, SDValue Val,
                                          bool Signed,
@@ -2049,6 +2060,9 @@ void SITargetLowering::allocateSpecialInputSGPRs(
 
   if (Info.hasWorkGroupIDZ())
     allocateSGPR32Input(CCInfo, ArgInfo.WorkGroupIDZ);
+
+  if (Info.hasLDSKernelId())
+    allocateSGPR32Input(CCInfo, ArgInfo.LDSKernelId);
 }
 
 // Allocate special inputs passed in user SGPRs.
@@ -2102,6 +2116,12 @@ void SITargetLowering::allocateHSAUserSGPRs(CCState &CCInfo,
     CCInfo.AllocateReg(FlatScratchInitReg);
   }
 
+  if (Info.hasLDSKernelId()) {
+    Register Reg = Info.addLDSKernelId();
+    MF.addLiveIn(Reg, &AMDGPU::SGPR_32RegClass);
+    CCInfo.AllocateReg(Reg);
+  }
+
   // TODO: Add GridWorkGroupCount user SGPRs when used. For now with HSA we read
   // these from the dispatch pointer.
 }
@@ -2112,7 +2132,8 @@ void SITargetLowering::allocateSystemSGPRs(CCState &CCInfo,
                                            SIMachineFunctionInfo &Info,
                                            CallingConv::ID CallConv,
                                            bool IsShader) const {
-  if (Subtarget->hasUserSGPRInit16Bug()) {
+  if (Subtarget->hasUserSGPRInit16Bug() && !IsShader) {
+    // Note: user SGPRs are handled by the front-end for graphics shaders
     // Pad up the used user SGPRs with dead inputs.
     unsigned CurrentUserSGPRs = Info.getNumUserSGPRs();
 
@@ -2175,7 +2196,8 @@ void SITargetLowering::allocateSystemSGPRs(CCState &CCInfo,
     CCInfo.AllocateReg(PrivateSegmentWaveByteOffsetReg);
   }
 
-  assert(!Subtarget->hasUserSGPRInit16Bug() || Info.getNumPreloadedSGPRs() >= 16);
+  assert(!Subtarget->hasUserSGPRInit16Bug() || IsShader ||
+         Info.getNumPreloadedSGPRs() >= 16);
 }
 
 static void reservePrivateMemoryRegs(const TargetMachine &TM,
@@ -2347,8 +2369,8 @@ SDValue SITargetLowering::LowerFormalArguments(
            (!Info->hasFlatScratchInit() || Subtarget->enableFlatScratch()) &&
            !Info->hasWorkGroupIDX() && !Info->hasWorkGroupIDY() &&
            !Info->hasWorkGroupIDZ() && !Info->hasWorkGroupInfo() &&
-           !Info->hasWorkItemIDX() && !Info->hasWorkItemIDY() &&
-           !Info->hasWorkItemIDZ());
+           !Info->hasLDSKernelId() && !Info->hasWorkItemIDX() &&
+           !Info->hasWorkItemIDY() && !Info->hasWorkItemIDZ());
   }
 
   if (CallConv == CallingConv::AMDGPU_PS) {
@@ -2762,7 +2784,8 @@ void SITargetLowering::passSpecialInputs(
     {AMDGPUFunctionArgInfo::DISPATCH_ID, "amdgpu-no-dispatch-id"},
     {AMDGPUFunctionArgInfo::WORKGROUP_ID_X, "amdgpu-no-workgroup-id-x"},
     {AMDGPUFunctionArgInfo::WORKGROUP_ID_Y,"amdgpu-no-workgroup-id-y"},
-    {AMDGPUFunctionArgInfo::WORKGROUP_ID_Z,"amdgpu-no-workgroup-id-z"}
+    {AMDGPUFunctionArgInfo::WORKGROUP_ID_Z,"amdgpu-no-workgroup-id-z"},
+    {AMDGPUFunctionArgInfo::LDS_KERNEL_ID,"amdgpu-no-lds-kernel-id"},
   };
 
   for (auto Attr : ImplicitAttrs) {
@@ -2798,6 +2821,13 @@ void SITargetLowering::passSpecialInputs(
       // The implicit arg ptr is special because it doesn't have a corresponding
       // input for kernels, and is computed from the kernarg segment pointer.
       InputReg = getImplicitArgPtr(DAG, DL);
+    } else if (InputID == AMDGPUFunctionArgInfo::LDS_KERNEL_ID) {
+      Optional<uint32_t> Id = AMDGPUMachineFunction::getLDSKernelIdMetadata(F);
+      if (Id.has_value()) {
+        InputReg = DAG.getConstant(Id.value(), DL, ArgVT);
+      } else {
+        InputReg = DAG.getUNDEF(ArgVT);
+      }
     } else {
       // We may have proven the input wasn't needed, although the ABI is
       // requiring it. We just need to allocate the register appropriately.
@@ -6887,6 +6917,12 @@ SDValue SITargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
   case Intrinsic::amdgcn_workgroup_id_z:
     return getPreloadedValue(DAG, *MFI, VT,
                              AMDGPUFunctionArgInfo::WORKGROUP_ID_Z);
+  case Intrinsic::amdgcn_lds_kernel_id: {
+    if (MFI->isEntryFunction())
+      return getLDSKernelId(DAG, DL);
+    return getPreloadedValue(DAG, *MFI, VT,
+                             AMDGPUFunctionArgInfo::LDS_KERNEL_ID);
+  }
   case Intrinsic::amdgcn_workitem_id_x:
     return lowerWorkitemID(DAG, Op, 0, MFI->getArgInfo().WorkItemIDX);
   case Intrinsic::amdgcn_workitem_id_y:

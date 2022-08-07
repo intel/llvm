@@ -15,7 +15,7 @@
 
 namespace {
 
-using namespace cl::sycl;
+using namespace sycl;
 
 class PlatformTest : public testing::TestWithParam<detail::plugin> {
 protected:

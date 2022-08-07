@@ -179,8 +179,8 @@ public:
   virtual void setSPIRVVersion(SPIRVWord) = 0;
   virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
-  void setMinSPIRVVersion(SPIRVWord Ver) {
-    setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
+  void setMinSPIRVVersion(VersionNumber Ver) {
+    setSPIRVVersion(std::max(static_cast<SPIRVWord>(Ver), getSPIRVVersion()));
   }
 
   // Object creation functions

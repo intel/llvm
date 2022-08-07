@@ -25,7 +25,7 @@ The implementation is a wrapper class to map fpga_reg function call to a Clang b
 #include <sycl/intel/fpga_extensions.hpp>
 ...
 // force at least one register on data path
-int a = cl::sycl::intel::fpga_reg(a[k]) + b[k];
+int a = sycl::intel::fpga_reg(a[k]) + b[k];
 
 ...
 ```

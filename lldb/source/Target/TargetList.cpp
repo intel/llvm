@@ -354,7 +354,7 @@ Status TargetList::CreateTargetInternal(Debugger &debugger,
   }
   if (file.GetDirectory()) {
     FileSpec file_dir;
-    file_dir.GetDirectory() = file.GetDirectory();
+    file_dir.SetDirectory(file.GetDirectory());
     target_sp->AppendExecutableSearchPaths(file_dir);
   }
 
@@ -509,8 +509,7 @@ uint32_t TargetList::GetIndexOfTarget(lldb::TargetSP target_sp) const {
 }
 
 void TargetList::AddTargetInternal(TargetSP target_sp, bool do_select) {
-  lldbassert(std::find(m_target_list.begin(), m_target_list.end(), target_sp) ==
-                 m_target_list.end() &&
+  lldbassert(!llvm::is_contained(m_target_list, target_sp) &&
              "target already exists it the list");
   m_target_list.push_back(std::move(target_sp));
   if (do_select)

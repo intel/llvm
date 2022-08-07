@@ -201,7 +201,7 @@ Status Debugger::SetPropertyValue(const ExecutionContext *exe_ctx,
   }
 
   TargetSP target_sp;
-  LoadScriptFromSymFile load_script_old_value;
+  LoadScriptFromSymFile load_script_old_value = eLoadScriptFromSymFileFalse;
   if (is_load_script && exe_ctx->GetTargetSP()) {
     target_sp = exe_ctx->GetTargetSP();
     load_script_old_value =
@@ -302,7 +302,7 @@ void Debugger::SetPrompt(llvm::StringRef p) {
 
 llvm::StringRef Debugger::GetReproducerPath() const {
   auto &r = repro::Reproducer::Instance();
-  return r.GetReproducerPath().GetCString();
+  return r.GetReproducerPath().GetPathAsConstString().AsCString();
 }
 
 const FormatEntity::Entry *Debugger::GetThreadFormat() const {
