@@ -16,6 +16,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 
+#include <sycl/properties/accessor_properties.hpp>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -407,13 +408,14 @@ public:
 
   template <access::mode Mode, access::target Target = access::target::device>
   accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-           ext::oneapi::accessor_property_list<>>
+           ext::oneapi::accessor_property_list<
+               ext::oneapi::property::no_offset::instance<true>>>
   get_access(
       handler &CommandGroupHandler,
       const detail::code_location CodeLoc = detail::code_location::current()) {
-    return accessor<T, dimensions, Mode, Target, access::placeholder::false_t,
-                    ext::oneapi::accessor_property_list<>>(
-        *this, CommandGroupHandler, {}, CodeLoc);
+    return {*this, CommandGroupHandler,
+            ext::oneapi::accessor_property_list{ext::oneapi::no_offset},
+            CodeLoc};
   }
 
   template <access::mode mode>
