@@ -32,6 +32,8 @@
 
 namespace llvm {
 
+template <typename T> class ArrayRef;
+
 template <typename IteratorT> class iterator_range;
 
 template <class Iterator>
@@ -75,7 +77,7 @@ public:
   size_t size() const { return Size; }
   size_t capacity() const { return Capacity; }
 
-  LLVM_NODISCARD bool empty() const { return !Size; }
+  [[nodiscard]] bool empty() const { return !Size; }
 
 protected:
   /// Set the array size to \p N, which the current array must have enough
@@ -656,7 +658,7 @@ public:
     truncate(this->size() - NumItems);
   }
 
-  LLVM_NODISCARD T pop_back_val() {
+  [[nodiscard]] T pop_back_val() {
     T Result = ::std::move(this->back());
     this->pop_back();
     return Result;
@@ -1206,6 +1208,12 @@ public:
 
   SmallVector(std::initializer_list<T> IL) : SmallVectorImpl<T>(N) {
     this->append(IL);
+  }
+
+  template <typename U,
+            typename = std::enable_if_t<std::is_convertible<U, T>::value>>
+  explicit SmallVector(ArrayRef<U> A) : SmallVectorImpl<T>(N) {
+    this->append(A.begin(), A.end());
   }
 
   SmallVector(const SmallVector &RHS) : SmallVectorImpl<T>(N) {

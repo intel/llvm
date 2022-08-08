@@ -223,7 +223,7 @@ Attribute Parser::parseAttribute(Type type) {
     // better error message.
     Type type;
     OptionalParseResult result = parseOptionalType(type);
-    if (!result.hasValue())
+    if (!result.has_value())
       return emitWrongTokenError("expected attribute value"), Attribute();
     return failed(*result) ? Attribute() : TypeAttr::get(type);
   }
@@ -257,7 +257,7 @@ OptionalParseResult Parser::parseOptionalAttribute(Attribute &attribute,
     // Parse an optional type attribute.
     Type type;
     OptionalParseResult result = parseOptionalType(type);
-    if (result.hasValue() && succeeded(*result))
+    if (result.has_value() && succeeded(*result))
       attribute = TypeAttr::get(type);
     return result;
   }
@@ -845,6 +845,12 @@ Attribute Parser::parseDenseArrayAttr() {
 
   if (auto intType = type.dyn_cast<IntegerType>()) {
     switch (type.getIntOrFloatBitWidth()) {
+    case 1:
+      if (isEmptyList)
+        result = DenseBoolArrayAttr::get(parser.getContext(), {});
+      else
+        result = DenseBoolArrayAttr::parseWithoutBraces(parser, Type{});
+      break;
     case 8:
       if (isEmptyList)
         result = DenseI8ArrayAttr::get(parser.getContext(), {});
@@ -870,7 +876,7 @@ Attribute Parser::parseDenseArrayAttr() {
         result = DenseI64ArrayAttr::parseWithoutBraces(parser, Type{});
       break;
     default:
-      emitError(typeLoc, "expected i8, i16, i32, or i64 but got: ") << type;
+      emitError(typeLoc, "expected i1, i8, i16, i32, or i64 but got: ") << type;
       return {};
     }
   } else if (auto floatType = type.dyn_cast<FloatType>()) {
