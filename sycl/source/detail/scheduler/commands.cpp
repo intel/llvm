@@ -1947,8 +1947,8 @@ static void adjustNDRangePerKernel(NDRDescT &NDR, RT::PiKernel Kernel,
   // TODO might be good to cache this info together with the kernel info to
   // avoid get_kernel_work_group_info on every kernel run
   range<3> WGSize = get_kernel_device_specific_info<
-      range<3>, sycl::info::kernel_device_specific::compile_work_group_size>::
-      get(Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
+      sycl::info::kernel_device_specific::compile_work_group_size>(
+      Kernel, DeviceImpl.getHandleRef(), DeviceImpl.getPlugin());
 
   if (WGSize[0] == 0) {
     WGSize = {1, 1, 1};
