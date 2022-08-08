@@ -135,8 +135,8 @@ template <>
 uint32_t context_impl::get_info<info::context::reference_count>() const {
   if (is_host())
     return 0;
-  return get_context_info<info::context::reference_count>::get(
-      this->getHandleRef(), this->getPlugin());
+  return get_context_info<info::context::reference_count>(this->getHandleRef(),
+                                                          this->getPlugin());
 }
 template <> platform context_impl::get_info<info::context::platform>() const {
   if (is_host())
@@ -160,8 +160,7 @@ context_impl::get_info<info::context::atomic_memory_order_capabilities>()
   pi_memory_order_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,
-      pi::cast<pi_context_info>(
-          info::context::atomic_memory_order_capabilities),
+      PiInfoCode<info::context::atomic_memory_order_capabilities>::value,
       sizeof(Result), &Result, nullptr);
   return readMemoryOrderBitfield(Result);
 }
@@ -177,8 +176,7 @@ context_impl::get_info<info::context::atomic_memory_scope_capabilities>()
   pi_memory_scope_capabilities Result;
   getPlugin().call<PiApiKind::piContextGetInfo>(
       MContext,
-      pi::cast<pi_context_info>(
-          info::context::atomic_memory_scope_capabilities),
+      PiInfoCode<info::context::atomic_memory_scope_capabilities>::value,
       sizeof(Result), &Result, nullptr);
   return readMemoryScopeBitfield(Result);
 }

@@ -211,8 +211,7 @@ public:
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <info::queue Param>
-  typename info::param_traits<info::queue, Param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 

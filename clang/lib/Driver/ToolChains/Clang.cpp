@@ -8142,6 +8142,7 @@ void Clang::AddClangCLArgs(const ArgList &Args, types::ID InputType,
         CmdArgs.push_back("--dependent-lib=sycld");
       else
         CmdArgs.push_back("--dependent-lib=sycl");
+      CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
   }
 
