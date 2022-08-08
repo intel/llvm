@@ -84,8 +84,8 @@ private:
 
 namespace std {
 template <typename T>
-struct allocator_traits<cl::sycl::detail::aligned_allocator<T>> {
-  using allocator_type = typename cl::sycl::detail::aligned_allocator<T>;
+struct allocator_traits<sycl::detail::aligned_allocator<T>> {
+  using allocator_type = typename sycl::detail::aligned_allocator<T>;
   using value_type = typename allocator_type::value_type;
   using pointer = typename allocator_type::pointer;
   using const_pointer = typename allocator_type::const_pointer;
@@ -102,8 +102,8 @@ struct allocator_traits<cl::sycl::detail::aligned_allocator<T>> {
   using is_always_equal = typename std::is_empty<allocator_type>::type;
 
   template <typename U>
-  using rebind_alloc = typename cl::sycl::detail::aligned_allocator<
-      T>::template rebind<U>::other;
+  using rebind_alloc =
+      typename sycl::detail::aligned_allocator<T>::template rebind<U>::other;
   template <typename U> using rebind_traits = allocator_traits<rebind_alloc<U>>;
 
   static pointer allocate(allocator_type &Allocator, size_type NumElems) {
