@@ -17,7 +17,6 @@
 namespace s = sycl;
 namespace d = s::detail;
 
-// TODO:
 namespace __host_std {
 
 __SYCL_EXPORT s::cl_float Dot(s::vec<float, 1>, s::vec<float, 1>);

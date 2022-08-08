@@ -103,7 +103,6 @@
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
-// TODO: Version this
 namespace __host_std {
 #endif // __SYCL_DEVICE_ONLY__
 /* ----------------- 4.13.3 Math functions. ---------------------------------*/

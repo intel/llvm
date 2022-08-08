@@ -22,7 +22,6 @@
 namespace s = sycl;
 namespace d = s::detail;
 
-// TODO:
 namespace __host_std {
 namespace {
 
