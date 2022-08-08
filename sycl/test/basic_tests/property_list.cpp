@@ -8,13 +8,13 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-namespace sycl_property = cl::sycl::property;
+namespace sycl_property = sycl::property;
 
 int main() {
   bool Failed = false;
 
   {
-    cl::sycl::property_list Empty{};
+    sycl::property_list Empty{};
     if (Empty.has_property<sycl_property::buffer::use_host_ptr>()) {
       std::cerr << "Error: empty property list has property." << std::endl;
       Failed = true;
@@ -22,13 +22,13 @@ int main() {
   }
 
   {
-    cl::sycl::context SYCLContext;
+    sycl::context SYCLContext;
     sycl_property::buffer::context_bound ContextBound(SYCLContext);
 
-    cl::sycl::property_list SeveralProps{sycl_property::image::use_host_ptr(),
-                                         sycl_property::buffer::use_host_ptr(),
-                                         sycl_property::image::use_host_ptr(),
-                                         ContextBound};
+    sycl::property_list SeveralProps{sycl_property::image::use_host_ptr(),
+                                     sycl_property::buffer::use_host_ptr(),
+                                     sycl_property::image::use_host_ptr(),
+                                     ContextBound};
 
     if (!SeveralProps.has_property<sycl_property::buffer::use_host_ptr>()) {
       std::cerr << "Error: property list has no property while should have."
@@ -52,7 +52,7 @@ int main() {
         Failed = true;
       }
 
-    } catch (cl::sycl::invalid_object_error &Error) {
+    } catch (sycl::invalid_object_error &Error) {
       Error.what();
       std::cerr << "Error: exception was thrown in get_property method."
                 << std::endl;
@@ -61,8 +61,7 @@ int main() {
   }
 
   {
-    cl::sycl::property_list MemChannelProp{
-        sycl_property::buffer::mem_channel(2)};
+    sycl::property_list MemChannelProp{sycl_property::buffer::mem_channel(2)};
     if (!MemChannelProp.has_property<sycl_property::buffer::mem_channel>()) {
       std::cerr << "Error: property list has no property while should have."
                 << std::endl;

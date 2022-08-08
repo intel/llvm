@@ -12,6 +12,7 @@
 #include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
@@ -27,6 +28,7 @@
 #define __STDC_FORMAT_MACROS 1
 #endif
 #include <cinttypes>
+#include <type_traits>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -81,8 +83,13 @@ class context;
 class device;
 class queue;
 
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
+
 namespace detail {
 class queue_impl;
+
 #if __SYCL_USE_FALLBACK_ASSERT
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
@@ -117,10 +124,68 @@ public:
   queue(const async_handler &AsyncHandler, const property_list &PropList = {})
       : queue(default_selector(), AsyncHandler, PropList) {}
 
+#if __cplusplus >= 201703L
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const DeviceSelector &deviceSelector,
+                 const async_handler &AsyncHandler,
+                 const property_list &PropList = {})
+      : queue(detail::select_device(deviceSelector), AsyncHandler, PropList) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const DeviceSelector &deviceSelector,
+                 const property_list &PropList = {})
+      : queue(detail::select_device(deviceSelector), async_handler{},
+              PropList) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const context &syclContext,
+                 const DeviceSelector &deviceSelector,
+                 const property_list &propList = {})
+      : queue(syclContext, detail::select_device(deviceSelector, syclContext),
+              propList) {}
+
+  /// Constructs a SYCL queue instance using the device identified by the
+  /// device selector provided.
+  /// \param SyclContext is an instance of SYCL context.
+  /// \param DeviceSelector is SYCL 2020 Device Selector, a simple callable that
+  /// takes a device and returns an int
+  /// \param AsyncHandler is a SYCL asynchronous exception handler.
+  /// \param PropList is a list of properties for queue construction.
+  template <typename DeviceSelector,
+            typename = detail::EnableIfDeviceSelectorInvocable<DeviceSelector>>
+  explicit queue(const context &syclContext,
+                 const DeviceSelector &deviceSelector,
+                 const async_handler &AsyncHandler,
+                 const property_list &propList = {})
+      : queue(syclContext, detail::select_device(deviceSelector, syclContext),
+              AsyncHandler, propList) {}
+
+#endif
+
   /// Constructs a SYCL queue instance using the device returned by the
   /// DeviceSelector provided.
   ///
-  /// \param DeviceSelector is an instance of SYCL device selector.
+  /// \param DeviceSelector is an instance of a SYCL 1.2.1 device_selector.
   /// \param PropList is a list of properties for queue construction.
   queue(const device_selector &DeviceSelector,
         const property_list &PropList = {})
@@ -129,7 +194,7 @@ public:
   /// Constructs a SYCL queue instance with an async_handler using the device
   /// returned by the DeviceSelector provided.
   ///
-  /// \param DeviceSelector is an instance of SYCL device selector.
+  /// \param DeviceSelector is an instance of SYCL 1.2.1 device_selector.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   /// \param PropList is a list of properties for queue construction.
   queue(const device_selector &DeviceSelector,
@@ -234,8 +299,8 @@ public:
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <info::queue param>
-  typename info::param_traits<info::queue, param>::return_type get_info() const;
+  template <typename Param>
+  typename detail::is_queue_info_desc<Param>::return_type get_info() const;
 
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
@@ -1033,15 +1098,6 @@ public:
   /// \return the backend associated with this queue.
   backend get_backend() const noexcept;
 
-  /// Gets the native handle of the SYCL queue.
-  ///
-  /// \return a native handle, the type of which defined by the backend.
-  template <backend Backend>
-  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  backend_return_t<Backend, queue> get_native() const {
-    return reinterpret_cast<backend_return_t<Backend, queue>>(getNative());
-  }
-
 private:
   pi_native_handle getNative() const;
 
@@ -1052,6 +1108,10 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend BackendName, class SyclObjectT>
+  friend auto get_native(const SyclObjectT &Obj)
+      -> backend_return_t<BackendName, SyclObjectT>;
 
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,
@@ -1245,10 +1305,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
-template <> struct hash<cl::sycl::queue> {
-  size_t operator()(const cl::sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<cl::sycl::detail::queue_impl>>()(
-        cl::sycl::detail::getSyclObjImpl(Q));
+template <> struct hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const {
+    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
+        sycl::detail::getSyclObjImpl(Q));
   }
 };
 } // namespace std

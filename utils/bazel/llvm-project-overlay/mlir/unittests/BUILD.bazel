@@ -180,6 +180,21 @@ cc_test(
 )
 
 cc_test(
+    name = "transform_dialect_tests",
+    size = "small",
+    srcs = glob([
+        "Dialect/Transform/*.cpp",
+        "Dialect/Transform/*.h",
+    ]),
+    deps = [
+        "//llvm:TestingSupport",
+        "//llvm:gtest_main",
+        "//mlir:FuncDialect",
+        "//mlir:TransformDialect",
+    ],
+)
+
+cc_test(
     name = "dialect_utils_tests",
     size = "small",
     srcs = glob([
@@ -284,8 +299,8 @@ cc_test(
         "//llvm:gtest_main",
         "//mlir:AffineAnalysis",
         "//mlir:Analysis",
-        "//mlir:IR",
         "//mlir:Parser",
+        "//mlir:IR",
     ],
 )
 

@@ -19,7 +19,7 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 
   const detail::plugin &Plugin = detail::getSyclObjImpl(P)->getPlugin();
   pi_result Result = Plugin.call_nocheck<
-      cl::sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
+      sycl::detail::PiApiKind::piextGetDeviceFunctionPointer>(
       detail::pi::cast<pi_device>(detail::getSyclObjImpl(D)->getHandleRef()),
       detail::pi::cast<pi_program>(detail::getSyclObjImpl(P)->getHandleRef()),
       FuncName, &FPtr);

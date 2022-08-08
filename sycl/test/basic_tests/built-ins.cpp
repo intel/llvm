@@ -11,7 +11,7 @@
 
 #include <cassert>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 
 // According to OpenCL C spec, the format string must be in constant address
 // space

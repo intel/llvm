@@ -24,7 +24,7 @@
 #include <sycl/stream.hpp>
 #include <sycl/types.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <int newSize, int oldSize> void check_size() {
   static_assert(newSize == oldSize, "Symbol size has changed.");

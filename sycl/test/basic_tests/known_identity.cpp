@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <sycl/sycl.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 template <typename T> void checkCommonKnownIdentity() {
   static_assert(has_known_identity<sycl::maximum<>, T>::value);

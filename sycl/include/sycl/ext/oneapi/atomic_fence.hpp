@@ -21,7 +21,7 @@ namespace sycl {
 namespace ext {
 namespace oneapi {
 namespace detail {
-using namespace cl::sycl::detail;
+using namespace sycl::detail;
 }
 
 __SYCL2020_DEPRECATED("use sycl::atomic_fence instead")
