@@ -1,4 +1,6 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - -no-opaque-pointers | FileCheck %s
+// Test that SPIR-V codegen generates the expected LLVM struct name for the
+// JointMatrixINTEL type.
 #include <stddef.h>
 #include <stdint.h>
 
@@ -29,3 +31,6 @@ void f4(__spv::__spirv_JointMatrixINTEL<my_half, 10, 2, 0, 0> *matrix) {}
 
 // CHECK: @_Z2f5{{.*}}(%spirv.JointMatrixINTEL._bfloat16_10_2_0_0
 void f5(__spv::__spirv_JointMatrixINTEL<cl::sycl::bfloat16, 10, 2, 0, 0> *matrix) {}
+
+// CHECK: @_Z2f6{{.*}}(%spirv.JointMatrixINTEL._i128_10_2_0_0
+void f6(__spv::__spirv_JointMatrixINTEL<__int128, 10, 2, 0, 0> *matrix) {}

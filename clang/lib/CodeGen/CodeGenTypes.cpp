@@ -55,7 +55,8 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   if (CGM.getTriple().isSPIRV() || CGM.getTriple().isSPIR()) {
     if (RD->getQualifiedNameAsString() == "__spv::__spirv_JointMatrixINTEL") {
       if (auto TemplateDecl = dyn_cast<ClassTemplateSpecializationDecl>(RD)) {
-        auto TemplateArgs = TemplateDecl->getTemplateArgs().asArray();
+        ArrayRef<TemplateArgument> TemplateArgs =
+            TemplateDecl->getTemplateArgs().asArray();
         OS << "spirv.JointMatrixINTEL.";
         for (auto &TemplateArg : TemplateArgs) {
           OS << "_";
@@ -79,21 +80,19 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
                 OS << "i" << TTy->getIntegerBitWidth();
                 break;
               }
-            } else if (TTy->isBFloatTy()) {
+            } else if (TTy->isBFloatTy())
               OS << "bfloat16";
-            } else if (TTy->isStructTy()) {
+            else if (TTy->isStructTy()) {
               StringRef LlvmTyName = TTy->getStructName();
               // Emit half/bfloat16 for cl::sycl[::*]::{half,bfloat16}
               if (LlvmTyName.startswith("class.cl::sycl::") ||
                   LlvmTyName.startswith("class.__sycl_internal::"))
                 LlvmTyName = LlvmTyName.rsplit("::").second;
               OS << LlvmTyName;
-            } else {
+            } else
               TTy->print(OS, false, true);
-            }
-          } else if (TemplateArg.getKind() == TemplateArgument::Integral) {
+          } else if (TemplateArg.getKind() == TemplateArgument::Integral)
             OS << TemplateArg.getAsIntegral();
-          }
         }
         Ty->setName(OS.str());
         return;
