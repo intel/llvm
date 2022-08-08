@@ -14,8 +14,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <vector>
 #include <type_traits>
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
