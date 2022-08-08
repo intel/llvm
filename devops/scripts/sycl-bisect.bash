@@ -20,7 +20,7 @@ while true; do
       cat <<HELP
 Usage:
 
-$0 [opts] <bad commit> [<good commit>...]
+$0 [opts] <bad commit> <good commits...>
 
   -h,--help                       Print this help message
   -t,--test <test>                Test commits with LIT test <test>, a test file
@@ -40,7 +40,7 @@ Examples:
 of one of the commits merged by 96f730774ac4. To find which one of these 96
 commits caused this test failure, sycl-bisect.bash can be run like this:
 
-$ buildbot/sycl-bisect.bash 96f730774ac4 96f730774ac4^ --test clang/test/SemaSYCL/accessor_inheritance.cpp
+$ devops/scripts/sycl-bisect.bash 96f730774ac4 96f730774ac4^ --test clang/test/SemaSYCL/accessor_inheritance.cpp
 HELP
       exit 0
       ;;
@@ -187,16 +187,17 @@ git worktree add sycl-bisect-merge \
 # bisection. Otherwise, git-bisect might check out a commit with a substantially
 # different version than sycl-bisect.bash expects, or it might check out a
 # commit where test-commit-sycl-bisect.bash doesn't exist at all.
-TEST_COMMIT=$(mktemp --tmpdir test-commit-XXX.bash)
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+TEST_COMMIT="$(mktemp --tmpdir test-commit-XXX.bash)"
 if [[ -f "$TEST_COMMIT" ]]; then
   if [[ "$(trap -p EXIT)" != "" ]]; then
     trap "git worktree remove sycl-bisect-merge ; rm $TEST_COMMIT" EXIT
   else
     trap "rm $TEST_COMMIT" EXIT
   fi
-  cp buildbot/test-commit-sycl-bisect.bash "$TEST_COMMIT"
+  cp "$SCRIPT_DIR/test-commit-sycl-bisect.bash" "$TEST_COMMIT"
 else
-  TEST_COMMIT=buildbot/test-commit-sycl-bisect.bash
+  TEST_COMMIT="$SCRIPT_DIR/test-commit-sycl-bisect.bash"
 fi
 
 # Do the bisection.
