@@ -862,10 +862,10 @@ pi_device _pi_context::getRootDevice() const {
 }
 
 pi_result _pi_context::initialize() {
-  
+
   // Helper lambda to create various USM allocators for a device.
   auto createUSMAllocators = [this](pi_device Device) {
-      SharedMemAllocContexts.emplace(
+    SharedMemAllocContexts.emplace(
         std::piecewise_construct, std::make_tuple(Device),
         std::make_tuple(std::unique_ptr<SystemMemory>(
             new USMSharedMemoryAlloc(this, Device))));
@@ -881,7 +881,9 @@ pi_result _pi_context::initialize() {
 
   // Recursive helper to call createUSMAllocators for all sub-devices
   std::function<void(pi_device)> createUSMAllocatorsRecursive;
-  createUSMAllocatorsRecursive = [this, createUSMAllocators, &createUSMAllocatorsRecursive](pi_device Device) -> void {
+  createUSMAllocatorsRecursive =
+      [this, createUSMAllocators,
+       &createUSMAllocatorsRecursive](pi_device Device) -> void {
     createUSMAllocators(Device);
     for (auto &SubDevice : Device->SubDevices)
       createUSMAllocatorsRecursive(SubDevice);
@@ -4708,7 +4710,8 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   std::scoped_lock Guard(Program->Mutex);
   // Check if device belongs to associated context.
   PI_ASSERT(Program->Context, PI_ERROR_INVALID_PROGRAM);
-  PI_ASSERT(Program->Context->isValidDevice(DeviceList[0]), PI_ERROR_INVALID_VALUE);
+  PI_ASSERT(Program->Context->isValidDevice(DeviceList[0]),
+            PI_ERROR_INVALID_VALUE);
 
   // It is legal to build a program created from either IL or from native
   // device code.
