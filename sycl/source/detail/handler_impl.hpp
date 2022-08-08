@@ -68,6 +68,10 @@ public:
 
   // Stores auxiliary resources used by internal operations.
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
+
+  std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
+
+  pi_mem_advice MAdvice;
 };
 
 } // namespace detail
