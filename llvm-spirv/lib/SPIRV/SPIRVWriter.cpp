@@ -2712,15 +2712,15 @@ struct IntelLSUControlsInfo {
       ResultVec.emplace_back(DecorationDontStaticallyCoalesceINTEL,
                              std::vector<std::string>());
     // Conditional values
-    if (CacheSizeInfo.hasValue()) {
+    if (CacheSizeInfo.has_value()) {
       ResultVec.emplace_back(
           DecorationCacheSizeINTEL,
-          std::vector<std::string>{std::to_string(CacheSizeInfo.getValue())});
+          std::vector<std::string>{std::to_string(CacheSizeInfo.value())});
     }
-    if (PrefetchInfo.hasValue()) {
+    if (PrefetchInfo.has_value()) {
       ResultVec.emplace_back(
           DecorationPrefetchINTEL,
-          std::vector<std::string>{std::to_string(PrefetchInfo.getValue())});
+          std::vector<std::string>{std::to_string(PrefetchInfo.value())});
     }
     return ResultVec;
   }
@@ -2898,7 +2898,7 @@ AnnotationDecorations tryParseAnnotationString(SPIRVModule *BM,
         LSUControls.setWithBitMask(ParamsBitMask);
       } else if (Name == "cache-size") {
         ValidDecorationFound = true;
-        if (!LSUControls.CacheSizeInfo.hasValue())
+        if (!LSUControls.CacheSizeInfo.has_value())
           continue;
         unsigned CacheSizeValue = 0;
         bool Failure = ValueStr.getAsInteger(10, CacheSizeValue);

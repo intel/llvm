@@ -129,7 +129,7 @@ public:
       return EV;
     EV = Type->getRequiredExtension();
     assert(Module &&
-           (!EV.hasValue() || Module->isAllowedToUseExtension(EV.getValue())));
+           (!EV.has_value() || Module->isAllowedToUseExtension(EV.value())));
     return EV;
   }
 

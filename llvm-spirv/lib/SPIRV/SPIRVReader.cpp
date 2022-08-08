@@ -1652,8 +1652,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         LVar->addAttribute(kVCMetadata::VCVolatile);
       auto SEVAttr = translateSEVMetadata(BVar, LVar->getContext());
       if (SEVAttr)
-        LVar->addAttribute(SEVAttr.getValue().getKindAsString(),
-                           SEVAttr.getValue().getValueAsString());
+        LVar->addAttribute(SEVAttr.value().getKindAsString(),
+                           SEVAttr.value().getValueAsString());
     }
 
     return Res;
@@ -4118,7 +4118,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   auto SEVAttr = translateSEVMetadata(BF, F->getContext());
 
   if (SEVAttr)
-    F->addAttributeAtIndex(AttributeList::ReturnIndex, SEVAttr.getValue());
+    F->addAttributeAtIndex(AttributeList::ReturnIndex, SEVAttr.value());
 
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(); I != E;
        ++I) {
@@ -4137,7 +4137,7 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
     }
     SEVAttr = translateSEVMetadata(BA, F->getContext());
     if (SEVAttr)
-      F->addParamAttr(ArgNo, SEVAttr.getValue());
+      F->addParamAttr(ArgNo, SEVAttr.value());
     if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
       auto Desc =
           BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
