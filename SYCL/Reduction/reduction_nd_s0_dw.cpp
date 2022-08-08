@@ -6,9 +6,6 @@
 // `Group algorithms are not supported on host device.` on HIP Nvidia.
 // XFAIL: hip_nvidia
 
-// TODO: test disabled due to sporadic fails in level_zero:gpu RT.
-// UNSUPPORTED: linux && level_zero
-
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with 0-dimensional discard_write accessor.
 
