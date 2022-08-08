@@ -184,7 +184,7 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
       addAdaptedType(SamplerArg, getSamplerStructType(&M), SPIRAS_Constant);
       auto Caller = cast<Argument>(SamplerArg)->getParent();
       addWork(Caller);
-      TraceArg(Caller, Idx);
+      TraceArg(Caller, cast<Argument>(SamplerArg)->getArgNo());
     }
   };
 
