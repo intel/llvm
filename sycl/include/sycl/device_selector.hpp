@@ -19,16 +19,19 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
 // Forward declarations
 class device;
 
-/// The device_selector class provides ability to choose the best SYCL device
-/// based on heuristics specified by the user.
+namespace ext {
+namespace oneapi {
+class filter_selector;
+}
+} // namespace ext
+
+/// The SYCL 1.2.1 device_selector class provides ability to choose the
+/// best SYCL device based on heuristics specified by the user.
 ///
 /// \sa device
 ///
 /// \ingroup sycl_api_dev_sel
 class __SYCL_EXPORT device_selector {
-protected:
-  // SYCL 1.2.1 defines a negative score to reject a device from selection
-  static constexpr int REJECT_DEVICE_SCORE = -1;
 
 public:
   virtual ~device_selector() = default;
@@ -87,5 +90,31 @@ class __SYCL_EXPORT host_selector : public device_selector {
 public:
   int operator()(const device &dev) const override;
 };
+
+namespace detail {
+// SYCL 2020 section 4.6.1.1 defines a negative score to reject a device from
+// selection
+static constexpr int REJECT_DEVICE_SCORE = -1;
+
+using DSelectorInvocableType = std::function<int(const sycl::device &)>;
+
+#if __cplusplus >= 201703L
+
+// Enable if DeviceSelector callable has matching signature, but
+// exclude if descended from filter_selector which is not purely callable.
+// See [FilterSelector not Callable] in device_selector.cpp
+template <typename DeviceSelector>
+using EnableIfDeviceSelectorInvocable = std::enable_if_t<
+    std::is_invocable_r_v<int, DeviceSelector &, const device &> &&
+    !std::is_base_of_v<ext::oneapi::filter_selector, DeviceSelector>>;
+#endif
+
+__SYCL_EXPORT device
+select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
+
+__SYCL_EXPORT device
+select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
+              const context &SyclContext);
+} // namespace detail
 } // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl

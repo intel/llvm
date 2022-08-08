@@ -142,15 +142,14 @@ bool device::has_extension(const std::string &extension_name) const {
   return impl->has_extension(extension_name);
 }
 
-template <info::device param>
-typename info::param_traits<info::device, param>::return_type
+template <typename Param>
+typename detail::is_device_info_desc<Param>::return_type
 device::get_info() const {
-  return impl->template get_info<param>();
+  return impl->template get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type, param, ret_type)                  \
-  template __SYCL_EXPORT ret_type device::get_info<info::param_type::param>()  \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
 
 #include <sycl/info/device_traits.def>
 

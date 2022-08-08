@@ -30,6 +30,7 @@
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
+#include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/queue.hpp>

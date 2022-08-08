@@ -18,7 +18,7 @@ namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
-template <info::device Param>
+template <typename Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
                                  const size_t Value) {
   return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),
