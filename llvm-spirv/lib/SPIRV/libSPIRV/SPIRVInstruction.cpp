@@ -183,7 +183,7 @@ void SPIRVImageInstBase::setOpWords(const std::vector<SPIRVWord> &OpsArg) {
     if (ImgOps & SignZeroExtMasks) {
       SPIRVModule *M = getModule();
       if (M->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)) {
-        M->setMinSPIRVVersion(static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4));
+        M->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
       } else {
         // Drop SignExtend/ZeroExtend if we cannot use SPIR-V 1.4.
         Ops[ImgOpsIndex] &= ~SignZeroExtMasks;

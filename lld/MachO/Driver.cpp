@@ -266,7 +266,8 @@ static DenseMap<StringRef, ArchiveFileInfo> loadedArchives;
 
 static InputFile *addFile(StringRef path, LoadType loadType,
                           bool isLazy = false, bool isExplicit = true,
-                          bool isBundleLoader = false) {
+                          bool isBundleLoader = false,
+                          bool isForceHidden = false) {
   Optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return nullptr;
@@ -293,7 +294,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
 
       if (!archive->isEmpty() && !archive->hasSymbolTable())
         error(path + ": archive has no index; run ranlib to add one");
-      file = make<ArchiveFile>(std::move(archive));
+      file = make<ArchiveFile>(std::move(archive), isForceHidden);
     } else {
       file = entry->second.file;
       // Command-line loads take precedence. If file is previously loaded via
@@ -406,10 +407,12 @@ static InputFile *addFile(StringRef path, LoadType loadType,
 }
 
 static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
-                       bool isReexport, bool isExplicit, LoadType loadType) {
+                       bool isReexport, bool isHidden, bool isExplicit,
+                       LoadType loadType) {
   if (Optional<StringRef> path = findLibrary(name)) {
     if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
-            addFile(*path, loadType, /*isLazy=*/false, isExplicit))) {
+            addFile(*path, loadType, /*isLazy=*/false, isExplicit,
+                    /*isBundleLoader=*/false, isHidden))) {
       if (isNeeded)
         dylibFile->forceNeeded = true;
       if (isWeak)
@@ -473,7 +476,7 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
   StringRef arg = argv[i];
   if (arg.consume_front("-l")) {
     addLibrary(arg, /*isNeeded=*/false, /*isWeak=*/false,
-               /*isReexport=*/false, /*isExplicit=*/false,
+               /*isReexport=*/false, /*isHidden=*/false, /*isExplicit=*/false,
                LoadType::LCLinkerOption);
   } else if (arg == "-framework") {
     StringRef name = argv[++i];
@@ -523,7 +526,7 @@ static void initLLVM() {
   InitializeAllAsmParsers();
 }
 
-static void compileBitcodeFiles() {
+static bool compileBitcodeFiles() {
   TimeTraceScope timeScope("LTO");
   auto *lto = make<BitcodeCompiler>();
   for (InputFile *file : inputFiles)
@@ -531,8 +534,11 @@ static void compileBitcodeFiles() {
       if (!file->lazy)
         lto->add(*bitcodeFile);
 
-  for (ObjFile *file : lto->compile())
+  std::vector<ObjFile *> compiled = lto->compile();
+  for (ObjFile *file : compiled)
     inputFiles.insert(file);
+
+  return !compiled.empty();
 }
 
 // Replaces common symbols with defined symbols residing in __common sections.
@@ -586,7 +592,7 @@ static void initializeSectionRenameMap() {
                              section_names::objcCatList,
                              section_names::objcNonLazyCatList,
                              section_names::objcProtoList,
-                             section_names::objcImageInfo};
+                             section_names::objCImageInfo};
     for (StringRef s : v)
       config->sectionRenameMap[{segment_names::data, s}] = {
           segment_names::dataConst, s};
@@ -1035,12 +1041,19 @@ static void createFiles(const InputArgList &args) {
     case OPT_force_load:
       addFile(rerootPath(arg->getValue()), LoadType::CommandLineForce);
       break;
+    case OPT_load_hidden:
+      addFile(rerootPath(arg->getValue()), LoadType::CommandLine,
+              /*isLazy=*/false, /*isExplicit=*/true, /*isBundleLoader=*/false,
+              /*isForceHidden=*/true);
+      break;
     case OPT_l:
     case OPT_needed_l:
     case OPT_reexport_l:
     case OPT_weak_l:
+    case OPT_hidden_l:
       addLibrary(arg->getValue(), opt.getID() == OPT_needed_l,
                  opt.getID() == OPT_weak_l, opt.getID() == OPT_reexport_l,
+                 opt.getID() == OPT_hidden_l,
                  /*isExplicit=*/true, LoadType::CommandLine);
       break;
     case OPT_framework:
@@ -1102,6 +1115,8 @@ static void gatherInputSections() {
         }
       }
     }
+    if (!file->objCImageInfo.empty())
+      in.objCImageInfo->addFile(file);
   }
   assert(inputOrder <= UnspecifiedInputOrder);
 }
@@ -1131,6 +1146,52 @@ static void referenceStubBinder() {
   // StubHelperSection::setup() adds a reference and errors out if
   // dyld_stub_binder doesn't exist in case it is actually needed.
   symtab->addUndefined("dyld_stub_binder", /*file=*/nullptr, /*isWeak=*/false);
+}
+
+static void createAliases() {
+  for (const auto &pair : config->aliasedSymbols) {
+    if (const auto &sym = symtab->find(pair.first)) {
+      if (const auto &defined = dyn_cast<Defined>(sym)) {
+        symtab->aliasDefined(defined, pair.second);
+        continue;
+      }
+    }
+
+    warn("undefined base symbol '" + pair.first + "' for alias '" +
+         pair.second + "'\n");
+  }
+}
+
+static void handleExplicitExports() {
+  if (config->hasExplicitExports) {
+    parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
+      if (auto *defined = dyn_cast<Defined>(sym)) {
+        StringRef symbolName = defined->getName();
+        if (config->exportedSymbols.match(symbolName)) {
+          if (defined->privateExtern) {
+            if (defined->weakDefCanBeHidden) {
+              // weak_def_can_be_hidden symbols behave similarly to
+              // private_extern symbols in most cases, except for when
+              // it is explicitly exported.
+              // The former can be exported but the latter cannot.
+              defined->privateExtern = false;
+            } else {
+              warn("cannot export hidden symbol " + toString(*defined) +
+                   "\n>>> defined in " + toString(defined->getFile()));
+            }
+          }
+        } else {
+          defined->privateExtern = true;
+        }
+      }
+    });
+  } else if (!config->unexportedSymbols.empty()) {
+    parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
+      if (auto *defined = dyn_cast<Defined>(sym))
+        if (config->unexportedSymbols.match(defined->getName()))
+          defined->privateExtern = true;
+    });
+  }
 }
 
 bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
@@ -1338,6 +1399,8 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   config->callGraphProfileSort = args.hasFlag(
       OPT_call_graph_profile_sort, OPT_no_call_graph_profile_sort, true);
   config->printSymbolOrder = args.getLastArgValue(OPT_print_symbol_order);
+  config->forceExactCpuSubtypeMatch =
+      getenv("LD_DYLIB_CPU_SUBTYPES_MUST_MATCH");
 
   for (const Arg *arg : args.filtered(OPT_alias)) {
     config->aliasedSymbols.push_back(
@@ -1581,7 +1644,20 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     for (const Arg *arg : args.filtered(OPT_mllvm))
       parseClangOption(arg->getValue(), arg->getSpelling());
 
-    compileBitcodeFiles();
+    createSyntheticSections();
+    createSyntheticSymbols();
+
+    createAliases();
+    // If we are in "explicit exports" mode, hide everything that isn't
+    // explicitly exported. Do this before running LTO so that LTO can better
+    // optimize.
+    handleExplicitExports();
+    // LTO may emit a non-hidden (extern) object file symbol even if the
+    // corresponding bitcode symbol is hidden. In particular, this happens for
+    // cross-module references to hidden symbols under ThinLTO. Thus, if we
+    // compiled any bitcode files, we must redo the symbol hiding.
+    if (compileBitcodeFiles())
+      handleExplicitExports();
     replaceCommonSymbols();
 
     StringRef orderFile = args.getLastArgValue(OPT_order_file);
@@ -1592,51 +1668,6 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
 
     // FIXME: should terminate the link early based on errors encountered so
     // far?
-
-    createSyntheticSections();
-    createSyntheticSymbols();
-
-    for (const auto &pair : config->aliasedSymbols) {
-      if (const auto &sym = symtab->find(pair.first)) {
-        if (const auto &defined = dyn_cast<Defined>(sym)) {
-          symtab->aliasDefined(defined, pair.second);
-          continue;
-        }
-      }
-
-      warn("undefined base symbol '" + pair.first + "' for alias '" +
-           pair.second + "'\n");
-    }
-
-    if (config->hasExplicitExports) {
-      parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
-        if (auto *defined = dyn_cast<Defined>(sym)) {
-          StringRef symbolName = defined->getName();
-          if (config->exportedSymbols.match(symbolName)) {
-            if (defined->privateExtern) {
-              if (defined->weakDefCanBeHidden) {
-                // weak_def_can_be_hidden symbols behave similarly to
-                // private_extern symbols in most cases, except for when
-                // it is explicitly exported.
-                // The former can be exported but the latter cannot.
-                defined->privateExtern = false;
-              } else {
-                warn("cannot export hidden symbol " + toString(*defined) +
-                     "\n>>> defined in " + toString(defined->getFile()));
-              }
-            }
-          } else {
-            defined->privateExtern = true;
-          }
-        }
-      });
-    } else if (!config->unexportedSymbols.empty()) {
-      parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
-        if (auto *defined = dyn_cast<Defined>(sym))
-          if (config->unexportedSymbols.match(defined->getName()))
-            defined->privateExtern = true;
-      });
-    }
 
     for (const Arg *arg : args.filtered(OPT_sectcreate)) {
       StringRef segName = arg->getValue(0);

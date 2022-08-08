@@ -112,9 +112,9 @@ static StringRef getOutputSectionName(const InputSectionBase *s) {
 
 uint64_t ExprValue::getValue() const {
   if (sec)
-    return alignTo(sec->getOutputSection()->addr + sec->getOffset(val),
-                   alignment);
-  return alignTo(val, alignment);
+    return alignToPowerOf2(sec->getOutputSection()->addr + sec->getOffset(val),
+                           alignment);
+  return alignToPowerOf2(val, alignment);
 }
 
 uint64_t ExprValue::getSecAddr() const {
@@ -846,7 +846,14 @@ void LinkerScript::addOrphanSections() {
   // to be created before we create relocation output section, so we want
   // to create target sections first. We do not want priority handling
   // for synthetic sections because them are special.
+  size_t n = 0;
   for (InputSectionBase *isec : inputSections) {
+    // Process InputSection and MergeInputSection. Discard EhInputSection.
+    if (LLVM_LIKELY(isa<InputSection>(isec)))
+      inputSections[n++] = isec;
+    else if (isa<EhInputSection>(isec))
+      continue;
+
     // In -r links, SHF_LINK_ORDER sections are added while adding their parent
     // sections because we need to know the parent's output section before we
     // can select an output section for the SHF_LINK_ORDER section.
@@ -863,6 +870,8 @@ void LinkerScript::addOrphanSections() {
         if (depSec->flags & SHF_LINK_ORDER)
           add(depSec);
   }
+  // Keep just InputSection.
+  inputSections.resize(n);
 
   // If no SECTIONS command was given, we should insert sections commands
   // before others, so that we can handle scripts which refers them,
@@ -989,7 +998,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     // sec->alignment is the max of ALIGN and the maximum of input
     // section alignments.
     const uint64_t pos = dot;
-    dot = alignTo(dot, sec->alignment);
+    dot = alignToPowerOf2(dot, sec->alignment);
     sec->addr = dot;
     expandMemoryRegions(dot - pos);
   }
@@ -1003,7 +1012,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
   if (sec->lmaExpr) {
     ctx->lmaOffset = sec->lmaExpr().getValue() - dot;
   } else if (MemoryRegion *mr = sec->lmaRegion) {
-    uint64_t lmaStart = alignTo(mr->curPos, sec->alignment);
+    uint64_t lmaStart = alignToPowerOf2(mr->curPos, sec->alignment);
     if (mr->curPos < lmaStart)
       expandMemoryRegion(mr, lmaStart - mr->curPos, sec->name);
     ctx->lmaOffset = lmaStart - dot;
@@ -1046,7 +1055,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     for (InputSection *isec : cast<InputSectionDescription>(cmd)->sections) {
       assert(isec->getParent() == sec);
       const uint64_t pos = dot;
-      dot = alignTo(dot, isec->alignment);
+      dot = alignToPowerOf2(dot, isec->alignment);
       isec->outSecOff = dot - sec->addr;
       dot += isec->getSize();
 

@@ -243,15 +243,6 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
-void MemoryManager::releaseImageBuffer(ContextImplPtr TargetContext,
-                                       void *ImageBuf) {
-  (void)TargetContext;
-  (void)ImageBuf;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated release operation",
-                      PI_ERROR_INVALID_OPERATION);
-}
-
 void MemoryManager::releaseMemObj(ContextImplPtr TargetContext,
                                   SYCLMemObjI *MemObj, void *MemAllocation,
                                   void *UserPtr) {
@@ -280,16 +271,6 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 
   return MemObj->allocateMem(TargetContext, InitFromUserData, HostPtr,
                              OutEvent);
-}
-
-void *MemoryManager::wrapIntoImageBuffer(ContextImplPtr TargetContext,
-                                         void *MemBuf, SYCLMemObjI *MemObj) {
-  (void)TargetContext;
-  (void)MemBuf;
-  (void)MemObj;
-  // TODO remove when ABI breaking changes are allowed.
-  throw runtime_error("Deprecated allocation operation",
-                      PI_ERROR_INVALID_OPERATION);
 }
 
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
@@ -941,36 +922,6 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                                      Length, Advice, OutEvent);
   }
 }
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
-                             void *DstMem, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  copy_usm(SrcMem, Queue, Len, DstMem, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                             int Pattern, std::vector<RT::PiEvent> DepEvents,
-                             RT::PiEvent &OutEvent) {
-  fill_usm(DstMem, Queue, Len, Pattern, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
-                                 std::vector<RT::PiEvent> DepEvents,
-                                 RT::PiEvent &OutEvent) {
-  prefetch_usm(Ptr, Queue, Len, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
-                               pi_mem_advice Advice,
-                               std::vector<RT::PiEvent> DepEvents,
-                               RT::PiEvent &OutEvent) {
-  advise_usm(Ptr, Queue, Len, Advice, DepEvents, &OutEvent);
-}
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

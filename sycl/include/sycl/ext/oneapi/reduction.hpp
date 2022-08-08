@@ -8,9 +8,6 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L
-// Entire feature is dependent on C++17.
-
 #include <sycl/accessor.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_ref.hpp>
@@ -27,6 +24,41 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace detail {
+
+/// Base non-template class which is a base class for all reduction
+/// implementation classes. It is needed to detect the reduction classes.
+class reduction_impl_base {};
+
+/// Predicate returning true if all template type parameters except the last one
+/// are reductions.
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
+  static constexpr bool value =
+      std::is_base_of<reduction_impl_base,
+                      std::remove_reference_t<FirstT>>::value &&
+      AreAllButLastReductions<RestT...>::value;
+};
+
+/// Helper specialization of AreAllButLastReductions for one element only.
+/// Returns true if the template parameter is not a reduction.
+template <typename T> struct AreAllButLastReductions<T> {
+  static constexpr bool value =
+      !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
+};
+} // namespace detail
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+#if __cplusplus >= 201703L
+// Entire feature is dependent on C++17. We still have to make the trait above
+// available as queue shortcuts use them unconditionally, including on
+// non-reduction path.
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace ext {
+namespace oneapi {
 
 namespace detail {
 
@@ -38,10 +70,10 @@ event withAuxHandler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost,
   return AuxHandler.finalize();
 }
 
-using cl::sycl::detail::bool_constant;
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
-using cl::sycl::detail::remove_AS;
+using sycl::detail::bool_constant;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
+using sycl::detail::remove_AS;
 
 // This type trait is used to detect if the atomic operation BinaryOperation
 // used with operands of the type T is available for using in reduction.
@@ -458,10 +490,6 @@ private:
   marray<T, Extent> MValue;
 };
 
-/// Base non-template class which is a base class for all reduction
-/// implementation classes. It is needed to detect the reduction classes.
-class reduction_impl_base {};
-
 /// Templated class for common functionality of all reduction implementation
 /// classes.
 template <typename T, class BinaryOperation> class reduction_impl_common {
@@ -714,22 +742,6 @@ private:
 
   /// User's accessor/USM pointer to where the reduction must be written.
   RedOutVar MRedOut;
-};
-
-/// Predicate returning true if all template type parameters except the last one
-/// are reductions.
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
-  static constexpr bool value =
-      std::is_base_of<reduction_impl_base,
-                      std::remove_reference_t<FirstT>>::value &&
-      AreAllButLastReductions<RestT...>::value;
-};
-
-/// Helper specialization of AreAllButLastReductions for one element only.
-/// Returns true if the template parameter is not a reduction.
-template <typename T> struct AreAllButLastReductions<T> {
-  static constexpr bool value =
-      !std::is_base_of<reduction_impl_base, std::remove_reference_t<T>>::value;
 };
 /// This class encapsulates the reduction variable/accessor,
 /// the reduction operator and an optional operator identity.
@@ -2494,7 +2506,7 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 namespace detail {
-using cl::sycl::detail::queue_impl;
+using sycl::detail::queue_impl;
 __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                       size_t LocalMemBytesPerWorkItem);
 __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,

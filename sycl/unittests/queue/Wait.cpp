@@ -16,7 +16,7 @@
 #include <memory>
 
 namespace {
-using namespace cl::sycl;
+using namespace sycl;
 
 struct TestCtx {
   bool SupportOOO = true;

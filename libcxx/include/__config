@@ -24,7 +24,7 @@
 
 #ifdef __cplusplus
 
-#  define _LIBCPP_VERSION 15000
+#  define _LIBCPP_VERSION 16000
 
 #  define _LIBCPP_CONCAT_IMPL(_X, _Y) _X##_Y
 #  define _LIBCPP_CONCAT(_X, _Y) _LIBCPP_CONCAT_IMPL(_X, _Y)
@@ -241,6 +241,12 @@ If there are users of this configuration we are happy to provide support.
 
 #  if defined(_LIBCPP_ABI_MICROSOFT) && !defined(_LIBCPP_NO_VCRUNTIME)
 #    define _LIBCPP_ABI_VCRUNTIME
+#  endif
+
+#  if __has_feature(experimental_library)
+#    ifndef _LIBCPP_ENABLE_EXPERIMENTAL
+#      define _LIBCPP_ENABLE_EXPERIMENTAL
+#    endif
 #  endif
 
 // Incomplete features get their own specific disabling flags. This makes it

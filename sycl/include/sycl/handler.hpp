@@ -41,31 +41,29 @@
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
-template <typename DataT, int Dimensions, cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __fill;
 
 template <typename T> class __usmfill;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
 
 template <typename T_Src, typename T_Dst, int Dims,
-          cl::sycl::access::mode AccessMode,
-          cl::sycl::access::target AccessTarget,
-          cl::sycl::access::placeholder IsPlaceholder>
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
 
-template <typename T_Src, int Dims_Src, cl::sycl::access::mode AccessMode_Src,
-          cl::sycl::access::target AccessTarget_Src, typename T_Dst,
-          int Dims_Dst, cl::sycl::access::mode AccessMode_Dst,
-          cl::sycl::access::target AccessTarget_Dst,
-          cl::sycl::access::placeholder IsPlaceholder_Src,
-          cl::sycl::access::placeholder IsPlaceholder_Dst>
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
+          sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
 
 // For unit testing purposes
@@ -245,8 +243,8 @@ template <typename T, class BinaryOperation, int Dims, size_t Extent,
           typename RedOutVar>
 class reduction_impl_algo;
 
-using cl::sycl::detail::enable_if_t;
-using cl::sycl::detail::queue_impl;
+using sycl::detail::enable_if_t;
+using sycl::detail::queue_impl;
 
 // Kernels with single reduction
 
@@ -737,7 +735,7 @@ private:
                                                  LambdaArgType>::value;
 
     if (IsCallableWithKernelHandler && MIsHost) {
-      throw cl::sycl::feature_not_supported(
+      throw sycl::feature_not_supported(
           "kernel_handler is not yet supported by host device.",
           PI_ERROR_INVALID_OPERATION);
     }
