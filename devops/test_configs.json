@@ -51,11 +51,10 @@
     {
       "config": "hip_amdgpu",
       "name": "HIP AMDGPU LLVM Test Suite",
-      "runs-on": "aws-amdgpu_${{ inputs.uniq }}",
-      "aws-ami": "ami-0ccda708841dde988",
-      "aws-type": [ "g4ad.2xlarge", "g4ad.4xlarge" ],
-      "aws-spot": false,
-      "aws-disk": "/dev/xvda:64",
+      "runs-on": [
+        "Linux",
+        "amdgpu"
+      ],
       "image": "${{ inputs.amdgpu_image }}",
       "container_options": "--device=/dev/dri --device=/dev/kfd",
       "check_sycl_all": "hip:gpu,host",
@@ -64,10 +63,10 @@
     {
       "config": "cuda",
       "name": "CUDA LLVM Test Suite",
-      "runs-on": "aws-cuda_${{ inputs.uniq }}",
-      "aws-ami": "ami-02ec0f344128253f9",
-      "aws-type": [ "g4dn.2xlarge", "g4dn.4xlarge" ],
-      "aws-disk": "/dev/xvda:64",
+      "runs-on": [
+        "Linux",
+        "cuda"
+      ],
       "image": "${{ inputs.cuda_image }}",
       "container_options": "--gpus all",
       "check_sycl_all": "cuda:gpu,host",
