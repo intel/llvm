@@ -1066,6 +1066,29 @@ struct _pi_queue : _pi_object {
 
   // Indicates that the queue is healthy and all operations on it are OK.
   bool Healthy{true};
+
+  // Event handles for in-order queues.
+  std::pair<ze_event_handle_t, ze_event_pool_handle_t> ZeLastCommandEvent{
+      nullptr, nullptr};
+
+  std::list<std::pair<ze_event_handle_t, ze_event_pool_handle_t>>
+      ZeAvailableEvents;
+  std::list<std::pair<ze_event_handle_t, ze_event_pool_handle_t>> ZeEvents;
+
+  void setLastCommandEvent(pi_event Event);
+  pi_result getEventFromCache(pi_command_list_ptr_t CommandList,
+                              pi_event *Event);
+  pi_result resetLastEventIfNeeded(pi_command_list_ptr_t CommandList);
+
+  // Returns bool value indicating whether queue supports in-order optimization
+  // for provided type of event.
+  bool supportsInOrderQueueOptimization(bool HostVisible, bool IsInternal) {
+    bool ProfilingEnabled = (Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+    return isInOrderQueue() && isDiscardEvents() && !ProfilingEnabled &&
+                   !HostVisible && IsInternal
+               ? true
+               : false;
+  }
 };
 
 struct _pi_mem : _pi_object {

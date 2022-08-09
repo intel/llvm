@@ -32,7 +32,8 @@ extern "C" {
 // Forward declarartions.
 static pi_result piQueueReleaseInternal(pi_queue Queue);
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
-                             bool HostVisible, pi_event *RetEvent);
+                             bool HostVisible, pi_event *RetEvent,
+                             bool IsInternal = false);
 }
 
 // Defined in tracing.cpp
@@ -663,6 +664,39 @@ ze_result_t ZeCall::doCall(ze_result_t ZeResult, const char *ZeName,
   if (!(condition))                                                            \
     return error;
 
+// Queue mutex must be locked by the caller.
+pi_result _pi_queue::getEventFromCache(pi_command_list_ptr_t CommandList,
+                                       pi_event *Event) {
+  if (ZeAvailableEvents.size() == 0 || CommandList == CommandListMap.end()) {
+    if (CommandList == CommandListMap.end()) {
+      std::cout
+          << "Can't recreate from the cache, because there is no command list "
+          << std::endl;
+    }
+    *Event = nullptr;
+    return PI_SUCCESS;
+  }
+
+  auto [ZeEvent, ZeEventPool] = ZeAvailableEvents.front();
+  ZeAvailableEvents.pop_front();
+
+  // Reset event before reusing
+  ZE_CALL(zeCommandListAppendEventReset, (CommandList->first, ZeEvent));
+
+  try {
+    PI_ASSERT(Event, PI_ERROR_INVALID_VALUE);
+
+    *Event = new _pi_event(ZeEvent, ZeEventPool, Context, PI_COMMAND_TYPE_USER,
+                           true);
+  } catch (const std::bad_alloc &) {
+    return PI_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return PI_ERROR_UNKNOWN;
+  }
+
+  return PI_SUCCESS;
+}
+
 // This helper function creates a pi_event and associate a pi_queue.
 // Note that the caller of this function must have acquired lock on the Queue
 // that is passed in.
@@ -678,10 +712,18 @@ inline static pi_result createEventAndAssociateQueue(
     pi_queue Queue, pi_event *Event, pi_command_type CommandType,
     pi_command_list_ptr_t CommandList, bool IsInternal = false,
     bool ForceHostVisible = false) {
+  PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  PI_CALL(EventCreate(Queue->Context, Queue,
-                      ForceHostVisible ? true : EventsScope == AllHostVisible,
-                      Event));
+  *Event = nullptr;
+  bool HostVisible = ForceHostVisible ? true : EventsScope == AllHostVisible;
+
+  // If the queue supports optimization and right type of event is requested
+  // then try to get it from cache.
+  if (Queue && Queue->supportsInOrderQueueOptimization(HostVisible, IsInternal))
+    PI_CALL(Queue->getEventFromCache(CommandList, Event));
+
+  if (*Event == nullptr)
+    PI_CALL(EventCreate(Queue->Context, Queue, HostVisible, Event, IsInternal));
 
   (*Event)->Queue = Queue;
   (*Event)->CommandType = CommandType;
@@ -948,6 +990,14 @@ bool _pi_queue::isInOrderQueue() const {
 bool _pi_queue::isDiscardEvents() const {
   return ((this->Properties & PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE) !=
           0);
+}
+
+void _pi_queue::setLastCommandEvent(pi_event Event) {
+  if (Event &&
+      supportsInOrderQueueOptimization(Event->isHostVisible(), Event->Internal))
+    ZeLastCommandEvent = std::make_pair(Event->ZeEvent, Event->ZeEventPool);
+
+  LastCommandEvent = Event;
 }
 
 pi_result
@@ -1480,6 +1530,21 @@ void _pi_queue::CaptureIndirectAccesses() {
   KernelsToBeSubmitted.clear();
 }
 
+pi_result _pi_queue::resetLastEventIfNeeded(pi_command_list_ptr_t CommandList) {
+  // It is possible that last command event has not changed, for example, in the
+  // case when executeCommandList is called from executeOpenCommandList. So
+  // check that the last event in the command list is different from last
+  // command event to be sure that command was actually submitted.
+  if (this->ZeLastCommandEvent.first &&
+      !CommandList->second.EventList.empty() &&
+      CommandList->second.EventList.back()->ZeEvent !=
+          this->ZeLastCommandEvent.first) {
+    this->ZeAvailableEvents.emplace_back(this->ZeLastCommandEvent);
+    this->ZeLastCommandEvent = std::make_pair(nullptr, nullptr);
+  }
+  return PI_SUCCESS;
+}
+
 pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
                                         bool IsBlocking,
                                         bool OKToBatchCommand) {
@@ -1499,10 +1564,14 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
   //
   bool CurrentlyEmpty = !PrintPiTrace && this->LastCommandEvent == nullptr;
 
+  // Reset last command event in the in-order queue and put it in the cache to
+  // reuse if queue supports in-order optimization.
+  resetLastEventIfNeeded(CommandList);
+
   // The list can be empty if command-list only contains signals of proxy
   // events.
   if (!CommandList->second.EventList.empty())
-    this->LastCommandEvent = CommandList->second.EventList.back();
+    this->setLastCommandEvent(CommandList->second.EventList.back());
 
   if (!UseImmediateCommandLists) {
     // Batch if allowed to, but don't batch if we know there are no kernels
@@ -3638,6 +3707,21 @@ static pi_result piQueueReleaseInternal(pi_queue Queue) {
           Queue->CopyCommandBatch.NumTimesClosedFull,
           Queue->CopyCommandBatch.NumTimesClosedEarly);
 
+  for (auto ZeEventAndZePool : Queue->ZeEvents) {
+    pi_event Event = new _pi_event(ZeEventAndZePool.first,
+                                   ZeEventAndZePool.second, Queue->Context,
+                                   PI_COMMAND_TYPE_USER, /* OwnZeEvent */ true);
+    Event->Queue = Queue;
+    if (DisableEventsCaching) {
+      ZE_CALL(zeEventDestroy, (Event->ZeEvent));
+      if (auto Res = Queue->Context->decrementUnreleasedEventsInPool(Event))
+        return Res;
+      delete Event;
+    } else {
+      Queue->Context->addEventToCache(Event);
+    }
+  }
+
   delete Queue;
 
   return PI_SUCCESS;
@@ -3692,10 +3776,10 @@ pi_result piQueueFinish(pi_queue Queue) {
     if (!HoldLock) {
       std::scoped_lock Lock(Queue->Mutex);
       if (LastCommandEvent == Queue->LastCommandEvent) {
-        Queue->LastCommandEvent = nullptr;
+        Queue->setLastCommandEvent(nullptr);
       }
     } else {
-      Queue->LastCommandEvent = nullptr;
+      Queue->setLastCommandEvent(nullptr);
     }
   }
   // Reset signalled command lists and return them back to the cache of
@@ -5528,13 +5612,27 @@ void _pi_context::addEventToCache(pi_event Event) {
 // a host-visible pool.
 //
 static pi_result EventCreate(pi_context Context, pi_queue Queue,
-                             bool HostVisible, pi_event *RetEvent) {
+                             bool HostVisible, pi_event *RetEvent,
+                             bool IsInternal) {
   bool ProfilingEnabled =
       !Queue || (Queue->Properties & PI_QUEUE_PROFILING_ENABLE) != 0;
+
+  // We want to store discarded device-scope events in the queue cache for
+  // in-order queues. These events are reused for submitting commands to the
+  // same queue, so we want to destroy or return them to the context-level cache
+  // only during queue destruction.
+  bool InOrderQueueOptimization =
+      Queue && Queue->supportsInOrderQueueOptimization(HostVisible, IsInternal);
 
   if (auto CachedEvent =
           Context->getEventFromCache(HostVisible, ProfilingEnabled)) {
     *RetEvent = CachedEvent;
+    // If we've got device-scope event from the context's cache then we need to
+    // remember it in the queue because we will reuse it in the queue and it
+    // needs to be returned to the context's cache only in queue destruction.
+    if (InOrderQueueOptimization)
+      Queue->ZeEvents.emplace_back(CachedEvent->ZeEvent,
+                                   CachedEvent->ZeEventPool);
     return PI_SUCCESS;
   }
 
@@ -5566,6 +5664,9 @@ static pi_result EventCreate(pi_context Context, pi_queue Queue,
   }
 
   ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+
+  if (InOrderQueueOptimization)
+    Queue->ZeEvents.emplace_back(ZeEvent, ZeEventPool);
 
   try {
     PI_ASSERT(RetEvent, PI_ERROR_INVALID_VALUE);
@@ -5774,7 +5875,7 @@ static pi_result CleanupCompletedEvent(pi_event Event, bool QueueLocked) {
       // a dangling pointer to this event.  It could also cause unneeded
       // already finished events to show up in the wait list.
       if (AssociatedQueue->LastCommandEvent == Event) {
-        AssociatedQueue->LastCommandEvent = nullptr;
+        AssociatedQueue->setLastCommandEvent(nullptr);
       }
     }
 
@@ -5848,7 +5949,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
     if (Queue) {
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock lock(Queue->Mutex);
-
       if (auto Res = Queue->executeAllOpenCommandLists())
         return Res;
     }
@@ -5947,7 +6047,13 @@ pi_result piEventRelease(pi_event Event) {
     PI_CALL(piQueueReleaseInternal(Event->Queue));
   }
 
-  if (DisableEventsCaching || !Event->OwnZeEvent) {
+  // We delete pi_event object if caching is disabled or we don't own native
+  // handle (so we can't reuse event) or queue supports in-order optimization
+  // for such event (in this case event we reuse only native handles, not
+  // pi_event object itself).
+  if (DisableEventsCaching || !Event->OwnZeEvent ||
+      (Event->Queue && Event->Queue->supportsInOrderQueueOptimization(
+                           Event->isHostVisible(), Event->Internal))) {
     delete Event;
   } else {
     Event->Context->addEventToCache(Event);
@@ -6245,7 +6351,7 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
     Queue->synchronize();
 
     if (OutEvent) {
-      Queue->LastCommandEvent = *OutEvent;
+      Queue->setLastCommandEvent(*OutEvent);
 
       ZE_CALL(zeEventHostSignal, ((*OutEvent)->ZeEvent));
       (*OutEvent)->Completed = true;
