@@ -958,10 +958,8 @@ bool reduCGFuncForRangeFastReduce(handler &CGH, KernelType KernelFunc,
   if constexpr (Reduction::is_acc)
     associateWithHandler(CGH, &Out, access::target::device);
 
-  // auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
-  // accessor PartialSums(PartialSumsBuf, CGH, sycl::read_write, sycl::no_init);
-  auto PartialSums =
-      Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
+  auto &PartialSumsBuf = Redu.getTempBuffer(NWorkGroups * NElements, CGH);
+  accessor PartialSums(PartialSumsBuf, CGH, sycl::read_write, sycl::no_init);
 
   bool IsUpdateOfUserVar = !Reduction::is_usm && !Redu.initializeToIdentity();
   using InitName =
