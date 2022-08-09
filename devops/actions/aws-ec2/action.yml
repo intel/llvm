@@ -60,7 +60,7 @@ inputs:
     description: "AWS EC2 region"
     required: false
     default: "us-east-2" # Ohio
-   
+
 runs:
   using: node12
   main: ./aws-ec2.js

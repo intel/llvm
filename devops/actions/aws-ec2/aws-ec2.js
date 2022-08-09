@@ -9,10 +9,12 @@ const repo = `intel/llvm`;
 // get github registration token that allows to register new runner based on
 // GH_PERSONAL_ACCESS_TOKEN github user api key
 async function getGithubRegToken() {
-  const octokit = github.getOctokit(core.getInput("GH_PERSONAL_ACCESS_TOKEN"));
+  core.info("Preparing Github SDK API");
+  const token = core.getInput("GH_PERSONAL_ACCESS_TOKEN");
+  const octokit = github.getOctokit(token);
 
   try {
-    core.info("Getting Github Actions Runner registration token");
+    core.info("Getting Github Actions Runner registration token for ${repo} repo (${token.length})");
     const response = await octokit.request(`POST /repos/${repo}/actions/runners/registration-token`);
     core.info("Got Github Actions Runner registration token");
     return response.data.token;
@@ -141,7 +143,7 @@ async function stop(param_label) {
     }).promise();
     core.info(`Searched for AWS EC2 instance with label ${label}`);
   } catch (error) {
-    core.error(`Error searching for AWS EC2 instance with label ${label}`);
+    core.error(`Error searching for AWS EC2 instance with label ${label}: ${error}`);
     last_error = error;
   }
 
@@ -153,13 +155,14 @@ async function stop(param_label) {
           await ec2.terminateInstances({ InstanceIds: [ instance.InstanceId ] }).promise();
           core.info(`Terminated AWS EC2 instance ${instance.InstanceId} with label ${label}`);
         } catch (error) {
-          core.error(`Error terminating AWS EC2 instance ${instance.InstanceId} with label ${label}`);
+          core.error(`Error terminating AWS EC2 instance ${instance.InstanceId} with label ${label}: ${error}`);
           last_error = error;
         }
       }
     }
 
   // find all Github action runners
+  core.info("Preparing Github SDK API");
   const octokit = github.getOctokit(core.getInput("GH_PERSONAL_ACCESS_TOKEN"));
   let runners;
   try {
@@ -191,7 +194,7 @@ async function stop(param_label) {
       p = p.then(function() {
         core.info(`Removed Github self-hosted runner ${runner.id} with ${label}`);
       }).catch(function(error) {
-        core.error(`Error removing Github self-hosted runner ${runner.id} with ${label}`);
+        core.error(`Error removing Github self-hosted runner ${runner.id} with ${label}: ${error}`);
         last_error = error;
       });
     }
@@ -228,7 +231,7 @@ async function stop(param_label) {
             await stop(raw_label);
           } else core.info(`Skipping ${raw_label} config`);
         } catch (error) {
-          core.error(`Error removing runner with ${raw_label}`);
+          core.error(`Error removing runner with ${raw_label}: ${error}`);
           last_error = error;
         }
       }
