@@ -162,7 +162,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
-     if: ${{ inputs.lts_aws_matrix != '' }}
+    if: ${{ inputs.lts_aws_matrix != '' }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
