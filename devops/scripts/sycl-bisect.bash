@@ -96,9 +96,8 @@ fi
 cd "$TOPLEVEL"
 
 # A commit that should be on all sycl-based branches this script works with.
-# This is the commit that introduces the buildbot scripts, which this script
-# uses for building.
-export SYCL_ANCESTOR=0818f3e88585
+# This is set to the initial sycl-specific commit.
+export SYCL_ANCESTOR=1e0b4966ba9a
 
 # This commit should be in the repository.
 if ! git rev-parse $SYCL_ANCESTOR &>/dev/null; then
@@ -115,10 +114,10 @@ for REV in "$@"; do
 done
 
 # Make sure the build directory is set up; if not, tell the user to run
-# configure.py.
+# the configure step.
 if [[ ! -f build/CMakeCache.txt ]]; then
   echo "The build directory doesn't seem to be configured yet." >&2
-  echo "Please run buildbot/configure.py" >&2
+  echo "Please run the configure step to set up the build." >&2
   exit 1
 fi
 
@@ -126,7 +125,7 @@ fi
 # built.
 if [[ ! -f build/bin/FileCheck ]]; then
   echo "FileCheck not found; building test-depends"
-  python buildbot/compile.py -t test-depends
+  cmake --build build -- test-depends -j $(nproc)
 fi
 
 # Determines if the passed commit is sycl-based or not.

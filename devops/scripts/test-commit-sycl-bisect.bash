@@ -116,7 +116,7 @@ else
 fi
 
 # Attempt a build; skip this commit if it fails.
-python buildbot/compile.py || bad_commit
+cmake --build build -- deploy-sycl-toolchain -j $(nproc) || bad_commit
 
 # If a lit test is specified, run it with llvm-lit.
 if [[ "$TEST" != "" ]]; then
