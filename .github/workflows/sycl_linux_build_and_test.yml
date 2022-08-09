@@ -166,12 +166,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: aws
     steps:
-      - uses: actions/checkout@v3
-        with:
-          path: llvm
-      - run: npm install ./llvm/devops/actions/aws-ec2
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
       - name: Start AWS EC2 runners
-        uses: ./llvm/devops/actions/aws-ec2
+        uses: ./aws-ec2
         with:
           runs-on-list: ${{ inputs.lts_aws_matrix }}
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
@@ -234,12 +237,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: aws
     steps:
-      - uses: actions/checkout@v3
-        with:
-          path: llvm
-      - run: npm install ./llvm/devops/actions/aws-ec2
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
       - name: Stop AWS EC2 runners
-        uses: ./llvm/devops/actions/aws-ec2
+        uses: ./aws-ec2
         with:
           runs-on-list: ${{ inputs.lts_aws_matrix }}
           mode: stop

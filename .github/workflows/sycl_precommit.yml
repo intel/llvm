@@ -1,7 +1,7 @@
 name: SYCL
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
     - sycl
     # Do not run builds if changes are only in the following locations
@@ -25,6 +25,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
       with:
+        persist-credentials: false
         fetch-depth: 2
     - name: Run clang-format
       uses: ./devops/actions/clang-format
