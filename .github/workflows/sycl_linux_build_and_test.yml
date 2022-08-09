@@ -40,6 +40,10 @@ on:
         type: string
         required: false
         default: ""
+      lts_aws_matrix:
+        type: string
+        required: false
+        default: ""
       lts_cmake_extra_args:
         type: string
         required: false
@@ -158,6 +162,7 @@ jobs:
   aws-start:
     name: Start AWS
     needs: build
+     if: ${{ inputs.lts_aws_matrix != '' }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
@@ -168,14 +173,14 @@ jobs:
       - name: Start AWS EC2 runners
         uses: ./llvm/devops/actions/aws-ec2
         with:
-          runs-on-list: ${{ inputs.lts_matrix }}
+          runs-on-list: ${{ inputs.lts_aws_matrix }}
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
 
   llvm_test_suite:
     needs: [build, aws-start]
-    if: ${{ inputs.lts_matrix != '' }}
+    if: ${{ !failure() && inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
@@ -225,7 +230,7 @@ jobs:
   aws-stop:
     name: Stop AWS
     needs: [ aws-start, llvm_test_suite ]
-    if: ${{ always() }}
+    if: ${{ always() && inputs.lts_ats_matrix != '' }}
     runs-on: ubuntu-latest
     environment: aws
     steps:
@@ -236,7 +241,7 @@ jobs:
       - name: Stop AWS EC2 runners
         uses: ./llvm/devops/actions/aws-ec2
         with:
-          runs-on-list: ${{ inputs.lts_matrix }}
+          runs-on-list: ${{ inputs.lts_aws_matrix }}
           mode: stop
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}

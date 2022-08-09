@@ -1,7 +1,7 @@
 name: SYCL
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
     - sycl
     # Do not run builds if changes are only in the following locations
@@ -50,3 +50,4 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
+      lts_aws_matrix: ${{ needs.resolve_matrix.outputs.lts_aws_matrix }}
