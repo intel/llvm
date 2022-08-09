@@ -11,10 +11,11 @@ const repo = `intel/llvm`;
 async function getGithubRegToken() {
   core.info("Preparing Github SDK API");
   const token = core.getInput("GH_PERSONAL_ACCESS_TOKEN");
+  core.info(`${token.length}`);
   const octokit = github.getOctokit(token);
 
   try {
-    core.info("Getting Github Actions Runner registration token for ${repo} repo (${token.length})");
+    core.info(`Getting Github Actions Runner registration token for ${repo} repo`);
     const response = await octokit.request(`POST /repos/${repo}/actions/runners/registration-token`);
     core.info("Got Github Actions Runner registration token");
     return response.data.token;
