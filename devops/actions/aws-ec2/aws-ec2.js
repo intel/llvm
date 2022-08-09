@@ -3,7 +3,8 @@ const github = require('@actions/github');
 const AWS    = require('aws-sdk');
 
 // shortcut to reference current repo
-const repo = `${github.context.repo.owner}/${github.context.repo.repo}`;
+//const repo = `${github.context.repo.owner}/${github.context.repo.repo}`;
+const repo = `intel/${github.context.repo.repo}`;
 
 // get github registration token that allows to register new runner based on
 // GH_PERSONAL_ACCESS_TOKEN github user api key

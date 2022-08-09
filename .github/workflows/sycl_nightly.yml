@@ -13,6 +13,7 @@ jobs:
   ubuntu2004_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    needs: resolve_matrix
     secrets: inherit
     with:
       build_cache_root: "/__w/"
@@ -23,6 +24,7 @@ jobs:
   ubuntu2004_opaque_pointers_build_test:
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    needs: resolve_matrix
     secrets: inherit
     with:
       build_cache_root: "/__w/"
