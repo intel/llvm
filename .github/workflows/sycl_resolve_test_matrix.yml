@@ -28,7 +28,7 @@ on:
       lts_matrix:
         description: "Generated Matrix"
         value: ${{ jobs.resolve_matrix.outputs.lts_matrix }}
-     lts_aws_matrix:
+      lts_aws_matrix:
         description: "Generated Matrix AWS subset"
         value: ${{ jobs.resolve_matrix.outputs.lts_aws_matrix }}
 jobs:
