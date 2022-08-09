@@ -38,6 +38,7 @@ int main() {
 #else
     cl::sycl::local_accessor<int, 1> local_acc({size}, h);
 #endif
+
     TriviallyCopyable tc{1, 2};
     NonTriviallyCopyable ntc;
     h.set_arg(0, local_acc);

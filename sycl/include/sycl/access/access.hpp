@@ -17,7 +17,7 @@ namespace access {
 enum class target {
   global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
   constant_buffer = 2015,
-  local = 2016,
+  local __SYCL2020_DEPRECATED("use `local_accessor` instead") = 2016,
   image = 2017,
   host_buffer = 2018,
   host_image = 2019,
