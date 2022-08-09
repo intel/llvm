@@ -732,14 +732,13 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
     }
   }
 
-  // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Reinitialize a sub-sub-device with its own ordinal, index.
   // Our sub-sub-device representation is currently [Level-Zero sub-device
-  // handle + Level-Zero compute group/engine index]. As we have a single queue
-  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
+  // handle + Level-Zero compute group/engine index]. Only the specified
+  // index queue will be used to submit work to the sub-sub-device.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
-    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
   } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
@@ -1156,32 +1155,30 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
   auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  ComputeQueueGroup.ZeQueues = ComputeQueues;
   if (ComputeQueueGroupInfo.ZeIndex >= 0) {
     ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
   } else {
-    ComputeQueueGroup.LowerIndex = 0;
-    ComputeQueueGroup.UpperIndex = INT_MAX;
-    ComputeQueueGroup.NextIndex = 0;
-  }
-
-  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
-  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
-  FilterUpperIndex =
-      std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
-  if (FilterLowerIndex <= FilterUpperIndex) {
-    ComputeQueueGroup.ZeQueues = ComputeQueues;
-    ComputeQueueGroup.LowerIndex = FilterLowerIndex;
-    ComputeQueueGroup.UpperIndex = FilterUpperIndex;
-    ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
-    // Create space to hold immediate commandlists corresponding to the ZeQueues
-    if (UseImmediateCommandLists) {
-      ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+    // Set-up to round-robin across allowed range of engines.
+    uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines.first;
+    uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines.second;
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + ComputeQueues.size() - 1);
+    if (FilterLowerIndex <= FilterUpperIndex) {
+      ComputeQueueGroup.LowerIndex = FilterLowerIndex;
+      ComputeQueueGroup.UpperIndex = FilterUpperIndex;
+      ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
+      // Create space to hold immediate commandlists corresponding to the
+      // ZeQueues
+      if (UseImmediateCommandLists) {
+        ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+      }
+    } else {
+      die("No compute queue available/allowed.");
     }
-  } else {
-    die("No compute queue available.");
   }
 
   // Copy group initialization.
@@ -1192,8 +1189,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   } else {
     uint32_t FilterLowerIndex = getRangeOfAllowedCopyEngines.first;
     uint32_t FilterUpperIndex = getRangeOfAllowedCopyEngines.second;
-    FilterUpperIndex =
-        std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
