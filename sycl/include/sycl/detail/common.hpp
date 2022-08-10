@@ -83,6 +83,30 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
+
+// The C++ FE may instrument user calls with code location metadata.
+// If it does then that will appear as an extra last argument.
+// Having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
+// Here we simplify the &CodeLoc declaration to be _CODELOCPARAM(&CodeLoc) and
+// _CODELOCARG(&CodeLoc).
+
+#ifndef DISABLE_SYCL_INSTRUMENTATION_METADATA
+#define _CODELOCONLYPARAM(a)                                                   \
+  const detail::code_location a = detail::code_location::current()
+#define _CODELOCPARAM(a)                                                       \
+  , const detail::code_location a = detail::code_location::current()
+#define _CODELOCPARAMDEF(a) , const detail::code_location a
+
+#define _CODELOCARG(a)
+#define _CODELOCFW(a) , a
+#else
+#define _CODELOCONLYPARAM(a)
+#define _CODELOCPARAM(a)
+
+#define _CODELOCARG(a) const detail::code_location a = {}
+#define _CODELOCFW(a)
+#endif
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
