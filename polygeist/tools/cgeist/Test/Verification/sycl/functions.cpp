@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s | FileCheck %s
+// RUN: sycl-clang.py %s -S -function=* | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
@@ -48,9 +48,7 @@ SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
 // CHECK-NEXT: %3 = memref.cast %2 : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: affine.store %arg0, %2[0] : memref<1x!sycl_id_2_>
 // CHECK-NEXT: affine.store %arg1, %0[0] : memref<1x!sycl_id_2_>
-// CHECK-NEXT: %4 = sycl.cast(%3) : (memref<?x!sycl_id_2_>) -> memref<?x!sycl_array_2_>
-// CHECK-NEXT: %5 = sycl.cast(%1) : (memref<?x!sycl_id_2_>) -> memref<?x!sycl_array_2_>
-// CHECK-NEXT: %6 = sycl.call(%4, %5) {Function = @"operator==", Type = @array} : (memref<?x!sycl_array_2_>, memref<?x!sycl_array_2_>) -> i8
+// CHECK-NEXT: %4 = sycl.call(%3, %1) {Function = @"operator==", Type = @id} : (memref<?x!sycl_id_2_>, memref<?x!sycl_id_2_>) -> i8
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 

@@ -22,14 +22,21 @@ def main():
     mlir_tool = bin_path + "/cgeist"
     clang_tool = bin_path + "/clang++"
     arg_file = sys.argv[1]
+
+    # Invoke clang, capture the command line produced by clang.
     clang_args = [clang_tool, "-###", "-fsycl", "-fsycl-device-only", "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"]
-    clang_args.extend(sys.argv[1:])
+    n = len(clang_args)
+    clang_args.extend(sys.argv[1:2])
     clang_res = subprocess.Popen(clang_args, stderr=subprocess.PIPE)
     output = clang_res.stderr.readlines()
-    expanded_clang_args = output[5].decode("utf-8")
+    expanded_clang_args = output[n].decode("utf-8")
     split_output = shlex.split(expanded_clang_args)
 
-    mlir_args = [mlir_tool, "-S", "--function=main", arg_file, "--args"]
+    # Form the cgeist invocation command. Append the MLIR flags first, then append the clang flags after "--args".
+    mlir_args = [mlir_tool]
+    mlir_args.extend(sys.argv[2:])
+    mlir_args.append(arg_file)
+    mlir_args.append("--args")
     mlir_args.extend(split_output[1:])
     mlir_res = subprocess.Popen(mlir_args)
     mlir_res.wait()
