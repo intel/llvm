@@ -52,10 +52,12 @@ static const char *LegalSYCLFunctions[] = {
     "^cl::sycl::ext::oneapi::experimental::this_sub_group"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
-    "^cl::sycl::multi_ptr<.+>::get", "^cl::sycl::multi_ptr<.+>::multi_ptr",
+    "^cl::sycl::multi_ptr<.+>::get",
+    "^cl::sycl::multi_ptr<.+>::multi_ptr",
     "^cl::sycl::accessor<.+>::get_pointer.+",
     "^cl::sycl::accessor<.+>::getPointerAdjusted",
-    "^cl::sycl::accessor<.+>::getQualifiedPtr"};
+    "^cl::sycl::accessor<.+>::getQualifiedPtr",
+    "^cl::sycl::accessor<.+>::getTotalOffset"};
 
 namespace {
 

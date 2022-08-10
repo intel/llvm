@@ -832,17 +832,14 @@ protected:
 
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
-#ifdef __SYCL_DEVICE_ONLY__
-    // Pointer is already adjusted for 1D case.
-    if (Dimensions == 1)
-      return Id[0];
-#endif // __SYCL_DEVICE_ONLY__
-
     size_t Result = 0;
     // Unroll the following loop for both host and device code
     __SYCL_UNROLL(3)
     for (int I = 0; I < Dims; ++I) {
       Result = Result * getMemoryRange()[I] + Id[I];
+      // We've already adjusted for the accessor's offset in the __init, so
+      // don't include it here in case of device.
+#ifndef __SYCL_DEVICE_ONLY__
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
                         sycl::ext::oneapi::property::no_offset>())) {
@@ -851,6 +848,7 @@ protected:
 #else
       Result += getOffset()[I];
 #endif
+#endif // __SYCL_DEVICE_ONLY__
     }
     return Result;
   }
@@ -919,17 +917,10 @@ protected:
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
     }
-    // In case of 1D buffer, adjust pointer during initialization rather
-    // then each time in operator[]. Will have to re-adjust in get_pointer
-    if (1 == AdjustedDim)
-#if __cplusplus >= 201703L
-      if constexpr (!(PropertyListT::template has_property<
-                        sycl::ext::oneapi::property::no_offset>())) {
-        MData += Offset[0];
-      }
-#else
-      MData += Offset[0];
-#endif
+
+    // Adjust for offsets as that part is invariant for all invocations of
+    // operator[]. Will have to re-adjust in get_pointer.
+    MData += getTotalOffset();
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
@@ -1797,17 +1788,37 @@ public:
   bool operator!=(const accessor &Rhs) const { return !(*this == Rhs); }
 
 private:
+#ifdef __SYCL_DEVICE_ONLY__
+  size_t getTotalOffset() const {
+    size_t TotalOffset = 0;
+    __SYCL_UNROLL(3)
+    for (int I = 0; I < Dimensions; ++I) {
+      TotalOffset = TotalOffset * impl.MemRange[I];
+#if __cplusplus >= 201703L
+      if constexpr (!(PropertyListT::template has_property<
+                        sycl::ext::oneapi::property::no_offset>())) {
+        TotalOffset += impl.Offset[I];
+      }
+#else
+      TotalOffset += impl.Offset[I];
+#endif
+    }
+
+    return TotalOffset;
+  }
+#endif
+
   // supporting function for get_pointer()
-  // when dim==1, MData will have been preadjusted for faster access with []
+  // MData has been preadjusted with offset for faster access with []
   // but for get_pointer() we must return the original pointer.
   // On device, getQualifiedPtr() returns MData, so we need to backjust it.
   // On host, getQualifiedPtr() does not return MData, no need to adjust.
   PtrType getPointerAdjusted() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    if (1 == AdjustedDim)
-      return getQualifiedPtr() - impl.Offset[0];
-#endif
+    return getQualifiedPtr() - getTotalOffset();
+#else
     return getQualifiedPtr();
+#endif
   }
 
   void preScreenAccessor(const size_t elemInBuffer,
