@@ -47,8 +47,8 @@ not rely on APIs defined in this specification.*
 
 == Specification
 
-This extension adds support for 2D memcpy routines that can copy a specified
-rectangular region in the presence of array padding.
+This extension adds support for 2D memcpy and associated routines that can
+copy a specified rectangular region in the presence of array padding.
 
 === Feature test macro
 
@@ -72,9 +72,9 @@ supports.
 === API Additions
 
 
-The handler class gains one new method:
+The handler class gains the following new methods:
 
-[cols="^60a,40"]
+[cols="60a,40"]
 |===
 | Member Function | Description
 
@@ -86,20 +86,79 @@ void ext_oneapi_memcpy2d(void *dest, size_t destPitch,
   size_t width, size_t height)
 ----
 
-| Copies the data located at `src` to `dest`. At least one of `src` or `dest`
-must be a USM pointer. The width of a row in bytes,
+| Copies the data located at `src` to `dest`. The width of a row in bytes,
 including any padding, is specified by `destPitch` for `dest` and `srcPitch`
 for `src`. The amount of data to copy is specified as `width` bytes per row
 times `height` number of rows.  `width` must not be larger than either
 `srcPitch` or `destPitch`, otherwise this function throws a synchronous
-`exception` with the `errc::invalid` error code.
+`exception` with the `errc::invalid` error code. The `dest` and `src`
+parameters must each either be a host pointer or a pointer within a USM
+allocation that is accessible on the handler's device. If a pointer is to a
+USM allocation, that allocation must have been created from the same context
+as the handler's queue.
+
+a|
+[source,c++]
+----
+template <typename T>
+void ext_oneapi_copy2d(const T *src, size_t srcPitch,
+  T *dest, size_t destPitch,
+  size_t width, size_t height)
+----
+
+| Copies the data located at `src` to `dest`. The width of a row in number
+of elements, including any padding, is specified by `destPitch` for `dest`
+and `srcPitch` for `src`. The amount of data to copy is specified as `width`
+elements per row times `height` number of rows. `width` must not be larger
+than either `srcPitch` or `destPitch`, otherwise this function throws a
+synchronous `exception` with the `errc::invalid` error code. The `dest`
+and `src`parameters must each either be a host pointer or a pointer within
+a USM allocation that is accessible on the handler's device. If a pointer is
+to a USM allocation, that allocation must have been created from the same context
+as the handler's queue.
+
+a|
+[source,c++]
+----
+void ext_oneapi_memset2d(void *dest, size_t destPitch,
+  int value, size_t width, size_t height)
+----
+
+| Fills the data located at `dest` with `value`. Note that `value` is
+interpreted as an `unsigned char`. The width of a row in bytes,
+including any padding, is specified by `destPitch` for `dest`.
+The amount of data to fill is specified as `width` bytes per row
+times `height` number of rows.  `width` must not be larger than `destPitch`,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code. The `dest` parameter must either be a host
+pointer or a pointer within a USM allocation that is accessible on the
+handler's device. If a pointer is to a USM allocation, that allocation
+must have been created from the same context as the handler's queue.
+
+a|
+[source,c++]
+----
+template <typename T>
+void ext_oneapi_fill2d(void *dest, size_t destPitch,
+  const T& pattern, size_t width, size_t height)
+----
+
+| Fills the data located at `dest` with `pattern`. The width of a row in
+number of elements, including any padding, is specified by `destPitch`.
+The amount of data to fill is specified as `width` elements per row
+times `height` number of rows.  `width` must not be larger than `destPitch`,
+otherwise this function throws a synchronous `exception` with the
+`errc::invalid` error code. The `dest` parameter must either be a host
+pointer or a pointer within a USM allocation that is accessible on the
+handler's device. If a pointer is to a USM allocation, that allocation
+must have been created from the same context as the handler's queue.
 
 |===
 
 This extension also defines additional shortcut methods. The `queue` class
-gains three new methods:
+gains several new methods:
 
-[cols="^60a,40"]
+[cols="60a,40"]
 |===
 | Member Function | Description
 
@@ -119,16 +178,55 @@ event ext_oneapi_memcpy2d(void *dest, size_t destPitch,
   const void *src, size_t srcPitch,
   size_t width, size_t height,
   const std::vector<event> &depEvents)
+
+template <typename T>
+event ext_oneapi_copy2d(const T *src, size_t srcPitch,
+  T *dest, size_t destPitch,
+  size_t width, size_t height)
+
+template <typename T>
+event ext_oneapi_copy2d(const T *src, size_t srcPitch,
+  T *dest, size_t destPitch,
+  size_t width, size_t height,
+  event depEvent)
+
+template <typename T>
+event ext_oneapi_copy2d(const T *src, size_t srcPitch,
+  T *dest, size_t destPitch,
+  size_t width, size_t height,
+  const std::vector<event> &depEvents)
+
+event ext_oneapi_memset2d(void *dest, size_t destPitch,
+  int value, size_t width, size_t height)
+
+event ext_oneapi_memset2d(void *dest, size_t destPitch,
+  int value, size_t width, size_t height,
+  event depEvent)
+
+event ext_oneapi_memset2d(void *dest, size_t destPitch,
+  int value, size_t width, size_t height,
+  const std::vector<event> &depEvents)
+
+template <typename T>
+event ext_oneapi_fill2d(void *dest, size_t destPitch,
+  const T& pattern, size_t width, size_t height)
+
+template <typename T>
+event ext_oneapi_fill2d(void *dest, size_t destPitch,
+  const T& pattern, size_t width, size_t height,
+  event depEvent)
+
+template <typename T>
+event ext_oneapi_fill2d(void *dest, size_t destPitch,
+  const T& pattern, size_t width, size_t height,
+  const std::vector<event> &depEvents)
+
 ----
 
-| Copies the data located at `src` to `dest`. At least one of `src` or `dest`
-must be a USM pointer. The width of a row in bytes,
-including any padding, is specified by `destPitch` for `dest` and `srcPitch`
-for `src`.  The amount of data to copy is specified as `width` bytes per row
-times `height` number of rows.  `width` must not be larger than either
-`srcPitch` or `destPitch`, otherwise this function throws a synchronous
-`exception` with the `errc::invalid` error code.  If specified, the operation
-will not begin until the dependent events have completed.
+| Equivalent to submitting a command group containing the corresponding
+method in the `handler` class. Dependences may be specified through
+the parameters `depEvent` or `depEvents` as if the handler contained a call to
+`depends_on`.
 
 |===
 
