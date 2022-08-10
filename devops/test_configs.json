@@ -61,11 +61,11 @@
       "cmake_args": "-DHIP_PLATFORM=\"AMD\" -DAMD_ARCH=\"gfx1031\""
     },
     {
-      "config": "cuda",
+      "config": "cuda-new",
       "name": "CUDA LLVM Test Suite",
       "runs-on": [
         "Linux",
-        "cuda"
+        "cuda-new"
       ],
       "image": "${{ inputs.cuda_image }}",
       "container_options": "--gpus all",
