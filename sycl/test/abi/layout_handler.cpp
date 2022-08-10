@@ -112,7 +112,7 @@ void foo() {
 // CHECK-NEXT: 328 |         class __gnu_cxx::new_allocator<char> (base) (empty)
 // CHECK-NEXT: 328 |       pointer _M_p
 // CHECK-NEXT: 336 |     size_type _M_string_length
-// CHECK-NEXT: 344 |     union std::basic_string<char>::(anonymous at /usr/lib/gcc/x86_64-redhat-linux/8/../../../../include/c++/8/bits/basic_string.h:160:7) 
+// CHECK-NEXT: 344 |     union std::basic_string<char>::(anonymous at {{.*}})
 // CHECK-NEXT: 344 |       char[16] _M_local_buf
 // CHECK-NEXT: 344 |       size_type _M_allocated_capacity
 // CHECK-NEXT: 360 |   class std::shared_ptr<class sycl::detail::kernel_impl> MKernel
