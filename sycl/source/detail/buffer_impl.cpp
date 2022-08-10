@@ -8,10 +8,10 @@
 
 #include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/buffer_impl.hpp>
-#include <sycl/detail/memory_manager.hpp>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
