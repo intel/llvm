@@ -21,7 +21,7 @@ on:
         default: ""
       cts_config:
         type: string
-        required: true
+        required: false
         default: ""
     outputs:
       lts_matrix:
