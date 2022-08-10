@@ -18,6 +18,8 @@ https://github.com/intel/llvm/issues
 - Pawel Jurek, Intel
 - Thomas Raoux, Intel
 - Nikita Kornev, Intel
+- Dmitry Sidorov, Intel
+- Alex Bezzubikov, Intel
 
 == Notice
 
@@ -151,16 +153,17 @@ Additionally, any *OpSelect*, *OpPhi*, *OpFunctionCall*, *OpPtrAccessChain*,
 a function pointer as an operand also produces a function pointer. An
 *OpFunctionParameter* of pointer type is function pointer if any
 *OpFunctionCall* to the function statically passes a function pointer as the
-value of the parameter. *OpConstantNull* returns function pointer if 'Result
-type' is function pointer.
+value of the parameter. *OpCompositeExtract* and *OpConstantNull* return
+function pointer if 'Result type' is function pointer.
 
 Modify Section 2.9, Function Calling, add the following after the first sentence: ::
 
 Functions can be called indirectly using function pointers: to do so, use
 *OpFunctionPointerCallINTEL* with an operand that is the _<id>_ obtained using
-*OpConstantFunctionPointerINTEL* of the *OpFunction* to call, and the _<id>s_ of the
-arguments to pass. All arguments are passed by value into the called function.
-This includes pointers, through which a callee object could be modified.
+*OpConstantFunctionPointerINTEL* of the *OpFunction* to call, and the _<id>s_ of
+the arguments to pass. All arguments are passed by value into the called
+function. This includes pointers, through which a callee object could be
+modified.
 
 === Storage Classes
 
@@ -227,16 +230,17 @@ Modify Section 3.32.6, Type-Declaration Instructions, change the third sentence 
 pointer type. *OpFunction* and *OpTypePointer* are only valid uses of
 *OpTypeFunction*.
 
-Modify Section 3.32.9, Function Instructions, adding to the end of the list of instructions: ::
+Modify Section 3.32.7, Constant-Creation Instructions, adding to the end of the list of instructions: ::
 
 [cols="2*1,3*3",width="100%"]
 |=====
 4+|[[OpConstantFunctionPointerINTEL]]*OpConstantFunctionPointerINTEL* +
  +
-Obtains address of the specified function. +
+Obtains constant address of the specified function. +
  +
-Result value can be used immediately in *OpFunctionPointerCallINTEL* or stored
-somewhere for further usage in *OpFunctionPointerCallINTEL*. +
+Result value can be used immediately in *OpFunctionPointerCallINTEL*, inserted
+into a composite constant or stored somewhere for further usage in
+*OpFunctionPointerCallINTEL*. +
  +
 _Result Type_ must be an *OpTypePointer*. Its _Type_ operand must be the same
 *OpTypeFunction* which was used as _Function Type_ operand of the _Function_
@@ -245,6 +249,8 @@ operand. Its _Storage Class_ operand must be *CodeSectionINTEL*
 *FunctionPointersINTEL*
 | 4 | 5600 | '<id>' 'Result Type' | '<id> Result ' | '<id>' 'Function'
 |=====
+
+Modify Section 3.32.9, Function Instructions, adding to the end of the list of instructions: ::
 
 [cols="2*1,4*3",width="100%"]
 |=====
@@ -272,13 +278,16 @@ argument types must match the formal parameter types.
 == Validation Rules
 
 It is legal to use <<FunctionPointer, Function Pointer>> as 'Result Type' of
-*OpFunctionArgument*, *OpUndef* and *OpConstantNULL*.
+*OpFunctionArgument*, *OpCompositeExtract*, *OpUndef* and *OpConstantNULL*.
 
 It is legal to use <<FunctionPointer, Function Pointer>> as 'Return Type' of
 *OpTypeFunction*.
 
 It is legal to use <<FunctionPointer, Function Pointer>> as 'Pointer'
 argument of *OpConvertPtrToU* and as 'Result Type' of *OpConvertUToPtr*.
+
+It is legal to use <<FunctionPointer, Function Pointer>> as 'Object'
+argument of *OpCompositeInsert*.
 
 It is illegal to use <<FunctionPointer, Function Pointer>> as 'Pointer'
 argument of *OpPtrCastToGeneric*.
@@ -328,6 +337,27 @@ be used for ones out of the box and we don't have much use-cases for it.
 *UNRESOLVED*
 --
 
+. Should we prohibit heterogenous composites with function pointers? Maybe we should
+distinct <<FunctionPointer, Function Pointer>> and Constant Function Pointer?
++
+--
+*RESOLVED*
+
+In general, we should not since this extension is aimed to support the whole C++ function
+pointers functionality in SPIR-V.
+--
+
+. Should we distinct const and non-const function pointers in rules for *OpCompositeInsert*?
+We can only use a result of *OpConstantFunctionPointerINTEL* (which is a quite specific case of
+<<FunctionPointer, Function Pointer>>, so we can't use the whole term in the rule)
+in *OpConstantComposite*, but how should we specify that in this spec?
++
+--
+*RESOLVED*
+
+Removed *OpFunctionPointerINTEL* instruction.
+--
+
 //. Issue.
 //+
 //--
@@ -357,5 +387,6 @@ be used for ones out of the box and we don't have much use-cases for it.
 pointers. Updated validation rules. Misc updates.
 |G|2019-07-19|Ben Ashbaugh|Assigned SPIR-V enums, added preview extension disclaimer text.
 |H|2021-11-15|Nikita Kornev|Added new *ArgumentAttributeINTEL* decoration.
-|I|2021-11-03|Dmitry Sidorov|Update OpFunctionPointerINTEL name to OpConstantFunctionPointerINTEL.
+|I|2022-10-08|Dmitry Sidorov, Alex Bezzubikov, Alexey Sachkov|Replaced *OpFunctionPointerINTEL* with
+*OpConstantFunctionPointerINTEL*
 |========================================
