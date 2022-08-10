@@ -440,7 +440,7 @@ void double2float_test2(double a, float *b) {
 
 float sinf (float x);
 double double2float_test3(double a) {
-  return sinf(a); // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}
+    return sinf(a); // expected-warning {{implicit conversion loses floating-point precision: 'double' to 'float'}}
 }
 
 float double2float_test4(double a, float b) {
