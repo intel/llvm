@@ -19,6 +19,10 @@ on:
         type: string
         required: true
         default: ""
+      cts_config:
+        type: string
+        required: true
+        default: ""
     outputs:
       lts_matrix:
         description: "Generated Matrix"
@@ -29,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lts_matrix: ${{ steps.work.outputs.lts_matrix }}
+      cts_matrix: ${{ steps.work.outputs.cts_matrix }}
     steps:
     - name: Download scripts and configs
       shell: bash
