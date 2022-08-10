@@ -16,10 +16,17 @@
 #ifndef LLVM_C_DEBUGINFO_H
 #define LLVM_C_DEBUGINFO_H
 
-#include "llvm-c/Core.h"
 #include "llvm-c/ExternC.h"
+#include "llvm-c/Types.h"
 
 LLVM_C_EXTERN_C_BEGIN
+
+/**
+ * @defgroup LLVMCCoreDebugInfo Debug Information
+ * @ingroup LLVMCCore
+ *
+ * @{
+ */
 
 /**
  * Debug info flags.
@@ -1095,7 +1102,7 @@ LLVMMetadataRef LLVMDIBuilderGetOrCreateArray(LLVMDIBuilderRef Builder,
  * \param Length      Length of the address operation array.
  */
 LLVMMetadataRef LLVMDIBuilderCreateExpression(LLVMDIBuilderRef Builder,
-                                              int64_t *Addr, size_t Length);
+                                              uint64_t *Addr, size_t Length);
 
 /**
  * Create a new descriptor for the specified variable that does not have an
@@ -1105,7 +1112,7 @@ LLVMMetadataRef LLVMDIBuilderCreateExpression(LLVMDIBuilderRef Builder,
  */
 LLVMMetadataRef
 LLVMDIBuilderCreateConstantValueExpression(LLVMDIBuilderRef Builder,
-                                           int64_t Value);
+                                           uint64_t Value);
 
 /**
  * Create a new descriptor for the specified variable.
@@ -1366,6 +1373,10 @@ void LLVMInstructionSetDebugLoc(LLVMValueRef Inst, LLVMMetadataRef Loc);
  * @see llvm::Metadata::getMetadataID()
  */
 LLVMMetadataKind LLVMGetMetadataKind(LLVMMetadataRef Metadata);
+
+/**
+ * @}
+ */
 
 LLVM_C_EXTERN_C_END
 

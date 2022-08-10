@@ -35,7 +35,6 @@ class LLVMContext;
 class MemoryBufferRef;
 class Module;
 class raw_pwrite_stream;
-class Target;
 class ToolOutputFile;
 
 /// Resolve linkage for prevailing symbols in the \p Index. Linkage changes
@@ -194,11 +193,21 @@ private:
 using ThinBackend = std::function<std::unique_ptr<ThinBackendProc>(
     const Config &C, ModuleSummaryIndex &CombinedIndex,
     StringMap<GVSummaryMapTy> &ModuleToDefinedGVSummaries,
-    AddStreamFn AddStream, NativeObjectCache Cache)>;
+    AddStreamFn AddStream, FileCache Cache)>;
 
 /// This ThinBackend runs the individual backend jobs in-process.
 /// The default value means to use one job per hardware core (not hyper-thread).
-ThinBackend createInProcessThinBackend(ThreadPoolStrategy Parallelism);
+/// OnWrite is callback which receives module identifier and notifies LTO user
+/// that index file for the module (and optionally imports file) was created.
+/// ShouldEmitIndexFiles being true will write sharded ThinLTO index files
+/// to the same path as the input module, with suffix ".thinlto.bc"
+/// ShouldEmitImportsFiles is true it also writes a list of imported files to a
+/// similar path with ".imports" appended instead.
+using IndexWriteCallback = std::function<void(const std::string &)>;
+ThinBackend createInProcessThinBackend(ThreadPoolStrategy Parallelism,
+                                       IndexWriteCallback OnWrite = nullptr,
+                                       bool ShouldEmitIndexFiles = false,
+                                       bool ShouldEmitImportsFiles = false);
 
 /// This ThinBackend writes individual module indexes to files, instead of
 /// running the individual backend jobs. This backend is for distributed builds
@@ -213,7 +222,6 @@ ThinBackend createInProcessThinBackend(ThreadPoolStrategy Parallelism);
 /// the final ThinLTO linking. Can be nullptr.
 /// OnWrite is callback which receives module identifier and notifies LTO user
 /// that index file for the module (and optionally imports file) was created.
-using IndexWriteCallback = std::function<void(const std::string &)>;
 ThinBackend createWriteIndexesThinBackend(std::string OldPrefix,
                                           std::string NewPrefix,
                                           bool ShouldEmitImportsFiles,
@@ -267,7 +275,7 @@ public:
   ///
   /// The client will receive at most one callback (via either AddStream or
   /// Cache) for each task identifier.
-  Error run(AddStreamFn AddStream, NativeObjectCache Cache = nullptr);
+  Error run(AddStreamFn AddStream, FileCache Cache = nullptr);
 
   /// Static method that returns a list of libcall symbols that can be generated
   /// by LTO but might not be visible from bitcode symbol table.
@@ -399,7 +407,7 @@ private:
                    const SymbolResolution *&ResI, const SymbolResolution *ResE);
 
   Error runRegularLTO(AddStreamFn AddStream);
-  Error runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
+  Error runThinLTO(AddStreamFn AddStream, FileCache Cache,
                    const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols);
 
   Error checkPartiallySplit();

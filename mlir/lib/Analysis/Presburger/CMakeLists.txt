@@ -1,10 +1,15 @@
 add_mlir_library(MLIRPresburger
-  Simplex.cpp
+  IntegerRelation.cpp
+  LinearTransform.cpp
   Matrix.cpp
-
-  DEPENDS
-  MLIRBuiltinLocationAttributesIncGen
+  MPInt.cpp
+  PresburgerRelation.cpp
+  PresburgerSpace.cpp
+  PWMAFunction.cpp
+  Simplex.cpp
+  SlowMPInt.cpp
+  Utils.cpp
 
   LINK_LIBS PUBLIC
-  MLIRIR
+  MLIRSupport
   )

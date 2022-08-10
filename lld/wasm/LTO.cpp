@@ -52,7 +52,6 @@ static std::unique_ptr<lto::LTO> createLTO() {
   c.OptLevel = config->ltoo;
   c.MAttrs = getMAttrs();
   c.CGOptLevel = args::getCGOptLevel(config->ltoo);
-  c.UseNewPM = config->ltoNewPassManager;
   c.DebugPassManager = config->ltoDebugPassManager;
 
   if (config->relocatable)
@@ -127,7 +126,7 @@ std::vector<StringRef> BitcodeCompiler::compile() {
   // The --thinlto-cache-dir option specifies the path to a directory in which
   // to cache native object files for ThinLTO incremental builds. If a path was
   // specified, configure LTO to use it as the cache directory.
-  NativeObjectCache cache;
+  FileCache cache;
   if (!config->thinLTOCacheDir.empty())
     cache =
         check(localCache("ThinLTO", "Thin", config->thinLTOCacheDir,
@@ -137,7 +136,7 @@ std::vector<StringRef> BitcodeCompiler::compile() {
 
   checkError(ltoObj->run(
       [&](size_t task) {
-        return std::make_unique<NativeObjectStream>(
+        return std::make_unique<CachedFileStream>(
             std::make_unique<raw_svector_ostream>(buf[task]));
       },
       cache));

@@ -1,8 +1,10 @@
 // RUN: %libomptarget-compile-generic -fopenmp-extensions
 // RUN: %libomptarget-run-generic | %fcheck-generic -strict-whitespace
 
-// amdgcn does not have printf definition
+// Wrong results on amdgpu
 // XFAIL: amdgcn-amd-amdhsa
+// XFAIL: amdgcn-amd-amdhsa-oldDriver
+// XFAIL: amdgcn-amd-amdhsa-LTO
 
 #include <omp.h>
 #include <stdio.h>

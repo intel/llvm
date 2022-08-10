@@ -38,20 +38,14 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/Constant.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/Allocator.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <iterator>
@@ -60,8 +54,11 @@
 
 namespace llvm {
 
+class Constant;
+class Function;
 template <class GraphType> struct GraphTraits;
 class Module;
+class TargetLibraryInfo;
 class Value;
 
 /// A lazily constructed view of the call graph of a module.
@@ -145,7 +142,7 @@ public:
     /// around but clear them.
     explicit operator bool() const;
 
-    /// Returnss the \c Kind of the edge.
+    /// Returns the \c Kind of the edge.
     Kind getKind() const;
 
     /// Test whether the edge represents a direct call to a function.
@@ -307,9 +304,9 @@ public:
 
   /// A node in the call graph.
   ///
-  /// This represents a single node. It's primary roles are to cache the list of
-  /// callees, de-duplicate and provide fast testing of whether a function is
-  /// a callee, and facilitate iteration of child nodes in the graph.
+  /// This represents a single node. Its primary roles are to cache the list of
+  /// callees, de-duplicate and provide fast testing of whether a function is a
+  /// callee, and facilitate iteration of child nodes in the graph.
   ///
   /// The node works much like an optional in order to lazily populate the
   /// edges of each node. Until populated, there are no edges. Once populated,
@@ -331,7 +328,7 @@ public:
     bool operator!=(const Node &N) const { return !operator==(N); }
 
     /// Tests whether the node has been populated with edges.
-    bool isPopulated() const { return Edges.hasValue(); }
+    bool isPopulated() const { return Edges.has_value(); }
 
     /// Tests whether this is actually a dead node and no longer valid.
     ///
@@ -392,7 +389,7 @@ public:
 
     /// Internal helper to directly replace the function with a new one.
     ///
-    /// This is used to facilitate tranfsormations which need to replace the
+    /// This is used to facilitate transformations which need to replace the
     /// formal Function object but directly move the body and users from one to
     /// the other.
     void replaceFunction(Function &NewF);
@@ -435,7 +432,7 @@ public:
       Nodes.clear();
     }
 
-    /// Print a short descrtiption useful for debugging or logging.
+    /// Print a short description useful for debugging or logging.
     ///
     /// We print the function names in the SCC wrapped in '()'s and skipping
     /// the middle functions if there are a large number.
@@ -467,9 +464,10 @@ public:
     /// Verify invariants about the SCC.
     ///
     /// This will attempt to validate all of the basic invariants within an
-    /// SCC, but not that it is a strongly connected componet per-se. Primarily
-    /// useful while building and updating the graph to check that basic
-    /// properties are in place rather than having inexplicable crashes later.
+    /// SCC, but not that it is a strongly connected component per se.
+    /// Primarily useful while building and updating the graph to check that
+    /// basic properties are in place rather than having inexplicable crashes
+    /// later.
     void verify();
 #endif
 
@@ -511,7 +509,7 @@ public:
 
     /// Provide a short name by printing this SCC to a std::string.
     ///
-    /// This copes with the fact that we don't have a name per-se for an SCC
+    /// This copes with the fact that we don't have a name per se for an SCC
     /// while still making the use of this in debugging and logging useful.
     std::string getName() const {
       std::string Name;
@@ -644,7 +642,7 @@ public:
 
     /// Provide a short name by printing this RefSCC to a std::string.
     ///
-    /// This copes with the fact that we don't have a name per-se for an RefSCC
+    /// This copes with the fact that we don't have a name per se for an RefSCC
     /// while still making the use of this in debugging and logging useful.
     std::string getName() const {
       std::string Name;
@@ -883,7 +881,9 @@ public:
     RefSCC *RC = nullptr;
 
     /// Build the begin iterator for a node.
-    postorder_ref_scc_iterator(LazyCallGraph &G) : G(&G), RC(getRC(G, 0)) {}
+    postorder_ref_scc_iterator(LazyCallGraph &G) : G(&G), RC(getRC(G, 0)) {
+      incrementUntilNonEmptyRefSCC();
+    }
 
     /// Build the end iterator for a node. This is selected purely by overload.
     postorder_ref_scc_iterator(LazyCallGraph &G, IsAtEndT /*Nonce*/) : G(&G) {}
@@ -898,6 +898,17 @@ public:
       return G.PostOrderRefSCCs[Index];
     }
 
+    // Keep incrementing until RC is non-empty (or null).
+    void incrementUntilNonEmptyRefSCC() {
+      while (RC && RC->size() == 0)
+        increment();
+    }
+
+    void increment() {
+      assert(RC && "Cannot increment the end iterator!");
+      RC = getRC(*G, G->RefSCCIndices.find(RC)->second + 1);
+    }
+
   public:
     bool operator==(const postorder_ref_scc_iterator &Arg) const {
       return G == Arg.G && RC == Arg.RC;
@@ -907,8 +918,8 @@ public:
 
     using iterator_facade_base::operator++;
     postorder_ref_scc_iterator &operator++() {
-      assert(RC && "Cannot increment the end iterator!");
-      RC = getRC(*G, G->RefSCCIndices.find(RC)->second + 1);
+      increment();
+      incrementUntilNonEmptyRefSCC();
       return *this;
     }
   };
@@ -1189,7 +1200,7 @@ private:
   }
 };
 
-inline LazyCallGraph::Edge::Edge() : Value() {}
+inline LazyCallGraph::Edge::Edge() = default;
 inline LazyCallGraph::Edge::Edge(Node &N, Kind K) : Value(&N, K) {}
 
 inline LazyCallGraph::Edge::operator bool() const {

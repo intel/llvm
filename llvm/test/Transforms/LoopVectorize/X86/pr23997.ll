@@ -15,7 +15,7 @@ define void @foo(i8 addrspace(1)* align 8 dereferenceable_or_null(16), i8 addrsp
 ; CHECK-NEXT:    [[DOT12:%.*]] = getelementptr inbounds i8, i8 addrspace(1)* [[TMP1:%.*]], i64 16
 ; CHECK-NEXT:    [[DOT13:%.*]] = bitcast i8 addrspace(1)* [[DOT12]] to i8 addrspace(1)* addrspace(1)*
 ; CHECK-NEXT:    [[UMAX2:%.*]] = call i64 @llvm.umax.i64(i64 [[TMP2:%.*]], i64 1)
-; CHECK-NEXT:    [[MIN_ITERS_CHECK:%.*]] = icmp ult i64 [[UMAX2]], 16
+; CHECK-NEXT:    [[MIN_ITERS_CHECK:%.*]] = icmp ult i64 [[UMAX2]], 20
 ; CHECK-NEXT:    br i1 [[MIN_ITERS_CHECK]], label [[SCALAR_PH:%.*]], label [[VECTOR_MEMCHECK:%.*]]
 ; CHECK:       vector.memcheck:
 ; CHECK-NEXT:    [[UMAX:%.*]] = call i64 @llvm.umax.i64(i64 [[TMP2]], i64 1)
@@ -58,7 +58,7 @@ define void @foo(i8 addrspace(1)* align 8 dereferenceable_or_null(16), i8 addrsp
 ; CHECK-NEXT:    store <4 x i8 addrspace(1)*> [[WIDE_LOAD5]], <4 x i8 addrspace(1)*> addrspace(1)* [[TMP20]], align 8, !alias.scope !3, !noalias !0
 ; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 16
 ; CHECK-NEXT:    [[TMP21:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]]
-; CHECK-NEXT:    br i1 [[TMP21]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], [[LOOP5:!llvm.loop !.*]]
+; CHECK-NEXT:    br i1 [[TMP21]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP5:![0-9]+]]
 ; CHECK:       middle.block:
 ; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 [[UMAX2]], [[N_VEC]]
 ; CHECK-NEXT:    br i1 [[CMP_N]], label [[LOOPEXIT:%.*]], label [[SCALAR_PH]]
@@ -73,7 +73,7 @@ define void @foo(i8 addrspace(1)* align 8 dereferenceable_or_null(16), i8 addrsp
 ; CHECK-NEXT:    store i8 addrspace(1)* [[V]], i8 addrspace(1)* addrspace(1)* [[DOT20]], align 8
 ; CHECK-NEXT:    [[INDVARS_IV_NEXT4]] = add nuw nsw i64 [[INDVARS_IV3]], 1
 ; CHECK-NEXT:    [[DOT21:%.*]] = icmp ult i64 [[INDVARS_IV_NEXT4]], [[TMP2]]
-; CHECK-NEXT:    br i1 [[DOT21]], label [[LOOP]], label [[LOOPEXIT]], [[LOOP7:!llvm.loop !.*]]
+; CHECK-NEXT:    br i1 [[DOT21]], label [[LOOP]], label [[LOOPEXIT]], !llvm.loop [[LOOP7:![0-9]+]]
 ; CHECK:       loopexit:
 ; CHECK-NEXT:    ret void
 ;

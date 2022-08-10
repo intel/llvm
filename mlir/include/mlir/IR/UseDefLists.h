@@ -20,9 +20,12 @@
 namespace mlir {
 
 class Operation;
-template <typename OperandType> class ValueUseIterator;
-template <typename OperandType> class FilteredValueUseIterator;
-template <typename UseIteratorT, typename OperandType> class ValueUserIterator;
+template <typename OperandType>
+class ValueUseIterator;
+template <typename OperandType>
+class FilteredValueUseIterator;
+template <typename UseIteratorT, typename OperandType>
+class ValueUserIterator;
 
 //===----------------------------------------------------------------------===//
 // IROperand
@@ -77,7 +80,8 @@ protected:
   }
 
   /// Insert this operand into the given use list.
-  template <typename UseListT> void insertInto(UseListT *useList) {
+  template <typename UseListT>
+  void insertInto(UseListT *useList) {
     back = &useList->firstUse;
     nextUse = useList->firstUse;
     if (nextUse)
@@ -164,7 +168,8 @@ private:
 //===----------------------------------------------------------------------===//
 
 /// This class represents a single IR object that contains a use list.
-template <typename OperandType> class IRObjectWithUseList {
+template <typename OperandType>
+class IRObjectWithUseList {
 public:
   ~IRObjectWithUseList() {
     assert(use_empty() && "Cannot destroy a value that still has uses!");
@@ -281,15 +286,18 @@ protected:
 /// a specific use iterator.
 template <typename UseIteratorT, typename OperandType>
 class ValueUserIterator final
-    : public llvm::mapped_iterator<UseIteratorT,
-                                   Operation *(*)(OperandType &)> {
-  static Operation *unwrap(OperandType &value) { return value.getOwner(); }
-
+    : public llvm::mapped_iterator_base<
+          ValueUserIterator<UseIteratorT, OperandType>, UseIteratorT,
+          Operation *> {
 public:
-  /// Initializes the user iterator to the specified use iterator.
-  ValueUserIterator(UseIteratorT it)
-      : llvm::mapped_iterator<UseIteratorT, Operation *(*)(OperandType &)>(
-            it, &unwrap) {}
+  using llvm::mapped_iterator_base<ValueUserIterator<UseIteratorT, OperandType>,
+                                   UseIteratorT,
+                                   Operation *>::mapped_iterator_base;
+
+  /// Map the element to the iterator result type.
+  Operation *mapElement(OperandType &value) const { return value.getOwner(); }
+
+  /// Provide access to the underlying operation.
   Operation *operator->() { return **this; }
 };
 

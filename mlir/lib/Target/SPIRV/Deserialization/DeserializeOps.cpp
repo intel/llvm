@@ -15,6 +15,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Location.h"
+#include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
@@ -103,8 +104,8 @@ spirv::Deserializer::sliceInstruction(spirv::Opcode &opcode,
 
 LogicalResult spirv::Deserializer::processInstruction(
     spirv::Opcode opcode, ArrayRef<uint32_t> operands, bool deferInstructions) {
-  LLVM_DEBUG(llvm::dbgs() << "[inst] processing instruction "
-                          << spirv::stringifyOpcode(opcode) << "\n");
+  LLVM_DEBUG(logger.startLine() << "[inst] processing instruction "
+                                << spirv::stringifyOpcode(opcode) << "\n");
 
   // First dispatch all the instructions whose opcode does not correspond to
   // those that have a direct mirror in the SPIR-V dialect
@@ -136,7 +137,8 @@ LogicalResult spirv::Deserializer::processInstruction(
   case spirv::Opcode::OpLine:
     return processDebugLine(operands);
   case spirv::Opcode::OpNoLine:
-    return clearDebugLine();
+    clearDebugLine();
+    return success();
   case spirv::Opcode::OpName:
     return processName(operands);
   case spirv::Opcode::OpString:
@@ -281,12 +283,12 @@ LogicalResult spirv::Deserializer::processOpWithoutGrammarAttr(
   if (hasResult)
     opState.addTypes(resultTypes);
   opState.addAttributes(attributes);
-  Operation *op = opBuilder.createOperation(opState);
+  Operation *op = opBuilder.create(opState);
   if (hasResult)
     valueMap[valueID] = op->getResult(0);
 
   if (op->hasTrait<OpTrait::IsTerminator>())
-    (void)clearDebugLine();
+    clearDebugLine();
 
   return success();
 }
@@ -345,9 +347,15 @@ Deserializer::processOp<spirv::EntryPointOp>(ArrayRef<uint32_t> words) {
     return emitError(unknownLoc, "no function matching <id> ") << fnID;
   }
   if (parsedFunc.getName() != fnName) {
-    return emitError(unknownLoc, "function name mismatch between OpEntryPoint "
-                                 "and OpFunction with <id> ")
-           << fnID << ": " << fnName << " vs. " << parsedFunc.getName();
+    // The deserializer uses "spirv_fn_<id>" as the function name if the input
+    // SPIR-V blob does not contain a name for it. We should use a more clear
+    // indication for such case rather than relying on naming details.
+    if (!parsedFunc.getName().startswith("spirv_fn_"))
+      return emitError(unknownLoc,
+                       "function name mismatch between OpEntryPoint "
+                       "and OpFunction with <id> ")
+             << fnID << ": " << fnName << " vs. " << parsedFunc.getName();
+    parsedFunc.setName(fnName);
   }
   SmallVector<Attribute, 4> interface;
   while (wordIndex < words.size()) {

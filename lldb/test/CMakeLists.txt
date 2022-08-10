@@ -69,10 +69,6 @@ if(TARGET lldb-vscode)
   add_lldb_test_dependency(lldb-vscode)
 endif()
 
-if(TARGET lldb-instr)
-  add_lldb_test_dependency(lldb-instr)
-endif()
-
 if(TARGET liblldb)
   add_lldb_test_dependency(liblldb)
 endif()
@@ -107,7 +103,11 @@ if(TARGET clang)
     add_lldb_test_dependency(tsan)
   endif()
 
-  if(APPLE)
+  if (TARGET compiler-rt)
+    add_lldb_test_dependency(compiler-rt)
+  endif()
+
+  if(APPLE AND NOT LLVM_TARGET_IS_CROSSCOMPILE_HOST)
     # FIXME: Standalone builds should import the cxx target as well.
     if(LLDB_BUILT_STANDALONE)
       # For now check that the include directory exists.
@@ -117,23 +117,12 @@ if(TARGET clang)
       endif()
     else()
       # We require libcxx for the test suite, so if we aren't building it,
-      # try to provide a helpful error about how to resolve the situation.
+      # provide a helpful error about how to resolve the situation.
       if(NOT TARGET cxx AND NOT libcxx IN_LIST LLVM_ENABLE_RUNTIMES)
-        if(LLVM_ENABLE_PROJECTS STREQUAL "")
-          # If `LLVM_ENABLE_PROJECTS` is not being used (implying that we are
-          # using the old layout), suggest checking it out.
-          message(FATAL_ERROR
-            "LLDB test suite requires libc++, but it is currently disabled. "
-            "Please checkout `libcxx` in `llvm/projects` or disable tests "
-            "via `LLDB_INCLUDE_TESTS=OFF`.")
-        else()
-          # If `LLVM_ENABLE_PROJECTS` is being used, suggest adding it.
-          message(FATAL_ERROR
-            "LLDB test suite requires libc++, but it is currently disabled. "
-            "Please add `libcxx` to `LLVM_ENABLE_PROJECTS` or "
-            "`LLVM_ENABLE_RUNTIMES`, or disable tests via "
-            "`LLDB_INCLUDE_TESTS=OFF`.")
-        endif()
+        message(FATAL_ERROR
+          "LLDB test suite requires libc++, but it is currently disabled. "
+          "Please add `libcxx` to `LLVM_ENABLE_RUNTIMES` or disable tests via "
+          "`LLDB_INCLUDE_TESTS=OFF`.")
       endif()
     endif()
   endif()
@@ -142,13 +131,14 @@ if(TARGET clang)
   # dependency as it's also possible to run the libc++ tests against the libc++
   # installed on the system.
   if (TARGET cxx)
+    set(LLDB_HAS_LIBCXX ON)
     add_lldb_test_dependency(cxx)
   endif()
 
 endif()
 
 if (LLDB_BUILT_STANDALONE)
-  set(LLVM_HOST_TRIPLE ${TARGET_TRIPLE})
+  set(LLVM_HOST_TRIPLE ${LLVM_TARGET_TRIPLE})
 endif()
 
 add_lldb_test_dependency(
@@ -163,6 +153,7 @@ add_lldb_test_dependency(
   llvm-objcopy
   llvm-pdbutil
   llvm-readobj
+  llvm-ar
   )
 
 if(TARGET lld)
@@ -186,6 +177,7 @@ llvm_canonicalize_cmake_booleans(
   LLDB_ENABLE_LZMA
   LLVM_ENABLE_ZLIB
   LLVM_ENABLE_SHARED_LIBS
+  LLDB_HAS_LIBCXX
   LLDB_USE_SYSTEM_DEBUGSERVER
   LLDB_IS_64_BITS)
 

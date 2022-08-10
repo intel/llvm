@@ -12,17 +12,16 @@ define float @foo1(double* %x0, double* %x1, double* %x2) nounwind {
 ; CHECK-NEXT:    stp x29, x30, [sp, #-16]! // 16-byte Folded Spill
 ; CHECK-NEXT:    addvl sp, sp, #-4
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    mov x8, sp
+; CHECK-NEXT:    fmov s0, #1.00000000
 ; CHECK-NEXT:    ld4d { z1.d, z2.d, z3.d, z4.d }, p0/z, [x0]
 ; CHECK-NEXT:    ld4d { z16.d, z17.d, z18.d, z19.d }, p0/z, [x1]
 ; CHECK-NEXT:    ld1d { z5.d }, p0/z, [x2]
-; CHECK-NEXT:    fmov s0, #1.00000000
 ; CHECK-NEXT:    mov x0, sp
 ; CHECK-NEXT:    ptrue p0.d
 ; CHECK-NEXT:    st1d { z16.d }, p0, [sp]
-; CHECK-NEXT:    st1d { z17.d }, p0, [x8, #1, mul vl]
-; CHECK-NEXT:    st1d { z18.d }, p0, [x8, #2, mul vl]
-; CHECK-NEXT:    st1d { z19.d }, p0, [x8, #3, mul vl]
+; CHECK-NEXT:    st1d { z17.d }, p0, [sp, #1, mul vl]
+; CHECK-NEXT:    st1d { z18.d }, p0, [sp, #2, mul vl]
+; CHECK-NEXT:    st1d { z19.d }, p0, [sp, #3, mul vl]
 ; CHECK-NEXT:    bl callee1
 ; CHECK-NEXT:    addvl sp, sp, #4
 ; CHECK-NEXT:    ldp x29, x30, [sp], #16 // 16-byte Folded Reload
@@ -44,24 +43,27 @@ define float @foo2(double* %x0, double* %x1) nounwind {
 ; CHECK-NEXT:    addvl sp, sp, #-4
 ; CHECK-NEXT:    sub sp, sp, #16
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    add x8, sp, #16
+; CHECK-NEXT:    add x9, sp, #16
 ; CHECK-NEXT:    ld4d { z1.d, z2.d, z3.d, z4.d }, p0/z, [x0]
 ; CHECK-NEXT:    ld4d { z16.d, z17.d, z18.d, z19.d }, p0/z, [x1]
+; CHECK-NEXT:    ptrue p0.d
+; CHECK-NEXT:    add x8, sp, #16
 ; CHECK-NEXT:    fmov s0, #1.00000000
 ; CHECK-NEXT:    mov w0, wzr
 ; CHECK-NEXT:    mov w1, #1
 ; CHECK-NEXT:    mov w2, #2
+; CHECK-NEXT:    st1d { z16.d }, p0, [x9]
+; CHECK-NEXT:    add x9, sp, #16
 ; CHECK-NEXT:    mov w3, #3
 ; CHECK-NEXT:    mov w4, #4
 ; CHECK-NEXT:    mov w5, #5
 ; CHECK-NEXT:    mov w6, #6
-; CHECK-NEXT:    mov w7, #7
+; CHECK-NEXT:    st1d { z17.d }, p0, [x9, #1, mul vl]
 ; CHECK-NEXT:    add x9, sp, #16
-; CHECK-NEXT:    ptrue p0.d
-; CHECK-NEXT:    st1d { z16.d }, p0, [x9]
-; CHECK-NEXT:    st1d { z17.d }, p0, [x8, #1, mul vl]
-; CHECK-NEXT:    st1d { z18.d }, p0, [x8, #2, mul vl]
-; CHECK-NEXT:    st1d { z19.d }, p0, [x8, #3, mul vl]
+; CHECK-NEXT:    mov w7, #7
+; CHECK-NEXT:    st1d { z18.d }, p0, [x9, #2, mul vl]
+; CHECK-NEXT:    add x9, sp, #16
+; CHECK-NEXT:    st1d { z19.d }, p0, [x9, #3, mul vl]
 ; CHECK-NEXT:    str x8, [sp]
 ; CHECK-NEXT:    bl callee2
 ; CHECK-NEXT:    addvl sp, sp, #4
@@ -83,17 +85,16 @@ define float @foo3(double* %x0, double* %x1, double* %x2) nounwind {
 ; CHECK-NEXT:    stp x29, x30, [sp, #-16]! // 16-byte Folded Spill
 ; CHECK-NEXT:    addvl sp, sp, #-3
 ; CHECK-NEXT:    ptrue p0.b
-; CHECK-NEXT:    mov x8, sp
+; CHECK-NEXT:    fmov s0, #1.00000000
 ; CHECK-NEXT:    ld4d { z2.d, z3.d, z4.d, z5.d }, p0/z, [x0]
 ; CHECK-NEXT:    ld3d { z16.d, z17.d, z18.d }, p0/z, [x1]
 ; CHECK-NEXT:    ld1d { z6.d }, p0/z, [x2]
-; CHECK-NEXT:    fmov s0, #1.00000000
 ; CHECK-NEXT:    fmov s1, #2.00000000
 ; CHECK-NEXT:    mov x0, sp
 ; CHECK-NEXT:    ptrue p0.d
 ; CHECK-NEXT:    st1d { z16.d }, p0, [sp]
-; CHECK-NEXT:    st1d { z17.d }, p0, [x8, #1, mul vl]
-; CHECK-NEXT:    st1d { z18.d }, p0, [x8, #2, mul vl]
+; CHECK-NEXT:    st1d { z17.d }, p0, [sp, #1, mul vl]
+; CHECK-NEXT:    st1d { z18.d }, p0, [sp, #2, mul vl]
 ; CHECK-NEXT:    bl callee3
 ; CHECK-NEXT:    addvl sp, sp, #3
 ; CHECK-NEXT:    ldp x29, x30, [sp], #16 // 16-byte Folded Reload
@@ -185,6 +186,193 @@ entry:
   %ptr2.bc = bitcast double * %ptr2 to <vscale x 6 x double> *
   store volatile <vscale x 6 x double> %x3, <vscale x 6 x double>* %ptr2.bc
   ret double %x0
+}
+
+; Use AAVPCS, SVE register in z0-z7 used
+
+define void @aavpcs1(i32 %s0, i32 %s1, i32 %s2, i32 %s3, i32 %s4, i32 %s5, i32 %s6, <vscale x 4 x i32> %s7, <vscale x 4 x i32> %s8, <vscale x 4 x i32> %s9, <vscale x 4 x i32> %s10, <vscale x 4 x i32> %s11, <vscale x 4 x i32> %s12, <vscale x 4 x i32> %s13, <vscale x 4 x i32> %s14, <vscale x 4 x i32> %s15, <vscale x 4 x i32> %s16, i32 * %ptr) nounwind {
+; CHECK-LABEL: aavpcs1:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    ldp x8, x9, [sp]
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ld1w { z3.s }, p0/z, [x8]
+; CHECK-NEXT:    ld1w { z24.s }, p0/z, [x7]
+; CHECK-NEXT:    st1w { z0.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z1.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z2.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z4.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z5.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z6.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z7.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z24.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z3.s }, p0, [x9]
+; CHECK-NEXT:    ret
+entry:
+  %ptr1.bc = bitcast i32 * %ptr to <vscale x 4 x i32> *
+  store volatile <vscale x 4 x i32> %s7, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s8, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s9, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s11, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s12, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s13, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s14, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s15, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s16, <vscale x 4 x i32>* %ptr1.bc
+  ret void
+}
+
+; Use AAVPCS, SVE register in z0-z7 used
+
+define void @aavpcs2(float %s0, float %s1, float %s2, float %s3, float %s4, float %s5, float %s6, <vscale x 4 x float> %s7, <vscale x 4 x float> %s8, <vscale x 4 x float> %s9, <vscale x 4 x float> %s10, <vscale x 4 x float> %s11, <vscale x 4 x float> %s12,<vscale x 4 x float> %s13,<vscale x 4 x float> %s14,<vscale x 4 x float> %s15,<vscale x 4 x float> %s16,float * %ptr) nounwind {
+; CHECK-LABEL: aavpcs2:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    ldp x8, x9, [sp]
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x8]
+; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x7]
+; CHECK-NEXT:    ld1w { z2.s }, p0/z, [x6]
+; CHECK-NEXT:    ld1w { z3.s }, p0/z, [x5]
+; CHECK-NEXT:    ld1w { z4.s }, p0/z, [x4]
+; CHECK-NEXT:    ld1w { z5.s }, p0/z, [x3]
+; CHECK-NEXT:    ld1w { z6.s }, p0/z, [x1]
+; CHECK-NEXT:    ld1w { z24.s }, p0/z, [x0]
+; CHECK-NEXT:    st1w { z7.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z24.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z6.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z5.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z4.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z3.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z2.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z1.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z0.s }, p0, [x9]
+; CHECK-NEXT:    ret
+entry:
+  %ptr1.bc = bitcast float * %ptr to <vscale x 4 x float> *
+  store volatile <vscale x 4 x float> %s7, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s8, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s9, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s11, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s12, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s13, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s14, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s15, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s16, <vscale x 4 x float>* %ptr1.bc
+  ret void
+}
+
+; Use AAVPCS, no SVE register in z0-z7 used (floats occupy z0-z7) but predicate arg is used
+
+define void @aavpcs3(float %s0, float %s1, float %s2, float %s3, float %s4, float %s5, float %s6, float %s7, <vscale x 4 x float> %s8, <vscale x 4 x float> %s9, <vscale x 4 x float> %s10, <vscale x 4 x float> %s11, <vscale x 4 x float> %s12, <vscale x 4 x float> %s13, <vscale x 4 x float> %s14, <vscale x 4 x float> %s15, <vscale x 4 x float> %s16, <vscale x 4 x float> %s17, <vscale x 16 x i1> %p0, float * %ptr) nounwind {
+; CHECK-LABEL: aavpcs3:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    ldr x8, [sp]
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x8]
+; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x7]
+; CHECK-NEXT:    ld1w { z2.s }, p0/z, [x6]
+; CHECK-NEXT:    ld1w { z3.s }, p0/z, [x5]
+; CHECK-NEXT:    ld1w { z4.s }, p0/z, [x4]
+; CHECK-NEXT:    ld1w { z5.s }, p0/z, [x3]
+; CHECK-NEXT:    ld1w { z6.s }, p0/z, [x2]
+; CHECK-NEXT:    ld1w { z7.s }, p0/z, [x1]
+; CHECK-NEXT:    ld1w { z24.s }, p0/z, [x0]
+; CHECK-NEXT:    ldr x8, [sp, #16]
+; CHECK-NEXT:    st1w { z24.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z7.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z6.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z5.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z4.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z3.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z2.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z1.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z0.s }, p0, [x8]
+; CHECK-NEXT:    ret
+entry:
+  %ptr1.bc = bitcast float * %ptr to <vscale x 4 x float> *
+  store volatile <vscale x 4 x float> %s8, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s9, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s10, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s11, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s12, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s13, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s14, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s15, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s16, <vscale x 4 x float>* %ptr1.bc
+  ret void
+}
+
+; use AAVPCS, SVE register in z0-z7 used (i32s dont occupy z0-z7)
+
+define void @aavpcs4(i32 %s0, i32 %s1, i32 %s2, i32 %s3, i32 %s4, i32 %s5, i32 %s6, i32 %s7, <vscale x 4 x i32> %s8, <vscale x 4 x i32> %s9, <vscale x 4 x i32> %s10, <vscale x 4 x i32> %s11, <vscale x 4 x i32> %s12, <vscale x 4 x i32> %s13, <vscale x 4 x i32> %s14, <vscale x 4 x i32> %s15, <vscale x 4 x i32> %s16, <vscale x 4 x i32> %s17, i32 * %ptr) nounwind {
+; CHECK-LABEL: aavpcs4:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    ldr x8, [sp]
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ldr x9, [sp, #16]
+; CHECK-NEXT:    ld1w { z24.s }, p0/z, [x8]
+; CHECK-NEXT:    st1w { z0.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z1.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z2.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z3.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z4.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z5.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z6.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z7.s }, p0, [x9]
+; CHECK-NEXT:    st1w { z24.s }, p0, [x9]
+; CHECK-NEXT:    ret
+entry:
+  %ptr1.bc = bitcast i32 * %ptr to <vscale x 4 x i32> *
+  store volatile <vscale x 4 x i32> %s8, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s9, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s10, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s11, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s12, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s13, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s14, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s15, <vscale x 4 x i32>* %ptr1.bc
+  store volatile <vscale x 4 x i32> %s16, <vscale x 4 x i32>* %ptr1.bc
+  ret void
+}
+
+; Use AAPCS, no SVE register in z0-7 used (floats occupy z0-z7)
+
+define void @aapcs1(float %s0, float %s1, float %s2, float %s3, float %s4, float %s5, float %s6, float %s7, <vscale x 4 x float> %s8, <vscale x 4 x float> %s9, <vscale x 4 x float> %s10, <vscale x 4 x float> %s11, <vscale x 4 x float> %s12, <vscale x 4 x float> %s13, <vscale x 4 x float> %s14, <vscale x 4 x float> %s15, <vscale x 4 x float> %s16, <vscale x 4 x float> %s17, float * %ptr) nounwind {
+; CHECK-LABEL: aapcs1:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    ldr x8, [sp]
+; CHECK-NEXT:    ptrue p0.s
+; CHECK-NEXT:    ld1w { z0.s }, p0/z, [x8]
+; CHECK-NEXT:    ld1w { z1.s }, p0/z, [x7]
+; CHECK-NEXT:    ld1w { z2.s }, p0/z, [x6]
+; CHECK-NEXT:    ld1w { z3.s }, p0/z, [x5]
+; CHECK-NEXT:    ld1w { z4.s }, p0/z, [x4]
+; CHECK-NEXT:    ld1w { z5.s }, p0/z, [x3]
+; CHECK-NEXT:    ld1w { z6.s }, p0/z, [x2]
+; CHECK-NEXT:    ld1w { z7.s }, p0/z, [x1]
+; CHECK-NEXT:    ld1w { z16.s }, p0/z, [x0]
+; CHECK-NEXT:    ldr x8, [sp, #16]
+; CHECK-NEXT:    st1w { z16.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z7.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z6.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z5.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z4.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z3.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z2.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z1.s }, p0, [x8]
+; CHECK-NEXT:    st1w { z0.s }, p0, [x8]
+; CHECK-NEXT:    ret
+entry:
+  %ptr1.bc = bitcast float * %ptr to <vscale x 4 x float> *
+  store volatile <vscale x 4 x float> %s8, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s9, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s10, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s11, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s12, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s13, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s14, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s15, <vscale x 4 x float>* %ptr1.bc
+  store volatile <vscale x 4 x float> %s16, <vscale x 4 x float>* %ptr1.bc
+  ret void
 }
 
 declare float @callee1(float, <vscale x 8 x double>, <vscale x 8 x double>, <vscale x 2 x double>)

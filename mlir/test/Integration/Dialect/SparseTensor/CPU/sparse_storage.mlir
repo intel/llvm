@@ -1,9 +1,4 @@
-// RUN: mlir-opt %s \
-// RUN:   --sparsification --sparse-tensor-conversion \
-// RUN:   --convert-vector-to-scf --convert-scf-to-std \
-// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
-// RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: mlir-opt %s --sparse-compiler | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -54,7 +49,7 @@ module {
   // are typically not concerned with such details, but the test ensures
   // everything is working "under the hood".
   //
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %d0 = arith.constant 0.0 : f64
@@ -251,13 +246,13 @@ module {
     vector.print %50 : vector<70xf64>
 
     // Release the resources.
-    sparse_tensor.release %0 : tensor<10x8xf64, #Dense>
-    sparse_tensor.release %1 : tensor<10x8xf64, #CSR>
-    sparse_tensor.release %2 : tensor<10x8xf64, #DCSR>
-    sparse_tensor.release %3 : tensor<10x8xf64, #CSC>
-    sparse_tensor.release %4 : tensor<10x8xf64, #DCSC>
-    sparse_tensor.release %x : tensor<10x8xf64, #BlockRow>
-    sparse_tensor.release %y : tensor<10x8xf64, #BlockCol>
+    bufferization.dealloc_tensor %0 : tensor<10x8xf64, #Dense>
+    bufferization.dealloc_tensor %1 : tensor<10x8xf64, #CSR>
+    bufferization.dealloc_tensor %2 : tensor<10x8xf64, #DCSR>
+    bufferization.dealloc_tensor %3 : tensor<10x8xf64, #CSC>
+    bufferization.dealloc_tensor %4 : tensor<10x8xf64, #DCSC>
+    bufferization.dealloc_tensor %x : tensor<10x8xf64, #BlockRow>
+    bufferization.dealloc_tensor %y : tensor<10x8xf64, #BlockCol>
 
     return
   }

@@ -44,7 +44,8 @@ clang_flags = [
   "-target", target,
   "-Xclang", "-fdeclare-spirv-builtins",
   "-Xclang", "-mlink-builtin-bitcode",
-  "-Xclang", os.path.join(config.llvm_libs_dir, "clc", builtins)
+  "-Xclang", os.path.join(config.llvm_libs_dir, "clc", builtins),
+  "-nogpulib"
 ]
 
 if target == 'amdgcn--amdhsa':

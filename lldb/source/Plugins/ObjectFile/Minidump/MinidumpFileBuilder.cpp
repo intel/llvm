@@ -115,7 +115,7 @@ Status MinidumpFileBuilder::AddSystemInfo(const llvm::Triple &target_triple) {
   sys_info.PlatformId = platform_id;
   m_data.AppendData(&sys_info, sizeof(llvm::minidump::SystemInfo));
 
-  std::string csd_string = "";
+  std::string csd_string;
 
   error = WriteString(csd_string, &m_data);
   if (error.Fail()) {
@@ -272,7 +272,8 @@ Status MinidumpFileBuilder::AddModuleList(Target &target) {
         mod->GetObjectFile()->GetBaseAddress().GetLoadAddress(&target));
     m.SizeOfImage = static_cast<llvm::support::ulittle32_t>(mod_size);
     m.Checksum = static_cast<llvm::support::ulittle32_t>(0);
-    m.TimeDateStamp = static_cast<llvm::support::ulittle32_t>(std::time(0));
+    m.TimeDateStamp =
+        static_cast<llvm::support::ulittle32_t>(std::time(nullptr));
     m.ModuleNameRVA = static_cast<llvm::support::ulittle32_t>(
         size_before + module_stream_size + helper_data.GetByteSize());
     m.VersionInfo = info;
@@ -347,7 +348,8 @@ llvm::support::ulittle64_t read_register_u64(RegisterContext *reg_ctx,
 
 lldb_private::minidump::MinidumpContext_x86_64
 GetThreadContext_64(RegisterContext *reg_ctx) {
-  lldb_private::minidump::MinidumpContext_x86_64 thread_context;
+  lldb_private::minidump::MinidumpContext_x86_64 thread_context = {};
+  thread_context.p1_home = {};
   thread_context.context_flags = static_cast<uint32_t>(
       lldb_private::minidump::MinidumpContext_x86_64_Flags::x86_64_Flag |
       lldb_private::minidump::MinidumpContext_x86_64_Flags::Control |
@@ -532,7 +534,7 @@ Status MinidumpFileBuilder::AddException(const lldb::ProcessSP &process_sp) {
   helper_data.AppendData(
       &thread_context, sizeof(lldb_private::minidump::MinidumpContext_x86_64));
 
-  Exception exp_record;
+  Exception exp_record = {};
   exp_record.ExceptionCode =
       static_cast<llvm::support::ulittle32_t>(stop_info_sp->GetValue());
   exp_record.ExceptionFlags = static_cast<llvm::support::ulittle32_t>(0);
@@ -719,7 +721,7 @@ Status MinidumpFileBuilder::Dump(lldb::FileUP &core_file) const {
   header.Checksum = static_cast<llvm::support::ulittle32_t>(
       0u), // not used in most of the writers
       header.TimeDateStamp =
-          static_cast<llvm::support::ulittle32_t>(std::time(0));
+          static_cast<llvm::support::ulittle32_t>(std::time(nullptr));
   header.Flags =
       static_cast<llvm::support::ulittle64_t>(0u); // minidump normal flag
 

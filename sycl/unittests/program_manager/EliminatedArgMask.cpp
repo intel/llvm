@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -19,8 +20,8 @@
 
 class EAMTestKernel;
 class EAMTestKernel2;
-const char EAMTestKernelName[] = "EAMTestKernel";
-const char EAMTestKernel2Name[] = "EAMTestKernel2";
+constexpr const char EAMTestKernelName[] = "EAMTestKernel";
+constexpr const char EAMTestKernel2Name[] = "EAMTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs = 4;
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -36,6 +37,7 @@ template <> struct KernelInfo<EAMTestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 template <> struct KernelInfo<EAMTestKernel2> {
@@ -48,6 +50,7 @@ template <> struct KernelInfo<EAMTestKernel2> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -126,6 +129,7 @@ public:
 
   std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
+    std::shared_ptr<sycl::detail::handler_impl> Impl = evictHandlerImpl();
     std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
@@ -136,12 +140,12 @@ public:
           std::move(CGH->MRequirements), std::move(CGH->MEvents),
           std::move(CGH->MArgs), std::move(CGH->MKernelName),
           std::move(CGH->MOSModuleHandle), std::move(CGH->MStreamStorage),
-          CGH->MCGType, CGH->MCodeLoc));
+          std::move(Impl->MAuxiliaryResources), CGH->MCGType, CGH->MCodeLoc));
       break;
     }
     default:
       throw sycl::runtime_error("Unhandled type of command group",
-                                PI_INVALID_OPERATION);
+                                PI_ERROR_INVALID_OPERATION);
     }
 
     return CommandGroup;
@@ -167,11 +171,10 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
   EXPECT_TRUE(KernelBundleImplPtr)
       << "Expect command group to contain kernel bundle";
 
-  auto KernelIDImpl =
-      std::make_shared<sycl::detail::kernel_id_impl>(ExecKernel->MKernelName);
-  sycl::kernel SyclKernel = KernelBundleImplPtr->get_kernel(
-      sycl::detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl),
-      KernelBundleImplPtr);
+  auto KernelID = sycl::detail::ProgramManager::getInstance().getSYCLKernelID(
+      ExecKernel->MKernelName);
+  sycl::kernel SyclKernel =
+      KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
@@ -191,15 +194,11 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   sycl::platform Plt{sycl::default_selector()};
-  if (Plt.is_host()) {
-    std::cerr << "Test is not supported on host, skipping\n";
-    return; // test is not supported on host.
-  } else if (Plt.get_backend() == sycl::backend::cuda) {
-    std::cerr << "Test is not supported on CUDA platform, skipping\n";
-    return;
-  } else if (Plt.get_backend() == sycl::backend::hip) {
-    std::cout << "Test is not supported on HIP platform, skipping\n";
-    return;
+  if (Plt.is_host() || Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cerr << "Test is not supported on "
+              << Plt.get_info<sycl::info::platform::name>() << ", skipping\n";
+    GTEST_SKIP(); // test is not supported on selected platform.
   }
 
   sycl::unittest::PiMock Mock{Plt};

@@ -19,6 +19,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Hashing.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Support/MathExtras.h"
@@ -62,12 +63,14 @@ public:
     align = target->wordSize;
   }
 
+  // Implementations of this method can assume that the regular (non-__LINKEDIT)
+  // sections already have their addresses assigned.
   virtual void finalizeContents() {}
 
   // Sections in __LINKEDIT are special: their offsets are recorded in the
   // load commands like LC_DYLD_INFO_ONLY and LC_SYMTAB, instead of in section
   // headers.
-  bool isHidden() const override final { return true; }
+  bool isHidden() const final { return true; }
 
   virtual uint64_t getRawSize() const = 0;
 
@@ -77,9 +80,7 @@ public:
   //
   // NOTE: This assumes that the extra bytes required for alignment can be
   // zero-valued bytes.
-  uint64_t getSize() const override final {
-    return llvm::alignTo(getRawSize(), align);
-  }
+  uint64_t getSize() const final { return llvm::alignTo(getRawSize(), align); }
 };
 
 // The header of the Mach-O file, which must have a file offset of zero.
@@ -103,6 +104,7 @@ class PageZeroSection final : public SyntheticSection {
 public:
   PageZeroSection();
   bool isHidden() const override { return true; }
+  bool isNeeded() const override { return target->pageZeroSize != 0; }
   uint64_t getSize() const override { return target->pageZeroSize; }
   uint64_t getFileSize() const override { return 0; }
   void writeTo(uint8_t *buf) const override {}
@@ -189,13 +191,13 @@ public:
   bool isNeeded() const override { return !bindingsMap.empty(); }
   void writeTo(uint8_t *buf) const override;
 
-  void addEntry(const DylibSymbol *dysym, const InputSection *isec,
-                uint64_t offset, int64_t addend = 0) {
+  void addEntry(const Symbol *dysym, const InputSection *isec, uint64_t offset,
+                int64_t addend = 0) {
     bindingsMap[dysym].emplace_back(addend, Location(isec, offset));
   }
 
 private:
-  BindingsMap<const DylibSymbol *> bindingsMap;
+  BindingsMap<const Symbol *> bindingsMap;
   SmallVector<char, 128> contents;
 };
 
@@ -328,13 +330,13 @@ public:
   void writeTo(uint8_t *buf) const override;
   // Note that every entry here will by referenced by a corresponding entry in
   // the StubHelperSection.
-  void addEntry(DylibSymbol *dysym);
-  const llvm::SetVector<DylibSymbol *> &getEntries() const { return entries; }
+  void addEntry(Symbol *dysym);
+  const llvm::SetVector<Symbol *> &getEntries() const { return entries; }
 
 private:
-  uint32_t encode(const DylibSymbol &);
+  uint32_t encode(const Symbol &);
 
-  llvm::SetVector<DylibSymbol *> entries;
+  llvm::SetVector<Symbol *> entries;
   SmallVector<char, 128> contents;
   llvm::raw_svector_ostream os{contents};
 };
@@ -345,6 +347,7 @@ public:
   ExportSection();
   void finalizeContents() override;
   uint64_t getRawSize() const override { return size; }
+  bool isNeeded() const override { return size; }
   void writeTo(uint8_t *buf) const override;
 
   bool hasWeakSymbol = false;
@@ -431,7 +434,7 @@ public:
   uint32_t getNumUndefinedSymbols() const { return undefinedSymbols.size(); }
 
 private:
-  void emitBeginSourceStab(llvm::DWARFUnit *compileUnit);
+  void emitBeginSourceStab(StringRef);
   void emitEndSourceStab();
   void emitObjectFileStab(ObjFile *);
   void emitEndFunStab(Defined *);
@@ -476,6 +479,8 @@ public:
 // The code signature comes at the very end of the linked output file.
 class CodeSignatureSection final : public LinkEditSection {
 public:
+  // NOTE: These values are duplicated in llvm-objcopy's MachO/Object.h file
+  // and any changes here, should be repeated there.
   static constexpr uint8_t blockSizeShift = 12;
   static constexpr size_t blockSize = (1 << blockSizeShift); // 4 KiB
   static constexpr size_t hashSize = 256 / 8;
@@ -525,13 +530,19 @@ private:
 
 class DeduplicatedCStringSection final : public CStringSection {
 public:
-  DeduplicatedCStringSection();
-  uint64_t getSize() const override { return builder.getSize(); }
+  uint64_t getSize() const override { return size; }
   void finalizeContents() override;
-  void writeTo(uint8_t *buf) const override { builder.write(buf); }
+  void writeTo(uint8_t *buf) const override;
 
 private:
-  llvm::StringTableBuilder builder;
+  struct StringOffset {
+    uint8_t trailingZeros;
+    uint64_t outSecOff = UINT64_MAX;
+
+    explicit StringOffset(uint8_t zeros) : trailingZeros(zeros) {}
+  };
+  llvm::DenseMap<llvm::CachedHashStringRef, StringOffset> stringOffsetMap;
+  size_t size = 0;
 };
 
 /*
@@ -560,16 +571,16 @@ public:
            !literal8Map.empty();
   }
 
-  uint64_t getLiteral16Offset(const uint8_t *buf) const {
+  uint64_t getLiteral16Offset(uintptr_t buf) const {
     return literal16Map.at(*reinterpret_cast<const UInt128 *>(buf)) * 16;
   }
 
-  uint64_t getLiteral8Offset(const uint8_t *buf) const {
+  uint64_t getLiteral8Offset(uintptr_t buf) const {
     return literal16Map.size() * 16 +
            literal8Map.at(*reinterpret_cast<const uint64_t *>(buf)) * 8;
   }
 
-  uint64_t getLiteral4Offset(const uint8_t *buf) const {
+  uint64_t getLiteral4Offset(uintptr_t buf) const {
     return literal16Map.size() * 16 + literal8Map.size() * 8 +
            literal4Map.at(*reinterpret_cast<const uint32_t *>(buf)) * 4;
   }
@@ -588,7 +599,29 @@ private:
   std::unordered_map<uint32_t, uint64_t> literal4Map;
 };
 
+class ObjCImageInfoSection final : public SyntheticSection {
+public:
+  ObjCImageInfoSection();
+  bool isNeeded() const override { return !files.empty(); }
+  uint64_t getSize() const override { return 8; }
+  void addFile(const InputFile *file) {
+    assert(!file->objCImageInfo.empty());
+    files.push_back(file);
+  }
+  void finalizeContents();
+  void writeTo(uint8_t *buf) const override;
+
+private:
+  struct ImageInfo {
+    uint8_t swiftVersion = 0;
+    bool hasCategoryClassProperties = false;
+  } info;
+  static ImageInfo parseImageInfo(const InputFile *);
+  std::vector<const InputFile *> files; // files with image info
+};
+
 struct InStruct {
+  const uint8_t *bufferStart = nullptr;
   MachHeaderSection *header = nullptr;
   CStringSection *cStringSection = nullptr;
   WordLiteralSection *wordLiteralSection = nullptr;
@@ -603,6 +636,7 @@ struct InStruct {
   StubsSection *stubs = nullptr;
   StubHelperSection *stubHelper = nullptr;
   UnwindInfoSection *unwindInfo = nullptr;
+  ObjCImageInfoSection *objCImageInfo = nullptr;
   ConcatInputSection *imageLoaderCache = nullptr;
 };
 

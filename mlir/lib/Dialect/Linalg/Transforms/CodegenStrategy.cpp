@@ -12,15 +12,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/Transforms/CodegenStrategy.h"
-
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
-#include "mlir/Dialect/SCF/Transforms.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorTransforms.h"
+#include "mlir/Dialect/SCF/Transforms/Transforms.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
@@ -29,36 +27,23 @@ using namespace mlir::linalg;
 #define DEBUG_TYPE "linalg-codegen-strategy"
 
 void mlir::linalg::CodegenStrategy::configurePassPipeline(
-    OpPassManager &pm, MLIRContext *context) const {
+    OpPassManager &pm, MLIRContext *context, bool addEnablePass) const {
   for (unsigned stepCount = 0, e = transformationSequence.size(); stepCount < e;
        ++stepCount) {
     const std::unique_ptr<Transformation> &t =
         transformationSequence[stepCount];
     std::string currentStr = std::to_string(stepCount);
-    auto currentState = Identifier::get(currentStr, context);
+    auto currentState = StringAttr::get(context, currentStr);
     std::string nextStr = std::to_string(stepCount + 1);
-    auto nextState = Identifier::get(nextStr, context);
+    auto nextState = StringAttr::get(context, nextStr);
     auto filter = (currentState.str() == std::to_string(0))
                       ? linalg::LinalgTransformationFilter(
-                            t->filter, ArrayRef<Identifier>{}, nextState)
+                            t->filter, ArrayRef<StringAttr>{}, nextState)
                       : linalg::LinalgTransformationFilter(
                             t->filter, currentState, nextState);
     t->addToPassPipeline(pm, filter);
-    pm.addPass(createLinalgStrategyEnablePass());
+    if (addEnablePass)
+      pm.addPass(createLinalgStrategyEnablePass(linalgEnablingOptions));
   }
-  LinalgVectorLoweringOptions vectorLoweringOptions;
-  vectorLoweringOptions.maxTransferRank =
-      lateCodegenStrategyOptions.maxTransferRank;
-  vectorLoweringOptions.enableVectorTransferLowering =
-      lateCodegenStrategyOptions.enableVectorTransferLowering;
-  vectorLoweringOptions.enableVectorTransferPartialRewrite =
-      lateCodegenStrategyOptions.enableVectorTransferPartialRewrite;
-  vectorLoweringOptions.enableVectorContractLowering =
-      lateCodegenStrategyOptions.enableVectorContractLowering;
-  vectorLoweringOptions.enableVectorToSCFConversion =
-      lateCodegenStrategyOptions.enableVectorToSCFConversion;
-  vectorLoweringOptions.vectorTransformOptions = vectorTransformOptions;
-  vectorLoweringOptions.vectorTransferToSCFOptions = vectorToSCFOptions;
-  pm.addPass(createLinalgStrategyLowerVectorsPass(vectorLoweringOptions));
   pm.addPass(createLinalgStrategyRemoveMarkersPass());
 }

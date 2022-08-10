@@ -11,7 +11,7 @@
 #include "InputFiles.h"
 #include "Symbols.h"
 #include "lld/Common/Args.h"
-#include "lld/Common/ErrorHandler.h"
+#include "lld/Common/CommonLinkerContext.h"
 #include "lld/Common/Strings.h"
 #include "lld/Common/TargetOptionsCommandFlags.h"
 #include "llvm/ADT/STLExtras.h"
@@ -83,7 +83,6 @@ static lto::Config createConfig() {
   c.MAttrs = getMAttrs();
   c.CGOptLevel = args::getCGOptLevel(config->ltoo);
   c.AlwaysEmitRegularLTOObj = !config->ltoObjPath.empty();
-  c.UseNewPM = config->ltoNewPassManager;
   c.DebugPassManager = config->ltoDebugPassManager;
   c.CSIRProfile = std::string(config->ltoCSProfileFile);
   c.RunCSIRInstr = config->ltoCSProfileGenerate;
@@ -164,7 +163,7 @@ std::vector<InputFile *> BitcodeCompiler::compile(COFFLinkerContext &ctx) {
   // The /lldltocache option specifies the path to a directory in which to cache
   // native object files for ThinLTO incremental builds. If a path was
   // specified, configure LTO to use it as the cache directory.
-  NativeObjectCache cache;
+  FileCache cache;
   if (!config->ltoCache.empty())
     cache =
         check(localCache("ThinLTO", "Thin", config->ltoCache,
@@ -174,7 +173,7 @@ std::vector<InputFile *> BitcodeCompiler::compile(COFFLinkerContext &ctx) {
 
   checkError(ltoObj->run(
       [&](size_t task) {
-        return std::make_unique<NativeObjectStream>(
+        return std::make_unique<CachedFileStream>(
             std::make_unique<raw_svector_ostream>(buf[task]));
       },
       cache));
@@ -209,8 +208,8 @@ std::vector<InputFile *> BitcodeCompiler::compile(COFFLinkerContext &ctx) {
     // - foo.exe.lto.1.obj
     // - ...
     StringRef ltoObjName =
-        saver.save(Twine(config->outputFile) + ".lto" +
-                   (i == 0 ? Twine("") : Twine('.') + Twine(i)) + ".obj");
+        saver().save(Twine(config->outputFile) + ".lto" +
+                     (i == 0 ? Twine("") : Twine('.') + Twine(i)) + ".obj");
 
     // Get the native object contents either from the cache or from memory.  Do
     // not use the cached MemoryBuffer directly, or the PDB will not be

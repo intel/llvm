@@ -1,4 +1,4 @@
-//===------------------------- locale.cpp ---------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,20 +12,21 @@
 #define _LCONV_C99
 #endif
 
-#include "algorithm"
-#include "clocale"
-#include "codecvt"
-#include "cstdio"
-#include "cstdlib"
-#include "cstring"
-#include "locale"
-#include "string"
-#include "type_traits"
-#include "typeinfo"
-#include "vector"
+#include <__utility/unreachable.h>
+#include <algorithm>
+#include <clocale>
+#include <codecvt>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <locale>
+#include <string>
+#include <type_traits>
+#include <typeinfo>
+#include <vector>
 
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-#   include "cwctype"
+#   include <cwctype>
 #endif
 
 #if defined(_AIX)
@@ -44,13 +45,13 @@
 
 #include "include/atomic_support.h"
 #include "include/sso_allocator.h"
-#include "__undef_macros"
 
 // On Linux, wint_t and wchar_t have different signed-ness, and this causes
 // lots of noise in the build log, but no bugs that I know of.
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wsign-conversion"
-#endif
+_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wsign-conversion")
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -126,11 +127,6 @@ _LIBCPP_NORETURN static void __throw_runtime_error(const string &msg)
 }
 
 }
-
-#if defined(_AIX)
-// Set priority to INT_MIN + 256 + 150
-# pragma priority ( -2147483242 )
-#endif
 
 const locale::category locale::none;
 const locale::category locale::collate;
@@ -898,7 +894,7 @@ ctype<wchar_t>::do_toupper(char_type c) const
 #ifdef _LIBCPP_HAS_DEFAULTRUNELOCALE
     return isascii(c) ? _DefaultRuneLocale.__mapupper[c] : c;
 #elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || \
-      defined(__NetBSD__)
+      defined(__NetBSD__) || defined(__MVS__)
     return isascii(c) ? ctype<char>::__classic_upper_table()[c] : c;
 #else
     return (isascii(c) && iswlower_l(c, _LIBCPP_GET_C_LOCALE)) ? c-L'a'+L'A' : c;
@@ -912,7 +908,7 @@ ctype<wchar_t>::do_toupper(char_type* low, const char_type* high) const
 #ifdef _LIBCPP_HAS_DEFAULTRUNELOCALE
         *low = isascii(*low) ? _DefaultRuneLocale.__mapupper[*low] : *low;
 #elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || \
-      defined(__NetBSD__)
+      defined(__NetBSD__) || defined(__MVS__)
         *low = isascii(*low) ? ctype<char>::__classic_upper_table()[*low]
                              : *low;
 #else
@@ -927,7 +923,7 @@ ctype<wchar_t>::do_tolower(char_type c) const
 #ifdef _LIBCPP_HAS_DEFAULTRUNELOCALE
     return isascii(c) ? _DefaultRuneLocale.__maplower[c] : c;
 #elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || \
-      defined(__NetBSD__)
+      defined(__NetBSD__) || defined(__MVS__)
     return isascii(c) ? ctype<char>::__classic_lower_table()[c] : c;
 #else
     return (isascii(c) && isupper_l(c, _LIBCPP_GET_C_LOCALE)) ? c-L'A'+'a' : c;
@@ -941,7 +937,7 @@ ctype<wchar_t>::do_tolower(char_type* low, const char_type* high) const
 #ifdef _LIBCPP_HAS_DEFAULTRUNELOCALE
         *low = isascii(*low) ? _DefaultRuneLocale.__maplower[*low] : *low;
 #elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || \
-      defined(__NetBSD__)
+      defined(__NetBSD__) || defined(__MVS__)
         *low = isascii(*low) ? ctype<char>::__classic_lower_table()[*low]
                              : *low;
 #else
@@ -988,6 +984,8 @@ ctype<wchar_t>::do_narrow(const char_type* low, const char_type* high, char dfau
 
 locale::id ctype<char>::id;
 
+const size_t ctype<char>::table_size;
+
 ctype<char>::ctype(const mask* tab, bool del, size_t refs)
     : locale::facet(refs),
       __tab_(tab),
@@ -1011,7 +1009,7 @@ ctype<char>::do_toupper(char_type c) const
       static_cast<char>(_DefaultRuneLocale.__mapupper[static_cast<ptrdiff_t>(c)]) : c;
 #elif defined(__NetBSD__)
     return static_cast<char>(__classic_upper_table()[static_cast<unsigned char>(c)]);
-#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__)
+#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || defined(__MVS__)
     return isascii(c) ?
       static_cast<char>(__classic_upper_table()[static_cast<unsigned char>(c)]) : c;
 #else
@@ -1028,7 +1026,7 @@ ctype<char>::do_toupper(char_type* low, const char_type* high) const
           static_cast<char>(_DefaultRuneLocale.__mapupper[static_cast<ptrdiff_t>(*low)]) : *low;
 #elif defined(__NetBSD__)
         *low = static_cast<char>(__classic_upper_table()[static_cast<unsigned char>(*low)]);
-#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__)
+#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || defined(__MVS__)
         *low = isascii(*low) ?
           static_cast<char>(__classic_upper_table()[static_cast<size_t>(*low)]) : *low;
 #else
@@ -1045,7 +1043,7 @@ ctype<char>::do_tolower(char_type c) const
       static_cast<char>(_DefaultRuneLocale.__maplower[static_cast<ptrdiff_t>(c)]) : c;
 #elif defined(__NetBSD__)
     return static_cast<char>(__classic_lower_table()[static_cast<unsigned char>(c)]);
-#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__)
+#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || defined(__MVS__)
     return isascii(c) ?
       static_cast<char>(__classic_lower_table()[static_cast<size_t>(c)]) : c;
 #else
@@ -1061,7 +1059,7 @@ ctype<char>::do_tolower(char_type* low, const char_type* high) const
         *low = isascii(*low) ? static_cast<char>(_DefaultRuneLocale.__maplower[static_cast<ptrdiff_t>(*low)]) : *low;
 #elif defined(__NetBSD__)
         *low = static_cast<char>(__classic_lower_table()[static_cast<unsigned char>(*low)]);
-#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__)
+#elif defined(__GLIBC__) || defined(__EMSCRIPTEN__) || defined(__MVS__)
         *low = isascii(*low) ? static_cast<char>(__classic_lower_table()[static_cast<size_t>(*low)]) : *low;
 #else
         *low = (isascii(*low) && isupper_l(*low, _LIBCPP_GET_C_LOCALE)) ? *low-'A'+'a' : *low;
@@ -1209,6 +1207,12 @@ ctype<char>::classic_table() noexcept
     return _ctype_ + 1;
 #elif defined(_AIX)
     return (const unsigned int *)__lc_ctype_ptr->obj->mask;
+#elif defined(__MVS__)
+# if defined(__NATIVE_ASCII_F)
+    return const_cast<const ctype<char>::mask*> (__OBJ_DATA(__lc_ctype_a)->mask);
+# else
+    return const_cast<const ctype<char>::mask*> (__ctypec);
+# endif
 #else
     // Platform not supported: abort so the person doing the port knows what to
     // fix
@@ -1257,7 +1261,26 @@ ctype<char>::__classic_upper_table() noexcept
 {
     return *__ctype_toupper_loc();
 }
-#endif // __GLIBC__ || __NETBSD__ || __EMSCRIPTEN__
+#elif defined(__MVS__)
+const unsigned short*
+ctype<char>::__classic_lower_table() _NOEXCEPT
+{
+# if defined(__NATIVE_ASCII_F)
+  return const_cast<const unsigned short*>(__OBJ_DATA(__lc_ctype_a)->lower);
+# else
+  return const_cast<const unsigned short*>(__ctype + __TOLOWER_INDEX);
+# endif
+}
+const unsigned short *
+ctype<char>::__classic_upper_table() _NOEXCEPT
+{
+# if defined(__NATIVE_ASCII_F)
+  return const_cast<const unsigned short*>(__OBJ_DATA(__lc_ctype_a)->upper);
+# else
+  return const_cast<const unsigned short*>(__ctype + __TOUPPER_INDEX);
+# endif
+}
+#endif // __GLIBC__ || __NETBSD__ || __EMSCRIPTEN__ || __MVS__
 
 // template <> class ctype_byname<char>
 
@@ -1501,7 +1524,7 @@ char
 ctype_byname<wchar_t>::do_narrow(char_type c, char dfault) const
 {
     int r = __libcpp_wctob_l(c, __l);
-    return r != static_cast<int>(WEOF) ? static_cast<char>(r) : dfault;
+    return (r != EOF) ? static_cast<char>(r) : dfault;
 }
 
 const wchar_t*
@@ -1510,7 +1533,7 @@ ctype_byname<wchar_t>::do_narrow(const char_type* low, const char_type* high, ch
     for (; low != high; ++low, ++dest)
     {
         int r = __libcpp_wctob_l(*low, __l);
-        *dest = r != static_cast<int>(WEOF) ? static_cast<char>(r) : dfault;
+        *dest = (r != EOF) ? static_cast<char>(r) : dfault;
     }
     return low;
 }
@@ -1808,6 +1831,7 @@ codecvt<wchar_t, char, mbstate_t>::do_max_length() const noexcept
 // 040000 - 0FFFFF  D8C0 - DBBF, DC00 - DFFF  F1 - F3, 80 - BF, 80 - BF, 80 - BF   786432
 // 100000 - 10FFFF  DBC0 - DBFF, DC00 - DFFF  F4 - F4, 80 - 8F, 80 - BF, 80 - BF    65536
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 static
 codecvt_base::result
 utf16_to_utf8(const uint16_t* frm, const uint16_t* frm_end, const uint16_t*& frm_nxt,
@@ -3181,6 +3205,8 @@ utf16le_to_ucs2_length(const uint8_t* frm, const uint8_t* frm_end,
     return static_cast<int>(frm_nxt - frm);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_POP
+
 // template <> class codecvt<char16_t, char, mbstate_t>
 
 locale::id codecvt<char16_t, char, mbstate_t>::id;
@@ -3588,6 +3614,7 @@ __codecvt_utf8<wchar_t>::do_length(state_type&,
 #endif
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf8<wchar_t>::do_max_length() const noexcept
 {
@@ -3670,6 +3697,7 @@ __codecvt_utf8<char16_t>::do_length(state_type&,
     return utf8_to_ucs2_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf8<char16_t>::do_max_length() const noexcept
 {
@@ -3677,6 +3705,7 @@ __codecvt_utf8<char16_t>::do_max_length() const noexcept
         return 6;
     return 3;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf8<char32_t>
 
@@ -3745,6 +3774,7 @@ __codecvt_utf8<char32_t>::do_length(state_type&,
     return utf8_to_ucs4_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf8<char32_t>::do_max_length() const noexcept
 {
@@ -3752,6 +3782,7 @@ __codecvt_utf8<char32_t>::do_max_length() const noexcept
         return 7;
     return 4;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf16<wchar_t, false>
 
@@ -4030,6 +4061,7 @@ __codecvt_utf16<char16_t, false>::do_length(state_type&,
     return utf16be_to_ucs2_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf16<char16_t, false>::do_max_length() const noexcept
 {
@@ -4037,6 +4069,7 @@ __codecvt_utf16<char16_t, false>::do_max_length() const noexcept
         return 4;
     return 2;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf16<char16_t, true>
 
@@ -4105,6 +4138,7 @@ __codecvt_utf16<char16_t, true>::do_length(state_type&,
     return utf16le_to_ucs2_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf16<char16_t, true>::do_max_length() const noexcept
 {
@@ -4112,6 +4146,7 @@ __codecvt_utf16<char16_t, true>::do_max_length() const noexcept
         return 4;
     return 2;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf16<char32_t, false>
 
@@ -4180,6 +4215,7 @@ __codecvt_utf16<char32_t, false>::do_length(state_type&,
     return utf16be_to_ucs4_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf16<char32_t, false>::do_max_length() const noexcept
 {
@@ -4187,6 +4223,7 @@ __codecvt_utf16<char32_t, false>::do_max_length() const noexcept
         return 6;
     return 4;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf16<char32_t, true>
 
@@ -4255,6 +4292,7 @@ __codecvt_utf16<char32_t, true>::do_length(state_type&,
     return utf16le_to_ucs4_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf16<char32_t, true>::do_max_length() const noexcept
 {
@@ -4262,6 +4300,7 @@ __codecvt_utf16<char32_t, true>::do_max_length() const noexcept
         return 6;
     return 4;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf8_utf16<wchar_t>
 
@@ -4419,6 +4458,7 @@ __codecvt_utf8_utf16<char16_t>::do_length(state_type&,
     return utf8_to_utf16_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf8_utf16<char16_t>::do_max_length() const noexcept
 {
@@ -4426,6 +4466,7 @@ __codecvt_utf8_utf16<char16_t>::do_max_length() const noexcept
         return 7;
     return 4;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __codecvt_utf8_utf16<char32_t>
 
@@ -4494,6 +4535,7 @@ __codecvt_utf8_utf16<char32_t>::do_length(state_type&,
     return utf8_to_utf16_length(_frm, _frm_end, mx, _Maxcode_, _Mode_);
 }
 
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 int
 __codecvt_utf8_utf16<char32_t>::do_max_length() const noexcept
 {
@@ -4501,6 +4543,7 @@ __codecvt_utf8_utf16<char32_t>::do_max_length() const noexcept
         return 7;
     return 4;
 }
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 // __narrow_to_utf8<16>
 
@@ -4543,6 +4586,18 @@ static bool checked_string_to_wchar_convert(wchar_t& dest,
 }
 #endif // _LIBCPP_HAS_NO_WIDE_CHARACTERS
 
+#ifdef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+static bool is_narrow_non_breaking_space(const char* ptr) {
+  // https://www.fileformat.info/info/unicode/char/202f/index.htm
+  return ptr[0] == '\xe2' && ptr[1] == '\x80' && ptr[2] == '\xaf';
+}
+
+static bool is_non_breaking_space(const char* ptr) {
+  // https://www.fileformat.info/info/unicode/char/0a/index.htm
+  return ptr[0] == '\xc2' && ptr[1] == '\xa0';
+}
+#endif // _LIBCPP_HAS_NO_WIDE_CHARACTERS
+
 static bool checked_string_to_char_convert(char& dest,
                                            const char* ptr,
                                            locale_t __loc) {
@@ -4575,9 +4630,16 @@ static bool checked_string_to_char_convert(char& dest,
     return false;
   }
 #else // _LIBCPP_HAS_NO_WIDE_CHARACTERS
+  // FIXME: Work around specific multibyte sequences that we can reasonably
+  // translate into a different single byte.
+  if (is_narrow_non_breaking_space(ptr) || is_non_breaking_space(ptr)) {
+    dest = ' ';
+    return true;
+  }
+
   return false;
 #endif // _LIBCPP_HAS_NO_WIDE_CHARACTERS
-  _LIBCPP_UNREACHABLE();
+  __libcpp_unreachable();
 }
 
 
@@ -5154,12 +5216,8 @@ __time_get::~__time_get()
 {
     freelocale(__loc_);
 }
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#endif
-#if defined(__GNUG__)
-#pragma GCC   diagnostic ignored "-Wmissing-field-initializers"
-#endif
+
+_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wmissing-field-initializers")
 
 template <>
 string
@@ -5305,9 +5363,7 @@ __time_get_storage<char>::__analyze(char fmt, const ctype<char>& ct)
     return result;
 }
 
-#if defined(__clang__)
-#pragma clang diagnostic ignored "-Wmissing-braces"
-#endif
+_LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wmissing-braces")
 
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
 template <>
@@ -6553,3 +6609,5 @@ template class _LIBCPP_CLASS_TEMPLATE_INSTANTIATION_VIS codecvt_byname<char32_t,
 #endif
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS

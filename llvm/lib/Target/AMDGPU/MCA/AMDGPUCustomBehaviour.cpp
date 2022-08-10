@@ -120,8 +120,7 @@ unsigned AMDGPUCustomBehaviour::handleWaitCnt(ArrayRef<InstRef> IssuedInst,
 
   // We will now look at each of the currently executing instructions
   // to find out if this wait instruction still needs to wait.
-  for (auto I = IssuedInst.begin(), E = IssuedInst.end(); I != E; I++) {
-    const InstRef &PrevIR = *I;
+  for (const InstRef &PrevIR : IssuedInst) {
     const Instruction &PrevInst = *PrevIR.getInstruction();
     const unsigned PrevInstIndex = PrevIR.getSourceIndex() % SrcMgr.size();
     const WaitCntInfo &PrevInstWaitInfo = InstrWaitCntInfo[PrevInstIndex];
@@ -240,9 +239,9 @@ void AMDGPUCustomBehaviour::generateWaitCntInfo() {
   AMDGPU::IsaVersion IV = AMDGPU::getIsaVersion(STI.getCPU());
   InstrWaitCntInfo.resize(SrcMgr.size());
 
-  int Index = 0;
-  for (auto I = SrcMgr.begin(), E = SrcMgr.end(); I != E; ++I, ++Index) {
-    const std::unique_ptr<Instruction> &Inst = *I;
+  for (const auto &EN : llvm::enumerate(SrcMgr.getInstructions())) {
+    const std::unique_ptr<Instruction> &Inst = EN.value();
+    unsigned Index = EN.index();
     unsigned Opcode = Inst->getOpcode();
     const MCInstrDesc &MCID = MCII.get(Opcode);
     if ((MCID.TSFlags & SIInstrFlags::DS) &&

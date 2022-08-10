@@ -66,6 +66,8 @@ using FPToSIOpLowering =
     VectorConvertToLLVMPattern<arith::FPToSIOp, LLVM::FPToSIOp>;
 using BitcastOpLowering =
     VectorConvertToLLVMPattern<arith::BitcastOp, LLVM::BitcastOp>;
+using SelectOpLowering =
+    VectorConvertToLLVMPattern<arith::SelectOp, LLVM::SelectOp>;
 
 //===----------------------------------------------------------------------===//
 // Op Lowering Patterns
@@ -108,7 +110,7 @@ struct CmpFOpLowering : public ConvertOpToLLVMPattern<arith::CmpFOp> {
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // ConstantOpLowering
@@ -134,16 +136,16 @@ LogicalResult IndexCastOpLowering::matchAndRewrite(
       typeConverter->convertType(getElementTypeOrSelf(op.getResult()))
           .cast<IntegerType>();
   auto sourceElementType =
-      getElementTypeOrSelf(adaptor.in()).cast<IntegerType>();
+      getElementTypeOrSelf(adaptor.getIn()).cast<IntegerType>();
   unsigned targetBits = targetElementType.getWidth();
   unsigned sourceBits = sourceElementType.getWidth();
 
   if (targetBits == sourceBits)
-    rewriter.replaceOp(op, adaptor.in());
+    rewriter.replaceOp(op, adaptor.getIn());
   else if (targetBits < sourceBits)
-    rewriter.replaceOpWithNewOp<LLVM::TruncOp>(op, targetType, adaptor.in());
+    rewriter.replaceOpWithNewOp<LLVM::TruncOp>(op, targetType, adaptor.getIn());
   else
-    rewriter.replaceOpWithNewOp<LLVM::SExtOp>(op, targetType, adaptor.in());
+    rewriter.replaceOpWithNewOp<LLVM::SExtOp>(op, targetType, adaptor.getIn());
   return success();
 }
 
@@ -161,7 +163,7 @@ static LLVMPredType convertCmpPredicate(PredType pred) {
 LogicalResult
 CmpIOpLowering::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const {
-  auto operandType = adaptor.lhs().getType();
+  auto operandType = adaptor.getLhs().getType();
   auto resultType = op.getResult().getType();
 
   // Handle the scalar and 1D vector cases.
@@ -169,7 +171,7 @@ CmpIOpLowering::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
     rewriter.replaceOpWithNewOp<LLVM::ICmpOp>(
         op, typeConverter->convertType(resultType),
         convertCmpPredicate<LLVM::ICmpPredicate>(op.getPredicate()),
-        adaptor.lhs(), adaptor.rhs());
+        adaptor.getLhs(), adaptor.getRhs());
     return success();
   }
 
@@ -184,11 +186,9 @@ CmpIOpLowering::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
         return rewriter.create<LLVM::ICmpOp>(
             op.getLoc(), llvm1DVectorTy,
             convertCmpPredicate<LLVM::ICmpPredicate>(op.getPredicate()),
-            adaptor.lhs(), adaptor.rhs());
+            adaptor.getLhs(), adaptor.getRhs());
       },
       rewriter);
-
-  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -198,7 +198,7 @@ CmpIOpLowering::matchAndRewrite(arith::CmpIOp op, OpAdaptor adaptor,
 LogicalResult
 CmpFOpLowering::matchAndRewrite(arith::CmpFOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const {
-  auto operandType = adaptor.lhs().getType();
+  auto operandType = adaptor.getLhs().getType();
   auto resultType = op.getResult().getType();
 
   // Handle the scalar and 1D vector cases.
@@ -206,7 +206,7 @@ CmpFOpLowering::matchAndRewrite(arith::CmpFOp op, OpAdaptor adaptor,
     rewriter.replaceOpWithNewOp<LLVM::FCmpOp>(
         op, typeConverter->convertType(resultType),
         convertCmpPredicate<LLVM::FCmpPredicate>(op.getPredicate()),
-        adaptor.lhs(), adaptor.rhs());
+        adaptor.getLhs(), adaptor.getRhs());
     return success();
   }
 
@@ -221,7 +221,7 @@ CmpFOpLowering::matchAndRewrite(arith::CmpFOp op, OpAdaptor adaptor,
         return rewriter.create<LLVM::FCmpOp>(
             op.getLoc(), llvm1DVectorTy,
             convertCmpPredicate<LLVM::FCmpPredicate>(op.getPredicate()),
-            adaptor.lhs(), adaptor.rhs());
+            adaptor.getLhs(), adaptor.getRhs());
       },
       rewriter);
 }
@@ -235,7 +235,7 @@ struct ConvertArithmeticToLLVMPass
     : public ConvertArithmeticToLLVMBase<ConvertArithmeticToLLVMPass> {
   ConvertArithmeticToLLVMPass() = default;
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     LLVMConversionTarget target(getContext());
     RewritePatternSet patterns(&getContext());
 
@@ -247,12 +247,12 @@ struct ConvertArithmeticToLLVMPass
     mlir::arith::populateArithmeticToLLVMConversionPatterns(converter,
                                                             patterns);
 
-    if (failed(
-            applyPartialConversion(getFunction(), target, std::move(patterns))))
+    if (failed(applyPartialConversion(getOperation(), target,
+                                      std::move(patterns))))
       signalPassFailure();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Pattern Population
@@ -294,7 +294,8 @@ void mlir::arith::populateArithmeticToLLVMConversionPatterns(
     IndexCastOpLowering,
     BitcastOpLowering,
     CmpIOpLowering,
-    CmpFOpLowering
+    CmpFOpLowering,
+    SelectOpLowering
   >(converter);
   // clang-format on
 }

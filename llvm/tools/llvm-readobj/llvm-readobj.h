@@ -9,10 +9,13 @@
 #ifndef LLVM_TOOLS_LLVM_READOBJ_LLVM_READOBJ_H
 #define LLVM_TOOLS_LLVM_READOBJ_LLVM_READOBJ_H
 
+#include "ObjDumper.h"
+
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorOr.h"
 #include <string>
 
 namespace llvm {
@@ -39,7 +42,7 @@ extern bool ExpandRelocs;
 extern bool RawRelr;
 extern bool CodeViewSubsectionBytes;
 extern bool Demangle;
-enum OutputStyleTy { LLVM, GNU };
+enum OutputStyleTy { LLVM, GNU, JSON, UNKNOWN };
 extern OutputStyleTy Output;
 } // namespace opts
 

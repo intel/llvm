@@ -6,13 +6,16 @@ set(LLVM_LINK_COMPONENTS
 
 add_tablegen(mlir-tblgen MLIR
   AttrOrTypeDefGen.cpp
+  AttrOrTypeFormatGen.cpp
   CodeGenHelpers.cpp
   DialectGen.cpp
   DirectiveCommonGen.cpp
   EnumsGen.cpp
+  FormatGen.cpp
   LLVMIRConversionGen.cpp
   LLVMIRIntrinsicGen.cpp
   mlir-tblgen.cpp
+  OpClass.cpp
   OpDefinitionsGen.cpp
   OpDocGen.cpp
   OpFormatGen.cpp
@@ -24,7 +27,6 @@ add_tablegen(mlir-tblgen MLIR
   PassGen.cpp
   RewriterGen.cpp
   SPIRVUtilsGen.cpp
-  StructsGen.cpp
   )
 
 set_target_properties(mlir-tblgen PROPERTIES FOLDER "Tablegenning")

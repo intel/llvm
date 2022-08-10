@@ -67,10 +67,6 @@ def testTypeHash():
 
   # CHECK: hash(t1) == hash(t3): True
   print("hash(t1) == hash(t3):", t1.__hash__() == t3.__hash__())
-  # In general, hashes don't have to be unique. In this case, however, the
-  # hash is just the underlying pointer so it will be.
-  # CHECK: hash(t1) == hash(t2): False
-  print("hash(t1) == hash(t2):", t1.__hash__() == t2.__hash__())
 
   s = set()
   s.add(t1)
@@ -319,6 +315,9 @@ def testRankedTensorType():
     # Encoding should be None.
     assert RankedTensorType.get(shape, f32).encoding is None
 
+    tensor = RankedTensorType.get(shape, f32)
+    assert tensor.shape == shape
+
 
 # CHECK-LABEL: TEST: testUnrankedTensorType
 @run
@@ -400,6 +399,8 @@ def testMemRefType():
     else:
       print("Exception not produced")
 
+    assert memref.shape == shape
+
 
 # CHECK-LABEL: TEST: testUnrankedMemRefType
 @run
@@ -472,3 +473,17 @@ def testFunctionType():
     print("INPUTS:", func.inputs)
     # CHECK: RESULTS: [Type(index)]
     print("RESULTS:", func.results)
+
+
+# CHECK-LABEL: TEST: testOpaqueType
+@run
+def testOpaqueType():
+  with Context() as ctx:
+    ctx.allow_unregistered_dialects = True
+    opaque = OpaqueType.get("dialect", "type")
+    # CHECK: opaque type: !dialect.type
+    print("opaque type:", opaque)
+    # CHECK: dialect namespace: dialect
+    print("dialect namespace:", opaque.dialect_namespace)
+    # CHECK: data: type
+    print("data:", opaque.data)

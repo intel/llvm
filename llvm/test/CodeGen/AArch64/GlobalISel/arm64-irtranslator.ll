@@ -1458,10 +1458,12 @@ define void @test_lifetime_intrin() {
 ; O3-LABEL: name: test_lifetime_intrin
 ; O3: {{%[0-9]+}}:_(p0) = G_FRAME_INDEX %stack.0.slot
 ; O3-NEXT: LIFETIME_START %stack.0.slot
+; O3-NEXT: G_STORE
 ; O3-NEXT: LIFETIME_END %stack.0.slot
 ; O3-NEXT: RET_ReallyLR
   %slot = alloca i8, i32 4
   call void @llvm.lifetime.start.p0i8(i64 0, i8* %slot)
+  store volatile i8 10, i8* %slot
   call void @llvm.lifetime.end.p0i8(i64 0, i8* %slot)
   ret void
 }
@@ -1785,7 +1787,7 @@ define i32 @test_target_mem_intrinsic(i32* %addr) {
 ; CHECK: [[ADDR:%[0-9]+]]:_(p0) = COPY $x0
 ; CHECK: [[VAL:%[0-9]+]]:_(s64) = G_INTRINSIC_W_SIDE_EFFECTS intrinsic(@llvm.aarch64.ldxr), [[ADDR]](p0) :: (volatile load (s32) from %ir.addr)
 ; CHECK: G_TRUNC [[VAL]](s64)
-  %val = call i64 @llvm.aarch64.ldxr.p0i32(i32* %addr)
+  %val = call i64 @llvm.aarch64.ldxr.p0i32(i32* elementtype(i32) %addr)
   %trunc = trunc i64 %val to i32
   ret i32 %trunc
 }

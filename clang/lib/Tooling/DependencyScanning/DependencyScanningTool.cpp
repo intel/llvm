@@ -9,45 +9,50 @@
 #include "clang/Tooling/DependencyScanning/DependencyScanningTool.h"
 #include "clang/Frontend/Utils.h"
 
-namespace clang{
-namespace tooling{
-namespace dependencies{
+using namespace clang;
+using namespace tooling;
+using namespace dependencies;
 
-std::vector<std::string> FullDependencies::getAdditionalArgs(
-    std::function<StringRef(ModuleID)> LookupPCMPath,
-    std::function<const ModuleDeps &(ModuleID)> LookupModuleDeps) const {
-  std::vector<std::string> Ret = getAdditionalArgsWithoutModulePaths();
+std::vector<std::string> FullDependencies::getCommandLine(
+    llvm::function_ref<std::string(const ModuleID &, ModuleOutputKind)>
+        LookupModuleOutput) const {
+  std::vector<std::string> Ret = getCommandLineWithoutModulePaths();
 
-  std::vector<std::string> PCMPaths;
-  std::vector<std::string> ModMapPaths;
-  dependencies::detail::collectPCMAndModuleMapPaths(
-      ClangModuleDeps, LookupPCMPath, LookupModuleDeps, PCMPaths, ModMapPaths);
-  for (const std::string &PCMPath : PCMPaths)
-    Ret.push_back("-fmodule-file=" + PCMPath);
-  for (const std::string &ModMapPath : ModMapPaths)
-    Ret.push_back("-fmodule-map-file=" + ModMapPath);
+  for (ModuleID MID : ClangModuleDeps) {
+    auto PCM = LookupModuleOutput(MID, ModuleOutputKind::ModuleFile);
+    Ret.push_back("-fmodule-file=" + PCM);
+  }
 
   return Ret;
 }
 
 std::vector<std::string>
-FullDependencies::getAdditionalArgsWithoutModulePaths() const {
-  std::vector<std::string> Args{
-      "-fno-implicit-modules",
-      "-fno-implicit-module-maps",
-  };
+FullDependencies::getCommandLineWithoutModulePaths() const {
+  std::vector<std::string> Args = OriginalCommandLine;
 
-  for (const PrebuiltModuleDep &PMD : PrebuiltModuleDeps) {
+  Args.push_back("-fno-implicit-modules");
+  Args.push_back("-fno-implicit-module-maps");
+  for (const PrebuiltModuleDep &PMD : PrebuiltModuleDeps)
     Args.push_back("-fmodule-file=" + PMD.PCMFile);
-    Args.push_back("-fmodule-map-file=" + PMD.ModuleMapFile);
-  }
+
+  // These arguments are unused in explicit compiles.
+  llvm::erase_if(Args, [](StringRef Arg) {
+    if (Arg.consume_front("-fmodules-")) {
+      return Arg.startswith("cache-path=") ||
+             Arg.startswith("prune-interval=") ||
+             Arg.startswith("prune-after=") ||
+             Arg == "validate-once-per-build-session";
+    }
+    return Arg.startswith("-fbuild-session-file=");
+  });
 
   return Args;
 }
 
 DependencyScanningTool::DependencyScanningTool(
-    DependencyScanningService &Service)
-    : Worker(Service) {}
+    DependencyScanningService &Service,
+    llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS)
+    : Worker(Service, std::move(FS)) {}
 
 llvm::Expected<std::string> DependencyScanningTool::getDependencyFile(
     const std::vector<std::string> &CommandLine, StringRef CWD,
@@ -142,8 +147,12 @@ DependencyScanningTool::getFullDependencies(
       ContextHash = std::move(Hash);
     }
 
-    FullDependenciesResult getFullDependencies() const {
+    FullDependenciesResult getFullDependencies(
+        const std::vector<std::string> &OriginalCommandLine) const {
       FullDependencies FD;
+
+      FD.OriginalCommandLine =
+          ArrayRef<std::string>(OriginalCommandLine).slice(1);
 
       FD.ID.ContextHash = std::move(ContextHash);
 
@@ -174,7 +183,7 @@ DependencyScanningTool::getFullDependencies(
   private:
     std::vector<std::string> Dependencies;
     std::vector<PrebuiltModuleDep> PrebuiltModuleDeps;
-    std::map<std::string, ModuleDeps> ClangModuleDeps;
+    llvm::MapVector<std::string, ModuleDeps, llvm::StringMap<unsigned>> ClangModuleDeps;
     std::string ContextHash;
     std::vector<std::string> OutputPaths;
     const llvm::StringSet<> &AlreadySeen;
@@ -185,9 +194,5 @@ DependencyScanningTool::getFullDependencies(
       Worker.computeDependencies(CWD, CommandLine, Consumer, ModuleName);
   if (Result)
     return std::move(Result);
-  return Consumer.getFullDependencies();
+  return Consumer.getFullDependencies(CommandLine);
 }
-
-} // end namespace dependencies
-} // end namespace tooling
-} // end namespace clang

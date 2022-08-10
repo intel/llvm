@@ -6,9 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clcmacro.h>
 #include <spirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
-__spirv_ocl_sin(__clc_fp32_t In) {
-  return __builtin_amdgcn_sinf(In);
-}
+double __ocml_sin_f64(double);
+float __ocml_sin_f32(float);
+ 
+#define __CLC_FUNCTION __spirv_ocl_sin
+#define __CLC_BUILTIN __ocml_sin
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#include <math/unary_builtin.inc>

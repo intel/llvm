@@ -16,7 +16,6 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANGD_COMPILER_H
 
 #include "FeatureModule.h"
-#include "GlobalCompilationDatabase.h"
 #include "TidyProvider.h"
 #include "index/Index.h"
 #include "support/ThreadsafeFS.h"
@@ -40,7 +39,7 @@ public:
 
 // Options to run clang e.g. when parsing AST.
 struct ParseOptions {
-  // (empty at present, formerly controlled recovery AST, include-fixer etc)
+  bool PreambleParseForwardingFunctions = false;
 };
 
 /// Information required to run clang, e.g. to parse AST or do code completion.
@@ -86,6 +85,10 @@ std::unique_ptr<CompilerInstance> prepareCompilerInstance(
     std::unique_ptr<clang::CompilerInvocation>, const PrecompiledPreamble *,
     std::unique_ptr<llvm::MemoryBuffer> MainFile,
     IntrusiveRefCntPtr<llvm::vfs::FileSystem>, DiagnosticConsumer &);
+
+/// Respect `#pragma clang __debug crash` etc, which are usually disabled.
+/// This may only be called before threads are spawned.
+void allowCrashPragmasForTest();
 
 } // namespace clangd
 } // namespace clang

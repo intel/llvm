@@ -27,20 +27,20 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: @TestNonSatPacked
 ; CHECK-SPIRV: Function
 
-; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SDotKHR_Ruchariii
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SDotKHR_Rushortiii
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SDotKHR_Ruintiii
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SDotKHR_Rulongiii
+; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_Rchariii
+; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_Rshortiii
+; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_Rintiii
+; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_Rlongiii
 
 ; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_Ruchariii
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_Rushortiii
 ; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_Ruintiii
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_Rulongiii
 
-; CHECK-LLVM: call spir_func i8 @_Z23__spirv_SUDotKHR_Ruchariii
-; CHECK-LLVM: call spir_func i16 @_Z24__spirv_SUDotKHR_Rushortiii
-; CHECK-LLVM: call spir_func i32 @_Z22__spirv_SUDotKHR_Ruintiii
-; CHECK-LLVM: call spir_func i64 @_Z23__spirv_SUDotKHR_Rulongiii
+; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_Rchariii
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_Rshortiii
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_Rintiii
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_Rlongiii
 
 ; CHECK-SPIRV: 6 SDotKHR [[#I8]] [[#]] [[#]] [[#]] 0
 ; CHECK-SPIRV: 6 SDotKHR [[#I16]] [[#]] [[#]] [[#]] 0
@@ -59,20 +59,20 @@ target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
 define spir_kernel void @TestNonSatPacked(i32 %0, i32 %1) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_type_qual !8 !kernel_arg_base_type !7 {
-  %3 = call spir_func i8 @_Z22__spirv_SDotKHR_Ruchariii(i32 %0, i32 %1, i32 0) #0
-  %4 = call spir_func i16 @_Z23__spirv_SDotKHR_Rushortiii(i32 %0, i32 %1, i32 0) #0
-  %5 = call spir_func i32 @_Z21__spirv_SDotKHR_Ruintiii(i32 %0, i32 %1, i32 0) #0
-  %6 = call spir_func i64 @_Z22__spirv_SDotKHR_Rulongiii(i32 %0, i32 %1, i32 0) #0
+  %3 = call spir_func i8 @_Z21__spirv_SDotKHR_Rchariii(i32 %0, i32 %1, i32 0) #0
+  %4 = call spir_func i16 @_Z22__spirv_SDotKHR_Rshortiii(i32 %0, i32 %1, i32 0) #0
+  %5 = call spir_func i32 @_Z20__spirv_SDotKHR_Rintiii(i32 %0, i32 %1, i32 0) #0
+  %6 = call spir_func i64 @_Z21__spirv_SDotKHR_Rlongiii(i32 %0, i32 %1, i32 0) #0
 
   %7 = call spir_func i8 @_Z22__spirv_UDotKHR_Ruchariii(i32 %0, i32 %1, i32 0) #0
   %8 = call spir_func i16 @_Z23__spirv_UDotKHR_Rushortiii(i32 %0, i32 %1, i32 0) #0
   %9 = call spir_func i32 @_Z21__spirv_UDotKHR_Ruintiii(i32 %0, i32 %1, i32 0) #0
   %10 = call spir_func i64 @_Z22__spirv_UDotKHR_Rulongiii(i32 %0, i32 %1, i32 0) #0
 
-  %11 = call spir_func i8 @_Z23__spirv_SUDotKHR_Ruchariii(i32 %0, i32 %1, i32 0) #0
-  %12 = call spir_func i16 @_Z24__spirv_SUDotKHR_Rushortiii(i32 %0, i32 %1, i32 0) #0
-  %13 = call spir_func i32 @_Z22__spirv_SUDotKHR_Ruintiii(i32 %0, i32 %1, i32 0) #0
-  %14 = call spir_func i64 @_Z23__spirv_SUDotKHR_Rulongiii(i32 %0, i32 %1, i32 0) #0
+  %11 = call spir_func i8 @_Z22__spirv_SUDotKHR_Rchariii(i32 %0, i32 %1, i32 0) #0
+  %12 = call spir_func i16 @_Z23__spirv_SUDotKHR_Rshortiii(i32 %0, i32 %1, i32 0) #0
+  %13 = call spir_func i32 @_Z21__spirv_SUDotKHR_Rintiii(i32 %0, i32 %1, i32 0) #0
+  %14 = call spir_func i64 @_Z22__spirv_SUDotKHR_Rlongiii(i32 %0, i32 %1, i32 0) #0
   ret void
 }
 
@@ -80,20 +80,20 @@ define spir_kernel void @TestNonSatPacked(i32 %0, i32 %1) #0 !kernel_arg_addr_sp
 ; CHECK-LLVM: @TestNonSatVec
 ; CHECK-SPIRV: Function
 
-; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SDotKHR_RucharDv4_cS_
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SDotKHR_RushortDv4_cS_
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SDotKHR_RuintDv4_cS_
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SDotKHR_RulongDv4_cS_
+; CHECK-LLVM: call spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_
+; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv4_cS_
+; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv4_cS_
+; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv4_cS_
 
 ; CHECK-LLVM: call spir_func i8 @_Z22__spirv_UDotKHR_RucharDv4_cS_
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv4_cS_
 ; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv4_cS_
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv4_cS_
 
-; CHECK-LLVM: call spir_func i8 @_Z23__spirv_SUDotKHR_RucharDv4_cS_
-; CHECK-LLVM: call spir_func i16 @_Z24__spirv_SUDotKHR_RushortDv4_cS_
-; CHECK-LLVM: call spir_func i32 @_Z22__spirv_SUDotKHR_RuintDv4_cS_
-; CHECK-LLVM: call spir_func i64 @_Z23__spirv_SUDotKHR_RulongDv4_cS_
+; CHECK-LLVM: call spir_func i8 @_Z22__spirv_SUDotKHR_RcharDv4_cS_
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv4_cS_
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv4_cS_
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv4_cS_
 
 ; CHECK-SPIRV: 5 SDotKHR [[#I8]]
 ; CHECK-SPIRV: 5 SDotKHR [[#I16]]
@@ -112,20 +112,20 @@ define spir_kernel void @TestNonSatPacked(i32 %0, i32 %1) #0 !kernel_arg_addr_sp
 
 ; Function Attrs: nounwind
 define spir_kernel void @TestNonSatVec(<4 x i8> %0, <4 x i8> %1) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !9 !kernel_arg_type_qual !8 !kernel_arg_base_type !9 {
-  %3 = call spir_func i8 @_Z22__spirv_SDotKHR_RucharDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
-  %4 = call spir_func i16 @_Z23__spirv_SDotKHR_RushortDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
-  %5 = call spir_func i32 @_Z21__spirv_SDotKHR_RuintDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
-  %6 = call spir_func i64 @_Z22__spirv_SDotKHR_RulongDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %3 = call spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %4 = call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %5 = call spir_func i32 @_Z20__spirv_SDotKHR_RintDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %6 = call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
 
   %7 = call spir_func i8 @_Z22__spirv_UDotKHR_RucharDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
   %8 = call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
   %9 = call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
   %10 = call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
 
-  %11 = call spir_func i8 @_Z23__spirv_SUDotKHR_RucharDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
-  %12 = call spir_func i16 @_Z24__spirv_SUDotKHR_RushortDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
-  %13 = call spir_func i32 @_Z22__spirv_SUDotKHR_RuintDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
-  %14 = call spir_func i64 @_Z23__spirv_SUDotKHR_RulongDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %11 = call spir_func i8 @_Z22__spirv_SUDotKHR_RcharDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %12 = call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %13 = call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
+  %14 = call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv4_cS_(<4 x i8> %0, <4 x i8> %1) #0
   ret void
 }
 
@@ -133,17 +133,17 @@ define spir_kernel void @TestNonSatVec(<4 x i8> %0, <4 x i8> %1) #0 !kernel_arg_
 ; CHECK-LLVM: @TestNonSatAll
 ; CHECK-SPIRV: Function
 
-; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SDotKHR_RushortDv2_sS_
-; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SDotKHR_RuintDv2_sS_
-; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SDotKHR_RulongDv2_sS_
+; CHECK-LLVM: call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_
+; CHECK-LLVM: call spir_func i32 @_Z20__spirv_SDotKHR_RintDv2_sS_
+; CHECK-LLVM: call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv2_sS_
 
 ; CHECK-LLVM: call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv2_sS_
 ; CHECK-LLVM: call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv2_sS_
 ; CHECK-LLVM: call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv2_sS_
 
-; CHECK-LLVM: call spir_func i16 @_Z24__spirv_SUDotKHR_RushortDv2_sS_
-; CHECK-LLVM: call spir_func i32 @_Z22__spirv_SUDotKHR_RuintDv2_sS_
-; CHECK-LLVM: call spir_func i64 @_Z23__spirv_SUDotKHR_RulongDv2_sS_
+; CHECK-LLVM: call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv2_sS_
+; CHECK-LLVM: call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv2_sS_
+; CHECK-LLVM: call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv2_sS_
 
 ; CHECK-SPIRV: 5 SDotKHR [[#I16]]
 ; CHECK-SPIRV: 5 SDotKHR [[#I32]]
@@ -159,31 +159,31 @@ define spir_kernel void @TestNonSatVec(<4 x i8> %0, <4 x i8> %1) #0 !kernel_arg_
 
 ; Function Attrs: nounwind
 define spir_kernel void @TestNonSatAll(<2 x i16> %0, <2 x i16> %1) #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !10 !kernel_arg_type_qual !8 !kernel_arg_base_type !10 {
-  %3 = call spir_func i16 @_Z23__spirv_SDotKHR_RushortDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
-  %4 = call spir_func i32 @_Z21__spirv_SDotKHR_RuintDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
-  %5 = call spir_func i64 @_Z22__spirv_SDotKHR_RulongDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
+  %3 = call spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
+  %4 = call spir_func i32 @_Z20__spirv_SDotKHR_RintDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
+  %5 = call spir_func i64 @_Z21__spirv_SDotKHR_RlongDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
 
   %6 = call spir_func i16 @_Z23__spirv_UDotKHR_RushortDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
   %7 = call spir_func i32 @_Z21__spirv_UDotKHR_RuintDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
   %8 = call spir_func i64 @_Z22__spirv_UDotKHR_RulongDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
 
-  %9 = call spir_func i16 @_Z24__spirv_SUDotKHR_RushortDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
-  %10 = call spir_func i32 @_Z22__spirv_SUDotKHR_RuintDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
-  %11 = call spir_func i64 @_Z23__spirv_SUDotKHR_RulongDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
+  %9 = call spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
+  %10 = call spir_func i32 @_Z21__spirv_SUDotKHR_RintDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
+  %11 = call spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv2_sS_(<2 x i16> %0, <2 x i16> %1) #0
   ret void
 }
 
 ; Function Attrs: nounwind
-declare spir_func i8 @_Z22__spirv_SDotKHR_Ruchariii(i32, i32, i32) #0
+declare spir_func i8 @_Z21__spirv_SDotKHR_Rchariii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i16 @_Z23__spirv_SDotKHR_Rushortiii(i32, i32, i32) #0
+declare spir_func i16 @_Z22__spirv_SDotKHR_Rshortiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i32 @_Z21__spirv_SDotKHR_Ruintiii(i32, i32, i32) #0
+declare spir_func i32 @_Z20__spirv_SDotKHR_Rintiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z22__spirv_SDotKHR_Rulongiii(i32, i32, i32) #0
+declare spir_func i64 @_Z21__spirv_SDotKHR_Rlongiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
 declare spir_func i8 @_Z22__spirv_UDotKHR_Ruchariii(i32, i32, i32) #0
@@ -198,28 +198,28 @@ declare spir_func i32 @_Z21__spirv_UDotKHR_Ruintiii(i32, i32, i32) #0
 declare spir_func i64 @_Z22__spirv_UDotKHR_Rulongiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i8 @_Z23__spirv_SUDotKHR_Ruchariii(i32, i32, i32) #0
+declare spir_func i8 @_Z22__spirv_SUDotKHR_Rchariii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i16 @_Z24__spirv_SUDotKHR_Rushortiii(i32, i32, i32) #0
+declare spir_func i16 @_Z23__spirv_SUDotKHR_Rshortiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i32 @_Z22__spirv_SUDotKHR_Ruintiii(i32, i32, i32) #0
+declare spir_func i32 @_Z21__spirv_SUDotKHR_Rintiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z23__spirv_SUDotKHR_Rulongiii(i32, i32, i32) #0
+declare spir_func i64 @_Z22__spirv_SUDotKHR_Rlongiii(i32, i32, i32) #0
 
 ; Function Attrs: nounwind
-declare spir_func i8 @_Z22__spirv_SDotKHR_RucharDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i8 @_Z21__spirv_SDotKHR_RcharDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i16 @_Z23__spirv_SDotKHR_RushortDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i16 @_Z22__spirv_SDotKHR_RshortDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i32 @_Z21__spirv_SDotKHR_RuintDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i32 @_Z20__spirv_SDotKHR_RintDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z22__spirv_SDotKHR_RulongDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i64 @_Z21__spirv_SDotKHR_RlongDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
 declare spir_func i8 @_Z22__spirv_UDotKHR_RucharDv4_cS_(<4 x i8>, <4 x i8>) #0
@@ -234,25 +234,25 @@ declare spir_func i32 @_Z21__spirv_UDotKHR_RuintDv4_cS_(<4 x i8>, <4 x i8>) #0
 declare spir_func i64 @_Z22__spirv_UDotKHR_RulongDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i8 @_Z23__spirv_SUDotKHR_RucharDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i8 @_Z22__spirv_SUDotKHR_RcharDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i16 @_Z24__spirv_SUDotKHR_RushortDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i32 @_Z22__spirv_SUDotKHR_RuintDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i32 @_Z21__spirv_SUDotKHR_RintDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z23__spirv_SUDotKHR_RulongDv4_cS_(<4 x i8>, <4 x i8>) #0
+declare spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv4_cS_(<4 x i8>, <4 x i8>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i16 @_Z23__spirv_SDotKHR_RushortDv2_sS_(<2 x i16>, <2 x i16>) #0
+declare spir_func i16 @_Z22__spirv_SDotKHR_RshortDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i32 @_Z21__spirv_SDotKHR_RuintDv2_sS_(<2 x i16>, <2 x i16>) #0
+declare spir_func i32 @_Z20__spirv_SDotKHR_RintDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z22__spirv_SDotKHR_RulongDv2_sS_(<2 x i16>, <2 x i16>) #0
+declare spir_func i64 @_Z21__spirv_SDotKHR_RlongDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 ; Function Attrs: nounwind
 declare spir_func i16 @_Z23__spirv_UDotKHR_RushortDv2_sS_(<2 x i16>, <2 x i16>) #0
@@ -264,13 +264,13 @@ declare spir_func i32 @_Z21__spirv_UDotKHR_RuintDv2_sS_(<2 x i16>, <2 x i16>) #0
 declare spir_func i64 @_Z22__spirv_UDotKHR_RulongDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i16 @_Z24__spirv_SUDotKHR_RushortDv2_sS_(<2 x i16>, <2 x i16>) #0
+declare spir_func i16 @_Z23__spirv_SUDotKHR_RshortDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i32 @_Z22__spirv_SUDotKHR_RuintDv2_sS_(<2 x i16>, <2 x i16>) #0
+declare spir_func i32 @_Z21__spirv_SUDotKHR_RintDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 ; Function Attrs: nounwind
-declare spir_func i64 @_Z23__spirv_SUDotKHR_RulongDv2_sS_(<2 x i16>, <2 x i16>) #0
+declare spir_func i64 @_Z22__spirv_SUDotKHR_RlongDv2_sS_(<2 x i16>, <2 x i16>) #0
 
 attributes #0 = { nounwind }
 

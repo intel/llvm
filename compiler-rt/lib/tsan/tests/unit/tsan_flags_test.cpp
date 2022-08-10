@@ -34,7 +34,6 @@ TEST(Flags, DefaultValues) {
 static const char *options1 =
   " enable_annotations=0"
   " suppress_equal_stacks=0"
-  " suppress_equal_addresses=0"
   " report_bugs=0"
   " report_thread_leaks=0"
   " report_destroy_locked=0"
@@ -58,7 +57,6 @@ static const char *options1 =
 static const char *options2 =
   " enable_annotations=true"
   " suppress_equal_stacks=true"
-  " suppress_equal_addresses=true"
   " report_bugs=true"
   " report_thread_leaks=true"
   " report_destroy_locked=true"
@@ -82,7 +80,6 @@ static const char *options2 =
 void VerifyOptions1(Flags *f) {
   EXPECT_EQ(f->enable_annotations, 0);
   EXPECT_EQ(f->suppress_equal_stacks, 0);
-  EXPECT_EQ(f->suppress_equal_addresses, 0);
   EXPECT_EQ(f->report_bugs, 0);
   EXPECT_EQ(f->report_thread_leaks, 0);
   EXPECT_EQ(f->report_destroy_locked, 0);
@@ -98,7 +95,7 @@ void VerifyOptions1(Flags *f) {
   EXPECT_EQ(f->memory_limit_mb, 666);
   EXPECT_EQ(f->stop_on_start, 0);
   EXPECT_EQ(f->running_on_valgrind, 0);
-  EXPECT_EQ(f->history_size, 5);
+  EXPECT_EQ(f->history_size, (uptr)5);
   EXPECT_EQ(f->io_sync, 1);
   EXPECT_EQ(f->die_after_fork, true);
 }
@@ -106,7 +103,6 @@ void VerifyOptions1(Flags *f) {
 void VerifyOptions2(Flags *f) {
   EXPECT_EQ(f->enable_annotations, true);
   EXPECT_EQ(f->suppress_equal_stacks, true);
-  EXPECT_EQ(f->suppress_equal_addresses, true);
   EXPECT_EQ(f->report_bugs, true);
   EXPECT_EQ(f->report_thread_leaks, true);
   EXPECT_EQ(f->report_destroy_locked, true);
@@ -122,7 +118,7 @@ void VerifyOptions2(Flags *f) {
   EXPECT_EQ(f->memory_limit_mb, 456);
   EXPECT_EQ(f->stop_on_start, true);
   EXPECT_EQ(f->running_on_valgrind, true);
-  EXPECT_EQ(f->history_size, 6);
+  EXPECT_EQ(f->history_size, 6ul);
   EXPECT_EQ(f->io_sync, 2);
   EXPECT_EQ(f->die_after_fork, false);
 }

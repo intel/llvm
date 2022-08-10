@@ -9,13 +9,17 @@
 
 // Ensure that functions marked as signal frames are reported as such.
 
-// TODO: Investigate these failures
-// XFAIL: asan, tsan, ubsan
+// TODO: Investigate this failure on Apple
+// XFAIL: target={{.+}}-apple-{{.+}}
 
-// TODO: Investigate this failure on macOS
-// XFAIL: target={{.+}}-apple-darwin{{.+}}
+// TODO: Figure out why this fails with Memory Sanitizer.
+// XFAIL: msan
 
 // UNSUPPORTED: libunwind-arm-ehabi
+
+// The AIX assembler does not support CFI directives, which
+// are necessary to run this test.
+// UNSUPPORTED: target=powerpc{{(64)?}}-ibm-aix
 
 #include <assert.h>
 #include <stdlib.h>

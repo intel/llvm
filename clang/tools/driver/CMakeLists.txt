@@ -18,8 +18,6 @@ set( LLVM_LINK_COMPONENTS
   Vectorize
   )
 
-option(CLANG_PLUGIN_SUPPORT "Build clang with plugin support" ON)
-
 # Support plugins.
 if(CLANG_PLUGIN_SUPPORT)
   set(support_plugins SUPPORT_PLUGINS)
@@ -34,6 +32,7 @@ add_clang_tool(clang
   DEPENDS
   intrinsics_gen
   ${support_plugins}
+  GENERATE_DRIVER
   )
 
 clang_target_link_libraries(clang
@@ -96,7 +95,7 @@ if(CLANG_ORDER_FILE AND
     (LLVM_LINKER_IS_LD64 OR LLVM_LINKER_IS_GOLD OR LLVM_LINKER_IS_LLD))
   include(LLVMCheckLinkerFlag)
 
-  if (LLVM_LINKER_IS_LD64)
+  if (LLVM_LINKER_IS_LD64 OR (LLVM_LINKER_IS_LLD AND APPLE))
     set(LINKER_ORDER_FILE_OPTION "-Wl,-order_file,${CLANG_ORDER_FILE}")
   elseif (LLVM_LINKER_IS_GOLD)
     set(LINKER_ORDER_FILE_OPTION "-Wl,--section-ordering-file,${CLANG_ORDER_FILE}")

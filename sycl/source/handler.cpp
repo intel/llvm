@@ -8,20 +8,22 @@
 
 #include <algorithm>
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/helpers.hpp>
-#include <CL/sycl/detail/kernel_desc.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stream.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/event.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stream.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -47,24 +49,40 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue,
   MSharedPtrStorage.push_back(std::move(ExtendedMembers));
 }
 
+static detail::ExtendedMemberT &getHandlerImplMember(
+    std::vector<std::shared_ptr<const void>> &SharedPtrStorage) {
+  assert(!SharedPtrStorage.empty());
+  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
+      detail::convertToExtendedMembers(SharedPtrStorage[0]);
+  assert(ExtendedMembersVec->size() > 0);
+  auto &HandlerImplMember = (*ExtendedMembersVec)[0];
+  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
+  return HandlerImplMember;
+}
+
 /// Gets the handler_impl at the start of the extended members.
 std::shared_ptr<detail::handler_impl> handler::getHandlerImpl() const {
   std::lock_guard<std::mutex> Lock(
       detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
-
-  assert(!MSharedPtrStorage.empty());
-
-  std::shared_ptr<std::vector<detail::ExtendedMemberT>> ExtendedMembersVec =
-      detail::convertToExtendedMembers(MSharedPtrStorage[0]);
-
-  assert(ExtendedMembersVec->size() > 0);
-
-  auto HandlerImplMember = (*ExtendedMembersVec)[0];
-
-  assert(detail::ExtendedMembersType::HANDLER_IMPL == HandlerImplMember.MType);
-
   return std::static_pointer_cast<detail::handler_impl>(
-      HandlerImplMember.MData);
+      getHandlerImplMember(MSharedPtrStorage).MData);
+}
+
+/// Gets the handler_impl at the start of the extended members and removes it.
+std::shared_ptr<detail::handler_impl> handler::evictHandlerImpl() const {
+  std::lock_guard<std::mutex> Lock(
+      detail::GlobalHandler::instance().getHandlerExtendedMembersMutex());
+  auto &HandlerImplMember = getHandlerImplMember(MSharedPtrStorage);
+  auto Impl =
+      std::static_pointer_cast<detail::handler_impl>(HandlerImplMember.MData);
+
+  // Reset the data of the member.
+  // NOTE: We let it stay because removing the front can be expensive. This will
+  // be improved when the impl is made a member of handler. In fact eviction is
+  // likely to not be needed when that happens.
+  HandlerImplMember.MData.reset();
+
+  return Impl;
 }
 
 // Sets the submission state to indicate that an explicit kernel bundle has been
@@ -112,12 +130,10 @@ handler::getOrInsertHandlerKernelBundle(bool Insert) const {
 
   // No kernel bundle yet, create one
   if (!KernelBundleImpPtr && Insert) {
-    KernelBundleImpPtr = detail::getSyclObjImpl(
-        get_kernel_bundle<bundle_state::input>(MQueue->get_context()));
-    if (KernelBundleImpPtr->empty()) {
-      KernelBundleImpPtr = detail::getSyclObjImpl(
-          get_kernel_bundle<bundle_state::executable>(MQueue->get_context()));
-    }
+    // Create an empty kernel bundle to add kernels to later
+    KernelBundleImpPtr =
+        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
+            MQueue->get_context(), {MQueue->get_device()}, {}));
 
     detail::ExtendedMemberT EMember = {
         detail::ExtendedMembersType::HANDLER_KERNEL_BUNDLE, KernelBundleImpPtr};
@@ -161,20 +177,48 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr = nullptr;
   // Kernel_bundles could not be used before CGType version 1
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
+      // Make sure implicit non-interop kernel bundles have the kernel
+      if (!KernelBundleImpPtr->isInterop() &&
+          !getHandlerImpl()->isStateExplicitKernelBundle()) {
+        kernel_id KernelID =
+            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+        bool KernelInserted =
+            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        // If kernel was not inserted and the bundle is in input mode we try
+        // building it and trying to find the kernel in executable mode
+        if (!KernelInserted &&
+            KernelBundleImpPtr->get_bundle_state() == bundle_state::input) {
+          auto KernelBundle =
+              detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
+                  KernelBundleImpPtr);
+          kernel_bundle<bundle_state::executable> ExecKernelBundle =
+              build(KernelBundle);
+          KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
+          setHandlerKernelBundle(KernelBundleImpPtr);
+          KernelInserted =
+              KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        }
+        // If the kernel was not found in executable mode we throw an exception
+        if (!KernelInserted)
+          throw sycl::exception(make_error_code(errc::runtime),
+                                "Failed to add kernel to kernel bundle.");
+      }
+
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
         // Underlying level expects kernel_bundle to be in executable state
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 KernelBundleImpPtr));
-        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
+        setHandlerKernelBundle(KernelBundleImpPtr);
         break;
       }
       case bundle_state::executable:
@@ -188,8 +232,79 @@ event handler::finalize() {
     }
   }
 
+  const auto &type = getType();
+  if (type == detail::CG::Kernel &&
+      MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    // if user does not add a new dependency to the dependency graph, i.e.
+    // the graph is not changed, then this faster path is used to submit kernel
+    // bypassing scheduler and avoiding CommandGroup, Command objects creation.
+
+    std::vector<RT::PiEvent> RawEvents;
+    detail::EventImplPtr NewEvent;
+    RT::PiEvent *OutEvent = nullptr;
+
+    auto EnqueueKernel = [&]() {
+      // 'Result' for single point of return
+      pi_int32 Result = PI_ERROR_INVALID_VALUE;
+
+      if (MQueue->is_host()) {
+        MHostKernel->call(
+            MNDRDesc, (NewEvent) ? NewEvent->getHostProfilingInfo() : nullptr);
+        Result = PI_SUCCESS;
+      } else {
+        if (MQueue->getPlugin().getBackend() ==
+            backend::ext_intel_esimd_emulator) {
+          MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+              nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+              MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
+              &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
+          Result = PI_SUCCESS;
+        } else {
+          Result = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                                    MKernel, MKernelName, MOSModuleHandle,
+                                    RawEvents, OutEvent, nullptr);
+        }
+      }
+      return Result;
+    };
+
+    bool DiscardEvent = false;
+    if (MQueue->has_discard_events_support()) {
+      // Kernel only uses assert if it's non interop one
+      bool KernelUsesAssert =
+          !(MKernel && MKernel->isInterop()) &&
+          detail::ProgramManager::getInstance().kernelUsesAssert(
+              MOSModuleHandle, MKernelName);
+      DiscardEvent = !KernelUsesAssert;
+    }
+
+    if (DiscardEvent) {
+      if (PI_SUCCESS != EnqueueKernel())
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    } else {
+      NewEvent = std::make_shared<detail::event_impl>(MQueue);
+      NewEvent->setContextImpl(MQueue->getContextImplPtr());
+      NewEvent->setStateIncomplete();
+      OutEvent = &NewEvent->getHandleRef();
+
+      if (PI_SUCCESS != EnqueueKernel())
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+      else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+        NewEvent->setComplete();
+
+      MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+    }
+    return MLastEvent;
+  }
+
+  // Evict handler_impl from extended members to make sure the command group
+  // does not keep it alive.
+  std::shared_ptr<detail::handler_impl> Impl = evictHandlerImpl();
+
   std::unique_ptr<detail::CG> CommandGroup;
-  switch (getType()) {
+  switch (type) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
     // Copy kernel name here instead of move so that it's available after
@@ -200,7 +315,8 @@ event handler::finalize() {
         std::move(MArgsStorage), std::move(MAccStorage),
         std::move(MSharedPtrStorage), std::move(MRequirements),
         std::move(MEvents), std::move(MArgs), MKernelName, MOSModuleHandle,
-        std::move(MStreamStorage), MCGType, MCodeLoc));
+        std::move(MStreamStorage), std::move(Impl->MAuxiliaryResources),
+        MCGType, MCodeLoc));
     break;
   }
   case detail::CG::CodeplayInteropTask:
@@ -271,8 +387,7 @@ event handler::finalize() {
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
-    detail::EventImplPtr Event =
-        std::make_shared<cl::sycl::detail::event_impl>();
+    detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
     MLastEvent = detail::createSyclObjFromImpl<event>(Event);
     return MLastEvent;
   }
@@ -280,13 +395,17 @@ event handler::finalize() {
   if (!CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
 
   detail::EventImplPtr Event = detail::Scheduler::getInstance().addCG(
       std::move(CommandGroup), std::move(MQueue));
 
   MLastEvent = detail::createSyclObjFromImpl<event>(Event);
   return MLastEvent;
+}
+
+void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
+  getHandlerImpl()->MAuxiliaryResources.push_back(ReduObj);
 }
 
 void handler::associateWithHandler(detail::AccessorBaseHost *AccBase,
@@ -382,9 +501,20 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
     detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
     detail::Requirement *GFlushReq = GFlushImpl.get();
+
+    size_t GlobalSize = MNDRDesc.GlobalSize.size();
+    // If work group size wasn't set explicitly then it must be recieved
+    // from kernel attribute or set to default values.
+    // For now we can't get this attribute here.
+    // So we just suppose that WG size is always default for stream.
+    // TODO adjust MNDRDesc when device image contains kernel's attribute
+    if (GlobalSize == 0) {
+      // Suppose that work group size is 1 for every dimension
+      GlobalSize = MNDRDesc.NumWorkGroups.size();
+    }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource,
-                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
+                             IsKernelCreatedFromSource, GlobalSize, MArgs,
+                             IsESIMD);
     ++IndexShift;
     MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
                        &S->FlushBufferSize, sizeof(S->FlushBufferSize),
@@ -414,6 +544,9 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       int SizeInBytes = LAcc->MElemSize;
       for (int I = 0; I < Dims; ++I)
         SizeInBytes *= Size[I];
+      // Some backends do not accept zero-sized local memory arguments, so we
+      // make it a minimum allocation of 1 byte.
+      SizeInBytes = std::max(SizeInBytes, 1);
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
                          SizeInBytes, Index + IndexShift);
       if (!IsKernelCreatedFromSource) {
@@ -442,8 +575,8 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     case access::target::host_image:
     case access::target::host_buffer: {
-      throw cl::sycl::invalid_parameter_error(
-          "Unsupported accessor target case.", PI_INVALID_OPERATION);
+      throw sycl::invalid_parameter_error("Unsupported accessor target case.",
+                                          PI_ERROR_INVALID_OPERATION);
       break;
     }
     }
@@ -461,7 +594,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     break;
   }
   case kernel_param_kind_t::kind_invalid:
-    throw runtime_error("Invalid kernel param kind", PI_INVALID_VALUE);
+    throw runtime_error("Invalid kernel param kind", PI_ERROR_INVALID_VALUE);
     break;
   }
 }
@@ -553,6 +686,10 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
+    return;
+
+  // Implicit kernel bundles are populated late so we ignore them
+  if (!getHandlerImpl()->isStateExplicitKernelBundle())
     return;
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
@@ -658,6 +795,27 @@ void handler::use_kernel_bundle(
 
   setStateExplicitKernelBundle();
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+}
+
+void handler::depends_on(event Event) {
+  auto EventImpl = detail::getSyclObjImpl(Event);
+  if (EventImpl->isDiscarded()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Queue operation cannot depend on discarded event.");
+  }
+  MEvents.push_back(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    if (EventImpl->isDiscarded()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Queue operation cannot depend on discarded event.");
+    }
+    MEvents.push_back(EventImpl);
+  }
 }
 
 } // namespace sycl

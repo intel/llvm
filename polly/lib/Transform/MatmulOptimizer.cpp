@@ -54,36 +54,36 @@ static cl::opt<int> LatencyVectorFma(
     cl::desc("The minimal number of cycles between issuing two "
              "dependent consecutive vector fused multiply-add "
              "instructions."),
-    cl::Hidden, cl::init(8), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(8), cl::cat(PollyCategory));
 
 static cl::opt<int> ThroughputVectorFma(
     "polly-target-throughput-vector-fma",
     cl::desc("A throughput of the processor floating-point arithmetic units "
              "expressed in the number of vector fused multiply-add "
              "instructions per clock cycle."),
-    cl::Hidden, cl::init(1), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(1), cl::cat(PollyCategory));
 
 static cl::opt<int> FirstCacheLevelSize(
     "polly-target-1st-cache-level-size",
     cl::desc("The size of the first cache level specified in bytes."),
-    cl::Hidden, cl::init(-1), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(-1), cl::cat(PollyCategory));
 
 static cl::opt<int> FirstCacheLevelDefaultSize(
     "polly-target-1st-cache-level-default-size",
     cl::desc("The default size of the first cache level specified in bytes"
              " (if not enough were provided by the TargetTransformInfo)."),
-    cl::Hidden, cl::init(32768), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(32768), cl::cat(PollyCategory));
 
 static cl::opt<int> SecondCacheLevelSize(
     "polly-target-2nd-cache-level-size",
     cl::desc("The size of the second level specified in bytes."), cl::Hidden,
-    cl::init(-1), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::init(-1), cl::cat(PollyCategory));
 
 static cl::opt<int> SecondCacheLevelDefaultSize(
     "polly-target-2nd-cache-level-default-size",
     cl::desc("The default size of the second cache level specified in bytes"
              " (if not enough were provided by the TargetTransformInfo)."),
-    cl::Hidden, cl::init(262144), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(262144), cl::cat(PollyCategory));
 
 // This option, along with --polly-target-2nd-cache-level-associativity,
 // --polly-target-1st-cache-level-size, and --polly-target-2st-cache-level-size
@@ -95,36 +95,36 @@ static cl::opt<int> SecondCacheLevelDefaultSize(
 static cl::opt<int> FirstCacheLevelAssociativity(
     "polly-target-1st-cache-level-associativity",
     cl::desc("The associativity of the first cache level."), cl::Hidden,
-    cl::init(-1), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::init(-1), cl::cat(PollyCategory));
 
 static cl::opt<int> FirstCacheLevelDefaultAssociativity(
     "polly-target-1st-cache-level-default-associativity",
     cl::desc("The default associativity of the first cache level"
              " (if not enough were provided by the TargetTransformInfo)."),
-    cl::Hidden, cl::init(8), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(8), cl::cat(PollyCategory));
 
 static cl::opt<int> SecondCacheLevelAssociativity(
     "polly-target-2nd-cache-level-associativity",
     cl::desc("The associativity of the second cache level."), cl::Hidden,
-    cl::init(-1), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::init(-1), cl::cat(PollyCategory));
 
 static cl::opt<int> SecondCacheLevelDefaultAssociativity(
     "polly-target-2nd-cache-level-default-associativity",
     cl::desc("The default associativity of the second cache level"
              " (if not enough were provided by the TargetTransformInfo)."),
-    cl::Hidden, cl::init(8), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(8), cl::cat(PollyCategory));
 
 static cl::opt<int> VectorRegisterBitwidth(
     "polly-target-vector-register-bitwidth",
     cl::desc("The size in bits of a vector register (if not set, this "
              "information is taken from LLVM's target information."),
-    cl::Hidden, cl::init(-1), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(-1), cl::cat(PollyCategory));
 
 static cl::opt<int> PollyPatternMatchingNcQuotient(
     "polly-pattern-matching-nc-quotient",
     cl::desc("Quotient that is obtained by dividing Nc, the parameter of the"
              "macro-kernel, by Nr, the parameter of the micro-kernel"),
-    cl::Hidden, cl::init(256), cl::ZeroOrMore, cl::cat(PollyCategory));
+    cl::Hidden, cl::init(256), cl::cat(PollyCategory));
 
 namespace {
 /// Parameters of the micro kernel.
@@ -188,8 +188,8 @@ static isl::union_set getUnrollIsolatedSetOptions(isl::ctx Ctx) {
 /// @return        The modified map.
 static isl::map permuteDimensions(isl::map Map, isl::dim DimType,
                                   unsigned DstPos, unsigned SrcPos) {
-  assert((isl_size)DstPos < Map.dim(DimType).release() &&
-         (isl_size)SrcPos < Map.dim(DimType).release());
+  assert(DstPos < unsignedFromIslSize(Map.dim(DimType)) &&
+         SrcPos < unsignedFromIslSize(Map.dim(DimType)));
   if (DstPos == SrcPos)
     return Map;
   isl::id DimId;
@@ -229,7 +229,7 @@ static bool isMatMulOperandAcc(isl::set Domain, isl::map AccMap, int &FirstPos,
   isl::space Space = AccMap.get_space();
   isl::map Universe = isl::map::universe(Space);
 
-  if (Space.dim(isl::dim::out).release() != 2)
+  if (unsignedFromIslSize(Space.dim(isl::dim::out)) != 2)
     return false;
 
   // MatMul has the form:
@@ -317,7 +317,7 @@ static bool containsOnlyMatrMultAcc(isl::map PartialSchedule,
                                     MatMulInfoTy &MMI) {
   auto InputDimId = PartialSchedule.get_tuple_id(isl::dim::in);
   auto *Stmt = static_cast<ScopStmt *>(InputDimId.get_user());
-  isl_size OutDimNum = PartialSchedule.range_tuple_dim().release();
+  unsigned OutDimNum = unsignedFromIslSize(PartialSchedule.range_tuple_dim());
   assert(OutDimNum > 2 && "In case of the matrix multiplication the loop nest "
                           "and, consequently, the corresponding scheduling "
                           "functions have at least three dimensions.");
@@ -363,7 +363,7 @@ static bool containsOnlyMatMulDep(isl::map Schedule, const Dependences *D,
   auto DomainSpace = Schedule.get_space().domain();
   auto Space = DomainSpace.map_from_domain_and_range(DomainSpace);
   auto Deltas = Dep.extract_map(Space).deltas();
-  isl_size DeltasDimNum = Deltas.dim(isl::dim::set).release();
+  int DeltasDimNum = unsignedFromIslSize(Deltas.dim(isl::dim::set));
   for (int i = 0; i < DeltasDimNum; i++) {
     auto Val = Deltas.plain_get_val_if_fixed(isl::dim::set, i);
     Pos = Pos < 0 && Val.is_one() ? i : Pos;
@@ -491,9 +491,6 @@ createMacroKernel(isl::schedule_node Node,
   Node = permuteBandNodeDimensions(Node, DimOutNum - 2, DimOutNum - 1);
   Node = permuteBandNodeDimensions(Node, DimOutNum - 3, DimOutNum - 1);
 
-  // Mark the outermost loop as parallelizable.
-  Node = Node.as<isl::schedule_node_band>().member_set_coincident(0, true);
-
   return Node.child(0).child(0);
 }
 
@@ -539,8 +536,8 @@ static uint64_t getMatMulTypeSize(MatMulInfoTy MMI) {
 /// @param MMI Parameters of the matrix multiplication operands.
 /// @return The structure of type MicroKernelParamsTy.
 /// @see MicroKernelParamsTy
-static struct MicroKernelParamsTy
-getMicroKernelParams(const TargetTransformInfo *TTI, MatMulInfoTy MMI) {
+static MicroKernelParamsTy getMicroKernelParams(const TargetTransformInfo *TTI,
+                                                MatMulInfoTy MMI) {
   assert(TTI && "The target transform info should be provided.");
 
   // Nvec - Number of double-precision floating-point numbers that can be hold
@@ -570,29 +567,29 @@ static void getTargetCacheParameters(const llvm::TargetTransformInfo *TTI) {
   auto L1DCache = llvm::TargetTransformInfo::CacheLevel::L1D;
   auto L2DCache = llvm::TargetTransformInfo::CacheLevel::L2D;
   if (FirstCacheLevelSize == -1) {
-    if (TTI->getCacheSize(L1DCache).hasValue())
-      FirstCacheLevelSize = TTI->getCacheSize(L1DCache).getValue();
+    if (TTI->getCacheSize(L1DCache))
+      FirstCacheLevelSize = TTI->getCacheSize(L1DCache).value();
     else
       FirstCacheLevelSize = static_cast<int>(FirstCacheLevelDefaultSize);
   }
   if (SecondCacheLevelSize == -1) {
-    if (TTI->getCacheSize(L2DCache).hasValue())
-      SecondCacheLevelSize = TTI->getCacheSize(L2DCache).getValue();
+    if (TTI->getCacheSize(L2DCache))
+      SecondCacheLevelSize = TTI->getCacheSize(L2DCache).value();
     else
       SecondCacheLevelSize = static_cast<int>(SecondCacheLevelDefaultSize);
   }
   if (FirstCacheLevelAssociativity == -1) {
-    if (TTI->getCacheAssociativity(L1DCache).hasValue())
+    if (TTI->getCacheAssociativity(L1DCache))
       FirstCacheLevelAssociativity =
-          TTI->getCacheAssociativity(L1DCache).getValue();
+          TTI->getCacheAssociativity(L1DCache).value();
     else
       FirstCacheLevelAssociativity =
           static_cast<int>(FirstCacheLevelDefaultAssociativity);
   }
   if (SecondCacheLevelAssociativity == -1) {
-    if (TTI->getCacheAssociativity(L2DCache).hasValue())
+    if (TTI->getCacheAssociativity(L2DCache))
       SecondCacheLevelAssociativity =
-          TTI->getCacheAssociativity(L2DCache).getValue();
+          TTI->getCacheAssociativity(L2DCache).value();
     else
       SecondCacheLevelAssociativity =
           static_cast<int>(SecondCacheLevelDefaultAssociativity);
@@ -614,7 +611,7 @@ static void getTargetCacheParameters(const llvm::TargetTransformInfo *TTI) {
 /// @return The structure of type MacroKernelParamsTy.
 /// @see MacroKernelParamsTy
 /// @see MicroKernelParamsTy
-static struct MacroKernelParamsTy
+static MacroKernelParamsTy
 getMacroKernelParams(const llvm::TargetTransformInfo *TTI,
                      const MicroKernelParamsTy &MicroKernelParams,
                      MatMulInfoTy MMI) {
@@ -727,9 +724,10 @@ static isl::schedule_node optimizePackedB(isl::schedule_node Node,
   ScopStmt *CopyStmt = S->addScopStmt(AccRelB, AccRelPackedB, Domain);
   MMI.B->setNewAccessRelation(AccRelPackedB);
 
+  unsigned Dim = unsignedFromIslSize(MapOldIndVar.range_tuple_dim());
+  assert(Dim >= 2);
   // Insert into the schedule tree.
-  isl::map ExtMap = MapOldIndVar.project_out(
-      isl::dim::out, 2, MapOldIndVar.range_tuple_dim().release() - 2);
+  isl::map ExtMap = MapOldIndVar.project_out(isl::dim::out, 2, Dim - 2);
   ExtMap = ExtMap.reverse();
   ExtMap = ExtMap.fix_si(isl::dim::out, MMI.i, 0);
   ExtMap = ExtMap.intersect_range(Domain);
@@ -870,9 +868,9 @@ getInductionVariablesSubstitution(isl::schedule_node Node,
   auto Child = Node.child(0);
   auto UnMapOldIndVar = Child.get_prefix_schedule_union_map();
   auto MapOldIndVar = isl::map::from_union_map(UnMapOldIndVar);
-  if (MapOldIndVar.range_tuple_dim().release() > 9)
-    return MapOldIndVar.project_out(
-        isl::dim::out, 0, MapOldIndVar.range_tuple_dim().release() - 9);
+  unsigned Dim = unsignedFromIslSize(MapOldIndVar.range_tuple_dim());
+  if (Dim > 9u)
+    return MapOldIndVar.project_out(isl::dim::out, 0, Dim - 9);
   return MapOldIndVar;
 }
 
@@ -892,11 +890,12 @@ getInductionVariablesSubstitution(isl::schedule_node Node,
 /// @return The modified isl_schedule_node.
 static isl::schedule_node
 isolateAndUnrollMatMulInnerLoops(isl::schedule_node Node,
-                                 struct MicroKernelParamsTy MicroKernelParams) {
+                                 MicroKernelParamsTy MicroKernelParams) {
   isl::schedule_node Child = Node.child(0);
   isl::union_map UnMapOldIndVar = Child.get_prefix_schedule_relation();
   isl::set Prefix = isl::map::from_union_map(UnMapOldIndVar).range();
-  isl_size Dims = Prefix.tuple_dim().release();
+  unsigned Dims = unsignedFromIslSize(Prefix.tuple_dim());
+  assert(Dims >= 1);
   Prefix = Prefix.project_out(isl::dim::set, Dims - 1, 1);
   Prefix = getPartialTilePrefixes(Prefix, MicroKernelParams.Nr);
   Prefix = getPartialTilePrefixes(Prefix, MicroKernelParams.Mr);
@@ -940,8 +939,8 @@ getBandNodeWithOriginDimOrder(isl::schedule_node Node) {
   auto Domain = Node.get_universe_domain();
   assert(isl_union_set_n_set(Domain.get()) == 1);
   if (Node.get_schedule_depth().release() != 0 ||
-      (isl::set(Domain).tuple_dim().release() !=
-       isl_schedule_node_band_n_member(Node.get())))
+      (unsignedFromIslSize(isl::set(Domain).tuple_dim()) !=
+       unsignedFromIslSize(Node.as<isl::schedule_node_band>().n_member())))
     return Node;
   Node = isl::manage(isl_schedule_node_delete(Node.copy()));
   auto PartialSchedulePwAff = Domain.identity_union_pw_multi_aff();

@@ -10,12 +10,8 @@
 #include "index/Symbol.h"
 #include "index/SymbolLocation.h"
 #include "index/SymbolOrigin.h"
-#include "support/Logger.h"
 #include "support/Trace.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
-#include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <iterator>
 
@@ -130,8 +126,7 @@ bool MergedIndex::refs(const RefsRequest &Req,
                        llvm::function_ref<void(const Ref &)> Callback) const {
   trace::Span Tracer("MergedIndex refs");
   bool More = false;
-  uint32_t Remaining =
-      Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
+  uint32_t Remaining = Req.Limit.value_or(std::numeric_limits<uint32_t>::max());
   // We don't want duplicated refs from the static/dynamic indexes,
   // and we can't reliably deduplicate them because offsets may differ slightly.
   // We consider the dynamic index authoritative and report all its refs,
@@ -171,8 +166,7 @@ MergedIndex::indexedFiles() const {
 void MergedIndex::relations(
     const RelationsRequest &Req,
     llvm::function_ref<void(const SymbolID &, const Symbol &)> Callback) const {
-  uint32_t Remaining =
-      Req.Limit.getValueOr(std::numeric_limits<uint32_t>::max());
+  uint32_t Remaining = Req.Limit.value_or(std::numeric_limits<uint32_t>::max());
   // Return results from both indexes but avoid duplicates.
   // We might return stale relations from the static index;
   // we don't currently have a good way of identifying them.
@@ -202,10 +196,9 @@ static bool prefer(const SymbolLocation &L, const SymbolLocation &R) {
     return true;
   auto HasCodeGenSuffix = [](const SymbolLocation &Loc) {
     constexpr static const char *CodegenSuffixes[] = {".proto"};
-    return std::any_of(std::begin(CodegenSuffixes), std::end(CodegenSuffixes),
-                       [&](llvm::StringRef Suffix) {
-                         return llvm::StringRef(Loc.FileURI).endswith(Suffix);
-                       });
+    return llvm::any_of(CodegenSuffixes, [&](llvm::StringRef Suffix) {
+      return llvm::StringRef(Loc.FileURI).endswith(Suffix);
+    });
   };
   return HasCodeGenSuffix(L) && !HasCodeGenSuffix(R);
 }

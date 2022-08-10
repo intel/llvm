@@ -9,19 +9,40 @@
 #ifndef LLDB_TARGET_STATISTICS_H
 #define LLDB_TARGET_STATISTICS_H
 
-#include <chrono>
-#include <string>
-#include <vector>
-
+#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/lldb-forward.h"
 #include "llvm/Support/JSON.h"
+#include <atomic>
+#include <chrono>
+#include <ratio>
+#include <string>
+#include <vector>
 
 namespace lldb_private {
 
 using StatsClock = std::chrono::high_resolution_clock;
-using StatsDuration = std::chrono::duration<double>;
 using StatsTimepoint = std::chrono::time_point<StatsClock>;
+
+class StatsDuration {
+public:
+  using Duration = std::chrono::duration<double>;
+
+  Duration get() const {
+    return Duration(InternalDuration(value.load(std::memory_order_relaxed)));
+  }
+  operator Duration() const { return get(); }
+
+  StatsDuration &operator+=(Duration dur) {
+    value.fetch_add(std::chrono::duration_cast<InternalDuration>(dur).count(),
+                    std::memory_order_relaxed);
+    return *this;
+  }
+
+private:
+  using InternalDuration = std::chrono::duration<uint64_t, std::micro>;
+  std::atomic<uint64_t> value{0};
+};
 
 /// A class that measures elapsed time in an exception safe way.
 ///
@@ -54,7 +75,7 @@ public:
     m_start_time = StatsClock::now();
   }
   ~ElapsedTime() {
-    StatsDuration elapsed = StatsClock::now() - m_start_time;
+    StatsClock::duration elapsed = StatsClock::now() - m_start_time;
     m_elapsed_time += elapsed;
   }
 };
@@ -72,10 +93,42 @@ struct StatsSuccessFail {
   uint32_t failures = 0;
 };
 
+/// A class that represents statistics for a since lldb_private::Module.
+struct ModuleStats {
+  llvm::json::Value ToJSON() const;
+  intptr_t identifier;
+  std::string path;
+  std::string uuid;
+  std::string triple;
+  // Path separate debug info file, or empty if none.
+  std::string symfile_path;
+  // If the debug info is contained in multiple files where each one is
+  // represented as a separate lldb_private::Module, then these are the
+  // identifiers of these modules in the global module list. This allows us to
+  // track down all of the stats that contribute to this module.
+  std::vector<intptr_t> symfile_modules;
+  double symtab_parse_time = 0.0;
+  double symtab_index_time = 0.0;
+  double debug_parse_time = 0.0;
+  double debug_index_time = 0.0;
+  uint64_t debug_info_size = 0;
+  bool symtab_loaded_from_cache = false;
+  bool symtab_saved_to_cache = false;
+  bool debug_info_index_loaded_from_cache = false;
+  bool debug_info_index_saved_to_cache = false;
+  bool debug_info_enabled = true;
+  bool symtab_stripped = false;
+};
+
+struct ConstStringStats {
+  llvm::json::Value ToJSON() const;
+  ConstString::MemoryStats stats = ConstString::GetMemoryStats();
+};
+
 /// A class that represents statistics for a since lldb_private::Target.
 class TargetStats {
 public:
-  llvm::json::Value ToJSON();
+  llvm::json::Value ToJSON(Target &target);
 
   void SetLaunchOrAttachTime();
   void SetFirstPrivateStopTime();
@@ -86,12 +139,14 @@ public:
   StatsSuccessFail &GetFrameVariableStats() { return m_frame_var; }
 
 protected:
-  StatsDuration m_create_time{0.0};
+  StatsDuration m_create_time;
   llvm::Optional<StatsTimepoint> m_launch_or_attach_time;
   llvm::Optional<StatsTimepoint> m_first_private_stop_time;
   llvm::Optional<StatsTimepoint> m_first_public_stop_time;
   StatsSuccessFail m_expr_eval{"expressionEvaluation"};
   StatsSuccessFail m_frame_var{"frameVariable"};
+  std::vector<intptr_t> m_module_identifiers;
+  void CollectStats(Target &target);
 };
 
 class DebuggerStats {
@@ -99,11 +154,19 @@ public:
   static void SetCollectingStats(bool enable) { g_collecting_stats = enable; }
   static bool GetCollectingStats() { return g_collecting_stats; }
 
-  /// Get metrics associated with all targets in a debugger in JSON format.
+  /// Get metrics associated with one or all targets in a debugger in JSON
+  /// format.
+  ///
+  /// \param debugger
+  ///   The debugger to get the target list from if \a target is NULL.
+  ///
+  /// \param target
+  ///   The single target to emit statistics for if non NULL, otherwise dump
+  ///   statistics only for the specified target.
   ///
   /// \return
   ///     Returns a JSON value that contains all target metrics.
-  static llvm::json::Value ReportStatistics(Debugger &debugger);
+  static llvm::json::Value ReportStatistics(Debugger &debugger, Target *target);
 
 protected:
   // Collecting stats can be set to true to collect stats that are expensive

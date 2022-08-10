@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===--------------------------- atomic -----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -518,27 +518,35 @@ template <class T>
 
 */
 
+#include <__assert> // all public C++ headers provide the assertion handler
 #include <__availability>
+#include <__chrono/duration.h>
 #include <__config>
-#include <__threading_support>
+#include <__thread/poll_with_backoff.h>
+#include <__thread/timed_backoff_policy.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
 #include <version>
 
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
+#ifndef _LIBCPP_HAS_NO_THREADS
+# include <__threading_support>
 #endif
 
-#ifdef _LIBCPP_HAS_NO_THREADS
-# error <atomic> is not supported on this single threaded system
+#ifndef _LIBCPP_REMOVE_TRANSITIVE_INCLUDES
+#  include <chrono>
 #endif
+
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#  pragma GCC system_header
+#endif
+
 #ifdef _LIBCPP_HAS_NO_ATOMIC_HEADER
 # error <atomic> is not implemented
 #endif
 #ifdef kill_dependency
-# error C++ standard library is incompatible with <stdatomic.h>
+# error <atomic> is incompatible with <stdatomic.h> before C++23. Please compile with -std=c++23.
 #endif
 
 #define _LIBCPP_CHECK_STORE_MEMORY_ORDER(__m) \
@@ -898,8 +906,8 @@ struct __cxx_atomic_base_impl {
 #else
     __cxx_atomic_base_impl() _NOEXCEPT : __a_value() {}
 #endif // _LIBCPP_CXX03_LANG
-  _LIBCPP_CONSTEXPR explicit __cxx_atomic_base_impl(_Tp value) _NOEXCEPT
-    : __a_value(value) {}
+  _LIBCPP_CONSTEXPR explicit __cxx_atomic_base_impl(_Tp __value) _NOEXCEPT
+    : __a_value(__value) {}
   _LIBCPP_DISABLE_EXTENSION_WARNING _Atomic(_Tp) __a_value;
 };
 
@@ -1440,21 +1448,31 @@ template <typename _Tp,
 #endif //_LIBCPP_ATOMIC_ONLY_USE_BUILTINS
 struct __cxx_atomic_impl : public _Base {
     static_assert(is_trivially_copyable<_Tp>::value,
-      "std::atomic<Tp> requires that 'Tp' be a trivially copyable type");
+      "std::atomic<T> requires that 'T' be a trivially copyable type");
 
-  _LIBCPP_INLINE_VISIBILITY __cxx_atomic_impl() _NOEXCEPT _LIBCPP_DEFAULT
-  _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR explicit __cxx_atomic_impl(_Tp value) _NOEXCEPT
-    : _Base(value) {}
+  _LIBCPP_INLINE_VISIBILITY __cxx_atomic_impl() _NOEXCEPT = default;
+  _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR explicit __cxx_atomic_impl(_Tp __value) _NOEXCEPT
+    : _Base(__value) {}
 };
 
-#ifdef __linux__
+#if defined(__linux__) || (defined(_AIX) && !defined(__64BIT__))
     using __cxx_contention_t = int32_t;
 #else
     using __cxx_contention_t = int64_t;
-#endif //__linux__
+#endif // __linux__ || (_AIX && !__64BIT__)
 
 using __cxx_atomic_contention_t = __cxx_atomic_impl<__cxx_contention_t>;
 
+#if defined(_LIBCPP_HAS_NO_THREADS)
+#   define _LIBCPP_HAS_NO_PLATFORM_WAIT
+#endif
+
+// TODO:
+// _LIBCPP_HAS_NO_PLATFORM_WAIT is currently a "dead" macro, in the sense that
+// it is not tied anywhere into the build system or even documented. We should
+// clean it up because it is technically never defined except when threads are
+// disabled. We should clean it up in its own changeset in case we break "bad"
+// users.
 #ifndef _LIBCPP_HAS_NO_PLATFORM_WAIT
 
 _LIBCPP_AVAILABILITY_SYNC _LIBCPP_EXPORTED_FROM_ABI void __cxx_atomic_notify_one(void const volatile*);
@@ -1506,7 +1524,12 @@ _LIBCPP_INLINE_VISIBILITY void __cxx_atomic_notify_one(__cxx_atomic_impl<_Tp> co
 template <class _Atp, class _Fn>
 _LIBCPP_INLINE_VISIBILITY bool __cxx_atomic_wait(_Atp*, _Fn && __test_fn)
 {
-    return __libcpp_thread_poll_with_backoff(__test_fn, __libcpp_timed_backoff_policy());
+#if defined(_LIBCPP_HAS_NO_THREADS)
+    using _Policy = __spinning_backoff_policy;
+#else
+    using _Policy = __libcpp_timed_backoff_policy;
+#endif
+    return __libcpp_thread_poll_with_backoff(__test_fn, _Policy());
 }
 
 #endif // _LIBCPP_HAS_NO_PLATFORM_WAIT
@@ -1628,19 +1651,13 @@ struct __atomic_base  // false
     __atomic_base() noexcept(is_nothrow_default_constructible_v<_Tp>) : __a_(_Tp()) {}
 #else
     _LIBCPP_INLINE_VISIBILITY
-    __atomic_base() _NOEXCEPT _LIBCPP_DEFAULT
+    __atomic_base() _NOEXCEPT = default;
 #endif
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
     __atomic_base(_Tp __d) _NOEXCEPT : __a_(__d) {}
 
-#ifndef _LIBCPP_CXX03_LANG
     __atomic_base(const __atomic_base&) = delete;
-#else
-private:
-    _LIBCPP_INLINE_VISIBILITY
-    __atomic_base(const __atomic_base&);
-#endif
 };
 
 #if defined(__cpp_lib_atomic_is_always_lock_free)
@@ -1657,7 +1674,7 @@ struct __atomic_base<_Tp, true>
     typedef __atomic_base<_Tp, false> __base;
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR_AFTER_CXX17
-    __atomic_base() _NOEXCEPT _LIBCPP_DEFAULT
+    __atomic_base() _NOEXCEPT = default;
 
     _LIBCPP_INLINE_VISIBILITY
     _LIBCPP_CONSTEXPR __atomic_base(_Tp __d) _NOEXCEPT : __base(__d) {}
@@ -1746,7 +1763,7 @@ struct atomic
     atomic() = default;
 #else
     _LIBCPP_INLINE_VISIBILITY
-    atomic() _NOEXCEPT _LIBCPP_DEFAULT
+    atomic() _NOEXCEPT = default;
 #endif
 
     _LIBCPP_INLINE_VISIBILITY
@@ -1774,7 +1791,7 @@ struct atomic<_Tp*>
     typedef ptrdiff_t difference_type;
 
     _LIBCPP_INLINE_VISIBILITY
-    atomic() _NOEXCEPT _LIBCPP_DEFAULT
+    atomic() _NOEXCEPT = default;
 
     _LIBCPP_INLINE_VISIBILITY
     _LIBCPP_CONSTEXPR atomic(_Tp* __d) _NOEXCEPT : __base(__d) {}
@@ -2416,25 +2433,16 @@ typedef struct atomic_flag
     atomic_flag() _NOEXCEPT : __a_(false) {}
 #else
     _LIBCPP_INLINE_VISIBILITY
-    atomic_flag() _NOEXCEPT _LIBCPP_DEFAULT
+    atomic_flag() _NOEXCEPT = default;
 #endif
 
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_CONSTEXPR
     atomic_flag(bool __b) _NOEXCEPT : __a_(__b) {} // EXTENSION
 
-#ifndef _LIBCPP_CXX03_LANG
     atomic_flag(const atomic_flag&) = delete;
     atomic_flag& operator=(const atomic_flag&) = delete;
     atomic_flag& operator=(const atomic_flag&) volatile = delete;
-#else
-private:
-    _LIBCPP_INLINE_VISIBILITY
-    atomic_flag(const atomic_flag&);
-    _LIBCPP_INLINE_VISIBILITY
-    atomic_flag& operator=(const atomic_flag&);
-    _LIBCPP_INLINE_VISIBILITY
-    atomic_flag& operator=(const atomic_flag&) volatile;
-#endif
+
 } atomic_flag;
 
 
@@ -2675,13 +2683,22 @@ typedef conditional<_LIBCPP_CONTENTION_LOCK_FREE, __cxx_contention_t, char>::typ
 typedef conditional<_LIBCPP_CONTENTION_LOCK_FREE, __cxx_contention_t, unsigned char>::type      __libcpp_unsigned_lock_free;
 #else
     // No signed/unsigned lock-free types
+#define _LIBCPP_NO_LOCK_FREE_TYPES
 #endif
 
+#if !defined(_LIBCPP_NO_LOCK_FREE_TYPES)
 typedef atomic<__libcpp_signed_lock_free> atomic_signed_lock_free;
 typedef atomic<__libcpp_unsigned_lock_free> atomic_unsigned_lock_free;
+#endif
 
 #define ATOMIC_FLAG_INIT {false}
 #define ATOMIC_VAR_INIT(__v) {__v}
+
+#if _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_DISABLE_DEPRECATION_WARNINGS)
+# if defined(_LIBCPP_CLANG_VER) && _LIBCPP_CLANG_VER >= 1400
+#  pragma clang deprecated(ATOMIC_VAR_INIT)
+# endif
+#endif // _LIBCPP_STD_VER > 17 && !defined(_LIBCPP_DISABLE_DEPRECATION_WARNINGS)
 
 _LIBCPP_END_NAMESPACE_STD
 

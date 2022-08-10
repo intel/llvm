@@ -17,10 +17,11 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
+kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
+                         KernelBundleImplPtr KernelBundleImpl)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true) {
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
   // This constructor is only called in the interoperability kernel constructor.
   // Let the runtime caller handle native kernel retaining in other cases if
   // it's needed.
@@ -35,20 +36,21 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context)
 }
 
 kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-                         ProgramImplPtr ProgramImpl,
-                         bool IsCreatedFromSource)
+                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
+                         KernelBundleImplPtr KernelBundleImpl)
     : MKernel(Kernel), MContext(ContextImpl),
       MProgramImpl(std::move(ProgramImpl)),
-      MCreatedFromSource(IsCreatedFromSource) {
+      MCreatedFromSource(IsCreatedFromSource),
+      MKernelBundleImpl(std::move(KernelBundleImpl)) {
 
   RT::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
   getPlugin().call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
-        PI_INVALID_CONTEXT);
+        PI_ERROR_INVALID_CONTEXT);
 
   MIsInterop = MProgramImpl->isInterop();
 }
@@ -68,8 +70,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
   MIsInterop = MKernelBundleImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(ContextImplPtr Context,
-                         ProgramImplPtr ProgramImpl)
+kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
     : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
 
 kernel_impl::~kernel_impl() {

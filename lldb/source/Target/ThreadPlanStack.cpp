@@ -210,38 +210,37 @@ void ThreadPlanStack::DiscardAllPlans() {
   for (int i = stack_size - 1; i > 0; i--) {
     DiscardPlan();
   }
-  return;
 }
 
-void ThreadPlanStack::DiscardConsultingMasterPlans() {
+void ThreadPlanStack::DiscardConsultingControllingPlans() {
   std::lock_guard<std::recursive_mutex> guard(m_stack_mutex);
   while (true) {
-    int master_plan_idx;
+    int controlling_plan_idx;
     bool discard = true;
 
-    // Find the first master plan, see if it wants discarding, and if yes
+    // Find the first controlling plan, see if it wants discarding, and if yes
     // discard up to it.
-    for (master_plan_idx = m_plans.size() - 1; master_plan_idx >= 0;
-         master_plan_idx--) {
-      if (m_plans[master_plan_idx]->IsMasterPlan()) {
-        discard = m_plans[master_plan_idx]->OkayToDiscard();
+    for (controlling_plan_idx = m_plans.size() - 1; controlling_plan_idx >= 0;
+         controlling_plan_idx--) {
+      if (m_plans[controlling_plan_idx]->IsControllingPlan()) {
+        discard = m_plans[controlling_plan_idx]->OkayToDiscard();
         break;
       }
     }
 
-    // If the master plan doesn't want to get discarded, then we're done.
+    // If the controlling plan doesn't want to get discarded, then we're done.
     if (!discard)
       return;
 
     // First pop all the dependent plans:
-    for (int i = m_plans.size() - 1; i > master_plan_idx; i--) {
+    for (int i = m_plans.size() - 1; i > controlling_plan_idx; i--) {
       DiscardPlan();
     }
 
-    // Now discard the master plan itself.
+    // Now discard the controlling plan itself.
     // The bottom-most plan never gets discarded.  "OkayToDiscard" for it
     // means discard it's dependent plans, but not it...
-    if (master_plan_idx > 0) {
+    if (controlling_plan_idx > 0) {
       DiscardPlan();
     }
   }
@@ -401,6 +400,7 @@ void ThreadPlanStackMap::Update(ThreadList &current_threads,
                                 bool delete_missing,
                                 bool check_for_new) {
 
+  std::lock_guard<std::recursive_mutex> guard(m_stack_map_mutex);
   // Now find all the new threads and add them to the map:
   if (check_for_new) {
     for (auto thread : current_threads.Threads()) {
@@ -435,6 +435,7 @@ void ThreadPlanStackMap::DumpPlans(Stream &strm,
                                    lldb::DescriptionLevel desc_level,
                                    bool internal, bool condense_if_trivial,
                                    bool skip_unreported) {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_map_mutex);
   for (auto &elem : m_plans_list) {
     lldb::tid_t tid = elem.first;
     uint32_t index_id = 0;
@@ -471,6 +472,7 @@ bool ThreadPlanStackMap::DumpPlansForTID(Stream &strm, lldb::tid_t tid,
                                          bool internal,
                                          bool condense_if_trivial,
                                          bool skip_unreported) {
+  std::lock_guard<std::recursive_mutex> guard(m_stack_map_mutex);
   uint32_t index_id = 0;
   ThreadSP thread_sp = m_process.GetThreadList().FindThreadByID(tid);
 
@@ -510,6 +512,7 @@ bool ThreadPlanStackMap::DumpPlansForTID(Stream &strm, lldb::tid_t tid,
 
 bool ThreadPlanStackMap::PrunePlansForTID(lldb::tid_t tid) {
   // We only remove the plans for unreported TID's.
+  std::lock_guard<std::recursive_mutex> guard(m_stack_map_mutex);
   ThreadSP thread_sp = m_process.GetThreadList().FindThreadByID(tid);
   if (thread_sp)
     return false;

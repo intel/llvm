@@ -17,7 +17,6 @@
 #include "llvm/Support/TypeSize.h"
 
 namespace llvm {
-class SystemZTargetMachine;
 class SystemZSubtarget;
 
 class SystemZFrameLowering : public TargetFrameLowering {
@@ -29,7 +28,18 @@ public:
   create(const SystemZSubtarget &STI);
 
   // Override TargetFrameLowering.
-  bool isFPCloseToIncomingSP() const override { return false; }
+  bool allocateScavengingFrameIndexesNearIncomingSP(
+    const MachineFunction &MF) const override {
+    // SystemZ wants normal register scavenging slots, as close to the stack or
+    // frame pointer as possible.
+    // The default implementation assumes an x86-like layout, where the frame
+    // pointer is at the opposite end of the frame from the stack pointer.
+    // This meant that when frame pointer elimination was disabled,
+    // the slots ended up being as close as possible to the incoming
+    // stack pointer, which is the opposite of what we want on SystemZ.
+    return false;
+  }
+
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
   MachineBasicBlock::iterator
   eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
@@ -43,7 +53,6 @@ public:
   SystemZELFFrameLowering();
 
   // Override TargetFrameLowering.
-  bool isFPCloseToIncomingSP() const override { return false; }
   bool
   assignCalleeSavedSpillSlots(MachineFunction &MF,
                               const TargetRegisterInfo *TRI,
@@ -68,6 +77,9 @@ public:
   bool hasFP(const MachineFunction &MF) const override;
   StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
                                      Register &FrameReg) const override;
+  void
+  orderFrameObjects(const MachineFunction &MF,
+                    SmallVectorImpl<int> &ObjectsToAllocate) const override;
 
   // Return the byte offset from the incoming stack pointer of Reg's
   // ABI-defined save slot.  Return 0 if no slot is defined for Reg.  Adjust
@@ -105,11 +117,25 @@ public:
                                  ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
 
+  bool
+  restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MBBII,
+                              MutableArrayRef<CalleeSavedInfo> CSI,
+                              const TargetRegisterInfo *TRI) const override;
+
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
+  void inlineStackProbe(MachineFunction &MF,
+                        MachineBasicBlock &PrologMBB) const override;
+
   bool hasFP(const MachineFunction &MF) const override;
+
+  void processFunctionBeforeFrameFinalized(MachineFunction &MF,
+                                           RegScavenger *RS) const override;
+
+  void determineFrameLayout(MachineFunction &MF) const;
 };
 } // end namespace llvm
 

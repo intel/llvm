@@ -24,9 +24,6 @@
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/AtomicOrdering.h"
-#include "llvm/Support/Casting.h"
-#include <algorithm>
-#include <cassert>
 #include <cstdint>
 #include <utility>
 
@@ -175,10 +172,6 @@ public:
   /// its operands.
   bool isOnlyUserOfAnyOperand();
 
-  bool isIndirectTerminator() const {
-    return isIndirectTerminator(getOpcode());
-  }
-
   static const char* getOpcodeName(unsigned OpCode);
 
   static inline bool isTerminator(unsigned OpCode) {
@@ -239,17 +232,6 @@ public:
     case Instruction::CleanupRet:
     case Instruction::Invoke:
     case Instruction::Resume:
-      return true;
-    default:
-      return false;
-    }
-  }
-
-  /// Returns true if the OpCode is a terminator with indirect targets.
-  static inline bool isIndirectTerminator(unsigned OpCode) {
-    switch (OpCode) {
-    case Instruction::IndirectBr:
-    case Instruction::CallBr:
       return true;
     default:
       return false;
@@ -386,6 +368,10 @@ public:
 
   /// Determine whether the no signed wrap flag is set.
   bool hasNoSignedWrap() const;
+
+  /// Return true if this operator has flags which may cause this instruction
+  /// to evaluate to poison despite having non-poison inputs.
+  bool hasPoisonGeneratingFlags() const;
 
   /// Drops flags that may cause this instruction to evaluate to poison despite
   /// having non-poison inputs.

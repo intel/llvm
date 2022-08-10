@@ -8,26 +8,27 @@
 
 #pragma once
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/assert_happened.hpp>
-#include <CL/sycl/detail/cuda_definitions.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/properties/context_properties.hpp>
-#include <CL/sycl/properties/queue_properties.hpp>
-#include <CL/sycl/property_list.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/assert_happened.hpp>
+#include <sycl/detail/cuda_definitions.hpp>
+#include <sycl/device.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/properties/context_properties.hpp>
+#include <sycl/properties/queue_properties.hpp>
+#include <sycl/property_list.hpp>
+#include <sycl/stl.hpp>
 
 #include <utility>
 
@@ -61,10 +62,8 @@ public:
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
         Device->get_platform().ext_oneapi_get_default_context());
-
-    if (DefaultContext->hasDevice(Device))
+    if (isValidDevice(DefaultContext, Device))
       return DefaultContext;
-
     return detail::getSyclObjImpl(
         context{createSyclObjFromImpl<device>(Device), {}, {}});
   }
@@ -93,12 +92,35 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
-    if (!Context->hasDevice(Device))
-      throw cl::sycl::invalid_parameter_error(
+        MIsInorder(has_property<property::queue::in_order>()),
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
+            (MHostQueue ? true
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
+    if (!isValidDevice(Context, Device)) {
+      if (!Context->is_host() &&
+          Context->getPlugin().getBackend() == backend::opencl)
+        throw sycl::invalid_object_error(
+            "Queue cannot be constructed with the given context and device "
+            "since the device is not a member of the context (descendants of "
+            "devices from the context are not supported on OpenCL yet).",
+            PI_ERROR_INVALID_DEVICE);
+      throw sycl::invalid_object_error(
           "Queue cannot be constructed with the given context and device "
-          "as the context does not contain the given device.",
-          PI_INVALID_DEVICE);
+          "since the device is neither a member of the context nor a "
+          "descendant of its member.",
+          PI_ERROR_INVALID_DEVICE);
+    }
     if (!MHostQueue) {
       const QueueOrder QOrder =
           MPropList.has_property<property::queue::in_order>()
@@ -118,20 +140,34 @@ public:
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
+            (MHostQueue ? true
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
-    RT::PiDevice Device{};
+    RT::PiDevice DevicePI{};
     const detail::plugin &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin.call<PiApiKind::piQueueGetInfo>(MQueues[0], PI_QUEUE_INFO_DEVICE,
-                                           sizeof(Device), &Device, nullptr);
-    MDevice =
-        DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
-
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
+    Plugin.call<PiApiKind::piQueueGetInfo>(
+        MQueues[0], PI_QUEUE_INFO_DEVICE, sizeof(DevicePI), &DevicePI, nullptr);
+    MDevice = MContext->findMatchingDeviceImpl(DevicePI);
+    if (MDevice == nullptr)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Device provided by native Queue not found in Context.");
   }
 
   ~queue_impl() {
@@ -146,7 +182,7 @@ public:
     if (MHostQueue) {
       throw invalid_object_error(
           "This instance of queue doesn't support OpenCL interoperability",
-          PI_INVALID_QUEUE);
+          PI_ERROR_INVALID_QUEUE);
     }
     getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
     return pi::cast<cl_command_queue>(MQueues[0]);
@@ -169,11 +205,13 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
+  /// \return true if this queue has discard_events support.
+  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
-  template <info::queue Param>
-  typename info::param_traits<info::queue, Param>::return_type get_info() const;
+  template <typename Param> typename Param::return_type get_info() const;
 
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
@@ -274,7 +312,8 @@ public:
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
-    if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
+    if (MPropList.has_property<
+            ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
     RT::PiQueue Queue{};
@@ -288,8 +327,8 @@ public:
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
-    // PI_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
-    if (MSupportOOO && Error == PI_INVALID_QUEUE_PROPERTIES) {
+    // PI_ERROR_INVALID_QUEUE_PROPERTIES and will try to create in-order queue.
+    if (MSupportOOO && Error == PI_ERROR_INVALID_QUEUE_PROPERTIES) {
       MSupportOOO = false;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
@@ -399,16 +438,7 @@ public:
   }
 
   ThreadPool &getThreadPool() {
-    if (!MHostTaskThreadPool)
-      initHostTaskAndEventCallbackThreadPool();
-
-    return *MHostTaskThreadPool;
-  }
-
-  void stopThreadPool() {
-    if (MHostTaskThreadPool) {
-      MHostTaskThreadPool->finishAndWait();
-    }
+    return GlobalHandler::instance().getHostTaskThreadPool();
   }
 
   /// Gets the native handle of the SYCL queue.
@@ -420,13 +450,28 @@ public:
     return MAssertHappenedBuffer;
   }
 
-private:
-  void finalizeHandler(handler &Handler, bool NeedSeparateDependencyMgmt,
+protected:
+  // template is needed for proper unit testing
+  template <typename HandlerType = handler>
+  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
+
+      auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
+        return (Type == CG::CGTYPE::CodeplayHostTask ||
+                Type == CG::CGTYPE::CodeplayInteropTask);
+      };
+
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
+
+      if (MLastCGType == CG::CGTYPE::None)
+        MLastCGType = Type;
+      // Also handles case when sync model changes. E.g. Last is host, new is
+      // kernel.
+      bool NeedSeparateDependencyMgmt =
+          IsExpDepManaged(Type) || IsExpDepManaged(MLastCGType);
 
       if (NeedSeparateDependencyMgmt)
         Handler.depends_on(MLastEvent);
@@ -434,8 +479,31 @@ private:
       EventRet = Handler.finalize();
 
       MLastEvent = EventRet;
+      MLastCGType = Type;
     } else
       EventRet = Handler.finalize();
+  }
+
+private:
+  /// Helper function for checking whether a device is either a member of a
+  /// context or a descendnant of its member.
+  /// \return True iff the device or its parent is a member of the context.
+  static bool isValidDevice(const ContextImplPtr &Context,
+                            DeviceImplPtr Device) {
+    // OpenCL does not support creating a queue with a descendant of a device
+    // from the given context yet.
+    // TODO remove once this limitation is lifted
+    if (!Context->is_host() &&
+        Context->getPlugin().getBackend() == backend::opencl)
+      return Context->hasDevice(Device);
+
+    while (!Context->hasDevice(Device)) {
+      if (Device->isRootDevice())
+        return false;
+      Device = detail::getSyclObjImpl(
+          Device->get_info<info::device::parent_device>());
+    }
+    return true;
   }
 
   /// Performs command group submission to the queue.
@@ -462,10 +530,6 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    bool NeedSeparateDependencyMgmt =
-        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask);
-
     event Event;
 
     if (PostProcess) {
@@ -478,11 +542,11 @@ private:
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MOSModuleHandle, Handler.MKernelName);
 
-      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
+      finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
+      finalizeHandler(Handler, Type, Event);
 
     addEvent(Event);
     return Event;
@@ -496,8 +560,6 @@ private:
   // Uses events generated by the Prolog and emits wait done event
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
-
-  void initHostTaskAndEventCallbackThreadPool();
 
   /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()
@@ -537,10 +599,6 @@ private:
   // Assume OOO support by default.
   bool MSupportOOO = true;
 
-  // Thread pool for host task and event callbacks execution.
-  // The thread pool is instantiated upon the very first call to getThreadPool()
-  std::unique_ptr<ThreadPool> MHostTaskThreadPool;
-
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
@@ -548,8 +606,25 @@ private:
   // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
   std::mutex MLastEventMtx;
+  // Used for in-order queues in pair with MLastEvent
+  // Host tasks are explicitly synchronized in RT, pi tasks - implicitly by
+  // backend. Using type to setup explicit sync between host and pi tasks.
+  CG::CGTYPE MLastCGType = CG::CGTYPE::None;
 
   const bool MIsInorder;
+
+public:
+  // Queue constructed with the discard_events property
+  const bool MDiscardEvents;
+  const bool MIsProfilingEnabled;
+
+private:
+  // This flag says if we can discard events based on a queue "setup" which will
+  // be common for all operations submitted to the queue. This is a must
+  // condition for discarding, but even if it's true, in some cases, we won't be
+  // able to discard events, because the final decision is made right before the
+  // operation itself.
+  const bool MHasDiscardEventsSupport;
 };
 
 } // namespace detail

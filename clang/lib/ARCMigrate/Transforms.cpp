@@ -25,7 +25,7 @@ using namespace trans;
 ASTTraverser::~ASTTraverser() { }
 
 bool MigrationPass::CFBridgingFunctionsDefined() {
-  if (!EnableCFBridgeFns.hasValue())
+  if (!EnableCFBridgeFns)
     EnableCFBridgeFns = SemaRef.isKnownName("CFBridgingRetain") &&
                         SemaRef.isKnownName("CFBridgingRelease");
   return *EnableCFBridgeFns;
@@ -417,7 +417,7 @@ bool MigrationContext::rewritePropertyAttribute(StringRef fromAttr,
   if (tok.is(tok::r_paren))
     return false;
 
-  while (1) {
+  while (true) {
     if (tok.isNot(tok::raw_identifier)) return false;
     if (tok.getRawIdentifier() == fromAttr) {
       if (!toAttr.empty()) {

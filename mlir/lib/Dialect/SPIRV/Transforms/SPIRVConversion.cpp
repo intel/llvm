@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -139,13 +140,16 @@ Type SPIRVTypeConverter::getIndexType() const {
   MAP_FN(spirv::StorageClass::CrossWorkgroup, 11)                              \
   MAP_FN(spirv::StorageClass::AtomicCounter, 12)                               \
   MAP_FN(spirv::StorageClass::Image, 13)                                       \
-  MAP_FN(spirv::StorageClass::CallableDataNV, 14)                              \
-  MAP_FN(spirv::StorageClass::IncomingCallableDataNV, 15)                      \
-  MAP_FN(spirv::StorageClass::RayPayloadNV, 16)                                \
-  MAP_FN(spirv::StorageClass::HitAttributeNV, 17)                              \
-  MAP_FN(spirv::StorageClass::IncomingRayPayloadNV, 18)                        \
-  MAP_FN(spirv::StorageClass::ShaderRecordBufferNV, 19)                        \
-  MAP_FN(spirv::StorageClass::PhysicalStorageBuffer, 20)
+  MAP_FN(spirv::StorageClass::CallableDataKHR, 14)                             \
+  MAP_FN(spirv::StorageClass::IncomingCallableDataKHR, 15)                     \
+  MAP_FN(spirv::StorageClass::RayPayloadKHR, 16)                               \
+  MAP_FN(spirv::StorageClass::HitAttributeKHR, 17)                             \
+  MAP_FN(spirv::StorageClass::IncomingRayPayloadKHR, 18)                       \
+  MAP_FN(spirv::StorageClass::ShaderRecordBufferKHR, 19)                       \
+  MAP_FN(spirv::StorageClass::PhysicalStorageBuffer, 20)                       \
+  MAP_FN(spirv::StorageClass::CodeSectionINTEL, 21)                            \
+  MAP_FN(spirv::StorageClass::DeviceOnlyINTEL, 22)                             \
+  MAP_FN(spirv::StorageClass::HostOnlyINTEL, 23)
 
 unsigned
 SPIRVTypeConverter::getMemorySpaceForStorageClass(spirv::StorageClass storage) {
@@ -203,7 +207,7 @@ getTypeNumBytes(const SPIRVTypeConverter::Options &options, Type type) {
     auto elementSize = getTypeNumBytes(options, vecType.getElementType());
     if (!elementSize)
       return llvm::None;
-    return vecType.getNumElements() * elementSize.getValue();
+    return vecType.getNumElements() * *elementSize;
   }
 
   if (auto memRefType = type.dyn_cast<MemRefType>()) {
@@ -232,10 +236,10 @@ getTypeNumBytes(const SPIRVTypeConverter::Options &options, Type type) {
       return llvm::None;
 
     int64_t memrefSize = -1;
-    for (auto shape : enumerate(dims))
+    for (const auto &shape : enumerate(dims))
       memrefSize = std::max(memrefSize, shape.value() * strides[shape.index()]);
 
-    return (offset + memrefSize) * elementSize.getValue();
+    return (offset + memrefSize) * *elementSize;
   }
 
   if (auto tensorType = type.dyn_cast<TensorType>()) {
@@ -246,7 +250,7 @@ getTypeNumBytes(const SPIRVTypeConverter::Options &options, Type type) {
     if (!elementSize)
       return llvm::None;
 
-    int64_t size = elementSize.getValue();
+    int64_t size = *elementSize;
     for (auto shape : tensorType.getShape())
       size *= shape;
 
@@ -366,7 +370,7 @@ static Type convertTensorType(const spirv::TargetEnv &targetEnv,
     return nullptr;
   }
 
-  return spirv::ArrayType::get(arrayElemType, arrayElemCount, *arrayElemSize);
+  return spirv::ArrayType::get(arrayElemType, arrayElemCount);
 }
 
 static Type convertBoolMemrefType(const spirv::TargetEnv &targetEnv,
@@ -403,15 +407,15 @@ static Type convertBoolMemrefType(const spirv::TargetEnv &targetEnv,
   }
 
   if (!type.hasStaticShape()) {
-    auto arrayType =
-        spirv::RuntimeArrayType::get(arrayElemType, *arrayElemSize);
+    int64_t stride = needsExplicitLayout(*storageClass) ? *arrayElemSize : 0;
+    auto arrayType = spirv::RuntimeArrayType::get(arrayElemType, stride);
     return wrapInStructAndGetPointer(arrayType, *storageClass);
   }
 
   int64_t memrefSize = (type.getNumElements() * numBoolBits + 7) / 8;
-  auto arrayElemCount = (memrefSize + *arrayElemSize - 1) / *arrayElemSize;
-  auto arrayType =
-      spirv::ArrayType::get(arrayElemType, arrayElemCount, *arrayElemSize);
+  auto arrayElemCount = llvm::divideCeil(memrefSize, *arrayElemSize);
+  int64_t stride = needsExplicitLayout(*storageClass) ? *arrayElemSize : 0;
+  auto arrayType = spirv::ArrayType::get(arrayElemType, arrayElemCount, stride);
 
   return wrapInStructAndGetPointer(arrayType, *storageClass);
 }
@@ -451,13 +455,6 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
   if (!arrayElemType)
     return nullptr;
 
-  Optional<int64_t> elementSize = getTypeNumBytes(options, elementType);
-  if (!elementSize) {
-    LLVM_DEBUG(llvm::dbgs()
-               << type << " illegal: cannot deduce element size\n");
-    return nullptr;
-  }
-
   Optional<int64_t> arrayElemSize = getTypeNumBytes(options, arrayElemType);
   if (!arrayElemSize) {
     LLVM_DEBUG(llvm::dbgs()
@@ -466,8 +463,8 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
   }
 
   if (!type.hasStaticShape()) {
-    auto arrayType =
-        spirv::RuntimeArrayType::get(arrayElemType, *arrayElemSize);
+    int64_t stride = needsExplicitLayout(*storageClass) ? *arrayElemSize : 0;
+    auto arrayType = spirv::RuntimeArrayType::get(arrayElemType, stride);
     return wrapInStructAndGetPointer(arrayType, *storageClass);
   }
 
@@ -478,11 +475,9 @@ static Type convertMemrefType(const spirv::TargetEnv &targetEnv,
     return nullptr;
   }
 
-  auto arrayElemCount = *memrefSize / *elementSize;
-
-
-  auto arrayType =
-      spirv::ArrayType::get(arrayElemType, arrayElemCount, *arrayElemSize);
+  auto arrayElemCount = llvm::divideCeil(*memrefSize, *arrayElemSize);
+  int64_t stride = needsExplicitLayout(*storageClass) ? *arrayElemSize : 0;
+  auto arrayType = spirv::ArrayType::get(arrayElemType, arrayElemCount, stride);
 
   return wrapInStructAndGetPointer(arrayType, *storageClass);
 }
@@ -530,31 +525,31 @@ SPIRVTypeConverter::SPIRVTypeConverter(spirv::TargetEnvAttr targetAttr,
 }
 
 //===----------------------------------------------------------------------===//
-// FuncOp Conversion Patterns
+// func::FuncOp Conversion Patterns
 //===----------------------------------------------------------------------===//
 
 namespace {
 /// A pattern for rewriting function signature to convert arguments of functions
 /// to be of valid SPIR-V types.
-class FuncOpConversion final : public OpConversionPattern<FuncOp> {
+class FuncOpConversion final : public OpConversionPattern<func::FuncOp> {
 public:
-  using OpConversionPattern<FuncOp>::OpConversionPattern;
+  using OpConversionPattern<func::FuncOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(FuncOp funcOp, OpAdaptor adaptor,
+  matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 } // namespace
 
 LogicalResult
-FuncOpConversion::matchAndRewrite(FuncOp funcOp, OpAdaptor adaptor,
+FuncOpConversion::matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const {
-  auto fnType = funcOp.getType();
+  auto fnType = funcOp.getFunctionType();
   if (fnType.getNumResults() > 1)
     return failure();
 
   TypeConverter::SignatureConversion signatureConverter(fnType.getNumInputs());
-  for (auto argType : enumerate(fnType.getInputs())) {
+  for (const auto &argType : enumerate(fnType.getInputs())) {
     auto convertedType = getTypeConverter()->convertType(argType.value());
     if (!convertedType)
       return failure();
@@ -577,9 +572,9 @@ FuncOpConversion::matchAndRewrite(FuncOp funcOp, OpAdaptor adaptor,
 
   // Copy over all attributes other than the function name and type.
   for (const auto &namedAttr : funcOp->getAttrs()) {
-    if (namedAttr.first != function_like_impl::getTypeAttrName() &&
-        namedAttr.first != SymbolTable::getSymbolAttrName())
-      newFuncOp->setAttr(namedAttr.first, namedAttr.second);
+    if (namedAttr.getName() != FunctionOpInterface::getTypeAttrName() &&
+        namedAttr.getName() != SymbolTable::getSymbolAttrName())
+      newFuncOp->setAttr(namedAttr.getName(), namedAttr.getValue());
   }
 
   rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
@@ -609,7 +604,7 @@ static spirv::GlobalVariableOp getBuiltinVariable(Block &body,
             spirv::SPIRVDialect::getAttributeName(
                 spirv::Decoration::BuiltIn))) {
       auto varBuiltIn = spirv::symbolizeBuiltIn(builtinAttr.getValue());
-      if (varBuiltIn && varBuiltIn.getValue() == builtin) {
+      if (varBuiltIn && *varBuiltIn == builtin) {
         return varOp;
       }
     }
@@ -775,7 +770,7 @@ Value mlir::spirv::linearizeIndex(ValueRange indices, ArrayRef<int64_t> strides,
 
   Value linearizedIndex = builder.create<spirv::ConstantOp>(
       loc, integerType, IntegerAttr::get(integerType, offset));
-  for (auto index : llvm::enumerate(indices)) {
+  for (const auto &index : llvm::enumerate(indices)) {
     Value strideVal = builder.create<spirv::ConstantOp>(
         loc, integerType,
         IntegerAttr::get(integerType, strides[index.index()]));
@@ -840,22 +835,24 @@ bool SPIRVConversionTarget::isLegalOp(Operation *op) {
   // Make sure this op is available at the given version. Ops not implementing
   // QueryMinVersionInterface/QueryMaxVersionInterface are available to all
   // SPIR-V versions.
-  if (auto minVersion = dyn_cast<spirv::QueryMinVersionInterface>(op))
-    if (minVersion.getMinVersion() > this->targetEnv.getVersion()) {
+  if (auto minVersionIfx = dyn_cast<spirv::QueryMinVersionInterface>(op)) {
+    Optional<spirv::Version> minVersion = minVersionIfx.getMinVersion();
+    if (minVersion && *minVersion > this->targetEnv.getVersion()) {
       LLVM_DEBUG(llvm::dbgs()
                  << op->getName() << " illegal: requiring min version "
-                 << spirv::stringifyVersion(minVersion.getMinVersion())
-                 << "\n");
+                 << spirv::stringifyVersion(*minVersion) << "\n");
       return false;
     }
-  if (auto maxVersion = dyn_cast<spirv::QueryMaxVersionInterface>(op))
-    if (maxVersion.getMaxVersion() < this->targetEnv.getVersion()) {
+  }
+  if (auto maxVersionIfx = dyn_cast<spirv::QueryMaxVersionInterface>(op)) {
+    Optional<spirv::Version> maxVersion = maxVersionIfx.getMaxVersion();
+    if (maxVersion && *maxVersion < this->targetEnv.getVersion()) {
       LLVM_DEBUG(llvm::dbgs()
                  << op->getName() << " illegal: requiring max version "
-                 << spirv::stringifyVersion(maxVersion.getMaxVersion())
-                 << "\n");
+                 << spirv::stringifyVersion(*maxVersion) << "\n");
       return false;
     }
+  }
 
   // Make sure this op's required extensions are allowed to use. Ops not
   // implementing QueryExtensionInterface do not require extensions to be
@@ -876,6 +873,11 @@ bool SPIRVConversionTarget::isLegalOp(Operation *op) {
   SmallVector<Type, 4> valueTypes;
   valueTypes.append(op->operand_type_begin(), op->operand_type_end());
   valueTypes.append(op->result_type_begin(), op->result_type_end());
+
+  // Ensure that all types have been converted to SPIRV types.
+  if (llvm::any_of(valueTypes,
+                   [](Type t) { return !t.isa<spirv::SPIRVType>(); }))
+    return false;
 
   // Special treatment for global variables, whose type requirements are
   // conveyed by type attributes.

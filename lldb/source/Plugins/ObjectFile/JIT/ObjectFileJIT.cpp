@@ -54,7 +54,7 @@ void ObjectFileJIT::Terminate() {
 }
 
 ObjectFile *ObjectFileJIT::CreateInstance(const lldb::ModuleSP &module_sp,
-                                          DataBufferSP &data_sp,
+                                          DataBufferSP data_sp,
                                           lldb::offset_t data_offset,
                                           const FileSpec *file,
                                           lldb::offset_t file_offset,
@@ -65,7 +65,7 @@ ObjectFile *ObjectFileJIT::CreateInstance(const lldb::ModuleSP &module_sp,
 }
 
 ObjectFile *ObjectFileJIT::CreateMemoryInstance(const lldb::ModuleSP &module_sp,
-                                                DataBufferSP &data_sp,
+                                                WritableDataBufferSP data_sp,
                                                 const ProcessSP &process_sp,
                                                 lldb::addr_t header_addr) {
   // JIT'ed object file is backed by the ObjectFileJITDelegate, never read from
@@ -106,22 +106,10 @@ uint32_t ObjectFileJIT::GetAddressByteSize() const {
   return m_data.GetAddressByteSize();
 }
 
-Symtab *ObjectFileJIT::GetSymtab() {
-  ModuleSP module_sp(GetModule());
-  if (module_sp) {
-    std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
-    if (m_symtab_up == nullptr) {
-      m_symtab_up = std::make_unique<Symtab>(this);
-      std::lock_guard<std::recursive_mutex> symtab_guard(
-          m_symtab_up->GetMutex());
-      ObjectFileJITDelegateSP delegate_sp(m_delegate_wp.lock());
-      if (delegate_sp)
-        delegate_sp->PopulateSymtab(this, *m_symtab_up);
-      // TODO: get symbols from delegate
-      m_symtab_up->Finalize();
-    }
-  }
-  return m_symtab_up.get();
+void ObjectFileJIT::ParseSymtab(Symtab &symtab) {
+  ObjectFileJITDelegateSP delegate_sp(m_delegate_wp.lock());
+  if (delegate_sp)
+    delegate_sp->PopulateSymtab(this, symtab);
 }
 
 bool ObjectFileJIT::IsStripped() {

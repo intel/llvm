@@ -1,4 +1,4 @@
-//===------------------------------- unwind.h -----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -160,7 +160,7 @@ extern const void *_Unwind_Find_FDE(const void *pc, struct dwarf_eh_bases *);
 extern void *_Unwind_FindEnclosingFunction(void *pc);
 
 // Mac OS X does not support text-rel and data-rel addressing so these functions
-// are unimplemented
+// are unimplemented.
 extern uintptr_t _Unwind_GetDataRelBase(struct _Unwind_Context *context)
     LIBUNWIND_UNAVAIL;
 extern uintptr_t _Unwind_GetTextRelBase(struct _Unwind_Context *context)

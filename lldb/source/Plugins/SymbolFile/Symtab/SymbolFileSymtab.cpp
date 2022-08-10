@@ -38,12 +38,7 @@ void SymbolFileSymtab::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString SymbolFileSymtab::GetPluginNameStatic() {
-  static ConstString g_name("symtab");
-  return g_name;
-}
-
-const char *SymbolFileSymtab::GetPluginDescriptionStatic() {
+llvm::StringRef SymbolFileSymtab::GetPluginDescriptionStatic() {
   return "Reads debug symbols from an object file's symbol table.";
 }
 
@@ -56,8 +51,8 @@ void SymbolFileSymtab::GetTypes(SymbolContextScope *sc_scope,
                                 lldb_private::TypeList &type_list) {}
 
 SymbolFileSymtab::SymbolFileSymtab(ObjectFileSP objfile_sp)
-    : SymbolFile(std::move(objfile_sp)), m_source_indexes(), m_func_indexes(),
-      m_code_indexes(), m_objc_class_name_to_index() {}
+    : SymbolFileCommon(std::move(objfile_sp)), m_source_indexes(),
+      m_func_indexes(), m_code_indexes(), m_objc_class_name_to_index() {}
 
 uint32_t SymbolFileSymtab::CalculateAbilities() {
   uint32_t abilities = 0;

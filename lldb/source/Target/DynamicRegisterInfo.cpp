@@ -11,6 +11,7 @@
 #include "lldb/DataFormatters/FormatManager.h"
 #include "lldb/Interpreter/OptionArgParser.h"
 #include "lldb/Utility/ArchSpec.h"
+#include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/StringExtractor.h"
@@ -192,7 +193,7 @@ llvm::Expected<uint32_t> DynamicRegisterInfo::ByteOffsetFromRegInfoDict(
 size_t
 DynamicRegisterInfo::SetRegisterInfo(const StructuredData::Dictionary &dict,
                                      const ArchSpec &arch) {
-  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT);
+  Log *log = GetLog(LLDBLog::Object);
   assert(!m_finalized);
   StructuredData::Array *sets = nullptr;
   if (dict.GetValueForKeyAsArray("sets", sets)) {
@@ -422,35 +423,6 @@ size_t DynamicRegisterInfo::SetRegisterInfo(
   return m_regs.size();
 }
 
-void DynamicRegisterInfo::AddRegister(RegisterInfo reg_info,
-                                      ConstString &set_name) {
-  assert(!m_finalized);
-  const uint32_t reg_num = m_regs.size();
-  assert(reg_info.name);
-  uint32_t i;
-  if (reg_info.value_regs) {
-    for (i = 0; reg_info.value_regs[i] != LLDB_INVALID_REGNUM; ++i)
-      m_value_regs_map[reg_num].push_back(reg_info.value_regs[i]);
-
-    // invalidate until Finalize() is called
-    reg_info.value_regs = nullptr;
-  }
-  if (reg_info.invalidate_regs) {
-    for (i = 0; reg_info.invalidate_regs[i] != LLDB_INVALID_REGNUM; ++i)
-      m_invalidate_regs_map[reg_num].push_back(reg_info.invalidate_regs[i]);
-
-    // invalidate until Finalize() is called
-    reg_info.invalidate_regs = nullptr;
-  }
-
-  m_regs.push_back(reg_info);
-  uint32_t set = GetRegisterSetIndexByName(set_name, true);
-  assert(set < m_sets.size());
-  assert(set < m_set_reg_nums.size());
-  assert(set < m_set_names.size());
-  m_set_reg_nums[set].push_back(reg_num);
-}
-
 void DynamicRegisterInfo::Finalize(const ArchSpec &arch) {
   if (m_finalized)
     return;
@@ -511,7 +483,7 @@ void DynamicRegisterInfo::Finalize(const ArchSpec &arch) {
                                  end = m_invalidate_regs_map.end();
        pos != end; ++pos) {
     if (pos->second.size() > 1) {
-      llvm::sort(pos->second.begin(), pos->second.end());
+      llvm::sort(pos->second);
       reg_num_collection::iterator unique_end =
           std::unique(pos->second.begin(), pos->second.end());
       if (unique_end != pos->second.end())

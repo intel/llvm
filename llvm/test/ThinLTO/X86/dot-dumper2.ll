@@ -2,6 +2,7 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/dot-dumper2.ll -o %t2.bc
 ; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t3 \
+; RUN:  -opaque-pointers \
 ; RUN:  -r=%t1.bc,main,px \
 ; RUN:  -r=%t1.bc,A, \
 ; RUN:  -r=%t2.bc,A,p
@@ -15,7 +16,7 @@
 ; COMBINED-NEXT:    color = lightgrey;
 ; COMBINED-NEXT:    label =
 ; COMBINED-NEXT:    node [style=filled,fillcolor=lightblue];
-; COMBINED-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 2, ffl: 000000000)}"]; // function
+; COMBINED-NEXT:    M0_[[MAIN:[0-9]+]] [shape="record",label="main|extern (inst: 2, ffl: 0000000000)}"]; // function
 ; COMBINED-NEXT:    // Edges:
 ; COMBINED-NEXT:  }
 ; COMBINED-NEXT:  // Module:
@@ -38,6 +39,6 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ; Function Attrs: nounwind uwtable
 define i32 @main() local_unnamed_addr {
-  store i32 42, i32* @A, align 4
+  store i32 42, ptr @A, align 4
   ret i32 0
 }

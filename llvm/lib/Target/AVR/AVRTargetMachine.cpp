@@ -38,7 +38,7 @@ static StringRef getCPU(StringRef CPU) {
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  return RM.getValueOr(Reloc::Static);
+  return RM.value_or(Reloc::Static);
 }
 
 AVRTargetMachine::AVRTargetMachine(const Target &T, const Triple &TT,
@@ -70,7 +70,6 @@ public:
   bool addInstSelector() override;
   void addPreSched2() override;
   void addPreEmitPass() override;
-  void addPreRegAlloc() override;
 };
 } // namespace
 
@@ -93,7 +92,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAVRTarget() {
 
   auto &PR = *PassRegistry::getPassRegistry();
   initializeAVRExpandPseudoPass(PR);
-  initializeAVRRelaxMemPass(PR);
   initializeAVRShiftExpandPass(PR);
 }
 
@@ -118,13 +116,7 @@ bool AVRPassConfig::addInstSelector() {
   return false;
 }
 
-void AVRPassConfig::addPreRegAlloc() {
-  // Create the dynalloc SP save/restore pass to handle variable sized allocas.
-  addPass(createAVRDynAllocaSRPass());
-}
-
 void AVRPassConfig::addPreSched2() {
-  addPass(createAVRRelaxMemPass());
   addPass(createAVRExpandPseudoPass());
 }
 

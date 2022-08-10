@@ -39,7 +39,7 @@ namespace LLVM {
 
 namespace detail {
 class DebugTranslation;
-} // end namespace detail
+} // namespace detail
 
 class LLVMFuncOp;
 
@@ -191,7 +191,7 @@ public:
   /// Common CRTP base class for ModuleTranslation stack frames.
   class StackFrame {
   public:
-    virtual ~StackFrame() {}
+    virtual ~StackFrame() = default;
     TypeID getTypeID() const { return typeID; }
 
   protected:
@@ -351,22 +351,13 @@ SetVector<Block *> getTopologicallySortedBlocks(Region &region);
 /// report it to `loc` and return nullptr.
 llvm::Constant *getLLVMConstant(llvm::Type *llvmType, Attribute attr,
                                 Location loc,
-                                const ModuleTranslation &moduleTranslation,
-                                bool isTopLevel = true);
+                                const ModuleTranslation &moduleTranslation);
 
 /// Creates a call to an LLVM IR intrinsic function with the given arguments.
 llvm::Value *createIntrinsicCall(llvm::IRBuilderBase &builder,
                                  llvm::Intrinsic::ID intrinsic,
                                  ArrayRef<llvm::Value *> args = {},
                                  ArrayRef<llvm::Type *> tys = {});
-
-/// Creates a call to an LLVM IR intrinsic function with the given arguments
-/// for NVVM WMMA ops. Handles cases where the intrinsic name is overloaded
-/// using the types of arguments supplied. Selects the correct intrinsic
-/// by inspecting the argument types.
-llvm::Value *createNvvmIntrinsicCall(llvm::IRBuilderBase &builder,
-                                     llvm::Intrinsic::ID intrinsic,
-                                     ArrayRef<llvm::Value *> args = {});
 } // namespace detail
 
 } // namespace LLVM

@@ -1,4 +1,4 @@
-; RUN: llc -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck %s
+; RUN: llc -mtriple=x86_64 -filetype=obj < %s | llvm-dwarfdump -debug-info - | FileCheck %s
 ;
 ; CHECK: [[SYM:[a-z0-9]+]]:  DW_TAG_formal_parameter
 ; CHECK:                     DW_AT_name	("esym")
@@ -49,7 +49,7 @@ define void @semiempirical_corrections_mp_gcpcor_() local_unnamed_addr #1 !dbg !
 alloca_1:
   %"var$47" = alloca i64, align 8, !dbg !34
   call void @llvm.dbg.value(metadata i64 7523094288207667809, metadata !12, metadata !DIExpression()), !dbg !40
-  store i64 7523094288207667809, i64* %"var$47", align 8, !dbg !41, !alias.scope !42, !noalias !45
+  store i64 7523094288207667809, ptr %"var$47", align 8, !dbg !41, !alias.scope !42, !noalias !45
   ret void, !dbg !48
 }
 
@@ -69,7 +69,7 @@ attributes #3 = { nofree nosync nounwind readnone speculatable willreturn }
 !0 = !DIGlobalVariableExpression(var: !1, expr: !DIExpression())
 !1 = distinct !DIGlobalVariable(name: "elemnt", linkageName: "semiempirical_corrections_mp_esym_$ELEMNT", scope: !2, file: !3, line: 17, type: !16, isLocal: true, isDefinition: true)
 !2 = distinct !DISubprogram(name: "esym", linkageName: "semiempirical_corrections_mp_esym_", scope: !4, file: !3, line: 15, type: !5, scopeLine: 15, spFlags: DISPFlagDefinition, unit: !8, retainedNodes: !11)
-!3 = !DIFile(filename: "se6.f90", directory: "/iusers/cchen15/examples/tests/jr30349/gamess-dga-master/object")
+!3 = !DIFile(filename: "se6.f90", directory: "/iusers/cchen15/examples/tests/jr30349/gamess-dga-main/object")
 !4 = !DIModule(scope: null, name: "semiempirical_corrections", file: !3, line: 1)
 !5 = !DISubroutineType(types: !6)
 !6 = !{!7}

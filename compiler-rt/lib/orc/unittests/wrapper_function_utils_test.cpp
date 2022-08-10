@@ -127,3 +127,54 @@ TEST(WrapperFunctionUtilsTest, WrapperFunctionMethodCallAndHandleRet) {
       (void *)&addMethodWrapper, Result, ExecutorAddr::fromPtr(&AddObj), 2));
   EXPECT_EQ(Result, (int32_t)3);
 }
+
+static __orc_rt_CWrapperFunctionResult sumArrayWrapper(const char *ArgData,
+                                                       size_t ArgSize) {
+  return WrapperFunction<int8_t(SPSExecutorAddrRange)>::handle(
+             ArgData, ArgSize,
+             [](ExecutorAddrRange R) {
+               int8_t Sum = 0;
+               for (char C : R.toSpan<char>())
+                 Sum += C;
+               return Sum;
+             })
+      .release();
+}
+
+TEST(WrapperFunctionUtilsTest, SerializedWrapperFunctionCallTest) {
+  {
+    // Check wrapper function calls.
+    char A[] = {1, 2, 3, 4};
+
+    auto WFC =
+        cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+            ExecutorAddr::fromPtr(sumArrayWrapper),
+            ExecutorAddrRange(ExecutorAddr::fromPtr(A),
+                              ExecutorAddrDiff(sizeof(A)))));
+
+    WrapperFunctionResult WFR(WFC.run());
+    EXPECT_EQ(WFR.size(), 1U);
+    EXPECT_EQ(WFR.data()[0], 10);
+  }
+
+  {
+    // Check calls to void functions.
+    auto WFC =
+        cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+            ExecutorAddr::fromPtr(voidNoopWrapper), ExecutorAddrRange()));
+    auto Err = WFC.runWithSPSRet<void>();
+    EXPECT_FALSE(!!Err);
+  }
+
+  {
+    // Check calls with arguments and return values.
+    auto WFC =
+        cantFail(WrapperFunctionCall::Create<SPSArgList<int32_t, int32_t>>(
+            ExecutorAddr::fromPtr(addWrapper), 2, 4));
+
+    int32_t Result = 0;
+    auto Err = WFC.runWithSPSRet<int32_t>(Result);
+    EXPECT_FALSE(!!Err);
+    EXPECT_EQ(Result, 6);
+  }
+}

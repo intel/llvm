@@ -14,6 +14,8 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TensorEncoding.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/BitVector.h"
@@ -30,12 +32,6 @@ using namespace mlir::detail;
 
 #define GET_TYPEDEF_CLASSES
 #include "mlir/IR/BuiltinTypes.cpp.inc"
-
-//===----------------------------------------------------------------------===//
-/// Tablegen Interface Definitions
-//===----------------------------------------------------------------------===//
-
-#include "mlir/IR/BuiltinTypeInterfaces.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // BuiltinDialect
@@ -141,6 +137,10 @@ FloatType FloatType::scaleElementBitwidth(unsigned scale) {
   return FloatType();
 }
 
+unsigned FloatType::getFPMantissaWidth() {
+  return APFloat::semanticsPrecision(getFloatSemantics());
+}
+
 //===----------------------------------------------------------------------===//
 // FunctionType
 //===----------------------------------------------------------------------===//
@@ -157,19 +157,8 @@ ArrayRef<Type> FunctionType::getResults() const {
   return getImpl()->getResults();
 }
 
-/// Helper to call a callback once on each index in the range
-/// [0, `totalIndices`), *except* for the indices given in `indices`.
-/// `indices` is allowed to have duplicates and can be in any order.
-inline void iterateIndicesExcept(unsigned totalIndices,
-                                 ArrayRef<unsigned> indices,
-                                 function_ref<void(unsigned)> callback) {
-  llvm::BitVector skipIndices(totalIndices);
-  for (unsigned i : indices)
-    skipIndices.set(i);
-
-  for (unsigned i = 0; i < totalIndices; ++i)
-    if (!skipIndices.test(i))
-      callback(i);
+FunctionType FunctionType::clone(TypeRange inputs, TypeRange results) const {
+  return get(getContext(), inputs, results);
 }
 
 /// Returns a new function type with the specified arguments and results
@@ -177,65 +166,24 @@ inline void iterateIndicesExcept(unsigned totalIndices,
 FunctionType FunctionType::getWithArgsAndResults(
     ArrayRef<unsigned> argIndices, TypeRange argTypes,
     ArrayRef<unsigned> resultIndices, TypeRange resultTypes) {
-  assert(argIndices.size() == argTypes.size());
-  assert(resultIndices.size() == resultTypes.size());
-
-  ArrayRef<Type> newInputTypes = getInputs();
-  SmallVector<Type, 4> newInputTypesBuffer;
-  if (!argIndices.empty()) {
-    const auto *fromIt = newInputTypes.begin();
-    for (auto it : llvm::zip(argIndices, argTypes)) {
-      const auto *toIt = newInputTypes.begin() + std::get<0>(it);
-      newInputTypesBuffer.append(fromIt, toIt);
-      newInputTypesBuffer.push_back(std::get<1>(it));
-      fromIt = toIt;
-    }
-    newInputTypesBuffer.append(fromIt, newInputTypes.end());
-    newInputTypes = newInputTypesBuffer;
-  }
-
-  ArrayRef<Type> newResultTypes = getResults();
-  SmallVector<Type, 4> newResultTypesBuffer;
-  if (!resultIndices.empty()) {
-    const auto *fromIt = newResultTypes.begin();
-    for (auto it : llvm::zip(resultIndices, resultTypes)) {
-      const auto *toIt = newResultTypes.begin() + std::get<0>(it);
-      newResultTypesBuffer.append(fromIt, toIt);
-      newResultTypesBuffer.push_back(std::get<1>(it));
-      fromIt = toIt;
-    }
-    newResultTypesBuffer.append(fromIt, newResultTypes.end());
-    newResultTypes = newResultTypesBuffer;
-  }
-
-  return FunctionType::get(getContext(), newInputTypes, newResultTypes);
+  SmallVector<Type> argStorage, resultStorage;
+  TypeRange newArgTypes = function_interface_impl::insertTypesInto(
+      getInputs(), argIndices, argTypes, argStorage);
+  TypeRange newResultTypes = function_interface_impl::insertTypesInto(
+      getResults(), resultIndices, resultTypes, resultStorage);
+  return clone(newArgTypes, newResultTypes);
 }
 
 /// Returns a new function type without the specified arguments and results.
 FunctionType
-FunctionType::getWithoutArgsAndResults(ArrayRef<unsigned> argIndices,
-                                       ArrayRef<unsigned> resultIndices) {
-  ArrayRef<Type> newInputTypes = getInputs();
-  SmallVector<Type, 4> newInputTypesBuffer;
-  if (!argIndices.empty()) {
-    unsigned originalNumArgs = getNumInputs();
-    iterateIndicesExcept(originalNumArgs, argIndices, [&](unsigned i) {
-      newInputTypesBuffer.emplace_back(getInput(i));
-    });
-    newInputTypes = newInputTypesBuffer;
-  }
-
-  ArrayRef<Type> newResultTypes = getResults();
-  SmallVector<Type, 4> newResultTypesBuffer;
-  if (!resultIndices.empty()) {
-    unsigned originalNumResults = getNumResults();
-    iterateIndicesExcept(originalNumResults, resultIndices, [&](unsigned i) {
-      newResultTypesBuffer.emplace_back(getResult(i));
-    });
-    newResultTypes = newResultTypesBuffer;
-  }
-
-  return get(getContext(), newInputTypes, newResultTypes);
+FunctionType::getWithoutArgsAndResults(const BitVector &argIndices,
+                                       const BitVector &resultIndices) {
+  SmallVector<Type> argStorage, resultStorage;
+  TypeRange newArgTypes = function_interface_impl::filterTypesOut(
+      getInputs(), argIndices, argStorage);
+  TypeRange newResultTypes = function_interface_impl::filterTypesOut(
+      getResults(), resultIndices, resultStorage);
+  return clone(newArgTypes, newResultTypes);
 }
 
 void FunctionType::walkImmediateSubElements(
@@ -245,13 +193,20 @@ void FunctionType::walkImmediateSubElements(
     walkTypesFn(type);
 }
 
+Type FunctionType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                               ArrayRef<Type> replTypes) const {
+  unsigned numInputs = getNumInputs();
+  return get(getContext(), replTypes.take_front(numInputs),
+             replTypes.drop_front(numInputs));
+}
+
 //===----------------------------------------------------------------------===//
 // OpaqueType
 //===----------------------------------------------------------------------===//
 
 /// Verify the construction of an opaque type.
 LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
-                                 Identifier dialect, StringRef typeData) {
+                                 StringAttr dialect, StringRef typeData) {
   if (!Dialect::isValidNamespace(dialect.strref()))
     return emitError() << "invalid dialect namespace '" << dialect << "'";
 
@@ -271,179 +226,12 @@ LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 //===----------------------------------------------------------------------===//
-// ShapedType
-//===----------------------------------------------------------------------===//
-constexpr int64_t ShapedType::kDynamicSize;
-constexpr int64_t ShapedType::kDynamicStrideOrOffset;
-
-ShapedType ShapedType::clone(ArrayRef<int64_t> shape, Type elementType) {
-  if (auto other = dyn_cast<MemRefType>()) {
-    MemRefType::Builder b(other);
-    b.setShape(shape);
-    b.setElementType(elementType);
-    return b;
-  }
-
-  if (auto other = dyn_cast<UnrankedMemRefType>()) {
-    MemRefType::Builder b(shape, elementType);
-    b.setMemorySpace(other.getMemorySpace());
-    return b;
-  }
-
-  if (isa<TensorType>())
-    return RankedTensorType::get(shape, elementType);
-
-  if (isa<VectorType>())
-    return VectorType::get(shape, elementType);
-
-  llvm_unreachable("Unhandled ShapedType clone case");
-}
-
-ShapedType ShapedType::clone(ArrayRef<int64_t> shape) {
-  if (auto other = dyn_cast<MemRefType>()) {
-    MemRefType::Builder b(other);
-    b.setShape(shape);
-    return b;
-  }
-
-  if (auto other = dyn_cast<UnrankedMemRefType>()) {
-    MemRefType::Builder b(shape, other.getElementType());
-    b.setShape(shape);
-    b.setMemorySpace(other.getMemorySpace());
-    return b;
-  }
-
-  if (isa<TensorType>())
-    return RankedTensorType::get(shape, getElementType());
-
-  if (isa<VectorType>())
-    return VectorType::get(shape, getElementType());
-
-  llvm_unreachable("Unhandled ShapedType clone case");
-}
-
-ShapedType ShapedType::clone(Type elementType) {
-  if (auto other = dyn_cast<MemRefType>()) {
-    MemRefType::Builder b(other);
-    b.setElementType(elementType);
-    return b;
-  }
-
-  if (auto other = dyn_cast<UnrankedMemRefType>()) {
-    return UnrankedMemRefType::get(elementType, other.getMemorySpace());
-  }
-
-  if (isa<TensorType>()) {
-    if (hasRank())
-      return RankedTensorType::get(getShape(), elementType);
-    return UnrankedTensorType::get(elementType);
-  }
-
-  if (isa<VectorType>())
-    return VectorType::get(getShape(), elementType);
-
-  llvm_unreachable("Unhandled ShapedType clone hit");
-}
-
-Type ShapedType::getElementType() const {
-  return TypeSwitch<Type, Type>(*this)
-      .Case<VectorType, RankedTensorType, UnrankedTensorType, MemRefType,
-            UnrankedMemRefType>([](auto ty) { return ty.getElementType(); });
-}
-
-unsigned ShapedType::getElementTypeBitWidth() const {
-  return getElementType().getIntOrFloatBitWidth();
-}
-
-int64_t ShapedType::getNumElements() const {
-  assert(hasStaticShape() && "cannot get element count of dynamic shaped type");
-  auto shape = getShape();
-  int64_t num = 1;
-  for (auto dim : shape) {
-    num *= dim;
-    assert(num >= 0 && "integer overflow in element count computation");
-  }
-  return num;
-}
-
-int64_t ShapedType::getRank() const {
-  assert(hasRank() && "cannot query rank of unranked shaped type");
-  return getShape().size();
-}
-
-bool ShapedType::hasRank() const {
-  return !isa<UnrankedMemRefType, UnrankedTensorType>();
-}
-
-int64_t ShapedType::getDimSize(unsigned idx) const {
-  assert(idx < getRank() && "invalid index for shaped type");
-  return getShape()[idx];
-}
-
-bool ShapedType::isDynamicDim(unsigned idx) const {
-  assert(idx < getRank() && "invalid index for shaped type");
-  return isDynamic(getShape()[idx]);
-}
-
-unsigned ShapedType::getDynamicDimIndex(unsigned index) const {
-  assert(index < getRank() && "invalid index");
-  assert(ShapedType::isDynamic(getDimSize(index)) && "invalid index");
-  return llvm::count_if(getShape().take_front(index), ShapedType::isDynamic);
-}
-
-/// Get the number of bits require to store a value of the given shaped type.
-/// Compute the value recursively since tensors are allowed to have vectors as
-/// elements.
-int64_t ShapedType::getSizeInBits() const {
-  assert(hasStaticShape() &&
-         "cannot get the bit size of an aggregate with a dynamic shape");
-
-  auto elementType = getElementType();
-  if (elementType.isIntOrFloat())
-    return elementType.getIntOrFloatBitWidth() * getNumElements();
-
-  if (auto complexType = elementType.dyn_cast<ComplexType>()) {
-    elementType = complexType.getElementType();
-    return elementType.getIntOrFloatBitWidth() * getNumElements() * 2;
-  }
-
-  // Tensors can have vectors and other tensors as elements, other shaped types
-  // cannot.
-  assert(isa<TensorType>() && "unsupported element type");
-  assert((elementType.isa<VectorType, TensorType>()) &&
-         "unsupported tensor element type");
-  return getNumElements() * elementType.cast<ShapedType>().getSizeInBits();
-}
-
-ArrayRef<int64_t> ShapedType::getShape() const {
-  if (auto vectorType = dyn_cast<VectorType>())
-    return vectorType.getShape();
-  if (auto tensorType = dyn_cast<RankedTensorType>())
-    return tensorType.getShape();
-  return cast<MemRefType>().getShape();
-}
-
-int64_t ShapedType::getNumDynamicDims() const {
-  return llvm::count_if(getShape(), isDynamic);
-}
-
-bool ShapedType::hasStaticShape() const {
-  return hasRank() && llvm::none_of(getShape(), isDynamic);
-}
-
-bool ShapedType::hasStaticShape(ArrayRef<int64_t> shape) const {
-  return hasStaticShape() && getShape() == shape;
-}
-
-//===----------------------------------------------------------------------===//
 // VectorType
 //===----------------------------------------------------------------------===//
 
 LogicalResult VectorType::verify(function_ref<InFlightDiagnostic()> emitError,
-                                 ArrayRef<int64_t> shape, Type elementType) {
-  if (shape.empty())
-    return emitError() << "vector types must have at least one dimension";
-
+                                 ArrayRef<int64_t> shape, Type elementType,
+                                 unsigned numScalableDims) {
   if (!isValidElementType(elementType))
     return emitError()
            << "vector elements must be int/index/float type but got "
@@ -462,10 +250,10 @@ VectorType VectorType::scaleElementBitwidth(unsigned scale) {
     return VectorType();
   if (auto et = getElementType().dyn_cast<IntegerType>())
     if (auto scaledEt = et.scaleElementBitwidth(scale))
-      return VectorType::get(getShape(), scaledEt);
+      return VectorType::get(getShape(), scaledEt, getNumScalableDims());
   if (auto et = getElementType().dyn_cast<FloatType>())
     if (auto scaledEt = et.scaleElementBitwidth(scale))
-      return VectorType::get(getShape(), scaledEt);
+      return VectorType::get(getShape(), scaledEt, getNumScalableDims());
   return VectorType();
 }
 
@@ -475,9 +263,48 @@ void VectorType::walkImmediateSubElements(
   walkTypesFn(getElementType());
 }
 
+Type VectorType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                             ArrayRef<Type> replTypes) const {
+  return get(getShape(), replTypes.front(), getNumScalableDims());
+}
+
+VectorType VectorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
+                                 Type elementType) const {
+  return VectorType::get(shape.value_or(getShape()), elementType,
+                         getNumScalableDims());
+}
+
 //===----------------------------------------------------------------------===//
 // TensorType
 //===----------------------------------------------------------------------===//
+
+Type TensorType::getElementType() const {
+  return llvm::TypeSwitch<TensorType, Type>(*this)
+      .Case<RankedTensorType, UnrankedTensorType>(
+          [](auto type) { return type.getElementType(); });
+}
+
+bool TensorType::hasRank() const { return !isa<UnrankedTensorType>(); }
+
+ArrayRef<int64_t> TensorType::getShape() const {
+  return cast<RankedTensorType>().getShape();
+}
+
+TensorType TensorType::cloneWith(Optional<ArrayRef<int64_t>> shape,
+                                 Type elementType) const {
+  if (auto unrankedTy = dyn_cast<UnrankedTensorType>()) {
+    if (shape)
+      return RankedTensorType::get(*shape, elementType);
+    return UnrankedTensorType::get(elementType);
+  }
+
+  auto rankedTy = cast<RankedTensorType>();
+  if (!shape)
+    return RankedTensorType::get(rankedTy.getShape(), elementType,
+                                 rankedTy.getEncoding());
+  return RankedTensorType::get(shape.value_or(rankedTy.getShape()), elementType,
+                               rankedTy.getEncoding());
+}
 
 // Check if "elementType" can be an element type of a tensor.
 static LogicalResult
@@ -523,6 +350,12 @@ void RankedTensorType::walkImmediateSubElements(
     walkAttrsFn(encoding);
 }
 
+Type RankedTensorType::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  return get(getShape(), replTypes.front(),
+             replAttrs.empty() ? Attribute() : replAttrs.back());
+}
+
 //===----------------------------------------------------------------------===//
 // UnrankedTensorType
 //===----------------------------------------------------------------------===//
@@ -539,9 +372,43 @@ void UnrankedTensorType::walkImmediateSubElements(
   walkTypesFn(getElementType());
 }
 
+Type UnrankedTensorType::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  return get(replTypes.front());
+}
+
 //===----------------------------------------------------------------------===//
 // BaseMemRefType
 //===----------------------------------------------------------------------===//
+
+Type BaseMemRefType::getElementType() const {
+  return llvm::TypeSwitch<BaseMemRefType, Type>(*this)
+      .Case<MemRefType, UnrankedMemRefType>(
+          [](auto type) { return type.getElementType(); });
+}
+
+bool BaseMemRefType::hasRank() const { return !isa<UnrankedMemRefType>(); }
+
+ArrayRef<int64_t> BaseMemRefType::getShape() const {
+  return cast<MemRefType>().getShape();
+}
+
+BaseMemRefType BaseMemRefType::cloneWith(Optional<ArrayRef<int64_t>> shape,
+                                         Type elementType) const {
+  if (auto unrankedTy = dyn_cast<UnrankedMemRefType>()) {
+    if (!shape)
+      return UnrankedMemRefType::get(elementType, getMemorySpace());
+    MemRefType::Builder builder(*shape, elementType);
+    builder.setMemorySpace(getMemorySpace());
+    return builder;
+  }
+
+  MemRefType::Builder builder(cast<MemRefType>());
+  if (shape)
+    builder.setShape(*shape);
+  builder.setElementType(elementType);
+  return builder;
+}
 
 Attribute BaseMemRefType::getMemorySpace() const {
   if (auto rankedMemRefTy = dyn_cast<MemRefType>())
@@ -574,7 +441,7 @@ mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
   llvm::SmallDenseSet<unsigned> unusedDims;
   unsigned reducedIdx = 0;
   for (unsigned originalIdx = 0; originalIdx < originalRank; ++originalIdx) {
-    // Greedily insert `originalIdx` if no match.
+    // Greedily insert `originalIdx` if match.
     if (reducedIdx < reducedRank &&
         originalShape[originalIdx] == reducedShape[reducedIdx]) {
       reducedIdx++;
@@ -593,6 +460,39 @@ mlir::computeRankReductionMask(ArrayRef<int64_t> originalShape,
   return unusedDims;
 }
 
+SliceVerificationResult
+mlir::isRankReducedType(ShapedType originalType,
+                        ShapedType candidateReducedType) {
+  if (originalType == candidateReducedType)
+    return SliceVerificationResult::Success;
+
+  ShapedType originalShapedType = originalType.cast<ShapedType>();
+  ShapedType candidateReducedShapedType =
+      candidateReducedType.cast<ShapedType>();
+
+  // Rank and size logic is valid for all ShapedTypes.
+  ArrayRef<int64_t> originalShape = originalShapedType.getShape();
+  ArrayRef<int64_t> candidateReducedShape =
+      candidateReducedShapedType.getShape();
+  unsigned originalRank = originalShape.size(),
+           candidateReducedRank = candidateReducedShape.size();
+  if (candidateReducedRank > originalRank)
+    return SliceVerificationResult::RankTooLarge;
+
+  auto optionalUnusedDimsMask =
+      computeRankReductionMask(originalShape, candidateReducedShape);
+
+  // Sizes cannot be matched in case empty vector is returned.
+  if (!optionalUnusedDimsMask)
+    return SliceVerificationResult::SizeMismatch;
+
+  if (originalShapedType.getElementType() !=
+      candidateReducedShapedType.getElementType())
+    return SliceVerificationResult::ElemTypeMismatch;
+
+  return SliceVerificationResult::Success;
+}
+
 bool mlir::detail::isSupportedMemorySpace(Attribute memorySpace) {
   // Empty attribute is allowed as default memory space.
   if (!memorySpace)
@@ -603,7 +503,7 @@ bool mlir::detail::isSupportedMemorySpace(Attribute memorySpace) {
     return true;
 
   // Allow custom dialect attributes.
-  if (!::mlir::isa<BuiltinDialect>(memorySpace.getDialect()))
+  if (!isa<BuiltinDialect>(memorySpace.getDialect()))
     return true;
 
   return false;
@@ -786,6 +686,15 @@ void MemRefType::walkImmediateSubElements(
   walkAttrsFn(getMemorySpace());
 }
 
+Type MemRefType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                             ArrayRef<Type> replTypes) const {
+  bool hasLayout = replAttrs.size() > 1;
+  return get(getShape(), replTypes[0],
+             hasLayout ? replAttrs[0].dyn_cast<MemRefLayoutAttrInterface>()
+                       : MemRefLayoutAttrInterface(),
+             hasLayout ? replAttrs[1] : replAttrs[0]);
+}
+
 //===----------------------------------------------------------------------===//
 // UnrankedMemRefType
 //===----------------------------------------------------------------------===//
@@ -952,6 +861,11 @@ void UnrankedMemRefType::walkImmediateSubElements(
   walkAttrsFn(getMemorySpace());
 }
 
+Type UnrankedMemRefType::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  return get(replTypes.front(), replAttrs.front());
+}
+
 //===----------------------------------------------------------------------===//
 /// TupleType
 //===----------------------------------------------------------------------===//
@@ -982,6 +896,11 @@ void TupleType::walkImmediateSubElements(
     walkTypesFn(type);
 }
 
+Type TupleType::replaceImmediateSubElements(ArrayRef<Attribute> replAttrs,
+                                            ArrayRef<Type> replTypes) const {
+  return get(getContext(), replTypes);
+}
+
 //===----------------------------------------------------------------------===//
 // Type Utilities
 //===----------------------------------------------------------------------===//
@@ -1004,7 +923,7 @@ AffineMap mlir::makeStridedLinearLayoutMap(ArrayRef<int64_t> strides,
   }
 
   // AffineExpr for strides.
-  for (auto en : llvm::enumerate(strides)) {
+  for (const auto &en : llvm::enumerate(strides)) {
     auto dim = en.index();
     auto stride = en.value();
     assert(stride != 0 && "Invalid stride specification");
@@ -1068,13 +987,11 @@ MemRefType mlir::canonicalizeStridedLayout(MemRefType t) {
 AffineExpr mlir::makeCanonicalStridedLayoutExpr(ArrayRef<int64_t> sizes,
                                                 ArrayRef<AffineExpr> exprs,
                                                 MLIRContext *context) {
-  assert(!sizes.empty() && !exprs.empty() &&
-         "expected non-empty sizes and exprs");
-
   // Size 0 corner case is useful for canonicalizations.
-  if (llvm::is_contained(sizes, 0))
+  if (sizes.empty() || llvm::is_contained(sizes, 0))
     return getAffineConstantExpr(0, context);
 
+  assert(!exprs.empty() && "expected exprs");
   auto maps = AffineMap::inferFromExprList(exprs);
   assert(!maps.empty() && "Expected one non-empty map");
   unsigned numDims = maps[0].getNumDims(), nSymbols = maps[0].getNumSymbols();
@@ -1136,4 +1053,41 @@ AffineMap mlir::getStridedLinearLayoutMap(MemRefType t) {
   if (failed(getStridesAndOffset(t, strides, offset)))
     return AffineMap();
   return makeStridedLinearLayoutMap(strides, offset, t.getContext());
+}
+
+/// Return the AffineExpr representation of the offset, assuming `memRefType`
+/// is a strided memref.
+static AffineExpr getOffsetExpr(MemRefType memrefType) {
+  SmallVector<AffineExpr> strides;
+  AffineExpr offset;
+  if (failed(getStridesAndOffset(memrefType, strides, offset)))
+    assert(false && "expected strided memref");
+  return offset;
+}
+
+/// Helper to construct a contiguous MemRefType of `shape`, `elementType` and
+/// `offset` AffineExpr.
+static MemRefType makeContiguousRowMajorMemRefType(MLIRContext *context,
+                                                   ArrayRef<int64_t> shape,
+                                                   Type elementType,
+                                                   AffineExpr offset) {
+  AffineExpr canonical = makeCanonicalStridedLayoutExpr(shape, context);
+  AffineExpr contiguousRowMajor = canonical + offset;
+  AffineMap contiguousRowMajorMap =
+      AffineMap::inferFromExprList({contiguousRowMajor})[0];
+  return MemRefType::get(shape, elementType, contiguousRowMajorMap);
+}
+
+/// Helper determining if a memref is static-shape and contiguous-row-major
+/// layout, while still allowing for an arbitrary offset (any static or
+/// dynamic value).
+bool mlir::isStaticShapeAndContiguousRowMajor(MemRefType memrefType) {
+  if (!memrefType.hasStaticShape())
+    return false;
+  AffineExpr offset = getOffsetExpr(memrefType);
+  MemRefType contiguousRowMajorMemRefType = makeContiguousRowMajorMemRefType(
+      memrefType.getContext(), memrefType.getShape(),
+      memrefType.getElementType(), offset);
+  return canonicalizeStridedLayout(memrefType) ==
+         canonicalizeStridedLayout(contiguousRowMajorMemRefType);
 }

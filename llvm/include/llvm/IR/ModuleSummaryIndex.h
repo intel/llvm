@@ -22,7 +22,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Module.h"
@@ -581,6 +580,13 @@ public:
     // If there are calls to unknown targets (e.g. indirect)
     unsigned HasUnknownCall : 1;
 
+    // Indicate if a function must be an unreachable function.
+    //
+    // This bit is sufficient but not necessary;
+    // if this bit is on, the function must be regarded as unreachable;
+    // if this bit is off, the function might be reachable or unreachable.
+    unsigned MustBeUnreachable : 1;
+
     FFlags &operator&=(const FFlags &RHS) {
       this->ReadNone &= RHS.ReadNone;
       this->ReadOnly &= RHS.ReadOnly;
@@ -591,13 +597,15 @@ public:
       this->NoUnwind &= RHS.NoUnwind;
       this->MayThrow &= RHS.MayThrow;
       this->HasUnknownCall &= RHS.HasUnknownCall;
+      this->MustBeUnreachable &= RHS.MustBeUnreachable;
       return *this;
     }
 
     bool anyFlagSet() {
       return this->ReadNone | this->ReadOnly | this->NoRecurse |
              this->ReturnDoesNotAlias | this->NoInline | this->AlwaysInline |
-             this->NoUnwind | this->MayThrow | this->HasUnknownCall;
+             this->NoUnwind | this->MayThrow | this->HasUnknownCall |
+             this->MustBeUnreachable;
     }
 
     operator std::string() {
@@ -613,6 +621,7 @@ public:
       OS << ", noUnwind: " << this->NoUnwind;
       OS << ", mayThrow: " << this->MayThrow;
       OS << ", hasUnknownCall: " << this->HasUnknownCall;
+      OS << ", mustBeUnreachable: " << this->MustBeUnreachable;
       OS << ")";
       return OS.str();
     }
@@ -1113,6 +1122,9 @@ private:
   /// every summary of a GV is synchronized.
   bool WithDSOLocalPropagation = false;
 
+  /// Indicates that we have whole program visibility.
+  bool WithWholeProgramVisibility = false;
+
   /// Indicates that summary-based synthetic entry count propagation has run
   bool HasSyntheticEntryCounts = false;
 
@@ -1144,8 +1156,8 @@ private:
 
   // Used in cases where we want to record the name of a global, but
   // don't have the string owned elsewhere (e.g. the Strtab on a module).
-  StringSaver Saver;
   BumpPtrAllocator Alloc;
+  StringSaver Saver;
 
   // The total number of basic blocks in the module in the per-module summary or
   // the total number of basic blocks in the LTO unit in the combined index.
@@ -1270,6 +1282,9 @@ public:
 
   bool withDSOLocalPropagation() const { return WithDSOLocalPropagation; }
   void setWithDSOLocalPropagation() { WithDSOLocalPropagation = true; }
+
+  bool withWholeProgramVisibility() const { return WithWholeProgramVisibility; }
+  void setWithWholeProgramVisibility() { WithWholeProgramVisibility = true; }
 
   bool isReadOnly(const GlobalVarSummary *GVS) const {
     return WithAttributePropagation && GVS->maybeReadOnly();

@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file defines DenseMapInfo traits for DenseMap.
-//
+///
+/// \file
+/// This file defines DenseMapInfo traits for DenseMap.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_DENSEMAPINFO_H
@@ -39,7 +40,12 @@ static inline unsigned combineHashValue(unsigned a, unsigned b) {
 
 } // end namespace detail
 
-template<typename T>
+/// An information struct used to provide DenseMap with the various necessary
+/// components for a given value type `T`. `Enable` is an optional additional
+/// parameter that is used to support SFINAE (generally using std::enable_if_t)
+/// in derived DenseMapInfo specializations; in non-SFINAE use cases this should
+/// just be `void`.
+template<typename T, typename Enable = void>
 struct DenseMapInfo {
   //static inline T getEmptyKey();
   //static inline T getTombstoneKey();

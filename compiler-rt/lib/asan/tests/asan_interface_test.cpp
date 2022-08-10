@@ -160,7 +160,6 @@ TEST(AddressSanitizerInterface, DeathCallbackTest) {
 #define BAD_ACCESS(ptr, offset) \
     EXPECT_TRUE(__asan_address_is_poisoned(ptr + offset))
 
-#if !defined(ASAN_SHADOW_SCALE) || ASAN_SHADOW_SCALE == 3
 static const char* kUseAfterPoisonErrorMessage = "use-after-poison";
 
 TEST(AddressSanitizerInterface, SimplePoisonMemoryRegionTest) {
@@ -200,7 +199,6 @@ TEST(AddressSanitizerInterface, OverlappingPoisonMemoryRegionTest) {
   BAD_ACCESS(array, 96);
   free(array);
 }
-#endif  // !defined(ASAN_SHADOW_SCALE) || ASAN_SHADOW_SCALE == 3
 
 TEST(AddressSanitizerInterface, PushAndPopWithPoisoningTest) {
   // Vector of capacity 20
@@ -415,6 +413,9 @@ TEST(AddressSanitizerInterface, HandleNoReturnTest) {
   __asan_poison_memory_region(array, sizeof(array));
   BAD_ACCESS(array, 20);
   __asan_handle_no_return();
+  // Fake stack does not need to be unpoisoned.
+  if (__asan_get_current_fake_stack())
+    return;
   // It unpoisons the whole thread stack.
   GOOD_ACCESS(array, 20);
 }

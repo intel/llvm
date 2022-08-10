@@ -1,23 +1,10 @@
-if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
-  set(LONG_DOUBLE_HDR LongDoubleBitsX86.h)
-else()
-  set(LONG_DOUBLE_HDR)
-endif()
-
-if(EXISTS ${LIBC_TARGET_ARCHITECTURE})
-  set(FENV_IMPL ${LIBC_TARGET_ARCHITECTURE}/FEnvImpl.h)
-else()
-  set(FENV_IMPL DummyFEnvImpl.h)
-endif()
-
+#TODO(michaelrj): separate the fputil library into individual targets.
 add_header_library(
   fputil
   HDRS
-    ${LONG_DOUBLE_HDR}
-    ${FENV_IMPL}
+    FEnvImpl.h
     BasicOperations.h
     DivisionAndRemainderOperations.h
-    FEnvUtils.h
     FloatProperties.h
     FPBits.h
     BasicOperations.h
@@ -25,29 +12,72 @@ add_header_library(
     NearestIntegerOperations.h
     NormalFloat.h
     PlatformDefs.h
-    PolyEval.h
-    UInt.h
-    XFloat.h
+    builtin_wrappers.h
+    except_value_utils.h
   DEPENDS
     libc.include.math
     libc.include.errno
     libc.include.fenv
     libc.src.__support.common
-    libc.utils.CPP.standalone_cpp
+    libc.src.__support.CPP.bit
+    libc.src.__support.CPP.type_traits
+    libc.src.__support.CPP.uint128
+    libc.src.errno.errno
 )
 
-add_library(
-  LibcFPTestHelpers
-    FPExceptMatcher.cpp
-    FPExceptMatcher.h
-    TestHelpers.cpp
-    TestHelpers.h
+add_header_library(
+  xfloat
+  HDRS
+    XFloat.h
+  DEPENDS
+    .fputil #FPBits and NormalFloat
+    libc.src.__support.CPP.uint
 )
-target_include_directories(LibcFPTestHelpers PUBLIC ${LIBC_SOURCE_DIR})
-target_link_libraries(LibcFPTestHelpers LibcUnitTest)
-add_dependencies(
-  LibcFPTestHelpers
-  LibcUnitTest
-  libc.utils.CPP.standalone_cpp
-  libc.src.__support.FPUtil.fputil
+
+add_header_library(
+  sqrt
+  HDRS
+    sqrt.h
+  DEPENDS
+    .fputil
+    libc.src.__support.FPUtil.generic.sqrt
 )
+
+add_header_library(
+  fma
+  HDRS
+    FMA.h
+  DEPENDS
+    .fputil
+    libc.src.__support.FPUtil.generic.fma
+  FLAGS
+    FMA_OPT
+)
+
+add_header_library(
+  multiply_add
+  HDRS
+    multiply_add.h
+  DEPENDS
+    .fma
+)
+
+add_header_library(
+  polyeval
+  HDRS
+    PolyEval.h
+  DEPENDS
+    .multiply_add
+)
+
+add_header_library(
+  nearest_integer
+  HDRS
+    nearest_integer.h
+  DEPENDS
+    libc.src.__support.common
+  FLAGS
+    ROUND_OPT
+)
+
+add_subdirectory(generic)

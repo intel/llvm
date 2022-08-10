@@ -19,6 +19,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPU.h"
+#include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/Dominators.h"
@@ -66,7 +67,7 @@ private:
 
   Value *simplify(Instruction *I, const TargetLibraryInfo *TLI,
                   const DominatorTree *DT) {
-    return SimplifyInstruction(I, {*TD, TLI, DT});
+    return simplifyInstruction(I, {*TD, TLI, DT});
   }
 
   const DataLayout *TD;
@@ -280,10 +281,10 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
       }
       LLVM_DEBUG(dbgs() << "Printf format string in source = " << Str.str()
                         << '\n');
-      for (size_t I = 0; I < Str.size(); ++I) {
+      for (char C : Str) {
         // Rest of the C escape sequences (e.g. \') are handled correctly
         // by the MDParser
-        switch (Str[I]) {
+        switch (C) {
         case '\a':
           Sizes << "\\a";
           break;
@@ -308,7 +309,7 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
           Sizes << "\\72";
           break;
         default:
-          Sizes << Str[I];
+          Sizes << C;
           break;
         }
       }
@@ -463,7 +464,7 @@ bool AMDGPUPrintfRuntimeBindingImpl::lowerPrintfForGpu(Module &M) {
             WhatToStore.push_back(Arg);
           }
         } else if (isa<FixedVectorType>(ArgType)) {
-          Type *IType = NULL;
+          Type *IType = nullptr;
           uint32_t EleCount = cast<FixedVectorType>(ArgType)->getNumElements();
           uint32_t EleSize = ArgType->getScalarSizeInBits();
           uint32_t TotalSize = EleCount * EleSize;
@@ -561,15 +562,6 @@ bool AMDGPUPrintfRuntimeBindingImpl::run(Module &M) {
 
   if (Printfs.empty())
     return false;
-
-  if (auto HostcallFunction = M.getFunction("__ockl_hostcall_internal")) {
-    for (auto &U : HostcallFunction->uses()) {
-      if (auto *CI = dyn_cast<CallInst>(U.getUser())) {
-        M.getContext().emitError(
-            CI, "Cannot use both printf and hostcall in the same module");
-      }
-    }
-  }
 
   TD = &M.getDataLayout();
 

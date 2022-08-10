@@ -5,9 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This file implements the BitVector class.
-//
+///
+/// \file
+/// This file implements the BitVector class.
+///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_ADT_BITVECTOR_H
@@ -82,7 +83,7 @@ class BitVector {
   using Storage = SmallVector<BitWord>;
 
   Storage Bits;  // Actual bits.
-  unsigned Size; // Size of bitvector in bits.
+  unsigned Size = 0; // Size of bitvector in bits.
 
 public:
   using size_type = unsigned;
@@ -134,7 +135,7 @@ public:
   }
 
   /// BitVector default ctor - Creates an empty bitvector.
-  BitVector() : Size(0) {}
+  BitVector() = default;
 
   /// BitVector ctor - Creates a bitvector of specified number of bits. All
   /// bits are initialized to the specified value.
@@ -444,6 +445,12 @@ public:
     return (Bits[Idx / BITWORD_SIZE] & Mask) != 0;
   }
 
+  /// Return the last element in the vector.
+  bool back() const {
+    assert(!empty() && "Getting last element of empty vector.");
+    return (*this)[size() - 1];
+  }
+
   bool test(unsigned Idx) const {
     return (*this)[Idx];
   }
@@ -463,6 +470,12 @@ public:
     // If true, set single bit.
     if (Val)
       set(OldSize);
+  }
+
+  /// Pop one bit from the end of the vector.
+  void pop_back() {
+    assert(!empty() && "Empty vector has no element to pop.");
+    resize(size() - 1);
   }
 
   /// Test if any common bits are set.

@@ -8,16 +8,17 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/device_filter.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
 #include <detail/global_handler.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/detail/device_filter.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -44,7 +45,7 @@ constexpr bool ConfigFromCompileDefEnabled = true;
 #endif // DISABLE_CONFIG_FROM_COMPILE_TIME
 
 constexpr int MAX_CONFIG_NAME = 256;
-constexpr int MAX_CONFIG_VALUE = 256;
+constexpr int MAX_CONFIG_VALUE = 1024;
 
 // Enum of config IDs for accessing other arrays
 enum ConfigID {
@@ -134,12 +135,14 @@ public:
       return BackendPtr;
 
     const char *ValStr = BaseT::getRawValue();
-    const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
+    const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
-         {"PI_LEVEL_ZERO", backend::level_zero},
-         {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
-         {"PI_CUDA", backend::cuda},
-         {"PI_HIP", backend::hip}}};
+         {"PI_LEVEL_ZERO", backend::ext_oneapi_level_zero},
+         {"PI_LEVEL0", backend::ext_oneapi_level_zero}, // for backward
+                                                        // compatibility
+         {"PI_CUDA", backend::ext_oneapi_cuda},
+         {"PI_ESIMD_EMULATOR", backend::ext_intel_esimd_emulator},
+         {"PI_HIP", backend::ext_oneapi_hip}}};
     if (ValStr) {
       auto It = std::find_if(
           std::begin(SyclBeMap), std::end(SyclBeMap),
@@ -148,7 +151,8 @@ public:
           });
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
-                "Valid values are PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_HIP");
+                "Valid values are "
+                "PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ESIMD_EMULATOR/PI_HIP");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }
@@ -175,6 +179,30 @@ public:
     const char *ValStr = BaseT::getRawValue();
     Level = (ValStr ? std::atoi(ValStr) : 0);
     Initialized = true;
+    return Level;
+  }
+};
+
+template <> class SYCLConfig<SYCL_RT_WARNING_LEVEL> {
+  using BaseT = SYCLConfigBase<SYCL_RT_WARNING_LEVEL>;
+
+public:
+  static unsigned int get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(true); }
+
+private:
+  static unsigned int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      int SignedLevel = ValStr ? std::atoi(ValStr) : 0;
+      return SignedLevel >= 0 ? SignedLevel : 0;
+    };
+
+    static unsigned int Level = Parser();
+    if (ResetCache)
+      Level = Parser();
+
     return Level;
   }
 };
@@ -242,7 +270,7 @@ const std::array<std::pair<std::string, info::device_type>, 5> &
 getSyclDeviceTypeMap();
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST
-const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap();
+const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap();
 
 template <> class SYCLConfig<SYCL_DEVICE_FILTER> {
   using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
@@ -314,6 +342,128 @@ private:
     if (ResetCache)
       ValStr = BaseT::getRawValue();
     return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE> {
+  using BaseT = SYCLConfigBase<SYCL_QUEUE_THREAD_POOL_SIZE>;
+
+public:
+  static int get() {
+    static int Value = [] {
+      const char *ValueStr = BaseT::getRawValue();
+
+      int Result = 1;
+
+      if (ValueStr)
+        try {
+          Result = std::stoi(ValueStr);
+        } catch (...) {
+          throw invalid_parameter_error(
+              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
+              "variable: value should be a number",
+              PI_ERROR_INVALID_VALUE);
+        }
+
+      if (Result < 1)
+        throw invalid_parameter_error(
+            "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
+            "variable: value should be larger than zero",
+            PI_ERROR_INVALID_VALUE);
+
+      return Result;
+    }();
+
+    return Value;
+  }
+};
+
+template <> class SYCLConfig<SYCL_CACHE_PERSISTENT> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_PERSISTENT>;
+
+public:
+  static constexpr bool Default = false; // default is disabled
+
+  static bool get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static bool parseValue() {
+    // Check if deprecated opt-out env var is used, then warn.
+    if (SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::get()) {
+      std::cerr
+          << "WARNING: " << SYCLConfig<SYCL_CACHE_DISABLE_PERSISTENT>::getName()
+          << " environment variable is deprecated "
+          << "and has no effect. By default, persistent device code caching is "
+          << (Default ? "enabled." : "disabled.") << " Use " << getName()
+          << "=1/0 to enable/disable.\n";
+    }
+
+    const char *ValStr = BaseT::getRawValue();
+    if (!ValStr)
+      return Default;
+    if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+    }
+    return ValStr[0] == '1';
+  }
+
+  static bool getCachedValue(bool ResetCache = false) {
+    static bool Val = parseValue();
+    if (ResetCache)
+      Val = parseValue();
+    return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_CACHE_DIR> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_DIR>;
+
+public:
+  static std::string get() { return getCachedValue(); }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  // If environment variables are not available return an empty string to
+  // identify that cache is not available.
+  static std::string parseValue() {
+    const char *RootDir = BaseT::getRawValue();
+    if (RootDir)
+      return RootDir;
+
+    constexpr char DeviceCodeCacheDir[] = "/libsycl_cache";
+
+#if defined(__SYCL_RT_OS_LINUX)
+    const char *CacheDir = std::getenv("XDG_CACHE_HOME");
+    const char *HomeDir = std::getenv("HOME");
+    if (!CacheDir && !HomeDir)
+      return {};
+    std::string Res{
+        std::string(CacheDir ? CacheDir : (std::string(HomeDir) + "/.cache")) +
+        DeviceCodeCacheDir};
+#else
+    const char *AppDataDir = std::getenv("AppData");
+    if (!AppDataDir)
+      return {};
+    std::string Res{std::string(AppDataDir) + DeviceCodeCacheDir};
+#endif
+    return Res;
+  }
+
+  static std::string getCachedValue(bool ResetCache = false) {
+    static std::string Val = parseValue();
+    if (ResetCache)
+      Val = parseValue();
+    return Val;
   }
 };
 

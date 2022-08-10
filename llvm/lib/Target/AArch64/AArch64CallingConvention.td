@@ -82,9 +82,9 @@ def CC_AArch64_AAPCS : CallingConv<[
             nxv2bf16, nxv4bf16, nxv8bf16, nxv2f32, nxv4f32, nxv2f64],
            CCPassIndirect<i64>>,
 
-  CCIfType<[nxv2i1, nxv4i1, nxv8i1, nxv16i1],
+  CCIfType<[nxv1i1, nxv2i1, nxv4i1, nxv8i1, nxv16i1],
            CCAssignToReg<[P0, P1, P2, P3]>>,
-  CCIfType<[nxv2i1, nxv4i1, nxv8i1, nxv16i1],
+  CCIfType<[nxv1i1, nxv2i1, nxv4i1, nxv8i1, nxv16i1],
            CCPassIndirect<i64>>,
 
   // Handle i1, i8, i16, i32, i64, f32, f64 and v2f64 by passing in registers,
@@ -149,7 +149,7 @@ def RetCC_AArch64_AAPCS : CallingConv<[
             nxv2bf16, nxv4bf16, nxv8bf16, nxv2f32, nxv4f32, nxv2f64],
            CCAssignToReg<[Z0, Z1, Z2, Z3, Z4, Z5, Z6, Z7]>>,
 
-  CCIfType<[nxv2i1, nxv4i1, nxv8i1, nxv16i1],
+  CCIfType<[nxv1i1, nxv2i1, nxv4i1, nxv8i1, nxv16i1],
            CCAssignToReg<[P0, P1, P2, P3]>>
 ]>;
 
@@ -468,7 +468,7 @@ def CSR_Darwin_AArch64_TLS
 // CSR_Darwin_AArch64_CXX_TLS should be a subset of CSR_Darwin_AArch64_TLS.
 def CSR_Darwin_AArch64_CXX_TLS
     : CalleeSavedRegs<(add CSR_Darwin_AArch64_AAPCS,
-                           (sub (sequence "X%u", 1, 28), X15, X16, X17, X18),
+                           (sub (sequence "X%u", 1, 28), X9, X15, X16, X17, X18, X19),
                            (sequence "D%u", 0, 31))>;
 
 // CSRs that are handled by prologue, epilogue.

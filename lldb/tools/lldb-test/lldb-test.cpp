@@ -925,7 +925,7 @@ static int dumpObjectFiles(Debugger &Dbg) {
       for (size_t I = 0; I < Files.GetSize(); ++I) {
         AutoIndent Indent(Printer, 2);
         Printer.formatLine("Name: {0}",
-                           Files.GetFileSpecAtIndex(I).GetCString());
+                           Files.GetFileSpecAtIndex(I).GetPath());
       }
       Printer.NewLine();
     }
@@ -1120,7 +1120,7 @@ int main(int argc, const char *argv[]) {
       /*add_to_history*/ eLazyBoolNo, Result);
 
   if (!opts::Log.empty())
-    Dbg->EnableLog("lldb", {"all"}, opts::Log, 0, errs());
+    Dbg->EnableLog("lldb", {"all"}, opts::Log, 0, 0, eLogHandlerStream, errs());
 
   if (opts::BreakpointSubcommand)
     return opts::breakpoint::evaluateBreakpoints(*Dbg);

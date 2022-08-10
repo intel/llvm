@@ -11,10 +11,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetail.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -29,7 +30,7 @@ struct DimOfShapedTypeOpInterface : public OpRewritePattern<OpTy> {
 
   LogicalResult matchAndRewrite(OpTy dimOp,
                                 PatternRewriter &rewriter) const override {
-    OpResult dimValue = dimOp.source().template dyn_cast<OpResult>();
+    OpResult dimValue = dimOp.getSource().template dyn_cast<OpResult>();
     if (!dimValue)
       return failure();
     auto shapedTypeOp =
@@ -69,7 +70,7 @@ struct DimOfReifyRankedShapedTypeOpInterface : public OpRewritePattern<OpTy> {
 
   LogicalResult matchAndRewrite(OpTy dimOp,
                                 PatternRewriter &rewriter) const override {
-    OpResult dimValue = dimOp.source().template dyn_cast<OpResult>();
+    OpResult dimValue = dimOp.getSource().template dyn_cast<OpResult>();
     if (!dimValue)
       return failure();
     auto rankedShapeTypeOp =
@@ -106,9 +107,6 @@ struct DimOfReifyRankedShapedTypeOpInterface : public OpRewritePattern<OpTy> {
 //===----------------------------------------------------------------------===//
 
 namespace {
-#define GEN_PASS_CLASSES
-#include "mlir/Dialect/MemRef/Transforms/Passes.h.inc"
-
 struct ResolveRankedShapeTypeResultDimsPass final
     : public ResolveRankedShapeTypeResultDimsBase<
           ResolveRankedShapeTypeResultDimsPass> {

@@ -2,17 +2,14 @@ if (DEFINED LLVM_HAVE_TF_AOT OR DEFINED LLVM_HAVE_TF_API)
   include(TensorFlowCompile)
   set(LLVM_INLINER_MODEL_PATH_DEFAULT "models/inliner-Oz")
 
-  # This url points to the most recent most which is known to be compatible with
-  # LLVM. When better models are published, this url should be updated to aid
-  # discoverability.
-  set(LLVM_INLINER_MODEL_CURRENT_URL "https://github.com/google/ml-compiler-opt/releases/download/inlining-Oz-v1.1/inlining-Oz-99f0063-v1.1.tar.gz")
+  set(LLVM_INLINER_MODEL_CURRENT_URL "<UNSPECIFIED>")
 
   if (DEFINED LLVM_HAVE_TF_AOT)
     tf_find_and_compile(
       ${LLVM_INLINER_MODEL_PATH}
       ${LLVM_INLINER_MODEL_CURRENT_URL}
       ${LLVM_INLINER_MODEL_PATH_DEFAULT}
-      "models/inlining/config.py"
+      "models/gen-inline-oz-test-model.py"
       serve
       action
       InlinerSizeModel
@@ -50,6 +47,7 @@ add_llvm_component_library(LLVMAnalysis
   CostModel.cpp
   CodeMetrics.cpp
   ConstantFolding.cpp
+  CycleAnalysis.cpp
   DDG.cpp
   DDGPrinter.cpp
   ConstraintSystem.cpp
@@ -74,6 +72,7 @@ add_llvm_component_library(LLVMAnalysis
   IndirectCallPromotionAnalysis.cpp
   InlineCost.cpp
   InlineAdvisor.cpp
+  InlineOrder.cpp
   InlineSizeEstimatorAnalysis.cpp
   InstCount.cpp
   InstructionPrecedenceTracking.cpp
@@ -100,11 +99,14 @@ add_llvm_component_library(LLVMAnalysis
   MemoryBuiltins.cpp
   MemoryDependenceAnalysis.cpp
   MemoryLocation.cpp
+  MemoryProfileInfo.cpp
   MemorySSA.cpp
   MemorySSAUpdater.cpp
+  ModelUnderTrainingRunner.cpp
   ModuleDebugInfoPrinter.cpp
   ModuleSummaryAnalysis.cpp
   MustExecute.cpp
+  NoInferenceModelRunner.cpp
   ObjCARCAliasAnalysis.cpp
   ObjCARCAnalysisUtils.cpp
   ObjCARCInstKind.cpp
@@ -118,7 +120,6 @@ add_llvm_component_library(LLVMAnalysis
   RegionInfo.cpp
   RegionPass.cpp
   RegionPrinter.cpp
-  ReleaseModeModelRunner.cpp
   ReplayInlineAdvisor.cpp
   ScalarEvolution.cpp
   ScalarEvolutionAliasAnalysis.cpp
@@ -129,6 +130,7 @@ add_llvm_component_library(LLVMAnalysis
   SyncDependenceAnalysis.cpp
   SyntheticCountsUtils.cpp
   TFUtils.cpp
+  TensorSpec.cpp
   TargetLibraryInfo.cpp
   TargetTransformInfo.cpp
   Trace.cpp

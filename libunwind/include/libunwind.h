@@ -1,4 +1,4 @@
-//===---------------------------- libunwind.h -----------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -81,7 +81,7 @@ typedef struct unw_addr_space *unw_addr_space_t;
 
 typedef int unw_regnum_t;
 typedef uintptr_t unw_word_t;
-#if defined(__arm__) && !defined(__ARM_DWARF_EH__)
+#if defined(__arm__) && !defined(__ARM_DWARF_EH__) && !defined(__SEH__)
 typedef uint64_t unw_fpreg_t;
 #else
 typedef double unw_fpreg_t;
@@ -120,6 +120,9 @@ extern int unw_resume(unw_cursor_t *) LIBUNWIND_AVAIL;
 extern void unw_save_vfp_as_X(unw_cursor_t *) LIBUNWIND_AVAIL;
 #endif
 
+#ifdef _AIX
+extern uintptr_t unw_get_data_rel_base(unw_cursor_t *) LIBUNWIND_AVAIL;
+#endif
 
 extern const char *unw_regname(unw_cursor_t *, unw_regnum_t) LIBUNWIND_AVAIL;
 extern int unw_get_proc_info(unw_cursor_t *, unw_proc_info_t *) LIBUNWIND_AVAIL;
@@ -718,7 +721,8 @@ enum {
   UNW_ARM_WR14 = 126,
   UNW_ARM_WR15 = 127,
   // 128-133 -- SPSR, SPSR_{FIQ|IRQ|ABT|UND|SVC}
-  // 134-143 -- Reserved
+  // 134-142 -- Reserved
+  UNW_ARM_RA_AUTH_CODE = 143,
   // 144-150 -- R8_USR-R14_USR
   // 151-157 -- R8_FIQ-R14_FIQ
   // 158-159 -- R13_IRQ-R14_IRQ
@@ -1171,6 +1175,48 @@ enum {
   // Following registers don't have DWARF register numbers.
   UNW_VE_VIXR = 144,
   UNW_VE_VL   = 145,
+};
+
+// s390x register numbers
+enum {
+  UNW_S390X_R0      = 0,
+  UNW_S390X_R1      = 1,
+  UNW_S390X_R2      = 2,
+  UNW_S390X_R3      = 3,
+  UNW_S390X_R4      = 4,
+  UNW_S390X_R5      = 5,
+  UNW_S390X_R6      = 6,
+  UNW_S390X_R7      = 7,
+  UNW_S390X_R8      = 8,
+  UNW_S390X_R9      = 9,
+  UNW_S390X_R10     = 10,
+  UNW_S390X_R11     = 11,
+  UNW_S390X_R12     = 12,
+  UNW_S390X_R13     = 13,
+  UNW_S390X_R14     = 14,
+  UNW_S390X_R15     = 15,
+  UNW_S390X_F0      = 16,
+  UNW_S390X_F2      = 17,
+  UNW_S390X_F4      = 18,
+  UNW_S390X_F6      = 19,
+  UNW_S390X_F1      = 20,
+  UNW_S390X_F3      = 21,
+  UNW_S390X_F5      = 22,
+  UNW_S390X_F7      = 23,
+  UNW_S390X_F8      = 24,
+  UNW_S390X_F10     = 25,
+  UNW_S390X_F12     = 26,
+  UNW_S390X_F14     = 27,
+  UNW_S390X_F9      = 28,
+  UNW_S390X_F11     = 29,
+  UNW_S390X_F13     = 30,
+  UNW_S390X_F15     = 31,
+  // 32-47 Control Registers
+  // 48-63 Access Registers
+  UNW_S390X_PSWM    = 64,
+  UNW_S390X_PSWA    = 65,
+  // 66-67 Reserved
+  // 68-83 Vector Registers %v16-%v31
 };
 
 #endif

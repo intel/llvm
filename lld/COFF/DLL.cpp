@@ -21,6 +21,7 @@
 #include "COFFLinkerContext.h"
 #include "Chunks.h"
 #include "SymbolTable.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Path.h"
@@ -150,10 +151,9 @@ binImports(const std::vector<DefinedImportData *> &imports) {
   for (auto &kv : m) {
     // Sort symbols by name for each group.
     std::vector<DefinedImportData *> &syms = kv.second;
-    std::sort(syms.begin(), syms.end(),
-              [](DefinedImportData *a, DefinedImportData *b) {
-                return a->getName() < b->getName();
-              });
+    llvm::sort(syms, [](DefinedImportData *a, DefinedImportData *b) {
+      return a->getName() < b->getName();
+    });
     v.push_back(std::move(syms));
   }
   return v;
@@ -659,14 +659,14 @@ void DelayLoadContents::create(COFFLinkerContext &ctx, Defined *h) {
         // Add a syntentic symbol for this load thunk, using the "__imp_load"
         // prefix, in case this thunk needs to be added to the list of valid
         // call targets for Control Flow Guard.
-        StringRef symName = saver.save("__imp_load_" + extName);
+        StringRef symName = saver().save("__imp_load_" + extName);
         s->loadThunkSym =
             cast<DefinedSynthetic>(ctx.symtab.addSynthetic(symName, t));
       }
     }
     thunks.push_back(tm);
     StringRef tmName =
-        saver.save("__tailMerge_" + syms[0]->getDLLName().lower());
+        saver().save("__tailMerge_" + syms[0]->getDLLName().lower());
     ctx.symtab.addSynthetic(tmName, tm);
     // Terminate with null values.
     addresses.push_back(make<NullChunk>(8));

@@ -38,10 +38,10 @@ add_lldb_library(lldbCommands
   CommandObjectVersion.cpp
   CommandObjectWatchpoint.cpp
   CommandObjectWatchpointCommand.cpp
+  CommandOptionArgumentTable.cpp
   CommandOptionsProcessLaunch.cpp
 
   LINK_LIBS
-    lldbBase
     lldbBreakpoint
     lldbCore
     lldbDataFormatters
@@ -51,6 +51,7 @@ add_lldb_library(lldbCommands
     lldbSymbol
     lldbTarget
     lldbUtility
+    lldbVersion
 
   LINK_COMPONENTS
     Support

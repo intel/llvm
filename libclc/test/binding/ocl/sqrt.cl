@@ -11,8 +11,6 @@
 
 // RUN: %clang -emit-llvm -S -o - %s | FileCheck %s
 
-// XFAIL: amdgcn
-
 #include <spirv/spirv_types.h>
 
 // CHECK-NOT: declare {{.*}} @_Z

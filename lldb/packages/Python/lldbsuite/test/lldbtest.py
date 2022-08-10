@@ -4,10 +4,6 @@ LLDB module which provides the abstract base class of lldb test case.
 The concrete subclass can override lldbtest.TestBase in order to inherit the
 common behavior for unitest.TestCase.setUp/tearDown implemented in this file.
 
-The subclass should override the attribute mydir in order for the python runtime
-to locate the individual test cases when running as part of a large test suite
-or when running each test case as a separate python invocation.
-
 ./dotest.py provides a test driver which sets up the environment to run the
 entire of part of the test suite .  Example:
 
@@ -49,7 +45,6 @@ from subprocess import *
 import sys
 import time
 import traceback
-import distutils.spawn
 
 # Third-party modules
 import unittest2
@@ -67,7 +62,9 @@ from . import lldbutil
 from . import test_categories
 from lldbsuite.support import encoded_file
 from lldbsuite.support import funcutils
+from lldbsuite.support import seven
 from lldbsuite.test.builders import get_builder
+from lldbsuite.test_event import build_exception
 
 # See also dotest.parseOptionsAndInitTestdirs(), where the environment variables
 # LLDB_COMMAND_TRACE is set from '-t' option.
@@ -229,6 +226,11 @@ def pointer_size():
 
 def is_exe(fpath):
     """Returns true if fpath is an executable."""
+    if fpath == None:
+        return False
+    if sys.platform == 'win32':
+        if not fpath.endswith(".exe"):
+            fpath += ".exe"
     return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
 
 
@@ -315,7 +317,8 @@ class ValueCheck:
         for i in range(0, val.GetNumChildren()):
             expected_child = self.children[i]
             actual_child = val.GetChildAtIndex(i)
-            expected_child.check_value(test_base, actual_child, error_msg)
+            child_error = "Checking child with index " + str(i) + ":\n" + error_msg
+            expected_child.check_value(test_base, actual_child, child_error)
 
 class recording(SixStringIO):
     """
@@ -390,7 +393,6 @@ class _LocalProcess(_BaseProcess):
             stdout=open(
                 os.devnull) if not self._trace_on else None,
             stdin=PIPE,
-            preexec_fn=lldbplatformutil.enable_attach,
             env=env)
 
     def terminate(self):
@@ -418,6 +420,9 @@ class _LocalProcess(_BaseProcess):
 
     def poll(self):
         return self._proc.poll()
+
+    def wait(self, timeout=None):
+        return self._proc.wait(timeout)
 
 
 class _RemoteProcess(_BaseProcess):
@@ -469,61 +474,6 @@ class _RemoteProcess(_BaseProcess):
     def terminate(self):
         lldb.remote_platform.Kill(self._pid)
 
-# From 2.7's subprocess.check_output() convenience function.
-# Return a tuple (stdoutdata, stderrdata).
-
-
-def system(commands, **kwargs):
-    r"""Run an os command with arguments and return its output as a byte string.
-
-    If the exit code was non-zero it raises a CalledProcessError.  The
-    CalledProcessError object will have the return code in the returncode
-    attribute and output in the output attribute.
-
-    The arguments are the same as for the Popen constructor.  Example:
-
-    >>> check_output(["ls", "-l", "/dev/null"])
-    'crw-rw-rw- 1 root root 1, 3 Oct 18  2007 /dev/null\n'
-
-    The stdout argument is not allowed as it is used internally.
-    To capture standard error in the result, use stderr=STDOUT.
-
-    >>> check_output(["/bin/sh", "-c",
-    ...               "ls -l non_existent_file ; exit 0"],
-    ...              stderr=STDOUT)
-    'ls: non_existent_file: No such file or directory\n'
-    """
-
-    output = ""
-    error = ""
-    for shellCommand in commands:
-        if 'stdout' in kwargs:
-            raise ValueError(
-                'stdout argument not allowed, it will be overridden.')
-        process = Popen(
-            shellCommand,
-            stdout=PIPE,
-            stderr=STDOUT,
-            **kwargs)
-        pid = process.pid
-        this_output, this_error = process.communicate()
-        retcode = process.poll()
-
-        if retcode:
-            cmd = kwargs.get("args")
-            if cmd is None:
-                cmd = shellCommand
-            cpe = CalledProcessError(retcode, cmd)
-            # Ensure caller can access the stdout/stderr.
-            cpe.lldb_extensions = {
-                "combined_output": this_output,
-                "command": shellCommand
-            }
-            raise cpe
-        output = output + this_output.decode("utf-8", errors='ignore')
-    return output
-
-
 def getsource_if_available(obj):
     """
     Return the text of the source code for an object if available.  Otherwise,
@@ -564,9 +514,9 @@ class Base(unittest2.TestCase):
         # /abs/path/to/packages/group/subdir/mytest.py -> group/subdir
         lldb_test_src = configuration.test_src_root
         if not test_file.startswith(lldb_test_src):
-          raise Exception(
-              "Test file '%s' must reside within lldb_test_src "
-              "(which is '%s')." % (test_file, lldb_test_src))
+            raise Exception(
+                "Test file '%s' must reside within lldb_test_src "
+                "(which is '%s')." % (test_file, lldb_test_src))
         return os.path.dirname(os.path.relpath(test_file, start=lldb_test_src))
 
     def TraceOn(self):
@@ -584,7 +534,9 @@ class Base(unittest2.TestCase):
         Do current directory manipulation.
         """
         # Fail fast if 'mydir' attribute is not overridden.
-        if not cls.mydir or len(cls.mydir) == 0:
+        if not cls.mydir:
+            cls.mydir = Base.compute_mydir(sys.modules[cls.__module__].__file__)
+        if not cls.mydir:
             raise Exception("Subclasses must override the 'mydir' attribute.")
 
         # Save old working directory.
@@ -1334,11 +1286,10 @@ class Base(unittest2.TestCase):
             Supports: llvm, clang.
         """
         compiler = self.getCompilerBinary()
-        version_output = system([[compiler, "--version"]])
-        for line in version_output.split(os.linesep):
-            m = re.search('version ([0-9.]+)', line)
-            if m:
-                return m.group(1)
+        version_output = check_output([compiler, "--version"], errors="replace")
+        m = re.search('version ([0-9.]+)', version_output)
+        if m:
+            return m.group(1)
         return 'unknown'
 
     def getDwarfVersion(self):
@@ -1468,9 +1419,21 @@ class Base(unittest2.TestCase):
         testname = self.getBuildDirBasename()
 
         module = builder_module()
-        if not module.build(debug_info, architecture, compiler, dictionary,
-                testdir, testname):
+        command = builder_module().getBuildCommand(debug_info, architecture,
+                compiler, dictionary, testdir, testname)
+        if command is None:
             raise Exception("Don't know how to build binary")
+
+        self.runBuildCommand(command)
+
+    def runBuildCommand(self, command):
+        self.trace(seven.join_for_shell(command))
+        try:
+            output = check_output(command, stderr=STDOUT, errors="replace")
+        except CalledProcessError as cpe:
+            raise build_exception.BuildError(cpe)
+        self.trace(output)
+
 
     # ==================================================
     # Build methods supported through a plugin interface
@@ -1601,14 +1564,14 @@ class Base(unittest2.TestCase):
 
         # Tries to find clang at the same folder as the lldb
         lldb_dir = os.path.dirname(lldbtest_config.lldbExec)
-        path = distutils.spawn.find_executable("clang", lldb_dir)
+        path = shutil.which("clang", path=lldb_dir)
         if path is not None:
             return path
 
         return os.environ["CC"]
 
 
-    def yaml2obj(self, yaml_path, obj_path):
+    def yaml2obj(self, yaml_path, obj_path, max_size=None):
         """
         Create an object file at the given path from a yaml file.
 
@@ -1618,52 +1581,9 @@ class Base(unittest2.TestCase):
         if not yaml2obj_bin:
             self.assertTrue(False, "No valid yaml2obj executable specified")
         command = [yaml2obj_bin, "-o=%s" % obj_path, yaml_path]
-        system([command])
-
-    def getBuildFlags(
-            self,
-            use_cpp11=True,
-            use_libcxx=False,
-            use_libstdcxx=False):
-        """ Returns a dictionary (which can be provided to build* functions above) which
-            contains OS-specific build flags.
-        """
-        cflags = ""
-        ldflags = ""
-
-        # On Mac OS X, unless specifically requested to use libstdc++, use
-        # libc++
-        if not use_libstdcxx and self.platformIsDarwin():
-            use_libcxx = True
-
-        if use_libcxx and self.libcxxPath:
-            cflags += "-stdlib=libc++ "
-            if self.libcxxPath:
-                libcxxInclude = os.path.join(self.libcxxPath, "include")
-                libcxxLib = os.path.join(self.libcxxPath, "lib")
-                if os.path.isdir(libcxxInclude) and os.path.isdir(libcxxLib):
-                    cflags += "-nostdinc++ -I%s -L%s -Wl,-rpath,%s " % (
-                        libcxxInclude, libcxxLib, libcxxLib)
-
-        if use_cpp11:
-            cflags += "-std="
-            if "gcc" in self.getCompiler() and "4.6" in self.getCompilerVersion():
-                cflags += "c++0x"
-            else:
-                cflags += "c++11"
-        if self.platformIsDarwin() or self.getPlatform() == "freebsd":
-            cflags += " -stdlib=libc++"
-        elif self.getPlatform() == "openbsd":
-            cflags += " -stdlib=libc++"
-        elif self.getPlatform() == "netbsd":
-            # NetBSD defaults to libc++
-            pass
-        elif "clang" in self.getCompiler():
-            cflags += " -stdlib=libstdc++"
-
-        return {'CFLAGS_EXTRAS': cflags,
-                'LD_EXTRAS': ldflags,
-                }
+        if max_size is not None:
+            command += ["--max-size=%d" % max_size]
+        self.runBuildCommand(command)
 
     def cleanup(self, dictionary=None):
         """Platform specific way to do cleanup after build."""
@@ -1780,11 +1700,6 @@ class TestBase(Base):
 
     Important things for test class writers:
 
-        - Overwrite the mydir class attribute, otherwise your test class won't
-          run.  It specifies the relative directory to the top level 'test' so
-          the test harness can change to the correct working directory before
-          running your test.
-
         - The setUp method sets up things to facilitate subsequent interactions
           with the debugger as part of the test.  These include:
               - populate the test method name
@@ -1852,7 +1767,7 @@ class TestBase(Base):
         if self.hasDarwinFramework():
             include_stmt = "'#include <%s>' % os.path.join('LLDB', header)"
         else:
-            include_stmt = "'#include <%s>' % os.path.join('" + public_api_dir + "', header)"
+            include_stmt = "'#include <%s>' % os.path.join(r'" + public_api_dir + "', header)"
         list = [eval(include_stmt) for header in public_headers if (
             header.startswith("SB") and header.endswith(".h"))]
         includes = '\n'.join(list)
@@ -2551,7 +2466,16 @@ FileCheck output:
             self.fail(self._formatMessage(msg,
                 "'{}' is not success".format(error)))
 
-    def createTestTarget(self, file_path=None, msg=None):
+    """Assert two states are equal"""
+    def assertState(self, first, second, msg=None):
+        if first != second:
+            error = "{} ({}) != {} ({})".format(
+                lldbutil.state_type_to_str(first), first,
+                lldbutil.state_type_to_str(second), second)
+            self.fail(self._formatMessage(msg, error))
+
+    def createTestTarget(self, file_path=None, msg=None,
+                         load_dependent_modules=True):
         """
         Creates a target from the file found at the given file path.
         Asserts that the resulting target is valid.
@@ -2565,7 +2489,6 @@ FileCheck output:
         error = lldb.SBError()
         triple = ""
         platform = ""
-        load_dependent_modules = True
         target = self.dbg.CreateTarget(file_path, triple, platform,
                                        load_dependent_modules, error)
         if error.Fail():
@@ -2617,6 +2540,8 @@ FileCheck output:
         err.write(type.GetName() + ":\n")
         err.write('\t' + "ByteSize        -> " +
                   str(type.GetByteSize()) + '\n')
+        err.write('\t' + "IsAggregateType   -> " +
+                  str(type.IsAggregateType()) + '\n')
         err.write('\t' + "IsPointerType   -> " +
                   str(type.IsPointerType()) + '\n')
         err.write('\t' + "IsReferenceType -> " +

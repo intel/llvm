@@ -73,27 +73,35 @@ def _check_expected_version(comparison, expected, actual):
 
 _re_pattern_type = type(re.compile(''))
 def _match_decorator_property(expected, actual):
-    if actual is None or expected is None:
+    if expected is None:
         return True
+
+    if actual is None :
+        return False
 
     if isinstance(expected, no_match):
         return not _match_decorator_property(expected.item, actual)
-    elif isinstance(expected, (_re_pattern_type,) + six.string_types):
+
+    if isinstance(expected, (_re_pattern_type,) + six.string_types):
         return re.search(expected, actual) is not None
-    elif hasattr(expected, "__iter__"):
+
+    if hasattr(expected, "__iter__"):
         return any([x is not None and _match_decorator_property(x, actual)
                     for x in expected])
-    else:
-        return expected == actual
+
+    return expected == actual
 
 
-def _compiler_supports(compiler, flag):
+def _compiler_supports(compiler,
+                       flag,
+                       source='int main() {}',
+                       output_file=tempfile.NamedTemporaryFile()):
     """Test whether the compiler supports the given flag."""
     if platform.system() == 'Darwin':
         compiler = "xcrun " + compiler
-    f = tempfile.NamedTemporaryFile()
     try:
-        cmd = "echo 'int main() {}' | %s %s -x c -o %s -" % (compiler, flag, f.name)
+        cmd = "echo '%s' | %s %s -x c -o %s -" % (source, compiler, flag,
+                                                  output_file.name)
         subprocess.check_call(cmd, shell=True)
     except subprocess.CalledProcessError:
         return False
@@ -276,7 +284,7 @@ def expectedFailureAll(bugnumber=None,
                          archs=archs, triple=triple,
                          debug_info=debug_info,
                          swig_version=swig_version, py_version=py_version,
-                         macos_version=None,
+                         macos_version=macos_version,
                          remote=remote,dwarf_version=dwarf_version,
                          setting=setting)
 
@@ -370,8 +378,8 @@ def apple_simulator_test(platform):
     The SDK identifiers for simulators are iphonesimulator, appletvsimulator, watchsimulator
     """
     def should_skip_simulator_test():
-        if lldbplatformutil.getHostPlatform() != 'darwin':
-            return "simulator tests are run only on darwin hosts"
+        if lldbplatformutil.getHostPlatform() not in ['darwin', 'macosx']:
+            return "simulator tests are run only on darwin hosts."
         try:
             DEVNULL = open(os.devnull, 'w')
             output = subprocess.check_output(["xcodebuild", "-showsdks"], stderr=DEVNULL).decode("utf-8")
@@ -690,6 +698,17 @@ def skipIfTargetAndroid(bugnumber=None, api_levels=None, archs=None):
             archs),
         bugnumber)
 
+def skipUnlessAppleSilicon(func):
+    """Decorate the item to skip tests unless running on Apple Silicon."""
+    def not_apple_silicon(test):
+        if platform.system() != 'Darwin' or test.getArchitecture() not in [
+                'arm64', 'arm64e'
+        ]:
+            return "Test only runs on Apple Silicon"
+        return None
+
+    return skipTestIfFn(not_apple_silicon)(func)
+
 def skipUnlessSupportedTypeAttribute(attr):
     """Decorate the item to skip test unless Clang supports type __attribute__(attr)."""
     def compiler_doesnt_support_struct_attribute(self):
@@ -755,16 +774,13 @@ def skipUnlessUndefinedBehaviorSanitizer(func):
         if is_running_under_asan():
             return "Undefined behavior sanitizer tests are disabled when runing under ASAN"
 
-        # Write out a temp file which exhibits UB.
-        inputf = tempfile.NamedTemporaryFile(suffix='.c', mode='w')
-        inputf.write('int main() { int x = 0; return x / x; }\n')
-        inputf.flush()
-
         # We need to write out the object into a named temp file for inspection.
         outputf = tempfile.NamedTemporaryFile()
 
         # Try to compile with ubsan turned on.
-        if not _compiler_supports(self.getCompiler(), '-fsanitize=undefined'):
+        if not _compiler_supports(self.getCompiler(), '-fsanitize=undefined',
+                                  'int main() { int x = 0; return x / x; }',
+                                  outputf):
             return "Compiler cannot compile with -fsanitize=undefined"
 
         # Check that we actually see ubsan instrumentation in the binary.
@@ -880,6 +896,9 @@ def skipIfXmlSupportMissing(func):
 
 def skipIfEditlineSupportMissing(func):
     return _get_bool_config_skip_if_decorator("editline")(func)
+
+def skipIfFBSDVMCoreSupportMissing(func):
+    return _get_bool_config_skip_if_decorator("fbsdvmcore")(func)
 
 def skipIfLLVMTargetMissing(target):
     config = lldb.SBDebugger.GetBuildConfiguration()

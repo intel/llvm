@@ -11,15 +11,29 @@
 // `unsigned long`, and `char` to appear as if they use `long long`,
 // `unsigned long long`, and `signed char`, as is consistent with the primitive
 // types defined by OpenCL C. Following a remangling, the original function
-// mangling will be made an alias to either the remangled function or a function
-// with a suitable function if any exists.
+// mangling will be built as a clone of either the remangled function or a
+// function with a suitable function if any exists. In some cases a clone of
+// the remangled function is created for functions where multiple parameters
+// have been replaced, and the replaced values are aliases.
 //
-// Example: If libclc defined a function `f(long)` the mangled name would be
+// Original Clone Example:
+//          If libclc defined a function `f(long)` the mangled name would be
 //          `_Z1fl`. The remangler would rename this function to `_Z1fx`
-//          (`f(long long)`.) If the target uses 64-bit `long`, `_Z1fl` is made
-//          an alias to the old function now under the name `_Z1fx`, whereas if
-//          the target uses 32-bit `long`, `_Z1fl` is made an alias to `_Z1fi`
+//          (`f(long long)`.) If the target uses 64-bit `long`, `_Z1fl` is
+//          cloned from the old function now under the name `_Z1fx`, whereas if
+//          the target uses 32-bit `long`, `_Z1fl` is cloned from `_Z1fi`
 //          (`f(int)`) if such a function exists.
+//
+// Remangled Clone Example:
+//          In cases where the remangled name squashes valid versions of a
+//          function a clone is created. `f(long, char, signed char)` would be
+//          mangled to
+//          `_Z1flca`. The remangler would rename this function to `_Z1fyaa`
+//          (`f(long long, signed char, signed char)`). If the target uses a
+//          signed char then a valid clone `_Z1fyca`,
+//          (`f(long long, char, signed char)`), is not defined. The remangler
+//          creates a clone of the renamed function,`_Z1fyaa` , to this
+//          permutation, `_Z1fyca`.
 //
 //===----------------------------------------------------------------------===//
 
@@ -44,6 +58,8 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include <iostream>
 #include <memory>
@@ -139,7 +155,7 @@ class DefaultAllocator {
 public:
   void reset() { Alloc.reset(); }
 
-  template <typename T, typename... Args> T *makeNode(Args &&... args) {
+  template <typename T, typename... Args> T *makeNode(Args &&...args) {
     return new (Alloc.allocate(sizeof(T))) T(std::forward<Args>(args)...);
   }
 
@@ -158,15 +174,14 @@ class Remangler {
   SmallVector<std::string, 16> Subs;
   bool Failed = false;
 
-  OutputBuffer printNode(const Node *node) {
-    OutputBuffer nodeOutBuffer;
+  void printNode(const Node *node, OutputBuffer &nodeOutBuffer) {
     initializeOutputBuffer(nullptr, nullptr, nodeOutBuffer, 1024);
     node->print(nodeOutBuffer);
-    return nodeOutBuffer;
   }
 
   void addSub(const Node *node) {
-    OutputBuffer nodeOut = printNode(node);
+    OutputBuffer nodeOut;
+    printNode(node, nodeOut);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -175,7 +190,8 @@ class Remangler {
   }
 
   bool findSub(const Node *node, size_t *index) {
-    OutputBuffer nodeOut = printNode(node);
+    OutputBuffer nodeOut;
+    printNode(node, nodeOut);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -464,7 +480,21 @@ public:
 
 class TargetTypeReplacements {
   SmallDenseMap<const char *, const char *> ParameterTypeReplacements;
-  SmallDenseMap<const char *, const char *> AliasTypeReplacements;
+  SmallDenseMap<const char *, const char *> CloneTypeReplacements;
+  SmallDenseMap<const char *, const char *> RemangledCloneTypeReplacements;
+
+  void CreateRemangledTypeReplacements() {
+    // RemangleTypes which are not aliases or not the exact same alias type
+    for (auto &TypeReplacementPair : ParameterTypeReplacements)
+      if (CloneTypeReplacements.find(TypeReplacementPair.getFirst()) ==
+          CloneTypeReplacements.end())
+        RemangledCloneTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+      else if (CloneTypeReplacements[TypeReplacementPair.getFirst()] !=
+               TypeReplacementPair.getSecond())
+        RemangledCloneTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+  }
 
 public:
   TargetTypeReplacements() {
@@ -475,54 +505,93 @@ public:
     // Replace char with signed char
     ParameterTypeReplacements["char"] = "signed char";
 
-    // Make replaced long functions aliases to either integer or long long
+    // Make replaced long functions clones of either integer or long long
     // variant
     if (LongWidth == SupportedLongWidth::L32) {
-      AliasTypeReplacements["long"] = "int";
-      AliasTypeReplacements["unsigned long"] = "unsigned int";
+      CloneTypeReplacements["long"] = "int";
+      CloneTypeReplacements["unsigned long"] = "unsigned int";
     } else {
-      AliasTypeReplacements["long"] = "long long";
-      AliasTypeReplacements["unsigned long"] = "unsigned long long";
+      CloneTypeReplacements["long"] = "long long";
+      CloneTypeReplacements["unsigned long"] = "unsigned long long";
     }
 
-    // Make replaced char functions aliases to either integer or long long
+    // Make replaced char functions clones of either integer or long long
     // variant
     if (CharSignedness == Signedness::Signed) {
-      AliasTypeReplacements["char"] = "signed char";
+      CloneTypeReplacements["char"] = "signed char";
     } else {
-      AliasTypeReplacements["char"] = "unsigned char";
+      CloneTypeReplacements["char"] = "unsigned char";
     }
+
+    CreateRemangledTypeReplacements();
   }
 
   SmallDenseMap<const char *, const char *> getParameterTypeReplacements() {
     return ParameterTypeReplacements;
   }
 
-  SmallDenseMap<const char *, const char *> getAliasTypeReplacements() {
-    return AliasTypeReplacements;
+  SmallDenseMap<const char *, const char *> getCloneTypeReplacements() {
+    return CloneTypeReplacements;
+  }
+
+  SmallDenseMap<const char *, const char *>
+  getRemangledCloneTypeReplacements() {
+    return RemangledCloneTypeReplacements;
   }
 };
 
-bool createAlias(Module *M, std::string originalMangledName,
-                 const itanium_demangle::Node *functionTree,
-                 TargetTypeReplacements replacements) {
-  Remangler ATR{functionTree, replacements.getAliasTypeReplacements()};
-  std::string RemangledAliasName = ATR.remangle();
+bool createCloneFromMap(
+    Module *M, std::string originalName,
+    const itanium_demangle::Node *functionTree,
+    SmallDenseMap<const char *, const char *> TypeReplacements,
+    bool CloneeTypeReplacement = false) {
+  Remangler ATR{functionTree, TypeReplacements};
+  std::string RemangledName = ATR.remangle();
 
   if (ATR.hasFailed())
     return false;
 
   // Name has not changed from the original name.
-  if (RemangledAliasName == originalMangledName)
+  if (RemangledName == originalName)
     return true;
 
-  Function *Alias = M->getFunction(RemangledAliasName);
-  if (Alias) {
-    GlobalAlias::create(originalMangledName, Alias);
-  } else if (Verbose) {
-    std::cout << "Could not create alias " << originalMangledName
-              << " : missing " << RemangledAliasName << std::endl;
+  StringRef CloneName, CloneeName;
+  if (CloneeTypeReplacement) {
+    CloneName = originalName;
+    CloneeName = RemangledName;
+  } else {
+    CloneName = RemangledName;
+    CloneeName = originalName;
   }
+
+  Function *Clonee = M->getFunction(CloneeName);
+  if (Clonee) {
+    ValueToValueMapTy Dummy;
+    Function *NewF = CloneFunction(Clonee, Dummy);
+    NewF->setName(std::string(CloneName));
+  } else if (Verbose) {
+    std::cout << "Could not create copy " << CloneName.data() << " : missing "
+              << CloneeName.data() << std::endl;
+  }
+
+  return true;
+}
+
+bool createClones(Module *M, std::string originalMangledName,
+                  std::string remangledName,
+                  const itanium_demangle::Node *functionTree,
+                  TargetTypeReplacements replacements) {
+  // create clone of original function
+  if (!createCloneFromMap(M, originalMangledName, functionTree,
+                          replacements.getCloneTypeReplacements(),
+                          /* CloneeTypeReplacement= */ true))
+    return false;
+
+  // create clone of remangled function
+  if (!createCloneFromMap(M, remangledName, functionTree,
+                          replacements.getRemangledCloneTypeReplacements()))
+    return false;
+
   return true;
 }
 
@@ -556,9 +625,10 @@ bool remangleFunction(Function &func, Module *M,
     }
     func.setName(RemangledName);
 
-    // Make an alias to a suitable function using the old name if there is a
-    // type-mapping and the corresponding aliasee function exists.
-    if (!createAlias(M, MangledName, FunctionTree, replacements))
+    // Make a clone of a suitable function using the old name if there is a
+    // type-mapping and the corresponding clonee function exists.
+    if (!createClones(M, MangledName, RemangledName, FunctionTree,
+                      replacements))
       return false;
   }
 
@@ -595,10 +665,14 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  bool Success = true;
+  std::vector<Function *> FuncList;
   for (auto &Func : M->getFunctionList())
-    Success = remangleFunction(Func, M.get(), Replacements) && Success;
+    FuncList.push_back(&Func);
 
+  bool Success = true;
+  for (auto Func : FuncList) {
+    Success = remangleFunction(*Func, M.get(), Replacements) && Success;
+  }
   // Only fail after all to give as much context as possible.
   if (!Success) {
     errs() << "Failed to remangle all mangled functions in module.\n";

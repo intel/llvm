@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <utility>
+
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 
 #include "mlir/Dialect/CommonFolders.h"
@@ -56,7 +58,7 @@ static Attribute extractCompositeElement(Attribute composite,
 
   if (auto vector = composite.dyn_cast<ElementsAttr>()) {
     assert(indices.size() == 1 && "must have exactly one index for a vector");
-    return vector.getValue({indices[0]});
+    return vector.getValues<Attribute>()[indices[0]];
   }
 
   if (auto array = composite.dyn_cast<ArrayAttr>()) {
@@ -74,7 +76,7 @@ static Attribute extractCompositeElement(Attribute composite,
 
 namespace {
 #include "SPIRVCanonicalization.inc"
-}
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // spv.AccessChainOp
@@ -108,7 +110,7 @@ struct CombineChainedAccessChain
     return success();
   }
 };
-} // end anonymous namespace
+} // namespace
 
 void spirv::AccessChainOp::getCanonicalizationPatterns(
     RewritePatternSet &results, MLIRContext *context) {
@@ -161,8 +163,8 @@ OpFoldResult spirv::IAddOp::fold(ArrayRef<Attribute> operands) {
   // The resulting value will equal the low-order N bits of the correct result
   // R, where N is the component width and R is computed with enough precision
   // to avoid overflow and underflow.
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a + b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](APInt a, const APInt &b) { return std::move(a) + b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -183,8 +185,8 @@ OpFoldResult spirv::IMulOp::fold(ArrayRef<Attribute> operands) {
   // The resulting value will equal the low-order N bits of the correct result
   // R, where N is the component width and R is computed with enough precision
   // to avoid overflow and underflow.
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a * b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](const APInt &a, const APInt &b) { return a * b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -201,8 +203,8 @@ OpFoldResult spirv::ISubOp::fold(ArrayRef<Attribute> operands) {
   // The resulting value will equal the low-order N bits of the correct result
   // R, where N is the component width and R is computed with enough precision
   // to avoid overflow and underflow.
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a - b; });
+  return constFoldBinaryOp<IntegerAttr>(
+      operands, [](APInt a, const APInt &b) { return std::move(a) - b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -214,11 +216,11 @@ OpFoldResult spirv::LogicalAndOp::fold(ArrayRef<Attribute> operands) {
 
   if (Optional<bool> rhs = getScalarOrSplatBoolAttr(operands.back())) {
     // x && true = x
-    if (rhs.getValue())
+    if (rhs.value())
       return operand1();
 
     // x && false = false
-    if (!rhs.getValue())
+    if (!rhs.value())
       return operands.back();
   }
 
@@ -245,12 +247,12 @@ OpFoldResult spirv::LogicalOrOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.size() == 2 && "spv.LogicalOr should take two operands");
 
   if (auto rhs = getScalarOrSplatBoolAttr(operands.back())) {
-    if (rhs.getValue())
+    if (rhs.value())
       // x || true = true
       return operands.back();
 
     // x || false = x
-    if (!rhs.getValue())
+    if (!rhs.value())
       return operand1();
   }
 
@@ -414,7 +416,7 @@ LogicalResult ConvertSelectionOpToSelect::canCanonicalizeSelection(
 
   return success();
 }
-} // end anonymous namespace
+} // namespace
 
 void spirv::SelectionOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                      MLIRContext *context) {

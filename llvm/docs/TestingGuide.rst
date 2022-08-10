@@ -275,6 +275,45 @@ Put related tests into a single file rather than having a separate file per
 test. Check if there are files already covering your feature and consider
 adding your code there instead of creating a new file.
 
+Generating assertions in regression tests
+-----------------------------------------
+
+Some regression test cases are very large and complex to write/update by hand.
+In that case to reduce the human work we can use the scripts available in
+llvm/utils/ to generate the assertions.
+
+For example to generate assertions in an :program:`llc`-based test, run:
+
+ .. code-block:: bash
+
+     % llvm/utils/update_llc_test_checks.py --llc-binary build/bin/llc test.ll
+
+And if you want to update assertions in an existing test case, pass `-u` option
+which first check the ``NOTE:`` line exists and matches the script name.
+
+These are the most common scripts and their purposes/applications in generating
+assertions:
+
+.. code-block:: none
+
+  update_analyze_test_checks.py
+  opt -passes='print<cost-model>'
+
+  update_cc_test_checks.py
+  C/C++, or clang/clang++ (IR checks)
+
+  update_llc_test_checks.py
+  llc (assembly checks)
+
+  update_mca_test_checks.py
+  llvm-mca
+
+  update_mir_test_checks.py
+  llc (MIR checks)
+
+  update_test_checks.py
+  opt
+
 Extra files
 -----------
 
@@ -294,9 +333,10 @@ using ``split-file`` to extract them. For example,
   ;--- b.ll
   ...
 
-The parts are separated by the regex ``^(.|//)--- <part>``. By default the
-extracted content has leading empty lines to preserve line numbers. Specify
-``--no-leading-lines`` to drop leading lines.
+The parts are separated by the regex ``^(.|//)--- <part>``.
+
+If you want to test relative line numbers like ``[[#@LINE+1]]``, specify
+``--leading-lines`` to add leading empty lines to preserve line numbers.
 
 If the extra files are large, the idiomatic place to put them is in a subdirectory ``Inputs``.
 You can then refer to the extra files as ``%S/Inputs/foo.bar``.
@@ -529,6 +569,18 @@ RUN lines:
 
    Expands to the path separator, i.e. ``:`` (or ``;`` on Windows).
 
+``${fs-src-root}``
+   Expands to the root component of file system paths for the source directory,
+   i.e. ``/`` on Unix systems or ``C:\`` (or another drive) on Windows.
+
+``${fs-tmp-root}``
+   Expands to the root component of file system paths for the test's temporary
+   directory, i.e. ``/`` on Unix systems or ``C:\`` (or another drive) on
+   Windows.
+
+``${fs-sep}``
+   Expands to the file system separator, i.e. ``/`` or ``\`` on Windows.
+
 ``%/s, %/S, %/t, %/T:``
 
   Act like the corresponding substitution above but replace any ``\``
@@ -559,6 +611,13 @@ RUN lines:
    Example: ``Linux %errc_ENOENT: No such file or directory``
 
    Example: ``Windows %errc_ENOENT: no such file or directory``
+
+``%if feature %{<if branch>%} %else %{<else branch>%}``
+
+ Conditional substitution: if ``feature`` is available it expands to
+ ``<if branch>``, otherwise it expands to ``<else branch>``.
+ ``%else %{<else branch>%}`` is optional and treated like ``%else %{%}``
+ if not present.
 
 **LLVM-specific substitutions:**
 

@@ -1,4 +1,4 @@
-//===----------------------- algorithm.cpp --------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "algorithm"
+#include <algorithm>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
+
+// TODO(varconst): this currently doesn't benefit `ranges::sort` because it uses `ranges::less` instead of `__less`.
 
 template void __sort<__less<char>&, char*>(char*, char*, __less<char>&);
 #ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS

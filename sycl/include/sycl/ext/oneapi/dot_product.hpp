@@ -10,6 +10,9 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/types.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {

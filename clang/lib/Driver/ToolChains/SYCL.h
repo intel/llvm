@@ -54,11 +54,6 @@ public:
                     const char *LinkingOutput) const override;
 
 private:
-  /// \return llvm-spirv output file name.
-  const char *constructLLVMSpirvCommand(Compilation &C, const JobAction &JA,
-                                       const InputInfo &Output,
-                                       llvm::StringRef OutputFilePrefix,
-                                       bool isBc, const char *InputFile) const;
   /// \return llvm-link output file name.
   const char *constructLLVMLinkCommand(Compilation &C, const JobAction &JA,
                              const InputInfo &Output,
@@ -161,7 +156,9 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
-  bool isPIEDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {\
+    return false;
+  }
   bool isPICDefaultForced() const override { return false; }
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;

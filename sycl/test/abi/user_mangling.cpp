@@ -4,7 +4,7 @@
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 // CHK-DEVICE: define dso_local spir_func void @_Z4accdN2cl4sycl8accessorIiLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEE({{.*}})

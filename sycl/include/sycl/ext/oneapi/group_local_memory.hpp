@@ -8,12 +8,12 @@
 #pragma once
 
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/sycl_fe_intrins.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
-#include <CL/sycl/exception.hpp>
-#include <CL/sycl/group.hpp>
-#include <CL/sycl/multi_ptr.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/group.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #include <cstdint>
 #include <type_traits>
@@ -35,8 +35,8 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   return reinterpret_cast<__attribute__((opencl_local)) T *>(AllocatedMem);
 #else
   throw feature_not_supported(
-      "SYCL_EXT_ONEAPI_LOCAL_MEMORY extension is not supported on host device",
-      PI_INVALID_OPERATION);
+      "sycl_ext_oneapi_local_memory extension is not supported on host device",
+      PI_ERROR_INVALID_OPERATION);
 #endif
 }
 
@@ -60,8 +60,8 @@ std::enable_if_t<std::is_trivially_destructible<T>::value &&
   // Silence unused variable warning
   [&args...] {}();
   throw feature_not_supported(
-      "SYCL_EXT_ONEAPI_LOCAL_MEMORY extension is not supported on host device",
-      PI_INVALID_OPERATION);
+      "sycl_ext_oneapi_local_memory extension is not supported on host device",
+      PI_ERROR_INVALID_OPERATION);
 #endif
 }
 } // namespace oneapi

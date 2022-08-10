@@ -117,6 +117,9 @@ class Tosa_TensorOfOrNone<list<Type> allowedTypes, string description = ""> :
 // Tensor types with constrained ranks.
 //===----------------------------------------------------------------------===//
 
+// Rank-0 (scalar) tensor
+def Tosa_ScalarTensor : TensorRankOf<[Tosa_AnyNumber], [0]>;
+
 // We include unranked tensors as a supported type for all possible tosa
 // Tensors as unranked does not guarantee invalid. If unranked tensors exist
 // they should be shape propagate used Tosa's shape inference pass and verified
@@ -151,6 +154,7 @@ class Tosa_TypeLike<list<Type> types, string description = ""> : TypeConstraint<
      TensorOf<types>.predicate]>,
      description>;
 
+def Tosa_IntLike : Tosa_TypeLike<[Tosa_Int], "signless-integer-like">;
 def Tosa_Int8Like : Tosa_TypeLike<[Tosa_Int8], "signless-integer-8-bit-like">;
 def Tosa_Int16Like : Tosa_TypeLike<[Tosa_Int16], "signless-integer-16-bit-like">;
 def Tosa_Int32Like : Tosa_TypeLike<[Tosa_Int32], "signless-integer-32-bit-like">;

@@ -9,8 +9,8 @@
 ; CHECK-SPIRV: 4 TypePointer [[TypePtr:[0-9]+]] {{[0-9]+}} [[TypeFunc]]
 ; CHECK-SPIRV: 4 TypeVector [[TypeVec:[0-9]+]] [[TypePtr]] [[TypeInt32]]
 ; CHECK-SPIRV-DAG: 3 Undef [[TypeVec]] [[TypeUndef:[0-9]+]]
-; CHECK-SPIRV-DAG: 4 ConstFunctionPointerINTEL [[TypePtr]] [[F1Ptr:[0-9]+]] [[F1]]
-; CHECK-SPIRV-DAG: 4 ConstFunctionPointerINTEL [[TypePtr]] [[F2Ptr:[0-9]+]] [[F2]]
+; CHECK-SPIRV-DAG: 4 ConstantFunctionPointerINTEL [[TypePtr]] [[F1Ptr:[0-9]+]] [[F1]]
+; CHECK-SPIRV-DAG: 4 ConstantFunctionPointerINTEL [[TypePtr]] [[F2Ptr:[0-9]+]] [[F2]]
 
 ; CHECK-SPIRV: 6 CompositeInsert [[TypeVec]] [[NewVec0:[0-9]+]] [[F1Ptr]] [[TypeUndef]] 0
 ; CHECK-SPIRV: 6 CompositeInsert [[TypeVec]] [[NewVec1:[0-9]+]] [[F2Ptr]] [[NewVec0]] 1

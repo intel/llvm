@@ -65,7 +65,7 @@ the version of the SPIR-V file which is being generated/consumed.
   one exception: resulting SPIR-V version cannot be raised higher than
   specified by this option.
 
-Allowed values are ``1.0`` and ``1.1``.
+Allowed values are ``1.0``, ``1.1``, ``1.2``, ``1.3``, and ``1.4``.
 
 .. warning::
    These two options are mutually exclusive and cannot be specified at the

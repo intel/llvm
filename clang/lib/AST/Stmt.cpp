@@ -361,12 +361,14 @@ int64_t Stmt::getID(const ASTContext &Context) const {
   return Context.getAllocator().identifyKnownAlignedObject<Stmt>(this);
 }
 
-CompoundStmt::CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB,
-                           SourceLocation RB)
-    : Stmt(CompoundStmtClass), RBraceLoc(RB) {
+CompoundStmt::CompoundStmt(ArrayRef<Stmt *> Stmts, FPOptionsOverride FPFeatures,
+                           SourceLocation LB, SourceLocation RB)
+    : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB) {
   CompoundStmtBits.NumStmts = Stmts.size();
+  CompoundStmtBits.HasFPFeatures = FPFeatures.requiresTrailingStorage();
   setStmts(Stmts);
-  CompoundStmtBits.LBraceLoc = LB;
+  if (hasStoredFPFeatures())
+    setStoredFPFeatures(FPFeatures);
 }
 
 void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
@@ -377,18 +379,23 @@ void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
 }
 
 CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
+                                   FPOptionsOverride FPFeatures,
                                    SourceLocation LB, SourceLocation RB) {
   void *Mem =
-      C.Allocate(totalSizeToAlloc<Stmt *>(Stmts.size()), alignof(CompoundStmt));
-  return new (Mem) CompoundStmt(Stmts, LB, RB);
+      C.Allocate(totalSizeToAlloc<Stmt *, FPOptionsOverride>(
+                     Stmts.size(), FPFeatures.requiresTrailingStorage()),
+                 alignof(CompoundStmt));
+  return new (Mem) CompoundStmt(Stmts, FPFeatures, LB, RB);
 }
 
-CompoundStmt *CompoundStmt::CreateEmpty(const ASTContext &C,
-                                        unsigned NumStmts) {
-  void *Mem =
-      C.Allocate(totalSizeToAlloc<Stmt *>(NumStmts), alignof(CompoundStmt));
+CompoundStmt *CompoundStmt::CreateEmpty(const ASTContext &C, unsigned NumStmts,
+                                        bool HasFPFeatures) {
+  void *Mem = C.Allocate(
+      totalSizeToAlloc<Stmt *, FPOptionsOverride>(NumStmts, HasFPFeatures),
+      alignof(CompoundStmt));
   CompoundStmt *New = new (Mem) CompoundStmt(EmptyShell());
   New->CompoundStmtBits.NumStmts = NumStmts;
+  New->CompoundStmtBits.HasFPFeatures = HasFPFeatures;
   return New;
 }
 
@@ -568,21 +575,20 @@ void GCCAsmStmt::setOutputsAndInputsAndClobbers(const ASTContext &C,
 /// translate this into a numeric value needed to reference the same operand.
 /// This returns -1 if the operand name is invalid.
 int GCCAsmStmt::getNamedOperand(StringRef SymbolicName) const {
-  unsigned NumPlusOperands = 0;
-
   // Check if this is an output operand.
-  for (unsigned i = 0, e = getNumOutputs(); i != e; ++i) {
+  unsigned NumOutputs = getNumOutputs();
+  for (unsigned i = 0; i != NumOutputs; ++i)
     if (getOutputName(i) == SymbolicName)
       return i;
-  }
 
-  for (unsigned i = 0, e = getNumInputs(); i != e; ++i)
+  unsigned NumInputs = getNumInputs();
+  for (unsigned i = 0; i != NumInputs; ++i)
     if (getInputName(i) == SymbolicName)
-      return getNumOutputs() + NumPlusOperands + i;
+      return NumOutputs + i;
 
   for (unsigned i = 0, e = getNumLabels(); i != e; ++i)
     if (getLabelName(i) == SymbolicName)
-      return i + getNumOutputs() + getNumInputs();
+      return NumOutputs + NumInputs + getNumPlusOperands() + i;
 
   // Not found.
   return -1;

@@ -13,8 +13,6 @@ from lldbsuite.test.lldbutil import get_stopped_thread, state_type_to_str
 
 class ProcessAPITestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     def setUp(self):
         # Call super's setUp().
         TestBase.setUp(self)
@@ -320,6 +318,7 @@ class ProcessAPITestCase(TestBase):
             print("Number of supported hardware watchpoints: %d" % num)
 
     @no_debug_info_test
+    @skipIfRemote
     def test_get_process_info(self):
         """Test SBProcess::GetProcessInfo() API with a locally launched process."""
         self.build()

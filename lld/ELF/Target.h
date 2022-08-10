@@ -9,6 +9,7 @@
 #ifndef LLD_ELF_TARGET_H
 #define LLD_ELF_TARGET_H
 
+#include "Config.h"
 #include "InputSection.h"
 #include "lld/Common/ErrorHandler.h"
 #include "llvm/Object/ELF.h"
@@ -87,6 +88,9 @@ public:
   void relocateNoSym(uint8_t *loc, RelType type, uint64_t val) const {
     relocate(loc, Relocation{R_NONE, type, 0, 0, nullptr}, val);
   }
+
+  // Do a linker relaxation pass and return true if we changed something.
+  virtual bool relaxOnce(int pass) const { return false; }
 
   virtual void applyJumpInstrMod(uint8_t *loc, JumpModType type,
                                  JumpModType val) const {}
@@ -188,6 +192,7 @@ template <class ELFT> TargetInfo *getMipsTargetInfo();
 struct ErrorPlace {
   InputSectionBase *isec;
   std::string loc;
+  std::string srcLoc;
 };
 
 // Returns input section and corresponding source string for the given location.
@@ -211,10 +216,6 @@ unsigned getPPCDFormOp(unsigned secondaryOp);
 // to the local entry-point.
 unsigned getPPC64GlobalEntryToLocalEntryOffset(uint8_t stOther);
 
-// Returns true if a relocation is a small code model relocation that accesses
-// the .toc section.
-bool isPPC64SmallCodeModelTocReloc(RelType type);
-
 // Write a prefixed instruction, which is a 4-byte prefix followed by a 4-byte
 // instruction (regardless of endianness). Therefore, the prefix is always in
 // lower memory than the instruction.
@@ -223,6 +224,19 @@ void writePrefixedInstruction(uint8_t *loc, uint64_t insn);
 void addPPC64SaveRestore();
 uint64_t getPPC64TocBase();
 uint64_t getAArch64Page(uint64_t expr);
+void riscvFinalizeRelax(int passes);
+
+class AArch64Relaxer {
+  bool safeToRelaxAdrpLdr = true;
+
+public:
+  explicit AArch64Relaxer(ArrayRef<Relocation> relocs);
+
+  bool tryRelaxAdrpAdd(const Relocation &adrpRel, const Relocation &addRel,
+                       uint64_t secAddr, uint8_t *buf) const;
+  bool tryRelaxAdrpLdr(const Relocation &adrpRel, const Relocation &ldrRel,
+                       uint64_t secAddr, uint8_t *buf) const;
+};
 
 extern const TargetInfo *target;
 TargetInfo *getTarget();
@@ -290,5 +304,26 @@ inline void write64(void *p, uint64_t v) {
 }
 } // namespace elf
 } // namespace lld
+
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#endif
+#define invokeELFT(f, ...)                                                     \
+  switch (config->ekind) {                                                     \
+  case ELF32LEKind:                                                            \
+    f<ELF32LE>(__VA_ARGS__);                                                   \
+    break;                                                                     \
+  case ELF32BEKind:                                                            \
+    f<ELF32BE>(__VA_ARGS__);                                                   \
+    break;                                                                     \
+  case ELF64LEKind:                                                            \
+    f<ELF64LE>(__VA_ARGS__);                                                   \
+    break;                                                                     \
+  case ELF64BEKind:                                                            \
+    f<ELF64BE>(__VA_ARGS__);                                                   \
+    break;                                                                     \
+  default:                                                                     \
+    llvm_unreachable("unknown config->ekind");                                 \
+  }
 
 #endif

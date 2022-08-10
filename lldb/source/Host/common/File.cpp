@@ -23,17 +23,17 @@
 #include <unistd.h>
 #endif
 
-#include "llvm/Support/ConvertUTF.h"
-#include "llvm/Support/Errno.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Process.h"
-
 #include "lldb/Host/Config.h"
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Log.h"
+#include "lldb/Utility/VASPrintf.h"
+#include "llvm/Support/ConvertUTF.h"
+#include "llvm/Support/Errno.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Process.h"
 
 using namespace lldb;
 using namespace lldb_private;
@@ -215,18 +215,13 @@ size_t File::Printf(const char *format, ...) {
 }
 
 size_t File::PrintfVarArg(const char *format, va_list args) {
-  size_t result = 0;
-  char *s = nullptr;
-  result = vasprintf(&s, format, args);
-  if (s != nullptr) {
-    if (result > 0) {
-      size_t s_len = result;
-      Write(s, s_len);
-      result = s_len;
-    }
-    free(s);
+  llvm::SmallString<0> s;
+  if (VASprintf(s, format, args)) {
+    size_t written = s.size();;
+    Write(s.data(), written);
+    return written;
   }
-  return result;
+  return 0;
 }
 
 Expected<File::OpenOptions> File::GetOptions() const {
@@ -794,6 +789,21 @@ SerialPort::OptionsFromURL(llvm::StringRef urlqs) {
             llvm::inconvertibleErrorCode(),
             "Invalid parity (must be no, even, odd, mark or space): %s",
             x.str().c_str());
+    } else if (x.consume_front("parity-check=")) {
+      serial_options.ParityCheck =
+          llvm::StringSwitch<llvm::Optional<Terminal::ParityCheck>>(x)
+              .Case("no", Terminal::ParityCheck::No)
+              .Case("replace", Terminal::ParityCheck::ReplaceWithNUL)
+              .Case("ignore", Terminal::ParityCheck::Ignore)
+              // "mark" mode is not currently supported as it requires special
+              // input processing
+              // .Case("mark", Terminal::ParityCheck::Mark)
+              .Default(llvm::None);
+      if (!serial_options.ParityCheck)
+        return llvm::createStringError(
+            llvm::inconvertibleErrorCode(),
+            "Invalid parity-check (must be no, replace, ignore or mark): %s",
+            x.str().c_str());
     } else if (x.consume_front("stop-bits=")) {
       unsigned int stop_bits;
       if (!llvm::to_integer(x, stop_bits, 10) ||
@@ -823,17 +833,20 @@ SerialPort::Create(int fd, OpenOptions options, Options serial_options,
   if (llvm::Error error = term.SetRaw())
     return std::move(error);
   if (serial_options.BaudRate) {
-    if (llvm::Error error =
-            term.SetBaudRate(serial_options.BaudRate.getValue()))
+    if (llvm::Error error = term.SetBaudRate(serial_options.BaudRate.value()))
       return std::move(error);
   }
   if (serial_options.Parity) {
-    if (llvm::Error error = term.SetParity(serial_options.Parity.getValue()))
+    if (llvm::Error error = term.SetParity(serial_options.Parity.value()))
+      return std::move(error);
+  }
+  if (serial_options.ParityCheck) {
+    if (llvm::Error error =
+            term.SetParityCheck(serial_options.ParityCheck.value()))
       return std::move(error);
   }
   if (serial_options.StopBits) {
-    if (llvm::Error error =
-            term.SetStopBits(serial_options.StopBits.getValue()))
+    if (llvm::Error error = term.SetStopBits(serial_options.StopBits.value()))
       return std::move(error);
   }
 

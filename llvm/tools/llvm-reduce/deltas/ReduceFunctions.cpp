@@ -14,7 +14,9 @@
 
 #include "ReduceFunctions.h"
 #include "Delta.h"
+#include "Utils.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include <iterator>
 #include <vector>
@@ -41,34 +43,15 @@ static void extractFunctionsFromModule(Oracle &O, Module &Program) {
 
   // And finally, we can actually delete them.
   for (Function &F : FuncsToRemove) {
-    // Replace all *still* remaining uses with undef.
-    F.replaceAllUsesWith(UndefValue::get(F.getType()));
+    // Replace all *still* remaining uses with the default value.
+    F.replaceAllUsesWith(getDefaultValue(F.getType()));
     // And finally, fully drop it.
     F.eraseFromParent();
   }
 }
 
-/// Counts the amount of functions and prints their
-/// respective name & index
-static int countFunctions(Module &Program) {
-  // TODO: Silence index with --quiet flag
-  errs() << "----------------------------\n";
-  errs() << "Function Index Reference:\n";
-  int FunctionCount = 0;
-  for (auto &F : Program) {
-    if (F.isIntrinsic() && !F.use_empty())
-      continue;
-
-    errs() << '\t' << ++FunctionCount << ": " << F.getName() << '\n';
-  }
-
-  errs() << "----------------------------\n";
-  return FunctionCount;
-}
-
 void llvm::reduceFunctionsDeltaPass(TestRunner &Test) {
   errs() << "*** Reducing Functions...\n";
-  int Functions = countFunctions(Test.getProgram());
-  runDeltaPass(Test, Functions, extractFunctionsFromModule);
+  runDeltaPass(Test, extractFunctionsFromModule);
   errs() << "----------------------------\n";
 }

@@ -102,8 +102,7 @@ Expected<std::unique_ptr<TestClient>> TestClient::launchCustom(StringRef Log, Ar
   // TODO: Use this callback to detect botched launches. If lldb-server does not
   // start, we can print a nice error message here instead of hanging in
   // Accept().
-  Info.SetMonitorProcessCallback(&ProcessLaunchInfo::NoOpMonitorCallback,
-                                 false);
+  Info.SetMonitorProcessCallback(&ProcessLaunchInfo::NoOpMonitorCallback);
 
   status = Host::LaunchProcess(Info);
   if (status.Fail())
@@ -252,7 +251,7 @@ Error TestClient::queryProcess() {
 }
 
 Error TestClient::Continue(StringRef message) {
-  assert(m_process_info.hasValue());
+  assert(m_process_info);
 
   auto StopReplyOr = SendMessage<StopReply>(
       message, m_process_info->GetEndian(), m_register_infos);

@@ -3,7 +3,8 @@
 ; graph.
 
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=PRESENCE-CHECK
+; RUN: FileCheck %s -input-file=%t_0.prop -check-prefix=ABSENCE-CHECK
 
 ; SYCL source:
 ; void foo() {
@@ -48,7 +49,7 @@ target triple = "spir64_x86_64-unknown-unknown"
 @__spirv_BuiltInLocalInvocationId = external dso_local addrspace(1) constant <3 x i64>, align 32
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
-; CHECK: [SYCL/assert used]
+; PRESENCE-CHECK: [SYCL/assert used]
 
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z3foov() {
@@ -57,7 +58,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE9TheKernel"() #0 {
 entry:
@@ -71,7 +72,7 @@ entry:
   ret void
 }
 
-; CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2
+; ABSENCE-CHECK-NOT: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel2"() #1 {
 entry:
@@ -94,7 +95,7 @@ entry:
   ret void
 }
 
-; CHECK: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
+; PRESENCE-CHECK-DAG: _ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10TheKernel3"() #0 {
 entry:

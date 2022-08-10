@@ -158,44 +158,26 @@ Error deregisterEHFrameSection(const void *EHFrameSectionAddr,
 } // end namespace orc
 } // end namespace llvm
 
-extern "C" llvm::orc::shared::detail::CWrapperFunctionResult
-llvm_orc_registerEHFrameSectionCustomDirectWrapper(
-    const char *EHFrameSectionAddr, uint64_t Size) {
-  if (auto Err = registerEHFrameSection(EHFrameSectionAddr, Size))
-    return WrapperFunctionResult::createOutOfBandError(toString(std::move(Err)))
-        .release();
-  return llvm::orc::shared::detail::CWrapperFunctionResult();
+static Error registerEHFrameWrapper(ExecutorAddrRange EHFrame) {
+  return llvm::orc::registerEHFrameSection(EHFrame.Start.toPtr<const void *>(),
+                                           EHFrame.size());
 }
 
-extern "C" llvm::orc::shared::detail::CWrapperFunctionResult
-llvm_orc_deregisterEHFrameSectionCustomDirectWrapper(
-    const char *EHFrameSectionAddr, uint64_t Size) {
-  if (auto Err = deregisterEHFrameSection(EHFrameSectionAddr, Size))
-    return WrapperFunctionResult::createOutOfBandError(toString(std::move(Err)))
-        .release();
-  return llvm::orc::shared::detail::CWrapperFunctionResult();
-}
-
-static Error registerEHFrameWrapper(JITTargetAddress Addr, uint64_t Size) {
-  return llvm::orc::registerEHFrameSection(
-      jitTargetAddressToPointer<const void *>(Addr), Size);
-}
-
-static Error deregisterEHFrameWrapper(JITTargetAddress Addr, uint64_t Size) {
+static Error deregisterEHFrameWrapper(ExecutorAddrRange EHFrame) {
   return llvm::orc::deregisterEHFrameSection(
-      jitTargetAddressToPointer<const void *>(Addr), Size);
+      EHFrame.Start.toPtr<const void *>(), EHFrame.size());
 }
 
-extern "C" orc::shared::detail::CWrapperFunctionResult
+extern "C" orc::shared::CWrapperFunctionResult
 llvm_orc_registerEHFrameSectionWrapper(const char *Data, uint64_t Size) {
-  return WrapperFunction<SPSError(SPSExecutorAddr, uint64_t)>::handle(
+  return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
              Data, Size, registerEHFrameWrapper)
       .release();
 }
 
-extern "C" orc::shared::detail::CWrapperFunctionResult
+extern "C" orc::shared::CWrapperFunctionResult
 llvm_orc_deregisterEHFrameSectionWrapper(const char *Data, uint64_t Size) {
-  return WrapperFunction<SPSError(SPSExecutorAddr, uint64_t)>::handle(
+  return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
              Data, Size, deregisterEHFrameWrapper)
       .release();
 }

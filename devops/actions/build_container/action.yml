@@ -1,0 +1,42 @@
+name: 'Build Docker container'
+description: 'Build Docker container in a standard way'
+
+inputs:
+  build-args:
+    description: "List of build-time variables"
+    required: false
+  tags:
+    description: "List of tags"
+    required: true
+  push:
+    description: "Whether to push Docker image or not"
+    required: false
+    default: false
+  username:
+    description: "Registry user name"
+    required: true
+  password:
+    description: "Registry user password"
+    required: true
+  file:
+    description: "Dockerfile"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+  - name: Login to GitHub Container Registry
+    uses: docker/login-action@v1
+    with:
+      registry: ghcr.io
+      username: ${{ inputs.username }}
+      password: ${{ inputs.password }}
+  - name: Build and Push Container
+    uses: docker/build-push-action@v2
+    with:
+      push: ${{ inputs.push }}
+      tags: ${{ inputs.tags }}
+      build-args: ${{ inputs.build-args }}
+      context: ${{ github.workspace }}/devops
+      file: ${{ github.workspace }}/devops/containers/${{ inputs.file }}.Dockerfile
+

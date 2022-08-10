@@ -11,7 +11,7 @@
 
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
-#include <map>
+#include "llvm/ADT/STLExtras.h"
 #include <vector>
 
 namespace lld {
@@ -45,6 +45,8 @@ enum RelExpr {
   R_PC,
   R_PLT,
   R_PLT_PC,
+  R_PLT_GOTPLT,
+  R_RELAX_HINT,
   R_RELAX_GOT_PC,
   R_RELAX_GOT_PC_NOPIC,
   R_RELAX_TLS_GD_TO_IE,
@@ -62,6 +64,7 @@ enum RelExpr {
   R_TLSDESC,
   R_TLSDESC_CALL,
   R_TLSDESC_PC,
+  R_TLSDESC_GOTPLT,
   R_TLSGD_GOT,
   R_TLSGD_GOTPLT,
   R_TLSGD_PC,
@@ -115,8 +118,8 @@ struct Relocation {
 // jump instruction opcodes at basic block boundaries and are particularly
 // useful when basic block sections are enabled.
 struct JumpInstrMod {
-  JumpModType original;
   uint64_t offset;
+  JumpModType original;
   unsigned size;
 };
 
@@ -124,8 +127,8 @@ struct JumpInstrMod {
 // Call reportUndefinedSymbols() after calling scanRelocations() to emit
 // the diagnostics.
 template <class ELFT> void scanRelocations(InputSectionBase &);
-
-template <class ELFT> void reportUndefinedSymbols();
+void reportUndefinedSymbols();
+void postScanRelocations();
 
 void hexagonTLSSymbolUpdate(ArrayRef<OutputSection *> outputSections);
 bool hexagonNeedsTLSSymbol(ArrayRef<OutputSection *> outputSections);
@@ -137,12 +140,7 @@ class InputSectionDescription;
 class ThunkCreator {
 public:
   // Return true if Thunks have been added to OutputSections
-  bool createThunks(ArrayRef<OutputSection *> outputSections);
-
-  // The number of completed passes of createThunks this permits us
-  // to do one time initialization on Pass 0 and put a limit on the
-  // number of times it can be called to prevent infinite loops.
-  uint32_t pass = 0;
+  bool createThunks(uint32_t pass, ArrayRef<OutputSection *> outputSections);
 
 private:
   void mergeThunks(ArrayRef<OutputSection *> outputSections);
@@ -184,6 +182,11 @@ private:
   // so we need to make sure that there is only one of them.
   // The Mips LA25 Thunk is an example of an inline ThunkSection.
   llvm::DenseMap<InputSection *, ThunkSection *> thunkedSections;
+
+  // The number of completed passes of createThunks this permits us
+  // to do one time initialization on Pass 0 and put a limit on the
+  // number of times it can be called to prevent infinite loops.
+  uint32_t pass = 0;
 };
 
 // Return a int64_t to make sure we get the sign extension out of the way as

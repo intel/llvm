@@ -3,19 +3,19 @@
 #define HEADER
 
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK35 --check-prefix CK35-64
-// RUN: %clang_cc1 -DCK35 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-64
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
-// RUN: %clang_cc1 -DCK35 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK35 --check-prefix CK35-64
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-64
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
 
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK35 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK35 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK35 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
 // SIMD-ONLY32-NOT: {{__kmpc|__tgt}}
 #ifdef CK35
 
@@ -27,10 +27,12 @@ public:
   void foo();
 };
 
+// CK35-DAG: [[SIZE_TO:@.+]] = private {{.*}}constant [4 x i64] [i64 0, i64 0, i64 0, i64 8]
 // TARGET_PARAM = 0x20
 // MEMBER_OF_1 | TO = 0x1000000000001
 // MEMBER_OF_1 | PTR_AND_OBJ | TO = 0x1000000000011
 // CK35-DAG: [[MTYPE_TO:@.+]] = {{.+}}constant [4 x i64] [i64 [[#0x20]], i64 [[#0x1000000000001]], i64 [[#0x1000000000001]], i64 [[#0x1000000000011]]]
+// CK35-DAG: [[SIZE_FROM:@.+]] = private {{.*}}constant [2 x i64] [i64 0, i64 8]
 // TARGET_PARAM = 0x20
 // MEMBER_OF_1 | PTR_AND_OBJ | FROM = 0x1000000000012
 // CK35-DAG: [[MTYPE_FROM:@.+]] = {{.+}}constant [2 x i64] [i64 [[#0x20]], i64 [[#0x1000000000012]]]
@@ -39,10 +41,16 @@ void ref_map() {
   double b;
   S s(b);
 
-  // CK35-DAG: call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{.+}}, i32 4, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i64* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[4 x i{{.+}}]* [[MTYPE_TO]]{{.+}}, i8** null, i8** null)
-  // CK35-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
-  // CK35-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
-  // CK35-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
+  // CK35-DAG: call i32 @__tgt_target_kernel(%struct.ident_t* @{{.+}}, i64 -1, i32 -1, i32 0, i8* @.{{.+}}.region_id, %struct.__tgt_kernel_arguments* [[ARGS:%.+]])
+  // CK35-DAG: [[BPARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 2
+  // CK35-DAG: store i8** [[BPGEP:%.+]], i8*** [[BPARG]]
+  // CK35-DAG: [[PARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 3
+  // CK35-DAG: store i8** [[PGEP:%.+]], i8*** [[PARG]]
+  // CK35-DAG: [[SARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 4
+  // CK35-DAG: store i64* [[SIZES:%.+]], i64** [[SARG]]
+  // CK35-DAG: [[BPGEP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
+  // CK35-DAG: [[PGEP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
+  // CK35-DAG: [[SIZES]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
 
   // pass TARGET_PARAM {&s, &s, ((void*)(&s+1)-(void*)&s)}
 
@@ -115,14 +123,12 @@ void ref_map() {
 
   // CK35-DAG: [[BP3:%.+]] = getelementptr inbounds {{.+}}[[BP]], i{{.+}} 0, i{{.+}} 3
   // CK35-DAG: [[P3:%.+]] = getelementptr inbounds {{.+}}[[P]], i{{.+}} 0, i{{.+}} 3
-  // CK35-DAG: [[S3:%.+]] = getelementptr inbounds {{.+}}[[S]], i{{.+}} 0, i{{.+}} 3
 
   // CK35-DAG: [[BPC3:%.+]] = bitcast i8** [[BP3]] to %class.S**
   // CK35-DAG: [[PC3:%.+]] = bitcast i8** [[P3]] to double**
 
   // CK35-DAG: store %class.S* [[S_ADDR]], %class.S** [[BPC3]],
   // CK35-DAG: store double* [[B_ADDR:%.+]], double** [[PC3]],
-  // CK35-DAG: store i64 8, i64* [[S3]],
 
   // CK35-DAG: [[B_ADDR]] = load double*, double** [[B_REF:%.+]],
   // CK35-DAG: [[B_REF]] = getelementptr inbounds %class.S, %class.S* [[S_ADDR]], i32 0, i32 1
@@ -132,10 +138,16 @@ void ref_map() {
 
   // CK35 : call void
 
-  // CK35-DAG: call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{.+}}, i32 2, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i64* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[2 x i{{.+}}]* [[MTYPE_FROM]]{{.+}}, i8** null, i8** null)
-  // CK35-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
-  // CK35-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
-  // CK35-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
+  // CK35-DAG: call i32 @__tgt_target_kernel(%struct.ident_t* @{{.+}}, i64 -1, i32 -1, i32 0, i8* @.{{.+}}.region_id, %struct.__tgt_kernel_arguments* [[ARGS:%.+]])
+  // CK35-DAG: [[BPARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 2
+  // CK35-DAG: store i8** [[BPGEP:%.+]], i8*** [[BPARG]]
+  // CK35-DAG: [[PARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 3
+  // CK35-DAG: store i8** [[PGEP:%.+]], i8*** [[PARG]]
+  // CK35-DAG: [[SARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 4
+  // CK35-DAG: store i64* [[SIZES:%.+]], i64** [[SARG]]
+  // CK35-DAG: [[BPGEP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
+  // CK35-DAG: [[PGEP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
+  // CK35-DAG: [[SIZES]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
 
   // pass TARGET_PARAM {&s, &s.b, ((void*)(&s.b+1)-(void*)&s.b)}
 
@@ -163,14 +175,12 @@ void ref_map() {
 
   // CK35-DAG: [[BP1:%.+]] = getelementptr inbounds {{.+}}[[BP]], i{{.+}} 0, i{{.+}} 1
   // CK35-DAG: [[P1:%.+]] = getelementptr inbounds {{.+}}[[P]], i{{.+}} 0, i{{.+}} 1
-  // CK35-DAG: [[S1:%.+]] = getelementptr inbounds {{.+}}[[S]], i{{.+}} 0, i{{.+}} 1
 
   // CK35-DAG: [[BPC1:%.+]] = bitcast i8** [[BP1]] to %class.S**
   // CK35-DAG: [[PC1:%.+]] = bitcast i8** [[P1]] to double**
 
   // CK35-DAG: store %class.S* [[S_ADDR]], %class.S** [[BPC1]],
   // CK35-DAG: store double* [[B_ADDR:%.+]], double** [[PC1]],
-  // CK35-DAG: store i64 8, i64* [[S1]],
 
   // CK35-DAG: [[B_ADDR]] = load double*, double** [[SB_ADDR]],
 

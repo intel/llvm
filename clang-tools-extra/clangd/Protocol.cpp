@@ -15,12 +15,9 @@
 #include "support/Logger.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Index/IndexSymbol.h"
-#include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/Format.h"
-#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -37,7 +34,7 @@ bool mapOptOrNull(const llvm::json::Value &Params, llvm::StringLiteral Prop,
   assert(O);
   auto *V = O->get(Prop);
   // Field is missing or null.
-  if (!V || V->getAsNull().hasValue())
+  if (!V || V->getAsNull())
     return true;
   return fromJSON(*V, Out, P.field(Prop));
 }
@@ -305,6 +302,8 @@ SymbolKind indexSymbolKindToSymbolKind(index::SymbolKind Kind) {
   case index::SymbolKind::TemplateTemplateParm:
   case index::SymbolKind::TemplateTypeParm:
     return SymbolKind::TypeParameter;
+  case index::SymbolKind::Concept:
+    return SymbolKind::Interface;
   }
   llvm_unreachable("invalid symbol kind");
 }
@@ -382,6 +381,13 @@ bool fromJSON(const llvm::json::Value &Params, ClientCapabilities &R,
         if (auto *Parameter = Info->getObject("parameterInformation")) {
           if (auto OffsetSupport = Parameter->getBoolean("labelOffsetSupport"))
             R.OffsetsInSignatureHelp = *OffsetSupport;
+        }
+        if (const auto *DocumentationFormat =
+                Info->getArray("documentationFormat")) {
+          for (const auto &Format : *DocumentationFormat) {
+            if (fromJSON(Format, R.SignatureHelpDocumentationFormat, P))
+              break;
+          }
         }
       }
     }
@@ -586,6 +592,10 @@ llvm::json::Value toJSON(const DiagnosticRelatedInformation &DRI) {
 
 llvm::json::Value toJSON(DiagnosticTag Tag) { return static_cast<int>(Tag); }
 
+llvm::json::Value toJSON(const CodeDescription &D) {
+  return llvm::json::Object{{"href", D.href}};
+}
+
 llvm::json::Value toJSON(const Diagnostic &D) {
   llvm::json::Object Diag{
       {"range", D.range},
@@ -598,6 +608,8 @@ llvm::json::Value toJSON(const Diagnostic &D) {
     Diag["codeActions"] = D.codeActions;
   if (!D.code.empty())
     Diag["code"] = D.code;
+  if (D.codeDescription)
+    Diag["codeDescription"] = *D.codeDescription;
   if (!D.source.empty())
     Diag["source"] = D.source;
   if (D.relatedInformation)
@@ -695,7 +707,8 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R,
   if (ArgsArray->size() > 1) {
     P.field("arguments").report("Command should have 0 or 1 argument");
     return false;
-  } else if (ArgsArray->size() == 1) {
+  }
+  if (ArgsArray->size() == 1) {
     R.argument = ArgsArray->front();
   }
   return true;
@@ -913,7 +926,7 @@ llvm::json::Value toJSON(const MarkupContent &MC) {
 llvm::json::Value toJSON(const Hover &H) {
   llvm::json::Object Result{{"contents", toJSON(H.contents)}};
 
-  if (H.range.hasValue())
+  if (H.range)
     Result["range"] = toJSON(*H.range);
 
   return std::move(Result);
@@ -1011,7 +1024,7 @@ llvm::json::Value toJSON(const CompletionList &L) {
 }
 
 llvm::json::Value toJSON(const ParameterInformation &PI) {
-  assert((PI.labelOffsets.hasValue() || !PI.labelString.empty()) &&
+  assert((PI.labelOffsets || !PI.labelString.empty()) &&
          "parameter information label is required");
   llvm::json::Object Result;
   if (PI.labelOffsets)
@@ -1030,7 +1043,7 @@ llvm::json::Value toJSON(const SignatureInformation &SI) {
       {"label", SI.label},
       {"parameters", llvm::json::Array(SI.parameters)},
   };
-  if (!SI.documentation.empty())
+  if (!SI.documentation.value.empty())
     Result["documentation"] = SI.documentation;
   return std::move(Result);
 }
@@ -1309,30 +1322,53 @@ llvm::json::Value toJSON(const CallHierarchyOutgoingCall &C) {
 bool fromJSON(const llvm::json::Value &Params, InlayHintsParams &R,
               llvm::json::Path P) {
   llvm::json::ObjectMapper O(Params, P);
-  return O && O.map("textDocument", R.textDocument);
+  return O && O.map("textDocument", R.textDocument) && O.map("range", R.range);
 }
 
-llvm::json::Value toJSON(InlayHintKind K) {
-  switch (K) {
-  case InlayHintKind::ParameterHint:
-    return "parameter";
-  case InlayHintKind::TypeHint:
-    return "type";
+llvm::json::Value toJSON(const InlayHintKind &Kind) {
+  switch (Kind) {
+  case InlayHintKind::Type:
+    return 1;
+  case InlayHintKind::Parameter:
+    return 2;
+  case InlayHintKind::Designator: // This is an extension, don't serialize.
+    return nullptr;
   }
   llvm_unreachable("Unknown clang.clangd.InlayHintKind");
 }
 
 llvm::json::Value toJSON(const InlayHint &H) {
-  return llvm::json::Object{
-      {"range", H.range}, {"kind", H.kind}, {"label", H.label}};
+  llvm::json::Object Result{{"position", H.position},
+                            {"label", H.label},
+                            {"paddingLeft", H.paddingLeft},
+                            {"paddingRight", H.paddingRight}};
+  auto K = toJSON(H.kind);
+  if (!K.getAsNull())
+    Result["kind"] = std::move(K);
+  return std::move(Result);
 }
 bool operator==(const InlayHint &A, const InlayHint &B) {
-  return std::tie(A.kind, A.range, A.label) ==
-         std::tie(B.kind, B.range, B.label);
+  return std::tie(A.position, A.range, A.kind, A.label) ==
+         std::tie(B.position, B.range, B.kind, B.label);
 }
 bool operator<(const InlayHint &A, const InlayHint &B) {
-  return std::tie(A.kind, A.range, A.label) <
-         std::tie(B.kind, B.range, B.label);
+  return std::tie(A.position, A.range, A.kind, A.label) <
+         std::tie(B.position, B.range, B.kind, B.label);
+}
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, InlayHintKind Kind) {
+  auto ToString = [](InlayHintKind K) {
+    switch (K) {
+    case InlayHintKind::Parameter:
+      return "parameter";
+    case InlayHintKind::Type:
+      return "type";
+    case InlayHintKind::Designator:
+      return "designator";
+    }
+    llvm_unreachable("Unknown clang.clangd.InlayHintKind");
+  };
+  return OS << ToString(Kind);
 }
 
 static const char *toString(OffsetEncoding OE) {
@@ -1408,8 +1444,8 @@ llvm::json::Value toJSON(const FoldingRange &Range) {
     Result["startCharacter"] = Range.startCharacter;
   if (Range.endCharacter)
     Result["endCharacter"] = Range.endCharacter;
-  if (Range.kind)
-    Result["kind"] = *Range.kind;
+  if (!Range.kind.empty())
+    Result["kind"] = Range.kind;
   return Result;
 }
 

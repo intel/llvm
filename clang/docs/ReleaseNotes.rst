@@ -1,6 +1,6 @@
-========================================
-Clang 14.0.0 (In-Progress) Release Notes
-========================================
+===========================================
+Clang |release| |ReleaseNotesTitle|
+===========================================
 
 .. contents::
    :local:
@@ -8,17 +8,18 @@ Clang 14.0.0 (In-Progress) Release Notes
 
 Written by the `LLVM Team <https://llvm.org/>`_
 
-.. warning::
+.. only:: PreRelease
 
-   These are in-progress notes for the upcoming Clang 14 release.
-   Release notes for previous releases can be found on
-   `the Download Page <https://releases.llvm.org/download.html>`_.
+  .. warning::
+     These are in-progress notes for the upcoming Clang |version| release.
+     Release notes for previous releases can be found on
+     `the Download Page <https://releases.llvm.org/download.html>`_.
 
 Introduction
 ============
 
 This document contains the release notes for the Clang C/C++/Objective-C
-frontend, part of the LLVM Compiler Infrastructure, release 14.0.0. Here we
+frontend, part of the LLVM Compiler Infrastructure, release |release|. Here we
 describe the status of Clang in some detail, including major
 improvements from the previous release and new feature work. For the
 general LLVM release notes, see `the LLVM
@@ -35,8 +36,8 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Clang 14.0.0?
-===========================
+What's New in Clang |release|?
+==============================
 
 Some of the major new features and improvements to Clang are listed
 here. Generic improvements to Clang as a whole or to its underlying
@@ -46,119 +47,65 @@ sections with improvements to Clang's support for those languages.
 Major New Features
 ------------------
 
--  ...
+Bug Fixes
+---------
+- ``-Wtautological-compare`` missed warnings for tautological comparisons
+  involving a negative integer literal. This fixes
+  `Issue 42918 <https://github.com/llvm/llvm-project/issues/42918>`_.
+
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-- -Wbitwise-instead-of-logical (part of -Wbool-operation) warns about use of bitwise operators with boolean operands which have side effects.
+- Clang will now correctly diagnose as ill-formed a constant expression where an
+  enum without a fixed underlying type is set to a value outside the range of
+  of the enumerations values. Fixes
+  `Issue 50055: <https://github.com/llvm/llvm-project/issues/50055>`_.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
-- Maximum _ExtInt size was decreased from 16,777,215 bits to 8,388,608 bits.
-  Motivation for this was discussed in PR51829.
-
 New Compiler Flags
 ------------------
-
-- ...
 
 Deprecated Compiler Flags
 -------------------------
 
-- ...
-
 Modified Compiler Flags
 -----------------------
-
-- Support has been added for the following processors (``-mcpu`` identifiers in parentheses):
-
-  - RISC-V SiFive E20 (``sifive-e20``).
-  - RISC-V SiFive E21 (``sifive-e21``).
-  - RISC-V SiFive E24 (``sifive-e24``).
-  - RISC-V SiFive E34 (``sifive-e34``).
-  - RISC-V SiFive S21 (``sifive-s21``).
-  - RISC-V SiFive S51 (``sifive-s51``).
-  - RISC-V SiFive S54 (``sifive-s54``).
-  - RISC-V SiFive S76 (``sifive-s76``).
-
-- Support has been added for the following architectures (``-march`` identifiers in parentheses):
-
-  - Armv9-A (``armv9-a``).
-  - Armv9.1-A (``armv9.1-a``).
-  - Armv9.2-A (``armv9.2-a``).
 
 Removed Compiler Flags
 -------------------------
 
-- ...
-
 New Pragmas in Clang
 --------------------
-
 - ...
 
 Attribute Changes in Clang
 --------------------------
 
-- Attributes loaded as clang plugins which are sensitive to LangOpts must
-  now override ``acceptsLangOpts`` instead of ``diagLangOpts``.
-  Returning false will produce a generic "attribute ignored" diagnostic, as
-  with clang's built-in attributes.
-  If plugins want to provide richer diagnostics, they can do so when the
-  attribute is handled instead, e.g. in ``handleDeclAttribute``.
-  (This was changed in order to better support attributes in code completion).
-
-- __has_cpp_attribute, __has_c_attribute, __has_attribute, and __has_declspec
-  will now macro expand their argument. This causes a change in behavior for
-  code using ``__has_cpp_attribute(__clang__::attr)`` (and same for
-  ``__has_c_attribute``) where it would previously expand to ``0`` for all
-  attributes, but will now issue an error due to the expansion of the
-  predefined ``__clang__`` macro.
-
 Windows Support
 ---------------
 
-- An MSVC compatibility workaround for C++ operator names was removed. As a
-  result, the ``<query.h>`` Windows SDK header may not compile out of the box.
-  Users should use a recent SDK and pass ``-DQUERY_H_RESTRICTION_PERMISSIVE``
-  or pass ``/permissive`` to disable C++ operator names altogether. See
-  `PR42427 <https://llvm.org/pr42427>` for more info.
+AIX Support
+-----------
 
 C Language Changes in Clang
 ---------------------------
 
-- The value of ``__STDC_VERSION__`` has been bumped to ``202000L`` when passing
-  ``-std=c2x`` so that it can be distinguished from C17 mode. This value is
-  expected to change again when C23 is published.
-- Wide multi-characters literals such as ``L'ab'`` that would previously be interpreted as ``L'b'``
-  are now ill-formed in all language modes. The motivation for this change is outlined in
-  `P2362 <wg21.link/P2362>`_.
-- Support for ``__attribute__((error("")))`` and
-  ``__attribute__((warning("")))`` function attributes have been added.
-- The maximum allowed alignment has been increased from 2^29 to 2^32.
+C2x Feature Support
+-------------------
 
 C++ Language Changes in Clang
 -----------------------------
 
-- ...
-
 C++20 Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-...
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-- Implemented `P1938R3: if consteval <https://wg21.link/P1938R3>`_.
-- Implemented `P2360R0: Extend init-statement to allow alias-declaration <https://wg21.link/P2360R0>`_.
 
-
-CUDA Language Changes in Clang
-------------------------------
-
-- Clang now supports CUDA versions up to 11.4.
-- Default GPU architecture has been changed from sm_20 to sm_35.
+CUDA/HIP Language Changes in Clang
+----------------------------------
 
 Objective-C Language Changes in Clang
 -------------------------------------
@@ -174,8 +121,7 @@ ABI Changes in Clang
 OpenMP Support in Clang
 -----------------------
 
-- ``clang-nvlink-wrapper`` tool introduced to support linking of cubin files archived in an archive. See :doc:`ClangNvlinkWrapper`.
-
+...
 
 CUDA Support in Clang
 ---------------------
@@ -185,65 +131,35 @@ CUDA Support in Clang
 X86 Support in Clang
 --------------------
 
-- Support for ``AVX512-FP16`` instructions has been added.
+DWARF Support in Clang
+----------------------
 
 Arm and AArch64 Support in Clang
 --------------------------------
 
-- Support has been added for the following processors (command-line identifiers in parentheses):
-  - Arm Cortex-A510 (``cortex-a510``)
-- The -mtune flag is no longer ignored for AArch64. It is now possible to
-  tune code generation for a particular CPU with -mtune without setting any
-  architectural features. For example, compiling with
-  "-mcpu=generic -mtune=cortex-a57" will not enable any Cortex-A57 specific
-  architecture features, but will enable certain optimizations specific to
-  Cortex-A57 CPUs and enable the use of a more accurate scheduling model.
-
+Floating Point Support in Clang
+-------------------------------
 
 Internal API Changes
 --------------------
 
-- ...
-
 Build System Changes
 --------------------
-
-- ...
 
 AST Matchers
 ------------
 
-- ``TypeLoc`` AST Matchers are now available. These matchers provide helpful
-  utilities for matching ``TypeLoc`` nodes, such as the ``pointerTypeLoc``
-  matcher or the ``hasReturnTypeLoc`` matcher. The addition of these matchers
-  was made possible by changes to the handling of ``TypeLoc`` nodes that
-  allows them to enjoy the same static type checking as other AST node kinds.
-
 clang-format
 ------------
 
-- Option ``AllowShortEnumsOnASingleLine: false`` has been improved, it now
-  correctly places the opening brace according to ``BraceWrapping.AfterEnum``.
-
-- Option ``QualifierAligment`` has been added in order to auto-arrange the
-  positioning of specifiers/qualifiers
-  `const` `volatile` `static` `inline` `constexpr` `restrict`
-  in variable and parameter declarations to be either ``Right`` aligned
-  or ``Left`` aligned or ``Custom`` using ``QualifierOrder``.
-
-- Option ``QualifierOrder`` has been added to allow the order
-  `const` `volatile` `static` `inline` `constexpr` `restrict`
-  to be controlled relative to the `type`.
+clang-extdef-mapping
+--------------------
 
 libclang
 --------
 
-- ...
-
 Static Analyzer
 ---------------
-
-- ...
 
 .. _release-notes-ubsan:
 
@@ -281,5 +197,5 @@ this release by going into the "``clang/docs/``" directory in the Clang
 tree.
 
 If you have any questions or comments about Clang, please feel free to
-contact us via the `mailing
-list <https://lists.llvm.org/mailman/listinfo/cfe-dev>`_.
+contact us on the Discourse forums (Clang Frontend category)
+<https://discourse.llvm.org/c/clang/6>`_.

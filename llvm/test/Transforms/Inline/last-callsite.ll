@@ -1,5 +1,4 @@
 ; RUN: opt < %s -passes='cgscc(inline)' -inline-threshold=0 -S | FileCheck %s
-; RUN: opt < %s -passes='cgscc(inline)' -inline-threshold=0 -inline-enable-priority-order=true -S | FileCheck %s
 
 ; The 'test1_' prefixed functions test the basic 'last callsite' inline
 ; threshold adjustment where we specifically inline the last call site of an
@@ -111,7 +110,7 @@ entry:
   call void @test2_f(i1 true)
 ; CHECK-NOT: @test2_f
 
-  ; Sanity check that two calls with the hard predicate remain uninlined.
+  ; Check that two calls with the hard predicate remain uninlined.
   call void @test2_g(i1 true)
   call void @test2_g(i1 true)
 ; CHECK: call void @test2_g(i1 true)
@@ -183,7 +182,7 @@ entry:
   call void @test3_f(i1 false)
 ; CHECK-NOT: @test3_f
 
-  ; Sanity check that two calls with the hard predicate remain uninlined.
+  ; Check that two calls with the hard predicate remain uninlined.
   call void @test3_g(i1 true)
   call void @test3_g(i1 true)
 ; CHECK: call void @test3_g(i1 true)

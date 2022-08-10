@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -std=c++14 -triple x86_64-unknown-unknown-gnu -emit-llvm -O1 -fexperimental-new-pass-manager -o - %s | FileCheck %s
+// RUN: %clang_cc1 -std=c++14 -triple x86_64-unknown-unknown-gnu -emit-llvm -O1 -o - %s | FileCheck %s
 
 template <class T> T test() {
   return T();
@@ -14,7 +14,7 @@ struct A {
 // FIXME: There should be copy elision here.
 // CHECK-LABEL: define{{.*}} void @_Z4testI1AET_v
 // CHECK:       call void @_ZN1AC1Ev
-// CHECK-NEXT:  call i32 @_ZN1AcviEv
+// CHECK-NEXT:  call noundef i32 @_ZN1AcviEv
 // CHECK-NEXT:  call void @_ZN1AC1Ei
 // CHECK-NEXT:  call void @llvm.lifetime.end
 template A test<A>();

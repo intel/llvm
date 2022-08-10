@@ -6,14 +6,14 @@
   indexing_maps = [#id_2d, #id_2d, #id_2d],
   iterator_types = ["parallel", "parallel"]
 }
-func @fuse_indexed_consumer(%A: memref<?x?xf32>,
+func.func @fuse_indexed_consumer(%A: memref<?x?xf32>,
                                     %B: memref<?x?xf32>,
                                     %C: memref<?x?xf32>,
                                     %D: memref<?x?xf32>) {
   linalg.generic #pointwise_2d_trait
     ins(%A, %B: memref<?x?xf32>, memref<?x?xf32>)
    outs(%C : memref<?x?xf32>) {
-  ^bb0(%e: f32, %arg5: f32, %arg6: f32):   // no predecessors
+  ^bb0(%e: f32, %arg5: f32, %arg6: f32):   
     %2 = arith.addf %e, %arg5 : f32
     linalg.yield %2 : f32
   }
@@ -46,7 +46,8 @@ func @fuse_indexed_consumer(%A: memref<?x?xf32>,
         %10 = arith.index_cast %7 : index to i32
         %11 = arith.sitofp %10 : i32 to f32
         %12 = arith.addf %9, %11 : f32
-        linalg.yield %12 : f32
+        %13 = arith.addf %12, %arg4 : f32
+        linalg.yield %13 : f32
       }
     }
   }
@@ -65,7 +66,7 @@ func @fuse_indexed_consumer(%A: memref<?x?xf32>,
 // -----
 
 #map = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
-func @fuse_indexed_producer(%A: memref<?x?xindex>,
+func.func @fuse_indexed_producer(%A: memref<?x?xindex>,
                             %B: memref<?x?xindex>) {
   %c1 = arith.constant 1 : index
   %c0 = arith.constant 0 : index
@@ -75,7 +76,7 @@ func @fuse_indexed_producer(%A: memref<?x?xindex>,
     indexing_maps = [affine_map<(i, j) -> (j, i)>],
     iterator_types = ["parallel", "parallel"]}
     outs(%A : memref<?x?xindex>) {
-  ^bb0(%a: index):   // no predecessors
+  ^bb0(%a: index):   
     %idx0 = linalg.index 0 : index
     %idx1 = linalg.index 1 : index
     %0 = arith.addi %idx0, %idx1 : index
@@ -115,7 +116,7 @@ func @fuse_indexed_producer(%A: memref<?x?xindex>,
 // -----
 
 #map = affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s1 + s0 + d1 * s2)>
-func @fuse_indexed_producer_tiled_second_dim_only(%A: memref<?x?xindex>,
+func.func @fuse_indexed_producer_tiled_second_dim_only(%A: memref<?x?xindex>,
                                                   %B: memref<?x?xindex>) {
   %c1 = arith.constant 1 : index
   %c0 = arith.constant 0 : index
@@ -124,7 +125,7 @@ func @fuse_indexed_producer_tiled_second_dim_only(%A: memref<?x?xindex>,
     indexing_maps = [affine_map<(i, j) -> (i, j)>],
     iterator_types = ["parallel", "parallel"]}
     outs(%A : memref<?x?xindex>) {
-  ^bb0(%a: index):   // no predecessors
+  ^bb0(%a: index):   
     %idx0 = linalg.index 0 : index
     %idx1 = linalg.index 1 : index
     %0 = arith.addi %idx0, %idx1 : index

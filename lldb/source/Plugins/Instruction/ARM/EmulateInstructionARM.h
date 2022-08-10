@@ -62,9 +62,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "arm"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   static lldb_private::EmulateInstruction *
   CreateInstance(const lldb_private::ArchSpec &arch, InstructionType inst_type);
@@ -83,9 +83,7 @@ public:
     return false;
   }
 
-  llvm::StringRef GetPluginName() override {
-    return GetPluginNameStatic().GetStringRef();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   bool SetTargetTriple(const ArchSpec &arch) override;
 
@@ -93,7 +91,8 @@ public:
 
   EmulateInstructionARM(const ArchSpec &arch)
       : EmulateInstruction(arch), m_arm_isa(0), m_opcode_mode(eModeInvalid),
-        m_opcode_cpsr(0), m_it_session(), m_ignore_conditions(false) {
+        m_opcode_cpsr(0), m_new_inst_cpsr(0), m_it_session(),
+        m_ignore_conditions(false) {
     SetArchitecture(arch);
   }
 

@@ -33,9 +33,21 @@ enum class address_space : int {
   private_space = 0,
   global_space,
   constant_space,
-  local_space
+  local_space,
+  generic_space
 };
 } // namespace access
+
+// Dummy aspect enum with limited enumerators
+enum class aspect {
+  host = 0,
+  cpu = 1,
+  gpu = 2,
+  accelerator = 3,
+  custom = 4,
+  fp16 = 5,
+  fp64 = 6,
+};
 
 class property_list {};
 
@@ -53,6 +65,18 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
+
+// device_global type decorated with attributes
+template <typename T>
+struct [[__sycl_detail__::device_global]] [[__sycl_detail__::global_variable_allowed]] device_global {
+public:
+  const T &get() const noexcept { return *Data; }
+  device_global() {}
+  operator T &() noexcept { return *Data; }
+
+private:
+  T *Data;
+};
 } // namespace oneapi
 } // namespace ext
 
@@ -130,6 +154,8 @@ struct opencl_image_type;
     using type = __ocl_image##dim##d_##ifarray_##amsuffix##_t;      \
   };
 
+#ifdef __SYCL_DEVICE_ONLY__
+
 #define IMAGETY_READ_3_DIM_IMAGE       \
   IMAGETY_DEFINE(1, read, ro, image, ) \
   IMAGETY_DEFINE(2, read, ro, image, ) \
@@ -153,6 +179,8 @@ IMAGETY_WRITE_3_DIM_IMAGE
 
 IMAGETY_READ_2_DIM_IARRAY
 IMAGETY_WRITE_2_DIM_IARRAY
+
+#endif // __SYCL_DEVICE_ONLY__
 
 template <int dim, access::mode accessmode, access::target accesstarget>
 struct _ImageImplT {
@@ -232,19 +260,35 @@ template <typename Type> struct get_kernel_wrapper_name_t {
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc) { // #KernelSingleTaskFunc
+#ifdef __SYCL_DEVICE_ONLY__
   kernelFunc(); // #KernelSingleTaskKernelFuncCall
+#else
+  (void)kernelFunc;
+#endif
 }
 template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_single_task(const KernelType &kernelFunc, kernel_handler kh) {
+#ifdef __SYCL_DEVICE_ONLY__
   kernelFunc(kh);
+#else
+  (void)kernelFunc;
+#endif
 }
 template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_parallel_for(const KernelType &kernelFunc) {
+#ifdef __SYCL_DEVICE_ONLY__
   kernelFunc();
+#else
+  (void)kernelFunc;
+#endif
 }
 template <typename KernelName, typename KernelType>
 ATTR_SYCL_KERNEL void kernel_parallel_for_work_group(const KernelType &KernelFunc, kernel_handler kh) {
+#ifdef __SYCL_DEVICE_ONLY__
   KernelFunc(group<1>(), kh);
+#else
+  (void)KernelFunc;
+#endif
 }
 
 class handler {
@@ -252,40 +296,23 @@ public:
   template <typename KernelName = auto_name, typename KernelType>
   void single_task(const KernelType &kernelFunc) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc); // #KernelSingleTask
-#else
-    kernelFunc();
-#endif
   }
   template <typename KernelName = auto_name, typename KernelType>
   void single_task(const KernelType &kernelFunc, kernel_handler kh) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     kernel_single_task<NameT>(kernelFunc, kh);
-#else
-    kernelFunc(kh);
-#endif
   }
   template <typename KernelName = auto_name, typename KernelType>
   void parallel_for(const KernelType &kernelObj) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
     using NameWT = typename get_kernel_wrapper_name_t<NameT>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for<NameT>(kernelObj);
-#else
-    kernelObj();
-#endif
   }
   template <typename KernelName = auto_name, typename KernelType>
   void parallel_for_work_group(const KernelType &kernelFunc, kernel_handler kh) {
     using NameT = typename get_kernel_name_t<KernelName, KernelType>::name;
-#ifdef __SYCL_DEVICE_ONLY__
     kernel_parallel_for_work_group<NameT>(kernelFunc, kh);
-#else
-    group<1> G;
-    kernelFunc(G, kh);
-#endif
   }
 };
 
@@ -315,11 +342,45 @@ private:
   int FlushBufferSize;
 };
 
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::private_space> {
+  using type = __attribute__((opencl_private)) ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::global_space> {
+  using type = __attribute__((opencl_global)) ElementType;
+};
+
+template <typename T, access::address_space AS> class multi_ptr {
+  using pointer_t = typename DecoratedType<T, AS>::type *;
+  pointer_t m_Pointer;
+
+public:
+  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #MultiPtrConstructor
+  pointer_t get() { return m_Pointer; }
+};
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
 template <typename T, typename ID = T>
-class spec_constant {};
+class spec_constant {
+public:
+  spec_constant() {}
+  explicit constexpr spec_constant(T defaultVal) : DefaultValue(defaultVal) {}
+
+private:
+  T DefaultValue;
+};
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

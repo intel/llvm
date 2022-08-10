@@ -11,23 +11,29 @@
 
 #include "Utils.h"
 
+#include "Debug.h"
 #include "Interface.h"
 #include "Mapping.h"
 
-#pragma omp declare target
+#pragma omp begin declare target device_type(nohost)
 
 using namespace _OMP;
 
 namespace _OMP {
 /// Helper to keep code alive without introducing a performance penalty.
-__attribute__((used, weak, optnone)) void keepAlive() {
+__attribute__((weak, optnone, cold)) KEEP_ALIVE void keepAlive() {
   __kmpc_get_hardware_thread_id_in_block();
   __kmpc_get_hardware_num_threads_in_block();
+  __kmpc_get_warp_size();
   __kmpc_barrier_simple_spmd(nullptr, 0);
+  __kmpc_barrier_simple_generic(nullptr, 0);
 }
 } // namespace _OMP
 
 namespace impl {
+
+void Unpack(uint64_t Val, uint32_t *LowBits, uint32_t *HighBits);
+uint64_t Pack(uint32_t LowBits, uint32_t HighBits);
 
 /// AMDGCN Implementation
 ///
@@ -68,6 +74,10 @@ uint64_t Pack(uint32_t LowBits, uint32_t HighBits) {
 }
 
 #pragma omp end declare variant
+
+int32_t shuffle(uint64_t Mask, int32_t Var, int32_t SrcLane);
+int32_t shuffleDown(uint64_t Mask, int32_t Var, uint32_t LaneDelta,
+                    int32_t Width);
 
 /// AMDGCN Implementation
 ///
@@ -129,10 +139,12 @@ int32_t utils::shuffleDown(uint64_t Mask, int32_t Var, uint32_t Delta,
 
 extern "C" {
 int32_t __kmpc_shuffle_int32(int32_t Val, int16_t Delta, int16_t SrcLane) {
+  FunctionTracingRAII();
   return impl::shuffleDown(lanes::All, Val, Delta, SrcLane);
 }
 
 int64_t __kmpc_shuffle_int64(int64_t Val, int16_t Delta, int16_t Width) {
+  FunctionTracingRAII();
   uint32_t lo, hi;
   utils::unpack(Val, lo, hi);
   hi = impl::shuffleDown(lanes::All, hi, Delta, Width);

@@ -3,19 +3,19 @@
 #define HEADER
 
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK34 --check-prefix CK34-64
-// RUN: %clang_cc1 -DCK34 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-64
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
-// RUN: %clang_cc1 -DCK34 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK34 --check-prefix CK34-64
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-64
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
 
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK34 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK34 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -no-opaque-pointers -DCK34 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -no-opaque-pointers -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
 // SIMD-ONLY32-NOT: {{__kmpc|__tgt}}
 #ifdef CK34
 
@@ -35,10 +35,12 @@ public:
   void foo();
 };
 
+// CK34-DAG: [[SIZE_TO:@.+]] = private {{.*}}constant [4 x i64] [i64 0, i64 0, i64 0, i64 {{16|8}}]
 // TARGET_PARAM = 0x20
 // MEMBER_OF_1 | TO = 0x1000000000001
 // MEMBER_OF_1 | IMPLICIT | TO = 0x1000000000201
 // CK34-DAG: [[MTYPE_TO:@.+]] = {{.+}}constant [4 x i64] [i64 [[#0x20]], i64 [[#0x1000000000001]], i64 [[#0x1000000000001]], i64 [[#0x1000000000201]]]
+// CK34-DAG: [[SIZE_FROM:@.+]] = private {{.*}}constant [4 x i64] [i64 0, i64 0, i64 0, i64 {{16|8}}]
 // TARGET_PARAM = 0x20
 // MEMBER_OF_1 | FROM = 0x1000000000002
 // MEMBER_OF_1 | IMPLICIT | FROM = 0x1000000000202
@@ -47,11 +49,19 @@ public:
 void default_mapper() {
   S s;
 
-  // CK34-DAG: call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{.+}}, i32 4, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i64* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[4 x i{{.+}}]* [[MTYPE_TO]]{{.+}}, i8** null, i8** [[GEPMF:%.+]])
-  // CK34-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
-  // CK34-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
-  // CK34-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
-  // CK34-DAG: [[GEPMF]] = bitcast [4 x i8*]* [[MF:%.+]] to i8**
+  // CK34-DAG: call i32 @__tgt_target_kernel(%struct.ident_t* @{{.+}}, i64 -1, i32 -1, i32 0, i8* @.{{.+}}.region_id, %struct.__tgt_kernel_arguments* [[ARGS:%.+]])
+  // CK34-DAG: [[BPARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 2
+  // CK34-DAG: store i8** [[BPGEP:%.+]], i8*** [[BPARG]]
+  // CK34-DAG: [[PARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 3
+  // CK34-DAG: store i8** [[PGEP:%.+]], i8*** [[PARG]]
+  // CK34-DAG: [[SARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 4
+  // CK34-DAG: store i64* [[SIZES:%.+]], i64** [[SARG]]
+  // CK34-DAG: [[MARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 7
+  // CK34-DAG: store i8** [[MFGEP:%.+]], i8*** [[MARG]]
+  // CK34-DAG: [[BPGEP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
+  // CK34-DAG: [[PGEP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
+  // CK34-DAG: [[SIZES]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
+  // CK34-DAG: [[MFGEP]] = bitcast [4 x i8*]* [[MF:%.+]] to i8**
 
   // pass TARGET_PARAM {&s, &s, ((void*)(&s+1)-(void*)&s)}
 
@@ -131,7 +141,6 @@ void default_mapper() {
 
   // CK34-DAG: [[BP3:%.+]] = getelementptr inbounds {{.+}}[[BP]], i{{.+}} 0, i{{.+}} 3
   // CK34-DAG: [[P3:%.+]] = getelementptr inbounds {{.+}}[[P]], i{{.+}} 0, i{{.+}} 3
-  // CK34-DAG: [[S3:%.+]] = getelementptr inbounds {{.+}}[[S]], i{{.+}} 0, i{{.+}} 3
   // CK34-DAG: [[MF3:%.+]] = getelementptr inbounds {{.+}}[[MF]], i{{.+}} 0, i{{.+}} 3
 
   // CK34-DAG: [[BPC3:%.+]] = bitcast i8** [[BP3]] to %class.S**
@@ -139,8 +148,6 @@ void default_mapper() {
 
   // CK34-DAG: store %class.S* [[S_ADDR]], %class.S** [[BPC3]],
   // CK34-DAG: store %class.C* [[C_ADDR:%.+]], %class.C** [[PC3]],
-  // CK34-64-DAG: store i64 16, i64* [[S3]],
-  // CK34-32-DAG: store i64 8, i64* [[S3]],
   // CK34-DAG: store i8* bitcast (void (i8*, i8*, i8*, i64, i64, i8*)* [[C_DEFAULT_MAPPER:@.+]] to i8*), i8** [[MF3]],
 
   // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, %class.S* [[S_ADDR]], i32 0, i32 2
@@ -151,11 +158,19 @@ void default_mapper() {
 
   // CK34 : call void
 
-  // CK34-DAG: call i32 @__tgt_target_mapper(%struct.ident_t* @{{.+}}, i64 -1, i8* @{{.+}}, i32 4, i8** [[GEPBP:%.+]], i8** [[GEPP:%.+]], i64* [[GEPS:%.+]], {{.+}}getelementptr {{.+}}[4 x i{{.+}}]* [[MTYPE_FROM]]{{.+}}, i8** null, i8** [[GEPMF:%.+]])
-  // CK34-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
-  // CK34-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
-  // CK34-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
-  // CK34-DAG: [[GEPMF]] = bitcast [4 x i8*]* [[MF:%.+]] to i8**
+  // CK34-DAG: call i32 @__tgt_target_kernel(%struct.ident_t* @{{.+}}, i64 -1, i32 -1, i32 0, i8* @.{{.+}}.region_id, %struct.__tgt_kernel_arguments* [[ARGS:%.+]])
+  // CK34-DAG: [[BPARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 2
+  // CK34-DAG: store i8** [[BPGEP:%.+]], i8*** [[BPARG]]
+  // CK34-DAG: [[PARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 3
+  // CK34-DAG: store i8** [[PGEP:%.+]], i8*** [[PARG]]
+  // CK34-DAG: [[SARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 4
+  // CK34-DAG: store i64* [[SIZES:%.+]], i64** [[SARG]]
+  // CK34-DAG: [[MARG:%.+]] = getelementptr inbounds {{.+}}[[ARGS]], i32 0, i32 7
+  // CK34-DAG: store i8** [[MFGEP:%.+]], i8*** [[MARG]]
+  // CK34-DAG: [[BPGEP]] = getelementptr inbounds {{.+}}[[BP:%[^,]+]]
+  // CK34-DAG: [[PGEP]] = getelementptr inbounds {{.+}}[[P:%[^,]+]]
+  // CK34-DAG: [[SIZES]] = getelementptr inbounds {{.+}}[[S:%[^,]+]]
+  // CK34-DAG: [[MFGEP]] = bitcast [4 x i8*]* [[MF:%.+]] to i8**
 
   // pass TARGET_PARAM {&s, &s, ((void*)(&s+1)-(void*)&s)}
 
@@ -235,7 +250,6 @@ void default_mapper() {
 
   // CK34-DAG: [[BP3:%.+]] = getelementptr inbounds {{.+}}[[BP]], i{{.+}} 0, i{{.+}} 3
   // CK34-DAG: [[P3:%.+]] = getelementptr inbounds {{.+}}[[P]], i{{.+}} 0, i{{.+}} 3
-  // CK34-DAG: [[S3:%.+]] = getelementptr inbounds {{.+}}[[S]], i{{.+}} 0, i{{.+}} 3
   // CK34-DAG: [[MF3:%.+]] = getelementptr inbounds {{.+}}[[MF]], i{{.+}} 0, i{{.+}} 3
 
   // CK34-DAG: [[BPC3:%.+]] = bitcast i8** [[BP3]] to %class.S**
@@ -243,8 +257,6 @@ void default_mapper() {
 
   // CK34-DAG: store %class.S* [[S_ADDR]], %class.S** [[BPC3]],
   // CK34-DAG: store %class.C* [[C_ADDR:%.+]], %class.C** [[PC3]],
-  // CK34-64-DAG: store i64 16, i64* [[S3]],
-  // CK34-32-DAG: store i64 8, i64* [[S3]],
   // CK34-DAG: store i8* bitcast (void (i8*, i8*, i8*, i64, i64, i8*)* [[C_DEFAULT_MAPPER]] to i8*), i8** [[MF3]],
 
   // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, %class.S* [[S_ADDR]], i32 0, i32 2

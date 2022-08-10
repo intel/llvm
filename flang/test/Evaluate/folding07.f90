@@ -16,22 +16,22 @@ module m
   logical, parameter :: test_bit_size_16 = bs16 == 128
 
   real(2), parameter :: &
-    eps2 = epsilon(0._2), zeps2 = real(z'1000', kind=2), deps2 = 4.8828125e-4_2
+    eps2 = epsilon(0._2), zeps2 = real(z'1400', kind=2), deps2 = 9.765625e-4_2
   real(3), parameter :: &
-    eps3 = epsilon(0._3), zeps3 = real(z'3b80', kind=3), deps3 = 3.90625e-3_3
+    eps3 = epsilon(0._3), zeps3 = real(z'3c00', kind=3), deps3 = 7.8135e-3_3
   real(4), parameter :: &
-    eps4 = epsilon(0._4), zeps4 = real(z'33800000', kind=4), &
-    deps4 = 5.9604644775390625e-8_4
+    eps4 = epsilon(0._4), zeps4 = real(z'34000000', kind=4), &
+    deps4 = 1.1920928955078125e-07_4
   real(8), parameter :: &
-    eps8 = epsilon(0._8), zeps8 = real(z'3ca0000000000000', kind=8), &
-    deps8 = 1.1102230246251565404236316680908203125e-16_8
+    eps8 = epsilon(0._8), zeps8 = real(z'3cb0000000000000', kind=8), &
+    deps8 = 2.2204460492503130808472633361816406250e-16_8
   real(10), parameter :: &
-    eps10 = epsilon(0._10), zeps10 = real(z'3fbf8000000000000000', kind=10), &
-    deps10 = 5.42101086242752217003726400434970855712890625e-20_10
+    eps10 = epsilon(0._10), zeps10 = real(z'3fc08000000000000000', kind=10), &
+    deps10 = 1.08420217248550443400745280086994171142578125e-19_10
   real(16), parameter :: &
     eps16 = epsilon(0._16), &
-    zeps16 = real(z'3f8e0000000000000000000000000000', kind=16), &
-    deps16 = 9.629649721936179265279889712924636592690508241076940976199693977832794189453125e-35_16
+    zeps16 = real(z'3f8f0000000000000000000000000000', kind=16), &
+    deps16 = 1.9259299443872358530559779425849273185381016482153881952399387955665588378906250e-34_16
   logical, parameter :: test_eps2 = eps2 == zeps2 .and. eps2 == deps2
   logical, parameter :: test_eps3 = eps3 == zeps3 .and. eps3 == deps3
   logical, parameter :: test_eps4 = eps4 == zeps4 .and. eps4 == deps4
@@ -197,6 +197,26 @@ module m
   logical, parameter :: test_tiny10 = tiny10 == ztiny10
   logical, parameter :: test_tiny16 = tiny16 == ztiny16
 
+  real,    parameter :: nan = real(z'7fc12345')
+  integer, parameter :: nanInt = int(z'7fc12345')
+  real,    parameter :: inf = real(z'7f800000')
+  logical, parameter :: test_exponent_0 = exponent(0.0) == 0
+  logical, parameter :: test_fraction_0 = fraction(0.) == 0.
+  logical, parameter :: test_exponent_r8 = exponent(0.125) == -2
+  logical, parameter :: test_fraction_r8 = fraction(0.125) == 0.5
+  logical, parameter :: test_exponent_r4 = exponent(0.25) == -1
+  logical, parameter :: test_fraction_mr4 = fraction(-0.25) == -0.5
+  logical, parameter :: test_exponent_r2 = exponent(0.5) == 0
+  logical, parameter :: test_fraction_r2 = fraction(0.5) == 0.5
+  logical, parameter :: test_exponent_1 = exponent(1.0) == 1
+  logical, parameter :: test_fraction_1 = fraction(1.) == 0.5
+  logical, parameter :: test_exponent_4 = exponent(4.1) == 3
+  logical, parameter :: test_fraction_m4 = fraction(-4.5) == -0.5625
+  logical, parameter :: test_exponent_12 = exponent(12.9) == 4
+  real,    parameter :: fraction_inf = fraction(inf)
+  logical, parameter :: test_fraction_inf = fraction_inf /= fraction_inf ! must be NaN
+  logical, parameter :: test_fraction_nan = transfer(fraction(nan),0) == nanInt
+
   integer, parameter :: &
     max2 = maxexponent(0._2), &
     max3 = maxexponent(0._3), &
@@ -204,12 +224,12 @@ module m
     max8 = maxexponent(0._8), &
     max10 = maxexponent(0._10), &
     max16 = maxexponent(0._16)
-  logical, parameter :: test_max2 = max2 == 15
-  logical, parameter :: test_max3 = max3 == 127
-  logical, parameter :: test_max4 = max4 == 127
-  logical, parameter :: test_max8 = max8 == 1023
-  logical, parameter :: test_max10 = max10 == 16383
-  logical, parameter :: test_max16 = max16 == 16383
+  logical, parameter :: test_max2 = max2 == 16
+  logical, parameter :: test_max3 = max3 == 128
+  logical, parameter :: test_max4 = max4 == 128
+  logical, parameter :: test_max8 = max8 == 1024
+  logical, parameter :: test_max10 = max10 == 16384
+  logical, parameter :: test_max16 = max16 == 16384
 
   integer, parameter :: &
     min2 = minexponent(0._2), &
@@ -218,12 +238,12 @@ module m
     min8 = minexponent(0._8), &
     min10 = minexponent(0._10), &
     min16 = minexponent(0._16)
-  logical, parameter :: test_min2 = min2 == -14
-  logical, parameter :: test_min3 = min3 == -126
-  logical, parameter :: test_min4 = min4 == -126
-  logical, parameter :: test_min8 = min8 == -1022
-  logical, parameter :: test_min10 = min10 == -16382
-  logical, parameter :: test_min16 = min16 == -16382
+  logical, parameter :: test_min2 = min2 == -13
+  logical, parameter :: test_min3 = min3 == -125
+  logical, parameter :: test_min4 = min4 == -125
+  logical, parameter :: test_min8 = min8 == -1021
+  logical, parameter :: test_min10 = min10 == -16381
+  logical, parameter :: test_min16 = min16 == -16381
 
   integer, parameter :: &
     irange1 = range(0_1), &
@@ -250,5 +270,15 @@ module m
   logical, parameter :: test_zrange8 = arange8 == 307 .and. zrange8 == 307
   logical, parameter :: test_zrange10 = arange10 == 4931 .and. zrange10 == 4931
   logical, parameter :: test_zrange16 = arange16 == 4931 .and. zrange16 == 4931
+
+  logical, parameter :: test_set_exponent_z = set_exponent(0., 999) == 0.
+  logical, parameter :: test_set_exponent_nan = transfer(set_exponent(nan, 0), 0) == nanInt
+  real,    parameter :: set_expo_inf = set_exponent(inf, 0)
+  integer, parameter :: set_expo_inf_int = transfer(set_expo_inf, 0)
+  logical, parameter :: test_set_exponent_inf = shiftr(set_expo_inf_int, 23) == 255 .and. &
+                                                shiftl(set_expo_inf_int, 9) /= 0 ! NaN
+  logical, parameter :: test_set_exponent_0 = set_exponent(1., 0) == 0.5
+  logical, parameter :: test_set_exponent_1 = set_exponent(1., 1) == 1.
+  logical, parameter :: test_set_exponent_2 = set_exponent(1., 2) == 2.
 
 end module

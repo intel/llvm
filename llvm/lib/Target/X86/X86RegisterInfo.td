@@ -430,11 +430,11 @@ def GR64 : RegisterClass<"X86", [i64], 64,
                          (add RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11,
                               RBX, R14, R15, R12, R13, RBP, RSP, RIP)>;
 
-// GR64 - 64-bit GPRs without R8 and RIP. Could be used when emitting code for
-// intrinsics, which use implict input registers.
-def GR64NoR8 : RegisterClass<"X86", [i64], 64,
-                              (add RAX, RCX, RDX, RSI, RDI, R9, R10, R11,
-                                   RBX, R14, R15, R12, R13, RBP, RSP)>;
+// GR64PLTSafe - 64-bit GPRs without R10, R11, RSP and RIP. Could be used when
+// emitting code for intrinsics, which use implict input registers.
+def GR64PLTSafe : RegisterClass<"X86", [i64], 64,
+                              (add RAX, RCX, RDX, RSI, RDI, R8, R9,
+                                   RBX, R14, R15, R12, R13, RBP)>;
 
 // Segment registers for use by MOV instructions (and others) that have a
 //   segment register as one operand.  Always contain a 16-bit segment
@@ -537,6 +537,8 @@ def FR32 : RegisterClass<"X86", [f32], 32, (sequence "XMM%u", 0, 15)>;
 
 def FR64 : RegisterClass<"X86", [f64], 64, (add FR32)>;
 
+def FR16 : RegisterClass<"X86", [f16], 16, (add FR32)> {let Size = 32;}
+
 
 // FIXME: This sets up the floating point register files as though they are f64
 // values, though they really are f80 values.  This will cause us to spill
@@ -599,7 +601,7 @@ def FR32X : RegisterClass<"X86", [f32], 32, (sequence "XMM%u", 0, 31)>;
 
 def FR64X : RegisterClass<"X86", [f64], 64, (add FR32X)>;
 
-def FR16X : RegisterClass<"X86", [f16], 16, (add FR32X)>;
+def FR16X : RegisterClass<"X86", [f16], 16, (add FR32X)> {let Size = 32;}
 
 // Extended VR128 and VR256 for AVX-512 instructions
 def VR128X : RegisterClass<"X86", [v4f32, v2f64, v8f16, v16i8, v8i16, v4i32, v2i64, f128],
@@ -638,3 +640,14 @@ def VK64WM  : RegisterClass<"X86", [v64i1], 64, (add VK32WM)> {let Size = 64;}
 let CopyCost = -1 in // Don't allow copying of tile registers
 def TILE : RegisterClass<"X86", [x86amx], 8192,
                          (sequence "TMM%u", 0, 7)> {let Size = 8192;}
+
+//===----------------------------------------------------------------------===//
+// Register categories.
+//
+
+// The TILE and VK*PAIR registers may not be "fixed", but we don't want them
+// anyway.
+def FixedRegisters : RegisterCategory<[DEBUG_REG, CONTROL_REG, CCR, FPCCR,
+                                       DFCCR, TILE, VK1PAIR, VK2PAIR, VK4PAIR,
+                                       VK8PAIR, VK16PAIR]>;
+def GeneralPurposeRegisters : RegisterCategory<[GR64, GR32, GR16, GR8]>;

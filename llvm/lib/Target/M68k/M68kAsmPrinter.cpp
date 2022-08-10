@@ -1,4 +1,4 @@
-//===----- M68kAsmPrinter.cpp - M68k LLVM Assembly Printer -----*- C++ -*-===//
+//===-- M68kAsmPrinter.cpp - M68k LLVM Assembly Printer ---------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -77,6 +77,9 @@ bool M68kAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
 }
 
 void M68kAsmPrinter::emitInstruction(const MachineInstr *MI) {
+  M68k_MC::verifyInstructionPredicates(MI->getOpcode(),
+                                       getSubtargetInfo().getFeatureBits());
+
   switch (MI->getOpcode()) {
   default: {
     if (MI->isPseudo()) {

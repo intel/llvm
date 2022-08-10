@@ -46,11 +46,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/PassManagerInternal.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/Debug.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/TypeName.h"
-#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <iterator>
@@ -473,7 +470,7 @@ class PassManager : public PassInfoMixin<
                         PassManager<IRUnitT, AnalysisManagerT, ExtraArgTs...>> {
 public:
   /// Construct a pass manager.
-  explicit PassManager() {}
+  explicit PassManager() = default;
 
   // FIXME: These are equivalent to the default move constructor/move
   // assignment. However, using = default triggers linker errors due to the
@@ -1204,8 +1201,9 @@ class ModuleToFunctionPassAdaptor
 public:
   using PassConceptT = detail::PassConcept<Function, FunctionAnalysisManager>;
 
-  explicit ModuleToFunctionPassAdaptor(std::unique_ptr<PassConceptT> Pass)
-      : Pass(std::move(Pass)) {}
+  explicit ModuleToFunctionPassAdaptor(std::unique_ptr<PassConceptT> Pass,
+                                       bool EagerlyInvalidate)
+      : Pass(std::move(Pass)), EagerlyInvalidate(EagerlyInvalidate) {}
 
   /// Runs the function pass across every function in the module.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
@@ -1216,13 +1214,15 @@ public:
 
 private:
   std::unique_ptr<PassConceptT> Pass;
+  bool EagerlyInvalidate;
 };
 
 /// A function to deduce a function pass type and wrap it in the
 /// templated adaptor.
 template <typename FunctionPassT>
 ModuleToFunctionPassAdaptor
-createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
+createModuleToFunctionPassAdaptor(FunctionPassT &&Pass,
+                                  bool EagerlyInvalidate = false) {
   using PassModelT =
       detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
                         FunctionAnalysisManager>;
@@ -1230,7 +1230,8 @@ createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
   // causing terrible compile times.
   return ModuleToFunctionPassAdaptor(
       std::unique_ptr<ModuleToFunctionPassAdaptor::PassConceptT>(
-          new PassModelT(std::forward<FunctionPassT>(Pass))));
+          new PassModelT(std::forward<FunctionPassT>(Pass))),
+      EagerlyInvalidate);
 }
 
 /// A utility pass template to force an analysis result to be available.

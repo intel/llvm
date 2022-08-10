@@ -126,6 +126,24 @@ enum EdgeKind_x86_64 : Edge::Kind {
   ///
   BranchPCRel32,
 
+  /// A 32-bit PC-relative relocation.
+  ///
+  /// Represents a data/control flow instruction using PC-relative addressing
+  /// to a target.
+  ///
+  /// The fixup expression for this kind includes an implicit offset to account
+  /// for the PC (unlike the Delta edges) so that a PCRel32 with a target
+  /// T and addend zero is a call/branch to the start (offset zero) of T.
+  ///
+  /// Fixup expression:
+  ///   Fixup <- Target - (Fixup + 4) + Addend : int32
+  ///
+  /// Errors:
+  ///   - The result of the fixup expression must fit into an int32, otherwise
+  ///     an out-of-range error will be returned.
+  ///
+  PCRel32,
+
   /// A 32-bit PC-relative branch to a pointer jump stub.
   ///
   /// The target of this relocation should be a pointer jump stub of the form:
@@ -343,7 +361,9 @@ enum EdgeKind_x86_64 : Edge::Kind {
   ///   - *ASSERTION* Failure to handle edges of this kind prior to the fixup
   ///     phase will result in an assert/unreachable during the fixup phase.
   ///
-  RequestTLVPAndTransformToPCRel32TLVPLoadREXRelaxable
+  RequestTLVPAndTransformToPCRel32TLVPLoadREXRelaxable,
+  // First platform specific relocation.
+  FirstPlatformRelocation
 };
 
 /// Returns a string name for the given x86-64 edge. For debugging purposes
@@ -368,18 +388,18 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
 
   char *BlockWorkingMem = B.getAlreadyMutableContent().data();
   char *FixupPtr = BlockWorkingMem + E.getOffset();
-  JITTargetAddress FixupAddress = B.getAddress() + E.getOffset();
+  auto FixupAddress = B.getAddress() + E.getOffset();
 
   switch (E.getKind()) {
 
   case Pointer64: {
-    uint64_t Value = E.getTarget().getAddress() + E.getAddend();
+    uint64_t Value = E.getTarget().getAddress().getValue() + E.getAddend();
     *(ulittle64_t *)FixupPtr = Value;
     break;
   }
 
   case Pointer32: {
-    uint64_t Value = E.getTarget().getAddress() + E.getAddend();
+    uint64_t Value = E.getTarget().getAddress().getValue() + E.getAddend();
     if (LLVM_LIKELY(isInRangeForImmU32(Value)))
       *(ulittle32_t *)FixupPtr = Value;
     else
@@ -387,7 +407,7 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
     break;
   }
   case Pointer32Signed: {
-    int64_t Value = E.getTarget().getAddress() + E.getAddend();
+    int64_t Value = E.getTarget().getAddress().getValue() + E.getAddend();
     if (LLVM_LIKELY(isInRangeForImmS32(Value)))
       *(little32_t *)FixupPtr = Value;
     else
@@ -395,6 +415,7 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
     break;
   }
 
+  case PCRel32:
   case BranchPCRel32:
   case BranchPCRel32ToPtrJumpStub:
   case BranchPCRel32ToPtrJumpStubBypassable:
@@ -447,11 +468,10 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
     break;
   }
 
-  default: {
-    // If you hit this you should check that *constructor and other non-fixup
-    // edges have been removed prior to applying fixups.
-    llvm_unreachable("Graph contains edge kind with no fixup expression");
-  }
+  default:
+    return make_error<JITLinkError>(
+        "In graph " + G.getName() + ", section " + B.getSection().getName() +
+        "unsupported edge kind" + getEdgeKindName(E.getKind()));
   }
 
   return Error::success();
@@ -483,8 +503,8 @@ extern const char PointerJumpStubContent[6];
 inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
                                       Symbol *InitialTarget = nullptr,
                                       uint64_t InitialAddend = 0) {
-  auto &B =
-      G.createContentBlock(PointerSection, NullPointerContent, ~7ULL, 8, 0);
+  auto &B = G.createContentBlock(PointerSection, NullPointerContent,
+                                 orc::ExecutorAddr(~uint64_t(7)), 8, 0);
   if (InitialTarget)
     B.addEdge(Pointer64, 0, *InitialTarget, InitialAddend);
   return G.addAnonymousSymbol(B, 0, 8, false, false);
@@ -498,8 +518,8 @@ inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
 ///   address: highest allowable: (~5U)
 inline Block &createPointerJumpStubBlock(LinkGraph &G, Section &StubSection,
                                          Symbol &PointerSymbol) {
-  auto &B =
-      G.createContentBlock(StubSection, PointerJumpStubContent, ~5ULL, 1, 0);
+  auto &B = G.createContentBlock(StubSection, PointerJumpStubContent,
+                                 orc::ExecutorAddr(~uint64_t(5)), 1, 0);
   B.addEdge(Delta32, 2, PointerSymbol, -4);
   return B;
 }
@@ -552,8 +572,7 @@ public:
            "Fell through switch, but no new kind to set");
     DEBUG_WITH_TYPE("jitlink", {
       dbgs() << "  Fixing " << G.getEdgeKindName(E.getKind()) << " edge at "
-             << formatv("{0:x}", B->getFixupAddress(E)) << " ("
-             << formatv("{0:x}", B->getAddress()) << " + "
+             << B->getFixupAddress(E) << " (" << B->getAddress() << " + "
              << formatv("{0:x}", E.getOffset()) << ")\n";
     });
     E.setKind(KindToSet);
@@ -586,8 +605,7 @@ public:
     if (E.getKind() == x86_64::BranchPCRel32 && !E.getTarget().isDefined()) {
       DEBUG_WITH_TYPE("jitlink", {
         dbgs() << "  Fixing " << G.getEdgeKindName(E.getKind()) << " edge at "
-               << formatv("{0:x}", B->getFixupAddress(E)) << " ("
-               << formatv("{0:x}", B->getAddress()) << " + "
+               << B->getFixupAddress(E) << " (" << B->getAddress() << " + "
                << formatv("{0:x}", E.getOffset()) << ")\n";
       });
       // Set the edge kind to Branch32ToPtrJumpStubBypassable to enable it to

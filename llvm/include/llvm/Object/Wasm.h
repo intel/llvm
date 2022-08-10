@@ -9,7 +9,7 @@
 // This file declares the WasmObjectFile class, which implements the ObjectFile
 // interface for Wasm files.
 //
-// See: https://github.com/WebAssembly/design/blob/master/BinaryEncoding.md
+// See: https://github.com/WebAssembly/design/blob/main/BinaryEncoding.md
 //
 //===----------------------------------------------------------------------===//
 
@@ -287,7 +287,6 @@ private:
   uint32_t StartFunction = -1;
   bool HasLinkingSection = false;
   bool HasDylinkSection = false;
-  bool SeenCodeSection = false;
   bool HasMemory64 = false;
   wasm::WasmLinkingData LinkingData;
   uint32_t NumImportedGlobals = 0;

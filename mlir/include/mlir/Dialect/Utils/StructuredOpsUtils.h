@@ -163,7 +163,8 @@ public:
 
   StructuredGenerator(OpBuilder &builder, StructuredOpInterface op)
       : builder(builder), ctx(op.getContext()), loc(op.getLoc()),
-        iterators(op.iterator_types()), maps(op.getIndexingMaps()), op(op) {}
+        iterators(op.getIteratorTypes()), maps(op.getIndexingMapsArray()),
+        op(op) {}
 
   bool iters(ArrayRef<IteratorType> its) {
     if (its.size() != iterators.size())
@@ -189,6 +190,6 @@ protected:
   Operation *op;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
-#endif // MLIR_UTILS_STRUCTUREDOPSUTILS_H
+#endif // MLIR_DIALECT_UTILS_STRUCTUREDOPSUTILS_H

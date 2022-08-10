@@ -42,7 +42,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/GuardUtils.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
@@ -496,6 +495,8 @@ void GuardWideningImpl::makeAvailableAt(Value *V, Instruction *Loc) const {
     makeAvailableAt(Op, Loc);
 
   Inst->moveBefore(Loc);
+  // If we moved instruction before guard we must clean poison generating flags.
+  Inst->dropPoisonGeneratingFlags();
 }
 
 bool GuardWideningImpl::widenCondCommon(Value *Cond0, Value *Cond1,
@@ -518,27 +519,20 @@ bool GuardWideningImpl::widenCondCommon(Value *Cond0, Value *Cond1,
       ConstantRange CR1 =
           ConstantRange::makeExactICmpRegion(Pred1, RHS1->getValue());
 
-      // SubsetIntersect is a subset of the actual mathematical intersection of
-      // CR0 and CR1, while SupersetIntersect is a superset of the actual
-      // mathematical intersection.  If these two ConstantRanges are equal, then
-      // we know we were able to represent the actual mathematical intersection
-      // of CR0 and CR1, and can use the same to generate an icmp instruction.
-      //
       // Given what we're doing here and the semantics of guards, it would
-      // actually be correct to just use SubsetIntersect, but that may be too
+      // be correct to use a subset intersection, but that may be too
       // aggressive in cases we care about.
-      auto SubsetIntersect = CR0.inverse().unionWith(CR1.inverse()).inverse();
-      auto SupersetIntersect = CR0.intersectWith(CR1);
-
-      APInt NewRHSAP;
-      CmpInst::Predicate Pred;
-      if (SubsetIntersect == SupersetIntersect &&
-          SubsetIntersect.getEquivalentICmp(Pred, NewRHSAP)) {
-        if (InsertPt) {
-          ConstantInt *NewRHS = ConstantInt::get(Cond0->getContext(), NewRHSAP);
-          Result = new ICmpInst(InsertPt, Pred, LHS, NewRHS, "wide.chk");
+      if (Optional<ConstantRange> Intersect = CR0.exactIntersectWith(CR1)) {
+        APInt NewRHSAP;
+        CmpInst::Predicate Pred;
+        if (Intersect->getEquivalentICmp(Pred, NewRHSAP)) {
+          if (InsertPt) {
+            ConstantInt *NewRHS =
+                ConstantInt::get(Cond0->getContext(), NewRHSAP);
+            Result = new ICmpInst(InsertPt, Pred, LHS, NewRHS, "wide.chk");
+          }
+          return true;
         }
-        return true;
       }
     }
   }

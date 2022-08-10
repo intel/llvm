@@ -22,31 +22,30 @@ namespace orc {
 namespace rt_bootstrap {
 
 template <typename WriteT, typename SPSWriteT>
-static llvm::orc::shared::detail::CWrapperFunctionResult
+static llvm::orc::shared::CWrapperFunctionResult
 writeUIntsWrapper(const char *ArgData, size_t ArgSize) {
   return WrapperFunction<void(SPSSequence<SPSWriteT>)>::handle(
              ArgData, ArgSize,
              [](std::vector<WriteT> Ws) {
                for (auto &W : Ws)
-                 *jitTargetAddressToPointer<decltype(W.Value) *>(W.Address) =
-                     W.Value;
+                 *W.Addr.template toPtr<decltype(W.Value) *>() = W.Value;
              })
       .release();
 }
 
-static llvm::orc::shared::detail::CWrapperFunctionResult
+static llvm::orc::shared::CWrapperFunctionResult
 writeBuffersWrapper(const char *ArgData, size_t ArgSize) {
   return WrapperFunction<void(SPSSequence<SPSMemoryAccessBufferWrite>)>::handle(
              ArgData, ArgSize,
              [](std::vector<tpctypes::BufferWrite> Ws) {
                for (auto &W : Ws)
-                 memcpy(jitTargetAddressToPointer<char *>(W.Address),
-                        W.Buffer.data(), W.Buffer.size());
+                 memcpy(W.Addr.template toPtr<char *>(), W.Buffer.data(),
+                        W.Buffer.size());
              })
       .release();
 }
 
-static llvm::orc::shared::detail::CWrapperFunctionResult
+static llvm::orc::shared::CWrapperFunctionResult
 runAsMainWrapper(const char *ArgData, size_t ArgSize) {
   return WrapperFunction<rt::SPSRunAsMainSignature>::handle(
              ArgData, ArgSize,
@@ -72,11 +71,10 @@ void addTo(StringMap<ExecutorAddr> &M) {
                          shared::SPSMemoryAccessUInt64Write>);
   M[rt::MemoryWriteBuffersWrapperName] =
       ExecutorAddr::fromPtr(&writeBuffersWrapper);
-  M[rt::RegisterEHFrameSectionCustomDirectWrapperName] = ExecutorAddr::fromPtr(
-      &llvm_orc_registerEHFrameSectionCustomDirectWrapper);
-  M[rt::DeregisterEHFrameSectionCustomDirectWrapperName] =
-      ExecutorAddr::fromPtr(
-          &llvm_orc_deregisterEHFrameSectionCustomDirectWrapper);
+  M[rt::RegisterEHFrameSectionWrapperName] =
+      ExecutorAddr::fromPtr(&llvm_orc_registerEHFrameSectionWrapper);
+  M[rt::DeregisterEHFrameSectionWrapperName] =
+      ExecutorAddr::fromPtr(&llvm_orc_deregisterEHFrameSectionWrapper);
   M[rt::RunAsMainWrapperName] = ExecutorAddr::fromPtr(&runAsMainWrapper);
 }
 

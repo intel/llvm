@@ -38,7 +38,7 @@ public:
   ElementsAttrIndexer(ElementsAttrIndexer &&rhs)
       : isContiguous(rhs.isContiguous), isSplat(rhs.isSplat) {
     if (isContiguous)
-      conState = std::move(rhs.conState);
+      conState = rhs.conState;
     else
       new (&nonConState) NonContiguousState(std::move(rhs.nonConState));
   }
@@ -76,7 +76,8 @@ public:
   }
 
   /// Access the element at the given index.
-  template <typename T> T at(uint64_t index) const {
+  template <typename T>
+  T at(uint64_t index) const {
     if (isSplat)
       index = 0;
     return isContiguous ? conState.at<T>(index) : nonConState.at<T>(index);
@@ -93,7 +94,8 @@ private:
     ContiguousState(const void *firstEltPtr) : firstEltPtr(firstEltPtr) {}
 
     /// Access the element at the given index.
-    template <typename T> const T &at(uint64_t index) const {
+    template <typename T>
+    const T &at(uint64_t index) const {
       return *(reinterpret_cast<const T *>(firstEltPtr) + index);
     }
 
@@ -109,7 +111,7 @@ private:
     /// This allows for all iterator and element types to be completely
     /// type-erased.
     struct OpaqueIteratorBase {
-      virtual ~OpaqueIteratorBase() {}
+      virtual ~OpaqueIteratorBase() = default;
       virtual std::unique_ptr<OpaqueIteratorBase> clone() const = 0;
     };
     /// This class is used to represent the abstract base of an opaque iterator
@@ -171,7 +173,8 @@ private:
     NonContiguousState(NonContiguousState &&other) = default;
 
     /// Access the element at the given index.
-    template <typename T> T at(uint64_t index) const {
+    template <typename T>
+    T at(uint64_t index) const {
       auto *valueIt = static_cast<OpaqueIteratorValueBase<T> *>(iterator.get());
       return valueIt->at(index);
     }
@@ -227,6 +230,33 @@ private:
   ElementsAttrIndexer indexer;
   ptrdiff_t index;
 };
+
+/// This class provides iterator utilities for an ElementsAttr range.
+template <typename IteratorT>
+class ElementsAttrRange : public llvm::iterator_range<IteratorT> {
+public:
+  using reference = typename IteratorT::reference;
+
+  ElementsAttrRange(Type shapeType,
+                    const llvm::iterator_range<IteratorT> &range)
+      : llvm::iterator_range<IteratorT>(range), shapeType(shapeType) {}
+  ElementsAttrRange(Type shapeType, IteratorT beginIt, IteratorT endIt)
+      : ElementsAttrRange(shapeType, llvm::make_range(beginIt, endIt)) {}
+
+  /// Return the value at the given index.
+  reference operator[](ArrayRef<uint64_t> index) const;
+  reference operator[](uint64_t index) const {
+    return *std::next(this->begin(), index);
+  }
+
+  /// Return the size of this range.
+  size_t size() const { return llvm::size(*this); }
+
+private:
+  /// The shaped type of the parent ElementsAttr.
+  Type shapeType;
+};
+
 } // namespace detail
 
 //===----------------------------------------------------------------------===//
@@ -256,6 +286,16 @@ verifyAffineMapAsLayout(AffineMap m, ArrayRef<int64_t> shape,
 //===----------------------------------------------------------------------===//
 
 namespace mlir {
+namespace detail {
+/// Return the value at the given index.
+template <typename IteratorT>
+auto ElementsAttrRange<IteratorT>::operator[](ArrayRef<uint64_t> index) const
+    -> reference {
+  // Skip to the element corresponding to the flattened index.
+  return (*this)[ElementsAttr::getFlattenedIndex(shapeType, index)];
+}
+} // namespace detail
+
 /// Return the elements of this attribute as a value of type 'T'.
 template <typename T>
 auto ElementsAttr::value_begin() const -> DefaultValueCheckT<T, iterator<T>> {
@@ -275,6 +315,6 @@ auto ElementsAttr::try_value_begin() const
     return llvm::None;
   return iterator<T>(std::move(*indexer), 0);
 }
-} // end namespace mlir.
+} // namespace mlir.
 
 #endif // MLIR_IR_BUILTINATTRIBUTEINTERFACES_H

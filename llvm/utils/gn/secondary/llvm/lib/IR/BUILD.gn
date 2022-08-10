@@ -63,9 +63,11 @@ static_library("IR") {
     "PassRegistry.cpp",
     "PassTimingInfo.cpp",
     "PrintPasses.cpp",
+    "ProfDataUtils.cpp",
     "ProfileSummary.cpp",
     "PseudoProbe.cpp",
     "ReplaceConstant.cpp",
+    "SSAContext.cpp",
     "SafepointIRVerifier.cpp",
     "Statepoint.cpp",
     "StructuralHash.cpp",
@@ -75,6 +77,7 @@ static_library("IR") {
     "User.cpp",
     "Value.cpp",
     "ValueSymbolTable.cpp",
+    "VectorBuilder.cpp",
     "Verifier.cpp",
   ]
 }

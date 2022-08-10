@@ -43,7 +43,7 @@ namespace Function {
   typedef A<void (*)(), i> d;
   typedef A<void (*)(), &i> d;
   typedef A<void (*)(), i<>> d;
-  typedef A<void (*)(), i<int>> e; // expected-error {{is not implicitly convertible}}
+  typedef A<void (*)(), i<int>> e; // expected-error {{value of type '<overloaded function type>' is not implicitly convertible to 'void (*)()'}}
 
   typedef A<void (*)(), 0> x; // expected-error {{not allowed in a converted constant}}
   typedef A<void (*)(), nullptr> y;
@@ -131,7 +131,7 @@ namespace DeduceDifferentType {
 
   struct X { constexpr operator int() { return 0; } } x;
   template<X &> struct C {};
-  template<int N> int c(C<N>); // expected-error {{value of type 'int' is not implicitly convertible to 'DeduceDifferentType::X &'}}
+  template<int N> int c(C<N>); // expected-error {{value of type 'int' is not implicitly convertible to 'X &'}}
   int c_imp = c(C<x>()); // expected-error {{no matching function}}
   int c_exp = c<x>(C<x>()); // expected-error {{no matching function}}
 

@@ -4,7 +4,7 @@
 // This test checks the integration header generated when
 // the kernel argument is union.
 
-// CHECK: #include <CL/sycl/detail/kernel_desc.hpp>
+// CHECK: #include <sycl/detail/kernel_desc.hpp>
 
 // CHECK: class kernel_A;
 

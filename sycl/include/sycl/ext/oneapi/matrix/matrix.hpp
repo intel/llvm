@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <CL/sycl/feature_test.hpp>
+#include <sycl/feature_test.hpp>
 
 #if (SYCL_EXT_ONEAPI_MATRIX == 1)
 #if defined(__AMXTILE__) && defined(__AMXINT8__) && defined(__AMXBF16__)
@@ -24,4 +24,7 @@
 #if (SYCL_EXT_ONEAPI_MATRIX == 2)
 #include <sycl/ext/oneapi/matrix/matrix-jit.hpp>
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
+#endif
+#if (SYCL_EXT_ONEAPI_MATRIX == 3)
+#include <sycl/ext/oneapi/matrix/matrix-tensorcore.hpp>
 #endif

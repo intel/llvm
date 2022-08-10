@@ -15,7 +15,8 @@ using namespace llvm;
 using llvm::itanium_demangle::OutputBuffer;
 
 static std::string toString(OutputBuffer &OB) {
-  return {OB.getBuffer(), OB.getCurrentPosition()};
+  StringView SV = OB;
+  return {SV.begin(), SV.end()};
 }
 
 template <typename T> static std::string printToString(const T &Value) {
@@ -57,6 +58,37 @@ TEST(OutputBufferTest, Insert) {
 
   OB.insert(3, "defghi", 6);
   EXPECT_EQ("xabdefghicdy", toString(OB));
+
+  std::free(OB.getBuffer());
+}
+
+TEST(OutputBufferTest, Prepend) {
+  OutputBuffer OB;
+
+  OB.prepend("n");
+  EXPECT_EQ("n", toString(OB));
+
+  OB << "abc";
+  OB.prepend("def");
+  EXPECT_EQ("defnabc", toString(OB));
+
+  OB.setCurrentPosition(3);
+
+  OB.prepend("abc");
+  EXPECT_EQ("abcdef", toString(OB));
+
+  std::free(OB.getBuffer());
+}
+
+// Test when initial needed size is larger than the default.
+TEST(OutputBufferTest, Extend) {
+  OutputBuffer OB;
+
+  char Massive[2000];
+  std::memset(Massive, 'a', sizeof(Massive));
+  Massive[sizeof(Massive) - 1] = 0;
+  OB << Massive;
+  EXPECT_EQ(Massive, toString(OB));
 
   std::free(OB.getBuffer());
 }

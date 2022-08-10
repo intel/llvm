@@ -9,12 +9,15 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"
 
+; CHECK-LLVM: [[ZERO_INIT:@[0-9]+]] = {{.*}} addrspace(2) constant [8 x i8] zeroinitializer
+
 ; Function Attrs: convergent noinline nounwind optnone
 define spir_kernel void @test_memset(i32 addrspace(1)* %data, i32 %input) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
 ; CHECK-LLVM: %[[BITCAST_RES:[[:alnum:].]+]] = bitcast i32 addrspace(1)* %{{[[:alnum:].]+}} to i8 addrspace(1)*
   %ptr = bitcast i32 addrspace(1)* %data to i8 addrspace(1)*
-; CHECK-LLVM: call void @llvm.memset.p1i8.i64(i8 addrspace(1)* align 8 %[[BITCAST_RES]], i8 0, i64 8, i1 false)
+; CHECK-LLVM: %[[#ZERO_INIT_BITCAST:]] = bitcast [8 x i8] addrspace(2)* [[ZERO_INIT]] to i8 addrspace(2)*
+; CHECK-LLVM: call void @llvm.memcpy.p1i8.p2i8.i64(i8 addrspace(1)* align 8 %[[BITCAST_RES]], i8 addrspace(2)* align 8 %[[#ZERO_INIT_BITCAST]], i64 8, i1 false)
   call void @llvm.memset.p1i8.i64(i8 addrspace(1)* align 8 %ptr, i8 0, i64 8, i1 false)
 ; CHECK-LLVM: store i8 0, i8 addrspace(1)* %[[BITCAST_RES]]
   store i8 0, i8 addrspace(1)* %ptr

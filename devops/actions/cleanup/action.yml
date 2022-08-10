@@ -1,0 +1,8 @@
+name: 'Cleanup'
+description: 'Cleanup work directory upon job finish'
+
+runs:
+  using: 'node12'
+  main: 'dummy.js'
+  post: 'cleanup.js'
+

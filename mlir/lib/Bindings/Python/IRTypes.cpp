@@ -262,6 +262,7 @@ public:
           self.requireHasRank();
           return mlirShapedTypeIsDynamicDim(self, dim);
         },
+        py::arg("dim"),
         "Returns whether the dim-th dimension of the given shaped type is "
         "dynamic.");
     c.def(
@@ -270,10 +271,12 @@ public:
           self.requireHasRank();
           return mlirShapedTypeGetDimSize(self, dim);
         },
+        py::arg("dim"),
         "Returns the dim-th dimension of the given ranked shaped type.");
     c.def_static(
         "is_dynamic_size",
         [](int64_t size) -> bool { return mlirShapedTypeIsDynamicSize(size); },
+        py::arg("dim_size"),
         "Returns whether the given dimension size indicates a dynamic "
         "dimension.");
     c.def(
@@ -282,8 +285,31 @@ public:
           self.requireHasRank();
           return mlirShapedTypeIsDynamicStrideOrOffset(val);
         },
+        py::arg("dim_size"),
         "Returns whether the given value is used as a placeholder for dynamic "
         "strides and offsets in shaped types.");
+    c.def_property_readonly(
+        "shape",
+        [](PyShapedType &self) {
+          self.requireHasRank();
+
+          std::vector<int64_t> shape;
+          int64_t rank = mlirShapedTypeGetRank(self);
+          shape.reserve(rank);
+          for (int64_t i = 0; i < rank; ++i)
+            shape.push_back(mlirShapedTypeGetDimSize(self, i));
+          return shape;
+        },
+        "Returns the shape of the ranked shaped type as a list of integers.");
+    c.def_static(
+        "_get_dynamic_size", []() { return mlirShapedTypeGetDynamicSize(); },
+        "Returns the value used to indicate dynamic dimensions in shaped "
+        "types.");
+    c.def_static(
+        "_get_dynamic_stride_or_offset",
+        []() { return mlirShapedTypeGetDynamicStrideOrOffset(); },
+        "Returns the value used to indicate dynamic strides or offsets in "
+        "shaped types.");
   }
 
 private:
@@ -531,7 +557,7 @@ public:
           MlirType t = mlirTupleTypeGetType(self, pos);
           return PyType(self.getContext(), t);
         },
-        "Returns the pos-th type in the tuple type.");
+        py::arg("pos"), "Returns the pos-th type in the tuple type.");
     c.def_property_readonly(
         "num_types",
         [](PyTupleType &self) -> intptr_t {
@@ -591,6 +617,47 @@ public:
   }
 };
 
+static MlirStringRef toMlirStringRef(const std::string &s) {
+  return mlirStringRefCreate(s.data(), s.size());
+}
+
+/// Opaque Type subclass - OpaqueType.
+class PyOpaqueType : public PyConcreteType<PyOpaqueType> {
+public:
+  static constexpr IsAFunctionTy isaFunction = mlirTypeIsAOpaque;
+  static constexpr const char *pyClassName = "OpaqueType";
+  using PyConcreteType::PyConcreteType;
+
+  static void bindDerived(ClassTy &c) {
+    c.def_static(
+        "get",
+        [](std::string dialectNamespace, std::string typeData,
+           DefaultingPyMlirContext context) {
+          MlirType type = mlirOpaqueTypeGet(context->get(),
+                                            toMlirStringRef(dialectNamespace),
+                                            toMlirStringRef(typeData));
+          return PyOpaqueType(context->getRef(), type);
+        },
+        py::arg("dialect_namespace"), py::arg("buffer"),
+        py::arg("context") = py::none(),
+        "Create an unregistered (opaque) dialect type.");
+    c.def_property_readonly(
+        "dialect_namespace",
+        [](PyOpaqueType &self) {
+          MlirStringRef stringRef = mlirOpaqueTypeGetDialectNamespace(self);
+          return py::str(stringRef.data, stringRef.length);
+        },
+        "Returns the dialect namespace for the Opaque type as a string.");
+    c.def_property_readonly(
+        "data",
+        [](PyOpaqueType &self) {
+          MlirStringRef stringRef = mlirOpaqueTypeGetData(self);
+          return py::str(stringRef.data, stringRef.length);
+        },
+        "Returns the data for the Opaque type as a string.");
+  }
+};
+
 } // namespace
 
 void mlir::python::populateIRTypes(py::module &m) {
@@ -610,4 +677,5 @@ void mlir::python::populateIRTypes(py::module &m) {
   PyUnrankedMemRefType::bind(m);
   PyTupleType::bind(m);
   PyFunctionType::bind(m);
+  PyOpaqueType::bind(m);
 }

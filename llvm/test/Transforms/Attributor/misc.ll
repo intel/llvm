@@ -13,7 +13,7 @@ define internal void @internal(void (i8*)* %fp) {
 ; IS__TUNIT____-SAME: (void (i8*)* nonnull [[FP:%.*]]) {
 ; IS__TUNIT____-NEXT:  entry:
 ; IS__TUNIT____-NEXT:    [[A:%.*]] = alloca i32, align 4
-; IS__TUNIT____-NEXT:    call void @foo(i32* noalias nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1:[0-9]+]]
+; IS__TUNIT____-NEXT:    call void @foo(i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1:[0-9]+]]
 ; IS__TUNIT____-NEXT:    call void [[FP]](i8* bitcast (void (i32*)* @foo to i8*))
 ; IS__TUNIT____-NEXT:    call void @callback1(void (i32*)* noundef nonnull @foo)
 ; IS__TUNIT____-NEXT:    call void @callback2(void (i8*)* noundef bitcast (void (i32*)* @foo to void (i8*)*))
@@ -26,8 +26,7 @@ define internal void @internal(void (i8*)* %fp) {
 ; IS__CGSCC____-SAME: (void (i8*)* noundef nonnull [[FP:%.*]]) {
 ; IS__CGSCC____-NEXT:  entry:
 ; IS__CGSCC____-NEXT:    [[A:%.*]] = alloca i32, align 4
-; IS__CGSCC____-NEXT:    [[TMP:%.*]] = bitcast i32* [[A]] to i8*
-; IS__CGSCC____-NEXT:    call void @foo(i32* noalias nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1:[0-9]+]]
+; IS__CGSCC____-NEXT:    call void @foo(i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1:[0-9]+]]
 ; IS__CGSCC____-NEXT:    call void [[FP]](i8* bitcast (void (i32*)* @foo to i8*))
 ; IS__CGSCC____-NEXT:    call void @callback1(void (i32*)* noundef nonnull @foo)
 ; IS__CGSCC____-NEXT:    call void @callback2(void (i8*)* noundef bitcast (void (i32*)* @foo to void (i8*)*))
@@ -56,7 +55,7 @@ define void @external(void (i8*)* %fp) {
 ; IS__TUNIT____-SAME: (void (i8*)* [[FP:%.*]]) {
 ; IS__TUNIT____-NEXT:  entry:
 ; IS__TUNIT____-NEXT:    [[A:%.*]] = alloca i32, align 4
-; IS__TUNIT____-NEXT:    call void @foo(i32* noalias nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1]]
+; IS__TUNIT____-NEXT:    call void @foo(i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1]]
 ; IS__TUNIT____-NEXT:    call void @callback1(void (i32*)* noundef nonnull @foo)
 ; IS__TUNIT____-NEXT:    call void @callback2(void (i8*)* noundef bitcast (void (i32*)* @foo to void (i8*)*))
 ; IS__TUNIT____-NEXT:    call void @callback2(void (i8*)* [[FP]])
@@ -70,7 +69,7 @@ define void @external(void (i8*)* %fp) {
 ; IS__CGSCC____-SAME: (void (i8*)* [[FP:%.*]]) {
 ; IS__CGSCC____-NEXT:  entry:
 ; IS__CGSCC____-NEXT:    [[A:%.*]] = alloca i32, align 4
-; IS__CGSCC____-NEXT:    call void @foo(i32* noalias nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1]]
+; IS__CGSCC____-NEXT:    call void @foo(i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A]]) #[[ATTR1]]
 ; IS__CGSCC____-NEXT:    call void @callback1(void (i32*)* noundef nonnull @foo)
 ; IS__CGSCC____-NEXT:    call void @callback2(void (i8*)* noundef bitcast (void (i32*)* @foo to void (i8*)*))
 ; IS__CGSCC____-NEXT:    call void @callback2(void (i8*)* [[FP]])
@@ -96,19 +95,12 @@ entry:
 
 define internal void @foo(i32* %a) {
 ;
-; IS__TUNIT____: Function Attrs: argmemonly nofree nosync nounwind willreturn writeonly
-; IS__TUNIT____-LABEL: define {{[^@]+}}@foo
-; IS__TUNIT____-SAME: (i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A:%.*]]) #[[ATTR0:[0-9]+]] {
-; IS__TUNIT____-NEXT:  entry:
-; IS__TUNIT____-NEXT:    store i32 0, i32* [[A]], align 4
-; IS__TUNIT____-NEXT:    ret void
-;
-; IS__CGSCC____: Function Attrs: argmemonly nofree norecurse nosync nounwind willreturn writeonly
-; IS__CGSCC____-LABEL: define {{[^@]+}}@foo
-; IS__CGSCC____-SAME: (i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A:%.*]]) #[[ATTR0:[0-9]+]] {
-; IS__CGSCC____-NEXT:  entry:
-; IS__CGSCC____-NEXT:    store i32 0, i32* [[A]], align 4
-; IS__CGSCC____-NEXT:    ret void
+; CHECK: Function Attrs: argmemonly nofree norecurse nosync nounwind willreturn writeonly
+; CHECK-LABEL: define {{[^@]+}}@foo
+; CHECK-SAME: (i32* nocapture nofree noundef nonnull writeonly align 4 dereferenceable(4) [[A:%.*]]) #[[ATTR0:[0-9]+]] {
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    store i32 0, i32* [[A]], align 4
+; CHECK-NEXT:    ret void
 ;
 entry:
   store i32 0, i32* %a
@@ -118,7 +110,7 @@ entry:
 declare void @callback1(void (i32*)*)
 declare void @callback2(void (i8*)*)
 ;.
-; IS__TUNIT____: attributes #[[ATTR0]] = { argmemonly nofree nosync nounwind willreturn writeonly }
+; IS__TUNIT____: attributes #[[ATTR0]] = { argmemonly nofree norecurse nosync nounwind willreturn writeonly }
 ; IS__TUNIT____: attributes #[[ATTR1]] = { nofree nosync nounwind willreturn writeonly }
 ;.
 ; IS__CGSCC____: attributes #[[ATTR0]] = { argmemonly nofree norecurse nosync nounwind willreturn writeonly }

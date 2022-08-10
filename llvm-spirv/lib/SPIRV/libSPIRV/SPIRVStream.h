@@ -193,6 +193,7 @@ template <typename T>
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O, T *P) {
   return O << P->getId();
 }
+template <> const SPIRVEncoder &operator<<(const SPIRVEncoder &O, SPIRVType *P);
 
 template <typename T>
 const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::vector<T> &V) {

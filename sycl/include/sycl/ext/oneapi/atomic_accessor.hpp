@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/accessor.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/accessor.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 #include <sycl/ext/oneapi/atomic_ref.hpp>
 
@@ -18,7 +18,7 @@ namespace sycl {
 namespace ext {
 namespace oneapi {
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <memory_order> struct order_tag_t {
   explicit order_tag_t() = default;
@@ -69,7 +69,7 @@ public:
 
   using AccessorT::AccessorT;
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
   template <typename T = DataT, int Dims = Dimensions, typename AllocatorT,
             memory_order Order, memory_scope Scope>
@@ -108,7 +108,7 @@ public:
   }
 };
 
-#if __cplusplus > 201402L
+#if __cplusplus >= 201703L
 
 template <typename DataT, int Dimensions, typename AllocatorT,
           memory_order Order, memory_scope Scope>

@@ -22,6 +22,7 @@
 using namespace llvm;
 using namespace llvm::object;
 using namespace llvm::wasm;
+using namespace lld::wasm;
 
 namespace lld {
 std::string toString(const wasm::Symbol &sym) {
@@ -33,9 +34,8 @@ std::string maybeDemangleSymbol(StringRef name) {
   // `main` in the case where we need to pass it arguments.
   if (name == "__main_argc_argv")
     return "main";
-  if (wasm::config->demangle)
-    return demangleItanium(name);
-  return std::string(name);
+
+  return demangle(name, config->demangle);
 }
 
 std::string toString(wasm::Symbol::Kind kind) {
@@ -154,7 +154,7 @@ bool Symbol::isLive() const {
 void Symbol::markLive() {
   assert(!isDiscarded());
   referenced = true;
-  if (file != NULL && isDefined())
+  if (file != nullptr && isDefined())
     file->markLive();
   if (auto *g = dyn_cast<DefinedGlobal>(this))
     g->global->live = true;
@@ -190,11 +190,6 @@ void Symbol::setOutputSymbolIndex(uint32_t index) {
 void Symbol::setGOTIndex(uint32_t index) {
   LLVM_DEBUG(dbgs() << "setGOTIndex " << name << " -> " << index << "\n");
   assert(gotIndex == INVALID_INDEX);
-  if (config->isPic) {
-    // Any symbol that is assigned a GOT entry must be exported otherwise the
-    // dynamic linker won't be able create the entry that contains it.
-    forceExport = true;
-  }
   gotIndex = index;
 }
 
@@ -222,14 +217,14 @@ void Symbol::setHidden(bool isHidden) {
 }
 
 bool Symbol::isExported() const {
-  // Shared libraries must export all weakly defined symbols
-  // in case they contain the version that will be chosed by
-  // the dynamic linker.
-  if (config->shared && isLive() && isDefined() && isWeak())
-    return true;
-
   if (!isDefined() || isLocal())
     return false;
+
+  // Shared libraries must export all weakly defined symbols
+  // in case they contain the version that will be chosen by
+  // the dynamic linker.
+  if (config->shared && isLive() && isWeak() && !isHidden())
+    return true;
 
   if (config->exportAll || (config->exportDynamic && !isHidden()))
     return true;
@@ -305,6 +300,11 @@ uint32_t DefinedFunction::getExportedFunctionIndex() const {
 
 uint64_t DefinedData::getVA() const {
   LLVM_DEBUG(dbgs() << "getVA: " << getName() << "\n");
+  // In the shared memory case, TLS symbols are relative to the start of the TLS
+  // output segment (__tls_base).  When building without shared memory, TLS
+  // symbols absolute, just like non-TLS.
+  if (isTLS() && config->sharedMemory)
+    return getOutputSegmentOffset() + value;
   if (segment)
     return segment->getVA(value);
   return value;

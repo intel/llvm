@@ -17,13 +17,10 @@
 #include "SourceCode.h"
 #include "index/Index.h"
 #include "index/SymbolID.h"
-#include "index/SymbolLocation.h"
 #include "support/Path.h"
 #include "clang/AST/ASTTypeTraits.h"
-#include "clang/AST/Type.h"
-#include "clang/Format/Format.h"
-#include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 #include <vector>
 
@@ -63,10 +60,11 @@ std::vector<LocatedSymbol> locateSymbolAt(ParsedAST &AST, Position Pos,
 // AST-based resolution does not work, such as comments, strings, and PP
 // disabled regions.
 // (This is for internal use by locateSymbolAt, and is exposed for testing).
-std::vector<LocatedSymbol>
-locateSymbolTextually(const SpelledWord &Word, ParsedAST &AST,
-                      const SymbolIndex *Index, const std::string &MainFilePath,
-                      ASTNodeKind NodeKind);
+std::vector<LocatedSymbol> locateSymbolTextually(const SpelledWord &Word,
+                                                 ParsedAST &AST,
+                                                 const SymbolIndex *Index,
+                                                 llvm::StringRef MainFilePath,
+                                                 ASTNodeKind NodeKind);
 
 // Try to find a proximate occurrence of `Word` as an identifier, which can be
 // used to resolve it.
@@ -104,6 +102,12 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &,
 ///   - subclasses for a base class;
 std::vector<LocatedSymbol> findImplementations(ParsedAST &AST, Position Pos,
                                                const SymbolIndex *Index);
+
+/// Returns symbols for types referenced at \p Pos.
+///
+/// For example, given `b^ar()` wher bar return Foo, this function returns the
+/// definition of class Foo.
+std::vector<LocatedSymbol> findType(ParsedAST &AST, Position Pos);
 
 /// Returns references of the symbol at a specified \p Pos.
 /// \p Limit limits the number of results returned (0 means no limit).

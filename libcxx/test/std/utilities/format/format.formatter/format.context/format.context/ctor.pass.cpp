@@ -6,8 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // REQUIRES: locale.en_US.UTF-8
@@ -47,9 +46,11 @@ void test() {
       !std::is_move_assignable_v<std::basic_format_context<OutIt, CharT>>);
 
   std::basic_string<CharT> string = MAKE_STRING(CharT, "string");
-  std::basic_format_args args =
-      std::make_format_args<std::basic_format_context<OutIt, CharT>>(
-          true, CharT('a'), 42, string);
+  // The type of the object is an exposition only type. The temporary is needed
+  // to extend the lifetype of the object since args stores a pointer to the
+  // data in this object.
+  auto format_arg_store = std::make_format_args<std::basic_format_context<OutIt, CharT>>(true, CharT('a'), 42, string);
+  std::basic_format_args args = format_arg_store;
 
   {
     std::basic_string<CharT> output;
@@ -68,12 +69,12 @@ void test() {
     assert(output.size() == 1);
     assert(output.front() == CharT('a'));
 
-#ifndef _LIBCPP_HAS_NO_LOCALIZATION
+#ifndef TEST_HAS_NO_LOCALIZATION
     assert(context.locale() == std::locale());
 #endif
   }
 
-#ifndef _LIBCPP_HAS_NO_LOCALIZATION
+#ifndef TEST_HAS_NO_LOCALIZATION
   std::locale en_US{LOCALE_en_US_UTF_8};
   std::locale fr_FR{LOCALE_fr_FR_UTF_8};
   {
@@ -120,22 +121,11 @@ void test() {
 #endif
 }
 
-void test() {
+int main(int, char**) {
   test<std::back_insert_iterator<std::basic_string<char>>, char>();
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<std::back_insert_iterator<std::basic_string<wchar_t>>, wchar_t>();
 #endif
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
-  test<std::back_insert_iterator<std::basic_string<char8_t>>, char8_t>();
-#endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
-  test<std::back_insert_iterator<std::basic_string<char16_t>>, char16_t>();
-  test<std::back_insert_iterator<std::basic_string<char32_t>>, char32_t>();
-#endif
-}
-
-int main(int, char**) {
-  test();
 
   return 0;
 }

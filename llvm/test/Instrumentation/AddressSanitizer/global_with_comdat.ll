@@ -14,7 +14,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Globals:
 @global = global i32 0, align 4
 @dyn_init_global = global i32 0, align 4
-@blacklisted_global = global i32 0, align 4
+@blocked_global = global i32 0, align 4
 @_ZZ4funcvE10static_var = internal global i32 0, align 4
 @.str = private unnamed_addr constant [14 x i8] c"Hello, world!\00", align 1
 @llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @_GLOBAL__sub_I_asan_globals.cpp, i8* null }]
@@ -43,8 +43,6 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ; Check emitted location descriptions:
 ; CHECK: [[VARNAME:@___asan_gen_.[0-9]+]] = private unnamed_addr constant [7 x i8] c"global\00", align 1
-; CHECK: [[FILENAME:@___asan_gen_.[0-9]+]] = private unnamed_addr constant [22 x i8] c"/tmp/asan-globals.cpp\00", align 1
-; CHECK: [[LOCDESCR:@___asan_gen_.[0-9]+]] = private unnamed_addr constant { [22 x i8]*, i32, i32 } { [22 x i8]* [[FILENAME]], i32 5, i32 5 }
 ; COMDAT: @__asan_global_global = {{.*}}i64 ptrtoint ({ i32, [28 x i8] }* @global to i64){{.*}} section "asan_globals"{{.*}}, !associated
 ; COMDAT: @__asan_global_.str = {{.*}}i64 ptrtoint ({ [14 x i8], [18 x i8] }* @{{.str|1}} to i64){{.*}} section "asan_globals"{{.*}}, !associated
 
@@ -81,14 +79,7 @@ entry:
 attributes #0 = { nounwind sanitize_address }
 attributes #1 = { nounwind sanitize_address "less-precise-fpmad"="false" "frame-pointer"="none" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 
-!llvm.asan.globals = !{!0, !1, !2, !3, !4}
 !llvm.ident = !{!5}
-
-!0 = !{i32* @global, !6, !"global", i1 false, i1 false}
-!1 = !{i32* @dyn_init_global, !7, !"dyn_init_global", i1 true, i1 false}
-!2 = !{i32* @blacklisted_global, null, null, i1 false, i1 true}
-!3 = !{i32* @_ZZ4funcvE10static_var, !8, !"static_var", i1 false, i1 false}
-!4 = !{[14 x i8]* @.str, !9, !"<string literal>", i1 false, i1 false}
 
 !5 = !{!"clang version 3.5.0 (211282)"}
 

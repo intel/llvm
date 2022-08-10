@@ -1,7 +1,7 @@
 Support, Getting Involved, and FAQ
 ==================================
 
-Please do not hesitate to reach out to us via openmp-dev@lists.llvm.org or join
+Please do not hesitate to reach out to us on the `Discourse forums (Runtimes - OpenMP) <https://discourse.llvm.org/c/runtimes/openmp/35>`_ or join
 one of our :ref:`regular calls <calls>`. Some common questions are answered in
 the :ref:`faq`.
 
@@ -37,7 +37,7 @@ FAQ
 .. note::
    The FAQ is a work in progress and most of the expected content is not
    yet available. While you can expect changes, we always welcome feedback and
-   additions. Please contact, e.g., through ``openmp-dev@lists.llvm.org``.
+   additions. Please post on the `Discourse forums (Runtimes - OpenMP) <https://discourse.llvm.org/c/runtimes/openmp/35>`__.
 
 
 Q: How to contribute a patch to the webpage or any other part?
@@ -103,13 +103,13 @@ OpenMP's perspective. Rocr is an implementation of `HSA
   SOURCE_DIR=same-as-llvm-source # e.g. the checkout of llvm-project, next to openmp
   BUILD_DIR=somewhere
   INSTALL_PREFIX=same-as-llvm-install
-  
+
   cd $SOURCE_DIR
   git clone git@github.com:RadeonOpenCompute/ROCT-Thunk-Interface.git -b roc-4.2.x \
     --single-branch
   git clone git@github.com:RadeonOpenCompute/ROCR-Runtime.git -b rocm-4.2.x \
     --single-branch
-  
+
   cd $BUILD_DIR && mkdir roct && cd roct
   cmake $SOURCE_DIR/ROCT-Thunk-Interface/ -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
@@ -122,7 +122,7 @@ OpenMP's perspective. Rocr is an implementation of `HSA
   make && make install
 
 ``IMAGE_SUPPORT`` requires building rocr with clang and is not used by openmp.
-    
+
 Provided cmake's find_package can find the ROCR-Runtime package, LLVM will
 build a tool ``bin/amdgpu-arch`` which will print a string like ``gfx906`` when
 run if it recognises a GPU on the local system. LLVM will also build a shared
@@ -151,14 +151,17 @@ bugs.
 Q: What are the LLVM components used in offloading and how are they found?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The libraries used by an executable compiled for target offloading are:
+
 - ``libomp.so`` (or similar), the host openmp runtime
 - ``libomptarget.so``, the target-agnostic target offloading openmp runtime
 - plugins loaded by libomptarget.so:
+
   - ``libomptarget.rtl.amdgpu.so``
   - ``libomptarget.rtl.cuda.so``
   - ``libomptarget.rtl.x86_64.so``
   - ``libomptarget.rtl.ve.so``
   - and others
+
 - dependencies of those plugins, e.g. cuda/rocr for nvptx/amdgpu
 
 The compiled executable is dynamically linked against a host runtime, e.g.
@@ -239,7 +242,7 @@ that are exposed through LLVM/Clang to the user as well.
 Q: What is a way to debug errors from mapping memory to a target device?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-An experimental way to debug these errors is to use :ref:`remote process 
+An experimental way to debug these errors is to use :ref:`remote process
 offloading <remote_offloading_plugin>`.
 By using ``libomptarget.rtl.rpc.so`` and ``openmp-offloading-server``, it is
 possible to explicitly perform memory transfers between processes on the host
@@ -289,7 +292,7 @@ offloading provided by LLVM. It will attempt to find OpenMP target offloading
 support for your compiler. The flags necessary for OpenMP target offloading will
 be loaded into the ``OpenMPTarget::OpenMPTarget_<device>`` target or the
 ``OpenMPTarget_<device>_FLAGS`` variable if successful. Currently supported
-devices are ``AMDGPU`` and ``NVPTX``. 
+devices are ``AMDGPU`` and ``NVPTX``.
 
 To use this module, simply add the path to CMake's current module path and call
 ``find_package``. The module will be installed with your OpenMP installation by
@@ -300,11 +303,11 @@ require a few additions.
 
   cmake_minimum_required(VERSION 3.13.4)
   project(offloadTest VERSION 1.0 LANGUAGES CXX)
-  
+
   list(APPEND CMAKE_MODULE_PATH "${PATH_TO_OPENMP_INSTALL}/lib/cmake/openmp")
-  
+
   find_package(OpenMPTarget REQUIRED NVPTX)
-  
+
   add_executable(offload)
   target_link_libraries(offload PRIVATE OpenMPTarget::OpenMPTarget_NVPTX)
   target_sources(offload PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/Main.cpp)
@@ -313,3 +316,16 @@ Using this module requires at least CMake version 3.13.4. Supported languages
 are C and C++ with Fortran support planned in the future. Compiler support is
 best for Clang but this module should work for other compiler vendors such as
 IBM, GNU.
+
+Q: What does 'Stack size for entry function cannot be statically determined' mean?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This is a warning that the Nvidia tools will sometimes emit if the offloading
+region is too complex. Normally, the CUDA tools attempt to statically determine
+how much stack memory each thread. This way when the kernel is launched each
+thread will have as much memory as it needs. If the control flow of the kernel
+is too complex, containing recursive calls or nested parallelism, this analysis
+can fail. If this warning is triggered it means that the kernel may run out of
+stack memory during execution and crash. The environment variable
+``LIBOMPTARGET_STACK_SIZE`` can be used to increase the stack size if this
+occurs.

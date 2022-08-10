@@ -37,6 +37,7 @@
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "clang/Serialization/InMemoryModuleCache.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CrashRecoveryContext.h"
@@ -109,25 +110,25 @@ bool CompilerInstance::createTarget() {
   // other side of CUDA/OpenMP/SYCL compilation.
   if (!getAuxTarget() &&
       (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice ||
-       getLangOpts().SYCLIsDevice) &&
+       getLangOpts().isSYCL()) &&
       !getFrontendOpts().AuxTriple.empty()) {
     auto TO = std::make_shared<TargetOptions>();
     TO->Triple = llvm::Triple::normalize(getFrontendOpts().AuxTriple);
     if (getFrontendOpts().AuxTargetCPU)
-      TO->CPU = getFrontendOpts().AuxTargetCPU.getValue();
+      TO->CPU = getFrontendOpts().AuxTargetCPU.value();
     if (getFrontendOpts().AuxTargetFeatures)
-      TO->FeaturesAsWritten = getFrontendOpts().AuxTargetFeatures.getValue();
+      TO->FeaturesAsWritten = getFrontendOpts().AuxTargetFeatures.value();
     TO->HostTriple = getTarget().getTriple().str();
     setAuxTarget(TargetInfo::CreateTargetInfo(getDiagnostics(), TO));
   }
 
   if (!getTarget().hasStrictFP() && !getLangOpts().ExpStrictFP) {
-    if (getLangOpts().getFPRoundingMode() !=
-        llvm::RoundingMode::NearestTiesToEven) {
+    if (getLangOpts().RoundingMath) {
       getDiagnostics().Report(diag::warn_fe_backend_unsupported_fp_rounding);
-      getLangOpts().setFPRoundingMode(llvm::RoundingMode::NearestTiesToEven);
+      getLangOpts().RoundingMath = false;
     }
-    if (getLangOpts().getFPExceptionMode() != LangOptions::FPE_Ignore) {
+    auto FPExc = getLangOpts().getFPExceptionMode();
+    if (FPExc != LangOptions::FPE_Default && FPExc != LangOptions::FPE_Ignore) {
       getDiagnostics().Report(diag::warn_fe_backend_unsupported_fp_exceptions);
       getLangOpts().setFPExceptionMode(LangOptions::FPE_Ignore);
     }
@@ -234,7 +235,7 @@ static void collectIncludePCH(CompilerInstance &CI,
 
   StringRef PCHInclude = PPOpts.ImplicitPCHInclude;
   FileManager &FileMgr = CI.getFileManager();
-  auto PCHDir = FileMgr.getDirectory(PCHInclude);
+  auto PCHDir = FileMgr.getOptionalDirectoryRef(PCHInclude);
   if (!PCHDir) {
     MDC->addFile(PCHInclude);
     return;
@@ -242,7 +243,7 @@ static void collectIncludePCH(CompilerInstance &CI,
 
   std::error_code EC;
   SmallString<128> DirNative;
-  llvm::sys::path::native((*PCHDir)->getName(), DirNative);
+  llvm::sys::path::native(PCHDir->getName(), DirNative);
   llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
   SimpleASTReaderListener Validator(CI.getPreprocessor());
   for (llvm::vfs::directory_iterator Dir = FS.dir_begin(DirNative, EC), DirEnd;
@@ -712,13 +713,10 @@ static bool EnableCodeCompletion(Preprocessor &PP,
 void CompilerInstance::createCodeCompletionConsumer() {
   const ParsedSourceLocation &Loc = getFrontendOpts().CodeCompletionAt;
   if (!CompletionConsumer) {
-    setCodeCompletionConsumer(
-      createCodeCompletionConsumer(getPreprocessor(),
-                                   Loc.FileName, Loc.Line, Loc.Column,
-                                   getFrontendOpts().CodeCompleteOpts,
-                                   llvm::outs()));
-    if (!CompletionConsumer)
-      return;
+    setCodeCompletionConsumer(createCodeCompletionConsumer(
+        getPreprocessor(), Loc.FileName, Loc.Line, Loc.Column,
+        getFrontendOpts().CodeCompleteOpts, llvm::outs()));
+    return;
   } else if (EnableCodeCompletion(getPreprocessor(), Loc.FileName,
                                   Loc.Line, Loc.Column)) {
     setCodeCompletionConsumer(nullptr);
@@ -762,6 +760,8 @@ void CompilerInstance::createSema(TranslationUnitKind TUKind,
 // Output Files
 
 void CompilerInstance::clearOutputFiles(bool EraseFiles) {
+  // The ASTConsumer can own streams that write to the output files.
+  assert(!hasASTConsumer() && "ASTConsumer should be reset");
   // Ignore errors that occur when trying to discard the temp file.
   for (OutputFile &OF : OutputFiles) {
     if (EraseFiles) {
@@ -999,6 +999,11 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
   // DesiredStackSpace available.
   noteBottomOfStack();
 
+  auto FinishDiagnosticClient = llvm::make_scope_exit([&]() {
+    // Notify the diagnostic client that all files were processed.
+    getDiagnosticClient().finish();
+  });
+
   raw_ostream &OS = getVerboseOutputStream();
 
   if (!Act.PrepareToExecute(*this))
@@ -1036,9 +1041,6 @@ bool CompilerInstance::ExecuteAction(FrontendAction &Act) {
       Act.EndSourceFile();
     }
   }
-
-  // Notify the diagnostic client that all files were processed.
-  getDiagnostics().getClient()->finish();
 
   if (getDiagnosticOpts().ShowCarets) {
     // We can have multiple diagnostics sharing one diagnostic client.
@@ -1157,12 +1159,12 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
   // Remove any macro definitions that are explicitly ignored by the module.
   // They aren't supposed to affect how the module is built anyway.
   HeaderSearchOptions &HSOpts = Invocation->getHeaderSearchOpts();
-  llvm::erase_if(
-      PPOpts.Macros, [&HSOpts](const std::pair<std::string, bool> &def) {
-        StringRef MacroDef = def.first;
-        return HSOpts.ModulesIgnoreMacros.count(
-                   llvm::CachedHashString(MacroDef.split('=').first)) > 0;
-      });
+  llvm::erase_if(PPOpts.Macros,
+                 [&HSOpts](const std::pair<std::string, bool> &def) {
+                   StringRef MacroDef = def.first;
+                   return HSOpts.ModulesIgnoreMacros.contains(
+                       llvm::CachedHashString(MacroDef.split('=').first));
+                 });
 
   // If the original compiler invocation had -fmodule-name, pass it through.
   Invocation->getLangOpts()->ModuleName =
@@ -1238,8 +1240,7 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
 
   // Execute the action to actually build the module in-place. Use a separate
   // thread so that we get a stack large enough.
-  llvm::CrashRecoveryContext CRC;
-  CRC.RunSafelyOnThread(
+  bool Crashed = !llvm::CrashRecoveryContext().RunSafelyOnThread(
       [&]() {
         GenerateModuleFromModuleMapAction Action;
         Instance.ExecuteAction(Action);
@@ -1252,9 +1253,15 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
                                             diag::remark_module_build_done)
     << ModuleName;
 
-  // Delete any remaining temporary files related to Instance, in case the
-  // module generation thread crashed.
-  Instance.clearOutputFiles(/*EraseFiles=*/true);
+  if (Crashed) {
+    // Clear the ASTConsumer if it hasn't been already, in case it owns streams
+    // that must be closed before clearing output files.
+    Instance.setSema(nullptr);
+    Instance.setASTConsumer(nullptr);
+
+    // Delete any remaining temporary files related to Instance.
+    Instance.clearOutputFiles(/*EraseFiles=*/true);
+  }
 
   // If \p AllowPCMWithCompilerErrors is set return 'success' even if errors
   // occurred.
@@ -1417,7 +1424,7 @@ static bool compileModuleAndReadASTBehindLock(
   StringRef Dir = llvm::sys::path::parent_path(ModuleFileName);
   llvm::sys::fs::create_directories(Dir);
 
-  while (1) {
+  while (true) {
     llvm::LockFileManager Locked(ModuleFileName);
     switch (Locked) {
     case llvm::LockFileManager::LFS_Error:
@@ -1993,90 +2000,84 @@ CompilerInstance::loadModule(SourceLocation ImportLoc,
   // Verify that the rest of the module path actually corresponds to
   // a submodule.
   bool MapPrivateSubModToTopLevel = false;
-  if (Path.size() > 1) {
-    for (unsigned I = 1, N = Path.size(); I != N; ++I) {
-      StringRef Name = Path[I].first->getName();
-      clang::Module *Sub = Module->findSubmodule(Name);
+  for (unsigned I = 1, N = Path.size(); I != N; ++I) {
+    StringRef Name = Path[I].first->getName();
+    clang::Module *Sub = Module->findSubmodule(Name);
 
-      // If the user is requesting Foo.Private and it doesn't exist, try to
-      // match Foo_Private and emit a warning asking for the user to write
-      // @import Foo_Private instead. FIXME: remove this when existing clients
-      // migrate off of Foo.Private syntax.
-      if (!Sub && PP->getLangOpts().ImplicitModules && Name == "Private" &&
-          Module == Module->getTopLevelModule()) {
-        SmallString<128> PrivateModule(Module->Name);
-        PrivateModule.append("_Private");
+    // If the user is requesting Foo.Private and it doesn't exist, try to
+    // match Foo_Private and emit a warning asking for the user to write
+    // @import Foo_Private instead. FIXME: remove this when existing clients
+    // migrate off of Foo.Private syntax.
+    if (!Sub && PP->getLangOpts().ImplicitModules && Name == "Private" &&
+        Module == Module->getTopLevelModule()) {
+      SmallString<128> PrivateModule(Module->Name);
+      PrivateModule.append("_Private");
 
-        SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> PrivPath;
-        auto &II = PP->getIdentifierTable().get(
-            PrivateModule, PP->getIdentifierInfo(Module->Name)->getTokenID());
-        PrivPath.push_back(std::make_pair(&II, Path[0].second));
+      SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> PrivPath;
+      auto &II = PP->getIdentifierTable().get(
+          PrivateModule, PP->getIdentifierInfo(Module->Name)->getTokenID());
+      PrivPath.push_back(std::make_pair(&II, Path[0].second));
 
-        if (PP->getHeaderSearchInfo().lookupModule(PrivateModule, ImportLoc,
-                                                   true, !IsInclusionDirective))
-          Sub =
-              loadModule(ImportLoc, PrivPath, Visibility, IsInclusionDirective);
-        if (Sub) {
-          MapPrivateSubModToTopLevel = true;
-          if (!getDiagnostics().isIgnored(
-                  diag::warn_no_priv_submodule_use_toplevel, ImportLoc)) {
-            getDiagnostics().Report(Path[I].second,
-                                    diag::warn_no_priv_submodule_use_toplevel)
-                << Path[I].first << Module->getFullModuleName() << PrivateModule
-                << SourceRange(Path[0].second, Path[I].second)
-                << FixItHint::CreateReplacement(SourceRange(Path[0].second),
-                                                PrivateModule);
-            getDiagnostics().Report(Sub->DefinitionLoc,
-                                    diag::note_private_top_level_defined);
+      if (PP->getHeaderSearchInfo().lookupModule(PrivateModule, ImportLoc, true,
+                                                 !IsInclusionDirective))
+        Sub = loadModule(ImportLoc, PrivPath, Visibility, IsInclusionDirective);
+      if (Sub) {
+        MapPrivateSubModToTopLevel = true;
+        if (!getDiagnostics().isIgnored(
+                diag::warn_no_priv_submodule_use_toplevel, ImportLoc)) {
+          getDiagnostics().Report(Path[I].second,
+                                  diag::warn_no_priv_submodule_use_toplevel)
+              << Path[I].first << Module->getFullModuleName() << PrivateModule
+              << SourceRange(Path[0].second, Path[I].second)
+              << FixItHint::CreateReplacement(SourceRange(Path[0].second),
+                                              PrivateModule);
+          getDiagnostics().Report(Sub->DefinitionLoc,
+                                  diag::note_private_top_level_defined);
+        }
+      }
+    }
+
+    if (!Sub) {
+      // Attempt to perform typo correction to find a module name that works.
+      SmallVector<StringRef, 2> Best;
+      unsigned BestEditDistance = (std::numeric_limits<unsigned>::max)();
+
+      for (class Module *SubModule : Module->submodules()) {
+        unsigned ED =
+            Name.edit_distance(SubModule->Name,
+                               /*AllowReplacements=*/true, BestEditDistance);
+        if (ED <= BestEditDistance) {
+          if (ED < BestEditDistance) {
+            Best.clear();
+            BestEditDistance = ED;
           }
+
+          Best.push_back(SubModule->Name);
         }
       }
 
-      if (!Sub) {
-        // Attempt to perform typo correction to find a module name that works.
-        SmallVector<StringRef, 2> Best;
-        unsigned BestEditDistance = (std::numeric_limits<unsigned>::max)();
-
-        for (clang::Module::submodule_iterator J = Module->submodule_begin(),
-                                            JEnd = Module->submodule_end();
-             J != JEnd; ++J) {
-          unsigned ED = Name.edit_distance((*J)->Name,
-                                           /*AllowReplacements=*/true,
-                                           BestEditDistance);
-          if (ED <= BestEditDistance) {
-            if (ED < BestEditDistance) {
-              Best.clear();
-              BestEditDistance = ED;
-            }
-
-            Best.push_back((*J)->Name);
-          }
-        }
-
-        // If there was a clear winner, user it.
-        if (Best.size() == 1) {
-          getDiagnostics().Report(Path[I].second,
-                                  diag::err_no_submodule_suggest)
+      // If there was a clear winner, user it.
+      if (Best.size() == 1) {
+        getDiagnostics().Report(Path[I].second, diag::err_no_submodule_suggest)
             << Path[I].first << Module->getFullModuleName() << Best[0]
-            << SourceRange(Path[0].second, Path[I-1].second)
+            << SourceRange(Path[0].second, Path[I - 1].second)
             << FixItHint::CreateReplacement(SourceRange(Path[I].second),
                                             Best[0]);
 
-          Sub = Module->findSubmodule(Best[0]);
-        }
+        Sub = Module->findSubmodule(Best[0]);
       }
-
-      if (!Sub) {
-        // No submodule by this name. Complain, and don't look for further
-        // submodules.
-        getDiagnostics().Report(Path[I].second, diag::err_no_submodule)
-          << Path[I].first << Module->getFullModuleName()
-          << SourceRange(Path[0].second, Path[I-1].second);
-        break;
-      }
-
-      Module = Sub;
     }
+
+    if (!Sub) {
+      // No submodule by this name. Complain, and don't look for further
+      // submodules.
+      getDiagnostics().Report(Path[I].second, diag::err_no_submodule)
+          << Path[I].first << Module->getFullModuleName()
+          << SourceRange(Path[0].second, Path[I - 1].second);
+      break;
+    }
+
+    Module = Sub;
   }
 
   // Make the named module visible, if it's not already part of the module

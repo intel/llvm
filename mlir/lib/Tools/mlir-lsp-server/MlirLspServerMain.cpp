@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
+#include "../lsp-server-support/Logging.h"
+#include "../lsp-server-support/Transport.h"
 #include "LSPServer.h"
 #include "MLIRServer.h"
-#include "lsp/Logging.h"
-#include "lsp/Transport.h"
 #include "mlir/IR/Dialect.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Program.h"
@@ -70,6 +70,5 @@ LogicalResult mlir::MlirLspServerMain(int argc, char **argv,
 
   // Configure the servers and start the main language server.
   MLIRServer server(registry);
-  LSPServer lspServer(server, transport);
-  return lspServer.run();
+  return runMlirLSPServer(server, transport);
 }

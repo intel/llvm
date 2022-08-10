@@ -1,4 +1,4 @@
-// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only %s -o - -Xclang -disable-llvm-passes | FileCheck %s
+// RUN: %clangxx -I %sycl_include -S -emit-llvm -fsycl-device-only %s -o - -Xclang -disable-llvm-passes -Xclang -no-enable-noundef-analysis | FileCheck %s
 //
 //==---- ap_fixed.cpp - SYCL FPGA arbitrary precision fixed point test -----==//
 //
@@ -12,77 +12,77 @@
 
 template <int W, int rW, bool S, int I, int rI>
 void sqrt() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Sqrt = __spirv_FixedSqrtINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i5 @_Z[[#]]__spirv_FixedSqrtINTEL{{.*}}(i13 signext  %[[#]], i1 zeroext false, i32 2, i32 2, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void recip() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Recip = __spirv_FixedRecipINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i8 @_Z[[#]]__spirv_FixedRecipINTEL{{.*}}(i3 signext %[[#]], i1 zeroext true, i32 4, i32 4, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void rsqrt() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Rsqrt = __spirv_FixedRsqrtINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i10 @_Z[[#]]__spirv_FixedRsqrtINTEL{{.*}}(i11 signext %[[#]], i1 zeroext false, i32 8, i32 6, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void sin() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Sin = __spirv_FixedSinINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i11 @_Z[[#]]__spirv_FixedSinINTEL{{.*}}(i17 signext %[[#]], i1 zeroext true, i32 7, i32 5, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void cos() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Cos = __spirv_FixedCosINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i28 @_Z[[#]]__spirv_FixedCosINTEL{{.*}}(i35 %[[#]], i1 zeroext false, i32 9, i32 3, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void sin_cos() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_SinCos = __spirv_FixedSinCosINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func i40 @_Z[[#]]__spirv_FixedSinCosINTEL{{.*}}(i31 signext %[[#]], i1 zeroext true, i32 10, i32 12, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void sin_pi() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_SinPi = __spirv_FixedSinPiINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i5 @_Z[[#]]__spirv_FixedSinPiINTEL{{.*}}(i60 %[[#]], i1 zeroext false, i32 2, i32 2, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void cos_pi() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_CosPi = __spirv_FixedCosPiINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i16 @_Z[[#]]__spirv_FixedCosPiINTEL{{.*}}(i28 signext %[[#]], i1 zeroext false, i32 8, i32 5, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void sin_cos_pi() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_SinCosPi = __spirv_FixedSinCosPiINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func signext i10 @_Z[[#]]__spirv_FixedSinCosPiINTEL{{.*}}(i13 signext %[[#]], i1 zeroext false, i32 2, i32 2, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void log() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Log = __spirv_FixedLogINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func i44 @_Z[[#]]__spirv_FixedLogINTEL{{.*}}(i64 %[[#]], i1 zeroext true, i32 24, i32 22, i32 0, i32 0)
 }
 
 template <int W, int rW, bool S, int I, int rI>
 void exp() {
-  ap_int<W> a;
+  sycl::detail::ap_int<W> a;
   auto ap_fixed_Exp = __spirv_FixedExpINTEL<W, rW>(a, S, I, rI);
   // CHECK: %{{.*}} = call spir_func i34 @_Z[[#]]__spirv_FixedExpINTEL{{.*}}(i44 %[[#]], i1 zeroext false, i32 20, i32 20, i32 0, i32 0)
 }

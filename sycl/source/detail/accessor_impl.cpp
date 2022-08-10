@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/buffer_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/xpti_registry.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/buffer_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -37,6 +38,14 @@ void addHostAccessorAndWait(Requirement *Req) {
       detail::Scheduler::getInstance().addHostAccessor(Req);
   Event->wait(Event);
 }
+
+void constructorNotification(void *BufferObj, void *AccessorObj,
+                             sycl::access::target Target,
+                             sycl::access::mode Mode,
+                             const detail::code_location &CodeLoc) {
+  XPTIRegistry::bufferAccessorNotification(
+      BufferObj, AccessorObj, (uint32_t)Target, (uint32_t)Mode, CodeLoc);
 }
-}
-}
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)

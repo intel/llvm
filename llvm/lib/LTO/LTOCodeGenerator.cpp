@@ -19,6 +19,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/CodeGen/ParallelCG.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/Config/config.h"
@@ -66,11 +67,7 @@
 using namespace llvm;
 
 const char* LTOCodeGenerator::getVersionString() {
-#ifdef LLVM_VERSION_INFO
-  return PACKAGE_NAME " version " PACKAGE_VERSION ", " LLVM_VERSION_INFO;
-#else
   return PACKAGE_NAME " version " PACKAGE_VERSION;
-#endif
 }
 
 namespace llvm {
@@ -132,12 +129,11 @@ LTOCodeGenerator::LTOCodeGenerator(LLVMContext &Context)
   };
 }
 
-LTOCodeGenerator::~LTOCodeGenerator() {}
+LTOCodeGenerator::~LTOCodeGenerator() = default;
 
 void LTOCodeGenerator::setAsmUndefinedRefs(LTOModule *Mod) {
-  const std::vector<StringRef> &undefs = Mod->getAsmUndefinedRefs();
-  for (int i = 0, e = undefs.size(); i != e; ++i)
-    AsmUndefinedRefs.insert(undefs[i]);
+  for (const StringRef &Undef : Mod->getAsmUndefinedRefs())
+    AsmUndefinedRefs.insert(Undef);
 }
 
 bool LTOCodeGenerator::addModule(LTOModule *Mod) {
@@ -245,7 +241,7 @@ bool LTOCodeGenerator::compileOptimizedToFile(const char **Name) {
   // make unique temp output file to put generated code
   SmallString<128> Filename;
 
-  auto AddStream = [&](size_t Task) -> std::unique_ptr<NativeObjectStream> {
+  auto AddStream = [&](size_t Task) -> std::unique_ptr<CachedFileStream> {
     StringRef Extension(Config.CGFileType == CGFT_AssemblyFile ? "s" : "o");
 
     int FD;
@@ -254,7 +250,7 @@ bool LTOCodeGenerator::compileOptimizedToFile(const char **Name) {
     if (EC)
       emitError(EC.message());
 
-    return std::make_unique<NativeObjectStream>(
+    return std::make_unique<CachedFileStream>(
         std::make_unique<llvm::raw_fd_ostream>(FD, true));
   };
 
@@ -348,6 +344,11 @@ bool LTOCodeGenerator::determineTarget() {
              Triple.getArch() == llvm::Triple::aarch64_32)
       Config.CPU = "cyclone";
   }
+
+  // If data-sections is not explicitly set or unset, set data-sections by
+  // default to match the behaviour of lld and gold plugin.
+  if (!codegen::getExplicitDataSections())
+    Config.Options.DataSections = true;
 
   TargetMach = createTargetMachine();
   assert(TargetMach && "Unable to create target machine");
@@ -525,6 +526,8 @@ bool LTOCodeGenerator::optimize() {
   // linker option in the old LTO API, but this call allows it to be specified
   // via the internal option. Must be done before WPD invoked via the optimizer
   // pipeline run below.
+  updatePublicTypeTestCalls(*MergedModule,
+                            /* WholeProgramVisibilityEnabledInLTO */ false);
   updateVCallVisibilityInModule(*MergedModule,
                                 /* WholeProgramVisibilityEnabledInLTO */ false,
                                 // FIXME: This needs linker information via a
@@ -543,6 +546,16 @@ bool LTOCodeGenerator::optimize() {
 
   // Add an appropriate DataLayout instance for this module...
   MergedModule->setDataLayout(TargetMach->createDataLayout());
+
+  if (!SaveIRBeforeOptPath.empty()) {
+    std::error_code EC;
+    raw_fd_ostream OS(SaveIRBeforeOptPath, EC, sys::fs::OF_None);
+    if (EC)
+      report_fatal_error(Twine("Failed to open ") + SaveIRBeforeOptPath +
+                         " to save optimized bitcode\n");
+    WriteBitcodeToFile(*MergedModule, OS,
+                       /* ShouldPreserveUseListOrder */ true);
+  }
 
   ModuleSummaryIndex CombinedIndex(false);
   TargetMach = createTargetMachine();

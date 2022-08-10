@@ -28,7 +28,7 @@ namespace detail {
 /// A utility class to represent the analyses that are known to be preserved.
 class PreservedAnalyses {
   /// A type used to represent all potential analyses.
-  struct AllAnalysesType;
+  struct AllAnalysesType {};
 
 public:
   /// Mark all analyses as preserved.
@@ -43,7 +43,8 @@ public:
   bool isNone() const { return preservedIDs.empty(); }
 
   /// Preserve the given analyses.
-  template <typename AnalysisT> void preserve() {
+  template <typename AnalysisT>
+  void preserve() {
     preserve(TypeID::get<AnalysisT>());
   }
   template <typename AnalysisT, typename AnalysisT2, typename... OtherAnalysesT>
@@ -56,7 +57,8 @@ public:
   /// Returns true if the given analysis has been marked as preserved. Note that
   /// this simply checks for the presence of a given analysis ID and should not
   /// be used as a general preservation checker.
-  template <typename AnalysisT> bool isPreserved() const {
+  template <typename AnalysisT>
+  bool isPreserved() const {
     return isPreserved(TypeID::get<AnalysisT>());
   }
   bool isPreserved(TypeID id) const { return preservedIDs.count(id); }
@@ -94,7 +96,7 @@ std::enable_if_t<!llvm::is_detected<has_is_invalidated, AnalysisT>::value, bool>
 isInvalidated(AnalysisT &analysis, const PreservedAnalyses &pa) {
   return !pa.isPreserved<AnalysisT>();
 }
-} // end namespace analysis_impl
+} // namespace analysis_impl
 
 /// The abstract polymorphic base class representing an analysis.
 struct AnalysisConcept {
@@ -110,7 +112,8 @@ struct AnalysisConcept {
 };
 
 /// A derived analysis model used to hold a specific analysis object.
-template <typename AnalysisT> struct AnalysisModel : public AnalysisConcept {
+template <typename AnalysisT>
+struct AnalysisModel : public AnalysisConcept {
   template <typename... Args>
   explicit AnalysisModel(Args &&...args)
       : analysis(std::forward<Args>(args)...) {}
@@ -135,7 +138,8 @@ class AnalysisMap {
   using ConceptMap = llvm::MapVector<TypeID, std::unique_ptr<AnalysisConcept>>;
 
   /// Utility to return the name of the given analysis class.
-  template <typename AnalysisT> static StringRef getAnalysisName() {
+  template <typename AnalysisT>
+  static StringRef getAnalysisName() {
     StringRef name = llvm::getTypeName<AnalysisT>();
     if (!name.consume_front("mlir::"))
       name.consume_front("(anonymous namespace)::");
@@ -212,7 +216,7 @@ private:
     return static_cast<AnalysisModel<AnalysisT> &>(*it->second).analysis;
   }
 
-  /// Construct analysis using two arguments contructor (OpT, AnalysisManager)
+  /// Construct analysis using two arguments constructor (OpT, AnalysisManager)
   template <typename AnalysisT, typename OpT,
             std::enable_if_t<std::is_constructible<
                 AnalysisT, OpT, AnalysisManager &>::value> * = nullptr>
@@ -220,7 +224,7 @@ private:
     return std::make_unique<AnalysisModel<AnalysisT>>(op, am);
   }
 
-  /// Construct analysis using single argument contructor (OpT)
+  /// Construct analysis using single argument constructor (OpT)
   template <typename AnalysisT, typename OpT,
             std::enable_if_t<!std::is_constructible<
                 AnalysisT, OpT, AnalysisManager &>::value> * = nullptr>
@@ -309,7 +313,8 @@ public:
   }
 
   /// Query for the given analysis for the current operation.
-  template <typename AnalysisT> AnalysisT &getAnalysis() {
+  template <typename AnalysisT>
+  AnalysisT &getAnalysis() {
     return impl->analyses.getAnalysis<AnalysisT>(getPassInstrumentor(), *this);
   }
 
@@ -328,7 +333,8 @@ public:
   }
 
   /// Query for an analysis of a child operation, constructing it if necessary.
-  template <typename AnalysisT> AnalysisT &getChildAnalysis(Operation *op) {
+  template <typename AnalysisT>
+  AnalysisT &getChildAnalysis(Operation *op) {
     return nest(op).template getAnalysis<AnalysisT>();
   }
 
@@ -401,6 +407,6 @@ private:
   detail::NestedAnalysisMap analyses;
 };
 
-} // end namespace mlir
+} // namespace mlir
 
 #endif // MLIR_PASS_ANALYSISMANAGER_H

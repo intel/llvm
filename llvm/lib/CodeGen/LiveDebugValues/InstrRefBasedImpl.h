@@ -10,17 +10,14 @@
 #define LLVM_LIB_CODEGEN_LIVEDEBUGVALUES_INSTRREFBASEDLDV_H
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/UniqueVector.h"
 #include "llvm/CodeGen/LexicalScopes.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/CodeGen/MachineFrameInfo.h"
-#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/CodeGen/TargetFrameLowering.h"
-#include "llvm/CodeGen/TargetInstrInfo.h"
-#include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 
 #include "LiveDebugValues.h"
@@ -55,6 +52,11 @@ public:
   }
 
   static LocIdx MakeIllegalLoc() { return LocIdx(); }
+  static LocIdx MakeTombstoneLoc() {
+    LocIdx L = LocIdx();
+    --L.Location;
+    return L;
+  }
 
   bool isIllegal() const { return Location == UINT_MAX; }
 
@@ -101,36 +103,43 @@ struct SpillLoc {
 /// problematic; but by that point we should probably have bailed out of
 /// trying to analyse the function.
 class ValueIDNum {
-  uint64_t BlockNo : 20;         /// The block where the def happens.
-  uint64_t InstNo : 20;          /// The Instruction where the def happens.
-                                 /// One based, is distance from start of block.
-  uint64_t LocNo : NUM_LOC_BITS; /// The machine location where the def happens.
+  union {
+    struct {
+      uint64_t BlockNo : 20; /// The block where the def happens.
+      uint64_t InstNo : 20;  /// The Instruction where the def happens.
+                             /// One based, is distance from start of block.
+      uint64_t LocNo
+          : NUM_LOC_BITS; /// The machine location where the def happens.
+    } s;
+    uint64_t Value;
+  } u;
+
+  static_assert(sizeof(u) == 8, "Badly packed ValueIDNum?");
 
 public:
   // Default-initialize to EmptyValue. This is necessary to make IndexedMaps
   // of values to work.
-  ValueIDNum() : BlockNo(0xFFFFF), InstNo(0xFFFFF), LocNo(0xFFFFFF) {}
+  ValueIDNum() { u.Value = EmptyValue.asU64(); }
 
-  ValueIDNum(uint64_t Block, uint64_t Inst, uint64_t Loc)
-      : BlockNo(Block), InstNo(Inst), LocNo(Loc) {}
-
-  ValueIDNum(uint64_t Block, uint64_t Inst, LocIdx Loc)
-      : BlockNo(Block), InstNo(Inst), LocNo(Loc.asU64()) {}
-
-  uint64_t getBlock() const { return BlockNo; }
-  uint64_t getInst() const { return InstNo; }
-  uint64_t getLoc() const { return LocNo; }
-  bool isPHI() const { return InstNo == 0; }
-
-  uint64_t asU64() const {
-    uint64_t TmpBlock = BlockNo;
-    uint64_t TmpInst = InstNo;
-    return TmpBlock << 44ull | TmpInst << NUM_LOC_BITS | LocNo;
+  ValueIDNum(uint64_t Block, uint64_t Inst, uint64_t Loc) {
+    u.s = {Block, Inst, Loc};
   }
 
+  ValueIDNum(uint64_t Block, uint64_t Inst, LocIdx Loc) {
+    u.s = {Block, Inst, Loc.asU64()};
+  }
+
+  uint64_t getBlock() const { return u.s.BlockNo; }
+  uint64_t getInst() const { return u.s.InstNo; }
+  uint64_t getLoc() const { return u.s.LocNo; }
+  bool isPHI() const { return u.s.InstNo == 0; }
+
+  uint64_t asU64() const { return u.Value; }
+
   static ValueIDNum fromU64(uint64_t v) {
-    uint64_t L = (v & 0x3FFF);
-    return {v >> 44ull, ((v >> NUM_LOC_BITS) & 0xFFFFF), L};
+    ValueIDNum Val;
+    Val.u.Value = v;
+    return Val;
   }
 
   bool operator<(const ValueIDNum &Other) const {
@@ -138,24 +147,33 @@ public:
   }
 
   bool operator==(const ValueIDNum &Other) const {
-    return std::tie(BlockNo, InstNo, LocNo) ==
-           std::tie(Other.BlockNo, Other.InstNo, Other.LocNo);
+    return u.Value == Other.u.Value;
   }
 
   bool operator!=(const ValueIDNum &Other) const { return !(*this == Other); }
 
   std::string asString(const std::string &mlocname) const {
     return Twine("Value{bb: ")
-        .concat(Twine(BlockNo).concat(
-            Twine(", inst: ")
-                .concat((InstNo ? Twine(InstNo) : Twine("live-in"))
-                            .concat(Twine(", loc: ").concat(Twine(mlocname)))
-                            .concat(Twine("}")))))
+        .concat(Twine(u.s.BlockNo)
+                    .concat(Twine(", inst: ")
+                                .concat((u.s.InstNo ? Twine(u.s.InstNo)
+                                                    : Twine("live-in"))
+                                            .concat(Twine(", loc: ").concat(
+                                                Twine(mlocname)))
+                                            .concat(Twine("}")))))
         .str();
   }
 
   static ValueIDNum EmptyValue;
+  static ValueIDNum TombstoneValue;
 };
+
+/// Type for a table of values in a block.
+using ValueTable = std::unique_ptr<ValueIDNum[]>;
+
+/// Type for a table-of-table-of-values, i.e., the collection of either
+/// live-in or live-out values for each block in the function.
+using FuncValueTable = std::unique_ptr<ValueTable[]>;
 
 /// Thin wrapper around an integer -- designed to give more type safety to
 /// spill location numbers.
@@ -178,7 +196,7 @@ public:
 };
 
 /// Meta qualifiers for a value. Pair of whatever expression is used to qualify
-/// the the value, and Boolean of whether or not it's indirect.
+/// the value, and Boolean of whether or not it's indirect.
 class DbgValueProperties {
 public:
   DbgValueProperties(const DIExpression *DIExpr, bool Indirect)
@@ -480,7 +498,7 @@ public:
     return StackIdxesToPos.find(Idx)->second;
   }
 
-  unsigned getNumLocs(void) const { return LocIdxToIDNum.size(); }
+  unsigned getNumLocs() const { return LocIdxToIDNum.size(); }
 
   /// Reset all locations to contain a PHI value at the designated block. Used
   /// sometimes for actual PHI values, othertimes to indicate the block entry
@@ -493,7 +511,7 @@ public:
 
   /// Load values for each location from array of ValueIDNums. Take current
   /// bbnum just in case we read a value from a hitherto untouched register.
-  void loadFromArray(ValueIDNum *Locs, unsigned NewCurBB) {
+  void loadFromArray(ValueTable &Locs, unsigned NewCurBB) {
     CurBB = NewCurBB;
     // Iterate over all tracked locations, and load each locations live-in
     // value into our local index.
@@ -502,7 +520,7 @@ public:
   }
 
   /// Wipe any un-necessary location records after traversing a block.
-  void reset(void) {
+  void reset() {
     // We could reset all the location values too; however either loadFromArray
     // or setMPhis should be called before this object is re-used. Just
     // clear Masks, they're definitely not needed.
@@ -511,7 +529,7 @@ public:
 
   /// Clear all data. Destroys the LocID <=> LocIdx map, which makes most of
   /// the information in this pass uninterpretable.
-  void clear(void) {
+  void clear() {
     reset();
     LocIDToLocIdx.clear();
     LocIdxToLocID.clear();
@@ -602,7 +620,9 @@ public:
   void writeRegMask(const MachineOperand *MO, unsigned CurBB, unsigned InstID);
 
   /// Find LocIdx for SpillLoc \p L, creating a new one if it's not tracked.
-  SpillLocationNo getOrTrackSpillLoc(SpillLoc L);
+  /// Returns None when in scenarios where a spill slot could be tracked, but
+  /// we would likely run into resource limitations.
+  Optional<SpillLocationNo> getOrTrackSpillLoc(SpillLoc L);
 
   // Get LocIdx of a spill ID.
   LocIdx getSpillMLoc(unsigned SpillID) {
@@ -612,6 +632,19 @@ public:
 
   /// Return true if Idx is a spill machine location.
   bool isSpill(LocIdx Idx) const { return LocIdxToLocID[Idx] >= NumRegs; }
+
+  /// How large is this location (aka, how wide is a value defined there?).
+  unsigned getLocSizeInBits(LocIdx L) const {
+    unsigned ID = LocIdxToLocID[L];
+    if (!isSpill(L)) {
+      return TRI.getRegSizeInBits(Register(ID), MF.getRegInfo());
+    } else {
+      // The slot location on the stack is uninteresting, we care about the
+      // position of the value within the slot (which comes with a size).
+      StackSlotPos Pos = locIDToSpillIdx(ID);
+      return Pos.first;
+    }
+  }
 
   MLocIterator begin() { return MLocIterator(LocIdxToIDNum, 0); }
 
@@ -641,6 +674,14 @@ public:
                               const DbgValueProperties &Properties);
 };
 
+/// Types for recording sets of variable fragments that overlap. For a given
+/// local variable, we record all other fragments of that variable that could
+/// overlap it, to reduce search time.
+using FragmentOfVar =
+    std::pair<const DILocalVariable *, DIExpression::FragmentInfo>;
+using OverlapMap =
+    DenseMap<FragmentOfVar, SmallVector<DIExpression::FragmentInfo, 1>>;
+
 /// Collection of DBG_VALUEs observed when traversing a block. Records each
 /// variable and the value the DBG_VALUE refers to. Requires the machine value
 /// location dataflow algorithm to have run already, so that values can be
@@ -656,11 +697,14 @@ public:
   /// movement of values between locations inside of a block is handled at a
   /// much later stage, in the TransferTracker class.
   MapVector<DebugVariable, DbgValue> Vars;
-  DenseMap<DebugVariable, const DILocation *> Scopes;
+  SmallDenseMap<DebugVariable, const DILocation *, 8> Scopes;
   MachineBasicBlock *MBB = nullptr;
+  const OverlapMap &OverlappingFragments;
+  DbgValueProperties EmptyProperties;
 
 public:
-  VLocTracker() {}
+  VLocTracker(const OverlapMap &O, const DIExpression *EmptyExpr)
+      : OverlappingFragments(O), EmptyProperties(EmptyExpr, false) {}
 
   void defVar(const MachineInstr &MI, const DbgValueProperties &Properties,
               Optional<ValueIDNum> ID) {
@@ -675,6 +719,8 @@ public:
     if (!Result.second)
       Result.first->second = Rec;
     Scopes[Var] = MI.getDebugLoc().get();
+
+    considerOverlaps(Var, MI.getDebugLoc().get());
   }
 
   void defVar(const MachineInstr &MI, const MachineOperand &MO) {
@@ -690,16 +736,42 @@ public:
     if (!Result.second)
       Result.first->second = Rec;
     Scopes[Var] = MI.getDebugLoc().get();
+
+    considerOverlaps(Var, MI.getDebugLoc().get());
+  }
+
+  void considerOverlaps(const DebugVariable &Var, const DILocation *Loc) {
+    auto Overlaps = OverlappingFragments.find(
+        {Var.getVariable(), Var.getFragmentOrDefault()});
+    if (Overlaps == OverlappingFragments.end())
+      return;
+
+    // Otherwise: terminate any overlapped variable locations.
+    for (auto FragmentInfo : Overlaps->second) {
+      // The "empty" fragment is stored as DebugVariable::DefaultFragment, so
+      // that it overlaps with everything, however its cannonical representation
+      // in a DebugVariable is as "None".
+      Optional<DIExpression::FragmentInfo> OptFragmentInfo = FragmentInfo;
+      if (DebugVariable::isDefaultFragment(FragmentInfo))
+        OptFragmentInfo = None;
+
+      DebugVariable Overlapped(Var.getVariable(), OptFragmentInfo,
+                               Var.getInlinedAt());
+      DbgValue Rec = DbgValue(EmptyProperties, DbgValue::Undef);
+
+      // Attempt insertion; overwrite if it's already mapped.
+      auto Result = Vars.insert(std::make_pair(Overlapped, Rec));
+      if (!Result.second)
+        Result.first->second = Rec;
+      Scopes[Overlapped] = Loc;
+    }
+  }
+
+  void clear() {
+    Vars.clear();
+    Scopes.clear();
   }
 };
-
-/// Types for recording sets of variable fragments that overlap. For a given
-/// local variable, we record all other fragments of that variable that could
-/// overlap it, to reduce search time.
-using FragmentOfVar =
-    std::pair<const DILocalVariable *, DIExpression::FragmentInfo>;
-using OverlapMap =
-    DenseMap<FragmentOfVar, SmallVector<DIExpression::FragmentInfo, 1>>;
 
 // XXX XXX docs
 class InstrRefBasedLDV : public LDVImpl {
@@ -716,7 +788,7 @@ public:
 
   /// Machine location/value transfer function, a mapping of which locations
   /// are assigned which new values.
-  using MLocTransferMap = std::map<LocIdx, ValueIDNum>;
+  using MLocTransferMap = SmallDenseMap<LocIdx, ValueIDNum>;
 
   /// Live in/out structure for the variable values: a per-block map of
   /// variables to their values.
@@ -730,6 +802,17 @@ public:
   /// Vector (per block) of a collection (inner smallvector) of live-ins.
   /// Used as the result type for the variable value dataflow problem.
   using LiveInsT = SmallVector<SmallVector<VarAndLoc, 8>, 8>;
+
+  /// Mapping from lexical scopes to a DILocation in that scope.
+  using ScopeToDILocT = DenseMap<const LexicalScope *, const DILocation *>;
+
+  /// Mapping from lexical scopes to variables in that scope.
+  using ScopeToVarsT = DenseMap<const LexicalScope *, SmallSet<DebugVariable, 4>>;
+
+  /// Mapping from lexical scopes to blocks where variables in that scope are
+  /// assigned. Such blocks aren't necessarily "in" the lexical scope, it's
+  /// just a block where an assignment happens.
+  using ScopeToAssignBlocksT = DenseMap<const LexicalScope *, SmallPtrSet<MachineBasicBlock *, 4>>;
 
 private:
   MachineDominatorTree *DomTree;
@@ -768,7 +851,7 @@ private:
 
   /// Blocks which are artificial, i.e. blocks which exclusively contain
   /// instructions without DebugLocs, or with line 0 locations.
-  SmallPtrSet<const MachineBasicBlock *, 16> ArtificialBlocks;
+  SmallPtrSet<MachineBasicBlock *, 16> ArtificialBlocks;
 
   // Mapping of blocks to and from their RPOT order.
   DenseMap<unsigned int, MachineBasicBlock *> OrderToBB;
@@ -785,10 +868,16 @@ private:
   /// Record of where we observed a DBG_PHI instruction.
   class DebugPHIRecord {
   public:
-    uint64_t InstrNum;      ///< Instruction number of this DBG_PHI.
-    MachineBasicBlock *MBB; ///< Block where DBG_PHI occurred.
-    ValueIDNum ValueRead;   ///< The value number read by the DBG_PHI.
-    LocIdx ReadLoc;         ///< Register/Stack location the DBG_PHI reads.
+    /// Instruction number of this DBG_PHI.
+    uint64_t InstrNum;
+    /// Block where DBG_PHI occurred.
+    MachineBasicBlock *MBB;
+    /// The value number read by the DBG_PHI -- or None if it didn't refer to
+    /// a value.
+    Optional<ValueIDNum> ValueRead;
+    /// Register/Stack location the DBG_PHI reads -- or None if it referred to
+    /// something unexpected.
+    Optional<LocIdx> ReadLoc;
 
     operator unsigned() const { return InstrNum; }
   };
@@ -803,8 +892,25 @@ private:
   OverlapMap OverlapFragments;
   VarToFragments SeenFragments;
 
+  /// Mapping of DBG_INSTR_REF instructions to their values, for those
+  /// DBG_INSTR_REFs that call resolveDbgPHIs. These variable references solve
+  /// a mini SSA problem caused by DBG_PHIs being cloned, this collection caches
+  /// the result.
+  DenseMap<MachineInstr *, Optional<ValueIDNum>> SeenDbgPHIs;
+
+  /// True if we need to examine call instructions for stack clobbers. We
+  /// normally assume that they don't clobber SP, but stack probes on Windows
+  /// do.
+  bool AdjustsStackInCalls = false;
+
+  /// If AdjustsStackInCalls is true, this holds the name of the target's stack
+  /// probe function, which is the function we expect will alter the stack
+  /// pointer.
+  StringRef StackProbeSymbolName;
+
   /// Tests whether this instruction is a spill to a stack slot.
-  bool isSpillInstruction(const MachineInstr &MI, MachineFunction *MF);
+  Optional<SpillLocationNo> isSpillInstruction(const MachineInstr &MI,
+                                               MachineFunction *MF);
 
   /// Decide if @MI is a spill instruction and return true if it is. We use 2
   /// criteria to make this decision:
@@ -822,11 +928,12 @@ private:
 
   /// Given a spill instruction, extract the spill slot information, ensure it's
   /// tracked, and return the spill number.
-  SpillLocationNo extractSpillBaseRegAndOffset(const MachineInstr &MI);
+  Optional<SpillLocationNo>
+  extractSpillBaseRegAndOffset(const MachineInstr &MI);
 
   /// Observe a single instruction while stepping through a block.
-  void process(MachineInstr &MI, ValueIDNum **MLiveOuts = nullptr,
-               ValueIDNum **MLiveIns = nullptr);
+  void process(MachineInstr &MI, const ValueTable *MLiveOuts,
+               const ValueTable *MLiveIns);
 
   /// Examines whether \p MI is a DBG_VALUE and notifies trackers.
   /// \returns true if MI was recognized and processed.
@@ -834,8 +941,8 @@ private:
 
   /// Examines whether \p MI is a DBG_INSTR_REF and notifies trackers.
   /// \returns true if MI was recognized and processed.
-  bool transferDebugInstrRef(MachineInstr &MI, ValueIDNum **MLiveOuts,
-                             ValueIDNum **MLiveIns);
+  bool transferDebugInstrRef(MachineInstr &MI, const ValueTable *MLiveOuts,
+                             const ValueTable *MLiveIns);
 
   /// Stores value-information about where this PHI occurred, and what
   /// instruction number is associated with it.
@@ -867,9 +974,15 @@ private:
   /// \p InstrNum Debug instruction number defined by DBG_PHI instructions.
   /// \returns The machine value number at position Here, or None.
   Optional<ValueIDNum> resolveDbgPHIs(MachineFunction &MF,
-                                      ValueIDNum **MLiveOuts,
-                                      ValueIDNum **MLiveIns, MachineInstr &Here,
-                                      uint64_t InstrNum);
+                                      const ValueTable *MLiveOuts,
+                                      const ValueTable *MLiveIns,
+                                      MachineInstr &Here, uint64_t InstrNum);
+
+  Optional<ValueIDNum> resolveDbgPHIsImpl(MachineFunction &MF,
+                                          const ValueTable *MLiveOuts,
+                                          const ValueTable *MLiveIns,
+                                          MachineInstr &Here,
+                                          uint64_t InstrNum);
 
   /// Step through the function, recording register definitions and movements
   /// in an MLocTracker. Convert the observations into a per-block transfer
@@ -885,16 +998,29 @@ private:
   /// live-out arrays to the (initialized to zero) multidimensional arrays in
   /// \p MInLocs and \p MOutLocs. The outer dimension is indexed by block
   /// number, the inner by LocIdx.
-  void buildMLocValueMap(MachineFunction &MF, ValueIDNum **MInLocs,
-                         ValueIDNum **MOutLocs,
+  void buildMLocValueMap(MachineFunction &MF, FuncValueTable &MInLocs,
+                         FuncValueTable &MOutLocs,
                          SmallVectorImpl<MLocTransferMap> &MLocTransfer);
+
+  /// Examine the stack indexes (i.e. offsets within the stack) to find the
+  /// basic units of interference -- like reg units, but for the stack.
+  void findStackIndexInterference(SmallVectorImpl<unsigned> &Slots);
 
   /// Install PHI values into the live-in array for each block, according to
   /// the IDF of each register.
   void placeMLocPHIs(MachineFunction &MF,
                      SmallPtrSetImpl<MachineBasicBlock *> &AllBlocks,
-                     ValueIDNum **MInLocs,
+                     FuncValueTable &MInLocs,
                      SmallVectorImpl<MLocTransferMap> &MLocTransfer);
+
+  /// Propagate variable values to blocks in the common case where there's
+  /// only one value assigned to the variable. This function has better
+  /// performance as it doesn't have to find the dominance frontier between
+  /// different assignments.
+  void placePHIsForSingleVarDefinition(
+          const SmallPtrSetImpl<MachineBasicBlock *> &InScopeBlocks,
+          MachineBasicBlock *MBB, SmallVectorImpl<VLocTracker> &AllTheVLocs,
+          const DebugVariable &Var, LiveInsT &Output);
 
   /// Calculate the iterated-dominance-frontier for a set of defs, using the
   /// existing LLVM facilities for this. Works for a single "value" or
@@ -915,7 +1041,20 @@ private:
   /// is true, revisiting this block is necessary.
   bool mlocJoin(MachineBasicBlock &MBB,
                 SmallPtrSet<const MachineBasicBlock *, 16> &Visited,
-                ValueIDNum **OutLocs, ValueIDNum *InLocs);
+                FuncValueTable &OutLocs, ValueTable &InLocs);
+
+  /// Produce a set of blocks that are in the current lexical scope. This means
+  /// those blocks that contain instructions "in" the scope, blocks where
+  /// assignments to variables in scope occur, and artificial blocks that are
+  /// successors to any of the earlier blocks. See https://llvm.org/PR48091 for
+  /// more commentry on what "in scope" means.
+  /// \p DILoc A location in the scope that we're fetching blocks for.
+  /// \p Output Set to put in-scope-blocks into.
+  /// \p AssignBlocks Blocks known to contain assignments of variables in scope.
+  void
+  getBlocksForScope(const DILocation *DILoc,
+                    SmallPtrSetImpl<const MachineBasicBlock *> &Output,
+                    const SmallPtrSetImpl<MachineBasicBlock *> &AssignBlocks);
 
   /// Solve the variable value dataflow problem, for a single lexical scope.
   /// Uses the algorithm from the file comment to resolve control flow joins
@@ -930,11 +1069,11 @@ private:
   /// scope, but which do contain DBG_VALUEs, which VarLocBasedImpl tracks
   /// locations through.
   void buildVLocValueMap(const DILocation *DILoc,
-                    const SmallSet<DebugVariable, 4> &VarsWeCareAbout,
-                    SmallPtrSetImpl<MachineBasicBlock *> &AssignBlocks,
-                    LiveInsT &Output, ValueIDNum **MOutLocs,
-                    ValueIDNum **MInLocs,
-                    SmallVectorImpl<VLocTracker> &AllTheVLocs);
+                         const SmallSet<DebugVariable, 4> &VarsWeCareAbout,
+                         SmallPtrSetImpl<MachineBasicBlock *> &AssignBlocks,
+                         LiveInsT &Output, FuncValueTable &MOutLocs,
+                         FuncValueTable &MInLocs,
+                         SmallVectorImpl<VLocTracker> &AllTheVLocs);
 
   /// Attempt to eliminate un-necessary PHIs on entry to a block. Examines the
   /// live-in values coming from predecessors live-outs, and replaces any PHIs
@@ -944,7 +1083,6 @@ private:
   /// \returns true if any live-ins change value, either from value propagation
   ///          or PHI elimination.
   bool vlocJoin(MachineBasicBlock &MBB, LiveIdxT &VLOCOutLocs,
-                SmallPtrSet<const MachineBasicBlock *, 8> &InScopeBlocks,
                 SmallPtrSet<const MachineBasicBlock *, 8> &BlocksToExplore,
                 DbgValue &LiveIn);
 
@@ -953,24 +1091,40 @@ private:
   /// \returns Value ID of a machine PHI if an appropriate one is available.
   Optional<ValueIDNum>
   pickVPHILoc(const MachineBasicBlock &MBB, const DebugVariable &Var,
-              const LiveIdxT &LiveOuts, ValueIDNum **MOutLocs,
+              const LiveIdxT &LiveOuts, FuncValueTable &MOutLocs,
               const SmallVectorImpl<const MachineBasicBlock *> &BlockOrders);
 
-  /// Given the solutions to the two dataflow problems, machine value locations
-  /// in \p MInLocs and live-in variable values in \p SavedLiveIns, runs the
-  /// TransferTracker class over the function to produce live-in and transfer
-  /// DBG_VALUEs, then inserts them. Groups of DBG_VALUEs are inserted in the
-  /// order given by AllVarsNumbering -- this could be any stable order, but
-  /// right now "order of appearence in function, when explored in RPO", so
-  /// that we can compare explictly against VarLocBasedImpl.
-  void emitLocations(MachineFunction &MF, LiveInsT SavedLiveIns,
-                     ValueIDNum **MOutLocs, ValueIDNum **MInLocs,
-                     DenseMap<DebugVariable, unsigned> &AllVarsNumbering,
-                     const TargetPassConfig &TPC);
+  /// Take collections of DBG_VALUE instructions stored in TTracker, and
+  /// install them into their output blocks. Preserves a stable order of
+  /// DBG_VALUEs produced (which would otherwise cause nondeterminism) through
+  /// the AllVarsNumbering order.
+  bool emitTransfers(DenseMap<DebugVariable, unsigned> &AllVarsNumbering);
 
   /// Boilerplate computation of some initial sets, artifical blocks and
   /// RPOT block ordering.
   void initialSetup(MachineFunction &MF);
+
+  /// Produce a map of the last lexical scope that uses a block, using the
+  /// scopes DFSOut number. Mapping is block-number to DFSOut.
+  /// \p EjectionMap Pre-allocated vector in which to install the built ma.
+  /// \p ScopeToDILocation Mapping of LexicalScopes to their DILocations.
+  /// \p AssignBlocks Map of blocks where assignments happen for a scope.
+  void makeDepthFirstEjectionMap(SmallVectorImpl<unsigned> &EjectionMap,
+                                 const ScopeToDILocT &ScopeToDILocation,
+                                 ScopeToAssignBlocksT &AssignBlocks);
+
+  /// When determining per-block variable values and emitting to DBG_VALUEs,
+  /// this function explores by lexical scope depth. Doing so means that per
+  /// block information can be fully computed before exploration finishes,
+  /// allowing us to emit it and free data structures earlier than otherwise.
+  /// It's also good for locality.
+  bool depthFirstVLocAndEmit(
+      unsigned MaxNumBlocks, const ScopeToDILocT &ScopeToDILocation,
+      const ScopeToVarsT &ScopeToVars, ScopeToAssignBlocksT &ScopeToBlocks,
+      LiveInsT &Output, FuncValueTable &MOutLocs, FuncValueTable &MInLocs,
+      SmallVectorImpl<VLocTracker> &AllTheVLocs, MachineFunction &MF,
+      DenseMap<DebugVariable, unsigned> &AllVarsNumbering,
+      const TargetPassConfig &TPC);
 
   bool ExtendRanges(MachineFunction &MF, MachineDominatorTree *DomTree,
                     TargetPassConfig *TPC, unsigned InputBBLimit,
@@ -984,8 +1138,52 @@ public:
   void dump_mloc_transfer(const MLocTransferMap &mloc_transfer) const;
 
   bool isCalleeSaved(LocIdx L) const;
+
+  bool hasFoldedStackStore(const MachineInstr &MI) {
+    // Instruction must have a memory operand that's a stack slot, and isn't
+    // aliased, meaning it's a spill from regalloc instead of a variable.
+    // If it's aliased, we can't guarantee its value.
+    if (!MI.hasOneMemOperand())
+      return false;
+    auto *MemOperand = *MI.memoperands_begin();
+    return MemOperand->isStore() &&
+           MemOperand->getPseudoValue() &&
+           MemOperand->getPseudoValue()->kind() == PseudoSourceValue::FixedStack
+           && !MemOperand->getPseudoValue()->isAliased(MFI);
+  }
+
+  Optional<LocIdx> findLocationForMemOperand(const MachineInstr &MI);
 };
 
 } // namespace LiveDebugValues
+
+namespace llvm {
+using namespace LiveDebugValues;
+
+template <> struct DenseMapInfo<LocIdx> {
+  static inline LocIdx getEmptyKey() { return LocIdx::MakeIllegalLoc(); }
+  static inline LocIdx getTombstoneKey() { return LocIdx::MakeTombstoneLoc(); }
+
+  static unsigned getHashValue(const LocIdx &Loc) { return Loc.asU64(); }
+
+  static bool isEqual(const LocIdx &A, const LocIdx &B) { return A == B; }
+};
+
+template <> struct DenseMapInfo<ValueIDNum> {
+  static inline ValueIDNum getEmptyKey() { return ValueIDNum::EmptyValue; }
+  static inline ValueIDNum getTombstoneKey() {
+    return ValueIDNum::TombstoneValue;
+  }
+
+  static unsigned getHashValue(const ValueIDNum &Val) {
+    return hash_value(Val.asU64());
+  }
+
+  static bool isEqual(const ValueIDNum &A, const ValueIDNum &B) {
+    return A == B;
+  }
+};
+
+} // end namespace llvm
 
 #endif /* LLVM_LIB_CODEGEN_LIVEDEBUGVALUES_INSTRREFBASEDLDV_H */

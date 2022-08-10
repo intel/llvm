@@ -149,6 +149,16 @@ const XCOFFFileHeader64 *XCOFFObjectFile::fileHeader64() const {
   return static_cast<const XCOFFFileHeader64 *>(FileHeader);
 }
 
+const XCOFFAuxiliaryHeader32 *XCOFFObjectFile::auxiliaryHeader32() const {
+  assert(!is64Bit() && "32-bit interface called on 64-bit object file.");
+  return static_cast<const XCOFFAuxiliaryHeader32 *>(AuxiliaryHeader);
+}
+
+const XCOFFAuxiliaryHeader64 *XCOFFObjectFile::auxiliaryHeader64() const {
+  assert(is64Bit() && "64-bit interface called on a 32-bit object file.");
+  return static_cast<const XCOFFAuxiliaryHeader64 *>(AuxiliaryHeader);
+}
+
 template <typename T> const T *XCOFFObjectFile::sectionHeaderTable() const {
   return static_cast<const T *>(SectionHeaderTable);
 }
@@ -605,6 +615,16 @@ Expected<uint32_t> XCOFFObjectFile::getSymbolFlags(DataRefImpl Symb) const {
   if (XCOFFSym.getSectionNumber() == XCOFF::N_UNDEF)
     Result |= SymbolRef::SF_Undefined;
 
+  // There is no visibility in old 32 bit XCOFF object file interpret.
+  if (is64Bit() || (auxiliaryHeader32() && (auxiliaryHeader32()->getVersion() ==
+                                            NEW_XCOFF_INTERPRET))) {
+    uint16_t SymType = XCOFFSym.getSymbolType();
+    if ((SymType & VISIBILITY_MASK) == SYM_V_HIDDEN)
+      Result |= SymbolRef::SF_Hidden;
+
+    if ((SymType & VISIBILITY_MASK) == SYM_V_EXPORTED)
+      Result |= SymbolRef::SF_Exported;
+  }
   return Result;
 }
 
@@ -687,6 +707,19 @@ size_t XCOFFObjectFile::getSectionHeaderSize() const {
 
 bool XCOFFObjectFile::is64Bit() const {
   return Binary::ID_XCOFF64 == getType();
+}
+
+Expected<StringRef> XCOFFObjectFile::getRawData(const char *Start,
+                                                uint64_t Size,
+                                                StringRef Name) const {
+  uintptr_t StartPtr = reinterpret_cast<uintptr_t>(Start);
+  // TODO: this path is untested.
+  if (Error E = Binary::checkOffset(Data, StartPtr, Size))
+    return createError(toString(std::move(E)) + ": " + Name.data() +
+                       " data with offset 0x" + Twine::utohexstr(StartPtr) +
+                       " and size 0x" + Twine::utohexstr(Size) +
+                       " goes past the end of the file");
+  return StringRef(Start, Size);
 }
 
 uint16_t XCOFFObjectFile::getMagic() const {
@@ -1027,8 +1060,15 @@ XCOFFObjectFile::create(unsigned Type, MemoryBufferRef MBR) {
   Obj->FileHeader = FileHeaderOrErr.get();
 
   CurOffset += Obj->getFileHeaderSize();
-  // TODO FIXME we don't have support for an optional header yet, so just skip
-  // past it.
+
+  if (Obj->getOptionalHeaderSize()) {
+    auto AuxiliaryHeaderOrErr =
+        getObject<void>(Data, Base + CurOffset, Obj->getOptionalHeaderSize());
+    if (Error E = AuxiliaryHeaderOrErr.takeError())
+      return std::move(E);
+    Obj->AuxiliaryHeader = AuxiliaryHeaderOrErr.get();
+  }
+
   CurOffset += Obj->getOptionalHeaderSize();
 
   // Parse the section header table if it is present.
@@ -1095,8 +1135,12 @@ bool XCOFFSymbolRef::isFunction() const {
     return true;
 
   Expected<XCOFFCsectAuxRef> ExpCsectAuxEnt = getXCOFFCsectAuxRef();
-  if (!ExpCsectAuxEnt)
+  if (!ExpCsectAuxEnt) {
+    // If we could not get the CSECT auxiliary entry, then treat this symbol as
+    // if it isn't a function. Consume the error and return `false` to move on.
+    consumeError(ExpCsectAuxEnt.takeError());
     return false;
+  }
 
   const XCOFFCsectAuxRef CsectAuxRef = ExpCsectAuxEnt.get();
 
@@ -1298,7 +1342,7 @@ XCOFFTracebackTable::XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size,
     NumOfCtlAnchors = DE.getU32(Cur);
     if (Cur && NumOfCtlAnchors) {
       SmallVector<uint32_t, 8> Disp;
-      Disp.reserve(NumOfCtlAnchors.getValue());
+      Disp.reserve(*NumOfCtlAnchors);
       for (uint32_t I = 0; I < NumOfCtlAnchors && Cur; ++I)
         Disp.push_back(DE.getU32(Cur));
       if (Cur)
@@ -1325,7 +1369,7 @@ XCOFFTracebackTable::XCOFFTracebackTable(const uint8_t *Ptr, uint64_t &Size,
         return;
       }
       VecExt = TBVecExtOrErr.get();
-      VectorParmsNum = VecExt.getValue().getNumberOfVectorParms();
+      VectorParmsNum = VecExt->getNumberOfVectorParms();
     }
   }
 

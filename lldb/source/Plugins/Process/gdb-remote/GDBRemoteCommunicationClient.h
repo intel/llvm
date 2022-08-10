@@ -217,6 +217,9 @@ public:
 
   const ArchSpec &GetProcessArchitecture();
 
+  bool GetProcessStandaloneBinary(UUID &uuid, lldb::addr_t &value,
+                                  bool &value_is_offset);
+
   void GetRemoteQSupported();
 
   bool GetVContSupported(char flavor);
@@ -239,9 +242,9 @@ public:
 
   llvm::VersionTuple GetMacCatalystVersion();
 
-  bool GetOSBuildString(std::string &s);
+  llvm::Optional<std::string> GetOSBuildString();
 
-  bool GetOSKernelDescription(std::string &s);
+  llvm::Optional<std::string> GetOSKernelDescription();
 
   ArchSpec GetSystemArchitecture();
 
@@ -250,8 +253,6 @@ public:
   bool GetHostname(std::string &s);
 
   lldb::addr_t GetShlibInfoAddr();
-
-  bool GetSupportsThreadSuffix();
 
   bool GetProcessInfo(lldb::pid_t pid, ProcessInstanceInfo &process_info);
 
@@ -333,6 +334,8 @@ public:
   bool GetQXferFeaturesReadSupported();
 
   bool GetQXferMemoryMapReadSupported();
+
+  bool GetQXferSigInfoReadSupported();
 
   LazyBool SupportsAllocDeallocMemory() // const
   {
@@ -433,6 +436,8 @@ public:
 
   bool GetMemoryTaggingSupported();
 
+  bool UsesNativeSignals();
+
   lldb::DataBufferSP ReadMemoryTags(lldb::addr_t addr, size_t len,
                                     int32_t type);
 
@@ -516,6 +521,8 @@ public:
 
   bool GetSaveCoreSupported() const;
 
+  llvm::Expected<int> KillProcess(lldb::pid_t pid);
+
 protected:
   LazyBool m_supports_not_sending_acks = eLazyBoolCalculate;
   LazyBool m_supports_thread_suffix = eLazyBoolCalculate;
@@ -546,6 +553,7 @@ protected:
   LazyBool m_supports_qXfer_libraries_svr4_read = eLazyBoolCalculate;
   LazyBool m_supports_qXfer_features_read = eLazyBoolCalculate;
   LazyBool m_supports_qXfer_memory_map_read = eLazyBoolCalculate;
+  LazyBool m_supports_qXfer_siginfo_read = eLazyBoolCalculate;
   LazyBool m_supports_augmented_libraries_svr4_read = eLazyBoolCalculate;
   LazyBool m_supports_jThreadExtendedInfo = eLazyBoolCalculate;
   LazyBool m_supports_jLoadedDynamicLibrariesInfos = eLazyBoolCalculate;
@@ -555,6 +563,7 @@ protected:
   LazyBool m_supports_multiprocess = eLazyBoolCalculate;
   LazyBool m_supports_memory_tagging = eLazyBoolCalculate;
   LazyBool m_supports_qSaveCore = eLazyBoolCalculate;
+  LazyBool m_uses_native_signals = eLazyBoolCalculate;
 
   bool m_supports_qProcessInfoPID : 1, m_supports_qfProcessInfo : 1,
       m_supports_qUserName : 1, m_supports_qGroupName : 1,
@@ -581,6 +590,9 @@ protected:
 
   ArchSpec m_host_arch;
   ArchSpec m_process_arch;
+  UUID m_process_standalone_uuid;
+  lldb::addr_t m_process_standalone_value = LLDB_INVALID_ADDRESS;
+  bool m_process_standalone_value_is_offset = false;
   llvm::VersionTuple m_os_version;
   llvm::VersionTuple m_maccatalyst_version;
   std::string m_os_build;

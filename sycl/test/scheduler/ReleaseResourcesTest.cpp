@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization -I %sycl_source_dir %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -I %sycl_source_dir %s -o %t.out
 // RUN: %RUN_ON_HOST %t.out
 
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
@@ -9,19 +9,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include "../helpers.hpp"
 
-using namespace cl;
-using sycl_access_mode = cl::sycl::access::mode;
+using sycl_access_mode = sycl::access::mode;
 
 int main() {
   bool Failed = false;
 
   // Checks creating of the second host accessor while first one is alive.
   try {
-    cl::sycl::default_selector device_selector;
+    sycl::default_selector device_selector;
 
     sycl::range<1> BufSize{1};
     sycl::buffer<int, 1> Buf(BufSize);

@@ -141,6 +141,10 @@ lldb_plugins += [
     "ProcessMinidump",
   ],
   [
+    "//lldb/source/Plugins/REPL/Clang",
+    "ClangREPL",
+  ],
+  [
     "//lldb/source/Plugins/ScriptInterpreter/None",
     "",  # Uses LLDB_SCRIPT_PLUGIN instead.
   ],
@@ -215,7 +219,8 @@ write_cmake_config("Plugins.def") {
   # These are in separate variables to make sure ProcessWindowsCommon is
   # initalized after all plugins, but before ProcessGDBRemote.
   if (current_os == "win") {
-    values += [ "LLDB_PROCESS_WINDOWS_PLUGIN=LLDB_PLUGIN(ProcessWindowsCommon)" ]
+    values +=
+        [ "LLDB_PROCESS_WINDOWS_PLUGIN=LLDB_PLUGIN(ProcessWindowsCommon)" ]
   } else {
     values += [ "LLDB_PROCESS_WINDOWS_PLUGIN=" ]
   }

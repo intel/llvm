@@ -19,9 +19,9 @@ constexpr auto h() {
 constexpr auto i() {
   if consteval {
     if consteval { // expected-warning {{consteval if is always true in an immediate context}}
-	  return 1;
-	}
-	return 2;
+      return 1;
+    }
+    return 2;
   } else {
     return 1.0; // expected-error {{'auto' in return type deduced as 'double' here but deduced as 'int' in earlier return statement}}
   }
@@ -52,6 +52,5 @@ auto f() {
       return 0;
     }
   }
-  // FIXME: this error should not happen.
-  return 0.0; // expected-error {{'auto' in return type deduced as 'double' here but deduced as 'int' in earlier return statement}}
+  return 0.0;
 }

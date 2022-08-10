@@ -103,15 +103,15 @@ private:
 
   /// Checks whether the given LLVM::CallOp is a vulkan launch call op.
   bool isVulkanLaunchCallOp(LLVM::CallOp callOp) {
-    return (callOp.callee() && callOp.callee().getValue() == kVulkanLaunch &&
+    return (callOp.getCallee() && *callOp.getCallee() == kVulkanLaunch &&
             callOp.getNumOperands() >= kVulkanLaunchNumConfigOperands);
   }
 
   /// Checks whether the given LLVM::CallOp is a "ci_face" vulkan launch call
   /// op.
   bool isCInterfaceVulkanLaunchCallOp(LLVM::CallOp callOp) {
-    return (callOp.callee() &&
-            callOp.callee().getValue() == kCInterfaceVulkanLaunch &&
+    return (callOp.getCallee() &&
+            *callOp.getCallee() == kCInterfaceVulkanLaunch &&
             callOp.getNumOperands() >= kVulkanLaunchNumConfigOperands);
   }
 
@@ -165,7 +165,7 @@ private:
   static constexpr unsigned kVulkanLaunchNumConfigOperands = 3;
 };
 
-} // anonymous namespace
+} // namespace
 
 void VulkanLaunchFuncToVulkanCallsPass::runOnOperation() {
   initializeCachedTypes();
@@ -221,7 +221,7 @@ void VulkanLaunchFuncToVulkanCallsPass::createBindMemRefCalls(
   Value descriptorSet = builder.create<LLVM::ConstantOp>(
       loc, getInt32Type(), builder.getI32IntegerAttr(0));
 
-  for (auto en :
+  for (const auto &en :
        llvm::enumerate(cInterfaceVulkanLaunchCallOp.getOperands().drop_front(
            kVulkanLaunchNumConfigOperands))) {
     // Create LLVM constant for the descriptor binding index.

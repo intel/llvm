@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/JITLink/MachO_x86_64.h"
+#include "llvm/ExecutionEngine/JITLink/DWARFRecordSectionSplitter.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 
 #include "MachOLinkGraphBuilder.h"
-#include "PerGraphGOTAndPLTStubsBuilder.h"
 
 #define DEBUG_TYPE "jitlink"
 
@@ -119,7 +119,7 @@ private:
   // returns the edge kind and addend to be used.
   Expected<PairRelocInfo> parsePairRelocation(
       Block &BlockToFix, MachONormalizedRelocationType SubtractorKind,
-      const MachO::relocation_info &SubRI, JITTargetAddress FixupAddress,
+      const MachO::relocation_info &SubRI, orc::ExecutorAddr FixupAddress,
       const char *FixupContent, object::relocation_iterator &UnsignedRelItr,
       object::relocation_iterator &RelEnd) {
     using namespace support;
@@ -170,9 +170,9 @@ private:
       auto ToSymbolSec = findSectionByIndex(UnsignedRI.r_symbolnum - 1);
       if (!ToSymbolSec)
         return ToSymbolSec.takeError();
-      ToSymbol = getSymbolByAddress(ToSymbolSec->Address);
+      ToSymbol = getSymbolByAddress(*ToSymbolSec, ToSymbolSec->Address);
       assert(ToSymbol && "No symbol for section");
-      FixupValue -= ToSymbol->getAddress();
+      FixupValue -= ToSymbol->getAddress().getValue();
     }
 
     Edge::Kind DeltaKind;
@@ -206,7 +206,7 @@ private:
 
     for (auto &S : Obj.sections()) {
 
-      JITTargetAddress SectionAddress = S.getAddress();
+      orc::ExecutorAddr SectionAddress(S.getAddress());
 
       // Skip relocations virtual sections.
       if (S.isVirtual()) {
@@ -216,14 +216,18 @@ private:
         continue;
       }
 
-      // Skip relocations for debug symbols.
+      auto NSec =
+          findSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
+      if (!NSec)
+        return NSec.takeError();
+
+      // Skip relocations for MachO sections without corresponding graph
+      // sections.
       {
-        auto &NSec =
-            getSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
-        if (!NSec.GraphSection) {
+        if (!NSec->GraphSection) {
           LLVM_DEBUG({
             dbgs() << "  Skipping relocations for MachO section "
-                   << NSec.SegName << "/" << NSec.SectName
+                   << NSec->SegName << "/" << NSec->SectName
                    << " which has no associated graph section\n";
           });
           continue;
@@ -237,25 +241,23 @@ private:
         MachO::relocation_info RI = getRelocationInfo(RelItr);
 
         // Find the address of the value to fix up.
-        JITTargetAddress FixupAddress = SectionAddress + (uint32_t)RI.r_address;
+        auto FixupAddress = SectionAddress + (uint32_t)RI.r_address;
 
         LLVM_DEBUG({
-          auto &NSec =
-              getSectionByIndex(Obj.getSectionIndex(S.getRawDataRefImpl()));
-          dbgs() << "  " << NSec.SectName << " + "
+          dbgs() << "  " << NSec->SectName << " + "
                  << formatv("{0:x8}", RI.r_address) << ":\n";
         });
 
         // Find the block that the fixup points to.
         Block *BlockToFix = nullptr;
         {
-          auto SymbolToFixOrErr = findSymbolByAddress(FixupAddress);
+          auto SymbolToFixOrErr = findSymbolByAddress(*NSec, FixupAddress);
           if (!SymbolToFixOrErr)
             return SymbolToFixOrErr.takeError();
           BlockToFix = &SymbolToFixOrErr->getBlock();
         }
 
-        if (FixupAddress + static_cast<JITTargetAddress>(1ULL << RI.r_length) >
+        if (FixupAddress + orc::ExecutorAddrDiff(1ULL << RI.r_length) >
             BlockToFix->getAddress() + BlockToFix->getContent().size())
           return make_error<JITLinkError>(
               "Relocation extends past end of fixup block");
@@ -270,7 +272,7 @@ private:
         Symbol *TargetSymbol = nullptr;
         uint64_t Addend = 0;
 
-        // Sanity check the relocation kind.
+        // Validate the relocation kind.
         auto MachORelocKind = getRelocKind(RI);
         if (!MachORelocKind)
           return MachORelocKind.takeError();
@@ -341,8 +343,12 @@ private:
           Kind = x86_64::Pointer64;
           break;
         case MachOPointer64Anon: {
-          JITTargetAddress TargetAddress = *(const ulittle64_t *)FixupContent;
-          if (auto TargetSymbolOrErr = findSymbolByAddress(TargetAddress))
+          orc::ExecutorAddr TargetAddress(*(const ulittle64_t *)FixupContent);
+          auto TargetNSec = findSectionByIndex(RI.r_symbolnum - 1);
+          if (!TargetNSec)
+            return TargetNSec.takeError();
+          if (auto TargetSymbolOrErr =
+                  findSymbolByAddress(*TargetNSec, TargetAddress))
             TargetSymbol = &*TargetSymbolOrErr;
           else
             return TargetSymbolOrErr.takeError();
@@ -361,9 +367,13 @@ private:
           Kind = x86_64::Delta32;
           break;
         case MachOPCRel32Anon: {
-          JITTargetAddress TargetAddress =
-              FixupAddress + 4 + *(const little32_t *)FixupContent;
-          if (auto TargetSymbolOrErr = findSymbolByAddress(TargetAddress))
+          orc::ExecutorAddr TargetAddress(FixupAddress + 4 +
+                                          *(const little32_t *)FixupContent);
+          auto TargetNSec = findSectionByIndex(RI.r_symbolnum - 1);
+          if (!TargetNSec)
+            return TargetNSec.takeError();
+          if (auto TargetSymbolOrErr =
+                  findSymbolByAddress(*TargetNSec, TargetAddress))
             TargetSymbol = &*TargetSymbolOrErr;
           else
             return TargetSymbolOrErr.takeError();
@@ -374,12 +384,16 @@ private:
         case MachOPCRel32Minus1Anon:
         case MachOPCRel32Minus2Anon:
         case MachOPCRel32Minus4Anon: {
-          JITTargetAddress Delta =
-              4 + static_cast<JITTargetAddress>(
+          orc::ExecutorAddrDiff Delta =
+              4 + orc::ExecutorAddrDiff(
                       1ULL << (*MachORelocKind - MachOPCRel32Minus1Anon));
-          JITTargetAddress TargetAddress =
+          orc::ExecutorAddr TargetAddress =
               FixupAddress + Delta + *(const little32_t *)FixupContent;
-          if (auto TargetSymbolOrErr = findSymbolByAddress(TargetAddress))
+          auto TargetNSec = findSectionByIndex(RI.r_symbolnum - 1);
+          if (!TargetNSec)
+            return TargetNSec.takeError();
+          if (auto TargetSymbolOrErr =
+                  findSymbolByAddress(*TargetNSec, TargetAddress))
             TargetSymbol = &*TargetSymbolOrErr;
           else
             return TargetSymbolOrErr.takeError();
@@ -490,12 +504,13 @@ void link_MachO_x86_64(std::unique_ptr<LinkGraph> G,
 }
 
 LinkGraphPassFunction createEHFrameSplitterPass_MachO_x86_64() {
-  return EHFrameSplitter("__TEXT,__eh_frame");
+  return DWARFRecordSectionSplitter("__TEXT,__eh_frame");
 }
 
 LinkGraphPassFunction createEHFrameEdgeFixerPass_MachO_x86_64() {
   return EHFrameEdgeFixer("__TEXT,__eh_frame", x86_64::PointerSize,
-                          x86_64::Delta64, x86_64::Delta32, x86_64::NegDelta32);
+                          x86_64::Pointer32, x86_64::Pointer64, x86_64::Delta32,
+                          x86_64::Delta64, x86_64::NegDelta32);
 }
 
 } // end namespace jitlink

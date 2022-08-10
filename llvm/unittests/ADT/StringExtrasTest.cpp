@@ -91,9 +91,15 @@ TEST(StringExtrasTest, ToAndFromHex) {
   EXPECT_EQ(EvenData, fromHex(EvenStr));
   EXPECT_EQ(StringRef(EvenStr).lower(), toHex(EvenData, true));
 
-  std::string InvalidStr = "A5ZX";
+  std::string InvalidStr = "A50\xFF";
   std::string IgnoredOutput;
   EXPECT_FALSE(tryGetFromHex(InvalidStr, IgnoredOutput));
+}
+
+TEST(StringExtrasTest, UINT64ToHex) {
+  EXPECT_EQ(utohexstr(0xA0u), "A0");
+  EXPECT_EQ(utohexstr(0xA0u, false, 4), "00A0");
+  EXPECT_EQ(utohexstr(0xA0u, false, 8), "000000A0");
 }
 
 TEST(StringExtrasTest, to_float) {

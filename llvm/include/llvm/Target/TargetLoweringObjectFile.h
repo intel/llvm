@@ -20,6 +20,7 @@
 
 namespace llvm {
 
+struct Align;
 class Constant;
 class DataLayout;
 class Function;
@@ -221,7 +222,7 @@ public:
   }
 
   /// Returns the register used as static base in RWPI variants.
-  virtual const MCRegister getStaticBase() const { return MCRegister::NoRegister; }
+  virtual MCRegister getStaticBase() const { return MCRegister::NoRegister; }
 
   /// Get the target specific RWPI relocation.
   virtual const MCExpr *getIndirectSymViaRWPI(const MCSymbol *Sym) const {
@@ -276,7 +277,7 @@ public:
   }
 
   /// If supported, return the function entry point symbol.
-  /// Otherwise, returns nulltpr.
+  /// Otherwise, returns nullptr.
   /// Func must be a function or an alias which has a function as base object.
   virtual MCSymbol *getFunctionEntryPointSymbol(const GlobalValue *Func,
                                                 const TargetMachine &TM) const {

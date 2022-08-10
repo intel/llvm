@@ -11,9 +11,9 @@
 #define __SYCL_INTERNAL_API
 #endif
 
-#include <CL/sycl.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -33,6 +33,7 @@ template <> struct KernelInfo<TestKernel> {
   static constexpr bool isESIMD() { return true; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -221,12 +222,12 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
@@ -243,15 +244,14 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev});
   auto ExecBundle = sycl::build(KernelBundle);
-  EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen");
+  EXPECT_EQ(BuildOpts,
+            "-compile-img -vc-codegen -disable-finalizer-msg -link-img");
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
-  // TODO: uncomment when image options are passed to BE
-  // EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen");
+  EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen -disable-finalizer-msg");
 
   auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
-  // TODO: uncomment when image options are passed to BE
-  // EXPECT_EQ(BuildOpts, "-link-img -vc-codegen");
+  EXPECT_EQ(BuildOpts, "-link-img");
 }
 
 TEST(KernelBuildOptions, Program) {
@@ -261,12 +261,12 @@ TEST(KernelBuildOptions, Program) {
     return; // test is not supported on host.
   }
 
-  if (Plt.get_backend() == sycl::backend::cuda) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
   }
 
-  if (Plt.get_backend() == sycl::backend::hip) {
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }

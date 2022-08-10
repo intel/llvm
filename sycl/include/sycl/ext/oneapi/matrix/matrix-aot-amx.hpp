@@ -1,4 +1,4 @@
-//===-------------- matrix-amx.hpp - SYCL matrix --------------*- C++ -*---===//
+//===------------ matrix-aot-amx.hpp - SYCL matrix ------------*- C++ -*---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -32,8 +32,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/defines_elementary.hpp>
 #include <immintrin.h>
+#include <sycl/detail/defines_elementary.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

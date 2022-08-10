@@ -12,13 +12,16 @@ from lldbsuite.test import lldbutil
 
 class AArch64LinuxMTEMemoryTagAccessTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     NO_DEBUG_INFO_TESTCASE = True
 
     def setup_mte_test(self):
         if not self.isAArch64MTE():
             self.skipTest('Target must support MTE.')
+
+        # Required to check that commands remove non-address bits
+        # other than the memory tags.
+        if not self.isAArch64PAuth():
+            self.skipTest('Target must support pointer authentication')
 
         self.build()
         self.runCmd("file " + self.getBuildArtifact("a.out"), CURRENT_EXECUTABLE_SET)
@@ -106,11 +109,11 @@ class AArch64LinuxMTEMemoryTagAccessTestCase(TestBase):
 
         # Ranges with any part outside the region will error
         self.expect("memory tag read mte_buf_2+page_size-16 mte_buf_2+page_size+32",
-                patterns=["error: Address range 0x[0-9A-fa-f]+f0:0x[0-9A-Fa-f]+20 "
+                patterns=["error: Address range 0x[0-9A-Fa-f]+f0:0x[0-9A-Fa-f]+20 "
                           "is not in a memory tagged region"],
                 error=True)
         self.expect("memory tag read mte_buf_2+page_size",
-                patterns=["error: Address range 0x[0-9A-fa-f]+00:0x[0-9A-Fa-f]+10 "
+                patterns=["error: Address range 0x[0-9A-Fa-f]+00:0x[0-9A-Fa-f]+10 "
                           "is not in a memory tagged region"],
                 error=True)
 
@@ -122,10 +125,11 @@ class AArch64LinuxMTEMemoryTagAccessTestCase(TestBase):
                           "\[0x[0-9A-Fa-f]+f0, 0x[0-9A-Fa-f]+00\): 0xf \(mismatch\)\n"
                           "\[0x[0-9A-Fa-f]+00, 0x[0-9A-Fa-f]+10\): 0x0 \(mismatch\)$"])
 
-        # Tags in start/end are ignored when creating the range.
-        # So this is not an error despite start/end having different tags
-        self.expect("memory tag read mte_buf mte_buf_alt_tag+16",
-                patterns=["Logical tag: 0x9\n"
+        # Top byte is ignored when creating the range, not just the 4 tag bits.
+        # So even though these two pointers have different top bytes
+        # and the start's is > the end's, this is not an error.
+        self.expect("memory tag read mte_buf_alt_tag mte_buf+16",
+                patterns=["Logical tag: 0xa\n"
                           "Allocation tags:\n"
                           "\[0x[0-9A-Fa-f]+00, 0x[0-9A-Fa-f]+10\): 0x0 \(mismatch\)$"])
 
@@ -191,15 +195,15 @@ class AArch64LinuxMTEMemoryTagAccessTestCase(TestBase):
 
         # Ranges with any part outside the region will error
         self.expect("memory tag write mte_buf_2+page_size-16 6 7",
-                patterns=["error: Address range 0x[0-9A-fa-f]+f0:0x[0-9A-Fa-f]+10 "
+                patterns=["error: Address range 0x[0-9A-Fa-f]+f0:0x[0-9A-Fa-f]+10 "
                           "is not in a memory tagged region"],
                 error=True)
         self.expect("memory tag write mte_buf_2+page_size 6",
-                patterns=["error: Address range 0x[0-9A-fa-f]+00:0x[0-9A-Fa-f]+10 "
+                patterns=["error: Address range 0x[0-9A-Fa-f]+00:0x[0-9A-Fa-f]+10 "
                           "is not in a memory tagged region"],
                 error=True)
         self.expect("memory tag write mte_buf_2+page_size 6 7 8",
-                patterns=["error: Address range 0x[0-9A-fa-f]+00:0x[0-9A-Fa-f]+30 "
+                patterns=["error: Address range 0x[0-9A-Fa-f]+00:0x[0-9A-Fa-f]+30 "
                           "is not in a memory tagged region"],
                 error=True)
 
@@ -242,7 +246,7 @@ class AArch64LinuxMTEMemoryTagAccessTestCase(TestBase):
                           "greater than the start address \(0x[A-Fa-f0-9]+\)"],
                 error=True)
         self.expect("memory tag write mte_buf_2 9 --end-addr mte_buf_2+page_size+16",
-                patterns=["error: Address range 0x[0-9A-fa-f]+00:0x[0-9A-Fa-f]+10 "
+                patterns=["error: Address range 0x[0-9A-Fa-f]+00:0x[0-9A-Fa-f]+10 "
                           "is not in a memory tagged region"],
                 error=True)
 
@@ -280,3 +284,189 @@ class AArch64LinuxMTEMemoryTagAccessTestCase(TestBase):
                           "\[0x[0-9A-Fa-f]+10, 0x[0-9A-Fa-f]+20\): 0x3 \(mismatch\)\n"
                           "\[0x[0-9A-Fa-f]+20, 0x[0-9A-Fa-f]+30\): 0x3 \(mismatch\)\n"
                           "\[0x[0-9A-Fa-f]+30, 0x[0-9A-Fa-f]+40\): 0x0$"])
+
+    @skipUnlessArch("aarch64")
+    @skipUnlessPlatform(["linux"])
+    @skipUnlessAArch64MTELinuxCompiler
+    def test_mte_memory_read_tag_display(self):
+        self.setup_mte_test()
+
+        # Reading from an untagged range should not be any different
+        self.expect("memory read non_mte_buf non_mte_buf+16",
+                substrs=["tag"], matching=False)
+
+        # show-tags option is required
+        self.expect("memory read mte_buf mte_buf+32 -f \"x\" -l 1 -s 16",
+                patterns=["tag"], matching=False)
+
+        # Reading 16 bytes per line means 1 granule and so 1 tag per line
+        self.expect("memory read mte_buf mte_buf+32 -f \"x\" -l 1 -s 16 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+00: 0x0+ \(tag: 0x0\)\n"
+                    "0x[0-9A-Fa-f]+10: 0x0+ \(tag: 0x1\)"
+                    ])
+
+        # If bytes per line is > granule size then you get multiple tags
+        # per line.
+        self.expect("memory read mte_buf mte_buf+32 -f \"x\" -l 1 -s 32 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+00: 0x0+ \(tags: 0x0 0x1\)\n"
+                    ])
+
+        # Reading half a granule still shows you the tag for that granule
+        self.expect("memory read mte_buf mte_buf+8 -f \"x\" -l 1 -s 8 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+00: 0x0+ \(tag: 0x0\)\n"
+                    ])
+
+        # We can read a whole number of granules but split them over more lines
+        # than there are granules. Tags are shown repeated for each applicable line.
+        self.expect("memory read mte_buf+32 mte_buf+64 -f \"x\" -l 1 -s 8 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+20: 0x0+ \(tag: 0x2\)\n"
+                    "0x[0-9A-Fa-f]+28: 0x0+ \(tag: 0x2\)\n"
+                    "0x[0-9A-Fa-f]+30: 0x0+ \(tag: 0x3\)\n"
+                    "0x[0-9A-Fa-f]+38: 0x0+ \(tag: 0x3\)"
+                    ])
+
+        # Also works if we misalign the start address. Note the first tag is shown
+        # only once here and we have a new tag on the last line.
+        # (bytes per line == the misalignment here)
+        self.expect("memory read mte_buf+32+8 mte_buf+64+8 -f \"x\" -l 1 -s 8 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+28: 0x0+ \(tag: 0x2\)\n"
+                    "0x[0-9A-Fa-f]+30: 0x0+ \(tag: 0x3\)\n"
+                    "0x[0-9A-Fa-f]+38: 0x0+ \(tag: 0x3\)\n"
+                    "0x[0-9A-Fa-f]+40: 0x0+ \(tag: 0x4\)"
+                    ])
+
+        # We can do the same thing but where the misaligment isn't equal to
+        # bytes per line. This time, some lines cover multiple granules and
+        # so show multiple tags.
+        self.expect("memory read mte_buf+32+4 mte_buf+64+4 -f \"x\" -l 1 -s 8 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+24: 0x0+ \(tag: 0x2\)\n"
+                    "0x[0-9A-Fa-f]+2c: 0x0+ \(tags: 0x2 0x3\)\n"
+                    "0x[0-9A-Fa-f]+34: 0x0+ \(tag: 0x3\)\n"
+                    "0x[0-9A-Fa-f]+3c: 0x0+ \(tags: 0x3 0x4\)"
+                    ])
+
+        # If you read a range that includes non tagged areas those areas
+        # simply aren't annotated.
+
+        # Initial part of range is untagged
+        self.expect("memory read mte_buf-16 mte_buf+32 -f \"x\" -l 1 -s 16 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+f0: 0x0+\n"
+                    "0x[0-9A-Fa-f]+00: 0x0+ \(tag: 0x0\)\n"
+                    "0x[0-9A-Fa-f]+10: 0x0+ \(tag: 0x1\)"
+                    ])
+
+        # End of range is untagged
+        self.expect("memory read mte_buf+page_size-16 mte_buf+page_size+16 -f \"x\" -l 1 -s 16 --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+f0: 0x0+ \(tag: 0xf\)\n"
+                    "0x[0-9A-Fa-f]+00: 0x0+"
+                    ])
+
+        # The smallest MTE range we can get is a single page so we just check
+        # parts of this result. Where we read from before the tagged page to after it.
+        # Add --force here because we're reading just over 4k.
+        self.expect(
+                "memory read mte_read_only-16 mte_read_only+page_size+16 -f \"x\" -l 1 -s 16 --force --show-tags",
+                patterns=[
+                    "0x[0-9A-Fa-f]+f0: 0x0+\n"
+                    "0x[0-9A-Fa-f]+00: 0x0+ \(tag: 0x0\)\n",
+                    "0x[0-9A-Fa-f]+f0: 0x0+ \(tag: 0x0\)\n"
+                    "0x[0-9A-Fa-f]+00: 0x0+"
+                    ])
+
+        # Some parts of a line might be tagged and others untagged.
+        # <no tag> is shown in where the tag would be, to keep the order intact.
+        self.expect("memory read mte_buf-16 mte_buf+32 -f \"x\" -l 1 -s 32 --show-tags",
+                patterns=["0x[0-9A-Fa-f]+f0: 0x0+ \(tags: <no tag> 0x0\)"])
+        self.expect(
+                "memory read mte_read_only+page_size-16 mte_read_only+page_size+16 -f \"x\" -l 1 -s 32  --show-tags",
+                patterns=["0x[0-9A-Fa-f]+f0: 0x0+ \(tags: 0x0 <no tag>\)"])
+
+        # Here the start address is unaligned so we cover 3 granules instead of 2
+        self.expect("memory read mte_buf-16+4 mte_buf+32+4 -f \"x\" -l 1 -s 32 --show-tags",
+                patterns=["0x[0-9A-Fa-f]+f4: 0x0+ \(tags: <no tag> 0x0 0x1\)"])
+        self.expect(
+                "memory read mte_read_only+page_size-16+4 mte_read_only+page_size+16+4 -f \"x\" -l 1 -s 32 --show-tags",
+                patterns=["0x[0-9A-Fa-f]+f4: 0x0+ \(tags: 0x0 <no tag> <no tag>\)"])
+
+        # Some formats call DumpDataExtractor multiple times,
+        # check that those print tags only once per line.
+        self.expect("memory read mte_buf mte_buf+32 -f \"x\" --show-tags",
+                patterns=["0x[0-9A-Fa-f]+00: 0x0+ 0x0+ 0x0+ 0x0+ \(tag: 0x0\)\n",
+                          "0x[0-9A-Fa-f]+10: 0x0+ 0x0+ 0x0+ 0x0+ \(tag: 0x1\)"])
+
+        self.expect("memory read mte_buf mte_buf+32 -f \"bytes with ASCII\" --show-tags",
+                patterns=["0x[0-9A-Fa-f]+00: (00 ){16} \.{16} \(tag: 0x0\)\n",
+                          "0x[0-9A-Fa-f]+10: (00 ){16} \.{16} \(tag: 0x1\)"])
+
+        self.expect("memory read mte_buf mte_buf+32 -f \"uint8_t[]\" -s 16 -l 1 --show-tags",
+                patterns=["0x[0-9A-Fa-f]+00: \{(0x00 ){15}0x00\} \(tag: 0x0\)\n"
+                          "0x[0-9A-Fa-f]+10: \{(0x00 ){15}0x00\} \(tag: 0x1\)"])
+
+    @skipUnlessArch("aarch64")
+    @skipUnlessPlatform(["linux"])
+    @skipUnlessAArch64MTELinuxCompiler
+    def test_mte_memory_read_tag_display_repeated(self):
+        """Test that the --show-tags option is kept when repeating the memory read command."""
+        self.setup_mte_test()
+
+        self.expect("memory read mte_buf mte_buf+16 -f \"x\" --show-tags",
+                    patterns=["0x[0-9A-fa-f]+00: 0x0+ 0x0+ 0x0+ 0x0+ \(tag: 0x0\)"])
+        # Equivalent to just pressing enter on the command line.
+        self.expect("memory read",
+                    patterns=["0x[0-9A-fa-f]+10: 0x0+ 0x0+ 0x0+ 0x0+ \(tag: 0x1\)"])
+
+        # You can add the argument to an existing repetition without resetting
+        # the whole command. Though all other optional arguments will reset to
+        # their default values when you do this.
+        self.expect("memory read mte_buf mte_buf+16 -f \"x\"",
+                    patterns=["0x[0-9A-fa-f]+00: 0x0+ 0x0+ 0x0+ 0x0+"])
+        self.expect("memory read",
+                    patterns=["0x[0-9A-fa-f]+10: 0x0+ 0x0+ 0x0+ 0x0+"])
+        # Note that the formatting returns to default here.
+        self.expect("memory read --show-tags",
+                    patterns=["0x[0-9A-fa-f]+20: (00 )+ \.+ \(tag: 0x2\)"])
+        self.expect("memory read",
+                    patterns=["0x[0-9A-fa-f]+30: (00 )+ \.+ \(tag: 0x3\)"])
+
+        # A fresh command reverts to the default of tags being off.
+        self.expect("memory read mte_buf mte_buf+16 -f \"x\"",
+                    patterns=["0x[0-9A-fa-f]+00: 0x0+ 0x0+ 0x0+ 0x0+"])
+
+    @skipUnlessArch("aarch64")
+    @skipUnlessPlatform(["linux"])
+    @skipUnlessAArch64MTELinuxCompiler
+    def test_mte_memory_find(self):
+        """Test the --show-tags option with memory find."""
+        self.setup_mte_test()
+
+        # No result, nothing changes.
+        self.expect("memory find -s \"foo\" mte_buf mte_buf+32 --show-tags",
+            substrs=["data not found within the range."])
+
+        cmd = "memory find -s \"LLDB\" mte_buf+64 mte_buf+512"
+        found_pattern = "data found at location: 0x[0-9A-Fa-f]+80"
+        results_patterns = [
+            "0x[0-9A-Fa-f]+80: 4c 4c 44 42 (00 )+ LLDB\.+",
+            "0x[0-9A-Fa-f]+90: 00 00 00 00 (00 )+ \.+"
+        ]
+
+        # Default is not to show tags
+        self.expect(cmd, patterns=[found_pattern, *results_patterns])
+        self.expect(cmd + " --show-tags", patterns=[found_pattern,
+                    results_patterns[0] + " \(tag: 0x8\)",
+                    results_patterns[1] + " \(tag: 0x9\)"])
+
+        # Uses the same logic as memory read to handle misalignment.
+        self.expect("memory find -s \"DB\" mte_buf+64 mte_buf+512 --show-tags",
+            patterns=[
+                "data found at location: 0x[0-9A-Fa-f]+82\n"
+                "0x[0-9A-Fa-f]+82: 44 42 (00 )+ DB\.+ \(tags: 0x8 0x9\)\n",
+                "0x[0-9A-Fa-f]+92: 00 00 (00 )+ ..\.+ \(tags: 0x9 0xa\)"])

@@ -11,10 +11,16 @@
 
 #include "Types.h"
 
-#pragma omp declare target
+#include "Debug.h"
+
+#pragma omp begin declare target device_type(nohost)
 
 namespace _OMP {
 namespace impl {
+
+double getWTick();
+
+double getWTime();
 
 /// AMDGCN Implementation
 ///
@@ -46,7 +52,7 @@ double getWTick() {
 
 double getWTime() {
   unsigned long long nsecs;
-  asm("mov.u64  %0, %%globaltimer;" : "=l"(nsecs));
+  asm volatile("mov.u64  %0, %%globaltimer;" : "=l"(nsecs));
   return (double)nsecs * getWTick();
 }
 
@@ -60,9 +66,15 @@ double getWTime() {
 ///{
 
 extern "C" {
-int32_t __kmpc_cancellationpoint(IdentTy *, int32_t, int32_t) { return 0; }
+int32_t __kmpc_cancellationpoint(IdentTy *, int32_t, int32_t) {
+  FunctionTracingRAII();
+  return 0;
+}
 
-int32_t __kmpc_cancel(IdentTy *, int32_t, int32_t) { return 0; }
+int32_t __kmpc_cancel(IdentTy *, int32_t, int32_t) {
+  FunctionTracingRAII();
+  return 0;
+}
 
 double omp_get_wtick(void) { return _OMP::impl::getWTick(); }
 

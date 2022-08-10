@@ -287,7 +287,6 @@ def SDTX86CmpPTest : SDTypeProfile<1, 2, [SDTCisVT<0, i32>,
                                           SDTCisSameAs<2, 1>]>;
 
 def X86mulhrs  : SDNode<"X86ISD::MULHRS", SDTIntBinOp, [SDNPCommutative]>;
-def X86avg     : SDNode<"X86ISD::AVG" , SDTIntBinOp, [SDNPCommutative]>;
 def X86ptest   : SDNode<"X86ISD::PTEST", SDTX86CmpPTest>;
 def X86testp   : SDNode<"X86ISD::TESTP", SDTX86CmpPTest>;
 def X86kortest : SDNode<"X86ISD::KORTEST", SDTX86CmpPTest>;
@@ -1056,6 +1055,12 @@ def EXTRACT_get_vextract128_imm : SDNodeXForm<extract_subvector, [{
 // VINSERTF128/VINSERTI128 imm.
 def INSERT_get_vinsert128_imm : SDNodeXForm<insert_subvector, [{
   return getInsertVINSERTImmediate(N, 128, SDLoc(N));
+}]>;
+
+// INSERT_get_vperm2x128_imm xform function: convert insert_subvector index to
+// commuted VPERM2F128/VPERM2I128 imm.
+def INSERT_get_vperm2x128_commutedimm : SDNodeXForm<insert_subvector, [{
+  return getPermuteVINSERTCommutedImmediate(N, 128, SDLoc(N));
 }]>;
 
 // EXTRACT_get_vextract256_imm xform function: convert extract_subvector index

@@ -64,6 +64,10 @@ def SPV_CompositeConstructOp : SPV_Op<"CompositeConstruct", [NoSideEffect]> {
   let results = (outs
     SPV_Composite:$result
   );
+
+  let assemblyFormat = [{
+    $constituents attr-dict `:` `(` type(operands) `)` `->` type($result)
+  }];
 }
 
 // -----
@@ -210,10 +214,10 @@ def SPV_VectorExtractDynamicOp : SPV_Op<"VectorExtractDynamic", [
     SPV_Scalar:$result
   );
 
-  let verifier = [{ return success(); }];
-  
+  let hasVerifier = 0;
+
   let assemblyFormat = [{
-    $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index) 
+    $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index)
   }];
 }
 
@@ -249,7 +253,7 @@ def SPV_VectorInsertDynamicOp : SPV_Op<"VectorInsertDynamic", [
     <!-- End of AutoGen section -->
 
     ```
-    scalar-type ::= integer-type | float-type | boolean-type 
+    scalar-type ::= integer-type | float-type | boolean-type
     vector-insert-dynamic-op ::= `spv.VectorInsertDynamic ` ssa-use `,`
                                   ssa-use `[` ssa-use `]`
                                   `:` `vector<` integer-literal `x` scalar-type `>` `,`
@@ -274,10 +278,10 @@ def SPV_VectorInsertDynamicOp : SPV_Op<"VectorInsertDynamic", [
     SPV_Vector:$result
   );
 
-  let verifier = [{ return success(); }];
-  
+  let hasVerifier = 0;
+
   let assemblyFormat = [{
-    $component `,` $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index) 
+    $component `,` $vector `[` $index `]` attr-dict `:` type($vector) `,` type($index)
   }];
 }
 

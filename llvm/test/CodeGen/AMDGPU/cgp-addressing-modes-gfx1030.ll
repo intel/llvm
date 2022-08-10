@@ -8,19 +8,19 @@
 define amdgpu_kernel void @test_sink_small_offset_global_atomic_csub_i32(i32 addrspace(1)* %out, i32 addrspace(1)* %in) {
 ; OPT-LABEL: @test_sink_small_offset_global_atomic_csub_i32(
 ; OPT-NEXT:  entry:
-; OPT-NEXT:    [[OUT_GEP:%.*]] = getelementptr i32, i32 addrspace(1)* [[OUT:%.*]], i32 999999
-; OPT-NEXT:    [[TID:%.*]] = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0) #3
+; OPT-NEXT:    [[TID:%.*]] = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0) #[[ATTR3:[0-9]+]]
 ; OPT-NEXT:    [[CMP:%.*]] = icmp eq i32 [[TID]], 0
 ; OPT-NEXT:    br i1 [[CMP]], label [[ENDIF:%.*]], label [[IF:%.*]]
 ; OPT:       if:
-; OPT-NEXT:    [[TMP0:%.*]] = bitcast i32 addrspace(1)* [[IN:%.*]] to i8 addrspace(1)*
-; OPT-NEXT:    [[SUNKADDR:%.*]] = getelementptr i8, i8 addrspace(1)* [[TMP0]], i64 28
-; OPT-NEXT:    [[TMP1:%.*]] = bitcast i8 addrspace(1)* [[SUNKADDR]] to i32 addrspace(1)*
-; OPT-NEXT:    [[VAL:%.*]] = call i32 @llvm.amdgcn.global.atomic.csub.p1i32(i32 addrspace(1)* [[TMP1]], i32 2)
+; OPT-NEXT:    [[IN_GEP:%.*]] = getelementptr i32, i32 addrspace(1)* [[IN:%.*]], i32 7
+; OPT-NEXT:    [[VAL:%.*]] = call i32 @llvm.amdgcn.global.atomic.csub.p1i32(i32 addrspace(1)* [[IN_GEP]], i32 2)
 ; OPT-NEXT:    br label [[ENDIF]]
 ; OPT:       endif:
 ; OPT-NEXT:    [[X:%.*]] = phi i32 [ [[VAL]], [[IF]] ], [ 0, [[ENTRY:%.*]] ]
+; OPT-NEXT:    [[OUT_GEP:%.*]] = getelementptr i32, i32 addrspace(1)* [[OUT:%.*]], i32 999999
 ; OPT-NEXT:    store i32 [[X]], i32 addrspace(1)* [[OUT_GEP]], align 4
+; OPT-NEXT:    br label [[DONE:%.*]]
+; OPT:       done:
 ; OPT-NEXT:    ret void
 ;
 ; GCN-LABEL: test_sink_small_offset_global_atomic_csub_i32:
@@ -30,31 +30,31 @@ define amdgpu_kernel void @test_sink_small_offset_global_atomic_csub_i32(i32 add
 ; GCN-NEXT:    v_cmp_ne_u32_e32 vcc_lo, 0, v0
 ; GCN-NEXT:    v_mov_b32_e32 v0, 0
 ; GCN-NEXT:    s_and_saveexec_b32 s4, vcc_lo
-; GCN-NEXT:    s_cbranch_execz BB0_2
+; GCN-NEXT:    s_cbranch_execz .LBB0_2
 ; GCN-NEXT:  ; %bb.1: ; %if
 ; GCN-NEXT:    v_mov_b32_e32 v0, 0
 ; GCN-NEXT:    v_mov_b32_e32 v1, 2
 ; GCN-NEXT:    s_waitcnt lgkmcnt(0)
 ; GCN-NEXT:    global_atomic_csub v0, v0, v1, s[2:3] offset:28 glc
-; GCN-NEXT:  BB0_2: ; %endif
+; GCN-NEXT:  .LBB0_2: ; %endif
 ; GCN-NEXT:    s_or_b32 exec_lo, exec_lo, s4
 ; GCN-NEXT:    v_mov_b32_e32 v1, 0x3d0800
 ; GCN-NEXT:    s_waitcnt vmcnt(0) lgkmcnt(0)
 ; GCN-NEXT:    global_store_dword v1, v0, s[0:1] offset:252
 ; GCN-NEXT:    s_endpgm
 entry:
-  %out.gep = getelementptr i32, i32 addrspace(1)* %out, i32 999999
-  %in.gep = getelementptr i32, i32 addrspace(1)* %in, i32 7
   %tid = call i32 @llvm.amdgcn.mbcnt.lo(i32 -1, i32 0) #0
   %cmp = icmp eq i32 %tid, 0
   br i1 %cmp, label %endif, label %if
 
 if:
+  %in.gep = getelementptr i32, i32 addrspace(1)* %in, i32 7
   %val = call i32 @llvm.amdgcn.global.atomic.csub.p1i32(i32 addrspace(1)* %in.gep, i32 2)
   br label %endif
 
 endif:
   %x = phi i32 [ %val, %if ], [ 0, %entry ]
+  %out.gep = getelementptr i32, i32 addrspace(1)* %out, i32 999999
   store i32 %x, i32 addrspace(1)* %out.gep
   br label %done
 

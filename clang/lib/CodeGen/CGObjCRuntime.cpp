@@ -106,7 +106,7 @@ LValue CGObjCRuntime::EmitValueForIvarAtOffset(CodeGen::CodeGenFunction &CGF,
                              CGF.CGM.getContext().toBits(StorageSize),
                              CharUnits::fromQuantity(0)));
 
-  Address Addr(V, Alignment);
+  Address Addr = Address(V, CGF.Int8Ty, Alignment);
   Addr = CGF.Builder.CreateElementBitCast(Addr,
                                    llvm::Type::getIntNTy(CGF.getLLVMContext(),
                                                          Info->StorageSize));
@@ -163,8 +163,7 @@ void CGObjCRuntime::EmitTryCatchStmt(CodeGenFunction &CGF,
 
   // Enter the catch, if there is one.
   if (S.getNumCatchStmts()) {
-    for (unsigned I = 0, N = S.getNumCatchStmts(); I != N; ++I) {
-      const ObjCAtCatchStmt *CatchStmt = S.getCatchStmt(I);
+    for (const ObjCAtCatchStmt *CatchStmt : S.catch_stmts()) {
       const VarDecl *CatchDecl = CatchStmt->getCatchParamDecl();
 
       Handlers.push_back(CatchHandler());

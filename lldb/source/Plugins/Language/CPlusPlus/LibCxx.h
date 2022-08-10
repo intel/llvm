@@ -34,6 +34,22 @@ bool LibcxxWStringSummaryProvider(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &options); // libc++ std::wstring
 
+bool LibcxxStringViewSummaryProviderASCII(
+    ValueObject &valueObj, Stream &stream,
+    const TypeSummaryOptions &summary_options); // libc++ std::string_view
+
+bool LibcxxStringViewSummaryProviderUTF16(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &summary_options); // libc++ std::u16string_view
+
+bool LibcxxStringViewSummaryProviderUTF32(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &summary_options); // libc++ std::u32string_view
+
+bool LibcxxWStringViewSummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &options); // libc++ std::wstring_view
+
 bool LibcxxOptionalSummaryProvider(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &options); // libc++ std::optional<>
@@ -57,6 +73,10 @@ LibcxxVectorBoolSyntheticFrontEndCreator(CXXSyntheticChildren *,
 
 bool LibcxxContainerSummaryProvider(ValueObject &valobj, Stream &stream,
                                     const TypeSummaryOptions &options);
+
+/// Formatter for libc++ std::span<>.
+bool LibcxxSpanSummaryProvider(ValueObject &valobj, Stream &stream,
+                               const TypeSummaryOptions &options);
 
 class LibCxxMapIteratorSyntheticFrontEnd : public SyntheticChildrenFrontEnd {
 public:
@@ -82,6 +102,56 @@ private:
 SyntheticChildrenFrontEnd *
 LibCxxMapIteratorSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                           lldb::ValueObjectSP);
+
+/// Formats libcxx's std::unordered_map iterators
+///
+/// In raw form a std::unordered_map::iterator is represented as follows:
+///
+/// (lldb) var it --raw --ptr-depth 1
+/// (std::__1::__hash_map_iterator<
+///    std::__1::__hash_iterator<
+///      std::__1::__hash_node<
+///        std::__1::__hash_value_type<
+///            std::__1::basic_string<char, std::__1::char_traits<char>,
+///            std::__1::allocator<char> >, std::__1::basic_string<char,
+///            std::__1::char_traits<char>, std::__1::allocator<char> > >,
+///        void *> *> >)
+///  it = {
+///   __i_ = {
+///     __node_ = 0x0000600001700040 {
+///       __next_ = 0x0000600001704000
+///     }
+///   }
+/// }
+class LibCxxUnorderedMapIteratorSyntheticFrontEnd
+    : public SyntheticChildrenFrontEnd {
+public:
+  LibCxxUnorderedMapIteratorSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp);
+
+  ~LibCxxUnorderedMapIteratorSyntheticFrontEnd() override = default;
+
+  size_t CalculateNumChildren() override;
+
+  lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
+
+  bool Update() override;
+
+  bool MightHaveChildren() override;
+
+  size_t GetIndexOfChildWithName(ConstString name) override;
+
+private:
+  ValueObject *m_iter_ptr = nullptr; ///< Held, not owned. Child of iterator
+                                     ///< ValueObject supplied at construction.
+
+  lldb::ValueObjectSP m_pair_sp; ///< ValueObject for the key/value pair
+                                 ///< that the iterator currently points
+                                 ///< to.
+};
+
+SyntheticChildrenFrontEnd *
+LibCxxUnorderedMapIteratorSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                                   lldb::ValueObjectSP);
 
 SyntheticChildrenFrontEnd *
 LibCxxVectorIteratorSyntheticFrontEndCreator(CXXSyntheticChildren *,
@@ -170,12 +240,16 @@ SyntheticChildrenFrontEnd *LibcxxTupleFrontEndCreator(CXXSyntheticChildren *,
                                                       lldb::ValueObjectSP);
 
 SyntheticChildrenFrontEnd *
-LibcxxOptionalFrontEndCreator(CXXSyntheticChildren *,
-                              lldb::ValueObjectSP valobj_sp);
+LibcxxOptionalSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                       lldb::ValueObjectSP valobj_sp);
 
 SyntheticChildrenFrontEnd *
 LibcxxVariantFrontEndCreator(CXXSyntheticChildren *,
                              lldb::ValueObjectSP valobj_sp);
+
+SyntheticChildrenFrontEnd *
+LibcxxStdSpanSyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                      lldb::ValueObjectSP);
 
 } // namespace formatters
 } // namespace lldb_private
