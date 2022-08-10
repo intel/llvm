@@ -78,6 +78,14 @@ struct joint_matrix {
 }
 ```
 
+#### `joint_matrix` precision types
+
+For data types `b1` (CUDA backend only) and `tf32` the number of bits required for the correct precision of each element of the matrix is lower than the size of the storage type of the matrix.
+For such cases it is necessary to instantiate a `joint_matrix` using the correct precision type, e.g.
+
+```c++
+joint_matrix<sycl::ext::oneapi::experimental::matrix::precision::b1, tM, tN> tA(sg);
+```
 
 #### Memory Scope
 In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
@@ -331,7 +339,7 @@ IMPORTANT: The WI data to joint matrix mapping coordinates information is not im
 
 ##### `wi_data` as an `marray` in the Nvidia® Tensor Cores backend
 
-In the Nvidia® Tensor Cores backend it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables Class 1 operations to be performed on the `joint_matrix` without requiring a loop. In addition some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the `joint_matrix` context is given in the following code snippet:
+In the Nvidia® Tensor Cores backend it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member, `joint_matrix.wi_marray`, to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables Class 1 operations to be performed on the `joint_matrix` without requiring a loop. In addition some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the `joint_matrix` context is given in the following code snippet:
 
 ```c++
 joint_matrix<T, matrix_use::a, M, K> sub_a;
@@ -343,6 +351,8 @@ joint_matrix_fill(sg, sub_b, -1);
 joint_matrix_fill(sg, sub_c, -1);
 sub_d.wi_marray = fma(sub_a.wi_marray, sub_b.wi_marray, sub_c.wi_marray);
 ```
+
+IMPORTANT: `wi_marray` is not available for `precision::b1`.
 
 ## VNNI/Packed Layout
 Intel AMX and DPAS compute assumes register for B tile (src1) to be in VNNI format as they need 32bit of K-data in A and B to be contiguous in memory.
