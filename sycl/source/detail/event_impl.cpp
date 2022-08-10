@@ -356,7 +356,7 @@ event_impl::get_info<info::event::command_execution_status>() {
         this->getHandleRef(), this->getPlugin());
   }
   if (MHostEvent && MState.load() == HES_Complete)
-	  return info::event_command_status::complete;
+    return info::event_command_status::complete;
   return sycl::info::event_command_status::submitted;
 }
 
