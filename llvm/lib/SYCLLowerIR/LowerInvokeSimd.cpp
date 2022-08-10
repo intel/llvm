@@ -493,7 +493,6 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M,
       F->eraseFromParent();
     }
   }
-  verifyModule(M, &llvm::errs());
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 } // namespace llvm
