@@ -79,7 +79,7 @@
 // HIPTHINLTO-NOT: "-cc1"{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-flto-unit"
 // HIPTHINLTO: "-cc1"{{.*}} "-triple" "amdgcn-amd-amdhsa" {{.*}} "-flto=thin" "-flto-unit" {{.*}} "-fwhole-program-vtables"
 // HIPTHINLTO-NOT: "-cc1"{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-flto-unit"
-// HIPTHINLTO: lld{{.*}}"-plugin-opt=mcpu=gfx906" "-plugin-opt=thinlto" "-plugin-opt=-force-import-all"
+// HIPTHINLTO: lld{{.*}}"-plugin-opt=mcpu=gfx906"{{.*}}"-plugin-opt=thinlto"{{.*}}"-plugin-opt=-force-import-all"
 
 // Check that -flto=thin is handled correctly, particularly with -fwhole-program-vtables.
 //
@@ -106,3 +106,23 @@
 // RUN:   --offload-arch=gfx906 -fopenmp -fopenmp-targets=amdgcn %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=OMPTGT %s
 // OMPTGT: unsupported option '-fopenmp-targets=' for language mode 'HIP'
+
+// Check -Xoffload-linker option is passed to lld.
+
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -nogpuinc -nogpulib \
+// RUN:   --cuda-gpu-arch=gfx906 -fgpu-rdc -Xoffload-linker --build-id=md5 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=OFL-LINK %s
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -nogpuinc -nogpulib \
+// RUN:   --cuda-gpu-arch=gfx906 -Xoffload-linker --build-id=md5 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=OFL-LINK %s
+// OFL-LINK: lld{{.*}}"--build-id=md5"
+
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -nogpuinc -nogpulib \
+// RUN:   --offload-arch=gfx906 -fhip-kernel-arg-name %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=KAN %s
+// KAN: "-cc1"{{.*}} "-triple" "amdgcn-amd-amdhsa" {{.*}} "-fhip-kernel-arg-name"
+
+// RUN: %clang -### --target=x86_64-unknown-linux-gnu -nogpuinc -nogpulib \
+// RUN:   --offload-arch=gfx906 %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=KANNEG %s
+// KANNEG-NOT: "-fhip-kernel-arg-name"

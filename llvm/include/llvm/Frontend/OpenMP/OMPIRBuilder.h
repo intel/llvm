@@ -599,9 +599,9 @@ public:
 
   /// Add metadata to simd-ize a loop.
   ///
-  /// \param DL   Debug location for instructions added by unrolling.
-  /// \param Loop The loop to simd-ize.
-  void applySimd(DebugLoc DL, CanonicalLoopInfo *Loop);
+  /// \param Loop    The loop to simd-ize.
+  /// \param Simdlen The Simdlen length to apply to the simd loop.
+  void applySimd(CanonicalLoopInfo *Loop, ConstantInt *Simdlen);
 
   /// Generator for '#omp flush'
   ///
@@ -617,6 +617,27 @@ public:
   ///
   /// \param Loc The location where the taskyield directive was encountered.
   void createTaskyield(const LocationDescription &Loc);
+
+  /// Generator for `#omp task`
+  ///
+  /// \param Loc The location where the task construct was encountered.
+  /// \param AllocaIP The insertion point to be used for alloca instructions.
+  /// \param BodyGenCB Callback that will generate the region code.
+  /// \param Tied True if the task is tied, false if the task is untied.
+  /// \param Final i1 value which is `true` if the task is final, `false` if the
+  ///              task is not final.
+  InsertPointTy createTask(const LocationDescription &Loc,
+                           InsertPointTy AllocaIP, BodyGenCallbackTy BodyGenCB,
+                           bool Tied = true, Value *Final = nullptr);
+
+  /// Generator for the taskgroup construct
+  ///
+  /// \param Loc The location where the taskgroup construct was encountered.
+  /// \param AllocaIP The insertion point to be used for alloca instructions.
+  /// \param BodyGenCB Callback that will generate the region code.
+  InsertPointTy createTaskgroup(const LocationDescription &Loc,
+                                InsertPointTy AllocaIP,
+                                BodyGenCallbackTy BodyGenCB);
 
   /// Functions used to generate reductions. Such functions take two Values
   /// representing LHS and RHS of the reduction, respectively, and a reference
@@ -808,6 +829,23 @@ public:
   void emitCancelationCheckImpl(Value *CancelFlag,
                                 omp::Directive CanceledDirective,
                                 FinalizeCallbackTy ExitCB = {});
+
+  /// Generate a target region entry call.
+  ///
+  /// \param Loc The location at which the request originated and is fulfilled.
+  /// \param Return Return value of the created function returned by reference.
+  /// \param DeviceID Identifier for the device via the 'device' clause.
+  /// \param NumTeams Numer of teams for the region via the 'num_teams' clause
+  ///                 or 0 if unspecified and -1 if there is no 'teams' clause.
+  /// \param NumThreads Number of threads via the 'thread_limit' clause.
+  /// \param HostPtr Pointer to the host-side pointer of the target kernel.
+  /// \param KernelArgs Array of arguments to the kernel.
+  /// \param NoWaitKernelArgs Optional array of arguments to the nowait kernel.
+  InsertPointTy emitTargetKernel(const LocationDescription &Loc, Value *&Return,
+                                 Value *Ident, Value *DeviceID, Value *NumTeams,
+                                 Value *NumThreads, Value *HostPtr,
+                                 ArrayRef<Value *> KernelArgs,
+                                 ArrayRef<Value *> NoWaitArgs = {});
 
   /// Generate a barrier runtime call.
   ///
@@ -1452,7 +1490,7 @@ public:
                       bool IsPostfixUpdate, bool IsXBinopExpr);
 
   /// Emit atomic compare for constructs: --- Only scalar data types
-  /// cond-update-atomic:
+  /// cond-expr-stmt:
   /// x = x ordop expr ? expr : x;
   /// x = expr ordop x ? expr : x;
   /// x = x == e ? d : x;
@@ -1462,9 +1500,21 @@ public:
   /// if (expr ordop x) { x = expr; }
   /// if (x == e) { x = d; }
   /// if (e == x) { x = d; } (this one is not in the spec)
+  /// conditional-update-capture-atomic:
+  /// v = x; cond-update-stmt; (IsPostfixUpdate=true, IsFailOnly=false)
+  /// cond-update-stmt; v = x; (IsPostfixUpdate=false, IsFailOnly=false)
+  /// if (x == e) { x = d; } else { v = x; } (IsPostfixUpdate=false,
+  ///                                         IsFailOnly=true)
+  /// r = x == e; if (r) { x = d; } (IsPostfixUpdate=false, IsFailOnly=false)
+  /// r = x == e; if (r) { x = d; } else { v = x; } (IsPostfixUpdate=false,
+  ///                                                IsFailOnly=true)
   ///
   /// \param Loc          The insert and source location description.
   /// \param X            The target atomic pointer to be updated.
+  /// \param V            Memory address where to store captured value (for
+  ///                     compare capture only).
+  /// \param R            Memory address where to store comparison result
+  ///                     (for compare capture with '==' only).
   /// \param E            The expected value ('e') for forms that use an
   ///                     equality comparison or an expression ('expr') for
   ///                     forms that use 'ordop' (logically an atomic maximum or
@@ -1476,13 +1526,19 @@ public:
   /// \param Op           Atomic compare operation. It can only be ==, <, or >.
   /// \param IsXBinopExpr True if the conditional statement is in the form where
   ///                     x is on LHS. It only matters for < or >.
+  /// \param IsPostfixUpdate  True if original value of 'x' must be stored in
+  ///                         'v', not an updated one (for compare capture
+  ///                         only).
+  /// \param IsFailOnly   True if the original value of 'x' is stored to 'v'
+  ///                     only when the comparison fails. This is only valid for
+  ///                     the case the comparison is '=='.
   ///
   /// \return Insertion point after generated atomic capture IR.
-  InsertPointTy createAtomicCompare(const LocationDescription &Loc,
-                                    AtomicOpValue &X, Value *E, Value *D,
-                                    AtomicOrdering AO,
-                                    omp::OMPAtomicCompareOp Op,
-                                    bool IsXBinopExpr);
+  InsertPointTy
+  createAtomicCompare(const LocationDescription &Loc, AtomicOpValue &X,
+                      AtomicOpValue &V, AtomicOpValue &R, Value *E, Value *D,
+                      AtomicOrdering AO, omp::OMPAtomicCompareOp Op,
+                      bool IsXBinopExpr, bool IsPostfixUpdate, bool IsFailOnly);
 
   /// Create the control flow structure of a canonical OpenMP loop.
   ///

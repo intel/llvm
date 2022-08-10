@@ -15,8 +15,6 @@ from lldbsuite.test import lldbutil
 
 class HelpCommandTestCase(TestBase):
 
-    mydir = TestBase.compute_mydir(__file__)
-
     @no_debug_info_test
     def test_simplehelp(self):
         """A simple test of 'help' command and its output."""
@@ -103,6 +101,13 @@ class HelpCommandTestCase(TestBase):
         # 'image' is an alias for 'target modules'.
         self.expect("help image du line", substrs=[
                     'Dump the line table for one or more compilation units'])
+
+    @no_debug_info_test
+    def test_help_image_list_shows_positional_args(self):
+        """Command 'help image list' should describe positional args."""
+        # 'image' is an alias for 'target modules'.
+        self.expect("help image list", substrs=[
+                    '<shlib-name> [...]'])
 
     @no_debug_info_test
     def test_help_target_variable_syntax(self):
@@ -262,9 +267,9 @@ class HelpCommandTestCase(TestBase):
         """Test that we put a break between the usage and the options help lines,
            and between the options themselves."""
         self.expect("help memory read", substrs=[
-                    "[<address-expression>]\n\n       --show-tags",
-                    # Starts with the end of the show-tags line
-                    "output).\n\n       -A"])
+                    "[<address-expression>]\n\n       -A ( --show-all-children )",
+                    # Starts with the end of the show-all-children line
+                    "to show.\n\n       -D"])
 
     @no_debug_info_test
     def test_help_detailed_information_ordering(self):
@@ -303,3 +308,26 @@ class HelpCommandTestCase(TestBase):
 
         self.assertEqual(sorted(short_options), short_options,
                          "Short option help displayed in an incorrect order!")
+
+    @no_debug_info_test
+    def test_help_show_tags(self):
+        """ Check that memory find and memory read have the --show-tags option
+            but only memory read mentions binary output. """
+        self.expect("help memory read", patterns=[
+                    "--show-tags\n\s+Include memory tags in output "
+                    "\(does not apply to binary output\)."])
+        self.expect("help memory find", patterns=[
+                    "--show-tags\n\s+Include memory tags in output."])
+
+    @no_debug_info_test
+    def test_help_show_enum_values(self):
+        """ Check the help output for a argument type contains the enum values
+        and their descriptions. """
+        self.expect("help <log-handler>", substrs=[
+            'The log handle that will be used to write out log messages.',
+            'default'  , 'Use the default (stream) log handler',
+            'stream'   , 'Write log messages to the debugger output stream',
+            'circular' , 'Write log messages to a fixed size circular buffer',
+            'os'       , 'Write log messages to the operating system log',
+        ])
+

@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/exception_list.hpp>
-#include <CL/sycl/handler.hpp>
-#include <CL/sycl/queue.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/event.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/handler.hpp>
+#include <sycl/queue.hpp>
+#include <sycl/stl.hpp>
 
 #include <algorithm>
 
@@ -163,17 +163,16 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
-template <info::queue Param>
-typename info::param_traits<info::queue, Param>::return_type
+template <typename Param>
+typename detail::is_queue_info_desc<Param>::return_type
 queue::get_info() const {
   return impl->get_info<Param>();
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(ParamType, Param, RetType)                    \
-  template __SYCL_EXPORT RetType queue::get_info<info::ParamType::Param>()     \
-      const;
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT queue::get_info<info::queue::Desc>() const;
 
-#include <CL/sycl/info/queue_traits.def>
+#include <sycl/info/queue_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

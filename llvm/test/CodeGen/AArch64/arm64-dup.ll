@@ -404,9 +404,10 @@ entry:
 define <4 x i16> @test_perfectshuffle_dupext_v4i16(<4 x i16> %a, <4 x i16> %b) nounwind {
 ; CHECK-LABEL: test_perfectshuffle_dupext_v4i16:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    // kill: def $d0 killed $d0 def $q0
-; CHECK-NEXT:    dup.4h v0, v0[0]
-; CHECK-NEXT:    ext.8b v0, v0, v1, #4
+; CHECK-NEXT:    trn1.4h v0, v0, v0
+; CHECK-NEXT:    // kill: def $d1 killed $d1 def $q1
+; CHECK-NEXT:    mov.s v0[1], v1[0]
+; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $q0
 ; CHECK-NEXT:    ret
   %r = shufflevector <4 x i16> %a, <4 x i16> %b, <4 x i32> <i32 0, i32 0, i32 4, i32 5>
   ret <4 x i16> %r
@@ -415,9 +416,10 @@ define <4 x i16> @test_perfectshuffle_dupext_v4i16(<4 x i16> %a, <4 x i16> %b) n
 define <4 x half> @test_perfectshuffle_dupext_v4f16(<4 x half> %a, <4 x half> %b) nounwind {
 ; CHECK-LABEL: test_perfectshuffle_dupext_v4f16:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    // kill: def $d0 killed $d0 def $q0
-; CHECK-NEXT:    dup.4h v0, v0[0]
-; CHECK-NEXT:    ext.8b v0, v0, v1, #4
+; CHECK-NEXT:    trn1.4h v0, v0, v0
+; CHECK-NEXT:    // kill: def $d1 killed $d1 def $q1
+; CHECK-NEXT:    mov.s v0[1], v1[0]
+; CHECK-NEXT:    // kill: def $d0 killed $d0 killed $q0
 ; CHECK-NEXT:    ret
   %r = shufflevector <4 x half> %a, <4 x half> %b, <4 x i32> <i32 0, i32 0, i32 4, i32 5>
   ret <4 x half> %r
@@ -426,8 +428,8 @@ define <4 x half> @test_perfectshuffle_dupext_v4f16(<4 x half> %a, <4 x half> %b
 define <4 x i32> @test_perfectshuffle_dupext_v4i32(<4 x i32> %a, <4 x i32> %b) nounwind {
 ; CHECK-LABEL: test_perfectshuffle_dupext_v4i32:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    dup.4s v0, v0[0]
-; CHECK-NEXT:    ext.16b v0, v0, v1, #8
+; CHECK-NEXT:    trn1.4s v0, v0, v0
+; CHECK-NEXT:    mov.d v0[1], v1[0]
 ; CHECK-NEXT:    ret
   %r = shufflevector <4 x i32> %a, <4 x i32> %b, <4 x i32> <i32 0, i32 0, i32 4, i32 5>
   ret <4 x i32> %r
@@ -436,8 +438,8 @@ define <4 x i32> @test_perfectshuffle_dupext_v4i32(<4 x i32> %a, <4 x i32> %b) n
 define <4 x float> @test_perfectshuffle_dupext_v4f32(<4 x float> %a, <4 x float> %b) nounwind {
 ; CHECK-LABEL: test_perfectshuffle_dupext_v4f32:
 ; CHECK:       // %bb.0:
-; CHECK-NEXT:    dup.4s v0, v0[0]
-; CHECK-NEXT:    ext.16b v0, v0, v1, #8
+; CHECK-NEXT:    trn1.4s v0, v0, v0
+; CHECK-NEXT:    mov.d v0[1], v1[0]
 ; CHECK-NEXT:    ret
   %r = shufflevector <4 x float> %a, <4 x float> %b, <4 x i32> <i32 0, i32 0, i32 4, i32 5>
   ret <4 x float> %r
@@ -457,4 +459,48 @@ define void @disguised_dup(<4 x float> %x, <4 x float>* %p1, <4 x float>* %p2) {
   store <4 x float> %shuf, <4 x float>* %p1, align 8
   store <4 x float> %dup, <4 x float>* %p2, align 8
   ret void
+}
+
+define <2 x i32> @dup_const2(<2 x i32> %A) nounwind {
+; CHECK-LABEL: dup_const2:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, #32770
+; CHECK-NEXT:    movk w8, #128, lsl #16
+; CHECK-NEXT:    dup.2s v1, w8
+; CHECK-NEXT:    add.2s v0, v0, v1
+; CHECK-NEXT:    ret
+  %tmp2 = add <2 x i32> %A, <i32 8421378, i32 8421378>
+  ret <2 x i32> %tmp2
+}
+
+define <2 x i32> @dup_const4_ext(<4 x i32> %A) nounwind {
+; CHECK-LABEL: dup_const4_ext:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, #32769
+; CHECK-NEXT:    movk w8, #128, lsl #16
+; CHECK-NEXT:    dup.2s v1, w8
+; CHECK-NEXT:    add.2s v0, v0, v1
+; CHECK-NEXT:    ret
+  %tmp1 = add <4 x i32> %A, <i32 8421377, i32 8421377, i32 8421377, i32 8421377>
+  %tmp2 = shufflevector <4 x i32> %tmp1, <4 x i32> undef, <2 x i32> <i32 0, i32 1>
+  ret <2 x i32> %tmp2
+}
+
+define <4 x i32> @dup_const24(<2 x i32> %A, <2 x i32> %B, <4 x i32> %C) nounwind {
+; CHECK-LABEL: dup_const24:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    mov w8, #32768
+; CHECK-NEXT:    // kill: def $d1 killed $d1 def $q1
+; CHECK-NEXT:    movk w8, #128, lsl #16
+; CHECK-NEXT:    dup.4s v3, w8
+; CHECK-NEXT:    add.2s v0, v0, v3
+; CHECK-NEXT:    mov.d v0[1], v1[0]
+; CHECK-NEXT:    add.4s v1, v2, v3
+; CHECK-NEXT:    eor.16b v0, v1, v0
+; CHECK-NEXT:    ret
+  %tmp1 = add <2 x i32> %A, <i32 8421376, i32 8421376>
+  %tmp4 = shufflevector <2 x i32> %tmp1, <2 x i32> %B, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %tmp3 = add <4 x i32> %C, <i32 8421376, i32 8421376, i32 8421376, i32 8421376>
+  %tmp5 = xor <4 x i32> %tmp3, %tmp4
+  ret <4 x i32> %tmp5
 }

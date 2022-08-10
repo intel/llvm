@@ -51,7 +51,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.fma
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_entrypoint_object(
@@ -65,7 +64,6 @@ add_entrypoint_object(
     libc.src.__support.FPUtil.fma
   COMPILE_OPTIONS
     -O3
-    -mfma
 )
 
 add_math_entrypoint_object(ceil)
@@ -104,6 +102,9 @@ add_math_entrypoint_object(fmaxl)
 add_math_entrypoint_object(fmin)
 add_math_entrypoint_object(fminf)
 add_math_entrypoint_object(fminl)
+
+add_math_entrypoint_object(fmod)
+add_math_entrypoint_object(fmodf)
 
 add_math_entrypoint_object(frexp)
 add_math_entrypoint_object(frexpf)

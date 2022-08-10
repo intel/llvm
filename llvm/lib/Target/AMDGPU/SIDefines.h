@@ -63,6 +63,12 @@ enum : uint64_t {
   VGPRSpill = 1 << 24,
   SGPRSpill = 1 << 25,
 
+  // LDSDIR instruction format.
+  LDSDIR = 1 << 26,
+
+  // VINTERP instruction format.
+  VINTERP = 1 << 27,
+
   // High bits - other information.
   VM_CNT = UINT64_C(1) << 32,
   EXP_CNT = UINT64_C(1) << 33,
@@ -120,7 +126,10 @@ enum : uint64_t {
   IsAtomicNoRet = UINT64_C(1) << 57,
 
   // Atomic with return.
-  IsAtomicRet = UINT64_C(1) << 58
+  IsAtomicRet = UINT64_C(1) << 58,
+
+  // Is a WMMA instruction.
+  IsWMMA = UINT64_C(1) << 59,
 };
 
 // v_cmp_class_* etc. use a 10-bit mask for what operation is checked.
@@ -258,9 +267,10 @@ namespace AMDGPUAsmVariants {
     VOP3 = 1,
     SDWA = 2,
     SDWA9 = 3,
-    DPP = 4
+    DPP = 4,
+    VOP3_DPP = 5
   };
-}
+} // namespace AMDGPUAsmVariants
 
 namespace AMDGPU {
 namespace EncValues { // Encoding values of enum9/8/7 operands
@@ -280,7 +290,8 @@ enum : unsigned {
   INLINE_FLOATING_C_MAX = 248,
   LITERAL_CONST = 255,
   VGPR_MIN = 256,
-  VGPR_MAX = 511
+  VGPR_MAX = 511,
+  IS_VGPR = 256  // Indicates VGPR or AGPR
 };
 
 } // namespace EncValues
@@ -306,21 +317,32 @@ namespace SendMsg { // Encoding of SIMM16 used in s_sendmsg* insns.
 
 enum Id { // Message ID, width(4) [3:0].
   ID_INTERRUPT = 1,
-  ID_GS = 2,
-  ID_GS_DONE = 3,
-  ID_SAVEWAVE = 4,           // added in GFX8
+
+  ID_GS_PreGFX11 = 2,      // replaced in GFX11
+  ID_GS_DONE_PreGFX11 = 3, // replaced in GFX11
+
+  ID_HS_TESSFACTOR_GFX11Plus = 2, // reused in GFX11
+  ID_DEALLOC_VGPRS_GFX11Plus = 3, // reused in GFX11
+
+  ID_SAVEWAVE = 4,           // added in GFX8, removed in GFX11
   ID_STALL_WAVE_GEN = 5,     // added in GFX9
   ID_HALT_WAVES = 6,         // added in GFX9
   ID_ORDERED_PS_DONE = 7,    // added in GFX9
   ID_EARLY_PRIM_DEALLOC = 8, // added in GFX9, removed in GFX10
   ID_GS_ALLOC_REQ = 9,       // added in GFX9
-  ID_GET_DOORBELL = 10,      // added in GFX9
-  ID_GET_DDID = 11,          // added in GFX10
+  ID_GET_DOORBELL = 10,      // added in GFX9, removed in GFX11
+  ID_GET_DDID = 11,          // added in GFX10, removed in GFX11
   ID_SYSMSG = 15,
 
-  ID_SHIFT_ = 0,
-  ID_WIDTH_ = 4,
-  ID_MASK_ = (((1 << ID_WIDTH_) - 1) << ID_SHIFT_)
+  ID_RTN_GET_DOORBELL = 128,
+  ID_RTN_GET_DDID = 129,
+  ID_RTN_GET_TMA = 130,
+  ID_RTN_GET_REALTIME = 131,
+  ID_RTN_SAVE_WAVE = 132,
+  ID_RTN_GET_TBA = 133,
+
+  ID_MASK_PreGFX11_ = 0xF,
+  ID_MASK_GFX11Plus_ = 0xFF
 };
 
 enum Op { // Both GS and SYS operation IDs.
@@ -504,6 +526,15 @@ enum MergedFormat : int64_t {
   DFMT_NFMT_MAX = DFMT_NFMT_MASK
 };
 
+enum UnifiedFormatCommon : int64_t {
+  UFMT_MAX = 127,
+  UFMT_UNDEF = -1,
+  UFMT_DEFAULT = 1
+};
+
+} // namespace MTBUFFormat
+
+namespace UfmtGFX10 {
 enum UnifiedFormat : int64_t {
   UFMT_INVALID = 0,
 
@@ -599,14 +630,95 @@ enum UnifiedFormat : int64_t {
 
   UFMT_FIRST = UFMT_INVALID,
   UFMT_LAST = UFMT_32_32_32_32_FLOAT,
-
-  UFMT_MAX = 127,
-
-  UFMT_UNDEF = -1,
-  UFMT_DEFAULT = UFMT_8_UNORM
 };
 
-} // namespace MTBUFFormat
+} // namespace UfmtGFX10
+
+namespace UfmtGFX11 {
+enum UnifiedFormat : int64_t {
+  UFMT_INVALID = 0,
+
+  UFMT_8_UNORM,
+  UFMT_8_SNORM,
+  UFMT_8_USCALED,
+  UFMT_8_SSCALED,
+  UFMT_8_UINT,
+  UFMT_8_SINT,
+
+  UFMT_16_UNORM,
+  UFMT_16_SNORM,
+  UFMT_16_USCALED,
+  UFMT_16_SSCALED,
+  UFMT_16_UINT,
+  UFMT_16_SINT,
+  UFMT_16_FLOAT,
+
+  UFMT_8_8_UNORM,
+  UFMT_8_8_SNORM,
+  UFMT_8_8_USCALED,
+  UFMT_8_8_SSCALED,
+  UFMT_8_8_UINT,
+  UFMT_8_8_SINT,
+
+  UFMT_32_UINT,
+  UFMT_32_SINT,
+  UFMT_32_FLOAT,
+
+  UFMT_16_16_UNORM,
+  UFMT_16_16_SNORM,
+  UFMT_16_16_USCALED,
+  UFMT_16_16_SSCALED,
+  UFMT_16_16_UINT,
+  UFMT_16_16_SINT,
+  UFMT_16_16_FLOAT,
+
+  UFMT_10_11_11_FLOAT,
+
+  UFMT_11_11_10_FLOAT,
+
+  UFMT_10_10_10_2_UNORM,
+  UFMT_10_10_10_2_SNORM,
+  UFMT_10_10_10_2_UINT,
+  UFMT_10_10_10_2_SINT,
+
+  UFMT_2_10_10_10_UNORM,
+  UFMT_2_10_10_10_SNORM,
+  UFMT_2_10_10_10_USCALED,
+  UFMT_2_10_10_10_SSCALED,
+  UFMT_2_10_10_10_UINT,
+  UFMT_2_10_10_10_SINT,
+
+  UFMT_8_8_8_8_UNORM,
+  UFMT_8_8_8_8_SNORM,
+  UFMT_8_8_8_8_USCALED,
+  UFMT_8_8_8_8_SSCALED,
+  UFMT_8_8_8_8_UINT,
+  UFMT_8_8_8_8_SINT,
+
+  UFMT_32_32_UINT,
+  UFMT_32_32_SINT,
+  UFMT_32_32_FLOAT,
+
+  UFMT_16_16_16_16_UNORM,
+  UFMT_16_16_16_16_SNORM,
+  UFMT_16_16_16_16_USCALED,
+  UFMT_16_16_16_16_SSCALED,
+  UFMT_16_16_16_16_UINT,
+  UFMT_16_16_16_16_SINT,
+  UFMT_16_16_16_16_FLOAT,
+
+  UFMT_32_32_32_UINT,
+  UFMT_32_32_32_SINT,
+  UFMT_32_32_32_FLOAT,
+  UFMT_32_32_32_32_UINT,
+  UFMT_32_32_32_32_SINT,
+  UFMT_32_32_32_32_FLOAT,
+
+  UFMT_FIRST = UFMT_INVALID,
+  UFMT_LAST = UFMT_32_32_32_32_FLOAT,
+};
+
+} // namespace UfmtGFX11
 
 namespace Swizzle { // Encoding of swizzle macro used in ds_swizzle_b32.
 
@@ -747,20 +859,23 @@ enum Target : unsigned {
   ET_MRT0 = 0,
   ET_MRT7 = 7,
   ET_MRTZ = 8,
-  ET_NULL = 9,
+  ET_NULL = 9,             // Pre-GFX11
   ET_POS0 = 12,
   ET_POS3 = 15,
-  ET_POS4 = 16,          // GFX10+
-  ET_POS_LAST = ET_POS4, // Highest pos used on any subtarget
-  ET_PRIM = 20,          // GFX10+
-  ET_PARAM0 = 32,
-  ET_PARAM31 = 63,
+  ET_POS4 = 16,            // GFX10+
+  ET_POS_LAST = ET_POS4,   // Highest pos used on any subtarget
+  ET_PRIM = 20,            // GFX10+
+  ET_DUAL_SRC_BLEND0 = 21, // GFX11+
+  ET_DUAL_SRC_BLEND1 = 22, // GFX11+
+  ET_PARAM0 = 32,          // Pre-GFX11
+  ET_PARAM31 = 63,         // Pre-GFX11
 
   ET_NULL_MAX_IDX = 0,
   ET_MRTZ_MAX_IDX = 0,
   ET_PRIM_MAX_IDX = 0,
   ET_MRT_MAX_IDX = 7,
   ET_POS_MAX_IDX = 4,
+  ET_DUAL_SRC_BLEND_MAX_IDX = 1,
   ET_PARAM_MAX_IDX = 31,
 
   ET_INVALID = 255,
@@ -924,10 +1039,12 @@ enum Offset_COV5 : unsigned {
 #define FP_DENORM_MODE_DP(x) (((x) & 0x3) << 6)
 
 #define R_00B860_COMPUTE_TMPRING_SIZE                                   0x00B860
-#define   S_00B860_WAVESIZE(x)                                        (((x) & 0x1FFF) << 12)
+#define   S_00B860_WAVESIZE_PreGFX11(x)                               (((x) & 0x1FFF) << 12)
+#define   S_00B860_WAVESIZE_GFX11Plus(x)                              (((x) & 0x7FFF) << 12)
 
 #define R_0286E8_SPI_TMPRING_SIZE                                       0x0286E8
-#define   S_0286E8_WAVESIZE(x)                                        (((x) & 0x1FFF) << 12)
+#define   S_0286E8_WAVESIZE_PreGFX11(x)                               (((x) & 0x1FFF) << 12)
+#define   S_0286E8_WAVESIZE_GFX11Plus(x)                              (((x) & 0x7FFF) << 12)
 
 #define R_028B54_VGT_SHADER_STAGES_EN                                 0x028B54
 #define   S_028B54_HS_W32_EN(x)                                       (((x) & 0x1) << 21)

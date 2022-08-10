@@ -10,11 +10,11 @@
 
 #ifdef __SYCL_INTERNAL_API
 
-#include <CL/sycl/detail/export.hpp>
-#include <CL/sycl/detail/stl_type_traits.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/stl.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/device.hpp>
+#include <sycl/program.hpp>
+#include <sycl/stl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -80,7 +80,7 @@ device_func_ptr_holder_t get_device_func_ptr(FuncType F, const char *FuncName,
   if (program_state::linked != P.get_state()) {
     throw invalid_parameter_error(
         "Program must be built before passing to get_device_func_ptr",
-        PI_INVALID_OPERATION);
+        PI_ERROR_INVALID_OPERATION);
   }
 
   return sycl::detail::getDeviceFunctionPointerImpl(D, P, FuncName);

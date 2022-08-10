@@ -158,7 +158,7 @@ void AsmPrinter::emitDwarfSymbolReference(const MCSymbol *Label,
     if (MAI->needsDwarfSectionOffsetDirective()) {
       assert(!isDwarf64() &&
              "emitting DWARF64 is not implemented for COFF targets");
-      OutStreamer->EmitCOFFSecRel32(Label, /*Offset=*/0);
+      OutStreamer->emitCOFFSecRel32(Label, /*Offset=*/0);
       return;
     }
 
@@ -309,7 +309,7 @@ void AsmPrinter::emitDwarfDIE(const DIE &Die) const {
 
   // Emit the DIE children if any.
   if (Die.hasChildren()) {
-    for (auto &Child : Die.children())
+    for (const auto &Child : Die.children())
       emitDwarfDIE(Child);
 
     OutStreamer->AddComment("End Of Children Mark");

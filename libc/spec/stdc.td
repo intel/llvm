@@ -378,6 +378,10 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"fma", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
           FunctionSpec<"fmaf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>, ArgSpec<FloatType>]>,
 
+          FunctionSpec<"fmod", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<DoubleType>]>,
+
+          FunctionSpec<"fmodf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<FloatType>]>,
+
           FunctionSpec<"frexp", RetValSpec<DoubleType>, [ArgSpec<DoubleType>, ArgSpec<IntPtr>]>,
           FunctionSpec<"frexpf", RetValSpec<FloatType>, [ArgSpec<FloatType>, ArgSpec<IntPtr>]>,
           FunctionSpec<"frexpl", RetValSpec<LongDoubleType>, [ArgSpec<LongDoubleType>, ArgSpec<IntPtr>]>,
@@ -471,7 +475,13 @@ def StdC : StandardSpec<"stdc"> {
 
   HeaderSpec StdIO = HeaderSpec<
       "stdio.h",
-      [], // Macros
+      [
+          Macro<"stderr">,
+          Macro<"stdout">,
+          Macro<"_IOFBF">,
+          Macro<"_IOLBF">,
+          Macro<"_IONBF">,
+      ], // Macros
       [ // Types
           SizeTType,
           FILE,
@@ -531,6 +541,44 @@ def StdC : StandardSpec<"stdc"> {
                ArgSpec<SizeTType>,
                ArgSpec<SizeTType>,
                ArgSpec<FILERestrictedPtr>]
+          >,
+          FunctionSpec<
+              "sprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "snprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<CharRestrictedPtr>,
+               ArgSpec<SizeTType>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "printf",
+              RetValSpec<IntType>,
+              [ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+          FunctionSpec<
+              "fprintf",
+              RetValSpec<IntType>,
+              [ArgSpec<FILERestrictedPtr>,
+               ArgSpec<ConstCharRestrictedPtr>,
+               ArgSpec<VarArgType>]
+          >,
+      ],
+      [
+          ObjectSpec<
+              "stdout",
+              "FILE *"
+          >,
+          ObjectSpec<
+              "stderr",
+              "FILE *"
           >,
       ]
   >;
@@ -757,6 +805,21 @@ def StdC : StandardSpec<"stdc"> {
                   ArgSpec<ThrdTTypePtr>,
                   ArgSpec<IntPtr>,
               ]
+          >,
+          FunctionSpec<
+              "thrd_detach",
+              RetValSpec<IntType>,
+              [ArgSpec<ThrdTType>]
+          >,
+          FunctionSpec<
+              "thrd_current",
+              RetValSpec<ThrdTType>,
+              [ArgSpec<VoidType>]
+          >,
+          FunctionSpec<
+              "thrd_equal",
+              RetValSpec<IntType>,
+              [ArgSpec<ThrdTType>, ArgSpec<ThrdTType>]
           >
       ]
   >;

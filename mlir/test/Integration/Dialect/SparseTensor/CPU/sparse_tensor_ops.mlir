@@ -29,7 +29,7 @@ module {
     %d0 = tensor.dim %arga, %c0 : tensor<?x?x?xf64, #ST1>
     %d1 = tensor.dim %arga, %c1 : tensor<?x?x?xf64, #ST1>
     %d2 = tensor.dim %arga, %c2 : tensor<?x?x?xf64, #ST1>
-    %xm = sparse_tensor.init [%d0, %d1, %d2] : tensor<?x?x?xf64, #ST2>
+    %xm = bufferization.alloc_tensor(%d0, %d1, %d2) : tensor<?x?x?xf64, #ST2>
     %0 = linalg.generic #trait_scale
        ins(%arga: tensor<?x?x?xf64, #ST1>)
         outs(%xm: tensor<?x?x?xf64, #ST2>) {
@@ -76,8 +76,8 @@ module {
     vector.print %v2 : vector<32xf64>
 
     // Release the resources.
-    sparse_tensor.release %st : tensor<?x?x?xf64, #ST1>
-    sparse_tensor.release %0  : tensor<?x?x?xf64, #ST2>
+    bufferization.dealloc_tensor %st : tensor<?x?x?xf64, #ST1>
+    bufferization.dealloc_tensor %0  : tensor<?x?x?xf64, #ST2>
     return
   }
 }

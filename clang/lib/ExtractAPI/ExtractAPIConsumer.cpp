@@ -199,11 +199,11 @@ struct LocationFileChecker {
     // Try to reduce the include name the same way we tried to include it.
     bool IsQuoted = false;
     if (auto IncludeName = getRelativeIncludeName(CI, FileName, &IsQuoted))
-      if (llvm::find_if(KnownFiles,
-                        [&IsQuoted, &IncludeName](const auto &KnownFile) {
-                          return KnownFile.first.equals(*IncludeName) &&
-                                 KnownFile.second == IsQuoted;
-                        }) != KnownFiles.end()) {
+      if (llvm::any_of(KnownFiles,
+                       [&IsQuoted, &IncludeName](const auto &KnownFile) {
+                         return KnownFile.first.equals(*IncludeName) &&
+                                KnownFile.second == IsQuoted;
+                       })) {
         KnownFileEntries.insert(File);
         return true;
       }
@@ -303,6 +303,7 @@ public:
     // Skip templated functions.
     switch (Decl->getTemplatedKind()) {
     case FunctionDecl::TK_NonTemplate:
+    case FunctionDecl::TK_DependentNonTemplate:
       break;
     case FunctionDecl::TK_MemberSpecialization:
     case FunctionDecl::TK_FunctionTemplateSpecialization:

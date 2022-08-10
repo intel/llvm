@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <CL/sycl/detail/device_binary_image.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
-#include <CL/sycl/device.hpp>
 #include <detail/config.hpp>
 #include <fcntl.h>
 #include <string>
+#include <sycl/detail/device_binary_image.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device.hpp>
 #include <sys/stat.h>
 #include <thread>
 #include <vector>
@@ -183,12 +183,6 @@ public:
                             const SerializedObj &SpecConsts,
                             const std::string &BuildOptionsString,
                             const RT::PiProgram &NativePrg);
-
-  /* Forces a reparsing of the information used to determine if the persistent
-   * cache is enabled. This is primarily used for unit-testing where the
-   * corresponding configuration variable is set by the individual tests.
-   */
-  static void reparseConfig();
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {

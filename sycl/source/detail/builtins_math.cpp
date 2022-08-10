@@ -16,11 +16,11 @@
 #define _USE_MATH_DEFINES
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp>
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {

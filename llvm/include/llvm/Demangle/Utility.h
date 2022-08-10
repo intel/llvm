@@ -13,8 +13,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef DEMANGLE_UTILITY_H
-#define DEMANGLE_UTILITY_H
+#ifndef LLVM_DEMANGLE_UTILITY_H
+#define LLVM_DEMANGLE_UTILITY_H
 
 #include "StringView.h"
 #include <array>
@@ -171,7 +171,8 @@ public:
   void setCurrentPosition(size_t NewPos) { CurrentPosition = NewPos; }
 
   char back() const {
-    return CurrentPosition ? Buffer[CurrentPosition - 1] : '\0';
+    assert(CurrentPosition);
+    return Buffer[CurrentPosition - 1];
   }
 
   bool empty() const { return CurrentPosition == 0; }

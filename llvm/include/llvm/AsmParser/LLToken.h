@@ -88,7 +88,6 @@ enum Kind {
   kw_triple,
   kw_source_filename,
   kw_unwind,
-  kw_deplibs, // FIXME: Remove in 4.0
   kw_datalayout,
   kw_volatile,
   kw_atomic,
@@ -222,6 +221,8 @@ enum Kind {
   kw_min,
   kw_umax,
   kw_umin,
+  kw_fmax,
+  kw_fmin,
 
   // Instruction Opcodes (Opcode in UIntVal).
   kw_fneg,
@@ -391,6 +392,16 @@ enum Kind {
   kw_byte,
   kw_bit,
   kw_varFlags,
+
+  // GV's with __attribute__((no_sanitize("address"))), or things in
+  // -fsanitize-ignorelist when built with ASan.
+  kw_no_sanitize_address,
+  // GV's with __attribute__((no_sanitize("hwaddress"))), or things in
+  // -fsanitize-ignorelist when built with HWASan.
+  kw_no_sanitize_hwaddress,
+  // GV's where the clang++ frontend (when ASan is used) notes that this is
+  // dynamically initialized, and thus needs ODR detection.
+  kw_sanitize_address_dyninit,
 
   // Unsigned Valued tokens (UIntVal).
   LabelID,    // 42:

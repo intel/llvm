@@ -14,6 +14,7 @@
 #include "flang/Common/Fortran-features.h"
 #include "flang/Evaluate/common.h"
 #include "flang/Evaluate/intrinsics.h"
+#include "flang/Evaluate/target.h"
 #include "flang/Parser/message.h"
 #include <iosfwd>
 #include <set>
@@ -96,6 +97,12 @@ public:
   bool warningsAreErrors() const { return warningsAreErrors_; }
   bool debugModuleWriter() const { return debugModuleWriter_; }
   const evaluate::IntrinsicProcTable &intrinsics() const { return intrinsics_; }
+  const evaluate::TargetCharacteristics &targetCharacteristics() const {
+    return targetCharacteristics_;
+  }
+  evaluate::TargetCharacteristics &targetCharacteristics() {
+    return targetCharacteristics_;
+  }
   Scope &globalScope() { return globalScope_; }
   Scope &intrinsicModulesScope() { return intrinsicModulesScope_; }
   parser::Messages &messages() { return messages_; }
@@ -170,6 +177,8 @@ public:
   const Scope &FindScope(parser::CharBlock) const;
   Scope &FindScope(parser::CharBlock);
 
+  bool IsInModuleFile(parser::CharBlock) const;
+
   const ConstructStack &constructStack() const { return constructStack_; }
   template <typename N> void PushConstruct(const N &node) {
     constructStack_.emplace_back(&node);
@@ -242,6 +251,7 @@ private:
   bool warningsAreErrors_{false};
   bool debugModuleWriter_{false};
   const evaluate::IntrinsicProcTable intrinsics_;
+  evaluate::TargetCharacteristics targetCharacteristics_;
   Scope globalScope_;
   Scope &intrinsicModulesScope_;
   parser::Messages messages_;

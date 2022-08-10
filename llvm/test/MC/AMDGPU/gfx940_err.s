@@ -1,8 +1,19 @@
 // RUN: not llvm-mc -arch=amdgcn -mcpu=gfx940 %s 2>&1 | FileCheck --check-prefix=GFX940 --implicit-check-not=error: %s
 
 v_mac_f32 v0, v1, v2
-// FIXME: error message is incorrect
-// GFX940: error: operands are not valid for this GPU or mode
+// GFX940: error: instruction not supported on this GPU
+
+v_mac_f32_e64 v5, v1, v2
+// GFX940: error: instruction not supported on this GPU
+
+v_mac_f32_dpp v5, v1, v2 quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf
+// GFX940: error: instruction not supported on this GPU
+
+v_mac_f32_dpp v5, v1, v2 dpp8:[7,6,5,4,3,2,1,0]
+// GFX940: error: instruction not supported on this GPU
+
+v_mac_f32_sdwa v5, v1, v2 dst_sel:DWORD dst_unused:UNUSED_PRESERVE src0_sel:DWORD src1_sel:DWORD
+// GFX940: error: instruction not supported on this GPU
 
 v_mad_f32 v0, v1, v2, v3
 // GFX940: error: instruction not supported on this GPU
@@ -61,6 +72,30 @@ buffer_wbl2 scc
 v_dot2_u32_u16 v0, 1, v0, s2 op_sel:[0,1,0,1] op_sel_hi:[0,0,1,1]
 // GFX940: error: invalid op_sel operand
 
+v_cvt_f32_fp8 v1, sext(v3) src0_sel:BYTE_1
+// GFX940: error: not a valid operand.
+
+v_cvt_pk_f32_bf8 v[2:3], sext(v3) src0_sel:BYTE_1
+// GFX940: error: not a valid operand.
+
+v_cvt_sr_bf8_f32 v1, v2, -v3
+// GFX940: error: not a valid operand.
+
+v_cvt_sr_fp8_f32 v1, v2, -v3
+// GFX940: error: not a valid operand.
+
+v_cvt_sr_fp8_f32 v1, v2, v3 clamp
+// GFX940: error: invalid operand for instruction
+
+v_cvt_sr_fp8_f32 v1, v2, v3 mul:2
+// GFX940: error: invalid operand for instruction
+
+v_cvt_pk_fp8_f32 v1, v2, v3 clamp
+// GFX940: error: invalid operand for instruction
+
+v_cvt_pk_fp8_f32 v1, v2, v3 mul:2
+// GFX940: error: invalid operand for instruction
+
 s_getreg_b32 s1, hwreg(HW_REG_FLAT_SCR_LO)
 // GFX940: error: specified hardware register is not supported on this GPU
 
@@ -84,3 +119,9 @@ ds_ordered_count v5, v1 offset:65535 gds
 
 exp pos0 v3, v2, v1, v0
 // GFX940: error: instruction not supported on this GPU
+
+global_load_dword v[2:3], off lds
+// GFX940: error: operands are not valid for this GPU or mode
+
+scratch_load_dword v2, off lds
+// GFX940: error: operands are not valid for this GPU or mode

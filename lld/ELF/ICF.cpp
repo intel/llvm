@@ -422,11 +422,11 @@ void ICF<ELFT>::forEachClass(llvm::function_ref<void(size_t, size_t)> fn) {
   boundaries[0] = 0;
   boundaries[numShards] = sections.size();
 
-  parallelForEachN(1, numShards, [&](size_t i) {
+  parallelFor(1, numShards, [&](size_t i) {
     boundaries[i] = findBoundary((i - 1) * step, sections.size());
   });
 
-  parallelForEachN(1, numShards + 1, [&](size_t i) {
+  parallelFor(1, numShards + 1, [&](size_t i) {
     if (boundaries[i - 1] < boundaries[i])
       forEachClassRange(boundaries[i - 1], boundaries[i], fn);
   });
@@ -478,8 +478,8 @@ template <class ELFT> void ICF<ELFT>::run() {
 
   // Collect sections to merge.
   for (InputSectionBase *sec : inputSections) {
-    auto *s = cast<InputSection>(sec);
-    if (s->eqClass[0] == 0) {
+    auto *s = dyn_cast<InputSection>(sec);
+    if (s && s->eqClass[0] == 0) {
       if (isEligible(s))
         sections.push_back(s);
       else
@@ -560,7 +560,7 @@ template <class ELFT> void ICF<ELFT>::run() {
   };
   for (Symbol *sym : symtab->symbols())
     fold(sym);
-  parallelForEach(objectFiles, [&](ELFFileBase *file) {
+  parallelForEach(ctx->objectFiles, [&](ELFFileBase *file) {
     for (Symbol *sym : file->getLocalSymbols())
       fold(sym);
   });

@@ -135,6 +135,8 @@ public:
     return ST->getVScaleForTuning();
   }
 
+  bool shouldMaximizeVectorBandwidth(TargetTransformInfo::RegisterKind K) const;
+
   /// Try to return an estimate cost factor that can be used as a multiplier
   /// when scalarizing an operation for a vector with ElementCount \p VF.
   /// For scalable vectors this currently takes the most pessimistic view based
@@ -147,6 +149,8 @@ public:
   }
 
   unsigned getMaxInterleaveFactor(unsigned VF);
+
+  bool prefersVectorizedAddressing() const;
 
   InstructionCost getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
                                         Align Alignment, unsigned AddressSpace,
@@ -330,9 +334,16 @@ public:
     return 2;
   }
 
-  bool emitGetActiveLaneMask() const {
-    return ST->hasSVE();
+  PredicationStyle emitGetActiveLaneMask() const {
+    if (ST->hasSVE())
+      return PredicationStyle::DataAndControlFlow;
+    return PredicationStyle::None;
   }
+
+  bool preferPredicateOverEpilogue(Loop *L, LoopInfo *LI, ScalarEvolution &SE,
+                                   AssumptionCache &AC, TargetLibraryInfo *TLI,
+                                   DominatorTree *DT,
+                                   LoopVectorizationLegality *LVL);
 
   bool supportsScalableVectors() const { return ST->hasSVE(); }
 
@@ -340,6 +351,11 @@ public:
 
   bool isLegalToVectorizeReduction(const RecurrenceDescriptor &RdxDesc,
                                    ElementCount VF) const;
+
+  bool preferPredicatedReductionSelect(unsigned Opcode, Type *Ty,
+                                       TTI::ReductionFlags Flags) const {
+    return ST->hasSVE();
+  }
 
   InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
                                              Optional<FastMathFlags> FMF,

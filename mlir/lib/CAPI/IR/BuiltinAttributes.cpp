@@ -348,11 +348,9 @@ MlirAttribute mlirDenseElementsAttrRawBufferGet(MlirType shapedType,
                               rawBufferSize);
   bool isSplat = false;
   if (!DenseElementsAttr::isValidRawBuffer(shapedTypeCpp, rawBufferCpp,
-                                           isSplat)) {
+                                           isSplat))
     return mlirAttributeGetNull();
-  }
-  return wrap(DenseElementsAttr::getFromRawBuffer(shapedTypeCpp, rawBufferCpp,
-                                                  isSplat));
+  return wrap(DenseElementsAttr::getFromRawBuffer(shapedTypeCpp, rawBufferCpp));
 }
 
 MlirAttribute mlirDenseElementsAttrSplatGet(MlirType shapedType,
@@ -477,6 +475,13 @@ MlirAttribute mlirDenseElementsAttrDoubleGet(MlirType shapedType,
 MlirAttribute mlirDenseElementsAttrBFloat16Get(MlirType shapedType,
                                                intptr_t numElements,
                                                const uint16_t *elements) {
+  size_t bufferSize = numElements * 2;
+  const void *buffer = static_cast<const void *>(elements);
+  return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);
+}
+MlirAttribute mlirDenseElementsAttrFloat16Get(MlirType shapedType,
+                                              intptr_t numElements,
+                                              const uint16_t *elements) {
   size_t bufferSize = numElements * 2;
   const void *buffer = static_cast<const void *>(elements);
   return mlirDenseElementsAttrRawBufferGet(shapedType, bufferSize, buffer);

@@ -9,9 +9,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
 #include <cstring>
 #include <gtest/gtest.h>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -34,6 +34,7 @@ template <> struct KernelInfo<InfoTestKernel> {
   static constexpr bool isESIMD() { return false; }
   static constexpr bool callsThisItem() { return false; }
   static constexpr bool callsAnyThisFreeFunction() { return false; }
+  static constexpr int64_t getKernelSize() { return 1; }
 };
 
 } // namespace detail
@@ -67,7 +68,7 @@ redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
 }
 
 TEST(GetProfilingInfo, normal_pass_without_exception) {
-  cl::sycl::platform Plt{cl::sycl::default_selector{}};
+  sycl::platform Plt{sycl::default_selector{}};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
     GTEST_SKIP(); // test is not supported on host.
@@ -120,7 +121,7 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
 }
 
 TEST(GetProfilingInfo, command_exception_check) {
-  cl::sycl::platform Plt{cl::sycl::default_selector{}};
+  sycl::platform Plt{sycl::default_selector{}};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
     GTEST_SKIP(); // test is not supported on host.
@@ -201,7 +202,7 @@ TEST(GetProfilingInfo, command_exception_check) {
 }
 
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
-  cl::sycl::platform Plt{cl::sycl::default_selector{}};
+  sycl::platform Plt{sycl::default_selector{}};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
     GTEST_SKIP(); // test is not supported on host.
@@ -228,7 +229,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
-  cl::sycl::event event;
+  sycl::event event;
   {
     sycl::queue Queue{
         Ctx, Dev,
@@ -257,7 +258,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
 }
 
 TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
-  cl::sycl::platform Plt{cl::sycl::default_selector{}};
+  sycl::platform Plt{sycl::default_selector{}};
   if (Plt.is_host()) {
     std::cout << "Test is not supported on host, skipping\n";
     GTEST_SKIP(); // test is not supported on host.
@@ -284,7 +285,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
-  cl::sycl::event event;
+  sycl::event event;
   {
     sycl::queue Queue{Ctx, Dev};
     auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(

@@ -19,7 +19,9 @@
 #include "clang/Analysis/FlowSensitive/DataflowAnalysis.h"
 #include "clang/Analysis/FlowSensitive/DataflowEnvironment.h"
 #include "clang/Analysis/FlowSensitive/MatchSwitch.h"
-#include "clang/Analysis/FlowSensitive/SourceLocationsLattice.h"
+#include "clang/Analysis/FlowSensitive/NoopLattice.h"
+#include "clang/Basic/SourceLocation.h"
+#include <vector>
 
 namespace clang {
 namespace dataflow {
@@ -36,28 +38,45 @@ struct UncheckedOptionalAccessModelOptions {
   bool IgnoreSmartPointerDereference = false;
 };
 
-/// Dataflow analysis that discovers unsafe accesses of optional values and
-/// adds the respective source locations to the lattice.
+/// Dataflow analysis that models whether optionals hold values or not.
 ///
 /// Models the `std::optional`, `absl::optional`, and `base::Optional` types.
-///
-/// FIXME: Consider separating the models from the unchecked access analysis.
 class UncheckedOptionalAccessModel
-    : public DataflowAnalysis<UncheckedOptionalAccessModel,
-                              SourceLocationsLattice> {
+    : public DataflowAnalysis<UncheckedOptionalAccessModel, NoopLattice> {
 public:
   UncheckedOptionalAccessModel(
       ASTContext &AstContext, UncheckedOptionalAccessModelOptions Options = {});
 
-  static SourceLocationsLattice initialElement() {
-    return SourceLocationsLattice();
-  }
+  /// Returns a matcher for the optional classes covered by this model.
+  static ast_matchers::DeclarationMatcher optionalClassDecl();
 
-  void transfer(const Stmt *Stmt, SourceLocationsLattice &State,
-                Environment &Env);
+  static NoopLattice initialElement() { return {}; }
+
+  void transfer(const Stmt *Stmt, NoopLattice &State, Environment &Env);
+
+  bool compareEquivalent(QualType Type, const Value &Val1,
+                         const Environment &Env1, const Value &Val2,
+                         const Environment &Env2) override;
+
+  bool merge(QualType Type, const Value &Val1, const Environment &Env1,
+             const Value &Val2, const Environment &Env2, Value &MergedVal,
+             Environment &MergedEnv) override;
 
 private:
-  MatchSwitch<TransferState<SourceLocationsLattice>> TransferMatchSwitch;
+  MatchSwitch<TransferState<NoopLattice>> TransferMatchSwitch;
+};
+
+class UncheckedOptionalAccessDiagnoser {
+public:
+  UncheckedOptionalAccessDiagnoser(
+      UncheckedOptionalAccessModelOptions Options = {});
+
+  std::vector<SourceLocation> diagnose(ASTContext &Context, const Stmt *Stmt,
+                                       const Environment &Env);
+
+private:
+  MatchSwitch<const Environment, std::vector<SourceLocation>>
+      DiagnoseMatchSwitch;
 };
 
 } // namespace dataflow

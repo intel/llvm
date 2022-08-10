@@ -97,12 +97,6 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
   ctx->e.cleanupCallback = []() {
     inputSections.clear();
     outputSections.clear();
-    memoryBuffers.clear();
-    binaryFiles.clear();
-    bitcodeFiles.clear();
-    lazyBitcodeFiles.clear();
-    objectFiles.clear();
-    sharedFiles.clear();
     symAux.clear();
 
     tar = nullptr;
@@ -198,9 +192,13 @@ std::vector<std::pair<MemoryBufferRef, uint64_t>> static getArchiveMembers(
 
   // Take ownership of memory buffers created for members of thin archives.
   std::vector<std::unique_ptr<MemoryBuffer>> mbs = file->takeThinBuffers();
-  std::move(mbs.begin(), mbs.end(), std::back_inserter(memoryBuffers));
+  std::move(mbs.begin(), mbs.end(), std::back_inserter(ctx->memoryBuffers));
 
   return v;
+}
+
+static bool isBitcode(MemoryBufferRef mb) {
+  return identify_magic(mb.getBuffer()) == llvm::file_magic::bitcode;
 }
 
 // Opens a file and create a file object. Path has to be resolved already.
@@ -208,7 +206,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
   using namespace sys::fs;
 
   Optional<MemoryBufferRef> buffer = readFile(path);
-  if (!buffer.hasValue())
+  if (!buffer)
     return;
   MemoryBufferRef mbref = *buffer;
 
@@ -223,8 +221,12 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     return;
   case file_magic::archive: {
     if (inWholeArchive) {
-      for (const auto &p : getArchiveMembers(mbref))
-        files.push_back(createObjectFile(p.first, path, p.second));
+      for (const auto &p : getArchiveMembers(mbref)) {
+        if (isBitcode(p.first))
+          files.push_back(make<BitcodeFile>(p.first, path, p.second, false));
+        else
+          files.push_back(createObjFile(p.first, path));
+      }
       return;
     }
 
@@ -247,8 +249,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
     InputFile::isInGroup = true;
     for (const std::pair<MemoryBufferRef, uint64_t> &p : members) {
       auto magic = identify_magic(p.first.getBuffer());
-      if (magic == file_magic::bitcode || magic == file_magic::elf_relocatable)
-        files.push_back(createLazyFile(p.first, path, p.second));
+      if (magic == file_magic::elf_relocatable)
+        files.push_back(createObjFile(p.first, path, true));
+      else if (magic == file_magic::bitcode)
+        files.push_back(make<BitcodeFile>(p.first, path, p.second, true));
       else
         warn(path + ": archive member '" + p.first.getBufferIdentifier() +
              "' is neither ET_REL nor LLVM bitcode");
@@ -273,11 +277,10 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
         make<SharedFile>(mbref, withLOption ? path::filename(path) : path));
     return;
   case file_magic::bitcode:
+    files.push_back(make<BitcodeFile>(mbref, "", 0, inLib));
+    break;
   case file_magic::elf_relocatable:
-    if (inLib)
-      files.push_back(createLazyFile(mbref, "", 0));
-    else
-      files.push_back(createObjectFile(mbref));
+    files.push_back(createObjFile(mbref, "", inLib));
     break;
   default:
     error(path + ": unknown file type");
@@ -287,7 +290,7 @@ void LinkerDriver::addFile(StringRef path, bool withLOption) {
 // Add a given library by searching it from input search paths.
 void LinkerDriver::addLibrary(StringRef name) {
   if (Optional<std::string> path = searchLibrary(name))
-    addFile(*path, /*withLOption=*/true);
+    addFile(saver().save(*path), /*withLOption=*/true);
   else
     error("unable to find library -l" + name, ErrorTag::LibNotFound, {name});
 }
@@ -506,6 +509,10 @@ static void checkZOptions(opt::InputArgList &args) {
       warn("unknown -z value: " + StringRef(arg->getValue()));
 }
 
+constexpr const char *saveTempsValues[] = {
+    "resolution", "preopt",     "promote", "internalize",  "import",
+    "opt",        "precodegen", "prelink", "combinedindex"};
+
 void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   ELFOptTable parser;
   opt::InputArgList args = parser.parse(argsArr.slice(1));
@@ -593,8 +600,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
 
   if (config->timeTraceEnabled) {
     checkError(timeTraceProfilerWrite(
-        args.getLastArgValue(OPT_time_trace_file_eq).str(),
-        config->outputFile));
+        args.getLastArgValue(OPT_time_trace_eq).str(), config->outputFile));
     timeTraceProfilerCleanup();
   }
 }
@@ -803,12 +809,9 @@ static OrphanHandlingPolicy getOrphanHandling(opt::InputArgList &args) {
 // --build-id=sha1 are actually tree hashes for performance reasons.
 static std::pair<BuildIdKind, std::vector<uint8_t>>
 getBuildId(opt::InputArgList &args) {
-  auto *arg = args.getLastArg(OPT_build_id, OPT_build_id_eq);
+  auto *arg = args.getLastArg(OPT_build_id);
   if (!arg)
     return {BuildIdKind::None, {}};
-
-  if (arg->getOption().getID() == OPT_build_id)
-    return {BuildIdKind::Fast, {}};
 
   StringRef s = arg->getValue();
   if (s == "fast")
@@ -844,7 +847,7 @@ static std::pair<bool, bool> getPackDynRelocs(opt::InputArgList &args) {
 static void readCallGraph(MemoryBufferRef mb) {
   // Build a map from symbol name to section
   DenseMap<StringRef, Symbol *> map;
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx->objectFiles)
     for (Symbol *sym : file->getSymbols())
       map[sym->getName()] = sym;
 
@@ -923,7 +926,7 @@ processCallGraphRelocations(SmallVector<uint32_t, 32> &symbolIndices,
 template <class ELFT> static void readCallGraphsFromObjectFiles() {
   SmallVector<uint32_t, 32> symbolIndices;
   ArrayRef<typename ELFT::CGProfile> cgProfile;
-  for (auto file : objectFiles) {
+  for (auto file : ctx->objectFiles) {
     auto *obj = cast<ObjFile<ELFT>>(file);
     if (!processCallGraphRelocations(symbolIndices, cgProfile, obj))
       continue;
@@ -954,7 +957,7 @@ static bool getCompressDebugSections(opt::InputArgList &args) {
     return false;
   if (s != "zlib")
     error("unknown --compress-debug-sections value: " + s);
-  if (!zlib::isAvailable())
+  if (!compression::zlib::isAvailable())
     error("--compress-debug-sections: zlib is not available");
   return true;
 }
@@ -1126,8 +1129,15 @@ static void readConfigs(opt::InputArgList &args) {
   config->nostdlib = args.hasArg(OPT_nostdlib);
   config->oFormatBinary = isOutputFormatBinary(args);
   config->omagic = args.hasFlag(OPT_omagic, OPT_no_omagic, false);
+#if ENABLE_OPAQUE_POINTERS
+  config->opaquePointers = args.hasFlag(
+      OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, true);
+#else
+  config->opaquePointers = args.hasFlag(
+      OPT_plugin_opt_opaque_pointers, OPT_plugin_opt_no_opaque_pointers, false);
+#endif
   config->optRemarksFilename = args.getLastArgValue(OPT_opt_remarks_filename);
-  config->optStatsFilename = args.getLastArgValue(OPT_opt_stats_filename);
+  config->optStatsFilename = args.getLastArgValue(OPT_plugin_opt_stats_file);
 
   // Parse remarks hotness threshold. Valid value is either integer or 'auto'.
   if (auto *arg = args.getLastArg(OPT_opt_remarks_hotness_threshold)) {
@@ -1156,7 +1166,21 @@ static void readConfigs(opt::InputArgList &args) {
   config->relax = args.hasFlag(OPT_relax, OPT_no_relax, true);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
-  config->saveTemps = args.hasArg(OPT_save_temps);
+
+  if (args.hasArg(OPT_save_temps)) {
+    // --save-temps implies saving all temps.
+    for (const char *s : saveTempsValues)
+      config->saveTempsArgs.insert(s);
+  } else {
+    for (auto *arg : args.filtered(OPT_save_temps_eq)) {
+      StringRef s = arg->getValue();
+      if (llvm::is_contained(saveTempsValues, s))
+        config->saveTempsArgs.insert(s);
+      else
+        error("unknown --save-temps value: " + s);
+    }
+  }
+
   config->searchPaths = args::getStrings(args, OPT_library_path);
   config->sectionStartMap = getSectionStartMap(args);
   config->shared = args.hasArg(OPT_shared);
@@ -1173,6 +1197,9 @@ static void readConfigs(opt::InputArgList &args) {
       parseCachePruningPolicy(args.getLastArgValue(OPT_thinlto_cache_policy)),
       "--thinlto-cache-policy: invalid cache policy");
   config->thinLTOEmitImportsFiles = args.hasArg(OPT_thinlto_emit_imports_files);
+  config->thinLTOEmitIndexFiles = args.hasArg(OPT_thinlto_emit_index_files) ||
+                                  args.hasArg(OPT_thinlto_index_only) ||
+                                  args.hasArg(OPT_thinlto_index_only_eq);
   config->thinLTOIndexOnly = args.hasArg(OPT_thinlto_index_only) ||
                              args.hasArg(OPT_thinlto_index_only_eq);
   config->thinLTOIndexOnlyArg = args.getLastArgValue(OPT_thinlto_index_only_eq);
@@ -1180,9 +1207,17 @@ static void readConfigs(opt::InputArgList &args) {
       getOldNewOptions(args, OPT_thinlto_object_suffix_replace_eq);
   config->thinLTOPrefixReplace =
       getOldNewOptions(args, OPT_thinlto_prefix_replace_eq);
+  if (config->thinLTOEmitIndexFiles && !config->thinLTOIndexOnly) {
+    if (args.hasArg(OPT_thinlto_object_suffix_replace_eq))
+      error("--thinlto-object-suffix-replace is not supported with "
+            "--thinlto-emit-index-files");
+    else if (args.hasArg(OPT_thinlto_prefix_replace_eq))
+      error("--thinlto-prefix-replace is not supported with "
+            "--thinlto-emit-index-files");
+  }
   config->thinLTOModulesToCompile =
       args::getStrings(args, OPT_thinlto_single_module_eq);
-  config->timeTraceEnabled = args.hasArg(OPT_time_trace);
+  config->timeTraceEnabled = args.hasArg(OPT_time_trace_eq);
   config->timeTraceGranularity =
       args::getInteger(args, OPT_time_trace_granularity, 500);
   config->trace = args.hasArg(OPT_trace);
@@ -1588,7 +1623,7 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
       break;
     case OPT_just_symbols:
       if (Optional<MemoryBufferRef> mb = readFile(arg->getValue())) {
-        files.push_back(createObjectFile(*mb));
+        files.push_back(createObjFile(*mb));
         files.back()->justSymbols = true;
       }
       break;
@@ -1658,8 +1693,10 @@ void LinkerDriver::inferMachineType() {
 static uint64_t getMaxPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "max-page-size",
                                        target->defaultMaxPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("max-page-size: value isn't a power of 2");
+    return target->defaultMaxPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultMaxPageSize)
       warn("-z max-page-size set, but paging disabled by omagic or nmagic");
@@ -1673,8 +1710,10 @@ static uint64_t getMaxPageSize(opt::InputArgList &args) {
 static uint64_t getCommonPageSize(opt::InputArgList &args) {
   uint64_t val = args::getZOptionValue(args, OPT_z, "common-page-size",
                                        target->defaultCommonPageSize);
-  if (!isPowerOf2_64(val))
+  if (!isPowerOf2_64(val)) {
     error("common-page-size: value isn't a power of 2");
+    return target->defaultCommonPageSize;
+  }
   if (config->nmagic || config->omagic) {
     if (val != target->defaultCommonPageSize)
       warn("-z common-page-size set, but paging disabled by omagic or nmagic");
@@ -1745,10 +1784,10 @@ static void excludeLibs(opt::InputArgList &args) {
         sym->versionId = VER_NDX_LOCAL;
   };
 
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx->objectFiles)
     visit(file);
 
-  for (BitcodeFile *file : bitcodeFiles)
+  for (BitcodeFile *file : ctx->bitcodeFiles)
     visit(file);
 }
 
@@ -1762,7 +1801,7 @@ static void handleUndefined(Symbol *sym, const char *option) {
     return;
   sym->extract();
   if (!config->whyExtract.empty())
-    driver->whyExtract.emplace_back(option, sym->file, *sym);
+    ctx->whyExtractRecords.emplace_back(option, sym->file, *sym);
 }
 
 // As an extension to GNU linkers, lld supports a variant of `-u`
@@ -1798,7 +1837,7 @@ static void handleLibcall(StringRef name) {
     sym->extract();
 }
 
-void LinkerDriver::writeArchiveStats() const {
+static void writeArchiveStats() {
   if (config->printArchiveStats.empty())
     return;
 
@@ -1814,13 +1853,13 @@ void LinkerDriver::writeArchiveStats() const {
 
   SmallVector<StringRef, 0> archives;
   DenseMap<CachedHashStringRef, unsigned> all, extracted;
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx->objectFiles)
     if (file->archiveName.size())
       ++extracted[CachedHashStringRef(file->archiveName)];
-  for (BitcodeFile *file : bitcodeFiles)
+  for (BitcodeFile *file : ctx->bitcodeFiles)
     if (file->archiveName.size())
       ++extracted[CachedHashStringRef(file->archiveName)];
-  for (std::pair<StringRef, unsigned> f : archiveFiles) {
+  for (std::pair<StringRef, unsigned> f : driver->archiveFiles) {
     unsigned &v = extracted[CachedHashString(f.first)];
     os << f.second << '\t' << v << '\t' << f.first << '\n';
     // If the archive occurs multiple times, other instances have a count of 0.
@@ -1828,7 +1867,7 @@ void LinkerDriver::writeArchiveStats() const {
   }
 }
 
-void LinkerDriver::writeWhyExtract() const {
+static void writeWhyExtract() {
   if (config->whyExtract.empty())
     return;
 
@@ -1841,14 +1880,14 @@ void LinkerDriver::writeWhyExtract() const {
   }
 
   os << "reference\textracted\tsymbol\n";
-  for (auto &entry : whyExtract) {
+  for (auto &entry : ctx->whyExtractRecords) {
     os << std::get<0>(entry) << '\t' << toString(std::get<1>(entry)) << '\t'
        << toString(std::get<2>(entry)) << '\n';
   }
 }
 
-void LinkerDriver::reportBackrefs() const {
-  for (auto &ref : backwardReferences) {
+static void reportBackrefs() {
+  for (auto &ref : ctx->backwardReferences) {
     const Symbol &sym = *ref.first;
     std::string to = toString(ref.second.second);
     // Some libraries have known problems and can cause noise. Filter them out
@@ -1941,7 +1980,7 @@ static void writeDependencyFile() {
 // symbols of type CommonSymbol.
 static void replaceCommonSymbols() {
   llvm::TimeTraceScope timeScope("Replace common symbols");
-  for (ELFFileBase *file : objectFiles) {
+  for (ELFFileBase *file : ctx->objectFiles) {
     if (!file->hasCommonSyms)
       continue;
     for (Symbol *sym : file->getGlobalSymbols()) {
@@ -2017,7 +2056,7 @@ static void findKeepUniqueSections(opt::InputArgList &args) {
 
   // Visit the address-significance table in each object file and mark each
   // referenced symbol as address-significant.
-  for (InputFile *f : objectFiles) {
+  for (InputFile *f : ctx->objectFiles) {
     auto *obj = cast<ObjFile<ELFT>>(f);
     ArrayRef<Symbol *> syms = obj->getSymbols();
     if (obj->addrsigSec) {
@@ -2103,18 +2142,18 @@ static void markBuffersAsDontNeed(bool skipLinkedOutput) {
   // buffers as MADV_DONTNEED so that these pages can be reused by the expensive
   // thin link, saving memory.
   if (skipLinkedOutput) {
-    for (MemoryBuffer &mb : llvm::make_pointee_range(memoryBuffers))
+    for (MemoryBuffer &mb : llvm::make_pointee_range(ctx->memoryBuffers))
       mb.dontNeedIfMmap();
     return;
   }
 
   // Otherwise, just mark MemoryBuffers backing BitcodeFiles.
   DenseSet<const char *> bufs;
-  for (BitcodeFile *file : bitcodeFiles)
+  for (BitcodeFile *file : ctx->bitcodeFiles)
     bufs.insert(file->mb.getBufferStart());
-  for (BitcodeFile *file : lazyBitcodeFiles)
+  for (BitcodeFile *file : ctx->lazyBitcodeFiles)
     bufs.insert(file->mb.getBufferStart());
-  for (MemoryBuffer &mb : llvm::make_pointee_range(memoryBuffers))
+  for (MemoryBuffer &mb : llvm::make_pointee_range(ctx->memoryBuffers))
     if (bufs.count(mb.getBufferStart()))
       mb.dontNeedIfMmap();
 }
@@ -2131,10 +2170,10 @@ void LinkerDriver::compileBitcodeFiles(bool skipLinkedOutput) {
   llvm::TimeTraceScope timeScope("LTO");
   // Compile bitcode files and replace bitcode symbols.
   lto.reset(new BitcodeCompiler);
-  for (BitcodeFile *file : bitcodeFiles)
+  for (BitcodeFile *file : ctx->bitcodeFiles)
     lto->add(*file);
 
-  if (!bitcodeFiles.empty())
+  if (!ctx->bitcodeFiles.empty())
     markBuffersAsDontNeed(skipLinkedOutput);
 
   for (InputFile *file : lto->compile()) {
@@ -2146,7 +2185,7 @@ void LinkerDriver::compileBitcodeFiles(bool skipLinkedOutput) {
       for (Symbol *sym : obj->getGlobalSymbols())
         if (sym->hasVersionSuffix)
           sym->parseSymbolVersion();
-    objectFiles.push_back(obj);
+    ctx->objectFiles.push_back(obj);
   }
 }
 
@@ -2271,7 +2310,7 @@ static void redirectSymbols(ArrayRef<WrappedSymbol> wrapped) {
     return;
 
   // Update pointers in input files.
-  parallelForEach(objectFiles, [&](ELFFileBase *file) {
+  parallelForEach(ctx->objectFiles, [&](ELFFileBase *file) {
     for (Symbol *&sym : file->getMutableGlobalSymbols())
       if (Symbol *s = map.lookup(sym))
         sym = s;
@@ -2306,7 +2345,7 @@ static uint32_t getAndFeatures() {
     return 0;
 
   uint32_t ret = -1;
-  for (ELFFileBase *f : objectFiles) {
+  for (ELFFileBase *f : ctx->objectFiles) {
     uint32_t features = f->andFeatures;
 
     checkAndReportMissingFeature(
@@ -2459,7 +2498,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // We also need one if any shared libraries are used and for pie executables
   // (probably because the dynamic linker needs it).
   config->hasDynSymTab =
-      !sharedFiles.empty() || config->isPic || config->exportDynamic;
+      !ctx->sharedFiles.empty() || config->isPic || config->exportDynamic;
 
   // Some symbols (such as __ehdr_start) are defined lazily only when there
   // are undefined symbols for them, so we add these to trigger that logic.
@@ -2505,7 +2544,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // to, i.e. if the symbol's definition is in bitcode. Any other required
   // libcall symbols will be added to the link after LTO when we add the LTO
   // object file to the link.
-  if (!bitcodeFiles.empty())
+  if (!ctx->bitcodeFiles.empty())
     for (auto *s : lto::LTO::getRuntimeLibcallSymbols())
       handleLibcall(s);
 
@@ -2514,9 +2553,10 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // No more lazy bitcode can be extracted at this point. Do post parse work
   // like checking duplicate symbols.
-  parallelForEach(objectFiles, initializeLocalSymbols);
-  parallelForEach(objectFiles, postParseObjectFile);
-  parallelForEach(bitcodeFiles, [](BitcodeFile *file) { file->postParse(); });
+  parallelForEach(ctx->objectFiles, initializeLocalSymbols);
+  parallelForEach(ctx->objectFiles, postParseObjectFile);
+  parallelForEach(ctx->bitcodeFiles,
+                  [](BitcodeFile *file) { file->postParse(); });
   for (auto &it : ctx->nonPrevailingSyms) {
     Symbol &sym = *it.first;
     sym.replace(Undefined{sym.file, sym.getName(), sym.binding, sym.stOther,
@@ -2579,7 +2619,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
   //
   // With this the symbol table should be complete. After this, no new names
   // except a few linker-synthesized ones will be added to the symbol table.
-  const size_t numObjsBeforeLTO = objectFiles.size();
+  const size_t numObjsBeforeLTO = ctx->objectFiles.size();
   invokeELFT(compileBitcodeFiles, skipLinkedOutput);
 
   // Symbol resolution finished. Report backward reference problems,
@@ -2596,7 +2636,7 @@ void LinkerDriver::link(opt::InputArgList &args) {
 
   // compileBitcodeFiles may have produced lto.tmp object files. After this, no
   // more file will be added.
-  auto newObjectFiles = makeArrayRef(objectFiles).slice(numObjsBeforeLTO);
+  auto newObjectFiles = makeArrayRef(ctx->objectFiles).slice(numObjsBeforeLTO);
   parallelForEach(newObjectFiles, initializeLocalSymbols);
   parallelForEach(newObjectFiles, postParseObjectFile);
   for (const DuplicateSymbol &d : ctx->duplicates)
@@ -2619,11 +2659,11 @@ void LinkerDriver::link(opt::InputArgList &args) {
     // Now that we have a complete list of input files.
     // Beyond this point, no new files are added.
     // Aggregate all input sections into one place.
-    for (InputFile *f : objectFiles)
+    for (InputFile *f : ctx->objectFiles)
       for (InputSectionBase *s : f->getSections())
         if (s && s != &InputSection::discarded)
           inputSections.push_back(s);
-    for (BinaryFile *f : binaryFiles)
+    for (BinaryFile *f : ctx->binaryFiles)
       for (InputSectionBase *s : f->getSections())
         inputSections.push_back(cast<InputSection>(s));
   }
@@ -2744,9 +2784,6 @@ void LinkerDriver::link(opt::InputArgList &args) {
     for (SectionCommand *cmd : script->sectionCommands)
       if (auto *osd = dyn_cast<OutputDesc>(cmd))
         osd->osec.finalizeInputSections();
-    llvm::erase_if(inputSections, [](InputSectionBase *s) {
-      return isa<MergeInputSection>(s);
-    });
   }
 
   // Two input sections with different output sections should not be folded.

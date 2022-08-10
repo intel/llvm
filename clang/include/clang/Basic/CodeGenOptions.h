@@ -276,12 +276,8 @@ public:
   /// CUDA runtime back-end for incorporating them into host-side object file.
   std::string CudaGpuBinaryFileName;
 
-  /// List of filenames and metadata passed in using the -fembed-offload-object
-  /// option to embed device-side offloading objects into the host as a named
-  /// section. Input passed in as 'filename,kind,triple,arch'.
-  ///
-  /// NOTE: This will need to be expanded whenever we want to pass in more
-  ///       metadata, at some point this should be its own clang tool.
+  /// List of filenames passed in using the -fembed-offload-object option. These
+  /// are offloading binaries containing device images and metadata.
   std::vector<std::string> OffloadObjects;
 
   /// The name of the file to which the backend should save YAML optimization
@@ -392,6 +388,9 @@ public:
   /// On x86 this can be "fs" or "gs".
   /// On AArch64 this can only be "sp_el0".
   std::string StackProtectorGuardReg;
+
+  /// Specify a symbol to be the guard value.
+  std::string StackProtectorGuardSymbol;
 
   /// Path to ignorelist file specifying which objects
   /// (files, functions) listed for instrumentation by sanitizer

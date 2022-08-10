@@ -417,6 +417,14 @@ static const MemoryMapParams Linux_AArch64_MemoryMapParams = {
   0x01000000000,   // OriginBase
 };
 
+// aarch64 FreeBSD
+static const MemoryMapParams FreeBSD_AArch64_MemoryMapParams = {
+  0x1800000000000,  // AndMask
+  0x0400000000000,  // XorMask
+  0x0200000000000,  // ShadowBase
+  0x0700000000000,  // OriginBase
+};
+
 // i386 FreeBSD
 static const MemoryMapParams FreeBSD_I386_MemoryMapParams = {
   0x000180000000,  // AndMask
@@ -464,6 +472,11 @@ static const PlatformMemoryMapParams Linux_S390_MemoryMapParams = {
 static const PlatformMemoryMapParams Linux_ARM_MemoryMapParams = {
   nullptr,
   &Linux_AArch64_MemoryMapParams,
+};
+
+static const PlatformMemoryMapParams FreeBSD_ARM_MemoryMapParams = {
+  nullptr,
+  &FreeBSD_AArch64_MemoryMapParams,
 };
 
 static const PlatformMemoryMapParams FreeBSD_X86_MemoryMapParams = {
@@ -894,6 +907,9 @@ void MemorySanitizer::initializeModule(Module &M) {
     switch (TargetTriple.getOS()) {
       case Triple::FreeBSD:
         switch (TargetTriple.getArch()) {
+          case Triple::aarch64:
+            MapParams = FreeBSD_ARM_MemoryMapParams.bits64;
+            break;
           case Triple::x86_64:
             MapParams = FreeBSD_X86_MemoryMapParams.bits64;
             break;
@@ -1620,7 +1636,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// or extracts if from ParamTLS (for function arguments).
   Value *getShadow(Value *V) {
     if (Instruction *I = dyn_cast<Instruction>(V)) {
-      if (!PropagateShadow || I->getMetadata("nosanitize"))
+      if (!PropagateShadow || I->getMetadata(LLVMContext::MD_nosanitize))
         return getCleanShadow(V);
       // For instructions the shadow is already stored in the map.
       Value *Shadow = ShadowMap[V];
@@ -1739,7 +1755,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     assert((isa<Instruction>(V) || isa<Argument>(V)) &&
            "Unexpected value type in getOrigin()");
     if (Instruction *I = dyn_cast<Instruction>(V)) {
-      if (I->getMetadata("nosanitize"))
+      if (I->getMetadata(LLVMContext::MD_nosanitize))
         return getCleanOrigin();
     }
     Value *Origin = OriginMap[V];
@@ -1862,7 +1878,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   // ------------------- Visitors.
   using InstVisitor<MemorySanitizerVisitor>::visit;
   void visit(Instruction &I) {
-    if (I.getMetadata("nosanitize"))
+    if (I.getMetadata(LLVMContext::MD_nosanitize))
       return;
     // Don't want to visit if we're in the prologue
     if (isInPrologue(I))
@@ -1876,12 +1892,12 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   /// Optionally, checks that the load address is fully defined.
   void visitLoadInst(LoadInst &I) {
     assert(I.getType()->isSized() && "Load type must have size");
-    assert(!I.getMetadata("nosanitize"));
+    assert(!I.getMetadata(LLVMContext::MD_nosanitize));
     IRBuilder<> IRB(I.getNextNode());
     Type *ShadowTy = getShadowTy(&I);
     Value *Addr = I.getPointerOperand();
     Value *ShadowPtr = nullptr, *OriginPtr = nullptr;
-    const Align Alignment = assumeAligned(I.getAlignment());
+    const Align Alignment = I.getAlign();
     if (PropagateShadow) {
       std::tie(ShadowPtr, OriginPtr) =
           getShadowOriginPtr(Addr, IRB, ShadowTy, Alignment, /*isStore*/ false);
@@ -3200,27 +3216,37 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     SOC.Done(&I);
   }
 
-  // Instrument _mm_*_sd intrinsics
-  void handleUnarySdIntrinsic(IntrinsicInst &I) {
+  // Instrument _mm_*_sd|ss intrinsics
+  void handleUnarySdSsIntrinsic(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
+    unsigned Width =
+        cast<FixedVectorType>(I.getArgOperand(0)->getType())->getNumElements();
     Value *First = getShadow(&I, 0);
     Value *Second = getShadow(&I, 1);
-    // High word of first operand, low word of second
-    Value *Shadow =
-        IRB.CreateShuffleVector(First, Second, llvm::makeArrayRef<int>({2, 1}));
+    // First element of second operand, remaining elements of first operand
+    SmallVector<int, 16> Mask;
+    Mask.push_back(Width);
+    for (unsigned i = 1; i < Width; i++)
+      Mask.push_back(i);
+    Value *Shadow = IRB.CreateShuffleVector(First, Second, Mask);
 
     setShadow(&I, Shadow);
     setOriginForNaryOp(I);
   }
 
-  void handleBinarySdIntrinsic(IntrinsicInst &I) {
+  void handleBinarySdSsIntrinsic(IntrinsicInst &I) {
     IRBuilder<> IRB(&I);
+    unsigned Width =
+        cast<FixedVectorType>(I.getArgOperand(0)->getType())->getNumElements();
     Value *First = getShadow(&I, 0);
     Value *Second = getShadow(&I, 1);
     Value *OrShadow = IRB.CreateOr(First, Second);
-    // High word of first operand, low word of both OR'd together
-    Value *Shadow = IRB.CreateShuffleVector(First, OrShadow,
-                                            llvm::makeArrayRef<int>({2, 1}));
+    // First element of both OR'd together, remaining elements of first operand
+    SmallVector<int, 16> Mask;
+    Mask.push_back(Width);
+    for (unsigned i = 1; i < Width; i++)
+      Mask.push_back(i);
+    Value *Shadow = IRB.CreateShuffleVector(First, OrShadow, Mask);
 
     setShadow(&I, Shadow);
     setOriginForNaryOp(I);
@@ -3495,11 +3521,14 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
       break;
 
     case Intrinsic::x86_sse41_round_sd:
-      handleUnarySdIntrinsic(I);
+    case Intrinsic::x86_sse41_round_ss:
+      handleUnarySdSsIntrinsic(I);
       break;
     case Intrinsic::x86_sse2_max_sd:
+    case Intrinsic::x86_sse_max_ss:
     case Intrinsic::x86_sse2_min_sd:
-      handleBinarySdIntrinsic(I);
+    case Intrinsic::x86_sse_min_ss:
+      handleBinarySdSsIntrinsic(I);
       break;
 
     case Intrinsic::fshl:
@@ -3578,7 +3607,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   }
 
   void visitCallBase(CallBase &CB) {
-    assert(!CB.getMetadata("nosanitize"));
+    assert(!CB.getMetadata(LLVMContext::MD_nosanitize));
     if (CB.isInlineAsm()) {
       // For inline asm (either a call to asm function, or callbr instruction),
       // do the usual thing: check argument shadow and mark all outputs as
@@ -4835,8 +4864,8 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
         assert(A->getType()->isPointerTy());
         Type *RealTy = CB.getParamByValType(ArgNo);
         uint64_t ArgSize = DL.getTypeAllocSize(RealTy);
-        MaybeAlign ArgAlign = CB.getParamAlign(ArgNo);
-        if (!ArgAlign || *ArgAlign < Align(8))
+        Align ArgAlign = CB.getParamAlign(ArgNo).value_or(Align(8));
+        if (ArgAlign < 8)
           ArgAlign = Align(8);
         VAArgOffset = alignTo(VAArgOffset, ArgAlign);
         if (!IsFixed) {
@@ -4852,27 +4881,27 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
                              kShadowTLSAlignment, ArgSize);
           }
         }
-        VAArgOffset += alignTo(ArgSize, 8);
+        VAArgOffset += alignTo(ArgSize, Align(8));
       } else {
         Value *Base;
         uint64_t ArgSize = DL.getTypeAllocSize(A->getType());
-        uint64_t ArgAlign = 8;
+        Align ArgAlign = Align(8);
         if (A->getType()->isArrayTy()) {
           // Arrays are aligned to element size, except for long double
           // arrays, which are aligned to 8 bytes.
           Type *ElementTy = A->getType()->getArrayElementType();
           if (!ElementTy->isPPC_FP128Ty())
-            ArgAlign = DL.getTypeAllocSize(ElementTy);
+            ArgAlign = Align(DL.getTypeAllocSize(ElementTy));
         } else if (A->getType()->isVectorTy()) {
           // Vectors are naturally aligned.
-          ArgAlign = DL.getTypeAllocSize(A->getType());
+          ArgAlign = Align(ArgSize);
         }
         if (ArgAlign < 8)
-          ArgAlign = 8;
+          ArgAlign = Align(8);
         VAArgOffset = alignTo(VAArgOffset, ArgAlign);
         if (DL.isBigEndian()) {
-          // Adjusting the shadow for argument with size < 8 to match the placement
-          // of bits in big endian system
+          // Adjusting the shadow for argument with size < 8 to match the
+          // placement of bits in big endian system
           if (ArgSize < 8)
             VAArgOffset += (8 - ArgSize);
         }
@@ -4883,7 +4912,7 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
             IRB.CreateAlignedStore(MSV.getShadow(A), Base, kShadowTLSAlignment);
         }
         VAArgOffset += ArgSize;
-        VAArgOffset = alignTo(VAArgOffset, 8);
+        VAArgOffset = alignTo(VAArgOffset, Align(8));
       }
       if (IsFixed)
         VAArgBase = VAArgOffset;

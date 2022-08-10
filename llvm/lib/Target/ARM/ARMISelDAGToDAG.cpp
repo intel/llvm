@@ -1058,15 +1058,15 @@ bool ARMDAGToDAGISel::SelectAddrMode6(SDNode *Parent, SDValue N, SDValue &Addr,
        MemN->getConstantOperandVal(MemN->getNumOperands() - 1) == 1)) {
     // This case occurs only for VLD1-lane/dup and VST1-lane instructions.
     // The maximum alignment is equal to the memory size being referenced.
-    unsigned MMOAlign = MemN->getAlignment();
+    llvm::Align MMOAlign = MemN->getAlign();
     unsigned MemSize = MemN->getMemoryVT().getSizeInBits() / 8;
-    if (MMOAlign >= MemSize && MemSize > 1)
+    if (MMOAlign.value() >= MemSize && MemSize > 1)
       Alignment = MemSize;
   } else {
     // All other uses of addrmode6 are for intrinsics.  For now just record
     // the raw alignment value; it will be refined later based on the legal
     // alignment operands for the intrinsic.
-    Alignment = MemN->getAlignment();
+    Alignment = MemN->getAlign().value();
   }
 
   Align = CurDAG->getTargetConstant(Alignment, SDLoc(N), MVT::i32);
@@ -3131,7 +3131,7 @@ bool ARMDAGToDAGISel::tryInsertVectorElt(SDNode *N) {
 
     // Else v8i16 pattern of an extract and an insert, with a optional vmovx for
     // extracting odd lanes.
-    if (VT == MVT::v8i16) {
+    if (VT == MVT::v8i16 && Subtarget->hasFullFP16()) {
       SDValue Inp1 = CurDAG->getTargetExtractSubreg(
           ARM::ssub_0 + ExtractLane1 / 2, dl, MVT::f32, Val1.getOperand(0));
       SDValue Inp2 = CurDAG->getTargetExtractSubreg(
@@ -3151,7 +3151,7 @@ bool ARMDAGToDAGISel::tryInsertVectorElt(SDNode *N) {
 
   // The inserted values are not extracted - if they are f16 then insert them
   // directly using a VINS.
-  if (VT == MVT::v8f16) {
+  if (VT == MVT::v8f16 && Subtarget->hasFullFP16()) {
     SDNode *VINS = CurDAG->getMachineNode(ARM::VINSH, dl, MVT::f32, Val2, Val1);
     SDValue NewIns =
         CurDAG->getTargetInsertSubreg(ARM::ssub_0 + Lane2 / 2, dl, MVT::v4f32,
@@ -3512,7 +3512,7 @@ void ARMDAGToDAGISel::SelectCMP_SWAP(SDNode *N) {
   else if (MemTy == MVT::i16)
     Opcode = Subtarget->isThumb() ? ARM::tCMP_SWAP_16 : ARM::CMP_SWAP_16;
   else if (MemTy == MVT::i32)
-    Opcode = ARM::CMP_SWAP_32;
+    Opcode = Subtarget->isThumb() ? ARM::tCMP_SWAP_32 : ARM::CMP_SWAP_32;
   else
     llvm_unreachable("Unknown AtomicCmpSwap type");
 

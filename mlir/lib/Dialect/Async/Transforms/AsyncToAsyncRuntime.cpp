@@ -18,7 +18,7 @@
 #include "mlir/Dialect/Async/Passes.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
@@ -192,11 +192,9 @@ static CoroMachinery setupCoroMachinery(func::FuncOp func) {
   }
 
   // The switch-resumed API based coroutine should be marked with
-  // "coroutine.presplit" attribute with value "0" to mark the function as a
-  // coroutine.
-  func->setAttr("passthrough", builder.getArrayAttr(builder.getArrayAttr(
-                                   {builder.getStringAttr("coroutine.presplit"),
-                                    builder.getStringAttr("0")})));
+  // coroutine.presplit attribute to mark the function as a coroutine.
+  func->setAttr("passthrough", builder.getArrayAttr(
+                                   StringAttr::get(ctx, "presplitcoroutine")));
 
   CoroMachinery machinery;
   machinery.func = func;

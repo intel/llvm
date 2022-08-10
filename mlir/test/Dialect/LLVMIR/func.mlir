@@ -144,6 +144,26 @@ module {
       -> (!llvm.struct<(i32)> {llvm.struct_attrs = [{llvm.noalias}]}) {
     llvm.return %arg0 : !llvm.struct<(i32)>
   }
+
+  // CHECK: llvm.func @cconv1
+  llvm.func ccc @cconv1() {
+    llvm.return
+  }
+
+  // CHECK: llvm.func weak @cconv2
+  llvm.func weak ccc @cconv2() {
+    llvm.return
+  }
+
+  // CHECK: llvm.func weak fastcc @cconv3
+  llvm.func weak fastcc @cconv3() {
+    llvm.return
+  }
+
+  // CHECK-LABEL: llvm.func @variadic_def
+  llvm.func @variadic_def(...) {
+    llvm.return
+  }
 }
 
 // -----
@@ -218,15 +238,6 @@ module {
 // -----
 
 module {
-  // expected-error@+1 {{only external functions can be variadic}}
-  llvm.func @variadic_def(...) {
-    llvm.return
-  }
-}
-
-// -----
-
-module {
   // expected-error@+1 {{cannot attach result attributes to functions with a void return}}
   llvm.func @variadic_def() -> (!llvm.void {llvm.noalias})
 }
@@ -250,4 +261,19 @@ module {
 module {
   // expected-error@+1 {{functions cannot have 'common' linkage}}
   llvm.func common @common_linkage_func()
+}
+
+// -----
+
+module {
+  // expected-error@+1 {{custom op 'llvm.func' expected valid '@'-identifier for symbol name}}
+  llvm.func cc_12 @unknown_calling_convention()
+}
+
+// -----
+
+module {
+  // expected-error@+2 {{unknown calling convention: cc_12}}
+  "llvm.func"() ({
+  }) {sym_name = "generic_unknown_calling_convention", CConv = #llvm.cconv<cc_12>, function_type = !llvm.func<i64 (i64, i64)>} : () -> ()
 }

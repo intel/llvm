@@ -13,6 +13,7 @@
 #include "MCTargetDesc/X86BaseInfo.h"
 #include "MCTargetDesc/X86InstrRelaxTables.h"
 #include "MCTargetDesc/X86MCTargetDesc.h"
+#include "X86MCSymbolizer.h"
 #include "bolt/Core/MCPlus.h"
 #include "bolt/Core/MCPlusBuilder.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -43,7 +44,7 @@ extern cl::OptionCategory BoltOptCategory;
 static cl::opt<bool> X86StripRedundantAddressSize(
     "x86-strip-redundant-address-size",
     cl::desc("Remove redundant Address-Size override prefix"), cl::init(true),
-    cl::ZeroOrMore, cl::cat(BoltOptCategory));
+    cl::cat(BoltOptCategory));
 
 } // namespace opts
 
@@ -75,11 +76,21 @@ bool isADDri(const MCInst &Inst) {
          Inst.getOpcode() == X86::ADD64ri8;
 }
 
+#define GET_INSTRINFO_OPERAND_TYPES_ENUM
+#define GET_INSTRINFO_OPERAND_TYPE
+#define GET_INSTRINFO_MEM_OPERAND_SIZE
+#include "X86GenInstrInfo.inc"
+
 class X86MCPlusBuilder : public MCPlusBuilder {
 public:
   X86MCPlusBuilder(const MCInstrAnalysis *Analysis, const MCInstrInfo *Info,
                    const MCRegisterInfo *RegInfo)
       : MCPlusBuilder(Analysis, Info, RegInfo) {}
+
+  std::unique_ptr<MCSymbolizer>
+  createTargetSymbolizer(BinaryFunction &Function) const override {
+    return std::make_unique<X86MCSymbolizer>(Function);
+  }
 
   bool isBranch(const MCInst &Inst) const override {
     return Analysis->isBranch(Inst) && !isTailCall(Inst);
@@ -985,8 +996,7 @@ public:
     case X86::MOVZX32rm8:
     case X86::MOVZX32rr8:
     case X86::TEST8ri:
-      for (int I = 0, E = MCPlus::getNumPrimeOperands(Inst); I != E; ++I) {
-        const MCOperand &Operand = Inst.getOperand(I);
+      for (const MCOperand &Operand : MCPlus::primeOperands(Inst)) {
         if (!Operand.isReg())
           continue;
         if (isUpper8BitReg(Operand.getReg()))
@@ -998,6 +1008,31 @@ public:
     }
   }
 
+  static uint8_t getMemDataSize(const MCInst &Inst, int MemOpNo) {
+    using namespace llvm::X86;
+    int OpType = getOperandType(Inst.getOpcode(), MemOpNo);
+    return getMemOperandSize(OpType) / 8;
+  }
+
+  /// Classifying a stack access as *not* "SIMPLE" here means we don't know how
+  /// to change this instruction memory access. It will disable any changes to
+  /// the stack layout, so we can't do the most aggressive form of shrink
+  /// wrapping. We must do so in a way that keeps the original stack layout.
+  /// Otherwise you need to adjust the offset of all instructions accessing the
+  /// stack: we can't do that anymore because there is one instruction that is
+  /// not simple. There are other implications as well. We have heuristics to
+  /// detect when a register is callee-saved and thus eligible for shrink
+  /// wrapping. If you are restoring a register using a non-simple stack access,
+  /// then it is classified as NOT callee-saved, and it disables shrink wrapping
+  /// for *that* register (but not for others).
+  ///
+  /// Classifying a stack access as "size 0" or detecting an indexed memory
+  /// access (to address a vector, for example) here means we know there is a
+  /// stack access, but we can't quite understand how wide is the access in
+  /// bytes. This is very serious because we can't understand how memory
+  /// accesses alias with each other for this function. This will essentially
+  /// disable not only shrink wrapping but all frame analysis, it will fail it
+  /// as "we don't understand this function and we give up on it".
   bool isStackAccess(const MCInst &Inst, bool &IsLoad, bool &IsStore,
                      bool &IsStoreFromReg, MCPhysReg &Reg, int32_t &SrcImm,
                      uint16_t &StackPtrReg, int64_t &StackOffset, uint8_t &Size,
@@ -1053,33 +1088,27 @@ public:
 
     switch (Inst.getOpcode()) {
     default: {
-      uint8_t Sz = 0;
       bool IsLoad = MCII.mayLoad();
       bool IsStore = MCII.mayStore();
       // Is it LEA? (deals with memory but is not loading nor storing)
-      if (!IsLoad && !IsStore)
-        return false;
-
-      // Try to guess data size involved in the load/store by looking at the
-      // register size. If there's no reg involved, return 0 as size, meaning
-      // we don't know.
-      for (unsigned I = 0, E = MCII.getNumOperands(); I != E; ++I) {
-        if (MCII.OpInfo[I].OperandType != MCOI::OPERAND_REGISTER)
-          continue;
-        if (static_cast<int>(I) >= MemOpNo && I < X86::AddrNumOperands)
-          continue;
-        Sz = RegInfo->getRegClass(MCII.OpInfo[I].RegClass).getSizeInBits() / 8;
+      if (!IsLoad && !IsStore) {
+        I = {0, IsLoad, IsStore, false, false};
         break;
       }
+      uint8_t Sz = getMemDataSize(Inst, MemOpNo);
       I = {Sz, IsLoad, IsStore, false, false};
       break;
     }
+    // Report simple stack accesses
+    case X86::MOV8rm: I = {1, true, false, false, true}; break;
     case X86::MOV16rm: I = {2, true, false, false, true}; break;
     case X86::MOV32rm: I = {4, true, false, false, true}; break;
     case X86::MOV64rm: I = {8, true, false, false, true}; break;
+    case X86::MOV8mr: I = {1, false, true, true, true};  break;
     case X86::MOV16mr: I = {2, false, true, true, true};  break;
     case X86::MOV32mr: I = {4, false, true, true, true};  break;
     case X86::MOV64mr: I = {8, false, true, true, true};  break;
+    case X86::MOV8mi: I = {1, false, true, false, true}; break;
     case X86::MOV16mi: I = {2, false, true, false, true}; break;
     case X86::MOV32mi: I = {4, false, true, false, true}; break;
     } // end switch (Inst.getOpcode())
@@ -1245,9 +1274,10 @@ public:
     return false;
   }
 
-  bool evaluateSimple(const MCInst &Inst, int64_t &Output,
-                      std::pair<MCPhysReg, int64_t> Input1,
-                      std::pair<MCPhysReg, int64_t> Input2) const override {
+  bool
+  evaluateStackOffsetExpr(const MCInst &Inst, int64_t &Output,
+                          std::pair<MCPhysReg, int64_t> Input1,
+                          std::pair<MCPhysReg, int64_t> Input2) const override {
 
     auto getOperandVal = [&](MCPhysReg Reg) -> ErrorOr<int64_t> {
       if (Reg == Input1.first)
@@ -1261,16 +1291,6 @@ public:
     default:
       return false;
 
-    case X86::AND64ri32:
-    case X86::AND64ri8:
-      if (!Inst.getOperand(2).isImm())
-        return false;
-      if (ErrorOr<int64_t> InputVal =
-              getOperandVal(Inst.getOperand(1).getReg()))
-        Output = *InputVal & Inst.getOperand(2).getImm();
-      else
-        return false;
-      break;
     case X86::SUB64ri32:
     case X86::SUB64ri8:
       if (!Inst.getOperand(2).isImm())
@@ -1745,9 +1765,8 @@ public:
 
   bool convertCallToIndirectCall(MCInst &Inst, const MCSymbol *TargetLocation,
                                  MCContext *Ctx) override {
-    bool IsTailCall = isTailCall(Inst);
     assert((Inst.getOpcode() == X86::CALL64pcrel32 ||
-            (Inst.getOpcode() == X86::JMP_4 && IsTailCall)) &&
+            (Inst.getOpcode() == X86::JMP_4 && isTailCall(Inst))) &&
            "64-bit direct (tail) call instruction expected");
     const auto NewOpcode =
         (Inst.getOpcode() == X86::CALL64pcrel32) ? X86::CALL64m : X86::JMP32m;
@@ -3134,7 +3153,12 @@ public:
     case 1: Opcode = X86::MOV8ri; break;
     case 2: Opcode = X86::MOV16ri; break;
     case 4: Opcode = X86::MOV32ri; break;
-    case 8: Opcode = X86::MOV64ri; break;
+    // Writing to a 32-bit register always zeros the upper 32 bits of the
+    // full-width register
+    case 8:
+      Opcode = X86::MOV32ri;
+      Reg = getAliasSized(Reg, 4);
+      break;
     default:
       llvm_unreachable("Unexpected size");
     }

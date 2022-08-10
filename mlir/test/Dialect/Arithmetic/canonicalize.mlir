@@ -127,6 +127,41 @@ func.func @cmpi_equal_vector_operands(%arg0: vector<1x8xi64>)
 
 // -----
 
+// Test case: Move constant to the right side.
+// CHECK-LABEL: @cmpi_const_right(
+//  CHECK-SAME: %[[ARG:.*]]:
+//       CHECK:   %[[C:.*]] = arith.constant 1 : i64
+//       CHECK:   %[[R0:.*]] = arith.cmpi eq, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R1:.*]] = arith.cmpi sge, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R2:.*]] = arith.cmpi sle, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R3:.*]] = arith.cmpi uge, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R4:.*]] = arith.cmpi ule, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R5:.*]] = arith.cmpi ne, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R6:.*]] = arith.cmpi sgt, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R7:.*]] = arith.cmpi slt, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R8:.*]] = arith.cmpi ugt, %[[ARG]], %[[C]] : i64
+//       CHECK:   %[[R9:.*]] = arith.cmpi ult, %[[ARG]], %[[C]] : i64
+//       CHECK:   return %[[R0]], %[[R1]], %[[R2]], %[[R3]], %[[R4]],
+//  CHECK-SAME:          %[[R5]], %[[R6]], %[[R7]], %[[R8]], %[[R9]]
+func.func @cmpi_const_right(%arg0: i64)
+    -> (i1, i1, i1, i1, i1, i1, i1, i1, i1, i1) {
+  %c1 = arith.constant 1 : i64
+  %0 = arith.cmpi eq, %c1, %arg0 : i64
+  %1 = arith.cmpi sle, %c1, %arg0 : i64
+  %2 = arith.cmpi sge, %c1, %arg0 : i64
+  %3 = arith.cmpi ule, %c1, %arg0 : i64
+  %4 = arith.cmpi uge, %c1, %arg0 : i64
+  %5 = arith.cmpi ne, %c1, %arg0 : i64
+  %6 = arith.cmpi slt, %c1, %arg0 : i64
+  %7 = arith.cmpi sgt, %c1, %arg0 : i64
+  %8 = arith.cmpi ult, %c1, %arg0 : i64
+  %9 = arith.cmpi ugt, %c1, %arg0 : i64
+  return %0, %1, %2, %3, %4, %5, %6, %7, %8, %9
+      : i1, i1, i1, i1, i1, i1, i1, i1, i1, i1
+}
+
+// -----
+
 // CHECK-LABEL: @cmpOfExtSI
 //  CHECK-NEXT:   return %arg0
 func.func @cmpOfExtSI(%arg0: i1) -> i1 {
@@ -733,8 +768,8 @@ func.func @bitcastOfBitcast(%arg : i16) -> i16 {
 // -----
 
 // CHECK-LABEL: test_maxsi
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MAX_INT_CST:.+]] = arith.constant 127
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MAX_INT_CST:.+]] = arith.constant 127
 // CHECK: %[[X:.+]] = arith.maxsi %arg0, %[[C0]]
 // CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
 func.func @test_maxsi(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -749,8 +784,8 @@ func.func @test_maxsi(%arg0 : i8) -> (i8, i8, i8, i8) {
 }
 
 // CHECK-LABEL: test_maxsi2
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MAX_INT_CST:.+]] = arith.constant 127
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MAX_INT_CST:.+]] = arith.constant 127
 // CHECK: %[[X:.+]] = arith.maxsi %arg0, %[[C0]]
 // CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
 func.func @test_maxsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -767,8 +802,8 @@ func.func @test_maxsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
 // -----
 
 // CHECK-LABEL: test_maxui
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MAX_INT_CST:.+]] = arith.constant -1
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MAX_INT_CST:.+]] = arith.constant -1
 // CHECK: %[[X:.+]] = arith.maxui %arg0, %[[C0]]
 // CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
 func.func @test_maxui(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -783,8 +818,8 @@ func.func @test_maxui(%arg0 : i8) -> (i8, i8, i8, i8) {
 }
 
 // CHECK-LABEL: test_maxui
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MAX_INT_CST:.+]] = arith.constant -1
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MAX_INT_CST:.+]] = arith.constant -1
 // CHECK: %[[X:.+]] = arith.maxui %arg0, %[[C0]]
 // CHECK: return %arg0, %[[MAX_INT_CST]], %arg0, %[[X]]
 func.func @test_maxui2(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -801,8 +836,8 @@ func.func @test_maxui2(%arg0 : i8) -> (i8, i8, i8, i8) {
 // -----
 
 // CHECK-LABEL: test_minsi
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MIN_INT_CST:.+]] = arith.constant -128
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MIN_INT_CST:.+]] = arith.constant -128
 // CHECK: %[[X:.+]] = arith.minsi %arg0, %[[C0]]
 // CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
 func.func @test_minsi(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -817,8 +852,8 @@ func.func @test_minsi(%arg0 : i8) -> (i8, i8, i8, i8) {
 }
 
 // CHECK-LABEL: test_minsi
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MIN_INT_CST:.+]] = arith.constant -128
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MIN_INT_CST:.+]] = arith.constant -128
 // CHECK: %[[X:.+]] = arith.minsi %arg0, %[[C0]]
 // CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
 func.func @test_minsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -835,8 +870,8 @@ func.func @test_minsi2(%arg0 : i8) -> (i8, i8, i8, i8) {
 // -----
 
 // CHECK-LABEL: test_minui
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MIN_INT_CST:.+]] = arith.constant 0
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MIN_INT_CST:.+]] = arith.constant 0
 // CHECK: %[[X:.+]] = arith.minui %arg0, %[[C0]]
 // CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
 func.func @test_minui(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -851,8 +886,8 @@ func.func @test_minui(%arg0 : i8) -> (i8, i8, i8, i8) {
 }
 
 // CHECK-LABEL: test_minui
-// CHECK: %[[C0:.+]] = arith.constant 42
-// CHECK: %[[MIN_INT_CST:.+]] = arith.constant 0
+// CHECK-DAG: %[[C0:.+]] = arith.constant 42
+// CHECK-DAG: %[[MIN_INT_CST:.+]] = arith.constant 0
 // CHECK: %[[X:.+]] = arith.minui %arg0, %[[C0]]
 // CHECK: return %arg0, %arg0, %[[MIN_INT_CST]], %[[X]]
 func.func @test_minui2(%arg0 : i8) -> (i8, i8, i8, i8) {
@@ -948,6 +983,16 @@ func.func @test_mulf(%arg0 : f32) -> (f32, f32, f32, f32) {
   return %0, %1, %2, %3 : f32, f32, f32, f32
 }
 
+// CHECK-LABEL: @test_mulf1(
+func.func @test_mulf1(%arg0 : f32, %arg1 : f32) -> (f32) {
+  // CHECK-NEXT:  %[[X:.+]] = arith.mulf %arg0, %arg1 : f32
+  // CHECK-NEXT:  return %[[X]]
+  %0 = arith.negf %arg0 : f32
+  %1 = arith.negf %arg1 : f32
+  %2 = arith.mulf %0, %1 : f32
+  return %2 : f32
+}
+
 // -----
 
 // CHECK-LABEL: @test_divf(
@@ -959,6 +1004,16 @@ func.func @test_divf(%arg0 : f64) -> (f64, f64) {
   %0 = arith.divf %arg0, %c1 : f64
   %1 = arith.divf %c1, %c2 : f64
   return %0, %1 : f64, f64
+}
+
+// CHECK-LABEL: @test_divf1(
+func.func @test_divf1(%arg0 : f32, %arg1 : f32) -> (f32) {
+  // CHECK-NEXT:  %[[X:.+]] = arith.divf %arg0, %arg1 : f32
+  // CHECK-NEXT:  return %[[X]]
+  %0 = arith.negf %arg0 : f32
+  %1 = arith.negf %arg1 : f32
+  %2 = arith.divf %0, %1 : f32
+  return %2 : f32
 }
 
 // -----
@@ -1320,12 +1375,21 @@ func.func @test_negf() -> (f32) {
   return %0: f32
 }
 
+// CHECK-LABEL: @test_negf1(
+// CHECK-SAME: %[[arg0:.+]]:
+// CHECK: return %[[arg0]]
+func.func @test_negf1(%f : f32) -> (f32) {
+  %0 = arith.negf %f : f32
+  %1 = arith.negf %0 : f32
+  return %1: f32
+}
+
 // -----
 
 // CHECK-LABEL: @test_remui(
 // CHECK: %[[res:.+]] = arith.constant dense<[0, 0, 4, 2]> : vector<4xi32>
 // CHECK: return %[[res]]
-func @test_remui() -> (vector<4xi32>) {
+func.func @test_remui() -> (vector<4xi32>) {
   %v1 = arith.constant dense<[9, 9, 9, 9]> : vector<4xi32>
   %v2 = arith.constant dense<[1, 3, 5, 7]> : vector<4xi32>
   %0 = arith.remui %v1, %v2 : vector<4xi32>
@@ -1337,7 +1401,7 @@ func @test_remui() -> (vector<4xi32>) {
 // CHECK-LABEL: @test_remui_1(
 // CHECK: %[[res:.+]] = arith.constant dense<0> : vector<4xi32>
 // CHECK: return %[[res]]
-func @test_remui_1(%arg : vector<4xi32>) -> (vector<4xi32>) {
+func.func @test_remui_1(%arg : vector<4xi32>) -> (vector<4xi32>) {
   %v = arith.constant dense<[1, 1, 1, 1]> : vector<4xi32>
   %0 = arith.remui %arg, %v : vector<4xi32>
   return %0 : vector<4xi32>
@@ -1348,7 +1412,7 @@ func @test_remui_1(%arg : vector<4xi32>) -> (vector<4xi32>) {
 // CHECK-LABEL: @test_remsi(
 // CHECK: %[[res:.+]] = arith.constant dense<[0, 0, 4, 2]> : vector<4xi32>
 // CHECK: return %[[res]]
-func @test_remsi() -> (vector<4xi32>) {
+func.func @test_remsi() -> (vector<4xi32>) {
   %v1 = arith.constant dense<[9, 9, 9, 9]> : vector<4xi32>
   %v2 = arith.constant dense<[1, 3, 5, 7]> : vector<4xi32>
   %0 = arith.remsi %v1, %v2 : vector<4xi32>
@@ -1360,8 +1424,30 @@ func @test_remsi() -> (vector<4xi32>) {
 // CHECK-LABEL: @test_remsi_1(
 // CHECK: %[[res:.+]] = arith.constant dense<0> : vector<4xi32>
 // CHECK: return %[[res]]
-func @test_remsi_1(%arg : vector<4xi32>) -> (vector<4xi32>) {
+func.func @test_remsi_1(%arg : vector<4xi32>) -> (vector<4xi32>) {
   %v = arith.constant dense<[1, 1, 1, 1]> : vector<4xi32>
   %0 = arith.remsi %arg, %v : vector<4xi32>
   return %0 : vector<4xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_remf(
+// CHECK: %[[res:.+]] = arith.constant -1.000000e+00 : f32
+// CHECK: return %[[res]]
+func.func @test_remf() -> (f32) {
+  %v1 = arith.constant 3.0 : f32
+  %v2 = arith.constant 2.0 : f32
+  %0 = arith.remf %v1, %v2 : f32
+  return %0 : f32
+}
+
+// CHECK-LABEL: @test_remf_vec(
+// CHECK: %[[res:.+]] = arith.constant dense<[1.000000e+00, 0.000000e+00, -1.000000e+00, 0.000000e+00]> : vector<4xf32>
+// CHECK: return %[[res]]
+func.func @test_remf_vec() -> (vector<4xf32>) {
+  %v1 = arith.constant dense<[1.0, 2.0, 3.0, 4.0]> : vector<4xf32>
+  %v2 = arith.constant dense<[2.0, 2.0, 2.0, 2.0]> : vector<4xf32>
+  %0 = arith.remf %v1, %v2 : vector<4xf32>
+  return %0 : vector<4xf32>
 }

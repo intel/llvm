@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 %s -verify=expected,c -pedantic -fsyntax-only
-// RUN: %clang_cc1 %s -cl-std=CL2.0 -verify=expected,c -pedantic -fsyntax-only
-// RUN: %clang_cc1 %s -cl-std=CL3.0 -cl-ext=+__opencl_c_generic_address_space -verify=expected,c -pedantic -fsyntax-only
+// RUN: %clang_cc1 %s -verify=expected -pedantic -fsyntax-only
+// RUN: %clang_cc1 %s -cl-std=CL2.0 -verify=expected -pedantic -fsyntax-only
+// RUN: %clang_cc1 %s -cl-std=CL3.0 -cl-ext=+__opencl_c_generic_address_space -verify=expected -pedantic -fsyntax-only
 // RUN: %clang_cc1 %s -cl-std=clc++1.0 -verify -pedantic -fsyntax-only
 // RUN: %clang_cc1 %s -cl-std=clc++2021 -cl-ext=+__opencl_c_generic_address_space -verify -pedantic -fsyntax-only
 
@@ -251,7 +251,7 @@ void func_multiple_addr(void) {
 
 void func_with_array_param(const unsigned data[16]);
 
-__kernel void k() { // c-warning {{a function declaration without a prototype is deprecated in all versions of C}}
+__kernel void k() {
   unsigned data[16];
   func_with_array_param(data);
 }
@@ -266,9 +266,9 @@ void func_multiple_addr2(void) {
   __attribute__((opencl_private)) private_int_t var5;  // expected-warning {{multiple identical address spaces specified for type}}
   __attribute__((opencl_private)) private_int_t *var6; // expected-warning {{multiple identical address spaces specified for type}}
 #if __OPENCL_CPP_VERSION__
-  [[clang::opencl_private]] __global int var7;         // expected-error {{multiple address spaces specified for type}}
-  [[clang::opencl_private]] __global int *var8;        // expected-error {{multiple address spaces specified for type}}
-  [[clang::opencl_private]] private_int_t var9;        // expected-warning {{multiple identical address spaces specified for type}}
-  [[clang::opencl_private]] private_int_t *var10;      // expected-warning {{multiple identical address spaces specified for type}}
+  __global int [[clang::opencl_private]] var7;         // expected-error {{multiple address spaces specified for type}}
+  __global int [[clang::opencl_private]] *var8;        // expected-error {{multiple address spaces specified for type}}
+  private_int_t [[clang::opencl_private]] var9;        // expected-warning {{multiple identical address spaces specified for type}}
+  private_int_t [[clang::opencl_private]] *var10;      // expected-warning {{multiple identical address spaces specified for type}}
 #endif // !__OPENCL_CPP_VERSION__
 }

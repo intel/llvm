@@ -38,7 +38,6 @@
 
 namespace llvm {
 
-class AAResults;
 class DFAPacketizer;
 class InstrItineraryData;
 class LiveIntervals;
@@ -121,12 +120,11 @@ public:
   /// This means the only allowed uses are constants and unallocatable physical
   /// registers so that the instructions result is independent of the place
   /// in the function.
-  bool isTriviallyReMaterializable(const MachineInstr &MI,
-                                   AAResults *AA = nullptr) const {
+  bool isTriviallyReMaterializable(const MachineInstr &MI) const {
     return MI.getOpcode() == TargetOpcode::IMPLICIT_DEF ||
            (MI.getDesc().isRematerializable() &&
-            (isReallyTriviallyReMaterializable(MI, AA) ||
-             isReallyTriviallyReMaterializableGeneric(MI, AA)));
+            (isReallyTriviallyReMaterializable(MI) ||
+             isReallyTriviallyReMaterializableGeneric(MI)));
   }
 
   /// Given \p MO is a PhysReg use return if it can be ignored for the purpose
@@ -143,8 +141,7 @@ protected:
   /// than producing a value, or if it requres any address registers that are
   /// not always available.
   /// Requirements must be check as stated in isTriviallyReMaterializable() .
-  virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                 AAResults *AA) const {
+  virtual bool isReallyTriviallyReMaterializable(const MachineInstr &MI) const {
     return false;
   }
 
@@ -186,8 +183,7 @@ private:
   /// set and the target hook isReallyTriviallyReMaterializable returns false,
   /// this function does target-independent tests to determine if the
   /// instruction is really trivially rematerializable.
-  bool isReallyTriviallyReMaterializableGeneric(const MachineInstr &MI,
-                                                AAResults *AA) const;
+  bool isReallyTriviallyReMaterializableGeneric(const MachineInstr &MI) const;
 
 public:
   /// These methods return the opcode of the frame setup/destroy instructions
@@ -1283,13 +1279,6 @@ protected:
   }
 
 public:
-  /// getAddressSpaceForPseudoSourceKind - Given the kind of memory
-  /// (e.g. stack) the target returns the corresponding address space.
-  virtual unsigned
-  getAddressSpaceForPseudoSourceKind(unsigned Kind) const {
-    return 0;
-  }
-
   /// unfoldMemoryOperand - Separate a single instruction which folded a load or
   /// a store or a load and a store into two or more instruction. If this is
   /// possible, returns true as well as the new instructions by reference.

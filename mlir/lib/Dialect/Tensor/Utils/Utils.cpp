@@ -27,7 +27,7 @@ PadOp mlir::tensor::createPadScalarOp(Type type, Value source, Value pad,
   int rank = padTensorOp.getResultType().getRank();
   SmallVector<Type> blockArgTypes(rank, builder.getIndexType());
   SmallVector<Location> blockArgLocs(rank, loc);
-  auto &region = padTensorOp.region();
+  auto &region = padTensorOp.getRegion();
   // `builder.createBlock` changes the insertion point within the block. Create
   // a guard to reset the insertion point of the builder after it is destroyed.
   OpBuilder::InsertionGuard guard(builder);
@@ -54,4 +54,17 @@ PadOp mlir::tensor::createPadHighOp(RankedTensorType type, Value source,
         makeComposedAffineApply(b, loc, en.value() - d0, {dimOp}).getResult();
   }
   return createPadScalarOp(type, source, pad, low, high, nofold, loc, b);
+}
+
+SmallVector<Value> mlir::tensor::createDynamicDimValues(OpBuilder &b,
+                                                        Location loc,
+                                                        Value rankedTensor) {
+  auto tensorTy = rankedTensor.getType().cast<RankedTensorType>();
+  SmallVector<Value> dynamicDims;
+  for (const auto &en : llvm::enumerate(tensorTy.getShape())) {
+    if (en.value() == ShapedType::kDynamicSize)
+      dynamicDims.push_back(
+          b.create<tensor::DimOp>(loc, rankedTensor, en.index()));
+  }
+  return dynamicDims;
 }

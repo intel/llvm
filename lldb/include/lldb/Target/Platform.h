@@ -847,6 +847,8 @@ public:
   }
 
   virtual CompilerType GetSiginfoType(const llvm::Triple &triple);
+  
+  virtual Args GetExtraStartupCommands();
 
 protected:
   /// Create a list of ArchSpecs with the given OS and a architectures. The
@@ -943,7 +945,7 @@ private:
 
 class PlatformList {
 public:
-  PlatformList() {}
+  PlatformList() = default;
 
   ~PlatformList() = default;
 

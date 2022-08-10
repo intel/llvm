@@ -843,6 +843,23 @@ a special character, which is the convention used by GNU Make. The -MV
 option tells Clang to put double-quotes around the entire filename, which
 is the convention used by NMake and Jom.
 
+.. option:: -femit-dwarf-unwind=<value>
+
+  When to emit DWARF unwind (EH frame) info. This is a Mach-O-specific option.
+
+  Valid values are:
+
+  * ``no-compact-unwind`` - Only emit DWARF unwind when compact unwind encodings
+    aren't available. This is the default for arm64.
+  * ``always`` - Always emit DWARF unwind regardless.
+  * ``default`` - Use the platform-specific default (``always`` for all
+    non-arm64-platforms).
+
+``no-compact-unwind`` is a performance optimization -- Clang will emit smaller
+object files that are more quickly processed by the linker. This may cause
+binary compatibility issues on older x86_64 targets, however, so use it with
+caution.
+
 .. _configuration-files:
 
 Configuration files
@@ -2513,6 +2530,32 @@ When the file contains only excludes, all files and functions except for the
 excluded ones will be instrumented. Otherwise, only the files and functions
 specified will be instrumented.
 
+Instrument function groups
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes it is desirable to minimize the size overhead of instrumented
+binaries. One way to do this is to partition functions into groups and only
+instrument functions in a specified group. This can be done using the
+`-fprofile-function-groups` and `-fprofile-selected-function-group` options.
+
+.. option:: -fprofile-function-groups=<N>, -fprofile-selected-function-group=<i>
+
+  The following uses 3 groups
+
+  .. code-block:: console
+
+    $ clang++ -Oz -fprofile-generate=group_0/ -fprofile-function-groups=3 -fprofile-selected-function-group=0 code.cc -o code.0
+    $ clang++ -Oz -fprofile-generate=group_1/ -fprofile-function-groups=3 -fprofile-selected-function-group=1 code.cc -o code.1
+    $ clang++ -Oz -fprofile-generate=group_2/ -fprofile-function-groups=3 -fprofile-selected-function-group=2 code.cc -o code.2
+
+  After collecting raw profiles from the three binaries, they can be merged into
+  a single profile like normal.
+
+  .. code-block:: console
+
+    $ llvm-profdata merge -output=code.profdata group_*/*.profraw
+
+
 Profile remapping
 ^^^^^^^^^^^^^^^^^
 
@@ -3065,7 +3108,7 @@ Compiling to bitcode can be done as follows:
 This will produce a file `test.bc` that can be used in vendor toolchains
 to perform machine code generation.
 
-Note that if compiled to bitcode for generic targets such as SPIR,
+Note that if compiled to bitcode for generic targets such as SPIR/SPIR-V,
 portable IR is produced that can be used with various vendor
 tools as well as open source tools such as `SPIRV-LLVM Translator
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator>`_
@@ -3073,15 +3116,18 @@ to produce SPIR-V binary. More details are provided in `the offline
 compilation from OpenCL kernel sources into SPIR-V using open source
 tools
 <https://github.com/KhronosGroup/OpenCL-Guide/blob/main/chapters/os_tooling.md>`_.
+From clang 14 onwards SPIR-V can be generated directly as detailed in
+:ref:`the SPIR-V support section <spir-v>`.
 
 Clang currently supports OpenCL C language standards up to v2.0. Clang mainly
 supports full profile. There is only very limited support of the embedded
 profile.
-Starting from clang 9 a C++ mode is available for OpenCL (see
+From clang 9 a C++ mode is available for OpenCL (see
 :ref:`C++ for OpenCL <cxx_for_opencl>`).
 
 OpenCL v3.0 support is complete but it remains in experimental state, see more
-details about the experimental features in :doc:`OpenCLSupport` page.
+details about the experimental features and limitations in :doc:`OpenCLSupport`
+page.
 
 OpenCL Specific Options
 -----------------------
@@ -3120,6 +3166,34 @@ compile.
 More information about the standard types and functions is provided in :ref:`the
 section on the OpenCL Header <opencl_header>`.
 
+.. _opencl_cl_ext:
+
+.. option:: -cl-ext
+
+Enables/Disables support of OpenCL extensions and optional features. All OpenCL
+targets set a list of extensions that they support. Clang allows to amend this using
+the ``-cl-ext`` flag with a comma-separated list of extensions prefixed with
+``'+'`` or ``'-'``. The syntax: ``-cl-ext=<(['-'|'+']<extension>[,])+>``,  where
+extensions can be either one of `the OpenCL published extensions
+<https://www.khronos.org/registry/OpenCL>`_
+or any vendor extension. Alternatively, ``'all'`` can be used to enable
+or disable all known extensions.
+
+Example disabling double support for the 64-bit SPIR-V target:
+
+   .. code-block:: console
+
+     $ clang -c -target spirv64 -cl-ext=-cl_khr_fp64 test.cl
+
+Enabling all extensions except double support in R600 AMD GPU can be done using:
+
+   .. code-block:: console
+
+     $ clang -target r600 -cl-ext=-all,+cl_khr_fp16 test.cl
+
+Note that some generic targets e.g. SPIR/SPIR-V enable all extensions/features in
+clang by default.
+
 OpenCL Targets
 --------------
 
@@ -3152,8 +3226,8 @@ Generic Targets
 
    .. code-block:: console
 
-    $ clang -target spirv32 test.cl
-    $ clang -target spirv64 test.cl
+    $ clang -target spirv32 -c test.cl
+    $ clang -target spirv64 -c test.cl
 
   More details can be found in :ref:`the SPIR-V support section <spir-v>`.
 
@@ -3167,9 +3241,8 @@ Generic Targets
     $ clang -target spir test.cl -emit-llvm -c
     $ clang -target spir64 test.cl -emit-llvm -c
 
-  All known OpenCL extensions are supported in the SPIR targets. Clang will
-  generate SPIR v1.2 compatible IR for OpenCL versions up to 2.0 and SPIR v2.0
-  for OpenCL v2.0 or C++ for OpenCL.
+  Clang will generate SPIR v1.2 compatible IR for OpenCL versions up to 2.0 and
+  SPIR v2.0 for OpenCL v2.0 or C++ for OpenCL.
 
 - x86 is used by some implementations that are x86 compatible and currently
   remains for backwards compatibility (with older implementations prior to
@@ -3182,6 +3255,10 @@ Generic Targets
   This target does not support multiple memory segments and, therefore, the fake
   address space map can be added using the :ref:`-ffake-address-space-map
   <opencl_fake_address_space_map>` flag.
+
+  All known OpenCL extensions and features are set to supported in the generic targets,
+  however :option:`-cl-ext` flag can be used to toggle individual extensions and
+  features.
 
 .. _opencl_header:
 
@@ -3394,6 +3471,7 @@ Example of use:
    .. code-block:: console
 
      clang -cl-std=clc++1.0 test.clcpp
+     clang -cl-std=clc++ -c -target spirv64 test.cl
 
 
 By default, files with ``.clcpp`` extension are compiled with the C++ for
@@ -3591,6 +3669,23 @@ Clang expects the GCC executable "gcc.exe" compiled for
 `Some tests might fail <https://bugs.llvm.org/show_bug.cgi?id=9072>`_ on
 ``x86_64-w64-mingw32``.
 
+AIX
+^^^
+
+The ``-mdefault-visibility-export-mapping=`` option can be used to control
+mapping of default visibility to an explicit shared object export
+(i.e. XCOFF exported visibility). Three values are provided for the option:
+
+* ``-mdefault-visibility-export-mapping=none``: no additional export
+  information is created for entities with default visibility.
+* ``-mdefault-visibility-export-mapping=explicit``: mark entities for export
+  if they have explict (e.g. via an attribute) default visibility from the
+  source, including RTTI.
+* ``-mdefault-visibility-export-mapping=all``: set XCOFF exported visibility
+  for all entities with default visibility from any source. This gives a
+  export behavior similar to ELF platforms where all entities with default
+  visibility are exported.
+
 .. _spir-v:
 
 SPIR-V support
@@ -3607,7 +3702,7 @@ To generate SPIR-V binaries, Clang uses the external ``llvm-spirv`` tool from th
 Prior to the generation of SPIR-V binary with Clang, ``llvm-spirv``
 should be built or installed. Please refer to `the following instructions
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator#build-instructions>`_
-for more details. Clang will expects the ``llvm-spirv`` executable to
+for more details. Clang will expect the ``llvm-spirv`` executable to
 be present in the ``PATH`` environment variable. Clang uses ``llvm-spirv``
 with `the widely adopted assembly syntax package
 <https://github.com/KhronosGroup/SPIRV-LLVM-Translator/#build-with-spirv-tools>`_.
@@ -3624,8 +3719,8 @@ Example usage for OpenCL kernel compilation:
 
    .. code-block:: console
 
-     $ clang -target spirv32 test.cl
-     $ clang -target spirv64 test.cl
+     $ clang -target spirv32 -c test.cl
+     $ clang -target spirv64 -c test.cl
 
 Both invocations of Clang will result in the generation of a SPIR-V binary file
 `test.o` for 32 bit and 64 bit respectively. This file can be imported
@@ -3636,12 +3731,32 @@ Converting to SPIR-V produced with the optimization levels other than `-O0` is
 currently available as an experimental feature and it is not guaranteed to work
 in all cases.
 
+Clang also supports integrated generation of SPIR-V without use of ``llvm-spirv``
+tool as an experimental feature when ``-fintegrated-objemitter`` flag is passed in
+the command line.
+
+   .. code-block:: console
+
+     $ clang -target spirv32 -fintegrated-objemitter -c test.cl
+
+Note that only very basic functionality is supported at this point and therefore
+it is not suitable for arbitrary use cases. This feature is only enabled when clang
+build is configured with ``-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV`` option.
+
 Linking is done using ``spirv-link`` from `the SPIRV-Tools project
 <https://github.com/KhronosGroup/SPIRV-Tools#linker>`_. Similar to other external
 linkers, Clang will expect ``spirv-link`` to be installed separately and to be
 present in the ``PATH`` environment variable. Please refer to `the build and
 installation instructions
 <https://github.com/KhronosGroup/SPIRV-Tools#build>`_.
+
+   .. code-block:: console
+
+     $ clang -target spirv64 test1.cl test2.cl
+
+More information about the SPIR-V target settings and supported versions of SPIR-V
+format can be found in `the SPIR-V target guide
+<https://llvm.org/docs/SPIRVUsage.html>`__.
 
 .. _clang-cl:
 

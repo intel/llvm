@@ -290,8 +290,8 @@ SemanticsContext::SemanticsContext(
       intrinsics_{evaluate::IntrinsicProcTable::Configure(defaultKinds_)},
       globalScope_{*this}, intrinsicModulesScope_{globalScope_.MakeScope(
                                Scope::Kind::IntrinsicModules, nullptr)},
-      foldingContext_{
-          parser::ContextualMessages{&messages_}, defaultKinds_, intrinsics_} {}
+      foldingContext_{parser::ContextualMessages{&messages_}, defaultKinds_,
+          intrinsics_, targetCharacteristics_} {}
 
 SemanticsContext::~SemanticsContext() {}
 
@@ -354,6 +354,16 @@ Scope &SemanticsContext::FindScope(parser::CharBlock source) {
         "SemanticsContext::FindScope(): invalid source location for '%s'",
         source.ToString().c_str());
   }
+}
+
+bool SemanticsContext::IsInModuleFile(parser::CharBlock source) const {
+  for (const Scope *scope{&FindScope(source)}; !scope->IsGlobal();
+       scope = &scope->parent()) {
+    if (scope->IsModuleFile()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void SemanticsContext::PopConstruct() {

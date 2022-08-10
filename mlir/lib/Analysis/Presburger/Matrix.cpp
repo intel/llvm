@@ -28,32 +28,6 @@ Matrix Matrix::identity(unsigned dimension) {
   return matrix;
 }
 
-int64_t &Matrix::at(unsigned row, unsigned column) {
-  assert(row < nRows && "Row outside of range");
-  assert(column < nColumns && "Column outside of range");
-  return data[row * nReservedColumns + column];
-}
-
-int64_t Matrix::at(unsigned row, unsigned column) const {
-  assert(row < nRows && "Row outside of range");
-  assert(column < nColumns && "Column outside of range");
-  return data[row * nReservedColumns + column];
-}
-
-int64_t &Matrix::operator()(unsigned row, unsigned column) {
-  return at(row, column);
-}
-
-int64_t Matrix::operator()(unsigned row, unsigned column) const {
-  return at(row, column);
-}
-
-unsigned Matrix::getNumRows() const { return nRows; }
-
-unsigned Matrix::getNumColumns() const { return nColumns; }
-
-unsigned Matrix::getNumReservedColumns() const { return nReservedColumns; }
-
 unsigned Matrix::getNumReservedRows() const {
   return data.capacity() / nReservedColumns;
 }
@@ -116,6 +90,13 @@ MutableArrayRef<int64_t> Matrix::getRow(unsigned row) {
 
 ArrayRef<int64_t> Matrix::getRow(unsigned row) const {
   return {&data[row * nReservedColumns], nColumns};
+}
+
+void Matrix::setRow(unsigned row, ArrayRef<int64_t> elems) {
+  assert(elems.size() == getNumColumns() &&
+         "elems size must match row length!");
+  for (unsigned i = 0, e = getNumColumns(); i < e; ++i)
+    at(row, i) = elems[i];
 }
 
 void Matrix::insertColumn(unsigned pos) { insertColumns(pos, 1); }

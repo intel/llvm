@@ -1,6 +1,4 @@
 set(LLVM_LINK_COMPONENTS
-  BOLTCore
-  BOLTRewrite
   DebugInfoDWARF
   Object
   MC
@@ -10,6 +8,13 @@ set(LLVM_LINK_COMPONENTS
 add_bolt_unittest(CoreTests
   BinaryContext.cpp
   MCPlusBuilder.cpp
+  DynoStats.cpp
+  )
+
+target_link_libraries(CoreTests
+  PRIVATE
+  LLVMBOLTCore
+  LLVMBOLTRewrite
   )
 
 if ("AArch64" IN_LIST LLVM_TARGETS_TO_BUILD)

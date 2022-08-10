@@ -2,24 +2,28 @@
 
 # RUN: llvm-mc -dwarf-version=5 -filetype=obj -triple x86_64-unknown-linux %s -o %t1.o
 # RUN: %clang %cflags -dwarf-5 %t1.o -o %t.exe -Wl,-q
-# RUN: llvm-bolt %t.exe -o %t.bolt -update-debug-sections
+# RUN: llvm-bolt %t.exe -o %t.bolt --update-debug-sections
 # RUN: llvm-dwarfdump --show-form --verbose --debug-line %t.exe | FileCheck --check-prefix=PRECHECK %s
 # RUN: llvm-dwarfdump --show-form --verbose --debug-line %t.bolt | FileCheck --check-prefix=POSTCHECK %s
 
 # This test checks that DWARF5 .debug_line is handled correctly.
 
 # PRECHECK: version: 5
-# PRECHECK: include_directories[  0] =  .debug_line_str[0x00000000]
+# PRECHECK: include_directories[  0] =  .debug_line_str
+# PRECHECK-SAME: ] = "."
 # PRECHECK-NEXT: file_names[  0]:
-# PRECHECK-NEXT: name:  .debug_line_str[0x00000002] = "main.cpp"
+# PRECHECK-NEXT: name:  .debug_line_str
+# PRECHECK-SAME: = "main.cpp"
 # PRECHECK-NEXT: dir_index: 0
 # PRECHECK-NEXT: md5_checksum: bb12fec8d002b1f0e06f7dee4604c6cc
 # PRECHECK-NOT: file_names[  1]:
 
 # POSTCHECK: version: 5
-# POSTCHECK: include_directories[  0] =  .debug_line_str[0x00000000]
+# POSTCHECK: include_directories[  0] =  .debug_line_str
+# POSTCHECK-SAME: ] = "."
 # POSTCHECK-NEXT: file_names[  0]:
-# POSTCHECK-NEXT: name:  .debug_line_str[0x00000002] = "main.cpp"
+# POSTCHECK-NEXT: name:  .debug_line_str
+# POSTCHECK-SAME: ] = "main.cpp"
 # POSTCHECK-NEXT: dir_index: 0
 # POSTCHECK-NEXT: md5_checksum: bb12fec8d002b1f0e06f7dee4604c6cc
 # POSTCHECK-NOT: file_names[  1]:

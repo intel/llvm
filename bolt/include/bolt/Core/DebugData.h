@@ -34,6 +34,30 @@ namespace llvm {
 
 namespace bolt {
 
+struct AttrInfo {
+  DWARFFormValue V;
+  const DWARFAbbreviationDeclaration *AbbrevDecl;
+  uint64_t Offset;
+  uint32_t Size; // Size of the attribute.
+};
+
+/// Finds attributes FormValue and Offset.
+///
+/// \param DIE die to look up in.
+/// \param AbbrevDecl abbrev declaration for the die.
+/// \param Index an index in Abbrev declaration entry.
+Optional<AttrInfo>
+findAttributeInfo(const DWARFDie DIE,
+                  const DWARFAbbreviationDeclaration *AbbrevDecl,
+                  uint32_t Index);
+
+/// Finds attributes FormValue and Offset.
+///
+/// \param DIE die to look up in.
+/// \param Attr the attribute to extract.
+/// \return an optional AttrInfo with DWARFFormValue and Offset.
+Optional<AttrInfo> findAttributeInfo(const DWARFDie DIE, dwarf::Attribute Attr);
+
 // DWARF5 Header in order of encoding.
 // Types represent encodnig sizes.
 using UnitLengthType = uint32_t;
@@ -155,7 +179,7 @@ public:
   uint64_t getSectionOffset();
 
   /// Returns a buffer containing Ranges.
-  virtual std::unique_ptr<DebugBufferVector> finalize() {
+  virtual std::unique_ptr<DebugBufferVector> releaseBuffer() {
     return std::move(RangesBuffer);
   }
 
@@ -164,6 +188,12 @@ public:
   static bool classof(const DebugRangesSectionWriter *Writer) {
     return Writer->getKind() == RangesWriterKind::DebugRangesWriter;
   }
+
+  /// Writes out range lists for a current CU being processed.
+  void virtual finalizeSection(){};
+
+  /// Needs to be invoked before each \p CU is processed.
+  void virtual initSection(DWARFUnit &CU){};
 
 protected:
   std::unique_ptr<DebugBufferVector> RangesBuffer;
@@ -203,16 +233,18 @@ public:
   /// Add ranges and return offset into section.
   virtual uint64_t addRanges(const DebugAddressRangesVector &Ranges) override;
 
-  virtual std::unique_ptr<DebugBufferVector> finalize() override {
+  virtual std::unique_ptr<DebugBufferVector> releaseBuffer() override {
     return std::move(RangesBuffer);
   }
 
-  /// Needs to be invoked before each CU is processed.
-  /// \p CUID is a unique ID of each CU.
-  void initSection(uint64_t CUID);
+  /// Needs to be invoked before each \p CU is processed.
+  void virtual initSection(DWARFUnit &CU) override;
 
   /// Writes out range lists for a current CU being processed.
-  void finalizeSection();
+  void virtual finalizeSection() override;
+
+  // Returns true if section is empty.
+  bool empty() { return RangesBuffer->empty(); }
 
   static bool classof(const DebugRangesSectionWriter *Writer) {
     return Writer->getKind() == RangesWriterKind::DebugRangeListsWriter;
@@ -220,8 +252,8 @@ public:
 
 private:
   static DebugAddrWriter *AddrWriter;
-  /// Unique ID of CU being processed.
-  uint64_t CUID{0};
+  /// Used to find unique CU ID.
+  DWARFUnit *CU;
   /// Current relative offset of range list entry within this CUs rangelist
   /// body.
   uint32_t CurrentOffset{0};
@@ -275,10 +307,10 @@ public:
   virtual ~DebugAddrWriter(){};
   /// Given an address returns an index in .debug_addr.
   /// Adds Address to map.
-  uint32_t getIndexFromAddress(uint64_t Address, uint64_t CUID);
+  uint32_t getIndexFromAddress(uint64_t Address, DWARFUnit &CU);
 
-  /// Adds {Address, Index} to DWO ID CU.
-  void addIndexAddress(uint64_t Address, uint32_t Index, uint64_t CUID);
+  /// Adds {\p Address, \p Index} to \p CU.
+  void addIndexAddress(uint64_t Address, uint32_t Index, DWARFUnit &CU);
 
   /// Creates consolidated .debug_addr section, and builds DWOID to offset map.
   virtual AddressSectionBuffer finalize();
@@ -338,6 +370,12 @@ protected:
     IndexToAddressMap IndexToAddress;
     uint32_t CurrentIndex{0};
   };
+
+  virtual uint64_t getCUID(DWARFUnit &Unit) {
+    assert(Unit.getDWOId() && "Unit is not Skeleton CU.");
+    return *Unit.getDWOId();
+  }
+
   BinaryContext *BC;
   /// Maps DWOID to AddressForDWOCU.
   std::unordered_map<uint64_t, AddressForDWOCU> AddressMaps;
@@ -357,14 +395,60 @@ public:
   /// Given DWARFUnit \p Unit returns offset of this CU in to .debug_addr
   /// section.
   virtual uint64_t getOffset(DWARFUnit &Unit) override;
+
+protected:
+  /// Given DWARFUnit \p Unit returns either DWO ID or it's offset within
+  /// .debug_info.
+  virtual uint64_t getCUID(DWARFUnit &Unit) override {
+    if (Unit.isDWOUnit()) {
+      DWARFUnit *SkeletonCU = Unit.getLinkedUnit();
+      return SkeletonCU->getOffset();
+    }
+    return Unit.getOffset();
+  }
+};
+
+/// This class is NOT thread safe.
+using DebugStrOffsetsBufferVector = SmallVector<char, 16>;
+class DebugStrOffsetsWriter {
+public:
+  DebugStrOffsetsWriter() {
+    StrOffsetsBuffer = std::make_unique<DebugStrOffsetsBufferVector>();
+    StrOffsetsStream = std::make_unique<raw_svector_ostream>(*StrOffsetsBuffer);
+  }
+
+  /// Initializes Buffer and Stream.
+  void initialize(const DWARFSection &StrOffsetsSection,
+                  const Optional<StrOffsetsContributionDescriptor> Contr);
+
+  /// Update Str offset in .debug_str in .debug_str_offsets.
+  void updateAddressMap(uint32_t Index, uint32_t Address);
+
+  /// Writes out current sections entry into .debug_str_offsets.
+  void finalizeSection();
+
+  /// Returns False if no strings were added to .debug_str.
+  bool isFinalized() const { return !StrOffsetsBuffer->empty(); }
+
+  /// Returns buffer containing .debug_str_offsets.
+  std::unique_ptr<DebugStrOffsetsBufferVector> releaseBuffer() {
+    return std::move(StrOffsetsBuffer);
+  }
+
+private:
+  std::unique_ptr<DebugStrOffsetsBufferVector> StrOffsetsBuffer;
+  std::unique_ptr<raw_svector_ostream> StrOffsetsStream;
+  std::map<uint32_t, uint32_t> IndexToAddressMap;
+  // Section size not including header.
+  uint32_t CurrentSectionSize{0};
 };
 
 using DebugStrBufferVector = SmallVector<char, 16>;
 class DebugStrWriter {
 public:
   DebugStrWriter() = delete;
-  DebugStrWriter(BinaryContext *Bc) : BC(Bc) { create(); }
-  std::unique_ptr<DebugStrBufferVector> finalize() {
+  DebugStrWriter(BinaryContext &BC) : BC(BC) { create(); }
+  std::unique_ptr<DebugStrBufferVector> releaseBuffer() {
     return std::move(StrBuffer);
   }
 
@@ -384,26 +468,34 @@ private:
   void create();
   std::unique_ptr<DebugStrBufferVector> StrBuffer;
   std::unique_ptr<raw_svector_ostream> StrStream;
-  BinaryContext *BC;
+  BinaryContext &BC;
 };
 
+class DebugInfoBinaryPatcher;
+class DebugAbbrevWriter;
 enum class LocWriterKind { DebugLocWriter, DebugLoclistWriter };
 
 /// Serializes part of a .debug_loc DWARF section with LocationLists.
 class SimpleBinaryPatcher;
 class DebugLocWriter {
+protected:
+  DebugLocWriter(uint8_t DwarfVersion, LocWriterKind Kind)
+      : DwarfVersion(DwarfVersion), Kind(Kind) {
+    init();
+  }
+
 public:
-  DebugLocWriter() = delete;
-  DebugLocWriter(BinaryContext *BC);
+  DebugLocWriter() { init(); };
   virtual ~DebugLocWriter(){};
 
   /// Writes out location lists and stores internal patches.
-  virtual void addList(uint64_t AttrOffset, uint32_t LocListIndex,
-                       DebugLocationsVector &&LocList);
+  virtual void addList(AttrInfo &AttrVal, DebugLocationsVector &LocList,
+                       DebugInfoBinaryPatcher &DebugInfoPatcher,
+                       DebugAbbrevWriter &AbbrevWriter);
 
   /// Writes out locations in to a local buffer, and adds Debug Info patches.
-  virtual void finalize(uint64_t SectionOffset,
-                        SimpleBinaryPatcher &DebugInfoPatcher);
+  virtual void finalize(DebugInfoBinaryPatcher &DebugInfoPatcher,
+                        DebugAbbrevWriter &AbbrevWriter);
 
   /// Return internal buffer.
   virtual std::unique_ptr<DebugBufferVector> getBuffer();
@@ -425,13 +517,15 @@ protected:
   std::unique_ptr<raw_svector_ostream> LocStream;
   /// Current offset in the section (updated as new entries are written).
   /// Starts with 0 here since this only writes part of a full location lists
-  /// section. In the final section, the first 16 bytes are reserved for an
-  /// empty list.
-  uint32_t SectionOffset{0};
+  /// section. In the final section, for DWARF4, the first 16 bytes are reserved
+  /// for an empty list.
+  static uint32_t LocSectionOffset;
   uint8_t DwarfVersion{4};
   LocWriterKind Kind{LocWriterKind::DebugLocWriter};
 
 private:
+  /// Inits all the related data structures.
+  void init();
   struct LocListDebugInfoPatchType {
     uint64_t DebugInfoAttrOffset;
     uint64_t LocListOffset;
@@ -441,39 +535,46 @@ private:
   /// The list of debug info patches to be made once individual
   /// location list writers have been filled
   VectorLocListDebugInfoPatchType LocListDebugInfoPatches;
-
-  using VectorEmptyLocListAttributes = std::vector<uint64_t>;
-  /// Contains all the attributes pointing to empty location list.
-  VectorEmptyLocListAttributes EmptyAttrLists;
 };
 
 class DebugLoclistWriter : public DebugLocWriter {
 public:
   ~DebugLoclistWriter() {}
   DebugLoclistWriter() = delete;
-  DebugLoclistWriter(BinaryContext *BC, uint64_t CID,
-                     uint32_t LocListsBaseAttrOffset, uint8_t DV, bool SD)
-      : DebugLocWriter(BC), CUID(CID),
-        LocListsBaseAttrOffset(LocListsBaseAttrOffset), IsSplitDwarf(SD) {
-    Kind = LocWriterKind::DebugLoclistWriter;
-    DwarfVersion = DV;
+  DebugLoclistWriter(DWARFUnit &Unit, uint8_t DV, bool SD)
+      : DebugLocWriter(DV, LocWriterKind::DebugLoclistWriter), CU(Unit),
+        IsSplitDwarf(SD) {
     assert(DebugLoclistWriter::AddrWriter &&
            "Please use SetAddressWriter to initialize "
            "DebugAddrWriter before instantiation.");
+    if (DwarfVersion >= 5) {
+      LocBodyBuffer = std::make_unique<DebugBufferVector>();
+      LocBodyStream = std::make_unique<raw_svector_ostream>(*LocBodyBuffer);
+    } else {
+      // Writing out empty location list to which all references to empty
+      // location lists will point.
+      const char Zeroes[16] = {0};
+      *LocStream << StringRef(Zeroes, 16);
+    }
   }
 
   static void setAddressWriter(DebugAddrWriter *AddrW) { AddrWriter = AddrW; }
 
   /// Stores location lists internally to be written out during finalize phase.
-  virtual void addList(uint64_t AttrOffset, uint32_t LocListIndex,
-                       DebugLocationsVector &&LocList) override;
+  virtual void addList(AttrInfo &AttrVal, DebugLocationsVector &LocList,
+                       DebugInfoBinaryPatcher &DebugInfoPatcher,
+                       DebugAbbrevWriter &AbbrevWriter) override;
 
   /// Writes out locations in to a local buffer and applies debug info patches.
-  void finalize(uint64_t SectionOffset,
-                SimpleBinaryPatcher &DebugInfoPatcher) override;
+  void finalize(DebugInfoBinaryPatcher &DebugInfoPatcher,
+                DebugAbbrevWriter &AbbrevWriter) override;
 
-  /// Returns DWO ID.
-  uint64_t getCUID() const { return CUID; }
+  /// Returns CU ID.
+  /// For Skelton CU it is a CU Offset.
+  /// For DWO CU it is a DWO ID.
+  uint64_t getCUID() const {
+    return CU.isDWOUnit() ? *CU.getDWOId() : CU.getOffset();
+  }
 
   LocWriterKind getKind() const { return DebugLocWriter::getKind(); }
 
@@ -484,36 +585,21 @@ public:
   bool isSplitDwarf() const { return IsSplitDwarf; }
 
   constexpr static uint32_t InvalidIndex = UINT32_MAX;
-  constexpr static uint32_t InvalidLocListsBaseAttrOffset = UINT32_MAX;
 
 private:
   /// Writes out locations in to a local buffer and applies debug info patches.
-  void finalizeDWARFLegacy(uint64_t SectionOffset,
-                           SimpleBinaryPatcher &DebugInfoPatcher);
+  void finalizeDWARF5(DebugInfoBinaryPatcher &DebugInfoPatcher,
+                      DebugAbbrevWriter &AbbrevWriter);
 
-  /// Writes out locations in to a local buffer and applies debug info patches.
-  void finalizeDWARF5(uint64_t SectionOffset,
-                      SimpleBinaryPatcher &DebugInfoPatcher);
-
-  struct LocPatch {
-    uint64_t AttrOffset{0};
-    uint32_t Index;
-    DebugLocationsVector LocList;
-  };
-  using LocPatchVec = SmallVector<LocPatch, 4>;
-  LocPatchVec Patches;
-
-  class Patch {
-  public:
-    Patch() = delete;
-    Patch(uint64_t O, uint64_t A) : Offset(O), Address(A) {}
-    uint64_t Offset{0};
-    uint64_t Address{0};
-  };
   static DebugAddrWriter *AddrWriter;
-  uint64_t CUID{0};
-  uint32_t LocListsBaseAttrOffset{InvalidLocListsBaseAttrOffset};
+  DWARFUnit &CU;
   bool IsSplitDwarf{false};
+  // Used for DWARF5 to store location lists before being finalized.
+  std::unique_ptr<DebugBufferVector> LocBodyBuffer;
+  std::unique_ptr<raw_svector_ostream> LocBodyStream;
+  std::vector<uint32_t> RelativeLocListOffsets;
+  uint32_t NumberOfEntries{0};
+  static uint32_t LoclistBaseOffset;
 };
 
 enum class PatcherKind { SimpleBinaryPatcher, DebugInfoBinaryPatcher };
@@ -1092,18 +1178,6 @@ public:
   // Returns DWARF Version for this line table.
   uint16_t getDwarfVersion() const { return DwarfVersion; }
 };
-
-struct AttrInfo {
-  DWARFFormValue V;
-  uint64_t Offset;
-  uint32_t Size; // Size of the attribute.
-};
-
-Optional<AttrInfo>
-findAttributeInfo(const DWARFDie DIE,
-                  const DWARFAbbreviationDeclaration *AbbrevDecl,
-                  uint32_t Index);
-
 } // namespace bolt
 } // namespace llvm
 

@@ -200,9 +200,12 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
 
   if (Context == DeclaratorContext::Member) {
     // We are parsing a member template.
-    ParseCXXClassMemberDeclaration(AS, AccessAttrs, TemplateInfo,
-                                   &DiagsFromTParams);
-    return nullptr;
+    DeclGroupPtrTy D = ParseCXXClassMemberDeclaration(
+        AS, AccessAttrs, TemplateInfo, &DiagsFromTParams);
+
+    if (!D || !D.get().isSingleDecl())
+      return nullptr;
+    return D.get().getSingleDecl();
   }
 
   ParsedAttributes prefixAttrs(AttrFactory);
@@ -228,7 +231,7 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
     DeclEnd = ConsumeToken();
     RecordDecl *AnonRecord = nullptr;
     Decl *Decl = Actions.ParsedFreeStandingDeclSpec(
-        getCurScope(), AS, DS,
+        getCurScope(), AS, DS, ParsedAttributesView::none(),
         TemplateInfo.TemplateParams ? *TemplateInfo.TemplateParams
                                     : MultiTemplateParamsArg(),
         TemplateInfo.Kind == ParsedTemplateInfo::ExplicitInstantiation,
@@ -242,11 +245,10 @@ Decl *Parser::ParseSingleDeclarationAfterTemplate(
   // Move the attributes from the prefix into the DS.
   if (TemplateInfo.Kind == ParsedTemplateInfo::ExplicitInstantiation)
     ProhibitAttributes(prefixAttrs);
-  else
-    DS.takeAttributesFrom(prefixAttrs);
 
   // Parse the declarator.
-  ParsingDeclarator DeclaratorInfo(*this, DS, (DeclaratorContext)Context);
+  ParsingDeclarator DeclaratorInfo(*this, DS, prefixAttrs,
+                                   (DeclaratorContext)Context);
   if (TemplateInfo.TemplateParams)
     DeclaratorInfo.setTemplateParameterLists(*TemplateInfo.TemplateParams);
 
@@ -666,7 +668,8 @@ NamedDecl *Parser::ParseTemplateParameter(unsigned Depth, unsigned Position) {
     // probably meant to write the type of a NTTP.
     DeclSpec DS(getAttrFactory());
     DS.SetTypeSpecError();
-    Declarator D(DS, DeclaratorContext::TemplateParam);
+    Declarator D(DS, ParsedAttributesView::none(),
+                 DeclaratorContext::TemplateParam);
     D.SetIdentifier(nullptr, Tok.getLocation());
     D.setInvalidType(true);
     NamedDecl *ErrorParam = Actions.ActOnNonTypeTemplateParameter(
@@ -990,7 +993,8 @@ Parser::ParseNonTypeTemplateParameter(unsigned Depth, unsigned Position) {
                              DeclSpecContext::DSC_template_param);
 
   // Parse this as a typename.
-  Declarator ParamDecl(DS, DeclaratorContext::TemplateParam);
+  Declarator ParamDecl(DS, ParsedAttributesView::none(),
+                       DeclaratorContext::TemplateParam);
   ParseDeclarator(ParamDecl);
   if (DS.getTypeSpecType() == DeclSpec::TST_unspecified) {
     Diag(Tok.getLocation(), diag::err_expected_template_parameter);

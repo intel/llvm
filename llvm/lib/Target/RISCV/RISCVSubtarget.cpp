@@ -15,6 +15,7 @@
 #include "RISCVCallLowering.h"
 #include "RISCVFrameLowering.h"
 #include "RISCVLegalizerInfo.h"
+#include "RISCVMacroFusion.h"
 #include "RISCVRegisterBankInfo.h"
 #include "RISCVTargetMachine.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -27,6 +28,9 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_TARGET_DESC
 #define GET_SUBTARGETINFO_CTOR
 #include "RISCVGenSubtargetInfo.inc"
+
+static cl::opt<bool> EnableSubRegLiveness("riscv-enable-subreg-liveness",
+                                          cl::init(false), cl::Hidden);
 
 static cl::opt<int> RVVVectorBitsMax(
     "riscv-v-vector-bits-max",
@@ -195,4 +199,15 @@ unsigned RISCVSubtarget::getMaxLMULForFixedLengthVectors() const {
 
 bool RISCVSubtarget::useRVVForFixedLengthVectors() const {
   return hasVInstructions() && getMinRVVVectorSizeInBits() != 0;
+}
+
+bool RISCVSubtarget::enableSubRegLiveness() const {
+  // FIXME: Enable subregister liveness by default for RVV to better handle
+  // LMUL>1 and segment load/store.
+  return EnableSubRegLiveness;
+}
+
+void RISCVSubtarget::getPostRAMutations(
+    std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
+  Mutations.push_back(createRISCVMacroFusionDAGMutation());
 }

@@ -23,16 +23,6 @@ using namespace mlir;
 // Operation
 //===----------------------------------------------------------------------===//
 
-/// Create a new Operation with the specific fields.
-Operation *Operation::create(Location location, OperationName name,
-                             TypeRange resultTypes, ValueRange operands,
-                             ArrayRef<NamedAttribute> attributes,
-                             BlockRange successors, unsigned numRegions) {
-  return create(location, name, resultTypes, operands,
-                DictionaryAttr::get(location.getContext(), attributes),
-                successors, numRegions);
-}
-
 /// Create a new Operation from operation state.
 Operation *Operation::create(const OperationState &state) {
   return create(state.location, state.name, state.types, state.operands,
@@ -43,11 +33,11 @@ Operation *Operation::create(const OperationState &state) {
 /// Create a new Operation with the specific fields.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             DictionaryAttr attributes, BlockRange successors,
+                             NamedAttrList &&attributes, BlockRange successors,
                              RegionRange regions) {
   unsigned numRegions = regions.size();
-  Operation *op = create(location, name, resultTypes, operands, attributes,
-                         successors, numRegions);
+  Operation *op = create(location, name, resultTypes, operands,
+                         std::move(attributes), successors, numRegions);
   for (unsigned i = 0; i < numRegions; ++i)
     if (regions[i])
       op->getRegion(i).takeBody(*regions[i]);
@@ -58,7 +48,7 @@ Operation *Operation::create(Location location, OperationName name,
 /// unnecessarily uniquing a list of attributes.
 Operation *Operation::create(Location location, OperationName name,
                              TypeRange resultTypes, ValueRange operands,
-                             DictionaryAttr attributes, BlockRange successors,
+                             NamedAttrList &&attributes, BlockRange successors,
                              unsigned numRegions) {
   assert(llvm::all_of(resultTypes, [](Type t) { return t; }) &&
          "unexpected null result type");
@@ -88,9 +78,9 @@ Operation *Operation::create(Location location, OperationName name,
   void *rawMem = mallocMem + prefixByteSize;
 
   // Create the new Operation.
-  Operation *op =
-      ::new (rawMem) Operation(location, name, numResults, numSuccessors,
-                               numRegions, attributes, needsOperandStorage);
+  Operation *op = ::new (rawMem) Operation(
+      location, name, numResults, numSuccessors, numRegions,
+      attributes.getDictionary(location.getContext()), needsOperandStorage);
 
   assert((numSuccessors == 0 || op->mightHaveTrait<OpTrait::IsTerminator>()) &&
          "unexpected successors in a non-terminator operation");
@@ -624,16 +614,13 @@ void OpState::print(Operation *op, OpAsmPrinter &p, StringRef defaultDialect) {
   }
 }
 
-/// Print an operation name, eliding the dialect prefix if necessary.
+/// Print an operation name, eliding the dialect prefix if necessary and doesn't
+/// lead to ambiguities.
 void OpState::printOpName(Operation *op, OpAsmPrinter &p,
                           StringRef defaultDialect) {
   StringRef name = op->getName().getStringRef();
-  if (name.startswith((defaultDialect + ".").str()))
+  if (name.startswith((defaultDialect + ".").str()) && name.count('.') == 1)
     name = name.drop_front(defaultDialect.size() + 1);
-  // TODO: remove this special case (and update test/IR/parser.mlir)
-  else if ((defaultDialect.empty() || defaultDialect == "builtin") &&
-           name.startswith("func."))
-    name = name.drop_front(5);
   p.getStream() << name;
 }
 
@@ -779,7 +766,7 @@ LogicalResult OpTrait::impl::verifySameTypeOperands(Operation *op) {
   return success();
 }
 
-LogicalResult OpTrait::impl::verifyZeroRegion(Operation *op) {
+LogicalResult OpTrait::impl::verifyZeroRegions(Operation *op) {
   if (op->getNumRegions() != 0)
     return op->emitOpError() << "requires zero regions";
   return success();
@@ -805,7 +792,7 @@ LogicalResult OpTrait::impl::verifyAtLeastNRegions(Operation *op,
   return success();
 }
 
-LogicalResult OpTrait::impl::verifyZeroResult(Operation *op) {
+LogicalResult OpTrait::impl::verifyZeroResults(Operation *op) {
   if (op->getNumResults() != 0)
     return op->emitOpError() << "requires zero results";
   return success();
@@ -935,7 +922,7 @@ static LogicalResult verifyTerminatorSuccessors(Operation *op) {
   return success();
 }
 
-LogicalResult OpTrait::impl::verifyZeroSuccessor(Operation *op) {
+LogicalResult OpTrait::impl::verifyZeroSuccessors(Operation *op) {
   if (op->getNumSuccessors() != 0) {
     return op->emitOpError("requires 0 successors but found ")
            << op->getNumSuccessors();

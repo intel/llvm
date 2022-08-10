@@ -2502,41 +2502,48 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
 
-    return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts, {}, {});
+    return CompoundStmt::Create(SemaRef.getASTContext(), BodyStmts,
+                                FPOptionsOverride(), {}, {});
   }
 
-  void markParallelWorkItemCalls() {
-    if (getKernelInvocationKind(KernelCallerFunc) ==
-        InvokeParallelForWorkGroup) {
-      // Fetch the kernel object and the associated call operator
-      // (of either the lambda or the function object).
-      CXXRecordDecl *KernelObj =
-          GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
-      CXXMethodDecl *WGLambdaFn = nullptr;
-      if (KernelObj->isLambda())
-        WGLambdaFn = KernelObj->getLambdaCallOperator();
-      else
-        WGLambdaFn = getOperatorParens(KernelObj);
-      assert(WGLambdaFn && "non callable object is passed as kernel obj");
-      // Mark the function that it "works" in a work group scope:
-      // NOTE: In case of parallel_for_work_item the marker call itself is
-      // marked with work item scope attribute, here  the '()' operator of the
-      // object passed as parameter is marked. This is an optimization -
-      // there are a lot of locals created at parallel_for_work_group
-      // scope before calling the lambda - it is more efficient to have
-      // all of them in the private address space rather then sharing via
-      // the local AS. See parallel_for_work_group implementation in the
-      // SYCL headers.
-      if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
-        WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
-            SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-        // Search and mark parallel_for_work_item calls:
-        MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
-        MarkWIScope.TraverseDecl(WGLambdaFn);
-        // Now mark local variables declared in the PFWG lambda with work group
-        // scope attribute
-        addScopeAttrToLocalVars(*WGLambdaFn);
-      }
+  void annotateHierarchicalParallelismAPICalls() {
+    // Is this a hierarchical parallelism kernel invocation?
+    if (getKernelInvocationKind(KernelCallerFunc) != InvokeParallelForWorkGroup)
+      return;
+
+    // Mark kernel object with work-group scope attribute to avoid work-item
+    // scope memory allocation.
+    KernelObjClone->addAttr(SYCLScopeAttr::CreateImplicit(
+        SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+
+    // Fetch the kernel object and the associated call operator
+    // (of either the lambda or the function object).
+    CXXRecordDecl *KernelObj =
+        GetSYCLKernelObjectType(KernelCallerFunc)->getAsCXXRecordDecl();
+    CXXMethodDecl *WGLambdaFn = nullptr;
+    if (KernelObj->isLambda())
+      WGLambdaFn = KernelObj->getLambdaCallOperator();
+    else
+      WGLambdaFn = getOperatorParens(KernelObj);
+    assert(WGLambdaFn && "non callable object is passed as kernel obj");
+    // Mark the function that it "works" in a work group scope:
+    // NOTE: In case of parallel_for_work_item the marker call itself is
+    // marked with work item scope attribute, here  the '()' operator of the
+    // object passed as parameter is marked. This is an optimization -
+    // there are a lot of locals created at parallel_for_work_group
+    // scope before calling the lambda - it is more efficient to have
+    // all of them in the private address space rather then sharing via
+    // the local AS. See parallel_for_work_group implementation in the
+    // SYCL headers.
+    if (!WGLambdaFn->hasAttr<SYCLScopeAttr>()) {
+      WGLambdaFn->addAttr(SYCLScopeAttr::CreateImplicit(
+          SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
+      // Search and mark parallel_for_work_item calls:
+      MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
+      MarkWIScope.TraverseDecl(WGLambdaFn);
+      // Now mark local variables declared in the PFWG lambda with work group
+      // scope attribute
+      addScopeAttrToLocalVars(*WGLambdaFn);
     }
   }
 
@@ -2766,11 +2773,13 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                        const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
         KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
-    VarDecl *VD = VarDecl::Create(
-        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(),
-        KernelObj->getIdentifier(), QualType(KernelObj->getTypeForDecl(), 0),
-        TSInfo, SC_None);
+    IdentifierInfo *Ident = KernelObj->getIdentifier();
+    if (!Ident)
+      Ident = &Ctx.Idents.get("__SYCLKernel");
 
+    VarDecl *VD = VarDecl::Create(
+        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), Ident,
+        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
     return VD;
   }
 
@@ -2851,7 +2860,7 @@ public:
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
-    markParallelWorkItemCalls();
+    annotateHierarchicalParallelismAPICalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);
@@ -4576,8 +4585,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
 
-  O << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
-  O << "#include <CL/sycl/detail/kernel_desc.hpp>\n";
+  O << "#include <sycl/detail/defines_elementary.hpp>\n";
+  O << "#include <sycl/detail/kernel_desc.hpp>\n";
 
   O << "\n";
 
@@ -5046,7 +5055,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     // We only want to emit the #includes if we have a variable that needs
     // them, so emit this one on the first time through the loop.
     if (!EmittedFirstSpecConstant && !DeviceGlobalsEmitted)
-      OS << "#include <CL/sycl/detail/defines_elementary.hpp>\n";
+      OS << "#include <sycl/detail/defines_elementary.hpp>\n";
 
     Visited.insert(VD);
     std::string TopShim = EmitShims(OS, ShimCounter, Policy, VD);
@@ -5092,10 +5101,10 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   }
 
   if (EmittedFirstSpecConstant)
-    OS << "#include <CL/sycl/detail/spec_const_integration.hpp>\n";
+    OS << "#include <sycl/detail/spec_const_integration.hpp>\n";
 
   if (DeviceGlobalsEmitted) {
-    OS << "#include <CL/sycl/detail/device_global_map.hpp>\n";
+    OS << "#include <sycl/detail/device_global_map.hpp>\n";
     DeviceGlobOS.flush();
     OS << "namespace sycl::detail {\n";
     OS << "namespace {\n";

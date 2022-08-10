@@ -26,7 +26,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
     return;
@@ -35,7 +35,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
   bool Enqueued = enqueueCommand(Cmd, Res, ToCleanUp, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
-    throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    throw runtime_error("Enqueue process failed.", PI_ERROR_INVALID_OPERATION);
 
   assert(Cmd->getEvent() == Event);
 

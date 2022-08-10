@@ -8,9 +8,9 @@
 #pragma once
 
 #include "fpga_utils.hpp"
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/pointers.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/pointers.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -158,11 +158,12 @@ private:
   static_assert(_cache_val >= 0, "cache size parameter must be non-negative");
 
   template <access::address_space _space> static void check_space() {
-    static_assert(_space == access::address_space::global_space ||
-                      _space == access::address_space::global_device_space ||
-                      _space == access::address_space::global_host_space,
-                  "lsu controls are only supported for global_ptr, "
-                  "device_ptr, and host_ptr objects");
+    static_assert(
+        _space == access::address_space::global_space ||
+            _space == access::address_space::ext_intel_global_device_space ||
+            _space == access::address_space::ext_intel_global_host_space,
+        "lsu controls are only supported for global_ptr, "
+        "device_ptr, and host_ptr objects");
   }
 
   static void check_load() {

@@ -24,7 +24,6 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
@@ -65,7 +64,7 @@ static cl::opt<bool>
 // PassNameParser.
 //
 static cl::list<const PassInfo *, bool, PassNameParser>
-    PassList(cl::desc("Passes available:"), cl::ZeroOrMore);
+    PassList(cl::desc("Passes available:"));
 
 static cl::opt<bool>
     OptLevelO1("O1", cl::desc("Optimization level 1. Identical to 'opt -O1'"));

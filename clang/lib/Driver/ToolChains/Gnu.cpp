@@ -414,28 +414,6 @@ void tools::gnutools::StaticLibTool::ConstructJob(
                                          Exec, CmdArgs, Inputs, Output));
 }
 
-static void addFortranRuntimeLibraryPath(const ToolChain &TC,
-                                         const ArgList &Args,
-                                         ArgStringList &CmdArgs) {
-  // Default to the <driver-path>/../lib directory. This works fine on the
-  // platforms that we have tested so far. We will probably have to re-fine
-  // this in the future. In particular:
-  //    * on some platforms, we may need to use lib64 instead of lib
-  //    * this logic should also work on other similar platforms too, so we
-  //    should move it to one of Gnu's parent tool{chain} classes
-  SmallString<256> DefaultLibPath =
-      llvm::sys::path::parent_path(TC.getDriver().Dir);
-  llvm::sys::path::append(DefaultLibPath, "lib");
-  CmdArgs.push_back(Args.MakeArgString("-L" + DefaultLibPath));
-}
-
-static void addFortranLinkerFlags(ArgStringList &CmdArgs) {
-  CmdArgs.push_back("-lFortran_main");
-  CmdArgs.push_back("-lFortranRuntime");
-  CmdArgs.push_back("-lFortranDecimal");
-  CmdArgs.push_back("-lm");
-}
-
 void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                            const InputInfo &Output,
                                            const InputInfoList &Inputs,
@@ -525,6 +503,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     D.Diag(diag::err_target_unknown_triple) << Triple.str();
     return;
   }
+  if (Triple.isRISCV())
+    CmdArgs.push_back("-X");
 
   if (Args.hasArg(options::OPT_shared))
     CmdArgs.push_back("-shared");
@@ -535,7 +515,8 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_rdynamic))
       CmdArgs.push_back("-export-dynamic");
 
-    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE) {
+    if (!Args.hasArg(options::OPT_shared) && !IsStaticPIE &&
+        !Args.hasArg(options::OPT_r)) {
       CmdArgs.push_back("-dynamic-linker");
       CmdArgs.push_back(Args.MakeArgString(Twine(D.DyldPrefix) +
                                            ToolChain.getDynamicLinker(Args)));
@@ -673,13 +654,10 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // to generate executables. As Fortran runtime depends on the C runtime,
   // these dependencies need to be listed before the C runtime below (i.e.
   // AddRuntTimeLibs).
-  //
-  // NOTE: Generating executables by Flang is considered an "experimental"
-  // feature and hence this is guarded with a command line option.
-  // TODO: Make this work unconditionally once Flang is mature enough.
-  if (D.IsFlangMode() && Args.hasArg(options::OPT_flang_experimental_exec)) {
+  if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
-    addFortranLinkerFlags(CmdArgs);
+    addFortranRuntimeLibs(ToolChain, CmdArgs);
+    CmdArgs.push_back("-lm");
   }
 
   if (!Args.hasArg(options::OPT_nostdlib, options::OPT_r)) {
@@ -714,10 +692,21 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasArg(options::OPT_fsycl) &&
           !Args.hasArg(options::OPT_nolibsycl)) {
         CmdArgs.push_back("-lsycl");
+        CmdArgs.push_back("-lsycl-devicelib-host");
         // Use of -fintelfpga implies -lOpenCL.
         // FIXME: Adjust to use plugin interface when available.
         if (Args.hasArg(options::OPT_fintelfpga))
           CmdArgs.push_back("-lOpenCL");
+      }
+
+      // LLVM support for atomics on 32-bit SPARC V8+ is incomplete, so
+      // forcibly link with libatomic as a workaround.
+      // TODO: Issue #41880 and D118021.
+      if (getToolChain().getTriple().getArch() == llvm::Triple::sparc) {
+        CmdArgs.push_back("--push-state");
+        CmdArgs.push_back("--as-needed");
+        CmdArgs.push_back("-latomic");
+        CmdArgs.push_back("--pop-state");
       }
 
       if (WantPthread && !isAndroid)
@@ -2126,7 +2115,7 @@ void Generic_GCC::GCCInstallationDetector::init(
     if (!VFS.exists(Prefix))
       continue;
     for (StringRef Suffix : CandidateLibDirs) {
-      const std::string LibDir = Prefix + Suffix.str();
+      const std::string LibDir = concat(Prefix, Suffix);
       if (!VFS.exists(LibDir))
         continue;
       // Maybe filter out <libdir>/gcc and <libdir>/gcc-cross.
@@ -2175,8 +2164,8 @@ void Generic_GCC::GCCInstallationDetector::print(raw_ostream &OS) const {
 }
 
 bool Generic_GCC::GCCInstallationDetector::getBiarchSibling(Multilib &M) const {
-  if (BiarchSibling.hasValue()) {
-    M = BiarchSibling.getValue();
+  if (BiarchSibling) {
+    M = BiarchSibling.value();
     return true;
   }
   return false;
@@ -2192,7 +2181,7 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     // so we need to find those /usr/gcc/*/lib/gcc libdirs and go with
     // /usr/gcc/<version> as a prefix.
 
-    std::string PrefixDir = SysRoot.str() + "/usr/gcc";
+    std::string PrefixDir = concat(SysRoot, "/usr/gcc");
     std::error_code EC;
     for (llvm::vfs::directory_iterator LI = D.getVFS().dir_begin(PrefixDir, EC),
                                        LE;
@@ -2214,20 +2203,39 @@ void Generic_GCC::GCCInstallationDetector::AddDefaultGCCPrefixes(
     return;
   }
 
-  // Non-Solaris is much simpler - most systems just go with "/usr".
-  if (SysRoot.empty() && TargetTriple.getOS() == llvm::Triple::Linux) {
-    // Yet, still look for RHEL/CentOS devtoolsets and gcc-toolsets.
-    Prefixes.push_back("/opt/rh/gcc-toolset-10/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-10/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-9/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-8/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-7/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-6/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-4/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-3/root/usr");
-    Prefixes.push_back("/opt/rh/devtoolset-2/root/usr");
+  // For Linux, if --sysroot is not specified, look for RHEL/CentOS devtoolsets
+  // and gcc-toolsets.
+  if (SysRoot.empty() && TargetTriple.getOS() == llvm::Triple::Linux &&
+      D.getVFS().exists("/opt/rh")) {
+    // Find the directory in /opt/rh/ starting with gcc-toolset-* or
+    // devtoolset-* with the highest version number and add that
+    // one to our prefixes.
+    std::string ChosenToolsetDir;
+    unsigned ChosenToolsetVersion = 0;
+    std::error_code EC;
+    for (llvm::vfs::directory_iterator LI = D.getVFS().dir_begin("/opt/rh", EC),
+                                       LE;
+         !EC && LI != LE; LI = LI.increment(EC)) {
+      StringRef ToolsetDir = llvm::sys::path::filename(LI->path());
+      unsigned ToolsetVersion;
+      if ((!ToolsetDir.startswith("gcc-toolset-") &&
+           !ToolsetDir.startswith("devtoolset-")) ||
+          ToolsetDir.substr(ToolsetDir.rfind('-') + 1)
+              .getAsInteger(10, ToolsetVersion))
+        continue;
+
+      if (ToolsetVersion > ChosenToolsetVersion) {
+        ChosenToolsetVersion = ToolsetVersion;
+        ChosenToolsetDir = "/opt/rh/" + ToolsetDir.str();
+      }
+    }
+
+    if (ChosenToolsetVersion > 0)
+      Prefixes.push_back(ChosenToolsetDir + "/root/usr");
   }
-  Prefixes.push_back(SysRoot.str() + "/usr");
+
+  // Fall back to /usr which is used by most non-Solaris systems.
+  Prefixes.push_back(concat(SysRoot, "/usr"));
 }
 
 /*static*/ void Generic_GCC::GCCInstallationDetector::CollectLibDirsAndTriples(
@@ -2750,7 +2758,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooConfigs(
     const llvm::Triple &TargetTriple, const ArgList &Args,
     const SmallVectorImpl<StringRef> &CandidateTriples,
     const SmallVectorImpl<StringRef> &CandidateBiarchTriples) {
-  if (!D.getVFS().exists(D.SysRoot + GentooConfigDir))
+  if (!D.getVFS().exists(concat(D.SysRoot, GentooConfigDir)))
     return false;
 
   for (StringRef CandidateTriple : CandidateTriples) {
@@ -2769,8 +2777,8 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooGccConfig(
     const llvm::Triple &TargetTriple, const ArgList &Args,
     StringRef CandidateTriple, bool NeedsBiarchSuffix) {
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> File =
-      D.getVFS().getBufferForFile(D.SysRoot + GentooConfigDir + "/config-" +
-                                  CandidateTriple.str());
+      D.getVFS().getBufferForFile(concat(D.SysRoot, GentooConfigDir,
+                                         "/config-" + CandidateTriple.str()));
   if (File) {
     SmallVector<StringRef, 2> Lines;
     File.get()->getBuffer().split(Lines, "\n");
@@ -2781,8 +2789,8 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooGccConfig(
         continue;
       // Process the config file pointed to by CURRENT.
       llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ConfigFile =
-          D.getVFS().getBufferForFile(D.SysRoot + GentooConfigDir + "/" +
-                                      Line.str());
+          D.getVFS().getBufferForFile(
+              concat(D.SysRoot, GentooConfigDir, "/" + Line));
       std::pair<StringRef, StringRef> ActiveVersion = Line.rsplit('-');
       // List of paths to scan for libraries.
       SmallVector<StringRef, 4> GentooScanPaths;
@@ -2815,7 +2823,7 @@ bool Generic_GCC::GCCInstallationDetector::ScanGentooGccConfig(
 
       // Scan all paths for GCC libraries.
       for (const auto &GentooScanPath : GentooScanPaths) {
-        std::string GentooPath = D.SysRoot + std::string(GentooScanPath);
+        std::string GentooPath = concat(D.SysRoot, GentooScanPath);
         if (D.getVFS().exists(GentooPath + "/crtbegin.o")) {
           if (!ScanGCCForMultilibs(TargetTriple, Args, GentooPath,
                                    NeedsBiarchSuffix))
@@ -3108,9 +3116,9 @@ Generic_GCC::addLibCxxIncludePaths(const llvm::opt::ArgList &DriverArgs,
   // If this is a development, non-installed, clang, libcxx will
   // not be found at ../include/c++ but it likely to be found at
   // one of the following two locations:
-  if (AddIncludePath(SysRoot + "/usr/local/include"))
+  if (AddIncludePath(concat(SysRoot, "/usr/local/include")))
     return;
-  if (AddIncludePath(SysRoot + "/usr/include"))
+  if (AddIncludePath(concat(SysRoot, "/usr/include")))
     return;
 }
 

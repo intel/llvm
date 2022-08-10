@@ -12,10 +12,12 @@
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "gtest/gtest.h"
 
@@ -158,6 +160,7 @@ static omp::ScheduleKind getSchedKind(omp::OMPScheduleType SchedType) {
 class OpenMPIRBuilderTest : public testing::Test {
 protected:
   void SetUp() override {
+    Ctx.setOpaquePointers(false); // TODO: Update tests for opaque pointers.
     M.reset(new Module("MyModule", Ctx));
     FunctionType *FTy =
         FunctionType::get(Type::getVoidTy(Ctx), {Type::getInt32Ty(Ctx)},
@@ -1768,7 +1771,7 @@ TEST_F(OpenMPIRBuilderTest, ApplySimd) {
   CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
 
   // Simd-ize the loop.
-  OMPBuilder.applySimd(DL, CLI);
+  OMPBuilder.applySimd(CLI, nullptr);
 
   OMPBuilder.finalize();
   EXPECT_FALSE(verifyModule(*M, &errs()));
@@ -1784,6 +1787,38 @@ TEST_F(OpenMPIRBuilderTest, ApplySimd) {
   Loop *L = TopLvl.front();
   EXPECT_TRUE(findStringMetadataForLoop(L, "llvm.loop.parallel_accesses"));
   EXPECT_TRUE(getBooleanLoopAttribute(L, "llvm.loop.vectorize.enable"));
+
+  // Check for llvm.access.group metadata attached to the printf
+  // function in the loop body.
+  BasicBlock *LoopBody = CLI->getBody();
+  EXPECT_TRUE(any_of(*LoopBody, [](Instruction &I) {
+    return I.getMetadata("llvm.access.group") != nullptr;
+  }));
+}
+
+TEST_F(OpenMPIRBuilderTest, ApplySimdlen) {
+  OpenMPIRBuilder OMPBuilder(*M);
+
+  CanonicalLoopInfo *CLI = buildSingleLoopFunction(DL, OMPBuilder, 32);
+
+  // Simd-ize the loop.
+  OMPBuilder.applySimd(CLI, ConstantInt::get(Type::getInt32Ty(Ctx), 3));
+
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  PassBuilder PB;
+  FunctionAnalysisManager FAM;
+  PB.registerFunctionAnalyses(FAM);
+  LoopInfo &LI = FAM.getResult<LoopAnalysis>(*F);
+
+  const std::vector<Loop *> &TopLvl = LI.getTopLevelLoops();
+  EXPECT_EQ(TopLvl.size(), 1u);
+
+  Loop *L = TopLvl.front();
+  EXPECT_TRUE(findStringMetadataForLoop(L, "llvm.loop.parallel_accesses"));
+  EXPECT_TRUE(getBooleanLoopAttribute(L, "llvm.loop.vectorize.enable"));
+  EXPECT_EQ(getIntLoopAttribute(L, "llvm.loop.vectorize.width"), 3);
 
   // Check for llvm.access.group metadata attached to the printf
   // function in the loop body.
@@ -2560,7 +2595,7 @@ TEST_F(OpenMPIRBuilderTest, OrderedDirectiveDependSource) {
     ASSERT_NE(StoreValue, nullptr);
     EXPECT_EQ(StoreValue->getValueOperand(), StoreValues[Iter]);
     EXPECT_EQ(StoreValue->getPointerOperand(), DependAddrGEPIter);
-    EXPECT_EQ(StoreValue->getAlignment(), 8UL);
+    EXPECT_EQ(StoreValue->getAlign(), Align(8));
     IterInst = dyn_cast<Instruction>(StoreValue);
   }
 
@@ -2645,7 +2680,7 @@ TEST_F(OpenMPIRBuilderTest, OrderedDirectiveDependSink) {
     ASSERT_NE(StoreValue, nullptr);
     EXPECT_EQ(StoreValue->getValueOperand(), StoreValues[Iter]);
     EXPECT_EQ(StoreValue->getPointerOperand(), DependAddrGEPIter);
-    EXPECT_EQ(StoreValue->getAlignment(), 8UL);
+    EXPECT_EQ(StoreValue->getAlign(), Align(8));
     IterInst = dyn_cast<Instruction>(StoreValue);
   }
 
@@ -3475,18 +3510,21 @@ TEST_F(OpenMPIRBuilderTest, OMPAtomicCompare) {
 
   OpenMPIRBuilder::AtomicOpValue XSigned = {XVal, Int32, true, false};
   OpenMPIRBuilder::AtomicOpValue XUnsigned = {XVal, Int32, false, false};
+  // V and R are not used in atomic compare
+  OpenMPIRBuilder::AtomicOpValue V = {nullptr, nullptr, false, false};
+  OpenMPIRBuilder::AtomicOpValue R = {nullptr, nullptr, false, false};
   AtomicOrdering AO = AtomicOrdering::Monotonic;
   ConstantInt *Expr = ConstantInt::get(Type::getInt32Ty(Ctx), 1U);
   ConstantInt *D = ConstantInt::get(Type::getInt32Ty(Ctx), 1U);
   OMPAtomicCompareOp OpMax = OMPAtomicCompareOp::MAX;
   OMPAtomicCompareOp OpEQ = OMPAtomicCompareOp::EQ;
 
-  Builder.restoreIP(OMPBuilder.createAtomicCompare(Builder, XSigned, Expr,
-                                                   nullptr, AO, OpMax, true));
-  Builder.restoreIP(OMPBuilder.createAtomicCompare(Builder, XUnsigned, Expr,
-                                                   nullptr, AO, OpMax, false));
-  Builder.restoreIP(OMPBuilder.createAtomicCompare(Builder, XSigned, Expr, D,
-                                                   AO, OpEQ, true));
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, XSigned, V, R, Expr, nullptr, AO, OpMax, true, false, false));
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, XUnsigned, V, R, Expr, nullptr, AO, OpMax, false, false, false));
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, XSigned, V, R, Expr, D, AO, OpEQ, true, false, false));
 
   BasicBlock *EntryBB = BB;
   EXPECT_EQ(EntryBB->getParent()->size(), 1U);
@@ -3509,6 +3547,257 @@ TEST_F(OpenMPIRBuilderTest, OMPAtomicCompare) {
   EXPECT_EQ(AXCHG->getPointerOperand(), XVal);
   EXPECT_EQ(AXCHG->getCompareOperand(), Expr);
   EXPECT_EQ(AXCHG->getNewValOperand(), D);
+
+  Builder.CreateRetVoid();
+  OMPBuilder.finalize();
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+}
+
+TEST_F(OpenMPIRBuilderTest, OMPAtomicCompareCapture) {
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+
+  OpenMPIRBuilder::LocationDescription Loc({Builder.saveIP(), DL});
+
+  LLVMContext &Ctx = M->getContext();
+  IntegerType *Int32 = Type::getInt32Ty(Ctx);
+  AllocaInst *XVal = Builder.CreateAlloca(Int32);
+  XVal->setName("x");
+  AllocaInst *VVal = Builder.CreateAlloca(Int32);
+  VVal->setName("v");
+  AllocaInst *RVal = Builder.CreateAlloca(Int32);
+  RVal->setName("r");
+
+  StoreInst *Init =
+      Builder.CreateStore(ConstantInt::get(Type::getInt32Ty(Ctx), 0U), XVal);
+
+  OpenMPIRBuilder::AtomicOpValue X = {XVal, Int32, true, false};
+  OpenMPIRBuilder::AtomicOpValue V = {VVal, Int32, false, false};
+  OpenMPIRBuilder::AtomicOpValue NoV = {nullptr, nullptr, false, false};
+  OpenMPIRBuilder::AtomicOpValue R = {RVal, Int32, false, false};
+  OpenMPIRBuilder::AtomicOpValue NoR = {nullptr, nullptr, false, false};
+
+  AtomicOrdering AO = AtomicOrdering::Monotonic;
+  ConstantInt *Expr = ConstantInt::get(Type::getInt32Ty(Ctx), 1U);
+  ConstantInt *D = ConstantInt::get(Type::getInt32Ty(Ctx), 1U);
+  OMPAtomicCompareOp OpMax = OMPAtomicCompareOp::MAX;
+  OMPAtomicCompareOp OpEQ = OMPAtomicCompareOp::EQ;
+
+  // { cond-update-stmt v = x; }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, V, NoR, Expr, D, AO, OpEQ, /* IsXBinopExpr */ true,
+      /* IsPostfixUpdate */ false,
+      /* IsFailOnly */ false));
+  // { v = x; cond-update-stmt }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, V, NoR, Expr, D, AO, OpEQ, /* IsXBinopExpr */ true,
+      /* IsPostfixUpdate */ true,
+      /* IsFailOnly */ false));
+  // if(x == e) { x = d; } else { v = x; }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, V, NoR, Expr, D, AO, OpEQ, /* IsXBinopExpr */ true,
+      /* IsPostfixUpdate */ false,
+      /* IsFailOnly */ true));
+  // { r = x == e; if(r) { x = d; } }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, NoV, R, Expr, D, AO, OpEQ, /* IsXBinopExpr */ true,
+      /* IsPostfixUpdate */ false,
+      /* IsFailOnly */ false));
+  // { r = x == e; if(r) { x = d; } else { v = x; } }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, V, R, Expr, D, AO, OpEQ, /* IsXBinopExpr */ true,
+      /* IsPostfixUpdate */ false,
+      /* IsFailOnly */ true));
+
+  // { v = x; cond-update-stmt }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, V, NoR, Expr, nullptr, AO, OpMax, /* IsXBinopExpr */ true,
+      /* IsPostfixUpdate */ true,
+      /* IsFailOnly */ false));
+  // { cond-update-stmt v = x; }
+  Builder.restoreIP(OMPBuilder.createAtomicCompare(
+      Builder, X, V, NoR, Expr, nullptr, AO, OpMax, /* IsXBinopExpr */ false,
+      /* IsPostfixUpdate */ false,
+      /* IsFailOnly */ false));
+
+  BasicBlock *EntryBB = BB;
+  EXPECT_EQ(EntryBB->getParent()->size(), 5U);
+  BasicBlock *Cont1 = dyn_cast<BasicBlock>(EntryBB->getNextNode());
+  EXPECT_NE(Cont1, nullptr);
+  BasicBlock *Exit1 = dyn_cast<BasicBlock>(Cont1->getNextNode());
+  EXPECT_NE(Exit1, nullptr);
+  BasicBlock *Cont2 = dyn_cast<BasicBlock>(Exit1->getNextNode());
+  EXPECT_NE(Cont2, nullptr);
+  BasicBlock *Exit2 = dyn_cast<BasicBlock>(Cont2->getNextNode());
+  EXPECT_NE(Exit2, nullptr);
+
+  AtomicCmpXchgInst *CmpXchg1 =
+      dyn_cast<AtomicCmpXchgInst>(Init->getNextNode());
+  EXPECT_NE(CmpXchg1, nullptr);
+  EXPECT_EQ(CmpXchg1->getPointerOperand(), XVal);
+  EXPECT_EQ(CmpXchg1->getCompareOperand(), Expr);
+  EXPECT_EQ(CmpXchg1->getNewValOperand(), D);
+  ExtractValueInst *ExtVal1 =
+      dyn_cast<ExtractValueInst>(CmpXchg1->getNextNode());
+  EXPECT_NE(ExtVal1, nullptr);
+  EXPECT_EQ(ExtVal1->getAggregateOperand(), CmpXchg1);
+  EXPECT_EQ(ExtVal1->getIndices(), ArrayRef<unsigned int>(0U));
+  ExtractValueInst *ExtVal2 =
+      dyn_cast<ExtractValueInst>(ExtVal1->getNextNode());
+  EXPECT_NE(ExtVal2, nullptr);
+  EXPECT_EQ(ExtVal2->getAggregateOperand(), CmpXchg1);
+  EXPECT_EQ(ExtVal2->getIndices(), ArrayRef<unsigned int>(1U));
+  SelectInst *Sel1 = dyn_cast<SelectInst>(ExtVal2->getNextNode());
+  EXPECT_NE(Sel1, nullptr);
+  EXPECT_EQ(Sel1->getCondition(), ExtVal2);
+  EXPECT_EQ(Sel1->getTrueValue(), Expr);
+  EXPECT_EQ(Sel1->getFalseValue(), ExtVal1);
+  StoreInst *Store1 = dyn_cast<StoreInst>(Sel1->getNextNode());
+  EXPECT_NE(Store1, nullptr);
+  EXPECT_EQ(Store1->getPointerOperand(), VVal);
+  EXPECT_EQ(Store1->getValueOperand(), Sel1);
+
+  AtomicCmpXchgInst *CmpXchg2 =
+      dyn_cast<AtomicCmpXchgInst>(Store1->getNextNode());
+  EXPECT_NE(CmpXchg2, nullptr);
+  EXPECT_EQ(CmpXchg2->getPointerOperand(), XVal);
+  EXPECT_EQ(CmpXchg2->getCompareOperand(), Expr);
+  EXPECT_EQ(CmpXchg2->getNewValOperand(), D);
+  ExtractValueInst *ExtVal3 =
+      dyn_cast<ExtractValueInst>(CmpXchg2->getNextNode());
+  EXPECT_NE(ExtVal3, nullptr);
+  EXPECT_EQ(ExtVal3->getAggregateOperand(), CmpXchg2);
+  EXPECT_EQ(ExtVal3->getIndices(), ArrayRef<unsigned int>(0U));
+  StoreInst *Store2 = dyn_cast<StoreInst>(ExtVal3->getNextNode());
+  EXPECT_NE(Store2, nullptr);
+  EXPECT_EQ(Store2->getPointerOperand(), VVal);
+  EXPECT_EQ(Store2->getValueOperand(), ExtVal3);
+
+  AtomicCmpXchgInst *CmpXchg3 =
+      dyn_cast<AtomicCmpXchgInst>(Store2->getNextNode());
+  EXPECT_NE(CmpXchg3, nullptr);
+  EXPECT_EQ(CmpXchg3->getPointerOperand(), XVal);
+  EXPECT_EQ(CmpXchg3->getCompareOperand(), Expr);
+  EXPECT_EQ(CmpXchg3->getNewValOperand(), D);
+  ExtractValueInst *ExtVal4 =
+      dyn_cast<ExtractValueInst>(CmpXchg3->getNextNode());
+  EXPECT_NE(ExtVal4, nullptr);
+  EXPECT_EQ(ExtVal4->getAggregateOperand(), CmpXchg3);
+  EXPECT_EQ(ExtVal4->getIndices(), ArrayRef<unsigned int>(0U));
+  ExtractValueInst *ExtVal5 =
+      dyn_cast<ExtractValueInst>(ExtVal4->getNextNode());
+  EXPECT_NE(ExtVal5, nullptr);
+  EXPECT_EQ(ExtVal5->getAggregateOperand(), CmpXchg3);
+  EXPECT_EQ(ExtVal5->getIndices(), ArrayRef<unsigned int>(1U));
+  BranchInst *Br1 = dyn_cast<BranchInst>(ExtVal5->getNextNode());
+  EXPECT_NE(Br1, nullptr);
+  EXPECT_EQ(Br1->isConditional(), true);
+  EXPECT_EQ(Br1->getCondition(), ExtVal5);
+  EXPECT_EQ(Br1->getSuccessor(0), Exit1);
+  EXPECT_EQ(Br1->getSuccessor(1), Cont1);
+
+  StoreInst *Store3 = dyn_cast<StoreInst>(&Cont1->front());
+  EXPECT_NE(Store3, nullptr);
+  EXPECT_EQ(Store3->getPointerOperand(), VVal);
+  EXPECT_EQ(Store3->getValueOperand(), ExtVal4);
+  BranchInst *Br2 = dyn_cast<BranchInst>(Store3->getNextNode());
+  EXPECT_NE(Br2, nullptr);
+  EXPECT_EQ(Br2->isUnconditional(), true);
+  EXPECT_EQ(Br2->getSuccessor(0), Exit1);
+
+  AtomicCmpXchgInst *CmpXchg4 = dyn_cast<AtomicCmpXchgInst>(&Exit1->front());
+  EXPECT_NE(CmpXchg4, nullptr);
+  EXPECT_EQ(CmpXchg4->getPointerOperand(), XVal);
+  EXPECT_EQ(CmpXchg4->getCompareOperand(), Expr);
+  EXPECT_EQ(CmpXchg4->getNewValOperand(), D);
+  ExtractValueInst *ExtVal6 =
+      dyn_cast<ExtractValueInst>(CmpXchg4->getNextNode());
+  EXPECT_NE(ExtVal6, nullptr);
+  EXPECT_EQ(ExtVal6->getAggregateOperand(), CmpXchg4);
+  EXPECT_EQ(ExtVal6->getIndices(), ArrayRef<unsigned int>(1U));
+  ZExtInst *ZExt1 = dyn_cast<ZExtInst>(ExtVal6->getNextNode());
+  EXPECT_NE(ZExt1, nullptr);
+  EXPECT_EQ(ZExt1->getDestTy(), Int32);
+  StoreInst *Store4 = dyn_cast<StoreInst>(ZExt1->getNextNode());
+  EXPECT_NE(Store4, nullptr);
+  EXPECT_EQ(Store4->getPointerOperand(), RVal);
+  EXPECT_EQ(Store4->getValueOperand(), ZExt1);
+
+  AtomicCmpXchgInst *CmpXchg5 =
+      dyn_cast<AtomicCmpXchgInst>(Store4->getNextNode());
+  EXPECT_NE(CmpXchg5, nullptr);
+  EXPECT_EQ(CmpXchg5->getPointerOperand(), XVal);
+  EXPECT_EQ(CmpXchg5->getCompareOperand(), Expr);
+  EXPECT_EQ(CmpXchg5->getNewValOperand(), D);
+  ExtractValueInst *ExtVal7 =
+      dyn_cast<ExtractValueInst>(CmpXchg5->getNextNode());
+  EXPECT_NE(ExtVal7, nullptr);
+  EXPECT_EQ(ExtVal7->getAggregateOperand(), CmpXchg5);
+  EXPECT_EQ(ExtVal7->getIndices(), ArrayRef<unsigned int>(0U));
+  ExtractValueInst *ExtVal8 =
+      dyn_cast<ExtractValueInst>(ExtVal7->getNextNode());
+  EXPECT_NE(ExtVal8, nullptr);
+  EXPECT_EQ(ExtVal8->getAggregateOperand(), CmpXchg5);
+  EXPECT_EQ(ExtVal8->getIndices(), ArrayRef<unsigned int>(1U));
+  BranchInst *Br3 = dyn_cast<BranchInst>(ExtVal8->getNextNode());
+  EXPECT_NE(Br3, nullptr);
+  EXPECT_EQ(Br3->isConditional(), true);
+  EXPECT_EQ(Br3->getCondition(), ExtVal8);
+  EXPECT_EQ(Br3->getSuccessor(0), Exit2);
+  EXPECT_EQ(Br3->getSuccessor(1), Cont2);
+
+  StoreInst *Store5 = dyn_cast<StoreInst>(&Cont2->front());
+  EXPECT_NE(Store5, nullptr);
+  EXPECT_EQ(Store5->getPointerOperand(), VVal);
+  EXPECT_EQ(Store5->getValueOperand(), ExtVal7);
+  BranchInst *Br4 = dyn_cast<BranchInst>(Store5->getNextNode());
+  EXPECT_NE(Br4, nullptr);
+  EXPECT_EQ(Br4->isUnconditional(), true);
+  EXPECT_EQ(Br4->getSuccessor(0), Exit2);
+
+  ExtractValueInst *ExtVal9 = dyn_cast<ExtractValueInst>(&Exit2->front());
+  EXPECT_NE(ExtVal9, nullptr);
+  EXPECT_EQ(ExtVal9->getAggregateOperand(), CmpXchg5);
+  EXPECT_EQ(ExtVal9->getIndices(), ArrayRef<unsigned int>(1U));
+  ZExtInst *ZExt2 = dyn_cast<ZExtInst>(ExtVal9->getNextNode());
+  EXPECT_NE(ZExt2, nullptr);
+  EXPECT_EQ(ZExt2->getDestTy(), Int32);
+  StoreInst *Store6 = dyn_cast<StoreInst>(ZExt2->getNextNode());
+  EXPECT_NE(Store6, nullptr);
+  EXPECT_EQ(Store6->getPointerOperand(), RVal);
+  EXPECT_EQ(Store6->getValueOperand(), ZExt2);
+
+  AtomicRMWInst *ARWM1 = dyn_cast<AtomicRMWInst>(Store6->getNextNode());
+  EXPECT_NE(ARWM1, nullptr);
+  EXPECT_EQ(ARWM1->getPointerOperand(), XVal);
+  EXPECT_EQ(ARWM1->getValOperand(), Expr);
+  EXPECT_EQ(ARWM1->getOperation(), AtomicRMWInst::Min);
+  StoreInst *Store7 = dyn_cast<StoreInst>(ARWM1->getNextNode());
+  EXPECT_NE(Store7, nullptr);
+  EXPECT_EQ(Store7->getPointerOperand(), VVal);
+  EXPECT_EQ(Store7->getValueOperand(), ARWM1);
+
+  AtomicRMWInst *ARWM2 = dyn_cast<AtomicRMWInst>(Store7->getNextNode());
+  EXPECT_NE(ARWM2, nullptr);
+  EXPECT_EQ(ARWM2->getPointerOperand(), XVal);
+  EXPECT_EQ(ARWM2->getValOperand(), Expr);
+  EXPECT_EQ(ARWM2->getOperation(), AtomicRMWInst::Max);
+  CmpInst *Cmp1 = dyn_cast<CmpInst>(ARWM2->getNextNode());
+  EXPECT_NE(Cmp1, nullptr);
+  EXPECT_EQ(Cmp1->getPredicate(), CmpInst::ICMP_SGT);
+  EXPECT_EQ(Cmp1->getOperand(0), ARWM2);
+  EXPECT_EQ(Cmp1->getOperand(1), Expr);
+  SelectInst *Sel2 = dyn_cast<SelectInst>(Cmp1->getNextNode());
+  EXPECT_NE(Sel2, nullptr);
+  EXPECT_EQ(Sel2->getCondition(), Cmp1);
+  EXPECT_EQ(Sel2->getTrueValue(), Expr);
+  EXPECT_EQ(Sel2->getFalseValue(), ARWM2);
+  StoreInst *Store8 = dyn_cast<StoreInst>(Sel2->getNextNode());
+  EXPECT_NE(Store8, nullptr);
+  EXPECT_EQ(Store8->getPointerOperand(), VVal);
+  EXPECT_EQ(Store8->getValueOperand(), Sel2);
 
   Builder.CreateRetVoid();
   OMPBuilder.finalize();
@@ -4410,6 +4699,394 @@ TEST_F(OpenMPIRBuilderTest, EmitMapperCall) {
   EXPECT_EQ(MapperCall->getOperand(6), MaptypesArg);
   EXPECT_EQ(MapperCall->getOperand(7), MapnamesArg);
   EXPECT_TRUE(MapperCall->getOperand(8)->getType()->isPointerTy());
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTask) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+
+  AllocaInst *ValPtr32 = Builder.CreateAlloca(Builder.getInt32Ty());
+  AllocaInst *ValPtr128 = Builder.CreateAlloca(Builder.getInt128Ty());
+  Value *Val128 =
+      Builder.CreateLoad(Builder.getInt128Ty(), ValPtr128, "bodygen.load");
+
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
+    Builder.restoreIP(AllocaIP);
+    AllocaInst *Local128 = Builder.CreateAlloca(Builder.getInt128Ty(), nullptr,
+                                                "bodygen.alloca128");
+
+    Builder.restoreIP(CodeGenIP);
+    // Loading and storing captured pointer and values
+    Builder.CreateStore(Val128, Local128);
+    Value *Val32 = Builder.CreateLoad(ValPtr32->getAllocatedType(), ValPtr32,
+                                      "bodygen.load32");
+
+    LoadInst *PrivLoad128 = Builder.CreateLoad(
+        Local128->getAllocatedType(), Local128, "bodygen.local.load128");
+    Value *Cmp = Builder.CreateICmpNE(
+        Val32, Builder.CreateTrunc(PrivLoad128, Val32->getType()));
+    Instruction *ThenTerm, *ElseTerm;
+    SplitBlockAndInsertIfThenElse(Cmp, CodeGenIP.getBlock()->getTerminator(),
+                                  &ThenTerm, &ElseTerm);
+  };
+
+  BasicBlock *AllocaBB = Builder.GetInsertBlock();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  OpenMPIRBuilder::LocationDescription Loc(
+      InsertPointTy(BodyBB, BodyBB->getFirstInsertionPt()), DL);
+  Builder.restoreIP(OMPBuilder.createTask(
+      Loc, InsertPointTy(AllocaBB, AllocaBB->getFirstInsertionPt()),
+      BodyGenCB));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CallInst *TaskAllocCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_alloc)
+          ->user_back());
+
+  // Verify the Ident argument
+  GlobalVariable *Ident = cast<GlobalVariable>(TaskAllocCall->getArgOperand(0));
+  ASSERT_NE(Ident, nullptr);
+  EXPECT_TRUE(Ident->hasInitializer());
+  Constant *Initializer = Ident->getInitializer();
+  GlobalVariable *SrcStrGlob =
+      cast<GlobalVariable>(Initializer->getOperand(4)->stripPointerCasts());
+  ASSERT_NE(SrcStrGlob, nullptr);
+  ConstantDataArray *SrcSrc =
+      dyn_cast<ConstantDataArray>(SrcStrGlob->getInitializer());
+  ASSERT_NE(SrcSrc, nullptr);
+
+  // Verify the num_threads argument.
+  CallInst *GTID = dyn_cast<CallInst>(TaskAllocCall->getArgOperand(1));
+  ASSERT_NE(GTID, nullptr);
+  EXPECT_EQ(GTID->arg_size(), 1U);
+  EXPECT_EQ(GTID->getCalledFunction()->getName(), "__kmpc_global_thread_num");
+
+  // Verify the flags
+  // TODO: Check for others flags. Currently testing only for tiedness.
+  ConstantInt *Flags = dyn_cast<ConstantInt>(TaskAllocCall->getArgOperand(2));
+  ASSERT_NE(Flags, nullptr);
+  EXPECT_EQ(Flags->getSExtValue(), 1);
+
+  // Verify the data size
+  ConstantInt *DataSize =
+      dyn_cast<ConstantInt>(TaskAllocCall->getArgOperand(3));
+  ASSERT_NE(DataSize, nullptr);
+  EXPECT_EQ(DataSize->getSExtValue(), 24); // 64-bit pointer + 128-bit integer
+
+  // TODO: Verify size of shared clause variables
+
+  // Verify Wrapper function
+  Function *WrapperFunc =
+      dyn_cast<Function>(TaskAllocCall->getArgOperand(5)->stripPointerCasts());
+  ASSERT_NE(WrapperFunc, nullptr);
+  EXPECT_FALSE(WrapperFunc->isDeclaration());
+  CallInst *OutlinedFnCall = dyn_cast<CallInst>(WrapperFunc->begin()->begin());
+  ASSERT_NE(OutlinedFnCall, nullptr);
+  EXPECT_EQ(WrapperFunc->getArg(0)->getType(), Builder.getInt32Ty());
+  EXPECT_EQ(OutlinedFnCall->getArgOperand(0), WrapperFunc->getArg(1));
+
+  // Verify the presence of `trunc` and `icmp` instructions in Outlined function
+  Function *OutlinedFn = OutlinedFnCall->getCalledFunction();
+  ASSERT_NE(OutlinedFn, nullptr);
+  EXPECT_TRUE(any_of(instructions(OutlinedFn),
+                     [](Instruction &inst) { return isa<TruncInst>(&inst); }));
+  EXPECT_TRUE(any_of(instructions(OutlinedFn),
+                     [](Instruction &inst) { return isa<ICmpInst>(&inst); }));
+
+  // Verify the execution of the task
+  CallInst *TaskCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task)
+          ->user_back());
+  ASSERT_NE(TaskCall, nullptr);
+  EXPECT_EQ(TaskCall->getArgOperand(0), Ident);
+  EXPECT_EQ(TaskCall->getArgOperand(1), GTID);
+  EXPECT_EQ(TaskCall->getArgOperand(2), TaskAllocCall);
+
+  // Verify that the argument data has been copied
+  for (User *in : TaskAllocCall->users()) {
+    if (MemCpyInst *memCpyInst = dyn_cast<MemCpyInst>(in)) {
+      EXPECT_EQ(memCpyInst->getDest(), TaskAllocCall);
+    }
+  }
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTaskNoArgs) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {};
+
+  BasicBlock *AllocaBB = Builder.GetInsertBlock();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  OpenMPIRBuilder::LocationDescription Loc(
+      InsertPointTy(BodyBB, BodyBB->getFirstInsertionPt()), DL);
+  Builder.restoreIP(OMPBuilder.createTask(
+      Loc, InsertPointTy(AllocaBB, AllocaBB->getFirstInsertionPt()),
+      BodyGenCB));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTaskUntied) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {};
+  BasicBlock *AllocaBB = Builder.GetInsertBlock();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  OpenMPIRBuilder::LocationDescription Loc(
+      InsertPointTy(BodyBB, BodyBB->getFirstInsertionPt()), DL);
+  Builder.restoreIP(OMPBuilder.createTask(
+      Loc, InsertPointTy(AllocaBB, AllocaBB->getFirstInsertionPt()), BodyGenCB,
+      /*Tied=*/false));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  // Check for the `Tied` argument
+  CallInst *TaskAllocCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_alloc)
+          ->user_back());
+  ASSERT_NE(TaskAllocCall, nullptr);
+  ConstantInt *Flags = dyn_cast<ConstantInt>(TaskAllocCall->getArgOperand(2));
+  ASSERT_NE(Flags, nullptr);
+  EXPECT_EQ(Flags->getZExtValue() & 1U, 0U);
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTaskFinal) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {};
+  IRBuilderBase::InsertPoint AllocaIP = Builder.saveIP();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  Builder.SetInsertPoint(BodyBB);
+  Value *Final = Builder.CreateICmp(
+      CmpInst::Predicate::ICMP_EQ, F->getArg(0),
+      ConstantInt::get(Type::getInt32Ty(M->getContext()), 0U));
+  OpenMPIRBuilder::LocationDescription Loc(Builder.saveIP(), DL);
+  Builder.restoreIP(OMPBuilder.createTask(Loc, AllocaIP, BodyGenCB,
+                                          /*Tied=*/false, Final));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  // Check for the `Tied` argument
+  CallInst *TaskAllocCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_alloc)
+          ->user_back());
+  ASSERT_NE(TaskAllocCall, nullptr);
+  BinaryOperator *OrInst =
+      dyn_cast<BinaryOperator>(TaskAllocCall->getArgOperand(2));
+  ASSERT_NE(OrInst, nullptr);
+  EXPECT_EQ(OrInst->getOpcode(), BinaryOperator::BinaryOps::Or);
+
+  // One of the arguments to `or` instruction is the tied flag, which is equal
+  // to zero.
+  EXPECT_TRUE(any_of(OrInst->operands(), [](Value *op) {
+    if (ConstantInt *TiedValue = dyn_cast<ConstantInt>(op))
+      return TiedValue->getSExtValue() == 0;
+    return false;
+  }));
+
+  // One of the arguments to `or` instruction is the final condition.
+  EXPECT_TRUE(any_of(OrInst->operands(), [Final](Value *op) {
+    if (SelectInst *Select = dyn_cast<SelectInst>(op)) {
+      ConstantInt *TrueValue = dyn_cast<ConstantInt>(Select->getTrueValue());
+      ConstantInt *FalseValue = dyn_cast<ConstantInt>(Select->getFalseValue());
+      if (!TrueValue || !FalseValue)
+        return false;
+      return Select->getCondition() == Final &&
+             TrueValue->getSExtValue() == 2 && FalseValue->getSExtValue() == 0;
+    }
+    return false;
+  }));
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTaskgroup) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+
+  AllocaInst *ValPtr32 = Builder.CreateAlloca(Builder.getInt32Ty());
+  AllocaInst *ValPtr128 = Builder.CreateAlloca(Builder.getInt128Ty());
+  Value *Val128 =
+      Builder.CreateLoad(Builder.getInt128Ty(), ValPtr128, "bodygen.load");
+  Instruction *ThenTerm, *ElseTerm;
+
+  Value *InternalStoreInst, *InternalLoad32, *InternalLoad128, *InternalIfCmp;
+
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
+    Builder.restoreIP(AllocaIP);
+    AllocaInst *Local128 = Builder.CreateAlloca(Builder.getInt128Ty(), nullptr,
+                                                "bodygen.alloca128");
+
+    Builder.restoreIP(CodeGenIP);
+    // Loading and storing captured pointer and values
+    InternalStoreInst = Builder.CreateStore(Val128, Local128);
+    InternalLoad32 = Builder.CreateLoad(ValPtr32->getAllocatedType(), ValPtr32,
+                                        "bodygen.load32");
+
+    InternalLoad128 = Builder.CreateLoad(Local128->getAllocatedType(), Local128,
+                                         "bodygen.local.load128");
+    InternalIfCmp = Builder.CreateICmpNE(
+        InternalLoad32,
+        Builder.CreateTrunc(InternalLoad128, InternalLoad32->getType()));
+    SplitBlockAndInsertIfThenElse(InternalIfCmp,
+                                  CodeGenIP.getBlock()->getTerminator(),
+                                  &ThenTerm, &ElseTerm);
+  };
+
+  BasicBlock *AllocaBB = Builder.GetInsertBlock();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  OpenMPIRBuilder::LocationDescription Loc(
+      InsertPointTy(BodyBB, BodyBB->getFirstInsertionPt()), DL);
+  Builder.restoreIP(OMPBuilder.createTaskgroup(
+      Loc, InsertPointTy(AllocaBB, AllocaBB->getFirstInsertionPt()),
+      BodyGenCB));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CallInst *TaskgroupCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_taskgroup)
+          ->user_back());
+  ASSERT_NE(TaskgroupCall, nullptr);
+  CallInst *EndTaskgroupCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_taskgroup)
+          ->user_back());
+  ASSERT_NE(EndTaskgroupCall, nullptr);
+
+  // Verify the Ident argument
+  GlobalVariable *Ident = cast<GlobalVariable>(TaskgroupCall->getArgOperand(0));
+  ASSERT_NE(Ident, nullptr);
+  EXPECT_TRUE(Ident->hasInitializer());
+  Constant *Initializer = Ident->getInitializer();
+  GlobalVariable *SrcStrGlob =
+      cast<GlobalVariable>(Initializer->getOperand(4)->stripPointerCasts());
+  ASSERT_NE(SrcStrGlob, nullptr);
+  ConstantDataArray *SrcSrc =
+      dyn_cast<ConstantDataArray>(SrcStrGlob->getInitializer());
+  ASSERT_NE(SrcSrc, nullptr);
+
+  // Verify the num_threads argument.
+  CallInst *GTID = dyn_cast<CallInst>(TaskgroupCall->getArgOperand(1));
+  ASSERT_NE(GTID, nullptr);
+  EXPECT_EQ(GTID->arg_size(), 1U);
+  EXPECT_EQ(GTID->getCalledFunction(), OMPBuilder.getOrCreateRuntimeFunctionPtr(
+                                           OMPRTL___kmpc_global_thread_num));
+
+  // Checking the general structure of the IR generated is same as expected.
+  Instruction *GeneratedStoreInst = TaskgroupCall->getNextNonDebugInstruction();
+  EXPECT_EQ(GeneratedStoreInst, InternalStoreInst);
+  Instruction *GeneratedLoad32 =
+      GeneratedStoreInst->getNextNonDebugInstruction();
+  EXPECT_EQ(GeneratedLoad32, InternalLoad32);
+  Instruction *GeneratedLoad128 = GeneratedLoad32->getNextNonDebugInstruction();
+  EXPECT_EQ(GeneratedLoad128, InternalLoad128);
+
+  // Checking the ordering because of the if statements and that
+  // `__kmp_end_taskgroup` call is after the if branching.
+  BasicBlock *RefOrder[] = {TaskgroupCall->getParent(), ThenTerm->getParent(),
+                            ThenTerm->getSuccessor(0),
+                            EndTaskgroupCall->getParent(),
+                            ElseTerm->getParent()};
+  verifyDFSOrder(F, RefOrder);
+}
+
+TEST_F(OpenMPIRBuilderTest, CreateTaskgroupWithTasks) {
+  using InsertPointTy = OpenMPIRBuilder::InsertPointTy;
+  OpenMPIRBuilder OMPBuilder(*M);
+  OMPBuilder.initialize();
+  F->setName("func");
+  IRBuilder<> Builder(BB);
+
+  auto BodyGenCB = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
+    Builder.restoreIP(AllocaIP);
+    AllocaInst *Alloca32 =
+        Builder.CreateAlloca(Builder.getInt32Ty(), nullptr, "bodygen.alloca32");
+    AllocaInst *Alloca64 =
+        Builder.CreateAlloca(Builder.getInt64Ty(), nullptr, "bodygen.alloca64");
+    Builder.restoreIP(CodeGenIP);
+    auto TaskBodyGenCB1 = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
+      Builder.restoreIP(CodeGenIP);
+      LoadInst *LoadValue =
+          Builder.CreateLoad(Alloca64->getAllocatedType(), Alloca64);
+      Value *AddInst = Builder.CreateAdd(LoadValue, Builder.getInt64(64));
+      Builder.CreateStore(AddInst, Alloca64);
+    };
+    OpenMPIRBuilder::LocationDescription Loc(Builder.saveIP(), DL);
+    Builder.restoreIP(OMPBuilder.createTask(Loc, AllocaIP, TaskBodyGenCB1));
+
+    auto TaskBodyGenCB2 = [&](InsertPointTy AllocaIP, InsertPointTy CodeGenIP) {
+      Builder.restoreIP(CodeGenIP);
+      LoadInst *LoadValue =
+          Builder.CreateLoad(Alloca32->getAllocatedType(), Alloca32);
+      Value *AddInst = Builder.CreateAdd(LoadValue, Builder.getInt32(32));
+      Builder.CreateStore(AddInst, Alloca32);
+    };
+    OpenMPIRBuilder::LocationDescription Loc2(Builder.saveIP(), DL);
+    Builder.restoreIP(OMPBuilder.createTask(Loc2, AllocaIP, TaskBodyGenCB2));
+  };
+
+  BasicBlock *AllocaBB = Builder.GetInsertBlock();
+  BasicBlock *BodyBB = splitBB(Builder, /*CreateBranch=*/true, "alloca.split");
+  OpenMPIRBuilder::LocationDescription Loc(
+      InsertPointTy(BodyBB, BodyBB->getFirstInsertionPt()), DL);
+  Builder.restoreIP(OMPBuilder.createTaskgroup(
+      Loc, InsertPointTy(AllocaBB, AllocaBB->getFirstInsertionPt()),
+      BodyGenCB));
+  OMPBuilder.finalize();
+  Builder.CreateRetVoid();
+
+  EXPECT_FALSE(verifyModule(*M, &errs()));
+
+  CallInst *TaskgroupCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_taskgroup)
+          ->user_back());
+  ASSERT_NE(TaskgroupCall, nullptr);
+  CallInst *EndTaskgroupCall = dyn_cast<CallInst>(
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_end_taskgroup)
+          ->user_back());
+  ASSERT_NE(EndTaskgroupCall, nullptr);
+
+  Function *TaskAllocFn =
+      OMPBuilder.getOrCreateRuntimeFunctionPtr(OMPRTL___kmpc_omp_task_alloc);
+  ASSERT_EQ(TaskAllocFn->getNumUses(), 2u);
+
+  CallInst *FirstTaskAllocCall =
+      dyn_cast_or_null<CallInst>(*TaskAllocFn->users().begin());
+  CallInst *SecondTaskAllocCall =
+      dyn_cast_or_null<CallInst>(*TaskAllocFn->users().begin()++);
+  ASSERT_NE(FirstTaskAllocCall, nullptr);
+  ASSERT_NE(SecondTaskAllocCall, nullptr);
+
+  // Verify that the tasks have been generated in order and inside taskgroup
+  // construct.
+  BasicBlock *RefOrder[] = {
+      TaskgroupCall->getParent(), FirstTaskAllocCall->getParent(),
+      SecondTaskAllocCall->getParent(), EndTaskgroupCall->getParent()};
+  verifyDFSOrder(F, RefOrder);
 }
 
 } // namespace

@@ -157,6 +157,8 @@ private:
   llvm::Function *makeModuleDtorFunction();
   /// Transform managed variables for device compilation.
   void transformManagedVars();
+  /// Create offloading entries to register globals in RDC mode.
+  void createOffloadingEntries();
 
 public:
   CGNVCUDARuntime(CodeGenModule &CGM);
@@ -282,8 +284,7 @@ std::string CGNVCUDARuntime::getDeviceSideName(const NamedDecl *ND) {
 
   // Make unique name for device side static file-scope variable for HIP.
   if (CGM.getContext().shouldExternalize(ND) &&
-      CGM.getLangOpts().GPURelocatableDeviceCode &&
-      !CGM.getLangOpts().CUID.empty()) {
+      CGM.getLangOpts().GPURelocatableDeviceCode) {
     SmallString<256> Buffer;
     llvm::raw_svector_ostream Out(Buffer);
     Out << DeviceSideName;
@@ -1107,6 +1108,41 @@ void CGNVCUDARuntime::transformManagedVars() {
   }
 }
 
+// Creates offloading entries for all the kernels and globals that must be
+// registered. The linker will provide a pointer to this section so we can
+// register the symbols with the linked device image.
+void CGNVCUDARuntime::createOffloadingEntries() {
+  llvm::OpenMPIRBuilder OMPBuilder(CGM.getModule());
+  OMPBuilder.initialize();
+
+  StringRef Section = CGM.getLangOpts().HIP ? "hip_offloading_entries"
+                                            : "cuda_offloading_entries";
+  for (KernelInfo &I : EmittedKernels)
+    OMPBuilder.emitOffloadingEntry(KernelHandles[I.Kernel],
+                                   getDeviceSideName(cast<NamedDecl>(I.D)), 0,
+                                   DeviceVarFlags::OffloadGlobalEntry, Section);
+
+  for (VarInfo &I : DeviceVars) {
+    uint64_t VarSize =
+        CGM.getDataLayout().getTypeAllocSize(I.Var->getValueType());
+    if (I.Flags.getKind() == DeviceVarFlags::Variable) {
+      OMPBuilder.emitOffloadingEntry(
+          I.Var, getDeviceSideName(I.D), VarSize,
+          I.Flags.isManaged() ? DeviceVarFlags::OffloadGlobalManagedEntry
+                              : DeviceVarFlags::OffloadGlobalEntry,
+          Section);
+    } else if (I.Flags.getKind() == DeviceVarFlags::Surface) {
+      OMPBuilder.emitOffloadingEntry(I.Var, getDeviceSideName(I.D), VarSize,
+                                     DeviceVarFlags::OffloadGlobalSurfaceEntry,
+                                     Section);
+    } else if (I.Flags.getKind() == DeviceVarFlags::Texture) {
+      OMPBuilder.emitOffloadingEntry(I.Var, getDeviceSideName(I.D), VarSize,
+                                     DeviceVarFlags::OffloadGlobalTextureEntry,
+                                     Section);
+    }
+  }
+}
+
 // Returns module constructor to be added.
 llvm::Function *CGNVCUDARuntime::finalizeModule() {
   if (CGM.getLangOpts().CUDAIsDevice) {
@@ -1135,7 +1171,12 @@ llvm::Function *CGNVCUDARuntime::finalizeModule() {
     }
     return nullptr;
   }
-  return makeModuleCtorFunction();
+  if (CGM.getLangOpts().OffloadingNewDriver && RelocatableDeviceCode)
+    createOffloadingEntries();
+  else
+    return makeModuleCtorFunction();
+
+  return nullptr;
 }
 
 llvm::GlobalValue *CGNVCUDARuntime::getKernelHandle(llvm::Function *F,

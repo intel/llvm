@@ -19,11 +19,15 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
+#include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
+#include "lldb/Interpreter/OptionValueProperties.h"
+#include "lldb/Interpreter/OptionValueString.h"
+#include "lldb/Interpreter/Options.h"
 #include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolFile.h"
@@ -48,11 +52,136 @@
 using namespace lldb;
 using namespace lldb_private;
 
+static Status ExceptionMaskValidator(const char *string, void *unused) {
+  Status error;
+  llvm::StringRef str_ref(string);
+  llvm::SmallVector<llvm::StringRef> candidates;
+  str_ref.split(candidates, '|');
+  for (auto candidate : candidates) {
+    if (!(candidate == "EXC_BAD_ACCESS"
+          || candidate == "EXC_BAD_INSTRUCTION"
+          || candidate == "EXC_ARITHMETIC"
+          || candidate == "EXC_RESOURCE"
+          || candidate == "EXC_GUARD")) {
+      error.SetErrorStringWithFormat("invalid exception type: '%s'",
+          candidate.str().c_str());
+      return error;
+    }
+  }
+  return {};
+}
+
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
 PlatformDarwin::~PlatformDarwin() = default;
+
+// Static Variables
+static uint32_t g_initialize_count = 0;
+
+void PlatformDarwin::Initialize() {
+  Platform::Initialize();
+
+  if (g_initialize_count++ == 0) {
+    PluginManager::RegisterPlugin(PlatformDarwin::GetPluginNameStatic(),
+                                  PlatformDarwin::GetDescriptionStatic(),
+                                  PlatformDarwin::CreateInstance,
+                                  PlatformDarwin::DebuggerInitialize);
+  }
+}
+
+void PlatformDarwin::Terminate() {
+  if (g_initialize_count > 0) {
+    if (--g_initialize_count == 0) {
+      PluginManager::UnregisterPlugin(PlatformDarwin::CreateInstance);
+    }
+  }
+
+  Platform::Terminate();
+}
+
+llvm::StringRef PlatformDarwin::GetDescriptionStatic() {
+  return "Darwin platform plug-in.";
+}
+
+PlatformSP PlatformDarwin::CreateInstance(bool force, const ArchSpec *arch) {
+   // We only create subclasses of the PlatformDarwin plugin.
+   return PlatformSP();
+}
+
+#define LLDB_PROPERTIES_platformdarwin
+#include "PlatformMacOSXProperties.inc"
+
+#define LLDB_PROPERTIES_platformdarwin
+enum {
+#include "PlatformMacOSXPropertiesEnum.inc"
+};
+
+class PlatformDarwinProperties : public Properties {
+public:
+  static ConstString &GetSettingName() {
+    static ConstString g_setting_name("darwin");
+    return g_setting_name;
+  }
+
+  PlatformDarwinProperties() : Properties() {
+    m_collection_sp = std::make_shared<OptionValueProperties>(GetSettingName());
+    m_collection_sp->Initialize(g_platformdarwin_properties);
+  }
+
+  ~PlatformDarwinProperties() override = default;
+
+  const char *GetIgnoredExceptions() const {
+    const uint32_t idx = ePropertyIgnoredExceptions;
+    const OptionValueString *option_value =
+        m_collection_sp->GetPropertyAtIndexAsOptionValueString(nullptr, false,
+                                                               idx);
+    assert(option_value);
+    return option_value->GetCurrentValue();
+  }
+
+  OptionValueString *GetIgnoredExceptionValue() {
+    const uint32_t idx = ePropertyIgnoredExceptions;
+    OptionValueString *option_value =
+        m_collection_sp->GetPropertyAtIndexAsOptionValueString(nullptr, false,
+                                                               idx);
+    assert(option_value);
+    return option_value;
+  }
+};
+
+static PlatformDarwinProperties &GetGlobalProperties() {
+  static PlatformDarwinProperties g_settings;
+  return g_settings;
+}
+
+void PlatformDarwin::DebuggerInitialize(
+    lldb_private::Debugger &debugger) {
+  if (!PluginManager::GetSettingForPlatformPlugin(
+          debugger, PlatformDarwinProperties::GetSettingName())) {
+    const bool is_global_setting = false;
+    PluginManager::CreateSettingForPlatformPlugin(
+        debugger, GetGlobalProperties().GetValueProperties(),
+        ConstString("Properties for the Darwin platform plug-in."),
+        is_global_setting);
+    OptionValueString *value = GetGlobalProperties().GetIgnoredExceptionValue();
+    value->SetValidator(ExceptionMaskValidator);
+  }
+}
+
+Args
+PlatformDarwin::GetExtraStartupCommands() {
+  std::string ignored_exceptions
+      = GetGlobalProperties().GetIgnoredExceptions();
+  if (ignored_exceptions.empty())
+    return {};
+  Args ret_args;
+  std::string packet = "QSetIgnoredExceptions:";
+  packet.append(ignored_exceptions);
+  ret_args.AppendArgument(packet);
+  return ret_args;
+}
 
 lldb_private::Status
 PlatformDarwin::PutFile(const lldb_private::FileSpec &source,
@@ -179,7 +308,7 @@ FileSpecList PlatformDarwin::LocateExecutableScriptingResources(
               if (module_spec.GetFilename() == filename_no_extension)
                 break;
 
-              module_spec.GetFilename() = filename_no_extension;
+              module_spec.SetFilename(filename_no_extension);
             }
           }
         }
@@ -695,7 +824,7 @@ FileSpec PlatformDarwin::GetSDKDirectoryForModules(XcodeSDK::Type sdk_type) {
         FileSpec native_sdk_spec = sdks_spec;
         StreamString native_sdk_name;
         native_sdk_name.Printf("MacOSX%u.%u.sdk", version.getMajor(),
-                               version.getMinor().getValueOr(0));
+                               version.getMinor().value_or(0));
         native_sdk_spec.AppendPathComponent(native_sdk_name.GetString());
 
         if (FileSystem::Instance().Exists(native_sdk_spec)) {
@@ -902,7 +1031,7 @@ void PlatformDarwin::AddClangModuleCompilationOptionsForSDKType(
     minimum_version_option << '-';
     switch (sdk_type) {
     case XcodeSDK::Type::MacOSX:
-      minimum_version_option << opt_mmacosx_version_min_EQ;
+      minimum_version_option << opt_mmacos_version_min_EQ;
       break;
     case XcodeSDK::Type::iPhoneSimulator:
       minimum_version_option << opt_mios_simulator_version_min_EQ;
@@ -1009,7 +1138,7 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
       xcode_lldb_resources.AppendPathComponent("Resources");
       if (FileSystem::Instance().Exists(xcode_lldb_resources)) {
         FileSpec dir;
-        dir.GetDirectory().SetCString(xcode_lldb_resources.GetPath().c_str());
+        dir.SetDirectory(xcode_lldb_resources.GetPathAsConstString());
         g_executable_dirs.push_back(dir);
       }
     }
@@ -1022,8 +1151,7 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
       cmd_line_lldb_resources.AppendPathComponent("Resources");
       if (FileSystem::Instance().Exists(cmd_line_lldb_resources)) {
         FileSpec dir;
-        dir.GetDirectory().SetCString(
-            cmd_line_lldb_resources.GetPath().c_str());
+        dir.SetDirectory(cmd_line_lldb_resources.GetPathAsConstString());
         g_executable_dirs.push_back(dir);
       }
     }
@@ -1033,8 +1161,8 @@ lldb_private::FileSpec PlatformDarwin::LocateExecutable(const char *basename) {
   // are looking for
   for (const auto &executable_dir : g_executable_dirs) {
     FileSpec executable_file;
-    executable_file.GetDirectory() = executable_dir.GetDirectory();
-    executable_file.GetFilename().SetCString(basename);
+    executable_file.SetDirectory(executable_dir.GetDirectory());
+    executable_file.SetFilename(basename);
     if (FileSystem::Instance().Exists(executable_file))
       return executable_file;
   }

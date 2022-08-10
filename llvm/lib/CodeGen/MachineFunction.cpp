@@ -152,11 +152,11 @@ void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
   MBB->getParent()->deleteMachineBasicBlock(MBB);
 }
 
-static inline unsigned getFnStackAlignment(const TargetSubtargetInfo *STI,
+static inline Align getFnStackAlignment(const TargetSubtargetInfo *STI,
                                            const Function &F) {
   if (auto MA = F.getFnStackAlign())
-    return MA->value();
-  return STI->getFrameLowering()->getStackAlign().value();
+    return *MA;
+  return STI->getFrameLowering()->getStackAlign();
 }
 
 MachineFunction::MachineFunction(Function &F, const LLVMTargetMachine &Target,
@@ -229,9 +229,7 @@ void MachineFunction::init() {
          "Can't create a MachineFunction using a Module with a "
          "Target-incompatible DataLayout attached\n");
 
-  PSVManager =
-    std::make_unique<PseudoSourceValueManager>(*(getSubtarget().
-                                                  getInstrInfo()));
+  PSVManager = std::make_unique<PseudoSourceValueManager>(getTarget());
 }
 
 MachineFunction::~MachineFunction() {
@@ -858,25 +856,6 @@ void MachineFunction::addCleanup(MachineBasicBlock *LandingPad) {
   LP.TypeIds.push_back(0);
 }
 
-void MachineFunction::addSEHCatchHandler(MachineBasicBlock *LandingPad,
-                                         const Function *Filter,
-                                         const BlockAddress *RecoverBA) {
-  LandingPadInfo &LP = getOrCreateLandingPadInfo(LandingPad);
-  SEHHandler Handler;
-  Handler.FilterOrFinally = Filter;
-  Handler.RecoverBA = RecoverBA;
-  LP.SEHHandlers.push_back(Handler);
-}
-
-void MachineFunction::addSEHCleanupHandler(MachineBasicBlock *LandingPad,
-                                           const Function *Cleanup) {
-  LandingPadInfo &LP = getOrCreateLandingPadInfo(LandingPad);
-  SEHHandler Handler;
-  Handler.FilterOrFinally = Cleanup;
-  Handler.RecoverBA = nullptr;
-  LP.SEHHandlers.push_back(Handler);
-}
-
 void MachineFunction::setCallSiteLandingPad(MCSymbol *Sym,
                                             ArrayRef<unsigned> Sites) {
   LPadToCallSiteMap[Sym].append(Sites.begin(), Sites.end());
@@ -932,8 +911,8 @@ static const MachineInstr *getCallInstr(const MachineInstr *MI) {
   if (!MI->isBundle())
     return MI;
 
-  for (auto &BMI : make_range(getBundleStart(MI->getIterator()),
-                              getBundleEnd(MI->getIterator())))
+  for (const auto &BMI : make_range(getBundleStart(MI->getIterator()),
+                                    getBundleEnd(MI->getIterator())))
     if (BMI.isCandidateForCallSiteEntry())
       return &BMI;
 

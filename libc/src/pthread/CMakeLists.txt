@@ -196,3 +196,108 @@ add_entrypoint_object(
     libc.include.errno
     libc.include.pthread
 )
+
+add_entrypoint_object(
+  pthread_mutex_init
+  SRCS
+    pthread_mutex_init.cpp
+  HDRS
+    pthread_mutex_init.h
+  DEPENDS
+    .pthread_mutexattr
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.mutex
+)
+
+add_entrypoint_object(
+  pthread_mutex_destroy
+  SRCS
+    pthread_mutex_destroy.cpp
+  HDRS
+    pthread_mutex_destroy.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.mutex
+)
+
+add_entrypoint_object(
+  pthread_mutex_lock
+  SRCS
+    pthread_mutex_lock.cpp
+  HDRS
+    pthread_mutex_lock.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.mutex
+)
+
+add_entrypoint_object(
+  pthread_mutex_unlock
+  SRCS
+    pthread_mutex_unlock.cpp
+  HDRS
+    pthread_mutex_unlock.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.mutex
+)
+
+add_entrypoint_object(
+  pthread_create
+  SRCS
+    pthread_create.cpp
+  HDRS
+    pthread_create.h
+  DEPENDS
+    libc.include.errno
+    libc.include.pthread
+    libc.src.__support.threads.thread
+  COMPILE_OPTIONS
+    -O3
+    -fno-omit-frame-pointer
+)
+
+add_entrypoint_object(
+  pthread_join
+  SRCS
+    pthread_join.cpp
+  HDRS
+    pthread_join.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_detach
+  SRCS
+    pthread_detach.cpp
+  HDRS
+    pthread_detach.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_equal
+  SRCS
+    pthread_equal.cpp
+  HDRS
+    pthread_equal.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)
+
+add_entrypoint_object(
+  pthread_self
+  SRCS
+    pthread_self.cpp
+  HDRS
+    pthread_self.h
+  DEPENDS
+    libc.include.pthread
+    libc.src.__support.threads.thread
+)

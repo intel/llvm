@@ -103,29 +103,6 @@ bool BasicAAResult::invalidate(Function &Fn, const PreservedAnalyses &PA,
 // Useful predicates
 //===----------------------------------------------------------------------===//
 
-/// Returns true if the pointer is one which would have been considered an
-/// escape by isNonEscapingLocalObject.
-static bool isEscapeSource(const Value *V) {
-  if (isa<CallBase>(V))
-    return true;
-
-  // The load case works because isNonEscapingLocalObject considers all
-  // stores to be escapes (it passes true for the StoreCaptures argument
-  // to PointerMayBeCaptured).
-  if (isa<LoadInst>(V))
-    return true;
-
-  // The inttoptr case works because isNonEscapingLocalObject considers all
-  // means of converting or equating a pointer to an int (ptrtoint, ptr store
-  // which could be followed by an integer load, ptr<->int compare) as
-  // escaping, and objects located at well-known addresses via platform-specific
-  // means cannot be considered non-escaping local objects.
-  if (isa<IntToPtrInst>(V))
-    return true;
-
-  return false;
-}
-
 /// Returns the size of the object specified by V or UnknownSize if unknown.
 static uint64_t getObjectSize(const Value *V, const DataLayout &DL,
                               const TargetLibraryInfo &TLI,
@@ -659,8 +636,8 @@ BasicAAResult::DecomposeGEPExpression(const Value *V, const DataLayout &DL,
       unsigned TypeSize =
           DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize();
       LE = LE.mul(APInt(IndexSize, TypeSize), GEPOp->isInBounds());
-      Decomposed.Offset += LE.Offset.sextOrSelf(MaxIndexSize);
-      APInt Scale = LE.Scale.sextOrSelf(MaxIndexSize);
+      Decomposed.Offset += LE.Offset.sext(MaxIndexSize);
+      APInt Scale = LE.Scale.sext(MaxIndexSize);
 
       // If we already had an occurrence of this index variable, merge this
       // scale into it.  For example, we want to handle:
@@ -1391,15 +1368,15 @@ BasicAAResult::aliasSelect(const SelectInst *SI, LocationSize SISize,
 
   // If both arms of the Select node NoAlias or MustAlias V2, then returns
   // NoAlias / MustAlias. Otherwise, returns MayAlias.
-  AliasResult Alias = getBestAAResults().alias(
-      MemoryLocation(V2, V2Size),
-      MemoryLocation(SI->getTrueValue(), SISize), AAQI);
+  AliasResult Alias =
+      getBestAAResults().alias(MemoryLocation(SI->getTrueValue(), SISize),
+                               MemoryLocation(V2, V2Size), AAQI);
   if (Alias == AliasResult::MayAlias)
     return AliasResult::MayAlias;
 
-  AliasResult ThisAlias = getBestAAResults().alias(
-      MemoryLocation(V2, V2Size),
-      MemoryLocation(SI->getFalseValue(), SISize), AAQI);
+  AliasResult ThisAlias =
+      getBestAAResults().alias(MemoryLocation(SI->getFalseValue(), SISize),
+                               MemoryLocation(V2, V2Size), AAQI);
   return MergeAliasResults(ThisAlias, Alias);
 }
 
@@ -1521,8 +1498,7 @@ AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
   AAQueryInfo *UseAAQI = BlockInserted ? &NewAAQI : &AAQI;
 
   AliasResult Alias = getBestAAResults().alias(
-      MemoryLocation(V2, V2Size),
-      MemoryLocation(V1Srcs[0], PNSize), *UseAAQI);
+      MemoryLocation(V1Srcs[0], PNSize), MemoryLocation(V2, V2Size), *UseAAQI);
 
   // Early exit if the check of the first PHI source against V2 is MayAlias.
   // Other results are not possible.
@@ -1539,7 +1515,7 @@ AliasResult BasicAAResult::aliasPHI(const PHINode *PN, LocationSize PNSize,
     Value *V = V1Srcs[i];
 
     AliasResult ThisAlias = getBestAAResults().alias(
-        MemoryLocation(V2, V2Size), MemoryLocation(V, PNSize), *UseAAQI);
+        MemoryLocation(V, PNSize), MemoryLocation(V2, V2Size), *UseAAQI);
     Alias = MergeAliasResults(ThisAlias, Alias);
     if (Alias == AliasResult::MayAlias)
       break;
@@ -1788,7 +1764,7 @@ bool BasicAAResult::isValueEqualInPotentialCycles(const Value *V,
   // Make sure that the visited phis cannot reach the Value. This ensures that
   // the Values cannot come from different iterations of a potential cycle the
   // phi nodes could be involved in.
-  for (auto *P : VisitedPhiBBs)
+  for (const auto *P : VisitedPhiBBs)
     if (isPotentiallyReachable(&P->front(), Inst, nullptr, DT))
       return false;
 

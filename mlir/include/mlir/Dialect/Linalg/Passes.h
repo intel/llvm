@@ -41,10 +41,6 @@ createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {},
                            linalg::LinalgTilingLoopType::Loops);
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgPromotionPass();
-
-std::unique_ptr<OperationPass<func::FuncOp>>
 createLinalgInlineScalarOperandsPass();
 
 /// Create a pass to convert Linalg operations to scf.for loops and
@@ -62,9 +58,8 @@ createConvertLinalgToParallelLoopsPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertLinalgToAffineLoopsPass();
 
-/// Create a pass that tries to eliminate init_tensor ops that are anchored on
-/// insert_slice ops.
-std::unique_ptr<Pass> createLinalgInitTensorEliminationPass();
+/// Create a pass that rewrites init_tensor to alloc_tensor.
+std::unique_ptr<Pass> createLinalgInitTensorToAllocTensorPass();
 
 /// Create a pass to convert Linalg operations which work on tensors to use
 /// buffers instead.
@@ -102,14 +97,6 @@ std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPadPass(
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 
-/// Create a LinalgStrategyPromotePass.
-std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPromotePass(
-    StringRef opName = "",
-    const linalg::LinalgPromotionOptions &opt =
-        linalg::LinalgPromotionOptions(),
-    const linalg::LinalgTransformationFilter &filter =
-        linalg::LinalgTransformationFilter());
-
 /// Create a LinalgStrategyGeneralizePass.
 std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyGeneralizePass(
     StringRef opName = "", const linalg::LinalgTransformationFilter &filter =
@@ -125,6 +112,13 @@ std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyDecomposePass(
 std::unique_ptr<OperationPass<func::FuncOp>>
 createLinalgStrategyInterchangePass(
     ArrayRef<int64_t> iteratorInterchange = {},
+    const linalg::LinalgTransformationFilter &filter =
+        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyPeelPass.
+std::unique_ptr<OperationPass<func::FuncOp>> createLinalgStrategyPeelPass(
+    StringRef opName = "",
+    const linalg::LinalgPeelOptions &opt = linalg::LinalgPeelOptions(),
     const linalg::LinalgTransformationFilter &filter =
         linalg::LinalgTransformationFilter());
 

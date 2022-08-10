@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/sycl/detail/property_helper.hpp>
-#include <CL/sycl/types.hpp>
+#include <sycl/detail/property_helper.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_utils.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/types.hpp>
 
 #include <tuple>
 #include <type_traits>
@@ -201,6 +201,15 @@ template <typename propertiesT>
 inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
 #endif
 
+namespace detail {
+// Helper for default properties when deduction guides are not enabled.
+using empty_properties_t = properties<std::tuple<>>;
+
+// Helper for reconstructing a properties type. This assumes that
+// PropertyValueTs is sorted and contains only valid properties.
+template <typename... PropertyValueTs>
+using properties_t = properties<std::tuple<PropertyValueTs...>>;
+} // namespace detail
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

@@ -49,6 +49,9 @@ enum class VectorContractLowering {
   Matmul = 1,
   /// Lower to `vector.outerproduct`.
   OuterProduct = 2,
+  /// Lower contract with all reduction dimensions unrolled to 1 to a vector
+  /// elementwise operations.
+  ParallelArith = 3,
 };
 /// Enum to control the splitting of `vector.transfer` operations into
 /// in-bounds and out-of-bounds variants.
@@ -123,6 +126,19 @@ struct UnrollVectorOptions {
     nativeShape = [=](Operation *) -> Optional<SmallVector<int64_t, 4>> {
       return tsShape;
     };
+    return *this;
+  }
+
+  /// Function that returns the traversal order (in terms of "for loop order",
+  /// i.e. slowest varying dimension to fastest varying dimension) that shoudl
+  /// be used when unrolling the given operation into units of the native vector
+  /// size.
+  using UnrollTraversalOrderFnType =
+      std::function<Optional<SmallVector<int64_t>>(Operation *op)>;
+  UnrollTraversalOrderFnType traversalOrderCallback = nullptr;
+  UnrollVectorOptions &
+  setUnrollTraversalOrderFn(UnrollTraversalOrderFnType traversalOrderFn) {
+    traversalOrderCallback = std::move(traversalOrderFn);
     return *this;
   }
 };
@@ -511,11 +527,12 @@ private:
   vector::VectorTransformsOptions vectorTransformOptions;
   FilterConstraintType filter;
   // Lower one parallel dimension.
-  Value lowerParallel(vector::ContractionOp op, int64_t lhsIndex,
-                      int64_t rhsIndex, PatternRewriter &rewriter) const;
+  FailureOr<Value> lowerParallel(vector::ContractionOp op, int64_t lhsIndex,
+                                 int64_t rhsIndex,
+                                 PatternRewriter &rewriter) const;
   // Lower one reduction dimension.
-  Value lowerReduction(vector::ContractionOp op,
-                       PatternRewriter &rewriter) const;
+  FailureOr<Value> lowerReduction(vector::ContractionOp op,
+                                  PatternRewriter &rewriter) const;
 };
 
 } // namespace vector

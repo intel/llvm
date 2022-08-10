@@ -43,4 +43,9 @@ def help_q : Flag<["/??", "-??", "/?", "-?"], "">, Alias<help>;
 // The flags below do nothing. They are defined only for lib.exe compatibility.
 //==============================================================================
 
+def ltcg : F<"ltcg">;
+def nodefaultlib: P<"nodefaultlib", "">;
+def nodefaultlib_all: F<"nodefaultlib">;
 def nologo : F<"nologo">;
+def subsystem : P<"subsystem", "">;
+def verbose : F<"verbose">;

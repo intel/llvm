@@ -27,8 +27,14 @@ enum class ExceptionHandling {
 
 enum class DebugCompressionType {
   None, ///< No compression
-  GNU,  ///< zlib-gnu style compression
-  Z,    ///< zlib style complession
+  Z,    ///< zlib
+  Zstd, ///< Zstandard
+};
+
+enum class EmitDwarfUnwindType {
+  Always,          // Always emit dwarf unwind
+  NoCompactUnwind, // Only emit if compact unwind isn't available
+  Default,         // Default behavior is based on the target
 };
 
 class StringRef;
@@ -56,6 +62,9 @@ public:
   bool PreserveAsmComments : 1;
 
   bool Dwarf64 : 1;
+
+  EmitDwarfUnwindType EmitDwarfUnwind;
+
   int DwarfVersion = 0;
 
   enum DwarfDirectory {

@@ -9,11 +9,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <cassert>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 constexpr int N = 8;
 
@@ -51,15 +51,20 @@ int main() {
     array = (int *)malloc_host(N * sizeof(int), q);
     check_and_free(array, dev, ctxt);
 
-    array = (int *)malloc_host(N * sizeof(int), q, property_list{});
+    array = (int *)malloc_host(
+        N * sizeof(int), q,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location{2}});
     check_and_free(array, dev, ctxt);
 
     array =
         (int *)aligned_alloc_host(alignof(long long), N * sizeof(int), ctxt);
     check_and_free(array, dev, ctxt);
 
-    array = (int *)aligned_alloc_host(alignof(long long), N * sizeof(int), ctxt,
-                                      property_list{});
+    array = (int *)aligned_alloc_host(
+        alignof(long long), N * sizeof(int), ctxt,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location{2}});
     check_and_free(array, dev, ctxt);
   }
 
@@ -67,15 +72,20 @@ int main() {
     array = (int *)malloc_shared(N * sizeof(int), q);
     check_and_free(array, dev, ctxt);
 
-    array = (int *)malloc_shared(N * sizeof(int), q, property_list{});
+    array = (int *)malloc_shared(
+        N * sizeof(int), q,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location{2}});
     check_and_free(array, dev, ctxt);
 
     array = (int *)aligned_alloc_shared(alignof(long long), N * sizeof(int),
                                         dev, ctxt);
     check_and_free(array, dev, ctxt);
 
-    array = (int *)aligned_alloc_shared(alignof(long long), N * sizeof(int),
-                                        dev, ctxt, property_list{});
+    array = (int *)aligned_alloc_shared(
+        alignof(long long), N * sizeof(int), dev, ctxt,
+        property_list{
+            ext::intel::experimental::property::usm::buffer_location{2}});
     check_and_free(array, dev, ctxt);
   }
 

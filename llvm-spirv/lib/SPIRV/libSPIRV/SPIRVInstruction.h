@@ -2533,6 +2533,24 @@ _SPIRV_OP(GroupNonUniformShuffleUp, true, 6)
 _SPIRV_OP(GroupNonUniformShuffleDown, true, 6)
 #undef _SPIRV_OP
 
+class SPIRVGroupNonUniformRotateKHRInst : public SPIRVInstTemplateBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityGroupNonUniformRotateKHR);
+  }
+
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_subgroup_rotate;
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVGroupNonUniformRotateKHRInst, Op##x,          \
+                            __VA_ARGS__>                                       \
+      SPIRV##x;
+_SPIRV_OP(GroupNonUniformRotateKHR, true, 6, true)
+#undef _SPIRV_OP
+
 class SPIRVBlockingPipesIntelInst : public SPIRVInstTemplateBase {
 protected:
   SPIRVCapVec getRequiredCapability() const override {
@@ -2745,6 +2763,12 @@ public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityImageBasic);
   }
+
+protected:
+  void setOpWords(const std::vector<SPIRVWord> &OpsArg) override;
+
+private:
+  size_t getImageOperandsIndex() const;
 };
 
 #define _SPIRV_OP(x, ...)                                                      \

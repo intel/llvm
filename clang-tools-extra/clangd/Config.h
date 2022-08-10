@@ -29,7 +29,6 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Support/Regex.h"
 #include <functional>
 #include <string>
 #include <vector>
@@ -81,11 +80,12 @@ struct Config {
     /// forward-slashes.
     std::string MountPoint;
   };
-  /// Controls background-index behavior.
+  /// Controls index behavior.
   struct {
-    /// Whether this TU should be indexed.
+    /// Whether this TU should be background-indexed.
     BackgroundPolicy Background = BackgroundPolicy::Build;
     ExternalIndexSpec External;
+    bool StandardLibrary = false;
   } Index;
 
   enum UnusedIncludesPolicy { Strict, None };
@@ -128,7 +128,7 @@ struct Config {
   /// Configures hover feature.
   struct {
     /// Whether hover show a.k.a type.
-    bool ShowAKA = false;
+    bool ShowAKA = true;
   } Hover;
 
   struct {
@@ -138,7 +138,7 @@ struct Config {
     // Whether specific categories of hints are enabled.
     bool Parameters = true;
     bool DeducedTypes = true;
-    bool Designators = false;
+    bool Designators = true;
   } InlayHints;
 };
 

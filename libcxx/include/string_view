@@ -199,19 +199,42 @@ namespace std {
 #include <__algorithm/min.h>
 #include <__assert> // all public C++ headers provide the assertion handler
 #include <__config>
+#include <__functional/hash.h>
+#include <__functional/unary_function.h>
+#include <__fwd/string_view.h>
+#include <__iterator/concepts.h>
+#include <__iterator/readable_traits.h>
+#include <__iterator/reverse_iterator.h>
+#include <__memory/pointer_traits.h>
 #include <__ranges/concepts.h>
 #include <__ranges/data.h>
 #include <__ranges/enable_borrowed_range.h>
 #include <__ranges/enable_view.h>
 #include <__ranges/size.h>
-#include <__string>
-#include <compare>
+#include <__string/char_traits.h>
 #include <iosfwd>
-#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
 #include <version>
+
+#ifndef _LIBCPP_REMOVE_TRANSITIVE_INCLUDES
+#  include <algorithm>
+#  include <functional>
+#  include <iterator>
+#endif
+
+// standard-mandated includes
+
+// [iterator.range]
+#include <__iterator/access.h>
+#include <__iterator/data.h>
+#include <__iterator/empty.h>
+#include <__iterator/reverse_access.h>
+#include <__iterator/size.h>
+
+// [string.view.synop]
+#include <compare>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
@@ -222,19 +245,6 @@ _LIBCPP_PUSH_MACROS
 
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-
-template<class _CharT, class _Traits = char_traits<_CharT> >
-    class _LIBCPP_TEMPLATE_VIS basic_string_view;
-
-typedef basic_string_view<char>     string_view;
-#ifndef _LIBCPP_HAS_NO_CHAR8_T
-typedef basic_string_view<char8_t>  u8string_view;
-#endif
-typedef basic_string_view<char16_t> u16string_view;
-typedef basic_string_view<char32_t> u32string_view;
-#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-typedef basic_string_view<wchar_t>  wstring_view;
-#endif
 
 // TODO: This is a workaround for some vendors to carry a downstream diff to accept `nullptr` in
 //       string_view constructors. This can be refactored when this exact form isn't needed anymore.
@@ -314,8 +324,8 @@ public:
         ranges::sized_range<_Range> &&
         is_same_v<ranges::range_value_t<_Range>, _CharT> &&
         !is_convertible_v<_Range, const _CharT*> &&
-        (!requires(remove_cvref_t<_Range>& d) {
-          d.operator _VSTD::basic_string_view<_CharT, _Traits>();
+        (!requires(remove_cvref_t<_Range>& __d) {
+          __d.operator _VSTD::basic_string_view<_CharT, _Traits>();
         }) &&
         (!requires {
          typename remove_reference_t<_Range>::traits_type;
@@ -910,14 +920,13 @@ operator<<(basic_ostream<_CharT, _Traits>& __os,
 // [string.view.hash]
 template<class _CharT>
 struct _LIBCPP_TEMPLATE_VIS hash<basic_string_view<_CharT, char_traits<_CharT> > >
-    : public unary_function<basic_string_view<_CharT, char_traits<_CharT> >, size_t>
+    : public __unary_function<basic_string_view<_CharT, char_traits<_CharT> >, size_t>
 {
     _LIBCPP_INLINE_VISIBILITY
     size_t operator()(const basic_string_view<_CharT, char_traits<_CharT> > __val) const _NOEXCEPT {
         return __do_string_hash(__val.data(), __val.data() + __val.size());
     }
 };
-
 
 #if _LIBCPP_STD_VER > 11
 inline namespace literals

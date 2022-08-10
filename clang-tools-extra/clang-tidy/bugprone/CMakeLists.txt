@@ -6,6 +6,7 @@ set(LLVM_LINK_COMPONENTS
 add_clang_library(clangTidyBugproneModule
   ArgumentCommentCheck.cpp
   AssertSideEffectCheck.cpp
+  AssignmentInIfConditionCheck.cpp
   BadSignalToKillThreadCheck.cpp
   BoolPointerImplicitConversionCheck.cpp
   BranchCloneCheck.cpp
@@ -59,6 +60,7 @@ add_clang_library(clangTidyBugproneModule
   TerminatingContinueCheck.cpp
   ThrowKeywordMissingCheck.cpp
   TooSmallLoopVariableCheck.cpp
+  UncheckedOptionalAccessCheck.cpp
   UndefinedMemoryManipulationCheck.cpp
   UndelegatedConstructorCheck.cpp
   UnhandledExceptionAtNewCheck.cpp
@@ -80,6 +82,8 @@ add_clang_library(clangTidyBugproneModule
 clang_target_link_libraries(clangTidyBugproneModule
   PRIVATE
   clangAnalysis
+  clangAnalysisFlowSensitive
+  clangAnalysisFlowSensitiveModels
   clangAST
   clangASTMatchers
   clangBasic

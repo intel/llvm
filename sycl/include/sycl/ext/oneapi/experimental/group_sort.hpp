@@ -9,9 +9,9 @@
 #pragma once
 
 #if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <CL/sycl/detail/defines_elementary.hpp>
-#include <CL/sycl/detail/group_sort_impl.hpp>
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/group_sort_impl.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <type_traits>
 
 #include "group_helpers_sorters.hpp"
@@ -77,7 +77,7 @@ sort_over_group(Group group, T value, Sorter sorter) {
   (void)value;
   (void)sorter;
   throw sycl::exception(
-      std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }
@@ -112,7 +112,7 @@ joint_sort(Group group, Iter first, Iter last, Sorter sorter) {
   (void)last;
   (void)sorter;
   throw sycl::exception(
-      std::error_code(PI_INVALID_DEVICE, sycl::sycl_category()),
+      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
       "Group algorithms are not supported on host device.");
 #endif
 }

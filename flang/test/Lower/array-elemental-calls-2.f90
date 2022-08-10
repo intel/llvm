@@ -135,7 +135,7 @@ subroutine check_pow()
 ! CHECK:  fir.do_loop
 ! CHECK:  %[[VAL_25:.*]] = fir.array_fetch %{{.*}}, %{{.*}} : (!fir.array<10xf64>, index) -> f64
 ! CHECK:  %[[VAL_26:.*]] = fir.array_fetch %{{.*}}, %{{.*}} : (!fir.array<10xf64>, index) -> f64
-! CHECK:  %[[VAL_27:.*]] = fir.call @__fd_pow_1(%[[VAL_25]], %[[VAL_26]]) : (f64, f64) -> f64
+! CHECK:  %[[VAL_27:.*]] = math.powf %[[VAL_25]], %[[VAL_26]] : f64
 ! CHECK:  fir.store %[[VAL_27]] to %[[VAL_0]] : !fir.ref<f64>
 ! CHECK:  %[[VAL_28:.*]] = fir.call @_QPelem_func_real(%[[VAL_0]]) : (!fir.ref<f64>) -> i32
 end subroutine
@@ -193,9 +193,10 @@ subroutine check_parentheses_derived(a)
 ! CHECK: %[[VAL_22:.*]] = fir.no_reassoc %[[VAL_21]] : !fir.ref<!fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>>
 ! CHECK: %[[FIELD:.*]] = fir.field_index i, !fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>
 ! CHECK: %[[FROM:.*]] = fir.coordinate_of %[[VAL_22]], %[[FIELD]] : (!fir.ref<!fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>>, !fir.field) -> !fir.ref<i32>
-! CHECK: %[[TO:.*]] = fir.coordinate_of %[[VAL_0]], %[[FIELD]] : (!fir.ref<!fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>>, !fir.field) -> !fir.ref<i32>
+! CHECK: %[[FIELD2:.*]] = fir.field_index i, !fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>
+! CHECK: %[[TO:.*]] = fir.coordinate_of %[[VAL_0]], %[[FIELD2]] : (!fir.ref<!fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>>, !fir.field) -> !fir.ref<i32>
 ! CHECK: %[[VAL:.*]] = fir.load %[[FROM]] : !fir.ref<i32>
 ! CHECK: fir.store %[[VAL]] to %[[TO]] : !fir.ref<i32>
-! CHECK: %25 = fir.call @_QPelem_func_derived(%[[VAL_0]]) : (!fir.ref<!fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>>) -> i32
+! CHECK: %{{.*}} = fir.call @_QPelem_func_derived(%[[VAL_0]]) : (!fir.ref<!fir.type<_QMtest_opsFcheck_parentheses_derivedTt{i:i32}>>) -> i32
 end subroutine
 end module

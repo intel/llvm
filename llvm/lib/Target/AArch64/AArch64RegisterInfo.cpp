@@ -33,6 +33,8 @@
 
 using namespace llvm;
 
+#define GET_CC_REGISTER_LISTS
+#include "AArch64GenCallingConv.inc"
 #define GET_REGINFO_TARGET_DESC
 #include "AArch64GenRegisterInfo.inc"
 
@@ -62,14 +64,6 @@ bool AArch64RegisterInfo::regNeedsCFI(unsigned Reg,
 
   RegToUseForCFI = Reg;
   return true;
-}
-
-bool AArch64RegisterInfo::hasSVEArgsOrReturn(const MachineFunction *MF) {
-  const Function &F = MF->getFunction();
-  return isa<ScalableVectorType>(F.getReturnType()) ||
-         any_of(F.args(), [](const Argument &Arg) {
-           return isa<ScalableVectorType>(Arg.getType());
-         });
 }
 
 const MCPhysReg *
@@ -109,7 +103,7 @@ AArch64RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
     // This is for OSes other than Windows; Windows is a separate case further
     // above.
     return CSR_AArch64_AAPCS_X18_SaveList;
-  if (hasSVEArgsOrReturn(MF))
+  if (MF->getInfo<AArch64FunctionInfo>()->isSVECC())
     return CSR_AArch64_SVE_AAPCS_SaveList;
   return CSR_AArch64_AAPCS_SaveList;
 }
@@ -336,6 +330,13 @@ AArch64RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   if (MF.getFunction().hasFnAttribute(Attribute::SpeculativeLoadHardening))
     markSuperRegs(Reserved, AArch64::W16);
 
+  // SME tiles are not allocatable.
+  if (MF.getSubtarget<AArch64Subtarget>().hasSME()) {
+    for (MCSubRegIterator SubReg(AArch64::ZA, this, /*self=*/true);
+         SubReg.isValid(); ++SubReg)
+      Reserved.set(*SubReg);
+  }
+
   assert(checkAllSuperRegsMarked(Reserved));
   return Reserved;
 }
@@ -416,6 +417,68 @@ bool AArch64RegisterInfo::hasBasePointer(const MachineFunction &MF) const {
   }
 
   return false;
+}
+
+bool AArch64RegisterInfo::isArgumentRegister(const MachineFunction &MF,
+                                             MCRegister Reg) const {
+  CallingConv::ID CC = MF.getFunction().getCallingConv();
+  const AArch64Subtarget &STI = MF.getSubtarget<AArch64Subtarget>();
+  bool IsVarArg = STI.isCallingConvWin64(MF.getFunction().getCallingConv());
+
+  auto HasReg = [](ArrayRef<MCRegister> RegList, MCRegister Reg) {
+    return llvm::any_of(RegList,
+                        [Reg](const MCRegister R) { return R == Reg; });
+  };
+
+  switch (CC) {
+  default:
+    report_fatal_error("Unsupported calling convention.");
+  case CallingConv::WebKit_JS:
+    return HasReg(CC_AArch64_WebKit_JS_ArgRegs, Reg);
+  case CallingConv::GHC:
+    return HasReg(CC_AArch64_GHC_ArgRegs, Reg);
+  case CallingConv::C:
+  case CallingConv::Fast:
+  case CallingConv::PreserveMost:
+  case CallingConv::CXX_FAST_TLS:
+  case CallingConv::Swift:
+  case CallingConv::SwiftTail:
+  case CallingConv::Tail:
+    if (STI.isTargetWindows() && IsVarArg)
+      return HasReg(CC_AArch64_Win64_VarArg_ArgRegs, Reg);
+    if (!STI.isTargetDarwin()) {
+      switch (CC) {
+      default:
+        return HasReg(CC_AArch64_AAPCS_ArgRegs, Reg);
+      case CallingConv::Swift:
+      case CallingConv::SwiftTail:
+        return HasReg(CC_AArch64_AAPCS_ArgRegs, Reg) ||
+               HasReg(CC_AArch64_AAPCS_Swift_ArgRegs, Reg);
+      }
+    }
+    if (!IsVarArg) {
+      switch (CC) {
+      default:
+        return HasReg(CC_AArch64_DarwinPCS_ArgRegs, Reg);
+      case CallingConv::Swift:
+      case CallingConv::SwiftTail:
+        return HasReg(CC_AArch64_DarwinPCS_ArgRegs, Reg) ||
+               HasReg(CC_AArch64_DarwinPCS_Swift_ArgRegs, Reg);
+      }
+    }
+    if (STI.isTargetILP32())
+      return HasReg(CC_AArch64_DarwinPCS_ILP32_VarArg_ArgRegs, Reg);
+    return HasReg(CC_AArch64_DarwinPCS_VarArg_ArgRegs, Reg);
+  case CallingConv::Win64:
+    if (IsVarArg)
+      HasReg(CC_AArch64_Win64_VarArg_ArgRegs, Reg);
+    return HasReg(CC_AArch64_AAPCS_ArgRegs, Reg);
+  case CallingConv::CFGuard_Check:
+    return HasReg(CC_AArch64_Win64_CFGuard_Check_ArgRegs, Reg);
+  case CallingConv::AArch64_VectorCall:
+  case CallingConv::AArch64_SVE_VectorCall:
+    return HasReg(CC_AArch64_AAPCS_ArgRegs, Reg);
+  }
 }
 
 Register

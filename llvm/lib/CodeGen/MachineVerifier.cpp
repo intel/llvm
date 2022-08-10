@@ -32,6 +32,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/EHPersonalities.h"
+#include "llvm/CodeGen/CodeGenCommonISel.h"
 #include "llvm/CodeGen/LiveInterval.h"
 #include "llvm/CodeGen/LiveIntervals.h"
 #include "llvm/CodeGen/LiveRangeCalc.h"
@@ -63,6 +64,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/LaneBitmask.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
@@ -291,6 +293,7 @@ namespace {
       }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
+      AU.addUsedIfAvailable<LiveStacks>();
       AU.setPreservesAll();
       MachineFunctionPass::getAnalysisUsage(AU);
     }
@@ -1650,6 +1653,43 @@ void MachineVerifier::verifyPreISelGenericInstruction(const MachineInstr *MI) {
     verifyAllRegOpsScalar(*MI, *MRI);
     break;
   }
+  case TargetOpcode::G_IS_FPCLASS: {
+    LLT DestTy = MRI->getType(MI->getOperand(0).getReg());
+    LLT DestEltTy = DestTy.getScalarType();
+    if (!DestEltTy.isScalar()) {
+      report("Destination must be a scalar or vector of scalars", MI);
+      break;
+    }
+    LLT SrcTy = MRI->getType(MI->getOperand(1).getReg());
+    LLT SrcEltTy = SrcTy.getScalarType();
+    if (!SrcEltTy.isScalar()) {
+      report("Source must be a scalar or vector of scalars", MI);
+      break;
+    }
+    if (!verifyVectorElementMatch(DestTy, SrcTy, MI))
+      break;
+    const MachineOperand &TestMO = MI->getOperand(2);
+    if (!TestMO.isImm()) {
+      report("floating-point class set (operand 2) must be an immediate", MI);
+      break;
+    }
+    int64_t Test = TestMO.getImm();
+    if (Test < 0 || Test > fcAllFlags) {
+      report("Incorrect floating-point class set (operand 2)", MI);
+      break;
+    }
+    const MachineOperand &SemanticsMO = MI->getOperand(3);
+    if (!SemanticsMO.isImm()) {
+      report("floating-point semantics (operand 3) must be an immediate", MI);
+      break;
+    }
+    int64_t Semantics = SemanticsMO.getImm();
+    if (Semantics < 0 || Semantics > APFloat::S_MaxSemantics) {
+      report("Incorrect floating-point semantics (operand 3)", MI);
+      break;
+    }
+    break;
+  }
   default:
     break;
   }
@@ -2172,6 +2212,11 @@ MachineVerifier::visitMachineOperand(const MachineOperand *MO, unsigned MONum) {
         errs() << "Live stack: " << LI << '\n';
       }
     }
+    break;
+
+  case MachineOperand::MO_CFIIndex:
+    if (MO->getCFIIndex() >= MF->getFrameInstructions().size())
+      report("CFI instruction has invalid index", MO, MONum);
     break;
 
   default:
@@ -2757,8 +2802,8 @@ void MachineVerifier::visitMachineFunctionAfter() {
   // tracking numbers.
   if (MF->getFunction().getSubprogram()) {
     DenseSet<unsigned> SeenNumbers;
-    for (auto &MBB : *MF) {
-      for (auto &MI : MBB) {
+    for (const auto &MBB : *MF) {
+      for (const auto &MI : MBB) {
         if (auto Num = MI.peekDebugInstrNum()) {
           auto Result = SeenNumbers.insert((unsigned)Num);
           if (!Result.second)

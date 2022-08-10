@@ -18,10 +18,12 @@
 #include "clang/Driver/Driver.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Host.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "gtest/gtest.h"
+#include <memory>
 using namespace clang;
 using namespace clang::driver;
 
@@ -387,6 +389,33 @@ struct SimpleDiagnosticConsumer : public DiagnosticConsumer {
   std::vector<SmallString<32>> Errors;
 };
 
+static void validateTargetProfile(
+    StringRef TargetProfile, StringRef ExpectTriple,
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> &InMemoryFileSystem,
+    DiagnosticsEngine &Diags) {
+  Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
+  std::unique_ptr<Compilation> C{TheDriver.BuildCompilation(
+      {"clang", "--driver-mode=dxc", TargetProfile.data(), "foo.hlsl"})};
+  EXPECT_TRUE(C);
+  EXPECT_STREQ(TheDriver.getTargetTriple().c_str(), ExpectTriple.data());
+  EXPECT_EQ(Diags.getNumErrors(), 0u);
+}
+
+static void validateTargetProfile(
+    StringRef TargetProfile, StringRef ExpectError,
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> &InMemoryFileSystem,
+    DiagnosticsEngine &Diags, SimpleDiagnosticConsumer *DiagConsumer,
+    unsigned NumOfErrors) {
+  Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
+  std::unique_ptr<Compilation> C{TheDriver.BuildCompilation(
+      {"clang", "--driver-mode=dxc", TargetProfile.data(), "foo.hlsl"})};
+  EXPECT_TRUE(C);
+  EXPECT_EQ(Diags.getNumErrors(), NumOfErrors);
+  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(), ExpectError.data());
+  Diags.Clear();
+  DiagConsumer->clear();
+}
+
 TEST(DxcModeTest, TargetProfileValidation) {
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
 
@@ -399,112 +428,40 @@ TEST(DxcModeTest, TargetProfileValidation) {
   auto *DiagConsumer = new SimpleDiagnosticConsumer;
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagConsumer);
-  Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
-  std::unique_ptr<Compilation> C(
-      TheDriver.BuildCompilation({"clang", "--driver-mode=dxc", "foo.hlsl"}));
-  EXPECT_TRUE(C);
-  EXPECT_TRUE(!C->containsError());
 
-  auto &TC = C->getDefaultToolChain();
-  bool ContainsError = false;
-  auto Args = TheDriver.ParseArgStrings({"-Tvs_6_0"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  auto Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.0-vertex");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Ths_6_1"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.1-hull");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tds_6_2"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.2-domain");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tds_6_2"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.2-domain");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tgs_6_3"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.3-geometry");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tps_6_4"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.4-pixel");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tcs_6_5"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.5-compute");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tms_6_6"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.6-mesh");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tas_6_7"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.7-amplification");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
-
-  Args = TheDriver.ParseArgStrings({"-Tlib_6_x"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "dxil--shadermodel6.15-library");
-  EXPECT_EQ(Diags.getNumErrors(), 0u);
+  validateTargetProfile("-Tvs_6_0", "dxil--shadermodel6.0-vertex",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Ths_6_1", "dxil--shadermodel6.1-hull",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tds_6_2", "dxil--shadermodel6.2-domain",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tds_6_2", "dxil--shadermodel6.2-domain",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tgs_6_3", "dxil--shadermodel6.3-geometry",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tps_6_4", "dxil--shadermodel6.4-pixel",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tcs_6_5", "dxil--shadermodel6.5-compute",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tms_6_6", "dxil--shadermodel6.6-mesh",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tas_6_7", "dxil--shadermodel6.7-amplification",
+                        InMemoryFileSystem, Diags);
+  validateTargetProfile("-Tlib_6_x", "dxil--shadermodel6.15-library",
+                        InMemoryFileSystem, Diags);
 
   // Invalid tests.
-  Args = TheDriver.ParseArgStrings({"-Tpss_6_1"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "unknown-unknown-shadermodel");
-  EXPECT_EQ(Diags.getNumErrors(), 1u);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(),
-               "invalid profile : pss_6_1");
-  Diags.Clear();
-  DiagConsumer->clear();
+  validateTargetProfile("-Tpss_6_1", "invalid profile : pss_6_1",
+                        InMemoryFileSystem, Diags, DiagConsumer, 1);
 
-  Args = TheDriver.ParseArgStrings({"-Tps_6_x"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "unknown-unknown-shadermodel");
-  EXPECT_EQ(Diags.getNumErrors(), 2u);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(), "invalid profile : ps_6_x");
-  Diags.Clear();
-  DiagConsumer->clear();
-
-  Args = TheDriver.ParseArgStrings({"-Tlib_6_1"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "unknown-unknown-shadermodel");
-  EXPECT_EQ(Diags.getNumErrors(), 3u);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(),
-               "invalid profile : lib_6_1");
-  Diags.Clear();
-  DiagConsumer->clear();
-
-  Args = TheDriver.ParseArgStrings({"-Tfoo"}, false, ContainsError);
-  EXPECT_FALSE(ContainsError);
-  Triple = TC.ComputeEffectiveClangTriple(Args);
-  EXPECT_STREQ(Triple.c_str(), "unknown-unknown-shadermodel");
-  EXPECT_EQ(Diags.getNumErrors(), 4u);
-  EXPECT_STREQ(DiagConsumer->Errors.back().c_str(), "invalid profile : foo");
-  Diags.Clear();
-  DiagConsumer->clear();
+  validateTargetProfile("-Tps_6_x", "invalid profile : ps_6_x",
+                        InMemoryFileSystem, Diags, DiagConsumer, 2);
+  validateTargetProfile("-Tlib_6_1", "invalid profile : lib_6_1",
+                        InMemoryFileSystem, Diags, DiagConsumer, 3);
+  validateTargetProfile("-Tfoo", "invalid profile : foo", InMemoryFileSystem,
+                        Diags, DiagConsumer, 4);
+  validateTargetProfile("", "target profile option (-T) is missing",
+                        InMemoryFileSystem, Diags, DiagConsumer, 5);
 }
 
 TEST(DxcModeTest, ValidatorVersionValidation) {
@@ -520,8 +477,8 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagConsumer);
   Driver TheDriver("/bin/clang", "", Diags, "", InMemoryFileSystem);
-  std::unique_ptr<Compilation> C(
-      TheDriver.BuildCompilation({"clang", "--driver-mode=dxc", "foo.hlsl"}));
+  std::unique_ptr<Compilation> C(TheDriver.BuildCompilation(
+      {"clang", "--driver-mode=dxc", "-Tlib_6_7", "foo.hlsl"}));
   EXPECT_TRUE(C);
   EXPECT_TRUE(!C->containsError());
 
@@ -534,8 +491,8 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
   for (auto *A : Args)
     DAL->append(A);
 
-  auto *TranslatedArgs =
-      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  std::unique_ptr<llvm::opt::DerivedArgList> TranslatedArgs{
+      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None)};
   EXPECT_NE(TranslatedArgs, nullptr);
   if (TranslatedArgs) {
     auto *A = TranslatedArgs->getLastArg(
@@ -554,7 +511,8 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
   for (auto *A : Args)
     DAL->append(A);
 
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  TranslatedArgs.reset(
+      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None));
   EXPECT_EQ(Diags.getNumErrors(), 1u);
   EXPECT_STREQ(DiagConsumer->Errors.back().c_str(),
                "invalid validator version : 0.1\nIf validator major version is "
@@ -569,7 +527,8 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
   for (auto *A : Args)
     DAL->append(A);
 
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  TranslatedArgs.reset(
+      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None));
   EXPECT_EQ(Diags.getNumErrors(), 2u);
   EXPECT_STREQ(DiagConsumer->Errors.back().c_str(),
                "invalid validator version : 1\nFormat of validator version is "
@@ -584,7 +543,8 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
   for (auto *A : Args)
     DAL->append(A);
 
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  TranslatedArgs.reset(
+      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None));
   EXPECT_EQ(Diags.getNumErrors(), 3u);
   EXPECT_STREQ(
       DiagConsumer->Errors.back().c_str(),
@@ -600,7 +560,8 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
   for (auto *A : Args)
     DAL->append(A);
 
-  TranslatedArgs = TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None);
+  TranslatedArgs.reset(
+      TC.TranslateArgs(*DAL, "0", Action::OffloadKind::OFK_None));
   EXPECT_EQ(Diags.getNumErrors(), 4u);
   EXPECT_STREQ(
       DiagConsumer->Errors.back().c_str(),
@@ -608,6 +569,96 @@ TEST(DxcModeTest, ValidatorVersionValidation) {
       "\"<major>.<minor>\" (ex:\"1.4\").");
   Diags.Clear();
   DiagConsumer->clear();
+}
+
+TEST(ToolChainTest, Toolsets) {
+  // Ignore this test on Windows hosts.
+  llvm::Triple Host(llvm::sys::getProcessTriple());
+  if (Host.isOSWindows())
+    GTEST_SKIP();
+
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+
+  // Check (newer) GCC toolset installation.
+  {
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+        new llvm::vfs::InMemoryFileSystem);
+
+    // These should be ignored.
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset-2", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset-", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset--", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset--1", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    // File needed for GCC installation detection.
+    InMemoryFileSystem->addFile("/opt/rh/gcc-toolset-12/root/usr/lib/gcc/"
+                                "x86_64-redhat-linux/11/crtbegin.o",
+                                0, llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    DiagnosticsEngine Diags(DiagID, &*DiagOpts, new SimpleDiagnosticConsumer);
+    Driver TheDriver("/bin/clang", "x86_64-redhat-linux", Diags,
+                     "clang LLVM compiler", InMemoryFileSystem);
+    std::unique_ptr<Compilation> C(
+        TheDriver.BuildCompilation({"clang", "--gcc-toolchain="}));
+    ASSERT_TRUE(C);
+    std::string S;
+    {
+      llvm::raw_string_ostream OS(S);
+      C->getDefaultToolChain().printVerboseInfo(OS);
+    }
+    EXPECT_EQ("Found candidate GCC installation: "
+              "/opt/rh/gcc-toolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Selected GCC installation: "
+              "/opt/rh/gcc-toolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Candidate multilib: .;@m64\n"
+              "Selected multilib: .;@m64\n",
+              S);
+  }
+
+  // And older devtoolset.
+  {
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+        new llvm::vfs::InMemoryFileSystem);
+
+    // These should be ignored.
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset-2", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset-", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset--", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset--1", 0,
+                                llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    // File needed for GCC installation detection.
+    InMemoryFileSystem->addFile("/opt/rh/devtoolset-12/root/usr/lib/gcc/"
+                                "x86_64-redhat-linux/11/crtbegin.o",
+                                0, llvm::MemoryBuffer::getMemBuffer("\n"));
+
+    DiagnosticsEngine Diags(DiagID, &*DiagOpts, new SimpleDiagnosticConsumer);
+    Driver TheDriver("/bin/clang", "x86_64-redhat-linux", Diags,
+                     "clang LLVM compiler", InMemoryFileSystem);
+    std::unique_ptr<Compilation> C(
+        TheDriver.BuildCompilation({"clang", "--gcc-toolchain="}));
+    ASSERT_TRUE(C);
+    std::string S;
+    {
+      llvm::raw_string_ostream OS(S);
+      C->getDefaultToolChain().printVerboseInfo(OS);
+    }
+    EXPECT_EQ("Found candidate GCC installation: "
+              "/opt/rh/devtoolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Selected GCC installation: "
+              "/opt/rh/devtoolset-12/root/usr/lib/gcc/x86_64-redhat-linux/11\n"
+              "Candidate multilib: .;@m64\n"
+              "Selected multilib: .;@m64\n",
+              S);
+  }
 }
 
 } // end anonymous namespace.

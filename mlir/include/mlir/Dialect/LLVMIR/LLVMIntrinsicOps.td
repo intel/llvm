@@ -57,6 +57,7 @@ def LLVM_Prefetch : LLVM_ZeroResultIntrOp<"prefetch", [0]> {
                    LLVM_Type:$cache);
 }
 def LLVM_SinOp : LLVM_UnaryIntrinsicOp<"sin">;
+def LLVM_RoundOp : LLVM_UnaryIntrinsicOp<"round">;
 def LLVM_SqrtOp : LLVM_UnaryIntrinsicOp<"sqrt">;
 def LLVM_PowOp : LLVM_BinarySameArgsIntrinsicOp<"pow">;
 def LLVM_PowIOp : LLVM_BinaryIntrinsicOp<"powi">;
@@ -183,6 +184,28 @@ def LLVM_CoroFreeOp : LLVM_IntrOp<"coro.free", [], [], [], 1> {
 def LLVM_CoroResumeOp : LLVM_IntrOp<"coro.resume", [], [], [], 0> {
   let arguments = (ins LLVM_i8Ptr:$handle);
   let assemblyFormat = "$handle attr-dict";
+}
+
+//
+// Variadic function intrinsics.
+//
+
+def LLVM_VaStartOp : LLVM_ZeroResultIntrOp<"vastart">,
+                     Arguments<(ins LLVM_i8Ptr:$arg_list)> {
+  let assemblyFormat = "$arg_list attr-dict";
+  let summary = "Initializes `arg_list` for subsequent variadic argument extractions.";
+}
+
+def LLVM_VaCopyOp : LLVM_ZeroResultIntrOp<"vacopy">,
+                    Arguments<(ins LLVM_i8Ptr:$dest_list, LLVM_i8Ptr:$src_list)> {
+  let assemblyFormat = "$src_list `to` $dest_list attr-dict";
+  let summary = "Copies the current argument position from `src_list` to `dest_list`.";
+}
+
+def LLVM_VaEndOp : LLVM_ZeroResultIntrOp<"vaend">,
+                   Arguments<(ins LLVM_i8Ptr:$arg_list)> {
+  let assemblyFormat = "$arg_list attr-dict";
+  let summary = "Destroys `arg_list`, which has been initialized by `intr.vastart` or `intr.vacopy`.";
 }
 
 //
@@ -407,6 +430,75 @@ def LLVM_StepVectorOp
   let assemblyFormat = "attr-dict `:` type($res)";
 }
 
+/// Create a call to vector.insert intrinsic
+def LLVM_vector_insert
+    : LLVM_Op<"intr.vector.insert",
+                 [NoSideEffect, AllTypesMatch<["dstvec", "res"]>,
+                  PredOpTrait<"vectors are not bigger than 2^17 bits.", And<[
+                    CPred<"getSrcVectorBitWidth() <= 131072">,
+                    CPred<"getDstVectorBitWidth() <= 131072">
+                  ]>>,
+                  PredOpTrait<"it is not inserting scalable into fixed-length vectors.",
+                    CPred<"!isScalableVectorType($srcvec.getType()) || "
+                          "isScalableVectorType($dstvec.getType())">>]> {
+  let arguments = (ins LLVM_AnyVector:$srcvec, LLVM_AnyVector:$dstvec,
+                       I64Attr:$pos);
+  let results = (outs LLVM_AnyVector:$res);
+  let builders = [LLVM_OneResultOpBuilder];
+  string llvmBuilder = [{
+    $res = builder.CreateInsertVector(
+        $_resultType, $dstvec, $srcvec, builder.getInt64($pos));
+  }];
+  let assemblyFormat = "$srcvec `,` $dstvec `[` $pos `]` attr-dict `:` "
+    "type($srcvec) `into` type($res)";
+  let extraClassDeclaration = [{
+    uint64_t getVectorBitWidth(Type vector) {
+      return getVectorNumElements(vector).getKnownMinValue() *
+             getVectorElementType(vector).getIntOrFloatBitWidth();
+    }
+    uint64_t getSrcVectorBitWidth() {
+      return getVectorBitWidth(getSrcvec().getType());
+    }
+    uint64_t getDstVectorBitWidth() {
+      return getVectorBitWidth(getDstvec().getType());
+    }
+  }];
+}
+
+/// Create a call to vector.extract intrinsic
+def LLVM_vector_extract
+    : LLVM_Op<"intr.vector.extract",
+                 [NoSideEffect,
+                  PredOpTrait<"vectors are not bigger than 2^17 bits.", And<[
+                    CPred<"getSrcVectorBitWidth() <= 131072">,
+                    CPred<"getResVectorBitWidth() <= 131072">
+                  ]>>,
+                  PredOpTrait<"it is not extracting scalable from fixed-length vectors.",
+                    CPred<"!isScalableVectorType($res.getType()) || "
+                          "isScalableVectorType($srcvec.getType())">>]> {
+  let arguments = (ins LLVM_AnyVector:$srcvec, I64Attr:$pos);
+  let results = (outs LLVM_AnyVector:$res);
+  let builders = [LLVM_OneResultOpBuilder];
+  string llvmBuilder = [{
+    $res = builder.CreateExtractVector(
+        $_resultType, $srcvec, builder.getInt64($pos));
+  }];
+  let assemblyFormat = "$srcvec `[` $pos `]` attr-dict `:` "
+    "type($res) `from` type($srcvec)";
+  let extraClassDeclaration = [{
+    uint64_t getVectorBitWidth(Type vector) {
+      return getVectorNumElements(vector).getKnownMinValue() *
+             getVectorElementType(vector).getIntOrFloatBitWidth();
+    }
+    uint64_t getSrcVectorBitWidth() {
+      return getVectorBitWidth(getSrcvec().getType());
+    }
+    uint64_t getResVectorBitWidth() {
+      return getVectorBitWidth(getRes().getType());
+    }
+  }];
+}
+
 //
 // LLVM Vector Predication operations.
 //
@@ -547,4 +639,4 @@ def LLVM_VPSIToFPOp : LLVM_VPCastI<"sitofp">;
 def LLVM_VPPtrToIntOp : LLVM_VPCastPtr<"ptrtoint">;
 def LLVM_VPIntToPtrOp : LLVM_VPCastI<"inttoptr">;
 
-#endif // LLVM_INTRINSIC_OPS
+#endif // LLVM_INTRINSIC_OP

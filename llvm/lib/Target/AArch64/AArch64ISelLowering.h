@@ -158,6 +158,7 @@ enum NodeType : unsigned {
   DUPLANE16,
   DUPLANE32,
   DUPLANE64,
+  DUPLANE128,
 
   // Vector immedate moves
   MOVI,
@@ -232,6 +233,8 @@ enum NodeType : unsigned {
   SADDV,
   UADDV,
 
+  // Add Pairwise of two vectors
+  ADDP,
   // Add Long Pairwise
   SADDLP,
   UADDLP,
@@ -404,6 +407,10 @@ enum NodeType : unsigned {
   SSTNT1_PRED,
   SSTNT1_INDEX_PRED,
 
+  // SME
+  RDSVL,
+  REVD_MERGE_PASSTHRU,
+
   // Asserts that a function argument (i32) is zero-extended to i8 by
   // the caller
   ASSERT_ZEXT_BOOL,
@@ -455,23 +462,6 @@ enum NodeType : unsigned {
 
 } // end namespace AArch64ISD
 
-namespace {
-
-// Any instruction that defines a 32-bit result zeros out the high half of the
-// register. Truncate can be lowered to EXTRACT_SUBREG. CopyFromReg may
-// be copying from a truncate. But any other 32-bit operation will zero-extend
-// up to 64 bits. AssertSext/AssertZext aren't saying anything about the upper
-// 32 bits, they're probably just qualifying a CopyFromReg.
-static inline bool isDef32(const SDNode &N) {
-  unsigned Opc = N.getOpcode();
-  return Opc != ISD::TRUNCATE && Opc != TargetOpcode::EXTRACT_SUBREG &&
-         Opc != ISD::CopyFromReg && Opc != ISD::AssertSext &&
-         Opc != ISD::AssertZext && Opc != ISD::AssertAlign &&
-         Opc != ISD::FREEZE;
-}
-
-} // end anonymous namespace
-
 namespace AArch64 {
 /// Possible values of current rounding mode, which is specified in bits
 /// 23:22 of FPCR.
@@ -493,6 +483,11 @@ class AArch64TargetLowering : public TargetLowering {
 public:
   explicit AArch64TargetLowering(const TargetMachine &TM,
                                  const AArch64Subtarget &STI);
+
+  /// Control the following reassociation of operands: (op (op x, c1), y) -> (op
+  /// (op x, y), c1) where N0 is (op x, c1) and N1 is y.
+  bool isReassocProfitable(SelectionDAG &DAG, SDValue N0,
+                           SDValue N1) const override;
 
   /// Selects the correct CCAssignFn for a given CallingConvention value.
   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
@@ -554,6 +549,10 @@ public:
   /// should be stack expanded.
   bool isShuffleMaskLegal(ArrayRef<int> M, EVT VT) const override;
 
+  /// Similar to isShuffleMaskLegal. Return true is the given 'select with zero'
+  /// shuffle mask can be codegen'd directly.
+  bool isVectorClearMaskLegal(ArrayRef<int> M, EVT VT) const override;
+
   /// Return the ISD::SETCC ValueType.
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
@@ -565,6 +564,20 @@ public:
 
   MachineBasicBlock *EmitLoweredCatchRet(MachineInstr &MI,
                                            MachineBasicBlock *BB) const;
+
+  MachineBasicBlock *EmitTileLoad(unsigned Opc, unsigned BaseReg,
+                                  MachineInstr &MI,
+                                  MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitFill(MachineInstr &MI, MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitMopa(unsigned Opc, unsigned BaseReg, MachineInstr &MI,
+                              MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitInsertVectorToTile(unsigned Opc, unsigned BaseReg,
+                                            MachineInstr &MI,
+                                            MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitZero(MachineInstr &MI, MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitAddVectorToTile(unsigned Opc, unsigned BaseReg,
+                                         MachineInstr &MI,
+                                         MachineBasicBlock *BB) const;
 
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
@@ -643,6 +656,13 @@ public:
   /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
   bool isDesirableToCommuteWithShift(const SDNode *N,
                                      CombineLevel Level) const override;
+
+  /// Returns false if N is a bit extraction pattern of (X >> C) & Mask.
+  bool isDesirableToCommuteXorWithShift(const SDNode *N) const override;
+
+  /// Return true if it is profitable to fold a pair of shifts into a mask.
+  bool shouldFoldConstantShiftPairToMask(const SDNode *N,
+                                         CombineLevel Level) const override;
 
   /// Returns true if it is beneficial to convert a load of a constant
   /// to just the constant itself.
@@ -982,7 +1002,7 @@ private:
   SDValue LowerVectorSRA_SRL_SHL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShiftParts(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerVSETCC(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerCTPOP(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerCTPOP_PARITY(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerCTTZ(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBitreverse(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMinMax(SDValue Op, SelectionDAG &DAG) const;
@@ -1086,7 +1106,7 @@ private:
   }
 
   bool shouldExtendGSIndex(EVT VT, EVT &EltTy) const override;
-  bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
+  bool shouldRemoveExtendFromGSIndex(EVT IndexVT, EVT DataVT) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
   bool isUsedByReturnOnly(SDNode *N, SDValue &Chain) const override;
   bool mayBeEmittedAsTailCall(const CallInst *CI) const override;
@@ -1122,6 +1142,8 @@ private:
                                          TargetLoweringOpt &TLO,
                                          unsigned Depth) const override;
 
+  bool isTargetCanonicalConstantNode(SDValue Op) const override;
+
   // Normally SVE is only used for byte size vectors that do not fit within a
   // NEON vector. This changes when OverrideNEON is true, allowing SVE to be
   // used for 64bit and 128bit vectors as well.
@@ -1136,6 +1158,7 @@ private:
   // These can make "bitcasting" a multiphase process. REINTERPRET_CAST is used
   // to transition between unpacked and packed types of the same element type,
   // with BITCAST used otherwise.
+  // This function does not handle predicate bitcasts.
   SDValue getSVESafeBitCast(EVT VT, SDValue Op, SelectionDAG &DAG) const;
 
   bool isConstantUnsignedBitfieldExtractLegal(unsigned Opc, LLT Ty1,

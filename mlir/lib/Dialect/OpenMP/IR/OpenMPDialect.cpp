@@ -76,7 +76,7 @@ static ParseResult parseAllocateAndAllocator(
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &operandsAllocator,
     SmallVectorImpl<Type> &typesAllocator) {
 
-  return parser.parseCommaSeparatedList([&]() -> ParseResult {
+  return parser.parseCommaSeparatedList([&]() {
     OpAsmParser::UnresolvedOperand operand;
     Type type;
     if (parser.parseOperand(operand) || parser.parseColonType(type))
@@ -142,7 +142,7 @@ parseLinearClause(OpAsmParser &parser,
                   SmallVectorImpl<OpAsmParser::UnresolvedOperand> &vars,
                   SmallVectorImpl<Type> &types,
                   SmallVectorImpl<OpAsmParser::UnresolvedOperand> &stepVars) {
-  do {
+  return parser.parseCommaSeparatedList([&]() {
     OpAsmParser::UnresolvedOperand var;
     Type type;
     OpAsmParser::UnresolvedOperand stepVar;
@@ -153,8 +153,8 @@ parseLinearClause(OpAsmParser &parser,
     vars.push_back(var);
     types.push_back(type);
     stepVars.push_back(stepVar);
-  } while (succeeded(parser.parseOptionalComma()));
-  return success();
+    return success();
+  });
 }
 
 /// Print Linear Clause
@@ -184,7 +184,7 @@ verifyScheduleModifiers(OpAsmParser &parser,
     // Translate the string. If it has no value, then it was not a valid
     // modifier!
     auto symbol = symbolizeScheduleModifier(mod);
-    if (!symbol.hasValue())
+    if (!symbol)
       return parser.emitError(parser.getNameLoc())
              << " unknown modifier type: " << mod;
   }
@@ -304,12 +304,15 @@ parseReductionVarList(OpAsmParser &parser,
                       SmallVectorImpl<Type> &types,
                       ArrayAttr &redcuctionSymbols) {
   SmallVector<SymbolRefAttr> reductionVec;
-  do {
-    if (parser.parseAttribute(reductionVec.emplace_back()) ||
-        parser.parseArrow() || parser.parseOperand(operands.emplace_back()) ||
-        parser.parseColonType(types.emplace_back()))
-      return failure();
-  } while (succeeded(parser.parseOptionalComma()));
+  if (failed(parser.parseCommaSeparatedList([&]() {
+        if (parser.parseAttribute(reductionVec.emplace_back()) ||
+            parser.parseArrow() ||
+            parser.parseOperand(operands.emplace_back()) ||
+            parser.parseColonType(types.emplace_back()))
+          return failure();
+        return success();
+      })))
+    return failure();
   SmallVector<Attribute> reductions(reductionVec.begin(), reductionVec.end());
   redcuctionSymbols = ArrayAttr::get(parser.getContext(), reductions);
   return success();
@@ -386,7 +389,7 @@ static ParseResult parseSynchronizationHint(OpAsmParser &parser,
     hintAttr = IntegerAttr::get(parser.getBuilder().getI64Type(), 0);
     return success();
   }
-  do {
+  auto parseKeyword = [&]() -> ParseResult {
     if (failed(parser.parseKeyword(&hintKeyword)))
       return failure();
     if (hintKeyword == "uncontended")
@@ -400,7 +403,10 @@ static ParseResult parseSynchronizationHint(OpAsmParser &parser,
     else
       return parser.emitError(parser.getCurrentLocation())
              << hintKeyword << " is not a valid hint";
-  } while (succeeded(parser.parseOptionalComma()));
+    return success();
+  };
+  if (parser.parseCommaSeparatedList(parseKeyword))
+    return failure();
   hintAttr = IntegerAttr::get(parser.getBuilder().getI64Type(), hint);
   return success();
 }
@@ -517,11 +523,11 @@ LogicalResult SingleOp::verify() {
 /// loop-bounds := `(` ssa-id-list `)` to `(` ssa-id-list `)` inclusive? steps
 /// steps := `step` `(`ssa-id-list`)`
 ParseResult
-parseWsLoopControl(OpAsmParser &parser, Region &region,
-                   SmallVectorImpl<OpAsmParser::UnresolvedOperand> &lowerBound,
-                   SmallVectorImpl<OpAsmParser::UnresolvedOperand> &upperBound,
-                   SmallVectorImpl<OpAsmParser::UnresolvedOperand> &steps,
-                   SmallVectorImpl<Type> &loopVarTypes, UnitAttr &inclusive) {
+parseLoopControl(OpAsmParser &parser, Region &region,
+                 SmallVectorImpl<OpAsmParser::UnresolvedOperand> &lowerBound,
+                 SmallVectorImpl<OpAsmParser::UnresolvedOperand> &upperBound,
+                 SmallVectorImpl<OpAsmParser::UnresolvedOperand> &steps,
+                 SmallVectorImpl<Type> &loopVarTypes, UnitAttr &inclusive) {
   // Parse an opening `(` followed by induction variables followed by `)`
   SmallVector<OpAsmParser::Argument> ivs;
   Type loopVarType;
@@ -551,10 +557,10 @@ parseWsLoopControl(OpAsmParser &parser, Region &region,
   return parser.parseRegion(region, ivs);
 }
 
-void printWsLoopControl(OpAsmPrinter &p, Operation *op, Region &region,
-                        ValueRange lowerBound, ValueRange upperBound,
-                        ValueRange steps, TypeRange loopVarTypes,
-                        UnitAttr inclusive) {
+void printLoopControl(OpAsmPrinter &p, Operation *op, Region &region,
+                      ValueRange lowerBound, ValueRange upperBound,
+                      ValueRange steps, TypeRange loopVarTypes,
+                      UnitAttr inclusive) {
   auto args = region.front().getArguments();
   p << " (" << args << ") : " << args[0].getType() << " = (" << lowerBound
     << ") to (" << upperBound << ") ";
@@ -562,62 +568,6 @@ void printWsLoopControl(OpAsmPrinter &p, Operation *op, Region &region,
     p << "inclusive ";
   p << "step (" << steps << ") ";
   p.printRegion(region, /*printEntryBlockArgs=*/false);
-}
-
-//===----------------------------------------------------------------------===//
-// SimdLoopOp
-//===----------------------------------------------------------------------===//
-/// Parses an OpenMP Simd construct [2.9.3.1]
-///
-/// simdloop ::= `omp.simdloop` loop-control clause-list
-/// loop-control ::= `(` ssa-id-list `)` `:` type `=`  loop-bounds
-/// loop-bounds := `(` ssa-id-list `)` to `(` ssa-id-list `)` steps
-/// steps := `step` `(`ssa-id-list`)`
-/// clause-list ::= clause clause-list | empty
-/// clause ::= TODO
-ParseResult SimdLoopOp::parse(OpAsmParser &parser, OperationState &result) {
-  // Parse an opening `(` followed by induction variables followed by `)`
-  SmallVector<OpAsmParser::Argument> ivs;
-  Type loopVarType;
-  SmallVector<OpAsmParser::UnresolvedOperand> lower, upper, steps;
-  if (parser.parseArgumentList(ivs, OpAsmParser::Delimiter::Paren) ||
-      parser.parseColonType(loopVarType) ||
-      // Parse loop bounds.
-      parser.parseEqual() ||
-      parser.parseOperandList(lower, ivs.size(),
-                              OpAsmParser::Delimiter::Paren) ||
-      parser.resolveOperands(lower, loopVarType, result.operands) ||
-      parser.parseKeyword("to") ||
-      parser.parseOperandList(upper, ivs.size(),
-                              OpAsmParser::Delimiter::Paren) ||
-      parser.resolveOperands(upper, loopVarType, result.operands) ||
-      // Parse step values.
-      parser.parseKeyword("step") ||
-      parser.parseOperandList(steps, ivs.size(),
-                              OpAsmParser::Delimiter::Paren) ||
-      parser.resolveOperands(steps, loopVarType, result.operands))
-    return failure();
-
-  int numIVs = static_cast<int>(ivs.size());
-  SmallVector<int> segments{numIVs, numIVs, numIVs};
-  // TODO: Add parseClauses() when we support clauses
-  result.addAttribute("operand_segment_sizes",
-                      parser.getBuilder().getI32VectorAttr(segments));
-
-  // Now parse the body.
-  Region *body = result.addRegion();
-  for (auto &iv : ivs)
-    iv.type = loopVarType;
-  return parser.parseRegion(*body, ivs);
-}
-
-void SimdLoopOp::print(OpAsmPrinter &p) {
-  auto args = getRegion().front().getArguments();
-  p << " (" << args << ") : " << args[0].getType() << " = (" << lowerBound()
-    << ") to (" << upperBound() << ") ";
-  p << "step (" << step() << ") ";
-
-  p.printRegion(region(), /*printEntryBlockArgs=*/false);
 }
 
 //===----------------------------------------------------------------------===//
@@ -723,6 +673,51 @@ LogicalResult TaskOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// TaskGroupOp
+//===----------------------------------------------------------------------===//
+LogicalResult TaskGroupOp::verify() {
+  return verifyReductionVarList(*this, task_reductions(),
+                                task_reduction_vars());
+}
+
+//===----------------------------------------------------------------------===//
+// TaskLoopOp
+//===----------------------------------------------------------------------===//
+SmallVector<Value> TaskLoopOp::getReductionVars() {
+  SmallVector<Value> all_reduction_nvars(in_reduction_vars().begin(),
+                                         in_reduction_vars().end());
+  all_reduction_nvars.insert(all_reduction_nvars.end(),
+                             reduction_vars().begin(), reduction_vars().end());
+  return all_reduction_nvars;
+}
+
+LogicalResult TaskLoopOp::verify() {
+  if (allocate_vars().size() != allocators_vars().size())
+    return emitError(
+        "expected equal sizes for allocate and allocator variables");
+  if (failed(verifyReductionVarList(*this, reductions(), reduction_vars())) ||
+      failed(
+          verifyReductionVarList(*this, in_reductions(), in_reduction_vars())))
+    return failure();
+
+  if (reduction_vars().size() > 0 && nogroup())
+    return emitError("if a reduction clause is present on the taskloop "
+                     "directive, the nogroup clause must not be specified");
+  for (auto var : reduction_vars()) {
+    if (llvm::is_contained(in_reduction_vars(), var))
+      return emitError("the same list item cannot appear in both a reduction "
+                       "and an in_reduction clause");
+  }
+
+  if (grain_size() && num_tasks()) {
+    return emitError(
+        "the grainsize clause and num_tasks clause are mutually exclusive and "
+        "may not appear on the same taskloop directive");
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // WsLoopOp
 //===----------------------------------------------------------------------===//
 
@@ -734,8 +729,8 @@ void WsLoopOp::build(OpBuilder &builder, OperationState &state,
         /*linear_step_vars=*/ValueRange(), /*reduction_vars=*/ValueRange(),
         /*reductions=*/nullptr, /*schedule_val=*/nullptr,
         /*schedule_chunk_var=*/nullptr, /*schedule_modifier=*/nullptr,
-        /*simd_modifier=*/false, /*collapse_val=*/nullptr, /*nowait=*/false,
-        /*ordered_val=*/nullptr, /*order_val=*/nullptr, /*inclusive=*/false);
+        /*simd_modifier=*/false, /*nowait=*/false, /*ordered_val=*/nullptr,
+        /*order_val=*/nullptr, /*inclusive=*/false);
   state.addAttributes(attributes);
 }
 
@@ -777,8 +772,7 @@ LogicalResult OrderedOp::verify() {
                          << "nested inside a worksharing-loop with ordered "
                          << "clause with parameter present";
 
-  if (container.ordered_valAttr().getInt() !=
-      (int64_t)num_loops_val().getValue())
+  if (container.ordered_valAttr().getInt() != (int64_t)*num_loops_val())
     return emitOpError() << "number of variables in depend clause does not "
                          << "match number of iteration variables in the "
                          << "doacross loop";
@@ -832,12 +826,43 @@ LogicalResult AtomicWriteOp::verify() {
           "memory-order must not be acq_rel or acquire for atomic writes");
     }
   }
+  if (address().getType().cast<PointerLikeType>().getElementType() !=
+      value().getType())
+    return emitError("address must dereference to value type");
   return verifySynchronizationHint(*this, hint_val());
 }
 
 //===----------------------------------------------------------------------===//
 // Verifier for AtomicUpdateOp
 //===----------------------------------------------------------------------===//
+
+bool AtomicUpdateOp::isNoOp() {
+  YieldOp yieldOp = dyn_cast<omp::YieldOp>(getFirstOp());
+  return (yieldOp &&
+          yieldOp.results().front() == getRegion().front().getArgument(0));
+}
+
+Value AtomicUpdateOp::getWriteOpVal() {
+  YieldOp yieldOp = dyn_cast<omp::YieldOp>(getFirstOp());
+  if (yieldOp &&
+      yieldOp.results().front() != getRegion().front().getArgument(0))
+    return yieldOp.results().front();
+  return nullptr;
+}
+
+LogicalResult AtomicUpdateOp::canonicalize(AtomicUpdateOp op,
+                                           PatternRewriter &rewriter) {
+  if (op.isNoOp()) {
+    rewriter.eraseOp(op);
+    return success();
+  }
+  if (Value writeVal = op.getWriteOpVal()) {
+    rewriter.replaceOpWithNewOp<AtomicWriteOp>(
+        op, op.x(), writeVal, op.hint_valAttr(), op.memory_order_valAttr());
+    return success();
+  }
+  return failure();
+}
 
 LogicalResult AtomicUpdateOp::verify() {
   if (auto mo = memory_order_val()) {
@@ -847,6 +872,9 @@ LogicalResult AtomicUpdateOp::verify() {
           "memory-order must not be acq_rel or acquire for atomic updates");
     }
   }
+
+  if (region().getNumArguments() != 1)
+    return emitError("the region must accept exactly one argument");
 
   if (x().getType().cast<PointerLikeType>().getElementType() !=
       region().getArgument(0).getType()) {
@@ -858,12 +886,6 @@ LogicalResult AtomicUpdateOp::verify() {
 }
 
 LogicalResult AtomicUpdateOp::verifyRegions() {
-  if (region().getNumArguments() != 1)
-    return emitError("the region must accept exactly one argument");
-
-  if (region().front().getOperations().size() < 2)
-    return emitError() << "the update region must have at least two operations "
-                          "(binop and terminator)";
 
   YieldOp yieldOp = *region().getOps<YieldOp>().begin();
 
@@ -947,6 +969,11 @@ LogicalResult AtomicCaptureOp::verifyRegions() {
   if (getFirstOp()->getAttr("hint_val") || getSecondOp()->getAttr("hint_val"))
     return emitOpError(
         "operations inside capture region must not have hint clause");
+
+  if (getFirstOp()->getAttr("memory_order_val") ||
+      getSecondOp()->getAttr("memory_order_val"))
+    return emitOpError(
+        "operations inside capture region must not have memory_order clause");
   return success();
 }
 
@@ -967,25 +994,27 @@ LogicalResult CancelOp::verify() {
       !isa<ParallelOp>(parentOp)) {
     return emitOpError() << "cancel parallel must appear "
                          << "inside a parallel region";
-  } else if (cct == ClauseCancellationConstructType::Loop) {
+  }
+  if (cct == ClauseCancellationConstructType::Loop) {
     if (!isa<WsLoopOp>(parentOp)) {
       return emitOpError() << "cancel loop must appear "
                            << "inside a worksharing-loop region";
-    } else {
-      if (cast<WsLoopOp>(parentOp).nowaitAttr()) {
-        return emitError() << "A worksharing construct that is canceled "
-                           << "must not have a nowait clause";
-      } else if (cast<WsLoopOp>(parentOp).ordered_valAttr()) {
-        return emitError() << "A worksharing construct that is canceled "
-                           << "must not have an ordered clause";
-      }
     }
+    if (cast<WsLoopOp>(parentOp).nowaitAttr()) {
+      return emitError() << "A worksharing construct that is canceled "
+                         << "must not have a nowait clause";
+    }
+    if (cast<WsLoopOp>(parentOp).ordered_valAttr()) {
+      return emitError() << "A worksharing construct that is canceled "
+                         << "must not have an ordered clause";
+    }
+
   } else if (cct == ClauseCancellationConstructType::Sections) {
     if (!(isa<SectionsOp>(parentOp) || isa<SectionOp>(parentOp))) {
       return emitOpError() << "cancel sections must appear "
                            << "inside a sections region";
     }
-    if (parentOp->getParentOp() && isa<SectionsOp>(parentOp->getParentOp()) &&
+    if (isa_and_nonnull<SectionsOp>(parentOp->getParentOp()) &&
         cast<SectionsOp>(parentOp->getParentOp()).nowaitAttr()) {
       return emitError() << "A sections construct that is canceled "
                          << "must not have a nowait clause";
@@ -1011,12 +1040,14 @@ LogicalResult CancellationPointOp::verify() {
       !(isa<ParallelOp>(parentOp))) {
     return emitOpError() << "cancellation point parallel must appear "
                          << "inside a parallel region";
-  } else if ((cct == ClauseCancellationConstructType::Loop) &&
-             !isa<WsLoopOp>(parentOp)) {
+  }
+  if ((cct == ClauseCancellationConstructType::Loop) &&
+      !isa<WsLoopOp>(parentOp)) {
     return emitOpError() << "cancellation point loop must appear "
                          << "inside a worksharing-loop region";
-  } else if ((cct == ClauseCancellationConstructType::Sections) &&
-             !(isa<SectionsOp>(parentOp) || isa<SectionOp>(parentOp))) {
+  }
+  if ((cct == ClauseCancellationConstructType::Sections) &&
+      !(isa<SectionsOp>(parentOp) || isa<SectionOp>(parentOp))) {
     return emitOpError() << "cancellation point sections must appear "
                          << "inside a sections region";
   }

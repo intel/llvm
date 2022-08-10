@@ -13,34 +13,31 @@
 
 #define DEBUG_TYPE "perf-reader"
 
-cl::opt<bool> SkipSymbolization("skip-symbolization", cl::init(false),
-                                cl::ZeroOrMore,
+cl::opt<bool> SkipSymbolization("skip-symbolization",
                                 cl::desc("Dump the unsymbolized profile to the "
                                          "output file. It will show unwinder "
                                          "output for CS profile generation."));
 
-static cl::opt<bool> ShowMmapEvents("show-mmap-events", cl::init(false),
-                                    cl::ZeroOrMore,
+static cl::opt<bool> ShowMmapEvents("show-mmap-events",
                                     cl::desc("Print binary load events."));
 
 static cl::opt<bool>
-    UseOffset("use-offset", cl::init(true), cl::ZeroOrMore,
+    UseOffset("use-offset", cl::init(true),
               cl::desc("Work with `--skip-symbolization` or "
                        "`--unsymbolized-profile` to write/read the "
                        "offset instead of virtual address."));
 
 static cl::opt<bool> UseLoadableSegmentAsBase(
-    "use-first-loadable-segment-as-base", cl::init(false), cl::ZeroOrMore,
+    "use-first-loadable-segment-as-base",
     cl::desc("Use first loadable segment address as base address "
              "for offsets in unsymbolized profile. By default "
              "first executable segment address is used"));
 
 static cl::opt<bool>
-    IgnoreStackSamples("ignore-stack-samples", cl::init(false), cl::ZeroOrMore,
+    IgnoreStackSamples("ignore-stack-samples",
                        cl::desc("Ignore call stack samples for hybrid samples "
                                 "and produce context-insensitive profile."));
-cl::opt<bool> ShowDetailedWarning("show-detailed-warning", cl::init(false),
-                                  cl::ZeroOrMore,
+cl::opt<bool> ShowDetailedWarning("show-detailed-warning",
                                   cl::desc("Show detailed warning message."));
 
 extern cl::opt<std::string> PerfTraceFilename;
@@ -99,7 +96,8 @@ void VirtualUnwinder::unwindLinear(UnwindState &State, uint64_t Repeat) {
     return;
   }
 
-  if (Target > End) {
+  if (!isValidFallThroughRange(Binary->virtualAddrToOffset(Target),
+                               Binary->virtualAddrToOffset(End), Binary)) {
     // Skip unwinding the rest of LBR trace when a bogus range is seen.
     State.setInvalid();
     return;
@@ -469,9 +467,9 @@ static std::string getContextKeyStr(ContextKey *K,
       if (OContextStr.str().size())
         OContextStr << " @ ";
       OContextStr << "0x"
-                  << to_hexString(
+                  << utohexstr(
                          Binary->virtualAddrToOffset(CtxKey->Context[I]),
-                         false);
+                         /*LowerCase=*/true);
     }
     return OContextStr.str();
   } else {
@@ -581,7 +579,6 @@ bool PerfScriptReader::extractLBRStack(TraceStream &TraceIt,
     if (!SrcIsInternal && !DstIsInternal)
       continue;
 
-    // TODO: filter out buggy duplicate branches on Skylake
     LBRStack.emplace_back(LBREntry(Src, Dst));
   }
   TraceIt.advance();
@@ -878,7 +875,7 @@ void PerfScriptReader::computeCounterFromLBR(const PerfSample *Sample,
     // LBR and FROM of next LBR.
     uint64_t StartOffset = TargetOffset;
     if (Binary->offsetIsCode(StartOffset) && Binary->offsetIsCode(EndOffeset) &&
-        StartOffset <= EndOffeset)
+        isValidFallThroughRange(StartOffset, EndOffeset, Binary))
       Counter.recordRangeCount(StartOffset, EndOffeset, Repeat);
     EndOffeset = SourceOffset;
   }
@@ -1124,7 +1121,7 @@ void PerfScriptReader::warnInvalidRange() {
   const char *RangeCrossFuncMsg =
       "Fall through range should not cross function boundaries, likely due to "
       "profile and binary mismatch.";
-  const char *BogusRangeMsg = "Range start is after range end.";
+  const char *BogusRangeMsg = "Range start is after or too far from range end.";
 
   uint64_t TotalRangeNum = 0;
   uint64_t InstNotBoundary = 0;
@@ -1155,7 +1152,7 @@ void PerfScriptReader::warnInvalidRange() {
       WarnInvalidRange(StartOffset, EndOffset, RangeCrossFuncMsg);
     }
 
-    if (StartOffset > EndOffset) {
+    if (!isValidFallThroughRange(StartOffset, EndOffset, Binary)) {
       BogusRange += I.second;
       WarnInvalidRange(StartOffset, EndOffset, BogusRangeMsg);
     }
@@ -1172,7 +1169,8 @@ void PerfScriptReader::warnInvalidRange() {
       "of samples are from ranges that do cross function boundaries.");
   emitWarningSummary(
       BogusRange, TotalRangeNum,
-      "of samples are from ranges that have range start after range end.");
+      "of samples are from ranges that have range start after or too far from "
+      "range end acrossing the unconditinal jmp.");
 }
 
 void PerfScriptReader::parsePerfTraces() {

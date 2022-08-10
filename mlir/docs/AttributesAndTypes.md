@@ -24,7 +24,7 @@ names to attribute values.
 Every SSA value, such as operation results or block arguments, in MLIR has a type
 defined by the type system. MLIR has an open type system with no fixed list of types,
 and there are no restrictions on the abstractions they represent. For example, take
-the following [Arithemetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
+the following [Arithmetic AddI operation](Dialects/ArithmeticOps.md#arithaddi-mlirarithaddiop):
 
 ```mlir
   %result = arith.addi %lhs, %rhs : i64
@@ -71,7 +71,7 @@ Operations, etc.
 
 ```tablegen
 // Include the definition of the necessary tablegen constructs for defining
-// our types. 
+// our types.
 include "mlir/IR/AttrTypeBase.td"
 
 // It's common to define a base classes for types in the same dialect. This
@@ -108,7 +108,7 @@ Below is an example of an Attribute:
 
 ```tablegen
 // Include the definition of the necessary tablegen constructs for defining
-// our attributes. 
+// our attributes.
 include "mlir/IR/AttrTypeBase.td"
 
 // It's common to define a base classes for attributes in the same dialect. This
@@ -128,11 +128,11 @@ def My_IntegerAttr : MyDialect_Attr<"Integer", "int"> {
   }];
   /// Here we've defined two parameters, one is the `self` type of the attribute
   /// (i.e. the type of the Attribute itself), and the other is the integer value
-  /// of the attribute. 
+  /// of the attribute.
   let parameters = (ins AttributeSelfTypeParameter<"">:$type, "APInt":$value);
-  
+
   /// Here we've defined a custom builder for the type, that removes the need to pass
-  /// in an MLIRContext instance; as it can be infered from the `type`. 
+  /// in an MLIRContext instance; as it can be infered from the `type`.
   let builders = [
     AttrBuilderWithInferredContext<(ins "Type":$type,
                                         "const APInt &":$value), [{
@@ -147,7 +147,7 @@ def My_IntegerAttr : MyDialect_Attr<"Integer", "int"> {
   ///    #my.int<50> : !my.int<32> // a 32-bit integer of value 50.
   ///
   let assemblyFormat = "`<` $value `>`";
-  
+
   /// Indicate that our attribute will add additional verification to the parameters.
   let genVerifyDecl = 1;
 
@@ -295,7 +295,7 @@ documentation for more information on defining and using interfaces.
 
 For each attribute or type, there are a few builders(`get`/`getChecked`)
 automatically generated based on the parameters of the type. These are used to
-construct instances of the correpsonding attribute or type. For example, given
+construct instances of the corresponding attribute or type. For example, given
 the following definition:
 
 ```tablegen
@@ -347,6 +347,7 @@ def MyType : ... {
       // its arguments.
       return Base::get(typeParam.getContext(), ...);
     }]>,
+    TypeBuilder<(ins "int":$intParam), [{}], "IntegerType">,
   ];
 }
 ```
@@ -461,6 +462,28 @@ the builder used `TypeBuilderWithInferredContext` implies that the context
 parameter is not necessary as it can be inferred from the arguments to the
 builder.
 
+The fifth builder will generate the declaration of a builder method with a
+custom return type, like:
+
+```tablegen
+  let builders = [
+    TypeBuilder<(ins "int":$intParam), [{}], "IntegerType">,
+  ]
+```
+
+```c++
+class MyType : /*...*/ {
+  /*...*/
+  static IntegerType get(::mlir::MLIRContext *context, int intParam);
+
+};
+```
+
+This generates a builder declaration the same as the first three examples, but
+the return type of the builder is user-specified instead of the attribute or
+type class. This is useful for defining builders of attributes and types that
+may fold or canonicalize on construction.
+
 ### Parsing and Printing
 
 If a mnemonic was specified, the `hasCustomAssemblyFormat` and `assemblyFormat`
@@ -473,10 +496,10 @@ one for printing. These static functions placed alongside the class definitions
 and have the following function signatures:
 
 ```c++
-static ParseResult generatedAttributeParser(DialectAsmParser& parser, StringRef mnemonic, Type attrType, Attribute &result);
+static ParseResult generatedAttributeParser(DialectAsmParser& parser, StringRef *mnemonic, Type attrType, Attribute &result);
 static LogicalResult generatedAttributePrinter(Attribute attr, DialectAsmPrinter& printer);
 
-static ParseResult generatedTypeParser(DialectAsmParser& parser, StringRef mnemonic, Type &result);
+static ParseResult generatedTypeParser(DialectAsmParser& parser, StringRef *mnemonic, Type &result);
 static LogicalResult generatedTypePrinter(Type type, DialectAsmPrinter& printer);
 ```
 
@@ -519,7 +542,7 @@ assembly format consists of literals, variables, and directives.
 
 - A literal is a keyword or valid punctuation enclosed in backticks, e.g.
   `` `keyword` `` or `` `<` ``.
-- A variable is a parameter name preceeded by a dollar sign, e.g. `$param0`,
+- A variable is a parameter name preceded by a dollar sign, e.g. `$param0`,
   which captures one attribute or type parameter.
 - A directive is a keyword followed by an optional argument list that defines
   special parser and printer behaviour.
@@ -584,7 +607,7 @@ template <> struct FieldParser<MyParameter> {
 
 Example of using ODS parameter classes:
 
-```
+```tablegen
 def MyParameter : TypeParameter<"std::pair<int, int>", "pair of ints"> {
   let printer = [{ $_printer << $_self.first << " * " << $_self.second }];
   let parser = [{ [&] -> FailureOr<std::pair<int, int>> {
@@ -611,6 +634,10 @@ Parameters that aren't plain-old-data (e.g. references) may need to define a
 example, `StringRefParameter` uses `std::string` as its storage type, whereas
 `ArrayRefParameter` uses `SmallVector` as its storage type. The parsers for
 these parameters are expected to return `FailureOr<$cppStorageType>`.
+
+To add a custom conversion between the `cppStorageType` and the C++ type of the
+parameter, parameters can override `convertFromStorage`, which by default is
+`"$_self"` (i.e., it attempts an implicit conversion from `cppStorageType`).
 
 ###### Optional Parameters
 
@@ -655,7 +682,7 @@ the equality operator is used.
 
 For example:
 
-```
+```tablegen
 let parameters = (ins DefaultValuedParameter<"Optional<int>", "5">:$a)
 let mnemonic = "default_valued";
 let assemblyFormat = "(`<` $a^ `>`)?";
@@ -663,16 +690,16 @@ let assemblyFormat = "(`<` $a^ `>`)?";
 
 Which will look like:
 
-```
+```mlir
 !test.default_valued     // a = 5
 !test.default_valued<10> // a = 10
 ```
 
 For optional `Attribute` or `Type` parameters, the current MLIR context is
-available through `$_ctx`. E.g.
+available through `$_ctxt`. E.g.
 
-```
-DefaultValuedParameter<"IntegerType", "IntegerType::get($_ctx, 32)">
+```tablegen
+DefaultValuedParameter<"IntegerType", "IntegerType::get($_ctxt, 32)">
 ```
 
 ##### Assembly Format Directives
@@ -1038,13 +1065,16 @@ public:
 
 The declarative Attribute and Type definitions try to auto-generate as much
 logic and methods as possible. With that said, there will always be long-tail
-cases that won't be covered. For such cases, `extraClassDeclaration` can be
-used. Code within the `extraClassDeclaration` field will be copied literally to
-the generated C++ Attribute or Type class.
+cases that won't be covered. For such cases, `extraClassDeclaration` and
+`extraClassDefinition` can be used. Code within the `extraClassDeclaration`
+field will be copied literally to the generated C++ Attribute or Type class.
+Code within `extraClassDefinition` will be added to the generated source file
+inside the class's C++ namespace. The substitution `$cppClass` will be replaced
+by the Attribute or Type's C++ class name.
 
-Note that `extraClassDeclaration` is a mechanism intended for long-tail cases by
-power users; for not-yet-implemented widely-applicable cases, improving the
-infrastructure is preferable.
+Note that these are mechanisms intended for long-tail cases by power users; for
+not-yet-implemented widely-applicable cases, improving the infrastructure is
+preferable.
 
 ### Registering with the Dialect
 
@@ -1060,7 +1090,7 @@ void MyDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "MyDialect/Attributes.cpp.inc"
   >();
-  
+
     /// Add the defined types to the dialect.
   addTypes<
 #define GET_TYPEDEF_LIST

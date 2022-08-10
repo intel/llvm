@@ -10,12 +10,12 @@
 
 #pragma once
 
-#include <CL/sycl/half_type.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
+#include <sycl/half_type.hpp>
 
 #include <cstdint>
 
@@ -244,6 +244,9 @@ template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
                                    Flags = {}) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return block_load<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset));
+#else
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -263,6 +266,7 @@ __ESIMD_API simd<Tx, N> block_load(AccessorTy acc, uint32_t offset,
   } else {
     return __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
   }
+#endif
 }
 
 /// Stores elements of a vector to a contiguous block of memory at given
@@ -304,6 +308,9 @@ template <typename Tx, int N, typename AccessorTy,
           class T = detail::__raw_t<Tx>>
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
                              simd<Tx, N> vals) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  block_store<Tx, N>(__ESIMD_DNS::accessorToPointer<Tx>(acc, offset), vals);
+#else
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -317,6 +324,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset,
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
   __esimd_oword_st<T, N>(surf_ind, offset >> 4, vals.data());
+#endif
 }
 
 /// @} sycl_esimd_memory
@@ -426,8 +434,12 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              simd<T, N>>
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> mask = 1) {
-
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
+                      offsets, mask);
+#else
   return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, mask);
+#endif
 }
 
 /// @anchor accessor_scatter
@@ -455,8 +467,12 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              !std::is_pointer<AccessorTy>::value>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
-
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
+                vals, mask);
+#else
   detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
+#endif
 }
 
 /// Load a scalar value from an accessor.
@@ -623,12 +639,17 @@ __ESIMD_API std::enable_if_t<((N == 8 || N == 16 || N == 32) &&
                              simd<T, N * get_num_channels_enabled(RGBAMask)>>
 gather_rgba(AccessorT acc, simd<uint32_t, N> offsets,
             uint32_t global_offset = 0, simd_mask<N> mask = 1) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  return gather_rgba<RGBAMask>(
+      __ESIMD_DNS::accessorToPointer<T>(acc, global_offset), offsets, mask);
+#else
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
   const auto SI = get_surface_index(acc);
   return __esimd_gather4_masked_scaled2<detail::__raw_t<T>, N, RGBAMask,
                                         decltype(SI), Scale>(
       SI, global_offset, offsets.data(), mask.data());
+#endif
 }
 
 /// Gather data from the memory addressed by accessor \c acc, offset common
@@ -654,11 +675,16 @@ scatter_rgba(AccessorT acc, simd<uint32_t, N> offsets,
              simd<T, N * get_num_channels_enabled(RGBAMask)> vals,
              uint32_t global_offset = 0, simd_mask<N> mask = 1) {
   detail::validate_rgba_write_channel_mask<RGBAMask>();
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  scatter_rgba<RGBAMask>(__ESIMD_DNS::accessorToPointer<T>(acc, global_offset),
+                         offsets, vals, mask);
+#else
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t Scale = 0;
   const auto SI = get_surface_index(acc);
   __esimd_scatter4_scaled<T, N, decltype(SI), RGBAMask, Scale>(
       mask.data(), SI, global_offset, offsets.data(), vals.data());
+#endif
 }
 
 /// @} sycl_esimd_memory
@@ -868,7 +894,9 @@ enum fence_mask : uint8_t {
   local_barrier = 0x20,
   /// Flush L1 read - only data cache.
   l1_flush_ro_data = 0x40,
-  /// Enable thread scheduling barrier.
+  /// Creates a software (compiler) barrier, which does not generate
+  /// any instruction and only prevents instruction scheduler from
+  /// reordering instructions across this barrier at compile time.
   sw_barrier = 0x80
 };
 
@@ -1082,6 +1110,7 @@ slm_atomic_update(simd<uint32_t, N> offsets, simd<Tx, N> src0, simd<Tx, N> src1,
 
 /// @} sycl_esimd_memory_slm
 
+#ifndef __ESIMD_FORCE_STATELESS_MEM
 /// @addtogroup sycl_esimd_memory
 /// @{
 
@@ -1167,6 +1196,7 @@ __ESIMD_API void media_block_store(AccessorTy acc, unsigned x, unsigned y,
                                                                  vals.data());
   }
 }
+#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @} sycl_esimd_memory
 
@@ -1353,9 +1383,34 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(
       if constexpr (RemN == 1) {
         Addr[NumChunks * ChunkSize] = Tmp[NumChunks * ChunkSize];
       } else if constexpr (RemN == 8 || RemN == 16) {
-        simd<uint32_t, RemN> Offsets(0u, sizeof(T));
-        scatter<UT, RemN>(Addr + (NumChunks * ChunkSize), Offsets,
-                          Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+        // TODO: GPU runtime may handle scatter of 16 byte elements incorrectly.
+        // The code below is a workaround which must be deleted once GPU runtime
+        // is fixed.
+        if constexpr (sizeof(T) == 1 && RemN == 16) {
+          if constexpr (Align % OperandSize::DWORD > 0) {
+            ForHelper<RemN>::unroll([Addr, &Tmp](unsigned Index) {
+              Addr[Index + NumChunks * ChunkSize] =
+                  Tmp[Index + NumChunks * ChunkSize];
+            });
+          } else {
+            simd_mask_type<8> Pred(0);
+            simd<int32_t, 8> Vals;
+            Pred.template select<4, 1>() = 1;
+            Vals.template select<4, 1>() =
+                Tmp.template bit_cast_view<int32_t>().template select<4, 1>(
+                    NumChunks * ChunkSize);
+
+            simd<uint32_t, 8> Offsets(0u, sizeof(int32_t));
+            scatter<int32_t, 8>(
+                reinterpret_cast<int32_t *>(Addr + (NumChunks * ChunkSize)),
+                Offsets, Vals, Pred);
+          }
+        } else {
+          simd<uint32_t, RemN> Offsets(0u, sizeof(T));
+          scatter<UT, RemN>(
+              Addr + (NumChunks * ChunkSize), Offsets,
+              Tmp.template select<RemN, 1>(NumChunks * ChunkSize));
+        }
       } else {
         constexpr int N1 = RemN < 8 ? 8 : RemN < 16 ? 16 : 32;
         simd_mask_type<N1> Pred(0);

@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace std;
 
 template <typename T1, typename T_rtn> void math_operator_helper() {
@@ -80,6 +80,17 @@ void check_half_logical_operator_types(sycl::queue &Queue) {
   Queue.submit([&](sycl::handler &cgh) {
     cgh.single_task([=] { logical_operator_helper<T1>(); });
   });
+}
+
+template <typename T1>
+void check_half_stream_operator_type(sycl::queue &Queue) {
+
+  // Host only stream test
+  std::istringstream iss;
+  std::ostringstream oss;
+  sycl::half val;
+  static_assert(is_same_v<decltype(iss >> val), std::istream &>);
+  static_assert(is_same_v<decltype(oss << val), std::ostream &>);
 }
 
 int main() {
