@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: sycl-clang.py %s -S -function=* | FileCheck %s
+// RUN: sycl-clang.py %s -S | FileCheck %s
 
 #include <sycl/sycl.hpp>
 

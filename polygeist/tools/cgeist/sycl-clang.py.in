@@ -15,7 +15,7 @@ import subprocess
 import shlex
 
 # run programs with
-# sycl-clang.py <file> 2> /dev/null
+# sycl-clang.py <file> <cgeist flags> 2> /dev/null
 
 def main():
     bin_path = "@CMAKE_RUNTIME_OUTPUT_DIRECTORY@"
@@ -25,11 +25,10 @@ def main():
 
     # Invoke clang, capture the command line produced by clang.
     clang_args = [clang_tool, "-###", "-fsycl", "-fsycl-device-only", "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"]
-    n = len(clang_args)
     clang_args.extend(sys.argv[1:2])
     clang_res = subprocess.Popen(clang_args, stderr=subprocess.PIPE)
     output = clang_res.stderr.readlines()
-    expanded_clang_args = output[n].decode("utf-8")
+    expanded_clang_args = output[5].decode("utf-8")
     split_output = shlex.split(expanded_clang_args)
 
     # Form the cgeist invocation command. Append the MLIR flags first, then append the clang flags after "--args".
