@@ -1,14 +1,14 @@
-// RUN: %clangxx -DUSE_DEPRECATED_LOCAL_ACC -opaque-pointers -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes
-// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE
+// RUN: %clangxx -DUSE_DEPRECATED_LOCAL_ACC -fsycl-device-only -Xclang -opaque-pointers -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE,CHECK-DEP
 //
 // RUN: %clangxx -fsycl-device-only -Xclang -opaque-pointers -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes
-// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-DISABLE,CHECK-SYCL2020
 //
-// RUN: %clangxx -DUSE_DPRECATED_LOCAL_ACC -opaque-pointers -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes -D__ENABLE_USM_ADDR_SPACE__
-// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE
+// RUN: %clangxx -DUSE_DEPRECATED_LOCAL_ACC -fsycl-device-only -Xclang -opaque-pointers -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes -D__ENABLE_USM_ADDR_SPACE__
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE,CHECK-DEP
 //
 // RUN: %clangxx -fsycl-device-only -Xclang -opaque-pointers -emit-llvm %s -S -o %t.ll -I %sycl_include -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning -Xclang -disable-llvm-passes -D__ENABLE_USM_ADDR_SPACE__
-// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE
+// RUN: FileCheck %s --input-file %t.ll --check-prefixes=CHECK,CHECK-ENABLE,CHECK-SYCL2020
 //
 // Check the address space of the pointer in accessor class.
 //
@@ -16,8 +16,12 @@
 // CHECK: %"class.cl::sycl::accessor[[NUMBER_SUFFIX]]" = type { %"class{{.*}}AccessorImplDevice", %[[UNION:.*]] }
 // CHECK-DISABLE: %[[UNION]] = type { ptr addrspace(1) }
 // CHECK-ENABLE: %[[UNION]] = type { ptr addrspace(5) }
-// CHECK: %struct.AccWrapper.{{[0-9]+}} = type { %"class.cl::sycl::accessor.[[NUM:[0-9]+]]" }
-// CHECK-NEXT: %"class.cl::sycl::accessor.[[NUM]]" = type { %"class{{.*}}LocalAccessorBaseDevice", ptr addrspace(3) }
+// CHECK-DEP: %struct.AccWrapper.{{[0-9]+}} = type { %"class.cl::sycl::accessor.[[NUM:[0-9]+]]" }
+// CHECK-DEP-NEXT: %"class.cl::sycl::accessor.[[NUM]]" = type { %"class{{.*}}local_accessor_base" }
+// CHECK-DEP-NEXT: %"class.cl::sycl::local_accessor_base" = type { %"class{{.*}}LocalAccessorBaseDevice", ptr addrspace(3) }
+// CHECK-SYCL2020: %struct.AccWrapper.{{[0-9]+}} = type { %"class.cl::sycl::local_accessor" }
+// CHECK-SYCL2020-NEXT: %"class.cl::sycl::local_accessor" = type { %"class{{.*}}local_accessor_base" }
+// CHECK-SYCL2020-NEXT: %"class.cl::sycl::local_accessor_base" = type { %"class{{.*}}LocalAccessorBaseDevice", ptr addrspace(3) }
 //
 // Check that kernel arguments doesn't have generic address space.
 //
@@ -27,7 +31,9 @@
 
 using namespace sycl;
 
-template <typename Acc> struct AccWrapper { Acc accessor; };
+template <typename Acc> struct AccWrapper {
+  Acc accessor;
+};
 
 int main() {
 
