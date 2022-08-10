@@ -1019,6 +1019,7 @@
 ?__vSignBitSet@__host_std@cl@@YAFVhalf@half_impl@detail@sycl@2@@Z
 ?__vSignBitSet@__host_std@cl@@YAHM@Z
 ?__vSignBitSet@__host_std@cl@@YA_JN@Z
+?accelerator_selector_v@sycl@cl@@YAHAEBVdevice@12@@Z
 ?accessGlobalBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z
 ?accessGlobalBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@oneapi@ext@sycl@cl@@@34@AEAVhandler@34@@Z
 ?accessGlobalFlushBuf@stream_impl@detail@sycl@cl@@QEAA?AV?$accessor@D$00$0EAC@$0HNO@$0A@V?$accessor_property_list@$$V@ONEAPI@sycl@cl@@@34@AEAVhandler@34@@Z
@@ -1605,6 +1606,7 @@
 ?cospi@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@@Z
 ?cospi@__host_std@cl@@YAMM@Z
 ?cospi@__host_std@cl@@YANN@Z
+?cpu_selector_v@sycl@cl@@YAHAEBVdevice@12@@Z
 ?cross@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@0@Z
 ?cross@__host_std@cl@@YA?AV?$vec@M$03@sycl@2@V342@0@Z
 ?cross@__host_std@cl@@YA?AV?$vec@N$02@sycl@2@V342@0@Z
@@ -1667,6 +1669,7 @@
 ?ctz@__host_std@cl@@YAII@Z
 ?ctz@__host_std@cl@@YA_J_J@Z
 ?ctz@__host_std@cl@@YA_K_K@Z
+?default_selector_v@sycl@cl@@YAHAEBVdevice@12@@Z
 ?degrees@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?degrees@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?degrees@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
@@ -2278,6 +2281,7 @@
 ?get_stream_mode@stream@sycl@cl@@QEBA?AW4stream_manipulator@23@XZ
 ?get_wait_list@event@sycl@cl@@QEAA?AV?$vector@Vevent@sycl@cl@@V?$allocator@Vevent@sycl@cl@@@std@@@std@@XZ
 ?get_width@stream@sycl@cl@@QEBA_KXZ
+?gpu_selector_v@sycl@cl@@YAHAEBVdevice@12@@Z
 ?half_cos@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@@Z
 ?half_cos@__host_std@cl@@YA?AV?$vec@M$01@sycl@2@V342@@Z
 ?half_cos@__host_std@cl@@YA?AV?$vec@M$02@sycl@2@V342@@Z
