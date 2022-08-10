@@ -251,7 +251,7 @@ using sycl::detail::queue_impl;
 /// If we are given sycl::range and not sycl::nd_range we have more freedom in
 /// how to split the iteration space.
 template <typename KernelName, typename KernelType, int Dims, class Reduction>
-void reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
+bool reduCGFuncForRange(handler &CGH, KernelType KernelFunc,
                         const range<Dims> &Range, size_t MaxWGSize,
                         uint32_t NumConcurrentWorkGroups, Reduction &Redu);
 
@@ -1649,11 +1649,9 @@ public:
     // for the device.
     size_t MaxWGSize =
         ext::oneapi::detail::reduGetMaxWGSize(MQueue, OneElemSize);
-    ext::oneapi::detail::reduCGFuncForRange<KernelName>(
-        *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups, Redu);
-    if (Reduction::is_usm ||
-        (Reduction::has_fast_atomics && Redu.initializeToIdentity()) ||
-        (!Reduction::has_fast_atomics && Reduction::is_dw_acc)) {
+    if (ext::oneapi::detail::reduCGFuncForRange<KernelName>(
+            *this, KernelFunc, Range, MaxWGSize, NumConcurrentWorkGroups,
+            Redu)) {
       this->finalize();
       MLastEvent = withAuxHandler(QueueCopy, [&](handler &CopyHandler) {
         ext::oneapi::detail::reduSaveFinalResultToUserMem<KernelName>(
