@@ -691,14 +691,13 @@ pi_result _pi_device::initialize(int SubSubDeviceOrdinal,
     }
   }
 
-  // Reinitialize a sub-sub-device with its own ordinal, index and numQueues
+  // Reinitialize a sub-sub-device with its own ordinal, index.
   // Our sub-sub-device representation is currently [Level-Zero sub-device
-  // handle + Level-Zero compute group/engine index]. As we have a single queue
-  // per device, we need to reinitialize numQueues in ZeProperties to be 1.
+  // handle + Level-Zero compute group/engine index]. Only the specified
+  // index queue will be used to submit work to the sub-sub-device.
   if (SubSubDeviceOrdinal >= 0) {
     QueueGroup[queue_group_info_t::Compute].ZeOrdinal = SubSubDeviceOrdinal;
     QueueGroup[queue_group_info_t::Compute].ZeIndex = SubSubDeviceIndex;
-    QueueGroup[queue_group_info_t::Compute].ZeProperties.numQueues = 1;
   } else { // Proceed with initialization for root and sub-device
     // How is it possible that there are no "compute" capabilities?
     if (QueueGroup[queue_group_info_t::Compute].ZeOrdinal < 0) {
@@ -858,6 +857,50 @@ pi_device _pi_context::getRootDevice() const {
 }
 
 pi_result _pi_context::initialize() {
+
+  // Helper lambda to create various USM allocators for a device.
+  auto createUSMAllocators = [this](pi_device Device) {
+    SharedMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedMemoryAlloc(this, Device))));
+    SharedReadOnlyMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMSharedReadOnlyMemoryAlloc(this, Device))));
+    DeviceMemAllocContexts.emplace(
+        std::piecewise_construct, std::make_tuple(Device),
+        std::make_tuple(std::unique_ptr<SystemMemory>(
+            new USMDeviceMemoryAlloc(this, Device))));
+  };
+
+  // Recursive helper to call createUSMAllocators for all sub-devices
+  std::function<void(pi_device)> createUSMAllocatorsRecursive;
+  createUSMAllocatorsRecursive =
+      [this, createUSMAllocators,
+       &createUSMAllocatorsRecursive](pi_device Device) -> void {
+    createUSMAllocators(Device);
+    for (auto &SubDevice : Device->SubDevices)
+      createUSMAllocatorsRecursive(SubDevice);
+  };
+
+  // Create USM allocator context for each pair (device, context).
+  //
+  for (auto &Device : Devices) {
+    createUSMAllocatorsRecursive(Device);
+  }
+  // Create USM allocator context for host. Device and Shared USM allocations
+  // are device-specific. Host allocations are not device-dependent therefore
+  // we don't need a map with device as key.
+  HostMemAllocContext = std::make_unique<USMAllocContext>(
+      std::unique_ptr<SystemMemory>(new USMHostMemoryAlloc(this)));
+
+  // We may allocate memory to this root device so create allocators.
+  if (SingleRootDevice && DeviceMemAllocContexts.find(SingleRootDevice) ==
+                              DeviceMemAllocContexts.end()) {
+    createUSMAllocators(SingleRootDevice);
+  }
+
   // Create the immediate command list to be used for initializations
   // Created as synchronous so level-zero performs implicit synchronization and
   // there is no need to query for completion in the plugin
@@ -1108,32 +1151,30 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   // First, see if the queue's device allows for round-robin or it is
   // fixed to one particular compute CCS (it is so for sub-sub-devices).
   auto &ComputeQueueGroupInfo = Device->QueueGroup[queue_type::Compute];
+  ComputeQueueGroup.ZeQueues = ComputeQueues;
   if (ComputeQueueGroupInfo.ZeIndex >= 0) {
     ComputeQueueGroup.LowerIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.UpperIndex = ComputeQueueGroupInfo.ZeIndex;
     ComputeQueueGroup.NextIndex = ComputeQueueGroupInfo.ZeIndex;
   } else {
-    ComputeQueueGroup.LowerIndex = 0;
-    ComputeQueueGroup.UpperIndex = INT_MAX;
-    ComputeQueueGroup.NextIndex = 0;
-  }
-
-  uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
-  uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines().second;
-  FilterUpperIndex =
-      std::min((size_t)FilterUpperIndex, ComputeQueues.size() - 1);
-  if (FilterLowerIndex <= FilterUpperIndex) {
-    ComputeQueueGroup.ZeQueues = ComputeQueues;
-    ComputeQueueGroup.LowerIndex = FilterLowerIndex;
-    ComputeQueueGroup.UpperIndex = FilterUpperIndex;
-    ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
-    // Create space to hold immediate commandlists corresponding to the ZeQueues
-    if (Device->UseImmediateCommandLists()) {
-      ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
-          ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+    // Set-up to round-robin across allowed range of engines.
+    uint32_t FilterLowerIndex = getRangeOfAllowedComputeEngines().first;
+    uint32_t FilterUpperIndex = getRangeOfAllowedComputeEngines().second;
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + ComputeQueues.size() - 1);
+    if (FilterLowerIndex <= FilterUpperIndex) {
+      ComputeQueueGroup.LowerIndex = FilterLowerIndex;
+      ComputeQueueGroup.UpperIndex = FilterUpperIndex;
+      ComputeQueueGroup.NextIndex = ComputeQueueGroup.LowerIndex;
+      // Create space to hold immediate commandlists corresponding to the
+      // ZeQueues
+      if (Device->UseImmediateCommandLists()) {
+        ComputeQueueGroup.ImmCmdLists = std::vector<pi_command_list_ptr_t>(
+            ComputeQueueGroup.ZeQueues.size(), CommandListMap.end());
+      }
+    } else {
+      die("No compute queue available/allowed.");
     }
-  } else {
-    die("No compute queue available.");
   }
 
   // Copy group initialization.
@@ -1144,8 +1185,8 @@ _pi_queue::_pi_queue(std::vector<ze_command_queue_handle_t> &ComputeQueues,
   } else {
     uint32_t FilterLowerIndex = getRangeOfAllowedCopyEngines(Device).first;
     uint32_t FilterUpperIndex = getRangeOfAllowedCopyEngines(Device).second;
-    FilterUpperIndex =
-        std::min((size_t)FilterUpperIndex, CopyQueues.size() - 1);
+    FilterUpperIndex = std::min((size_t)FilterUpperIndex,
+                                FilterLowerIndex + CopyQueues.size() - 1);
     if (FilterLowerIndex <= FilterUpperIndex) {
       CopyQueueGroup.ZeQueues = CopyQueues;
       CopyQueueGroup.LowerIndex = FilterLowerIndex;
@@ -2256,13 +2297,7 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (NumPlatforms) {
     *NumPlatforms = PiPlatformsCache->size();
   }
-#if 0
-  zePrint("Using events scope: %s\n",
-          EventsScope == AllHostVisible ? "all host-visible"
-          : EventsScope == OnDemandHostVisibleProxy
-              ? "on demand host-visible proxy"
-              : "only last command in a batch is host-visible");
-#endif
+
   return PI_SUCCESS;
 }
 
@@ -3411,11 +3446,7 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
-      Context->Devices.end()) {
-    return PI_ERROR_INVALID_DEVICE;
-  }
+  PI_ASSERT(Context->isValidDevice(Device), PI_ERROR_INVALID_DEVICE);
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
@@ -4196,11 +4227,7 @@ pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
   pi_device Device = nullptr;
   if (ZeDevice) {
     Device = Context->getPlatform()->getDeviceFromNativeHandle(ZeDevice);
-    // Check that the device is present in this context.
-    if (std::find(Context->Devices.begin(), Context->Devices.end(), Device) ==
-        Context->Devices.end()) {
-      return PI_ERROR_INVALID_CONTEXT;
-    }
+    PI_ASSERT(Context->isValidDevice(Device), PI_ERROR_INVALID_CONTEXT);
   }
 
   try {
@@ -4469,12 +4496,7 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
 
   // Validate input parameters.
   PI_ASSERT(DeviceList, PI_ERROR_INVALID_DEVICE);
-  {
-    auto DeviceEntry =
-        find(Context->Devices.begin(), Context->Devices.end(), DeviceList[0]);
-    if (DeviceEntry == Context->Devices.end())
-      return PI_ERROR_INVALID_DEVICE;
-  }
+  PI_ASSERT(Context->isValidDevice(DeviceList[0]), PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(!PFnNotify && !UserData, PI_ERROR_INVALID_VALUE);
   if (NumInputPrograms == 0 || InputPrograms == nullptr)
     return PI_ERROR_INVALID_VALUE;
@@ -4679,12 +4701,9 @@ pi_result piProgramBuild(pi_program Program, pi_uint32 NumDevices,
   std::scoped_lock Guard(Program->Mutex);
   // Check if device belongs to associated context.
   PI_ASSERT(Program->Context, PI_ERROR_INVALID_PROGRAM);
-  {
-    auto DeviceEntry = find(Program->Context->Devices.begin(),
-                            Program->Context->Devices.end(), DeviceList[0]);
-    if (DeviceEntry == Program->Context->Devices.end())
-      return PI_ERROR_INVALID_VALUE;
-  }
+  PI_ASSERT(Program->Context->isValidDevice(DeviceList[0]),
+            PI_ERROR_INVALID_VALUE);
+
   // It is legal to build a program created from either IL or from native
   // device code.
   if (Program->State != _pi_program::IL &&
@@ -5801,20 +5820,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
   if (NumEvents && !EventList) {
     return PI_ERROR_INVALID_EVENT;
   }
-#if 0
-  if (EventsScope == OnDemandHostVisibleProxy) {
-    // Make sure to add all host-visible "proxy" event signals if needed.
-    // This ensures that all signalling commands are submitted below and
-    // thus proxy events can be waited without a deadlock.
-    //
-    for (uint32_t I = 0; I < NumEvents; I++) {
-      ze_event_handle_t ZeHostVisibleEvent;
-      if (auto Res =
-              EventList[I]->getOrCreateHostVisibleEvent(ZeHostVisibleEvent))
-        return Res;
-    }
-  }
-#else
   for (uint32_t I = 0; I < NumEvents; I++) {
     if (EventList[I]->Queue->Device->EventsScope() ==
         OnDemandHostVisibleProxy) {
@@ -5828,7 +5833,6 @@ pi_result piEventsWait(pi_uint32 NumEvents, const pi_event *EventList) {
         return Res;
     }
   }
-#endif
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto Queue = EventList[I]->Queue;

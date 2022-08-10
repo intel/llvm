@@ -281,10 +281,18 @@ void event_impl::cleanupCommand(
 }
 
 void event_impl::checkProfilingPreconditions() const {
-  if (!MIsProfilingEnabled) {
+  std::weak_ptr<queue_impl> EmptyPtr;
+
+  if (!EmptyPtr.owner_before(MQueue) && !MQueue.owner_before(EmptyPtr)) {
     throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "get_profiling_info() can't be used without set "
-                          "'enable_profiling' queue property");
+                          "Profiling information is unavailable as the event "
+                          "has no associated queue.");
+  }
+  if (!MIsProfilingEnabled) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "Profiling information is unavailable as the queue associated with "
+        "the event does not have the 'enable_profiling' property.");
   }
 }
 
