@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/event_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/memory_manager.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
 
