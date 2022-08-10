@@ -117,7 +117,8 @@ done
 # the configure step.
 if [[ ! -f build/CMakeCache.txt ]]; then
   echo "The build directory doesn't seem to be configured yet." >&2
-  echo "Please run the configure step to set up the build." >&2
+  echo "Please run the configure step as documented in sycl/doc/GetStartedGuide.md:" >&2
+  echo "  https://intel.github.io/llvm-docs/GetStartedGuide.html#build-dpc-toolchain" >&2
   exit 1
 fi
 
