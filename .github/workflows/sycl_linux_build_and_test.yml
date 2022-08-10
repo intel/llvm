@@ -157,7 +157,7 @@ jobs:
 
   llvm_test_suite:
     needs: build
-    if: ${{ inputs.lts_matrix != '' }}
+    if: ${{ always() && build.steps.build.outcome == 'success' }} && ${{ inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
       max-parallel: ${{ inputs.max_parallel }}
