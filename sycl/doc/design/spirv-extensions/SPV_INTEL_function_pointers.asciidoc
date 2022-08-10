@@ -109,7 +109,6 @@ Decorations added under the *FunctionPointersINTEL* capability:
 ArgumentAttributeINTEL
 ----
 
-
 == New Storage Classes
 
 Storage Classes added under the *FunctionPointersINTEL* capability:
