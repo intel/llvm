@@ -38,16 +38,27 @@ namespace bufferization {
 using namespace mlir;
 using namespace bufferization;
 
-/// Attribute name used to mark region arguments that can be bufferized
-/// in-place during linalg comprehensive bufferization.
-constexpr const ::llvm::StringLiteral
-    bufferization::BufferizableOpInterface::kInplaceableAttrName;
-
 /// Return the owner of the given value.
 static Operation *getOwnerOfValue(Value value) {
   if (auto opResult = value.dyn_cast<OpResult>())
     return opResult.getDefiningOp();
   return value.cast<BlockArgument>().getOwner()->getParentOp();
+}
+
+bool bufferization::allocationDoesNotEscape(OpResult opResult) {
+#ifndef NDEBUG
+  auto bufferizableOp = opResult.getDefiningOp<BufferizableOpInterface>();
+  assert(bufferizableOp && bufferizableOp.bufferizesToAllocation(opResult) &&
+         "expected op that bufferizes to an allocation");
+#endif // NDEBUG
+
+  Operation *op = opResult.getDefiningOp();
+  // If there is no 'escape' attribute, we cannot say for sure.
+  if (!op->hasAttr(BufferizationDialect::kEscapeAttrName))
+    return false;
+  auto attr =
+      op->getAttrOfType<ArrayAttr>(BufferizationDialect::kEscapeAttrName);
+  return !attr[opResult.getResultNumber()].cast<BoolAttr>().getValue();
 }
 
 /// Create an AllocTensorOp for the given shaped value. If `copy` is set, the
@@ -193,6 +204,29 @@ LogicalResult BufferizableOpInterface::resolveTensorOpOperandConflicts(
   }
 
   return success();
+}
+
+bool bufferization::shouldDeallocateOpResult(
+    OpResult opResult, const BufferizationOptions &options) {
+  Operation *op = opResult.getOwner();
+  assert(options.dynCastBufferizableOp(op).bufferizesToAllocation(opResult) &&
+         "expected that op allocates");
+
+  AnalysisState analysisState(options);
+  if (op->hasAttr(BufferizationDialect::kEscapeAttrName)) {
+    // AllocTensorOp has one result.
+    ArrayAttr escapeAttr =
+        op->getAttr(BufferizationDialect::kEscapeAttrName).cast<ArrayAttr>();
+    return !escapeAttr[0].cast<BoolAttr>().getValue();
+  }
+
+  // No "escape" annotation found.
+  if (options.createDeallocs) {
+    // Perform an ad-hoc analysis.
+    return !analysisState.isTensorYielded(opResult);
+  }
+
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -567,11 +601,11 @@ bufferization::getBufferType(Value value, const BufferizationOptions &options) {
 
   // If we still do not know the memory space, use the default memory space (if
   // any).
-  if (!memorySpace.hasValue())
+  if (!memorySpace.has_value())
     memorySpace = options.defaultMemorySpace;
 
   // If we still do not know the memory space, report a failure.
-  if (!memorySpace.hasValue())
+  if (!memorySpace.has_value())
     return op->emitError("could not infer memory space");
 
   return getMemRefType(value, options, /*layout=*/{}, *memorySpace);

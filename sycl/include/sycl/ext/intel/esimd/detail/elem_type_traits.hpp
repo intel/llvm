@@ -83,7 +83,7 @@
 
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
-#include <CL/sycl/half_type.hpp>
+#include <sycl/half_type.hpp>
 
 /// @cond ESIMD_DETAIL
 
@@ -655,13 +655,26 @@ private:
   using Ty1 = element_type_t<T1>;
   using Ty2 = element_type_t<T2>;
   using EltTy = typename computation_type<Ty1, Ty2>::type;
-  static constexpr int N1 = is_simd_like_type_v<T1> ? T1::length : 0;
-  static constexpr int N2 = is_simd_like_type_v<T2> ? T2::length : 0;
-  static_assert((N1 == N2) || ((N1 & N2) == 0), "size mismatch");
+
+  static constexpr int N1 = [] {
+    if constexpr (is_simd_like_type_v<T1>) {
+      return T1::length;
+    } else {
+      return 0;
+    }
+  }();
+  static constexpr int N2 = [] {
+    if constexpr (is_simd_like_type_v<T2>) {
+      return T2::length;
+    } else {
+      return 0;
+    }
+  }();
+  static_assert((N1 == N2) || (N1 == 0) || (N2 == 0), "size mismatch");
   static constexpr int N = N1 ? N1 : N2;
 
 public:
-  using type = simd<EltTy, N1>;
+  using type = simd<EltTy, N>;
 };
 
 template <class T1, class T2 = T1>

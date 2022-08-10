@@ -2424,6 +2424,14 @@ void RecordVal::print(raw_ostream &OS, bool PrintSem) const {
   if (PrintSem) OS << ";\n";
 }
 
+void Record::updateClassLoc(SMLoc Loc) {
+  assert(Locs.size() == 1);
+  ForwardDeclarationLocs.push_back(Locs.front());
+
+  Locs.clear();
+  Locs.push_back(Loc);
+}
+
 void Record::checkName() {
   // Ensure the record name has string type.
   const TypedInit *TypedName = cast<const TypedInit>(Name);
@@ -2601,7 +2609,7 @@ StringRef Record::getValueAsString(StringRef FieldName) const {
   if (!S)
     PrintFatalError(getLoc(), "Record `" + getName() +
       "' does not have a field named `" + FieldName + "'!\n");
-  return S.getValue();
+  return S.value();
 }
 
 llvm::Optional<StringRef>

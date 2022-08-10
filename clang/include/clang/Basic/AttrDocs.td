@@ -257,6 +257,28 @@ applies to copies of the block. For example:
   }];
 }
 
+def MaybeUndefDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``maybe_undef`` attribute can be placed on a function parameter. It indicates
+that the parameter is allowed to use undef values. It informs the compiler
+to insert a freeze LLVM IR instruction on the function parameter.
+Please note that this is an attribute that is used as an internal
+implementation detail and not intended to be used by external users.
+
+In languages HIP, CUDA etc., some functions have multi-threaded semantics and
+it is enough for only one or some threads to provide defined arguments.
+Depending on semantics, undef arguments in some threads don't produce
+undefined results in the function call. Since, these functions accept undefined
+arguments, ``maybe_undef`` attribute can be placed.
+
+Sample usage:
+.. code-block:: c
+
+  void maybeundeffunc(int __attribute__((maybe_undef))param);
+  }];
+}
+
 def CarriesDependencyDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -356,7 +378,7 @@ outlining job:
 
   int foo(int x) { return ++x; }
 
-  using namespace cl::sycl;
+  using namespace sycl;
   queue Q;
   buffer<int, 1> a(range<1>{1024});
   Q.submit([&](handler& cgh) {
@@ -3306,58 +3328,6 @@ or ``ivdep``.
   }];
 }
 
-def SYCLIntelFPGAPipelineAttrDocs : Documentation {
-  let Category = DocCatVariable;
-  let Heading = "intel::fpga_pipeline";
-  let Content = [{
-The ``intel::fpga_pipeline(N)`` attribute applies to a loop and it allows users
-to disable or enable pipelining iterations of a loop. The attribute optionally
-accepts an integer constant expression that is converted to `bool`. A `true`
-value enables pipelining while a `false` value disables pipelining. The
-optional argument defaults to `true`. This attribute cannot be applied to a
-loop in conjunction with the  ``max_interleaving``, ``speculated_iterations``,
-``max_concurrency``, ``initiation_interval``, or ``ivdep`` attributes.
-
-.. code-block:: c++
-
-  // Disable loop pipelining
-  void bar() {
-    int a[10];
-    [[[intel::fpga_pipeline(0)]] for (int i = 0; i != 10; ++i) a[i] = 0;
-  }
-
-  // Enable loop pipelining
-  void foo() {
-    int var = 0;
-    [[intel::fpga_pipeline(1)]] for (int i = 0; i < 10; ++i) var++;
-  }
-
-  void Array(int *array, size_t n) {
-    // identical to [[intel::fpga_pipeline(1)]]
-    [[intel::fpga_pipeline]] for (int i = 0; i < n; ++i) array[i] = 0;
-  }
-
-  void count () {
-  int a1[10], int i = 0;
-  [[intel::fpga_pipeline(1)]] while (i < 10) {
-    a1[i] += 3;
-  }
-
-  void check() {
-    int a = 10;
-    [[intel::fpga_pipeline(1)]] do {
-      a = a + 1;
-    } while (a < 20);
-  }
-
-  template<int A>
-  void func() {
-    [[intel::fpga_pipeline(A)]] for(;;) { }
-  }
-
-  }];
-}
-
 def SYCLIntelFPGALoopCountAttrDocs : Documentation {
   let Category = DocCatVariable;
   let Heading = "intel::loop_count_min, intel::loop_count_max, intel::loop_count_avg, intel::loop_count";
@@ -3768,7 +3738,7 @@ cannot be optimized out due to reachability analysis or by any other
 optimization.
 
 This attribute allows to pass name and address of the function to a special
-``cl::sycl::intel::get_device_func_ptr`` API call which extracts the device
+``sycl::intel::get_device_func_ptr`` API call which extracts the device
 function pointer for the specified function.
 
 .. code-block:: c++
@@ -6673,6 +6643,12 @@ general this requires the template to be declared at least twice. For example:
                                 clang::preferred_name(wstring)]] basic_string {
     // ...
   };
+
+
+Note that the ``preferred_name`` attribute will be ignored when the compiler
+writes a C++20 Module interface now. This is due to a compiler issue
+(https://github.com/llvm/llvm-project/issues/56490) that blocks users to modularize
+declarations with `preferred_name`. This is intended to be fixed in the future.
   }];
 }
 
@@ -8239,6 +8215,28 @@ evaluate to NULL.
       }
       return 0;
   }
+  }];
+}
 
+def FunctionReturnThunksDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+The attribute ``function_return`` can replace return instructions with jumps to
+target-specific symbols. This attribute supports 2 possible values,
+corresponding to the values supported by the ``-mfunction-return=`` command
+line flag:
+
+* ``__attribute__((function_return("keep")))`` to disable related transforms.
+  This is useful for undoing global setting from ``-mfunction-return=`` locally
+  for individual functions.
+* ``__attribute__((function_return("thunk-extern")))`` to replace returns with
+  jumps, while NOT emitting the thunk.
+
+The values ``thunk`` and ``thunk-inline`` from GCC are not supported.
+
+The symbol used for ``thunk-extern`` is target specific:
+* X86: ``__x86_return_thunk``
+
+As such, this function attribute is currently only supported on X86 targets.
   }];
 }

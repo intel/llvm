@@ -68,7 +68,7 @@ LogicalResult ScalarOpToLibmCall<Op, TypeResolver>::matchAndRewrite(
     Op op, PatternRewriter &rewriter) const {
   auto module = SymbolTable::getNearestSymbolTable(op);
   auto isDouble = TypeResolver()(op.getType());
-  if (!isDouble.hasValue())
+  if (!isDouble.has_value())
     return failure();
 
   auto name = isDouble.value() ? doubleFunc : floatFunc;
@@ -107,6 +107,8 @@ void mlir::populateComplexToLibmConversionPatterns(RewritePatternSet &patterns,
                                                    "csinf", "csin", benefit);
   patterns.add<ScalarOpToLibmCall<complex::ConjOp>>(patterns.getContext(),
                                                     "conjf", "conj", benefit);
+  patterns.add<ScalarOpToLibmCall<complex::LogOp>>(patterns.getContext(),
+                                                   "clogf", "clog", benefit);
   patterns.add<ScalarOpToLibmCall<complex::AbsOp, FloatTypeResolver>>(
       patterns.getContext(), "cabsf", "cabs", benefit);
   patterns.add<ScalarOpToLibmCall<complex::AngleOp, FloatTypeResolver>>(

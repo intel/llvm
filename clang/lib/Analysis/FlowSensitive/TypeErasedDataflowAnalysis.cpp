@@ -47,11 +47,11 @@ public:
       : CFCtx(CFCtx), BlockToState(BlockToState) {}
 
   const Environment *getEnvironment(const Stmt &S) const override {
-    auto BlockIT = CFCtx.getStmtToBlock().find(&ignoreCFGOmittedNodes(S));
-    assert(BlockIT != CFCtx.getStmtToBlock().end());
-    const auto &State = BlockToState[BlockIT->getSecond()->getBlockID()];
+    auto BlockIt = CFCtx.getStmtToBlock().find(&ignoreCFGOmittedNodes(S));
+    assert(BlockIt != CFCtx.getStmtToBlock().end());
+    const auto &State = BlockToState[BlockIt->getSecond()->getBlockID()];
     assert(State);
-    return &State.getValue().Env;
+    return &State.value().Env;
   }
 
 private:
@@ -74,8 +74,9 @@ static int blockIndexInPredecessor(const CFGBlock &Pred,
 class TerminatorVisitor : public ConstStmtVisitor<TerminatorVisitor> {
 public:
   TerminatorVisitor(const StmtToEnvMap &StmtToEnv, Environment &Env,
-                    int BlockSuccIdx)
-      : StmtToEnv(StmtToEnv), Env(Env), BlockSuccIdx(BlockSuccIdx) {}
+                    int BlockSuccIdx, TransferOptions TransferOpts)
+      : StmtToEnv(StmtToEnv), Env(Env), BlockSuccIdx(BlockSuccIdx),
+        TransferOpts(TransferOpts) {}
 
   void VisitIfStmt(const IfStmt *S) {
     auto *Cond = S->getCond();
@@ -118,7 +119,7 @@ private:
   void extendFlowCondition(const Expr &Cond) {
     // The terminator sub-expression might not be evaluated.
     if (Env.getStorageLocation(Cond, SkipPast::None) == nullptr)
-      transfer(StmtToEnv, Cond, Env);
+      transfer(StmtToEnv, Cond, Env, TransferOpts);
 
     // FIXME: The flow condition must be an r-value, so `SkipPast::None` should
     // suffice.
@@ -150,6 +151,7 @@ private:
   const StmtToEnvMap &StmtToEnv;
   Environment &Env;
   int BlockSuccIdx;
+  TransferOptions TransferOpts;
 };
 
 /// Computes the input state for a given basic block by joining the output
@@ -212,12 +214,13 @@ static TypeErasedDataflowAnalysisState computeBlockInputState(
     if (!MaybePredState)
       continue;
 
-    TypeErasedDataflowAnalysisState PredState = MaybePredState.getValue();
+    TypeErasedDataflowAnalysisState PredState = MaybePredState.value();
     if (ApplyBuiltinTransfer) {
       if (const Stmt *PredTerminatorStmt = Pred->getTerminatorStmt()) {
         const StmtToEnvMapImpl StmtToEnv(CFCtx, BlockStates);
         TerminatorVisitor(StmtToEnv, PredState.Env,
-                          blockIndexInPredecessor(*Pred, Block))
+                          blockIndexInPredecessor(*Pred, Block),
+                          Analysis.builtinTransferOptions())
             .Visit(PredTerminatorStmt);
       }
     }
@@ -253,7 +256,8 @@ static void transferCFGStmt(
   assert(S != nullptr);
 
   if (Analysis.applyBuiltinTransfer())
-    transfer(StmtToEnvMapImpl(CFCtx, BlockStates), *S, State.Env);
+    transfer(StmtToEnvMapImpl(CFCtx, BlockStates), *S, State.Env,
+             Analysis.builtinTransferOptions());
   Analysis.transferTypeErased(S, State.Lattice, State.Env);
 
   if (HandleTransferredStmt != nullptr)
@@ -370,7 +374,7 @@ runTypeErasedDataflowAnalysis(
         transferBlock(CFCtx, BlockStates, *Block, InitEnv, Analysis);
 
     if (OldBlockState &&
-        Analysis.isEqualTypeErased(OldBlockState.getValue().Lattice,
+        Analysis.isEqualTypeErased(OldBlockState.value().Lattice,
                                    NewBlockState.Lattice) &&
         OldBlockState->Env.equivalentTo(NewBlockState.Env, Analysis)) {
       // The state of `Block` didn't change after transfer so there's no need to

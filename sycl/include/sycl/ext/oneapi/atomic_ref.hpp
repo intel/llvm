@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/atomic.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/atomic.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/sycl/detail/spirv.hpp>
-#include <CL/sycl/multi_ptr.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/multi_ptr.hpp>
 #endif
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -28,10 +28,10 @@ namespace oneapi {
 namespace detail {
 
 // Import from detail:: into ext::oneapi::detail:: to improve readability later
-using namespace ::cl::sycl::detail;
+using namespace ::sycl::detail;
 
-using memory_order = cl::sycl::ext::oneapi::memory_order;
-using memory_scope = cl::sycl::ext::oneapi::memory_scope;
+using memory_order = sycl::ext::oneapi::memory_order;
+using memory_scope = sycl::ext::oneapi::memory_scope;
 
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
@@ -43,7 +43,7 @@ template <typename T> struct IsValidAtomicRefType {
        std::is_pointer<T>::value);
 };
 
-template <cl::sycl::access::address_space AS>
+template <sycl::access::address_space AS>
 using IsValidAtomicAddressSpace =
     bool_constant<AS == access::address_space::global_space ||
                   AS == access::address_space::local_space ||

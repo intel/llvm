@@ -128,33 +128,41 @@ public:
 
     m_s.Format("    {0}: ", item.id);
 
-    if (m_options.show_tsc) {
-      m_s << "[tsc=";
-
-      if (item.tsc)
-        m_s.Format("{0}", *item.tsc);
-      else
-        m_s << "unavailable";
-
-      m_s << "] ";
+    if (m_options.show_timestamps) {
+      m_s.Format("[{0}] ", item.timestamp
+                               ? formatv("{0:3} ns", *item.timestamp).str()
+                               : "unavailable");
     }
 
     if (item.event) {
       m_s << "(event) " << TraceCursor::EventKindToString(*item.event);
+      switch (*item.event) {
+      case eTraceEventCPUChanged:
+        m_s.Format(" [new CPU={0}]",
+                   item.cpu_id ? std::to_string(*item.cpu_id) : "unavailable");
+        break;
+      case eTraceEventHWClockTick:
+        m_s.Format(" [{0}]", item.hw_clock ? std::to_string(*item.hw_clock)
+                                           : "unavailable");
+        break;
+      case eTraceEventDisabledHW:
+      case eTraceEventDisabledSW:
+        break;
+      }
     } else if (item.error) {
       m_s << "(error) " << *item.error;
     } else {
       m_s.Format("{0:x+16}", item.load_address);
-      if (item.symbol_info) {
+      if (item.symbol_info && item.symbol_info->instruction) {
         m_s << "    ";
-        item.symbol_info->instruction->Dump(&m_s, /*max_opcode_byte_size=*/0,
-                                            /*show_address=*/false,
-                                            /*show_bytes=*/false,
-                                            &item.symbol_info->exe_ctx,
-                                            &item.symbol_info->sc,
-                                            /*prev_sym_ctx=*/nullptr,
-                                            /*disassembly_addr_format=*/nullptr,
-                                            /*max_address_text_size=*/0);
+        item.symbol_info->instruction->Dump(
+            &m_s, /*max_opcode_byte_size=*/0,
+            /*show_address=*/false,
+            /*show_bytes=*/false, m_options.show_control_flow_kind,
+            &item.symbol_info->exe_ctx, &item.symbol_info->sc,
+            /*prev_sym_ctx=*/nullptr,
+            /*disassembly_addr_format=*/nullptr,
+            /*max_address_text_size=*/0);
       }
     }
 
@@ -172,22 +180,26 @@ class OutputWriterJSON : public TraceDumper::OutputWriter {
   /* schema:
     error_message: string
     | {
+      "event": string,
       "id": decimal,
       "tsc"?: string decimal,
-      "event": string
+      "cpuId"? decimal,
     } | {
-      "id": decimal,
-      "tsc"?: string decimal,
       "error": string,
-    | {
       "id": decimal,
       "tsc"?: string decimal,
+    | {
+      "loadAddress": string decimal,
+      "id": decimal,
+      "hwClock"?: string decimal,
+      "timestamp_ns"?: string decimal,
       "module"?: string,
       "symbol"?: string,
       "line"?: decimal,
       "column"?: decimal,
       "source"?: string,
       "mnemonic"?: string,
+      "controlFlowKind"?: string,
     }
   */
 public:
@@ -200,46 +212,69 @@ public:
 
   ~OutputWriterJSON() { m_j.arrayEnd(); }
 
+  void DumpEvent(const TraceDumper::TraceItem &item) {
+    m_j.attribute("event", TraceCursor::EventKindToString(*item.event));
+    switch (*item.event) {
+    case eTraceEventCPUChanged:
+      m_j.attribute("cpuId", item.cpu_id);
+      break;
+    case eTraceEventHWClockTick:
+      m_j.attribute("hwClock", item.hw_clock);
+      break;
+    case eTraceEventDisabledHW:
+    case eTraceEventDisabledSW:
+      break;
+    }
+  }
+
+  void DumpInstruction(const TraceDumper::TraceItem &item) {
+    m_j.attribute("loadAddress", formatv("{0:x}", item.load_address));
+    if (item.symbol_info) {
+      m_j.attribute("module", ToOptionalString(GetModuleName(item)));
+      m_j.attribute(
+          "symbol",
+          ToOptionalString(item.symbol_info->sc.GetFunctionName().AsCString()));
+
+      if (lldb::InstructionSP instruction = item.symbol_info->instruction) {
+        ExecutionContext exe_ctx = item.symbol_info->exe_ctx;
+        m_j.attribute("mnemonic",
+                      ToOptionalString(instruction->GetMnemonic(&exe_ctx)));
+        if (m_options.show_control_flow_kind) {
+          lldb::InstructionControlFlowKind instruction_control_flow_kind =
+              instruction->GetControlFlowKind(&exe_ctx);
+          m_j.attribute("controlFlowKind",
+                        ToOptionalString(
+                            Instruction::GetNameForInstructionControlFlowKind(
+                                instruction_control_flow_kind)));
+        }
+      }
+
+      if (IsLineEntryValid(item.symbol_info->sc.line_entry)) {
+        m_j.attribute(
+            "source",
+            ToOptionalString(
+                item.symbol_info->sc.line_entry.file.GetPath().c_str()));
+        m_j.attribute("line", item.symbol_info->sc.line_entry.line);
+        m_j.attribute("column", item.symbol_info->sc.line_entry.column);
+      }
+    }
+  }
+
   void TraceItem(const TraceDumper::TraceItem &item) override {
     m_j.object([&] {
       m_j.attribute("id", item.id);
-      if (m_options.show_tsc)
-        m_j.attribute(
-            "tsc",
-            item.tsc ? Optional<std::string>(std::to_string(*item.tsc)) : None);
+      if (m_options.show_timestamps)
+        m_j.attribute("timestamp_ns", item.timestamp
+                                          ? Optional<std::string>(
+                                                std::to_string(*item.timestamp))
+                                          : None);
 
       if (item.event) {
-        m_j.object([&] {
-          m_j.attribute("event", TraceCursor::EventKindToString(*item.event));
-        });
-        return;
-      }
-
-      if (item.error) {
+        DumpEvent(item);
+      } else if (item.error) {
         m_j.attribute("error", *item.error);
-        return;
-      }
-
-      // we know we are seeing an actual instruction
-      m_j.attribute("loadAddress", formatv("{0:x}", item.load_address));
-      if (item.symbol_info) {
-        m_j.attribute("module", ToOptionalString(GetModuleName(item)));
-        m_j.attribute("symbol",
-                      ToOptionalString(
-                          item.symbol_info->sc.GetFunctionName().AsCString()));
-        m_j.attribute(
-            "mnemonic",
-            ToOptionalString(item.symbol_info->instruction->GetMnemonic(
-                &item.symbol_info->exe_ctx)));
-
-        if (IsLineEntryValid(item.symbol_info->sc.line_entry)) {
-          m_j.attribute(
-              "source",
-              ToOptionalString(
-                  item.symbol_info->sc.line_entry.file.GetPath().c_str()));
-          m_j.attribute("line", item.symbol_info->sc.line_entry.line);
-          m_j.attribute("column", item.symbol_info->sc.line_entry.column);
-        }
+      } else {
+        DumpInstruction(item);
       }
     });
   }
@@ -281,11 +316,11 @@ TraceDumper::TraceDumper(lldb::TraceCursorUP &&cursor_up, Stream &s,
 }
 
 TraceDumper::TraceItem TraceDumper::CreatRawTraceItem() {
-  TraceItem item;
+  TraceItem item = {};
   item.id = m_cursor_up->GetId();
 
-  if (m_options.show_tsc)
-    item.tsc = m_cursor_up->GetCounter(lldb::eTraceCounterTSC);
+  if (m_options.show_timestamps)
+    item.timestamp = m_cursor_up->GetWallClockTime();
   return item;
 }
 
@@ -361,6 +396,17 @@ Optional<lldb::user_id_t> TraceDumper::DumpInstructions(size_t count) {
       if (!m_options.show_events)
         continue;
       item.event = m_cursor_up->GetEventType();
+      switch (*item.event) {
+      case eTraceEventCPUChanged:
+        item.cpu_id = m_cursor_up->GetCPU();
+        break;
+      case eTraceEventHWClockTick:
+        item.hw_clock = m_cursor_up->GetHWClock();
+        break;
+      case eTraceEventDisabledHW:
+      case eTraceEventDisabledSW:
+        break;
+      }
     } else if (m_cursor_up->IsError()) {
       item.error = m_cursor_up->GetError();
     } else {

@@ -29,13 +29,13 @@ void OptionalWorksInConstexpr() {
   constexpr Optional<int> x2{};
   static_assert(!x1.has_value() && !x2.has_value(),
                 "Default construction and hasValue() are contexpr");
-  static_assert(!x1.hasValue() && !x2.hasValue(),
+  static_assert(!x1.has_value() && !x2.has_value(),
                 "Default construction and hasValue() are contexpr");
   constexpr auto y1 = Optional<int>(3);
   constexpr Optional<int> y2{3};
   static_assert(y1.value() == y2.value() && y1.value() == 3,
                 "Construction with value and getValue() are constexpr");
-  static_assert(y1.getValue() == y2.getValue() && y1.getValue() == 3,
+  static_assert(y1.value() == y2.value() && y1.value() == 3,
                 "Construction with value and getValue() are constexpr");
   static_assert(Optional<int>{3} >= 2 && Optional<int>{1} < Optional<int>{2},
                 "Comparisons work in constexpr");
@@ -210,11 +210,9 @@ TEST(OptionalTest, InPlaceConstructionNonDefaultConstructibleTest) {
 TEST(OptionalTest, GetValueOr) {
   Optional<int> A;
   EXPECT_EQ(42, A.value_or(42));
-  EXPECT_EQ(42, A.getValueOr(42));
 
   A = 5;
   EXPECT_EQ(5, A.value_or(42));
-  EXPECT_EQ(5, A.getValueOr(42));
 }
 
 struct MultiArgConstructor {
@@ -252,14 +250,14 @@ TEST(OptionalTest, Emplace) {
   
   A.emplace(1, 2);
   EXPECT_TRUE(A.has_value());
-  EXPECT_TRUE(A.hasValue());
+  EXPECT_TRUE(A.has_value());
   EXPECT_EQ(1, A->x);
   EXPECT_EQ(2, A->y);
   EXPECT_EQ(0u, MultiArgConstructor::Destructions);
 
   A.emplace(5, false);
   EXPECT_TRUE(A.has_value());
-  EXPECT_TRUE(A.hasValue());
+  EXPECT_TRUE(A.has_value());
   EXPECT_EQ(5, A->x);
   EXPECT_EQ(-5, A->y);
   EXPECT_EQ(1u, MultiArgConstructor::Destructions);
@@ -270,12 +268,12 @@ TEST(OptionalTest, InPlaceConstructionMultiArgConstructorTest) {
   {
     Optional<MultiArgConstructor> A{in_place, 1, 2};
     EXPECT_TRUE(A.has_value());
-    EXPECT_TRUE(A.hasValue());
+    EXPECT_TRUE(A.has_value());
     EXPECT_EQ(1, A->x);
     EXPECT_EQ(2, A->y);
     Optional<MultiArgConstructor> B{in_place, 5, false};
     EXPECT_TRUE(B.has_value());
-    EXPECT_TRUE(B.hasValue());
+    EXPECT_TRUE(B.has_value());
     EXPECT_EQ(5, B->x);
     EXPECT_EQ(-5, B->y);
     EXPECT_EQ(0u, MultiArgConstructor::Destructions);
@@ -600,23 +598,6 @@ TEST(OptionalTest, MoveValueOr) {
   A = MoveOnly(5);
   MoveOnly::ResetCounts();
   EXPECT_EQ(5, std::move(A).value_or(MoveOnly(42)).val);
-  EXPECT_EQ(1u, MoveOnly::MoveConstructions);
-  EXPECT_EQ(0u, MoveOnly::MoveAssignments);
-  EXPECT_EQ(2u, MoveOnly::Destructions);
-}
-
-TEST(OptionalTest, MoveGetValueOr) {
-  Optional<MoveOnly> A;
-
-  MoveOnly::ResetCounts();
-  EXPECT_EQ(42, std::move(A).getValueOr(MoveOnly(42)).val);
-  EXPECT_EQ(1u, MoveOnly::MoveConstructions);
-  EXPECT_EQ(0u, MoveOnly::MoveAssignments);
-  EXPECT_EQ(2u, MoveOnly::Destructions);
-
-  A = MoveOnly(5);
-  MoveOnly::ResetCounts();
-  EXPECT_EQ(5, std::move(A).getValueOr(MoveOnly(42)).val);
   EXPECT_EQ(1u, MoveOnly::MoveConstructions);
   EXPECT_EQ(0u, MoveOnly::MoveAssignments);
   EXPECT_EQ(2u, MoveOnly::Destructions);

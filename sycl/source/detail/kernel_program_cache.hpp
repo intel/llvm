@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/locked.hpp>
-#include <CL/sycl/detail/os_util.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/detail/util.hpp>
 #include <detail/platform_impl.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/locked.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/util.hpp>
 
 #include <atomic>
 #include <condition_variable>
@@ -30,7 +30,7 @@ namespace detail {
 class context_impl;
 class KernelProgramCache {
 public:
-  /// Denotes build error data. The data is filled in from cl::sycl::exception
+  /// Denotes build error data. The data is filled in from sycl::exception
   /// class instance.
   struct BuildError {
     std::string Msg;

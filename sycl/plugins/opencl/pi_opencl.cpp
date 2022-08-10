@@ -16,14 +16,14 @@
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/pi.h>
 #include <pi_opencl.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/pi.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <sstream>

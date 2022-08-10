@@ -8,14 +8,14 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include "CL/sycl/detail/pi.h"
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
-#include <CL/sycl.hpp>
+#include "sycl/detail/pi.h"
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -26,12 +26,12 @@ using namespace sycl;
 
 class TestKernel {
 public:
-  void operator()(cl::sycl::item<1>){};
+  void operator()(sycl::item<1>){};
 };
 
 class TestKernel2 {
 public:
-  void operator()(cl::sycl::item<1>){};
+  void operator()(sycl::item<1>){};
 };
 
 __SYCL_INLINE_NAMESPACE(cl) {

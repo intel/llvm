@@ -59,7 +59,7 @@ module.exports = ({core, process}) => {
             "ghcr.io/intel/llvm/ubuntu2004_base:latest");
       }
 
-      core.setOutput('lts', ltsString);
+      core.setOutput('lts_matrix', ltsString);
 
       const ctsConfigs = inputs.cts_config.split(';');
 
@@ -96,7 +96,7 @@ module.exports = ({core, process}) => {
             "ghcr.io/intel/llvm/ubuntu2004_base:latest");
       }
 
-      core.setOutput('cts', ctsString);
+      core.setOutput('cts_matrix', ctsString);
     }
   });
 }

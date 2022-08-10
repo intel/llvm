@@ -84,7 +84,7 @@ void IntegerRangeAnalysis::visitOperation(
     auto result = v.dyn_cast<OpResult>();
     if (!result)
       return;
-    assert(llvm::find(op->getResults(), result) != op->result_end());
+    assert(llvm::is_contained(op->getResults(), result));
 
     LLVM_DEBUG(llvm::dbgs() << "Inferred range " << attrs << "\n");
     IntegerValueRangeLattice *lattice = results[result.getResultNumber()];
@@ -101,7 +101,7 @@ void IntegerRangeAnalysis::visitOperation(
     bool isYieldedResult = llvm::any_of(v.getUsers(), [](Operation *op) {
       return op->hasTrait<OpTrait::IsTerminator>();
     });
-    if (isYieldedResult && oldRange.hasValue() &&
+    if (isYieldedResult && oldRange.has_value() &&
         !(lattice->getValue() == *oldRange)) {
       LLVM_DEBUG(llvm::dbgs() << "Loop variant loop result detected\n");
       changed |= lattice->markPessimisticFixpoint();
@@ -126,8 +126,7 @@ void IntegerRangeAnalysis::visitNonControlFlowArguments(
       auto arg = v.dyn_cast<BlockArgument>();
       if (!arg)
         return;
-      if (llvm::find(successor.getSuccessor()->getArguments(), arg) ==
-          successor.getSuccessor()->args_end())
+      if (!llvm::is_contained(successor.getSuccessor()->getArguments(), arg))
         return;
 
       LLVM_DEBUG(llvm::dbgs() << "Inferred range " << attrs << "\n");
@@ -162,7 +161,7 @@ void IntegerRangeAnalysis::visitNonControlFlowArguments(
   auto getLoopBoundFromFold = [&](Optional<OpFoldResult> loopBound,
                                   Type boundType, bool getUpper) {
     unsigned int width = ConstantIntRanges::getStorageBitwidth(boundType);
-    if (loopBound.hasValue()) {
+    if (loopBound.has_value()) {
       if (loopBound->is<Attribute>()) {
         if (auto bound =
                 loopBound->get<Attribute>().dyn_cast_or_null<IntegerAttr>())

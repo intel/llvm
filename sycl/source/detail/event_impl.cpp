@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/device_selector.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
 #include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <sycl/context.hpp>
+#include <sycl/device_selector.hpp>
 
 #include "detail/config.hpp"
 
@@ -138,7 +138,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
       MHostEvent(false), MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_ERROR_INVALID_CONTEXT);
@@ -149,7 +149,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
                                               sizeof(RT::PiContext),
                                               &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw cl::sycl::invalid_parameter_error(
+    throw sycl::invalid_parameter_error(
         "The syclContext must match the OpenCL context associated with the "
         "clEvent.",
         PI_ERROR_INVALID_CONTEXT);
@@ -223,7 +223,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
-void event_impl::wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -250,7 +250,7 @@ void event_impl::wait(std::shared_ptr<cl::sycl::detail::event_impl> Self) {
 }
 
 void event_impl::wait_and_throw(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+    std::shared_ptr<sycl::detail::event_impl> Self) {
   Scheduler &Sched = Scheduler::getInstance();
 
   QueueImplPtr submittedQueue = nullptr;
@@ -275,7 +275,7 @@ void event_impl::wait_and_throw(
 }
 
 void event_impl::cleanupCommand(
-    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+    std::shared_ptr<sycl::detail::event_impl> Self) const {
   if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
     detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
@@ -294,9 +294,8 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<
-          info::event_profiling::command_submit>::get(this->getHandleRef(),
-                                                      this->getPlugin());
+      return get_event_profiling_info<info::event_profiling::command_submit>(
+          this->getHandleRef(), this->getPlugin());
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -311,9 +310,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<
-          info::event_profiling::command_start>::get(this->getHandleRef(),
-                                                     this->getPlugin());
+      return get_event_profiling_info<info::event_profiling::command_start>(
+          this->getHandleRef(), this->getPlugin());
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -327,7 +325,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_end>::get(
+      return get_event_profiling_info<info::event_profiling::command_end>(
           this->getHandleRef(), this->getPlugin());
     return 0;
   }
@@ -339,8 +337,8 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
   if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::reference_count>::get(
-        this->getHandleRef(), this->getPlugin());
+    return get_event_info<info::event::reference_count>(this->getHandleRef(),
+                                                        this->getPlugin());
   }
   return 0;
 }
@@ -352,7 +350,7 @@ event_impl::get_info<info::event::command_execution_status>() {
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MHostEvent && MEvent) {
-    return get_event_info<info::event::command_execution_status>::get(
+    return get_event_info<info::event::command_execution_status>(
         this->getHandleRef(), this->getPlugin());
   }
   return MHostEvent && MState.load() != HES_Complete

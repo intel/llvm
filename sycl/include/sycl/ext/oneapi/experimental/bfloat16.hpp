@@ -9,7 +9,7 @@
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
-#include <CL/sycl/half_type.hpp>
+#include <sycl/half_type.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

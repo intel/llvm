@@ -114,6 +114,7 @@ void ExternalFileUnit::OpenUnit(std::optional<OpenStatus> status,
     // Otherwise, OPEN on open unit with new FILE= implies CLOSE
     DoImpliedEndfile(handler);
     FlushOutput(handler);
+    TruncateFrame(0, handler);
     Close(CloseStatus::Keep, handler);
   }
   if (newPath.get() && newPathLength > 0) {
@@ -898,9 +899,9 @@ void ExternalFileUnit::DoEndfile(IoErrorHandler &handler) {
   }
   frameOffsetInFile_ += recordOffsetInFrame_ + furthestPositionInRecord;
   recordOffsetInFrame_ = 0;
-  // Flush (if dirty) and reset the frame (even if reading)
-  WriteFrame(frameOffsetInFile_, 0, handler);
+  FlushOutput(handler);
   Truncate(frameOffsetInFile_, handler);
+  TruncateFrame(frameOffsetInFile_, handler);
   BeginRecord();
   impliedEndfile_ = false;
 }

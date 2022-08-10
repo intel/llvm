@@ -69,7 +69,7 @@ public:
     }
     if (static_cast<int>(Indent) + Offset >= 0)
       Indent += Offset;
-    if (Line.First->is(TT_CSharpGenericTypeConstraint))
+    if (Line.IsContinuation)
       Indent = Line.Level * Style.IndentWidth + Style.ContinuationIndentWidth;
   }
 
@@ -1132,7 +1132,7 @@ private:
   typedef std::pair<OrderedPenalty, StateNode *> QueueItem;
 
   /// The BFS queue type.
-  typedef std::priority_queue<QueueItem, std::vector<QueueItem>,
+  typedef std::priority_queue<QueueItem, SmallVector<QueueItem>,
                               std::greater<QueueItem>>
       QueueType;
 

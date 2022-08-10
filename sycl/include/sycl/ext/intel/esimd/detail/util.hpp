@@ -12,7 +12,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #include <type_traits>

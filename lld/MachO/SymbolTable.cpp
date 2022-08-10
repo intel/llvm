@@ -117,6 +117,13 @@ Defined *SymbolTable::addDefined(StringRef name, InputFile *file,
   return defined;
 }
 
+Defined *SymbolTable::aliasDefined(Defined *src, StringRef target) {
+  return addDefined(target, src->getFile(), src->isec, src->value, src->size,
+                    src->isWeakDef(), src->privateExtern, src->thumb,
+                    src->referencedDynamically, src->noDeadStrip,
+                    src->weakDefCanBeHidden);
+}
+
 Symbol *SymbolTable::addUndefined(StringRef name, InputFile *file,
                                   bool isWeakRef) {
   Symbol *s;
@@ -331,6 +338,10 @@ static bool recoverFromUndefinedSymbol(const Undefined &sym) {
     handleSegmentBoundarySymbol(sym, name, Boundary::End);
     return true;
   }
+
+  // Leave dtrace symbols, since we will handle them when we do the relocation
+  if (name.startswith("___dtrace_"))
+    return true;
 
   // Handle -U.
   if (config->explicitDynamicLookups.count(sym.getName())) {

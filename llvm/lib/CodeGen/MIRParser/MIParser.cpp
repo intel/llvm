@@ -742,7 +742,7 @@ bool MIParser::parseBasicBlockDefinition(
   MBB->setIsInlineAsmBrIndirectTarget(IsInlineAsmBrIndirectTarget);
   MBB->setIsEHFuncletEntry(IsEHFuncletEntry);
   if (SectionID) {
-    MBB->setSectionID(SectionID.getValue());
+    MBB->setSectionID(SectionID.value());
     MF.setBBSectionsType(BasicBlockSection::List);
   }
   return false;
@@ -3383,7 +3383,7 @@ static void initSlots2BasicBlocks(
     DenseMap<unsigned, const BasicBlock *> &Slots2BasicBlocks) {
   ModuleSlotTracker MST(F.getParent(), /*ShouldInitializeAllMetadata=*/false);
   MST.incorporateFunction(F);
-  for (auto &BB : F) {
+  for (const auto &BB : F) {
     if (BB.hasName())
       continue;
     int Slot = MST.getLocalSlot(&BB);

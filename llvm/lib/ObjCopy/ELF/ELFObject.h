@@ -115,13 +115,13 @@ public:
   Error visit(const OwnedDataSection &Sec) override;
   Error visit(const StringTableSection &Sec) override;
   Error visit(const DynamicRelocationSection &Sec) override;
-  virtual Error visit(const SymbolTableSection &Sec) override = 0;
-  virtual Error visit(const RelocationSection &Sec) override = 0;
-  virtual Error visit(const GnuDebugLinkSection &Sec) override = 0;
-  virtual Error visit(const GroupSection &Sec) override = 0;
-  virtual Error visit(const SectionIndexSection &Sec) override = 0;
-  virtual Error visit(const CompressedSection &Sec) override = 0;
-  virtual Error visit(const DecompressedSection &Sec) override = 0;
+  Error visit(const SymbolTableSection &Sec) override = 0;
+  Error visit(const RelocationSection &Sec) override = 0;
+  Error visit(const GnuDebugLinkSection &Sec) override = 0;
+  Error visit(const GroupSection &Sec) override = 0;
+  Error visit(const SectionIndexSection &Sec) override = 0;
+  Error visit(const CompressedSection &Sec) override = 0;
+  Error visit(const DecompressedSection &Sec) override = 0;
 
   explicit SectionWriter(WritableMemoryBuffer &Buf) : Out(Buf) {}
 };
@@ -536,19 +536,21 @@ public:
 class CompressedSection : public SectionBase {
   MAKE_SEC_WRITER_FRIEND
 
+  uint32_t ChType = 0;
   DebugCompressionType CompressionType;
   uint64_t DecompressedSize;
   uint64_t DecompressedAlign;
-  SmallVector<char, 128> CompressedData;
+  SmallVector<uint8_t, 128> CompressedData;
 
 public:
   CompressedSection(const SectionBase &Sec,
                     DebugCompressionType CompressionType);
-  CompressedSection(ArrayRef<uint8_t> CompressedData, uint64_t DecompressedSize,
-                    uint64_t DecompressedAlign);
+  CompressedSection(ArrayRef<uint8_t> CompressedData, uint32_t ChType,
+                    uint64_t DecompressedSize, uint64_t DecompressedAlign);
 
   uint64_t getDecompressedSize() const { return DecompressedSize; }
   uint64_t getDecompressedAlign() const { return DecompressedAlign; }
+  uint64_t getChType() const { return ChType; }
 
   Error accept(SectionVisitor &Visitor) const override;
   Error accept(MutableSectionVisitor &Visitor) override;
@@ -562,8 +564,9 @@ class DecompressedSection : public SectionBase {
   MAKE_SEC_WRITER_FRIEND
 
 public:
+  uint32_t ChType;
   explicit DecompressedSection(const CompressedSection &Sec)
-      : SectionBase(Sec) {
+      : SectionBase(Sec), ChType(Sec.getChType()) {
     Size = Sec.getDecompressedSize();
     Align = Sec.getDecompressedAlign();
     Flags = OriginalFlags = (Flags & ~ELF::SHF_COMPRESSED);

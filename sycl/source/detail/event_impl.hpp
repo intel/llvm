@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cl.h>
-#include <CL/sycl/detail/common.hpp>
-#include <CL/sycl/detail/host_profiling_info.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <CL/sycl/info/info_desc.hpp>
-#include <CL/sycl/stl.hpp>
 #include <detail/plugin.hpp>
+#include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/host_profiling_info.hpp>
+#include <sycl/detail/pi.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -27,11 +27,11 @@ class context;
 namespace detail {
 class plugin;
 class context_impl;
-using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
-using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class event_impl;
-using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -76,7 +76,7 @@ public:
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Waits for the event.
   ///
@@ -86,13 +86,13 @@ public:
   /// pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait_and_throw(std::shared_ptr<cl::sycl::detail::event_impl> Self);
+  void wait_and_throw(std::shared_ptr<sycl::detail::event_impl> Self);
 
   /// Clean up the command associated with the event. Assumes that the task this
   /// event is associated with has been completed.
   ///
   /// \param Self is a pointer to this event.
-  void cleanupCommand(std::shared_ptr<cl::sycl::detail::event_impl> Self) const;
+  void cleanupCommand(std::shared_ptr<sycl::detail::event_impl> Self) const;
 
   /// Queries this event for profiling information.
   ///
@@ -105,15 +105,12 @@ public:
   /// exception is thrown.
   ///
   /// \return depends on template parameter.
-  template <info::event_profiling param>
-  typename info::param_traits<info::event_profiling, param>::return_type
-  get_profiling_info();
+  template <typename Param> typename Param::return_type get_profiling_info();
 
   /// Queries this SYCL event for information.
   ///
   /// \return depends on the information being requested.
-  template <info::event param>
-  typename info::param_traits<info::event, param>::return_type get_info();
+  template <typename Param> typename Param::return_type get_info();
 
   ~event_impl();
 
@@ -264,8 +261,8 @@ private:
   std::condition_variable cv;
 
   friend std::vector<RT::PiEvent>
-  getOrWaitEvents(std::vector<cl::sycl::event> DepEvents,
-                  std::shared_ptr<cl::sycl::detail::context_impl> Context);
+  getOrWaitEvents(std::vector<sycl::event> DepEvents,
+                  std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail

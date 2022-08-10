@@ -10,11 +10,11 @@
 // in SYCL SPEC section - 4.13.7 Relational functions.
 
 #include "builtins_helper.hpp"
-#include <CL/sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/stl_type_traits.hpp>
 
 #include <cmath>
 
-namespace s = cl::sycl;
+namespace s = sycl;
 namespace d = s::detail;
 
 __SYCL_INLINE_NAMESPACE(cl) {

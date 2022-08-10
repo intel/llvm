@@ -289,22 +289,22 @@ private:
   std::string Data;
 
   /// The parsed arch type.
-  ArchType Arch;
+  ArchType Arch{};
 
   /// The parsed subarchitecture type.
-  SubArchType SubArch;
+  SubArchType SubArch{};
 
   /// The parsed vendor type.
-  VendorType Vendor;
+  VendorType Vendor{};
 
   /// The parsed OS type.
-  OSType OS;
+  OSType OS{};
 
   /// The parsed Environment type.
-  EnvironmentType Environment;
+  EnvironmentType Environment{};
 
   /// The object format type.
-  ObjectFormatType ObjectFormat;
+  ObjectFormatType ObjectFormat{};
 
 public:
   /// @name Constructors
@@ -312,7 +312,7 @@ public:
 
   /// Default constructor is the same as an empty string and leaves all
   /// triple fields unknown.
-  Triple() : Arch(), SubArch(), Vendor(), OS(), Environment(), ObjectFormat() {}
+  Triple() = default;
 
   explicit Triple(const Twine &Str);
   Triple(const Twine &ArchStr, const Twine &VendorStr, const Twine &OSStr);

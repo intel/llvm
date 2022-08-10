@@ -25,24 +25,24 @@
 #define _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING                                   \
   _PI_PLUGIN_VERSION_STRING(_PI_LEVEL_ZERO_PLUGIN_VERSION)
 
-#include <CL/sycl/detail/pi.h>
 #include <atomic>
 #include <cassert>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <sycl/detail/pi.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include <level_zero/ze_api.h>
 #include <level_zero/zes_api.h>
+#include <sycl/detail/iostream_proxy.hpp>
 
 #include "usm_allocator.hpp"
 
@@ -274,7 +274,10 @@ template <class T> struct ZeCache : private T {
 // thread can reach ref count equal to zero, i.e. only a single thread can pass
 // through this check.
 struct ReferenceCounter {
-  ReferenceCounter(pi_uint32 InitVal) : RefCount{InitVal} {}
+  ReferenceCounter() : RefCount{1} {}
+
+  // Reset the counter to the initial value.
+  void reset() { RefCount = 1; }
 
   // Used when retaining an object.
   void increment() { RefCount++; }
@@ -306,7 +309,7 @@ private:
 
 // Base class to store common data
 struct _pi_object {
-  _pi_object() : RefCount{1} {}
+  _pi_object() : RefCount{} {}
 
   // Level Zero doesn't do the reference counting, so we have to do.
   // Must be atomic to prevent data race when incrementing/decrementing.
@@ -750,6 +753,12 @@ struct _pi_context : _pi_object {
   // when kernel has finished execution.
   std::unordered_map<void *, MemAllocRecord> MemAllocs;
 
+  // Get pi_event from cache.
+  pi_event getEventFromCache(bool HostVisible, bool WithProfiling);
+
+  // Add pi_event to cache.
+  void addEventToCache(pi_event);
+
 private:
   // If context contains one device then return this device.
   // If context contains sub-devices of the same device, then return this parent
@@ -798,6 +807,20 @@ private:
   // Mutex to control operations on event pool caches and the helper maps
   // holding the current pool usage counts.
   pi_mutex ZeEventPoolCacheMutex;
+
+  // Mutex to control operations on event caches.
+  pi_mutex EventCacheMutex;
+
+  // Caches for events.
+  std::vector<std::list<pi_event>> EventCaches{4};
+
+  // Get the cache of events for a provided scope and profiling mode.
+  auto getEventCache(bool HostVisible, bool WithProfiling) {
+    if (HostVisible)
+      return WithProfiling ? &EventCaches[0] : &EventCaches[1];
+    else
+      return WithProfiling ? &EventCaches[2] : &EventCaches[3];
+  }
 };
 
 struct _pi_queue : _pi_object {
@@ -953,6 +976,14 @@ struct _pi_queue : _pi_object {
   // For copy commands, IsCopy is set to 'true'.
   // For non-copy commands, IsCopy is set to 'false'.
   void adjustBatchSizeForPartialBatch(bool IsCopy);
+
+  // Helper function to create a new command-list to this queue and associated
+  // fence tracking its completion. This command list & fence are added to the
+  // map of command lists in this queue with ZeFenceInUse = false.
+  // The caller must hold a lock of the queue already.
+  pi_result
+  createCommandList(bool UseCopyEngine, pi_command_list_ptr_t &CommandList,
+                    ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
 
   // Resets the Command List and Associated fence in the ZeCommandListFenceMap.
   // If the reset command list should be made available, then MakeAvailable
@@ -1342,6 +1373,9 @@ struct _pi_event : _pi_object {
   // L0 event (if any) is not guranteed to have been signalled, or
   // being visible to the host at all.
   bool Completed = {false};
+
+  // Reset _pi_event object.
+  pi_result reset();
 };
 
 struct _pi_program : _pi_object {

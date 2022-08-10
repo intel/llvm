@@ -11,13 +11,22 @@ on:
     - .github/workflows/sycl_post_commit.yml
 
 jobs:
+  # This job generates matrix of tests for LLVM Test Suite
+  resolve_matrix:
+    name: Resolve Test Matrix
+    uses: ./.github/workflows/sycl_resolve_test_matrix.yml
+    with:
+      lts_config: "l0_gen9"
+      cts_config: "cuda"
   linux_default:
     name: Linux Default
+    needs: resolve_matrix
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
     with:
       build_cache_root: "/__w/llvm"
-      build_artifact_suffix: default
-      cts_config: "cuda"
+      build_artifact_suffix: "post_commit"
+      lts_matrix: ${{ needs.resolve_matrix.outputs.lts_matrix }}
+      cts_config: ${{ needs.resolve_matrix.outputs.cts_matrix }}
   linux_no_assert:
     name: Linux (no assert)
     uses: ./.github/workflows/sycl_linux_build_and_test.yml
