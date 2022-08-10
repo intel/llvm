@@ -49,9 +49,11 @@
 // NOTE that this results in a changed API for `piProgramGetBuildInfo`.
 // 10.12 Change enum value PI_MEM_ADVICE_UNKNOWN from 0 to 999, and set enum
 // PI_MEM_ADVISE_RESET to 0.
+// 10.13 Added new PI_EXT_ONEAPI_QUEUE_DISCARD_EVENTS_MODE_ENABLE queue
+// property.
 
 #define _PI_H_VERSION_MAJOR 10
-#define _PI_H_VERSION_MINOR 12
+#define _PI_H_VERSION_MINOR 13
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
