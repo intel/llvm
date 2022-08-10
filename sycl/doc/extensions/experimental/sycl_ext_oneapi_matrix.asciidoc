@@ -287,6 +287,8 @@ Also, note that `get_wi_data` cannot return a fixed size array length because th
 
 3- AMX has the flexibility of allowing variable sizes on the matrix (`dynamic_extent`).
 
+IMPORTANT: In the CUDA backend it is possible to know how many elements are owned by each WI at compile time and the SG size = 32 is known and fixed. In this case an second optional interface for performing element-wise operations allowing for more concise source code and in some cases performance benefits, but at the expense of not being portable to other backends, is provided in the next section.
+
 The code listing below shows a synopsis of these new APIs.
 
 ```c++
@@ -327,11 +329,9 @@ IMPORTANT: In the current implementation, only the subgroup scope is supported.
 
 IMPORTANT: The WI data to joint matrix mapping coordinates information is not implemented yet.
 
-IMPORTANT: In the CUDA backend it is possible to know how many elements are owned by each WI at compile time and the SG size = 32 is known and fixed. In this case an second optional interface for performing element-wise operations allowing for more concise source code and in some cases performance benefits, but at the expense of not being portable to other backends, is provided in the next section.
+##### `wi_data` as an `marray` in the Nvidia® Tensor Cores backend
 
-##### wi_data as an marray in the Nvidia® Tensor Cores backend
-
-In the Nvidia® Tensor Cores backend it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce a marray data member to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables Class 1 operations to be performed on the `joint_matrix` without requiring a loop. In addition some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL maths function, whose usage within the `joint_matrix` context is given in the following code snippet:
+In the Nvidia® Tensor Cores backend it is possible to know how many elements are owned by each WI at compile time. Due to this, in the CUDA backend we introduce an `marray` data member to the `joint_matrix` struct representing the WI portion of the `joint_matrix` owned by each local work item. This enables Class 1 operations to be performed on the `joint_matrix` without requiring a loop. In addition some math functions are optimized for marrays using vectorized instructions. An example is the `fma` SYCL math function, whose usage within the `joint_matrix` context is given in the following code snippet:
 
 ```c++
 joint_matrix<T, matrix_use::a, M, K> sub_a;
