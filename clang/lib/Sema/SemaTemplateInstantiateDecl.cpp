@@ -1607,13 +1607,6 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
                          diag::err_sycl_device_global_incorrect_scope);
             return nullptr;
           }
-          if (auto decl = dyn_cast<Decl>(DC)) {
-            if (decl->getAccess() != AS_public) {
-              SemaRef.Diag(
-                  D->getLocation(),
-                  diag::err_sycl_device_global_not_publicly_accessible);
-            }
-          }
           DC = DC->getParent();
         }
       }

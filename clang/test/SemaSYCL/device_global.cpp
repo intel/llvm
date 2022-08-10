@@ -21,6 +21,7 @@ private:
   // expected-error@+1{{'device_global' member variable 'f' should be publicly accessible from namespace scope}}
   static device_global<int> f;
 };
+
 device_global<int> Baz::f;
 
 device_global<int[4]> not_array; // OK
@@ -50,6 +51,7 @@ namespace foo {
 struct BBar {
 private:
   struct BarInsider {
+    // expected-error@+1{{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
     static device_global<float> c;
   };
 };
@@ -78,8 +80,6 @@ private:
   static device_global<T> a;
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
   device_global<T> b;
-  // FIXME: Why are both messages emitted
-  // expected-error@+2 {{'device_global' member variable 'c' should be publicly accessible from namespace scope}}
   // expected-error@+1 {{'device_global' variables must be static or declared at namespace scope}}
   device_global<int> c;
 
