@@ -10,7 +10,7 @@
 // Check the expected output when queue::enable_profiling is not specified
 //
 // WITHOUT: ze_event_pool_desc_t flags set to: 1
-// WITHOUT: SYCL exception caught: get_profiling_info() can't be used without set 'enable_profiling' queue property
+// WITHOUT: SYCL exception caught: Profiling information is unavailable as the queue associated with the event does not have the 'enable_profiling' property.
 
 // Check the expected output when queue::enable_profiling is specified
 //
