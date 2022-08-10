@@ -345,7 +345,7 @@ StringRef CGDebugInfo::getClassName(const RecordDecl *RD) {
 Optional<llvm::DIFile::ChecksumKind>
 CGDebugInfo::computeChecksum(FileID FID, SmallString<32> &Checksum) const {
   Checksum.clear();
-
+  // THIS IS A TEST.
   if (!CGM.getCodeGenOpts().EmitCodeView &&
       CGM.getCodeGenOpts().DwarfVersion < 5)
     return None;
