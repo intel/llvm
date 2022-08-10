@@ -21,9 +21,6 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
   sycl::range<1> range(BUFFER_SIZE);
 
   auto Dev = Q.get_device();
-  const int MemAdvice = ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda)
-                             ? PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY
-                             : PI_MEM_ADVICE_UNKNOWN);
   int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(x != nullptr);
   int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
@@ -56,7 +53,7 @@ void QueueAPIsReturnDiscardedEvent(sycl::queue Q) {
       DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
       sycl::info::event_command_status::ext_oneapi_unknown);
 
-  DiscardedEvent = Q.mem_advise(y, BUFFER_SIZE * sizeof(int), MemAdvice);
+  DiscardedEvent = Q.mem_advise(y, BUFFER_SIZE * sizeof(int), 0);
   assert(
       DiscardedEvent.get_info<sycl::info::event::command_execution_status>() ==
       sycl::info::event_command_status::ext_oneapi_unknown);

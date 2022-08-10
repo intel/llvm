@@ -17,9 +17,6 @@ void TestQueueOperations(sycl::queue Q) {
   sycl::range<1> Range(BUFFER_SIZE);
   auto Dev = Q.get_device();
   auto Ctx = Q.get_context();
-  const int MemAdvice = ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda)
-                             ? PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY
-                             : PI_MEM_ADVICE_UNKNOWN);
   int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(x != nullptr);
   int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
@@ -38,7 +35,7 @@ void TestQueueOperations(sycl::queue Q) {
   CheckArray(Q, x, BUFFER_SIZE, 1);
 
   Q.prefetch(y, BUFFER_SIZE * sizeof(int));
-  Q.mem_advise(y, BUFFER_SIZE * sizeof(int), MemAdvice);
+  Q.mem_advise(y, BUFFER_SIZE * sizeof(int), 0);
   Q.ext_oneapi_submit_barrier();
 
   Q.single_task([=] {
@@ -71,9 +68,6 @@ void TestQueueOperationsViaSubmit(sycl::queue Q) {
   sycl::range<1> Range(BUFFER_SIZE);
   auto Dev = Q.get_device();
   auto Ctx = Q.get_context();
-  const int MemAdvice = ((Dev.get_backend() == sycl::backend::ext_oneapi_cuda)
-                             ? PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY
-                             : PI_MEM_ADVICE_UNKNOWN);
   int *x = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
   assert(x != nullptr);
   int *y = sycl::malloc_shared<int>(BUFFER_SIZE, Q);
@@ -96,7 +90,7 @@ void TestQueueOperationsViaSubmit(sycl::queue Q) {
   Q.submit(
       [&](sycl::handler &CGH) { CGH.prefetch(y, BUFFER_SIZE * sizeof(int)); });
   Q.submit([&](sycl::handler &CGH) {
-    CGH.mem_advise(y, BUFFER_SIZE * sizeof(int), MemAdvice);
+    CGH.mem_advise(y, BUFFER_SIZE * sizeof(int), 0);
   });
   Q.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_barrier(); });
 
