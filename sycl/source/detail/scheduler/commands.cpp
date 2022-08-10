@@ -950,7 +950,7 @@ AllocaSubBufCommand::AllocaSubBufCommand(QueueImplPtr Queue, Requirement Req,
                                          std::vector<Command *> &ToCleanUp)
     : AllocaCommandBase(CommandType::ALLOCA_SUB_BUF, std::move(Queue),
                         std::move(Req),
-                        /*LinkedAllocaCmd*/ nullptr),
+                        /*LinkedAllocaCmd*/ nullptr, /*IsConst*/ false),
       MParentAlloca(ParentAlloca) {
   // Node event must be created before the dependent edge
   // is added to this node, so this call must be before

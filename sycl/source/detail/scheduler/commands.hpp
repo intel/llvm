@@ -364,7 +364,7 @@ private:
 class AllocaCommandBase : public Command {
 public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
-                    AllocaCommandBase *LinkedAllocaCmd, bool IsConst = false);
+                    AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 

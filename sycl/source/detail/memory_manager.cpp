@@ -280,8 +280,7 @@ void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
   if (UserPtr)
     return UserPtr;
 
-  void *NewMem = MemObj->allocateHostMem();
-  return NewMem;
+  return MemObj->allocateHostMem();;
 }
 
 void *MemoryManager::allocateInteropMemObject(
