@@ -378,12 +378,15 @@ static const std::pair<int, int> getRangeOfAllowedComputeEngines() {
 static const std::pair<int, int>
 getRangeOfAllowedCopyEngines(pi_device &Device) {
   static const char *EnvVar = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  // If the environment variable is not set, only index 0 compute engine will be
-  // used when immediate commandlists are being used. For standard commandlists
-  // all are used.
-  if (!EnvVar)
-    return std::pair<int, int>(0, Device->UseImmediateCommandLists() ? 0
-                                                                     : INT_MAX);
+  // If the environment variable is not set, no copy engines are used when
+  // immediate commandlists are being used. For standard commandlists all are
+  // used.
+  if (!EnvVar) {
+    if (Device->UseImmediateCommandLists())
+      return std::pair<int, int>(-1 : -1);
+    else
+      return std::pair<int, int>(0, : INT_MAX);
+  }
   std::string CopyEngineRange = EnvVar;
   // Environment variable can be a single integer or a pair of integers
   // separated by ":"
