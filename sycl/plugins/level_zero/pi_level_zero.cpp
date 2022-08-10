@@ -383,9 +383,8 @@ getRangeOfAllowedCopyEngines(pi_device &Device) {
   // used.
   if (!EnvVar) {
     if (Device->UseImmediateCommandLists())
-      return std::pair<int, int>(-1 : -1);
-    else
-      return std::pair<int, int>(0, : INT_MAX);
+      return std::pair<int, int>(-1, -1);   // No copy engines can be used.
+    return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
   }
   std::string CopyEngineRange = EnvVar;
   // Environment variable can be a single integer or a pair of integers
