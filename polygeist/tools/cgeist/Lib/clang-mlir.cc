@@ -4829,9 +4829,9 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
   NamedAttrList attrs(function->getAttrDictionary());
   attrs.set("llvm.linkage",
             mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
-  //if (FD->hasAttr<SYCLHalideAttr>() && FD->hasAttr<SYCLKernelAttr>()) {
-  //  attrs.set("SYCLKernel", mlir::StringAttr::get(builder.getContext(), name));
-  //}
+  if (/*FD->hasAttr<SYCLHalideAttr>() && */ FD->hasAttr<SYCLKernelAttr>()) {
+    attrs.set("SYCLKernel", mlir::StringAttr::get(builder.getContext(), name));
+  }
   function->setAttrs(attrs.getDictionary(builder.getContext()));
 
   functions[name] = function;
@@ -5059,7 +5059,8 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
 
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
-        emitIfFound.count(name) /*|| fd->hasAttr<SYCLHalideAttr>()*/) {
+        emitIfFound.count(name) || fd->hasAttr<OpenCLKernelAttr>() ||
+        fd->hasAttr<SYCLDeviceAttr>()) {
       functionsToEmit.push_back(fd);
     } else {
     }

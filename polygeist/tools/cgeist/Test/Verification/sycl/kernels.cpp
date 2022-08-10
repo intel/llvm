@@ -27,7 +27,7 @@ class kernel_1 {
 public:
 	kernel_1(sycl::accessor<cl::sycl::cl_int, 1, sycl::access::mode::read_write> A) : A(A) {}
 
- [[intel::halide]] void operator()(sycl::id<1> id) const {
+  void operator()(sycl::id<1> id) const {
    A[id] = 42;
  }
 };
@@ -57,7 +57,7 @@ void host_2() {
     auto buf = sycl::buffer<int, 1>{nullptr, range};
     q.submit([&](sycl::handler &cgh) {
       auto A = buf.get_access<sycl::access::mode::read_write>(cgh);
-      cgh.parallel_for<class kernel_2>(range, [=](sycl::id<1> id) [[intel::halide]] {
+      cgh.parallel_for<class kernel_2>(range, [=](sycl::id<1> id) {
         A[id] = 42;
       });
     });
@@ -65,6 +65,6 @@ void host_2() {
 }
 
 // CHECK-NOT: SYCLKernel =
-[[intel::halide]] void function_1(sycl::item<2, true> item) {
+SYCL_EXTERNAL void function_1(sycl::item<2, true> item) {
   auto id = item.get_id(0);
 }

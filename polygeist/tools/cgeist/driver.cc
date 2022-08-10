@@ -645,7 +645,7 @@ int main(int argc, char **argv) {
         } else if (ref.startswith("-I")) {
           MLIRArgs.push_back("-I");
           MLIRArgs.push_back(&argv[i][2]);
-        } else if (ref == "-fintel-halide") {
+        } else if (ref == "-fsycl-is-device") {
           syclKernelsOnly = true;
           MLIRArgs.push_back(argv[i]);
         } else if (ref == "-g") {

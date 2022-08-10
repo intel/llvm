@@ -25,7 +25,7 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void method_1(sycl::item<2, true> item) {
+SYCL_EXTERNAL void method_1(sycl::item<2, true> item) {
   auto id = item.get_id(0);
 }
 
@@ -37,7 +37,7 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void method_2(sycl::item<2, true> item) {
+SYCL_EXTERNAL void method_2(sycl::item<2, true> item) {
   auto id = item.operator==(item);
 }
 
@@ -54,7 +54,7 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void op_1(sycl::id<2> a, sycl::id<2> b) {
+SYCL_EXTERNAL void op_1(sycl::id<2> a, sycl::id<2> b) {
   auto id = a == b;
 }
 
@@ -72,6 +72,6 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void static_1(sycl::id<2> a, sycl::id<2> b) {
+SYCL_EXTERNAL void static_1(sycl::id<2> a, sycl::id<2> b) {
   auto abs = sycl::abs(a.get(0) + a.get(1));
 }

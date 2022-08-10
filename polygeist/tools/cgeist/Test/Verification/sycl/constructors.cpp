@@ -28,7 +28,7 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void cons_1() {
+SYCL_EXTERNAL void cons_1() {
   auto id = sycl::id<2>{};
 }
 
@@ -39,7 +39,7 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void cons_2(size_t a, size_t b) {
+SYCL_EXTERNAL void cons_2(size_t a, size_t b) {
   auto id = sycl::id<2>{a, b};
 }
 
@@ -53,7 +53,7 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void cons_3(sycl::item<2, true> val) {
+SYCL_EXTERNAL void cons_3(sycl::item<2, true> val) {
   auto id = sycl::id<2>{val};
 }
 
@@ -67,6 +67,6 @@
 // CHECK-NEXT: return
 // CHECK-NEXT: }
 
-[[intel::halide]] void cons_4(sycl::id<2> val) {
+SYCL_EXTERNAL void cons_4(sycl::id<2> val) {
   auto id = sycl::id<2>{val};
 }

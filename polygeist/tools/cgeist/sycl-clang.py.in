@@ -22,11 +22,11 @@ def main():
     mlir_tool = bin_path + "/cgeist"
     clang_tool = bin_path + "/clang++"
     arg_file = sys.argv[1]
-    clang_args = [clang_tool, "-###", "-fsycl", "-fintel-halide"]
+    clang_args = [clang_tool, "-###", "-fsycl", "-fsycl-device-only", "-D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__"]
     clang_args.extend(sys.argv[1:])
     clang_res = subprocess.Popen(clang_args, stderr=subprocess.PIPE)
     output = clang_res.stderr.readlines()
-    expanded_clang_args = output[6].decode("utf-8")
+    expanded_clang_args = output[5].decode("utf-8")
     split_output = shlex.split(expanded_clang_args)
 
     mlir_args = [mlir_tool, "-S", "--function=main", arg_file, "--args"]
