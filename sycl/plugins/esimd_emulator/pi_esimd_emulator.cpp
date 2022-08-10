@@ -35,6 +35,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
@@ -1116,8 +1117,8 @@ _pi_mem::~_pi_mem() {
     Status = CmDevice->DestroySurface(SurfacePtr.RegularImgPtr);
   }
 
-  cl::sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
-                                  "Surface Deletion Failure from CM_EMU");
+  sycl::detail::pi::assertion(Status == cm_support::CM_SUCCESS &&
+                              "Surface Deletion Failure from CM_EMU");
 
   for (auto mapit = Mappings.begin(); mapit != Mappings.end();) {
     mapit = Mappings.erase(mapit);

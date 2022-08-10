@@ -26,7 +26,7 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
                                              std::vector<Command *> &ToCleanUp,
                                              bool LockTheLock) {
   Command *Cmd = getCommand(Event);
-  // Command can be nullptr if user creates cl::sycl::event explicitly or the
+  // Command can be nullptr if user creates sycl::event explicitly or the
   // event has been waited on by another thread
   if (!Cmd)
     return;

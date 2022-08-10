@@ -37,6 +37,7 @@ END-SCRIPT
 // DO NOT MANUALLY EDIT ANYTHING BETWEEN THE MARKERS BELOW
 // GENERATED-MARKER
 #include <__algorithm/adjacent_find.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/adjacent_find.h'}}
+#include <__algorithm/algorithm_family.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/algorithm_family.h'}}
 #include <__algorithm/all_of.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/all_of.h'}}
 #include <__algorithm/any_of.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/any_of.h'}}
 #include <__algorithm/binary_search.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/binary_search.h'}}
@@ -217,6 +218,7 @@ END-SCRIPT
 #include <__algorithm/unique.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/unique.h'}}
 #include <__algorithm/unique_copy.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/unique_copy.h'}}
 #include <__algorithm/unwrap_iter.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/unwrap_iter.h'}}
+#include <__algorithm/unwrap_range.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/unwrap_range.h'}}
 #include <__algorithm/upper_bound.h> // expected-error@*:* {{use of private header from outside its module: '__algorithm/upper_bound.h'}}
 #include <__availability> // expected-error@*:* {{use of private header from outside its module: '__availability'}}
 #include <__bit/bit_cast.h> // expected-error@*:* {{use of private header from outside its module: '__bit/bit_cast.h'}}
@@ -518,10 +520,16 @@ END-SCRIPT
 #include <__type_traits/add_pointer.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/add_pointer.h'}}
 #include <__type_traits/add_rvalue_reference.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/add_rvalue_reference.h'}}
 #include <__type_traits/add_volatile.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/add_volatile.h'}}
+#include <__type_traits/aligned_storage.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/aligned_storage.h'}}
+#include <__type_traits/aligned_union.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/aligned_union.h'}}
 #include <__type_traits/alignment_of.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/alignment_of.h'}}
 #include <__type_traits/apply_cv.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/apply_cv.h'}}
+#include <__type_traits/common_reference.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/common_reference.h'}}
+#include <__type_traits/common_type.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/common_type.h'}}
 #include <__type_traits/conditional.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/conditional.h'}}
 #include <__type_traits/conjunction.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/conjunction.h'}}
+#include <__type_traits/copy_cv.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/copy_cv.h'}}
+#include <__type_traits/copy_cvref.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/copy_cvref.h'}}
 #include <__type_traits/decay.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/decay.h'}}
 #include <__type_traits/disjunction.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/disjunction.h'}}
 #include <__type_traits/enable_if.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/enable_if.h'}}
@@ -563,6 +571,7 @@ END-SCRIPT
 #include <__type_traits/is_move_constructible.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_move_constructible.h'}}
 #include <__type_traits/is_nothrow_assignable.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_nothrow_assignable.h'}}
 #include <__type_traits/is_nothrow_constructible.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_nothrow_constructible.h'}}
+#include <__type_traits/is_nothrow_convertible.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_nothrow_convertible.h'}}
 #include <__type_traits/is_nothrow_copy_assignable.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_nothrow_copy_assignable.h'}}
 #include <__type_traits/is_nothrow_copy_constructible.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_nothrow_copy_constructible.h'}}
 #include <__type_traits/is_nothrow_default_constructible.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_nothrow_default_constructible.h'}}
@@ -574,6 +583,7 @@ END-SCRIPT
 #include <__type_traits/is_pod.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_pod.h'}}
 #include <__type_traits/is_pointer.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_pointer.h'}}
 #include <__type_traits/is_polymorphic.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_polymorphic.h'}}
+#include <__type_traits/is_primary_template.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_primary_template.h'}}
 #include <__type_traits/is_reference.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_reference.h'}}
 #include <__type_traits/is_reference_wrapper.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_reference_wrapper.h'}}
 #include <__type_traits/is_referenceable.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_referenceable.h'}}
@@ -581,6 +591,7 @@ END-SCRIPT
 #include <__type_traits/is_scalar.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_scalar.h'}}
 #include <__type_traits/is_scoped_enum.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_scoped_enum.h'}}
 #include <__type_traits/is_signed.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_signed.h'}}
+#include <__type_traits/is_signed_integer.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_signed_integer.h'}}
 #include <__type_traits/is_standard_layout.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_standard_layout.h'}}
 #include <__type_traits/is_trivial.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_trivial.h'}}
 #include <__type_traits/is_trivially_assignable.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_trivially_assignable.h'}}
@@ -595,18 +606,28 @@ END-SCRIPT
 #include <__type_traits/is_unbounded_array.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_unbounded_array.h'}}
 #include <__type_traits/is_union.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_union.h'}}
 #include <__type_traits/is_unsigned.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_unsigned.h'}}
+#include <__type_traits/is_unsigned_integer.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_unsigned_integer.h'}}
+#include <__type_traits/is_valid_expansion.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_valid_expansion.h'}}
 #include <__type_traits/is_void.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_void.h'}}
 #include <__type_traits/is_volatile.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/is_volatile.h'}}
+#include <__type_traits/lazy.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/lazy.h'}}
+#include <__type_traits/make_32_64_or_128_bit.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/make_32_64_or_128_bit.h'}}
+#include <__type_traits/make_signed.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/make_signed.h'}}
+#include <__type_traits/make_unsigned.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/make_unsigned.h'}}
+#include <__type_traits/nat.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/nat.h'}}
 #include <__type_traits/negation.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/negation.h'}}
+#include <__type_traits/promote.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/promote.h'}}
 #include <__type_traits/rank.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/rank.h'}}
 #include <__type_traits/remove_all_extents.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_all_extents.h'}}
 #include <__type_traits/remove_const.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_const.h'}}
 #include <__type_traits/remove_cv.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_cv.h'}}
+#include <__type_traits/remove_cvref.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_cvref.h'}}
 #include <__type_traits/remove_extent.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_extent.h'}}
 #include <__type_traits/remove_pointer.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_pointer.h'}}
 #include <__type_traits/remove_reference.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_reference.h'}}
 #include <__type_traits/remove_volatile.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/remove_volatile.h'}}
 #include <__type_traits/type_identity.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/type_identity.h'}}
+#include <__type_traits/type_list.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/type_list.h'}}
 #include <__type_traits/underlying_type.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/underlying_type.h'}}
 #include <__type_traits/void_t.h> // expected-error@*:* {{use of private header from outside its module: '__type_traits/void_t.h'}}
 #include <__utility/as_const.h> // expected-error@*:* {{use of private header from outside its module: '__utility/as_const.h'}}

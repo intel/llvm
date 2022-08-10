@@ -1559,12 +1559,12 @@ def err_messaging_class_with_direct_method : Error<
 
 // C++ declarations
 def err_static_assert_expression_is_not_constant : Error<
-  "static_assert expression is not an integral constant expression">;
+  "static assertion expression is not an integral constant expression">;
 def err_constexpr_if_condition_expression_is_not_constant : Error<
   "constexpr if condition is not a constant expression">;
-def err_static_assert_failed : Error<"static_assert failed%select{: %1|}0">;
+def err_static_assert_failed : Error<"static assertion failed%select{: %1|}0">;
 def err_static_assert_requirement_failed : Error<
-  "static_assert failed due to requirement '%0'%select{: %2|}1">;
+  "static assertion failed due to requirement '%0'%select{: %2|}1">;
 
 def warn_consteval_if_always_true : Warning<
   "consteval if is always true in an %select{unevaluated|immediate}0 context">,
@@ -5822,6 +5822,8 @@ def warn_forward_class_redefinition : Warning<
 def err_redefinition_different_typedef : Error<
   "%select{typedef|type alias|type alias template}0 "
   "redefinition with different types%diff{ ($ vs $)|}1,2">;
+def err_redefinition_different_concept : Error<
+  "redefinition of concept %0 with different template parameters or requirements">;
 def err_tag_reference_non_tag : Error<
   "%select{non-struct type|non-class type|non-union type|non-enum "
   "type|typedef|type alias|template|type alias template|template "
@@ -8098,24 +8100,6 @@ def err_incompatible_qualified_id : Error<
   "sending type to parameter of incompatible type}0,1"
   "|%diff{casting $ to incompatible type $|"
   "casting type to incompatible type}0,1}2">;
-def ext_typecheck_convert_pointer_int : ExtWarn<
-  "incompatible pointer to integer conversion "
-  "%select{%diff{assigning to $ from $|assigning to different types}0,1"
-  "|%diff{passing $ to parameter of type $|"
-  "passing to parameter of different type}0,1"
-  "|%diff{returning $ from a function with result type $|"
-  "returning from function with different return type}0,1"
-  "|%diff{converting $ to type $|converting between types}0,1"
-  "|%diff{initializing $ with an expression of type $|"
-  "initializing with expression of different type}0,1"
-  "|%diff{sending $ to parameter of type $|"
-  "sending to parameter of different type}0,1"
-  "|%diff{casting $ to type $|casting between types}0,1}2"
-  "%select{|; dereference with *|"
-  "; take the address with &|"
-  "; remove *|"
-  "; remove &}3">,
-  InGroup<IntConversion>;
 def err_typecheck_convert_pointer_int : Error<
   "incompatible pointer to integer conversion "
   "%select{%diff{assigning to $ from $|assigning to different types}0,1"
@@ -8133,24 +8117,9 @@ def err_typecheck_convert_pointer_int : Error<
   "; take the address with &|"
   "; remove *|"
   "; remove &}3">;
-def ext_typecheck_convert_int_pointer : ExtWarn<
-  "incompatible integer to pointer conversion "
-  "%select{%diff{assigning to $ from $|assigning to different types}0,1"
-  "|%diff{passing $ to parameter of type $|"
-  "passing to parameter of different type}0,1"
-  "|%diff{returning $ from a function with result type $|"
-  "returning from function with different return type}0,1"
-  "|%diff{converting $ to type $|converting between types}0,1"
-  "|%diff{initializing $ with an expression of type $|"
-  "initializing with expression of different type}0,1"
-  "|%diff{sending $ to parameter of type $|"
-  "sending to parameter of different type}0,1"
-  "|%diff{casting $ to type $|casting between types}0,1}2"
-  "%select{|; dereference with *|"
-  "; take the address with &|"
-  "; remove *|"
-  "; remove &}3">,
-  InGroup<IntConversion>, SFINAEFailure;
+def ext_typecheck_convert_pointer_int : ExtWarn<
+  err_typecheck_convert_pointer_int.Text>,
+  InGroup<IntConversion>, DefaultError;
 def err_typecheck_convert_int_pointer : Error<
   "incompatible integer to pointer conversion "
   "%select{%diff{assigning to $ from $|assigning to different types}0,1"
@@ -8168,6 +8137,9 @@ def err_typecheck_convert_int_pointer : Error<
   "; take the address with &|"
   "; remove *|"
   "; remove &}3">;
+def ext_typecheck_convert_int_pointer : ExtWarn<
+  err_typecheck_convert_int_pointer.Text>,
+  InGroup<IntConversion>, DefaultError;
 def ext_typecheck_convert_pointer_void_func : Extension<
   "%select{%diff{assigning to $ from $|assigning to different types}0,1"
   "|%diff{passing $ to parameter of type $|"

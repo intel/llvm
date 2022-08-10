@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/memory_manager.hpp>
 #include <sycl/detail/image_impl.hpp>
-#include <sycl/detail/memory_manager.hpp>
 #include <sycl/image.hpp>
 
 #include <algorithm>
@@ -18,7 +18,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-template <info::device Param>
+template <typename Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
                                  const size_t Value) {
   return Value >= 1 && std::all_of(Devices.cbegin(), Devices.cend(),

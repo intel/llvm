@@ -11,10 +11,10 @@
 #include <type_traits>
 
 // This test checks that concrete address spaces are not exposed in device code
-using namespace cl::sycl;
+using namespace sycl;
 
-using cl::sycl::access::mode;
-using cl::sycl::access::target;
+using sycl::access::mode;
+using sycl::access::target;
 
 int main() {
   range<1> Range(1);

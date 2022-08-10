@@ -9,8 +9,6 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
 
-namespace sycl = cl::sycl;
-
 int main() {
   using sycl::access::address_space;
   using sycl::access::mode;

@@ -13,7 +13,7 @@
 // cxx14-warning@* {{DPCPP does not support C++ version earlier than C++17. Some features might not be available.}}
 //
 // The next warning is not emitted in device compilation for some reason
-// warning_extension-warning@* 0-1 {{#warning is a language extension}}
+// warning_extension-warning@* 0-1 {{#warning is a C++2b extension}}
 //
 // The next warning is emitted for windows only
 // expected-warning@* 0-1 {{Alignment of class vec is not in accordance with SYCL specification requirements, a limitation of the MSVC compiler(Error C2719).Requested alignment applied, limited at 64.}}
@@ -28,7 +28,7 @@ int main() {
   sycl::queue Q;
 
   Q.submit([&](sycl::handler &CGH) {
-    auto Acc = Buf.get_access<cl::sycl::access::mode::read>(CGH);
+    auto Acc = Buf.get_access<sycl::access::mode::read>(CGH);
 
     CGH.parallel_for<KernelName1>(sycl::range<1>{42},
                                   [=](sycl::id<1> ID) { (void)Acc; });

@@ -78,15 +78,17 @@ if(CLANG_BUILT_STANDALONE)
   if (NOT LLVM_CONFIG_FOUND)
     # Pull values from LLVMConfig.cmake.  We can drop this once the llvm-config
     # path is removed.
-    set(MAIN_INCLUDE_DIR "${LLVM_INCLUDE_DIR}")
+    set(INCLUDE_DIRS ${LLVM_INCLUDE_DIRS})
     set(LLVM_OBJ_DIR "${LLVM_BINARY_DIR}")
     # N.B. this is just a default value, the CACHE PATHs below can be overriden.
     set(MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../llvm")
     set(TOOLS_BINARY_DIR "${LLVM_TOOLS_BINARY_DIR}")
     set(LIBRARY_DIR "${LLVM_LIBRARY_DIR}")
+  else()
+    set(INCLUDE_DIRS "${LLVM_BINARY_DIR}/include" "${MAIN_INCLUDE_DIR}")
   endif()
 
-  set(LLVM_MAIN_INCLUDE_DIR "${MAIN_INCLUDE_DIR}" CACHE PATH "Path to llvm/include")
+  set(LLVM_INCLUDE_DIRS ${INCLUDE_DIRS} CACHE PATH "Path to llvm/include and any other header dirs needed")
   set(LLVM_BINARY_DIR "${LLVM_OBJ_ROOT}" CACHE PATH "Path to LLVM build tree")
   set(LLVM_MAIN_SRC_DIR "${MAIN_SRC_DIR}" CACHE PATH "Path to LLVM source tree")
   set(LLVM_TOOLS_BINARY_DIR "${TOOLS_BINARY_DIR}" CACHE PATH "Path to llvm/bin")
@@ -128,7 +130,7 @@ if(CLANG_BUILT_STANDALONE)
     set(LLVM_INCLUDE_TESTS ON)
   endif()
 
-  include_directories("${LLVM_BINARY_DIR}/include" "${LLVM_MAIN_INCLUDE_DIR}")
+  include_directories(${LLVM_INCLUDE_DIRS})
   link_directories("${LLVM_LIBRARY_DIR}")
 
   set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin )
@@ -371,6 +373,10 @@ endif()
 
 # The libdir suffix must exactly match whatever LLVM's configuration used.
 set(CLANG_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}")
+
+set(CLANG_TOOLS_INSTALL_DIR "${CMAKE_INSTALL_BINDIR}" CACHE PATH
+    "Path for binary subdirectory (defaults to '${CMAKE_INSTALL_BINDIR}')")
+mark_as_advanced(CLANG_TOOLS_INSTALL_DIR)
 
 set(CLANG_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
