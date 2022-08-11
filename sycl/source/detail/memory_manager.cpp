@@ -276,16 +276,15 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
                                         const sycl::property_list &) {
-  // Can return user pointer directly if it points to writable memory.
-  if (UserPtr && HostPtrReadOnly == false)
+  std::ignore = HostPtrReadOnly;
+  std::ignore = Size;
+
+  // Can return user pointer directly if it is not a nullptr.
+  if (UserPtr)
     return UserPtr;
 
-  void *NewMem = MemObj->allocateHostMem();
-  // Need to initialize new memory if user provides pointer to read only
-  // memory.
-  if (UserPtr && HostPtrReadOnly == true)
-    std::memcpy((char *)NewMem, (char *)UserPtr, Size);
-  return NewMem;
+  return MemObj->allocateHostMem();
+  ;
 }
 
 void *MemoryManager::allocateInteropMemObject(
@@ -312,8 +311,7 @@ static RT::PiMemFlags getMemObjCreationFlags(void *UserPtr,
   RT::PiMemFlags Result =
       HostPtrReadOnly ? PI_MEM_ACCESS_READ_ONLY : PI_MEM_FLAGS_ACCESS_RW;
   if (UserPtr)
-    Result |= HostPtrReadOnly ? PI_MEM_FLAGS_HOST_PTR_COPY
-                              : PI_MEM_FLAGS_HOST_PTR_USE;
+    Result |= PI_MEM_FLAGS_HOST_PTR_USE;
   return Result;
 }
 

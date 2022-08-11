@@ -627,17 +627,18 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 
 // The function searches for the alloca command matching context and
 // requirement.
-AllocaCommandBase *
-Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
-                                          const Requirement *Req,
-                                          const ContextImplPtr &Context) {
-  auto IsSuitableAlloca = [&Context, Req](AllocaCommandBase *AllocaCmd) {
+AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
+    MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
+    bool AllowConst) {
+  auto IsSuitableAlloca = [&Context, Req,
+                           AllowConst](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
       Res &= TmpReq->MSYCLMemObj->getSize() == Req->MSYCLMemObj->getSize();
+      Res &= AllowConst || !AllocaCmd->MIsConst;
     }
     return Res;
   };
@@ -668,8 +669,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, QueueImplPtr Queue,
     std::vector<Command *> &ToEnqueue) {
 
-  AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, Queue->getContextImplPtr());
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(
+      Record, Req, Queue->getContextImplPtr(), /*AllowConst=*/false);
 
   if (!AllocaCmd) {
     std::vector<Command *> ToCleanUp;
@@ -722,7 +723,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 Scheduler::getInstance().getDefaultHostQueue();
             AllocaCommand *HostAllocaCmd = new AllocaCommand(
                 DefaultHostQueue, FullReq, true /* InitFromUserData */,
-                nullptr /* LinkedAllocaCmd */);
+                nullptr /* LinkedAllocaCmd */,
+                MemObj->isHostPointerReadOnly() /* IsConst */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
             Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
@@ -754,8 +756,8 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
                 Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
                                  : HostUnifiedMemory;
             if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
-              AllocaCommandBase *LinkedAllocaCmdCand =
-                  findAllocaForReq(Record, Req, Record->MCurContext);
+              AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
+                  Record, Req, Record->MCurContext, /*AllowConst=*/false);
 
               // Cannot setup link if candidate is linked already
               if (LinkedAllocaCmdCand &&
