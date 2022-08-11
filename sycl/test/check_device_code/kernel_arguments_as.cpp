@@ -31,9 +31,7 @@
 
 using namespace sycl;
 
-template <typename Acc> struct AccWrapper {
-  Acc accessor;
-};
+template <typename Acc> struct AccWrapper { Acc accessor; };
 
 int main() {
 
