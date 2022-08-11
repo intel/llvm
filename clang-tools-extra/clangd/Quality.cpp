@@ -122,6 +122,7 @@ categorize(const index::SymbolInfo &D) {
   case index::SymbolKind::TypeAlias:
   case index::SymbolKind::TemplateTypeParm:
   case index::SymbolKind::TemplateTemplateParm:
+  case index::SymbolKind::Concept:
     return SymbolQualitySignals::Type;
   case index::SymbolKind::Function:
   case index::SymbolKind::ClassMethod:
@@ -377,7 +378,7 @@ wordMatching(llvm::StringRef Name, const llvm::StringSet<> *ContextWords) {
 SymbolRelevanceSignals::DerivedSignals
 SymbolRelevanceSignals::calculateDerivedSignals() const {
   DerivedSignals Derived;
-  Derived.NameMatchesContext = wordMatching(Name, ContextWords).hasValue();
+  Derived.NameMatchesContext = wordMatching(Name, ContextWords).has_value();
   Derived.FileProximityDistance = !FileProximityMatch || SymbolURI.empty()
                                       ? FileDistance::Unreachable
                                       : FileProximityMatch->distance(SymbolURI);
@@ -491,7 +492,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
   if (S.ContextWords)
     OS << llvm::formatv(
         "\tMatching context word: {0}\n",
-        wordMatching(S.Name, S.ContextWords).getValueOr("<none>"));
+        wordMatching(S.Name, S.ContextWords).value_or("<none>"));
   OS << llvm::formatv("\tForbidden: {0}\n", S.Forbidden);
   OS << llvm::formatv("\tNeedsFixIts: {0}\n", S.NeedsFixIts);
   OS << llvm::formatv("\tIsInstanceMember: {0}\n", S.IsInstanceMember);

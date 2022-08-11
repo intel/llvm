@@ -153,8 +153,6 @@ EnumAttrCase::EnumAttrCase(const llvm::Record *record) : Attribute(record) {
 EnumAttrCase::EnumAttrCase(const llvm::DefInit *init)
     : EnumAttrCase(init->getDef()) {}
 
-bool EnumAttrCase::isStrCase() const { return isSubClassOf("StrEnumAttrCase"); }
-
 StringRef EnumAttrCase::getSymbol() const {
   return def->getValueAsString("symbol");
 }
@@ -237,54 +235,8 @@ StringRef EnumAttr::getSpecializedAttrClassName() const {
   return def->getValueAsString("specializedAttrClassName");
 }
 
-StructFieldAttr::StructFieldAttr(const llvm::Record *record) : def(record) {
-  assert(def->isSubClassOf("StructFieldAttr") &&
-         "must be subclass of TableGen 'StructFieldAttr' class");
-}
-
-StructFieldAttr::StructFieldAttr(const llvm::Record &record)
-    : StructFieldAttr(&record) {}
-
-StructFieldAttr::StructFieldAttr(const llvm::DefInit *init)
-    : StructFieldAttr(init->getDef()) {}
-
-StringRef StructFieldAttr::getName() const {
-  return def->getValueAsString("name");
-}
-
-Attribute StructFieldAttr::getType() const {
-  auto *init = def->getValueInit("type");
-  return Attribute(cast<llvm::DefInit>(init));
-}
-
-StructAttr::StructAttr(const llvm::Record *record) : Attribute(record) {
-  assert(isSubClassOf("StructAttr") &&
-         "must be subclass of TableGen 'StructAttr' class");
-}
-
-StructAttr::StructAttr(const llvm::DefInit *init)
-    : StructAttr(init->getDef()) {}
-
-StringRef StructAttr::getStructClassName() const {
-  return def->getValueAsString("className");
-}
-
-StringRef StructAttr::getCppNamespace() const {
-  Dialect dialect(def->getValueAsDef("dialect"));
-  return dialect.getCppNamespace();
-}
-
-std::vector<StructFieldAttr> StructAttr::getAllFields() const {
-  std::vector<StructFieldAttr> attributes;
-
-  const auto *inits = def->getValueAsListInit("fields");
-  attributes.reserve(inits->size());
-
-  for (const llvm::Init *init : *inits) {
-    attributes.emplace_back(cast<llvm::DefInit>(init));
-  }
-
-  return attributes;
+bool EnumAttr::printBitEnumPrimaryGroups() const {
+  return def->getValueAsBit("printBitEnumPrimaryGroups");
 }
 
 const char * ::mlir::tblgen::inferTypeOpInterface = "InferTypeOpInterface";

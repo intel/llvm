@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/program.hpp>
-#include <CL/sycl/properties/all_properties.hpp>
-#include <CL/sycl/property_list.hpp>
 #include <detail/backend_impl.hpp>
 #include <detail/program_impl.hpp>
+#include <sycl/program.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/property_list.hpp>
 
 #include <vector>
 
@@ -45,7 +45,8 @@ program::program(const context &context, cl_program clProgram)
           detail::pi::cast<pi_native_handle>(clProgram))) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  clRetainProgram(clProgram);
+  impl->getPlugin().call<detail::PiApiKind::piProgramRetain>(
+      impl->getHandleRef());
 }
 
 backend program::get_backend() const noexcept { return getImplBackend(impl); }
@@ -110,7 +111,7 @@ program::get_info() const {
   template __SYCL_EXPORT ret_type program::get_info<info::param_type::param>() \
       const;
 
-#include <CL/sycl/info/program_traits.def>
+#include <sycl/info/program_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -118,7 +119,7 @@ program::get_info() const {
   template <> __SYCL_EXPORT bool program::has_property<param_type>() const {   \
     return impl->has_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -127,7 +128,7 @@ program::get_info() const {
   __SYCL_EXPORT param_type program::get_property<param_type>() const {         \
     return impl->get_property<param_type>();                                   \
   }
-#include <CL/sycl/detail/properties_traits.def>
+#include <sycl/detail/properties_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 

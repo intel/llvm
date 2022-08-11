@@ -19,8 +19,10 @@
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
+#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+
 #ifndef __SYCL_DEVICE_ONLY__
-#include <iostream>
+#include <sycl/detail/iostream_proxy.hpp>
 #endif // __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -77,6 +79,15 @@ public:
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 
+  // Implicit conversion constructor from sycl::ext::oneapi::experimental::simd
+  template <
+      int N1 = N, class Ty1 = Ty,
+      class SFINAE = std::enable_if_t<
+          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<
+                                  Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
+  simd(const sycl::ext::oneapi::experimental::simd<Ty, N1> &v)
+      : simd(static_cast<raw_vector_type>(v)) {}
+
   /// Broadcast constructor with conversion. Converts given value to
   /// #element_type and replicates it in all elements.
   /// Available when \c T1 is a valid simd element type.
@@ -99,6 +110,19 @@ public:
   operator To() const {
     __esimd_dbg_print(operator To());
     return detail::convert_scalar<To, element_type>(base_type::data()[0]);
+  }
+
+  /// Implicitly converts this object to a sycl::ext::oneapi::experimental::simd
+  /// object. Available when the number of elements does not exceed maximum
+  /// fixed size of the oneapi's simd_abi and (TODO, temporary limitation) the
+  /// element type is a primitive type (e.g. can't be sycl::half).
+  template <
+      int N1, class Ty1 = Ty,
+      class SFINAE = std::enable_if_t<
+          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<
+                                  Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
+  operator sycl::ext::oneapi::experimental::simd<Ty, N1>() {
+    return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
   }
 
   /// Prefix increment, increments elements of this object.
@@ -157,7 +181,8 @@ public:
 /// element type \c To.
 template <typename To, typename From, int N>
 ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
-  if constexpr (std::is_same_v<To, From>)
+  if constexpr (std::is_same_v<std::remove_const_t<To>,
+                               std::remove_const_t<From>>)
     return val;
   else
     return detail::convert_vector<To, From, N>(val.data());

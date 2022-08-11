@@ -408,7 +408,7 @@ void Value::takeName(Value *V) {
     }
   }
 
-  // Get V's ST, this should always succed, because V has a name.
+  // Get V's ST, this should always succeed, because V has a name.
   ValueSymbolTable *VST;
   bool Failure = getSymTab(V, VST);
   assert(!Failure && "V has a name, so it should have a ST!"); (void)Failure;
@@ -1020,20 +1020,16 @@ bool Value::isSwiftError() const {
 }
 
 bool Value::isTransitiveUsedByMetadataOnly() const {
-  if (use_empty())
-    return false;
-  llvm::SmallVector<const User *, 32> WorkList;
-  llvm::SmallPtrSet<const User *, 32> Visited;
-  WorkList.insert(WorkList.begin(), user_begin(), user_end());
+  SmallVector<const User *, 32> WorkList(user_begin(), user_end());
+  SmallPtrSet<const User *, 32> Visited(user_begin(), user_end());
   while (!WorkList.empty()) {
     const User *U = WorkList.pop_back_val();
-    Visited.insert(U);
     // If it is transitively used by a global value or a non-constant value,
     // it's obviously not only used by metadata.
     if (!isa<Constant>(U) || isa<GlobalValue>(U))
       return false;
     for (const User *UU : U->users())
-      if (!Visited.count(UU))
+      if (Visited.insert(UU).second)
         WorkList.push_back(UU);
   }
   return true;

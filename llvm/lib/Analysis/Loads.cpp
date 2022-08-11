@@ -405,7 +405,10 @@ bool llvm::isSafeToLoadUnconditionally(Value *V, Type *Ty, Align Alignment,
                                        Instruction *ScanFrom,
                                        const DominatorTree *DT,
                                        const TargetLibraryInfo *TLI) {
-  APInt Size(DL.getIndexTypeSizeInBits(V->getType()), DL.getTypeStoreSize(Ty));
+  TypeSize TySize = DL.getTypeStoreSize(Ty);
+  if (TySize.isScalable())
+    return false;
+  APInt Size(DL.getIndexTypeSizeInBits(V->getType()), TySize.getFixedValue());
   return isSafeToLoadUnconditionally(V, Alignment, Size, DL, ScanFrom, DT, TLI);
 }
 
@@ -504,8 +507,8 @@ static Value *getAvailableLoadStore(Instruction *Inst, const Value *Ptr,
     if (CastInst::isBitOrNoopPointerCastable(Val->getType(), AccessTy, DL))
       return Val;
 
-    TypeSize StoreSize = DL.getTypeStoreSize(Val->getType());
-    TypeSize LoadSize = DL.getTypeStoreSize(AccessTy);
+    TypeSize StoreSize = DL.getTypeSizeInBits(Val->getType());
+    TypeSize LoadSize = DL.getTypeSizeInBits(AccessTy);
     if (TypeSize::isKnownLE(LoadSize, StoreSize))
       if (auto *C = dyn_cast<Constant>(Val))
         return ConstantFoldLoadFromConst(C, AccessTy, DL);

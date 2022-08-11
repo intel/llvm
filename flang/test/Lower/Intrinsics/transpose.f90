@@ -1,4 +1,4 @@
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir %s -opt-transpose=false -o - | FileCheck %s
 
 ! CHECK-LABEL: func @_QPtranspose_test(
 ! CHECK-SAME: %[[source:.*]]: !fir.ref<!fir.array<2x3xf32>>{{.*}}) {
@@ -19,6 +19,6 @@ subroutine transpose_test(mat)
 ! CHECK:  %[[tmp2:.*]] = fir.box_addr %[[tmp1]] : (!fir.box<!fir.heap<!fir.array<?x?xf32>>>) -> !fir.heap<!fir.array<?x?xf32>>
 ! CHECK:  %[[tmp3:.*]] = fir.convert %[[tmp2]] : (!fir.heap<!fir.array<?x?xf32>>) -> !fir.ref<!fir.array<3x2xf32>>
 ! CHECK:  fir.call @_QPbar_transpose_test(%[[tmp3]]) : (!fir.ref<!fir.array<3x2xf32>>) -> ()
-! CHECK:  fir.freemem %[[tmp2]] : <!fir.array<?x?xf32>
+! CHECK:  fir.freemem %[[tmp2]] : !fir.heap<!fir.array<?x?xf32>
 end subroutine
 

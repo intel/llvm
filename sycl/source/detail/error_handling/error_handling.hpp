@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/sycl/detail/cg.hpp>
-#include <CL/sycl/detail/pi.h>
 #include <detail/device_impl.hpp>
+#include <sycl/detail/cg.hpp>
+#include <sycl/detail/pi.h>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -25,7 +25,8 @@ namespace enqueue_kernel_launch {
 ///
 /// This function actually never returns and always throws an exception with
 /// error description.
-bool handleError(pi_result, const device_impl &, pi_kernel, const NDRDescT &);
+void handleErrorOrWarning(pi_result, const device_impl &, pi_kernel,
+                          const NDRDescT &);
 } // namespace enqueue_kernel_launch
 
 } // namespace detail

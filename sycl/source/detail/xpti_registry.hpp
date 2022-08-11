@@ -12,7 +12,7 @@
 #include <string>
 #include <unordered_set>
 
-#include <CL/sycl/detail/common.hpp>
+#include <sycl/detail/common.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting

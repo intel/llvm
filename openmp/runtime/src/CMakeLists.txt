@@ -8,6 +8,8 @@
 #//===----------------------------------------------------------------------===//
 #
 
+include(ExtendPath)
+
 # Configure omp.h, kmp_config.h and omp-tools.h if necessary
 configure_file(${LIBOMP_INC_DIR}/omp.h.var omp.h @ONLY)
 configure_file(kmp_config.h.cmake kmp_config.h @ONLY)
@@ -46,9 +48,6 @@ include_directories(
   ${LIBOMP_INC_DIR}
   ${LIBOMP_SRC_DIR}/thirdparty/ittnotify
 )
-if(${LIBOMP_USE_HWLOC})
-  include_directories(${LIBOMP_HWLOC_INSTALL_DIR}/include)
-endif()
 
 # Building with time profiling support requires LLVM directory includes.
 if(LIBOMP_PROFILING_SUPPORT)
@@ -156,6 +155,13 @@ else()
     )
   # libomp must be a C++ library such that it can link libLLVMSupport
   set(LIBOMP_LINKER_LANGUAGE CXX)
+endif()
+if(${LIBOMP_USE_HWLOC})
+  target_include_directories(omp
+                             PUBLIC
+			     "$<BUILD_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
+			     "$<INSTALL_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
+  )
 endif()
 
 if(OPENMP_MSVC_NAME_SCHEME)
@@ -343,8 +349,8 @@ endif()
 add_dependencies(libomp-micro-tests libomp-test-deps)
 
 # Install rules
-# We want to install libomp in DESTDIR/CMAKE_INSTALL_PREFIX/lib
-# We want to install headers in DESTDIR/CMAKE_INSTALL_PREFIX/include
+# We want to install libomp in ${DESTDIR}/${CMAKE_INSTALL_FULL_LIBDIR}
+# We want to install headers in ${DESTDIR}/${CMAKE_INSTALL_FULL_INCLUDEDIR}
 if(${OPENMP_STANDALONE_BUILD})
   set(LIBOMP_HEADERS_INSTALL_PATH "${CMAKE_INSTALL_INCLUDEDIR}")
 else()
@@ -358,9 +364,10 @@ if(WIN32)
   set(LIBOMP_ALIASES "libiomp5md")
   foreach(alias IN LISTS LIBOMP_ALIASES)
     install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy \"${LIBOMP_LIB_FILE}\"
-      \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")")
+      \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"${CMAKE_INSTALL_FULL_BINDIR}\")")
+    extend_path(outdir "${CMAKE_INSTALL_PREFIX}" "${OPENMP_INSTALL_LIBDIR}")
     install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E copy \"${LIBOMP_IMP_LIB_FILE}\"
-      \"${alias}${CMAKE_STATIC_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/${OPENMP_INSTALL_LIBDIR}\")")
+      \"${alias}${CMAKE_STATIC_LIBRARY_SUFFIX}\" WORKING_DIRECTORY \"${outdir}\")")
   endforeach()
 else()
 
@@ -370,9 +377,10 @@ else()
     # Create aliases (symlinks) of the library for backwards compatibility
     set(LIBOMP_ALIASES "libgomp;libiomp5")
     foreach(alias IN LISTS LIBOMP_ALIASES)
+      extend_path(outdir "${CMAKE_INSTALL_PREFIX}" "${OPENMP_INSTALL_LIBDIR}")
       install(CODE "execute_process(COMMAND \"\${CMAKE_COMMAND}\" -E create_symlink \"${LIBOMP_LIB_FILE}\"
         \"${alias}${LIBOMP_LIBRARY_SUFFIX}\" WORKING_DIRECTORY
-        \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${OPENMP_INSTALL_LIBDIR}\")")
+        \"\$ENV{DESTDIR}${outdir}\")")
     endforeach()
   endif()
 endif()

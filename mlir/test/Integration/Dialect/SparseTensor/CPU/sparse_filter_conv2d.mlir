@@ -15,7 +15,7 @@
 // An example of a 2D convolution with a sparse filter.
 module {
 
-  func @conv2d(%input:  tensor<8x8xi32>,
+  func.func @conv2d(%input:  tensor<8x8xi32>,
                %filter: tensor<3x3xi32, #DCSR>,
                %output: tensor<6x6xi32>) -> tensor<6x6xi32> {
     %0 = linalg.conv_2d
@@ -24,7 +24,7 @@ module {
     return %0 : tensor<6x6xi32>
   }
 
-  func @entry() {
+  func.func @entry() {
     %c0 = arith.constant 0 : index
     %i0 = arith.constant 0 : i32
 
@@ -63,14 +63,12 @@ module {
     // CHECK-SAME: ( 0, 0, 3, 6, -3, -6 ),
     // CHECK-SAME: ( 2, -1, 3, 0, -3, 0 ) )
     //
-    %m = bufferization.to_memref %0 : memref<6x6xi32>
-    %v = vector.transfer_read %m[%c0, %c0], %i0
-      : memref<6x6xi32>, vector<6x6xi32>
+    %v = vector.transfer_read %0[%c0, %c0], %i0
+      : tensor<6x6xi32>, vector<6x6xi32>
     vector.print %v : vector<6x6xi32>
 
     // Release the resources.
-    sparse_tensor.release %sparse_filter : tensor<3x3xi32, #DCSR>
-    memref.dealloc %m : memref<6x6xi32>
+    bufferization.dealloc_tensor %sparse_filter : tensor<3x3xi32, #DCSR>
 
     return
   }

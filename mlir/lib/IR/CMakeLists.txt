@@ -13,6 +13,7 @@ add_mlir_library(MLIRIR
   Diagnostics.cpp
   Dialect.cpp
   Dominance.cpp
+  ExtensibleDialect.cpp
   FunctionImplementation.cpp
   FunctionInterfaces.cpp
   IntegerSet.cpp
@@ -30,6 +31,7 @@ add_mlir_library(MLIRIR
   TypeRange.cpp
   TypeUtilities.cpp
   Value.cpp
+  ValueRange.cpp
   Verifier.cpp
   Visitors.cpp
 

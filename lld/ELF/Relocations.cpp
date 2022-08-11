@@ -558,6 +558,7 @@ static std::string maybeReportDiscarded(Undefined &sym) {
   return msg;
 }
 
+namespace {
 // Undefined diagnostics are collected in a vector and emitted once all of
 // them are known, so that some postprocessing on the list of undefined symbols
 // can happen before lld emits diagnostics.
@@ -571,7 +572,8 @@ struct UndefinedDiag {
   bool isWarning;
 };
 
-static std::vector<UndefinedDiag> undefs;
+std::vector<UndefinedDiag> undefs;
+}
 
 // Check whether the definition name def is a mangled function name that matches
 // the reference name ref.
@@ -943,7 +945,7 @@ static bool canDefineSymbolInExecutable(Symbol &sym) {
 }
 
 // Returns true if a given relocation can be computed at link-time.
-// This only handles relocation types expected in processRelocAux.
+// This only handles relocation types expected in processAux.
 //
 // For instance, we know the offset from a relocation to its target at
 // link-time if the relocation is PC-relative and refers a
@@ -956,8 +958,8 @@ bool RelocationScanner::isStaticLinkTimeConstant(RelExpr e, RelType type,
                                                  const Symbol &sym,
                                                  uint64_t relOff) const {
   // These expressions always compute a constant
-  if (oneof<R_GOTPLT, R_GOT_OFF, R_MIPS_GOT_LOCAL_PAGE, R_MIPS_GOTREL,
-            R_MIPS_GOT_OFF, R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC,
+  if (oneof<R_GOTPLT, R_GOT_OFF, R_RELAX_HINT, R_MIPS_GOT_LOCAL_PAGE,
+            R_MIPS_GOTREL, R_MIPS_GOT_OFF, R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC,
             R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
             R_PLT_PC, R_PLT_GOTPLT, R_PPC32_PLTREL, R_PPC64_CALL_PLT,
             R_PPC64_RELAX_TOC, R_RISCV_ADD, R_AARCH64_GOT_PAGE>(e))
@@ -1693,7 +1695,7 @@ void elf::postScanRelocations() {
 
   // Local symbols may need the aforementioned non-preemptible ifunc and GOT
   // handling. They don't need regular PLT.
-  for (ELFFileBase *file : objectFiles)
+  for (ELFFileBase *file : ctx->objectFiles)
     for (Symbol *sym : file->getLocalSymbols())
       fn(*sym);
 }
@@ -1862,6 +1864,19 @@ void ThunkCreator::mergeThunks(ArrayRef<OutputSection *> outputSections) {
       });
 }
 
+static int64_t getPCBias(RelType type) {
+  if (config->emachine != EM_ARM)
+    return 0;
+  switch (type) {
+  case R_ARM_THM_JUMP19:
+  case R_ARM_THM_JUMP24:
+  case R_ARM_THM_CALL:
+    return 4;
+  default:
+    return 8;
+  }
+}
+
 // Find or create a ThunkSection within the InputSectionDescription (ISD) that
 // is in range of Src. An ISD maps to a range of InputSections described by a
 // linker script section pattern such as { .text .text.* }.
@@ -1870,10 +1885,12 @@ ThunkSection *ThunkCreator::getISDThunkSec(OutputSection *os,
                                            InputSectionDescription *isd,
                                            const Relocation &rel,
                                            uint64_t src) {
+  // See the comment in getThunk for -pcBias below.
+  const int64_t pcBias = getPCBias(rel.type);
   for (std::pair<ThunkSection *, uint32_t> tp : isd->thunkSections) {
     ThunkSection *ts = tp.first;
-    uint64_t tsBase = os->addr + ts->outSecOff + rel.addend;
-    uint64_t tsLimit = tsBase + ts->getSize() + rel.addend;
+    uint64_t tsBase = os->addr + ts->outSecOff - pcBias;
+    uint64_t tsLimit = tsBase + ts->getSize();
     if (target->inBranchRange(rel.type, src,
                               (src > tsLimit) ? tsBase : tsLimit))
       return ts;
@@ -2024,19 +2041,6 @@ static bool isThunkSectionCompatible(InputSection *source,
   return true;
 }
 
-static int64_t getPCBias(RelType type) {
-  if (config->emachine != EM_ARM)
-    return 0;
-  switch (type) {
-  case R_ARM_THM_JUMP19:
-  case R_ARM_THM_JUMP24:
-  case R_ARM_THM_CALL:
-    return 4;
-  default:
-    return 8;
-  }
-}
-
 std::pair<Thunk *, bool> ThunkCreator::getThunk(InputSection *isec,
                                                 Relocation &rel, uint64_t src) {
   std::vector<Thunk *> *thunkVec = nullptr;
@@ -2114,7 +2118,9 @@ bool ThunkCreator::normalizeExistingThunk(Relocation &rel, uint64_t src) {
 // made no changes. If the target requires range extension thunks, currently
 // ARM, then any future change in offset between caller and callee risks a
 // relocation out of range error.
-bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
+bool ThunkCreator::createThunks(uint32_t pass,
+                                ArrayRef<OutputSection *> outputSections) {
+  this->pass = pass;
   bool addressesChanged = false;
 
   if (pass == 0 && target->getThunkSectionSpacing())
@@ -2176,7 +2182,6 @@ bool ThunkCreator::createThunks(ArrayRef<OutputSection *> outputSections) {
 
   // Merge all created synthetic ThunkSections back into OutputSection
   mergeThunks(outputSections);
-  ++pass;
   return addressesChanged;
 }
 

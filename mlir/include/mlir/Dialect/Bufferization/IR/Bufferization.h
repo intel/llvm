@@ -11,8 +11,8 @@
 
 #include "mlir/Dialect/Bufferization/IR/AllocationOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Interfaces/CopyOpInterface.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 
 //===----------------------------------------------------------------------===//
 // Bufferization Dialect
@@ -33,6 +33,11 @@
 
 namespace mlir {
 namespace bufferization {
+/// Populate `dynamicDims` with tensor::DimOp / memref::DimOp results for all
+/// dynamic dimensions of the given shaped value.
+void populateDynamicDimSizes(OpBuilder &b, Location loc, Value shapedValue,
+                             SmallVector<Value> &dynamicDims);
+
 /// Try to cast the given ranked MemRef-typed value to the given ranked MemRef
 /// type. Insert a reallocation + copy if it cannot be statically guaranteed
 /// that a direct cast would be valid.
@@ -46,6 +51,12 @@ namespace bufferization {
 /// with differing element types or memory spaces.
 FailureOr<Value> castOrReallocMemRefValue(OpBuilder &b, Value value,
                                           MemRefType type);
+
+/// Try to fold to_memref(to_tensor(x)). If x's type and the result type of the
+/// to_memref op are different, a memref.cast is needed.
+LogicalResult foldToMemrefToTensorPair(RewriterBase &rewriter,
+                                       ToMemrefOp toMemref);
+
 } // namespace bufferization
 } // namespace mlir
 

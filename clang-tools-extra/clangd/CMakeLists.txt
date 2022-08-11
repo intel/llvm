@@ -119,6 +119,7 @@ add_clang_library(clangDaemon
   index/Ref.cpp
   index/Relation.cpp
   index/Serialization.cpp
+  index/StdLib.cpp
   index/Symbol.cpp
   index/SymbolCollector.cpp
   index/SymbolID.cpp
@@ -169,6 +170,8 @@ target_link_libraries(clangDaemon
   clangTidy
 
   clangdSupport
+
+  clangPseudo
   )
 if(CLANGD_TIDY_CHECKS)
   target_link_libraries(clangDaemon PRIVATE ${ALL_CLANG_TIDY_CHECKS})

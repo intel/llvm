@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -O0 -S -triple spir-unknown-unknown -cl-std=CL2.0 -x cl -disable-O0-optnone %s -emit-llvm-bc -o %t.bc
+// RUN: %clang_cc1 -O0 -S -triple spir-unknown-unknown -cl-std=CL2.0 -x cl -disable-O0-optnone %s -emit-llvm-bc -o %t.bc -no-opaque-pointers
 // RUN: llvm-spirv -s %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK,CHECK-WO
 // RUN: llvm-spirv -s -spirv-mem2reg %t.bc -o %t.opt.bc

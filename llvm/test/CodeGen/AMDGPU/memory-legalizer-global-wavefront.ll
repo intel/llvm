@@ -8,6 +8,8 @@
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx90a -mattr=+tgsplit -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX90A-TGSPLIT %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx940 -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX940-NOTTGSPLIT %s
 ; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx940 -mattr=+tgsplit -verify-machineinstrs < %s | FileCheck -check-prefixes=GFX940-TGSPLIT %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1100 -verify-machineinstrs < %s | FileCheck --check-prefixes=GFX11-WGP %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx1100 -mattr=+cumode -verify-machineinstrs < %s | FileCheck --check-prefixes=GFX11-CU %s
 
 define amdgpu_kernel void @global_wavefront_unordered_load(
 ; GFX6-LABEL: global_wavefront_unordered_load:
@@ -112,6 +114,28 @@ define amdgpu_kernel void @global_wavefront_unordered_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_unordered_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_unordered_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront") unordered, align 4
@@ -222,6 +246,28 @@ define amdgpu_kernel void @global_wavefront_monotonic_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront") monotonic, align 4
@@ -332,6 +378,28 @@ define amdgpu_kernel void @global_wavefront_acquire_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront") acquire, align 4
@@ -442,6 +510,28 @@ define amdgpu_kernel void @global_wavefront_seq_cst_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront") seq_cst, align 4
@@ -544,6 +634,28 @@ define amdgpu_kernel void @global_wavefront_unordered_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_unordered_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_unordered_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront") unordered, align 4
@@ -645,6 +757,28 @@ define amdgpu_kernel void @global_wavefront_monotonic_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront") monotonic, align 4
@@ -746,6 +880,28 @@ define amdgpu_kernel void @global_wavefront_release_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront") release, align 4
@@ -847,6 +1003,28 @@ define amdgpu_kernel void @global_wavefront_seq_cst_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront") seq_cst, align 4
@@ -948,6 +1126,28 @@ define amdgpu_kernel void @global_wavefront_monotonic_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") monotonic
@@ -1049,6 +1249,28 @@ define amdgpu_kernel void @global_wavefront_acquire_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") acquire
@@ -1150,6 +1372,28 @@ define amdgpu_kernel void @global_wavefront_release_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") release
@@ -1251,6 +1495,28 @@ define amdgpu_kernel void @global_wavefront_acq_rel_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") acq_rel
@@ -1352,6 +1618,28 @@ define amdgpu_kernel void @global_wavefront_seq_cst_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") seq_cst
@@ -1471,6 +1759,32 @@ define amdgpu_kernel void @global_wavefront_acquire_ret_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_ret_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_ret_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") acquire
@@ -1591,6 +1905,32 @@ define amdgpu_kernel void @global_wavefront_acq_rel_ret_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_ret_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_ret_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") acq_rel
@@ -1711,6 +2051,32 @@ define amdgpu_kernel void @global_wavefront_seq_cst_ret_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_ret_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_ret_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront") seq_cst
@@ -1820,6 +2186,30 @@ define amdgpu_kernel void @global_wavefront_monotonic_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -1929,6 +2319,30 @@ define amdgpu_kernel void @global_wavefront_acquire_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2038,6 +2452,30 @@ define amdgpu_kernel void @global_wavefront_release_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2147,6 +2585,30 @@ define amdgpu_kernel void @global_wavefront_acq_rel_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2256,6 +2718,30 @@ define amdgpu_kernel void @global_wavefront_seq_cst_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2365,6 +2851,30 @@ define amdgpu_kernel void @global_wavefront_monotonic_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2474,6 +2984,30 @@ define amdgpu_kernel void @global_wavefront_acquire_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2583,6 +3117,30 @@ define amdgpu_kernel void @global_wavefront_release_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2692,6 +3250,30 @@ define amdgpu_kernel void @global_wavefront_acq_rel_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2801,6 +3383,30 @@ define amdgpu_kernel void @global_wavefront_seq_cst_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -2910,6 +3516,30 @@ define amdgpu_kernel void @global_wavefront_monotonic_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3019,6 +3649,30 @@ define amdgpu_kernel void @global_wavefront_acquire_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3128,6 +3782,30 @@ define amdgpu_kernel void @global_wavefront_release_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3237,6 +3915,30 @@ define amdgpu_kernel void @global_wavefront_acq_rel_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3346,6 +4048,30 @@ define amdgpu_kernel void @global_wavefront_seq_cst_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3475,6 +4201,34 @@ define amdgpu_kernel void @global_wavefront_monotonic_monotonic_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
    i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3606,6 +4360,34 @@ define amdgpu_kernel void @global_wavefront_acquire_monotonic_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3737,6 +4519,34 @@ define amdgpu_kernel void @global_wavefront_release_monotonic_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
    i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3868,6 +4678,34 @@ define amdgpu_kernel void @global_wavefront_acq_rel_monotonic_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -3999,6 +4837,34 @@ define amdgpu_kernel void @global_wavefront_seq_cst_monotonic_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4130,6 +4996,34 @@ define amdgpu_kernel void @global_wavefront_monotonic_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4261,6 +5155,34 @@ define amdgpu_kernel void @global_wavefront_acquire_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4392,6 +5314,34 @@ define amdgpu_kernel void @global_wavefront_release_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4523,6 +5473,34 @@ define amdgpu_kernel void @global_wavefront_acq_rel_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4654,6 +5632,34 @@ define amdgpu_kernel void @global_wavefront_seq_cst_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4785,6 +5791,34 @@ define amdgpu_kernel void @global_wavefront_monotonic_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_monotonic_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_monotonic_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -4916,6 +5950,34 @@ define amdgpu_kernel void @global_wavefront_acquire_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acquire_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acquire_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -5047,6 +6109,34 @@ define amdgpu_kernel void @global_wavefront_release_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_release_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_release_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -5178,6 +6268,34 @@ define amdgpu_kernel void @global_wavefront_acq_rel_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_acq_rel_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_acq_rel_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -5309,6 +6427,34 @@ define amdgpu_kernel void @global_wavefront_seq_cst_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_seq_cst_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_seq_cst_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -5421,6 +6567,28 @@ define amdgpu_kernel void @global_wavefront_one_as_unordered_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_unordered_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_unordered_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront-one-as") unordered, align 4
@@ -5531,6 +6699,28 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront-one-as") monotonic, align 4
@@ -5641,6 +6831,28 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront-one-as") acquire, align 4
@@ -5751,6 +6963,28 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_load(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_load:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_load:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_load_b128 s[0:3], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v0, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    global_load_b32 v1, v0, s[0:1]
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[2:3]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
   %val = load atomic i32, i32 addrspace(1)* %in syncscope("wavefront-one-as") seq_cst, align 4
@@ -5853,6 +7087,28 @@ define amdgpu_kernel void @global_wavefront_one_as_unordered_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_unordered_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_unordered_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront-one-as") unordered, align 4
@@ -5954,6 +7210,28 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront-one-as") monotonic, align 4
@@ -6055,6 +7333,28 @@ define amdgpu_kernel void @global_wavefront_one_as_release_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront-one-as") release, align 4
@@ -6156,6 +7456,28 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_store(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_store:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_store:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x0
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 %in, i32 addrspace(1)* %out) {
 entry:
   store atomic i32 %in, i32 addrspace(1)* %out syncscope("wavefront-one-as") seq_cst, align 4
@@ -6257,6 +7579,28 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") monotonic
@@ -6358,6 +7702,28 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") acquire
@@ -6459,6 +7825,28 @@ define amdgpu_kernel void @global_wavefront_one_as_release_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") release
@@ -6560,6 +7948,28 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") acq_rel
@@ -6661,6 +8071,28 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b32_e32 v1, s4
 ; GFX940-TGSPLIT-NEXT:    global_atomic_swap v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") seq_cst
@@ -6780,6 +8212,32 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_ret_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_ret_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_ret_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") acquire
@@ -6900,6 +8358,32 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_ret_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_ret_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_ret_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") acq_rel
@@ -7020,6 +8504,32 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_ret_atomicrmw(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v0, v1, s[2:3]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_ret_atomicrmw:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-WGP-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_ret_atomicrmw:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b32 s2, s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, 0 :: v_dual_mov_b32 v1, s2
+; GFX11-CU-NEXT:    global_atomic_swap_b32 v1, v0, v1, s[0:1] glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v0, v1, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in) {
 entry:
   %val = atomicrmw volatile xchg i32 addrspace(1)* %out, i32 %in syncscope("wavefront-one-as") seq_cst
@@ -7129,6 +8639,30 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7238,6 +8772,30 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7347,6 +8905,30 @@ define amdgpu_kernel void @global_wavefront_one_as_release_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7456,6 +9038,30 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7565,6 +9171,30 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_monotonic_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_monotonic_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_monotonic_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7674,6 +9304,30 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7783,6 +9437,30 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -7892,6 +9570,30 @@ define amdgpu_kernel void @global_wavefront_one_as_release_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8001,6 +9703,30 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8110,6 +9836,30 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_acquire_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_acquire_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_acquire_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8219,6 +9969,30 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8328,6 +10102,30 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8437,6 +10235,30 @@ define amdgpu_kernel void @global_wavefront_one_as_release_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8546,6 +10368,30 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8655,6 +10501,30 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_seq_cst_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    v_mov_b64_e32 v[0:1], s[2:3]
 ; GFX940-TGSPLIT-NEXT:    global_atomic_cmpswap v2, v[0:1], s[4:5] offset:16
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_seq_cst_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_seq_cst_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v2, v[0:1], s[0:1] offset:16
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8784,6 +10654,34 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_monotonic_ret_cmpxc
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -8915,6 +10813,34 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_monotonic_ret_cmpxchg
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9046,6 +10972,34 @@ define amdgpu_kernel void @global_wavefront_one_as_release_monotonic_ret_cmpxchg
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9177,6 +11131,34 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_monotonic_ret_cmpxchg
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9308,6 +11290,34 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_monotonic_ret_cmpxchg
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_monotonic_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_monotonic_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9439,6 +11449,34 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_acquire_ret_cmpxchg
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9570,6 +11608,34 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9701,6 +11767,34 @@ define amdgpu_kernel void @global_wavefront_one_as_release_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9832,6 +11926,34 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -9963,6 +12085,34 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_acquire_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_acquire_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_acquire_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -10094,6 +12244,34 @@ define amdgpu_kernel void @global_wavefront_one_as_monotonic_seq_cst_ret_cmpxchg
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_monotonic_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_monotonic_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -10225,6 +12403,34 @@ define amdgpu_kernel void @global_wavefront_one_as_acquire_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acquire_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acquire_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -10356,6 +12562,34 @@ define amdgpu_kernel void @global_wavefront_one_as_release_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_release_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_release_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -10487,6 +12721,34 @@ define amdgpu_kernel void @global_wavefront_one_as_acq_rel_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_acq_rel_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_acq_rel_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4
@@ -10618,6 +12880,34 @@ define amdgpu_kernel void @global_wavefront_one_as_seq_cst_seq_cst_ret_cmpxchg(
 ; GFX940-TGSPLIT-NEXT:    s_waitcnt vmcnt(0)
 ; GFX940-TGSPLIT-NEXT:    global_store_dword v2, v0, s[4:5]
 ; GFX940-TGSPLIT-NEXT:    s_endpgm
+;
+; GFX11-WGP-LABEL: global_wavefront_one_as_seq_cst_seq_cst_ret_cmpxchg:
+; GFX11-WGP:       ; %bb.0: ; %entry
+; GFX11-WGP-NEXT:    s_clause 0x1
+; GFX11-WGP-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-WGP-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-WGP-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-WGP-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-WGP-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-WGP-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-WGP-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-WGP-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-WGP-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-WGP-NEXT:    s_endpgm
+;
+; GFX11-CU-LABEL: global_wavefront_one_as_seq_cst_seq_cst_ret_cmpxchg:
+; GFX11-CU:       ; %bb.0: ; %entry
+; GFX11-CU-NEXT:    s_clause 0x1
+; GFX11-CU-NEXT:    s_load_b64 s[2:3], s[0:1], 0x8
+; GFX11-CU-NEXT:    s_load_b64 s[0:1], s[0:1], 0x0
+; GFX11-CU-NEXT:    v_mov_b32_e32 v2, 0
+; GFX11-CU-NEXT:    s_waitcnt lgkmcnt(0)
+; GFX11-CU-NEXT:    v_dual_mov_b32 v0, s2 :: v_dual_mov_b32 v1, s3
+; GFX11-CU-NEXT:    global_atomic_cmpswap_b32 v0, v2, v[0:1], s[0:1] offset:16 glc
+; GFX11-CU-NEXT:    s_waitcnt vmcnt(0)
+; GFX11-CU-NEXT:    global_store_b32 v2, v0, s[0:1]
+; GFX11-CU-NEXT:    s_sendmsg sendmsg(MSG_DEALLOC_VGPRS)
+; GFX11-CU-NEXT:    s_endpgm
     i32 addrspace(1)* %out, i32 %in, i32 %old) {
 entry:
   %gep = getelementptr i32, i32 addrspace(1)* %out, i32 4

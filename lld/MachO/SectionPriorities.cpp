@@ -283,11 +283,10 @@ void macho::PriorityBuilder::extractCallGraphProfile() {
              entry.toIndex < obj->symbols.size());
       auto *fromSym = dyn_cast_or_null<Defined>(obj->symbols[entry.fromIndex]);
       auto *toSym = dyn_cast_or_null<Defined>(obj->symbols[entry.toIndex]);
-      if (!fromSym || !toSym ||
-          (hasOrderFile &&
-           (getSymbolPriority(fromSym) || getSymbolPriority(toSym))))
-        continue;
-      callGraphProfile[{fromSym->isec, toSym->isec}] += entry.count;
+      if (fromSym && toSym &&
+          (!hasOrderFile ||
+           (!getSymbolPriority(fromSym) && !getSymbolPriority(toSym))))
+        callGraphProfile[{fromSym->isec, toSym->isec}] += entry.count;
     }
   }
 }
@@ -368,10 +367,10 @@ macho::PriorityBuilder::buildInputSectionPriorities() {
 
   auto addSym = [&](const Defined *sym) {
     Optional<size_t> symbolPriority = getSymbolPriority(sym);
-    if (!symbolPriority.hasValue())
+    if (!symbolPriority)
       return;
     size_t &priority = sectionPriorities[sym->isec];
-    priority = std::max(priority, symbolPriority.getValue());
+    priority = std::max(priority, symbolPriority.value());
   };
 
   // TODO: Make sure this handles weak symbols correctly.

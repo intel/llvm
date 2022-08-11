@@ -17,11 +17,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include <CL/sycl/access/access.hpp>
-#include <CL/sycl/detail/accessor_impl.hpp>
-#include <CL/sycl/detail/cg.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <sycl/access/access.hpp>
+#include <sycl/detail/accessor_impl.hpp>
+#include <sycl/detail/cg.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -55,14 +55,14 @@ struct EnqueueResultT {
     SyclEnqueueFailed
   };
   EnqueueResultT(ResultT Result = SyclEnqueueSuccess, Command *Cmd = nullptr,
-                 cl_int ErrCode = CL_SUCCESS)
+                 pi_int32 ErrCode = PI_SUCCESS)
       : MResult(Result), MCmd(Cmd), MErrCode(ErrCode) {}
   /// Indicates the result of enqueueing.
   ResultT MResult;
   /// Pointer to the command which failed to enqueue.
   Command *MCmd;
   /// Error code which is set when enqueueing fails.
-  cl_int MErrCode;
+  pi_int32 MErrCode;
 };
 
 /// Dependency between two commands.
@@ -245,7 +245,7 @@ protected:
                                          std::vector<Command *> &ToCleanUp);
 
   /// Private interface. Derived classes should implement this method.
-  virtual cl_int enqueueImp() = 0;
+  virtual pi_int32 enqueueImp() = 0;
 
   /// The type of the command.
   CommandType MType;
@@ -345,7 +345,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   // Employing deque here as it allows to push_back/emplace_back without
   // invalidation of pointer or reference to stored data item regardless of
@@ -365,7 +365,7 @@ public:
   bool supportsPostEnqueueCleanup() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   /// Command which allocates memory release command should dealocate.
   AllocaCommandBase *MAllocaCmd = nullptr;
@@ -375,7 +375,7 @@ private:
 class AllocaCommandBase : public Command {
 public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
-                    AllocaCommandBase *LinkedAllocaCmd);
+                    AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
@@ -405,6 +405,8 @@ public:
   /// Indicates that the command owns memory allocation in case of connected
   /// alloca command.
   bool MIsLeaderAlloca = true;
+  // Indicates that the data in this allocation must not be modified
+  bool MIsConst = false;
 
 protected:
   Requirement MRequirement;
@@ -417,14 +419,15 @@ class AllocaCommand : public AllocaCommandBase {
 public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
                 bool InitFromUserData = true,
-                AllocaCommandBase *LinkedAllocaCmd = nullptr);
+                AllocaCommandBase *LinkedAllocaCmd = nullptr,
+                bool IsConst = false);
 
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   /// The flag indicates that alloca should try to reuse pointer provided by
   /// the user during memory object construction.
@@ -445,7 +448,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MParentAlloca = nullptr;
 };
@@ -461,7 +464,7 @@ public:
   void emitInstrumentationData() override;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MSrcReq;
@@ -481,7 +484,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MDstAllocaCmd = nullptr;
   Requirement MDstReq;
@@ -503,7 +506,7 @@ public:
   bool producesPiEvent() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -526,7 +529,7 @@ public:
   const ContextImplPtr &getWorkerContext() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   QueueImplPtr MSrcQueue;
   Requirement MSrcReq;
@@ -535,7 +538,7 @@ private:
   void **MDstPtr = nullptr;
 };
 
-cl_int enqueueImpKernel(
+pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
@@ -571,7 +574,7 @@ public:
   bool supportsPostEnqueueCleanup() const final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
@@ -590,7 +593,7 @@ public:
   void emitInstrumentationData() final;
 
 private:
-  cl_int enqueueImp() final;
+  pi_int32 enqueueImp() final;
 
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;

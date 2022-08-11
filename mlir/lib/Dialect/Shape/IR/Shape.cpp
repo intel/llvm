@@ -17,6 +17,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -132,7 +133,10 @@ void ShapeDialect::initialize() {
 #define GET_OP_LIST
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
       >();
-  addTypes<ShapeType, SizeType, ValueShapeType, WitnessType>();
+  addTypes<
+#define GET_TYPEDEF_LIST
+#include "mlir/Dialect/Shape/IR/ShapeOpsTypes.cpp.inc"
+      >();
   addInterfaces<ShapeInlinerInterface>();
   // Allow unknown operations during prototyping and testing. As the dialect is
   // still evolving it makes it simple to start with an unregistered ops and
@@ -153,35 +157,6 @@ Operation *ShapeDialect::materializeConstant(OpBuilder &builder,
   if (arith::ConstantOp::isBuildableWith(value, type))
     return builder.create<arith::ConstantOp>(loc, type, value);
   return nullptr;
-}
-
-/// Parse a type registered to this dialect.
-Type ShapeDialect::parseType(DialectAsmParser &parser) const {
-  StringRef keyword;
-  if (parser.parseKeyword(&keyword))
-    return Type();
-
-  if (keyword == "shape")
-    return ShapeType::get(getContext());
-  if (keyword == "size")
-    return SizeType::get(getContext());
-  if (keyword == "value_shape")
-    return ValueShapeType::get(getContext());
-  if (keyword == "witness")
-    return WitnessType::get(getContext());
-
-  parser.emitError(parser.getNameLoc(), "unknown shape type: ") << keyword;
-  return Type();
-}
-
-/// Print a type registered to this dialect.
-void ShapeDialect::printType(Type type, DialectAsmPrinter &os) const {
-  TypeSwitch<Type>(type)
-      .Case<ShapeType>([&](Type) { os << "shape"; })
-      .Case<SizeType>([&](Type) { os << "size"; })
-      .Case<ValueShapeType>([&](Type) { os << "value_shape"; })
-      .Case<WitnessType>([&](Type) { os << "witness"; })
-      .Default([](Type) { llvm_unreachable("unexpected 'shape' type kind"); });
 }
 
 LogicalResult ShapeDialect::verifyOperationAttribute(Operation *op,
@@ -366,7 +341,7 @@ void AssumingOp::getSuccessorRegions(
   // AssumingOp has unconditional control flow into the region and back to the
   // parent, so return the correct RegionSuccessor purely based on the index
   // being None or 0.
-  if (index.hasValue()) {
+  if (index) {
     regions.push_back(RegionSuccessor(getResults()));
     return;
   }
@@ -811,7 +786,7 @@ struct CanonicalizeCastExtentTensorOperandsPattern
             castOp.getType().cast<RankedTensorType>().isDynamicDim(0);
         if (isInformationLoosingCast) {
           anyChange = true;
-          return castOp.source();
+          return castOp.getSource();
         }
       }
       return operand;
@@ -1238,6 +1213,24 @@ void FunctionLibraryOp::print(OpAsmPrinter &p) {
 }
 
 //===----------------------------------------------------------------------===//
+// FuncOp
+//===----------------------------------------------------------------------===//
+
+ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
+  auto buildFuncType =
+      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
+         function_interface_impl::VariadicFlag,
+         std::string &) { return builder.getFunctionType(argTypes, results); };
+
+  return function_interface_impl::parseFunctionOp(
+      parser, result, /*allowVariadic=*/false, buildFuncType);
+}
+
+void FuncOp::print(OpAsmPrinter &p) {
+  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false);
+}
+
+//===----------------------------------------------------------------------===//
 // GetExtentOp
 //===----------------------------------------------------------------------===//
 
@@ -1254,11 +1247,11 @@ OpFoldResult GetExtentOp::fold(ArrayRef<Attribute> operands) {
   if (!elements)
     return nullptr;
   Optional<int64_t> dim = getConstantDim();
-  if (!dim.hasValue())
+  if (!dim.has_value())
     return nullptr;
-  if (dim.getValue() >= elements.getNumElements())
+  if (dim.value() >= elements.getNumElements())
     return nullptr;
-  return elements.getValues<Attribute>()[(uint64_t)dim.getValue()];
+  return elements.getValues<Attribute>()[(uint64_t)dim.value()];
 }
 
 void GetExtentOp::build(OpBuilder &builder, OperationState &result, Value shape,
@@ -1604,7 +1597,7 @@ struct ShapeOfCastExtentTensor : public OpRewritePattern<tensor::CastOp> {
     if (!ty || ty.getRank() != 1)
       return failure();
 
-    auto shapeOfOp = op.source().getDefiningOp<ShapeOfOp>();
+    auto shapeOfOp = op.getSource().getDefiningOp<ShapeOfOp>();
     if (!shapeOfOp)
       return failure();
 
@@ -1724,7 +1717,7 @@ LogicalResult SplitAtOp::fold(ArrayRef<Attribute> operands,
   // Verify that the split point is in the correct range.
   // TODO: Constant fold to an "error".
   int64_t rank = shape.size();
-  if (!(-rank <= splitPoint && splitPoint <= rank))
+  if (-rank > splitPoint || splitPoint > rank)
     return failure();
   if (splitPoint < 0)
     splitPoint += shape.size();
@@ -1871,3 +1864,6 @@ void ReduceOp::print(OpAsmPrinter &p) {
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/Shape/IR/ShapeOps.cpp.inc"
+
+#define GET_TYPEDEF_CLASSES
+#include "mlir/Dialect/Shape/IR/ShapeOpsTypes.cpp.inc"

@@ -250,10 +250,10 @@ def fir_FreeMemOp : fir_Op<"freemem", [MemoryEffects<[MemFree]>]> {
 
   let arguments = (ins Arg<fir_HeapType, "", [MemFree]>:$heapref);
 
-  let assemblyFormat = "$heapref attr-dict `:` type($heapref)";
+  let assemblyFormat = "$heapref attr-dict `:` qualified(type($heapref))";
 }
 
-def fir_LoadOp : fir_OneResultOp<"load"> {
+def fir_LoadOp : fir_OneResultOp<"load", [MemoryEffects<[MemRead]>]> {
   let summary = "load a value from a memory reference";
   let description = [{
     Load a value from a memory reference into an ssa-value (virtual register).
@@ -278,6 +278,85 @@ def fir_LoadOp : fir_OneResultOp<"load"> {
   let extraClassDeclaration = [{
     static mlir::ParseResult getElementOf(mlir::Type &ele, mlir::Type ref);
   }];
+}
+
+def fir_StoreOp : fir_Op<"store", [MemoryEffects<[MemWrite]>]> {
+  let summary = "store an SSA-value to a memory location";
+
+  let description = [{
+    Store an ssa-value (virtual register) to a memory reference.  The stored
+    value must be of the same type as the referent type of the memory
+    reference.
+
+    ```mlir
+      %v = ... : f64
+      %p = ... : !fir.ptr<f64>
+      fir.store %v to %p : !fir.ptr<f64>
+    ```
+
+    The above store changes the value to which the pointer is pointing and not
+    the pointer itself. The operation is undefined if the memory reference,
+    `%p`, is undefined or null.
+  }];
+
+  let arguments = (ins AnyType:$value,
+                   Arg<AnyReferenceLike, "", [MemWrite]>:$memref);
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    static mlir::Type elementType(mlir::Type refType);
+  }];
+}
+
+def fir_SaveResultOp : fir_Op<"save_result", [AttrSizedOperandSegments]> {
+  let summary = [{
+    save an array, box, or record function result SSA-value to a memory location
+  }];
+
+  let description = [{
+    Save the result of a function returning an array, box, or record type value
+    into a memory location given the shape and LEN parameters of the result.
+
+    Function results of type fir.box, fir.array, or fir.rec are abstract values
+    that require a storage to be manipulated on the caller side. This operation
+    allows associating such abstract result to a storage. In later lowering of
+    the function interfaces, this storage might be used to pass the result in
+    memory.
+
+    For arrays, result, it is required to provide the shape of the result. For
+    character arrays and derived types with LEN parameters, the LEN parameter
+    values must be provided.
+
+    The fir.save_result associated to a function call must immediately follow
+    the call and be in the same block.
+
+    ```mlir
+      %buffer = fir.alloca fir.array<?xf32>, %c100
+      %shape = fir.shape %c100
+      %array_result = fir.call @foo() : () -> fir.array<?xf32>
+      fir.save_result %array_result to %buffer(%shape)
+      %coor = fir.array_coor %buffer%(%shape), %c5
+      %fifth_element = fir.load %coor : f32
+    ```
+
+    The above fir.save_result allows saving a fir.array function result into
+    a buffer to later access its 5th element.
+
+  }];
+
+  let arguments = (ins ArrayOrBoxOrRecord:$value,
+                   Arg<AnyReferenceLike, "", [MemWrite]>:$memref,
+                   Optional<AnyShapeType>:$shape,
+                   Variadic<AnyIntegerType>:$typeparams);
+
+  let assemblyFormat = [{
+    $value `to` $memref (`(` $shape^ `)`)? (`typeparams` $typeparams^)?
+    attr-dict `:` type(operands)
+  }];
+
+  let hasVerifier = 1;
 }
 
 def fir_CharConvertOp : fir_Op<"char_convert", []> {
@@ -315,85 +394,6 @@ def fir_CharConvertOp : fir_Op<"char_convert", []> {
 
   let assemblyFormat = [{
     $from `for` $count `to` $to attr-dict `:` type(operands)
-  }];
-
-  let hasVerifier = 1;
-}
-
-def fir_StoreOp : fir_Op<"store", []> {
-  let summary = "store an SSA-value to a memory location";
-
-  let description = [{
-    Store an ssa-value (virtual register) to a memory reference.  The stored
-    value must be of the same type as the referent type of the memory
-    reference.
-
-    ```mlir
-      %v = ... : f64
-      %p = ... : !fir.ptr<f64>
-      fir.store %v to %p : !fir.ptr<f64>
-    ```
-
-    The above store changes the value to which the pointer is pointing and not
-    the pointer itself. The operation is undefined if the memory reference,
-    `%p`, is undefined or null.
-  }];
-
-  let arguments = (ins AnyType:$value,
-                   Arg<AnyReferenceLike, "", [MemWrite]>:$memref);
-
-  let hasCustomAssemblyFormat = 1;
-  let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-    static mlir::Type elementType(mlir::Type refType);
-  }];
-}
-
-def fir_SaveResultOp : fir_Op<"save_result", [AttrSizedOperandSegments]> {
-  let summary = [{
-    save an array, box, or record function result SSA-value to a memory location
-  }];
-
-  let description = [{
-    Save the result of a function returning an array, box, or record type value
-    into a memory location given the shape and length parameters of the result.
-
-    Function results of type fir.box, fir.array, or fir.rec are abstract values
-    that require a storage to be manipulated on the caller side. This operation
-    allows associating such abstract result to a storage. In later lowering of
-    the function interfaces, this storage might be used to pass the result in
-    memory.
-
-    For arrays, result, it is required to provide the shape of the result. For
-    character arrays and derived types with length parameters, the length
-    parameter values must be provided.
-
-    The fir.save_result associated to a function call must immediately follow
-    the call and be in the same block.
-
-    ```mlir
-      %buffer = fir.alloca fir.array<?xf32>, %c100
-      %shape = fir.shape %c100
-      %array_result = fir.call @foo() : () -> fir.array<?xf32>
-      fir.save_result %array_result to %buffer(%shape)
-      %coor = fir.array_coor %buffer%(%shape), %c5
-      %fifth_element = fir.load %coor : f32
-    ```
-
-    The above fir.save_result allows saving a fir.array function result into
-    a buffer to later access its 5th element.
-
-  }];
-
-  let arguments = (ins ArrayOrBoxOrRecord:$value,
-                   Arg<AnyReferenceLike, "", [MemWrite]>:$memref,
-                   Optional<AnyShapeType>:$shape,
-                   Variadic<AnyIntegerType>:$typeparams);
-
-  let assemblyFormat = [{
-    $value `to` $memref (`(` $shape^ `)`)? (`typeparams` $typeparams^)?
-    attr-dict `:` type(operands)
   }];
 
   let hasVerifier = 1;
@@ -489,16 +489,12 @@ class fir_SwitchTerminatorOp<string mnemonic, list<Trait> traits = []> :
         llvm::ArrayRef<mlir::Value> operands, unsigned cond);
     llvm::Optional<mlir::ValueRange> getSuccessorOperands(
         mlir::ValueRange operands, unsigned cond);
-    using BranchOpInterfaceTrait::getSuccessorOperands;
 
     // Helper function to deal with Optional operand forms
     void printSuccessorAtIndex(mlir::OpAsmPrinter &p, unsigned i) {
       auto *succ = getSuccessor(i);
       auto ops = getSuccessorOperands(i);
-      if (ops.hasValue())
-        p.printSuccessorAndUseList(succ, ops.getValue());
-      else
-        p.printSuccessor(succ);
+      p.printSuccessorAndUseList(succ, ops.getForwardedOperands());
     }
 
     mlir::ArrayAttr getCases() {
@@ -1720,8 +1716,8 @@ def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
       "mlir::Type":$recTy, CArg<"mlir::ValueRange","{}">:$operands)>];
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef fieldAttrName() { return "field_id"; }
-    static constexpr llvm::StringRef typeAttrName() { return "on_type"; }
+    static constexpr llvm::StringRef getFieldAttrName() { return "field_id"; }
+    static constexpr llvm::StringRef getTypeAttrName() { return "on_type"; }
     llvm::StringRef getFieldName() { return getFieldId(); }
     llvm::SmallVector<mlir::Attribute> getAttributes();
   }];
@@ -1974,21 +1970,22 @@ def fir_LenParamIndexOp : fir_OneResultOp<"len_param_index", [NoSideEffect]> {
     ```
   }];
 
-  let arguments = (ins StrAttr:$field_id, TypeAttr:$on_type);
+  let arguments = (ins
+    StrAttr:$field_id,
+    TypeAttr:$on_type,
+    Variadic<AnyIntegerType>:$typeparams
+  );
 
   let hasCustomAssemblyFormat = 1;
 
   let builders = [OpBuilder<(ins "llvm::StringRef":$fieldName,
-      "mlir::Type":$recTy),
-    [{
-      $_state.addAttribute(fieldAttrName(), $_builder.getStringAttr(fieldName));
-      $_state.addAttribute(typeAttrName(), mlir::TypeAttr::get(recTy));
-    }]
-  >];
+      "mlir::Type":$recTy, CArg<"mlir::ValueRange","{}">:$operands)>];
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef fieldAttrName() { return "field_id"; }
-    static constexpr llvm::StringRef typeAttrName() { return "on_type"; }
+    static constexpr llvm::StringRef getFieldAttrName() { return "field_id"; }
+    static constexpr llvm::StringRef getTypeAttrName() { return "on_type"; }
+    llvm::StringRef getParamName() { return getFieldId(); }
+    llvm::SmallVector<mlir::Attribute> getAttributes();
   }];
 }
 
@@ -2286,7 +2283,7 @@ def fir_CallOp : fir_Op<"call", [CallOpInterface]> {
   let hasCustomAssemblyFormat = 1;
 
   let builders = [
-    OpBuilder<(ins "mlir::FuncOp":$callee,
+    OpBuilder<(ins "mlir::func::FuncOp":$callee,
         CArg<"mlir::ValueRange", "{}">:$operands)>,
     OpBuilder<(ins "mlir::SymbolRefAttr":$callee,
         "llvm::ArrayRef<mlir::Type>":$results,
@@ -2356,7 +2353,7 @@ def fir_DispatchOp : fir_Op<"dispatch", []> {
     // operand[0] is the object (of box type)
     operand_iterator arg_operand_begin() { return operand_begin() + 1; }
     operand_iterator arg_operand_end() { return operand_end(); }
-    static constexpr llvm::StringRef passArgAttrName() {
+    static constexpr llvm::StringRef getPassArgAttrName() {
       return "pass_arg_pos";
     }
     static constexpr llvm::StringRef getMethodAttrNameStr() { return "method"; }
@@ -2449,11 +2446,11 @@ def fir_ConstcOp : fir_Op<"constc", [NoSideEffect]> {
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef realAttrName() { return "real"; }
-    static constexpr llvm::StringRef imagAttrName() { return "imaginary"; }
+    static constexpr llvm::StringRef getRealAttrName() { return "real"; }
+    static constexpr llvm::StringRef getImagAttrName() { return "imaginary"; }
 
-    mlir::Attribute getReal() { return (*this)->getAttr(realAttrName()); }
-    mlir::Attribute getImaginary() { return (*this)->getAttr(imagAttrName()); }
+    mlir::Attribute getReal() { return (*this)->getAttr(getRealAttrName()); }
+    mlir::Attribute getImaginary() { return (*this)->getAttr(getImagAttrName()); }
   }];
 }
 
@@ -2563,16 +2560,13 @@ def fir_ConvertOp : fir_OneResultOp<"convert", [NoSideEffect]> {
 }
 
 def FortranTypeAttr : Attr<And<[CPred<"$_self.isa<mlir::TypeAttr>()">,
-    Or<[CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::CharacterType>()">,
-        CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::ComplexType>()">,
-        CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::IntegerType>()">,
-        CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::LogicalType>()">,
-        CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::RealType>()">,
-        CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::RecordType>()">]>]>,
+    Or<[CPred<"$_self.cast<mlir::TypeAttr>().getValue().isa<fir::CharacterType,"
+              "fir::ComplexType, fir::IntegerType, fir::LogicalType,"
+              "fir::RealType, fir::RecordType>()">]>]>,
     "Fortran surface type"> {
   let storageType = [{ ::mlir::TypeAttr }];
   let returnType = "mlir::Type";
-  let convertFromStorage = "$_self.getValue().cast<Type>()";
+  let convertFromStorage = "$_self.getValue().cast<mlir::Type>()";
 }
 
 def fir_GenTypeDescOp : fir_OneResultOp<"gentypedesc", [NoSideEffect]> {
@@ -2583,7 +2577,7 @@ def fir_GenTypeDescOp : fir_OneResultOp<"gentypedesc", [NoSideEffect]> {
     is `!fir.tdesc<T>`.
 
     ```mlir
-      !T = type !fir.type<T{...}>
+      !T = !fir.type<T{...}>
       %t = fir.gentypedesc !T  // returns value of !fir.tdesc<!T>
     ```
   }];
@@ -2683,17 +2677,19 @@ def fir_GlobalOp : fir_Op<"global", [IsolatedFromAbove, Symbol]> {
   ];
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef symbolAttrNameStr() { return "symref"; }
+    static constexpr llvm::StringRef getSymbolAttrNameStr() { return "symref"; }
     static constexpr llvm::StringRef getConstantAttrNameStr() {
       return "constant";
     }
-    static constexpr llvm::StringRef linkageAttrName() { return "linkName"; }
+    static constexpr llvm::StringRef getLinkageAttrNameStr() {
+      return "linkName";
+    }
 
     /// The semantic type of the global
     mlir::Type resultType();
 
     /// Return the initializer attribute if it exists, or a null attribute.
-    mlir::Attribute getValueOrNull() { return getInitVal().getValueOr(mlir::Attribute()); }
+    mlir::Attribute getValueOrNull() { return getInitVal().value_or(mlir::Attribute()); }
 
     /// Append the next initializer value to the `GlobalOp` to construct
     /// the variable's initial value.
@@ -2739,8 +2735,8 @@ def fir_GlobalLenOp : fir_Op<"global_len", []> {
   let hasCustomAssemblyFormat = 1;
 
   let extraClassDeclaration = [{
-    static constexpr llvm::StringRef lenParamAttrName() { return "lenparam"; }
-    static constexpr llvm::StringRef intAttrName() { return "intval"; }
+    static constexpr llvm::StringRef getLenParamAttrName() { return "lenparam"; }
+    static constexpr llvm::StringRef getIntAttrName() { return "intval"; }
   }];
 }
 

@@ -31,18 +31,18 @@ inline bool isaCall(mlir::Operation *op) {
          mlir::isa<mlir::func::CallIndirectOp>(op);
 }
 
-/// return true iff the Operation is a fir::CallOp, fir::DispatchOp,
+/// Return true iff the Operation is a fir::CallOp, fir::DispatchOp,
 /// mlir::CallOp, or mlir::CallIndirectOp and not pure
-/// NB: this is not the same as `!pureCall(op)`
+/// NB: This is not the same as `!pureCall(op)`.
 inline bool impureCall(mlir::Operation *op) {
   // Should we also auto-detect that the called function is pure if its
   // arguments are not references?  For now, rely on a "pure" attribute.
   return op && isaCall(op) && !op->getAttr("pure");
 }
 
-/// return true iff the Operation is a fir::CallOp, fir::DispatchOp,
+/// Return true iff the Operation is a fir::CallOp, fir::DispatchOp,
 /// mlir::CallOp, or mlir::CallIndirectOp and is also pure.
-/// NB: this is not the same as `!impureCall(op)`
+/// NB: This is not the same as `!impureCall(op)`.
 inline bool pureCall(mlir::Operation *op) {
   // Should we also auto-detect that the called function is pure if its
   // arguments are not references?  For now, rely on a "pure" attribute.
@@ -53,9 +53,10 @@ inline bool pureCall(mlir::Operation *op) {
 ///
 /// If `module` already contains FuncOp `name`, it is returned. Otherwise, a new
 /// FuncOp is created, and that new FuncOp is returned.
-mlir::FuncOp createFuncOp(mlir::Location loc, mlir::ModuleOp module,
-                          llvm::StringRef name, mlir::FunctionType type,
-                          llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
+mlir::func::FuncOp
+createFuncOp(mlir::Location loc, mlir::ModuleOp module, llvm::StringRef name,
+             mlir::FunctionType type,
+             llvm::ArrayRef<mlir::NamedAttribute> attrs = {});
 
 /// Get or create a GlobalOp in a module.
 fir::GlobalOp createGlobalOp(mlir::Location loc, mlir::ModuleOp module,
@@ -78,7 +79,9 @@ static constexpr llvm::StringRef getCharacterProcedureDummyAttrName() {
 }
 
 /// Attribute to keep track of Fortran scoping information for a symbol.
-static constexpr llvm::StringRef getSymbolAttrName() { return "fir.sym_name"; }
+static constexpr llvm::StringRef getSymbolAttrName() {
+  return "fir.bindc_name";
+}
 
 /// Attribute to mark a function that takes a host associations argument.
 static constexpr llvm::StringRef getHostAssocAttrName() {
@@ -87,7 +90,7 @@ static constexpr llvm::StringRef getHostAssocAttrName() {
 
 /// Does the function, \p func, have a host-associations tuple argument?
 /// Some internal procedures may have access to host procedure variables.
-bool hasHostAssociationArgument(mlir::FuncOp func);
+bool hasHostAssociationArgument(mlir::func::FuncOp func);
 
 /// Tell if \p value is:
 ///   - a function argument that has attribute \p attributeName
@@ -102,7 +105,7 @@ bool valueHasFirAttribute(mlir::Value value, llvm::StringRef attributeName);
 /// Scan the arguments of a FuncOp to determine if any arguments have the
 /// attribute `attr` placed on them. This can be used to determine if the
 /// function has any host associations, for example.
-bool anyFuncArgsHaveAttr(mlir::FuncOp func, llvm::StringRef attr);
+bool anyFuncArgsHaveAttr(mlir::func::FuncOp func, llvm::StringRef attr);
 
 } // namespace fir
 

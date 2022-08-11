@@ -179,6 +179,8 @@ X86InstructionSelector::getRegClass(LLT Ty, const RegisterBank &RB) const {
       return &X86::GR64RegClass;
   }
   if (RB.getID() == X86::VECRRegBankID) {
+    if (Ty.getSizeInBits() == 16)
+      return STI.hasAVX512() ? &X86::FR16XRegClass : &X86::FR16RegClass;
     if (Ty.getSizeInBits() == 32)
       return STI.hasAVX512() ? &X86::FR32XRegClass : &X86::FR32RegClass;
     if (Ty.getSizeInBits() == 64)
@@ -516,7 +518,7 @@ bool X86InstructionSelector::selectLoadStoreOp(MachineInstr &I,
     // is already on the instruction we're mutating, and thus we don't need to
     // make any changes.  So long as we select an opcode which is capable of
     // loading or storing the appropriate size atomically, the rest of the
-    // backend is required to respect the MMO state. 
+    // backend is required to respect the MMO state.
     if (!MemOp.isUnordered()) {
       LLVM_DEBUG(dbgs() << "Atomic ordering not supported yet\n");
       return false;
@@ -1412,7 +1414,7 @@ bool X86InstructionSelector::materializeFP(MachineInstr &I,
 
     MachineMemOperand *MMO = MF.getMachineMemOperand(
         MachinePointerInfo::getConstantPool(MF), MachineMemOperand::MOLoad,
-        MF.getDataLayout().getPointerSize(), Alignment);
+        LLT::pointer(0, MF.getDataLayout().getPointerSizeInBits()), Alignment);
 
     LoadInst =
         addDirectMem(BuildMI(*I.getParent(), I, DbgLoc, TII.get(Opc), DstReg),

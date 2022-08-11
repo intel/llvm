@@ -49,7 +49,7 @@ Operation *EmitCDialect::materializeConstant(OpBuilder &builder,
 //===----------------------------------------------------------------------===//
 
 LogicalResult ApplyOp::verify() {
-  StringRef applicableOperatorStr = applicableOperator();
+  StringRef applicableOperatorStr = getApplicableOperator();
 
   // Applicable operator must not be empty.
   if (applicableOperatorStr.empty())
@@ -63,16 +63,29 @@ LogicalResult ApplyOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// CastOp
+//===----------------------------------------------------------------------===//
+
+bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  Type input = inputs.front(), output = outputs.front();
+
+  return ((input.isa<IntegerType, FloatType, IndexType, emitc::OpaqueType,
+                     emitc::PointerType>()) &&
+          (output.isa<IntegerType, FloatType, IndexType, emitc::OpaqueType,
+                      emitc::PointerType>()));
+}
+
+//===----------------------------------------------------------------------===//
 // CallOp
 //===----------------------------------------------------------------------===//
 
 LogicalResult emitc::CallOp::verify() {
   // Callee must not be empty.
-  if (callee().empty())
+  if (getCallee().empty())
     return emitOpError("callee must not be empty");
 
-  if (Optional<ArrayAttr> argsAttr = args()) {
-    for (Attribute arg : argsAttr.getValue()) {
+  if (Optional<ArrayAttr> argsAttr = getArgs()) {
+    for (Attribute arg : *argsAttr) {
       if (arg.getType().isa<IndexType>()) {
         int64_t index = arg.cast<IntegerAttr>().getInt();
         // Args with elements of type index must be in range
@@ -87,8 +100,8 @@ LogicalResult emitc::CallOp::verify() {
     }
   }
 
-  if (Optional<ArrayAttr> templateArgsAttr = template_args()) {
-    for (Attribute tArg : templateArgsAttr.getValue()) {
+  if (Optional<ArrayAttr> templateArgsAttr = getTemplateArgs()) {
+    for (Attribute tArg : *templateArgsAttr) {
       if (!tArg.isa<TypeAttr>() && !tArg.isa<IntegerAttr>() &&
           !tArg.isa<FloatAttr>() && !tArg.isa<emitc::OpaqueAttr>())
         return emitOpError("template argument has invalid type");
@@ -104,7 +117,7 @@ LogicalResult emitc::CallOp::verify() {
 
 /// The constant op requires that the attribute's type matches the return type.
 LogicalResult emitc::ConstantOp::verify() {
-  Attribute value = valueAttr();
+  Attribute value = getValueAttr();
   Type type = getType();
   if (!value.getType().isa<NoneType>() && type != value.getType())
     return emitOpError() << "requires attribute's type (" << value.getType()
@@ -114,7 +127,7 @@ LogicalResult emitc::ConstantOp::verify() {
 
 OpFoldResult emitc::ConstantOp::fold(ArrayRef<Attribute> operands) {
   assert(operands.empty() && "constant has no operands");
-  return value();
+  return getValue();
 }
 
 //===----------------------------------------------------------------------===//
@@ -122,12 +135,12 @@ OpFoldResult emitc::ConstantOp::fold(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 void IncludeOp::print(OpAsmPrinter &p) {
-  bool standardInclude = is_standard_include();
+  bool standardInclude = getIsStandardInclude();
 
   p << " ";
   if (standardInclude)
     p << "<";
-  p << "\"" << include() << "\"";
+  p << "\"" << getInclude() << "\"";
   if (standardInclude)
     p << ">";
 }
@@ -158,7 +171,7 @@ ParseResult IncludeOp::parse(OpAsmParser &parser, OperationState &result) {
 
 /// The variable op requires that the attribute's type matches the return type.
 LogicalResult emitc::VariableOp::verify() {
-  Attribute value = valueAttr();
+  Attribute value = getValueAttr();
   Type type = getType();
   if (!value.getType().isa<NoneType>() && type != value.getType())
     return emitOpError() << "requires attribute's type (" << value.getType()
@@ -217,7 +230,12 @@ Type emitc::OpaqueType::parse(AsmParser &parser) {
   std::string value;
   SMLoc loc = parser.getCurrentLocation();
   if (parser.parseOptionalString(&value) || value.empty()) {
-    parser.emitError(loc) << "expected non empty string";
+    parser.emitError(loc) << "expected non empty string in !emitc.opaque type";
+    return Type();
+  }
+  if (value.back() == '*') {
+    parser.emitError(loc) << "pointer not allowed as outer type with "
+                             "!emitc.opaque, use !emitc.ptr instead";
     return Type();
   }
   if (parser.parseGreater())

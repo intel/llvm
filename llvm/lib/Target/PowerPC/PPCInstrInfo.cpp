@@ -1086,8 +1086,8 @@ unsigned PPCInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
 
 // For opcodes with the ReMaterializable flag set, this function is called to
 // verify the instruction is really rematable.
-bool PPCInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
-                                                     AliasAnalysis *AA) const {
+bool PPCInstrInfo::isReallyTriviallyReMaterializable(
+    const MachineInstr &MI) const {
   switch (MI.getOpcode()) {
   default:
     // This function should only be called for opcodes with the ReMaterializable
@@ -3232,6 +3232,47 @@ MachineInstr *PPCInstrInfo::getDefMIPostRA(unsigned Reg, MachineInstr &MI,
       SeenIntermediateUse = true;
   }
   return nullptr;
+}
+
+void PPCInstrInfo::materializeImmPostRA(MachineBasicBlock &MBB,
+                                        MachineBasicBlock::iterator MBBI,
+                                        const DebugLoc &DL, Register Reg,
+                                        int64_t Imm) const {
+  assert(!MBB.getParent()->getRegInfo().isSSA() &&
+         "Register should be in non-SSA form after RA");
+  bool isPPC64 = Subtarget.isPPC64();
+  // FIXME: Materialization here is not optimal.
+  // For some special bit patterns we can use less instructions.
+  // See `selectI64ImmDirect` in PPCISelDAGToDAG.cpp.
+  if (isInt<16>(Imm)) {
+    BuildMI(MBB, MBBI, DL, get(isPPC64 ? PPC::LI8 : PPC::LI), Reg).addImm(Imm);
+  } else if (isInt<32>(Imm)) {
+    BuildMI(MBB, MBBI, DL, get(isPPC64 ? PPC::LIS8 : PPC::LIS), Reg)
+        .addImm(Imm >> 16);
+    if (Imm & 0xFFFF)
+      BuildMI(MBB, MBBI, DL, get(isPPC64 ? PPC::ORI8 : PPC::ORI), Reg)
+          .addReg(Reg, RegState::Kill)
+          .addImm(Imm & 0xFFFF);
+  } else {
+    assert(isPPC64 && "Materializing 64-bit immediate to single register is "
+                      "only supported in PPC64");
+    BuildMI(MBB, MBBI, DL, get(PPC::LIS8), Reg).addImm(Imm >> 48);
+    if ((Imm >> 32) & 0xFFFF)
+      BuildMI(MBB, MBBI, DL, get(PPC::ORI8), Reg)
+          .addReg(Reg, RegState::Kill)
+          .addImm((Imm >> 32) & 0xFFFF);
+    BuildMI(MBB, MBBI, DL, get(PPC::RLDICR), Reg)
+        .addReg(Reg, RegState::Kill)
+        .addImm(32)
+        .addImm(31);
+    BuildMI(MBB, MBBI, DL, get(PPC::ORIS8), Reg)
+        .addReg(Reg, RegState::Kill)
+        .addImm((Imm >> 16) & 0xFFFF);
+    if (Imm & 0xFFFF)
+      BuildMI(MBB, MBBI, DL, get(PPC::ORI8), Reg)
+          .addReg(Reg, RegState::Kill)
+          .addImm(Imm & 0xFFFF);
+  }
 }
 
 MachineInstr *PPCInstrInfo::getForwardingDefMI(

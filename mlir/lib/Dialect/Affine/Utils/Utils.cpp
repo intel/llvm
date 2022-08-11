@@ -28,6 +28,7 @@
 #define DEBUG_TYPE "affine-utils"
 
 using namespace mlir;
+using namespace presburger;
 
 namespace {
 /// Visit affine expressions recursively and build the sequence of operations
@@ -259,7 +260,7 @@ static Operation *getOutermostInvariantForOp(AffineIfOp ifOp) {
   // Walk up the parents past all for op that this conditional is invariant on.
   auto ifOperands = ifOp.getOperands();
   auto *res = ifOp.getOperation();
-  while (!isa<FuncOp>(res->getParentOp())) {
+  while (!isa<func::FuncOp>(res->getParentOp())) {
     auto *parentOp = res->getParentOp();
     if (auto forOp = dyn_cast<AffineForOp>(parentOp)) {
       if (llvm::is_contained(ifOperands, forOp.getInductionVar()))
@@ -369,7 +370,7 @@ mlir::affineParallelize(AffineForOp forOp,
       llvm::makeArrayRef(upperBoundMap), upperBoundOperands,
       llvm::makeArrayRef(forOp.getStep()));
   // Steal the body of the old affine for op.
-  newPloop.region().takeBody(forOp.region());
+  newPloop.getRegion().takeBody(forOp.getRegion());
   Operation *yieldOp = &newPloop.getBody()->back();
 
   // Handle the initial values of reductions because the parallel loop always
@@ -486,7 +487,7 @@ void mlir::normalizeAffineParallel(AffineParallelOp op) {
   if (op.hasMinMaxBounds())
     return;
 
-  AffineMap lbMap = op.lowerBoundsMap();
+  AffineMap lbMap = op.getLowerBoundsMap();
   SmallVector<int64_t, 8> steps = op.getSteps();
   // No need to do any work if the parallel op is already normalized.
   bool isAlreadyNormalized =
@@ -621,6 +622,10 @@ LogicalResult mlir::normalizeAffineFor(AffineForOp op) {
                      newUbExprs, opBuilder.getContext());
   canonicalizeMapAndOperands(&newUbMap, &ubOperands);
 
+  SmallVector<Value, 4> lbOperands(lb.getOperands().begin(),
+                                   lb.getOperands().begin() +
+                                       lb.getMap().getNumDims());
+
   // Normalize the loop.
   op.setUpperBound(ubOperands, newUbMap);
   op.setLowerBound({}, opBuilder.getConstantAffineMap(0));
@@ -629,9 +634,6 @@ LogicalResult mlir::normalizeAffineFor(AffineForOp op) {
   // Calculate the Value of new loopIV. Create affine.apply for the value of
   // the loopIV in normalized loop.
   opBuilder.setInsertionPointToStart(op.getBody());
-  SmallVector<Value, 4> lbOperands(lb.getOperands().begin(),
-                                   lb.getOperands().begin() +
-                                       lb.getMap().getNumDims());
   // Add an extra dim operand for loopIV.
   lbOperands.push_back(op.getInductionVar());
   // Add symbol operands from lower bound.
@@ -1019,7 +1021,7 @@ static void loadCSE(AffineReadOpInterface loadA,
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
-void mlir::affineScalarReplace(FuncOp f, DominanceInfo &domInfo,
+void mlir::affineScalarReplace(func::FuncOp f, DominanceInfo &domInfo,
                                PostDominanceInfo &postDomInfo) {
   // Load op's whose results were replaced by those forwarded from stores.
   SmallVector<Operation *, 8> opsToErase;
@@ -1276,12 +1278,12 @@ LogicalResult mlir::replaceAllMemRefUsesWith(
   std::unique_ptr<DominanceInfo> domInfo;
   std::unique_ptr<PostDominanceInfo> postDomInfo;
   if (domOpFilter)
-    domInfo =
-        std::make_unique<DominanceInfo>(domOpFilter->getParentOfType<FuncOp>());
+    domInfo = std::make_unique<DominanceInfo>(
+        domOpFilter->getParentOfType<func::FuncOp>());
 
   if (postDomOpFilter)
     postDomInfo = std::make_unique<PostDominanceInfo>(
-        postDomOpFilter->getParentOfType<FuncOp>());
+        postDomOpFilter->getParentOfType<func::FuncOp>());
 
   // Walk all uses of old memref; collect ops to perform replacement. We use a
   // DenseSet since an operation could potentially have multiple uses of a
@@ -1633,7 +1635,7 @@ static void createNewDynamicSizes(MemRefType oldMemRefType,
   for (unsigned d = 0; d < oldMemRefType.getRank(); ++d) {
     if (oldMemRefShape[d] < 0) {
       // Use dynamicSizes of allocOp for dynamic dimension.
-      inAffineApply.emplace_back(allocOp->dynamicSizes()[dynIdx]);
+      inAffineApply.emplace_back(allocOp->getDynamicSizes()[dynIdx]);
       dynIdx++;
     } else {
       // Create ConstantOp for static dimension.
@@ -1679,7 +1681,7 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
   // Fetch a new memref type after normalizing the old memref to have an
   // identity map layout.
   MemRefType newMemRefType =
-      normalizeMemRefType(memrefType, b, allocOp->symbolOperands().size());
+      normalizeMemRefType(memrefType, b, allocOp->getSymbolOperands().size());
   if (newMemRefType == memrefType)
     // Either memrefType already had an identity map or the map couldn't be
     // transformed to an identity map.
@@ -1687,7 +1689,7 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
 
   Value oldMemRef = allocOp->getResult();
 
-  SmallVector<Value, 4> symbolOperands(allocOp->symbolOperands());
+  SmallVector<Value, 4> symbolOperands(allocOp->getSymbolOperands());
   AffineMap layoutMap = memrefType.getLayout().getAffineMap();
   memref::AllocOp newAlloc;
   // Check if `layoutMap` is a tiled layout. Only single layout map is
@@ -1702,10 +1704,10 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
     // Add the new dynamic sizes in new AllocOp.
     newAlloc =
         b.create<memref::AllocOp>(allocOp->getLoc(), newMemRefType,
-                                  newDynamicSizes, allocOp->alignmentAttr());
+                                  newDynamicSizes, allocOp->getAlignmentAttr());
   } else {
     newAlloc = b.create<memref::AllocOp>(allocOp->getLoc(), newMemRefType,
-                                         allocOp->alignmentAttr());
+                                         allocOp->getAlignmentAttr());
   }
   // Replace all uses of the old memref.
   if (failed(replaceAllMemRefUsesWith(oldMemRef, /*newMemRef=*/newAlloc,
@@ -1757,14 +1759,14 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
   // We have a single map that is not an identity map. Create a new memref
   // with the right shape and an identity layout map.
   ArrayRef<int64_t> shape = memrefType.getShape();
-  // FlatAffineConstraint may later on use symbolicOperands.
-  FlatAffineConstraints fac(rank, numSymbolicOperands);
+  // FlatAffineValueConstraint may later on use symbolicOperands.
+  FlatAffineValueConstraints fac(rank, numSymbolicOperands);
   SmallVector<unsigned, 4> memrefTypeDynDims;
   for (unsigned d = 0; d < rank; ++d) {
     // Use constraint system only in static dimensions.
     if (shape[d] > 0) {
-      fac.addBound(FlatAffineConstraints::LB, d, 0);
-      fac.addBound(FlatAffineConstraints::UB, d, shape[d] - 1);
+      fac.addBound(IntegerPolyhedron::LB, d, 0);
+      fac.addBound(IntegerPolyhedron::UB, d, shape[d] - 1);
     } else {
       memrefTypeDynDims.emplace_back(d);
     }
@@ -1776,7 +1778,7 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
     return memrefType;
   // TODO: Handle semi-affine maps.
   // Project out the old data dimensions.
-  fac.projectOut(newRank, fac.getNumIds() - newRank - fac.getNumLocalIds());
+  fac.projectOut(newRank, fac.getNumVars() - newRank - fac.getNumLocalVars());
   SmallVector<int64_t, 4> newShape(newRank);
   for (unsigned d = 0; d < newRank; ++d) {
     // Check if each dimension of normalized memrefType is dynamic.
@@ -1786,15 +1788,15 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
       newShape[d] = -1;
     } else {
       // The lower bound for the shape is always zero.
-      auto ubConst = fac.getConstantBound(FlatAffineConstraints::UB, d);
+      auto ubConst = fac.getConstantBound(IntegerPolyhedron::UB, d);
       // For a static memref and an affine map with no symbols, this is
       // always bounded.
-      assert(ubConst.hasValue() && "should always have an upper bound");
-      if (ubConst.getValue() < 0)
+      assert(ubConst && "should always have an upper bound");
+      if (ubConst.value() < 0)
         // This is due to an invalid map that maps to a negative space.
         return memrefType;
       // If dimension of new memrefType is dynamic, the value is -1.
-      newShape[d] = ubConst.getValue() + 1;
+      newShape[d] = ubConst.value() + 1;
     }
   }
 

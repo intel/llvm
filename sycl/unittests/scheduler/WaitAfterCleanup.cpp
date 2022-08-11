@@ -10,7 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 #include <helpers/ScopedEnvVar.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 TEST_F(SchedulerTest, PostEnqueueCleanupForCommandDefault) {
   auto Cmd = new MockCommand(detail::getSyclObjImpl(MQueue));

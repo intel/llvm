@@ -310,7 +310,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     auto *S = C.getELFSection(".linker-options", ELF::SHT_LLVM_LINKER_OPTIONS,
                               ELF::SHF_EXCLUDE);
 
-    Streamer.SwitchSection(S);
+    Streamer.switchSection(S);
 
     for (const auto *Operand : LinkerOptions->operands()) {
       if (cast<MDNode>(Operand)->getNumOperands() != 2)
@@ -326,7 +326,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     auto *S = C.getELFSection(".deplibs", ELF::SHT_LLVM_DEPENDENT_LIBRARIES,
                               ELF::SHF_MERGE | ELF::SHF_STRINGS, 1);
 
-    Streamer.SwitchSection(S);
+    Streamer.switchSection(S);
 
     for (const auto *Operand : DependentLibraries->operands()) {
       Streamer.emitBytes(
@@ -350,7 +350,7 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
       auto *S = C.getObjectFileInfo()->getPseudoProbeDescSection(
           TM->getFunctionSections() ? Name->getString() : StringRef());
 
-      Streamer.SwitchSection(S);
+      Streamer.switchSection(S);
       Streamer.emitInt64(GUID->getZExtValue());
       Streamer.emitInt64(Hash->getZExtValue());
       Streamer.emitULEB128IntValue(Name->getString().size());
@@ -365,11 +365,11 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
   GetObjCImageInfo(M, Version, Flags, Section);
   if (!Section.empty()) {
     auto *S = C.getELFSection(Section, ELF::SHT_PROGBITS, ELF::SHF_ALLOC);
-    Streamer.SwitchSection(S);
+    Streamer.switchSection(S);
     Streamer.emitLabel(C.getOrCreateSymbol(StringRef("OBJC_IMAGE_INFO")));
     Streamer.emitInt32(Version);
     Streamer.emitInt32(Flags);
-    Streamer.AddBlankLine();
+    Streamer.addBlankLine();
   }
 
   emitCGProfileMetadata(Streamer, M);
@@ -399,7 +399,7 @@ void TargetLoweringObjectFileELF::emitPersonalityValue(
   MCSection *Sec = getContext().getELFNamedSection(".data", Label->getName(),
                                                    ELF::SHT_PROGBITS, Flags, 0);
   unsigned Size = DL.getPointerSize();
-  Streamer.SwitchSection(Sec);
+  Streamer.switchSection(Sec);
   Streamer.emitValueToAlignment(DL.getPointerABIAlignment(0).value());
   Streamer.emitSymbolAttribute(Label, MCSA_ELF_TypeObject);
   const MCExpr *E = MCConstantExpr::create(Size, getContext());
@@ -446,8 +446,7 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
                                       /*AddSegmentInfo=*/false) ||
       Name == getInstrProfSectionName(IPSK_covfun, Triple::ELF,
                                       /*AddSegmentInfo=*/false) ||
-      Name == ".llvmbc" || Name == ".llvmcmd" ||
-      Name.startswith(".llvm.offloading."))
+      Name == ".llvmbc" || Name == ".llvmcmd")
     return SectionKind::getMetadata();
 
   if (Name.empty() || Name[0] != '.') return K;
@@ -499,6 +498,9 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
   if (hasPrefix(Name, ".preinit_array"))
     return ELF::SHT_PREINIT_ARRAY;
 
+  if (hasPrefix(Name, ".llvm.offloading"))
+    return ELF::SHT_LLVM_OFFLOADING;
+
   if (K.isBSS() || K.isThreadBSS())
     return ELF::SHT_NOBITS;
 
@@ -508,8 +510,11 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
 static unsigned getELFSectionFlags(SectionKind K) {
   unsigned Flags = 0;
 
-  if (!K.isMetadata())
+  if (!K.isMetadata() && !K.isExclude())
     Flags |= ELF::SHF_ALLOC;
+
+  if (K.isExclude())
+    Flags |= ELF::SHF_EXCLUDE;
 
   if (K.isText())
     Flags |= ELF::SHF_EXECINSTR;
@@ -1221,12 +1226,12 @@ void TargetLoweringObjectFileMachO::emitModuleMetadata(MCStreamer &Streamer,
   // Get the section.
   MCSectionMachO *S = getContext().getMachOSection(
       Segment, Section, TAA, StubSize, SectionKind::getData());
-  Streamer.SwitchSection(S);
+  Streamer.switchSection(S);
   Streamer.emitLabel(getContext().
                      getOrCreateSymbol(StringRef("L_OBJC_IMAGE_INFO")));
   Streamer.emitInt32(VersionVal);
   Streamer.emitInt32(ImageInfoFlags);
-  Streamer.AddBlankLine();
+  Streamer.addBlankLine();
 }
 
 static void checkMachOComdat(const GlobalValue *GV) {
@@ -1534,6 +1539,9 @@ getCOFFSectionFlags(SectionKind K, const TargetMachine &TM) {
   if (K.isMetadata())
     Flags |=
       COFF::IMAGE_SCN_MEM_DISCARDABLE;
+  else if (K.isExclude())
+    Flags |=
+      COFF::IMAGE_SCN_LNK_REMOVE | COFF::IMAGE_SCN_MEM_DISCARDABLE;
   else if (K.isText())
     Flags |=
       COFF::IMAGE_SCN_MEM_EXECUTE |
@@ -1769,11 +1777,11 @@ void TargetLoweringObjectFileCOFF::emitModuleMetadata(MCStreamer &Streamer,
                                COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
                                    COFF::IMAGE_SCN_MEM_READ,
                                SectionKind::getReadOnly());
-    Streamer.SwitchSection(S);
+    Streamer.switchSection(S);
     Streamer.emitLabel(C.getOrCreateSymbol(StringRef("OBJC_IMAGE_INFO")));
     Streamer.emitInt32(Version);
     Streamer.emitInt32(Flags);
-    Streamer.AddBlankLine();
+    Streamer.addBlankLine();
   }
 
   emitCGProfileMetadata(Streamer, M);
@@ -1786,7 +1794,7 @@ void TargetLoweringObjectFileCOFF::emitLinkerDirectives(
     // spec, this section is a space-separated string containing flags for
     // linker.
     MCSection *Sec = getDrectveSection();
-    Streamer.SwitchSection(Sec);
+    Streamer.switchSection(Sec);
     for (const auto *Option : LinkerOptions->operands()) {
       for (const auto &Piece : cast<MDNode>(Option)->operands()) {
         // Lead with a space for consistency with our dllexport implementation.
@@ -1805,7 +1813,7 @@ void TargetLoweringObjectFileCOFF::emitLinkerDirectives(
                                  getMangler());
     OS.flush();
     if (!Flags.empty()) {
-      Streamer.SwitchSection(getDrectveSection());
+      Streamer.switchSection(getDrectveSection());
       Streamer.emitBytes(Flags);
     }
     Flags.clear();
@@ -1831,7 +1839,7 @@ void TargetLoweringObjectFileCOFF::emitLinkerDirectives(
         OS.flush();
 
         if (!Flags.empty()) {
-          Streamer.SwitchSection(getDrectveSection());
+          Streamer.switchSection(getDrectveSection());
           Streamer.emitBytes(Flags);
         }
         Flags.clear();
@@ -2557,6 +2565,20 @@ MCSection *TargetLoweringObjectFileXCOFF::getSectionForTOCEntry(
           XCOFF::XTY_SD));
 }
 
+MCSection *TargetLoweringObjectFileXCOFF::getSectionForLSDA(
+    const Function &F, const MCSymbol &FnSym, const TargetMachine &TM) const {
+  auto *LSDA = cast<MCSectionXCOFF>(LSDASection);
+  if (TM.getFunctionSections()) {
+    // If option -ffunction-sections is on, append the function name to the
+    // name of the LSDA csect so that each function has its own LSDA csect.
+    // This helps the linker to garbage-collect EH info of unused functions.
+    SmallString<128> NameStr = LSDA->getName();
+    raw_svector_ostream(NameStr) << '.' << F.getName();
+    LSDA = getContext().getXCOFFSection(NameStr, LSDA->getKind(),
+                                        LSDA->getCsectProp());
+  }
+  return LSDA;
+}
 //===----------------------------------------------------------------------===//
 //                                  GOFF
 //===----------------------------------------------------------------------===//
@@ -2571,8 +2593,8 @@ MCSection *TargetLoweringObjectFileGOFF::SelectSectionForGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
   auto *Symbol = TM.getSymbol(GO);
   if (Kind.isBSS())
-    return getContext().getGOFFSection(Symbol->getName(),
-                                       SectionKind::getBSS());
+    return getContext().getGOFFSection(Symbol->getName(), SectionKind::getBSS(),
+                                       nullptr, nullptr);
 
   return getContext().getObjectFileInfo()->getTextSection();
 }

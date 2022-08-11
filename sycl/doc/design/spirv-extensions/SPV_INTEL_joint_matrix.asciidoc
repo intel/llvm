@@ -8,6 +8,7 @@
 :OpJointMatrixSUMadINTEL_token: 6128
 :OpJointMatrixUSMadINTEL_token: 6129
 :OpJointMatrixUUMadINTEL_token: 6130
+:OpJointMatrixWorkItemLengthINTEL_token: 6410
 
 {extension_name}
 ================
@@ -52,8 +53,8 @@ please let us know!
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2021-12-28
-| Revision           | 3
+| Last Modified Date | 2022-03-10
+| Revision           | 4
 |========================================
 
 == Dependencies
@@ -66,7 +67,7 @@ This extension requires SPIR-V 1.0.
 == Overview
 
 This extension adds a type and instructions for joint matrices. Such matrices
-are shared among a group of work items and is not private to each work item.
+are shared among a group of work-items and is not private to each work-item.
 The type introduced with this extension allows to specify memory scope and
 layout of the matrix, including layouts optimized for particular hardware(AMX) .
 New instructions also allow to specify synchronization scope.
@@ -104,6 +105,7 @@ OpJointMatrixMADINTEL
 OpJointMatrixSUMADINTEL
 OpJointMatrixUSMADINTEL
 OpJointMatrixUUMADINTEL
+OpJointMatrixWorkItemLengthINTEL
 
 ----
 
@@ -113,14 +115,15 @@ OpJointMatrixUUMADINTEL
 [cols="70%,30%"]
 [grid="rows"]
 |====
-|*{capability_name}*  | {capability_token}
-|*OpTypeJointMatrixINTEL*    | {OpTypeJointMatrixINTEL_token}
-|*OpJointMatrixLoadINTEL*    | {OpJointMatrixLoadINTEL_token}
-|*OpJointMatrixStoreINTEL*   | {OpJointMatrixStoreINTEL_token}
-|*OpJointMatrixMadINTEL*     | {OpJointMatrixMadINTEL_token}
-|*OpJointMatrixSUMadINTEL*   | {OpJointMatrixSUMadINTEL_token}
-|*OpJointMatrixUSMadINTEL*   | {OpJointMatrixUSMadINTEL_token}
-|*OpJointMatrixUUMadINTEL*   | {OpJointMatrixUUMadINTEL_token}
+|*{capability_name}*                | {capability_token}
+|*OpTypeJointMatrixINTEL*           | {OpTypeJointMatrixINTEL_token}
+|*OpJointMatrixLoadINTEL*           | {OpJointMatrixLoadINTEL_token}
+|*OpJointMatrixStoreINTEL*          | {OpJointMatrixStoreINTEL_token}
+|*OpJointMatrixMadINTEL*            | {OpJointMatrixMadINTEL_token}
+|*OpJointMatrixSUMadINTEL*          | {OpJointMatrixSUMadINTEL_token}
+|*OpJointMatrixUSMadINTEL*          | {OpJointMatrixUSMadINTEL_token}
+|*OpJointMatrixUUMadINTEL*          | {OpJointMatrixUUMadINTEL_token}
+|*OpJointMatrixWorkItemLengthINTEL* | {OpJointMatrixWorkItemLengthINTEL_token}
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.5
@@ -207,7 +210,6 @@ result of a constant instruction with scalar 'integer type'. +
 'Scope'
 |=====
 
-
 ==== 3.37.8. Memory Instructions
 
 [cols="1,1,7*3",width="100%"]
@@ -253,7 +255,6 @@ specifying the <<Memory_Operands,*memory operand*>> *None*. +
 'Memory Access'
 |=====
 
-
 [cols="1,1,6*3",width="100%"]
 |=====
 7+|[[OpJointMatrixStoreINTEL]]*OpJointMatrixStoreINTEL* +
@@ -296,6 +297,36 @@ specifying the <<Memory_Operands,*memory operand*>> *None*. +
 'Memory Access'
 |=====
 
+==== 3.37.12. Composite Instructions
+
+Modify *OpVectorExtractDynamic* and *OpVectorInsertDynamic* to accept
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> as the 'Vector' operand.
+In this case the instructions operate on an implicit vector which represents
+part of the joint matrix and holds components owned by the current work-item.
+If the 'index' operand of these instructions exceeds the value returned by
+<<OpJointMatrixWorkItemLengthINTEL,*OpJointMatrixWorkItemLengthINTEL*>>,
+behavior is undefined.
+
+[cols="1,1,3*3",width="100%"]
+|=====
+4+|[[OpJointMatrixWorkItemLengthINTEL]]*OpJointMatrixWorkItemLengthINTEL* +
+ +
+Return number of components owned by the current work-item in a joint matrix. +
+ +
+'Result Type' must be an 32-bit unsigned integer type scalar. +
+ +
+'Matrix' is the <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> to query the
+number of the components. +
+
+1+|Capability: +
+*{capability_name}*
+1+| 4 | {OpJointMatrixWorkItemLengthINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| '<id>' +
+'Matrix'
+|=====
 
 ==== 3.37.13. Arithmetic Instructions
 
@@ -493,4 +524,5 @@ Revision History
 |1|2021-02-16|Alexey Sotkin|Initial revision
 |2|2021-09-06|Dmitry Sidorov|Split OpJointMatrixMadINTEL instruction into 4
 |3|2021-12-28|Dmitry Sidorov|Add Joint Matrix to Composite definition
+|4|2022-03-10|Dmitry Sidorov|Add OpJointMatrixWorkItemLengthINTEL instruction
 |========================================

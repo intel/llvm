@@ -12,7 +12,7 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <CL/sycl/detail/type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 
 #include <type_traits>
@@ -186,6 +186,16 @@ public:
     ForHelper::template repeat<0, Action>(A);
   }
 };
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+/// Returns the address referenced by the accessor \p Acc and
+/// the byte offset \p Offset.
+template <typename T, typename AccessorTy>
+T *accessorToPointer(AccessorTy Acc, uint32_t Offset = 0) {
+  auto BytePtr = reinterpret_cast<char *>(Acc.get_pointer().get()) + Offset;
+  return reinterpret_cast<T *>(BytePtr);
+}
+#endif // __ESIMD_FORCE_STATELESS_MEM
 
 } // namespace __ESIMD_DNS
 } // __SYCL_INLINE_NAMESPACE(cl)

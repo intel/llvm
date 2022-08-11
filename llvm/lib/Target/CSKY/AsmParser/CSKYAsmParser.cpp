@@ -1686,8 +1686,7 @@ bool CSKYAsmParser::parseDirectiveAttribute() {
     Parser.Lex();
   }
 
-  if (Parser.parseToken(AsmToken::EndOfStatement,
-                        "unexpected token in '.csky_attribute' directive"))
+  if (Parser.parseEOL())
     return true;
 
   if (IsIntegerValue)
@@ -1721,9 +1720,9 @@ unsigned CSKYAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
   if (CSKYMCRegisterClasses[CSKY::FPR32RegClassID].contains(Reg)) {
     // As the parser couldn't differentiate an FPR64 from an FPR32, coerce the
     // register from FPR32 to FPR64 if necessary.
-    if (Kind == MCK_FPR64 || Kind == MCK_sFPR64_V) {
+    if (Kind == MCK_FPR64 || Kind == MCK_sFPR64) {
       Op.Reg.RegNum = convertFPR32ToFPR64(Reg);
-      if (Kind == MCK_sFPR64_V &&
+      if (Kind == MCK_sFPR64 &&
           (Op.Reg.RegNum < CSKY::F0_64 || Op.Reg.RegNum > CSKY::F15_64))
         return Match_InvalidRegOutOfRange;
       if (Kind == MCK_FPR64 &&

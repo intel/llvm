@@ -28,19 +28,6 @@
 namespace llvm {
 extern cl::opt<unsigned> SCEVCheapExpansionBudget;
 
-/// Return true if the given expression is safe to expand in the sense that
-/// all materialized values are safe to speculate anywhere their operands are
-/// defined, and the expander is capable of expanding the expression.
-/// CanonicalMode indicates whether the expander will be used in canonical mode.
-bool isSafeToExpand(const SCEV *S, ScalarEvolution &SE,
-                    bool CanonicalMode = true);
-
-/// Return true if the given expression is safe to expand in the sense that
-/// all materialized values are defined and safe to speculate at the specified
-/// location and their operands are defined at this location.
-bool isSafeToExpandAt(const SCEV *S, const Instruction *InsertionPoint,
-                      ScalarEvolution &SE);
-
 /// struct for holding enough information to help calculate the cost of the
 /// given SCEV when expanded into IR.
 struct SCEVOperand {
@@ -270,6 +257,16 @@ public:
                                SmallVectorImpl<WeakTrackingVH> &DeadInsts,
                                const TargetTransformInfo *TTI = nullptr);
 
+  /// Return true if the given expression is safe to expand in the sense that
+  /// all materialized values are safe to speculate anywhere their operands are
+  /// defined, and the expander is capable of expanding the expression.
+  bool isSafeToExpand(const SCEV *S) const;
+
+  /// Return true if the given expression is safe to expand in the sense that
+  /// all materialized values are defined and safe to speculate at the specified
+  /// location and their operands are defined at this location.
+  bool isSafeToExpandAt(const SCEV *S, const Instruction *InsertionPoint) const;
+
   /// Insert code to directly compute the specified SCEV expression into the
   /// program.  The code is inserted into the specified block.
   Value *expandCodeFor(const SCEV *SH, Type *Ty, Instruction *I) {
@@ -448,13 +445,8 @@ private:
   /// Determine the most "relevant" loop for the given SCEV.
   const Loop *getRelevantLoop(const SCEV *);
 
-  Value *expandSMaxExpr(const SCEVNAryExpr *S);
-
-  Value *expandUMaxExpr(const SCEVNAryExpr *S);
-
-  Value *expandSMinExpr(const SCEVNAryExpr *S);
-
-  Value *expandUMinExpr(const SCEVNAryExpr *S);
+  Value *expandMinMaxExpr(const SCEVNAryExpr *S, Intrinsic::ID IntrinID,
+                          Twine Name, bool IsSequential = false);
 
   Value *visitConstant(const SCEVConstant *S) { return S->getValue(); }
 

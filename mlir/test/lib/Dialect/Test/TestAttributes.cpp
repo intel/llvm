@@ -15,30 +15,17 @@
 #include "TestDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/ExtensibleDialect.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/bit.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace mlir;
 using namespace test;
-
-//===----------------------------------------------------------------------===//
-// AttrWithSelfTypeParamAttr
-//===----------------------------------------------------------------------===//
-
-Attribute AttrWithSelfTypeParamAttr::parse(AsmParser &parser, Type type) {
-  Type selfType;
-  if (parser.parseType(selfType))
-    return Attribute();
-  return get(parser.getContext(), selfType);
-}
-
-void AttrWithSelfTypeParamAttr::print(AsmPrinter &printer) const {
-  printer << " " << getType();
-}
 
 //===----------------------------------------------------------------------===//
 // AttrWithTypeBuilderAttr
@@ -127,10 +114,10 @@ TestI64ElementsAttr::verify(function_ref<InFlightDiagnostic()> emitError,
   return success();
 }
 
-LogicalResult
-TestAttrWithFormatAttr::verify(function_ref<InFlightDiagnostic()> emitError,
-                               int64_t one, std::string two, IntegerAttr three,
-                               ArrayRef<int> four) {
+LogicalResult TestAttrWithFormatAttr::verify(
+    function_ref<InFlightDiagnostic()> emitError, int64_t one, std::string two,
+    IntegerAttr three, ArrayRef<int> four,
+    ArrayRef<AttrWithTypeBuilderAttr> arrayOfAttrWithTypeBuilderAttr) {
   if (four.size() != static_cast<unsigned>(one))
     return emitError() << "expected 'one' to equal 'four.size()'";
   return success();
@@ -186,25 +173,18 @@ void TestSubElementsAccessAttr::walkImmediateSubElements(
   walkAttrsFn(getThird());
 }
 
-SubElementAttrInterface TestSubElementsAccessAttr::replaceImmediateSubAttribute(
-    ArrayRef<std::pair<size_t, Attribute>> replacements) const {
-  Attribute first = getFirst();
-  Attribute second = getSecond();
-  Attribute third = getThird();
-  for (auto &it : replacements) {
-    switch (it.first) {
-    case 0:
-      first = it.second;
-      break;
-    case 1:
-      second = it.second;
-      break;
-    case 2:
-      third = it.second;
-      break;
-    }
-  }
-  return get(getContext(), first, second, third);
+Attribute TestSubElementsAccessAttr::replaceImmediateSubElements(
+    ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
+  assert(replAttrs.size() == 3 && "invalid number of replacement attributes");
+  return get(getContext(), replAttrs[0], replAttrs[1], replAttrs[2]);
+}
+
+//===----------------------------------------------------------------------===//
+// TestExtern1DI64ElementsAttr
+//===----------------------------------------------------------------------===//
+
+ArrayRef<uint64_t> TestExtern1DI64ElementsAttr::getElements() const {
+  return getHandle().getData()->getData();
 }
 
 //===----------------------------------------------------------------------===//
@@ -217,6 +197,74 @@ SubElementAttrInterface TestSubElementsAccessAttr::replaceImmediateSubAttribute(
 #include "TestAttrDefs.cpp.inc"
 
 //===----------------------------------------------------------------------===//
+// Dynamic Attributes
+//===----------------------------------------------------------------------===//
+
+/// Define a singleton dynamic attribute.
+static std::unique_ptr<DynamicAttrDefinition>
+getDynamicSingletonAttr(TestDialect *testDialect) {
+  return DynamicAttrDefinition::get(
+      "dynamic_singleton", testDialect,
+      [](function_ref<InFlightDiagnostic()> emitError,
+         ArrayRef<Attribute> args) {
+        if (!args.empty()) {
+          emitError() << "expected 0 attribute arguments, but had "
+                      << args.size();
+          return failure();
+        }
+        return success();
+      });
+}
+
+/// Define a dynamic attribute representing a pair or attributes.
+static std::unique_ptr<DynamicAttrDefinition>
+getDynamicPairAttr(TestDialect *testDialect) {
+  return DynamicAttrDefinition::get(
+      "dynamic_pair", testDialect,
+      [](function_ref<InFlightDiagnostic()> emitError,
+         ArrayRef<Attribute> args) {
+        if (args.size() != 2) {
+          emitError() << "expected 2 attribute arguments, but had "
+                      << args.size();
+          return failure();
+        }
+        return success();
+      });
+}
+
+static std::unique_ptr<DynamicAttrDefinition>
+getDynamicCustomAssemblyFormatAttr(TestDialect *testDialect) {
+  auto verifier = [](function_ref<InFlightDiagnostic()> emitError,
+                     ArrayRef<Attribute> args) {
+    if (args.size() != 2) {
+      emitError() << "expected 2 attribute arguments, but had " << args.size();
+      return failure();
+    }
+    return success();
+  };
+
+  auto parser = [](AsmParser &parser,
+                   llvm::SmallVectorImpl<Attribute> &parsedParams) {
+    Attribute leftAttr, rightAttr;
+    if (parser.parseLess() || parser.parseAttribute(leftAttr) ||
+        parser.parseColon() || parser.parseAttribute(rightAttr) ||
+        parser.parseGreater())
+      return failure();
+    parsedParams.push_back(leftAttr);
+    parsedParams.push_back(rightAttr);
+    return success();
+  };
+
+  auto printer = [](AsmPrinter &printer, ArrayRef<Attribute> params) {
+    printer << "<" << params[0] << ":" << params[1] << ">";
+  };
+
+  return DynamicAttrDefinition::get("dynamic_custom_assembly_format",
+                                    testDialect, std::move(verifier),
+                                    std::move(parser), std::move(printer));
+}
+
+//===----------------------------------------------------------------------===//
 // TestDialect
 //===----------------------------------------------------------------------===//
 
@@ -225,4 +273,7 @@ void TestDialect::registerAttributes() {
 #define GET_ATTRDEF_LIST
 #include "TestAttrDefs.cpp.inc"
       >();
+  registerDynamicAttr(getDynamicSingletonAttr(this));
+  registerDynamicAttr(getDynamicPairAttr(this));
+  registerDynamicAttr(getDynamicCustomAssemblyFormatAttr(this));
 }

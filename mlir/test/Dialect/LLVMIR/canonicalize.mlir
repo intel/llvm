@@ -100,13 +100,24 @@ llvm.func @fold_gep(%x : !llvm.ptr<i8>) -> !llvm.ptr<i8> {
   llvm.return %c : !llvm.ptr<i8>
 }
 
+// CHECK-LABEL: fold_gep_neg
+// CHECK-SAME: %[[a0:arg[0-9]+]]
+// CHECK-NEXT: %[[C:.*]] = arith.constant 0
+// CHECK-NEXT: %[[RES:.*]] = llvm.getelementptr %[[a0]][%[[C]], 1]
+// CHECK-NEXT: llvm.return %[[RES]]
+llvm.func @fold_gep_neg(%x : !llvm.ptr) -> !llvm.ptr {
+  %c0 = arith.constant 0 : i32
+  %0 = llvm.getelementptr %x[%c0, 1] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+  llvm.return %0 : !llvm.ptr
+}
+
 // -----
 
 // Check that LLVM constants participate in cross-dialect constant folding. The
 // resulting constant is created in the arith dialect because the last folded
 // operation belongs to it.
 // CHECK-LABEL: llvm_constant
-func @llvm_constant() -> i32 {
+func.func @llvm_constant() -> i32 {
   // CHECK-NOT: llvm.mlir.constant
   %0 = llvm.mlir.constant(40 : i32) : i32
   %1 = llvm.mlir.constant(42 : i32) : i32

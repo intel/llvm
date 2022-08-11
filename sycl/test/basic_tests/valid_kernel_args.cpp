@@ -12,7 +12,7 @@
 // Check that the test can be compiled with device compiler as well.
 // RUN: %clangxx -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 struct SomeStructure {
   char a;
@@ -24,18 +24,18 @@ struct SomeStructure {
 };
 
 struct SomeMarrayStructure {
-  cl::sycl::marray<double, 5> points;
+  sycl::marray<double, 5> points;
 };
 
 #define CHECK_PASSING_TO_KERNEL_BY_VALUE(Type)                                 \
   static_assert(std::is_standard_layout<Type>::value,                          \
-                "Is not standard layouti type.");                     \
+                "Is not standard layouti type.");                              \
   static_assert(std::is_trivially_copyable<Type>::value,                       \
                 "Is not trivially copyable type.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 CHECK_PASSING_TO_KERNEL_BY_VALUE(int)
-CHECK_PASSING_TO_KERNEL_BY_VALUE(cl::sycl::cl_uchar4)
+CHECK_PASSING_TO_KERNEL_BY_VALUE(sycl::cl_uchar4)
 CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeStructure)
 #endif
 CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeMarrayStructure)

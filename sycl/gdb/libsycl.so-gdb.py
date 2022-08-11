@@ -28,14 +28,13 @@ class Accessor:
         self.depth = depth
 
     def index(self, arg):
-        if arg.type.code == gdb.TYPE_CODE_INT:
+        if arg.type.unqualified().strip_typedefs().code == gdb.TYPE_CODE_INT:
             return int(arg)
         # unwrap if inside item
         try:
             arg = arg["MImpl"]["MIndex"]
         except:
             pass
-        # https://github.com/intel/llvm/blob/97272b7ebd569bfa13811913a31e30f926559217/sycl/include/CL/sycl/accessor.hpp#L678-L690
         result = 0
         for dim in range(self.depth):
             result = (
@@ -71,7 +70,6 @@ class HostAccessorLocal(HostAccessor):
     def index(self, arg):
         if arg.type.code == gdb.TYPE_CODE_INT:
             return int(arg)
-        # https://github.com/intel/llvm/blob/97272b7ebd569bfa13811913a31e30f926559217/sycl/include/CL/sycl/accessor.hpp#L1049-L1053
         result = 0
         for dim in range(self.depth):
             result = (
