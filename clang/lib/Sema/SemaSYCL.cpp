@@ -1939,7 +1939,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   void handleAccessorType(QualType FieldTy, const CXXRecordDecl *RecordDecl,
                           SourceLocation Loc) {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
-    bool isReadOnly = false;
 
     // If "accessor" type check if read only
     if (Util::isSyclType(FieldTy, "accessor", true /*Tmpl*/)) {
@@ -1949,14 +1948,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       const TemplateArgument &AccessModeArg =
           AccessorSpecializationDecl->getTemplateArgs().get(2);
       if (isReadOnlyAccessor(AccessModeArg))
-        isReadOnly = true;
+        Params.back()->addAttr(
+            SYCLAccessorReadonlyAttr::CreateImplicit(SemaRef.getASTContext()));
     }
 
     // Add implicit attribute to parameter decl when it is a read only
     // SYCL accessor.
-    if (isReadOnly)
-      Params.back()->addAttr(
-          SYCLAccessorReadonlyAttr::CreateImplicit(SemaRef.getASTContext()));
     Params.back()->addAttr(
         SYCLAccessorPtrAttr::CreateImplicit(SemaRef.getASTContext()));
   }
