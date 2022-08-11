@@ -190,7 +190,7 @@ bool collectPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
 // Deduce a single function whose address this value can only contain and
 // return it, otherwise (if can't be deduced or multiple functions deduced)
 // return nullptr.
-Function *deduceFunction(Value *I) {
+Function *deduceFunction(Value *I, SmallPtrSetImpl<const Function *> &Visited) {
   while (true) {
     I = stripCasts(I);
     Function *Res = dyn_cast<Function>(I);
@@ -203,6 +203,11 @@ Function *deduceFunction(Value *I) {
       // parameter - do inter-procedural analysis trying to determine
       // actual target
       Function *Parent = Arg->getParent();
+
+      if (!Visited.insert(Parent).second) {
+        // alredy visited - recursion detected
+        return nullptr;
+      }
       // follow all calls to F and see what functions were passed as actual
       // argument
       for (const User *U : Parent->users()) {
@@ -212,7 +217,7 @@ Function *deduceFunction(Value *I) {
           llvm_unreachable("unsupported data flow pattern for invoke_simd A");
         }
         Value *ActualArg = CI->getArgOperand(Arg->getArgNo());
-        Function *F = deduceFunction(ActualArg);
+        Function *F = deduceFunction(ActualArg, Visited);
 
         if (!F || (Res && (Res != F))) {
           // deduction failed or a different (from previous iteration) function
@@ -364,7 +369,8 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   // from the resulting module after linkage if not fixed up.
   Helper->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
 
-  Function *SimdF = deduceFunction(I);
+  SmallPtrSet<const Function *, 8> Visited;
+  Function *SimdF = deduceFunction(I, Visited);
 
   if (!SimdF) {
     // Call target is not known - don't do anything.
