@@ -131,6 +131,7 @@ struct allocator_traits<sycl::detail::aligned_allocator<T>> {
   }
 
   static size_type max_size(const allocator_type &) noexcept {
+    // max is a macro on Windows...
     return (std::numeric_limits<size_type>::max)() / sizeof(value_type);
   }
 
