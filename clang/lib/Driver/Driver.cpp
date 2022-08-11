@@ -5195,10 +5195,9 @@ class OffloadingActionBuilder final {
         // AOT compilation.
         if (isSPIR || isNVPTX) {
           bool UseJitLink =
-              isSPIR ? Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
-                                    options::OPT_fno_sycl_device_lib_jit_link,
-                                    false)
-                     : false;
+              isSPIR &&
+              Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
+                           options::OPT_fno_sycl_device_lib_jit_link, false);
           bool UseAOTLink = isSPIR && (isSpirvAOT || !UseJitLink);
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, FullLinkObjects, UseAOTLink,
