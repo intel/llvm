@@ -65,12 +65,12 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const std::string &WhatArg)
-    : MMsg(WhatArg + ReservedForErrorcode), MPIErr(PI_ERROR_INVALID_VALUE),
-      MContext(SharedPtrCtx) {
+    : MMsg(std::make_shared<std::string>(WhatArg + ReservedForErrorcode)),
+      MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx) {
   // For compatibility with previous implementation, we are "hiding" the
   // std::error_code in the MMsg string, behind the null string terminator
-  const int StringTermPoint = MMsg.length() - strlen(ReservedForErrorcode);
-  char *ReservedPtr = &MMsg[StringTermPoint];
+  const int StringTermPoint = MMsg->length() - strlen(ReservedForErrorcode);
+  char *ReservedPtr = &(*MMsg)[StringTermPoint];
   ReservedPtr[0] = '\0';
   ReservedPtr++;
   // insert error code
@@ -79,9 +79,9 @@ exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
 }
 
 const std::error_code &exception::code() const noexcept {
-  const char *WhatStr = MMsg.c_str();
+  const char *WhatStr = MMsg->c_str();
   // advance to inner string-terminator
-  int StringTermPoint = MMsg.length() - strlen(ReservedForErrorcode);
+  int StringTermPoint = MMsg->length() - strlen(ReservedForErrorcode);
   if (StringTermPoint >= 0) {
     const char *ReservedPtr = &WhatStr[StringTermPoint];
     // check for string terminator, which denotes a SYCL 2020 exception
@@ -100,7 +100,7 @@ const std::error_category &exception::category() const noexcept {
   return code().category();
 }
 
-const char *exception::what() const noexcept { return MMsg.c_str(); }
+const char *exception::what() const noexcept { return MMsg->c_str(); }
 
 bool exception::has_context() const { return (MContext != nullptr); }
 
