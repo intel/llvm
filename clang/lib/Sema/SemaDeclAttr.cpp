@@ -10426,8 +10426,8 @@ bool isDeviceAspectType(const QualType Ty) {
     return false;
 
   std::array<std::pair<Decl::Kind, StringRef>, 3> Scopes = {
-      MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
       MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
+      MakeDeclContextDesc(Decl::Kind::Namespace, "_V1"),
       MakeDeclContextDesc(Decl::Kind::Enum, "aspect")};
 
   const auto *Ctx = cast<DeclContext>(ET->getDecl());

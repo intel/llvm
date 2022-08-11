@@ -18,8 +18,8 @@ enum class aspect {
 [[__sycl_detail__::__uses_aspects__("123")]] void func1() {}                          // expected-error{{'__uses_aspects__' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
 [[__sycl_detail__::__uses_aspects__(fake_cl::sycl::aspect::aspect1)]] void func2() {} // expected-error{{'__uses_aspects__' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
 
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] void func3();   // expected-note{{previous attribute is here}}
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::gpu)]] void func3() {} // expected-warning{{attribute '__uses_aspects__' is already applied}}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func3();   // expected-note{{previous attribute is here}}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::gpu)]] void func3() {} // expected-warning{{attribute '__uses_aspects__' is already applied}}
 
 template <fake_cl::sycl::aspect Aspect>
 [[__sycl_detail__::__uses_aspects__(Aspect)]] void func4() {} // expected-error 2{{'__uses_aspects__' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
@@ -33,6 +33,6 @@ void checkTemplate() {
 template <typename Ty>
 [[__sycl_detail__::__uses_aspects__(Ty{})]] void func6() {} // expected-error{{'__uses_aspects__' attribute argument is invalid; argument must be device aspect of type sycl::aspect}}
 
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::cpu)]] // expected-note{{previous attribute is here}}
-[[__sycl_detail__::__uses_aspects__(cl::sycl::aspect::gpu)]] void
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] // expected-note{{previous attribute is here}}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::gpu)]] void
 func7() {} // expected-warning@-1{{attribute '__uses_aspects__' is already applied}}

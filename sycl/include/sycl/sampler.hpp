@@ -15,8 +15,8 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/property_list.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 enum class addressing_mode : unsigned int {
   mirrored_repeat = PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT,
   repeat = PI_SAMPLER_ADDRESSING_MODE_REPEAT,
@@ -124,8 +124,8 @@ private:
             access::placeholder IsPlaceholder>
   friend class detail::image_accessor;
 };
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct hash<sycl::sampler> {

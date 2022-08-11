@@ -331,8 +331,8 @@ pi_result enqueueEventsWait(pi_queue command_queue, CUstream stream,
 } // anonymous namespace
 
 /// ------ Error handling, matching OpenCL plugin semantics.
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace pi {
 
@@ -357,8 +357,8 @@ void assertion(bool Condition, const char *Message) {
 
 } // namespace pi
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 //--------------
 // PI object implementation

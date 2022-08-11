@@ -25,8 +25,9 @@
 #include <sycl/detail/iostream_proxy.hpp>
 #endif // __SYCL_DEVICE_ONLY__
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_NS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
@@ -198,8 +199,9 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 
 /// @} sycl_esimd_core_vectors
 
-} // namespace __ESIMD_NS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 /// @ingroup sycl_esimd_misc
 /// Prints a \c simd object to an output stream.

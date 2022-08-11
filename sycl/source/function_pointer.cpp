@@ -10,8 +10,8 @@
 #include <detail/program_impl.hpp>
 #include <sycl/ext/oneapi/__function_pointer.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 ext::oneapi::device_func_ptr_holder_t
 getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
@@ -42,5 +42,5 @@ getDeviceFunctionPointerImpl(device &D, program &P, const char *FuncName) {
 }
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
