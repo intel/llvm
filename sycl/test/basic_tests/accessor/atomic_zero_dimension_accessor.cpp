@@ -19,7 +19,7 @@ void store(atomic_t foo, int value) { foo.store(value); }
 
 int main(int argc, char *argv[]) {
 
-  queue q(default_selector{});
+  queue q(default_selector_v);
 
   // Accessor with dimensionality 0.
   {
