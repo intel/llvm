@@ -8,11 +8,11 @@
 
 #pragma once
 
+#include <sycl/detail/aligned_allocator.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
-template <typename T> class aligned_allocator;
 
 template <typename DataT>
 using sycl_memory_object_allocator = aligned_allocator<DataT>;

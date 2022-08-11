@@ -364,7 +364,7 @@ private:
 class AllocaCommandBase : public Command {
 public:
   AllocaCommandBase(CommandType Type, QueueImplPtr Queue, Requirement Req,
-                    AllocaCommandBase *LinkedAllocaCmd);
+                    AllocaCommandBase *LinkedAllocaCmd, bool IsConst);
 
   ReleaseCommand *getReleaseCmd() { return &MReleaseCmd; }
 
@@ -394,6 +394,8 @@ public:
   /// Indicates that the command owns memory allocation in case of connected
   /// alloca command.
   bool MIsLeaderAlloca = true;
+  // Indicates that the data in this allocation must not be modified
+  bool MIsConst = false;
 
 protected:
   Requirement MRequirement;
@@ -406,7 +408,8 @@ class AllocaCommand : public AllocaCommandBase {
 public:
   AllocaCommand(QueueImplPtr Queue, Requirement Req,
                 bool InitFromUserData = true,
-                AllocaCommandBase *LinkedAllocaCmd = nullptr);
+                AllocaCommandBase *LinkedAllocaCmd = nullptr,
+                bool IsConst = false);
 
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
