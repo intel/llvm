@@ -36,11 +36,6 @@ namespace {                   // #PREVIOUS
 device_global<int> same_name; // OK
 }
 
-// TODO: add diagnostic for this case
-inline namespace other {
-device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
-} // namespace other
-
 // expected-error@+2{{non-inline namespace cannot be reopened as inline}}
 // expected-note@#PREVIOUS{{previous definition is here}}
 inline namespace {
