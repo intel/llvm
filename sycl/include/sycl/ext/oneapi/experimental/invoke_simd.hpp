@@ -235,16 +235,15 @@ simd_obj_call_helper(const void *obj_ptr,
   auto f =
       *reinterpret_cast<const std::remove_reference_t<Callable> *>(obj_ptr);
   return f(simd_args...);
-};
+}
 
 // This function is a wrapper around a call to a function.
 template <int N, class Callable, class... T>
 SYCL_EXTERNAL __regcall detail::SimdRetType<N, Callable, T...>
 simd_func_call_helper(Callable f,
-                      typename detail::spmd2simd<T, N>::type... simd_args)
-    SYCL_ESIMD_FUNCTION {
+                      typename detail::spmd2simd<T, N>::type... simd_args) {
   return f(simd_args...);
-};
+}
 
 #ifdef _GLIBCXX_RELEASE
 #if _GLIBCXX_RELEASE < 10

@@ -35,6 +35,9 @@
 using namespace llvm;
 
 namespace {
+
+constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+
 class SYCLLowerInvokeSimdLegacyPass : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -367,8 +370,10 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   auto *Helper = cast<Function>(H);
   // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
   // from the resulting module after linkage if not fixed up.
-  Helper->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
-
+  Helper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
+  // Also mark helper as explicit SIMD function. Some BEs need this info.
+  Helper->setMetadata(ESIMD_MARKER_MD,
+                      llvm::MDNode::get(Helper->getContext(), {}));
   SmallPtrSet<const Function *, 8> Visited;
   Function *SimdF = deduceFunction(I, Visited);
 
@@ -416,8 +421,9 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
     TheTformedCall->setCalledFunction(SimdF);
     // fixup helper clone's linkage as well:
-    NewHelper->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
+    NewHelper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
     fixFunctionName(NewHelper);
+    NewHelper->copyMetadata(Helper, 0);
   }
 
   // 3. Clone and transform __builtin_invoke_simd call:

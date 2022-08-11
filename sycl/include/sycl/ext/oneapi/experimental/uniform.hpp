@@ -15,6 +15,8 @@
 // 1 - Initial extension version. Base features are supported.
 #define SYCL_EXT_ONEAPI_UNIFORM 1
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_INLINE_NAMESPACE
+
 #include <type_traits>
 
 // Forward declarations of types not allowed to be wrapped in uniform:
@@ -29,6 +31,7 @@ struct sub_group;
 } // namespace ext
 
 template <int, bool> class item;
+template <int> class id;
 template <int> class nd_item;
 template <int> class h_item;
 template <int> class group;
