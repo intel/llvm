@@ -276,6 +276,9 @@ void *MemoryManager::allocate(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
 void *MemoryManager::allocateHostMemory(SYCLMemObjI *MemObj, void *UserPtr,
                                         bool HostPtrReadOnly, size_t Size,
                                         const sycl::property_list &) {
+  std::ignore = HostPtrReadOnly;
+  std::ignore = Size;
+
   // Can return user pointer directly if it is not a nullptr.
   if (UserPtr)
     return UserPtr;
