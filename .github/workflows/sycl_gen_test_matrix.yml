@@ -27,13 +27,13 @@ on:
     outputs:
       lts_matrix:
         description: "Generated Matrix"
-        value: ${{ jobs.resolve_matrix.outputs.lts_matrix }}
+        value: ${{ jobs.testing_matrix.outputs.lts_matrix }}
       lts_aws_matrix:
         description: "Generated Matrix AWS subset"
-        value: ${{ jobs.resolve_matrix.outputs.lts_aws_matrix }}
+        value: ${{ jobs.testing_matrix.outputs.lts_aws_matrix }}
 jobs:
-  resolve_matrix:
-    name: Resolve Test Matrix
+  testing_matrix:
+    name: Generate Testing Matrix
     runs-on: ubuntu-latest
     outputs:
       lts_matrix: ${{ steps.work.outputs.lts_matrix }}
