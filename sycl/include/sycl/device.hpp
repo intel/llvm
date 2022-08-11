@@ -61,6 +61,8 @@ public:
   /// by the DeviceSelector provided.
   ///
   /// \param DeviceSelector SYCL 1.2.1 device_selector to be used (see 4.6.1.1).
+  __SYCL2020_DEPRECATED("Use Callable device selectors instead of deprecated "
+                        "device_selector subclasses.")
   explicit device(const device_selector &DeviceSelector);
 
 #if __cplusplus >= 201703L

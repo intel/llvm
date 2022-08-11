@@ -197,5 +197,8 @@ int main() {
   // expected-warning@+1{{'get_linear_id' is deprecated: use sycl::group::get_group_linear_id() instead}}
   group.get_linear_id();
 
+  // expected-warning@+1{{'default_selector' is deprecated: Use the callable sycl::default_selector_v instead.}}
+  default_selector ds{};
+
   return 0;
 }
