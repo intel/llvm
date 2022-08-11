@@ -19,8 +19,8 @@
 #include <sycl/sycl.hpp>
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -1312,8 +1312,8 @@ operator<<(const sycl::stream &__ss, const complex<_Tp> &_x) {
 } // namespace oneapi
 } // namespace ext
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 #undef _SYCL_EXT_CPLX_INLINE_VISIBILITY
 

@@ -11,8 +11,8 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/usm/usm_enums.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace usm {
 
@@ -30,5 +30,5 @@ __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
 
 } // namespace usm
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

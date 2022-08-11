@@ -19,8 +19,8 @@
 #include <sycl/range.hpp>
 #include <sycl/stl.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // forward declarations
 enum class image_channel_order : unsigned int;
@@ -289,5 +289,5 @@ private:
   size_t MSlicePitch = 0;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
