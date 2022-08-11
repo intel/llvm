@@ -155,11 +155,14 @@ value for ``_LIBCPP_ENABLE_ASSERTIONS`` (if any) will usually be respected.
 When an assertion fails, the program is aborted through a special verbose termination function. The
 library provides a default function that prints an error message and calls ``std::abort()``. Note
 that this function is provided by the static or shared library, so it is only available when deploying
-to a platform where the compiled library is sufficiently recent. However, users can also override that
-function with their own, which can be useful to provide custom behavior, or when deploying to older
-platforms where the default function isn't available.
+to a platform where the compiled library is sufficiently recent. On older platforms, the program will
+terminate in an unspecified unsuccessful manner, but the quality of diagnostics won't be great.
+However, users can also override that function with their own, which can be useful to either provide
+custom behavior or when deploying to an older platform where the default function isn't available.
 
-Replacing the default verbose termination function is done by defining the following function:
+Replacing the default verbose termination function is done by defining the
+``_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED`` macro in all translation units of your program
+and defining the following function in exactly one translation unit:
 
 .. code-block:: cpp
 
@@ -197,20 +200,6 @@ and does return.
 Furthermore, exceptions should not be thrown from the function. Indeed, many functions in the
 library are ``noexcept``, and any exception thrown from the termination function will result
 in ``std::terminate`` being called.
-
-Back-deploying with a custom verbose termination function
----------------------------------------------------------
-When deploying to an older platform that does not provide a default verbose termination function,
-the compiler will diagnose the usage of ``std::__libcpp_verbose_abort`` with an error. This is done
-to avoid the load-time error that would otherwise happen if the code was being deployed on older
-systems.
-
-If you are providing a custom verbose termination function, this error is effectively a false positive.
-To let the library know that you are providing a custom function in back-deployment scenarios, you must
-define the ``_LIBCPP_AVAILABILITY_CUSTOM_VERBOSE_ABORT_PROVIDED`` macro, and the library will assume that
-you are providing your own definition. If no definition is provided and the code is back-deployed to an older
-platform, it will fail to load when the dynamic linker fails to find a definition of the function, so you
-should only remove the guard rails if you really mean it!
 
 Libc++ Configuration Macros
 ===========================
@@ -435,6 +424,21 @@ which no dialect declares as such (See the second form described above).
 * ``to_integer``
 * ``to_underlying``
 
+Extended integral type support
+------------------------------
+
+Several platforms support types that are not specified in the Standard, such as
+the 128-bit integral types ``__int128_t`` and ``__uint128_t``. As an extension,
+libc++ does a best-effort attempt to support these types like other integral
+types, by supporting them notably in:
+
+* ``<bits>``
+* ``<charconv>``
+* ``<functional>``
+* ``<type_traits>``
+* ``<format>``
+* ``<random>``
+
 Additional types supported in random distributions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -443,23 +447,6 @@ distributions with types other than ``short``, ``int``, ``long``, ``long long``,
 undefined. As an extension, libc++ supports instantiating ``binomial_distribution``, ``discrete_distribution``,
 ``geometric_distribution``, ``negative_binomial_distribution``, ``poisson_distribution``, and ``uniform_int_distribution``
 with ``int8_t``, ``__int128_t`` and their unsigned versions.
-
-Extended integral type support
-------------------------------
-
-Several platforms support the 128-bit integral types ``__int128_t`` and
-``__uint128_t``. When these types are present they can be used in the headers
-as required by the Standard:
-
-* ``<bits>``
-* ``<charconv>``
-* ``<functional>``
-* ``<type_traits>``
-
-As an extension these types can be used in the following headers:
-
-* ``<format>``
-* ``<random>``
 
 Extensions to ``<format>``
 --------------------------

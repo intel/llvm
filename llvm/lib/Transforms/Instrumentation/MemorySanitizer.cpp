@@ -579,7 +579,7 @@ private:
 
   /// Run-time helper that generates a new origin value for a stack
   /// allocation.
-  FunctionCallee MsanSetAllocaOrigin4Fn;
+  FunctionCallee MsanSetAllocaOriginFn;
 
   /// Run-time helper that poisons stack on function entry.
   FunctionCallee MsanPoisonStackFn;
@@ -825,9 +825,9 @@ void MemorySanitizer::createUserspaceApi(Module &M) {
         IRB.getInt32Ty());
   }
 
-  MsanSetAllocaOrigin4Fn = M.getOrInsertFunction(
-    "__msan_set_alloca_origin4", IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy,
-    IRB.getInt8PtrTy(), IntptrTy);
+  MsanSetAllocaOriginFn = M.getOrInsertFunction(
+    "__msan_set_alloca_origin", IRB.getVoidTy(), IRB.getInt8PtrTy(), IntptrTy,
+    IRB.getInt8PtrTy());
   MsanPoisonStackFn =
       M.getOrInsertFunction("__msan_poison_stack", IRB.getVoidTy(),
                             IRB.getInt8PtrTy(), IntptrTy);
@@ -2545,10 +2545,20 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     I.eraseFromParent();
   }
 
-  // Similar to memmove: avoid copying shadow twice.
-  // This is somewhat unfortunate as it may slowdown small constant memcpys.
-  // FIXME: consider doing manual inline for small constant sizes and proper
-  // alignment.
+  /// Instrument memcpy
+  ///
+  /// Similar to memmove: avoid copying shadow twice. This is somewhat
+  /// unfortunate as it may slowdown small constant memcpys.
+  /// FIXME: consider doing manual inline for small constant sizes and proper
+  /// alignment.
+  ///
+  /// Note: This also handles memcpy.inline, which promises no calls to external
+  /// functions as an optimization. However, with instrumentation enabled this
+  /// is difficult to promise; additionally, we know that the MSan runtime
+  /// exists and provides __msan_memcpy(). Therefore, we assume that with
+  /// instrumentation it's safe to turn memcpy.inline into a call to
+  /// __msan_memcpy(). Should this be wrong, such as when implementing memcpy()
+  /// itself, instrumentation should be disabled with the no_sanitize attribute.
   void visitMemCpyInst(MemCpyInst &I) {
     getShadow(I.getArgOperand(1)); // Ensure shadow initialized
     IRBuilder<> IRB(&I);
@@ -3875,7 +3885,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     // It will be printed by the run-time if stack-originated UMR is found.
     // The first 4 bytes of the string are set to '----' and will be replaced
     // by __msan_va_arg_overflow_size_tls at the first call.
-    StackDescription << "----" << I.getName() << "@" << F.getName();
+    StackDescription << "----" << I.getName();
     return createPrivateNonConstGlobalForString(*F.getParent(),
                                                 StackDescription.str());
   }
@@ -3895,10 +3905,9 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
     if (PoisonStack && MS.TrackOrigins) {
       Value *Descr = getLocalVarDescription(I);
-      IRB.CreateCall(MS.MsanSetAllocaOrigin4Fn,
+      IRB.CreateCall(MS.MsanSetAllocaOriginFn,
                      {IRB.CreatePointerCast(&I, IRB.getInt8PtrTy()), Len,
-                      IRB.CreatePointerCast(Descr, IRB.getInt8PtrTy()),
-                      IRB.CreatePointerCast(&F, MS.IntptrTy)});
+                      IRB.CreatePointerCast(Descr, IRB.getInt8PtrTy())});
     }
   }
 
@@ -3918,6 +3927,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     if (!InsPoint)
       InsPoint = &I;
     IRBuilder<> IRB(InsPoint->getNextNode());
+    IRB.SetCurrentDebugLocation(InsPoint->getDebugLoc());
     const DataLayout &DL = F.getParent()->getDataLayout();
     uint64_t TypeSize = DL.getTypeAllocSize(I.getAllocatedType());
     Value *Len = ConstantInt::get(MS.IntptrTy, TypeSize);

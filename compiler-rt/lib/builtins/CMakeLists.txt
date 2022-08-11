@@ -165,10 +165,8 @@ set(GENERIC_SOURCES
   subvsi3.c
   subvti3.c
   trampoline_setup.c
-  truncdfbf2.c
   truncdfhf2.c
   truncdfsf2.c
-  truncsfbf2.c
   truncsfhf2.c
   ucmpdi2.c
   ucmpti2.c
@@ -182,6 +180,15 @@ set(GENERIC_SOURCES
   umodsi3.c
   umodti3.c
 )
+
+# Build BF16 files only when "__bf16" is available.
+if(COMPILER_RT_HAS_BFLOAT16 AND NOT APPLE)
+  set(GENERIC_SOURCES
+    ${GENERIC_SOURCES}
+    truncdfbf2.c
+    truncsfbf2.c
+  )
+endif()
 
 # TODO: Several "tf" files (and divtc3.c, but not multc3.c) are in
 # GENERIC_SOURCES instead of here.
@@ -650,6 +657,7 @@ endif()
 set(powerpc64le_SOURCES ${powerpc64_SOURCES})
 
 set(riscv_SOURCES
+  riscv/fp_mode.c
   riscv/save.S
   riscv/restore.S
   ${GENERIC_SOURCES}

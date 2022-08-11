@@ -1444,7 +1444,7 @@ static bool compileModuleAndReadASTBehindLock(
           << Module->Name << Locked.getErrorMessage();
       // Clear out any potential leftover.
       Locked.unsafeRemoveLockFile();
-      LLVM_FALLTHROUGH;
+      [[fallthrough]];
     case llvm::LockFileManager::LFS_Owned:
       // We're responsible for building the module ourselves.
       return compileModuleAndReadASTImpl(ImportingInstance, ImportLoc,
@@ -1882,7 +1882,7 @@ ModuleLoadResult CompilerInstance::findOrCompileModuleAndReadAST(
                               diag::warn_module_config_mismatch)
           << ModuleFilename;
     // Fall through to error out.
-    LLVM_FALLTHROUGH;
+    [[fallthrough]];
   case ASTReader::VersionMismatch:
   case ASTReader::HadErrors:
     ModuleLoader::HadFatalFailure = true;
