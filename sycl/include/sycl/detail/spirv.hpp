@@ -18,8 +18,8 @@
 #include <sycl/memory_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext {
 namespace oneapi {
 struct sub_group;
@@ -734,6 +734,6 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 
 } // namespace spirv
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 #endif //  __SYCL_DEVICE_ONLY__

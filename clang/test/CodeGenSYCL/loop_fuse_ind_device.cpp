@@ -2,7 +2,7 @@
 
 #include "sycl.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 queue q;
 
 [[intel::loop_fuse_independent(5)]] void foo() {}

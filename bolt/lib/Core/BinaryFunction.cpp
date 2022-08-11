@@ -1227,13 +1227,10 @@ bool BinaryFunction::disassemble() {
       BC.DisAsm->getInstruction(TempInst, Size, FunctionData.slice(Offset),
                                 AbsoluteInstrAddr, nulls());
       if (!BC.validateEncoding(TempInst, FunctionData.slice(Offset, Size))) {
-        if (opts::Verbosity >= 0) {
-          errs() << "BOLT-WARNING: internal assembler/disassembler error "
-                    "detected for AVX512 instruction:\n";
-          BC.printInstruction(errs(), TempInst, AbsoluteInstrAddr);
-          errs() << " in function " << *this << '\n';
-        }
-
+        errs() << "BOLT-WARNING: internal assembler/disassembler error "
+                  "detected for AVX512 instruction:\n";
+        BC.printInstruction(errs(), TempInst, AbsoluteInstrAddr);
+        errs() << " in function " << *this << '\n';
         setIgnored();
         break;
       }
@@ -2614,7 +2611,6 @@ bool BinaryFunction::replayCFIInstrs(int32_t FromState, int32_t ToState,
       // so we might as well fall-through here.
     }
     NewCFIs.push_back(CurState);
-    continue;
   }
 
   // Replay instructions while avoiding duplicates

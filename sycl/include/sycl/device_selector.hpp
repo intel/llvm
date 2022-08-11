@@ -13,8 +13,8 @@
 
 // 4.6.1 Device selection class
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declarations
 class device;
@@ -100,7 +100,6 @@ __SYCL_EXPORT int cpu_selector_v(const device &dev);
 __SYCL_EXPORT int accelerator_selector_v(const device &dev);
 
 namespace detail {
-
 // SYCL 2020 section 4.6.1.1 defines a negative score to reject a device from
 // selection
 static constexpr int REJECT_DEVICE_SCORE = -1;
@@ -124,7 +123,6 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable);
 __SYCL_EXPORT device
 select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
               const context &SyclContext);
-
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

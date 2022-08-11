@@ -70,7 +70,7 @@ public:
   /// containing {[get_image_width | get_image_dim], get_image_array_size}
   /// for all images except image1d_t which is always converted into
   /// get_image_width returning scalar result.
-  void visitCallSPRIVImageQuerySize(CallInst *CI);
+  void visitCallSPIRVImageQuerySize(CallInst *CI);
 
   /// Transform __spirv_(NonUniform)Group* to {work_group|sub_group}_*.
   ///

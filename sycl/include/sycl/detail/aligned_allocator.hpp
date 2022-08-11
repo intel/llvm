@@ -10,15 +10,15 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/range.hpp>
 
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <type_traits>
 #include <vector>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 template <typename T> class aligned_allocator {
 public:
@@ -79,5 +79,65 @@ private:
   size_t MAlignment = 128;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+
+namespace std {
+template <typename T>
+struct allocator_traits<sycl::detail::aligned_allocator<T>> {
+  using allocator_type = typename sycl::detail::aligned_allocator<T>;
+  using value_type = typename allocator_type::value_type;
+  using pointer = typename allocator_type::pointer;
+  using const_pointer = typename allocator_type::const_pointer;
+  using void_pointer =
+      typename std::pointer_traits<pointer>::template rebind<void>;
+  using const_void_pointer =
+      typename std::pointer_traits<pointer>::template rebind<const void>;
+  using difference_type =
+      typename std::pointer_traits<pointer>::difference_type;
+  using size_type = typename std::make_unsigned<difference_type>::type;
+  using propagate_on_container_copy_assignment = std::false_type;
+  using propagate_on_container_move_assignment = std::false_type;
+  using propagate_on_container_swap = std::false_type;
+  using is_always_equal = typename std::is_empty<allocator_type>::type;
+
+  template <typename U>
+  using rebind_alloc =
+      typename sycl::detail::aligned_allocator<T>::template rebind<U>::other;
+  template <typename U> using rebind_traits = allocator_traits<rebind_alloc<U>>;
+
+  static pointer allocate(allocator_type &Allocator, size_type NumElems) {
+    return Allocator.allocate(NumElems);
+  }
+
+  static pointer allocate(allocator_type &Allocator, size_type NumElems,
+                          const_void_pointer) {
+    // TODO: Utilize the locality hint argument.
+    return Allocator.allocate(NumElems);
+  }
+
+  static void deallocate(allocator_type &Allocator, pointer Ptr,
+                         size_type NumElems) {
+    Allocator.deallocate(Ptr, NumElems);
+  }
+
+  template <class U, class... ArgsT>
+  static void construct(allocator_type &Allocator, U *Ptr, ArgsT &&...Args) {
+    return Allocator.construct(Ptr, Args...);
+  }
+
+  template <class U> static void destroy(allocator_type &Allocator, U *Ptr) {
+    Allocator.destroy(Ptr);
+  }
+
+  static size_type max_size(const allocator_type &) noexcept {
+    // max is a macro on Windows...
+    return (std::numeric_limits<size_type>::max)() / sizeof(value_type);
+  }
+
+  static allocator_type
+  select_on_container_copy_construction(const allocator_type &Allocator) {
+    return Allocator;
+  }
+};
+} // namespace std

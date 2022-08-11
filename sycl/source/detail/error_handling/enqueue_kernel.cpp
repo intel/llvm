@@ -16,8 +16,8 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/pi.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 namespace enqueue_kernel_launch {
@@ -361,5 +361,5 @@ void handleErrorOrWarning(pi_result Error, const device_impl &DeviceImpl,
 } // namespace enqueue_kernel_launch
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

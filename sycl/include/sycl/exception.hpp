@@ -19,8 +19,8 @@
 
 #include <exception>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 // Forward declaration
 class context;
@@ -329,8 +329,8 @@ public:
       : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
 };
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
 
 namespace std {
 template <> struct is_error_code_enum<sycl::errc> : true_type {};

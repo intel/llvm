@@ -15,8 +15,8 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 #ifdef __clang__
 #ifndef __has_extension
@@ -84,5 +84,5 @@ namespace sycl {
 #define SYCL_EXT_ONEAPI_BACKEND_HIP 1
 #endif
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

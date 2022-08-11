@@ -14,8 +14,8 @@
 #include <memory>
 #include <unordered_map>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 class platform_impl;
 class context_impl;
@@ -107,5 +107,5 @@ private:
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 };
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
