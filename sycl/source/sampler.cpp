@@ -11,8 +11,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 sampler::sampler(coordinate_normalization_mode normalizationMode,
                  addressing_mode addressingMode, filtering_mode filteringMode,
                  const property_list &propList)
@@ -60,5 +60,5 @@ bool sampler::operator!=(const sampler &rhs) const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

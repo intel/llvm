@@ -15,8 +15,9 @@
 #include <sycl/ext/intel/experimental/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/util.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace __ESIMD_ENS {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
+namespace ext::intel::experimental::esimd {
 
 #define __ESIMD_GET_SURF_HANDLE(acc) __ESIMD_NS::get_surface_index(acc)
 
@@ -1564,5 +1565,6 @@ __ESIMD_API void lsc_fence(__ESIMD_NS::simd_mask<N> pred = 1) {
 
 #undef __ESIMD_GET_SURF_HANDLE
 
-} // namespace __ESIMD_ENS
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // namespace ext::intel::experimental::esimd
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl

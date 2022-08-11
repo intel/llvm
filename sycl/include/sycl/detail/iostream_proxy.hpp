@@ -2,7 +2,13 @@
 #include <istream>
 #include <ostream>
 
+// Hotfix to account for the different namespaces in libstdc++ and libc++
+#ifdef _LIBCPP_BEGIN_NAMESPACE_STD
+_LIBCPP_BEGIN_NAMESPACE_STD
+#else
 namespace std {
+#endif
+
 #if defined(_MT) && defined(_DLL)
 #define __SYCL_EXTERN_STREAM_ATTRS __declspec(dllimport)
 #else
@@ -18,4 +24,9 @@ extern __SYCL_EXTERN_STREAM_ATTRS ostream cerr;
 /// Linked to standard error (buffered)
 extern __SYCL_EXTERN_STREAM_ATTRS ostream clog;
 #undef __SYCL_EXTERN_STREAM_ATTRS
+
+#ifdef _LIBCPP_END_NAMESPACE_STD
+_LIBCPP_END_NAMESPACE_STD
+#else
 } // namespace std
+#endif

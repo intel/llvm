@@ -13,8 +13,8 @@
 
 #include <cstring>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 
 namespace host_half_impl {
@@ -84,5 +84,5 @@ bool operator!=(const half &LHS, const half &RHS) { return !(LHS == RHS); }
 } // namespace host_half_impl
 
 } // namespace detail
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)

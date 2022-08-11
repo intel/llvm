@@ -607,6 +607,12 @@ public:
   /// Returns the default name for linked images (e.g., "a.out").
   const char *getDefaultImageName() const;
 
+  // Creates a temp file with $Prefix-%%%%%%.$Suffix
+  const char *CreateTempFile(Compilation &C, StringRef Prefix, StringRef Suffix,
+                             bool MultipleArchs = false,
+                             StringRef BoundArch = {},
+                             types::ID Type = types::TY_Nothing) const;
+
   /// GetNamedOutputPath - Return the name to use for the output of
   /// the action \p JA. The result is appended to the compilation's
   /// list of temporary or result files, as appropriate.
@@ -733,6 +739,10 @@ private:
 
   void setOffloadStaticLibSeen() { OffloadStaticLibSeen = true; }
 
+  /// Use the new offload driver for OpenMP
+  bool UseNewOffloadingDriver = false;
+  void setUseNewOffloadingDriver() { UseNewOffloadingDriver = true; }
+
   /// FPGA Emulation Mode.  By default, this is true due to the fact that
   /// an external option setting is required to target hardware.
   bool FPGAEmulationMode = true;
@@ -797,6 +807,9 @@ public:
   static bool getDefaultModuleCachePath(SmallVectorImpl<char> &Result);
 
   bool getOffloadStaticLibSeen() const { return OffloadStaticLibSeen; };
+
+  /// getUseNewOffloadingDriver - use the new offload driver for OpenMP.
+  bool getUseNewOffloadingDriver() const { return UseNewOffloadingDriver; };
 
   /// addFPGATempDepFile - Add a file to be added to the bundling step of
   /// an FPGA object.

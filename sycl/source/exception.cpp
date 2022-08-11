@@ -12,8 +12,8 @@
 
 #include <cstring>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
 
 namespace { // anonymous
 constexpr char ReservedForErrorcode[] =
@@ -122,5 +122,5 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 
+} // __SYCL_INLINE_VER_NAMESPACE(_V1)
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
