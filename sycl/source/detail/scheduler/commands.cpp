@@ -214,7 +214,7 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // At this stage dependency is definitely pi task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
-    const auto& WorkerQueue = getWorkerQueue();
+    const auto &WorkerQueue = getWorkerQueue();
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
         WorkerQueue->isInOrder() && !isHostTask())
       continue;
@@ -225,11 +225,10 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   return RetPiEvents;
 }
 
-bool Command::isHostTask() const
-{
-  return (MType == CommandType::RUN_CG) /* host task has this type also */&&
+bool Command::isHostTask() const {
+  return (MType == CommandType::RUN_CG) /* host task has this type also */ &&
          ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
-             CG::CGTYPE::CodeplayHostTask);
+          CG::CGTYPE::CodeplayHostTask);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -947,7 +946,6 @@ void AllocaCommand::printDot(std::ostream &Stream) const {
   Stream << " Link : " << this->MLinkedAllocaCmd << "\\n";
   Stream << "\"];" << std::endl;
 
-
   for (const auto &Dep : MDeps) {
     if (Dep.MDepCommand == nullptr)
       continue;
@@ -1092,7 +1090,6 @@ pi_int32 ReleaseCommand::enqueueImp() {
     // 2. Host allocation should be released if host allocation is "leader".
     // 3. Device alloca in the pair should be in active state in order to be
     //    correctly released.
-
 
     // There is no actual memory allocation if a host alloca command is created
     // being linked to a device allocation.

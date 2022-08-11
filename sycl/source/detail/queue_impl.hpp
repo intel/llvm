@@ -123,9 +123,7 @@ public:
     }
     if (!MHostQueue) {
       const QueueOrder QOrder =
-          MIsInorder
-              ? QueueOrder::Ordered
-              : QueueOrder::OOO;
+          MIsInorder ? QueueOrder::Ordered : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
     }
   }
