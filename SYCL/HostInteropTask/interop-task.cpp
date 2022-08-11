@@ -1,7 +1,3 @@
-// RUN: %clangxx -fsycl -DSYCL2020_CONFORMANT_APIS -fsycl-targets=%sycl_triple %s -o %t.out %threads_lib %opencl_lib
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %threads_lib %opencl_lib
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
@@ -47,16 +43,9 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
       auto DstMem = IH.get_native_mem<backend::opencl>(DstA);
       cl_event Event;
 
-#ifdef SYCL2020_CONFORMANT_APIS
       int RC = clEnqueueCopyBuffer(NativeQ, SrcMem[0], DstMem[0], 0, 0,
                                    sizeof(DataT) * SrcA.get_count(), 0, nullptr,
                                    &Event);
-#else
-      int RC = clEnqueueCopyBuffer(NativeQ, SrcMem, DstMem, 0, 0,
-                                   sizeof(DataT) * SrcA.get_count(), 0, nullptr,
-                                   &Event);
-#endif
-
       if (RC != CL_SUCCESS)
         throw runtime_error("Can't enqueue buffer copy", RC);
 
@@ -180,15 +169,9 @@ void test3(queue &Q) {
 
   Q.submit([&](handler &CGH) {
     auto Func = [=](interop_handle IH) {
-#ifdef SYCL2020_CONFORMANT_APIS
       std::vector<cl_event> Ev = get_native<backend::opencl>(Event);
 
       int RC = clWaitForEvents(1, Ev.data());
-#else
-      cl_event Ev = get_native<backend::opencl>(Event);
-
-      int RC = clWaitForEvents(1, &Ev);
-#endif
       if (RC != CL_SUCCESS)
         throw runtime_error("Can't wait for events", RC);
     };
