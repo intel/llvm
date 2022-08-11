@@ -458,14 +458,6 @@ static void addArgsForGlobalAccessor(detail::Requirement *AccImpl, size_t Index,
   }
 }
 
-// TODO remove this one once ABI breaking changes are allowed.
-void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
-                         const int Size, const size_t Index, size_t &IndexShift,
-                         bool IsKernelCreatedFromSource) {
-  processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
-             false);
-}
-
 void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                          const int Size, const size_t Index, size_t &IndexShift,
                          bool IsKernelCreatedFromSource, bool IsESIMD) {
@@ -632,13 +624,6 @@ void handler::extractArgsAndReqs() {
     processArg(Ptr, Kind, Size, Index, IndexShift, IsKernelCreatedFromSource,
                false);
   }
-}
-
-// TODO remove once ABI breaking changes are allowed
-void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs) {
-  extractArgsAndReqsFromLambda(LambdaPtr, KernelArgsNum, KernelArgs, false);
 }
 
 void handler::extractArgsAndReqsFromLambda(

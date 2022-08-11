@@ -313,6 +313,8 @@ public:
 
   bool isInterop() const;
 
+  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
+
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
