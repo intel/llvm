@@ -216,10 +216,7 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // to different sync mechanisms for different task types on in-order queue.
     const auto& WorkerQueue = getWorkerQueue();
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->isInOrder() &&
-        (MType != CommandType::RUN_CG /* host task has this type also */ ||
-         (static_cast<const ExecCGCommand *>(this))->getCG().getType() !=
-             CG::CGTYPE::CodeplayHostTask))
+        WorkerQueue->isInOrder() && !isHostTask())
       continue;
 
     RetPiEvents.push_back(EventImpl->getHandleRef());
