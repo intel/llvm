@@ -664,31 +664,29 @@ int main(int argc, char **argv) {
 
   std::vector<std::string> files;
   std::vector<std::string> commands;
-  {
-    cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
-                                        cl::desc("<Specify input file>"),
-                                        cl::cat(toolOptions));
+  cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
+                                      cl::desc("<Specify input file>"),
+                                      cl::cat(toolOptions));
 
-    cl::list<std::string> inputCommandArgs(
-        "args", cl::Positional, cl::desc("<command arguments>"), cl::ZeroOrMore,
-        cl::PositionalEatsArgs);
+  cl::list<std::string> inputCommandArgs(
+      "args", cl::Positional, cl::desc("<command arguments>"), cl::ZeroOrMore,
+      cl::PositionalEatsArgs);
 
-    int size = MLIRArgs.size();
-    const char **data = MLIRArgs.data();
-    InitLLVM y(size, data);
-    cl::ParseCommandLineOptions(size, data);
-    assert(inputFileName.size());
-    for (auto inp : inputFileName) {
-      std::ifstream inputFile(inp);
-      if (!inputFile.good()) {
-        outs() << "Not able to open file: " << inp << "\n";
-        return -1;
-      }
-      files.push_back(inp);
+  int size = MLIRArgs.size();
+  const char **data = MLIRArgs.data();
+  InitLLVM y(size, data);
+  cl::ParseCommandLineOptions(size, data);
+  assert(inputFileName.size());
+  for (auto inp : inputFileName) {
+    std::ifstream inputFile(inp);
+    if (!inputFile.good()) {
+      outs() << "Not able to open file: " << inp << "\n";
+      return -1;
     }
-    for (auto &cmd : inputCommandArgs) {
-      commands.push_back(cmd);
-    }
+    files.push_back(inp);
+  }
+  for (auto &cmd : inputCommandArgs) {
+    commands.push_back(cmd);
   }
 
   // Register and load MLIR Dialects.
