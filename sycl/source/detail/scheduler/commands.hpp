@@ -212,6 +212,8 @@ public:
   std::vector<RT::PiEvent>
   getPiEvents(const std::vector<EventImplPtr> &EventImpls) const;
 
+  bool isHostTask() const;
+
 protected:
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;

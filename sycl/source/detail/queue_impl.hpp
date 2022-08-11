@@ -123,7 +123,7 @@ public:
     }
     if (!MHostQueue) {
       const QueueOrder QOrder =
-          MPropList.has_property<property::queue::in_order>()
+          MIsInorder
               ? QueueOrder::Ordered
               : QueueOrder::OOO;
       MQueues.push_back(createQueue(QOrder));
@@ -207,6 +207,8 @@ public:
 
   /// \return true if this queue has discard_events support.
   bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+
+  bool isInOrder() const { return MIsInorder; }
 
   /// Queries SYCL queue for information.
   ///

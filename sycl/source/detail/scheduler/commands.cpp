@@ -214,9 +214,9 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // At this stage dependency is definitely pi task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
-    auto WorkerQueue = getWorkerQueue();
+    const auto& WorkerQueue = getWorkerQueue();
     if (EventImpl->getWorkerQueue() == WorkerQueue &&
-        WorkerQueue->has_property<property::queue::in_order>() &&
+        WorkerQueue->isInOrder() &&
         (MType != CommandType::RUN_CG /* host task has this type also */ ||
          (static_cast<const ExecCGCommand *>(this))->getCG().getType() !=
              CG::CGTYPE::CodeplayHostTask))
@@ -226,6 +226,13 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
   }
 
   return RetPiEvents;
+}
+
+bool Command::isHostTask() const
+{
+  return (MType == CommandType::RUN_CG) /* host task has this type also */&&
+         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
+             CG::CGTYPE::CodeplayHostTask);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -1531,11 +1538,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
   return getWorkerQueue()->getContextImplPtr();
 }
 
-const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
-  return MQueue->is_host() ? MSrcQueue : MQueue;
-}
-
-cl_int MemCpyCommandHost::enqueueImp() {
+pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;

@@ -360,7 +360,7 @@ event_impl::get_info<info::event::command_execution_status>() {
   if (!MHostEvent) {
     // Command is enqueued and PiEvent is ready
     if (MEvent)
-      return get_event_info<info::event::command_execution_status>::get(
+      return get_event_info<info::event::command_execution_status>(
           this->getHandleRef(), this->getPlugin());
     // Command is blocked and not enqueued, PiEvent is not assigned yet
     else if (MCommand)
