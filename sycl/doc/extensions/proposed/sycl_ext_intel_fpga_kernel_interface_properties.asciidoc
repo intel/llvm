@@ -84,7 +84,7 @@ using the mechanism defined in sycl_ext_oneapi_kernel_properties.
 === Kernel Interface Properties
 
 ```c++
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::intel::experimental {
 
 enum class streaming_interface_options_enum {
   accept_downstream_stall,
@@ -94,11 +94,6 @@ enum class streaming_interface_options_enum {
 enum class register_map_interface_options_enum {
   wait_for_done_write,
   do_not_wait_for_done_write
-};
-
-template <int N>
-struct initiation_interval {
-  static constexpr int value = N;
 };
 
 struct streaming_interface_key {
@@ -114,9 +109,9 @@ struct register_map_interface_key {
 };
 
 struct pipelined_key {
-  template <bool pipeline_directive, typename initiation_interval>
-  using value_t = property_value<pipelined_key, pipeline_directive,
-   initiation_interval>;
+  template <size_t pipeline_directive_or_initiation_interval>
+  using value_t = property_value<pipelined_key,
+    std::integral_constant<size_t, pipeline_directive_or_initiation_interval>;
 };
 
 template <streaming_interface_options_enum option>
@@ -130,6 +125,10 @@ inline constexpr streaming_interface_key::value_t<
   streaming_interface_options_enum::remove_downstream_stall>
     streaming_interface_remove_downstream_stall;
 
+template <register_map_interface_options_enum option>
+inline constexpr register_map_interface_key::value_t<option>
+  register_map_interface;
+
 inline constexpr register_map_interface_key::value_t<
   register_map_interface_options_enum::wait_for_done_write>
     register_map_interface_wait_for_done_write;
@@ -138,14 +137,11 @@ inline constexpr register_map_interface_key::value_t<
   register_map_interface_options_enum::do_not_wait_for_done_write>
     register_map_interface_do_not_wait_for_done_write;
 
-inline constexpr register_map_interface_key::value_t<option>
-  register_map_interface;
+template<size_t pipeline_directive_or_initiation_interval>
+inline constexpr pipelined_key::value_t<
+  pipeline_directive_or_initiation_interval> pipelined;
 
-template<bool pipeline_directive, typename initiation_interval>
-inline constexpr pipelined_key::value_t<pipeline_directive,
-  initiation_interval> pipelined;
-
-} // namespace sycl::ext::oneapi::experimental
+} // namespace sycl::ext::intel::experimental
 ```
 
 |===
@@ -178,7 +174,7 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
  * `wait_for_done_write`: Directs the compiler to generate logic that
     back-pressures the kernel until the kernel is notified that its completion
     has been detected. The kernel will be notified when the register it writes
-    its completion signal to is set to 1.
+    its completion signal to is set to 0.
 
  * `do_not_wait_for_done_write`: Directs the compiler to not generate logic that
     would back-pressure the kernel until the kernel is notified of its
@@ -193,23 +189,19 @@ inline constexpr pipelined_key::value_t<pipeline_directive,
  `register_map_interface_do_not_wait_for_done_write`.
 
 |`pipelined`
-|Two sets of values are accepted as property parameters - a boolean, and another
- argument `initiation_interval`.
+|An unsigned integer value is accepted as property parameter.
 
- When the boolean parameter is set to `true`, the property directs the compiler
- to pipeline calls to the kernel such that multiple invocations of the kernel
- can be in flight simultaneously. When the boolean parameter is set to `false`,
- the compiler will not pipeline kernel invocations.
+ When the parameter is set to a non zero value, the property directs the
+ compiler to pipeline calls to the kernel such that multiple invocations of the
+ kernel can be in flight simultaneously. The parameter value also specifies the
+ minimum number of cycles between successive invocations of the kernel. Example:
 
- The second argument specifies the minimum number of cycles between successive
- invocations of the kernel:
-
- * `true, initiation_interval<N>`: The compiler will pipeline multiple kernel
-   invocations such that an invocation can be launched every N cycles if one is available.
+ * `pipelined<N>` - The compiler will pipeline multiple kernel invocations such
+ that an invocation can be launched every `N` cycles if one is available.
  
- If the `initiation_interval` argument is not specified, the behavior is
- implementation defined.
- 
+ When the parameter is set to `0`, the compiler will not pipeline kernel
+ invocations.
+
  If the `pipelined` property is not specified, the default behavior is
  equivalent to a combination of the property parameter values listed above, but
  the choice is implementation defined.
@@ -228,7 +220,7 @@ back-pressure it and hence uses the property
 `streaming_interface_remove_downstream_stall`:
 
 ```c++
-using sycl::ext::oneapi::experimental;
+using sycl::ext::intel::experimental;
 {
   ...
   properties kernel_properties{streaming_interface_remove_downstream_stall};
@@ -243,12 +235,11 @@ The example below shows how to launch a pipelined kernel with a streaming
 interface, and with a new kernel invocation being launched every 2 cycles.
 
 ```c++
-using sycl::ext::oneapi::experimental;
+using sycl::ext::intel::experimental;
 {
   ...
   properties kernel_properties{
-    streaming_interface_accept_downstream_stall,
-    pipelined<true, initiation_interval<2>>};
+    streaming_interface_accept_downstream_stall, pipelined<2>};
 
   q.single_task(kernel_properties, [=] {
     *a = *b + *c;
@@ -262,7 +253,7 @@ The example below shows how the kernel from the previous section could be
 rewritten to leverage an embedded property list:
 
 ```c++
-using sycl::ext::oneapi::experimental;
+using sycl::ext::intel::experimental;
 struct KernelFunctor {
 
   KernelFunctor(int* a, int* b, int* c) : a(a), b(b), c(c) {}
