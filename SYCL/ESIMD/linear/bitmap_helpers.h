@@ -24,8 +24,8 @@
 #include <string>
 #include <sycl/detail/defines.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-  namespace sycl {
+namespace sycl {
+__SYCL_INLINE_VER_NAMESPACE(_V1) {
   namespace ext {
   namespace intel {
   namespace util {
@@ -288,7 +288,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
   } // end namespace util
   } // end namespace intel
   } // end namespace ext
-  } // end namespace sycl
-} // end __SYCL_INLINE_NAMESPACE(cl)
+} // end __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace sycl
 
 #endif // ESIMD_EXAMPLES_COMMON_BITMAP_HELPERS_H
