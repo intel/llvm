@@ -31,6 +31,8 @@
 
 #include <type_traits>
 
+#include <utility>
+
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
 ///
@@ -224,6 +226,20 @@ template <typename DataT, int Dimensions = 1,
 class accessor;
 
 namespace detail {
+// To ensure loop unrolling is done when processing dimensions.
+template <size_t... Inds, class F>
+void dim_loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+#if __cplusplus >= 201703L
+  (f(Inds), ...);
+#else
+  (void)std::initializer_list<int>{((void)(f(Inds)), 0)...};
+#endif
+}
+
+template <size_t count, class F> void dim_loop(F &&f) {
+  dim_loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
+}
+
 void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            access::target Target,
                                            access::mode Mode,
@@ -833,9 +849,7 @@ protected:
   template <int Dims = Dimensions> size_t getLinearIndex(id<Dims> Id) const {
 
     size_t Result = 0;
-    // Unroll the following loop for both host and device code
-    __SYCL_UNROLL(3)
-    for (int I = 0; I < Dims; ++I) {
+    detail::dim_loop<Dims>([&, this](size_t I) {
       Result = Result * getMemoryRange()[I] + Id[I];
       // We've already adjusted for the accessor's offset in the __init, so
       // don't include it here in case of device.
@@ -849,7 +863,8 @@ protected:
       Result += getOffset()[I];
 #endif
 #endif // __SYCL_DEVICE_ONLY__
-    }
+    });
+
     return Result;
   }
 
@@ -1791,8 +1806,7 @@ private:
 #ifdef __SYCL_DEVICE_ONLY__
   size_t getTotalOffset() const {
     size_t TotalOffset = 0;
-    __SYCL_UNROLL(3)
-    for (int I = 0; I < Dimensions; ++I) {
+    detail::dim_loop<Dimensions>([&, this](size_t I) {
       TotalOffset = TotalOffset * impl.MemRange[I];
 #if __cplusplus >= 201703L
       if constexpr (!(PropertyListT::template has_property<
@@ -1802,7 +1816,7 @@ private:
 #else
       TotalOffset += impl.Offset[I];
 #endif
-    }
+    });
 
     return TotalOffset;
   }
