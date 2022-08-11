@@ -511,7 +511,7 @@ mathematical operation.
 |`mgencomplex pow(const mgencomplex& x, const mgenfloat& y)`
 |Raise each complex element in x to the power of the corresponding decimal element in y.
 |`mgencomplex pow(const mgencomplex& x, const genfloat& y)`
-|Raise each complex element in x to the power of the decimal numer y.
+|Raise each complex element in x to the power of the decimal number y.
 |`mgencomplex pow(const gencomplex& x, const mgenfloat& y)`
 |Raise complex number x to the power of each decimal element in y.
 |`mgencomplex pow(const mgencomplex& x, const mgencomplex& y)`
@@ -529,7 +529,7 @@ mathematical operation.
 |`mgencomplex proj(const mgencomplex& x)`
 |Compute the projection for each complex number in marray x.
 |`mgencomplex proj(const mgenfloat& x)`
-|Compute the projection for each real numer in marray x.
+|Compute the projection for each real number in marray x.
 |`mgencomplex sin(const mgencomplex& x)`
 |Compute the sine for each complex number in marray x.
 |`mgencomplex sinh(const mgencomplex& x)`
