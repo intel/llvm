@@ -691,6 +691,10 @@ public:
       MDNode *TBAAStructTag = nullptr, MDNode *ScopeTag = nullptr,
       MDNode *NoAliasTag = nullptr);
 
+private:
+  CallInst *getReductionIntrinsic(Intrinsic::ID ID, Value *Src);
+
+public:
   /// Create a sequential vector fadd reduction intrinsic of the source vector.
   /// The first parameter is a scalar accumulator value. An unordered reduction
   /// can be created by adding the reassoc fast-math flag to the resulting
@@ -748,6 +752,9 @@ public:
   ///
   /// If the pointer isn't i8* it will be converted.
   CallInst *CreateInvariantStart(Value *Ptr, ConstantInt *Size = nullptr);
+
+  /// Create a call to llvm.threadlocal.address intrinsic.
+  CallInst *CreateThreadLocalAddress(Value *Ptr);
 
   /// Create a call to Masked Load intrinsic
   CallInst *CreateMaskedLoad(Type *Ty, Value *Ptr, Align Alignment, Value *Mask,
@@ -879,10 +886,18 @@ public:
                                   Instruction *FMFSource = nullptr,
                                   const Twine &Name = "");
 
-  /// Create a call to intrinsic \p ID with \p args, mangled using \p Types. If
+  /// Create a call to intrinsic \p ID with \p Args, mangled using \p Types. If
   /// \p FMFSource is provided, copy fast-math-flags from that instruction to
   /// the intrinsic.
   CallInst *CreateIntrinsic(Intrinsic::ID ID, ArrayRef<Type *> Types,
+                            ArrayRef<Value *> Args,
+                            Instruction *FMFSource = nullptr,
+                            const Twine &Name = "");
+
+  /// Create a call to intrinsic \p ID with \p RetTy and \p Args. If
+  /// \p FMFSource is provided, copy fast-math-flags from that instruction to
+  /// the intrinsic.
+  CallInst *CreateIntrinsic(Type *RetTy, Intrinsic::ID ID,
                             ArrayRef<Value *> Args,
                             Instruction *FMFSource = nullptr,
                             const Twine &Name = "");
@@ -2226,6 +2241,13 @@ public:
     return Insert(Phi, Name);
   }
 
+private:
+  CallInst *createCallHelper(Function *Callee, ArrayRef<Value *> Ops,
+                             const Twine &Name = "",
+                             Instruction *FMFSource = nullptr,
+                             ArrayRef<OperandBundleDef> OpBundles = {});
+
+public:
   CallInst *CreateCall(FunctionType *FTy, Value *Callee,
                        ArrayRef<Value *> Args = None, const Twine &Name = "",
                        MDNode *FPMathTag = nullptr) {
