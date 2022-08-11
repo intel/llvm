@@ -275,10 +275,11 @@ shr(T1 src0, T2 src1, Sat sat = {}) {
 /// the input vector \p src0 shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+rol(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
   return __esimd_rol<T0, T1, SZ>(src0.data(), src1.data());
 }
 
@@ -291,10 +292,12 @@ __ESIMD_API
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
+                                    uint32_t>() &&
+        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
 rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
   __ESIMD_NS::simd<T1, SZ> Src1 = src1;
   return esimd::rol<T0>(src0, Src1);
@@ -308,13 +311,16 @@ rol(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated left value.
 template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T0>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t,
+                                    uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
+                                    uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t>(),
+    std::remove_const_t<T0>>
 rol(T1 src0, T2 src1) {
   __ESIMD_NS::simd<T1, 1> Src0 = src0;
   __ESIMD_NS::simd<T0, 1> Result = esimd::rol<T0, T1, 1, T2>(Src0, src1);
@@ -330,10 +336,11 @@ rol(T1 src0, T2 src1) {
 /// the input vector \p src0 shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ>
-__ESIMD_API
-    std::enable_if_t<std::is_integral<T0>::value && std::is_integral<T1>::value,
-                     __ESIMD_NS::simd<T0, SZ>>
-    ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t, uint32_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
+ror(__ESIMD_NS::simd<T1, SZ> src0, __ESIMD_NS::simd<T1, SZ> src1) {
   return __esimd_ror<T0, T1, SZ>(src0.data(), src1.data());
 }
 
@@ -346,10 +353,12 @@ __ESIMD_API
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return vector of rotated elements.
 template <typename T0, typename T1, int SZ, typename U>
-__ESIMD_API std::enable_if_t<std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<U>::value,
-                             __ESIMD_NS::simd<T0, SZ>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t, uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
+                                    uint32_t>() &&
+        __ESIMD_NS::detail::is_type<U, int16_t, uint16_t, int32_t, uint32_t>(),
+    __ESIMD_NS::simd<T0, SZ>>
 ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
   __ESIMD_NS::simd<T1, SZ> Src1 = src1;
   return esimd::ror<T0>(src0, Src1);
@@ -363,13 +372,16 @@ ror(__ESIMD_NS::simd<T1, SZ> src0, U src1) {
 /// @param src1 the number of bit positions the input vector shall be rotated.
 /// @return rotated right value.
 template <typename T0, typename T1, typename T2>
-__ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T0>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T1>::value &&
-                                 __ESIMD_DNS::is_esimd_scalar<T2>::value &&
-                                 std::is_integral<T0>::value &&
-                                 std::is_integral<T1>::value &&
-                                 std::is_integral<T2>::value,
-                             std::remove_const_t<T0>>
+__ESIMD_API std::enable_if_t<
+    __ESIMD_DNS::is_esimd_scalar<T0>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T1>::value &&
+        __ESIMD_DNS::is_esimd_scalar<T2>::value &&
+        __ESIMD_NS::detail::is_type<T0, int16_t, uint16_t, int32_t,
+                                    uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T1, int16_t, uint16_t, int32_t,
+                                    uint32_t>() &&
+        __ESIMD_NS::detail::is_type<T2, int16_t, uint16_t, int32_t, uint32_t>(),
+    std::remove_const_t<T0>>
 ror(T1 src0, T2 src1) {
   __ESIMD_NS::simd<T1, 1> Src0 = src0;
   __ESIMD_NS::simd<T0, 1> Result = esimd::ror<T0, T1, 1, T2>(Src0, src1);
