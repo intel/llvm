@@ -2,9 +2,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-//
-// `Group algorithms are not supported on host device.` on HIP backend.
-// XFAIL: hip
 
 // This test performs basic checks of reductions initialized with a sycl::span
 
